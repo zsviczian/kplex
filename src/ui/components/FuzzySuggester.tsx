@@ -8,6 +8,7 @@ import {
   useCallback,
   useEffect,
   useLayoutEffect,
+  useMemo,
   useRef,
   useState,
   type CSSProperties,
@@ -21,7 +22,9 @@ import { createPortal } from "react-dom";
 export type FuzzySuggesterProps<T> = {
   value: string;
   onChange: (value: string) => void;
-  results: readonly T[];
+  results?: readonly T[];
+  /** Rank only while this control can show suggestions; memoized across unrelated parent edits. */
+  getResults?: (query: string) => readonly T[];
   onChoose: (value: T) => void;
   getKey: (value: T) => string;
   getLabel: (value: T) => string;
@@ -42,6 +45,12 @@ export type FuzzySuggesterProps<T> = {
   portalSelector?: string;
   appTopbarSelector?: string;
   maxFloatingHeight?: number;
+  /** Caller-requested readable width; viewport suggestions still clamp to the owning visual viewport. */
+  minFloatingWidth?: number;
+  /** Portal-safe styling for a real consumer's result content, independent of the input ancestor. */
+  resultsClassName?: string;
+  /** Match a normalized query without changing the caller's editable value. */
+  matchingQuery?: string;
   /** Ephemeral caller identity for associating a portaled result list with its owning interaction session. */
   resultsOwnerId?: string;
   /** Composer submit keys accept the selected suggestion before invoking their parent form. */
@@ -112,6 +121,7 @@ export function FuzzySuggester<T>({
   value,
   onChange,
   results,
+  getResults,
   onChoose,
   getKey,
   getLabel,
@@ -126,6 +136,9 @@ export function FuzzySuggester<T>({
   portalSelector,
   appTopbarSelector,
   maxFloatingHeight = 440,
+  minFloatingWidth = 0,
+  resultsClassName = "",
+  matchingQuery,
   resultsOwnerId,
   preferSuggestionOnModifiedEnter = false,
   resultPrefix,
@@ -150,9 +163,11 @@ export function FuzzySuggester<T>({
   const resultsRef = useRef<HTMLDivElement | null>(null);
   const inputRef = useRef<HTMLInputElement | null>(null);
 
-  const visibleResults = focused && !resultsDismissed && (
+  const canShowResults = focused && !resultsDismissed && (
     explicitlyOpened || openResultsOnFocus || (editedSinceFocus && value.trim().length > 0)
-  ) ? results : [];
+  );
+  const visibleResults = useMemo(/** Hidden controls never invoke a potentially large search provider. */ () =>
+    canShowResults ? getResults?.(value) ?? results ?? [] : [], [canShowResults, getResults, results, value]);
   const clampedSelectedIndex = visibleResults.length ? Math.max(0, Math.min(visibleResults.length - 1, selectedIndex)) : 0;
   const ownerDocument = shellRef.current?.ownerDocument ?? null;
   const ownerWindow = ownerDocument?.defaultView ?? null;
@@ -207,7 +222,8 @@ export function FuzzySuggester<T>({
     setEditedSinceFocus(false);
     setResultsDismissed(false);
     input.focus({ preventScroll: true });
-  }, []);
+    onFocusChange?.(true);
+  }, [onFocusChange]);
 
   useEffect(/** Autofocus shares explicit focus-state ownership even when the DOM is already active. */ () => {
     if (autoFocus) focusInput();
@@ -266,7 +282,7 @@ export function FuzzySuggester<T>({
         const viewportTop = visualViewport?.offsetTop ?? 0;
         const viewportWidth = visualViewport?.width ?? ownerWindow.innerWidth;
         const viewportBottom = viewportTop + (visualViewport?.height ?? ownerWindow.innerHeight);
-        const width = Math.min(shellRect.width, Math.max(0, viewportWidth - margin * 2));
+        const width = Math.min(Math.max(shellRect.width, minFloatingWidth), Math.max(0, viewportWidth - margin * 2));
         const left = Math.max(viewportLeft + margin, Math.min(shellRect.left, viewportLeft + viewportWidth - margin - width));
         const belowTop = Math.max(shellRect.bottom + gap, viewportTop + margin);
         const aboveBottom = Math.min(shellRect.top - gap, viewportBottom - margin);
@@ -327,7 +343,7 @@ export function FuzzySuggester<T>({
       cleanup();
       ownerWindow.removeEventListener("pagehide", cleanup);
     };
-  }, [appTopbarSelector, floating, floatingMode, focused, visibleResults.length, maxFloatingHeight, ownerDocument, ownerWindow, portalSelector]);
+  }, [appTopbarSelector, floating, floatingMode, focused, visibleResults.length, maxFloatingHeight, minFloatingWidth, ownerDocument, ownerWindow, portalSelector]);
 
   useEffect(() => {
     const container = resultsRef.current;
@@ -382,21 +398,21 @@ export function FuzzySuggester<T>({
   };
 
   const list = focused && visibleResults.length > 0
-    ? <div ref={resultsRef} data-fuzzy-owner={resultsOwnerId} data-kplex-tooltip-scope className={`kplex-search-results${floating ? " kplex-fuzzy-floating-results" : " kplex-fuzzy-inline-results"}`} style={floating ? overlayStyle ?? undefined : undefined}>
+    ? <div ref={resultsRef} data-fuzzy-owner={resultsOwnerId} data-kplex-tooltip-scope className={`kplex-search-results${floating ? " kplex-fuzzy-floating-results" : " kplex-fuzzy-inline-results"}${resultsClassName ? ` ${resultsClassName}` : ""}`} style={floating ? overlayStyle ?? undefined : undefined}>
       {visibleResults.map((item, resultIndex) => {
         const label = getLabel(item);
         const detail = getDetail?.(item);
-        const highlightQuery = highlightMatches ? value : "";
+        const highlightQuery = highlightMatches ? matchingQuery ?? value : "";
         return <button
           key={getKey(item)}
           data-kplex-fuzzy-index={resultIndex}
-          className={`kplex-search-result${resultIndex === clampedSelectedIndex ? " is-selected" : ""}`}
+          className={`kplex-search-result${resultPrefix ? " has-prefix" : ""}${resultIndex === clampedSelectedIndex ? " is-selected" : ""}`}
           aria-label={detail ? `${label}\n${detail}` : label}
           onMouseDown={(event: MouseEvent<HTMLButtonElement>) => event.preventDefault()}
           onMouseEnter={() => setSelectedIndex(resultIndex)}
           onClick={() => choose(item)}
         >
-          {resultPrefix?.(item)}
+          {resultPrefix ? <span className="kplex-search-result-prefix" aria-hidden="true">{resultPrefix(item)}</span> : null}
           <span>{highlightedText(label, highlightQuery)}</span>{detail ? <small>{highlightedText(detail, highlightQuery)}</small> : null}
         </button>;
       })}

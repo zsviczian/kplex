@@ -1,0 +1,511 @@
+{
+  "schemaVersion": 1,
+  "issue": 93,
+  "pr": 140,
+  "status": "implemented-scoped-validation-passed-full-gate-launcher-failed",
+  "branch": "2026-10-11-issue-93-mobile-sidecar-latency",
+  "planHead": "cf22a744decf7a95fce9c2c29260190f6febfcf5",
+  "acceptedMain": "b2abcbaf15ed3c6c52fecd84dd225ca7265be361",
+  "uncommitted": true,
+  "mergePending": true,
+  "environment": {
+    "node": "v22.22.2",
+    "os": "darwin 23.5.0",
+    "obsidian": "1.14.4 (installer 1.14.0)",
+    "installedObsidianTypes": "1.13.0"
+  },
+  "verification": {
+    "affected": {
+      "command": "node --test --test-concurrency=1 tests/linked-document-follow.test.mjs tests/host-task-yield.test.mjs tests/foreground-work-scheduler.test.mjs",
+      "pass": 59,
+      "fail": 0,
+      "skip": 0
+    },
+    "architecture": {
+      "command": "npm run check:architecture",
+      "pass": 7,
+      "violations": 0,
+      "source": "final source after bookkeeping preservation"
+    },
+    "lint": {
+      "command": "npm run lint:obsidian",
+      "status": "passed",
+      "errors": 0,
+      "warnings": 0,
+      "source": "final source after bookkeeping preservation"
+    },
+    "build": {
+      "command": "npm run build",
+      "status": "passed",
+      "actualInstalledTypes": true,
+      "source": "final source after bookkeeping preservation"
+    },
+    "fullGate": {
+      "command": "npm run verify:obsidian",
+      "status": "failed",
+      "stage": "portable-verify",
+      "architecture": {
+        "pass": 7,
+        "fail": 0
+      },
+      "core": {
+        "pass": 94,
+        "fail": 0
+      },
+      "lint": "passed",
+      "firstTestLane": {
+        "pass": 719,
+        "fail": 0,
+        "skip": 0
+      },
+      "uiBrowserLane": {
+        "pass": 40,
+        "fail": 20,
+        "skip": 0,
+        "failure": "All failures are unchanged spawnSync Google Chrome --dump-dom ETIMEDOUT at the existing 20-second deadline. No assertion or deadline was weakened.",
+        "cases": [
+          "not ok 23 - ActionButton rendered browser behavior",
+          "not ok 24 - attachment rename collision retires placeholder DOM through collapse, later layout and unmount",
+          "not ok 25 - FloatingLayer owner-document browser behavior",
+          "not ok 26 - InfoBubble rendered browser behavior",
+          "not ok 27 - DraggableDialog owner-document browser behavior",
+          "not ok 28 - Draggable floating layer retains placement and owns cleanup in main and framed documents",
+          "not ok 29 - FuzzySuggester production browser behavior",
+          "not ok 30 - FuzzySuggester programmatic focus after native host pre-focus",
+          "not ok 31 - SearchBox plain read model and revision browser behavior",
+          "not ok 32 - External file areas and pinned relationship targets use shared production routing",
+          "not ok 33 - Drop glow remains visible above panels and controls share theme/state styling",
+          "not ok 34 - Editor shared menu and history target eligibility, leave and cancellation",
+          "not ok 35 - Focused Find, history text and area hover outlines remain readable in light and dark themes",
+          "not ok 36 - Plex Find independent field focus, literal matching, cycling and dismissal",
+          "not ok 37 - ResizableAreaFrame localized keyboard behavior",
+          "not ok 38 - Related composer existing selection and ontology disclosure browser behavior",
+          "not ok 39 - Toolbar consumes spare space and search width before wrapping; labels use two lines",
+          "not ok 40 - Plex selection controller preserves mode, section policy, projection and owning-realm cleanup",
+          "not ok 41 - Native hotkey pills support disable, customize, restore, conflicts and recording cleanup",
+          "not ok 42 - long node titles and aliases retain exact rendered truncation and measured width across all density values"
+        ],
+        "unchangedFileSha256": "364634d3f7620f015374e702c3cf1feac29f6021f585664f7ee64d6a6095d05e"
+      },
+      "notReached": [
+        "source lanes",
+        "build",
+        "strict staging/native smoke"
+      ],
+      "limitationAcceptedForThisAssignment": true,
+      "reportSha256": "afc5fed7472993e2cbcbbfca6e2e937af15d80b77741b79cf50efa9af3f92a03",
+      "startedAt": "2026-10-12T19:13:58.167Z",
+      "finishedAt": null,
+      "finalSourceQualification": "Full gate preceded the lastDocumentLeaf compatibility preservation. Final general lane 719/719, affected tests 59/59, architecture, lint, build and exact-build native checks were rerun. Source/index owners are unchanged and their separate lanes passed.",
+      "acceptance": "Maintainer explicitly authorized commit, push, merge and issue closure on 2026-10-12 after review of the recorded failures. Gate status remains failed."
+    },
+    "subsequentSourceChecks": {
+      "portable": {
+        "pass": 334,
+        "fail": 0,
+        "skip": 0
+      },
+      "browser": {
+        "pass": 442,
+        "fail": 0,
+        "skip": 0
+      },
+      "commands": [
+        "npm run test:sources",
+        "npm run test:sources:browser"
+      ],
+      "qualification": "Source/index owners are unchanged by the final lastDocumentLeaf bookkeeping preservation."
+    },
+    "finalGeneralTestLane": {
+      "command": "Canonical first two node commands from package.json scripts.test, run serially with Node 22.22.2",
+      "pass": 719,
+      "fail": 0,
+      "skip": 0,
+      "source": "after final recent-leaf bookkeeping preservation"
+    },
+    "finalAffectedChecks": {
+      "command": "node --test --test-concurrency=1 tests/linked-document-follow.test.mjs tests/host-task-yield.test.mjs tests/foreground-work-scheduler.test.mjs",
+      "pass": 59,
+      "fail": 0,
+      "skip": 0,
+      "source": "after final recent-leaf bookkeeping preservation"
+    }
+  },
+  "baseline": {
+    "artifacts": {
+      "main.js": "8c39cca6feddb3402fc0f9e98606c597b56cc70e38372d1447df5a301044d3df",
+      "styles.css": "e8c9279e8904888aa71d5dd2b01f320d5b32fd10e15feb0b9a9576a34f11cea3",
+      "manifest.json": "0beacdb94adc4a0ec318d69dba87fcb4dc9c1a86784058db341fdefe0dfb4250"
+    },
+    "fixture": {
+      "sequence": 3,
+      "markdown": 77,
+      "indexMode": "on-demand",
+      "backgroundUrls": "background",
+      "animationSpeed": 1,
+      "embedded": false,
+      "viewport": {
+        "width": 1097,
+        "height": 875
+      }
+    },
+    "warmSampleSummary": {
+      "closed": {
+        "samples": 12,
+        "centerDomMs": {
+          "min": 10.4,
+          "p50": 11.1,
+          "p95": 13.3,
+          "max": 13.3
+        },
+        "ownerStartCounts": {
+          "settings-save": 12,
+          "settings-disk": 12,
+          "linked-sync": 12,
+          "sidecar-sync": 12,
+          "semantic-demand": 12
+        },
+        "readyAtSettlement": 12
+      },
+      "sidecar": {
+        "samples": 12,
+        "centerDomMs": {
+          "min": 10.9,
+          "p50": 12.2,
+          "p95": 23,
+          "max": 23
+        },
+        "ownerStartCounts": {
+          "settings-save": 24,
+          "settings-disk": 24,
+          "linked-sync": 36,
+          "native-open": 24,
+          "native-state": 24,
+          "sidecar-sync": 36,
+          "semantic-demand": 12,
+          "body-read": 12
+        },
+        "readyAtSettlement": 12
+      }
+    },
+    "rapidLatestTarget": "failed: older native file-open echo pulled the center/Sidecar back to B after A-to-B-to-C",
+    "initialProbe": {
+      "status": "passed",
+      "samples": 36,
+      "ordinaryPaneControl": {
+        "samples": 12,
+        "centerDomMs": {
+          "min": 10.3,
+          "p50": 10.85,
+          "p95": 13.7,
+          "max": 13.7
+        },
+        "ownerStartCounts": {
+          "settings-save": 12,
+          "settings-disk": 12,
+          "linked-sync": 12,
+          "sidecar-sync": 12,
+          "semantic-demand": 12
+        },
+        "readyAtSettlement": 12
+      },
+      "qualification": "Initial closed condition had two not-yet-ready samples; repeated baseline warmed all targets and required readiness. Initial ordinary-pane and both Sidecar conditions were ready."
+    }
+  },
+  "candidate": {
+    "artifacts": {
+      "main.js": "ee2fdd42b152351c4a1848176088149fc90d37fd3caa4a64113991260f7766e0",
+      "styles.css": "e8c9279e8904888aa71d5dd2b01f320d5b32fd10e15feb0b9a9576a34f11cea3",
+      "manifest.json": "0beacdb94adc4a0ec318d69dba87fcb4dc9c1a86784058db341fdefe0dfb4250"
+    },
+    "desktop": {
+      "status": "passed",
+      "samples": 38,
+      "fixture": {
+        "markdown": 77,
+        "sequence": 3,
+        "indexMode": "on-demand",
+        "backgroundUrls": "background",
+        "animationSpeed": 1,
+        "embedded": false,
+        "viewport": {
+          "width": 1097,
+          "height": 875
+        },
+        "readiness": {
+          "upToDate": true,
+          "phase": "ready",
+          "indexedFiles": 3,
+          "totalFiles": 77,
+          "label": "Local graph ready"
+        },
+        "throttled": true
+      },
+      "summary": {
+        "closed": {
+          "samples": 12,
+          "centerDomMs": {
+            "min": 11.1,
+            "p50": 12.2,
+            "p95": 16.8,
+            "max": 16.8
+          },
+          "ownerStartCounts": {
+            "settings-save": 12,
+            "settings-disk": 12,
+            "linked-sync": 12,
+            "sidecar-sync": 12,
+            "semantic-demand": 12
+          },
+          "readyAtSettlement": 12
+        },
+        "sidecar": {
+          "samples": 12,
+          "centerDomMs": {
+            "min": 10.6,
+            "p50": 12.2,
+            "p95": 24.6,
+            "max": 24.6
+          },
+          "ownerStartCounts": {
+            "settings-save": 24,
+            "settings-disk": 24,
+            "linked-sync": 36,
+            "sidecar-sync": 72,
+            "native-open": 12,
+            "native-state": 12,
+            "semantic-demand": 12,
+            "workspace-event": 60,
+            "follow-eligible": 24,
+            "body-read": 24
+          },
+          "readyAtSettlement": 12
+        },
+        "ordinary-pane": {
+          "samples": 12,
+          "centerDomMs": {
+            "min": 10.9,
+            "p50": 12.3,
+            "p95": 15.9,
+            "max": 15.9
+          },
+          "ownerStartCounts": {
+            "settings-save": 12,
+            "settings-disk": 12,
+            "linked-sync": 12,
+            "sidecar-sync": 12,
+            "semantic-demand": 12
+          },
+          "readyAtSettlement": 12
+        }
+      },
+      "rapidLatestTarget": true,
+      "cleaned": true,
+      "configurationRestored": true,
+      "errors": "No errors captured."
+    },
+    "tabletEmulation": {
+      "status": "passed",
+      "samples": 38,
+      "fixture": {
+        "markdown": 77,
+        "sequence": 3,
+        "indexMode": "on-demand",
+        "backgroundUrls": "background",
+        "animationSpeed": 1,
+        "embedded": false,
+        "viewport": {
+          "width": 900,
+          "height": 875
+        },
+        "readiness": {
+          "upToDate": true,
+          "phase": "ready",
+          "indexedFiles": 3,
+          "totalFiles": 77,
+          "label": "Local graph ready"
+        },
+        "throttled": true
+      },
+      "summary": {
+        "closed": {
+          "samples": 12,
+          "centerDomMs": {
+            "min": 10.9,
+            "p50": 12.15,
+            "p95": 14.9,
+            "max": 14.9
+          },
+          "ownerStartCounts": {
+            "settings-save": 12,
+            "settings-disk": 12,
+            "linked-sync": 12,
+            "sidecar-sync": 12,
+            "semantic-demand": 12
+          },
+          "readyAtSettlement": 12
+        },
+        "sidecar": {
+          "samples": 12,
+          "centerDomMs": {
+            "min": 10.7,
+            "p50": 11.55,
+            "p95": 16.7,
+            "max": 16.7
+          },
+          "ownerStartCounts": {
+            "settings-save": 24,
+            "settings-disk": 24,
+            "linked-sync": 36,
+            "sidecar-sync": 72,
+            "native-open": 12,
+            "native-state": 12,
+            "semantic-demand": 12,
+            "workspace-event": 60,
+            "follow-eligible": 24,
+            "body-read": 24
+          },
+          "readyAtSettlement": 12
+        },
+        "ordinary-pane": {
+          "samples": 12,
+          "centerDomMs": {
+            "min": 11.1,
+            "p50": 11.7,
+            "p95": 13.7,
+            "max": 13.7
+          },
+          "ownerStartCounts": {
+            "settings-save": 12,
+            "settings-disk": 12,
+            "linked-sync": 12,
+            "sidecar-sync": 12,
+            "semantic-demand": 12
+          },
+          "readyAtSettlement": 12
+        }
+      },
+      "rapidLatestTarget": true,
+      "cleaned": true,
+      "configurationRestored": true,
+      "errors": "No errors captured.",
+      "artifacts": {
+        "main.js": "ee2fdd42b152351c4a1848176088149fc90d37fd3caa4a64113991260f7766e0",
+        "styles.css": "e8c9279e8904888aa71d5dd2b01f320d5b32fd10e15feb0b9a9576a34f11cea3",
+        "manifest.json": "0beacdb94adc4a0ec318d69dba87fcb4dc9c1a86784058db341fdefe0dfb4250"
+      },
+      "mode": {
+        "mobile": true,
+        "width": 900,
+        "height": 875,
+        "tabAvailability": {
+          "state": "enabled"
+        },
+        "status": "passed",
+        "restored": {
+          "mobile": false,
+          "width": 1097,
+          "height": 875,
+          "probe": false,
+          "fixture": false
+        }
+      }
+    },
+    "sidebarDesktop": {
+      "status": "passed",
+      "scenarios": 8,
+      "cleaned": true,
+      "artifacts": {
+        "main.js": "ee2fdd42b152351c4a1848176088149fc90d37fd3caa4a64113991260f7766e0",
+        "styles.css": "e8c9279e8904888aa71d5dd2b01f320d5b32fd10e15feb0b9a9576a34f11cea3",
+        "manifest.json": "0beacdb94adc4a0ec318d69dba87fcb4dc9c1a86784058db341fdefe0dfb4250"
+      }
+    },
+    "sidebarPhoneEmulation": {
+      "status": "passed",
+      "scenarios": 8,
+      "cleaned": true,
+      "artifacts": {
+        "main.js": "ee2fdd42b152351c4a1848176088149fc90d37fd3caa4a64113991260f7766e0",
+        "styles.css": "e8c9279e8904888aa71d5dd2b01f320d5b32fd10e15feb0b9a9576a34f11cea3",
+        "manifest.json": "0beacdb94adc4a0ec318d69dba87fcb4dc9c1a86784058db341fdefe0dfb4250"
+      }
+    },
+    "menuMigration": {
+      "status": "passed",
+      "scenarios": 14,
+      "cleaned": true,
+      "artifacts": {
+        "main.js": "ee2fdd42b152351c4a1848176088149fc90d37fd3caa4a64113991260f7766e0",
+        "styles.css": "e8c9279e8904888aa71d5dd2b01f320d5b32fd10e15feb0b9a9576a34f11cea3",
+        "manifest.json": "0beacdb94adc4a0ec318d69dba87fcb4dc9c1a86784058db341fdefe0dfb4250"
+      }
+    }
+  },
+  "timingQualification": "Monotonic API/DOM boundaries with forwarding-observer overhead, not trusted input or paint. Native open counts are the demonstrated comparison. Baseline/candidate observers and startup setup evolved; elapsed timings are descriptive distributions, not a claimed speedup or transferable physical-mobile measurement. Overlapping phases are never summed.",
+  "harnessFindings": [
+    {
+      "case": "phone-sidebar",
+      "before": "Fixed 100ms post-open delay raced native drawer dismissal; the center was already the newest note but visibility became false.",
+      "after": "Await actual hidden native geometry, then unchanged reveal/assertions. No extra close/reopen and no deadline/assertion weakening. Final repository driver passed 8/8."
+    },
+    {
+      "case": "tablet-probe",
+      "before": "New fixtures were inserted before reloaded source-backed startup completed and became unavailable to path navigation during warmup.",
+      "after": "Open ordinary graph and await current readiness before creating/warming fixtures; same assertions and deadlines passed 38 scenarios."
+    },
+    {
+      "case": "final-post-reload-readiness",
+      "before": "A strict premeasurement readiness check expired with zero samples after the long portable run; cleanup succeeded.",
+      "after": "Native inspection then confirmed ready/initialComplete/visible/focused; the unchanged prerequisite and assertions passed on retry. No deadline changed."
+    }
+  ],
+  "priorPlatformEvidence": {
+    "windows": "Maintainer reports full-project tests passed without Chromium timeouts before #140. No exact candidate/artifact identity supplied; not recorded as #140 acceptance.",
+    "linux": "PR #138 verify succeeded after its merge: https://github.com/zsviczian/kplex/actions/runs/38174733365. Prior-version context only."
+  },
+  "remainingAcceptance": [
+    "Physical HUAWEI/HarmonyOS Sidecar navigation and pan/zoom before/after, with equal note sequence/settings and sample distribution; no claim that 1\u20131.5 seconds is eliminated.",
+    "Physical Android phone sidebar reveal/latest-center behavior under the reporter WebView/theme/plugins; desktop emulation establishes neither physical touch nor mobile lifecycle."
+  ],
+  "publication": "Maintainer authorized commit, push, merge PR #140 and close issue #93 with a PR reference on 2026-10-12. Publication is the next action; no release authorized. Final commit/merge identity is recorded by the PR.",
+  "sourceSha256": {
+    "src/main.ts": "180526bd0b04cfd7b34f6947bfc745dd165d54100d92ff7c47d870542e2bedf1",
+    "tests/linked-document-follow.test.mjs": "12c14e16735a1be41e017ad82288488dc9be24161fcd3250445b6e56692fdc9f",
+    "scripts/testing/obsidian/sidecarLatency.mjs": "7433f9e2503df2fe54786d671bae1bec5b88dd3156412cbddb14fca81cd9110e",
+    "scripts/testing/obsidian/sidebarFollow.mjs": "3ad6efae6f94510f23c5da7b71c7d6241de2d6b6d09e6ce3dbf39e7028260e68",
+    "package.json": "f306c61263f04c2b2283329fc2a8ea257b7dae42adc15b41394a87da3d56d9f8",
+    "CONTRIBUTING.md": "e71b2c5608dff25efb80c07f3d17c4944bbafb43a1143626bcf7090fb7864c90",
+    "docs/validation/sidecar-latency-2026-10-12.md": "486aef819485336f02a613feece128d7c65e9fdf3917b7ff80e549a2dd480e16"
+  },
+  "runtimeSourceInventorySha256": "64bde6e8b02c53683c5a39f13b6a11408c0412211ae31bbbb91a1c41430223f0",
+  "localEvidenceSha256": {
+    "/private/tmp/kplex140-baseline-latency.json": "0318802d144cfb301e7545af50d128b0b4a452ee8d8b842577e11b71de1237c6",
+    "/private/tmp/kplex140-baseline-warm-latency.json": "80b76c75aab7a2c4cacfe5f3fe0b72e258d5cee3932d040cefbfa6aca064cb4d",
+    "/private/tmp/kplex140-trace-latency.json": "8bcb87616e504c9ed702790bb9974ec52c81ed214b40c7308134582f36847905",
+    "/private/tmp/kplex140-final-desktop/sidecar-latency-native.json": "78b4685be7064cf29af5f3e61a23c04477467a5d2c981b2852d00fd998a93c96",
+    "/private/tmp/kplex140-tablet-final-latency/sidecar-latency-native.json": "c90b0e4e968977bb24ef38734d55b70660cf6796acc5e5bedc508b7637752f28",
+    "/private/tmp/kplex140-final-sidebar-phone/sidebar-follow.json": "9811e38136915d6d10591bc8ac37a763201f2b7b4cc37b26ba6eba87b36b349a",
+    "/private/tmp/kplex140-red.log": "feb32e1b3df8387582afa9bd01526ef4f99563b021cc018e2e371c2df597adc6",
+    "/private/tmp/kplex140-race-red.log": "4b58e3e68a1ce974cedd7b3ff7456dd1710994a1224f1019cc9e111eaaec9b78",
+    "/private/tmp/kplex140-storage-red.log": "e416f3a55e595f04a9713e8cbc03051a73567b062c8a161654572b29f2d3764c",
+    "/private/tmp/kplex140-return-red.log": "a9480d6801c5330d203acb919a15815df23d6950dd179c22f32046469004a0f8",
+    "/private/tmp/kplex140-affected.log": "4c8b1db1a769170a5aa1868b3770453f8442b8b643dcaeaecb9846e57cb11f57",
+    "/private/tmp/kplex140-reviewed-sidebar-desktop/sidebar-follow.json": "7dd59cb611aa1bcf9dfe1028d5be1542416595c69a74d822638dd200004bcac3",
+    "/private/tmp/kplex140-reviewed-sidebar-phone/sidebar-follow.json": "a8f6c0eb71ab4042377e996e8d97913ffe74c25372afa4f5f4d31e1b4e042a6a",
+    "/private/tmp/kplex140-reviewed-menu/menu-anchor-native.json": "062de7b8b199c77d0b9ec945be8c13db2f908b4a8f069a6dc57e8766ca639e70",
+    "/private/tmp/kplex140-reviewed-desktop/sidecar-latency-native.json": "4427c617d760cfb71dc65e5566530de4fbc2b10af5701cbd4fc4bb367ba8c19f",
+    "/private/tmp/kplex140-final-general.log": "1f8b1d346f722701be192979a94c834a015b6680050370910e62269cdffef781",
+    "/private/tmp/kplex140-final-affected.log": "760b4f044eb83052ca9401dd6c42340231cf951544ffef0f65b867f172f61dc0",
+    "/private/tmp/kplex140-final-architecture.log": "9787ab675c694fe5a99e13f8a36ff8b662f57197409d77863e965f452fe16ec7",
+    "/private/tmp/kplex140-final-lint.log": "d636a5598af88f2f7c8b2feb7e29476e1b368ea05fa51b6de4154a57020f0db0",
+    "/private/tmp/kplex140-final-build.log": "c96e1a633ffbcc2fd81b6ef838835f9b06d03b2344449bcd5d9422e1e6e67342",
+    "/private/tmp/kplex140-sources.log": "242f4c3d34e33e601211412f18332cc69ab7fa46c17710a60385ca6f4379b03a",
+    "/private/tmp/kplex140-sources-browser.log": "b2472cd332c7c06f5d886c5d8331762e5f5af0bbebee732631a9b79dc36f54d2",
+    "/private/tmp/kplex140-full-verification.log": "2699777460d2654c76d6d5a7a6ca26276af628f3533f6f3eb128451ca40d7aae",
+    "/private/tmp/kplex140-reviewed-tablet-latency/sidecar-latency-native.json": "7bdedac3115641c412eba2dfc6284706da0063fb661cc3002c219db9084884ea",
+    "/private/tmp/kplex140-accepted-desktop/sidecar-latency-native.json": "e9ca5f2f550c838603a13e32a0ed329bb4e4b2cfc1256351d1487064c8d40a8e"
+  },
+  "temporaryPlanRemoved": true,
+  "captureStateQualification": "uncommitted and mergePending describe the validation capture before the subsequently authorized publication; final Git commit and merge identity are recorded by PR #140."
+}

@@ -1,4 +1,4 @@
-/** Production URL-cache/public startup lifetimes with controlled external I/O and a virtual watchdog clock. */
+/** Production independent URL-cache/saved-preview lifetimes with external I/O holds and unchanged virtual watchdogs. */
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import vm from 'node:vm';
@@ -96,9 +96,10 @@ for (const mode of ['eager', 'on-demand']) {
     const restore = i.restorePersistedSnapshot([f.file.path]).then(value => { settled = true; return value; });
     const discovery = i.startBackgroundUrlIndex();
     await f.settle(); assert(entered);
+    assert.equal(f.catalogReads(), 1, 'Graph catalog starts independently of held URL replay');
     if (held !== 'page') assert.equal(i.urlPendingPublications, 1);
     if (held === 'compiler') assert.equal(i.getWorkPriorityDiagnostics().active[3], 2, 'Cache compiler and discovery own separate leases');
-    await f.advance(89999); assert.equal(settled, false);
+    await f.advance(89999); assert.equal(settled, mode === 'on-demand', 'Finite no-cache preview does not join URL inventory; Eager recovery retains its own task');
     await f.advance(1); assert.equal(settled, true);
     assert.equal((await restore).restored, false); assert.equal(f.catalogReads(), 1);
     assert.equal(i.hasPendingSnapshotHydration(), false);
@@ -123,13 +124,14 @@ for (const mode of ['eager', 'on-demand']) {
     const restore = i.restorePersistedSnapshot([f.file.path]).then(value => { settled = true; return value; });
     const shared = i.restoreUrlIndex(), discovery = i.startBackgroundUrlIndex();
     await f.settle();
+    const catalogs = f.catalogReads(); assert.equal(catalogs, 1, 'Independent graph catalog starts before retirement');
     if (retirement === 'destroy') i.destroy(); else await i.purgePersistentIndexCache();
     await f.settle(); assert.equal(settled, true); assert.equal((await restore).restored, false);
     assert.equal(await shared, false); assert.equal(await discovery, false);
-    assert.equal(f.catalogReads(), 0); assert.equal(f.timers.size, 0);
+    assert.equal(f.catalogReads(), catalogs); assert.equal(f.timers.size, 0);
     const diagnostics = JSON.stringify(i.getSnapshotHydrationDiagnostics());
     gate.resolve(); await f.settle(); await f.advance(100000);
-    assert.equal(f.catalogReads(), 0); assert.equal(i.urlOwners.size, 0);
+    assert.equal(f.catalogReads(), catalogs, 'Late URL I/O cannot start another catalog'); assert.equal(i.urlOwners.size, 0);
     assert.equal(JSON.stringify(i.getSnapshotHydrationDiagnostics()), diagnostics);
     i.destroy();
   });
@@ -180,15 +182,23 @@ for (const mode of ['eager', 'on-demand']) {
   });
 
   test(`${mode}: superseded public wait settles while the newest shares healthy URL acquisition`, async () => {
-    const f = fixture(mode), i = f.index, gate = deferred(); let reads = 0, oldSettled = false, newSettled = false;
+    const f = fixture(mode), i = f.index, gate = deferred(), catalogGate = deferred(); let reads = 0, oldSettled = false, newSettled = false;
     i.indexedDb.readUrlOwnerPage = async () => { reads++; await gate.promise; return { values: [], exhausted: true }; };
+    const catalog = i.indexedDb.readSnapshotCatalog;
+    i.indexedDb.readSnapshotCatalog = /** Hold the completed read; retiring a graph request leaves shared URL work healthy. */ async function(...args) {
+      const result = await catalog.apply(this, args); await catalogGate.promise; return result;
+    };
+    const shared = i.restoreUrlIndex(); await f.settle(); assert.equal(reads, 1, 'URL I/O entered before P1 catalog ownership');
     const previous = i.restorePersistedSnapshot().then(value => { oldSettled = true; return value; });
-    await f.settle(); const shared = i.restoreUrlIndex();
+    await f.settle();
     const latest = i.restorePersistedSnapshot().then(value => { newSettled = true; return value; });
     await f.settle(); assert.equal(oldSettled, true); assert.equal((await previous).restored, false);
     assert.equal(newSettled, false); assert.equal(reads, 1); assert.equal(i.restoreUrlIndex(), shared);
+    assert.equal(f.catalogReads(), 2, 'Each graph request owns an independent catalog attempt');
+    catalogGate.resolve(); await f.settle();
+    assert.equal(newSettled, true, 'No-cache classification finishes with URL gate still unresolved');
     gate.resolve(); await f.settle(); await latest;
-    assert.equal(f.catalogReads(), 1); assert.equal(i.getIndexDiagnostics().some(d => d.reason === 'url-cache-stalled'), false);
+    assert.equal(f.catalogReads(), 2); assert.equal(i.getIndexDiagnostics().some(d => d.reason === 'url-cache-stalled'), false);
     i.destroy(); await f.settle(); assert.equal(f.timers.size, 0);
   });
 }

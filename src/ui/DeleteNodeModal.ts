@@ -3,7 +3,9 @@
  * inspection. The plugin owns writes and source identity; these shells own localized choices and
  * one-shot confirm/cancel disposal. Hidden consent tracks the selected writable source and opposite
  * endpoint explicitly, disclosing directional visibility while preserving original links.
- * Physical-trash preferences never authorize arbitrary cleanup.
+ * Physical-trash preferences never authorize arbitrary cleanup. Optional Hidden configuration
+ * stays in a native disclosure. File deletion explains the captured automatic-cleanup preference;
+ * its settings cross-link cancels old consent before navigating to the actual preference.
  */
 import { Modal, Setting, type App, type TFile } from "obsidian";
 import type { EvidenceSourceKind } from "../index/RelationEvidence";
@@ -13,7 +15,7 @@ import { createObsidianTranslator } from "../adapters/obsidian/localization";
 export type DeletePropertyChoice = "keep" | "remove" | "hide";
 export type DeletePropertyPreview = { field: string; ontology: boolean; choice: DeletePropertyChoice; line: number; payload: string; after: unknown; supported: boolean };
 export type DeleteSourcePreview = { file: TFile; path: string; properties: DeletePropertyPreview[]; hiddenPayload: string; bodyText: string; bodyStart: number; bodyReferences: RemainingNodeReference[]; targetSpellings: string[] };
-export type DeleteNodePreview = { sources: DeleteSourcePreview[]; hiddenFields: string[]; hiddenField: string };
+export type DeleteNodePreview = { sources: DeleteSourcePreview[]; hiddenFields: string[]; hiddenField: string; removeOntologyLinksOnDelete?: boolean };
 
 export type DeleteNodeConfirmationOptions = {
   nodeName: string;
@@ -23,6 +25,7 @@ export type DeleteNodeConfirmationOptions = {
   onConfirm: (confirmFileDelete: boolean) => void | Promise<void>;
   onCancel?: () => void;
   preview?: DeleteNodePreview;
+  onOpenCleanupSettings?: () => void;
   onOpenLocation?: (reference: RemainingNodeReference) => void | Promise<void>;
 };
 
@@ -34,7 +37,7 @@ export class DeleteNodeConfirmationModal extends Modal {
     super(app);
   }
 
-  /** Render the node deletion confirmation with localized captions and feedback; the native Modal owns its open/close shell. */
+  /** Explain the captured cleanup preference, offer its direct settings link, and keep per-property overrides in a native disclosure. */
   onOpen(): void {
     const { nodeName, hasFile, firstUse } = this.options;
     this.modalEl.addClass("kplex-delete-node-modal");
@@ -43,13 +46,34 @@ export class DeleteNodeConfirmationModal extends Modal {
       text: this.translate(hasFile ? "delete.cleanup.noteConfirm" : "delete.cleanup.placeholderConfirm", { name: nodeName }),
     });
 
-    this.contentEl.createEl("p", { text: this.translate("delete.cleanup.coverage") });
     const preview = this.options.preview;
-    if (preview) {
+    if (hasFile) {
+      this.contentEl.createEl("p", { text: this.translate(preview?.removeOntologyLinksOnDelete !== false ? "delete.cleanup.enabled" : "delete.cleanup.disabled") });
+      if (this.options.onOpenCleanupSettings) {
+        const link = this.contentEl.createEl("p").createEl("a", {
+          text: this.translate("settings.deletion.removeOntologyLinks"),
+          attr: { href: "#kplex-remove-ontology-links-on-delete" },
+        });
+        link.onClickEvent(/** Cancel this approval before changing the setting; later deletion recaptures policy and defaults. */ event => {
+          event.preventDefault();
+          if (this.decided) return;
+          this.close();
+          this.options.onOpenCleanupSettings?.();
+        });
+      }
+    }
+    if (preview && preview.sources.some(/** A property disclosure needs actual choices, not headings for body-only links. */ source => source.properties.length > 0)) {
+      const review = this.contentEl.createEl("details");
+      review.createEl("summary", { text: this.translate("delete.cleanup.reviewProperties") });
+      const reviewContent = review.createDiv();
+      reviewContent.createEl("p", { text: this.translate("delete.cleanup.choicesHelp") });
+      reviewContent.createEl("p", { text: this.translate("delete.cleanup.coverage") });
+      let hideOptions: HTMLDetailsElement | undefined;
       for (const source of preview.sources) {
-        this.contentEl.createEl("h3", { text: source.path });
+        if (!source.properties.length) continue;
+        reviewContent.createEl("h3", { text: source.path });
         for (const property of source.properties) {
-          const row = new Setting(this.contentEl).setName(property.field)
+          const row = new Setting(reviewContent).setName(property.field)
             .setDesc(this.translate(property.ontology ? "delete.cleanup.ontology" : "delete.cleanup.otherProperty"));
           row.settingEl.dataset.kplexDeleteSource = source.path;
           row.settingEl.dataset.kplexDeleteField = property.field;
@@ -59,7 +83,10 @@ export class DeleteNodeConfirmationModal extends Modal {
             if (property.supported) dropdown.addOption("remove", this.translate("delete.cleanup.remove"));
             if (preview.hiddenFields.length) dropdown.addOption("hide", this.translate("hide.choice"));
             dropdown.setValue(property.choice).onChange(/** Mutate only the transient displayed plan, never a note. */ value => {
-              if (value === "keep" || value === "remove" || value === "hide") property.choice = value;
+              if (value === "keep" || value === "remove" || value === "hide") {
+                property.choice = value;
+                if (value === "hide" && hideOptions) hideOptions.open = true;
+              }
             });
           });
           row.addButton(/** Native navigation retains the exact physical source coordinate. */ button => button.setButtonText(this.translate("common.open"))
@@ -67,14 +94,18 @@ export class DeleteNodeConfirmationModal extends Modal {
           if (!property.supported) row.setDesc(this.translate("delete.cleanup.unsupported"));
         }
       }
-      if (preview.hiddenFields.length) new Setting(this.contentEl).setName(this.translate("hide.field"))
-        .addDropdown(/** One explicit configured Hidden field is used for all selected source rows. */ dropdown => {
-          dropdown.selectEl.dataset.kplexHiddenField = "true";
-          for (const field of preview.hiddenFields) dropdown.addOption(field, field);
-          dropdown.setValue(preview.hiddenField).onChange(/** This selection changes only the pending consent. */ value => { preview.hiddenField = value; });
-        });
-      else this.contentEl.createEl("p", { text: this.translate("hide.noField") });
-      this.contentEl.createEl("p", { text: this.translate("hide.retainsSources") });
+      if (preview.hiddenFields.length) {
+        hideOptions = reviewContent.createEl("details");
+        hideOptions.createEl("summary", { text: this.translate("delete.cleanup.hideOptions") });
+        hideOptions.open = preview.sources.some(/** Existing Hide choices must expose their destination property. */ source => source.properties.some(property => property.choice === "hide"));
+        new Setting(hideOptions).setName(this.translate("hide.field"))
+          .addDropdown(/** One explicit configured Hidden field is used for all selected source rows. */ dropdown => {
+            dropdown.selectEl.dataset.kplexHiddenField = "true";
+            for (const field of preview.hiddenFields) dropdown.addOption(field, field);
+            dropdown.setValue(preview.hiddenField).onChange(/** This selection changes only the pending consent. */ value => { preview.hiddenField = value; });
+          });
+        hideOptions.createEl("p", { text: this.translate("hide.retainsSources") });
+      }
     }
 
     let confirmFileDelete = this.options.confirmFileDelete;

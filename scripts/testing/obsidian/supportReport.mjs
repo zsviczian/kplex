@@ -4,7 +4,7 @@
  * deterministically. One optional real write runs only when the original clipboard is empty or
  * plain text, with exact text/format restoration; other formats are preserved without any write.
  * Owns reversible synchronous side-effect guards, temporary surfaces, window geometry and settings.
- * Desktop narrow metrics/pop-outs are not physical Android/iOS clipboard permission acceptance.
+ * Desktop narrow layout/pop-outs are not physical Android/iOS clipboard permission acceptance.
  */
 import assert from "node:assert/strict";
 import { obsidianCliExecutable } from "./processTools.mjs";
@@ -51,9 +51,9 @@ function probe() {
   const windows = remote.BrowserWindow.getAllWindows().filter(/** Never use a currently active personal-vault window as the native input target. */ item => item.getTitle().includes("kplex-test-small"));
   if (windows.length !== 1) throw Error("Disposable baseline native window identity ambiguous");
   const win = windows[0];
-  if (!p?.reportBug || !p.actionManager || !win || remote.powerMonitor.getSystemIdleState(10) === "locked") throw Error("Unlocked disposable native prerequisites unavailable");
+  if (!p?.reportBug || !p.actionManager || typeof p.captureIndexingActivity !== "function" || !p.startupDiagnostics?.activity || !win || remote.powerMonitor.getSystemIdleState(10) === "locked") throw Error("Unlocked disposable D2 native prerequisites unavailable");
   if (app.setting.isOpen || document.querySelector(".modal-container")) throw Error("Existing native modal/settings");
-  const c = window.__kplexSupportReport = { p, win, originalSettings: JSON.parse(JSON.stringify(p.settings)), originalLayout: app.workspace.getLayout(), originalBounds: win.getBounds(), originalSidebarStates: { left: app.workspace.leftSplit.collapsed, right: app.workspace.rightSplit.collapsed },
+  const c = window.__kplexSupportReport = { p, win, mainClipboard: window.navigator.clipboard, originalSettings: JSON.parse(JSON.stringify(p.settings)), originalLayout: app.workspace.getLayout(), originalBounds: win.getBounds(), originalMinimum: win.getMinimumSize(), originalSidebarStates: { left: app.workspace.leftSplit.collapsed, right: app.workspace.rightSplit.collapsed },
     originalWindowIds: new Set(remote.BrowserWindow.getAllWindows().map(/** Retain only opaque ids to distinguish test-created windows without reading unrelated titles into evidence. */ item => item.id)),
     owners: { linkedDocumentLeaf: p.linkedDocumentLeaf, lastDocumentLeaf: p.lastDocumentLeaf, recentLeafHistory: [...p.recentLeafHistory], sidecarLeaves: new Map(p.sidecarLeaves) },
     leaves: [], wrappers: [], writes: [], attempts: [], cases: [], closeChecks: [], docs: new Set(), clipUndo: null, realClipboardModified: false, realClipboardWrites: 0, phase: "setup", done: false, cancelled: false, lastTrusted: false, ownedModal: null };
@@ -120,10 +120,34 @@ function probe() {
       return Promise.resolve();
     });
   };
-  /** Guard only the synchronous report call; every global/native method is restored before yielding. */
-  const guardedReport = p.reportBug;
-  p.reportBug = /** Observe the unchanged feature's exact synchronous boundary, restoring every effect guard before any yield. */ function (...args) {
-    const effects = {}, restorers = [], guardedApis = [], revision = p.index.getSemanticRevision(), writesBefore = c.writes.length;
+  /** Compare only the recorder's fixed state locally; no second capture, clock read or owner escapes. */
+  const activityState = () => {
+    const d = p.startupDiagnostics, a = d.activity;
+    check(a?.cells?.length === 1024 && a.cells.byteLength === 8192, "Actual bounded activity backing cells unavailable");
+    const scalars = ["origin", "latest", "rawLatest", "hour", "nextToken", "head", "size", "rotated", "capacity", "firstCause", "causeMask", "hasGlobal", "disposed", "saturated", "regressions", "gaps"];
+    return JSON.stringify({ cells: Array.from(a.cells), totals: Array.from(a.totals), tokens: [...a.tokens], phases: [...a.phases], phaseStarts: [...a.phaseStarts],
+      scalars: scalars.map(/** Compare fixed primitive fields without inspecting source or graph owners. */ name => a[name]), startup: d.snapshot() });
+  };
+  /** Validate the actual owned capture, serialized schema and independent report byte ceiling. */
+  const verifyActivity = (parsed, owned) => {
+    const value = parsed?.indexingActivity, text = JSON.stringify(value), bytes = new TextEncoder().encode(text).length;
+    check(owned && Object.isFrozen(owned) && Object.isFrozen(owned.current) && Object.isFrozen(owned.columns), "Report did not receive an owned frozen activity capture");
+    check(value && value.schemaVersion === 1 && value.captureVersion === 1 && value.status === "active", "Activity export schema/status differs");
+    check(JSON.stringify(owned) === text && !Object.hasOwn(parsed.index ?? {}, "indexingActivity"), "Export did not share the exact one top-level owned activity capture");
+    check(bytes <= 8192 && value.hours.length <= 25 && value.recent.length <= 16 && value.active.length <= 2, "Activity export exceeds its bounded capacity");
+    check(value.totals.length === value.columns.totals.length && value.current.length === value.columns.current.length
+      && value.hours.every(/** Hour row shape follows the exported shared dictionary. */ row => row.length === value.columns.hour.length)
+      && [...value.recent, ...value.active, ...(value.lastGlobal ? [value.lastGlobal] : [])].every(/** Recent/open/global rows use the same declared pass schema. */ row => row.length === value.columns.pass.length), "Activity row/schema columns differ");
+    check(typeof value.settings.build === "string" && value.settings.build.length > 0, "Static public build identity unavailable");
+    return { summaryBytes: bytes, schemaVersion: value.schemaVersion, captureVersion: value.captureVersion, exactOwnedCapture: true,
+      frozenCapture: true, hourRows: value.hours.length, recentRows: value.recent.length, activeRows: value.active.length, currentColumns: value.columns.current.length };
+  };
+  const guardedReport = p.reportBug, guardedIndexCopy = p.copyIndexDiagnostics;
+  /** Guard only the synchronous export call; all global/native methods retire before any await. */
+  const guardedExport = (execute, receiver, args, reportKind) => {
+    const effects = {}, restorers = [], guardedApis = [], revision = p.index.getSemanticRevision(), writesBefore = c.writes.length, rawBefore = activityState();
+    let activityCaptureCalls = 0, ownedCapture = null;
+    const copyErrors = [];
     /** Disallow observable expensive effects on discovered real owners without replacing passive diagnostic getters. */
     const guard = (object, key, category) => {
       if (!object || typeof object[key] !== "function") return;
@@ -133,25 +157,42 @@ function probe() {
     c.inReport = true;
     c.scopeRestorers = restorers;
     try {
+      if (reportKind === "index") {
+        const originalError = console.error;
+        restorers.push(replace(console, "error", /** Preserve the native console and retain only this controlled command's bounded failure text in private test evidence. */ function (...values) {
+          if (values[0] === "K-Plex could not copy index diagnostics") copyErrors.push(String(values[1]?.message ?? values[1]).slice(0, 300));
+          return originalError.apply(this, values);
+        }));
+      }
       for (const key of ["getFiles", "getMarkdownFiles", "getAllLoadedFiles"]) guard(app.vault, key, "vault-enumeration");
       for (const key of ["read", "cachedRead", "readBinary"]) guard(app.vault, key, "vault-read");
       for (const key of ["read", "readBinary", "list"]) guard(app.vault.adapter, key, "adapter-io");
       guard(p.index.metadataParser, "parse", "body-parse");
+      guard(p.startupDiagnostics, "finish", "readiness-write");
+      const originalCapture = p.captureIndexingActivity;
+      restorers.push(replace(p, "captureIndexingActivity", /** Forward the exact actual capture once; keep only this latest DTO for equality checks. */ function (...captureArgs) {
+        activityCaptureCalls++; ownedCapture = originalCapture.apply(this, captureArgs); return ownedCapture;
+      }));
       for (const key of ["rebuild", "patchMarkdownPaths", "emit", "emitSemantic", "notify", "notifyPresentation"]) guard(p.index, key, "semantic-or-presentation-publication");
       const owner = args[0]?.ownerDocument.defaultView ?? window.activeWindow ?? window;
       for (const key of ["open", "deleteDatabase"]) guard(window.indexedDB, key, "indexeddb-open");
       guard(window.IDBDatabase?.prototype, "transaction", "indexeddb-transaction");
       guard(owner, "fetch", "network-fetch"); guard(owner.XMLHttpRequest?.prototype, "open", "network-xhr"); guard(owner.navigator, "sendBeacon", "network-beacon");
-      return guardedReport.apply(this, args);
+      return execute.apply(receiver, args);
     }
     finally {
       for (const restore of restorers.reverse()) restore();
       c.scopeRestorers = [];
       c.inReport = false;
-      c.attempts.push({ phase: c.phase, effects, semanticUnchanged: p.index.getSemanticRevision() === revision, writesStarted: c.writes.length - writesBefore, guardedApis });
+      const rawRecorderUnchanged = rawBefore === activityState();
+      c.latestActivity = { phase: c.phase, owned: ownedCapture };
+      c.attempts.push({ phase: c.phase, reportKind, effects, semanticUnchanged: p.index.getSemanticRevision() === revision, rawRecorderUnchanged,
+        activityCaptureCalls, writesStarted: c.writes.length - writesBefore, guardedApis, copyErrors });
     }
   };
-  c.wrappers.push(/** Restore the original feature entry point even after native scenario failure. */ () => { p.reportBug = guardedReport; });
+  p.reportBug = /** Preserve the real synchronous toolbar/command entry and exact original receiver. */ function (...args) { return guardedExport(guardedReport, this, args, "support"); };
+  p.copyIndexDiagnostics = /** Native registered command still invokes the original async method; guards end at its first await. */ function (...args) { return guardedExport(guardedIndexCopy, this, args, "index"); };
+  c.wrappers.push(/** Restore both original feature entry points even after native scenario failure. */ () => { p.reportBug = guardedReport; p.copyIndexDiagnostics = guardedIndexCopy; });
   /** Reacquire registration rather than assuming a leaf id equals the portable action-surface id. */
   const surfaceId = leaf => [...p.actionSurfaceHosts].find(/** Pick only the exact captured native leaf with its mounted registration. */ ([id, value]) => value.leaf === leaf && p.actionManager.readSnapshot(id)?.mounted)?.[0];
   /** Require the real toolbar control to have a viewport-visible usable rectangle. */
@@ -238,13 +279,15 @@ function probe() {
     check(element && preview && status, "Native report modal incomplete"); c.ownedModal = { owner, element };
     const bytes = preview.value, parsed = JSON.parse(bytes.split("```json\n")[1]?.split("\n```")[0] ?? "null");
     check(parsed?.formatVersion === 1 && bytes.length <= 32768, "Support schema/size contract failed");
+    check(c.latestActivity?.phase === c.phase, "Support activity capture belongs to another invocation");
+    const activityChecks = verifyActivity(parsed, c.latestActivity.owned);
     if (c.phase !== "missing") check(bytes === write?.text, "Preview differs from exact intercepted clipboard bytes");
     check(!bytes.includes("kplex-test-small") && !bytes.includes("synthetic private/path.md") && !bytes.includes("fake-bearer-token"), "Default report leaked injected private details");
     const links = [...element.querySelectorAll("a")].map(/** Inspect explicit links without opening a browser or submitting an issue. */ anchor => ({ href: anchor.getAttribute("href"), target: anchor.target, rel: anchor.rel }));
     check(links.length === 2 && links[0].href === "https://github.com/zsviczian/kplex/issues" && links[1].href === "https://github.com/zsviczian/kplex/issues/new" && links.every(/** External navigation must retain an explicit isolated browsing context. */ link => link.target === "_blank" && link.rel.includes("noopener")), "Wrong external support links");
     const customizationChecks = verifyCustomizations(parsed, element);
     const bounds = element.getBoundingClientRect();
-    return { ownerKind, customizationChecks, bytes: bytes.length, exactPreview: c.phase === "missing" ? "no-writer" : true, readonly: preview.readOnly, selectable: true, status: status.textContent, warning: status.classList.contains("mod-warning"), retryDisabled: [...element.querySelectorAll("button")].find(/** Use the actual native Retry label to verify pending/denied availability. */ button => button.textContent === p.translator("support.copyAgain"))?.disabled,
+    return { ownerKind, customizationChecks, activityChecks, bytes: bytes.length, exactPreview: c.phase === "missing" ? "no-writer" : true, readonly: preview.readOnly, selectable: true, status: status.textContent, warning: status.classList.contains("mod-warning"), retryDisabled: [...element.querySelectorAll("button")].find(/** Use the actual native Retry label to verify pending/denied availability. */ button => button.textContent === p.translator("support.copyAgain"))?.disabled,
       formatVersion: parsed.formatVersion, indexAvailability: parsed.index.availability, indexStatus: parsed.index.status ?? null, environment: { formFactor: parsed.environment.formFactor, surfaceKind: parsed.environment.surfaceKind },
       linksCorrect: true, bounds: { width: bounds.width, left: bounds.left, right: bounds.right, viewport: owner.innerWidth }, noOverflow: element.scrollWidth <= element.clientWidth && bounds.left >= 0 && bounds.right <= owner.innerWidth,
       writerBeforeModal: write ? !write.modalBeforeWrite : null, writerInReportTurn: write?.inReport ?? null, trustedInput: write?.trusted ?? null };
@@ -264,6 +307,37 @@ function probe() {
     if (mode === "pending") check(result.status === p.translator("support.copying") && result.retryDisabled, "Pending clipboard falsely shown copied");
     check(result.readonly && result.noOverflow, "Native preview is editable or overflows viewport");
     c.cases.push({ name: c.phase, ...(mode === "missing" ? { missingCapability: "clipboard.writeText" } : {}), ...result }); return { owner, nativeWindow, result };
+  };
+  /** Invoke the registered native command programmatically; this is explicitly not trusted keyboard acceptance. */
+  const copyIndex = async (leaf, nativeWindow, ownerKind) => {
+    await activate(leaf, nativeWindow);
+    const owner = leaf.view.containerEl.ownerDocument.defaultView;
+    await until(/** Selected native ownership must precede clipboard interception and command dispatch. */ () => nativeWindow.isFocused() && owner.document.hasFocus() && !owner.document.hidden && (window.activeWindow ?? window) === owner, "Index diagnostics native owner unavailable", 5000);
+    c.phase = ownerKind + "/copy-index-native-command"; clipboard(owner, "fulfilled", ownerKind); c.lastTrusted = false;
+    const before = c.writes.length;
+    let wrongOwnerWrites = 0, undoOther = null;
+    // Obsidian's main navigator getter forwards to the active popout and copies the main writer.
+    // Do not invoke it here: that would overwrite the popout interception. Retain the real main
+    // capability before opening popouts, then guard that original object without a getter read.
+    const expectedClipboard = owner.navigator.clipboard;
+    const sharedClipboard = owner !== window && expectedClipboard === c.mainClipboard;
+    c.copyOwnership = { activeWindowMatchesExpected: (window.activeWindow ?? window) === owner, sharedClipboard };
+    const otherClipboard = owner !== window && !sharedClipboard ? c.mainClipboard : null;
+    if (otherClipboard) {
+      undoOther = replace(otherClipboard, "writeText", /** A wrong-owner regression must never touch the operating-system clipboard. */ () => { wrongOwnerWrites++; return Promise.resolve(); });
+    }
+    try {
+      check(app.commands.executeCommandById("k-plex:kplex-copy-index-diagnostics"), "Registered Copy Index Diagnostics command rejected");
+      await until(/** Require the actual product writer, not a direct formatter or private writer call. */ () => c.writes.length > before || wrongOwnerWrites > 0, "Registered index command did not copy", 5000);
+      check(wrongOwnerWrites === 0 && c.writes.length === before + 1, "Index diagnostics used the wrong native clipboard owner or copied twice");
+      const write = c.writes.at(-1), parsed = JSON.parse(write.text);
+      check(write.ownerKind === ownerKind && write.phase === c.phase && write.inReport && !write.modalBeforeWrite && !modal(owner), "Index copy lost owning-window synchronous delivery");
+      check(new TextEncoder().encode(write.text).length <= 32768 && c.latestActivity?.phase === c.phase, "Index diagnostics size or capture invocation differs");
+      const activityChecks = verifyActivity(parsed, c.latestActivity.owned);
+      c.cases.push({ name: c.phase, activation: "programmatic-native-command", trustedInput: false, exactClipboardOwner: !sharedClipboard,
+        clipboardCapability: sharedClipboard ? "shared-native-object-owner-distinction-unavailable" : "distinct-native-owner",
+        writes: c.writes.length - before, wrongOwnerWrites: sharedClipboard ? null : wrongOwnerWrites, bytes: write.text.length, ...activityChecks });
+    } finally { undoOther?.(); }
   };
   /** Exercise the actual searchable Compatibility setting and its real persistent writer without index/source refresh. */
   const fitSettingsScenario = async () => {
@@ -356,6 +430,7 @@ function probe() {
     app.workspace.leftSplit.collapse(); app.workspace.rightSplit.collapse();
     c.main = app.workspace.getLeaf("tab"); c.leaves.push(c.main); await c.main.setViewState({ type: "k-plex-react-view", active: true }); await until(/** Observe native mounted readiness with a finite, cancellable driver deadline. */ () => surfaceId(c.main), "Main native surface did not become ready");
     let current = await toolbar(c.main, win, "tab"); await close(current.owner, win);
+    await copyIndex(c.main, win, "tab");
     await activate(c.main, win); await until(/** Reacquire the real button after the previous Modal restored native focus. */ () => surfaceId(c.main) && bug(c.main), "Keyboard report toolbar unavailable");
     const keyboardButton = bug(c.main), keyboardOwner = keyboardButton.ownerDocument.defaultView;
     c.phase = "tab/keyboard-enter"; clipboard(keyboardOwner, "fulfilled", "tab"); capture(c.main);
@@ -403,6 +478,9 @@ function probe() {
     const safeOriginal = Array.isArray(formats) && (formats.length === 0 || formats.length === 1 && formats[0] === "text/plain");
     if (safeOriginal) {
       c.originalClipboard = { empty: formats.length === 0, text: nativeClipboard.readText(), formats };
+      // Retain the same supported-format backup until all later controlled copy cases finish.
+      // A failed interception must not leave an unexpected report in the native clipboard.
+      c.sessionClipboardBackup = c.originalClipboard;
       c.restoreRealClipboard = /** Restore text/empty formats exactly; private original text never enters a serializable result. */ () => {
         const original = c.originalClipboard; if (!original) return;
         if (original.empty) nativeClipboard.clear(); else nativeClipboard.writeText(original.text);
@@ -451,21 +529,26 @@ function probe() {
     check(app.commands.executeCommandById("k-plex:kplex-support-report-bug"), "Alternate native support command absent"); await until(/** Native command remains available while the toolbar is absent. */ () => modal(window), "Zen alternate command failed");
     const zenReport = snapshot(window, "tab"); check(zenReport.status === p.translator("support.copied"), "Zen command report failed"); c.cases.push({ name: c.phase, commandRoute: true, ...zenReport }); await close(window, win);
     await p.actionManager.dispatch({ id: "view.zen.toggle", source: "toolbar", surfaceId: id }); await until(/** Restore the original normal toolbar before measuring narrow native geometry. */ () => bug(c.main), "Zen restore failed");
-    check(!win.webContents.debugger.isAttached(), "Another debugger owns native metrics"); win.webContents.debugger.attach("1.3"); c.debuggerOwned = true;
+    const narrowBounds = win.getBounds(), narrowMinimum = win.getMinimumSize();
     try {
-      await win.webContents.debugger.sendCommand("Emulation.setDeviceMetricsOverride", { width: 390, height: 780, deviceScaleFactor: 1, mobile: false }); await wait(250);
+      // Exercise the real desktop viewport without borrowing or detaching another CDP owner.
+      // Account for native window chrome; this remains desktop layout, never mobile emulation.
+      win.setMinimumSize(300, 400);
+      win.setBounds({ ...narrowBounds, width: 390 + narrowBounds.width - window.innerWidth, height: 780 });
+      await until(/** Require the actual owning renderer width, not merely the requested outer bounds. */ () => window.innerWidth === 390, "Narrow native viewport not applied", 5000);
       current = await toolbar(c.main, win, "tab"); check(current.result.bounds.viewport === 390, "Narrow native viewport not applied"); c.cases.push({ name: "narrow-desktop-native-layout", viewport: 390, noOverflow: current.result.noOverflow, surface: "tab" }); await close(current.owner, win);
-    } finally { await win.webContents.debugger.sendCommand("Emulation.clearDeviceMetricsOverride"); win.webContents.debugger.detach(); c.debuggerOwned = false; }
+    } finally { win.setMinimumSize(...narrowMinimum); win.setBounds(narrowBounds); }
     c.sidebar = app.workspace.getRightLeaf(true); check(c.sidebar, "Native sidebar leaf unavailable"); c.leaves.push(c.sidebar); await c.sidebar.setViewState({ type: "k-plex-sidepanel-view", active: true }); await until(/** Sidebar readiness remains bounded even if the host never publishes a mounted surface. */ () => surfaceId(c.sidebar), "Sidebar native surface did not become ready"); app.workspace.rightSplit.expand();
     current = await toolbar(c.sidebar, win, "sidepanel"); check(current.result.environment.surfaceKind === "sidepanel", "Sidebar report surface owner misclassified"); await close(current.owner, win);
     c.popout = app.workspace.getLeaf("window"); c.leaves.push(c.popout); await c.popout.setViewState({ type: "k-plex-react-view", active: true }); await until(/** Poll the actual owned popout registration without retaining an uncancellable host readiness promise. */ () => surfaceId(c.popout), "Popout native surface did not become ready");
     const popup = remote.BrowserWindow.getAllWindows().filter(/** A pop-out input target must be newly test-created and belong to this exact disposable vault. */ item => !c.originalWindowIds.has(item.id) && item.getTitle().includes("kplex-test-small"));
     check(popup.length === 1, "Owned native popout window identity ambiguous"); c.popupWindow = popup[0];
     current = await toolbar(c.popout, c.popupWindow, "popout"); check(current.owner !== window && current.result.environment.surfaceKind === "popout", "Popout report owner or form classification failed"); await close(current.owner, c.popupWindow);
+    await copyIndex(c.popout, c.popupWindow, "popout");
     await fitSettingsScenario();
-    check(c.attempts.every(/** Every synchronous capture must prove zero side effects and unchanged semantic revision. */ attempt => Object.keys(attempt.effects).length === 0 && attempt.semanticUnchanged), "Support report performed guarded I/O, parsing, work or publication");
+    check(c.attempts.every(/** Both exports capture once without changing fixed recorder state, readiness or graph work. */ attempt => Object.keys(attempt.effects).length === 0 && attempt.semanticUnchanged && attempt.rawRecorderUnchanged && attempt.activityCaptureCalls === 1), "Diagnostic export performed guarded work, mutated retained state or captured more than once");
     check(c.attempts.every(/** Missing instrumentation cannot silently be reported as a verified parser-work guard. */ attempt => attempt.guardedApis.includes("body-parse/parse")), "Actual parser guard unavailable");
-    return { cases: c.cases, closeChecks: c.closeChecks, synchronousCaptures: c.attempts, realClipboardWrites: c.realClipboardWrites, originalClipboardRestored: !c.realClipboardModified, rawConsoleCapture: "unsupported", passiveReportEffectChecks: "passed" };
+    return { cases: c.cases, closeChecks: c.closeChecks, synchronousCaptures: c.attempts, copyOwnership: c.copyOwnership, realClipboardWrites: c.realClipboardWrites, originalClipboardRestored: !c.realClipboardModified, rawConsoleCapture: "unsupported", passiveReportEffectChecks: "passed" };
   })().then(/** Keep the finite success result readable by the serial CLI without retaining live DOM in output. */ value => { c.value = value; c.done = true; }, /** Retain named failed prerequisites and completed cases; never convert a skipped surface into a pass. */ error => { c.error = String(error); c.done = true; });
   return JSON.stringify({ started: true });
 }
@@ -482,7 +565,7 @@ try {
   const deadline = Date.now() + 180000;
   while (true) {
     await delay(250); const state = evaluate('JSON.stringify({done:window.__kplexSupportReport?.done,error:window.__kplexSupportReport?.error})');
-    if (state.done) { report.result = evaluate('JSON.stringify(window.__kplexSupportReport.value??{cases:window.__kplexSupportReport.cases,closeChecks:window.__kplexSupportReport.closeChecks,attempts:window.__kplexSupportReport.attempts,focusFailure:window.__kplexSupportReport.focusFailure??null})'); if (state.error) throw Error(state.error); break; }
+    if (state.done) { report.result = evaluate('JSON.stringify(window.__kplexSupportReport.value??{cases:window.__kplexSupportReport.cases,closeChecks:window.__kplexSupportReport.closeChecks,attempts:window.__kplexSupportReport.attempts,copyOwnership:window.__kplexSupportReport.copyOwnership,focusFailure:window.__kplexSupportReport.focusFailure??null})'); if (state.error) throw Error(state.error); break; }
     if (Date.now() > deadline) throw Error("Native support report deadline");
   }
   const errors = cli("dev:errors"); if (errors && !/^No errors captured\.?$/i.test(errors)) throw Error("Native JavaScript errors: " + errors.slice(0, 1000));
@@ -501,16 +584,15 @@ finally {
         await attempt('owned-settings',/** Close only the native Settings shell opened by this driver after its scenario has retired. */ ()=>{if(c.ownsSettings){app.setting.close();c.ownsSettings=false;}});
         await attempt('owned-modal',/** Close this feature's actual native shells and retire their clipboard leases. */ ()=>{for(const [dialog] of [...c.p.actionDialogs])if(dialog.modalEl?.classList.contains('kplex-support-report-modal'))dialog.close();});
         await attempt('clipboard-descriptor',/** Restore the actual owning navigator descriptor, never an unrelated window. */ ()=>{c.clipUndo?.();c.clipUndo=null;});
-        await attempt('original-native-clipboard',/** Retry restoration if the optional real clipboard case failed mid-scenario. */ ()=>{if(c.originalClipboard)c.restoreRealClipboard();});
+        await attempt('original-native-clipboard',/** Restore supported original formats after every copy case, including a failed interception. */ ()=>{if(c.sessionClipboardBackup)c.originalClipboard=c.sessionClipboardBackup;if(c.originalClipboard)c.restoreRealClipboard();c.sessionClipboardBackup=null;});
         for(const [index,undo]of (c.scopeRestorers??[]).entries())await attempt('partial-sync-guard-'+index,undo);
         for(const [index,undo]of c.wrappers.reverse().entries())await attempt('scoped-wrapper-'+index,undo);
-        await attempt('native-metrics',/** Release only the debugger ownership acquired by this test. */ async()=>{if(c.debuggerOwned&&c.win.webContents.debugger.isAttached()){await c.win.webContents.debugger.sendCommand('Emulation.clearDeviceMetricsOverride');c.win.webContents.debugger.detach();c.debuggerOwned=false;}});
         for(const [index,leaf]of c.leaves.slice().reverse().entries())await attempt('owned-leaf-'+index,/** Dispose only a test-created native leaf after restoring document-scoped wrappers. */ ()=>{if(leaf?.view.containerEl.isConnected)leaf.detach();});
         await attempt('owned-popout-window',/** A surviving test-created popout must close without touching original windows. */ ()=>{if(c.popupWindow&&!c.popupWindow.isDestroyed())c.popupWindow.close();});
         await attempt('settings-before-layout',/** Establish original preferences before restored native surfaces initialize. */ async()=>{Object.assign(c.p.settings,c.originalSettings);await c.p.saveSettings(false,false);await c.p.settingsWriteQueue;});
         await attempt('workspace-layout',/** Restore original serialized workspace ownership through the real native lifecycle. */ async()=>{await app.workspace.changeLayout(c.originalLayout);});
         await attempt('settings-after-layout',/** Await original preference persistence after native layout callbacks settle. */ async()=>{Object.assign(c.p.settings,c.originalSettings);await c.p.saveSettings(false,false);await c.p.settingsWriteQueue;});
-        await attempt('native-window-bounds',/** Restore the exact disposable main window's original desktop geometry. */ ()=>{c.win.setBounds(c.originalBounds);});
+        await attempt('native-window-bounds',/** Restore the exact disposable main window's original minimum and desktop geometry. */ ()=>{c.win.setMinimumSize(...c.originalMinimum);c.win.setBounds(c.originalBounds);});
         await attempt('sidebar-state',/** Preserve both original collapsed states independently of test-created sidebar leaves. */ ()=>{for(const side of ['left','right']){const split=app.workspace[side+'Split'];if(c.originalSidebarStates[side])split.collapse();else split.expand();}});
         await attempt('native-leaf-associations',/** Restore native linked/sidecar associations after layout replaces leaf instances. */ ()=>{
           /** Native layout restoration can replace objects; use the original serialized leaf id. */
@@ -520,7 +602,7 @@ finally {
           for(const [oldHost,oldLeaf]of c.owners.sidecarLeaves){const host=rebind(oldHost),leaf=rebind(oldLeaf);if(host&&leaf)c.p.sidecarLeaves.set(host,leaf);}
         });
         await attempt('native-layout-settlement',/** Let test-triggered native workspace saves settle before exact outer configuration-byte restoration. */ async()=>{await new Promise(/** This finite cleanup timer is observed to completion and never becomes product scheduling. */ resolve=>window.setTimeout(resolve,500));});
-        return{errors,steps,originalClipboardRestored:!c.realClipboardModified&&!c.originalClipboard,reportDialogsRemaining:[...c.p.actionDialogs].filter(/** Count only this feature's native dialogs without exposing unrelated dialog contents. */ ([dialog])=>dialog.modalEl?.classList.contains('kplex-support-report-modal')).length,settingsRestored:JSON.stringify(c.p.settings)===JSON.stringify(c.originalSettings),debuggerReleased:!c.debuggerOwned};
+        return{errors,steps,originalClipboardRestored:!c.realClipboardModified&&!c.originalClipboard,reportDialogsRemaining:[...c.p.actionDialogs].filter(/** Count only this feature's native dialogs without exposing unrelated dialog contents. */ ([dialog])=>dialog.modalEl?.classList.contains('kplex-support-report-modal')).length,settingsRestored:JSON.stringify(c.p.settings)===JSON.stringify(c.originalSettings),debuggerReleased:true,debuggerUse:"none"};
       })().then(/** Publish finite teardown receipts for the serial CLI reader. */ value=>{c.cleaned=value;},/** Keep teardown failure distinct from successful feature acceptance. */ error=>{c.cleanupError=String(error);});return JSON.stringify({cleanupStarted:true});})()`);
       const deadline = Date.now() + 90000;
       while (true) {

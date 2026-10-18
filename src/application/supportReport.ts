@@ -4,6 +4,7 @@
  * string. It has no host, clipboard, timer, logging, enumeration or network dependency.
  */
 import { SUPPORT_PLUGIN_LIMIT } from "./supportCustomizationProjection";
+import { projectIndexingActivity } from "./IndexingActivity";
 import { SESSION_EVENT_CODES, SESSION_EVENT_CATEGORIES, SESSION_EVENT_OUTCOMES, SESSION_EVENT_LIMIT,
   SUPPORT_PHASES, supportCode, supportCount, supportDuration, supportField } from "./SessionEventRecorder";
 import { projectSupportEnvironment, projectSupportIndex, projectSupportPreferences, projectSupportStartup,
@@ -39,9 +40,19 @@ function supportEvents(input: unknown) {
     retainedBytes: supportCount(supportField(input, "retainedBytes")) };
 }
 
-/** Emit one pasteable ASCII representation, whose character count is its exact UTF-8 clipboard size. */
-function formatSupportReport(report: unknown): string {
-  return `## K-Plex support report\n\n\`\`\`json\n${JSON.stringify(report, null, 2).replace(/[\u007f-\uffff]/g, /** Preserve intentional Unicode metadata while retaining an exact ASCII byte bound. */ character => `\\u${character.charCodeAt(0).toString(16).padStart(4, "0")}`)}\n\`\`\`\n`;
+/**
+ * Serialize an internally projected root with the one shared, branded activity object. Existing
+ * fields keep their readable indentation; numeric activity arrays remain one compact ASCII line.
+ * Unknown activity inputs are admitted only by weak membership, never reflection or serializers.
+ */
+export function formatDiagnosticsJson(report: object, indexingActivity?: unknown): string {
+  const base = JSON.stringify(report, null, 2), activity = projectIndexingActivity(indexingActivity);
+  const text = `${base === "{}" ? "{\n" : base.slice(0, -2) + ",\n"}  "indexingActivity": ${JSON.stringify(activity)}\n}`;
+  return text.replace(/[\u007f-\uffff]/g, /** Preserve intentional Unicode metadata with exact ASCII byte sizing. */ character => `\\u${character.charCodeAt(0).toString(16).padStart(4, "0")}`);
+}
+/** Emit one pasteable Markdown wrapper around the exact shared JSON representation. */
+function formatSupportReport(report: object, indexingActivity?: unknown): string {
+  return `## K-Plex support report\n\n\`\`\`json\n${formatDiagnosticsJson(report, indexingActivity)}\n\`\`\`\n`;
 }
 
 /**
@@ -49,16 +60,16 @@ function formatSupportReport(report: unknown): string {
  * Large plugin manifests must not trigger hundreds of repeated megabyte serializations. All rows
  * are already copied safe DTOs; the supplied updater changes only this private report projection.
  */
-function trimSupportRows<T>(report: unknown, rows: T[], oldest: boolean, update: (rows: T[], omitted: number) => void): string {
+function trimSupportRows<T>(report: object, rows: T[], oldest: boolean, update: (rows: T[], omitted: number) => void, indexingActivity?: unknown): string {
   let low = 0, high = rows.length;
   while (low < high) {
     const middle = Math.floor((low + high) / 2);
     update(oldest ? rows.slice(middle) : rows.slice(0, rows.length - middle), middle);
-    if (formatSupportReport(report).length <= SUPPORT_REPORT_BYTE_LIMIT) high = middle;
+    if (formatSupportReport(report, indexingActivity).length <= SUPPORT_REPORT_BYTE_LIMIT) high = middle;
     else low = middle + 1;
   }
   update(oldest ? rows.slice(low) : rows.slice(0, rows.length - low), low);
-  return formatSupportReport(report);
+  return formatSupportReport(report, indexingActivity);
 }
 
 /**
@@ -68,7 +79,8 @@ function trimSupportRows<T>(report: unknown, rows: T[], oldest: boolean, update:
  * Names and versions are bounded explicit metadata fields; all other strings use finite vocabulary.
  * Unicode is escaped before sizing, so exact bytes require no TextEncoder or arbitrary serializers.
  */
-export function createSupportReport(input: SupportReportInput): string {
+export function createSupportReport(input: SupportReportInput, indexingActivity?: unknown): string {
+  const activity = projectIndexingActivity(indexingActivity);
   const captured = supportEvents(supportField(input, "session"));
   const report = { formatVersion: SUPPORT_REPORT_FORMAT_VERSION, capturedAt: supportIsoTime(supportField(input, "capturedAt")),
     index: projectSupportIndex(supportField(input, "indexReport")), environment: projectSupportEnvironment(supportField(input, "environment")),
@@ -82,19 +94,19 @@ export function createSupportReport(input: SupportReportInput): string {
   report.truncation.oldestStartupPhasesOmitted = report.startup.phasesOmitted;
   report.truncation.oldestStartupOverlapsOmitted = report.startup.overlapsOmitted;
   report.truncation.oldestIndexDecisionsOmitted = "decisionsOmitted" in report.index ? report.index.decisionsOmitted ?? 0 : 0;
-  let formatted = formatSupportReport(report);
+  let formatted = formatSupportReport(report, activity);
   if (formatted.length > SUPPORT_REPORT_BYTE_LIMIT && report.events.length) {
     const previouslyOmitted = report.truncation.oldestEventsOmitted;
     formatted = trimSupportRows(report, report.events, true, /** Apply oldest-event omission only to the private projected report. */ (rows, omitted) => {
       report.events = rows; report.truncation.oldestEventsOmitted = previouslyOmitted + omitted;
-    });
+    }, activity);
   }
   if (formatted.length > SUPPORT_REPORT_BYTE_LIMIT && report.environment.activePlugins.length) {
     const previouslyOmitted = report.truncation.activePluginsOmitted;
     formatted = trimSupportRows(report, report.environment.activePlugins, false, /** Keep the deterministic plugin prefix and name every omitted record. */ (rows, omitted) => {
       report.environment.activePlugins = rows; report.truncation.activePluginsOmitted = previouslyOmitted + omitted;
       report.environment.activePluginsOmitted = report.truncation.activePluginsOmitted;
-    });
+    }, activity);
   }
   while (formatted.length > SUPPORT_REPORT_BYTE_LIMIT) {
     if (report.startup.phases.length) { report.startup.phases.shift(); report.truncation.oldestStartupPhasesOmitted++; }
@@ -104,9 +116,9 @@ export function createSupportReport(input: SupportReportInput): string {
       // Fixed allowlisted scalar sections fit well within the bound. Keep this defensive terminal
       // result copyable if a future schema extension violates that invariant; never write oversized data.
       return formatSupportReport({ formatVersion: SUPPORT_REPORT_FORMAT_VERSION, capturedAt: report.capturedAt,
-        reportStatus: "size-limit", eventsCaptureStatus: report.eventsCaptureStatus, rawConsoleCaptureStatus: "unsupported" });
+        reportStatus: "size-limit", eventsCaptureStatus: report.eventsCaptureStatus, rawConsoleCaptureStatus: "unsupported" }, activity);
     }
-    formatted = formatSupportReport(report);
+    formatted = formatSupportReport(report, activity);
   }
   return formatted;
 }

@@ -1,0 +1,391 @@
+{
+  "schemaVersion": 1,
+  "pr": 146,
+  "issue": 143,
+  "status": "implemented-scoped-validation-passed-full-gate-launcher-failed",
+  "branch": "2026-10-12-issue-143-style-save",
+  "planHead": "0082327e9e5d46996df9d4a41f947a5a96e93f75",
+  "acceptedMain": "fdb71942c71e6b5fa5f69586beb88ed01e13c047",
+  "uncommitted": true,
+  "mergePending": true,
+  "temporaryPlanRemoved": true,
+  "environment": {
+    "node": "22.22.2",
+    "obsidianTypes": "1.13.0",
+    "obsidian": "1.14.4 (installer 1.14.0)",
+    "os": "Darwin 23.5.0",
+    "vaultName": "kplex-test-small",
+    "mobileEmulation": false
+  },
+  "verification": {
+    "focused": {
+      "command": "node --test tests/excalibrain-migration.test.mjs tests/localization.test.mjs",
+      "pass": 64,
+      "fail": 0,
+      "skip": 0
+    },
+    "general": {
+      "command": "First two canonical Node commands from package.json scripts.test, unchanged arguments",
+      "pass": 735,
+      "fail": 0,
+      "skip": 0
+    },
+    "browser": {
+      "command": "node --test --test-concurrency=1 tests/on-demand-indexing.test.mjs tests/graph-presentation-indexeddb.test.mjs tests/source-requested-pair.test.mjs tests/source-high-degree-publication.test.mjs",
+      "pass": 112,
+      "fail": 0,
+      "skip": 0,
+      "qualification": "Source/index owners match final. Run preceded final publication/UI recovery and alpha additions; final focused/general/style-host/native lanes cover those changes."
+    },
+    "finalStyleHostBrowser": {
+      "command": "node --test --test-concurrency=1 --test-name-pattern='durable and compatibility style saves' tests/on-demand-indexing.test.mjs",
+      "pass": 1,
+      "fail": 0,
+      "skip": 0,
+      "facts": "Retained demand token/pair authority/current cached tag facets; zero body reads, parses, source acquisition, semantic refresh/publication."
+    },
+    "architecture": {
+      "pass": 7,
+      "violations": 0,
+      "migratedRoots": 104,
+      "reachableFiles": 191
+    },
+    "core": {
+      "pass": 94,
+      "qualification": "Full-gate capture; portable core is unchanged thereafter."
+    },
+    "lint": {
+      "errors": 0,
+      "warnings": 0
+    },
+    "build": {
+      "status": "passed",
+      "actualInstalledObsidianTypes": true
+    },
+    "fullGate": {
+      "command": "npm run verify:obsidian",
+      "status": "failed",
+      "architecturePass": 7,
+      "corePass": 94,
+      "lint": "passed",
+      "generalPass": 728,
+      "uiPass": 41,
+      "uiFail": 19,
+      "skip": 0,
+      "failures": [
+        "not ok 24 - attachment rename collision retires placeholder DOM through collapse, later layout and unmount",
+        "not ok 25 - FloatingLayer owner-document browser behavior",
+        "not ok 26 - InfoBubble rendered browser behavior",
+        "not ok 27 - DraggableDialog owner-document browser behavior",
+        "not ok 28 - Draggable floating layer retains placement and owns cleanup in main and framed documents",
+        "not ok 29 - FuzzySuggester production browser behavior",
+        "not ok 30 - FuzzySuggester programmatic focus after native host pre-focus",
+        "not ok 31 - SearchBox plain read model and revision browser behavior",
+        "not ok 32 - External file areas and pinned relationship targets use shared production routing",
+        "not ok 33 - Drop glow remains visible above panels and controls share theme/state styling",
+        "not ok 34 - Editor shared menu and history target eligibility, leave and cancellation",
+        "not ok 35 - Focused Find, history text and area hover outlines remain readable in light and dark themes",
+        "not ok 36 - Plex Find independent field focus, literal matching, cycling and dismissal",
+        "not ok 37 - ResizableAreaFrame localized keyboard behavior",
+        "not ok 38 - Related composer existing selection and ontology disclosure browser behavior",
+        "not ok 39 - Toolbar consumes spare space and search width before wrapping; labels use two lines",
+        "not ok 40 - Plex selection controller preserves mode, section policy, projection and owning-realm cleanup",
+        "not ok 41 - Native hotkey pills support disable, customize, restore, conflicts and recording cleanup",
+        "not ok 42 - long node titles and aliases retain exact rendered truncation and measured width across all density values"
+      ],
+      "cause": "All failed UI cases are unchanged Chrome --dump-dom launch ETIMEDOUT at the existing deadline. No assertion/deadline was weakened.",
+      "uiFileMatchesAcceptedMain": true,
+      "uiFileSha256": "364634d3f7620f015374e702c3cf1feac29f6021f585664f7ee64d6a6095d05e",
+      "notReached": [
+        "source lanes",
+        "build",
+        "strict staging/native smoke"
+      ],
+      "limitationAcceptedForThisAssignment": true,
+      "qualification": "Capture preceded final concurrency/recovery/alpha/pair-lifetime fixes. Subsequent final lanes and separately staged native acceptance are distinct evidence."
+    }
+  },
+  "baseline": {
+    "report": "/private/tmp/kplex146-baseline.json",
+    "artifactMainSha256": "ee2fdd42b152351c4a1848176088149fc90d37fd3caa4a64113991260f7766e0",
+    "facts": {
+      "held": true,
+      "events": [
+        {
+          "key": "saveData",
+          "phase": "start",
+          "time": 4618851.800000191
+        },
+        {
+          "key": "saveData",
+          "phase": "end",
+          "time": 4618854.5
+        },
+        {
+          "key": "refreshPresentationSettings",
+          "phase": "start",
+          "time": 4618854.5
+        },
+        {
+          "key": "refreshPresentationSettings",
+          "phase": "end",
+          "time": 4618854.900000095
+        },
+        {
+          "key": "refreshSemanticSettings",
+          "phase": "start",
+          "time": 4618854.900000095
+        }
+      ],
+      "modal": true,
+      "live": true,
+      "mode": "on-demand",
+      "views": 0,
+      "hidden": false,
+      "durable": true
+    },
+    "qualification": "Controlled real-manager semantic hold reproduces durable save with editor still open. Reported views=0 used incorrect plugin-ID lookup; no no-view claim is accepted."
+  },
+  "native": {
+    "status": "passed",
+    "cases": [
+      {
+        "name": "no-view create, duplicate clicks and pending Cancel/Escape",
+        "status": "passed",
+        "writes": 1
+      },
+      {
+        "name": "native RGB normalization/edit preserves imported alpha and inheritance",
+        "status": "passed"
+      },
+      {
+        "name": "create both style families durably",
+        "status": "passed"
+      },
+      {
+        "name": "rename updates the correct manager family",
+        "status": "passed"
+      },
+      {
+        "name": "failed delete retains draft/live/disk; one retry deletes its family",
+        "status": "passed"
+      },
+      {
+        "name": "durable presentationFailure closes with saved recovery feedback",
+        "status": "passed"
+      },
+      {
+        "name": "durable managerFailure closes with saved recovery feedback",
+        "status": "passed"
+      },
+      {
+        "name": "no-view style operations perform no semantic refresh, source acquisition or K-Plex body reads",
+        "status": "passed",
+        "nativeLeafReads": 1
+      },
+      {
+        "name": "active on-demand graph and tag priority retain prepared editing authority without source work",
+        "status": "passed",
+        "indexingMode": "on-demand"
+      },
+      {
+        "name": "actual Settings subpages and style manager complete in their owning document",
+        "status": "passed",
+        "popout": true
+      },
+      {
+        "name": "committed style survives native plugin reload",
+        "status": "passed"
+      }
+    ],
+    "artifacts": {
+      "main.js": "60dace396d127c442ca6d1d96b4f6f98969e212c56f9fc05313dbdb12c96326e",
+      "styles.css": "e8c9279e8904888aa71d5dd2b01f320d5b32fd10e15feb0b9a9576a34f11cea3",
+      "manifest.json": "0beacdb94adc4a0ec318d69dba87fcb4dc9c1a86784058db341fdefe0dfb4250"
+    },
+    "countsIncludingSetup": {
+      "writes": 12,
+      "presentations": 11,
+      "semantics": 0,
+      "acquisitions": 10,
+      "reads": 5,
+      "sourceReads": 0,
+      "nativeLeafReads": 5
+    },
+    "noViewBefore": {
+      "writes": 0,
+      "presentations": 0,
+      "semantics": 0,
+      "acquisitions": 0,
+      "reads": 4,
+      "sourceReads": 0,
+      "nativeLeafReads": 4
+    },
+    "configurationRestored": true,
+    "reportSha256": "f8c56cb72bdc3f4e06178f80a9f1fb8c1df5a034c3b0bff0db493cb9692e4a0b",
+    "activation": "programmatic native manager/editor DOM",
+    "readQualification": "Total acquisition counts include normal startup/view/pair preparation. Per-operation zero-source assertions passed. All observed Vault reads were positively identified native Markdown lifecycle callbacks; raw facts remain in the native report. No claim that every host read or physical latency vanishes.",
+    "cleanupInspection": {
+      "controller": false,
+      "modals": 0,
+      "syntheticStyles": [],
+      "settingsOpen": false,
+      "mobile": false,
+      "localReady": true,
+      "hidden": false,
+      "capturedJavaScriptErrors": 0
+    }
+  },
+  "scale": {
+    "owners": 20015,
+    "ownerChecks": 8187369,
+    "elapsedMs": 114849.40000009537,
+    "peakJavaScriptHeapBytes": 423157744,
+    "combinedPeakReportedBytes": 685201826,
+    "qualification": "Cached-source publication scenario, not native style latency or total process memory. Direct center complete; root-wide structural closure explicitly incomplete.",
+    "rootComplete": false,
+    "published": 1,
+    "cancellationYields": 2
+  },
+  "intermediateNativeEvidence": [
+    {
+      "path": "/private/tmp/kplex146-native/style-operations-native.json",
+      "status": "failed",
+      "error": "AssertionError [ERR_ASSERTION]: Error: Write did not start",
+      "casesCompleted": 0,
+      "configurationRestored": true
+    },
+    {
+      "path": "/private/tmp/kplex146-native-diagnosis/style-operations-native.json",
+      "status": "failed",
+      "error": "AssertionError [ERR_ASSERTION]: Error: Write did not start",
+      "casesCompleted": 0,
+      "configurationRestored": true
+    },
+    {
+      "path": "/private/tmp/kplex146-native-reviewed/style-operations-native.json",
+      "status": "failed",
+      "error": "AssertionError [ERR_ASSERTION]: Error: Active graph did not render",
+      "casesCompleted": 7,
+      "configurationRestored": true
+    },
+    {
+      "path": "/private/tmp/kplex146-native-final/style-operations-native.json",
+      "status": "failed",
+      "error": "AssertionError [ERR_ASSERTION]: Error: No-view styles requested unrelated source/semantic work",
+      "casesCompleted": 6,
+      "configurationRestored": true
+    },
+    {
+      "path": "/private/tmp/kplex146-native-acceptance/style-operations-native.json",
+      "status": "failed",
+      "error": "AssertionError [ERR_ASSERTION]: TypeError: p.index.getIndexingStatus is not a function",
+      "casesCompleted": 0,
+      "configurationRestored": true
+    },
+    {
+      "path": "/private/tmp/kplex146-native-verified/style-operations-native.json",
+      "status": "failed",
+      "error": "AssertionError [ERR_ASSERTION]: Error: No-view styles requested unrelated source/semantic work",
+      "casesCompleted": 6,
+      "configurationRestored": true
+    },
+    {
+      "path": "/private/tmp/kplex146-native-read-owner/style-operations-native.json",
+      "status": "failed",
+      "error": "AssertionError [ERR_ASSERTION]: Error: No-view styles requested unrelated source/semantic work",
+      "casesCompleted": 6,
+      "configurationRestored": true
+    },
+    {
+      "path": "/private/tmp/kplex146-native-read-caller/style-operations-native.json",
+      "status": "failed",
+      "error": "AssertionError [ERR_ASSERTION]: Error: No-view styles requested unrelated source/semantic work",
+      "casesCompleted": 6,
+      "configurationRestored": true
+    },
+    {
+      "path": "/private/tmp/kplex146-native-owner-reviewed/style-operations-native.json",
+      "status": "failed",
+      "error": "AssertionError [ERR_ASSERTION]: Error: Native settings entry unavailable: settings.ui.node.styling",
+      "casesCompleted": 8,
+      "configurationRestored": true
+    },
+    {
+      "path": "/private/tmp/kplex146-native-final-reviewed/style-operations-native.json",
+      "status": "failed",
+      "error": "AssertionError [ERR_ASSERTION]: Error: Initial source startup did not settle",
+      "casesCompleted": 0,
+      "configurationRestored": true
+    },
+    {
+      "path": "/private/tmp/kplex146-native-final-ready/style-operations-native.json",
+      "status": "passed",
+      "error": null,
+      "casesCompleted": 10,
+      "configurationRestored": true
+    }
+  ],
+  "browserFindings": [
+    "Initial style regression failed retained pair authority; fixed only post-publication semantic lifetime using existing canonical signature while private compilation remains fenced.",
+    "Next regression revealed missing hostTags in the fixture; corrected native-input facts and added an initial-authority assertion."
+  ],
+  "selfReview": {
+    "ownership": "Existing settings-impact owner, common settings write queue, native modal/manager, translator and GraphIndex exact-pair lifetime. No duplicate grammar, engine or scheduler.",
+    "compatibility": "No settings/schema/dependency migration; preserves families, imported key order/spelling, sparse values/alpha, future actions and immediate consent revocation. Mixed settings keep existing effects.",
+    "lifecycle": "Pending/committed exclusion; exact modal lifetime/document/closed-window guards; post-disk failures remain saved; no stale whole-settings rollback.",
+    "documentation": "Touched module/function ownership and TSDoc reviewed manually; lint is not claimed as documentation proof.",
+    "refactor": "C14 remains accepted; structural refactoring paused.",
+    "runtimeProbeSearch": "No kplex146/__kplex146 prefix found in src/ or dist/main.js."
+  },
+  "remainingAcceptance": [
+    "Full candidate verification on Windows",
+    "Physical phone/tablet touch and modal lifecycle"
+  ],
+  "publication": "After validation, the maintainer explicitly authorized commit, push, finalization and merge of existing PR #146, then switching to main and fetching, with no repeated testing and no wait for GitHub validations. The recorded full-gate limitation is accepted for publication; its failed status is unchanged. No release requested.",
+  "sourceSha256": {
+    "src/main.ts": "60b119e6d253399d4a5d38e9760e79a28a69c4eb01d79b8cd3d7398266b4ee53",
+    "src/settings.ts": "7746408b45541218b3721bf785a6829b39674fd0df6fc0da26e2d612cef33687",
+    "src/index/GraphIndex.ts": "8df1d8206b1d80ecfea7bb9a6b2be5319c47d3ab4c818aae564695fe8a4cf9c5",
+    "src/core/graph/settingsPolicy.ts": "7d0b21c857963fc88699cd6316275bb4b1291053e2f90df4483817e5fc5efb6f",
+    "src/lang/en.ts": "89d43a275a8ccab139a95448e04ba305131f4c13b5daaa71d9acab0df32e7094",
+    "src/lang/catalog.ts": "c6f9ab3f76bb60184ef03c333faa917da7c08641a50dd87dc501ac8b23e6efe6",
+    "tests/excalibrain-migration.test.mjs": "883b594420567fb4b511e8d43d4bdea21f6cb0098bef0073c6d49092504fceda",
+    "tests/on-demand-indexing.test.mjs": "982b69a3f3c341da7519440338cea136933c4458ea2a00ef82acf3d6d2ef37ec",
+    "tests/remote-node-images.test.mjs": "3824d130330b52be75b95626d510f1e29f0b2627710a80a33039b116c5b23b33",
+    "tests/support/settingsIndependence.mjs": "aae60dc16c83af55663ba3d638ad13913797f37f670ae37c645cefffdbedf20f",
+    "scripts/testing/obsidian/styleOperations.mjs": "4f649af6d302db1cd89b83a61350784c98f09337d0f665423851c5190cf5fb63",
+    "package.json": "1e9f1078b5aa3b44ef605599a291a669b1d3f8d963fa2e8ff3e789a94ab1a795",
+    "CONTRIBUTING.md": "885c58ecbf56fb19452d341db7e30c3dce0f34d47421fa84665dab8f1759e324",
+    "docs/validation/style-operations-2026-10-13.md": "78d9434482b0ba34642eb80df3556e2e9eaf4ef670de2cfc16f71d41162c226d"
+  },
+  "runtimeSourceInventorySha256": "396e74682efea177cc278cb37127f437c14504a1c95a187b5cff62bffdec91d5",
+  "localEvidenceSha256": {
+    "/private/tmp/kplex146-baseline.json": "44884fed2df4a496e606a68cad44aa9b9c350afccbca9857e78bd5977615db71",
+    "/private/tmp/kplex146-baseline.mjs": "dbdbd7c3d1ef35eaa9ad84393c889ab81cf31b1e9e01ab03f1841105ecc76a02",
+    "/private/tmp/kplex146-full-verification.log": "c0edf172711833366dd8bf78a388db1862ee6e10d8329c398aa4b2328fedcdf7",
+    "/private/tmp/kplex146-full-verification-retry.log": "51c9941f2970e09c4affa9754f42f999d3e36300c751b40e78037ab5b02dee02",
+    "/private/tmp/kplex146-final-focused.log": "a5396ed36eea339abf7e9bd9b394763b00e6377ceb2e6f88c79c014cc7f54fee",
+    "/private/tmp/kplex146-final-general.log": "f56ecc52486e64991cfb6f6031a64eb7e79bb3b9f48f2b21d7b8d51f10487320",
+    "/private/tmp/kplex146-final-browser.log": "da80459d2b6f06cb52b3a9d022da35cd950df9e9a195d1c675ac7f61033467b6",
+    "/private/tmp/kplex146-final-style-authority.log": "e6ca8639c2ed94d252fbbacb013830047f43ef96d4ff2959e6c9d27a06a17359",
+    "/private/tmp/kplex146-final-build.log": "c96e1a633ffbcc2fd81b6ef838835f9b06d03b2344449bcd5d9422e1e6e67342",
+    "/private/tmp/kplex146-final-architecture.log": "8669234105cbb7cd1e4e4c2254b0fd987365e77287623210767bbfd79d22d18e",
+    "/private/tmp/kplex146-final-lint.log": "d636a5598af88f2f7c8b2feb7e29476e1b368ea05fa51b6de4154a57020f0db0",
+    "/private/tmp/kplex146-native-final-acceptance/style-operations-native.json": "f8c56cb72bdc3f4e06178f80a9f1fb8c1df5a034c3b0bff0db493cb9692e4a0b",
+    "/private/tmp/kplex146-native/style-operations-native.json": "c044104d43e2df8c870cd868dc3283f4d64d074f3faee4c3d5876cb90f80737a",
+    "/private/tmp/kplex146-native-diagnosis/style-operations-native.json": "890f46f73ed272b0d3e8a9fa19efd1d2e3e017a964c6e0c57e94a2e0e109f1c8",
+    "/private/tmp/kplex146-native-reviewed/style-operations-native.json": "c343e998ab14dcaf5a374cdb0012b4f5a3db223c0320605d52784e96694949fb",
+    "/private/tmp/kplex146-native-final/style-operations-native.json": "dff0ca9adae33ffe997c0b441a8e155aaca53e716ac8b9b93fdcc295d2e96bfd",
+    "/private/tmp/kplex146-native-acceptance/style-operations-native.json": "fe90674dbdfce2eb85fff2758e8da661c43b0411a265d2405172ecfe7bcec2c1",
+    "/private/tmp/kplex146-native-verified/style-operations-native.json": "5d9ebcd0bb191c111dde1ae390820e82535eea72f51a69e032163a7f12ea35ce",
+    "/private/tmp/kplex146-native-read-owner/style-operations-native.json": "74d75b4ebec5651e62bed8317cc6361e87f75c7c0b8be9c839a0ebea3bd856d0",
+    "/private/tmp/kplex146-native-read-caller/style-operations-native.json": "18ed285ce32bdabd490b23557177401332bf7203d0b0f6e9a7c58f62e6688355",
+    "/private/tmp/kplex146-native-owner-reviewed/style-operations-native.json": "40a5d70be2323bd2ae5d6b82f2e5c892c83318ffc64f54ac8a777fd829b79bb2",
+    "/private/tmp/kplex146-native-final-reviewed/style-operations-native.json": "4de3840ca8009ab4526ed460ca97541780a99f94b07d8b42de0b35927ce55985",
+    "/private/tmp/kplex146-native-final-ready/style-operations-native.json": "e5073a8525639eb5916a72a532df00a9657ec00296ce4bcd8cf3d0324446a12a",
+    "/private/tmp/kplex146-affected-browser.log": "b0aa26bb29a3cf79a8ae53e766b4891e0f1dac40b002fb69ffbce4c7cccaa859",
+    "/private/tmp/kplex146-affected-browser-retry.log": "992a877b5f20c9a77867b41f58ab1f59894a2c02a2b3140aba4814d5783a3376"
+  },
+  "captureStateQualification": "uncommitted and mergePending describe the validation capture, before the subsequent publication authorization; GitHub PR #146 records final commit and merge identities."
+}

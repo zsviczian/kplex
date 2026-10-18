@@ -254,9 +254,10 @@ function tagMembershipOccurrence(file: TFile, rawTag: string, contributionRevisi
 }
 
 /** Reuse the canonical tag membership producer without scanning any other Markdown source. */
-export function structuralTagMembershipFacts(file: TFile, metadataCache: Pick<MetadataCache, "getFileCache">): readonly TagTreeOccurrence[] {
-  const cache = metadataCache.getFileCache(file);
-  const rawTags = cache ? (getAllTags(cache) ?? []) : [];
+export function structuralTagMembershipFacts(file: TFile, metadataCache: Pick<MetadataCache, "getFileCache">,
+  observedTags?: readonly string[]): readonly TagTreeOccurrence[] {
+  const cache = observedTags ? null : metadataCache.getFileCache(file);
+  const rawTags = observedTags ?? (cache ? (getAllTags(cache) ?? []) : []);
   const contributionRevision = tagContributionRevision(file, rawTags);
   const facts: TagTreeOccurrence[] = [];
   for (const rawTag of rawTags) {

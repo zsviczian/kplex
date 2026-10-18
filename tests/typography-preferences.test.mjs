@@ -12,11 +12,41 @@ process.on("exit", () => rmSync(temp, { recursive: true, force: true }));
 await build({ stdin: { contents: 'export * from "./src/core/plex/typographyPreferences"; export * from "./src/settings"; export * from "./src/core/graph/settingsPolicy"; export * from "./src/ui/viewProfile"; export * from "./src/index/style";', resolveDir: process.cwd() },
   outfile: join(temp, "model.mjs"), bundle: true, platform: "node", format: "esm", plugins: [{ name: "host", setup(b) {
     b.onResolve({ filter: /^obsidian$/ }, () => ({ path: "obsidian", namespace: "host" }));
-    b.onLoad({ filter: /.*/, namespace: "host" }, () => ({ contents: `export class App {} export class Modal {} export class Notice {} export class AbstractInputSuggest {} export class PluginSettingTab {} export class Scope {} export class Setting {} export class ButtonComponent {} export class ExtraButtonComponent {} export class SearchComponent {} export const setIcon=()=>{}; export const setTooltip=()=>{}; export const getIcon=()=>null; export const getIconIds=()=>[]; export const getLanguage=()=>"en"; export const Platform={};`, loader: "js" }));
+    b.onLoad({ filter: /.*/, namespace: "host" }, () => ({ contents: `export class App {} export class Modal {} export class SuggestModal extends Modal {} export class ColorComponent {} export class Notice {} export class AbstractInputSuggest {} export class PluginSettingTab {} export class Scope {} export class Setting {} export class ButtonComponent {} export class ExtraButtonComponent {} export class SearchComponent {} export const setIcon=()=>{}; export const setTooltip=()=>{}; export const getIcon=()=>null; export const getIconIds=()=>[]; export const getLanguage=()=>"en"; export const Platform={};`, loader: "js" }));
   }}] });
 const m = await import(pathToFileURL(join(temp, "model.mjs")));
 const env = device => ({ device });
 const shared = { baseFontSize: 12.4, maxLabelLength: 30, maxWidth: 286, wrapNodeLabels: true };
+
+/** Reuse the actual quick handler and host profile writer across every device/surface route. */
+test("quick simplified checkbox writes only the current arrangement context and preserves pop-out density", async () => {
+  const sources = ["src/ui/PlexGraph.tsx", "src/main.ts"].map(path => ts.createSourceFile(path, readFileSync(path, "utf8"), ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX));
+  let change, update;
+  /** Extract production bodies without importing the Obsidian lifecycle or constructing another writer. */
+  const visit = node => {
+    if (ts.isVariableDeclaration(node) && node.name.getText() === "changeSimplifiedLayout") change = node.initializer.getText();
+    if (ts.isMethodDeclaration(node) && node.name.getText() === "updateLayoutProfile") update = node.getText();
+    ts.forEachChild(node, visit);
+  };
+  sources.forEach(visit);assert(change && update);
+  const compiled = ts.transpileModule(`class Host {${update}};const make=()=>(${change});`, {compilerOptions:{target:ts.ScriptTarget.ES2021}}).outputText;
+  for (const device of ["desktop", "tablet", "phone"]) for (const surface of ["leaf", "sidepanel", "popout"]) {
+    const settings = m.migrateAndMergeSettings(undefined), before = structuredClone(settings.layoutProfiles), writes = [], tasks = [];
+    const host = {settings, index:{notifyPresentation(){}}, saveSettings:async(...args)=>writes.push(args)};
+    const deps = {plugin:host,surface,lateralArrangementSurface:m.lateralArrangementSurface,readObsidianPresentationEnvironment:()=>env(device),
+      layoutProfileKey:m.layoutProfileKey,activeLayoutProfile:m.activeLayoutProfile,suppressLayoutMotionUntil:{current:0},suppressAutoFitUntil:{current:0},
+      sceneMotion:{cancelAll(){}},preserveCameraOnNextLayout:{current:false}};
+    const production = new Function(...Object.keys(deps), `${compiled};return {update:Host.prototype.updateLayoutProfile,change:make()};`)(...Object.values(deps));
+    host.updateLayoutProfile=(...args)=>{const task=production.update.apply(host,args);tasks.push(task);return task;};
+    production.change(true);await Promise.all(tasks);
+    const key = `${device === "phone" ? "mobile" : device}:${surface === "popout" ? "leaf" : surface}`;
+    assert.equal(settings.layoutProfiles[key].lateralArrangement,"left");
+    assert.equal(m.effectiveViewSettings(settings,surface,env(device)).lateralArrangement,"left");
+    for(const other of Object.keys(before))if(other!==key)assert.deepEqual(settings.layoutProfiles[other],before[other],`${device}/${surface} changed ${other}`);
+    assert.deepEqual(writes,[[false,false]]);assert.equal(deps.preserveCameraOnNextLayout.current,true);
+    production.change(false);await Promise.all(tasks);assert.equal(settings.layoutProfiles[key].lateralArrangement,"split");
+  }
+});
 
 test("legacy migration remains sparse and forward values are inert; false and equal-to-default choices remain explicit", () => {
   assert.deepEqual(m.migrateAndMergeSettings(undefined).typographyProfiles, {});
@@ -211,7 +241,7 @@ test("actual quick debounce/unmount persists latest staged device once and canno
   const dependencies = { plugin, typographyDevice: "desktop", typographyDraft: ref(), typographySave: ref(),
     viewport: { current: { ownerDocument: { defaultView: ownerWindow }, classList: { remove() {} } } }, window: ownerWindow,
     suppressLayoutMotionUntil: ref(), suppressAutoFitUntil: ref(), preserveCameraOnNextLayout: ref(), sceneMotion: { cancelAll() {} }, setLayoutRevision() {},
-    layoutSaveTimer: ref(), layoutDraft: ref(), hoverIntentTimer: ref(), edgeTooltipTimer: ref(), sceneTransitionTimer: ref(), sceneTransitionTimerWindow: ref(), cameraFrame: ref(), cameraFrameWindow: ref() };
+    layoutSaveTimer: ref(), layoutDraft: ref(), hoverHighlight: ref(), edgeTooltipTimer: ref(), sceneTransitionTimer: ref(), sceneTransitionTimerWindow: ref(), cameraFrame: ref(), cameraFrameWindow: ref() };
   const quick = quickTypographyCallbacks(dependencies);
   quick.change({ baseFontSize: 18 }); quick.change({ maxLabelLength: 60 });
   plugin.stageTypographyOverride("tablet", { maxWidth: 500 });

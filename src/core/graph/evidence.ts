@@ -9,6 +9,12 @@
  * and exact revision fences; ordinary graph compilers allocate none of that derived metadata.
  * Boolean endpoint existence can traverse layer path keys lazily without allocating whole-degree
  * unions; ordered declaration iteration retains its existing observable behavior.
+ * Ordinary sparse positive replacements may compact bounded overrides above one unchanged root.
+ * Tombstones, activated facts and large/unknown payload retain full standalone compaction; no
+ * intermediate generation chain or unbounded shadowed payload is retained by the sparse path.
+ * A newly created private compiler store alone may append to owned arrays. Finalization/rejection,
+ * forks, retained original iterators, ordering, compaction and derived-index activation revoke that
+ * permission irreversibly; normal stores and all published generations retain copy-on-write.
  */
 import { LinkDirection, RelationType, type Role, type SemanticRelation } from "./relations";
 
@@ -84,6 +90,21 @@ const splitPairKey = (key: string): [string, string] => {
   const splitAt = key.indexOf("\u0000");
   return [key.slice(0, splitAt), key.slice(splitAt + 1)];
 };
+
+const SPARSE_PATCH_PAIRS = 32;
+const SPARSE_PATCH_RECORDS = 256;
+const SPARSE_PATCH_STRING_BYTES = 64 * 1024;
+const SPARSE_PATCH_LAYERS = 8;
+
+/** Count flat evidence scalar strings conservatively; a future non-scalar extension keeps full compaction. */
+function evidenceStringBytes(record: RelationEvidence): number | null {
+  let bytes = 0;
+  for (const value of Object.values(record)) {
+    if (typeof value === "string") bytes += value.length * 2;
+    else if (value !== null && value !== undefined && typeof value !== "number" && typeof value !== "boolean") return null;
+  }
+  return bytes;
+}
 
 /** Compact counts retain no duplicate declarations; at most two endpoints × ten kinds per pair. */
 type PairKindSummary = ReadonlyArray<readonly [string, EvidenceSourceKind, number]>;
@@ -199,9 +220,24 @@ export class RelationEvidenceStore {
   private readonly baseMutationRevision: number;
   /** Null in ordinary compilers. Only an exclusively private preparation owner activates facts. */
   private targetIndex: DeclaredTargetIndex | null = null;
+  /** Only a completed bounded positive compaction head may be folded into the next private patch. */
+  private sparseCompactionHead = false;
+  /** Explicit creation ownership only; neither standalone shape nor inactive metadata grants it. */
+  private privateCompilerAppend = false;
 
-  /** Start a standalone store or capture the exact parent generation for private fork staging. */
+  /** Create an empty store owned only by one compiler until sealing; never publish it unsealed. */
+  static createPrivateCompilation(): RelationEvidenceStore {
+    const store = new RelationEvidenceStore();
+    store.privateCompilerAppend = true;
+    return store;
+  }
+
+  /** Irreversibly retire private append permission before exposing or retaining a read generation. */
+  sealPrivateCompilation(): void { this.privateCompilerAppend = false; }
+
+  /** Start an ordinary standalone store, or seal a parent before capturing its fork generation. */
   constructor(base: RelationEvidenceStore | null = null) {
+    base?.sealPrivateCompilation();
     this.base = base;
     if (base?.targetIndex) this.targetIndex = createTargetIndex(base.targetIndex, base.targetIndex.members.keys());
     this.baseMutationRevision = base?.mutationRevision ?? 0;
@@ -217,6 +253,25 @@ export class RelationEvidenceStore {
 
   /** Start an isolated local transaction. Mutating the returned store cannot mutate this store. */
   fork(): RelationEvidenceStore { return new RelationEvidenceStore(this); }
+
+  /**
+   * The host patch boundary folds a just-compacted bounded head into its first child. This keeps
+   * the same eight-patch maintenance cadence as a standalone full compaction: earlier tombstone
+   * compaction would change later delete/re-add order. Map/path copies are bounded by the sparse
+   * admission limits; immutable bucket arrays may be shared because normal writes replace them.
+   * Public fork() retains its exact-parent/adoption contract and does not perform this folding.
+   */
+  forkForPatch(): RelationEvidenceStore {
+    if (!this.sparseCompactionHead) return this.fork();
+    const fork = new RelationEvidenceStore(this.base);
+    for (const [key, records] of this.byPair) fork.byPair.set(key, records);
+    for (const [path, keys] of this.pairsByPath) fork.pairsByPath.set(path, new Set(keys));
+    fork.declarationTotal = this.declarationTotal;
+    fork.pairTotal = this.pairTotal;
+    fork.nextId = this.nextId;
+    fork.targetIndex = this.targetIndex ? createTargetIndex(this.targetIndex, this.targetIndex.members.keys()) : null;
+    return fork;
+  }
 
   /**
    * Consume one bounded immediate child's pair delta into this exclusively private working store.
@@ -247,8 +302,10 @@ export class RelationEvidenceStore {
    * partial compaction. Activated summaries accumulate during the existing cooperative record copy.
    * Pair insertion order follows the oldest layer while newer layers replace values in place,
    * matching the observable order of `allPairKeys()`.
+   * Seals private compiler appends even when this store is already standalone.
    */
   async compactCooperative(checkpoint: () => Promise<boolean>): Promise<RelationEvidenceStore | null> {
+    this.sealPrivateCompilation();
     if (!this.base) return this;
     const layers: RelationEvidenceStore[] = [this];
     let baseLayer: RelationEvidenceStore | null = this.base;
@@ -289,18 +346,87 @@ export class RelationEvidenceStore {
   }
 
   /**
+   * Ordinary publication may retain one immutable root plus a bounded latest positive override set.
+   * Ineligible input uses the existing full standalone compaction, including all activated indexes.
+   * This is a small replacement-set optimization, not a global linear-growth representation.
+   * Taking this maintenance boundary also retires any private compiler append permission.
+   * @returns A complete private replacement (possibly depth one), or null after cancellation/change.
+   */
+  async compactOrdinaryPatchCooperative(checkpoint: () => Promise<boolean>): Promise<RelationEvidenceStore | null> {
+    this.sealPrivateCompilation();
+    if (!this.base) return this;
+    const sparse = await this.compactSparseOverrides(checkpoint);
+    return sparse === false ? this.compactCooperative(checkpoint) : sparse;
+  }
+
+  /**
+   * Inspect at most eight layers/256 keys; never scan an unchanged anchor. Bound both new bucket
+   * entries and shadowed root records/scalar payload. Empty buckets require full compaction because
+   * retaining their anchor positions would change observable delete/re-add order. False means
+   * ineligible; null means cancelled/superseded and must never trigger a fallback publication.
+   */
+  private async compactSparseOverrides(checkpoint: () => Promise<boolean>): Promise<RelationEvidenceStore | null | false> {
+    const layers: RelationEvidenceStore[] = [this];
+    for (let parent = this.base; parent; parent = parent.base) {
+      if (layers.length > SPARSE_PATCH_LAYERS || layers[layers.length - 1].targetIndex) return false;
+      layers.push(parent);
+    }
+    const anchor = layers.pop()!;
+    if (anchor.targetIndex || anchor.byPair.size !== anchor.pairTotal) return false;
+    const revisions = [...layers, anchor].map(/** A reentrant checkpoint cannot silently change any retained parent. */
+      store => [store, store.mutationRevision] as const);
+    const nextId = this.nextId, latest = new Map<string, RelationEvidence[]>();
+    let processed = 0;
+    for (const layer of layers.reverse()) for (const [key, records] of layer.byPair) {
+      if (++processed > SPARSE_PATCH_RECORDS) return false;
+      latest.set(key, records);
+      if (latest.size > SPARSE_PATCH_PAIRS) return false;
+    }
+    // Empty synthetic history retains the existing full-maintenance path; there is no changed
+    // working set to amortize and legacy callers retain their standalone maintenance receipt.
+    if (!latest.size) return false;
+    let records = 0, stringBytes = 0;
+    for (const [key, current] of latest) {
+      if (!current.length) return false;
+      const previous = anchor.readPair(key) ?? [];
+      records += current.length + previous.length;
+      if (records > SPARSE_PATCH_RECORDS) return false;
+      for (const bucket of [current, previous]) for (const record of bucket) {
+        const bytes = evidenceStringBytes(record);
+        if (bytes === null || (stringBytes += bytes) > SPARSE_PATCH_STRING_BYTES) return false;
+      }
+    }
+    const compacted = new RelationEvidenceStore(anchor);
+    for (const [key, current] of latest) {
+      const copied: RelationEvidence[] = [];
+      for (const record of current) {
+        copied.push(record);
+        if ((++processed & 255) === 0 && !(await checkpoint())) return null;
+      }
+      compacted.writePair(key, copied, anchor.readPair(key)?.length ?? 0);
+    }
+    if (!(await checkpoint()) || this.nextId !== nextId || revisions.some(/** Derived activation also invalidates the inactive-only ownership assumption. */
+      ([store, revision]) => store.mutationRevision !== revision || store.targetIndex !== null)) return null;
+    compacted.nextId = nextId;
+    compacted.sparseCompactionHead = true;
+    return compacted;
+  }
+
+  /**
    * Stably reorder private compiler declarations without building another source/graph model.
    * A bottom-up merge yields during dense pair buckets rather than hiding an unbounded native sort.
    * This is deliberately unavailable on published copy-on-write forks; normal patch publication
    * receives an already ordered standalone compilation and retains its established store behavior.
    * Starting a bucket reorder retires prior child-adoption validity, including cancelled reorders.
    * Private copy/merge ordering leaves a cancelled bucket intact, keeping activated counts/IDs valid.
+   * Retire append permission before the first await so a retained input array cannot grow in place.
    */
   async orderDeclarationsCooperative(
     compare: (left: RelationEvidence, right: RelationEvidence) => number,
     checkpoint: () => Promise<boolean>,
   ): Promise<boolean> {
     if (this.base) throw new Error("Declaration ordering requires a private standalone evidence store");
+    this.sealPrivateCompilation();
     let processed = 0;
     for (const [key, original] of this.byPair) {
       if (original.length > 1) {
@@ -468,8 +594,10 @@ export class RelationEvidenceStore {
     return touched;
   }
 
-  /** Allocation-light iterator used by time-sliced incremental patches. */
+  /** Allocation-light original iterator; starting it seals append ownership so its current bucket
+   * cannot grow in place while a consumer retains the suspended iterator. */
   *declarationsTouchingIterator(path: string): IterableIterator<RelationEvidence> {
+    this.sealPrivateCompilation();
     for (const key of this.pairKeysForPath(path)) {
       const list = this.readPair(key);
       if (list?.length) yield* list;
@@ -592,8 +720,10 @@ export class RelationEvidenceStore {
     }
   }
 
-  /** Original declarations only. */
+  /** Original declarations only. Seal owned appends when iteration begins, preserving the existing
+   * suspended-iterator behavior even if a private compiler store is inspected before finalization. */
   *declarations(): IterableIterator<RelationEvidence> {
+    this.sealPrivateCompilation();
     for (const key of this.allPairKeys()) {
       const list = this.readPair(key);
       if (list?.length) yield* list;
@@ -606,10 +736,12 @@ export class RelationEvidenceStore {
    * cancellation or mutation of any captured layer rejects the private result before installation.
    * Never call this to mutate a retained published parent. A newly activated child of an inactive
    * parent deliberately cannot be synchronously adopted; its owner must use the normal pointer swap.
+   * Activating, or cancelling activation of, derived facts irreversibly seals private appends.
    */
   async ensureDeclaredTargetIndexCooperative(
     kinds: Iterable<EvidenceSourceKind>, checkpoint: () => Promise<boolean>,
   ): Promise<boolean> {
+    this.sealPrivateCompilation();
     const requested = new Set(kinds);
     for (const kind of this.targetIndex?.members.keys() ?? []) requested.add(kind);
     if (this.targetIndex && [...requested].every(/** Requested kinds are the finite source-kind union. */ kind => this.targetIndex!.members.has(kind))) return true;
@@ -757,17 +889,22 @@ export class RelationEvidenceStore {
     return keys;
   }
 
-  /** Append one original, updating only its bounded summary when private facts are active. */
+  /** Append one original; only explicit unshared compiler ownership permits mutating its bucket.
+   * Capture the old length before push so counts/first-pair admission remain exact. All published,
+   * forked, enumerated or indexed stores retain the ordinary prefix-copy path. */
   private addDeclarationRecord(evidence: RelationEvidence): void {
     const key = pairKey(evidence.declaredByPath, evidence.declaredTargetPath);
     const current = this.readPair(key) ?? [];
-    const next = [...current, evidence];
+    const previousLength = current.length;
+    let next: RelationEvidence[];
+    if (this.privateCompilerAppend) { next = current; next.push(evidence); }
+    else next = [...current, evidence];
     const summary: Array<[string, EvidenceSourceKind, number]> = [];
     if (this.targetIndex) {
       for (const [target, kind, count] of indexedSummary(this.targetIndex, key)) summary.push([target, kind, count]);
       accumulateKind(summary, evidence);
     }
-    this.writePair(key, next, current.length, false, summary);
+    this.writePair(key, next, previousLength, false, summary);
   }
 
   /**
@@ -777,6 +914,7 @@ export class RelationEvidenceStore {
   private writePair(
     key: string, next: RelationEvidence[], previousLength: number, preserveTombstone = false, summary: PairKindSummary = [],
   ): void {
+    this.sparseCompactionHead = false;
     this.mutationRevision++;
     if (this.targetIndex) this.replaceIndexedSummary(key, summary, !this.base && !next.length && !preserveTombstone);
     const [left, right] = splitPairKey(key);

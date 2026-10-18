@@ -58,10 +58,12 @@ export function npmInvocation(env = process.env, node = process.execPath, exists
   return { file: node, args: [npm, "run", "verify"] };
 }
 
-/** Run the complete portable acceptance lane with the caller's existing cwd and deadline. */
+/** Run the complete serial suite. Its established large IndexedDB case alone allows 14 minutes;
+ * the aggregate deadline must also cover the other portable/browser suites on slower hosts.
+ * Individual test deadlines and native CLI deadlines remain unchanged. */
 export function runPortableVerification(projectRoot) {
   const { file, args } = npmInvocation();
-  const result = spawnSync(file, args, { cwd: projectRoot, stdio: "inherit", timeout: 1_200_000 });
+  const result = spawnSync(file, args, { cwd: projectRoot, stdio: "inherit", timeout: 2_100_000 });
   if (result.error) throw result.error;
   if (result.status !== 0) throw new Error(`npm run verify failed (${result.status})`);
 }

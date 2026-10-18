@@ -15,7 +15,7 @@ const graphValueKeys = [
 
 /** Plugin workflow settings are not part of legacy graph compatibility. */
 export const localPreferenceKeys = [
-  "internalHotkeys", "actionPreferences", "navigationHistory", "lastActivePath", "pinnedNodes", "documentSyncMode", "followActiveFile",
+  "internalHotkeys", "actionPreferences", "colorPreferences", "navigationHistory", "lastActivePath", "pinnedNodes", "documentSyncMode", "followActiveFile",
   "autoOpenCentralDocument", "toggleEmbedTogglesAutoOpen", "indexUpdateInterval", "nodeTitleScript",
   "allowOntologySuggester", "ontologySuggesterParentTrigger", "ontologySuggesterChildTrigger",
   "ontologySuggesterLeftFriendTrigger", "ontologySuggesterRightFriendTrigger", "ontologySuggesterPreviousTrigger",
@@ -24,8 +24,15 @@ export const localPreferenceKeys = [
   "embedCentralNode", "centralNodeMarkdownMode", "centralNodeMarkdownZoomModes", "centerEmbedWidth", "centerEmbedHeight",
   "startInPopout", "sidecarOpen", "sidecarPosition", "sidecarLastFilePath", "sidecarLastUrl",
   "mouseInteractionMode", "toolbarExpanded", "kplexInitialized", "startupIndexInfoBubbleSeen",
-  "deletePromptInitialized", "confirmFileDelete", "editNewNodeAfterCreate", "newNodeDefaultType",
+  "deletePromptInitialized", "confirmFileDelete", "removeOntologyLinksOnDelete", "editNewNodeAfterCreate", "newNodeDefaultType",
 ];
+
+/** Verify complete restored appearance/ontology, including its library, in both live and durable native data. This independent oracle follows the captured settings' style keys; it never defines a persistence schema. */
+export function assertRestoredKplexAppearance(actual, expected) {
+  const keys = new Set(["hierarchy", "appearanceThemes", "tagStyleList", "backgroundColor", "standardStyleDefaults", "colorPreferences", "graphLenses",
+    ...Object.keys(expected).filter(key => key.endsWith("Style") || key.endsWith("Styles"))]);
+  for (const key of keys) assert.deepEqual(actual[key], expected[key], `Restored ${key} differs from the pre-import appearance`);
+}
 
 /** Compare complete imported dictionaries and local preferences without masking changed fields. */
 export function assertMigratedExcaliBrainSettings(actual, fixture, current) {

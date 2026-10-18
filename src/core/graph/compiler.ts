@@ -4,7 +4,10 @@
  * reference reads and configured date assignments use sourcePolicy; only active evidence survives compilation.
  * The node projection reuses that policy/materialization owner without retaining or resolving evidence;
  * its distinct result cannot authorize relationship readiness. Repeated body URLs reuse node names
- * and only build alias membership state when the producer supplies an alias vocabulary.
+ * and lazily reuse URL alias membership once a target has several distinct labels. Membership
+ * belongs only to this private compiler lifetime; ordered output arrays retain their semantics.
+ * The compiler creates one explicitly private evidence store for owned-array appends. Finalization
+ * and terminal rejection seal that permission before any compilation or retained generation escapes.
  */
 import { canonicalTagParts } from "./tagPaths";
 import { selectStyleTags, tagDisplayName, unwrapNoteType } from "./presentation";
@@ -237,11 +240,13 @@ export class NormalizedGraphCompiler {
   private readonly entityFactSeen = new Set<NodeId>();
   private readonly requiredMaterializedEntityFacts = new Set<NodeId>();
   private readonly syntheticNodes = new Set<NodeId>();
-  private readonly evidence = new RelationEvidenceStore();
+  private readonly evidence = RelationEvidenceStore.createPrivateCompilation();
   private readonly discoveredFields = new Map<string, { name: string; count: number }>();
   private readonly metadata = new Map<NodeId, NodeMetadataAccumulator>();
   private readonly presentationCounts = new Map<string, PresentationCount>();
   private readonly urlLabels = new Map<NodeId, string>();
+  /** Node identity survives synthetic-id relocation; entries never escape the private compilation. */
+  private readonly urlAliasMembership = new Map<CompiledGraphNode, Set<string>>();
   private readonly ownershipByEvidenceId = new Map<string, CompiledEvidenceOwnership>();
   private readonly openReads = new Set<GraphCompilerSourceRead>();
   private readonly referenceSelector: ReferencePolicySelector;
@@ -368,8 +373,11 @@ export class NormalizedGraphCompiler {
     return { kind: "node-metadata", nodes: this.nodes, discoveredFields: this.discoveredFields };
   }
 
-  /** Finalize finite metadata only after every producer and required physical entity has closed. */
+  /** Seal private evidence appends before any finalization await; finalize finite metadata only
+   * after every producer and required physical entity has closed. Cancelled output stays sealed. */
   private async finalizeNodes(): Promise<boolean> {
+    this.evidence.sealPrivateCompilation();
+    this.urlAliasMembership.clear();
     if (this.finished || this.rejected || this.openReads.size || !this.runtime.isCurrent()) return false;
     this.finished = true;
     for (const id of this.requiredMaterializedEntityFacts) if (!this.entityFactSeen.has(id)) return false;
@@ -381,12 +389,14 @@ export class NormalizedGraphCompiler {
     return this.runtime.isCurrent();
   }
 
-  /** Terminal rejection releases any partially assembled value payloads and temporary order keys. */
+  /** Terminal rejection seals evidence append ownership and releases pending value/order payloads. */
   private reject(): false {
+    this.evidence.sealPrivateCompilation();
     for (const read of this.openReads) read.selection.release();
     this.openReads.clear();
     this.referenceOrderByEvidenceId.clear();
     this.referenceSourceOrder.clear();
+    this.urlAliasMembership.clear();
     this.rejected = true;
     return false;
   }
@@ -542,11 +552,13 @@ export class NormalizedGraphCompiler {
     return true;
   }
 
+  /** Append genuine metadata occurrences, including duplicates, and keep private URL membership current. */
   private consumeSemanticMetadata(record: SemanticMetadataOccurrence): boolean {
     const node = this.ensureNode(record.source, this.fallbackName(record.source));
     if (!node) return false;
     if (record.metadataKind === "alias") {
       node.aliases.push(record.value);
+      this.urlAliasMembership.get(node)?.add(record.value);
       return true;
     }
     if (record.metadataKind === "tag") {
@@ -608,8 +620,9 @@ export class NormalizedGraphCompiler {
    * Keep lexical URL provenance while materializing the producer's canonical semantic URL. A label
    * equal to the declared lexical URL is a default spelling, not an independent display alias.
    * Pathless producers retain their explicit raw URL fallback; opaque IDs are never interpreted.
-   * Existing source nodes need no fallback-name work; alias membership allocation is confined to
-   * records carrying aliases, with the same bounded cooperative checks for dense vocabularies.
+   * Existing source nodes need no fallback-name work. Zero/one-label targets need no membership
+   * allocation; larger vocabularies reuse a private index while preserving first-seen array order.
+   * Metadata may seed a dense vocabulary before the first body URL; index that cooperatively.
    */
   private async consumeBodyUrl(record: BodyUrlOccurrence): Promise<boolean> {
     if (record.target.resolvedBy !== "url") return false;
@@ -618,15 +631,15 @@ export class NormalizedGraphCompiler {
     const label = record.label && record.label !== record.target.rawTarget ? record.label : undefined;
     const target = this.ensureNode(record.target.entity, label || canonicalUrl, canonicalUrl);
     if (!source || !target) return false;
+    if (((label && label !== target.url) || record.aliases?.length)
+      && target.aliases.length > 128 && !this.urlAliasMembership.has(target)
+      && !(await this.seedUrlAliasMembership(target))) return false;
     if (label && label !== target.url && !this.urlLabels.has(target.id)) this.urlLabels.set(target.id, label);
-    if (label && label !== target.url && !target.aliases.includes(label)) target.aliases.push(label);
+    if (label && label !== target.url) this.appendUrlAlias(target, label);
     if (record.aliases?.length) {
-      const retainedAliases = new Set(target.aliases);
       let processedAliases = 0;
       for (const alias of record.aliases) {
-        if (alias && alias !== target.url && alias !== record.target.rawTarget && !retainedAliases.has(alias)) {
-          retainedAliases.add(alias); target.aliases.push(alias);
-        }
+        if (alias && alias !== target.url && alias !== record.target.rawTarget) this.appendUrlAlias(target, alias);
         if ((++processedAliases & 127) === 0 && !(await this.checkpoint())) return false;
       }
     }
@@ -635,6 +648,34 @@ export class NormalizedGraphCompiler {
     const line = record.provenance?.location?.line;
     this.addInferred(record, source, target, "body-url", line ? { line } : undefined);
     return this.consumeUrlOrigin(record, target);
+  }
+
+  /** Append only a new body label; keep the common empty/single-label case allocation-free. */
+  private appendUrlAlias(target: CompiledGraphNode, alias: string): void {
+    let membership = this.urlAliasMembership.get(target);
+    if (!membership && target.aliases.length < 2) {
+      if (target.aliases[0] !== alias) target.aliases.push(alias);
+      return;
+    }
+    if (!membership) {
+      // Dense metadata seeds were handled before this synchronous append. Normal growth seeds
+      // exactly two entries; the bounded small metadata case seeds at most 128 entries.
+      membership = new Set(target.aliases);
+      this.urlAliasMembership.set(target, membership);
+    }
+    if (!membership.has(alias)) { membership.add(alias); target.aliases.push(alias); }
+  }
+
+  /** Prepare a dense preexisting vocabulary without retaining a partial index across cancellation. */
+  private async seedUrlAliasMembership(target: CompiledGraphNode): Promise<boolean> {
+    const membership = new Set<string>();
+    let processed = 0;
+    for (const alias of target.aliases) {
+      membership.add(alias);
+      if ((++processed & 127) === 0 && !(await this.checkpoint())) return false;
+    }
+    this.urlAliasMembership.set(target, membership);
+    return true;
   }
 
   /** Share producer-derived root hierarchy across body and property URLs without self/duplicate edges. */

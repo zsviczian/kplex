@@ -42,6 +42,25 @@ const setup = `(()=>{
  return true;
 })()`;
 
+/** Read-only structural membership never displays a Hidden or ontology-edit control in real rendered details. */
+test('tag and folder connection details omit impossible source mutation controls',async()=>{
+ const browser=await chromiumHarness(bundle);
+ try{
+  assert.equal(await browser.evaluate(setup),true);
+  assert.equal(await browser.evaluate(`(async()=>{
+   for(const kind of ['isTag','isFolder']){
+    const f=makeDetails(),source=f.plugin.index.get('Owner.md');source[kind]=true;
+    f.explanation={...f.explanation,decisions:[],summary:kind==='isTag'?'source:tag-tree':'source:file-tree'};
+    f.plugin.hideRelationship=()=>{throw new Error('Structural Hidden must not run')};
+    f.modal=new sourceModules.RelationshipExplanationModal(f.plugin,f.explanation,{role:'child'});f.modal.open();await tick();
+    ok(!f.modal.modalEl.querySelector('[data-kplex-hide-connection]'),'Structural Hidden leaked');
+    ok(!f.modal.modalEl.querySelector('.kplex-edge-ontology-row button'),'Structural ontology edit leaked');
+    f.modal.close();
+   }return true;
+  })()`),true);
+ }finally{await browser.cleanup()}
+});
+
 /** Declaration coordinates remain independent of occurrence grouping and generic cache mirrors. */
 test("connection source actions deduplicate declaration tuples and retain independent fields/owners", async () => {
  const browser=await chromiumHarness(bundle);
@@ -126,7 +145,8 @@ test('delete consent modal keeps arbitrary defaults and cancellation cannot revi
   assert.equal(await browser.evaluate(setup),true);
   assert.equal(await browser.evaluate(`(()=>{const calls=[],opened=[],preview={sources:[{path:'A.md',properties:[{field:'Children',ontology:true,choice:'remove',supported:true,line:1},{field:'Notes',ontology:false,choice:'keep',supported:true,line:2}]}],hiddenFields:['hidden','Private'],hiddenField:'hidden'};
    const modal=new sourceModules.DeleteNodeConfirmationModal({}, {nodeName:'B',hasFile:true,firstUse:false,confirmFileDelete:false,preview,onConfirm:value=>calls.push(value),onOpenLocation:value=>opened.push(value),onCancel:()=>calls.push('cancel')});modal.open();
-   ok(modal.modalEl.textContent.includes('Other references may exist')&&modal.modalEl.textContent.includes('Markdown links'),'Coverage and body preservation disclosed');
+   ok(modal.modalEl.textContent.includes('This list may not include every note that links here')&&modal.modalEl.textContent.includes('Links in note text stay unchanged'),'Coverage and body preservation disclosed');
+   const review=modal.modalEl.querySelector('details');ok(review&&!review.open,'Property review starts collapsed');review.open=true;
    const rows=[...modal.modalEl.querySelectorAll('[data-kplex-delete-field]')];ok(rows[0].dataset.kplexDeleteSource==='A.md'&&rows[0].querySelector('select').value==='remove'&&rows[1].querySelector('select').value==='keep','Exact coordinate defaults');
    const select=rows[1].querySelector('select');select.value='hide';select.dispatchEvent(new Event('change'));ok(preview.sources[0].properties[1].choice==='hide','One selected broader property only');rows[1].querySelector('button').click();ok(opened[0].path==='A.md'&&opened[0].line===2&&opened[0].fieldName==='Notes','Real source coordinate');
    const confirm=modal.modalEl.querySelector('[data-kplex-delete-confirm]');modal.close();confirm.click();ok(calls.length===1&&calls[0]==='cancel','Detached approval cannot revive canceled consent');return true})()`),true);
@@ -138,7 +158,7 @@ test('delete modal explicit consent is one-shot and no hidden configuration offe
  const browser=await chromiumHarness(bundle);try{
   assert.equal(await browser.evaluate(setup),true);
   assert.equal(await browser.evaluate(`(()=>{const calls=[],preview={sources:[{path:'A.md',properties:[{field:'Notes',ontology:false,choice:'keep',supported:true,line:2}]}],hiddenFields:[],hiddenField:''};const modal=new sourceModules.DeleteNodeConfirmationModal({}, {nodeName:'B',hasFile:true,firstUse:false,confirmFileDelete:true,preview,onConfirm:value=>calls.push(value)});modal.open();
-   const select=modal.modalEl.querySelector('[data-kplex-delete-choice]');ok(![...select.options].some(o=>o.value==='hide')&&modal.modalEl.textContent.includes('Configure a Hidden'),'Unavailable Hidden not invented');
+   const select=modal.modalEl.querySelector('[data-kplex-delete-choice]');ok(![...select.options].some(o=>o.value==='hide')&&!modal.modalEl.querySelector('[data-kplex-hidden-field]'),'Unavailable Hidden not invented');
    const toggle=modal.modalEl.querySelector('input[type=checkbox]');toggle.checked=true;toggle.dispatchEvent(new Event('change'));const confirm=modal.modalEl.querySelector('[data-kplex-delete-confirm]');confirm.click();confirm.click();ok(calls.length===1&&calls[0]===false,'Physical preference and one-shot scope retained');return true})()`),true);
  }finally{await browser.cleanup();}
 });
@@ -147,7 +167,7 @@ test('delete modal explicit consent is one-shot and no hidden configuration offe
 test('Hidden native shell updates exact central direction with source selection and retires stale controls',async()=>{
  const browser=await chromiumHarness(bundle);try{
   assert.equal(await browser.evaluate(setup),true);
-  assert.equal(await browser.evaluate(`(()=>{const calls=[];const modal=new sourceModules.HideRelationshipModal({},['Folder/A.md','Folder/B.md'],['hidden','Private'],['Folder/A.md','Folder/B.md'],value=>calls.push(value));modal.open();ok(modal.modalEl.textContent.includes('Original property links')&&modal.modalEl.textContent.includes('may still be visible from the other note'),'Retention and inverse visibility disclosed');
+  assert.equal(await browser.evaluate(`(()=>{const calls=[];const modal=new sourceModules.HideRelationshipModal({},['Folder/A.md','Folder/B.md'],['hidden','Private'],['Folder/A.md','Folder/B.md'],value=>calls.push(value));modal.open();ok(modal.modalEl.textContent.includes('All links are kept')&&modal.modalEl.textContent.includes('may still appear from the other note'),'Retention and inverse visibility disclosed');
    const direction=modal.modalEl.querySelector('[data-kplex-hide-direction]'),source=modal.modalEl.querySelector('[data-kplex-hide-source]'),field=modal.modalEl.querySelector('[data-kplex-hidden-field]');ok(direction.getAttribute('aria-live')==='polite','Source-selection consequences announce politely');ok(direction.dataset.kplexHideFrom==='Folder/A.md'&&direction.dataset.kplexHideTo==='Folder/B.md'&&direction.textContent==='Hide "Folder/B.md" when "Folder/A.md" is the central note. Save the Hidden relationship in "Folder/A.md".','Exact initial central and write note');
    source.value='Folder/B.md';source.dispatchEvent(new Event('change'));ok(direction.dataset.kplexHideFrom==='Folder/B.md'&&direction.dataset.kplexHideTo==='Folder/A.md'&&direction.textContent==='Hide "Folder/A.md" when "Folder/B.md" is the central note. Save the Hidden relationship in "Folder/B.md".','Selected source updates direction before approval');
    field.value='Private';field.dispatchEvent(new Event('change'));const confirm=modal.modalEl.querySelector('[data-kplex-hide-confirm]');confirm.click();source.value='Folder/A.md';source.dispatchEvent(new Event('change'));confirm.click();ok(calls.length===1&&calls[0].sourcePath==='Folder/B.md'&&calls[0].field==='Private'&&direction.dataset.kplexHideFrom==='Folder/B.md','Detached approved controls cannot change exact once-only scope');

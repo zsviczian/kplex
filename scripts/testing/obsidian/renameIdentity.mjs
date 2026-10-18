@@ -110,6 +110,9 @@ function installProbe(mode) {
     const remote = require("@electron/remote"), win = remote.getCurrentWindow();
     if (require("node:process").platform === "darwin") remote.app.focus({ steal: true });
     win.show(); win.focus(); win.webContents.focus();
+    // A plugin reload restores its view lazily; open the normal application before
+    // requiring startup readiness rather than waiting on an unopened surface.
+    await p.activateView();
     await until(() => document.hasFocus() && !document.hidden && !p.isStartupInitializing(), "Foreground/startup prerequisites missing");
     check(p.settings.indexingMode === mode, "Wrong real indexing mode");
     await app.vault.createFolder(folder); c.owned = true;

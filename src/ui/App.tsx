@@ -6,7 +6,16 @@
  * Cross-link visibility reads shared persisted settings rather than temporary quick-filter or Find snapshots.
  * Action-dispatched sync/Sidecar menus resolve fresh surface-local control anchors without routing DOM events through the action manager.
  * Native follow retains the latest canonical file while hidden and suppresses fallback scenes/motion during partial hydration.
+ * Directional Sidecar attachment controls project host eligibility and use the same native follow owner for inward synchronization.
+ * Existing native File properties panes follow the active surface's central file through a leased host adapter.
+ * Global Find consumes existing tag/folder/file/URL vocabulary with caller-owned native type icons;
+ * current native files and captured Plex links share drop navigation without source acquisition.
  */
+import { subscribeAppearanceSources } from "../adapters/obsidian/colorChanges";
+import type {AppearanceOwner} from "../core/plex/appearanceThemes";
+import { ColorSourceModal } from "./ColorSourceModal";
+import type { LensColorRequest, LensColorDialog } from "./PlexFilter";
+import { appearanceWithoutColors } from "../core/contracts/appearance";
 import {
   useCallback,
   useEffect,
@@ -24,6 +33,7 @@ import { FileView, Menu, type TFile, type WorkspaceLeaf } from "obsidian";
 import type KplexPlugin from "../main";
 import type { GraphPage } from "../types";
 import type { PresentationEnvironment } from "../core/contracts/presentationEnvironment";
+import { isGraphTabCommandAvailable } from "../core/plex/viewPresentation";
 import { type ActionContext } from "../application/ActionManager";
 import { type ActionId, type ActionOutcome, type NodeRef } from "../core/plex/actions";
 import { actionNodeRef, resolveActionPage } from "../adapters/obsidian/actionNode";
@@ -31,21 +41,27 @@ import { ActionMenuModal } from "./ActionMenuModal";
 import { KeyboardHelpModal } from "./KeyboardHelpModal";
 import { ActionTargetPicker, type ActionPickerItem } from "./ActionTargetPicker";
 import { usePlexActions, type GraphActionPorts, type SurfaceActionImplementations } from "./usePlexActions";
+import { centerViewSettings } from "./KplexCenterPresentation";
 import type { Translator } from "../lang";
 import { WanderController } from "../application/WanderController";
 import { WanderControls } from "./features/WanderControls";
 import type { KplexDisplayModes } from "./KplexDisplayModes";
 import { physicalPositionLabel } from "./features/positionPresentation";
+import { SidecarAttachControls } from "./features/SidecarAttachControls";
 import { effectiveActionBindings } from "../core/plex/actionPreferences";
 import { formatActionBinding } from "./actionPresentation";
 import { surfaceAction } from "./surfaceActionImplementation";
 import { toolbarMenuAnchor } from "./menuAnchor";
 import type { DocumentSyncMode, KplexViewSurface, NodeSortOrder, SidecarMarkdownMode, SidecarPosition } from "../settings";
 import { SearchBox } from "./features/SearchBox";
+import { searchResultIconName } from "./features/searchResultPresentation";
+import { nodeListPresentation } from "./nodeListPresentation";
 import { createLegacyGraphSearchRead } from "../adapters/obsidian/graphContracts";
 import { isEmbeddedMarkdownLeaf } from "../adapters/obsidian/embeddedMarkdownLeaf";
 import { focusEmbeddedMarkdown } from "../adapters/obsidian/embeddedMarkdownFocus";
 import { getDraggedFile } from "../adapters/obsidian/fileExplorerDrag";
+import { draggedGraphPage, nodeLinkDragSource } from "../adapters/obsidian/nodeLinkDrag";
+import { registerFilePropertiesCenter, type FilePropertiesCenterLease } from "../adapters/obsidian/filePropertiesCenter";
 import { ActionButton } from "./components/ActionButton";
 import { DoubleTapGesture } from "./components/DoubleTapGesture";
 import { InfoBubble } from "./components/InfoBubble";
@@ -56,7 +72,7 @@ import { VaultStatsModal } from "./VaultStatsModal";
 import { EMPTY_PLEX_FILTER, PlexFilter, type GraphFilterLayoutMode, type PlexFilterState, type PlexVisibilitySetting } from "./PlexFilter";
 import { compilePlexFilter } from "../lens/SimplePlexFilter";
 import { compileGraphLensDefinitions, type GraphLensDefinition } from "../lens/GraphLens";
-import { installKplexLongPressTooltips } from "./LongPressTooltip";
+import { installKplexLongPressTooltips, KPLEX_CONTROL_LONG_PRESS_EVENT } from "./LongPressTooltip";
 
 type BooleanToolbarSetting = PlexVisibilitySetting | "renderAlias" | "showCrossLinks";
 type IndexStatus = ReturnType<KplexPlugin["getIndexStatus"]>;
@@ -102,7 +118,7 @@ function useIndexStatus(plugin: KplexPlugin, hostLeaf: WorkspaceLeaf): IndexStat
   return status;
 }
 
-/** Show status on hover and open the vault summary by double-click, stationary double-tap or keyboard. */
+/** Show one status callout on hover/long press; double-tap and keyboard open the vault summary. */
 function IndexStatusIndicator({
   status,
   indicatorRef,
@@ -121,40 +137,53 @@ function IndexStatusIndicator({
   const taps = useRef(new DoubleTapGesture());
   const press = useRef<{ time: number; x: number; y: number } | null>(null);
   const lastTouch = useRef(-1000);
-  return <button
-    ref={indicatorRef}
-    type="button"
-    className={`kplex-index-status${status.upToDate ? " is-ready" : status.phase === "incomplete" ? " is-incomplete" : " is-updating"}`}
-    aria-label={status.label}
-    aria-expanded={open}
-    aria-haspopup="dialog"
-    onMouseEnter={onHoverStart}
-    onMouseLeave={onHoverEnd}
-    onFocus={onHoverStart}
-    onBlur={onHoverEnd}
-    onDoubleClick={/** Ignore the mouse double-click synthesized after a handled touch pair. */ (event) => {
-      if (event.timeStamp - lastTouch.current > 800) onToggle();
-    }}
-    onPointerDown={/** Record short stationary touch presses; long-press tooltips retain their own guard. */ (event) => {
-      if (event.pointerType === "touch") press.current = { time: event.timeStamp, x: event.clientX, y: event.clientY };
-    }}
-    onPointerCancel={() => { press.current = null; taps.current.reset(); }}
-    onPointerUp={/** Use completed tap pairs because mobile WebViews need not synthesize double-click. */ (event) => {
-      if (event.pointerType !== "touch") return;
-      lastTouch.current = event.timeStamp;
-      const start = press.current;
-      press.current = null;
-      if (!start || event.timeStamp - start.time > 400 || Math.hypot(event.clientX - start.x, event.clientY - start.y) > 7) {
-        taps.current.reset(); return;
-      }
-      if (taps.current.complete("index-status", event.timeStamp, event.clientX, event.clientY)) onToggle();
-    }}
-    onKeyDown={/** Keep keyboard activation available without opening on a single pointer click. */ (event) => {
-      if (event.key !== "Enter" && event.key !== " ") return;
-      event.preventDefault();
-      onToggle();
-    }}
-  />;
+  const localRef = useRef<HTMLButtonElement>(null);
+  const controlRef = indicatorRef ?? localRef;
+  const nameId = useId();
+  useEffect(/** The shared stationary-touch owner opens this control's dedicated callout. */ () => {
+    const control = controlRef.current;
+    if (!control) return;
+    control.addEventListener(KPLEX_CONTROL_LONG_PRESS_EVENT, onHoverStart);
+    return () => control.removeEventListener(KPLEX_CONTROL_LONG_PRESS_EVENT, onHoverStart);
+  }, [controlRef, onHoverStart]);
+  return <>
+    <span id={nameId} className="kplex-accessible-name">{status.label}</span>
+    <button
+      ref={controlRef}
+      type="button"
+      className={`kplex-index-status${status.upToDate ? " is-ready" : status.phase === "incomplete" ? " is-incomplete" : " is-updating"}`}
+      aria-labelledby={nameId}
+      data-kplex-tooltip="callout"
+      aria-expanded={open}
+      aria-haspopup="dialog"
+      onMouseEnter={onHoverStart}
+      onMouseLeave={onHoverEnd}
+      onFocus={onHoverStart}
+      onBlur={onHoverEnd}
+      onDoubleClick={/** Ignore the mouse double-click synthesized after a handled touch pair. */ (event) => {
+        if (event.timeStamp - lastTouch.current > 800) onToggle();
+      }}
+      onPointerDown={/** Record short stationary taps; the shared guard owns completed long presses. */ (event) => {
+        if (event.pointerType === "touch") press.current = { time: event.timeStamp, x: event.clientX, y: event.clientY };
+      }}
+      onPointerCancel={() => { press.current = null; taps.current.reset(); }}
+      onPointerUp={/** Use completed tap pairs because mobile WebViews need not synthesize double-click. */ (event) => {
+        if (event.pointerType !== "touch") return;
+        lastTouch.current = event.timeStamp;
+        const start = press.current;
+        press.current = null;
+        if (!start || event.timeStamp - start.time > 400 || Math.hypot(event.clientX - start.x, event.clientY - start.y) > 7) {
+          taps.current.reset(); return;
+        }
+        if (taps.current.complete("index-status", event.timeStamp, event.clientX, event.clientY)) onToggle();
+      }}
+      onKeyDown={/** Keep keyboard activation available without opening on a single pointer click. */ (event) => {
+        if (event.key !== "Enter" && event.key !== " ") return;
+        event.preventDefault();
+        onToggle();
+      }}
+    />
+  </>;
 }
 
 /** Render a labeled toolbar action and pass its owning-window click event to native menu callers. */
@@ -174,7 +203,7 @@ function ToolButton({ icon, title, on, disabled, onClick }: {
 }
 
 /** Compose the native toolbar, filters and scene; shared visibility preferences persist through plugin-owned host effects. */
-export function KplexApp({ plugin, surface, hostLeaf, translate, environment, onReady, displayModes }: {
+export function KplexApp({ plugin, surface, hostLeaf, translate, environment, onReady, displayModes, centerPresentation }: {
   plugin: KplexPlugin;
   surface: KplexViewSurface;
   hostLeaf: WorkspaceLeaf;
@@ -182,9 +211,11 @@ export function KplexApp({ plugin, surface, hostLeaf, translate, environment, on
   environment: PresentationEnvironment;
   onReady?: () => void;
   displayModes: KplexDisplayModes;
+  centerPresentation: import("./KplexCenterPresentation").KplexCenterPresentation;
 }) {
   const canvasNameId = useId();
   const displayState = useSyncExternalStore(displayModes.subscribe, displayModes.getSnapshot);
+  const centerMode = useSyncExternalStore(centerPresentation.subscribe, centerPresentation.getSnapshot);
   const rootRef = useRef<HTMLDivElement>(null);
   const syncMenuButtonRef = useRef<HTMLButtonElement>(null);
   const sidecarMoveButtonRef = useRef<HTMLButtonElement>(null);
@@ -227,6 +258,7 @@ export function KplexApp({ plugin, surface, hostLeaf, translate, environment, on
   const [indexStatusInfoMode, setIndexStatusInfoMode] = useState<"closed" | "hover">("closed");
   const suppressRestoredIndexStatusFocusRef = useRef(false);
   const [renderRevision, forceRender] = useState(0);
+  const [paintRevision, forcePaint] = useState(0);
   const [plexFilter, setPlexFilter] = useState<PlexFilterState>(EMPTY_PLEX_FILTER);
   const [filterLayoutMode, setFilterLayoutMode] = useState<GraphFilterLayoutMode>("keep");
   const [findFilterOwner, setFindFilterOwner] = useState<{
@@ -274,6 +306,7 @@ export function KplexApp({ plugin, surface, hostLeaf, translate, environment, on
     );
   });
   const activePathRef = useRef(activePath);
+  const activePageRef = useRef<GraphPage | null>(plugin.index.get(activePath) ?? null);
   const [navigationOrigin, setNavigationOrigin] = useState<"user" | "wander" | "follow">("user");
   const pendingDocumentFollowRef = useRef<TFile | null>(null);
   const pendingDocumentDemandRef = useRef<{ file: TFile; path: string; release: () => void } | null>(null);
@@ -305,6 +338,7 @@ export function KplexApp({ plugin, surface, hostLeaf, translate, environment, on
     // Any newer explicit navigation supersedes a note waiting for partial indexing.
     pendingFileExplorerDropRef.current = null;
     activePathRef.current = target.path;
+    activePageRef.current = target;
     activeFileRef.current = target.file;
     pendingDocumentFollowRef.current = null;
     // A just-published preview can depend on this lease. Keep it until the child graph acquires its own.
@@ -380,6 +414,7 @@ export function KplexApp({ plugin, surface, hostLeaf, translate, environment, on
     pendingDocumentFollowRef.current = file;
     pendingFileExplorerDropRef.current = null;
     activePathRef.current = file.path;
+    activePageRef.current = plugin.index.get(file.path) ?? null;
     activeFileRef.current = file;
     activatePendingDocumentFollow();
   }, [plugin, hostLeaf, activatePendingDocumentFollow]);
@@ -406,29 +441,54 @@ export function KplexApp({ plugin, surface, hostLeaf, translate, environment, on
 
   useEffect(subscribePendingFileExplorerDrop, [subscribePendingFileExplorerDrop]);
 
-  useEffect(/** Publications settle a pending native identity before any visible scene catches up. */ () => plugin.index.subscribe(/** Keep rename identity and latest native-follow intent coherent with this publication. */ () => {
-    activatePendingDocumentFollow();
-    // A TFile keeps its object identity while Obsidian renames or moves it. Track the central file
-    // by that identity and adopt its new path only after the rebuilt index has published it. This
-    // prevents the center from briefly/finally falling back to folder:/ when its filename changes.
-    const trackedFile = activeFileRef.current;
-    if (trackedFile && trackedFile.path === activePathRef.current && !plugin.index.get(trackedFile.path)
-      && plugin.isManagedCreatedFile(trackedFile) && plugin.app.vault.getFileByPath(trackedFile.path) === trackedFile) {
-      // A full index build can have started before this note was created. If that stale snapshot
-      // publishes after the user has already selected the optimistic node, immediately reinsert the
-      // known TFile instead of allowing the center to fall back to the previous history entry.
-      plugin.index.insertCreatedFile(trackedFile);
+  useEffect(/** Publications settle a pending native identity before any visible scene catches up. */ () => {
+    /** Keep rename identity and latest native-follow intent coherent with this publication. */
+    const refresh = () => {
+      activatePendingDocumentFollow();
+      // A TFile keeps its object identity while Obsidian renames or moves it. Track the central file
+      // by that identity and adopt its new path only after the rebuilt index has published it. This
+      // prevents the center from briefly/finally falling back to folder:/ when its filename changes.
+      const trackedFile = activeFileRef.current;
+      const currentPage = plugin.index.get(activePathRef.current);
+      const trackedPage = activePageRef.current;
+      // A centered ghost has no native file to track until materialization mutates that exact
+      // accepted page. Follow only its identity remap; replacement objects and other Plex centers
+      // cannot authorize navigation, history changes or document synchronization on this surface.
+      if (!trackedFile && !currentPage && trackedPage?.file && trackedPage.path !== activePathRef.current
+        && plugin.index.get(trackedPage.path) === trackedPage
+        && plugin.app.vault.getFileByPath(trackedPage.file.path) === trackedPage.file) {
+        activePathRef.current = trackedPage.path;
+        activeFileRef.current = trackedPage.file;
+        setActivePath(trackedPage.path);
+      }
+      if (trackedFile && trackedFile.path === activePathRef.current && !plugin.index.get(trackedFile.path)
+        && plugin.isManagedCreatedFile(trackedFile) && plugin.app.vault.getFileByPath(trackedFile.path) === trackedFile) {
+        // A full index build can have started before this note was created. If that stale snapshot
+        // publishes after the user has already selected the optimistic node, immediately reinsert the
+        // known TFile instead of allowing the center to fall back to the previous history entry.
+        plugin.index.insertCreatedFile(trackedFile);
+        return;
+      }
+      if (trackedFile && trackedFile.path !== activePathRef.current && plugin.index.get(trackedFile.path)) {
+        activePathRef.current = trackedFile.path;
+        setActivePath(trackedFile.path);
+      }
+      activePageRef.current = plugin.index.get(activePathRef.current) ?? activePageRef.current;
+      // Hidden tabs/sidebars stay mounted in Obsidian. Do not run the graph React tree for a shared
+      // index publication unless this surface is actually visible; it catches up on reveal.
+      if (plugin.isKplexLeafVisible(hostLeaf)) forceRender((value) => value + 1);
+    };
+    const release = plugin.index.subscribe(refresh);
+    // A child's demand/layout effect can publish after render but before App's effects attach.
+    // Catch that settled snapshot now, without reacquiring sources or waiting for another event.
+    refresh();
+    return release;
+  }, [plugin, hostLeaf, activatePendingDocumentFollow]);
+  useEffect(/** Host previews publish through presentation; settle the owned native intent without refreshing semantics. */ () => plugin.index.subscribePresentation(/** Adopt a newly readable exact center, then repaint only visible surfaces. */ (event) => {
+    if (event.kind === "paint") {
+      if (plugin.isKplexLeafVisible(hostLeaf)) forcePaint(value => value + 1);
       return;
     }
-    if (trackedFile && trackedFile.path !== activePathRef.current && plugin.index.get(trackedFile.path)) {
-      activePathRef.current = trackedFile.path;
-      setActivePath(trackedFile.path);
-    }
-    // Hidden tabs/sidebars stay mounted in Obsidian. Do not run the graph React tree for a shared
-    // index publication unless this surface is actually visible; it catches up on reveal.
-    if (plugin.isKplexLeafVisible(hostLeaf)) forceRender((value) => value + 1);
-  }), [plugin, hostLeaf, activatePendingDocumentFollow]);
-  useEffect(/** Host previews publish through presentation; settle the owned native intent without refreshing semantics. */ () => plugin.index.subscribePresentation(/** Adopt a newly readable exact center, then repaint only visible surfaces. */ () => {
     activatePendingDocumentFollow();
     if (plugin.isKplexLeafVisible(hostLeaf)) forceRender((value) => value + 1);
   }), [plugin, hostLeaf, activatePendingDocumentFollow]);
@@ -457,7 +517,8 @@ export function KplexApp({ plugin, surface, hostLeaf, translate, environment, on
     });
     return () => plugin.app.metadataCache.offref(ref);
   }, [plugin, hostLeaf, plexFilterPredicate, compiledGraphLenses.usesFrontmatter]);
-  useEffect(() => plugin.subscribeGraphLenses((next) => setGraphLensesState(next)), [plugin]);
+  useEffect(() => plugin.subscribeGraphLenses((next) => setGraphLensesState(current =>
+    JSON.stringify(appearanceWithoutColors("graphLenses", current)) === JSON.stringify(appearanceWithoutColors("graphLenses", next)) ? current : next)), [plugin]);
   useEffect(() => plugin.subscribeSidecar(() => setSidecarRevision((value) => value + 1)), [plugin]);
   useEffect(() => plugin.subscribeNavigation((path) => {
     const target = plugin.index.get(path);
@@ -501,9 +562,25 @@ export function KplexApp({ plugin, surface, hostLeaf, translate, environment, on
     ?? (fallbackPath ? plugin.index.get(fallbackPath) : undefined)
     ?? (waitingForDocument ? undefined : plugin.index.get("folder:/"));
   const hasPage = Boolean(page);
+  const propertiesCenterFile = useRef<TFile | null>(null);
+  const propertiesCenterLease = useRef<FilePropertiesCenterLease | null>(null);
+  propertiesCenterFile.current = page?.file ?? null;
+  useEffect(/** The native Properties follower owns no graph demand and retires with this exact root/document. */ () => {
+    const lease = registerFilePropertiesCenter(plugin.app, hostLeaf,
+      /** Read the rendered center's canonical file, including materialization and non-file centers. */ () => propertiesCenterFile.current,
+      /** Background Plex roots must not replace the foreground surface's utility-pane identity. */ () => plugin.isKplexLeafVisible(hostLeaf));
+    propertiesCenterLease.current = lease;
+    return /** Release this root without cancelling a native disk operation already accepted by the host. */ () => {
+      if (propertiesCenterLease.current === lease) propertiesCenterLease.current = null;
+      lease.dispose();
+    };
+  }, [plugin, hostLeaf]);
+  useEffect(/** Refresh only a changed center identity/path; color and progress renders do not reload Properties. */ () => {
+    propertiesCenterLease.current?.refresh();
+  }, [page?.file, page?.path]);
   const graphSearchRead = useMemo(() => createLegacyGraphSearchRead({
-    /** Preserve Vault files and URL aliases independently of the current Plex and graph filters. */
-    search: (query, limit) => plugin.index.search(query, limit, "vault-files"),
+    /** Search existing notes, folders, tags and URL vocabulary independently of current Plex filters. */
+    search: (query, limit) => plugin.index.search(query, limit, "vault"),
     titleFor: (target) => plugin.index.titleFor(target),
   }), [plugin.index]);
 
@@ -607,6 +684,7 @@ export function KplexApp({ plugin, surface, hostLeaf, translate, environment, on
     // genuinely missing center falls back through navigation history and only then to folder:/.
     if (replacingMissingCenter && page.path === "folder:/" && !plugin.isNavigationFallbackReady()) return;
     activePathRef.current = page.path;
+    activePageRef.current = page;
     activeFileRef.current = page.file;
     if (replacingMissingCenter) {
       setActivePath(page.path);
@@ -629,10 +707,32 @@ export function KplexApp({ plugin, surface, hostLeaf, translate, environment, on
     return plugin.openPage(target, hostLeaf.view.containerEl.ownerDocument);
   }, [plugin, hostLeaf]);
 
-  const updateGraphLenses = useCallback((next: GraphLensDefinition[]) => {
-    setGraphLensesState(next);
-    void plugin.setGraphLenses(next);
-  }, [plugin]);
+  const updateGraphLenses = useCallback((next: GraphLensDefinition[], baseline?: GraphLensDefinition[], owner?: AppearanceOwner) => plugin.setGraphLenses(next, baseline, owner), [plugin]);
+
+  const lensAppearance = useMemo(/** Only the lens control subscribes; inactive metadata cannot rebuild the parent scene. */ () => ({
+    capture: /** Capture at editor/action opening, not when Save eventually runs. */ () => plugin.captureAppearanceOwner(),
+    isCurrent: /** Reject old activation epochs, including A→B→A. */ (owner: AppearanceOwner) => plugin.isAppearanceOwnerCurrent(owner),
+    subscribe: /** The control releases its selected-theme observation on unmount. */ (changed: () => void) => plugin.subscribeAppearanceThemes(changed),
+    name: /** Display data is read only on opening; render/paint never scans saved themes. */ () => plugin.settings.appearanceThemes?.themes.find(theme => theme.id === plugin.settings.appearanceThemes?.selectedId)?.name ?? translate("themes.userName"),
+  }), [plugin, translate]);
+
+  /** The native shell previews current paint; the detached React lens still owns its local draft. */
+  const editLensColor = useCallback((request: LensColorRequest): LensColorDialog => {
+    const target = request.target, owner = request.owner ?? plugin.captureAppearanceOwner();
+    const opening = structuredClone({colorPreferences: plugin.settings.colorPreferences, baseNodeStyle: plugin.settings.baseNodeStyle,
+      baseLinkStyle: plugin.settings.baseLinkStyle, backgroundColor: plugin.settings.backgroundColor});
+    /** A retired draft keeps its own palette/base while the document’s native CSS may still change. */
+    const current = (): Pick<typeof plugin.settings, "colorPreferences" | "baseNodeStyle" | "baseLinkStyle" | "backgroundColor"> => plugin.isAppearanceOwnerCurrent(owner) ? plugin.settings : opening;
+    const dialog = new ColorSourceModal(plugin.app, {sourceScope: rootRef.current?.querySelector<HTMLElement>(".kplex-plex") ?? rootRef.current ?? request.sourceScope, translate, bindEditor: editor => plugin.bindAppearanceEditor(editor, owner), title: request.title, target, initial: request.initial,
+      help: translate("colors.parentHelp"), actionLabel: translate("colors.useColor"), preferences: () => current().colorPreferences,
+      nodeStyle: () => ({...current().baseNodeStyle, ...request.nodeStyle()}), linkStyle: () => ({...current().baseLinkStyle, ...request.linkStyle()}),
+      background: () => current().backgroundColor, inherit: () => target.kind === "canvas" ? current().backgroundColor
+        : target.kind === "node" ? current().baseNodeStyle[target.field] : current().baseLinkStyle[target.field],
+      subscribeCss: changed => {const ref = plugin.app.workspace.on("css-change", changed); return () => plugin.app.workspace.offref(ref);},
+      subscribeColors: changed => subscribeAppearanceSources(listener => plugin.index.subscribePresentation(listener), () => plugin.settings, changed),
+      onSave: async source => {if (!plugin.isAppearanceOwnerCurrent(owner) || !request.apply(source)) throw new Error("Lens editor retired"); return {refreshPending: false};},
+    }); dialog.open(); return {element: dialog.containerEl, retire: () => dialog.retire()};
+  }, [plugin, translate]);
 
   const goHistory = (delta: number) => {
     const list = plugin.settings.navigationHistory;
@@ -652,23 +752,14 @@ export function KplexApp({ plugin, surface, hostLeaf, translate, environment, on
     forceRender((value) => value + 1);
   };
 
-  /** Switch the center presentation immediately; persistence must not delay the node transition. */
+  /** Change only this native leaf; workspace state survives migration/restart without changing other views. */
   const setCentralNodeEditorEnabled = (enabled: boolean): void => {
-    if (plugin.settings.embedCentralNode === enabled) return;
-    plugin.settings.embedCentralNode = enabled;
-    forceRender((value) => value + 1);
-    void plugin.saveSettings(false, false).catch((error: unknown) => {
-      console.error("K-Plex failed to save the central-node editor preference.", error);
-    });
+    centerPresentation.update({embedCentralNode: enabled});
   };
 
   /** Remember the mode selected in the embedded center so the next center opens the same way. */
   const rememberCentralNodeMarkdownMode = (mode: SidecarMarkdownMode): void => {
-    if (plugin.settings.centralNodeMarkdownMode === mode) return;
-    plugin.settings.centralNodeMarkdownMode = mode;
-    void plugin.saveSettings(false, false).catch((error: unknown) => {
-      console.error("K-Plex failed to save the central-node Markdown mode.", error);
-    });
+    centerPresentation.update({centralNodeMarkdownMode: mode});
   };
 
   const setNodeSortOrder = async (order: NodeSortOrder) => {
@@ -789,25 +880,26 @@ export function KplexApp({ plugin, surface, hostLeaf, translate, environment, on
     rootRef.current?.focus({ preventScroll: true });
   };
 
-  /** Accept a single current Vault file from Obsidian File Explorer, including images and Canvas. */
+  /** Accept current native files and exact Plex URL/tag/placeholder links without source acquisition. */
   const handlePlexDragOver = (event: ReactDragEvent<HTMLDivElement>) => {
-    if (!getDraggedFile(plugin.app)) return;
+    const target = draggedGraphPage(plugin.app, plugin.index, event);
+    if (!target && (nodeLinkDragSource(plugin.app) || !getDraggedFile(plugin.app)) && !event.dataTransfer.types.includes("text/plain")) return;
     event.preventDefault();
   };
 
-  /** Re-center on the dropped file, queuing it while partial indexing catches up. */
+  /** Re-center on an existing dropped endpoint; only native files may wait for partial indexing. */
   const handlePlexDrop = (event: ReactDragEvent<HTMLDivElement>) => {
+    const target = draggedGraphPage(plugin.app, plugin.index, event);
     const file = getDraggedFile(plugin.app);
-    if (!file) return;
+    if (!target && (nodeLinkDragSource(plugin.app) || !file)) return;
     event.preventDefault();
     event.stopPropagation();
-    const target = plugin.index.get(file.path);
     if (target) {
       pendingFileExplorerDropRef.current = null;
       activate(target, true);
       return;
     }
-    pendingFileExplorerDropRef.current = file;
+    if (file) pendingFileExplorerDropRef.current = file;
   };
 
   /** Explicit graph focus reveals its captured native tab; other foreground actions reveal when invoked as published commands. */
@@ -826,7 +918,8 @@ export function KplexApp({ plugin, surface, hostLeaf, translate, environment, on
     const paths = [...(kind === "pins" ? plugin.settings.pinnedNodes : plugin.settings.navigationHistory)];
     const items: ActionPickerItem<NodeRef | null>[] = paths.map(/** Retain unavailable saved rows explicitly. */ path => {
       const target = plugin.index.get(path);
-      return { label: target ? plugin.index.titleFor(target) : translate("actions.missingTarget", { path }),
+      const presentation = target ? nodeListPresentation(target, plugin.index.titleFor(target)) : null;
+      return { label: presentation?.label ?? translate("actions.missingTarget", { path }), icon: presentation?.icon ?? "file-question",
         detail: path, disabled: !target, value: target ? actionNodeRef(target) : null };
     });
     const sessionId = `${actions.surfaceId}:picker:${++dialogSerial.current}`;
@@ -913,18 +1006,30 @@ export function KplexApp({ plugin, surface, hostLeaf, translate, environment, on
     "history.open": uiAction(/** Include all saved history, beyond the footer's visible subset. */ () => openSavedPicker("history")),
     "pins.open": uiAction(/** Preserve saved order and unavailable rows in the complete searchable pins picker. */ () => openSavedPicker("pins")),
     "view.aliases.toggle": uiAction(/** Reuse the current toolbar's presentation-only mutation. */ () => toggleToolbarSetting("renderAlias")),
-    "view.fullscreen.toggle": uiAction(/** The view owns reversible native DOM placement, never workspace split changes. */ () => displayModes.toggleFullscreen(), () => displayModes.fullscreenAvailable),
+    "view.fullscreen.toggle": uiAction(/** Reveal the native group before fullscreen moves its content; the view retains Zen and overlay ownership. */ () => {
+      plugin.restorePlexFoldBeforeReveal(hostLeaf);
+      displayModes.toggleFullscreen();
+    }, () => displayModes.fullscreenAvailable),
     "view.wander.start": uiAction(/** All start surfaces resume the same per-view session. */ () => wander.start(), () => Boolean(page && rootRef.current?.querySelector(".kplex-plex"))),
     "view.wander.stop": uiAction(/** Stop restores the immutable entry Zen state. */ () => wander.stop(), () => wander.getSnapshot().phase !== "stopped"),
     "view.zen.toggle": uiAction(/** Independent session chrome visibility never changes persisted settings. */ () => displayModes.toggleZen()),
     "view.depth.toggle": uiAction(/** Reuse the established projection depth setting. */ () => toggleExpandedView()),
     "view.connectors.toggle": uiAction(/** Camera and connector appearance remain presentation-only. */ () => toggleConnectorStyle()),
     "view.areas.toggle": uiAction(/** Area editing mode remains transient and surface-local. */ () => setAreaSettingsMode(value => !value)),
-    "view.center-editor.toggle": uiAction(/** Existing embedded editor capability and cleanup remain graph-owned. */ () => setCentralNodeEditorEnabled(!plugin.settings.embedCentralNode)),
+    "view.center-editor.toggle": uiAction(/** Existing embedded editor capability and cleanup remain graph-owned. */ () => setCentralNodeEditorEnabled(!centerMode.embedCentralNode)),
     "view.sync.choose": uiAction(/** Open the same keyboard-accessible native sync menu. */ () => showDocumentSyncMenu()),
     "view.sidecar.toggle": uiAction(/** Toggle only the managed companion for this owning leaf. */ () => page ? plugin.toggleSidecar(hostLeaf, page) : undefined, () => surface !== "sidepanel" && Boolean(page)),
+    "view.sidecar.attach-from-center": uiAction(/** Reuse the eligible adjacent pane and populate it from this center. */ () => plugin.attachAdjacentSidecar(hostLeaf, "to-leaf", page),
+      /** Folder/tag/ghost centers cannot populate an ordinary document pane. */ () => Boolean((page?.file || page?.url) && plugin.getAdjacentSidecarCandidate(hostLeaf))),
+    "view.sidecar.attach-from-pane": uiAction(/** Preserve the pane's content and reuse native follow's partial-index demand handover. */ async () => {
+      const target = await plugin.attachAdjacentSidecar(hostLeaf, "to-plex");
+      if (target?.file) observeDocumentFollow(target.file);
+      else if (target) {
+        const indexed = plugin.index.get(target.path);
+        if (indexed) activate(indexed, true, false);
+      }
+    }, /** An empty pane has nothing to bring into the Plex. */ () => plugin.getAdjacentSidecarTarget(hostLeaf) !== null),
     "view.sidecar.detach": uiAction(/** Detach the existing companion without selecting a different native leaf. */ () => plugin.detachSidecar(hostLeaf), () => surface !== "sidepanel" && plugin.isSidecarOpen(hostLeaf)),
-    "view.sidecar.collapse-plex": uiAction(/** Reuse the existing host fold control. */ () => plugin.collapsePlexForSidecar(hostLeaf), () => surface !== "sidepanel" && plugin.isSidecarOpen(hostLeaf)),
     "view.sidecar.position": uiAction(/** Explicit choices and keyboard menu share the same host move implementation. */ context => {
       if (context.request.id === "view.sidecar.position" && context.request.args?.position && page) return plugin.moveSidecar(hostLeaf, context.request.args.position, page);
       showSidecarMoveMenu();
@@ -959,6 +1064,7 @@ export function KplexApp({ plugin, surface, hostLeaf, translate, environment, on
   const sidecarPosition = sidecarAvailable ? plugin.getSidecarPosition(hostLeaf) : null;
   const sidecarOpen = Boolean(sidecarPosition);
   const sidecarEdgePosition = sidecarPosition ?? plugin.settings.sidecarPosition;
+  const adjacentSidecar = sidecarAvailable && !sidecarOpen ? plugin.getAdjacentSidecarCandidate(hostLeaf) : null;
   const foldPlexIcon = sidecarEdgePosition === "left" ? "panel-right-close"
     : sidecarEdgePosition === "above" ? "panel-bottom-close"
       : sidecarEdgePosition === "below" ? "panel-top-close"
@@ -973,7 +1079,14 @@ export function KplexApp({ plugin, surface, hostLeaf, translate, environment, on
         : "panel-right-open";
   const condensedBySidecar = sidecarAvailable && sidecarOpen && hostWidth > 0 && hostWidth <= plugin.settings.sidecarCondensedBreakpoint;
   const profileSurface: KplexViewSurface = condensedBySidecar ? "sidepanel" : surface;
-  const viewSettings = useMemo(/** Display-mode-only renders retain the current scene settings identity; real settings/index changes still refresh it. */ () => plugin.getViewSettings(profileSurface), [plugin, profileSurface, renderRevision]);
+  const baseViewSettings = useMemo(/** Retain the existing profile's identity across non-settings publications. */ () => plugin.getViewSettings(profileSurface), [plugin, profileSurface, renderRevision]);
+  const basePaintSettings = useMemo(/** Only paint publication refreshes color-only inputs. */ () => plugin.getViewSettings(profileSurface), [plugin, profileSurface, renderRevision, paintRevision]);
+  const viewSettings = useMemo(/** Local center mode changes layout only in its own leaf. */ () => centerViewSettings(baseViewSettings, centerMode), [baseViewSettings, centerMode]);
+  const paintSettings = useMemo(/** Preserve inherited profile fields and paint-only ownership. */ () => centerViewSettings(basePaintSettings, centerMode), [basePaintSettings, centerMode]);
+  const paintLenses = useMemo(/** Reuse compiled predicates while replacing only their already-sanitized style payloads. */ () => {
+    const styles = new Map(plugin.settings.graphLenses.map(lens => [lens.id, lens.style]));
+    return {...compiledGraphLenses, lenses: compiledGraphLenses.lenses.map(lens => ({...lens, style: styles.get(lens.id)}))};
+  }, [plugin, compiledGraphLenses, paintRevision]);
   const actions = usePlexActions({ plugin, hostLeaf, root: rootRef, convention: environment.keyConvention,
     center: page, graph: graphActionPorts, implementations: appImplementations, mounted: hasPage,
     onUserInteraction: /** Native commands/keyboard interactions pause before their accepted work. */ () => wander.pause(),
@@ -1100,6 +1213,7 @@ export function KplexApp({ plugin, surface, hostLeaf, translate, environment, on
           <SearchBox
             graph={graphSearchRead}
             icon={<ObsidianIcon name="search" size={16} />}
+            resultIcon={/** Explicit type facets choose the host's native Lucide icon. */ hit => <ObsidianIcon name={searchResultIconName(hit.node)} size={16} />}
             portalSelector=".kplex-app"
             appTopbarSelector=".kplex-topbar"
             revision={renderRevision}
@@ -1121,8 +1235,8 @@ export function KplexApp({ plugin, surface, hostLeaf, translate, environment, on
               if (next.showCrossLinks !== plugin.settings.showCrossLinks) void toggleToolbarSetting("showCrossLinks");
               setFindFilterOwner(null); setPlexFilter(next);
             }}
-            lenses={graphLenses}
-            onLensesChange={updateGraphLenses}
+            lenses={plugin.settings.graphLenses} colorPalette={plugin.settings.colorPreferences.palette}
+            onLensesChange={updateGraphLenses} onEditColor={editLensColor} appearance={lensAppearance} lensesReadOnly={plugin.settings.graphLensesColorFuture !== undefined || plugin.settings.appearanceThemesFuture !== undefined}
             layoutMode={filterLayoutMode}
             onLayoutModeChange={/** An explicit layout choice belongs to the filter panel. */ (mode) => {
               setFindFilterOwner(null); setFilterLayoutMode(mode);
@@ -1162,16 +1276,16 @@ export function KplexApp({ plugin, surface, hostLeaf, translate, environment, on
             />
             <span className="kplex-toolbar-divider" />
             <ToolButton icon={plugin.settings.graphDepth === 2 ? "list-chevrons-down-up" : "list-chevrons-up-down"} title={translate(plugin.settings.graphDepth === 2 ? "app.singleLevelView" : "app.expandedView")} on={plugin.settings.graphDepth === 2} onClick={() => runAction("view.depth.toggle")} />
-            <ToolButton icon="spline" title={translate(plugin.settings.connectorStyle === "bezier" ? "app.useStraightConnectors" : "app.useCurvedConnectors")} on={plugin.settings.connectorStyle === "bezier"} onClick={() => runAction("view.connectors.toggle")} />
+            {isGraphTabCommandAvailable(environment) && <ToolButton icon="plus" title={translate("actions.surface.new-tab")} onClick={() => runAction("surface.new-tab")} />}
             <ToolButton icon="settings" title={translate("app.settingsMenu")} on={areaSettingsMode} onClick={showSettingsMenu} />
           </div>
         </header>
 
         {pinnedPages.length > 0 && <div className="kplex-pinned-bar" aria-label={translate("app.pinnedNodes")}>
           {pinnedPages.map((pinned) => {
-            const title = plugin.index.titleFor(pinned);
+            const { label: title, icon } = nodeListPresentation(pinned, plugin.index.titleFor(pinned));
             return <div key={pinned.path} className={`kplex-pinned-chip${pinned.path === page.path ? " is-active" : ""}`}>
-              <button className="kplex-pinned-open" data-kplex-pinned-path={pinned.path} aria-label={`${title}\n${pinned.path}`} onClick={() => actions.dispatch({ id: "node.activate", source: "toolbar", target: { kind: "explicit", node: actionNodeRef(pinned) } })}><ObsidianIcon name="pin" size={12} /><span>{title}</span></button>
+              <button className="kplex-pinned-open" data-kplex-pinned-path={pinned.path} aria-label={`${title}\n${pinned.path}`} onClick={() => actions.dispatch({ id: "node.activate", source: "toolbar", target: { kind: "explicit", node: actionNodeRef(pinned) } })}><ObsidianIcon name={icon} size={12} /><span>{title}</span></button>
               <button className="kplex-pinned-remove" aria-label={translate("app.unpinNode", { title })} onClick={() => actions.dispatch({ id: "pin.remove", source: "toolbar", target: { kind: "explicit", node: actionNodeRef(pinned) } })}><ObsidianIcon name="x" size={11} /></button>
             </div>;
           })}
@@ -1184,7 +1298,7 @@ export function KplexApp({ plugin, surface, hostLeaf, translate, environment, on
           <div className="kplex-zone-label zone-left">{translate("app.zoneFriendsPrevious")}</div>
           <div className="kplex-zone-label zone-right">{translate("app.zoneChallengersNext")}</div>
           <div className="kplex-zone-label zone-child">{translate("app.zoneChildren")}</div>
-          <PlexGraph plugin={plugin} index={plugin.index} settings={viewSettings} surface={profileSurface} hostLeaf={hostLeaf} predicate={plexFilterPredicate} lenses={compiledGraphLenses} filterLayoutMode={filterLayoutMode} predicateRevision={predicateRevision} showCrossLinks={plugin.settings.showCrossLinks} activePath={page.path} renderRevision={renderRevision} findFocusRequest={findFocusRequest}
+          <PlexGraph plugin={plugin} index={plugin.index} settings={viewSettings} paintSettings={paintSettings} paintLenses={paintLenses} surface={profileSurface} hostLeaf={hostLeaf} predicate={plexFilterPredicate} lenses={compiledGraphLenses} filterLayoutMode={filterLayoutMode} predicateRevision={predicateRevision} showCrossLinks={plugin.settings.showCrossLinks} activePath={page.path} renderRevision={renderRevision} findFocusRequest={findFocusRequest}
           actionPorts={graphActionPorts} actionSurfaceId={actions.surfaceId} displayState={displayState} fullscreenAvailable={displayModes.fullscreenAvailable && environment.device === "desktop"}
           semanticRevision={plugin.index.getSemanticRevision()} navigationOrigin={navigationOrigin} onSemanticDemandAcquired={acknowledgeDocumentDemandHandover} onActivate={/** Manual graph navigation keeps the existing history and sync path. */ target => activate(target)} onWanderActivate={/** Explicit Wander origin survives asynchronous scene publications. */ target => activate(target, true, true, "wander")} onOpen={open} onOpenInSidecar={centerAndOpenSidecar} onCentralNodeEditorChange={setCentralNodeEditorEnabled} onCentralNodeModeChange={rememberCentralNodeMarkdownMode} areaSettingsMode={areaSettingsMode} onAreaSettingsModeChange={setAreaSettingsMode}
           onApplyFindFilter={applyFindFilter} appliedFindFilterQuery={findFilterOwner?.query ?? null} onClearFindFilter={clearFindFilter} />
@@ -1198,8 +1312,14 @@ export function KplexApp({ plugin, surface, hostLeaf, translate, environment, on
 
       {sidecarAvailable && <div className={`kplex-sidecar-controls is-${sidecarEdgePosition}${sidecarOpen ? " is-open" : " is-closed"}`} aria-label={translate("app.sidecarControls")}>
         <button type="button" className="kplex-sidecar-primary" aria-pressed={sidecarOpen} aria-label={sidecarOpen ? translate("app.closeSidecar") : translate("app.openSidecarAt", { position: physicalPositionLabel(sidecarEdgePosition, translate) })} onClick={() => runAction("view.sidecar.toggle")}><ObsidianIcon name={sidecarOpen ? closeSidecarIcon : openSidecarIcon} size={16} /></button>
+        {adjacentSidecar && <SidecarAttachControls position={sidecarEdgePosition}
+          toLeaf={Boolean(page?.file || page?.url)} toPlex={plugin.getAdjacentSidecarTarget(hostLeaf) !== null}
+          toLeafLabel={translate("actions.view.sidecar.attach-from-center")} toPlexLabel={translate("actions.view.sidecar.attach-from-pane")}
+          icon={/** Host supplies the installed Lucide icon renderer. */ name => <ObsidianIcon name={name} size={16} />}
+          onToLeaf={/** All entry points share typed action availability and ownership. */ () => runAction("view.sidecar.attach-from-center")}
+          onToPlex={/** Reverse flow keeps the exact initiating surface. */ () => runAction("view.sidecar.attach-from-pane")} />}
         {sidecarOpen && <>
-          <button aria-label={translate("app.foldForSidecar")} onClick={() => runAction("view.sidecar.collapse-plex")}><ObsidianIcon name={foldPlexIcon} size={15} /></button>
+          <button type="button" aria-label={translate("app.foldForSidecar")} onClick={/** Explicit surface dispatch reaches the graph-independent host fold owner. */ () => runAction("view.sidecar.collapse-plex")}><ObsidianIcon name={foldPlexIcon} size={15} /></button>
           <button ref={sidecarMoveButtonRef} type="button" aria-haspopup="menu" data-kplex-menu-trigger="sidecar-position" aria-label={translate("app.moveSidecar")} onClick={() => runAction("view.sidecar.position")}><ObsidianIcon name="move" size={15} /></button>
           <button aria-label={translate("app.detachSidecar")} onClick={() => runAction("view.sidecar.detach")}><ObsidianIcon name="unlink" size={15} /></button>
         </>}
@@ -1211,8 +1331,8 @@ export function KplexApp({ plugin, surface, hostLeaf, translate, environment, on
           {plugin.settings.navigationHistory.slice(-14).reverse().map((path, indexValue) => {
             const item = plugin.index.get(path);
             if (!item) return null;
-            const title = plugin.index.titleFor(item);
-            return <button key={`${path}:${indexValue}`} data-kplex-history-path={path} aria-label={`${title}\n${path}`} className={path === page.path ? "is-active" : ""} onClick={() => actions.dispatch({ id: "node.activate", source: "toolbar", target: { kind: "explicit", node: actionNodeRef(item) } })}><span className="kplex-history-text">{title}</span></button>;
+            const { label: title, icon } = nodeListPresentation(item, plugin.index.titleFor(item));
+            return <button key={`${path}:${indexValue}`} data-kplex-history-path={path} aria-label={`${title}\n${path}`} className={path === page.path ? "is-active" : ""} onClick={() => actions.dispatch({ id: "node.activate", source: "toolbar", target: { kind: "explicit", node: actionNodeRef(item) } })}><ObsidianIcon name={icon} size={12} /><span className="kplex-history-text">{title}</span></button>;
           })}
         </div>
       </footer>

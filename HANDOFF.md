@@ -1,4 +1,4 @@
-# Standing instructions — preserve this header
+# Standing instructions ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â preserve this header
 
 This is a temporary handoff document between agents. The development of the solution involves agents with access to Obsidian CLI and a full development environment with all node packages installed, but also agents with more limited access. Development is done in "ping-pong" between these two types of agents. Agents should use this document to pass instructions and status from one another, such as instructions for testing/validation, or instructions for development work that can only be done in a full environment.
 
@@ -16,16 +16,37 @@ Obsidian is the production host; preserve the established portable semantic, ide
 
 
 
+
 ---
 
-# PR141 - Accepted publication checkpoint
+# PR182 completed; paused for maintainer testing
 
-State: inactive implementation handoff; root reviewed and accepted combined scope for authorized commit/push/merge/closure of originalPR141. Branch2026-10-11-issue-128-delete-cleanup-scope, validationHEADf0ce0467ecd0697247fd2e8360c72ad65e92da00, integratedmain001170c9615c0ee6672fa1a472df55203c907d0f. Original tree retained in recovery stash276d2932aeb7c323bbb780a35ff5b5877105ee0c. Final Git publication identity is verified in PR141 aftercommit. No competing PR; originalissue128 linked.
+181 mergedmainc0cd100. Current182branch2026-10-18-live-settings-sync remainsdraft;
+main integrated8b0fdbd. Runtime dbe531732bfd76b1e7c1a10c20b3a56ac5128554 fully
+verified; native-tooling checkpointf7424d808f87cd051987f105f7cf330df475b4e7.
+Closeout afterthat is documentation only. Do not merge/release/start141/147 or
+resume C14 structural work. No active assignment or background benchmark.
 
-Approved changes: configured-ontology default deletion, explicit arbitrary property Remove/Hide consent, retained body/inline links and navigable partial results. Directional Hidden consent follows selected central/write note, preserves original links and inverse visibility. User wording retained. Shared source-owned referenceParams annotations56literal/127plain across183entries produce once-only double quotes across locales; values stay opaque, no role/count/shortcut heuristics, no catalog cloning. Locale tag prefix mechanical only; actual field tooltip distinguished from descriptive source kind. Latestmain rename/menu implementation preserved.
+Full verify PASS Node22.22.2:architecture7/core130/main1061/UI162/sources334/browser623,
+zero failures/skips, official lint and actual build/types.16 focused production
+settings scenarios and2 failing negative controls. Exact Windows1.14.4 Small:
+external actualcallback6cases each in on-demand/eager;styleOperations15;native
+migration6. Presentation receipt1settingsread,0note/source/semantic/build/saves.
+Genuine ontology updated stationary rendered parents with native editor identity,
+leaf/caret retained. Failed trials preserved, including focus-oracle setup error
+(actual cursor4 before/after, not requested0). No runtime changes after full verify.
 
-Independent root review and validation complete: architecture7/core94/portable710/browserUI60/portableSources334/browserIndexedDB442 allpass, zero failures/cancellations/skips/todos. Official Obsidian lint, actual installed-type production build and exact-artifact native render pass. Serial exact-artifact native deletion20, rename36observations(on-demand/eager), menu14includingpopout/migration/retirement pass. Source/artifact hashes match finalproductiongate. Original88notes/rawconfig restored, no ownedfixture/controllers/modals. Main.js 8c39cca6feddb3402fc0f9e98606c597b56cc70e38372d1447df5a301044d3df.
+Small opening settings/workspace/config byte-exact, originalon-demand,107files/88md,
+no controllers/dialogs/pendingadoption/debugger. Exact main.js
+75177091ce58f6e70a214954fb33224767e75208ea8defa32bf8bcc9af48e425 installed.
+Private durable evidence outsideTemp:
+%LOCALAPPDATA%/KplexValidation/live-settings-sync-182-20261018-1792354136115
+98files/12419738bytes,2source ZIP CRC/entry SHA checks and copied file verification;
+MANIFEST SHA2564151640803f1ddf7641a1e3305ada346df8f78ed14b253486b5e401090ca970c.
+Originals retained, none published; HANDOFF and scripts containing it excluded.
+Final report docs/validation/live-settings-sync-182-2026-10-18.md contains identities,
+actual results, deliberate conflict policy, costs, failures and reproduction.
 
-Durable evidence: docs/validation/delete-cleanup-release-2026-10-12.json; olderfeature reports retain original receipts/limitations. Physical phone/macOS/OS-native menu backend not claimed passed. User authorizes publication despite prior stated phone limitation. No unrelated refactor/schema/parser change, generated artifacts tracked or archivedhandoff.
-
-Next root workflow: publish this accepted snapshot to existingPR141, merge/verifyclosed, switchmain/fetch/fastforward. Then execute separately requested unassisted Windows investigation on updatedmain, checking implementation inventories and versions before standaloneUI test, strictnativegate, renameacceptance and three serial historical-startup runs. Preserve Mac failures and deadlines; Windows diagnostic evidence belongs in a separate report, never substitute premerge results.
+Remaining manual acceptance:real macOS-WindowsSync,minimum1.13/configoverride,
+physical mobile/tablet. CI not awaited; PR staysdraft. Maintainer requestedpause
+after182; no personal-vault access or comparative performance permitted.

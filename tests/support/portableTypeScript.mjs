@@ -2,6 +2,8 @@
  * Transpile the actual portable modules for Node tests with the repository's TypeScript dependency.
  * This is not a typecheck (check:core/build own that gate), nor an implementation shim. Relative
  * imports are compiled recursively; optional explicit host stubs are owned by adapter tests only.
+ * Controlled comparisons may override named repository module text with exact committed baseline
+ * bytes; other dependencies keep the current checkout and no source file is rewritten.
  */
 import { createRequire } from "node:module";
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
@@ -12,8 +14,9 @@ const require = createRequire(import.meta.url);
 const ts = require("typescript");
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
 
-/** Compile the requested real module graph into an owned temporary directory; remove it on exit or failure. */
-export function loadPortableModules(paths, stubs = {}) {
+/** Compile the real module graph into an owned temporary directory; optional named source overrides
+ * support exact baseline comparisons without rewriting the checkout. Remove output on exit/failure. */
+export function loadPortableModules(paths, stubs = {}, sourceOverrides = {}) {
   const directory = mkdtempSync(join(tmpdir(), "kplex-portable-ts-"));
   const cleanup = () => rmSync(directory, { recursive: true, force: true });
   process.once("exit", cleanup);
@@ -22,7 +25,7 @@ export function loadPortableModules(paths, stubs = {}) {
   function compile(file) {
     if (visited.has(file)) return;
     visited.add(file);
-    const source = readFileSync(file, "utf8");
+    const source = sourceOverrides[relative(root, file).split(sep).join("/")] ?? readFileSync(file, "utf8");
     const output = join(directory, relative(root, file).replace(/\.ts$/, ".js"));
     mkdirSync(dirname(output), { recursive: true });
     const result = ts.transpileModule(source, { fileName: file, reportDiagnostics: true,

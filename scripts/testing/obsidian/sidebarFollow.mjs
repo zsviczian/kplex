@@ -3,6 +3,7 @@
  * events exercise hidden sidebar follow, ordinary history motion and main-tab opening; the
  * synthetic pointer stream and computed stylesheet verify compact controls. This driver owns its
  * fixtures, workspace, temporary controller and settings and restores them after any failure.
+ * Mobile note opening owns a drawer-dismiss transition; observe its completion before revealing again.
  * Desktop mobile emulation is layout/routing evidence, never physical Android/iOS acceptance.
  */
 import assert from "node:assert/strict";
@@ -66,6 +67,11 @@ function startProbe() {
   const wait = async milliseconds => { check(true, "active"); await new Promise(done => window.setTimeout(done, milliseconds)); check(true, "active"); };
   /** Bound asynchronous host publication independently from CLI response lifetimes. */
   const until = async (read, message) => { const end = Date.now() + 15_000; while (!read()) { check(Date.now() < end, message); await wait(25); } };
+  /** Native mobile dismissal can outlive openFile; await actual hidden geometry without an extra close/reopen or longer assertion deadline. */
+  const waitForNoteDrawerDismissal = async () => {
+    if (app.isMobile) await until(/** Observe the drawer's completed native dismissal. */ () => !p.isKplexLeafVisible(host), "Native phone drawer did not finish closing");
+    else await wait(100);
+  };
   /** Record only completed assertions, with finite serializable facts. */
   const passed = (id, details = {}) => c.cases.push({ id, status: "passed", ...details });
   /** Capture finite native ownership facts without exposing note bodies or mutating follow policy. */
@@ -146,7 +152,7 @@ function startProbe() {
     c.getOriginal = p.index.get;
     p.index.get = function(path) { return path === files[1].path ? undefined : c.getOriginal.call(this, path); };
     await noteLeaf.openFile(files[1], { active: true });
-    await wait(100); // Let the native phone note-opening drawer dismissal finish before reopening it.
+    await waitForNoteDrawerDismissal();
     app.workspace.rightSplit.expand(); await app.workspace.revealLeaf(host);
     await until(() => p.isKplexLeafVisible(host), "Pending-note drawer did not reveal");
     await until(() => {
@@ -154,7 +160,7 @@ function startProbe() {
     }, "Pending native note retained stale scene");
     check(!root.querySelector(".kplex-role-center"), "Pending note still displayed an old central node");
     await noteLeaf.openFile(files[2], { active: true });
-    await wait(100);
+    await waitForNoteDrawerDismissal();
     app.workspace.rightSplit.expand(); await app.workspace.revealLeaf(host);
     await until(() => p.isKplexLeafVisible(host) && acquire() && center() === files[2].path, "Newer note failed to supersede pending note");
     p.index.get = c.getOriginal; c.getOriginal = null; p.index.notify(); await wait(100);
