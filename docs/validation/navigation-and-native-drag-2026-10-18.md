@@ -40,113 +40,125 @@ Ambiguous/stale source proof fails closed. Accepted file/reference writes are
 retained on a later failure, with a modal-local continuation rather than a second
 creation. This is not a multi-file transaction.
 
-## Validation status
+## Final validation
 
-The first implementation checkpoint passes `npm run verify` on Node 22.22.2:
-architecture 7/7, core 130/130, Node 1,003/1,003, UI browser 131/131,
-source-portable 334/334 and source-browser 598/598; no skips or cancellations.
-Obsidian lint and the production build against the installed types pass. A final
-existing-placeholder delegation regression and the affected relationship suite
-also pass 97/97 after review. An earlier Chromium startup timeout occurred before
-its bundle loaded; the unchanged isolated case and the complete retry pass.
-Assertions and deadlines are unchanged; the failed run is retained privately.
+Runtime and tests are pinned to [ac22f45](https://github.com/zsviczian/kplex/commit/ac22f45600e6835fb22f849dcf3e82b86f5f8f88).
+The final local `verify:obsidian` run starts and builds from a clean tree on
+Node 22.22.2; its process exits zero. Later closeout changes are documentation only.
 
-Exact-build staging and native command/render/error smoke acceptance pass on
-Windows 11, Obsidian 1.14.4 (installer 1.14.0), in `kplex-test-small`.
-Both repository output and installed artifacts have these SHA-256 values:
+| Required lane | Result |
+| --- | --- |
+| Architecture / restricted core | 7/7 and 130/130 |
+| Node contracts | 1,013/1,013 |
+| Browser UI | 131/131 |
+| Portable source / real-browser source | 334/334 and 598/598 |
+| Obsidian lint / real-types production build | Pass |
+| Exact-build native staging, command/render/error smoke | Pass |
+
+Full verification reports no skips or cancellations; assertions are preserved.
+The browser source lane includes its
+20,015-record synthetic restart/publication case. Native acceptance uses Windows
+11 10.0.26200, Obsidian 1.14.4 (installer 1.14.0), Electron 43.3.0 and native
+Node 24.18.1. Only authorized disposable `kplex-test-small` is used: 107 original
+files, including 88 Markdown notes. No personal vault is accessed.
+
+Repository output and installed files match these final SHA-256 values:
 
 | Artifact | SHA-256 |
 | --- | --- |
-| `main.js` | `78e0e00fcd4c534f4fd0e26c986957f1f789ea9274d15b44e48bf2b1ecae765f` |
+| `main.js` | `86fa12f02946d1d0c085c73bbab3eab501d0224b7f23b8402ed17d2fe7aea0f8` |
 | `styles.css` | `3dd15f02ccd96bd363731342b7fc8d056b8461ca7371b9ca3746d41471f3366f` |
 | `manifest.json` | `19d9ecce5557733e0ff0f2e27155e635c30158c3cfa6fbca0f11c16e4dedfd2c` |
 
-Native Find passes eight guarded searches and six navigations. The complete
-layout lane passes six actual Settings controls, main/sidepanel/popout placement,
-independent-area geometry and semantic drop previews. Layout changes record zero
-guarded reads, parses, acquisitions, builds, semantic refreshes and snapshot writes,
-with unchanged semantic revision and source counters. Native payload/Markdown
-checks pass for notes, attachments, URLs, placeholders and tags. Cross-Plex
-navigation passes for all five; file/URL/tag popout handlers, the external
-fixed-target composer and trusted gate draft geometry also pass. These handler
-drop events are synthetic and do not establish OS drag completion.
+All five native lanes pass serially on that exact build:
 
-Native findings corrected at this checkpoint: tag text uses ordinary HTML text
-rather than an unsupported native draggable type; layout-only saves stay on the
-presentation channel; modified placeholder first clicks retain their target;
-materialization buttons retain visible labels; relocated wiki links remain literal
-so Obsidian itself can resolve them after restart. Markdown targets remain encoded.
-Uncertain YAML quoting and unsupported wiki destinations fail before file creation.
-An apostrophe in the destination plus any apostrophe in affected frontmatter is
-conservatively rejected; unrelated apostrophes can therefore cause refusal. The
-user can choose another folder. No parallel YAML grammar is introduced.
+- Find: eight guarded queries, six navigations, hierarchical/accented tags,
+  hidden ordinary tag nodes, folders and native result-type icons.
+- Folder creation: eight real-dialog workflows plus a genuine plugin reload.
+  Covers name-first modifier-Enter, existing/root/new folders, duplicate basenames,
+  placeholder aliases, failed storage, modifier double-click/Cancel and durable
+  relocation. The mixed-reference case moves three space-target links while
+  preserving three percent-literal links and every other source byte.
+- Combined layout/drag: ten cases, including all six actual Settings controls,
+  main/sidepanel/popout placement, dense independent areas and semantic drop
+  previews; five Markdown drop types, cross-Plex navigation/composer, popout
+  handlers, trusted gate geometry and trusted same-view body-drag delivery.
+- Existing interactions: all 14 asserted cases pass, including sibling additions
+  in four directions, Bases drops, held-build materialization and Properties
+  focus/overlap/non-Markdown/popout behavior. One fixture observation is separate.
+- Touch emulation: eight trusted gestures, saved-value reload and phone/pane
+  geometry. Earlier acceptance also exercised the temporary-enablement branch.
 
-Focused suites pass 226/226, plus nine drag-contract tests after the final text
-effect adjustment. All seven native folder workflows and a genuine plugin reload
-pass: native resolution, durable destination/alias, old-placeholder removal and
-source provenance. The typing/cancel interval records zero guarded resource work.
-The drag lane also passes trusted body start/drop delivery using Chromium's
-intercepted native drag data, with no synthetic fallback, correct relink intent and
-the original relationship preserved on Cancel. These lanes restore the complete
-107-file inventory, workspace and original configuration bytes.
+Native handlers receive synthetic drops where stated by their receipts. Trusted
+body dragging uses Chromium's intercepted native data with trusted start/drop and
+no synthetic fallback; this does not prove an OS drag across windows/applications.
+Every lane restores its owned fixtures, workspace and configuration bytes. A final
+independent sanity check confirms 107/88 files, no test controllers/dialogs,
+desktop mode, loaded candidate and restored CLI console capture. Visual inspection
+of the actual compact composer confirms name focus and a closed folder menu;
+that check submits no note or settings write. All eight locales remain covered.
 
-Earlier injected body dragging emitted only dragstart and left native keyboard
-transport unresponsive. A disposable-renderer reload restored input; the native
-test now uses exclusive CDP interception and explicit drag cancellation. Failed
-trials and exact recovery receipts remain private. Folder harness corrections
-wait for the replacement React view before navigation, restore deferred utility
-leaves by their public IDs and restore the reload-owned enablement-list bytes.
-No failure is relabeled as a pass. Existing touch/range acceptance passes eight
-trusted gestures, saved-value reload and phone/pane geometry under desktop
-emulation. The existing interaction lane passes all 14 asserted scenarios,
-including sibling additions in four directions, Bases drops, held-build
-materialization and Properties main/popout/overlap behavior. Final combined
-verification remains pending. No personal vault is used.
+## Indexing impact
+
+Guarded Find queries, layout changes, native payload creation and folder
+typing/cancellation record zero added Vault reads, parsing, source acquisition,
+semantic builds and snapshot writes. Layout also retains semantic revision and
+source counters. Search uses the existing vocabulary; folder browsing filters one
+captured native folder inventory. Ordinary On-demand navigation and actual
+creation/retargeting legitimately perform their existing source and note work and
+are measured separately. This is operation-level evidence, not a claim of zero
+UI CPU/allocation cost, a startup speedup or measured whole-vault resource savings.
+
+## Safety and remaining limitations
+
+Native cache probes and four failing-before regressions exposed a defect in the
+new relocation path: wiki percentages were decoded like Markdown. The correction
+preserves literal wiki spelling, decodes Markdown once and requires exact native
+cache/token agreement. Literal wiki `%23` is not a heading. All 49 composer
+tests pass; raw/twice-decoded cache mismatches fail closed. General index/parser
+policy is unchanged. Percent-escape-looking wiki destinations are conservatively
+refused by the new serializer. Unsupported wiki targets and uncertain YAML quoting
+fail before creation; a destination apostrophe plus any apostrophe in affected
+frontmatter can be refused even when that other apostrophe is unrelated.
 
 The separate On-demand gate/filter lane **fails** its unchanged-semantic-revision
-guard. Its asserted gate values are correct; tracing attributes the publications
-to ordinary per-file patching after the cross-link toggle's legacy settings save
-calls `refreshSemanticSettings()`, clearing requested coverage. Source counters
-remain unchanged, but this is still extra graph work. Merged main contains the
-same toolbar/save/refresh path; that attribution is a source comparison, not a
-native old-build trial. This PR does not broaden into that unrelated correction
-or weaken the assertion. A future focused fix should route cross-link-only saves
-through presentation and verify mixed visibility/ontology saves remain correct.
-Initial fixture-precondition failures and all failed controls are retained.
+guard, with correct gate values. The existing cross-link toggle's legacy settings
+save calls `refreshSemanticSettings()`, clears requested coverage and repatches
+files despite unchanged source counters. Main contains that same source path;
+this is a source comparison, not a native old-build trial. The assertion remains
+intact and no unrelated correction is included. A focused future fix can route
+cross-link-only saves through presentation while preserving mixed semantic saves.
 
-An ordinary noncentral placeholder double-click can move the tile after its first
-click and land its second click on a gate. The immediate-navigation/gate bubbling
-hazard exists in baseline source, but that exact baseline native sequence has not
-been reproduced. Ordinary materialization is checked on a stationary central
-placeholder; the new modifier gesture is checked on a noncentral placeholder.
-The moving-target ordinary gesture remains a recorded limitation.
+An ordinary unmodified double-click can move a noncentral placeholder after its
+first click, putting its second click over a gate. Baseline source has the same
+hazard; that exact old-build native sequence is unproven. Ordinary materialization
+is validated on a stationary center; the new modifier gesture is validated on a
+noncentral node. Earlier browser-startup, drag-transport, folder/reload and cleanup
+failures remain preserved with their successful controls and recovery receipts.
 
-The resource claim is narrowly testable: search typing, layout presentation,
-native payload creation and folder editing/cancellation must perform no added
-body reads, parsing, source acquisition, semantic compilation or snapshot writes.
-Actual On-demand navigation and note creation/retargeting are measured separately
-and are expected to perform their normal work. This is not a claim of zero UI
-CPU/allocation cost or a startup/indexing speedup.
+Remaining manual acceptance, in priority order:
 
-Final source review found a native-identity defect in the new relocation path:
-decoding wiki percentages conflated space and literal `%20` filenames, and could
-treat literal wiki `%23` as a heading. A disposable native probe confirmed that
-Obsidian decodes Markdown once but retains wiki and cache-key percentages.
-Relocation now requires exact cache/token agreement with that syntax distinction;
-uncertain authority fails closed. The general index/parser policy is unchanged.
-Percent-escaped-looking wiki destinations are conservatively refused by the new
-placeholder serializer; no fallback decoding is accepted as native proof.
-Four targeted regressions fail on the previous implementation; all 49 composer
-tests pass after correction, as do lint and the real-types build. The native folder
-lane now passes eight scenarios: its mixed-reference case moves three approved
-space-target references, preserves three percent-literal references and every
-other source byte. Real plugin reload and complete fixture/config restoration
-also pass. Final combined verification will pin the committed correction.
+1. Physical mouse drag between adjacent Plex/Markdown panes and across
+   windows/applications: links arrive correctly and Cancel preserves relations.
+2. macOS Command/Option, folder selection and native input/IME; minimum-host
+   compatibility remains untested separately from the installed desktop host.
+3. Physical phone/tablet picker focus, touch/scroll and separate layout profiles.
+   Desktop emulation does not establish device acceptance.
 
-## Remaining platform acceptance
+## Preserved evidence
 
-Windows Electron input and synthetic native-handler events do not establish
-physical phone/tablet interaction, macOS Option/Command handling, minimum-version
-host compatibility, or an actual OS drag gesture between windows/applications.
-These outcomes must be distinguished in the final results rather than inferred
-from portable tests or DOM dispatch.
+Private durable backup: `%LOCALAPPDATA%/KplexValidation/navigation-native-drag-177-20261018`.
+It contains 403 verified files (74,104,069 bytes): complete owned raw
+measurements, failures/recoveries, staged artifacts and a source/test archive pinned
+to `ac22f45`. `sources/SOURCE_REFERENCES.json` and `sources/REPRODUCE.txt`
+record source identities, fixture conditions and the established runnable lanes.
+`MANIFEST.json` records every file's checksum. Its SHA-256 is
+`4c3c98f4bba8b008021468a0823c7056763021c91b15ff61156a83d0f2b55c39`.
+All copies and checksums were verified before closeout; Temp originals are retained.
+Configuration backups remain private. No raw evidence is published or added to Git,
+and the transient handoff is excluded from the source archive.
+
+[Runtime CI](https://github.com/zsviczian/kplex/actions/runs/39081868817) and
+[the draft PR's current checks](https://github.com/zsviczian/kplex/pull/177/checks)
+provide the remote results; the PR description records final-head CI status.
+No merge or release is authorized for this implementation branch.

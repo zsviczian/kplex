@@ -19,76 +19,51 @@ Obsidian is the production host; preserve the established portable semantic, ide
 
 ---
 
-# Native drag, tag/folder navigation and compact layout
+# Navigation, native drag and creation destinations: completed
 
-Active main-agent assignment, authorized 2026-10-17. #174 is merged at
-8f702d9c6dfcb70921a1bd5c15087af70e7f2156; local main fetched/fast-forwarded.
-Implementation branch: 2026-10-17-navigation-and-native-drag, same base.
-User authorizes unsupervised implementation, validated checkpoint commits/pushes;
-no release or merge of the new feature branch is authorized.
+Main-agent closeout, 2026-10-18. #174 merged at
+8f702d9c6dfcb70921a1bd5c15087af70e7f2156; main was fetched before creating
+2026-10-17-navigation-and-native-drag. Draft PR: #177.
+Runtime/test source: ac22f45600e6835fb22f849dcf3e82b86f5f8f88; later closeout edits are documentation only.
+User authorizes checkpoint commits/pushes. Do not merge/release this feature PR
+without new authorization. C14 remains accepted; structural refactoring is paused.
 
-Scope: native outbound link drags for eligible node kinds and cross-Plex drops;
-#157 tag hierarchy and Find tag/folder/type-icon support; #175 combined-left
-friends/challengers presentation per device/surface profile; compact reusable
-folder suggester in creation/materialization including placeholder default aliases
-and primary-modifier double-click folder selection. Preserve fast note creation.
-No receipt/startup optimization, scheduler/schema or broad architecture work.
-C14 remains accepted and structural refactoring paused.
+Completed: native note/attachment/URL/placeholder drags and plain tag text,
+cross-Plex drops; #157 tag hierarchy and Find tag/folder/type icons; #175 overlap
+correction and six independent combined-left layout preferences; one compact
+folder input for creation/materialization, default placeholder aliases and
+Ctrl/Cmd-double-click selection. Existing duplicate/relink, touch/gate, pinned
+document, styling and lifecycle owners are preserved. No indexing compiler,
+scheduler, schema, receipt or personal-vault work is introduced.
 
-Mixed-agent owners (all offline returns uncommitted, no native or Git operations):
-- tag_find_navigation: indexed tag topology/search and Find; coordinate projection.
-- folder_creation_ux: shared folder chooser and existing creation/materialization.
-- simplified_layout: layout/profile/settings and narrow-screen overlap regression.
-- root: native drag integration, independent review/localization/CSS/native tests,
-  serial full verification, evidence/report, Git and draft PR management.
-Root owns this handoff; agents return source findings/patch/tests via messages.
-Shared main.ts/projection edits require coordination. Root owns all locale/CSS edits.
+Full clean-source verify:obsidian passes: architecture 7/7, core 130/130,
+Node 1,013/1,013, UI 131/131, source 334/334 and browser 598/598, without skips
+or cancellations. Obsidian lint,
+installed-types build and exact native staging/render/error smoke pass.
+Final ac22f45 native reruns all pass: Find's eight queries/six navigations, eight folder
+workflows plus actual reload, ten combined layout/drag cases, fourteen legacy
+interaction assertions and touch/range/reload/geometry emulation. Resource guards
+record zero source read/parse/acquisition/build/snapshot work in presentation and
+typing intervals; normal navigation/writes remain separate. Final cleanup confirms
+107 files/88 Markdown, no owned dialogs/controllers, desktop and console capture
+restored. All offline source reviews are complete; no agent implementation pending.
 
-Required acceptance: focused reproductions then contract tests and actual Obsidian
-Settings/drag/Find/composer interactions on kplex-test-small; all three explicit
-vault identity/path/config variables and exact artifact hashes. Native/browser/
-resource lanes run serially. No personal-vault access. Record fixture cleanup and
-host/device limitations; desktop emulation does not establish physical mobile.
-Prove presentation/search/drag/folder selection add no source acquisition, parse,
-full build or snapshot rewrite; necessary actual note writes measured separately.
-Full Node22.22.2 verify and exact-build native verification before final review.
+A confirmed percent-literal relocation defect is corrected and native-tested:
+wiki stays literal, Markdown decodes once and native cache proof must agree.
+Native relocation moves three space references and preserves three percent references
+plus all surrounding bytes. All 49 composer tests pass. Ambiguous/oversized proof,
+unsupported quoting and percent-escape-looking wiki destinations fail closed.
 
-Implementation returned and independently reviewed; all three offline slices are
-frozen. Native link dragging and its shared same-view mutation path are integrated.
-Existing-placeholder duplicate/relink behavior is retained; an alias override
-never selects a different relationship mutation policy.
+Known separate limitation: the existing cross-link toggle refreshes On-demand
+coverage; its native gate/filter revision guard remains failing, not weakened.
+Main's same source path was inspected, with no native baseline claim or unrelated
+fix. Ordinary moving noncentral placeholder double-click retains a documented
+source-level baseline hazard. Physical OS cross-window dragging, macOS/minimum-host
+and real phone/tablet acceptance remain pending. No further scope is authorized.
 
-Current step: final portable verification followed by serial exact-build native
-Find, folder creation/materialization, layout/drag and affected touch/gate checks.
-Focused creation/relationship checks pass 97/97 after review. The active full run
-passes architecture 7/7, core 130/130, Node 1003/1003, UI browser 131/131,
-source-portable 334/334 and source IndexedDB/browser 598/598, plus real-types build,
-Obsidian lint and exact-build native smoke/staging. These counts do not yet
-constitute focused native feature acceptance. One earlier browser-startup timeout
-is preserved; the unchanged isolated case and complete retry pass, with no
-deadline or assertion relaxation. Native Find now passes eight guarded searches
-and six navigations, with zero indexing/storage work in search intervals and
-exact fixture/layout/config restoration. The intermediate-tag native failure is
-fixed using the existing structural baseline and matching evidence; 118 focused
-tag/host checks pass, including shared-tag removal/final deletion. Layout now
-passes all six actual Settings controls, main/sidepanel/popout geometry and zero
-semantic/source/storage work. Five Markdown payload drops and cross-Plex navigation
-handlers pass, as do popout file/URL/tag handlers and trusted gate geometry.
-Folder workflows/restart and trusted native body start/drop now pass, with exact
-107-file inventory/layout/configuration restoration. Chromium's intercepted native
-drag data supplies trusted delivery without a synthetic fallback. Earlier injected
-drag transport failures and their recovery receipts remain private. Touch/gate
-range/reload/geometry acceptance and all 14 existing interaction assertions pass.
-The separate On-demand gate/filter lane fails its zero-semantic-revision guard:
-correct gate counts, but the existing cross-link toggle save refreshes requested
-coverage. The same path exists in main source; no old-build native comparison is
-claimed and no unrelated runtime correction or assertion relaxation is included.
-The report records
-the ordinary moving-placeholder double-click source hazard; ordinary materialization
-uses a stationary central placeholder, while the modifier gesture is tested
-noncentrally. Final combined verification remains pending.
-
-Durable feature evidence/report owner:
-docs/validation/navigation-and-native-drag-2026-10-18.md. Keep final build hashes,
-actual source-work counters, fixture restoration and platform gaps there; do not
-publish raw configuration or local evidence. No personal vault is accessed.
+Durable results: docs/validation/navigation-and-native-drag-2026-10-18.md.
+Private backup: %LOCALAPPDATA%/KplexValidation/navigation-native-drag-177-20261018
+(403 files; per-file checksums verified, Temp originals retained; no publication).
+Manifest SHA-256: 4c3c98f4bba8b008021468a0823c7056763021c91b15ff61156a83d0f2b55c39.
+HANDOFF is transient and excluded from the source archive. Final commit and CI
+status are recorded in the PR. Await maintainer review; no implementation is pending.

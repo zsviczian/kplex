@@ -4671,3 +4671,19 @@ surrounding bytes; inventory/configuration restore. This does not change general
 index/parser semantics or reopen structural refactoring. Final combined checks
 remain pending. Prioritized remaining acceptance: macOS modifier/folder workflow,
 physical mobile interaction, and actual OS drag across windows/applications.
+
+
+Final navigation/creation acceptance (2026-10-18): clean runtime/test source
+ac22f45 passes architecture 7/7, core 130/130, Node 1,013/1,013, UI 131/131,
+source 334/334 and browser 598/598,
+Obsidian lint, real-types production build and exact native staging/error smoke.
+Serial exact-build Find, eight folder workflows/reload, ten combined layout/drag
+cases, fourteen legacy assertions and touch emulation pass; all fixtures/config
+restore. Final sanity confirms 107 files/88 Markdown, no owned controllers/dialogs
+and restored desktop/console state. Isolated presentation/payload/typing work is
+zero; ordinary navigation/mutations remain separate. Private durable evidence has
+403 verified files, originals retained and no publication; source archive excludes
+HANDOFF. The feature report records source/build hashes, failed controls, the
+unrelated gate/filter guard failure, conservative relocation limits and the three
+prioritized physical OS/macOS/device acceptance checks. No further implementation,
+architectural checkpoint, merge or release is authorized. PR #177 remains draft.
