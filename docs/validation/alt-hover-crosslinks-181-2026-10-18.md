@@ -108,3 +108,26 @@ platform acceptance. Highest-value remaining checks:
 
 Preserve source/paint separation when extending this work. Broader reflow request
 #20 and separate Settings-close freeze #179 remain outside this PR.
+
+## Private evidence and source references
+
+Runtime/tests/tooling checkpoint: `e8e8814744ebc8eb1beb43a8674a5951b91be9be`.
+The receipts also record hashes of the exact dirty integrated source used for the
+build. Reproduction uses the existing native hover command and explicit Small-vault
+variables documented in CONTRIBUTING; build/stage the real plugin first.
+
+Verified durable backup, outside temporary storage:
+`%LOCALAPPDATA%/KplexValidation/alt-hover-crosslinks-181-20261018-1792348500765`.
+38 files / 8,645,196 bytes; raw receipts, both native runs, initial failed fixture
+and negative controls, exact built artifacts and source ZIP. Copy hashes match the
+originals; ZIP 545 entries pass CRC and per-file SHA-256 verification. HANDOFF and
+temporary scripts containing it are excluded. Manifest SHA-256:
+
+```text
+381e9879634ca0a01b5f04df9bf08af2b39bb4fa7aad8d98188a9321931d95c8
+```
+
+Originals remain intact in temporary storage. Evidence includes disposable-vault
+configuration/local metadata and remains private; no archive was published.
+The maintainer requested completion then pause for their own testing/merge;
+PR181 stays draft. CI may run asynchronously; no final CI-green claim is made here.

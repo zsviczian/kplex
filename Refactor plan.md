@@ -5070,3 +5070,8 @@ lacked explicit null peek input (59/60); corrected fixture passes60. Final sanit
 dialogs, desktop/captureoff. No CPU/memory/latency comparison. Remaining manual:
 native lens/section/scroll provenance; actual Eager/drag/paint; macOS/migration/
 physical devices. Maintainer will test181 before its merge or the next work package.
+
+181runtime checkpoint e8e8814744ebc8eb1beb43a8674a5951b91be9be committed/pushed.
+Private verified backup1792348500765:38files/8645196bytes, sourceZIP545entries,
+CRC/per-fileSHA pass, HANDOFF excluded. Manifest381e9879634ca0a01b5f04df9bf08af2b39bb4fa7aad8d98188a9321931d95c8.
+Originals retained/private. Pause for maintainer testing; no next task started.
