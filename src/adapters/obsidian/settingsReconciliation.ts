@@ -203,8 +203,14 @@ export class SettingsReconciliation {
         const raw = await this.ports.read();
         if (!this.closed && themeValuesEqual(raw, next)) {this.acceptWrite(next); return;}
         if (!this.closed && generation === this.generation) {
-          const snapshot = this.ports.normalize(raw);
-          this.expectedDisk = copyThemeValue(raw); this.candidate = {raw, snapshot, base: this.accepted, overwritten: false};
+          // An unchanged predecessor is already validated. Normalizing it again could sort a
+          // deliberately saved list and manufacture a remote conflict after a failed local save.
+          // Keep any actual incoming candidate captured during the awaited write intact.
+          if (!themeValuesEqual(raw, this.expectedDisk)) {
+            const snapshot = this.ports.normalize(raw);
+            this.expectedDisk = copyThemeValue(raw); this.candidate = {raw, snapshot, base: this.accepted, overwritten: false};
+          }
+          this.failedRead = false;
         }
       } catch {this.failedRead = true;}
       throw error instanceof Error ? error : new Error(String(error));

@@ -65,7 +65,21 @@ owns three synthetic notes, observes trusted native typing separately from
 synthetic composition/paste, checks stationary final parents in three views,
 close/reopen, storage retry, saved-refresh-pending and no-view persistence. It
 restores private configuration/workspace/fixtures; raw backups must not be published.
-**The candidate lane is not yet executed.**
+The first exact candidate `3743bfb` native lane passed trusted typing, stationary
+parents in three views and close/reopen, then failed explicit storage Retry.
+Its 22 trusted inputs caused zero writes/policy/source work during typing; idle
+produced one write, one invalidation/semantic refresh and three acquisitions.
+These are functional counts on a different fixture from the original baseline,
+not a matched CPU/memory/latency comparison.
+
+A deterministic new regression reproduced the Retry failure: unchanged failed-write
+read-back was normalized again, sorting an accepted list and manufacturing a
+remote hierarchy owner change. The narrow shared read-back guard now retains the
+already validated predecessor without reinterpretation and keeps any genuine
+incoming candidate. The regression is red before and green after; all 31 ontology
+and external-settings tests pass, including captured evidence during a failed
+write. Real build/types and lint pass. Final native repetition and full verification
+remain pending; the failed trial and red log are preserved.
 
 Raw baseline and all checks are private under `%TEMP%/kplex-147-*`; no archive is
 published. Final closeout will pin tested source/artifacts and verified durable

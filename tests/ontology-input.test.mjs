@@ -57,6 +57,13 @@ test('storage failure keeps a draft across reopen and Retry saves without prior 
  check(p.writes.length===1&&disk.hierarchy.parents[0]==='Kept draft'&&p.work.semantic===1,'Explicit retry failed');`),true);
 });
 
+test('unchanged failed-write read-back cannot reinterpret saved list order as an external owner conflict',async()=>{
+ assert.equal(await scenario(`await p.updateOntologyField('parents',['Z','A'],['Parent'],p.receivedSettingsOwner('hierarchy'));const row=mount(),store=p.saveData,owner=p.receivedSettingsOwner('hierarchy');p.saveData=async()=>{throw Error('controlled failed write')};
+ type(row,'Z, A, Retained');row.input.dispatchEvent(new FocusEvent('blur'));await settled();check(row.control.draft.state().error==='storage','Failure did not retain text');p.saveData=store;
+ [...row.setting.controlEl.querySelectorAll('button')].find(el=>el.textContent==='Retry').click();await settled();
+ check(owner()&&row.control.draft.state().error===null&&disk.hierarchy.parents.join(',')==='Z,A,Retained','Unchanged disk read-back manufactured a remote hierarchy change');`),true);
+});
+
 test('different fields merge with interleaved appearance, action and consent saves on the existing queue',async()=>{
  assert.equal(await scenario(`const parents=mount(),children=mount('children');type(parents,'New parent');type(children,'New child');
  parents.input.dispatchEvent(new FocusEvent('blur'));children.input.dispatchEvent(new FocusEvent('blur'));

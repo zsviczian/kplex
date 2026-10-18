@@ -71,6 +71,17 @@ test('captured replacement during an in-flight write survives its completion and
  `),true);
 });
 
+test('unchanged failed-write read-back retains a genuine candidate captured during storage',async()=>{
+ assert.equal(await scenario(`
+ const p=await create(),original=copy(disk),remote=copy(disk);selected(remote).appearance.semantic.noteTypeStyles.Project.gateRadius=17;
+ let entered,release;const began=new Promise(r=>entered=r),hold=new Promise(r=>release=r),store=p.saveData;
+ p.saveData=async()=>{entered();await hold;throw Error('controlled failed write')};
+ p.settings.confirmFileDelete=false;const saving=p.saveSettings().then(()=>false,()=>true);await began;disk=remote;p.onExternalSettingsChange();await p.settingsReconciliation.reading;disk=original;release();
+ check(await saving,'Failed write falsely accepted');await drain(p);p.saveData=store;p.settings.showCrossLinks=false;await p.saveSettings();
+ check(selected(disk).appearance.semantic.noteTypeStyles.Project.gateRadius===17&&disk.showCrossLinks===false,'Unchanged read-back discarded captured incoming proof');
+ `),true);
+});
+
 test('a pending same-owner control conflicts explicitly instead of recreating a remotely removed style',async()=>{
  assert.equal(await scenario(`
  const p=await create();let release;const hold=new Promise(r=>release=r);p.settingsWriteQueue=hold;

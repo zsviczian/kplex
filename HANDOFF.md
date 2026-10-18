@@ -19,48 +19,37 @@ Obsidian is the production host; preserve the established portable semantic, ide
 
 ---
 
-# PR147 implementing ontology input commit cadence
+# PR147 implementing; native Retry correction checkpoint
 
-Maintainer authorized merge182 without waitingCI, then implement147.182merged
-658793fe16896f2ae02f7e531ede5d1849077b2e; mainupdated; existingbranch
-2026-10-12-issue-144-ontology-input integratedmain183a948 andpushed, no rewrite.
-Keep147draft, no merge/release/personalvault/subagents/comparativeperformance.
-Foreground Small authorized; baseline107files/88Markdown. Node22.22.2 available.
+User authorized182merge then147;182merged658793f,147existingbranch
+2026-10-12-issue-144-ontology-input integratedmain183a948 thencheckpoint3743bfb.
+Keep147draft/no merge/release/personalvault/subagents/comparativeperformance.
+Only preparedSmall authorizedcurrentnative,107files/88Markdown, foregroundallowed.
+Node22.22.2 available; native/browserdriversserial.
 
-Issue144/nativecause confirmed, not a reproducedMacfreeze: Small actual14trusted
-char input events to parentfield caused14native callbacks,12writes,12semantic
-invalidations/refreshes,35acquisitions afterblur;0parses. Each half-typed value
-enters saveSettings beforequeuedstorage. Baselineprivate log
-%TEMP%/kplex-147-native-baseline-1792354767115/baseline.json, exactoldinstalled
-dbe5317runtime main.js75177091... source identicalmain658793f. Configurationexact
-restored; no fixtures; nativeprobe/controllerremoved. No latency/CPUwinclaim.
+Bounded750msidle/blur native7fielddrafts and atomic updateOntologyField onexisting
+182queue; persistbeforeliveinvalidate, semanticrefreshoutside diskqueue. Noindex/
+parser/scheduler/schema change. Main clockmodel survivespageclosing; IMEpreedit
+notpublished, faileddraftretained Retry/UseSaved, owners fence remote/localconflicts,
+acceptedwritesoutlive rows; unloadstopsunsubmittedwork. All8locales/accessibility.
 
-ChosenboundedUX: keep native textarea in declarative render; seven fields share
-one reusable text-draft mechanic.750msidlecommit, blur/pageexitflush; nevercommit
-IMEpreedit. Eachfieldbounded1in-flight+latestdraft, no queuepercharacter; native
-value/caret staylocal. Dirtydrafts retained onstoragefailure with explicit Retry/
-discard; remote/same-fieldconflicts readonly until discard, no oldA-B-Awrite.
-Controls/queuedwrites use182 owner/preflight; submitteddurableoperations outlive
-rowclosing but pluginunload retires unsubmittedwork/timers/listeners.
+13initialChromium+affected94+finalontology/localization36 passed; realbuild/lint
+pass aftertypedMapfix/sandboxescalation.2negativeidle/fieldguards redcorrectly with
+exactsourcebyte restoration. Nativebaseline14trustedinput caused12writes/semantic
+refreshes and35acquisitions,0parses; noactualMacfreezeorCPUcomparisonclaim.
 
-Main adds narrow atomic updateOntologyField through existingenqueueSettingsWrite/
-settingsForWrite/writeSettingsSnapshot. Validateopeningfield/remoteowner, persist
-before livepublication; mergeonlyfinitefield, preserveotherhierarchy/workflow/
-style/action/consent roots. Existingsemanticrefresh remainsoutside diskqueue;
-saved-refresh-pending not unsavedretry. No index/compiler/parser/schedulerchange.
+Exactnative3743bfb passed22trustedinput0drafttimework then1idlewrite/semantic
+refresh,3acquisitions,stationaryParentin3views/caretretained; close/reopenpassed.
+ThenactualRetryfailed. Reproducedredtest: unchangedfailed-write readbacknormalized
+acceptedunsortedlist and manufacturedremoteownerconflict. Fixoneguardinexisting
+SettingsReconciliation toskipnormalizing knownunchanged predecessor, retain genuine
+captureddataduringfailedwrite.14ontology+17external31green; realbuild/lintgreen.
+Allnativefailure/source/traceconfig preservedprivate; sourcecheckpointreport
+docs/validation/ontology-input-147-2026-10-18.md updatedtruthfully.
 
-Next implement focused draft/nativecontrol and atomicwriter, production-boundary
-regressions inclfailedstorage/concurrentfields/slowrefresh/remote/unload/IME.
-Then realnative typing+finalsemantics, appropriate existingnative lanes/fullverify;
-finalreport/removeplanmarker, commitpushcheckpoints. Prior180/181 wider matrix
-remains deferred tothisPR; run risk-relevant applicablelanes serially, no broad
-comparativebenchmark. Keep evidenceprivate and HANDOFFstandingheader; do notarchiveit.
-Platformlimits macOS/physicaltouch remain unlessactuallyvalidated.
-
-Checkpoint:13 ontology Chromium cases PASS; affected94 passed before final3
-edgecases/copy updates; latestontology/localization36 PASS. Realbuild/types and
-officiallint PASS. Firstbuildsandboxfailed aftertypes, elevatedbuildsuccess;
-lintinferred-anyMap corrected. Two negativecontrols red asintended, exactsource
-restored. New nativeontologyInput.mjs packagedbutNOTyetexecuted; fullverify pending.
-Report docs/validation/ontology-input-147-2026-10-18.md honestcheckpointstatus.
-Nextstageexactcommittedcandidate/nativeprobe beforefullfinalverification.
+Nextcommit/pushthisvalidatedfix; stageexactbuild andrepeatunchangednative lane.
+Thenfullverify plusapplicableexistingnativeSettings/style/hover/Markdownsave/
+gate-touch combinedacceptance from180/181. No performancecampaign or cachepurge.
+Finalcuratereport/removeissue144marker, durableprivatebackupverifyexcludingHANDOFF,
+updatePRactualoutcomes/limitations, commitpush thenreturndraft forusertest.
+No furtherPRautomatically. macOSactualreport/physicaltouchIME/minhostpending.

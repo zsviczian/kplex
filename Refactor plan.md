@@ -5165,3 +5165,16 @@ retry and typedMap correction. Negativeidle/fieldguards controls failcorrectly a
 restoreexactsource. Reusablenative lane added, NOTyetexecuted; fullverify pending.
 Report docs/validation/ontology-input-147-2026-10-18.md; keepdraft/no merge/release.
 Manualgaps actualMaclarge-vault/contention,physicaltouch/IME/minimumhost. C14paused.
+
+
+### PR147 unchanged read-back correction - 2026-10-18
+
+Checkpoint3743bfb nativeSmall showed22trustedinputs with0drafttime graph/storage
+work,1idlewrite/semanticrefresh and3acquisitions,stationaryParent3views andcaret
+retained; close/reopenpassed. ExplicitRetryfailed. Redrepro provedunchanged
+failed-write readback normalized anacceptedorderedlist andmanufactured remote
+ownerchange. NarrowSettingsReconciliation guard skipsthat reinterpretation while
+preserving genuinecaptureddataduringfailedwrite.14ontology+17external=31tests
+green, actualbuild/types/lintpass. Nativefailedtrialandredreproretainedprivate.
+Repeatexactnativelane/fullverify next; no CPUimprovementclaim or indexingrefactor.
+Keepdraft/no merge/release/personalvault. C14paused; platformgaps unchanged.
