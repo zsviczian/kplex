@@ -74,6 +74,176 @@ function folderFixture(options = {}) {
     settings: () => liveSettings, setSettings: value => { liveSettings = value; } };
 }
 
+/** Availability has no source completeness to grant; restore keeps its original stronger fence. */
+test("startup availability survives an ordinary edit during priming while restore remains source-revision strict", async () => {
+  const f = fixture(), originalWindow = globalThis.window, clockDescriptor = Object.getOwnPropertyDescriptor(globalThis, "performance");
+  let now = 0, sourceRevision = 0, checkpoints = 0, inventories = 0;
+  const clock = { now: () => now += 8 };
+  Object.defineProperty(globalThis, "performance", { configurable: true, value: clock });
+  globalThis.window = { performance: clock, setTimeout, clearTimeout, setInterval, clearInterval };
+  const folder = f.files.get(f.centerPath).parent;
+  for (let n = 0; n < 300; n++) { const file = new TFile(`Notes/Race-${n}.md`, folder); f.files.set(file.path, file); f.cache.set(file.path, { frontmatter: {}, tags: [] }); }
+  Object.assign(f.app.vault, { getName: () => "prime-race", getFiles: () => { inventories++; return [...f.files.values()]; } });
+  f.app.saveLocalStorage = () => {};
+  const marks = [], plugin = { app: f.app, settings: { ...settings, lastActivePath: "", pinnedNodes: [], excludeFilepaths: [], nameFields: "aliases", renderAlias: false },
+    getIndexSourceRevision: () => sourceRevision, startupDiagnostics: { mark: name => marks.push(name) } };
+  const index = new GraphIndex(plugin, f.app);
+  index.workScheduler.checkpoint = async () => {
+    if (checkpoints++) return;
+    sourceRevision++;
+    f.cache.get(f.centerPath).frontmatter.Prose = "An ordinary startup edit";
+    index.refreshVisibleHostMetadataPreviews(f.centerPath, sourceRevision - 1);
+  };
+  try {
+    await index.primePhysicalSearchCatalog();
+    assert(checkpoints > 0, "The source event overlaps the actual yielded catalog traversal");
+    assert.equal(inventories, 1, "Availability needs no retry or second inventory");
+    assert(index.physicalSearchEntries.size >= f.files.size);
+    assert(index.search("Race-299", 10, "vault").some(page => page.path === "Notes/Race-299.md"));
+    assert(marks.includes("host-search-ready"));
+    const published = index.physicalSearchEntries; checkpoints = 0;
+    const strict = await index.preparePhysicalSearchCatalog(new Map(f.files), () => true);
+    assert.equal(strict, false, "Existing restore callers still reject a changed source revision");
+    assert.equal(index.physicalSearchEntries, published, "Failed restore preparation cannot replace the available catalog");
+  } finally {
+    index.destroy(); f.preview.dispose(); globalThis.window = originalWindow;
+    if (clockDescriptor) Object.defineProperty(globalThis, "performance", clockDescriptor); else delete globalThis.performance;
+  }
+});
+
+/** Real event owners win over entries already visited by a yielding startup availability traversal. */
+test("startup availability retains native file/folder events and late metadata tags across yielded inventory", async () => {
+  const f = fixture(), originalWindow = globalThis.window, clockDescriptor = Object.getOwnPropertyDescriptor(globalThis, "performance");
+  let now = 0, revision = 0, checkpoints = 0, inventories = 0;
+  const clock = { now: () => now += 8 };
+  Object.defineProperty(globalThis, "performance", { configurable: true, value: clock });
+  globalThis.window = { performance: clock, setTimeout, clearTimeout, setInterval, clearInterval };
+  const parent = f.files.get(f.centerPath).parent, folders = new Map([[parent.path, parent]]);
+  for (let n = 0; n < 300; n++) { const file = new TFile(`Notes/Race-${n}.md`, parent); f.files.set(file.path, file); f.cache.set(file.path, { frontmatter: {}, tags: [] }); }
+  for (let n = 0; n < 270; n++) { const folder = new TFolder(`Notes/Empty-${n}`, parent); folders.set(folder.path, folder); }
+  Object.assign(f.app.vault, { getName: () => "prime-native-race", getAllLoadedFiles: () => { inventories++; return [...f.files.values(), ...folders.values()]; },
+    getFolderByPath: path => folders.get(path) ?? null });
+  f.app.saveLocalStorage = () => {};
+  const index = new GraphIndex({ app: f.app, settings: { ...settings, lastActivePath: "", pinnedNodes: [], excludeFilepaths: [], nameFields: "aliases", renderAlias: false }, getIndexSourceRevision: () => revision }, f.app);
+  let replacementFile, replacementFolder;
+  index.workScheduler.checkpoint = async () => {
+    if (++checkpoints !== 2) return;
+    revision++;
+    const deleted = f.files.get("Notes/Parent.md"); f.files.delete(deleted.path); index.updateHostFileAvailability(deleted.path);
+    const moved = f.files.get("Notes/Child.md"), old = moved.path; f.files.delete(old); moved.path = "Notes/Renamed.md"; moved.name = "Renamed.md"; moved.basename = "Renamed";
+    f.files.set(moved.path, moved); f.cache.set(moved.path, f.cache.get(old)); index.updateHostFileAvailability(old, moved);
+    replacementFile = new TFile("Notes/Ordinary.md", parent); f.files.set(replacementFile.path, replacementFile); index.updateHostFileAvailability(replacementFile.path, replacementFile);
+    folders.delete("Notes/Empty-0"); await index.updateHostFolderAvailability("Notes/Empty-0");
+    const movedFolder = folders.get("Notes/Empty-1"); folders.delete(movedFolder.path); movedFolder.path = "Notes/Renamed-folder"; movedFolder.name = "Renamed-folder";
+    folders.set(movedFolder.path, movedFolder); await index.updateHostFolderAvailability("Notes/Empty-1", movedFolder);
+    replacementFolder = new TFolder("Notes/Empty-2", parent); folders.set(replacementFolder.path, replacementFolder); await index.updateHostFolderAvailability(replacementFolder.path, replacementFolder);
+    const fresh = new TFile("Notes/Late.md", parent); f.files.set(fresh.path, fresh); f.cache.set(fresh.path, { frontmatter: {}, tags: [{ tag: "#Late/Fresh" }] });
+    index.updateHostFileAvailability(fresh.path, fresh);
+  };
+  try {
+    await index.primePhysicalSearchCatalog();
+    assert(checkpoints >= 2); assert.equal(inventories, 1);
+    for (const path of ["Notes/Parent.md", "Notes/Child.md", "folder:Notes/Empty-0", "folder:Notes/Empty-1"]) {
+      assert.equal(index.getVaultSearchPage(path), undefined, `Stale pre-yield endpoint survived: ${path}`);
+      assert.equal(index.search(path.replace(/^folder:/, ""), 100, "vault").some(page => page.path === path), false);
+    }
+    assert.equal(index.getVaultSearchPage("Notes/Ordinary.md").file, replacementFile);
+    assert.equal(index.hostFolderSearchIdentities.get(index.getVaultSearchPage("folder:Notes/Empty-2")), replacementFolder);
+    assert(index.search("Renamed-folder", 20, "vault").some(page => page.path === "folder:Notes/Renamed-folder"));
+    assert(index.search("Renamed", 20, "vault").some(page => page.path === "Notes/Renamed.md"));
+    assert(index.search("#Fresh", 20, "vault").some(page => page.path === "tag:Late/Fresh"));
+    assert(index.getVaultSearchPage("Notes/Late.md"));
+    index.retireCoveredPhysicalSearchEntries();
+    assert(index.getVaultSearchPage("Notes/Late.md"), "An older canonical publication cannot retire a newer native file");
+    assert(index.getVaultSearchPage("folder:Notes/Renamed-folder"), "An older canonical publication cannot retire a newer native folder");
+    assert.equal(index.hostFolderSearchIdentities.get(index.getVaultSearchPage("folder:Notes/Empty-2")), replacementFolder);
+  } finally {
+    index.destroy(); f.preview.dispose(); globalThis.window = originalWindow;
+    if (clockDescriptor) Object.defineProperty(globalThis, "performance", clockDescriptor); else delete globalThis.performance;
+  }
+});
+
+/** Early Find and tag navigation use only already-loaded host metadata while semantic startup is held. */
+test("early host Find discovers tags and empty folders, and selected tag children update without semantic indexing", async () => {
+  const f = fixture(), originalWindow = globalThis.window;
+  globalThis.window = { performance, setTimeout, clearTimeout, setInterval, clearInterval };
+  for (const cache of f.cache.values()) { cache.frontmatter = {}; cache.tags = []; }
+  f.app.metadataCache.resolvedLinks = {}; f.app.metadataCache.unresolvedLinks = {};
+  const person = "tag:Research/Person", muller = person + "/Müller", child = person + "/New child";
+  f.cache.get("Notes/Center.md").tags = [{ tag: "#Research/Person" }];
+  f.cache.get("Notes/Child.md").tags = [{ tag: "#Research/Person/Müller/Deep" }];
+  f.cache.get("Notes/Ordinary.md").frontmatter.tags = ["Research/Person/Müller/Deep"];
+  const empty = new TFolder("Notes/Empty", f.files.get("Notes/Center.md").parent);
+  const getFolder = f.app.vault.getFolderByPath;
+  f.app.vault.getFolderByPath = path => path === empty.path ? empty : getFolder(path);
+  let inventoryCalls = 0, metadataCalls = 0;
+  const readCache = f.app.metadataCache.getFileCache;
+  f.app.metadataCache.getFileCache = file => { metadataCalls++; return readCache(file); };
+  Object.assign(f.app.vault, { getName: () => "early-tags", getAllLoadedFiles: () => { inventoryCalls++; return [...f.files.values(), empty]; },
+    getFiles: () => { throw Error("Second inventory forbidden"); }, getMarkdownFiles: () => { throw Error("Second inventory forbidden"); } });
+  const settingsForIndex = { ...settings, indexingMode: "on-demand", pinnedNodes: [], lastActivePath: person,
+    nameFields: "aliases", renderAlias: false, nodeTitleScript: "", nodeSortOrder: "name-asc", excludeFilepaths: [],
+    showTagNodes: false, showFolderNodes: false, showPageNodes: true, showVirtualNodes: true, showAttachments: true,
+    showURLNodes: true, showInferredNodes: true, renderSiblings: false, maxItemCount: 100 };
+  f.app.saveLocalStorage = () => {};
+  const index = new GraphIndex({ app: f.app, settings: settingsForIndex, getIndexSourceRevision: () => 0 }, f.app);
+  const forbidden = () => { throw Error("Early tag navigation acquired source/body/index work"); };
+  index.metadataParser.parse = index.sourceAcquisition.acquire = index.sourceAcquisition.flush = index.rebuild = index.rebuildProgressively = forbidden;
+  index.indexedDb.open = forbidden;
+  try {
+    await index.primePhysicalSearchCatalog();
+    assert.equal(inventoryCalls, 1); assert.equal(metadataCalls, f.files.size, "Only the existing physical traversal inspects each Markdown cache once");
+    const before = index.getSourceAcquisitionCounters(), semantic = index.getSemanticPreparationDiagnostics();
+    metadataCalls = 0;
+    assert.equal(index.onDemandBaselineReady, false); assert.equal(index.state.pages.size, 0);
+    assert.deepEqual(index.search("#Müller", 10, "vault").map(page => page.path), [muller, muller + "/Deep"]);
+    assert(index.search("Empty", 10, "vault").some(page => page.path === "folder:Notes/Empty"));
+    assert.equal(index.getVaultSearchPage(person).isTag, true);
+    assert.equal(index.getVaultSearchPage("folder:Notes/Empty").isFolder, true);
+    for (const query of ["#", "#R", "#Re", "#Res", "#Research", "#Research/Person", "#Müller"]) index.search(query, 10, "vault");
+    assert.equal(metadataCalls, 0, "Typing never rescans metadata or the Vault");
+    await index.publishHostMetadataPreview(person);
+    assert.deepEqual(index.getNeighborhood(person).children.map(item => item.page.path).sort(), ["Notes/Center.md", muller].sort());
+    assert.equal(index.getNeighborhood(person).parents[0].page.path, "tag:Research");
+    assert(index.evidenceBetween(person, muller).some(item => item.sourceKind === "tag-tree"));
+    assert.equal(index.isSemanticWriteReady(person, muller), false);
+    // Source updates affect only this file's lookup; no full graph or index needs to complete.
+    f.cache.get("Notes/Parent.md").tags = [{ tag: "#Research/Person/New child" }];
+    index.refreshVisibleHostMetadataPreviews("Notes/Parent.md");
+    await index.publishHostMetadataPreview(person);
+    assert(index.getNeighborhood(person).children.some(item => item.page.path === child));
+    assert(index.search("#New child", 10, "vault").some(page => page.path === child));
+    f.cache.get("Notes/Child.md").tags = [];
+    index.refreshVisibleHostMetadataPreviews("Notes/Child.md"); await index.publishHostMetadataPreview(person);
+    assert(index.getNeighborhood(person).children.some(item => item.page.path === muller), "Shared ancestry survives one member removal");
+    f.cache.get("Notes/Ordinary.md").frontmatter.tags = [];
+    index.refreshVisibleHostMetadataPreviews("Notes/Ordinary.md"); await index.publishHostMetadataPreview(person);
+    assert.equal(index.getNeighborhood(person).children.some(item => item.page.path === muller), false);
+    assert.equal(index.search("#Müller", 10, "vault").length, 0);
+    assert.equal(index.get(muller), undefined);
+    assert.equal(inventoryCalls, 1); assert.deepEqual(index.getSourceAcquisitionCounters(), before);
+    assert.deepEqual(index.getSemanticPreparationDiagnostics(), semantic);
+
+    // The provisional cover cap must never replace completed canonical counts on later navigation.
+    settingsForIndex.maxItemCount = 2;
+    for (const [path, cache] of f.cache) if (path !== "Notes/Center.md") {
+      cache.tags = [{ tag: "#Research/Person/" + f.files.get(path).basename }]; cache.frontmatter.tags = [];
+      index.refreshVisibleHostMetadataPreviews(path);
+    }
+    await index.publishHostMetadataPreview(person);
+    assert(index.gateStats(index.get(person)).bottom.visibleCount < f.files.size, "The initial private tag cover is deliberately capped");
+    f.app.vault.getFiles = f.app.vault.getMarkdownFiles = () => [...f.files.values()];
+    const builder = new GraphBuilder(index.plugin, f.app, index.fieldCache, index.metadataParser, index.indexedDb, () => true);
+    const complete = await builder.buildStructuralBaseline(); assert(complete);
+    index.publishRestoredState(complete);
+    assert.equal(index.hostPreviewScopes.size, 0, "The existing canonical publication retires the temporary tag cover");
+    await index.publishHostMetadataPreview(person);
+    assert.equal(index.hostPreviewScopes.size, 0, "Opening an already-complete tag cannot reinstate a capped preview");
+    assert.equal(index.get(person), complete.pages.get(person));
+    assert.equal(index.gateStats(index.get(person)).bottom.visibleCount, f.files.size, "Complete canonical membership counts remain larger than the view limit");
+  } finally { index.destroy(); f.preview.dispose(); globalThis.window = originalWindow; }
+});
+
 /** Reproduce a narrower real tag-center cover without acquiring any descendant note bodies. */
 test("On-demand tag reads retain canonical hierarchy across narrow host covers and normal shared-tag edits", async () => {
   const f = fixture(), originalWindow = globalThis.window;
@@ -720,10 +890,13 @@ test("folder rename remaps filename-only descendants before canonical membership
     assert.equal(index.hostPreviewScopes.size, 0);
     const results = index.search("Center", 20, "vault-files");
     assert.deepEqual(results.map(page => page.path), ["Moved/Center.md"]);
-    assert.equal(index.physicalSearchEntries.size, f.files.size);
+    assert.equal([...index.physicalSearchEntries.values()].filter(entry => entry.page.file).length, f.files.size);
+    assert.equal(index.search("Notes", 20, "vault").some(page => page.path === "folder:Notes"), false);
+    assert(index.search("Moved", 20, "vault").some(page => page.path === "folder:Moved"));
     f.files.clear(); folder.children = [];
     await index.updateHostFolderAvailability("Moved");
-    assert.equal(index.physicalSearchEntries.size, 0, "folder-only delete removes captured filenames even when host children are gone");
+    assert.equal([...index.physicalSearchEntries.values()].filter(entry => entry.page.file).length, 0, "folder-only delete removes captured filenames even when host children are gone");
+    assert.equal(index.physicalSearchEntries.has("folder:Moved"), false);
     assert.equal(index.getVaultSearchPage("Moved/Center.md"), undefined);
   } finally { index.destroy(); f.preview.dispose(); globalThis.window = originalWindow; }
 });

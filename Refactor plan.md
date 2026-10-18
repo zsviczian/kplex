@@ -4714,3 +4714,23 @@ configuration/workspace, desktop mode and opening console state restore;107files
 C14 remains accepted/paused. Remaining prioritized acceptance is physical OS drag,
 macOS/minimum-host modifiers/IME, and physical phone/tablet interaction; see the
 feature report. No merge or release; PR #177 stays draft.
+
+### 2026-10-18 — PR #177 feedback: Find and early structural availability
+
+GraphIndex retains one merged projection per visible/physical search scope until
+real vocabulary/owner changes; eight typed/repeated queries over1000 partial rows
+prepare one1000-row projection instead of eight. The existing24-result cap stays.
+Startup's existing native inventory supplies loaded metadata tags and empty folders;
+selected tag covers reuse the structural collector/compiler with existing budgets.
+Complete canonical counts outrank capped previews. Shared ancestry/last-witness
+retirement and actual yielded delete/rename/replacement/late-event races are covered.
+Only availability tolerates unrelated source revisions: restore's source fence and
+all native identity checks remain strict. Newer finite file/folder events survive
+an older publication. No source acquisition policy/schema/receipt/scheduler change.
+
+The preceding combined checks/native acceptance cover this exact runtime too.
+Search operation-count savings are proven; native CPU/heap/startup savings are not.
+Tag lookup retention/metadata traversal adds real work, and selected early tags
+perform bounded compilation. Remaining indexing speed and physical-platform gaps
+are not solved by this checkpoint. C14 remains accepted/paused; final CI and the
+standard-priority aggregate retry are recorded through the PR. Keep PR #177 draft.

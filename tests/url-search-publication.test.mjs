@@ -18,6 +18,36 @@ async function publish(f,path,text,frontmatter={}){const record=f.add(path,text,
 const paths=(index,query,scope='visible')=>Array.from(index.search(query,100,scope),/** Compare exact semantic keys, not lowercased labels. */page=>page.path);
 
 for(const mode of ['on-demand','eager']){
+  test(`${mode}: repeated Find typing reuses the partial catalog projection until a real owner changes`, () => {
+    const f = urlSearchPublicationFixture(bundle, mode), i = f.index;
+    try {
+      const builder = new f.M.GraphBuilder(i.plugin, i.app, new Map(), i.metadataParser, i.indexedDb, () => true);
+      for (let n = 0; n < 1000; n++) {
+        const native = f.add(`Entry-${n}.md`, '');
+        builder.addPage(i.state, builder.createPage({ path: native.file.path, name: native.file.basename, file: native.file }));
+      }
+      i.rebuildSearchIndex();
+      // Actual partial semantic publications used to remap the entire catalog before prefix reuse.
+      const current = i.state.pages.get('Entry-37.md');
+      i.fullSemanticPolicyRevision--;
+      i.semanticScopes.set(current.path, { policyRevision: i.semanticPolicyRevision,
+        maintenanceRevision: i.sourceAcquisition.getMaintenanceRevision(), pagesByPath: new Map([[current.path, current]]), suppressedPaths: new Set() });
+      let projections = 0, mappedRows = 0;
+      const prepare = i.prepareEffectiveSearchEntries;
+      i.prepareEffectiveSearchEntries = function(...args) { projections++; const result = prepare.apply(this, args); mappedRows += result.length; return result; };
+      const source = i.getSourceAcquisitionCounters(); f.reset();
+      for (const query of ['e', 'en', 'ent', 'entr', 'entry', 'entry-3', 'entry-37', 'entry-37']) paths(i, query, 'vault');
+      assert.equal(projections, 1, 'Eight keystroke/repeat reads prepare one merged partial catalog, not eight');
+      assert.equal(mappedRows, 1000, 'Only one 1,000-row projection is retained for this unchanged owner');
+      i.notifyPresentation(); paths(i, 'entry-37', 'vault');
+      assert.equal(projections, 1, 'Progress/chrome notifications do not invalidate search vocabulary');
+      current.name = 'Changed title'; i.patchSearchIndex(new Set([current.path]));
+      assert.deepEqual(paths(i, 'Changed title', 'vault'), [current.path]);
+      assert.equal(projections, 2, 'Actual vocabulary publication invalidates the merged projection');
+      assert.deepEqual(f.operations, { reads: 0, parses: 0 }); assert.deepEqual(i.getSourceAcquisitionCounters(), source);
+    } finally { f.close(); }
+  });
+
   test(`${mode}: Find discovers existing accented tags and folders without changing acquisition`, /** Existing indexed vocabulary is enough; the old file-only scope remains compatible. */ () => {
     const f = urlSearchPublicationFixture(bundle, mode), i = f.index;
     try {
@@ -31,6 +61,10 @@ for(const mode of ['on-demand','eager']){
       ];
       for (const definition of definitions) builder.addPage(i.state, builder.createPage(definition));
       const native = f.add('Research/Müller.md', '');
+      const root = i.app.vault.getRoot(), folder = new root.constructor();
+      folder.path = 'Research/People'; folder.name = 'People'; folder.parent = root;
+      const getFolder = i.app.vault.getFolderByPath;
+      i.app.vault.getFolderByPath = path => path === folder.path ? folder : getFolder(path);
       builder.addPage(i.state, builder.createPage({ path: native.file.path, name: native.file.basename, file: native.file }));
       i.rebuildSearchIndex();
       i.plugin.settings.showTagNodes = false; i.plugin.settings.showFolderNodes = false;
