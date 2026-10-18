@@ -114,7 +114,7 @@ export function installKplexLongPressTooltips(doc: Document): () => void {
     hoverVisible = false;
   };
 
-  /** Measure the themed hint and flip above at the window or caller-marked canvas boundary. */
+  /** Honor a control's preferred side, falling back only when it cannot fit inside its boundary. */
   const showTooltip = (element: HTMLElement, hover = false) => {
     const text = tooltipText(element);
     if (!text || !element.isConnected || !element.getClientRects().length) return;
@@ -132,10 +132,12 @@ export function installKplexLongPressTooltips(doc: Document): () => void {
     const below = buttonRect.bottom + margin;
     const above = buttonRect.top - tooltipRect.height - margin;
     const fitsBelow = below + tooltipRect.height <= Math.min(view.innerHeight, boundary?.bottom ?? view.innerHeight) - margin;
-    const top = fitsBelow ? below : above;
+    const fitsAbove = above >= Math.max(margin, (boundary?.top ?? 0) + margin);
+    const placeAbove = element.dataset.tooltipPosition === "top" && fitsAbove || !fitsBelow;
+    const top = placeAbove ? above : below;
     // If neither side fits, showing no hint is preferable to obscuring the control being used.
     if (top < Math.max(margin, (boundary?.top ?? 0) + margin)) { removeTooltip(); return; }
-    tooltip.toggleClass("mod-top", !fitsBelow);
+    tooltip.toggleClass("mod-top", placeAbove);
     const arrow = tooltip.createDiv({ cls: "tooltip-arrow" });
     arrow.setCssStyles({ left: `${Math.max(margin, Math.min(tooltipRect.width - margin, buttonRect.left + buttonRect.width / 2 - left))}px` });
     tooltip.setCssStyles({ left: `${left}px`, top: `${Math.max(margin, top)}px` });

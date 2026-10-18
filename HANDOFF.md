@@ -60,3 +60,10 @@ Runtime/tests/report committed and pushed e8e8814744ebc8eb1beb43a8674a5951b91be9
 Private backup1792348500765 verified38files/8645196bytes; sourceZIP545entries
 CRC/per-file SHA pass, HANDOFF excluded. Manifest381e9879634ca0a01b5f04df9bf08af2b39bb4fa7aad8d98188a9321931d95c8.
 No raw publication/original deletion. Final docs pin only; staged runtime unchanged.
+
+Child-gate tooltip follow-up: shared owner honors existing top preference, with
+viewport fallback.8tooltip browser/8native main-popout-return, lint/build/stage
+pass. Receipts stage1792349032305/native1792349051302/sanity1792349085739. New
+staged main f40ff506c3a8990c98493d46b77ef1e4cebdb219085ed3a278812d0f1bc19a0d;
+CSS/manifest unchanged. Prior crosslink matrix historical, not rerun. Still pause
+for maintainer testing/merge. No next PR/merge/release. Raw follow-up receipts Temp.

@@ -131,3 +131,24 @@ Originals remain intact in temporary storage. Evidence includes disposable-vault
 configuration/local metadata and remains private; no archive was published.
 The maintainer requested completion then pause for their own testing/merge;
 PR181 stays draft. CI may run asynchronously; no final CI-green claim is made here.
+
+## Child-gate tooltip follow-up
+
+The maintainer reported that the child-gate hint obstructed the graph below it.
+Gates already declared `data-tooltip-position="top"`; the shared tooltip owner
+ignored it. That owner now honors the top preference, with the existing viewport/
+canvas-boundary fallback when above cannot fit. Other unmarked controls retain
+their placement policy. Delay, modifier gating and accessibility are unchanged.
+
+Eight tooltip Chromium tests pass, including preferred-above placement despite
+available space below and fallback at the top edge. Full Obsidian lint, real build
+and exact staging1792349032305 pass. The existing node-only native tooltip lane
+1792349051302 passes8 scenarios, now asserting child-gate hints above in main,
+popout and returned-main views, with actual Settings opt-out/on. Configuration and
+workspace restore; sanity1792349085739 repeats107files/88Markdown, no dialogs/
+controllers and captureoff. This focused follow-up does not rerun or supersede
+the earlier crosslink matrix. Raw receipts remain private in Temp; the earlier
+verified backup remains unchanged. No next PR, merge or release.
+
+New installed main SHA-256 (CSS/manifest unchanged):
+`f40ff506c3a8990c98493d46b77ef1e4cebdb219085ed3a278812d0f1bc19a0d`.
