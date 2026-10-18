@@ -57,6 +57,7 @@ K-Plex uses its own plugin ID, so you can keep ExcaliBrain installed while migra
 Useful commands include:
 
 - **Open K-Plex**
+- **New K-Plex tab** — also available from the **+** toolbar button
 - **Focus active note in K-Plex**
 - **Open K-Plex in side panel**
 - **Open K-Plex in pop-out window** (desktop)
@@ -70,7 +71,7 @@ On phones, K-Plex opens naturally in the side panel. Tablets can use either a no
 - **Single-click / tap** a node to make it the center.
 - **Double-click** a file-backed node to open it in Obsidian.
 - Double-clicking a URL opens it in the browser.
-- Double-clicking an unresolved link can create the missing Markdown note. Placeholders carry only the unresolved note name; their real folder/path is assigned when the file is created.
+- Double-clicking an unresolved link can create the missing note. **Control-click** (**Command-click** on macOS) opens its creation dialog without moving the Plex center. A placeholder can already specify its intended folder.
 - Folder and tag nodes can also become the center.
 - An open, unpinned **File properties** pane follows the central file while K-Plex is active. Pinned or grouped Properties panes keep their own file; non-file centers clear the unpinned pane.
 - Drag empty graph space to pan and use the mouse wheel or pinch gesture to zoom.
@@ -101,7 +102,21 @@ Navigating, editing, panning or using other controls pauses wandering. Select **
 
 ### Search, history and pins
 
-The toolbar search box searches the whole Vault, including orphan attachments, Canvas files and indexed URLs. It matches display names, file names, aliases, paths and URL substrings using fuzzy matching. Exact and prefix matches rank above looser matches.
+The toolbar search box (**F4**) searches notes, folders, tags, attachments, Canvas files and indexed URLs. It matches display names, file names, aliases, paths and URL substrings using fuzzy matching. Exact and prefix matches rank above looser matches. Type **#** before a query to search tags only; result icons identify each kind of item. Centering a hierarchical tag shows its parent, child tags and associated notes, even when tags are hidden from ordinary note neighborhoods.
+
+Use the toolbar **+** or **New K-Plex tab** command to open another Plex in an adjacent tab group. Each view keeps its own central editor/normal-node choice and Markdown reading/editing mode, including when its workspace tab is restored.
+
+Drag a note, attachment, URL or placeholder node into a Markdown editor to insert its link, or into another K-Plex view to navigate or start a relationship. Tags are inserted as `#tag` text and can also be dragged between Plexes for navigation. Desktop node dragging uses Obsidian's native link handling; gates retain their connection gestures.
+
+History and pins show type icons and full tag paths. Drag a Markdown note onto a tag in either list to add that tag to the note's **tags** property.
+
+Drag a file or folder's gate onto a folder to move it there. With a folder in the center, you can also drag its gate onto a file or attachment to bring that file into the folder. K-Plex shows the source and destination for confirmation; hold **Alt** (**Option** on macOS) while dragging to move immediately. Collision and folder-ancestry checks still apply, and Obsidian updates links according to your file settings. Dragging a folder's child gate onto empty space still creates a note inside that folder.
+
+Drag a tag's gate onto a Markdown note in the Plex, history or pins to assign it. You can also drop a tag from another Plex into a note's **Parents** area. Choose **Tag** or **Note Type** before saving. A note has one Note Type: when replacing it, choose whether to keep the current type or keep the new type, with the other remaining an ordinary tag. Right-click the tag connection to change between the two. Note Type tag links are twice as thick by default; customize them under **Visual styling → Link styling → Note Type tag links**.
+
+For a narrower Plex, select **Simplified layout** below the Parents and Children sliders in **Layout controls**. This checkbox changes the current device and pane context. Friends and challengers appear in separate groups on the left, retaining their relationship meanings and filters. All six choices are also available under **Settings → K-Plex → Plex behavior → Simplified layout**: desktop, tablet and mobile, each with main-tab and side-panel settings. Pop-outs use the main-tab choice for their device.
+
+Choose curved or straight connections under **Settings → K-Plex → Visual styling → Link styling → Link shape**.
 
 Display names are configurable in **Settings → K-Plex → Visual styling → Canvas & labels → Name fields**. Enter a comma-separated precedence list such as `title, aliases, backup_names`. K-Plex uses the first non-empty text/list value and falls back to the file name. The default is `aliases`, which preserves the previous alias-rendering behavior.
 
@@ -160,16 +175,19 @@ The relationship dialog provides:
 - optional Excalidraw note creation when Excalidraw is installed;
 - remembered ontology choices for each relationship type;
 - remembered Markdown/Excalidraw create action, including Ctrl/Cmd+Enter;
-- filename validation and duplicate-name checking;
+- filename validation and duplicate-name checking within the selected folder;
+- a compact folder field with existing-folder suggestions and Obsidian's calculated destination prefilled;
 - an **Open for editing** toggle for new notes;
 - explicit completion choices: return, create another, follow or edit;
 - a **Placeholder** action that creates only the unresolved relationship and no file.
 
 The dialog names its captured origin. Navigating the Plex elsewhere while it is open does not change that origin. **Ctrl/Cmd+Enter** submits; **Ctrl/Cmd+Shift+Enter** creates or connects another node while keeping the same origin and ontology. If a suggestion list is open, accept or dismiss that suggestion first.
 
+The folder field starts with Obsidian's calculated destination. Select an existing folder from its suggestions, type a new folder, or use `/` for the vault root. The same picker appears when you hold **Ctrl/Cmd** while double-clicking a placeholder. Moving a path-qualified placeholder to a different folder updates its saved references while keeping their aliases. If that save stops partway, the dialog retains the created file for retry.
+
 Choose **Return** to keep the origin and return to the invoking control, **Create another** to clear the name for another entry, **Follow node** to center the result, or **Edit note** to open its supported editor. The default choice honors **Open for editing** for newly created files. Placeholders and URLs can be followed but do not open as editable notes.
 
-Saved notes and relationships update the Plex without waiting for a full indexing cycle. If a save succeeds while the Plex update remains pending, the dialog offers a targeted refresh and prevents duplicate submission. If note creation finishes only partly, use its recovery controls to link or open the file that already exists. Placeholder nodes are stored as name-only unresolved links until they are materialized. With **Use configured behavior** selected and **Open for editing** enabled, the new note becomes the center and opens in the companion Sidecar in Obsidian's normal Markdown editor, ready for writing.
+Saved notes and relationships update the Plex without waiting for a full indexing cycle. If a save succeeds while the Plex update remains pending, the dialog offers a targeted refresh and prevents duplicate submission. If note creation finishes only partly, use its recovery controls to link or open the file that already exists. A placeholder retains its selected destination, with the filename as its default display alias: `[[folder/path/filename|filename]]`. You can provide a different alias. You can use the same filename in different folders. **After saving** shows the action that will run: **Return**, **Create another**, **Follow node** or **Edit note**. **Edit note** centers the new note and opens it in the companion Sidecar in Obsidian's normal Markdown editor, ready for writing.
 
 When folder nodes are visible, drag outward from a folder's **Child gate** to create a new Markdown note (or Excalidraw drawing when available) directly in that folder. The folder location itself supplies the file-tree relationship, so K-Plex does not create a separate note-to-note link. Ctrl/Cmd+Enter uses the same remembered Markdown/Excalidraw default as the normal create-child workflow, and folder creation never offers a placeholder because an unresolved placeholder has no physical folder yet. Dropping a regular note gate onto a folder remains available as a secondary file-only shortcut.
 
@@ -359,7 +377,7 @@ Image attachments such as JPG, PNG, GIF, WebP and SVG files can also be shown di
 
 One Markdown property selects a note's persistent visual style. By default that **Node style property** is **Note type**, but you can point it at another YAML or Dataview-style inline property in **Settings → K-Plex → Visual styling → Node styling**.
 
-Use **Node styles** to assign icon, background, text, border and font size to individual values of that property. The editor suggests values already found in the index as well as vault tags, and its Lucide icon field searches Obsidian's live icon registry. A leading `#` in a style value is normalized away, so `#project` and `project` address the same logical style.
+Use **Node styles** to assign icon, background, text, border, border width, gate radius and font size to individual values of that property. Leave border width or gate radius empty to inherit the base style. The editor suggests values already found in the index as well as vault tags, and its Lucide icon field searches Obsidian's live icon registry. A leading `#` in a style value is normalized away, so `#project` and `project` address the same logical style.
 
 Imported ExcaliBrain `primaryTagField` data is retained for compatibility, but it is not exposed as a second K-Plex style selector. Explicit property-value styles take precedence over the generic central/sibling appearance, so a styled note keeps its custom colors when it becomes the center of the Plex.
 

@@ -18,6 +18,36 @@ const m = await import(pathToFileURL(join(temp, "model.mjs")));
 const env = device => ({ device });
 const shared = { baseFontSize: 12.4, maxLabelLength: 30, maxWidth: 286, wrapNodeLabels: true };
 
+/** Reuse the actual quick handler and host profile writer across every device/surface route. */
+test("quick simplified checkbox writes only the current arrangement context and preserves pop-out density", async () => {
+  const sources = ["src/ui/PlexGraph.tsx", "src/main.ts"].map(path => ts.createSourceFile(path, readFileSync(path, "utf8"), ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX));
+  let change, update;
+  /** Extract production bodies without importing the Obsidian lifecycle or constructing another writer. */
+  const visit = node => {
+    if (ts.isVariableDeclaration(node) && node.name.getText() === "changeSimplifiedLayout") change = node.initializer.getText();
+    if (ts.isMethodDeclaration(node) && node.name.getText() === "updateLayoutProfile") update = node.getText();
+    ts.forEachChild(node, visit);
+  };
+  sources.forEach(visit);assert(change && update);
+  const compiled = ts.transpileModule(`class Host {${update}};const make=()=>(${change});`, {compilerOptions:{target:ts.ScriptTarget.ES2021}}).outputText;
+  for (const device of ["desktop", "tablet", "phone"]) for (const surface of ["leaf", "sidepanel", "popout"]) {
+    const settings = m.migrateAndMergeSettings(undefined), before = structuredClone(settings.layoutProfiles), writes = [], tasks = [];
+    const host = {settings, index:{notifyPresentation(){}}, saveSettings:async(...args)=>writes.push(args)};
+    const deps = {plugin:host,surface,lateralArrangementSurface:m.lateralArrangementSurface,readObsidianPresentationEnvironment:()=>env(device),
+      layoutProfileKey:m.layoutProfileKey,activeLayoutProfile:m.activeLayoutProfile,suppressLayoutMotionUntil:{current:0},suppressAutoFitUntil:{current:0},
+      sceneMotion:{cancelAll(){}},preserveCameraOnNextLayout:{current:false}};
+    const production = new Function(...Object.keys(deps), `${compiled};return {update:Host.prototype.updateLayoutProfile,change:make()};`)(...Object.values(deps));
+    host.updateLayoutProfile=(...args)=>{const task=production.update.apply(host,args);tasks.push(task);return task;};
+    production.change(true);await Promise.all(tasks);
+    const key = `${device === "phone" ? "mobile" : device}:${surface === "popout" ? "leaf" : surface}`;
+    assert.equal(settings.layoutProfiles[key].lateralArrangement,"left");
+    assert.equal(m.effectiveViewSettings(settings,surface,env(device)).lateralArrangement,"left");
+    for(const other of Object.keys(before))if(other!==key)assert.deepEqual(settings.layoutProfiles[other],before[other],`${device}/${surface} changed ${other}`);
+    assert.deepEqual(writes,[[false,false]]);assert.equal(deps.preserveCameraOnNextLayout.current,true);
+    production.change(false);await Promise.all(tasks);assert.equal(settings.layoutProfiles[key].lateralArrangement,"split");
+  }
+});
+
 test("legacy migration remains sparse and forward values are inert; false and equal-to-default choices remain explicit", () => {
   assert.deepEqual(m.migrateAndMergeSettings(undefined).typographyProfiles, {});
   const raw = { desktop: { baseFontSize: 12.4, wrapNodeLabels: false, future: { value: 4 }, maxLabelLength: "bad" }, tablet: { maxWidth: Infinity }, futureDevice: { maxWidth: 500 } };

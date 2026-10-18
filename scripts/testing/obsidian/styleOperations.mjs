@@ -91,7 +91,7 @@ const artifacts = Object.fromEntries(
 );
 
 /** Run real style-manager operations with finite fault injection and exact native modal ownership. */
-function start() {
+function start(referenceOnly = false, referenceProperties = false, sidecarGateOnly = false, referenceSidecar = false) {
   const p = app.plugins.plugins["k-plex"],
     tab = p.settingsTab,
     remote = require("@electron/remote"),
@@ -258,6 +258,7 @@ function start() {
     ) =>
       function (...args) {
         c.counts.acquisitions++;
+        if(referenceOnly)c.events.push({phase:"source-acquire",edge:"start",time:performance.now(),frames:new Error().stack?.split("\n").slice(1,9).map(line=>line.match(/^\s*at ([\w.$<>]+)/)?.[1]??"anonymous")});
         return original.apply(this, args);
       }
   );
@@ -434,6 +435,7 @@ function start() {
       ) => window.setTimeout(resolve, 100)
     );
     for (const restore of c.restores.reverse()) restore();
+    for(const file of [c.fixtureFile,c.fixtureParentFile]) if(file && app.vault.getFileByPath(file.path)===file) await app.vault.delete(file);
     for (const root of c.modals)
       if (root.isConnected) button(root, "common.cancel")?.click();
     closeManagers();
@@ -450,6 +452,7 @@ function start() {
     if (c.ownsSettings) app.setting.close();
     await current.index.refreshPresentationSettings();
     await app.workspace.changeLayout(c.layout);
+    await current.settingsWriteQueue;
     c.cleaned = true;
   };
   /** Execute the serial no-view/active-view and fault matrix, then report facts before retiring the controller. */
@@ -471,6 +474,190 @@ function start() {
           p.getIndexStatus().upToDate && !p.index.hasSourceBackedStartup(),
         "Initial source startup did not settle"
       );
+      if (sidecarGateOnly) {
+        const plex = app.workspace.getLeavesOfType("k-plex-react-view").find(leaf => p.isKplexLeafVisible(leaf));
+        check(plex, "A visible main Plex is required");
+        const page = p.index.allPages().find(page => page.file?.extension === "md");
+        check(page, "A physical Markdown center is required");
+        app.workspace.setActiveLeaf(plex, {focus: true}); p.notifyNavigation(page.path);
+        await p.openSidecar(plex, page);
+        await until(() => p.isSidecarOpen(plex), "Sidecar did not open");
+        await until(() => !p.index.onDemandTasks.size && !p.index.hasActiveSemanticPreparation(), "Sidecar setup demand did not drain");
+        const before = {...c.counts};
+        for (const radius of [8, 2, 6.5, 5]) {
+          c.ownsSettings = true; p.openSettings();
+          await until(() => tab.containerEl.isConnected, "Settings did not attach");
+          check(tab.openSettingsPage(p.translator("settings.ui.visual.styling")), "Visual styling page absent");
+          await wait(100);
+          check(tab.openSettingsPage(p.translator("settings.ui.node.styling")), "Node styling page absent");
+          await wait(100);
+          const field = tab.containerEl.ownerDocument.querySelector('input[aria-label="' + p.translator("settings.ui.gate.radius") + '"]');
+          check(field, "Actual Settings gate radius slider absent");
+          field.value = String(radius);
+          field.dispatchEvent(new field.ownerDocument.defaultView.Event("input", {bubbles: true}));
+          field.dispatchEvent(new field.ownerDocument.defaultView.Event("change", {bubbles: true}));
+          await until(() => p.settings.baseNodeStyle.gateRadius === radius, "Gate radius was not committed");
+          await p.settingsWriteQueue;
+          record("sidecar-gate-settings-close", "start");
+          app.setting.close(); c.ownsSettings = false;
+          await wait(250);
+          record("sidecar-gate-settings-close", "end");
+          check(p.isSidecarOpen(plex), "Settings close lost Sidecar ownership");
+          check(plex.view.containerEl.querySelector(".kplex-plex"), "Settings close lost the graph");
+          passed("actual Settings gate radius save and close with managed Sidecar", {radius});
+        }
+        for (const mode of ["source", "preview"]) {
+          const companion = p.sidecarLeaves.get(plex);
+          check(companion, "Managed companion disappeared");
+          const saved = companion.getViewState();
+          await companion.setViewState({...saved, active: false, state: {...saved.state, mode}});
+          for (const closePending of [false, true]) {
+            await p.updateAppearanceThemes({kind: "select", id: "default"});
+            check(p.settings.appearanceThemes.selectedId === "default", "Factory theme selection failed");
+            c.ownsSettings = true; p.openSettings();
+            await until(() => tab.containerEl.isConnected, "Settings did not attach");
+            check(tab.openSettingsPage(p.translator("settings.ui.visual.styling")), "Visual styling page absent"); await wait(100);
+            check(tab.openSettingsPage(p.translator("settings.ui.node.styling")), "Node styling page absent"); await wait(100);
+            const doc = tab.containerEl.ownerDocument;
+            const field = doc.querySelector('input[aria-label="' + p.translator("settings.ui.gate.radius") + '"]');
+            check(field, "Native radius slider absent"); field.scrollIntoView({block: "center"}); await wait(50);
+            const host = doc.defaultView.require("@electron/remote").getCurrentWindow();
+            host.show(); host.focus(); host.webContents.focus();
+            await until(() => doc.hasFocus(), "Settings window did not focus");
+            const rectangle = field.getBoundingClientRect();
+            check(rectangle.width > 0 && rectangle.height > 0, "Native radius slider is hidden");
+            const trusted = []; const observe = event => trusted.push(event.isTrusted);
+            field.addEventListener("change", observe);
+            c.holdDisk = closePending;
+            try {
+              const point = {x: Math.round(rectangle.left + rectangle.width * (closePending ? 0.2 : 0.8)), y: Math.round(rectangle.top + rectangle.height / 2)};
+              for (const type of ["mouseDown", "mouseUp"]) host.webContents.sendInputEvent({type, ...point, button: "left", clickCount: 1});
+              await until(() => trusted.length > 0, "Trusted slider input did not reach Settings");
+              if (closePending) await until(() => Boolean(c.release), "Native save did not reach held storage");
+              else await p.settingsWriteQueue;
+              record("sidecar-gate-native-close", "start");
+              const close = doc.querySelector(".titlebar-button.mod-close");
+              check(close, "Native Settings window close control absent");
+              const closeBounds = close.getBoundingClientRect();
+              check(closeBounds.width > 0 && closeBounds.height > 0, "Settings close control hidden");
+              const closePoint = {x: Math.round(closeBounds.left + closeBounds.width / 2), y: Math.round(closeBounds.top + closeBounds.height / 2)};
+              for (const type of ["mouseDown", "mouseUp"]) host.webContents.sendInputEvent({type, ...closePoint, button: "left", clickCount: 1});
+              await until(() => !app.setting.isOpen, "Native close click did not close Settings");
+              c.ownsSettings = false; c.holdDisk = false; c.release?.(); c.release = null;
+              await p.settingsWriteQueue; await wait(250);
+              record("sidecar-gate-native-close", "end");
+              check(trusted.every(Boolean), "Slider input was not trusted");
+              check(p.settings.appearanceThemes.selectedId !== "default", "First actual appearance edit did not create an editable theme");
+              check(p.isSidecarOpen(plex) && plex.view.containerEl.querySelector(".kplex-plex"), "Native Settings close lost Sidecar/graph");
+              passed("trusted Settings gate slider and window close with managed Sidecar", {mode, closePending, radius: p.settings.baseNodeStyle.gateRadius});
+            } finally {field.removeEventListener("change", observe); c.holdDisk = false; c.release?.(); c.release = null;}
+          }
+        }
+        check(c.counts.semantics === before.semantics && c.counts.acquisitions === before.acquisitions,
+          "Gate radius editing requested semantic/source work");
+        c.result = {status: "passed", cases: c.cases, counts: c.counts, events: c.events,
+          scope: "Actual native Settings controls and Sidecar; programmatic input, no comparative timing"};
+        return;
+      }
+      if(referenceOnly){
+        check(p.settings.noteTypeField,'Configured style field required');
+        const path=key+'-'+Date.now()+'.md';check(!app.vault.getFileByPath(path),'Reference fixture collision');
+        const parentPath=path.replace(/\.md$/,'-parent.md'),parentField=p.settings.hierarchy.parents[0];
+        check(parentField&&parentField!==p.settings.noteTypeField&&!app.vault.getFileByPath(parentPath),'Independent Parent fixture required');
+        c.fixtureParentFile=await app.vault.create(parentPath,'');
+        c.fixtureFile=await app.vault.create(path,'---\n'+JSON.stringify(p.settings.noteTypeField)+': '+JSON.stringify(key)+'\n'+JSON.stringify(parentField)+': '+JSON.stringify('[['+parentPath+']]')+'\n---\n');
+        await until(()=>app.metadataCache.getFileCache(c.fixtureFile)?.frontmatter?.[p.settings.noteTypeField]===key,'Style fixture metadata absent');
+        const plex=app.workspace.getLeavesOfType('k-plex-react-view').find(l=>p.isKplexLeafVisible(l));check(plex,'Single main Plex required');
+        for(const leaf of [...app.workspace.getLeavesOfType('k-plex-react-view'),...app.workspace.getLeavesOfType('k-plex-sidepanel-view')])if(leaf!==plex)leaf.detach();
+        for(const leaf of app.workspace.getLeavesOfType('file-properties'))leaf.detach();
+        if(referenceProperties){c.properties=app.workspace.getLeaf('split');await c.properties.setViewState({type:'file-properties',active:false});await app.workspace.revealLeaf(c.properties);await c.properties.loadIfDeferred()}
+        app.workspace.setActiveLeaf(plex,{focus:true});p.notifyNavigation(path);
+        await until(()=>[...document.querySelectorAll('.kplex-role-center')].some(el=>el.dataset.kplexPath===path),'Style fixture did not become central');
+        if (referenceSidecar) {
+          const center = p.index.get(path); check(center?.file === c.fixtureFile, "Physical Sidecar fixture center missing");
+          await p.openSidecar(plex, center);
+          await until(() => p.isSidecarOpen(plex), "Reference Sidecar did not open");
+        }
+        await until(()=>!p.index.onDemandTasks.size&&!p.index.hasActiveSemanticPreparation(),'Style fixture demand did not drain');
+        if(referenceProperties)await until(()=>c.properties.view.file===c.fixtureFile&&c.properties.view.modifyingFile===c.fixtureFile,'Native Properties did not adopt fixture');
+        const body=document.body,heading='--h1-color',originalHeading=body.style.getPropertyValue(heading),priority=body.style.getPropertyPriority(heading);
+        c.testHeadingToken=!getComputedStyle(body).getPropertyValue(heading).trim();
+        if(c.testHeadingToken){body.style.setProperty(heading,'var(--text-normal)');c.restores.push(()=>{if(originalHeading)body.style.setProperty(heading,originalHeading,priority);else body.style.removeProperty(heading)})}
+        c.ownsSettings=true;p.openSettings();await until(()=>tab.containerEl.isConnected,'Settings root missing');
+        check(tab.openSettingsPage(p.translator('settings.ui.visual.styling')),'Visual styling page missing');
+        await until(()=>!tab.containerEl.isConnected,'Visual styling did not replace Settings root');
+        check(tab.openSettingsPage(p.translator('settings.ui.node.styling')),'Node styling page missing');await wait(300);
+        const label=[...tab.containerEl.ownerDocument.querySelectorAll('.setting-item-name')].find(el=>el.getClientRects().length&&el.textContent===p.translator('styles.nodeTitle'));check(label,'Actual Node styles action absent');
+        const row=label.closest('.setting-item');(row.querySelector('button')??row).click();
+        let root=await open('property',null,true);
+        root.querySelector('input[aria-label="'+p.translator('styles.propertyValue')+'"]').value=key;
+        await until(()=>p.getIndexStatus().upToDate&&!p.index.onDemandTasks.size&&!p.index.hasActiveSemanticPreparation(),'Reference fixture index did not drain');
+        const before={...c.counts};record('reference-child','start');
+        root.querySelector('button[aria-label="'+p.translator('styles.border')+'"]').click();
+        await until(()=>root.ownerDocument.querySelector('.kplex-color-modal'),'Reference chooser absent');
+        const child=root.ownerDocument.querySelector('.kplex-color-modal');c.modals.push(child);
+        const source=child.querySelector('.kplex-color-source-editor select');source.value='theme';source.dispatchEvent(new child.ownerDocument.defaultView.Event('change',{bubbles:true}));
+        child.querySelector('.kplex-theme-color-choice').click();
+        await until(()=>child.ownerDocument.querySelector('.prompt-input'),'Native heading chooser absent');
+        const query=child.ownerDocument.querySelector('.prompt-input');query.value=heading;query.dispatchEvent(new query.ownerDocument.defaultView.Event('input',{bubbles:true}));
+        await until(()=>[...child.ownerDocument.querySelectorAll('.suggestion-item')].some(row=>row.querySelector('.suggestion-content')?.firstElementChild?.textContent===heading),'Native heading choice absent');
+        const choice=[...child.ownerDocument.querySelectorAll('.suggestion-item')].find(row=>row.querySelector('.suggestion-content')?.firstElementChild?.textContent===heading);
+        await until(()=>choice.querySelectorAll('.kplex-color-swatch').length===2,'Native heading swatches absent');choice.dispatchEvent(new choice.ownerDocument.defaultView.MouseEvent('mousedown',{bubbles:true,cancelable:true,button:0}));choice.click();
+        await until(()=>!query.isConnected,'Native heading choice did not close');
+        await until(()=>!button(child,'colors.useColor').disabled,'Heading theme color cannot be selected');button(child,'colors.useColor').click();
+        await until(()=>!child.isConnected,'Reference chooser did not close');
+        check(c.counts.writes===before.writes&&!p.settings.noteTypeStyles[key],'Child draft changed durable/live graph styling');record('reference-child','end');
+        const dimensions={strokeWidth:3,gateRadius:8};
+        for(const [label,value] of [['filter.borderWidth',dimensions.strokeWidth],['settings.ui.gate.radius',dimensions.gateRadius]]){
+          const field=root.querySelector('input[aria-label="'+p.translator(label)+'"]');check(field,'Native size input absent');
+          field.value=String(value);field.dispatchEvent(new field.ownerDocument.defaultView.Event('input',{bubbles:true}));
+        }
+        record('reference-parent-save','start');await save(root);record('reference-parent-save','end');
+        const expected={kind:'theme',variable:'--h1-color'};
+        check(JSON.stringify(p.settings.noteTypeStyles[key]?.borderColor)===JSON.stringify(expected),'Reference did not publish');
+        check(JSON.stringify((await stored()).noteTypeStyles[key]?.borderColor)===JSON.stringify(expected),'Reference did not persist');
+        app.setting.close();await wait(400);
+        if (referenceSidecar) check(p.isSidecarOpen(plex), "Style Save/Settings close lost Sidecar ownership");
+        check([...document.querySelectorAll('.kplex-role-center')].some(el=>el.dataset.kplexPath===path),'Style Save lost central graph');
+        check(c.counts.semantics===before.semantics&&c.counts.acquisitions===before.acquisitions,'Reference/size Save requested semantic/source work');
+        const style=p.settings.noteTypeStyles[key],durable=(await stored()).noteTypeStyles[key];
+        check(style.strokeWidth===3&&style.gateRadius===8&&durable.strokeWidth===3&&durable.gateRadius===8,'Native dimensions not persisted');
+        await until(()=>{const center=[...document.querySelectorAll('.kplex-role-center')].find(el=>el.dataset.kplexPath===path);return center&&getComputedStyle(center).borderWidth==='3px'&&center.style.getPropertyValue('--kplex-gate-size')==='8.4px'},'Native dimension paint absent');
+        passed('actual Settings Node styles Border h1 reference child draft and parent Save',{source:expected,dimensions,counts:{writes:c.counts.writes-before.writes,presentations:c.counts.presentations-before.presentations,semantics:c.counts.semantics-before.semantics,acquisitions:c.counts.acquisitions-before.acquisitions},properties:referenceProperties,sidecar:referenceSidecar,testOwnedHeadingToken:c.testHeadingToken,context:'Actual Visual styling / Node styling subpages'});
+        app.setting.close();c.ownsSettings=false;
+        await until(()=>p.index.getNeighborhood(path)?.parents.some(node=>node.page.path===parentPath),'Parent fixture did not reconcile');
+        const restartAt=Date.now();await app.plugins.disablePlugin('k-plex');await app.plugins.enablePlugin('k-plex');const reloaded=app.plugins.plugins['k-plex'];
+        await reloaded.activateView();
+        await until(()=>[...document.querySelectorAll('.kplex-role-center')].some(el=>el.dataset.kplexPath===path),'Restart did not restore stationary center');
+        await until(()=>[...document.querySelectorAll('.kplex-role-parent')].some(el=>el.dataset.kplexPath===parentPath),'Restart did not complete stationary Parent without navigation');
+        check(reloaded.settings.noteTypeStyles[key]?.strokeWidth===3&&reloaded.settings.noteTypeStyles[key]?.gateRadius===8&&reloaded.settings.noteTypeStyles[key]?.borderColor?.variable===heading,'Native reload lost reference or sizes');
+        passed('native plugin restart restores stationary central relationship and saved reference/dimensions without history navigation',{properties:referenceProperties,scope:'Small disposable vault; normal startup, not a long-validation timing comparison'});
+        await until(()=>reloaded.index.getIndexDiagnostics().some(row=>row.at>=restartAt&&row.centerCheck?.trigger==='initial'&&row.centerCheck.outcome!=='checking'),'Actual visible-center watchdog timer did not leave a diagnostic');
+        const receipt=reloaded.index.getIndexDiagnostics().filter(row=>row.at>=restartAt&&row.centerCheck?.trigger==='initial'&&row.centerCheck.outcome!=='checking').at(-1);
+        check(!['failed','cancelled'].includes(receipt.centerCheck.outcome),'Native watchdog did not finish against the live initial center');
+        check(receipt.centerCheck.after[0]===reloaded.index.getNeighborhood(path).parents.length,'Watchdog did not observe stationary Parent coverage');
+        passed('actual initial-center watchdog timer records a bounded shareable receipt after native restart',{properties:referenceProperties,receipt});
+        await until(()=>reloaded.getIndexStatus().upToDate&&!reloaded.index.hasActiveSemanticPreparation(),'Recovery fixture did not drain');
+        const getter=reloaded.index.getNeighborhood.bind(reloaded.index),openingLeaves=new Set(app.workspace.getLeavesOfType('k-plex-react-view')),repairAt=Date.now();
+        // Present one deliberately incomplete frame, then restore the real reader without a notification.
+        // The actual new surface's timer must discover the missed presentation by itself.
+        reloaded.index.getNeighborhood=(target,...args)=>{const value=getter(target,...args);return target===path&&value?{...value,parents:[]}:value};
+        let recoveryLeaf;
+        try{
+          await reloaded.createPlexTab();recoveryLeaf=app.workspace.getLeavesOfType('k-plex-react-view').find(leaf=>!openingLeaves.has(leaf));check(recoveryLeaf,'Recovery tab missing');
+          await recoveryLeaf.view.waitUntilReady();reloaded.notifyNavigation(path);
+          await until(()=>[...recoveryLeaf.view.containerEl.querySelectorAll('.kplex-role-center')].some(el=>el.dataset.kplexPath===path),'Recovery center missing');
+          await until(()=>!reloaded.index.onDemandTasks.size&&!reloaded.index.hasActiveSemanticPreparation(),'New-tab demand did not drain');await wait(100);
+          check(!recoveryLeaf.view.containerEl.querySelector('.kplex-role-parent'),'Incomplete-frame control did not reproduce');
+          check(!reloaded.index.getIndexDiagnostics().some(row=>row.at>=repairAt&&row.centerCheck),'Initial timer ran before the incomplete-frame setup finished');
+        }finally{reloaded.index.getNeighborhood=getter}
+        await until(()=>reloaded.index.getIndexDiagnostics().some(row=>row.at>=repairAt&&row.reason==='center-watchdog:repainted'),'Timer did not diagnose the missing presentation');
+        await until(()=>[...recoveryLeaf.view.containerEl.querySelectorAll('.kplex-role-parent')].some(el=>el.dataset.kplexPath===parentPath),'Actual watchdog did not restore stationary Parent');
+        const repaired=reloaded.index.getIndexDiagnostics().find(row=>row.at>=repairAt&&row.reason==='center-watchdog:repainted');
+        check(repaired.centerCheck.presented[0]===0&&repaired.centerCheck.after[0]>=1,'Native repair receipt lacks before/after evidence');
+        recoveryLeaf.detach();passed('actual new-tab watchdog repairs a missed stationary presentation without navigation',{properties:referenceProperties,receipt:repaired,control:'Temporary getNeighborhood presentation wrapper; real index and timer unchanged'});
+        c.result={status:'passed',cases:c.cases,counts:c.counts,events:c.events};return;
+      }
       for (const type of ["k-plex-react-view", "k-plex-sidepanel-view"])
         for (const leaf of app.workspace.getLeavesOfType(type)) leaf.detach();
       await p.settingsWriteQueue;
@@ -884,6 +1071,17 @@ function start() {
       };
     } catch (error) {
       c.error = String(error);
+      if(referenceOnly&&c.fixtureFile){
+        const live=app.plugins.plugins['k-plex'],path=c.fixtureFile.path,neighborhood=live?.index.getNeighborhood(path);
+        c.failureObservation={fixtureMetadata:app.metadataCache.getFileCache(c.fixtureFile)?.frontmatter,
+          indexStatus:live?.getIndexStatus(),sourceReady:live?.index.isCenterRecoverySourceReady(),
+          sourceBackedStartup:live?.index.hasSourceBackedStartup(),activeSemantic:live?.index.hasActiveSemanticPreparation(),
+          onDemandTasks:live?.index.onDemandTasks.size,sourceCounters:live?.index.getSourceAcquisitionCounters(),
+          resolvedTargets:Object.keys(app.metadataCache.resolvedLinks[path]??{}),filePresent:app.vault.getFileByPath(path)===c.fixtureFile,
+          parents:neighborhood?.parents.map(item=>item.page.path),children:neighborhood?.children.map(item=>item.page.path),
+          centerFile:neighborhood?.center.file?.path,demanded:live?.index.semanticDemandCounts.get(path)??0,
+          diagnostics:live?.index.getIndexDiagnostics(),visibleCenters:[...document.querySelectorAll('.kplex-role-center')].map(el=>el.dataset.kplexPath)};
+      }
     } finally {
       if (!c.cleaned) {
         try {
@@ -913,12 +1111,12 @@ const report = {
   activation: "programmatic native manager/editor DOM",
 };
 try {
-  evaluate("JSON.stringify((" + start.toString() + ")())");
+  evaluate("JSON.stringify((" + start.toString() + ")("+JSON.stringify(process.env.KPLEX_STYLE_REFERENCE_ONLY==="true")+","+JSON.stringify(process.env.KPLEX_STYLE_REFERENCE_PROPERTIES==="true")+","+JSON.stringify(process.env.KPLEX_STYLE_SIDECAR_GATE_ONLY==="true")+","+JSON.stringify(process.env.KPLEX_STYLE_REFERENCE_SIDECAR==="true")+"))");
   const end = Date.now() + 180000;
   while (true) {
     await pause(100);
     const state = evaluate(
-      "JSON.stringify((()=>{const c=window.__kplex146Styles;return {done:c?.done,error:c?.error,cleanupError:c?.cleanupError,cleaned:c?.cleaned,result:c?.result,submitted:c?.submitted,counts:c?.counts,events:c?.events,cases:c?.cases,noViewBefore:c?.noViewBefore,readFacts:c?.readFacts}})())"
+      "JSON.stringify((()=>{const c=window.__kplex146Styles;return {done:c?.done,error:c?.error,cleanupError:c?.cleanupError,cleaned:c?.cleaned,result:c?.result,submitted:c?.submitted,counts:c?.counts,events:c?.events,cases:c?.cases,noViewBefore:c?.noViewBefore,readFacts:c?.readFacts,failureObservation:c?.failureObservation}})())"
     );
     if (state.done) {
       Object.assign(report, state);

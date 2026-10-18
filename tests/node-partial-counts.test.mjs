@@ -56,7 +56,7 @@ test("zero partial incidence avoids a false empty gate claim and preserves struc
   assert.ok(tag.includes(`${translate("node.gateTagDisabled", { gate: "top" })} · ${translate("node.gatePartial")}`));
   assert.match(tag, />≥1<\/span>/);
   const folder = renderGate({ complete: false }, { isFolder: true });
-  assert.match(folder, /folder relationship editing is disabled · Additional relationships may be available/);
+  assert.ok(folder.includes(translate("moveNode.gate")) && folder.includes(translate("node.gatePartial")));
 });
 
 test("omitted coverage preserves exact complete gate numbers, ratios and empty tooltips", () => {

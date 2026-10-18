@@ -85,6 +85,7 @@ export function installKplexLongPressTooltips(doc: Document): () => void {
   let hoverTimer = 0;
   let hoverTarget: HTMLElement | null = null;
   let hoverVisible = false;
+  let alternatePressed = false;
 
   /** Cancel only this document owner's pending long press. */
   const clearPressTimer = () => {
@@ -151,19 +152,39 @@ export function installKplexLongPressTooltips(doc: Document): () => void {
     if (hoverVisible) removeTooltip();
   };
 
+  /** Gate hints share the normal delay/placement while their caller owns the modifier preference. */
+  const hoverAllowed = (element: HTMLElement): boolean => !element.hasAttribute("data-kplex-tooltip-requires-alt") || alternatePressed;
+
+  /** Preserve the hovered target while withholding a gated hint, allowing a stationary modifier press. */
+  const scheduleHover = (target: HTMLElement): void => {
+    if (hoverTimer) view.clearTimeout(hoverTimer);
+    hoverTimer = 0;
+    if (hoverVisible) removeTooltip();
+    if (!hoverAllowed(target)) return;
+    hoverTimer = view.setTimeout(/** Re-read labels and eligibility after React/host updates. */ () => {
+      hoverTimer = 0;
+      if (hoverTarget !== target || hoverTooltipTarget(target) !== target || !hoverAllowed(target)) return;
+      showTooltip(target, true);
+    }, HOVER_MS);
+  };
+
+  /** Modifier release immediately hides only modifier-gated hints; ordinary controls keep their existing lifetime. */
+  const updateAlternate = (pressed: boolean): void => {
+    if (alternatePressed === pressed) return;
+    alternatePressed = pressed;
+    if (hoverTarget?.hasAttribute("data-kplex-tooltip-requires-alt")) scheduleHover(hoverTarget);
+  };
+
   /** Restart the full delay only when entering a different mouse-hover control. */
   const onPointerOver = (event: PointerEvent) => {
     if (event.pointerType !== "mouse" || event.buttons !== 0) return;
+    updateAlternate(event.altKey);
     const target = hoverTooltipTarget(event.target);
     if (target === hoverTarget) return;
     clearHover();
     if (!target) return;
     hoverTarget = target;
-    hoverTimer = view.setTimeout(/** Re-read labels and eligibility after React/host updates. */ () => {
-      hoverTimer = 0;
-      if (hoverTarget !== target || hoverTooltipTarget(target) !== target) return;
-      showTooltip(target, true);
-    }, HOVER_MS);
+    scheduleHover(target);
   };
 
   /** Ignore movement between the icon, text and input descendants of the same control. */
@@ -171,8 +192,12 @@ export function installKplexLongPressTooltips(doc: Document): () => void {
     if (hoverTarget && hoverTooltipTarget(event.relatedTarget) !== hoverTarget) clearHover();
   };
 
-  /** Escape dismisses the hint without consuming the application's own Escape action. */
-  const onKeyDown = (event: KeyboardEvent) => { if (event.key === "Escape") clearHover(); };
+  /** Escape retains application priority; an Alt/Option press can authorize the stationary hovered gate. */
+  const onKeyDown = (event: KeyboardEvent) => { if (event.key === "Escape") clearHover(); else updateAlternate(event.altKey || event.key === "Alt"); };
+  /** Key release does not require another pointer event to hide a gated hint. */
+  const onKeyUp = (event: KeyboardEvent) => { updateAlternate(event.altKey); };
+  /** A blurred document cannot retain a modifier from another window's keyboard session. */
+  const onBlur = (): void => { alternatePressed = false; clearHover(); };
 
   /** Reset pending touch state without invalidating its separately owned synthesized-click guard. */
   const resetActivePress = () => {
@@ -219,6 +244,7 @@ export function installKplexLongPressTooltips(doc: Document): () => void {
 
   /** Movement cancels a pending long press while preserving already-earned click suppression. */
   const onPointerMove = (event: PointerEvent) => {
+    if (event.pointerType === "mouse" && event.buttons === 0) updateAlternate(event.altKey);
     if (!activeTarget || event.pointerId !== activePointerId) return;
     if (Math.hypot(event.clientX - startX, event.clientY - startY) <= MOVE_TOLERANCE_PX) return;
     clearPressTimer();
@@ -262,16 +288,18 @@ export function installKplexLongPressTooltips(doc: Document): () => void {
   };
 
   const Observer = (view as Window & { MutationObserver: typeof MutationObserver }).MutationObserver;
-  const observer = new Observer(/** Retired controls cannot retain visible or pending hints. */ () => {
+  const observer = new Observer(/** Retired controls and changed gate preferences cannot retain an unauthorized hint. */ records => {
     if (hoverTarget && (!hoverTarget.isConnected || hoverTarget.ownerDocument !== doc)) clearHover();
+    else if (hoverTarget && records.some(/** Only a modifier-policy change on this hovered control renews the delay. */ record => record.type === "attributes" && record.target === hoverTarget)) scheduleHover(hoverTarget);
   });
-  observer.observe(doc.body, { childList: true, subtree: true });
+  observer.observe(doc.body, { childList: true, subtree: true, attributes: true, attributeFilter: ["data-kplex-tooltip-requires-alt"] });
   doc.addEventListener("pointerover", onPointerOver, true);
   doc.addEventListener("pointerout", onPointerOut, true);
   doc.addEventListener("scroll", clearHover, true);
   doc.addEventListener("wheel", clearHover, true);
   doc.addEventListener("keydown", onKeyDown, true);
-  view.addEventListener("blur", clearHover);
+  doc.addEventListener("keyup", onKeyUp, true);
+  view.addEventListener("blur", onBlur);
   view.addEventListener("resize", clearHover);
 
   doc.addEventListener("pointerdown", onPointerDown, true);
@@ -299,7 +327,8 @@ export function installKplexLongPressTooltips(doc: Document): () => void {
     doc.removeEventListener("scroll", clearHover, true);
     doc.removeEventListener("wheel", clearHover, true);
     doc.removeEventListener("keydown", onKeyDown, true);
-    view.removeEventListener("blur", clearHover);
+    doc.removeEventListener("keyup", onKeyUp, true);
+    view.removeEventListener("blur", onBlur);
     view.removeEventListener("resize", clearHover);
   };
   const state = { users: 0, cleanup };

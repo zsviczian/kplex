@@ -63,6 +63,9 @@ export class ColorSwatchList {
   /** Local parent drafts repaint through the same bounded list owner. */
   update(): void { this.refresh(); }
 
+  /** Native suggestion queries replace their visible rows while retaining this owner's sample cache. */
+  clear(): void { this.rows.clear(); this.generation++; }
+
   /** Release pending isolated work and every page subscription exactly once. */
   dispose(): void {
     if (this.disposed) return; this.disposed = true; this.generation++; this.snapshot = null; this.sampler.dispose();

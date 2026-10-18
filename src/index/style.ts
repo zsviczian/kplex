@@ -7,6 +7,10 @@ import type { GraphPage, LinkStyle, Neighbour, NodeStyle, PositionedNode, Role }
 import { RelationType } from "../types";
 import type { ColorValue } from "../core/contracts/colorValue";
 import { colorValueCss } from "../adapters/obsidian/colorPresentation";
+import { isNoteTypeTagConnection, NOTE_TYPE_TAG_LINK_STYLE } from "../core/graph/presentation";
+
+/** Renderer inheritance when a legacy/custom style has no explicit width. */
+export const DEFAULT_RENDERED_LINK_WIDTH = 1.2;
 
 /** Compatibility facade for literal alpha and typed color identities after style inheritance. */
 export const alphaHexToCss = (color?: ColorValue, fallback = "transparent"): string => colorValueCss(color, fallback);
@@ -71,7 +75,7 @@ export function resolveNodeStyle(page: GraphPage, relation: Neighbour | null, ro
 }
 
 /** Layer connector overrides, preserving exact and normalized imported ontology-key precedence. */
-export function resolveLinkStyle(neighbour: Neighbour, settings: KplexSettings): LinkStyle {
+function definitionLinkStyle(neighbour: Pick<Neighbour, "typeDefinition" | "relationType">, settings: KplexSettings): LinkStyle {
   let layered: LinkStyle = {};
   const definitions = neighbour.typeDefinition?.split(",").map((x) => x.trim()).filter(Boolean) ?? [];
   for (const definition of definitions) {
@@ -94,6 +98,19 @@ export function resolveLinkStyle(neighbour: Neighbour, settings: KplexSettings):
     ...(neighbour.relationType === RelationType.INFERRED ? settings.inferredLinkStyle : {}),
     ...layered
   };
+}
+
+/** Inherit live tag defaults and double their width; never sample/store computed factory colors. */
+export function noteTypeTagDefaultStyle(settings: KplexSettings): LinkStyle {
+  const tagStyle = definitionLinkStyle({typeDefinition: "tag-tree", relationType: RelationType.DEFINED}, settings);
+  return {...tagStyle, strokeWidth: (tagStyle.strokeWidth ?? DEFAULT_RENDERED_LINK_WIDTH) * 2};
+}
+
+/** Only the active scene's prepared facets choose this appearance override; no source/evidence work. */
+export function resolveLinkStyle(neighbour: Neighbour, settings: KplexSettings, origin?: GraphPage): LinkStyle {
+  const normal = definitionLinkStyle(neighbour, settings);
+  return origin && neighbour.typeDefinition?.split(",").some(definition => definition.trim() === "tag-tree") && isNoteTypeTagConnection(origin, neighbour.page)
+    ? {...normal, strokeWidth: (normal.strokeWidth ?? DEFAULT_RENDERED_LINK_WIDTH) * 2, ...settings.hierarchyLinkStyles[NOTE_TYPE_TAG_LINK_STYLE]} : normal;
 }
 
 /** Paint-only output shared by real thoughts, mini nodes and synthetic editor examples. */

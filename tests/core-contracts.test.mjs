@@ -137,6 +137,22 @@ test("legacy search read maps ranked results to plain views without host reach-t
   }
 });
 
+test("Find presents tag markers and semantic folder paths without changing activation identities", async () => {
+  const { createLegacyGraphSearchRead } = await import(pathToFileURL(adapterPath).href);
+  const tag = page({ path: "tag:Research/Person/Müller", name: "Müller", isTag: true });
+  const folder = page({ path: "folder:Research/People", name: "People", isFolder: true });
+  const graph = createLegacyGraphSearchRead({
+    /** Preserve caller ranking and exact source identities. */ search: () => [tag, folder],
+    /** The display setting may select a leaf label while the full path remains visible. */ titleFor: candidate => candidate.name,
+  });
+  const hits = graph.search("Müller", 24);
+  assert.deepEqual(hits.map(hit => [hit.node.id, hit.label, hit.detail]), [
+    [tag.path, "#Müller", "#Research/Person/Müller"],
+    [folder.path, "People", "Research/People"],
+  ]);
+  assert.equal(hits[0].node.path, tag.path, "Display markers cannot replace the graph's semantic path");
+});
+
 
 test("C10 portable predicate is lazy, path-explicit, case-aware and host-free", async () => {
   const result = spawnSync(process.execPath, ["--input-type=module", "-e", `

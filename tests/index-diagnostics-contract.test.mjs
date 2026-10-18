@@ -97,3 +97,14 @@ test('native report rejects new-summary proxies without traps and preserves acti
   const text=api.createIndexDiagnosticsReport(index,status,'1.2.3',capture),report=JSON.parse(text);
   assert.equal(report.reportStatus,'size-limit');assert.deepEqual(report.indexingActivity,capture);assert(Buffer.byteLength(text)<=32768);
 });
+
+test('center recovery aggregates survive both diagnostic exports without private payloads',async()=>{
+  const api=await reportRuntime(),index=indexFacts();
+  const centerCheck={trigger:'initial',outcome:'repaired',sourceReadyBefore:false,sourceReadyAfter:false,activeBefore:true,coverageBefore:'preview',coverageAfter:'local',presented:[0,2,0,0,0],before:[0,2,0,0,0],after:[0,7,0,0,0],path:'PRIVATE-NOTE',content:'PRIVATE-CONTENT'};
+  index.getIndexDiagnostics=()=>[{at:123,stage:'reconcile',reason:'center-watchdog:repaired',durationMs:12,centerCheck}];
+  const native=api.createIndexDiagnosticsReport(index,()=>({upToDate:false,phase:'indexing',indexedFiles:3,totalFiles:7}),'1.2.3');
+  const parsed=JSON.parse(native),support=api.createSupportReport({capturedAt:'2026-10-18T00:00:00.000Z',indexReport:parsed,environment:{},indexingPreferences:{},startup:{},session:{}});
+  const report=JSON.parse(support.slice(support.indexOf('```json\n')+8,-5));
+  assert.deepEqual(parsed.decisions[0].centerCheck,report.index.decisions[0].centerCheck);assert.equal(report.index.decisions[0].reason,'center-watchdog:repaired');
+  assert.deepEqual(report.index.decisions[0].centerCheck.after,[0,7,0,0,0]);assert(!native.includes('PRIVATE'));assert(!support.includes('PRIVATE'));
+});

@@ -23,10 +23,12 @@ export function FuzzySearchInput<T>({ icon = "search", portalSelector = ".kplex-
   });
 }
 
-/** Tiny ranking helper for short string vocabularies such as ontology fields. */
-export function fuzzyFilterStrings(values: readonly string[], query: string, limit = 24): string[] {
+/** Rank short string vocabularies; native paths can retain case-distinct identities without changing case-insensitive matching. */
+export function fuzzyFilterStrings(values: readonly string[], query: string, limit = 24,
+  options: { caseSensitiveIdentity?: boolean } = {}): string[] {
   const q = query.trim().toLocaleLowerCase();
-  const unique = [...new Map(values.map((value) => [value.toLocaleLowerCase(), value] as const)).values()];
+  const unique = [...new Map(values.map(/** Preserve exact folder identities while legacy vocabularies retain case-folded deduplication. */ value =>
+    [options.caseSensitiveIdentity ? value : value.toLocaleLowerCase(), value] as const)).values()];
   if (!q) return unique.slice(0, limit);
 
   const score = (value: string): number | null => {

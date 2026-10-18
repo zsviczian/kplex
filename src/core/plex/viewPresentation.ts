@@ -1,6 +1,7 @@
 /**
  * Portable view routing and device/surface layout-profile selection. Persisted legacy density keys
  * retain their meaning; horizontal density falls back to the selected profile's old shared value.
+ * Optional lateral arrangement travels with that profile without changing semantic role identities.
  * This owner receives plain environment/settings values and never changes graph or host state.
  */
 import type {
@@ -13,15 +14,19 @@ import type {
 
 export type PresentationViewSurface = "leaf" | "sidepanel" | "popout";
 export type PersistedLayoutDeviceClass = "desktop" | "tablet" | "mobile";
+/** Physical placement only; semantic friend/challenger roles remain independent. */
+export type LateralArrangement = "split" | "left";
 
 export type LayoutProfileValues = Readonly<{
   compactingFactor: number;
   horizontalCompactingFactor?: number;
   parentColumns: number;
   childColumns: number;
+  lateralArrangement?: LateralArrangement;
 }>;
 
 export type LayoutProfileSettings = Readonly<{
+  lateralArrangement?: LateralArrangement;
   compactingFactor: number;
   horizontalCompactingFactor?: number;
   parentColumns: number;
@@ -52,6 +57,7 @@ export function selectLayoutProfile(
     horizontalCompactingFactor: selected.horizontalCompactingFactor ?? selected.compactingFactor,
     parentColumns: selected.parentColumns,
     childColumns: selected.childColumns,
+    ...(selected.lateralArrangement === undefined ? {} : { lateralArrangement: selected.lateralArrangement }),
   };
 }
 

@@ -3,7 +3,8 @@
  * panes. This adapter uses the host's verified private FileView loader without opening documents,
  * emitting file-open, changing native selection/history or acquiring graph sources. Native loaders
  * are not cancellable: accepted loads are serialized and their completion repairs stale metadata
- * against fresh workspace ownership, including the host's file/modifyingFile overlap race.
+ * against fresh workspace ownership, including the host's file/modifyingFile overlap race. Each
+ * unchanged ownership intent has a bounded repair budget; a non-converging host cannot spin tasks.
  */
 import type { App, FileView, TFile, View, WorkspaceLeaf } from "obsidian";
 
@@ -72,7 +73,7 @@ class FilePropertiesFollower {
   private readonly centers = new Set<CenterRegistration>();
   private recent: CenterRegistration | null = null;
   private readonly work = new Map<WorkspaceLeaf, DestinationWork>();
-  private readonly failedTargets = new WeakMap<WorkspaceLeaf, { file: TFile; intent: number }>();
+  private readonly failedTargets = new WeakMap<WorkspaceLeaf, { file: TFile | null; intent: number }>();
   private intent = 0;
   private releaseEvents: (() => void) | null = null;
 
@@ -181,6 +182,8 @@ class FilePropertiesFollower {
       if (view.file) boundTarget = view.file;
       return { file: boundTarget, owned: false };
     };
+    let repairTarget: { file: TFile | null; owned: boolean; intent: number } | null = null;
+    let repairSteps = 0;
     for (;;) {
       const view = this.destination(pending), intent = this.intent;
       if (!view || (boundLeaf(leaf, view) && !pending.accepted)) return pending.revision;
@@ -193,6 +196,18 @@ class FilePropertiesFollower {
       }
       const failed = this.failedTargets.get(leaf);
       if (failed?.file === target.file && failed.intent === intent) return pending.revision;
+      if (!repairTarget || repairTarget.file !== target.file || repairTarget.owned !== target.owned
+        || repairTarget.intent !== intent) {
+        repairTarget = { ...target, intent }; repairSteps = 0;
+      }
+      // One initial load plus one stale-metadata clear/reload repairs the verified overlap race.
+      // A resolved private loader may still refuse or fail to settle its fields; do not spin an
+      // unbounded microtask chain, or restart it from its own layout/file-open notifications.
+      if (repairSteps >= 3) {
+        this.failedTargets.set(leaf, { file: target.file, intent });
+        return pending.revision;
+      }
+      repairSteps++;
       pending.accepted = true;
       if (view.file === target.file) {
         // Native loadFile short-circuits same-file requests, even with an older metadata editor.
