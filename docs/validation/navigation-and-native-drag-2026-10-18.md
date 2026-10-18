@@ -635,3 +635,12 @@ CSS and manifest match the preceding checkpoint. Build provenance is
 `5fe9c80.dirty`; production runtime source is unchanged after full verification.
 All trials use Small only; no personal-vault access or comparative performance
 testing. Original private evidence and failures are retained; no raw publication.
+
+Delivered runtime checkpoint: `173c0c9080c8c0646699e950e4fa6ca3e68453ef`.
+Verified private backup outside Temp:
+`%LOCALAPPDATA%/KplexValidation/structural-drops-177-20261018-1792326449722`;
+273 files/18,098,913 bytes, source ZIP537 entries with CRCs and per-file SHA-256
+verified, HANDOFF excluded. MANIFEST SHA-256
+`d8046052040695c2147e09edb667870ab5bf063edaa1e4f2f03698ae386f788a`.
+The source archive pins the runtime/test checkpoint; subsequent documentation
+records its verified backup. Originals and all prior backups remain private.

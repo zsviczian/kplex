@@ -54,6 +54,12 @@ process restart/affected-vault case, macOS/minimum host and physical devices rem
 manual acceptance. Do not claim all startup causes fixed or recommend merge from
 these positive controls alone. Preserve Closes157/Refs175 and earlier PR limitations.
 
-Finish checkpoint commit/push, verified private backup outside Temp (include
-kplex-center-* logs; HANDOFF excluded), then update PR/report with exact saved head
-and evidence manifest. Originals/prior backups remain, no raw publication.
+Delivered runtime173c0c9080c8c0646699e950e4fa6ca3e68453ef committed/pushed.
+Private verified backup outside Temp: LOCALAPPDATA/KplexValidation/
+structural-drops-177-20261018-1792326449722;273files/18,098,913bytes; sourceZIP537
+entries, CRC/per-file SHA verified, HANDOFF excluded. Manifest SHA256:
+d8046052040695c2147e09edb667870ab5bf063edaa1e4f2f03698ae386f788a.
+Originals/prior backups retained; raw evidence unpublished. Documentation closeout
+records this source checkpoint and backup; runtime remains unchanged. PR update
+must preserve these unresolved failures and draft status. Final CI is separate
+from passed local/native checks; do not claim remote green while pending.
