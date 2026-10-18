@@ -738,6 +738,28 @@ test('a file change during current demand cancels the old owner and retries the 
   }finally{unblock?.();release?.();o.close();}
 })()`));
 
+for(const mode of ['on-demand','eager'])for(const remove of [false,true])for(const sameStat of [false,true])test('pending body replacement retains its prior parent presentation then publishes the real result ('+mode+', remove='+remove+', same-stat='+sameStat+')',async()=>scenario(`(async()=>{
+ const o=await onDemandFixture('save-parent-'+${JSON.stringify(mode)}+'-'+${remove}+'-'+${sameStat},{indexingMode:${JSON.stringify(mode)}});const{f,index}=o;let release,unblock;
+ try{
+  const file=f.add('A.md','Parent:: [[B]]');f.add('B.md','');f.app.metadataCache.resolvedLinks={'A.md':{'B.md':1}};
+  ok(await index.initializeOnDemandBaseline(),'Physical baseline');release=index.acquireSemanticDemand('A.md');await settleDemand(index);
+  equal(index.getNeighborhood('A.md').parents.map(row=>row.page.path),['B.md'],'Actual body-defined parent initially compiled');
+  const commits=[],publish=index.publishIncrementalFile;index.publishIncrementalFile=(commit,apply)=>{commits.push(commit.semanticChanged);return publish(commit,apply)};
+  const parse=index.metadataParser.parse.bind(index.metadataParser);let entered,first=true;const parsing=new Promise(resolve=>entered=resolve),hold=new Promise(resolve=>unblock=resolve);
+  index.metadataParser.parse=async(...args)=>{if(first){first=false;entered();await hold}return parse(...args)};
+  f.texts.set('A.md',${remove}?'Prose without the parent declaration.':'Parent:: [[B]]\\n\\nAnother paragraph.');if(!${sameStat})file.stat.mtime++;
+  f.app.metadataCache.resolvedLinks={'A.md':${remove}?{}:{'B.md':1}};
+  f.app.vault.trigger('modify',file);o.bump();index.refreshVisibleHostMetadataPreviews('A.md',0);await parsing;
+  equal(index.getNeighborhood('A.md').parents.map(row=>row.page.path),['B.md'],'Pending host projection cannot demote a compiled body parent');
+  ok(!index.isSemanticWriteReady('A.md','B.md'),'Presentation retention never renews source or relationship-write authority');
+  unblock();await settleDemand(index);
+  equal(index.getNeighborhood('A.md').parents.map(row=>row.page.path),${remove}?[]:['B.md'],'Real replacement publishes after parsing, including parent removal');
+  equal(index.onDemandIndexed.get('A.md').mtime,file.stat.mtime,'Newest source revision is indexed');
+  if(!${remove}){ok(commits.length>0,'The ordinary source patch still commits');ok(commits.every(changed=>!changed),'Prose-only source uses existing fingerprint no-op instead of forced compilation')}
+  equal(o.inventoryStarts,0,'No global inventory/rebuild workaround');return true;
+ }finally{unblock?.();release?.();o.close()}
+})()`));
+
 test('foreground navigation preempts and resumes an optional URL scan without acquiring unrelated ontology', async()=>scenario(`(async()=>{
   const o=await onDemandFixture('v2-demand-preemption',{urlIndexingMode:'background'});const{f,index}=o;let release,unblock;
   try{

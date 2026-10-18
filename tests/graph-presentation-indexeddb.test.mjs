@@ -222,6 +222,23 @@ test("paint between prepared return and final acceptance retains the latest colo
  }finally{o.close()}
 })()`));
 
+test("prepared view identity survives source notifications while geometry, consent and future keys remain live",async()=>scenario(`(async()=>{
+ const o=await presentationFixture('stable-prepared-view',{},[]);const{index,settings}=o;
+ try{
+  const first=index.withPreparedPresentationSettings(settings);
+  equal(index.withPreparedPresentationSettings(settings)===first,true,'Unchanged read reuses the settings facade');
+  settings.compactingFactor=3;const density=index.withPreparedPresentationSettings(settings);
+  ok(density!==first&&density.compactingFactor===3,'Real geometry change gets a current facade');
+  settings.allowRemoteNodeImages=true;const allowed=index.withPreparedPresentationSettings(settings);
+  ok(allowed!==density&&allowed.allowRemoteNodeImages,'Live image consent takes effect immediately');
+  settings.allowRemoteNodeImages=false;ok(!index.withPreparedPresentationSettings(settings).allowRemoteNodeImages,'Revocation never waits for prepared policy');
+  settings.futureWorkflow='preserved';const future=index.withPreparedPresentationSettings(settings);equal(future.futureWorkflow,'preserved','Unknown future values retained');
+  settings.futureWorkflow='updated';equal(index.withPreparedPresentationSettings(settings).futureWorkflow,'updated','Future scalar changes are not frozen');
+  const before=index.withPreparedPresentationSettings(settings);index.presentationSettings={...index.presentationSettings,baseNodeStyle:{maxLabelLength:44}};
+  const after=index.withPreparedPresentationSettings(settings);ok(after!==before,'New prepared generation invalidates facade');equal(after.baseNodeStyle.maxLabelLength,44,'New prepared fields apply');return true;
+ }finally{o.close()}
+})()`));
+
 test("mixed geometry and paint changes retain conservative presentation preparation retry",async()=>scenario(`(async()=>{
  const o=await presentationFixture('paint-held-mixed',{},[]);const{f,file,index,settings}=o;let release;
  const original=index.indexedDb.getBodies.bind(index.indexedDb);let batches=0,searches=0;const search=index.prepareSearchIndex.bind(index);
