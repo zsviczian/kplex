@@ -5150,3 +5150,18 @@ No CPU/memory improvement claim, indexing/scheduler/schema change or personal ac
 Keep182draft, CI not awaited; PAUSED per maintainer, no141/147, merge orrelease.
 Manual gaps real macOS-WindowsSync, minimum1.13/configoverride andphysicalmobile.
 C14 refactoring remains paused.
+
+
+### PR147 ontology input checkpoint - 2026-10-18
+
+182merged658793f;147branchintegrated183a948/pushed withoutrewrite. NativeSmall
+baseline14trustedinputscause12writes/semanticinvalidations/refreshes,35acquisitions,
+0parses; no Macfreeze orcomparative resourceclaim. Seven nativefields reusebounded
+750msidle/blur draftmodel and finite atomic field writer on182 settingsqueue.
+Persistbeforelivepolicy; actualsemanticrefresh outsidequeue, noindexschedulerchange.
+13focusedproduction-boundaryChromium cases pass; affected94beforefinal3edgecases,
+latestontology/localization36 pass. Realbuild/types/officiallint pass after sandbox
+retry and typedMap correction. Negativeidle/fieldguards controls failcorrectly and
+restoreexactsource. Reusablenative lane added, NOTyetexecuted; fullverify pending.
+Report docs/validation/ontology-input-147-2026-10-18.md; keepdraft/no merge/release.
+Manualgaps actualMaclarge-vault/contention,physicaltouch/IME/minimumhost. C14paused.

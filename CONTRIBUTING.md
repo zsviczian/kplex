@@ -1033,3 +1033,11 @@ physical touch or perceived paint.
 `tests/viewport-fit.test.mjs` compiles actual fit math, the native resize coordinator and graph
 camera/layout callbacks. `tests/embedded-markdown-default.test.mjs` checks native-controller wiring
 and cleanup with finite host doubles; native lanes remain authoritative for real geometry.
+
+After exact-build staging, `npm run verify:obsidian:ontology-input` uses the three explicit
+Small-vault variables and a fresh report directory. It observes trusted native Settings typing,
+idle/blur/close submission, stationary ontology semantics in main/sidebar/popout, explicit
+storage recovery, synthetic composition/paste and no-view saving. Counts separate drafts from
+committed policy work; no comparative resource claim is made. The lane restores three owned
+notes, configuration/workspace and native observers. Keep backups private and run serially.
+See the [PR147 record](docs/validation/ontology-input-147-2026-10-18.md) for current results/limits.

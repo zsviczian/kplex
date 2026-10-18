@@ -26,6 +26,8 @@
  * indexing; current host metadata drives subsequent graph reconciliation and editor completion.
  * Creation dialogs choose vault-relative destinations from folder metadata; explicit placeholder
  * relocation approves bounded native reference occurrences and retains partial-write recovery locally.
+ * Ontology text drafts persist one guarded field through the existing settings queue before live
+ * semantic publication; slow refresh remains outside the disk queue and cannot replay failed saves.
  */
 import { tagMembershipPair } from "./ui/structuralConnectionActions";
 import {SettingsReconciliation, type SettingsSnapshot, type SettingsWriteIntent} from "./adapters/obsidian/settingsReconciliation";
@@ -42,7 +44,7 @@ import { FileView, ItemView, MarkdownView, Menu, Notice, Platform, Plugin, TFile
 import { captureSettingsPolicy, classifySettingsChange, isStyleOnlySettingsChange, type SettingsPolicy } from "./core/graph/settingsPolicy";
 import { removeMarkdownZoomModes, renameMarkdownZoomModes } from "./core/plex/markdownZoomPreferences";
 import { GraphIndex } from "./index/GraphIndex";
-import { DEFAULT_SETTINGS, KplexSettingTab, migrateAndMergeSettings, importExcaliBrainGraphSettings, type DocumentSyncMode, type KplexSettings, type KplexLayoutProfile, type KplexViewSurface, type SidecarPosition, type StyleSettingsDraft, type StyleCommitResult } from "./settings";
+import { DEFAULT_SETTINGS, KplexSettingTab, migrateAndMergeSettings, importExcaliBrainGraphSettings, type DocumentSyncMode, type KplexSettings, type KplexLayoutProfile, type KplexViewSurface, type SidecarPosition, type StyleSettingsDraft, type StyleCommitResult, type EditableHierarchyKey } from "./settings";
 import { STYLE_SETTINGS_KEYS } from "./core/contracts/appearance";
 import { cyclicSemanticColorSlots, migrateColorPreferences } from "./core/plex/colorPreferences";
 import { KPLEX_VIEW_TYPE, KPLEX_SIDEPANEL_VIEW_TYPE, KplexView, KplexSidepanelView } from "./ui/KplexView";
@@ -583,6 +585,7 @@ export default class KplexPlugin extends Plugin {
   onunload(): void {
     this.unloading = true;
     this.settingsReconciliation?.dispose();
+    this.settingsTab?.disposeOntologySettings();
     this.externalSettingsRefresh++;
     for (const [timer, resolve] of this.externalSettingsRetryTimers) {window.clearTimeout(timer); resolve();}
     this.externalSettingsRetryTimers.clear();
@@ -1766,6 +1769,56 @@ export default class KplexPlugin extends Plugin {
     if (context && this.settingsReconciliation) await this.settingsReconciliation.commit(context.intent, context.before, snapshot,
       /** Plugin.saveData remains the sole actual file writer. */ next => this.saveData(next), startupMigration);
     else await this.saveData(snapshot);
+  }
+
+  /**
+   * Commit only the requested ontology field against its opening value and remote owner. No draft
+   * enters live settings or semantic invalidation before durable storage. Other local fields merge
+   * at the existing queue boundary; already accepted saves may finish after their native row closes.
+   */
+  async updateOntologyField(field: EditableHierarchyKey, value: readonly string[], expected: readonly string[], current: () => boolean): Promise<StyleCommitResult> {
+    const submitted = [...value], opening = [...expected];
+    let persisted = false, changed = false;
+    try {
+      await this.enqueueSettingsWrite(/** Prepare from the latest accepted snapshot, not a stale textarea's whole hierarchy. */ async () => {
+        const source = this.settingsForWrite();
+        // Own migration may sort/resolve ontology precedence in its effective view. A finite edit
+        // must compare and retain the actual accepted lists, not rewrite other roles as a side effect.
+        // This internal snapshot has already crossed own-settings validation/serialization.
+        const hierarchy = this.settingsWriteContext && this.settingsReconciliation
+          ? this.settingsReconciliation.view(this.settingsWriteContext.intent).hierarchy as KplexSettings["hierarchy"] : source.hierarchy;
+        if (this.unloading || !current() || !appearanceThemes.themeValuesEqual(hierarchy[field], opening)) {
+          const error = new Error(this.translator("settings.ontology.conflict")); error.name = "SettingsConflictError"; throw error;
+        }
+        if (appearanceThemes.themeValuesEqual(opening, submitted)) return;
+        const next = {...source, hierarchy: {...hierarchy, [field]: submitted}};
+        const policy = captureSettingsPolicy(next);
+        await this.writeSettingsSnapshot(this.settingsSnapshotForPersistence(source.actionPreferencesFuture ?? source.actionPreferences, next));
+        persisted = true;
+        if (this.unloading) return;
+        // A newer imperative caller may already hold a submitted edit to this same field. Preserve
+        // its live value; its captured queue intent still owns its subsequent persistence.
+        if (appearanceThemes.themeValuesEqual(this.settings.hierarchy[field], hierarchy[field]))
+          this.settings.hierarchy = {...this.settings.hierarchy, [field]: [...submitted]};
+        const key = `hierarchy.${field}` as const;
+        this.savedSettingsPolicy = {values: {...(this.savedSettingsPolicy ?? captureSettingsPolicy(this.settings)).values, [key]: policy.values[key]}};
+        this.index?.invalidateSemanticPolicy(); changed = true;
+      });
+    } catch (error) {
+      if (!persisted) {
+        // The shared preflight also refuses missing/torn data. An unchanged opening field/owner
+        // makes that a retryable storage refusal, not permission to discard a user's valid draft.
+        if (error instanceof Error && error.name === "SettingsConflictError" && current()
+          && appearanceThemes.themeValuesEqual(this.settings.hierarchy[field], opening)) {
+          const unavailable = new Error(error.message); unavailable.name = "SettingsStorageError"; throw unavailable;
+        }
+        throw error instanceof Error ? error : new Error(String(error));
+      }
+      console.error("K-Plex saved ontology publication failed", error); return {refreshPending: true};
+    }
+    if (this.unloading || !changed || !this.index) return {refreshPending: false};
+    try {await this.index.refreshPresentationSettings(); await this.index.refreshSemanticSettings(); return {refreshPending: false};}
+    catch (error) {console.error("K-Plex saved ontology refresh failed", error); return {refreshPending: true};}
   }
 
   /** Serialize valid workflow preferences including overlaps; failed storage never installs a draft or touches indexing. */

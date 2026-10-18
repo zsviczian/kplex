@@ -12,7 +12,7 @@ export function styleSettingsHostSource(root) {
   const source = ts.createSourceFile("main.ts", readFileSync(new URL("src/main.ts", root), "utf8"), ts.ScriptTarget.Latest, true);
   const names = new Set(["updateStyleSettings", "saveSettings", "enqueueSettingsWrite", "settingsSnapshotForPersistence", "persistSettingsSnapshot", "setGraphLenses",
     "captureAppearanceOwner", "isAppearanceOwnerCurrent", "subscribeAppearanceThemes", "bindAppearanceEditor", "appearanceThemeNames", "updateAppearanceThemes",
-    "createAppearanceTheme", "resetAppearanceThemeColors", "importLegacyAppearance", "settingsForWrite", "writeSettingsSnapshot",
+    "createAppearanceTheme", "resetAppearanceThemeColors", "importLegacyAppearance", "settingsForWrite", "writeSettingsSnapshot", "updateOntologyField",
     "initializeSettingsReconciliation", "onExternalSettingsChange", "queueExternalSettingsAdoption", "reportExternalSettingsFailure", "installExternalSettings", "updateActionPreferences", "receivedSettingsOwner", "receivedSettingsRevision"]);
   const methods = [];
   /** The owning class keeps one definition for every requested method; a missing seam is an explicit failure. */
@@ -21,7 +21,9 @@ export function styleSettingsHostSource(root) {
     ts.forEachChild(node, visit);
   };
   visit(source); assert.equal(methods.length, names.size);
-  return `import * as appearanceThemes from "./src/core/plex/appearanceThemes";
+  return `export {TextSettingDraft} from "./src/ui/components/textSettingDraft";
+    export {OntologyFieldControl} from "./src/ui/OntologyFieldControl";
+    import * as appearanceThemes from "./src/core/plex/appearanceThemes";
     import {DEFAULT_SETTINGS,importExcaliBrainGraphSettings,migrateAndMergeSettings} from "./src/settings";
     import {SettingsReconciliation} from "./src/adapters/obsidian/settingsReconciliation";
     import {assertExternalSettingsRecord} from "./src/adapters/obsidian/settingsInput";

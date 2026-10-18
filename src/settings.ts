@@ -23,6 +23,8 @@
  * absent or malformed values enable gating while explicit saved false values remain respected.
  * Device/main-tab/sidepanel layout profiles own physical lateral arrangement independently of
  * appearance themes and semantic indexing; omitted preferences preserve split placement.
+ * Ontology text uses bounded local drafts, native row cleanup and the existing atomic field writer;
+ * typing/composition never publishes transient hierarchy values or queues per-character graph work.
  */
 import { readObsidianPresentationEnvironment } from "./adapters/obsidian/presentationEnvironment";
 import { formatShortcut } from "./core/plex/shortcutPresentation";
@@ -34,6 +36,8 @@ import {colorValueCss} from "./adapters/obsidian/colorPresentation";
 import { subscribeAppearanceSources } from "./adapters/obsidian/colorChanges";
 
 import { StyleEditorModal, appendIcon, type StyleCommitResult } from "./ui/StyleEditorModal";
+import {OntologyFieldControl} from "./ui/OntologyFieldControl";
+import {TextSettingDraft} from "./ui/components/textSettingDraft";
 import { NATIVE_NODE_PAINT, NATIVE_LINK_STROKE, NATIVE_LINK_TEXT, NATIVE_CANVAS_FILL, nodeColorFallback, nodePaintFallbacks } from "./index/style";
 import { ColorAdoptionModal } from "./ui/ColorAdoptionModal";
 import { StyleColorControls, compassSwatchItem, type StyleColorContext } from "./ui/StyleColorControls";
@@ -775,8 +779,10 @@ export function migrateAndMergeSettings(raw: unknown): KplexSettings {
   return settings;
 }
 
+/** Present the existing ordered ontology/path list without changing repeated entries. */
 const csv = (value: string[]) => value.join(", ");
-const fromCsv = (value: string) => value.split(",").map((x) => x.trim()).filter(Boolean);
+/** Preserve the established comma-separated grammar for saved fields and local draft comparisons. */
+const fromCsv = (value: string) => value.split(",").map((/** Trim only each list item's surrounding whitespace. */ x) => x.trim()).filter(Boolean);
 const normalizeOntologyStyleKey = (value: string) => value.toLowerCase().replace(/\s+/g, "-").trim();
 /** Retain existing property-value normalization; a tag hint is also a valid property value. */
 const normalizeNodeStyleValue = (value: string) => value.trim().replace(/^#/, "");
@@ -1677,7 +1683,7 @@ type DeclarativeSettingKey =
   | "baseNodeStyle.maxWidth"
   | "centralNodeStyle.maxWidth";
 
-type EditableHierarchyKey = Exclude<keyof Hierarchy, "friends" | "exclusions">;
+export type EditableHierarchyKey = Exclude<keyof Hierarchy, "friends" | "exclusions">;
 
 const HIERARCHY_KEY_MAP: Record<string, EditableHierarchyKey> = {
   "hierarchy.parents": "parents",
@@ -1704,6 +1710,7 @@ export class KplexSettingTab extends PluginSettingTab {
   private colorDialogGeneration = 0;
   private readonly colorSwatchPages = new WeakMap<HTMLElement, ColorSwatchList>();
   private readonly colorSwatchOwners = new Set<ColorSwatchList>();
+  private ontologyFields?: Map<EditableHierarchyKey, OntologyFieldControl>;
 
   /** Keep shortcut editing in the native settings hierarchy with lazy rendered resource ownership. */
   constructor(app: App, private kplexPlugin: KplexPlugin) {
@@ -1728,8 +1735,37 @@ export class KplexSettingTab extends PluginSettingTab {
 
   /** Native tab switches must not retain an editor or capture handler from the previous page. */
   override hide(): void {
+    for (const field of this.ontologyFields?.values() ?? []) field.flush();
     this.disposeActionSettings();
     super.hide();
+  }
+
+  /** Plugin unload discards only unsubmitted drafts; native page cleanup must not start new saves. */
+  disposeOntologySettings(): void {
+    for (const field of this.ontologyFields?.values() ?? []) field.dispose();
+    this.ontologyFields?.clear();
+  }
+
+  /** Reuse one field model across native page/search rows, retaining failed drafts until recovery. */
+  private ontologyField(field: EditableHierarchyKey): OntologyFieldControl {
+    const fields = this.ontologyFields ??= new Map<EditableHierarchyKey, OntologyFieldControl>(), existing = fields.get(field);
+    if (existing) return existing;
+    const plugin = this.kplexPlugin;
+    /** A model belongs to this plugin's settings lifetime, not a replaceable Settings document. */
+    const captureOwner = (): (() => boolean) => plugin.receivedSettingsOwner("hierarchy");
+    const draft = new TextSettingDraft({
+      read: /** Reopen/discard reads the current saved projection, never another row's transient input. */ () => csv(plugin.settings.hierarchy[field]),
+      normalize: /** Semantic whitespace-only edits make no write while preserving native typed text. */ value => csv(fromCsv(value)),
+      captureOwner,
+      commit: /** Only this field enters the established queue and its comparison/currentness checks. */ (value, expected, current) => plugin.updateOntologyField(field, fromCsv(value), fromCsv(expected), current),
+      idle: /** The plugin's main-window clock survives native page/popout replacement; unload cancels it. */ run => {
+        const timer = window.setTimeout(run, 750); return /** Cancel the exact model-owned idle task. */ () => window.clearTimeout(timer);
+      },
+      failed: /** Feedback contains no private values and never schedules a retry. */ kind => {
+        new Notice(plugin.translator(kind === "conflict" ? "settings.ontology.conflict" : kind === "refresh" ? "settingsSync.refreshPending" : "settings.ontology.saveFailed"));
+      },
+    });
+    const control = new OntologyFieldControl(draft, plugin.translator, captureOwner); fields.set(field, control); return control;
   }
 
   /** Activate the visible native page entry inside this tab after the host opens its root. */
@@ -2750,6 +2786,12 @@ export class KplexSettingTab extends PluginSettingTab {
   private bindThemeScalar(item: SettingDefinition<DeclarativeSettingKey>): SettingDefinition<DeclarativeSettingKey> {
       if (!("control" in item) || !item.control) return item;
       const control = item.control;
+      const hierarchyField = HIERARCHY_KEY_MAP[control.key];
+      if (hierarchyField && control.type === "textarea") return {
+        name: item.name, desc: item.desc ?? (hierarchyField === "parents" ? this.kplexPlugin.translator("settings.ontology.draftHelp") : undefined),
+        searchable: item.searchable, visible: item.visible,
+        render: /** Native controls preserve search/navigation styling while the shared draft owns submission. */ setting => this.ontologyField(hierarchyField).mount(setting, control.rows ?? 3),
+      };
       if (!/^(baseNodeStyle\.|centralNodeStyle\.|baseLinkStyle\.|backgroundColorHex$)/.test(control.key)
         || (control.type !== "slider" && control.type !== "toggle" && control.type !== "dropdown"))
         return {...item, control: {...control, key: this.receivedControlKey(control.key) as DeclarativeSettingKey}};
@@ -2980,8 +3022,9 @@ export class KplexSettingTab extends PluginSettingTab {
     }
     const hierarchyKey = HIERARCHY_KEY_MAP[key];
     if (hierarchyKey) {
-      this.kplexPlugin.settings.hierarchy[hierarchyKey] = fromCsv(String(value));
-      await this.kplexPlugin.saveSettings(true);
+      // Programmatic explicit commits share the same atomic writer; only actual text controls
+      // use the idle draft boundary. No caller mutates hierarchy before persistence anymore.
+      await this.kplexPlugin.updateOntologyField(hierarchyKey, fromCsv(String(value)), [...this.kplexPlugin.settings.hierarchy[hierarchyKey]], this.kplexPlugin.receivedSettingsOwner("hierarchy"));
       return;
     }
 
