@@ -373,7 +373,7 @@ Image attachments such as JPG, PNG, GIF, WebP and SVG files can also be shown di
 
 One Markdown property selects a note's persistent visual style. By default that **Node style property** is **Note type**, but you can point it at another YAML or Dataview-style inline property in **Settings → K-Plex → Visual styling → Node styling**.
 
-Use **Node styles** to assign icon, background, text, border and font size to individual values of that property. The editor suggests values already found in the index as well as vault tags, and its Lucide icon field searches Obsidian's live icon registry. A leading `#` in a style value is normalized away, so `#project` and `project` address the same logical style.
+Use **Node styles** to assign icon, background, text, border, border width, gate radius and font size to individual values of that property. Leave border width or gate radius empty to inherit the base style. The editor suggests values already found in the index as well as vault tags, and its Lucide icon field searches Obsidian's live icon registry. A leading `#` in a style value is normalized away, so `#project` and `project` address the same logical style.
 
 Imported ExcaliBrain `primaryTagField` data is retained for compatibility, but it is not exposed as a second K-Plex style selector. Explicit property-value styles take precedence over the generic central/sibling appearance, so a styled note keeps its custom colors when it becomes the center of the Plex.
 

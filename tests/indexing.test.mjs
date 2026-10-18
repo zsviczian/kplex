@@ -462,6 +462,7 @@ for (const file of [
   "src/adapters/obsidian/hiddenPropertyName.ts",
   "src/ui/StyleEditorModal.ts",
   "src/ui/ColorSourceModal.ts",
+  "src/ui/ColorSourceSuggest.ts",
   "src/ui/CompassSettingsModal.tsx",
   "src/ui/ColorPaletteModal.ts",
   "src/ui/ColorPairModal.ts",

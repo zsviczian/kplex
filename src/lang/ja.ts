@@ -291,6 +291,7 @@ const japaneseTranslations = {
   "styles.backgroundHelp": "一致するノードの塗りつぶし色。",
   "styles.textHelp": "ノードタイトルの色。",
   "styles.borderHelp": "一致するノードの枠線の色。",
+  "styles.sizeInheritance": "空欄にすると基本スタイルを継承します。単位はピクセルです。",
   "styles.fontSizeHelp": "ノードの相対倍率を適用する前のラベルサイズ（ピクセル）。",
   "styles.type": "スタイルの種類",
   "styles.tagPrefixPlaceholder": "#project",

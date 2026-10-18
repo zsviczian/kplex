@@ -52,7 +52,11 @@ Canvas, standard styles, custom node/link styles, style lenses, semantic colors 
 
 Zero opacity is transparent. It is different from **Default**. Changing RGB preserves the current alpha; opening an editor does not convert a reference to a fixed color. Unsupported old literals remain intact until you deliberately replace them.
 
+Theme and named-color choices open a searchable list with small Light/Dark swatches. Search for a variable name, or choose **Custom variable** to enter another CSS color variable. Your current custom variable also appears in the list with its preview. A question mark means that color could not be resolved in the preview. Choosing a swatch keeps the variable or named-color reference.
+
 In a style, lens or tint editor, **Use color** updates its local draft. Select **Save** in the containing editor to keep the change. **Cancel** discards that draft. Opening, cancelling and saving an unchanged color make no settings write.
+
+Custom node styles also support **Border width** and **Gate radius**, in pixels. Leave either field empty to inherit the base style. Zero border width hides the border. These fields are saved with the selected theme alongside the style’s colors, icon and font size.
 
 ## Manage named colors
 

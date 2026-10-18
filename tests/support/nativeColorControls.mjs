@@ -13,7 +13,7 @@ export class Modal {
  open(){document.body.append(this.modalEl);this.onOpen?.();}
  close(){this.onClose?.();this.modalEl.remove();}
 }
-export class SuggestModal extends Modal {setPlaceholder(value){this.placeholder=value;return this}}
+export class SuggestModal extends Modal {setPlaceholder(value){this.placeholder=value;return this} selectSuggestion(item,event){this.close();this.onChooseSuggestion(item,event)}}
 export class ColorComponent {
  constructor(container){this.input=container.createEl("input",{attr:{type:"color"}});this.input.addEventListener("input",()=>this.changed?.(this.input.value));}
  setValue(value){this.input.value=value;return this} onChange(changed){this.changed=changed;return this}
@@ -50,6 +50,7 @@ export const initializeColorDom = `(()=>{
  HTMLElement.prototype.onWindowMigrated=function(callback){let set=migrations.get(this);if(!set){set=new Set();migrations.set(this,set)}set.add(callback);window.migrationListeners++;let live=true;return()=>{if(live){live=false;set.delete(callback);window.migrationListeners--}}};
  window.emitMigration=element=>{for(const callback of [...(migrations.get(element)||[])])callback(element.ownerDocument.defaultView)};
  window.notices=[];window.input=(element,value,type='input')=>{element.value=value;element.dispatchEvent(new Event(type,{bubbles:true}))};
+ window.chooseThemeColor=(modal,value)=>{modal.contentEl.querySelector('.kplex-theme-color-choice').click();const chooser=sourceModules.TestModal.instances.at(-1);const choice=chooser.getSuggestions(value??'').find(item=>item.value===value);if(!choice)throw Error('Missing native color choice '+value);chooser.selectSuggestion(choice,new MouseEvent('click'));return chooser};
  window.waitFor=async check=>{for(let i=0;i<200;i++){if(check())return;await new Promise(r=>setTimeout(r,10))}throw Error('Timed out waiting for editor');};
  document.body.className='theme-dark';
  const sheet=new CSSStyleSheet();sheet.replaceSync('body{--text-normal:#eeeeee;--text-muted:#999999;--background-primary:#181818;--background-secondary:#282828;--background-modifier-border:#666666;--color-purple:#aa55ee;--color-green:#33aa66;--color-cyan:#22bbcc;--color-orange:#dd8833;--graph-line:#777777;--interactive-accent:#8888ff}body.theme-light{--background-primary:#ffffff;--background-secondary:#eeeeee;--text-normal:#222222;--text-muted:#555555}');document.adoptedStyleSheets=[sheet];

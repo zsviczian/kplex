@@ -3722,6 +3722,11 @@ button.kplex-sidecar-unfold-plex:focus-visible,
 .kplex-color-strip-cells .kplex-color-swatch { display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 16px; border-radius: 0; flex-shrink: 1; }
 .setting-item-control > .kplex-color-strips { margin-inline-end: var(--size-4-2); }
 .kplex-style-row > .kplex-color-strips { margin-inline-start: auto; }
+.kplex-color-suggestion { display: flex; align-items: center; gap: var(--size-4-3); }
+.kplex-color-suggestion > .suggestion-content { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.kplex-color-suggestion > .kplex-color-strips { flex-shrink: 0; }
+.kplex-color-suggestion .kplex-color-strip-label { min-width: 0; }
+.kplex-color-suggestion .kplex-color-strip-cells .kplex-color-swatch { width: 18px; height: 12px; }
 
 /* Explicit appearance drafts share one scrolling body; native Save/Cancel stay visible. */
 .modal.kplex-scroll-editor-modal { display: flex; flex-direction: column; max-height: 90vh; }

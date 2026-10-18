@@ -291,6 +291,7 @@ const germanTranslations = {
   "styles.backgroundHelp": "Füllfarbe passender Knoten.",
   "styles.textHelp": "Farbe des Knotentitels.",
   "styles.borderHelp": "Umrissfarbe passender Knoten.",
+  "styles.sizeInheritance": "Leer lassen, um den Basisstil zu übernehmen. Werte in Pixeln.",
   "styles.fontSizeHelp": "Beschriftungsgröße in Pixeln vor der relativen Knotenskalierung.",
   "styles.type": "Stiltyp",
   "styles.tagPrefixPlaceholder": "#project",

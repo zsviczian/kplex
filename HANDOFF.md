@@ -19,56 +19,57 @@ Obsidian is the production host; preserve the established portable semantic, ide
 
 ---
 
-# PR #177 saved-target and structural-drop checkpoint
+# PR #177 appearance checkpoint and stationary-startup follow-up
 
-Continue on `2026-10-17-navigation-and-native-drag`, base
-`577b73c2ed6a79add9d3899362575cfbc583d4fb`. Keep PR177 draft; Closes157/Refs175.
-Regular validated commits/pushes are authorized. No merge/release/personal vault.
-No comparative performance tests while Windows HandBrake encodes videos.
-Foreground native testing is authorized in kplex-test-small only for this work.
+Branch2026-10-17-navigation-and-native-drag; parent a9e5a8620afdd2ba772b6483d1f1c3a2afaa21cc.
+Regular validated commits/pushes authorized; PR177 remains draft, Closes157/Refs175.
+No merge/release/personal vault. No comparative performance tests (HandBrake).
+Native/browser drivers serial, prepared kplex-test-small only; foreground permitted.
 
-Delivered: shared saved-node type icons/full tag labels; explicit history/pin tag
-assignment and exact YAML Unlink with retained inline evidence; shared structural
-edge capability policy; confirmed FileManager note/attachment/folder moves; default
-Alt/Option gate hints in the existing document tooltip owner. All eight locales.
-No parser/compiler/schema/scheduler change. See the feature report and ledger.
+Appearance checkpoint is validated: shared native searchable color-source chooser
+with existing Light/Dark swatches for theme/current custom variables and named
+pairs; existing node-style border-width/gate-radius controls, all eight locales,
+exact/inherited source/legacy records and field-level merge. No production indexing
+change in this checkpoint. Full verify1792321482318 PASS Node22.22.2: architecture7/
+core130/lint/Node1048/UI135/source334/browser602, actual build/native smoke.
+Native color28 (1792322740105), style15 (1792322777292) and focused single-Plex
+Properties-closed/open Save+restart2each (1792322856204/1792322867808) PASS.
+Sanity1792322883091 restores107 files/88Markdown, exact config, no controllers/
+modals, desktop, opening CLI capture false. No driver currently running.
+Artifacts: main32704b03fb222562073caccf1722c713dbc266403ad5d3cd694e586426619d7a,
+CSS9664241e9e87f357ebfa57fcfe5477a5b8f592db4e4bbbb53f65db680dd6a7c0,
+manifest19d9ecce5557733e0ff0f2e27155e635c30158c3cfa6fbca0f11c16e4dedfd2c.
+Build carries a9e5a86.dirty; runtime source unchanged after full validation.
 
-Full verify PASS on Node22.22.2: architecture7/core130, lint, Node1048/UI132/
-source334/browser598, actual production build and native smoke. Source/build
-unchanged during native follow-up. Structural6 and affected-tooltip8 main/popout/
-return pass with exact configuration/inventory restoration (107 files/88 Markdown).
-Cancel records zero host/index work. Final broad native tooltip24 PASS, including shared background editor and
-window migration. The prior stale-selector failure is retained. The reusable
-driver now targets the existing shared color editor.
+Commit/push this validated checkpoint, preserve verified private evidence/source
+backup outside Temp without publishing/deleting originals, update PR description.
+Existing prior backup1792320576325 remains; HANDOFF must never be archived.
 
-Private evidence prefix `%TEMP%/kplex-structural-drops-`: verify1792319239307,
-structural1792318577497, tooltips-nodes1792318758983, tooltips1792320464560; all failed controls retained.
-Functional main SHA a2a4fdbba4fa86357e625a80db071ce48fd19fbdd045505199aec35eee7ffc94.
-Do not publish/delete raw receipts or archive HANDOFF. Preserve a verified private
-backup and report the checkpoint's final commit/CI through the PR.
+LATEST USER: current build still starts with few central children and remains
+stationary/incomplete until away/back. They explicitly authorize a pragmatic
+watchdog that rechecks the visible center after a few seconds, repairs incomplete
+coverage and records diagnostics in the existing index diagnostics report.
+Root has acknowledged: bounded, current-center-scoped, lifecycle-owned; record
+before/after proof/outcome, cancel on navigation/close, no full-vault rebuild or
+polling loop. Preserve appearance as a separate commit. Continue causal investigation
+of restore-to-visible-demand/publication race in disposable fixtures only.
 
-Next independent checkpoint, explicitly requested by maintainer:
-- Reproduce parent Node style Save freeze after Border -> --h1-color through actual
-  Settings subpages. User confirms only one Plex; File properties may have been open.
-  Test single Plex with Properties closed/open. No cause is established yet.
-- Add per-style border width and gate size using existing supported NodeStyle fields
-  and current editor/queue/theme ownership. Preserve inherited/unchanged fields,
-  field-level merge, full record and all locales. Update APPEARANCE docs.
-- Investigate restart showing center without relations until away/back. Supplied
-  aggregate report: Eager saved-preview/source-authority; ontology.rightFriends
-  change recorded; demanded center1, no active local task. Do not infer color-induced
-  semantic invalidation. No personal vault access is authorized by the attachment.
+Existing positive cases do NOT fix/reproduce either startup symptom or style Save
+freeze. Four held-source-authority/demand-before-after/offline-Parent/policy cases
+now pass in foreground-startup-indexeddb. Native source trace in styleOperations
+reference-only mode is test-only and records function names, no note payload.
+The failed first source-count guard crossed fixture startup; waiting local drain
+passes0 acquisitions during Save. Supplied diagnostic attachment reports Eager,
+non-authoritative saved-preview/source-authority, demanded center1 and no active
+local scope task; no color-induced semantic cause is established. Its device field
+says macos; current native validation is Windows. User confirms only one Plex,
+Properties perhaps open. Do not infer a new source format/reader-sharing design.
 
-Private prepared reproductions (not run, not committed):
-`%TEMP%/kplex-style-reference-reproduction.mjs` reuses styleOperations helpers,
-actual Settings pages and optional KPLEX_STYLE_REFERENCE_PROPERTIES=true;
-`%TEMP%/kplex-stationary-startup-reproduction.test.mjs` uses actual GraphIndex/IDB
-with held source authority and offline changed relations, before/after demand plus
-policy variant. Run only after existing native/browser lanes finish. They are
-working probes, not established regression results; promote only useful verified
-cases into existing owners. Do not add speculative observer/scheduler fixes.
+Relevant owners: GraphIndex.acquireSemanticDemand/ensureOnDemandCenter/
+ensureSemanticScope/publishHostMetadataPreview/retryDemandedSemanticScopes;
+PlexGraph's demand effect and memoized neighborhood; App's index/presentation
+subscriptions and pending-document handover; existing index diagnostic decision
+contracts/sanitization/export. Inspect completion proofs before choosing a bounded
+retry. Keep source authority/epoch/identity and no-write safeguards.
 
-MacOS, physical mobile, minimum-host and OS drag remain separate acceptance.
-Native Small cannot establish the cause of the maintainer's application freeze or
-large-vault resource gains. Preserve prior known gate/filter and double-click
-limitations in the report. C14 remains accepted/paused.
+Remaining platform/workflow gaps stay in feature report. C14 accepted/paused.

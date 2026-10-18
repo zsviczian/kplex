@@ -4802,3 +4802,31 @@ freeze, expose existing per-style border-width/gate-radius fields, and reproduce
 the saved-preview stationary-center restart symptom. The supplied aggregate
 diagnostics authorize no personal-vault access and do not prove a color-induced
 semantic invalidation. Preserve these separate checkpoints and original receipts.
+
+
+### 2026-10-18 ? Color-source chooser previews and node-style dimensions
+
+Completed the scoped appearance checkpoint on PR177. Theme/current custom CSS
+variables and named pairs share one native SuggestModal and the existing paired
+ColorSwatchList;40 mounted rows/registrations, text-safe labels, exact identities,
+alpha and source-document ownership, close/discard and A-to-B-to-A fences. Node
+styles expose existing strokeWidth/gateRadius fields with inheritance, explicit
+zero border, exact unchanged legacy values and queued field-level merging.
+Non-color edits keep the established layout policy. No production index, source,
+compiler, scheduler or schema change; C14 remains paused. Eight locales/docs updated.
+
+Full verify:obsidian passes architecture7/core130/lint/Node1048/UI135/source334/
+browser602, actual build and native smoke. Native color/theme28 and style15 cases
+pass; two focused single-Plex Properties-closed/open Save/restart variants pass,
+including actual Settings, persisted/rendered dimensions and stationary Parent.
+Detailed artifacts, failed controls and private receipt references are in the
+feature report. No comparative performance tests; exact107/88 inventory restored.
+
+The maintainer has reproduced the startup partial-children symptom again on this
+build. Neither that issue nor the intermittent style Save freeze is declared
+fixed by Small positive cases. The next separately authorized checkpoint is a
+bounded visible-center watchdog/recheck with existing diagnostic receipts, plus
+causal startup handoff investigation. No personal-vault access; no broad indexing
+or receipt experiment. Risk-based remaining acceptance: actual intermittent
+restart/freeze workflow, macOS, minimum host, physical phone/tablet, OS drag and
+prior separately documented gate/filter and moving-placeholder limitations.

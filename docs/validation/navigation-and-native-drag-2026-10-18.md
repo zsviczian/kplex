@@ -474,3 +474,71 @@ preview during source validation and an ontology change; they do not establish a
 color-induced semantic invalidation. No personal-vault access or comparative
 performance run is authorized by that attachment. Per-style border width/gate
 size and confirmed fixes belong to the next independent checkpoint.
+
+## Color chooser previews and node-style dimensions
+
+The shared source editor now uses one native searchable chooser for theme variables
+and named colors, with the existing Light/Dark swatches. It retains the curated
+Obsidian choices and the current custom variable; **Custom variable** still permits
+explicit entry. It does not discover every CSS property or scan vault data. Native
+rows and sampler registrations are capped at 40 per query and retired on close;
+source references and exact saved alpha are preserved. Unavailable previews show
+the existing question mark. No RGB preview becomes a saved fallback.
+
+The existing node-style editor exposes border width and gate radius using the
+supported style records and renderer. Blank restores inheritance, zero border
+width remains explicit, unchanged imported values stay exact, and concurrent
+unrelated fields survive the queued save. These non-color style changes retain
+the existing layout policy; they are not classified as paint-only. No production
+index, source-validation, storage-schema or scheduling code changes in this
+checkpoint. All eight locales and the appearance guide are maintained.
+
+Focused regressions cover custom-scope preview alpha, duplicate named identities,
+bounded repeated queries, native close-before-choice ordering, cancelled callbacks,
+theme A → B → A fencing, dimension inheritance, legacy values, concurrency, restart
+and rejected storage. Four additional real-IndexedDB startup cases retain the same
+center demand across preview restore, with/without an ontology change and demand
+registered before/after restore. A current changed Parent appears before held
+global source authority, without granting write authority or requiring navigation.
+
+The supplied restart report shows a non-authoritative saved preview while source
+inventory is active and records a semantic policy change. It does not prove that
+the border-color save caused semantic work or identify the intermittent freeze.
+Earlier one-Plex native Save probes passed with File properties closed and open;
+the first negative control had no usable `--h1-color` in Small’s installed theme.
+Positive controls supply a temporary test-owned heading token when missing.
+These results do not establish a fix for either reported symptom. The reusable
+native style lane now includes the same actual Settings route and a stationary
+Parent check after plugin reload. The maintainer subsequently reproduced the
+stationary-startup symptom again on the current build; it remains open. A bounded
+center recheck with diagnostic receipts is the next separately authorized checkpoint.
+
+Final validation on Node22.22.2: full `verify:obsidian` PASS, architecture7/core130,
+Obsidian lint, Node1048/UI135/source334/browser602, actual build and native smoke.
+The native color/theme lifecycle lane passes28 cases, including actual custom
+variable entry and both swatches, reference preservation, Cancel, inheritance,
+palette replacement, Compass and durable theme operations. The native style
+fault/concurrency/popout/reload matrix passes15 cases. Two additional single-Plex
+variants pass with Properties closed/open: actual `--h1-color` selection, rendered
+3px border and8.4px gate, persisted width3/radius8, and a stationary Parent after
+plugin reload. Each Save records1 write/1 presentation/0 semantic refreshes/0
+source acquisitions after fixture startup drains. These are positive functional
+controls, not proof that the intermittent freeze/startup defect is fixed.
+
+Private receipts retain full verify1792321482318; colors1792322740105;
+styles1792322777292; focused Save/restart1792322856204 and1792322867808; and sanity
+1792322883091 under `%TEMP%/kplex-structural-drops-`. Failed controls are retained:
+the missing harness-module inventory, the color driver's fixed-source assumption
+(colors1792322708939), and fixture acquisition crossing the first Save measurement
+(styles1792322791645). The corrected fixture guard waits for genuine local drain;
+no runtime workaround was made for those driver failures. Original107 files/88
+Markdown, exact configuration bytes, controller/modal cleanup and opening disabled
+CLI capture are restored. No comparative performance tests or personal-vault access.
+
+Exact tested artifacts: main SHA-256
+`32704b03fb222562073caccf1722c713dbc266403ad5d3cd694e586426619d7a`;
+CSS `9664241e9e87f357ebfa57fcfe5477a5b8f592db4e4bbbb53f65db680dd6a7c0`;
+manifest `19d9ecce5557733e0ff0f2e27155e635c30158c3cfa6fbca0f11c16e4dedfd2c`.
+Build provenance is parent `a9e5a86.dirty`; runtime source is unchanged after full
+verification. The verified private backup/source manifest is recorded in PR177;
+originals and prior backups are retained, and no raw archive is published.

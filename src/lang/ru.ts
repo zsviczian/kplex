@@ -291,6 +291,7 @@ const russianTranslations = {
   "styles.backgroundHelp": "Цвет заливки подходящих узлов.",
   "styles.textHelp": "Цвет заголовка узла.",
   "styles.borderHelp": "Цвет контура подходящих узлов.",
+  "styles.sizeInheritance": "Оставьте пустым для наследования базового стиля. Значения в пикселях.",
   "styles.fontSizeHelp": "Размер подписи в пикселях до относительного масштабирования узла.",
   "styles.type": "Тип стиля",
   "styles.tagPrefixPlaceholder": "#project",

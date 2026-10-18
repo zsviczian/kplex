@@ -3,6 +3,35 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {colorEditorScenario as scenario} from "./support/colorEditorBrowser.mjs";
 
+test("node-style dimensions inherit, clear, merge concurrently, preserve legacy values and survive failed storage",async()=>{
+ assert.equal(await scenario(`(async()=>{
+  const p=await createAppearanceHost({baseNodeStyle:{strokeWidth:2,gateRadius:6},noteTypeStyles:{Project:{borderColor:{kind:'theme',variable:'--text-normal'},icon:'star',strokeWidth:1.25,gateRadius:12}}}),t=p.translator;
+  const tab=new sourceModules.KplexSettingTab({workspace:{on:()=>({}),offref:()=>{}}},p);
+  const open=()=>{tab.openNodeStyleEditor('property','Project');return sourceModules.TestModal.instances.at(-1)};
+  const save=modal=>[...modal.contentEl.querySelectorAll('button')].find(el=>el.textContent===t('common.save')).click();
+  const field=(modal,key)=>modal.contentEl.querySelector('input[aria-label="'+t(key)+'"]');
+  let modal=open(),before=p.writes.length;save(modal);await waitFor(()=>!modal.modalEl.isConnected);if(p.writes.length!==before||p.settings.noteTypeStyles.Project.strokeWidth!==1.25||p.settings.noteTypeStyles.Project.gateRadius!==12)throw Error('Unchanged legacy dimensions normalized');
+  modal=open();if(field(modal,'filter.borderWidth').placeholder!=='2'||field(modal,'settings.ui.gate.radius').placeholder!=='6')throw Error('Inheritance placeholder wrong');
+  input(field(modal,'filter.borderWidth'),'0');input(field(modal,'settings.ui.gate.radius'),'8');await p.updateStyleSettings(d=>{d.noteTypeStyles.Project.fontSize=29});save(modal);await waitFor(()=>!modal.modalEl.isConnected);
+  const style=p.settings.noteTypeStyles.Project;if(style.strokeWidth!==0||style.gateRadius!==8||style.fontSize!==29||style.icon!=='star'||style.borderColor.variable!=='--text-normal')throw Error('Dimension save lost zero or concurrent fields');
+  const restarted=sourceModules.migrateAndMergeSettings(p.writes.at(-1));if(restarted.noteTypeStyles.Project.strokeWidth!==0||restarted.noteTypeStyles.Project.gateRadius!==8)throw Error('Dimensions lost on restart');
+  modal=open();input(field(modal,'filter.borderWidth'),'');input(field(modal,'settings.ui.gate.radius'),'');const store=p.saveData;p.saveData=async()=>{throw Error('Expected dimension disk failure')};save(modal);await waitFor(()=>modal.modalEl.getAttribute('aria-busy')==='false');if(!modal.modalEl.isConnected||p.settings.noteTypeStyles.Project.gateRadius!==8||field(modal,'filter.borderWidth').value!=='')throw Error('Failed write lost durable state/draft');p.saveData=store;save(modal);await waitFor(()=>!modal.modalEl.isConnected);
+  if('strokeWidth' in p.settings.noteTypeStyles.Project||'gateRadius' in p.settings.noteTypeStyles.Project)throw Error('Empty dimensions did not restore inheritance');
+  modal=open();before=p.writes.length;input(field(modal,'filter.borderWidth'),'9');save(modal);await new Promise(r=>setTimeout(r,20));if(p.writes.length!==before||!modal.modalEl.isConnected)throw Error('Invalid changed dimension admitted');modal.retire();tab.disposeActionSettings();return true;
+ })()`),true);
+});
+
+test("an open native color chooser cannot complete into a theme draft after A to B to A",async()=>{
+ assert.equal(await scenario(`(async()=>{
+  const p=await createAppearanceHost({baseNodeStyle:{textColor:{kind:'theme',variable:'--text-normal'}}}),t=p.translator;
+  const tab=new sourceModules.KplexSettingTab({workspace:{on:()=>({}),offref:()=>{}}},p);tab.openStandardColor('baseNodeStyle','textColor');const modal=sourceModules.TestModal.instances.at(-1);
+  modal.contentEl.querySelector('.kplex-theme-color-choice').click();const chooser=sourceModules.TestModal.instances.at(-1),choice=chooser.getSuggestions('--color-green').find(item=>item.value==='--color-green');
+  await p.updateAppearanceThemes({kind:'select',id:'default'});await p.updateAppearanceThemes({kind:'select',id:'user'});await new Promise(r=>setTimeout(r,0));const before=p.writes.length;
+  chooser.selectSuggestion(choice,new MouseEvent('click'));if(modal.editor.getValue().variable!=='--text-normal'||modal.canEdit()||p.writes.length!==before)throw Error('Stale chooser changed the frozen draft or settings');
+  modal.retire();tab.disposeActionSettings();if(window.migrationListeners)throw Error('Stale chooser leaked');return true;
+ })()`),true);
+});
+
 test("unsupported future theme libraries expose existing appearance editors read-only and survive unrelated persistence", async () => {
  assert.equal(await scenario(`(async()=>{
   const future={version:999,themes:[{opaque:{keep:['future',42]}}]},p=await createAppearanceHost({appearanceThemes:future,noteTypeStyles:{Project:{fontSize:25,textColor:'#12345680'}}}),t=p.translator;
@@ -140,7 +169,7 @@ test("named-color deletion remaps only the active theme across base, semantic, C
    colorPreferences:{version:1,palette:[{id:'shared',name:'Shared',light:'#11223380',dark:'#aabbcc40'},{id:'replacement',name:'Replacement',light:'#ff000080',dark:'#00ff0080'}],semantic:{origin:ref},compass:{enabled:true,fills:{north:ref}}},graphLenses:[{id:'lens',name:'Global',enabled:false,scope:'node',mode:'style',expression:'node.kind == "note"',style:{node:{textColor:ref,strokeWidth:3}}}]};
   const p=await createAppearanceHost(raw),t=p.translator,tab=new sourceModules.KplexSettingTab({workspace:{on:()=>({}),offref:()=>{}}},p);await p.createAppearanceTheme('Independent',false);const inactive=structuredClone(p.settings.appearanceThemes.themes.find(x=>x.id==='user'));
   tab.openColorPalette();const palette=sourceModules.TestModal.instances.at(-1);palette.deletePair(p.settings.colorPreferences.palette[0]);const modal=sourceModules.TestModal.instances.at(-1);
-  const select=modal.contentEl.querySelector('select');input(select,'named','change');modal.contentEl.querySelector('.kplex-color-source-editor button').click();const chooser=sourceModules.TestModal.instances.at(-1);chooser.onChooseSuggestion(p.settings.colorPreferences.palette[1]);chooser.close();
+  const select=modal.contentEl.querySelector('select');input(select,'named','change');modal.contentEl.querySelector('.kplex-color-source-editor button').click();const chooser=sourceModules.TestModal.instances.at(-1);chooser.selectSuggestion(chooser.getSuggestions('').find(item=>item.value.id===p.settings.colorPreferences.palette[1].id),new MouseEvent('click'));
   [...modal.contentEl.querySelectorAll('button')].find(x=>x.textContent===t('common.delete')).click();await waitFor(()=>!modal.modalEl.isConnected);
   if(p.settings.backgroundColor.id!=='replacement'||p.settings.baseNodeStyle.textColor.id!=='replacement'||p.settings.noteTypeStyles.Project.textColor.id!=='replacement'||p.settings.colorPreferences.semantic.origin.id!=='replacement'||p.settings.colorPreferences.compass.fills.north.id!=='replacement'||p.settings.graphLenses[0].style.node.textColor.id!=='replacement'||p.settings.colorPreferences.palette.some(x=>x.id==='shared'))throw Error('Active consumers/palette not atomically replaced');
   if(JSON.stringify(p.settings.appearanceThemes.themes.find(x=>x.id==='user'))!==JSON.stringify(inactive))throw Error('Inactive palette changed');

@@ -291,6 +291,7 @@ const traditionalChineseTranslations = {
   "styles.backgroundHelp": "符合節點的填滿顏色。",
   "styles.textHelp": "節點標題的顏色。",
   "styles.borderHelp": "符合節點的外框顏色。",
+  "styles.sizeInheritance": "留空以繼承基本樣式。數值單位為像素。",
   "styles.fontSizeHelp": "套用節點相對縮放前的標籤大小（像素）。",
   "styles.type": "樣式類型",
   "styles.tagPrefixPlaceholder": "#project",

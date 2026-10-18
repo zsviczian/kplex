@@ -749,6 +749,7 @@ export const englishCatalog = {
     context: "Visible and accessible help in the node style editor.",
     params: [],
   },
+  "styles.sizeInheritance": {message: "Leave empty to inherit the base style. Values are in pixels.", context: "Optional per-node-style border width and gate radius. Empty means inherited, not zero.", params: []},
   "styles.fontSizeHelp": {
     message: "Label size in pixels before relative node scaling.",
     context: "Visible and accessible help in the node style editor.",

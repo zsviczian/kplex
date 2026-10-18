@@ -942,6 +942,8 @@ const describeNodeStyle = (style: NodeStyle, translate: Translator, palette: rea
   const parts: string[] = [];
   if (style.icon) parts.push(translate("styles.summaryIcon", { icon: style.icon }));
   if (style.fontSize) parts.push(`${style.fontSize}px`);
+  if (style.strokeWidth !== undefined) parts.push(`${translate("filter.borderWidth")}: ${style.strokeWidth}px`);
+  if (style.gateRadius !== undefined) parts.push(`${translate("settings.ui.gate.radius")}: ${style.gateRadius}px`);
   if (style.backgroundColor) parts.push(colorIdentityText(style.backgroundColor, palette));
   return parts.length ? parts.join(" · ") : translate("styles.inheritedNodeDefaults");
 };
@@ -1081,6 +1083,22 @@ class NodeStyleModal extends StyleEditorModal {
     fontSize.value = String(this.initialStyle.fontSize ?? 18);
     field(this.translate("styles.fontSize"), fontSize, this.translate("styles.fontSizeHelp"));
 
+    /** Blank dimensions inherit; unchanged legacy values retain their exact supported record. */
+    const dimension = (key: "strokeWidth" | "gateRadius", label: PlainTranslationKey, min: number, max: number) => {
+      const input = form.createEl("input", {attr: {type: "number", min: String(min), max: String(max), step: "0.5"}});
+      const opening = this.initialStyle[key] === undefined ? "" : String(this.initialStyle[key]);
+      input.value = opening;
+      input.placeholder = String(context.nodeStyle()[key] ?? DEFAULT_NODE_STYLE[key]);
+      field(this.translate(label), input, this.translate("styles.sizeInheritance"));
+      return {input, opening, apply: (style: NodeStyle): void => {
+        if (input.value === opening) return;
+        if (!input.value.trim()) delete style[key];
+        else style[key] = Number(input.value);
+      }};
+    };
+    const borderWidth = dimension("strokeWidth", "filter.borderWidth", 0, 8);
+    const gateRadius = dimension("gateRadius", "settings.ui.gate.radius", 2, 8);
+
     const actions = this.contentEl.createDiv({ cls: "kplex-style-actions" });
     if (this.initialName && this.onDelete) {
       const remove = actions.createEl("button", { cls: "mod-warning", text: this.translate("common.delete") });
@@ -1104,6 +1122,7 @@ class NodeStyleModal extends StyleEditorModal {
       }
       // Saving appearance alone must not rewrite legacy key spelling or its matching position.
       const name = kind === "tag" && this.initialName !== null && nameInput.value === this.initialName ? this.initialName : normalized;
+      for (const {input, opening} of [borderWidth, gateRadius]) if (input.value !== opening && !input.reportValidity()) return;
       const style: NodeStyle = {
         ...colorDraft,
         icon: iconInput.value.trim() || undefined,
@@ -1111,6 +1130,7 @@ class NodeStyleModal extends StyleEditorModal {
         // Keep an absent label prefix inherited unless the user changes the input.
         ...(kind === "tag" && prefixInput.value !== (this.initialStyle.prefix ?? "") ? { prefix: prefixInput.value } : {}),
       };
+      borderWidth.apply(style); gateRadius.apply(style);
       this.runOperation(/** Submit the validated appearance draft within this exact modal lifetime. */ isCurrent => this.onSave(name, style, this.initialName, kind, isCurrent));
     });
     this.focusAfterAttachment(nameInput);

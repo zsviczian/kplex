@@ -291,6 +291,7 @@ const dutchTranslations = {
   "styles.backgroundHelp": "Vulkleur van overeenkomende knooppunten.",
   "styles.textHelp": "Kleur van de knooppunttitel.",
   "styles.borderHelp": "Omtrekkleur van overeenkomende knooppunten.",
+  "styles.sizeInheritance": "Laat leeg om de basisstijl over te nemen. Waarden zijn in pixels.",
   "styles.fontSizeHelp": "Labelgrootte in pixels vóór de relatieve knooppuntschaling.",
   "styles.type": "Stijltype",
   "styles.tagPrefixPlaceholder": "#project",

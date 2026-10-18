@@ -396,3 +396,33 @@ for(const change of ['mtime','same-mtime-size','membership','policy']) {
     }finally{await browser.cleanup()}
   });
 }
+
+/** Keep one unchanged visible demand across saved-preview restore and delayed source authority. */
+for(const policy of [false,true])for(const order of ['before','after'])test('stationary offline-changed center receives current host relations before source authority ('+order+', policy '+policy+')',async()=>{
+ const browser=await chromiumHarness(bundle);
+ try{
+  assert.equal(await browser.evaluate(contributorBrowserInitialize),true);assert.equal(await browser.evaluate(initialize),true);
+  assert.equal(await browser.evaluate(`(async()=>{
+   const M=sourceModules,{f,settings}=await startupSeed('stationary-offline-'+${JSON.stringify(order)});let index,release,unblock;
+   try{
+    if(${JSON.stringify(policy)})settings.hierarchy={...settings.hierarchy,rightFriends:['New challenger']};
+    f.metadata.get('A.md').frontmatter.Parent='[[C]]';f.files.get('A.md').stat.mtime++;
+    const gate=new Promise(resolve=>unblock=resolve);
+    index=new M.GraphIndex({app:f.app,settings,getIndexSourceRevision:()=>0},f.app);index.scheduleOrphanCleanup=()=>{};
+    const reconcile=index.sourceAcquisition.reconcile.bind(index.sourceAcquisition);
+    index.sourceAcquisition.reconcile=async(...args)=>{await gate;return reconcile(...args)};
+    if(${JSON.stringify(order)}==='before')release=index.acquireSemanticDemand('A.md');
+    const restoring=index.restorePersistedSnapshot(['A.md']);
+    if(${JSON.stringify(order)}==='after')release=index.acquireSemanticDemand('A.md');
+    const restored=await deadline(restoring,'saved preview');ok(restored.restored,'Saved preview actually publishes');
+    await deadline((async()=>{while(index.onDemandTasks.size)await Promise.all([...index.onDemandTasks.values()]);})(),'stationary local task drain');
+    const parents=index.getNeighborhood('A.md')?.parents.map(n=>n.page.path);
+    equal(parents,['C.md'],'Stationary center has current host parent without navigation or background source closure');
+    ok(!index.isSemanticWriteReady('A.md','C.md'),'Host preview grants no pair write authority');
+    unblock();await deadline(index.adoptStartupSources(),'eventual current source closure');
+    await deadline(index.ensureSemanticScope('A.md'),'eventual stationary scope');
+    equal(index.getNeighborhood('A.md').parents.map(n=>n.page.path),['C.md'],'Eventual canonical stationary center remains current');return true;
+   }finally{unblock?.();release?.();index?.destroy();f.close()}
+  })()`),true);
+ }finally{await browser.cleanup()}
+});

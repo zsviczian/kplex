@@ -291,6 +291,7 @@ const spanishTranslations = {
   "styles.backgroundHelp": "Color de relleno de los nodos coincidentes.",
   "styles.textHelp": "Color del título del nodo.",
   "styles.borderHelp": "Color del contorno de los nodos coincidentes.",
+  "styles.sizeInheritance": "Déjalo vacío para heredar el estilo base. Valores en píxeles.",
   "styles.fontSizeHelp": "Tamaño de la etiqueta en píxeles antes de la escala relativa del nodo.",
   "styles.type": "Tipo de estilo",
   "styles.tagPrefixPlaceholder": "#project",

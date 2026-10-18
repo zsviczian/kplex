@@ -291,6 +291,7 @@ const frenchTranslations = {
   "styles.backgroundHelp": "Couleur de remplissage des nœuds correspondants.",
   "styles.textHelp": "Couleur du titre du nœud.",
   "styles.borderHelp": "Couleur du contour des nœuds correspondants.",
+  "styles.sizeInheritance": "Laisser vide pour hériter du style de base. Valeurs en pixels.",
   "styles.fontSizeHelp": "Taille de l’étiquette en pixels avant la mise à l’échelle relative du nœud.",
   "styles.type": "Type de style",
   "styles.tagPrefixPlaceholder": "#project",
