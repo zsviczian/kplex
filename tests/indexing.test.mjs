@@ -1641,6 +1641,35 @@ for (const { inventoryRevision, fresh, remainsDirty } of [
   assert.deepEqual([...startup.dirtyMarkdownPaths], ["Note A.md"]);
 }
 
+// Sidecar restore can await after a visible view has already completed local initialization.
+// Later restore classification must queue actual reconciliation without clearing newer events.
+for (const { visible, unloading, complete, dirty, expected } of [
+  { visible: true, unloading: false, complete: true, dirty: true, expected: 1 },
+  { visible: false, unloading: false, complete: true, dirty: true, expected: 0 },
+  { visible: true, unloading: true, complete: true, dirty: true, expected: 0 },
+  { visible: true, unloading: false, complete: false, dirty: true, expected: 0 },
+  { visible: true, unloading: false, complete: true, dirty: false, expected: 0 },
+]) {
+  const startup = new KplexPlugin();
+  startup.initialIndexTask = Promise.resolve();
+  startup.initialIndexComplete = complete;
+  startup.layoutReady = true;
+  startup.indexDirty = dirty;
+  startup.unloading = unloading;
+  startup.hasVisibleKplexSurface = () => visible;
+  startup.indexBacklogReasons.add("startup:no-snapshot");
+  startup.indexBacklogReasons.add("metadata:changed");
+  startup.dirtyMarkdownPaths.add("Note A.md");
+  const scheduled = [];
+  startup.scheduleRebuild = reason => { scheduled.push(reason); };
+  await startup.finishStartupIndexPreparation();
+  assert.equal(scheduled.length, expected, "Only visible, complete, live startup queues its outstanding backlog");
+  if (expected) assert.deepEqual(scheduled, ["startup:post-initial-backlog"]);
+  assert.equal(startup.indexDirty, dirty, "Queueing is not proof that the backlog has been reconciled");
+  assert.deepEqual([...startup.indexBacklogReasons], ["startup:no-snapshot", "metadata:changed"]);
+  assert.deepEqual([...startup.dirtyMarkdownPaths], ["Note A.md"], "A newer source edit must remain queued");
+}
+
 // Source progress is a startup authority independently of optional full-graph hydration.
 for (const adopted of [true, false]) {
   const startup = new KplexPlugin();

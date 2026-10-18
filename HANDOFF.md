@@ -19,66 +19,59 @@ Obsidian is the production host; preserve the established portable semantic, ide
 
 ---
 
-# PR177 feature checkpoint and focused missing-Parent follow-up
+# PR177 — validated startup follow-up, ready to save
 
-Main validation agent. Existing branch2026-10-17-navigation-and-native-drag,
-feature checkpoint1941b48c13a9eea2ff2dc4b6f156b55bfbd8f54d pushed. Commit/push authorized; PR177
-stays DRAFT, no merge/release. No personal vault; Small only. No comparative
-performance tests while HandBrake encodes. All native/browser lanes serial;
-no CLI probes during native polling. No native or browser driver currently active.
+Main validation agent; branch2026-10-17-navigation-and-native-drag. Feature1941b48
+and docs dd4ef63 pushed; dd4 CI green. Commit/push authorized. Keep PR177 DRAFT;
+no merge/release, no personal vault access and no comparative performance tests.
+Small only. Native/browser lanes serial; no independent CLI probes while polling.
+No native/browser driver active. No subagents.
 
-Feature implementation complete: Tag/Note Type choices, single selector/conflicts,
-conversion/YAML unlink, central tag and cross-Plex/native-link drops; doubled
-Note Type tag connector style. Central-folder physical moves share final checks
-with confirmation/Alt bypass. Adjacent tabs and native-leaf-local center modes.
-Shared native style sliders/values/inheritance and relationship-search hint, all8
-locales. Finite initial/local-ready/source-ready watchdog (maximum3); actual
-GraphIndex/IDB old-owner control fails on8f65dd5 and passes candidate. Confirmed
-native scalar lifetime bug is fixed: accepted persistence finishes without touching
-retired Settings controls; later detached events cannot submit another save.
-Real Chromium red/green plus all13 appearance/adoption/concurrency cases pass.
-None of this establishes the reported complete application freeze eliminated.
+Two follow-up fixes validated: GraphIndex.publishOnDemandHostScope retries only
+superseded private preparation under existing demand/finality/budget ownership;
+main.finishStartupIndexPreparation joins initialization after restore classification
+then queues real remaining visible/complete/live backlog via existing scheduler.
+No new scheduler, schema, parser, classifier, polling or source-proof relaxation.
 
-Full verify1792334769085 PASS Node22.22.2: architecture7/core130/lint/Node1058/
-UI142/source334/browser608/build/native smoke. Final driver+architecture27 PASS.
-Exact native structural12(1792336059640), layout6(1792336113646), styles15
-(1792336147532), outbound6(1792336154825), Sidecar gate-close8(1792336187780),
-reference closed4(1792336195363)/Properties open4(1792336205664) PASS.
-Native Sidecar custom-editor1792336216068 FAILED after3 passed checks (Save,
-stationary Parent/plugin restart, actual timer receipt): synthetic recovery fixture
-could not reach genuine idle within its prerequisite deadline. Combined Sidecar+
-Properties1792336295440 FAILED after successful Save/Settings close: fixture Parent
-never reconciled before reload. Both clean up and restore exact configuration.
-These failures remain open, not passes/exclusions. All raw evidence private.
+Causal trace1792336984693 reproduces missing Parent: gate0->1 retires first host
+cover, ordinary new-target patch needs-rebuild, current task drains with no cover.
+Trace1792338821140 attributes writer to actual publishUrlSearch. Exact dd4 source
+negative control1792338661957 fails2 Parent cases, passes2 cancellations, restores
+candidate bytes. Four real GraphIndex/IDB regressions cover eager/on-demand retry
+and cancellation. Trace1792339143489 separately observes dirty startup:no-snapshot
+without work after local initialization finishes while Sidecar restore awaits.
+Startup regression preserves newer edits and closed/unloaded/incomplete/clean gates.
 
-NEXT: update PR body, then focused investigation. Evidence backup is verified at
-%LOCALAPPDATA%/KplexValidation/structural-drops-177-20261018-1792336531810:
-583files/36,151,035bytes, sourceZIP541 CRCs/hashes; MANIFEST
-ba61eb5d95513393ae661ee6ca351023bd5dfdacd5e86e6421ff623ba38f7937. CI in progress.
+FINAL full verify:obsidian1792339241307 PASS Node22.22.2: architecture7/core130/
+lint/Node1058/UI142/source334/browser612/build/native smoke. All4 changed source
+hashes match the run. No private trace instrumentation in source or bundle.
+Exact native reference matrix4 each: both1792340401520, Sidecar1792340411889,
+Properties1792340422330, closed1792340432438; all PASS, including stationary
+Parent/plugin restart, timer receipt, genuine-idle prerequisite and recovery.
+Styles15(1792340442402), trusted Sidecar gate-close8(1792340449543), held-P3
+foreground live-updates(1792340458120), structural12(1792340462722), layout6
+(1792340515852) PASS. Configuration/workspace and owned fixtures restored.
+Sanity1792340561280 confirms107files/88Markdown, matching deployed artifacts,
+no controllers/dialogs, desktop and opening CLI capture off.
 
-then a separate focused causal investigation of combined Sidecar+Properties
-missing Parent. Its native failure receipt has current frontmatter/resolved target,
-local ready/upToDate true, sourceReady false, no source-backed startup, no active
-semantic work/on-demand tasks, but zero Parents for the demanded center. This is
-an actual reproduction of the stale/incomplete graph symptom; the full app remained
-responsive. Do not hide this behind passing freeze controls or add a blind polling
-loop/full rebuild. Inspect existing metadata acquisition/publication/demand owners.
-No rejected receipt/reader-sharing experiment, broad benchmark or refactor.
-
-Sanity1792336350349 PASS107files/88Markdown, exact artifacts, no controllers/dialogs,
-desktop and original CLI capture false. Main0ea42b2b1a627b5d61a3f0fb19ebc6e66a5f5fb4c1644287779e169c397eda07;
+Main b5d453d57bb1b21963a32f161591efb4a951a88dc1093dddf3860c6d8b28c1ef;
 CSS9664241e9e87f357ebfa57fcfe5477a5b8f592db4e4bbbb53f65db680dd6a7c0;
 manifest19d9ecce5557733e0ff0f2e27155e635c30158c3cfa6fbca0f11c16e4dedfd2c.
-Build8f65dd5.dirty; runtime source unchanged since full verification began.
-Windows11/Obsidian1.14.4 installer1.14.0, Electron43.3.0/Chrome150.0.7871.212/
-nativeNode24.18.1. Mac/minimumhost/physicalmobile/IME/OSdrag/Bases tag-cell and
-full affected process restart remain separate acceptance. Report and ledger retain
-prior Properties Parent failures and unreproduced Save/Settings-close freezes.
+Build dd4ef63.dirty, Windows11/Obsidian1.14.4 installer1.14.0/Electron43.3.0.
+
+Earlier raw failures remain private, never relabeled as passed. The reported whole
+application Save/Settings-close freeze with normal center and Markdown Sidecar
+remains unreproduced; the retired-control guard and these startup fixes do not
+prove it solved. Remaining affected full-process/macOS/minimum-host/physical
+mobile/touch/IME/OS-drag/Bases-tag-cell acceptance stays pending.
+
+NEXT: final diffcheck, commit/push this validated checkpoint; private verified
+backup outside Temp using %TEMP%/kplex-structural-drops-preserve.mjs <exact40commit>;
+then pin backup/source in report and update draft PR body. Old private backup
+1792336531810 and all originals remain untouched. Never archive HANDOFF or
+publish raw evidence. Final CI only green if observed for exact final head.
 
 Report docs/validation/navigation-and-native-drag-2026-10-18.md; ledger
-Refactor plan.md. Private launcher %TEMP%/kplex-structural-drops-run.mjs pins
-Node22.22.2 PATH and Small variables. Private backup script
-%TEMP%/kplex-structural-drops-preserve.mjs <exact40commit> verifies source ZIP/CRC
-and per-file hashes outside Temp. Keep originals and previous backups, publish
-nothing raw. Never archive HANDOFF. Recheck final source and Git status before
-writing. Use private evidence to trace only owned synthetic fixture data.
+Refactor plan.md. Private helpers use Node22.22.2 and explicit Small variables.
+No further implementation is required solely for closeout; no claimed resource
+savings or broader startup/freeze resolution.

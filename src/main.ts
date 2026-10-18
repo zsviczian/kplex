@@ -513,7 +513,7 @@ export default class KplexPlugin extends Plugin {
         const noteCount = this.app.vault.getMarkdownFiles().length;
         const largeIosExpensiveRebuild = !this.index.isOnDemandMode() && Platform.isIosApp && !restored.fresh && !this.index.hasPendingSnapshotHydration() &&
           (!restored.restored || !this.index.hasIncrementalRestorePatch()) && noteCount > 5000;
-        if (!largeIosExpensiveRebuild) void this.ensureInitialIndex();
+        if (!largeIosExpensiveRebuild) void this.finishStartupIndexPreparation();
       })();
     });
   }
@@ -1107,6 +1107,20 @@ export default class KplexPlugin extends Plugin {
     this.notifyIndexStatus();
   }
 
+  /**
+   * Join initialization after restore classification, then queue any still-uncovered startup work.
+   * A visible view can finish the local baseline while Sidecar/snapshot restore awaits; its resolved
+   * initialization promise cannot retire a later restore backlog. Reuse normal reconciliation
+   * rather than declaring that backlog clean or starting a second initialization owner.
+   */
+  private async finishStartupIndexPreparation(): Promise<void> {
+    await this.ensureInitialIndex();
+    if (!this.unloading && this.initialIndexComplete && this.indexDirty && this.hasVisibleKplexSurface()) {
+      this.scheduleRebuild("startup:post-initial-backlog");
+    }
+  }
+
+  /** Join the existing startup authority; only a complete initial index retains the settled task. */
   private async ensureInitialIndex(): Promise<void> {
     if (this.unloading) return;
     if (this.initialIndexTask) {

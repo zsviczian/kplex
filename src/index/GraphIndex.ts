@@ -944,39 +944,45 @@ export class GraphIndex {
 
   /** Compile available local host/body facts before display truncation, preserving canonical precedence. */
   private async publishOnDemandHostScope(centerPath: string, current: () => boolean): Promise<void> {
-    const revision = this.onDemandGateRevisions.get(centerPath) ?? 0;
-    const source = this.plugin.getIndexSourceRevision(), hostRevision = this.hostPreview.observationRevision();
-    const scopedCurrent = (): boolean => current() && hostRevision === this.hostPreview.observationRevision()
-      && source === this.plugin.getIndexSourceRevision()
-      && revision === (this.onDemandGateRevisions.get(centerPath) ?? 0);
-    const scope = await this.hostPreview.build(centerPath, { completeHostCover: true,
-      entityForPath: path => this.onDemandEntityFact(path),
-      additionalPaths: this.state.pages.get(centerPath)?.neighbours.keys(), isCurrent: scopedCurrent,
-      checkpoint: () => this.workScheduler.checkpoint(2),
-      /** Only exact live hot bodies are selected; missing bodies stay absent, never trigger reads. */
-      bodyForPath: path => {
-        const file = this.app.vault.getFileByPath(path), hot = this.fieldCache.get(path);
-        if (file && hot?.mtime === file.stat.mtime && !this.sourceAcquisition.needsBodyRead(file)) return hot.body;
-        const owner = this.urlOwners.get(path);
-        return owner?.file === file && owner.mtime === file?.stat.mtime && owner.size === file?.stat.size
-          && owner.event === (this.urlOwnerEvents.get(path) ?? 0) ? this.urlOwnerBodies.get(path) : undefined;
-      },
-    });
-    if (!scopedCurrent()) return;
-    if (!scope) {
-      this.onDemandHostScopes.delete(centerPath);
-      this.onDemandUnavailableCounts.set(centerPath, { sourceRevision: source, hostRevision, signature: this.semanticCoverageSignature(), revision });
+    // An observed host/source/URL epoch can retire private preparation without retiring its
+    // live demand. Retry that preparation within the existing owner, rather than draining with
+    // an absent cover when a conservative canonical patch cannot admit a new target yet.
+    while (current()) {
+      const revision = this.onDemandGateRevisions.get(centerPath) ?? 0;
+      const source = this.plugin.getIndexSourceRevision(), hostRevision = this.hostPreview.observationRevision();
+      const scopedCurrent = (): boolean => current() && hostRevision === this.hostPreview.observationRevision()
+        && source === this.plugin.getIndexSourceRevision()
+        && revision === (this.onDemandGateRevisions.get(centerPath) ?? 0);
+      const scope = await this.hostPreview.build(centerPath, { completeHostCover: true,
+        entityForPath: path => this.onDemandEntityFact(path),
+        additionalPaths: this.state.pages.get(centerPath)?.neighbours.keys(), isCurrent: scopedCurrent,
+        checkpoint: () => this.workScheduler.checkpoint(2),
+        /** Only exact live hot bodies are selected; missing bodies stay absent, never trigger reads. */
+        bodyForPath: path => {
+          const file = this.app.vault.getFileByPath(path), hot = this.fieldCache.get(path);
+          if (file && hot?.mtime === file.stat.mtime && !this.sourceAcquisition.needsBodyRead(file)) return hot.body;
+          const owner = this.urlOwners.get(path);
+          return owner?.file === file && owner.mtime === file?.stat.mtime && owner.size === file?.stat.size
+            && owner.event === (this.urlOwnerEvents.get(path) ?? 0) ? this.urlOwnerBodies.get(path) : undefined;
+        },
+      });
+      if (!scopedCurrent()) continue;
+      if (!scope) {
+        this.onDemandHostScopes.delete(centerPath);
+        this.onDemandUnavailableCounts.set(centerPath, { sourceRevision: source, hostRevision, signature: this.semanticCoverageSignature(), revision });
+        this.emitPresentation();
+        return;
+      }
+      this.onDemandUnavailableCounts.delete(centerPath);
+      this.onDemandHostScopes.set(centerPath, scope.state);
+      const files = new Map<TFile, FileRevision>();
+      for (const page of scope.state.pages.values()) if (page.file) files.set(page.file, captureFileRevision(page.file));
+      this.localScopeCertificates.set(scope.state, { sourceRevision: source, policyRevision: this.semanticPolicyRevision, files });
+      for (const page of scope.state.pages.values()) this.hostPreviewSettings.set(page, scope.settings);
+      this.relationViewCache = new WeakMap();
       this.emitPresentation();
       return;
     }
-    this.onDemandUnavailableCounts.delete(centerPath);
-    this.onDemandHostScopes.set(centerPath, scope.state);
-    const files = new Map<TFile, FileRevision>();
-    for (const page of scope.state.pages.values()) if (page.file) files.set(page.file, captureFileRevision(page.file));
-    this.localScopeCertificates.set(scope.state, { sourceRevision: source, policyRevision: this.semanticPolicyRevision, files });
-    for (const page of scope.state.pages.values()) this.hostPreviewSettings.set(page, scope.settings);
-    this.relationViewCache = new WeakMap();
-    this.emitPresentation();
   }
 
   /** Preserve fresh finite cached semantic pairs while untouched owners remain physically current.

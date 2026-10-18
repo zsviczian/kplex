@@ -827,3 +827,114 @@ verified, HANDOFF excluded. MANIFEST SHA-256
 Originals and previous backups remain; no raw publication. CI for1941b48 is
 in progress when this checkpoint is recorded, not claimed green. The missing
 Parent/Sidecar drain failures remain separate open investigation work.
+
+## Follow-up: superseded local host publication
+
+The private forwarding trace1792336984693 reproduces the actual missing-Parent
+failure. The first complete local host build is admitted at source5/host98,
+demand1/baseline2. Its gate revision advances from0 to1 while source, host,
+demand and baseline remain unchanged; its finality guard correctly refuses that
+private result. No replacement local host scope is installed. The subsequent
+ordinary patch sees the exact native Markdown file and readable center, but
+conservatively returns `needs-rebuild` while its late-created target has no
+canonical baseline. The current demand task then drains with no Parent. A later
+count-only host build does contain the Parent; count proof alone does not publish
+the missing visible incidence. No app freeze occurs in this trace.
+
+Candidate forwarding trace1792338821140 attributes the native epoch change to
+the existing `publishUrlSearch` owner: source6/host98/demand1/baseline1 remain
+unchanged while gate0 advances to1. Its URL publication is valid; the lost
+replacement host cover is the defect.
+A controlled real GraphIndex/IndexedDB regression exercises that actual publisher
+between admission and completion of the host cover, with real late-created
+endpoints and the real ordinary patch fallback. Previous code fails with zero
+Parents. The candidate retries only the superseded private host preparation within
+the existing demand owner; it then exposes the Parent and drains. Two attempts
+have zero Markdown reads/parses at their admission boundaries. The later ordinary
+patch retains its conservative fallback and does not gain invented write proof.
+Find remains available during the hold; no global inventory or full build starts.
+A separate regression retires demand during the same hold and confirms one
+attempt, no stale publication and no body reads.
+
+This is preparation retry after an actual captured-input change, not a timed
+watchdog/polling loop or a new scheduler. Unchanged missing/budget-limited host
+results still report unavailable and stop. Source, host, gate, policy, demand,
+file-incarnation and lifetime fences remain. Each attempt retains its existing
+record/byte/cooperative budgets; total retry work depends on actual input churn.
+This is a correctness correction, not a measured performance improvement.
+
+Full1792337424909 passes architecture7/core130/lint/Node1058/UI142/source334/
+browser612, build and native smoke for the host-cover correction. The functional
+old-source control1792338661957 restores exact dd4ef63 GraphIndex source and
+fails both new Parent cases while both demand-cancellation controls pass, then
+restores the candidate bytes. Candidate main SHA-256 is
+`da2f29401fab3066575ffc46373a9cee9e70079f1f69e7d100401f3a5fe560b3` (superseded by the later
+startup-backlog candidate; use the final artifact receipt below).
+
+Exact-build reference controls1792338690975 (Sidecar + Properties) and
+1792338713165 (Sidecar) now pass Save/close, stationary Parent/plugin restart
+and timer-receipt checks. Both still fail the later synthetic recovery fixture's
+genuine-idle prerequisite, so neither complete lane is counted as passed.
+Properties-only1792338735926 and closed1792338745890 pass all4 checks.
+All configuration/workspace cleanup passes. The original failures remain intact.
+
+### Follow-up: restore classification after an already-completed local baseline
+
+Private trace1792339143489 observes the remaining failed idle prerequisite:
+Parent present, native UI responsive, no active source/semantic/local/gate/search
+work and no rebuild/timer, but dirty state contains only `startup:no-snapshot`.
+The visible local baseline can finish while native Markdown Sidecar restoration
+awaits. Later snapshot classification adds a real backlog, but startup joins an
+already-resolved initialization task and previously scheduled no reconciliation.
+
+The startup completion now joins that same initialization owner and queues any
+remaining visible, complete, live backlog through the existing rebuild scheduler.
+It does not declare stale work clean, clear newer source paths/reasons, run a
+second initialization owner or force a full semantic build. Closed/incomplete/
+unloaded/clean cases remain deferred or unchanged. Regression coverage exercises
+those gates and preservation of newer Markdown edits. No claim that every
+startup/drain/freeze cause is fixed; the reported whole-application freeze remains
+unreproduced.
+
+### Combined candidate acceptance
+
+Full `verify:obsidian`1792339241307 passes on Node22.22.2: architecture7,
+core130, Obsidian lint, Node1058, UI142, source334, browser/IndexedDB612,
+production build and native smoke. All four changed runtime/test file hashes
+match the run; no private causal instrumentation appears in source or bundle.
+Build provenance is dd4ef63.dirty. Main SHA-256
+`b5d453d57bb1b21963a32f161591efb4a951a88dc1093dddf3860c6d8b28c1ef`;
+CSS/manifest remain the hashes recorded above. Windows/host versions are unchanged.
+
+| Exact-build native lane | Receipt | Result |
+| --- | --- | --- |
+| Custom style / restart, Sidecar + Properties |1792340401520 |4 passed |
+| Custom style / restart, Sidecar |1792340411889 |4 passed |
+| Custom style / restart, Properties |1792340422330 |4 passed |
+| Custom style / restart, neither pane |1792340432438 |4 passed |
+| Style operations / faults / concurrency |1792340442402 |15 passed |
+| Settings gate radius / Markdown Sidecar / trusted close / held storage |1792340449543 |8 passed |
+| Foreground live updates with background sources held |1792340458120 |Passed |
+| Structural actions / native tag and folder gestures |1792340462722 |12 passed |
+| Adjacent groups / independent modes / scoped layout |1792340515852 |6 passed |
+
+Both previously failing pane variants now pass stationary Parent restoration,
+native plugin restart, actual watchdog receipt, genuine-idle prerequisite and
+the synthetic recovery control. The old failed receipts are preserved, not
+reclassified as successes. Native Save controls record1 accepted write,
+1 presentation and0 semantic refreshes/acquisitions. These are functional
+operation counts, not evidence of native CPU/memory/latency savings. No comparative
+performance tests, personal-vault access, new global indexing strategy or runtime
+diagnostics were added. Remaining acceptance is the affected full-process startup/
+freeze case and the macOS/minimum-host/physical-device/native-gesture gaps above.
+
+Foreground acceptance preserves the actual held P3 body while new native files
+become discoverable/navigable and reach exact local semantics. Its final drain
+flags are all false and configuration/owned files are restored. Layout-only
+changes again record0 reads, acquisitions, parses, snapshot writes, builds and
+semantic refreshes. The intentional structural mutation fixture records62 reads,
+20 acquisitions,13 metadata writes and5 moves, with0 forced full builds; those
+counts depend on fixture state and are not a comparison with prior trials.
+Sanity1792340561280 confirms original107 files/88Markdown, matching deployed
+artifacts, no controllers/dialogs, desktop mode and opening CLI capture off.
+All native lanes restore configuration/workspace; all old raw failures remain.
