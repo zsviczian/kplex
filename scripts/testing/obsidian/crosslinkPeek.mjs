@@ -1,4 +1,6 @@
-/** Extend the shared native hover lane; its owner restores settings, fixtures, leaves and observers. */
+/** Extend the shared native hover lane; its owner restores settings, fixtures, leaves and observers.
+ * Native input is asynchronous: await settled canonical gate edges before the unchanged semantic,
+ * geometry and zero-work assertions, rather than accepting a previous node preview as readiness. */
 export async function acceptCrosslinkPeek({p,c,main,path,other,check,wait,until,focus,rootOf,move,key,leave,toggle}) {
   const peers=[other,...['C','D','E','F'].map(name=>'__kplex_hover_'+name+'.md')];
   const link=name=>'[['+name.slice(0,-3)+']]';
@@ -39,10 +41,10 @@ export async function acceptCrosslinkPeek({p,c,main,path,other,check,wait,until,
     key(main,true);await wait(60);same(ids(),incident,'Key repeat changed preview');key(main,false);await until(()=>ids().length===0,'Release retained preview');
     for(const [gate,index] of [['bottom',0],['top',1],['left',2],['right',3]]){
       await leave(main);key(main,true);move(main,node(other).querySelector('.gate-'+gate),true);
-      await until(()=>ids().length>0,'Native '+gate+' gate did not reveal crosslink');same(ids(),[incident.find(id=>id.includes(':'+peers[index+1]+':'))],'Exact native gate included another endpoint');
+      await until(/** Native input can still expose the previous node preview before this gate commits. */ ()=>JSON.stringify(ids())===JSON.stringify([incident.find(id=>id.includes(':'+peers[index+1]+':'))]),'Native '+gate+' gate did not reveal crosslink');same(ids(),[incident.find(id=>id.includes(':'+peers[index+1]+':'))],'Exact native gate included another endpoint');
       await leave(main);same(ids(),[],'Leave retained gate preview');key(main,false);
     }
-    await leave(main);key(main,true);move(main,node(peers[1]).querySelector('.gate-top'),true);await until(()=>ids().length>0,'Incoming endpoint preview missing');
+    await leave(main);key(main,true);move(main,node(peers[1]).querySelector('.gate-top'),true);await until(/** Wait for the incoming gate's canonical edge, retaining the independent orientation assertion below. */ ()=>JSON.stringify(ids())===JSON.stringify(['cross:'+other+':'+peers[1]+':child']),'Incoming endpoint preview missing');
     same(ids(),['cross:'+other+':'+peers[1]+':child'],'Incoming gate changed canonical orientation');key(main,false);await until(()=>ids().length===0,'Incoming release retained preview');
     same(snapshot(),geometry,'Hover altered node/gate/camera geometry');check(elements.every(el=>el.isConnected),'Hover replaced node DOM');
     const delta=countDelta(c.counts,before);same(delta,{reads:0,parses:0,acquisitions:0,semantics:0,search:0},'Hover performed source/semantic work');check(writes===beforeWrites,'Hover persisted settings');counts.push({required,...delta,settingsWrites:writes-beforeWrites});

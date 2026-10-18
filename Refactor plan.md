@@ -5254,3 +5254,8 @@ All558 inputs match receiptf3d09d8a8e592be3bf40ad8a0f647b23f4a35ce3e61f01fb5ada7
 See startup validation report for artifact identity and prior native limitations.
 Personal prior deployed build is not replaced during reconciliation. No new
 full-process/mobile or timing claim; C14 remains paused. Git merge identity is on183.
+
+
+### PR147 integrated main183 and native-input readiness (2026-10-19)
+
+Integrated main28dbdbf without rewrite at1137fc1; preserved both package test inventories and append-only ledgers. Full combined7/130/1069/180/334/632 plus realbuild/lint pass. Native ownontology7permode/external6/style15/migration6/Markdown4 pass on exact96ae2f09... artifact. Hover native transport exposed previous-node preview before queued gate input; first private incoming-only control failed earlier gate, then both settled-set waits pass11. Promoted two readiness predicates in shared native helper, preserving exact independent edge/orientation/geometry/no-work assertions and deadlines; actual repository lane11 and20 runner tests pass. No production source changed after1137. Gate revision failure remains unresolved with incremental patch traces; old touch317.5px geometry gap retained. Record these limits, do not call them reproduced whole-app freezes. Final private backup/docs and authorized147merge next, then179/149/176.
