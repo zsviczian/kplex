@@ -5259,3 +5259,21 @@ full-process/mobile or timing claim; C14 remains paused. Git merge identity is o
 ### PR147 integrated main183 and native-input readiness (2026-10-19)
 
 Integrated main28dbdbf without rewrite at1137fc1; preserved both package test inventories and append-only ledgers. Full combined7/130/1069/180/334/632 plus realbuild/lint pass. Native ownontology7permode/external6/style15/migration6/Markdown4 pass on exact96ae2f09... artifact. Hover native transport exposed previous-node preview before queued gate input; first private incoming-only control failed earlier gate, then both settled-set waits pass11. Promoted two readiness predicates in shared native helper, preserving exact independent edge/orientation/geometry/no-work assertions and deadlines; actual repository lane11 and20 runner tests pass. No production source changed after1137. Gate revision failure remains unresolved with incremental patch traces; old touch317.5px geometry gap retained. Record these limits, do not call them reproduced whole-app freezes. Final private backup/docs and authorized147merge next, then179/149/176.
+
+### 2026-10-18 — PR148 release metadata accepted
+
+After183 merged at28dbdbf, maintainer authorizes completing/immediately merging148
+without CI wait, then main+fetch. Existing branch integrates main at42fe00d. Root
+package/lock versions align with existing0.1.3 manifests; project license becomes
+AGPL-3.0-only with explicit README grant. LICENSE and all341 dependency records,
+Obsidian1.13.0, runtime/bundler/manifests, old tests/actions/permissions unchanged.
+All nine historical asset/tag manifests prove1.13.0 map entries; unsupported1.0.0
+removed. One shared metadata policy drives read-only verification and selected
+release-dist validation before attestation/publication. Focused58 tests and full
+Node22.22.2 verify7/130/1127/165/334/632 pass with no failures/skips, lint/types/build.
+Actual-build temporary no-publish stable/beta and wrong-tag/no-write checks pass;
+all565 inputs frozen (digest560c3bd41bc3a66d2768673dc814001d5dd82d18f559a8e79f66a01a5e0b564d).
+See docs/validation/release-metadata-129-2026-10-18.md for public provenance, artifact
+hashes and limits. No native/vault work, release/tag or manual test needed for this
+scope. Hosted attestation/publication unexercised; C14 remains paused. Git identity
+belongs to148; no further feature/refactoring work queued.
