@@ -33,6 +33,36 @@ function page(path) { return { path, file: { path, extension: "md" }, neighbours
 /** Deferred writer allows two synchronous submits before any React busy-state update. */
 function deferred() { let resolve; const promise = new Promise(done => { resolve = done; }); return { promise, resolve }; }
 
+test("All keeps a known field in its assigned direction and refuses unassigned new fields", async () => {
+  const calls = [], notices = [];
+  const deps = { roleFilter: "all", knownRole: "parent", role: "parent", ontology: "Mentor",
+    plugin: { rememberRelationshipOntology: async (...args) => { calls.push(args); return args[1]; }, translator: key => key },
+    Notice: class { constructor(message) { notices.push(message); } } };
+  assert.equal(await production("prepareField", deps)(), "Mentor");
+  assert.deepEqual(calls, [["parent", "Mentor"]]);
+  assert.equal(await production("prepareField", { ...deps, knownRole: null, ontology: "new field" })(), null);
+  assert.equal(calls.length, 1, "All must not reassign or invent ontology membership");
+  assert.deepEqual(notices, ["addRelated.chooseDirection"]);
+});
+
+test("relationship note provider uses bounded physical catalog ranking without graph visibility", () => {
+  const calls = [], target = page("Target.md");
+  const provider = production("getNoteResults", { useCallback: fn => fn, origin: page("Origin.md"), isNoteTarget: production("isNoteTarget"),
+    plugin: { index: { search: (...args) => { calls.push(args); return [target, page("Origin.md"), { ...page("Folder"), isFolder: true }]; } } } });
+  assert.deepEqual(provider("  Target  "), [target]);
+  assert.deepEqual(calls, [["Target", 48, "vault-files"]]);
+  assert.deepEqual(provider(" "), []);
+  assert.equal(calls.length, 1);
+});
+
+test("configured completion displays the actual outcome without changing saved compatibility intent", () => {
+  for (const [continuation, selectedTarget, webUrl, editAfterCreate, expected] of [
+    ["configured", null, null, false, "return"], ["configured", null, null, true, "edit"],
+    ["configured", page("Target.md"), null, true, "return"], ["configured", null, "https://example.com", true, "return"],
+    ["another", null, null, true, "another"], ["follow", null, null, false, "follow"],
+  ]) assert.equal(production("completionValue", { continuation, selectedTarget, webUrl, editAfterCreate }), expected);
+});
+
 test("native Modal isOpen boolean cannot shadow composer readiness for button or Scope submit", async () => {
   class NativeModalFixture { constructor() { this.isOpen = true; } }
   const session = new NativeModalFixture();

@@ -19,75 +19,37 @@ Obsidian is the production host; preserve the established portable semantic, ide
 
 ---
 
-# PR #177 feedback: implementation complete; final-head verification pending
+# PR #177 relationship-composer follow-up: validated, ready for commit/push
 
-Branch `2026-10-17-navigation-and-native-drag`. Runtime/test/driver checkpoints
-committed and pushed: a1974c096497c42a2da7fb6e7a11f70ea312fac3 (UI/creation/Properties)
-and d86fea32cad34f92cbb14cfff9d9c8d6e882196d (Find/early structural availability).
-This closeout changes documentation only. Keep PR177 draft, Closes#157/Refs#175;
-no merge/release/personal-vault access. All agents completed/frozen; no further code.
+Existing branch `2026-10-17-navigation-and-native-drag`, baseline54fef0c.
+Keep draft; Closes157/Refs175; no merge/release/personal-vault access. No further
+implementation or broad performance work. The feature report and latest ledger
+entry hold the delivered scope, native results and remaining limitations.
 
-The report `docs/validation/navigation-and-native-drag-2026-10-18.md` and Refactor
-plan ledger hold durable scope, decisions, real checks/failures and limitations.
-Phone new-tab policy was corrected during final review and red/green covered.
-Only files/folders/tags already native-loaded supply early Find; selected tags use
-bounded existing structural compilation, not zero work. Native source/body policy
-and strict durable source fences remain unchanged; no receipt/scheduler/schema.
+Direction/ontology now share one row with All; known fields retain their assigned
+role and new fields require an explicit role. Completion/edit controls occupy a
+compact footer and show the effective configured result. FuzzySuggester lazy
+providers own visibility gating/memoization for Find and the note composer. The
+composer reuses physical-file search; no indexing/storage/scheduler change.
 
-Completed component assertions on actual Node22.22.2: architecture7/core130,
-lint, Node1029/UI131/source334/browser598, no skips/cancellations. Two below-normal
-verify:obsidian attempts failed the unchanged35-minute aggregate portable deadline;
-children completed passing and drained before another lane. Preserve failures:
-...verify-1792303010693 and ...verify-1792305706470. Intermediate ...5267656 was
-intentionally cancelled before the phone correction, with only owned headless
-processes stopped. No Obsidian/Resolve process touched. Production build passes.
+Full verify PASS on requiredNode22.22.2:7/130/lint/1032/131/334/598 plus realbuild
+and native smoke. Native folder/composer10+reload, full action8/51native keys,
+Find8queries/6navigations and actual new/existing-modal visual inspection PASS.
+Source/test changes are complete; only native-driver fixes followed full verify.
+Failed setup/driver controls are retained, including absent fixture, suggestion-
+first Escape, and the former premature property-existence wait. Saved-file proof
+and exact-target metadata wait preserve the original deadline; two arrival gaps
+were observed without production writer failure.
 
-Exact staged final artifacts:
-main.js f10694fe6eb79bdb1349ffc1edb98bbbae8db4ab9d04acd417eb0f9dad1e7050
-styles.css b22bad683a71019b03f663bc4b48ad26e450b22e64a5aea4a2102ad475b2b056
-manifest 19d9ecce5557733e0ff0f2e27155e635c30158c3cfa6fbca0f11c16e4dedfd2c
+Private raw prefix `%TEMP%/kplex-composer-feedback-`: verify1792312440827,
+folders1792313724282, actions1792313842792, find1792313880908,
+preview1792313914841, sanity1792313974005.json. Current exact staged main SHA
+bed178e785babad2d2070097fbd291fd1a85cfe78d6add0be5e626b1838d4555.
+Final sanity restores107files/88Markdown, configuration, no controllers/dialogs,
+desktop and captureFALSE. Do not publish/delete raw evidence or archive HANDOFF.
 
-All six native lanes PASS on this exact build, serially in kplex-test-small:
-find-1792307953436; folders-1792308104673 (9workflows+reload); layout-1792308155994
-(5cases,6actualSettings,main/sidebar/popout); legacy-1792308179504 (15pass+1observed);
-native-drag-1792308229416 (6cases); touch-1792308357609 (8gestures+phonepolicy,
-reload,7geometries). Full paths use `%TEMP%/kplex-navigation-feedback-<name>/report`.
-Folder guard initial failure included navigation/opening: corrected scope retains
-zero assertions and reports two checked/repaired setup sources separately. Touch
-controls preserve failed dispatcher-return assumption/helper-name error; real native
-availability=false and zero allocated tabs pass. Runtime unchanged by these fixes.
-Final sanity ...feedback-final-sanity-1792308417589.json passes107files/88Markdown,
-no controllers/dialogs, desktop, captureFALSE, exact artifacts. Small configuration,
-workspace and fixtures restore. Opening CLI capture FALSE; preserve that finally.
-
-Verified private backup (do not publish/delete/overwrite):
-`%LOCALAPPDATA%/KplexValidation/navigation-feedback-177-20261018-1792308483120`
-208files/43,617,105bytes;524source ZIP files, all CRCs/per-entry hashes and copied
-files reverified. Root manifest SHA256:
-43205a56fd58dc859fa8a4d933d7cb7b46d611e30c63f855db2eab0cdf232975
-Old403-file backup and all Temp originals remain. Source ZIP excludes HANDOFF.
-
-LATEST USER: Resolve finished rendering. Finish docs commit+push, verify its diff
-from d86fea3 is documentation only, then run private launcher with actual Node22:
-`%TEMP%/kplex-navigation-feedback-run.mjs verify normal` on clean final head.
-This uses standard priority only for owned validation, leaves applications alone,
-and keeps all assertions/deadlines unchanged. Native/browser/heavy lanes serial.
-Launcher's default remains below-normal for native runs; each gets fresh output.
-The new full report/exit is authoritative: failed wrappers never count as passed.
-After full success restore idle CLI captureFALSE, run ...feedback-sanity.mjs, preserve
-new receipts in another unique private verified backup via existing preserver with
-exact final head (runtime/test/build files identical to d86fea3). Never publish raw.
-
-Update existing PR body from private ...feedback-pr-body.md (fill placeholders),
-record exact final head/local full result/CI and private supplemental receipt. Keep
-draft. CI d86fea3 run39107754294 was in progress; cancel only superseded OWN runs
-once final-doc head queues. a1974c0 run39107733111 cancellation already requested.
-Wait final-head CI green (typical31min); do not claim older-head CI applies.
-Private preserver ...feedback-preserve.mjs is reusable, append-only and checks
-source match/ZIP/all copied files. No Git code changes after verification.
-
-Remaining limitations: actual reported freeze unconfirmed despite proven bounded
-Properties retry hazard; inherited On-demand gate/filter guard refreshes requested
-coverage (assertion intact); ordinary moving-placeholder unmodified doubleclick;
-physical OS crosswindow dragging, macOS/minimumhost and physical mobile acceptance.
-No native large-vault speed/CPU/heap gain is claimed. Render-era timings uncontrolled.
+Next: final diff/check; commit/push this scoped checkpoint; record exact final CI
+and append-only private evidence backup in PR. Do not create another code change
+just to record CI. Physicalmobile/macOS/minimum-host/OSdrag acceptance, native
+large-vault latency savings, the separate gate/filter failure and original
+unreproduced freeze remain limitations. Preserve previous evidence backups.

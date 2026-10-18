@@ -1,5 +1,5 @@
 /** Host-free global Find composition: index-owned ranking, identity-only activation and caller-provided native icons. */
-import { useMemo, useState, type ReactNode } from "react";
+import { useCallback, useState, type ReactNode } from "react";
 import type { GraphSearchActivation, GraphSearchHit, GraphSearchRead } from "../../core/graph/read";
 import { FuzzySuggester } from "../components/FuzzySuggester";
 
@@ -34,13 +34,13 @@ export function SearchBox({
   resultIcon?: (hit: GraphSearchHit) => ReactNode;
 }) {
   const [query, setQuery] = useState("");
-  const [focused, setFocused] = useState(false);
-  const results = useMemo(/** Hidden Find fields do not rank the vault on every graph/progress update. */ () => focused ? graph.search(query, 24) : [], [graph, query, revision, focused]);
+  const getResults = useCallback(/** Shared control owns focus gating; publications refresh the active vocabulary. */ (value: string) =>
+    graph.search(value, 24), [graph, revision]);
 
   return <FuzzySuggester
     value={query}
     onChange={setQuery}
-    results={results}
+    getResults={getResults}
     onChoose={/** Activation keeps the exact opaque identity and caller-selected clearing behavior. */ (hit) => { onActivate(hit.node.id); if (clearOnActivate) setQuery(""); }}
     getKey={/** Stable identities distinguish matching labels without parsing their values. */ (hit) => hit.node.id}
     getLabel={/** The search adapter supplies the complete display label. */ (hit) => hit.label}
@@ -53,7 +53,6 @@ export function SearchBox({
     portalSelector={portalSelector}
     appTopbarSelector={appTopbarSelector}
     focusRequest={focusRequest}
-    onFocusChange={setFocused}
     closeOnChoose={!repeatFind}
     advanceOnChoose={repeatFind}
   />;

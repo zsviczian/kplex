@@ -7,6 +7,8 @@
 import { buildLocaleCatalog, type LocaleTranslationMap } from "./catalog";
 
 const germanTranslations = {
+  "addRelated.allDirections": "Alle",
+  "addRelated.chooseDirection": "W?hle eine Richtung, bevor du ein neues Ontologiefeld hinzuf?gst.",
   "settings.areaOutline.name": "Bereichsumrisse nur mit Zusatztaste",
   "settings.areaOutline.help": "Halte {key} beim Zeigen auf einen Bereich gedrückt, um seinen Umriss und die Kante zum Ändern der Größe anzuzeigen. In den Bereichseinstellungen sind die Umrisse immer sichtbar.",
   "settings.hoverHighlight.name": "Hervorheben beim Zeigen nur mit Zusatztaste",

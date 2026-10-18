@@ -942,6 +942,29 @@ try {
   flushSync(() => movingRoot.unmount());
   check(observerDisconnects > 0, "ResizeObserver cleanup was not observed");
 
+  // The component, rather than every caller, gates expensive providers by actual list visibility.
+  const lazyHost=document.createElement("div");document.body.append(lazyHost);
+  const lazyRoot=createRoot(lazyHost), ranking=[];let updateLazy;
+  const rank=value=>{ranking.push(value);return [value+" result"];};
+  function LazyProvider(){const [value,setValue]=React.useState("");updateLazy=setValue;
+    return React.createElement(FuzzySuggester,{value,onChange:setValue,getResults:rank,onChoose:()=>{},getKey:String,getLabel:String,
+      placeholder:"Search",ariaLabel:"Lazy search",openResultsOnFocus:false});}
+  flushSync(()=>lazyRoot.render(React.createElement(LazyProvider)));
+  const lazyInput=lazyHost.querySelector("input");
+  check(ranking.length===0,"hidden suggester eagerly ranked its provider");
+  flushSync(()=>lazyInput.focus());
+  check(ranking.length===0,"typing-only focus ranked before typing");
+  flushSync(()=>type(lazyInput,"a"));
+  check(ranking.join(',')==='a',"typing did not rank once");
+  flushSync(()=>lazyRoot.render(React.createElement(LazyProvider)));
+  check(ranking.length===1,"unrelated parent render reranked the provider");
+  flushSync(()=>lazyInput.dispatchEvent(new KeyboardEvent("keydown",{key:"Escape",bubbles:true,cancelable:true})));
+  flushSync(()=>updateLazy("ab"));
+  check(ranking.length===1,"dismissed list ranked hidden updates");
+  flushSync(()=>type(lazyInput,"abc"));
+  check(ranking.join(',')==='a,abc',"reopened list did not rank the latest query");
+  flushSync(()=>lazyRoot.unmount());lazyHost.remove();
+
   toolbarRoot.unmount();
   HTMLElement.prototype.scrollIntoView = originalScrollIntoView;
   Object.defineProperty(window, "ResizeObserver", { configurable: true, value: NativeResizeObserver });
@@ -1087,7 +1110,7 @@ function relatedComposerBrowserEntry() {
     && ["RelatedNoteComposer", "isNoteTarget", "captureRelatedEndpoint", "refreshCapturedPage"].includes(statement.name?.text)).map((statement) => statement.getText(source)).join("\n");
   const production = ts.transpileModule(functions, { compilerOptions: { target: ts.ScriptTarget.ES2021, module: ts.ModuleKind.None } }).outputText;
   return `
-import React, { createElement, useEffect, useMemo, useRef, useState } from "react";
+import React, { createElement, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { flushSync } from "react-dom";
 import { createRoot } from "react-dom/client";
 import { FuzzySuggester } from ${JSON.stringify(join(root, "src/ui/components/FuzzySuggester.tsx"))};
@@ -1118,6 +1141,8 @@ ${production}
    settings: { editNewNodeAfterCreate: false, newNodeDefaultType: "markdown" },
    translator: (key) => key, isExcalidrawAvailable: () => false, defaultOntologyField: () => "children",
    ontologyFieldsForRole: () => ["children", "review", "example"],
+   allOntologyFields: () => ["children", "review", "example", "parent"],
+   ontologyRoleForField: field => field === "parent" ? "parent" : ["children", "review", "example"].includes(field) ? "child" : null,
    validateRelatedNoteName: () => ({ valid: true, existing: false, stem: "Target" }),
    newRelatedNoteFolder: () => "Projects",
    validateNoteFolderPath: value => ({ folderPath: value === "/" ? "" : value, error: null }),
@@ -1176,6 +1201,29 @@ ${production}
   flushSync(() => host.querySelector(".kplex-add-related-link-button").click());
   await new Promise((resolve) => setTimeout(resolve, 0));
   check(intents.length === 1 && intents[0][1] === "right" && intents[0][2].file === target.file && commits === 1 && closes === 1, "history fixed target did not commit through the shared Link action");
+  // All is a vocabulary filter, not permission to move another direction's ontology.
+  plugin.settings.editNewNodeAfterCreate = true; session.continuation = "configured";
+  plugin.saveSettings = async () => {};
+  flushSync(() => root.render(createElement(RelatedNoteComposer, { key: "all-directions", plugin, origin, session, initialRole: "child", fixedTarget: target })));
+  const changeSelect = (selector, value) => flushSync(() => { const element=host.querySelector(selector); element.value=value; element.dispatchEvent(new Event("change", {bubbles:true})); });
+  check(host.querySelector('.kplex-add-related-completion select').value === "return", "configured existing-note action must show Return");
+  check(![...host.querySelector('.kplex-add-related-completion select').options].some(option=>option.value==="configured"), "ambiguous configured choice remains visible");
+  const direction=host.querySelector('.kplex-add-related-role-select');
+  check(direction.parentElement===host.querySelector('.kplex-add-related-ontology-search').parentElement, "direction is not beside the ontology field");
+  changeSelect('.kplex-add-related-role-select','all');
+  flushSync(() => host.querySelector('.kplex-fuzzy-disclosure').click());
+  let allRows=[...document.body.querySelectorAll('.kplex-fuzzy-floating-results button')];
+  check(allRows.length===4 && allRows.some(row=>row.textContent==='parent'), "All omitted another direction's configured field");
+  flushSync(() => allRows.find(row=>row.textContent==='parent').click());
+  check(direction.value==='all', "choosing a field unexpectedly changed the browsing filter");
+  intents.length=0;
+  flushSync(() => host.querySelector('.kplex-add-related-link-button').click()); await new Promise(resolve=>setTimeout(resolve,0));
+  check(intents.length===1 && intents[0][1]==='parent' && intents[0][3]==='parent', "All reclassified a known ontology field");
+  flushSync(() => root.render(createElement(RelatedNoteComposer, { key: "effective-default", plugin, origin, session, initialRole: "child" })));
+  check(host.querySelector('.kplex-add-related-completion select').value==='edit', "configured create action must show Edit note");
+  const footer=host.querySelector('.kplex-add-related-footer');
+  check(footer.contains(host.querySelector('.kplex-create-edit-toggle')) && footer===host.querySelector('.kplex-add-related-form').lastElementChild, "completion controls are not together at the bottom");
+  plugin.settings.editNewNodeAfterCreate=false; session.continuation='return';
   // Hold an actual drawing submission after durability: ordinary progress must never offer recovery.
   const style = document.createElement("style"); style.textContent = ${JSON.stringify(readFileSync(join(root, "styles.css"), "utf8"))}; document.head.append(style);
   const created = { path: "Projects/" + "Long-folder-name/".repeat(8) + "Drawing.md", file: { path: "", extension: "md" } }; created.file.path = created.path;

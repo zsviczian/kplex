@@ -7,6 +7,8 @@
 import { buildLocaleCatalog, type LocaleTranslationMap } from "./catalog";
 
 const japaneseTranslations = {
+  "addRelated.allDirections": "???",
+  "addRelated.chooseDirection": "????????????????????????????????",
   "settings.areaOutline.name": "エリアの輪郭表示に修飾キーを必要とする",
   "settings.areaOutline.help": "エリアにポインターを合わせながら {key} を押すと、輪郭とサイズ変更用の端を表示します。エリア設定では輪郭が常に表示されます。",
   "settings.hoverHighlight.name": "ホバー強調表示に修飾キーを必要とする",

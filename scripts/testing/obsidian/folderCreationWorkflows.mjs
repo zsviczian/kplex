@@ -144,6 +144,40 @@ export async function runFolderCreationWorkflows(h) {
     await until(()=>!element.isConnected,'Materialization did not finish',30000);
   };
 
+  await scenario('composer-direction-footer-and-lazy-note-search',async()=>{
+    const element=await composer('');await idle();
+    const direction=element.querySelector('.kplex-add-related-role-select'),ontology=element.querySelector('.kplex-add-related-ontology-search input');
+    const footer=element.querySelector('.kplex-add-related-footer'),completion=footer?.querySelector('select');
+    check(direction.parentElement===ontology.closest('.kplex-search-shell').parentElement,'Direction is not beside ontology');
+    check(!element.querySelector('.modal-title select'),'Direction remains in the draggable title');
+    check(footer===element.querySelector('.kplex-add-related-form').lastElementChild&&footer.contains(element.querySelector('.kplex-create-edit-toggle')),'Footer controls are not together at the bottom');
+    check(![...completion.options].some(option=>option.value==='configured')&&completion.value==='return','Completion still shows opaque configured behavior');
+    const before=JSON.stringify(p.settings.hierarchy),calls=[],original=p.index.search;
+    p.index.search=function(...args){calls.push({queryLength:args[0].length,limit:args[1],scope:args[2]});return original.apply(this,args)};
+    let live=true;const restore=()=>{if(live){live=false;p.index.search=original}};c.wrappers.push(restore);
+    const change=(field,value)=>{field.value=value;field.dispatchEvent(new view.Event('change',{bubbles:true}))};
+    let work;
+    try{work=await noWork('composer-direction-and-note-search',async()=>{
+      change(direction,'all');await until(()=>direction.value==='all','All direction not selected');
+      const all=p.allOntologyFields(),parent=p.ontologyFieldsForRole('parent')[0];check(parent,'Parent fixture field missing');
+      element.querySelector('.kplex-add-related-ontology-search .kplex-fuzzy-disclosure').click();
+      await until(()=>owner.querySelector('.kplex-fuzzy-floating-results button'),'All ontology list missing');
+      const rows=[...owner.querySelectorAll('.kplex-fuzzy-floating-results button')];
+      check(new Set(rows.map(row=>row.textContent)).size===new Set(all.map(field=>field.toLocaleLowerCase())).size,'All ontology field count differs');
+      const row=rows.find(item=>item.textContent===parent);check(row,'All omitted parent field');row.click();await delay(30);
+      check(ontology.value===parent&&direction.value==='all','All selection changed filter or lost field');
+      check(calls.length===0,'Ontology-only edits ranked note vocabulary');
+      nameInput(element).focus();input(nameInput(element),'README');await delay(60);
+      check(calls.length===1&&calls[0].scope==='vault-files'&&calls[0].limit===48,'Note input did not use one bounded physical catalog query');
+      input(aliasInput(element),'Alias');await delay(30);
+      check(calls.length===1,'Alias-only edit reranked note vocabulary');
+      await dismissSuggestions(nameInput(element));
+      await close(element);
+    })}finally{restore()}
+    check(JSON.stringify(p.settings.hierarchy)===before,'All browsing reclassified ontology');
+    return{allDirections:true,footer:true,queries:calls,work};
+  });
+
   await scenario('folders-quick-name-only',async()=>{
     const expected=p.newRelatedNoteFolder(p.index.get(c.a.path),quick,'markdown');
     allowedPaths.add(path(expected,quick));const element=await composer(quick);

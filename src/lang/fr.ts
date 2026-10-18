@@ -7,6 +7,8 @@
 import { buildLocaleCatalog, type LocaleTranslationMap } from "./catalog";
 
 const frenchTranslations = {
+  "addRelated.allDirections": "Toutes",
+  "addRelated.chooseDirection": "Choisissez une direction avant d?ajouter un nouveau champ d?ontologie.",
   "settings.areaOutline.name": "Exiger une touche pour les contours des zones",
   "settings.areaOutline.help": "Maintenez {key} en survolant une zone pour afficher son contour et sa bordure de redimensionnement. Les réglages des zones affichent toujours les contours.",
   "settings.hoverHighlight.name": "Exiger une touche pour la surbrillance au survol",

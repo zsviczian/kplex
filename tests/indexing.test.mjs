@@ -351,7 +351,7 @@ assert(!plexFilterSource.includes('"renderAlias"'), "Display aliases is presenta
 assert(plexFilterSource.indexOf('translate("filter.nodeOrder")') < plexFilterSource.indexOf('translate("filter.quickLens")'), "Node order must precede Quick lens");
 assert(plexFilterSource.indexOf('translate("filter.quickLens")') < plexFilterSource.indexOf('translate("filter.graphLenses")'), "Quick lens must precede Graph lenses");
 assert(plexFilterSource.includes("data-kplex-long-press-tooltip"), "Filter toggles must expose touch-friendly tooltips");
-assert(newRelatedSource.includes('{ value: "previous", label: this.plugin.translator("role.previous") }') && newRelatedSource.includes('{ value: "next", label: this.plugin.translator("role.next") }'), "Add-note relationship dropdown must include localized previous and next labels");
+assert(newRelatedSource.includes('["previous", "role.previous"]') && newRelatedSource.includes('["next", "role.next"]') && newRelatedSource.includes('plugin.translator(key)'), "Add-note relationship dropdown must include localized previous and next labels");
 assert(newRelatedSource.includes('className: "kplex-create-alias-input"'), "Add-note dialog must retain its optional alias editor");
 assert(plexGraphSource.includes('.setTitle(translate("graph.addNote"))'), "Node context menus must expose localized Add note copy");
 assert(plexGraphSource.includes("TOUCH_GATE_LONG_PRESS_MS"), "Touch gate long-press must enter relationship drag mode");

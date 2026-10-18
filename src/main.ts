@@ -4624,7 +4624,8 @@ export default class KplexPlugin extends Plugin {
     return canonical;
   }
 
-  private allOntologyFields(): string[] {
+  /** Enumerate selectable relationship fields while preserving their configured direction. */
+  allOntologyFields(): string[] {
     const h = this.settings.hierarchy;
     return [...h.parents, ...h.children, ...h.leftFriends, ...h.rightFriends, ...h.previous, ...h.next];
   }

@@ -4744,3 +4744,30 @@ normal aggregate deadline failures, harness corrections and remaining acceptance
 The maintainer reports Resolve has finished; final clean-source standard-priority
 verification and final-head CI are recorded through the draft PR, with unchanged
 deadlines and no further runtime changes or performance experiments.
+
+
+### 2026-10-18 ? PR #177 relationship-composer follow-up
+
+Direction and ontology share a form row; completion/edit controls move to a compact
+bottom-right footer. The visible completion selector resolves the existing
+configured intent instead of exposing an opaque label. All reuses the current
+relationship vocabulary and field-direction owner; unassigned new fields require
+an explicit direction. Native session fencing, writes and recovery stay with the
+existing owners. All eight locales are updated.
+
+Shared FuzzySuggester lazy providers now own visibility gating and memoized ranking;
+Find consumes that owner instead of keeping a second focus-gating implementation.
+The composer uses the existing physical-file search projection, retaining bounded
+results/prefix reuse and avoiding graph visibility work for file selection. No
+semantic index/storage/acquisition owner, scheduler or schema changes. Initial
+ranking remains linear; no native large-vault performance saving is established.
+Focused 100-check pass includes real Chromium interactions and provider call counts.
+Full verify passes (architecture7/core130/Node1032/UI131/source334/browser598,
+lint/build/native smoke). Native folder/composer10+reload, action8/51trusted keys,
+Find8queries/6navigations and visual captures pass; original107/88fixture and
+configuration are restored. Native driver-only fixes retain failed receipts and
+wait for exact saved-target metadata with the original deadline plus disk proof.
+Final source/CI/private evidence references are recorded through the draft PR.
+C14 remains accepted/paused. Highest-risk manual follow-up is narrow mobile footer
+layout and macOS modifier/IME handling; Windows automation cannot prove physical
+mobile or macOS behavior. No merge/release.

@@ -323,3 +323,92 @@ changing test deadlines or application processes. Its exact outcome, any additio
 private receipt, and final-head CI are recorded in the
 [draft PR description/checks](https://github.com/zsviczian/kplex/pull/177).
 Keep the PR draft; no merge or release is authorized.
+
+
+## Relationship composer follow-up
+
+The maintainer requested clearer completion controls, a combined direction/ontology
+row, an All filter and faster existing-note suggestions after reviewing `54fef0c`.
+This follow-up keeps the native modal, current action/session owner, shared picker,
+creation recovery and relationship writers.
+
+Direction now shares the ontology row. All enumerates the existing six selectable
+relationship-direction vocabularies through `allOntologyFields()`; hidden/exclusion
+policy fields are not relationship choices. Choosing an existing field uses its
+configured direction rather than moving it into the opening gate's category. A new,
+unassigned field in All requires choosing a specific direction before saving.
+
+After saving and the context-dependent Open for editing toggle sit together at the
+bottom right. The dropdown shows Return or Edit note for the existing configured
+policy, alongside Create another and Follow node. The persisted/invocation
+`configured` intent remains compatible; no new setting or migration is introduced.
+Explicit outcomes and the edit toggle reflect the same effective state.
+
+`FuzzySuggester.getResults` is a lazy ranking capability: the shared control invokes
+it only when its list can be displayed and memoizes it across unrelated parent
+renders. Both global Find and the composer use it; callers no longer implement
+separate focus-gating state. Existing static-result consumers remain compatible.
+The note composer uses the existing physical-file catalog (`vault-files`), avoiding
+graph visibility evaluation for note selection and permitting discovery during
+startup. It retains the existing 48-hit candidate query / 18 displayed notes,
+Markdown-only/self-target checks and exact native identity validation at save.
+Prefix caching remains index-owned. Initial query scoring remains linear; this is
+not a measured large-vault latency, CPU or memory improvement.
+
+Focused verification passes 100 checks on Node 22.22.2, including actual Chromium
+controls, all eight locales, effective completion defaults, All-field direction,
+saved-pending/partial recovery and a shared lazy-provider operation guard. An
+initial sandbox run could not resolve its temporary browser entry. The first full
+attempt then exposed the old title-bar source assertion and nested PATH selecting
+Node 22.22.3. The assertion now checks the moved localized choices; the private
+launcher pins nested Node to 22.22.2. All unsuccessful logs remain private.
+
+Full `verify:obsidian` passes on Node 22.22.2: architecture 7, core 130,
+Obsidian lint, Node 1,032, UI 131, portable source 334 and real browser storage
+598, with zero failures/skips/cancellations, plus production build and native smoke.
+The serial native follow-up on Windows 11 / Obsidian 1.14.4 (installer 1.14.0)
+uses only kplex-test-small and passes:
+
+- Folder/composer: ten workflows and actual plugin reload. The new case verifies
+  native direction/footer controls, All vocabulary and unchanged ontology, one
+  48-hit physical query, no alias-only rerank, and zero guarded body reads, parsing,
+  acquisition, builds, semantic refreshes, note/folder writes or snapshot writes.
+- Full action workflows: eight scenarios, 51 trusted native key events, six
+  direction-specific saved relationships, center/selected-origin isolation,
+  saved Return, folder capabilities and enabled Excalidraw transitions.
+- Find: eight guarded queries/six navigations and both scenario groups.
+- Visual review: actual native new/existing-note modal captures, 680px wide,
+  seven direction choices, effective Return and no horizontal overflow. The
+  existing-note form omits creation-only controls. This is desktop inspection,
+  not physical-device or subjective paint-latency acceptance.
+
+The new native case initially referenced a fixture absent from the folder-only
+lane, then failed to dismiss suggestions before closing. Both failed trials and
+successful cleanup are retained; the corrected driver follows suggestion-first
+Escape. A broader action trial exposed its pre-existing property-existence wait:
+an already-populated child property could be inspected before a newly saved target
+arrived. The reusable check now asserts the owned saved file and waits for the exact
+target with the same deadline. The successful control records two saved-file/cache
+arrival gaps, then correct metadata publication. No production writer change was
+needed, and no timeout/storage assertion was relaxed.
+
+Successful raw receipts (private Temp prefix `kplex-composer-feedback-`):
+`verify-1792312440827`, `folders-1792313724282`, `actions-1792313842792`,
+`find-1792313880908`, `preview-1792313914841`,
+`final-sanity-1792313974005.json`. Every native lane restores its owned resources
+and configuration; final sanity confirms original 107 files/88 Markdown, no test
+controllers/dialogs, desktop mode and disabled opening diagnostic capture.
+
+Exact tested/staged artifact SHA-256:
+
+| Artifact | SHA-256 |
+| --- | --- |
+| main.js | `bed178e785babad2d2070097fbd291fd1a85cfe78d6add0be5e626b1838d4555` |
+| styles.css | `c98c8c4be660ac38e5d77144f111637d0e60450339c882b4bd51e5a7fb5e2828` |
+| manifest.json | `19d9ecce5557733e0ff0f2e27155e635c30158c3cfa6fbca0f11c16e4dedfd2c` |
+
+The full run covers the unchanged production runtime; subsequent driver-only
+corrections are covered by their successful native runs. Final committed source,
+CI and verified private backup references are recorded in the draft PR. Original
+receipts remain private and retained. Earlier platform/gate/freeze limitations
+remain; no personal vault, merge, release or performance-win claim.

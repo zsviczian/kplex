@@ -7,6 +7,8 @@
 import { buildLocaleCatalog, type LocaleTranslationMap } from "./catalog";
 
 const traditionalChineseTranslations = {
+  "addRelated.allDirections": "??",
+  "addRelated.chooseDirection": "???????????????",
   "settings.areaOutline.name": "區域輪廓需要修飾鍵",
   "settings.areaOutline.help": "將游標停在區域上時，按住 {key} 即可顯示輪廓和調整大小的邊緣。區域設定會一直顯示輪廓。",
   "settings.hoverHighlight.name": "懸停強調顯示需要修飾鍵",

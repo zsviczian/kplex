@@ -631,6 +631,8 @@ export const englishCatalog = {
   "addRelated.endpointChanged": { message: "The original note was deleted or replaced. Choose a new target.", context: "Action management and keyboard workflow UI.", params: [] },
   "addRelated.partialCreation": { message: "Created {path}, but the relationship is incomplete: {error}", context: "Action management and keyboard workflow UI.", params: ["path", "error"], referenceParams: ["path"] },
   "addRelated.originTitle": { message: "Add relationship to {origin}", context: "Action management and keyboard workflow UI.", params: ["origin"], referenceParams: ["origin"] },
+  "addRelated.allDirections": {"message": "All", "context": "Relationship composer direction filter. All preserves existing ontology assignments.", "params": []},
+  "addRelated.chooseDirection": {"message": "Choose a direction before adding a new ontology field.", "context": "Relationship composer direction filter. All preserves existing ontology assignments.", "params": []},
   "addRelated.completionMode": { message: "After saving", context: "Action management and keyboard workflow UI.", params: [] },
   "addRelated.completion.configured": { message: "Use configured behavior", context: "Action management and keyboard workflow UI.", params: [] },
   "addRelated.completion.return": { message: "Return", context: "Action management and keyboard workflow UI.", params: [] },

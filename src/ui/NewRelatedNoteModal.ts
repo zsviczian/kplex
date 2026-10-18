@@ -3,7 +3,7 @@
  */
 import { SavedRelationshipPendingError } from "../adapters/obsidian/relationshipMetadataWrite";
 import { Modal, Notice, type TFile, type Scope, type WorkspaceLeaf } from "obsidian";
-import { createElement, useEffect, useMemo, useRef, useState } from "react";
+import { createElement, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import type KplexPlugin from "../main";
 import type { GraphPage, RelationshipRole } from "../types";
@@ -70,13 +70,17 @@ function RelatedNoteComposer({
   hostLeaf?: WorkspaceLeaf;
   session: NewRelatedNoteModal;
 }) {
-  const [role, setRole] = useState<RelationshipRole>(initialRole);
+  const [roleFilter, setRoleFilter] = useState<RelationshipRole | "all">(initialRole);
   const [query, setQuery] = useState(/** Preselect the historical endpoint without requiring a second search. */ () => fixedTarget ? plugin.index.titleFor(fixedTarget) : "");
   const [alias, setAlias] = useState("");
   const [aliasFocused, setAliasFocused] = useState(false);
   const [noteTyped, setNoteTyped] = useState(false);
   const [selectedTarget, setSelectedTarget] = useState<GraphPage | null>(fixedTarget ?? null);
   const [ontology, setOntology] = useState(() => plugin.defaultOntologyField(initialRole));
+  const assignedRole = plugin.ontologyRoleForField(ontology);
+  const knownRole = assignedRole === "parent" || assignedRole === "child" || assignedRole === "left" || assignedRole === "right"
+    || assignedRole === "previous" || assignedRole === "next" ? assignedRole : null;
+  const role = roleFilter === "all" ? knownRole ?? initialRole : roleFilter;
   const [ontologyTyped, setOntologyTyped] = useState(false);
   const [browseOntology, setBrowseOntology] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -105,20 +109,20 @@ function RelatedNoteComposer({
     return /** Retire only the rename subscription from this selected-target render. */ () => plugin.app.vault.offref(rename);
   }, [plugin, selectedTarget]);
 
-  const noteResults = useMemo(() => {
-    const trimmed = query.trim();
-    if (!noteTyped || !trimmed) return [];
-    return plugin.index.search(trimmed, 48).filter((page) => isNoteTarget(page, origin.path)).slice(0, 18);
-  }, [plugin, origin.path, query, noteTyped]);
+  const getNoteResults = useCallback(/** Filename-only selection needs no graph visibility evaluation or prepared incidence. */ (value: string) => {
+    const trimmed = value.trim();
+    return trimmed ? plugin.index.search(trimmed, 48, "vault-files").filter((page) => isNoteTarget(page, origin.path)).slice(0, 18) : [];
+  }, [plugin, origin.path]);
 
+  const ontologyFields = roleFilter === "all" ? plugin.allOntologyFields() : plugin.ontologyFieldsForRole(role);
   const ontologyResults = useMemo(
     /** Explicit disclosure shows every role-appropriate field; typing retains fuzzy ranking. */
     () => browseOntology
-      ? fuzzyFilterStrings(plugin.ontologyFieldsForRole(role), "", Number.MAX_SAFE_INTEGER)
+      ? fuzzyFilterStrings(ontologyFields, "", Number.MAX_SAFE_INTEGER)
       : ontologyTyped && ontology.trim()
-        ? fuzzyFilterStrings(plugin.ontologyFieldsForRole(role), ontology, 18)
+        ? fuzzyFilterStrings(ontologyFields, ontology, 18)
         : [],
-    [plugin, role, ontology, ontologyTyped, browseOntology],
+    [ontologyFields, ontology, ontologyTyped, browseOntology],
   );
 
   const webUrl = useMemo(() => {
@@ -134,7 +138,7 @@ function RelatedNoteComposer({
   const nameValidation = useMemo(() => plugin.validateRelatedNoteName(query, folderValidation.folderPath), [plugin, query, folderValidation.folderPath]);
 
   useEffect(() => {
-    setRole(initialRole);
+    setRoleFilter(initialRole);
     setOntology(plugin.defaultOntologyField(initialRole));
     setOntologyTyped(false);
     setBrowseOntology(false);
@@ -142,6 +146,10 @@ function RelatedNoteComposer({
 
   /** Validate remembered ontology before mutation; completion revalidates captured endpoints afterward. */
   const prepareField = async (): Promise<string | null> => {
+    if (roleFilter === "all" && !knownRole) {
+      new Notice(plugin.translator("addRelated.chooseDirection"), 1800);
+      return null;
+    }
     const field = ontology.trim();
     if (!field) {
       new Notice(plugin.translator("addRelated.enterOntologyField"), 1800);
@@ -299,7 +307,7 @@ function RelatedNoteComposer({
   const noteSearch = createElement(FuzzySearchInput<GraphPage>, {
     value: query,
     onChange: onNoteChange,
-    results: noteResults,
+    getResults: getNoteResults,
     onChoose: chooseExisting,
     getKey: (page: GraphPage) => page.path,
     getLabel: (page: GraphPage) => plugin.index.titleFor(page),
@@ -454,21 +462,23 @@ function RelatedNoteComposer({
           ),
   );
 
+  const completionValue = continuation === "configured" ? !selectedTarget && !webUrl && editAfterCreate ? "edit" : "return" : continuation;
   const editToggle = !selectedTarget && !webUrl ? createElement(
     "label",
     { className: "kplex-create-edit-toggle" },
     createElement("span", { className: "kplex-create-edit-copy" }, createElement("strong", null, plugin.translator("addRelated.openForEditing"))),
     createElement(
       "span",
-      { className: `checkbox-container${editAfterCreate ? " is-enabled" : ""}` },
+      { className: `checkbox-container${completionValue === "edit" ? " is-enabled" : ""}` },
       createElement("input", {
         type: "checkbox",
-        checked: editAfterCreate,
+        checked: completionValue === "edit",
         disabled: busy || Boolean(savedPending) || Boolean(partialFile),
         "aria-label": plugin.translator("addRelated.openNewForEditing"),
         onChange: (event: { currentTarget: HTMLInputElement }) => {
           const enabled = event.currentTarget.checked;
           setEditAfterCreate(enabled);
+          setContinuation("configured");
           plugin.settings.editNewNodeAfterCreate = enabled;
           void plugin.saveSettings(false, false);
         },
@@ -476,12 +486,12 @@ function RelatedNoteComposer({
     ),
   ) : null;
 
-  const completionSelect = createElement("label", null,
+  const completionSelect = createElement("label", { className: "kplex-add-related-completion" },
     createElement("span", null, plugin.translator("addRelated.completionMode")),
     createElement("select", {
-      value: continuation, disabled: busy || Boolean(savedPending), "aria-label": plugin.translator("addRelated.completionMode"),
+      value: completionValue, disabled: busy || Boolean(savedPending), "aria-label": plugin.translator("addRelated.completionMode"),
       onChange: /** Keep explicit intent local to this invocation. */ (event: { currentTarget: HTMLSelectElement }) => setContinuation(event.currentTarget.value as CompletionIntent),
-    }, ...(["configured", "return", "another", "follow", "edit"] as const)
+    }, ...(["return", "another", "follow", "edit"] as const)
       .filter(/** URLs and unresolved notes do not support an editor completion. */ intent => intent !== "edit" || Boolean(selectedTarget?.file || !webUrl))
       .map(/** Localized finite choices cannot inject executable preferences. */ intent => createElement("option", { key: intent, value: intent }, plugin.translator(`addRelated.completion.${intent}`)))),
   );
@@ -501,7 +511,24 @@ function RelatedNoteComposer({
       createElement("button", { type: "button", disabled: busy || Boolean(savedPending), onClick: /** Recover the existing file relationship rather than creating a duplicate. */ () => submit() }, plugin.translator("addRelated.linkCreatedFile")),
       createElement("button", { type: "button", disabled: busy, onClick: /** Deliberately inspect the retained file in the supported editor. */ () => { void plugin.openInDocumentLeaf(partialFile); } }, plugin.translator("addRelated.openCreatedFile"))),
   ) : null;
-  const controlRow = createElement("div", { className: "kplex-add-related-control-row" }, ontologySearch, editToggle, completionSelect);
+  const roleChoices = [
+    ["all", "addRelated.allDirections"], ["child", "role.child"], ["parent", "role.parent"],
+    ["left", "role.friend"], ["right", "role.challenger"], ["previous", "role.previous"], ["next", "role.next"],
+  ] as const;
+  const roleSelect = createElement("select", {
+    className: "kplex-add-related-role-select", value: roleFilter,
+    "aria-label": plugin.translator("addRelated.relationshipType"), disabled: busy || Boolean(savedPending) || Boolean(partialFile),
+    onChange: /** All browses existing assignments; a specific direction retains explicit new-field assignment. */ (event: { currentTarget: HTMLSelectElement }) => {
+      if (busyRef.current) return;
+      const choice = roleChoices.find(([value]) => value === event.currentTarget.value);
+      if (!choice) return;
+      setRoleFilter(choice[0]);
+      if (choice[0] !== "all") setOntology(plugin.defaultOntologyField(choice[0]));
+      setOntologyTyped(false); setBrowseOntology(false);
+    },
+  }, ...roleChoices.map(([value, key]) => createElement("option", { key: value, value }, plugin.translator(key))));
+  const controlRow = createElement("div", { className: "kplex-add-related-control-row" }, roleSelect, ontologySearch);
+  const footer = createElement("div", { className: "kplex-add-related-footer" }, completionSelect, editToggle);
   const composeRow = createElement("div", { className: "kplex-add-related-compose-row" }, nameEditor, actionArea);
   const folderRow = !selectedTarget && !webUrl ? createElement("div", { className: "kplex-create-folder-row" },
     createElement("span", { className: "kplex-create-folder-caption" }, plugin.translator("folderPicker.label")),
@@ -547,6 +574,7 @@ function RelatedNoteComposer({
     folderRow,
     status,
     recovery,
+    footer,
   );
 }
 
@@ -560,7 +588,6 @@ export class NewRelatedNoteModal extends Modal {
   private releaseDesktopDrag: (() => void) | null = null;
   private nativeHandlers: Array<ReturnType<Scope["register"]>> = [];
   private opened = false;
-  private writing = false;
   private completing = false;
   private closingForCompletion = false;
   private nameFocusFrame: number | null = null;
@@ -597,7 +624,10 @@ export class NewRelatedNoteModal extends Modal {
   }
 
   /** Protect role changes during the exact asynchronous save, independently of React state. */
-  setWriting(writing: boolean): void { this.writing = writing; }
+  setWriting(writing: boolean): void {
+    const select = this.contentEl.querySelector<HTMLSelectElement>(".kplex-add-related-role-select");
+    if (select) select.disabled = writing;
+  }
 
   /** A close cancels unstarted work; completed disk writes remain truthful after dismissal.
    * @remarks Native Modal owns an `isOpen` boolean, so session readiness uses a distinct name.
@@ -740,24 +770,10 @@ export class NewRelatedNoteModal extends Modal {
     this.contentEl.empty(); this.root = createRoot(this.contentEl); this.renderComposer();
   }
 
-  /** Announce captured origin beside the accessible six-role selector. */
+  /** Keep the native draggable title separate from editable form controls. */
   private renderTitle(): void {
     this.titleEl.empty(); this.titleEl.addClass("kplex-add-related-title");
     this.titleEl.createSpan({ text: this.plugin.translator("addRelated.originTitle", { origin: this.plugin.index.titleFor(this.origin) }) });
-    const roleSelect = this.titleEl.createEl("select", { cls: "kplex-add-related-role-select", attr: { "aria-label": this.plugin.translator("addRelated.relationshipType") } });
-    const roleChoices = [
-      { value: "child", label: this.plugin.translator("role.child") }, { value: "parent", label: this.plugin.translator("role.parent") },
-      { value: "left", label: this.plugin.translator("role.friend") }, { value: "right", label: this.plugin.translator("role.challenger") },
-      { value: "previous", label: this.plugin.translator("role.previous") }, { value: "next", label: this.plugin.translator("role.next") },
-    ] as const;
-    for (const choice of roleChoices) roleSelect.createEl("option", { text: choice.label, attr: { value: choice.value } });
-    roleSelect.value = this.role;
-    roleSelect.addEventListener("change", /** Keep only valid finite roles and do not change role while a mutation is in flight. */ () => {
-      const choice = roleChoices.find(/** Ignore unknown selector values rather than casting a gate role. */ item => item.value === roleSelect.value);
-      if (this.writing) { roleSelect.value = this.role; return; }
-      if (!choice || choice.value === this.role) return;
-      this.role = choice.value; this.renderComposer();
-    });
   }
 
   /** Reuse one React root so another and same-file rename retain form configuration. */

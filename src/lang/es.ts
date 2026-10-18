@@ -7,6 +7,8 @@
 import { buildLocaleCatalog, type LocaleTranslationMap } from "./catalog";
 
 const spanishTranslations = {
+  "addRelated.allDirections": "Todas",
+  "addRelated.chooseDirection": "Elige una direcci?n antes de a?adir un nuevo campo de ontolog?a.",
   "settings.areaOutline.name": "Exigir modificador para los contornos de áreas",
   "settings.areaOutline.help": "Mantén {key} al pasar el cursor sobre un área para mostrar su contorno y el borde para cambiar su tamaño. Los ajustes de áreas siempre muestran los contornos.",
   "settings.hoverHighlight.name": "Exigir modificador para resaltar al pasar el cursor",

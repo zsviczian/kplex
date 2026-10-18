@@ -1996,8 +1996,36 @@ button.kplex-sidecar-unfold-plex,
 .kplex-add-related-control-row .kplex-add-related-ontology-search {
   flex: 1 1 280px;
 }
-.kplex-add-related-control-row .kplex-create-edit-toggle {
-  flex: 0 1 auto;
+.kplex-add-related-footer {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+}
+.kplex-add-related-completion {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  color: var(--text-muted);
+  font-size: var(--font-ui-small);
+}
+.kplex-add-related-completion select,
+.kplex-add-related-control-row .kplex-add-related-role-select {
+  height: 38px;
+  max-width: 100%;
+}
+.kplex-add-related-footer .kplex-create-edit-toggle {
+  background: transparent;
+  border: 0;
+  padding: 0;
+  color: var(--text-muted);
+  font-size: var(--font-ui-small);
+}
+.kplex-add-related-footer .kplex-create-edit-copy strong {
+  font-weight: normal;
+  color: var(--text-muted);
 }
 .kplex-add-related-compose-row {
   display: grid;
@@ -2997,7 +3025,7 @@ button.kplex-style-manager-row { height: fit-content; }
   .kplex-create-alias-input { min-width: 62px; }
 }
 
-/* Add-related modal: relationship role lives in the title and the filename field does not
+/* Add-related modal: direction shares the ontology row and the filename field does not
    spend horizontal space on a decorative search glyph. */
 .kplex-add-related-title {
   display: flex;
@@ -3009,8 +3037,7 @@ button.kplex-style-manager-row { height: fit-content; }
   width: auto;
   min-width: 128px;
   max-width: min(46vw, 220px);
-  font: inherit;
-  font-weight: inherit;
+  flex: 0 1 auto;
 }
 .kplex-create-name-pair .kplex-add-related-note-search .kplex-search-icon {
   display: none;

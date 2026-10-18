@@ -7,6 +7,8 @@
 import { buildLocaleCatalog, type LocaleTranslationMap } from "./catalog";
 
 const dutchTranslations = {
+  "addRelated.allDirections": "Alle",
+  "addRelated.chooseDirection": "Kies een richting voordat je een nieuw ontologieveld toevoegt.",
   "settings.areaOutline.name": "Toets vereisen voor gebiedsomtrekken",
   "settings.areaOutline.help": "Houd {key} ingedrukt terwijl je een gebied aanwijst om de omtrek en de rand voor formaatwijziging te tonen. Gebiedsinstellingen tonen altijd de omtrekken.",
   "settings.hoverHighlight.name": "Toets vereisen voor markering bij aanwijzen",

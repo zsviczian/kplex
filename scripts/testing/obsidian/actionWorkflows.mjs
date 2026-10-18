@@ -202,7 +202,13 @@ function nativeWorkflowProbe(runToken, folderScenario) {
     };
     const submit = async element => { await until(() => element.querySelector('button[data-kplex-primary-action="true"]')?.disabled === false, "Canonical composer submit unavailable"); element.querySelector('button[data-kplex-primary-action="true"]').click(); await until(() => !element.isConnected, "Canonical composer did not settle", 30000); };
     const ontology = async (origin, target, role) => {
-      await until(() => app.metadataCache.getFileCache(origin)?.frontmatter?.[p.defaultOntologyField(role)], "Explicit role property not published");
+      check(origin.path.startsWith(c.folder + "/"), "Ontology probe must read only its owned fixture");
+      const expectedField = p.defaultOntologyField(role);
+      const cacheHadTarget = JSON.stringify(app.metadataCache.getFileCache(origin)?.frontmatter?.[expectedField] ?? []).includes(target.basename);
+      const diskHadTarget = (await app.vault.read(origin)).includes(target.basename);
+      (c.metadataArrivalReceipts ??= []).push({ role, cacheHadTarget, diskHadTarget });
+      check(diskHadTarget, `Saved ${role} source lacks the requested target`);
+      await until(() => JSON.stringify(app.metadataCache.getFileCache(origin)?.frontmatter?.[expectedField] ?? []).includes(target.basename), "Exact saved ontology target not published");
       const field = p.defaultOntologyField(role), value = app.metadataCache.getFileCache(origin).frontmatter[field];
       check(JSON.stringify(value).includes(target.basename), `Wrong ${role} target/storage`);
       if (role === "previous" || role === "next") {
@@ -530,7 +536,7 @@ function nativeWorkflowProbe(runToken, folderScenario) {
       await assertBackgroundComposer("excalidraw");
       return { modes: ["excalidraw", "markdown", "excalidraw"], fixture: file.path, composerOrigin: sharedCenter, backgroundReopens: 0, canonicalToggle: "ExcalidrawAutomate.toggleViewMode" };
     });
-    return { scenarios: c.scenarios, trustedNativeKeys: c.trustedKeys ?? 0, canonicalRelationshipWrites: c.relationshipWrites, createdFiles: c.created.length };
+    return { scenarios: c.scenarios, trustedNativeKeys: c.trustedKeys ?? 0, canonicalRelationshipWrites: c.relationshipWrites, createdFiles: c.created.length, metadataArrivalReceipts: c.metadataArrivalReceipts };
   };
   c.timer = window.setTimeout(() => { c.task = run().then(value => { c.done = true; c.value = value; }, error => { c.done = true; c.error = String(error); }); }, 50);
   return JSON.stringify({ started: true, fixtureFolder: c.folder });

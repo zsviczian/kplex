@@ -8,6 +8,7 @@ import {
   useCallback,
   useEffect,
   useLayoutEffect,
+  useMemo,
   useRef,
   useState,
   type CSSProperties,
@@ -21,7 +22,9 @@ import { createPortal } from "react-dom";
 export type FuzzySuggesterProps<T> = {
   value: string;
   onChange: (value: string) => void;
-  results: readonly T[];
+  results?: readonly T[];
+  /** Rank only while this control can show suggestions; memoized across unrelated parent edits. */
+  getResults?: (query: string) => readonly T[];
   onChoose: (value: T) => void;
   getKey: (value: T) => string;
   getLabel: (value: T) => string;
@@ -118,6 +121,7 @@ export function FuzzySuggester<T>({
   value,
   onChange,
   results,
+  getResults,
   onChoose,
   getKey,
   getLabel,
@@ -159,9 +163,11 @@ export function FuzzySuggester<T>({
   const resultsRef = useRef<HTMLDivElement | null>(null);
   const inputRef = useRef<HTMLInputElement | null>(null);
 
-  const visibleResults = focused && !resultsDismissed && (
+  const canShowResults = focused && !resultsDismissed && (
     explicitlyOpened || openResultsOnFocus || (editedSinceFocus && value.trim().length > 0)
-  ) ? results : [];
+  );
+  const visibleResults = useMemo(/** Hidden controls never invoke a potentially large search provider. */ () =>
+    canShowResults ? getResults?.(value) ?? results ?? [] : [], [canShowResults, getResults, results, value]);
   const clampedSelectedIndex = visibleResults.length ? Math.max(0, Math.min(visibleResults.length - 1, selectedIndex)) : 0;
   const ownerDocument = shellRef.current?.ownerDocument ?? null;
   const ownerWindow = ownerDocument?.defaultView ?? null;
