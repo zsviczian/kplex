@@ -50,6 +50,7 @@
     "verify:obsidian:menu-anchor": "node scripts/testing/obsidian/menuAnchor.mjs",
     "verify:obsidian:color-styling": "node scripts/testing/obsidian/colorStyling.mjs",
     "verify:obsidian:style-operations": "node scripts/testing/obsidian/styleOperations.mjs",
+    "verify:obsidian:external-settings": "node scripts/testing/obsidian/externalSettings.mjs",
     "verify:obsidian:sidecar-latency": "node scripts/testing/obsidian/sidecarLatency.mjs",
     "verify:obsidian:sidecar-folding": "node scripts/testing/obsidian/sidecarFolding.mjs",
     "verify:obsidian:sidecar-folding-persistence": "node scripts/testing/obsidian/sidecarFoldingPersistence.mjs",

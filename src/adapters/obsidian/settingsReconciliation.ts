@@ -41,6 +41,7 @@ function libraryMetadata(value: unknown): unknown {
 /** Group only coherent real owners, retaining independent workflow/scalar roots and unknown data. */
 function domains(edit: RootEdit): string[] {
   if (edit.key === "appearanceThemes") {
+    /** Only the selected identity/content retires active drafts; inactive metadata has a separate epoch. */
     const active = (value: unknown): unknown => {
       if (!record(value) || !Array.isArray(value.themes)) return value;
       const selected = value.selectedId, themes: unknown[] = value.themes;
@@ -162,7 +163,7 @@ export class SettingsReconciliation {
         domains(edit).every(domain => (intent.versions.get(domain) ?? 0) === (this.versions.get(domain) ?? 0)));
       visible = applyEdits(visible, allowed);
     }
-    this.cursor = copyThemeValue(visible); this.ports.install(visible);
+    this.cursor = copyThemeValue(visible); this.ports.install(copyThemeValue(visible));
   }
 
   /** Drain captured incoming evidence before a fresh disk check at every unstarted write boundary. */
@@ -194,16 +195,26 @@ export class SettingsReconciliation {
     try {
       await write(copyThemeValue(next));
       if (this.closed) return;
-      this.accepted = copyThemeValue(next); this.expectedDisk = copyThemeValue(next);
-      if (this.candidate && !themeValuesEqual(this.candidate.raw, next)) this.candidate.overwritten = true;
+      this.acceptWrite(next);
     } catch (error) {
       // Storage may have committed before rejecting. Read back without blindly replaying the write.
       try {
+        const generation = this.generation;
         const raw = await this.ports.read();
-        if (!this.closed) {this.expectedDisk = copyThemeValue(raw); if (!this.candidate) this.candidate = {raw, snapshot: this.ports.normalize(raw), base: this.accepted, overwritten: false};}
+        if (!this.closed && themeValuesEqual(raw, next)) {this.acceptWrite(next); return;}
+        if (!this.closed && generation === this.generation) {
+          const snapshot = this.ports.normalize(raw);
+          this.expectedDisk = copyThemeValue(raw); this.candidate = {raw, snapshot, base: this.accepted, overwritten: false};
+        }
       } catch {this.failedRead = true;}
       throw error instanceof Error ? error : new Error(String(error));
     } finally {this.writing = false;}
+  }
+
+  /** Only successful storage or exact payload read-back can confirm this operation's durable baseline. */
+  private acceptWrite(snapshot: SettingsSnapshot): void {
+    this.accepted = copyThemeValue(snapshot); this.expectedDisk = copyThemeValue(snapshot);
+    if (this.candidate && !themeValuesEqual(this.candidate.raw, snapshot)) this.candidate.overwritten = true;
   }
 
   /** Accepted saves can finish after their UI retires; no older intent may reappear on a later receipt. */

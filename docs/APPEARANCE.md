@@ -122,6 +122,17 @@ Save and Cancel remain visible while the directional-tint controls scroll. Turni
 
 For CSS snippets and theme-author tokens, see [Theming K-Plex](THEMING.md).
 
+## Settings received from another device
+
+K-Plex applies settings received through Obsidian Sync without restarting or moving
+your current Plex center. An unrelated local preference change keeps the received
+appearance. Indexing strategy changes still take effect after restarting Obsidian.
+
+If another device changes the appearance while an editor is open, K-Plex keeps
+your draft visible and asks you to reopen the editor before reapplying it. Incoming
+settings do not save themselves back. Simultaneous edits to the same settings on
+different devices remain subject to Obsidian Sync's conflict resolution.
+
 ## Labels
 
 Use **Visual styling → Labels** for frontmatter display names, their field order and full tag names. Node and link geometry remain on their respective styling pages.

@@ -19,40 +19,31 @@ Obsidian is the production host; preserve the established portable semantic, ide
 
 ---
 
-# PR182 implementing: live settings reconciliation
+# PR182 validation checkpoint
 
-Maintainer authorized merging181 without waiting forCI, then182, then pause.
-181 mergedmain c0cd100; existing182branch2026-10-18-live-settings-sync integrated
-that main through8b0fdbd without rewriting and pushed. Keep182draft/no merge or
-release; do not start141/147. No subagents/personal vault/comparative performance.
-Only disposableSmall authorized native destination; foreground allowed.
+181 is merged as c0cd100; branch2026-10-18-live-settings-sync includes main
+through8b0fdbd, then runtime checkpointc0f10e9. Maintainer: finish182 then pause;
+keep draft, do not merge/release/start141 or147. No personal vault, subagents or
+comparative performance. Only Small native target authorized.
 
-Confirmed no onExternalSettingsChange callback and whole live-snapshot writes.
-Implemented primary public callback (installed1.13 types, introduced1.5.7), detached
-bounded reads/coalescing/unload guards, same settings disk queue and fresh preflight.
-Root deltas are explicit; coherent appearance/library, hierarchy, actions and scalar
-owners conflict by remote epoch. No recursive merge, schema or other sync backend.
-Received snapshots update own migration/action/appearance owners without saving.
-Captured data during accepted writes is retained and rebased by coherent domains.
-Native declarative rows retain Obsidian's renderer; transient handler keys fence
-stale scalar events. Public SettingTab.update verified in actual host: refreshes
-current page/search. Theme same-ID changes invalidate activation; inactive metadata
-preserves active drafts. Real semantic effects use existing index owner; no mixed
-presentation fallback. Foreground workspace/navigation not replayed. Three new
-feedback strings translated all8locales.
+Sixteen production-boundary Chromium settings cases pass, including exact read-back
+after a durable write rejects, two-instance/noecho, stale owners, native events,
+dirty modal, pending writes and detached accepted baseline. Real build/types pass.
+Fifty combined action/sync cases passed before the new sixteenth case. Both negative
+controls fail correctly and restore source. Full attempts preserved: indexing
+compiled inventory omitted new files; then nine action stubs omitted Notice. Both
+corrected, focused tests green. Native corrected earlier candidate passes5cases:
+actual external-file callback, all3views, native controls, semantic update/torn
+recovery and exact config restore. Source changes since that trial REQUIRE final
+native repetition. No final full-chain pass claimed yet.
 
-Checkpoint evidence:12 deterministic Chromium tests through actual plugin methods
-pass. Includes two instances/both directions/noecho, sameID/A-B-A, held reads/writes,
-queued undo, failed storage/future containers, slow refresh, stale actions/scalars,
-startup before consumers and no unhandled event-save refusal. Earlier97affected
-appearance/action tests and33sync/localization passed before final startup guards.
-Real build/installed types pass (kplex-182-checkpoint-build.log). Lint first found
-four unsafe array member accesses; narrowed unknown containers, nextlint passes.
-Full verify and actual native external-file callback delivery are STILL PENDING.
+Next: final npm run verify, exact staging, external-settings native lane in actual
+on-demand and eager sessions; existing styleOperations lane; cleanup/sanity/private
+evidence backup and final report/PR. Reusable native lane now also asserts actual
+rendered stationary parents and native editor focus/caret. Keep raw failures and
+private config backups; never archive HANDOFF or publish evidence. Source report:
+docs/validation/live-settings-sync-182-2026-10-18.md (pending final validation).
 
-Next: reusable exact native external-file lane onSmall, all settings/index regression
-checks, final review/report/marker removal, committed/pushed checkpoints and pause.
-Do not claim minimum-host/macOS-Windows Sync/physical-device acceptance from Windows
-or controlled two-instance harness. Keep raw evidence private, preserve original
-configuration/workspace/fixtures and HANDOFF standing header. No active native
-controller; browser tests drained. InstalledSmall remains prior181build untilstage.
+Minimum host, real macOS-Windows Sync and physical mobile remain unavailable.
+No active native controller; browser tasks drained. Do not run native while full
+browser verification is active.

@@ -150,3 +150,43 @@ test('an event-style stale scalar save reports refusal without an unhandled reje
  window.removeEventListener('unhandledrejection',observe);check(unhandled.length===0&&p.writes.length===0&&window.notices.length>0,'Stale event save escaped or silently wrote');
  `),true);
 });
+
+test('an imperative live mutation cannot alter the accepted baseline or turn a duplicate receipt into a remote conflict',async()=>{
+ assert.equal(await scenario(`
+ const p=await create(),legacy=copy(disk);delete legacy.appearanceThemes;legacy.noteTypeStyles.Project.fontSize=31;await receive(p,legacy);
+ const owner=p.captureAppearanceOwner();p.settings.noteTypeStyles.Project.fontSize=39;await receive(p,legacy);
+ check(p.settings.noteTypeStyles.Project.fontSize===39&&p.isAppearanceOwnerCurrent(owner),'Mutable live style leaked into accepted baseline');check(p.writes.length===0,'Duplicate receipt wrote');
+ `),true);
+});
+
+test('a same-ID receipt freezes the actual dirty style editor until discard, while a fresh editor sees the deletion',async()=>{
+ assert.equal(await scenario(`
+ const p=await create(),tab=new sourceModules.KplexSettingTab({workspace:{on:()=>({}),offref:()=>{}}},p);tab.openNodeStyleEditor('property','Project');
+ const modal=sourceModules.TestModal.instances.at(-1),input=modal.contentEl.querySelector('input[aria-label="'+p.translator('styles.fontSize')+'"]');input.value='33';input.dispatchEvent(new Event('input',{bubbles:true}));
+ const remote=copy(disk);delete selected(remote).appearance.semantic.noteTypeStyles.Project;await receive(p,remote);
+ check(modal.modalEl.isConnected&&!modal.canEdit()&&input.value==='33','Received deletion discarded or left dirty draft writable');
+ const before=p.writes.length;[...modal.contentEl.querySelectorAll('button')].find(button=>button.textContent===p.translator('common.save'))?.click();check(p.writes.length===before&&!p.settings.noteTypeStyles.Project,'Stale native style editor recreated removed rule');modal.close();
+ tab.openNodeStyleEditor('property',null);const fresh=sourceModules.TestModal.instances.at(-1);check(fresh.canEdit(),'Fresh editor inherited stale epoch');fresh.close();tab.disposeActionSettings();
+ `),true);
+});
+
+test('same-device concurrent style edits merge fields and a received palette deletion stays deleted on later workflow saves',async()=>{
+ assert.equal(await scenario(`
+ const p=await create(),owner=p.captureAppearanceOwner();await Promise.all([p.updateStyleSettings(d=>{d.noteTypeStyles.Project.fontSize=30},owner),p.updateStyleSettings(d=>{d.noteTypeStyles.Project.strokeWidth=3},owner)]);
+ check(p.settings.noteTypeStyles.Project.fontSize===30&&p.settings.noteTypeStyles.Project.strokeWidth===3,'Remote fencing broke local field merging');
+ await p.updateStyleSettings(d=>{d.colorPreferences.palette.push({id:'temporary',name:'Temporary',light:'#123456',dark:'#abcdef'});d.noteTypeStyles.Project.textColor={kind:'palette',id:'temporary'}});
+ const remote=copy(disk),active=selected(remote);active.appearance.semantic.colorPreferences.palette=[];delete active.appearance.semantic.noteTypeStyles.Project.textColor;remote.colorPreferences.palette=[];delete remote.noteTypeStyles.Project.textColor;
+ await receive(p,remote);p.settings.confirmFileDelete=false;await p.saveSettings();check(disk.colorPreferences.palette.length===0&&selected(disk).appearance.semantic.colorPreferences.palette.length===0&&!disk.noteTypeStyles.Project.textColor,'Received palette/style deletion resurrected');
+ `),true);
+});
+
+test('exact read-back confirms a write that committed before rejecting; refresh failure never replays or reverts reception',async()=>{
+ assert.equal(await scenario(`
+ const p=await create(),store=p.saveData;let first=true;p.saveData=async value=>{await store(value);if(first){first=false;throw Error('Expected post-commit storage rejection')}};
+ await p.updateStyleSettings(d=>{d.noteTypeStyles.Project.fontSize=34});check(p.settings.noteTypeStyles.Project.fontSize===34&&p.writes.length===1,'Confirmed durable style was reported unsaved or replayed');
+ p.settings.confirmFileDelete=false;await p.saveSettings();check(disk.noteTypeStyles.Project.fontSize===34&&p.writes.length===2,'Next write conflicted with confirmed local read-back');
+ const incoming=copy(disk);selected(incoming).appearance.semantic.noteTypeStyles.Project.fontSize=35;const count=p.writes.length;
+ p.index.refreshPresentationSettings=async()=>{throw Error('Expected receiving-view refresh failure')};await receive(p,incoming);await new Promise(r=>setTimeout(r,0));
+ check(p.settings.noteTypeStyles.Project.fontSize===35&&p.writes.length===count,'Refresh failure rolled back or echoed reception');check(window.notices.includes(p.translator('settingsSync.refreshPending')),'Applied/pending refresh was not explained');
+ `),true);
+});

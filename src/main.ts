@@ -1650,6 +1650,7 @@ export default class KplexPlugin extends Plugin {
           const actions = migrateActionPreferences(incoming, readObsidianPresentationEnvironment().keyConvention);
           next.actionPreferences = actions.preferences;
           this.externalSettingsReceived = true;
+          this.externalSettingsFailureNotified = false;
           return this.settingsSnapshotForPersistence(next.actionPreferencesFuture ?? next.actionPreferences, next);
         },
         install: /** Publication is synchronous; graph/native refresh is deliberately outside the disk queue. */ snapshot => this.installExternalSettings(snapshot),
@@ -1710,6 +1711,7 @@ export default class KplexPlugin extends Plugin {
     this.externalSettingsFailureNotified = false;
     if (appearanceChanged) this.appearanceThemeActivation++;
     let refreshPending = false;
+    /** A failed native subscriber cannot prevent other accepted-settings consumers from converging. */
     const notify = (listeners: Iterable<() => void>): void => {
       for (const listener of [...listeners]) try {listener();} catch {refreshPending = true;}
     };
@@ -1787,9 +1789,11 @@ export default class KplexPlugin extends Plugin {
         if (!this.unloading) this.settings.actionPreferences = draft;
       });
       if (this.unloading) return;
-      this.actionPreferenceMigrationSkipped = [];
-      this.actionPreferenceMigrationIssueCount = 0;
-      const publication = this.actionPublisher?.sync(draft);
+      if (!owner || owner()) {
+        this.actionPreferenceMigrationSkipped = [];
+        this.actionPreferenceMigrationIssueCount = 0;
+      }
+      const publication = this.actionPublisher?.sync(this.settings.actionPreferences);
       for (const listener of this.actionPreferenceListeners) listener();
       if (publication?.failures.length) {
         console.error("K-Plex action publication failed", publication.failures);
@@ -2212,10 +2216,11 @@ export default class KplexPlugin extends Plugin {
       this.index.notifyPresentation();
     }
     if (effects.semanticInvalidation) this.index.invalidateSemanticPolicy();
-    try {if (queuedAppearance)
-      await this.updateStyleSettings(/** Existing callers already published their imperative fields; persist their coherent snapshot even if its library matches. */ () => {},
+    try {
+      if (queuedAppearance) await this.updateStyleSettings(/** Existing callers already published their imperative fields; persist their coherent snapshot even if its library matches. */ () => {},
         this.captureAppearanceOwner(), {persistExistingChanges: true});
-    else await this.persistSettingsSnapshot();} catch (error) {
+      else await this.persistSettingsSnapshot();
+    } catch (error) {
       if (!(error instanceof Error) || error.name !== "SettingsConflictError") throw error;
       if (!this.unloading) new Notice(error.message);
       return;

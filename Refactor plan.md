@@ -5103,3 +5103,15 @@ method deterministic Chromium cases and real build pass; prior97affected tests a
 guards; lint passes. Full/native event delivery still pending; not merge-ready.
 Maintainer requires completion/push182 then pause; no141/147, personal vault, merge
 or release. Native receipts/platform and final regression coverage remain next.
+
+
+### PR182 validation checkpoint - 2026-10-18
+
+Live settings:16 focused production-boundary Chromium cases and real build/types pass;
+exact durable read-back, detached accepted state and stale action publication guards
+complete. Prior native candidate passed5 actual callback/control/view/semantic/recovery
+cases with exact configuration restore; final exact-build repeat and full verification
+remain pending. Two full harness failures retained and corrected (compile inventory,
+finite Notice stub). Reusable Small native lane added; temporary planning marker removed.
+C14 structural work remains paused; no indexing/parser/cache changes or performance claim.
+Manual gaps remain real two-device Sync, minimum host/config override, physical mobile.
