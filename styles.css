@@ -297,6 +297,7 @@ button.kplex-sidecar-unfold-plex:hover,
 .kplex-edge { transition: opacity .11s ease, filter .11s ease; }
 .kplex-edge-visible { pointer-events: none; filter: none; transition: opacity .11s ease, filter .11s ease; }
 .kplex-edge-hit { pointer-events: stroke; cursor: pointer; }
+.kplex-edge.is-hover-peek .kplex-edge-hit { pointer-events: none; }
 .kplex-edge.is-highlighted .kplex-edge-visible { filter: none; }
 .kplex-edge.is-dimmed { opacity: .16; }
 .kplex-edge-label { pointer-events: none; paint-order: stroke; stroke: var(--kplex-link-label-background, var(--background-primary)); stroke-width: 3px; stroke-linejoin: round; }

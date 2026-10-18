@@ -45,7 +45,7 @@ import type { GateRole, GateSide, GraphPage, Neighbour, Neighborhood, NodeStyle,
 import { LinkDirection, RelationType } from "../types";
 import { alphaHexToCss, resolveLinkStyle, resolveNodeStyle, currentNodeColorStyle, nodePaint, nodePaintFallbacks, NATIVE_CANVAS_FILL, NATIVE_LINK_STROKE, NATIVE_LINK_TEXT, NATIVE_LINK_LABEL_FILL } from "../index/style";
 import { TYPOGRAPHY_FIELDS, TYPOGRAPHY_LIMITS, type TypographyValues } from "../core/plex/typographyPreferences";
-import { buildScene, buildSectionExpandedScene, appendVisibleCrossLinks, projectNodeCounts, rowIntersectsViewport, effectiveLabelLimit, expandedChildReserve, expandedNodeWidth, expandedMiniLayout, horizontalDensity, layoutColumns, spacingPolicy, gateDiameter, siblingScale, withAreaHeightOverrides, type CenterNodeSize, type ZoneViewport, type ZoneAreaBounds } from "./layout";
+import { buildScene, sceneLayoutPolicyKey, neighborhoodSceneKey, bindSceneNeighborhood, buildSectionExpandedScene, appendVisibleCrossLinks, projectNodeCounts, rowIntersectsViewport, effectiveLabelLimit, expandedChildReserve, expandedNodeWidth, expandedMiniLayout, horizontalDensity, layoutColumns, spacingPolicy, gateDiameter, siblingScale, withAreaHeightOverrides, type CenterNodeSize, type ZoneViewport, type ZoneAreaBounds } from "./layout";
 import { LayoutSlider } from "./components/LayoutSlider";
 import { centeredViewportFit, sameFitCamera, type FitCamera } from "./components/viewportFit";
 import { projectFilteredGateCounts } from "./filteredGateCounts";
@@ -641,6 +641,7 @@ function Edge({
   crossLinkOpacity,
   highlighted,
   dimmed,
+  passive = false,
   onHover,
   onMove,
   onLeave,
@@ -654,6 +655,7 @@ function Edge({
   crossLinkOpacity: number;
   highlighted: boolean;
   dimmed: boolean;
+  passive?: boolean;
   onHover: (event: PointerEvent<SVGPathElement>) => void;
   onMove: (event: PointerEvent<SVGPathElement>) => void;
   onLeave: () => void;
@@ -682,7 +684,7 @@ function Edge({
 
   const resolvedCrossLinkOpacity = edge.isCrossLink && !highlighted ? crossLinkOpacity : undefined;
 
-  return <g className={`kplex-edge${edge.isCrossLink ? " is-cross-link" : ""}${highlighted ? " is-highlighted" : ""}${dimmed ? " is-dimmed" : ""}`}>
+  return <g className={`kplex-edge${edge.isCrossLink ? " is-cross-link" : ""}${passive ? " is-hover-peek" : ""}${highlighted ? " is-highlighted" : ""}${dimmed ? " is-dimmed" : ""}`}>
     <path
       className="kplex-edge-visible"
       opacity={resolvedCrossLinkOpacity}
@@ -923,11 +925,16 @@ export function PlexGraph({ plugin, index, settings: viewSettings, paintSettings
     if (!neighborhood || !globalFiltering || filterLayoutMode !== "reflow" || layoutSectionExpansion) return neighborhood;
     return filterNeighborhoodForLenses(neighborhood, neighborhood.center, predicateEngine, index, predicate, lenses);
   }, [neighborhood, globalFiltering, filterLayoutMode, layoutSectionExpansion, predicateEngine, index, predicate, lenses, predicateRevision]);
-  const scene = useMemo(() => layoutNeighborhood
+  const scenePolicyKey = useMemo(/** Equivalent wrappers and paint-only updates retain the actual geometry policy. */ () => sceneLayoutPolicyKey(settings), [settings]);
+  const sceneGeometryKey = useMemo(/** Compare consumed values, never mutable page identity or source clocks alone. */ () =>
+    neighborhoodSceneKey(layoutNeighborhood, index, settings), [layoutNeighborhood, index, settings]);
+  const sceneGeometry = useMemo(() => layoutNeighborhood
     ? (layoutSectionExpansion
       ? buildSectionExpandedScene(layoutSectionExpansion, index, settings, expandedSectionIds, showCrossLinks, centralEditorSize, true)
       : buildScene(layoutNeighborhood, index, settings, showCrossLinks && globalFiltering, centralEditorSize, true))
-    : { nodes: [], edges: [], zoneViewports: {}, zoneAreas: {} }, [layoutNeighborhood, layoutSectionExpansion, expandedSectionIds, index, settings, layoutRevision, showCrossLinks, globalFiltering, centralEditorSize]);
+    : { nodes: [], edges: [], zoneViewports: {}, zoneAreas: {} }, [scenePolicyKey, sceneGeometryKey, semanticRevision, layoutSectionExpansion, layoutSectionExpansion ? settings : null, expandedSectionIds, index, layoutRevision, showCrossLinks, globalFiltering, centralEditorSize]);
+  const scene = useMemo(/** Keep native endpoints and lazy predicate inputs current without recomputing unchanged geometry. */ () =>
+    layoutSectionExpansion ? sceneGeometry : bindSceneNeighborhood(sceneGeometry, layoutNeighborhood), [sceneGeometry, layoutNeighborhood, layoutSectionExpansion]);
   const sceneNodeKeys = useMemo(/** Capture unique reconciliation keys for this scene without changing mutable canonical page identity. */ () => {
     const occurrences = new Map<string, number>();
     return new Map(scene.nodes.map(/** Keep renamed endpoints and new-name placeholders distinct even if geometry rebuilds before their authoritative handover. */ (node) => {
@@ -1054,6 +1061,7 @@ export function PlexGraph({ plugin, index, settings: viewSettings, paintSettings
   const automaticFit = useRef<{ path: string; camera: FitCamera } | null>(null);
   const fitCurrentScene = useRef<() => void>(/** Native resize callbacks must wait for the first composed scene fit. */ () => {});
   const [hover, setHover] = useState<HoverState>(null);
+  const [crossLinkPeek, setCrossLinkPeek] = useState<Exclude<HoverState, { kind: "edge" }>>(null);
   const hoverHighlight = useRef<HoverHighlight<Exclude<HoverState, null>> | null>(null);
   const edgeTooltipTimer = useRef<number | null>(null);
   const edgeTooltipPoint = useRef<Point>({ x: 0, y: 0 });
@@ -1183,15 +1191,21 @@ export function PlexGraph({ plugin, index, settings: viewSettings, paintSettings
   useEffect(/** Each rendered graph owns its modifier listeners and delayed activation. */ () => {
     const element = viewport.current;
     if (!element) return;
-    const intent = new HoverHighlight<Exclude<HoverState, null>>(element.ownerDocument.defaultView ?? window, viewSettings.hoverHighlightRequiresAlt, setHover);
+    const intent = new HoverHighlight<Exclude<HoverState, null>>(element.ownerDocument.defaultView ?? window, viewSettings.hoverHighlightRequiresAlt, setHover, 750, {
+      accepts: /** Only real node/gate candidates can request a temporary crosslink projection. */ target => target.kind !== "edge",
+      publish: /** Connector hover and untrusted/touch candidates retain ordinary highlighting only. */ target => setCrossLinkPeek(target?.kind === "node" || target?.kind === "gate" ? target : null),
+    });
     hoverHighlight.current = intent;
     setHover(null);
     const release = bindHoverHighlight(element, intent);
-    return () => { release(); if (hoverHighlight.current === intent) hoverHighlight.current = null; };
-  }, [viewSettings.hoverHighlightRequiresAlt, activePath, Boolean(neighborhood)]);
+    const releaseVisibility = plugin.subscribeKplexVisibility(/** Hidden native leaves cannot retain stationary mouse candidates. */ () => {
+      if (!plugin.isKplexLeafVisible(hostLeaf)) intent.clear();
+    });
+    return () => { releaseVisibility(); release(); if (hoverHighlight.current === intent) hoverHighlight.current = null; };
+  }, [plugin, hostLeaf, viewSettings.hoverHighlightRequiresAlt, activePath, Boolean(neighborhood)]);
 
   /** Route nodes, gates and connectors through the same surface-owned intent. */
-  const scheduleHoverIntent = (next: Exclude<HoverState, null>, event: {altKey: boolean; pointerType: string}) => {
+  const scheduleHoverIntent = (next: Exclude<HoverState, null>, event: {altKey: boolean; pointerType: string; isTrusted?: boolean}) => {
     clearEdgeTooltip();
     hoverHighlight.current?.enter(next, event);
   };
@@ -2376,6 +2390,18 @@ export function PlexGraph({ plugin, index, settings: viewSettings, paintSettings
       appendVisibleCrossLinks(scene.nodes.filter(node => visibleNodePaths.has(node.page.path)), edges,
         index, settings, neighborhood.center.path);
     }
+    if (!showCrossLinks && crossLinkPeek && !connectDrag && !nodeDrag && !resizingArea && !areaSettingsMode && neighborhood) {
+      appendVisibleCrossLinks(scene.nodes.filter(node => visibleNodePaths.has(node.page.path)), edges,
+        index, settings, neighborhood.center.path, {
+          path: crossLinkPeek.path,
+          accepts: /** Match the actual canonical endpoint gate, independent of arrow reversal or screen placement. */ edge => {
+            if (crossLinkPeek.kind === "node") return true;
+            const gates = gatesForEdge(edge);
+            return edge.sourcePath === crossLinkPeek.path && gates.source === crossLinkPeek.gate
+              || edge.targetPath === crossLinkPeek.path && gates.target === crossLinkPeek.gate;
+          },
+        });
+    }
     return edges.map((edge) => {
       const target = scene.nodes.find((node) => node.page.path === edge.targetPath);
       if (!target || !neighborhood) return edge;
@@ -2391,7 +2417,11 @@ export function PlexGraph({ plugin, index, settings: viewSettings, paintSettings
       return Object.keys(lensStyle).length ? { ...edge, style: { ...edge.style, ...lensStyle } } : edge;
     });
   }, [scene.edges, scene.nodes, visibleNodePaths, neighborhood, predicateEngine, index, settings, lenses,
-    predicateRevision, showCrossLinks, globalFiltering, layoutSectionExpansion]);
+    predicateRevision, showCrossLinks, globalFiltering, layoutSectionExpansion, crossLinkPeek, connectDrag, nodeDrag, resizingArea, areaSettingsMode]);
+
+  useEffect(/** Scrolling/filtering/removal retires an occurrence; a later same-path row needs a new mouse entry. */ () => {
+    if (crossLinkPeek && !visibleNodePaths.has(crossLinkPeek.path)) clearHoverIntent(true);
+  }, [crossLinkPeek, visibleNodePaths]);
 
   const paintedEdges = useMemo(/** Re-layer visible edge colors without rebuilding their route or scene. */ () => visibleEdges.map(edge => {
     const target = renderedNodeMap.get(edge.targetPath); if (!target || !neighborhood) return edge;
@@ -3989,7 +4019,8 @@ export function PlexGraph({ plugin, index, settings: viewSettings, paintSettings
       selected={baseNode.page.path === activePath}
       keyboardId={sceneNodeKeys.get(baseNode)}
       keyboardSelected={keyboardSelection === sceneNodeKeys.get(baseNode)}
-      highlighted={!connectDrag && (finding ? findNodePaths.has(baseNode.page.path) : interaction.nodePaths.has(baseNode.page.path))}
+      highlighted={!connectDrag && (crossLinkPeek !== null && interaction.nodePaths.has(baseNode.page.path)
+        || (finding ? findNodePaths.has(baseNode.page.path) : interaction.nodePaths.has(baseNode.page.path)))}
       dimmed={!connectDrag && !finding && hover !== null && !interaction.nodePaths.has(baseNode.page.path)}
       highlightedGates={highlightedGates}
       dragging={nodeDrag?.path === baseNode.page.path}
@@ -4437,8 +4468,10 @@ export function PlexGraph({ plugin, index, settings: viewSettings, paintSettings
           connectorStyle={settings.connectorStyle}
           labelBackground={NATIVE_LINK_LABEL_FILL}
           crossLinkOpacity={Math.max(0, Math.min(1, settings.crossLinkOpacity / 100))}
-          highlighted={!connectDrag && (finding ? matchesOntologyFind(findQuery, edge.style.showLabel ? relationLabel(edge.typeDefinition) ?? undefined : undefined) : interaction.edgeIds.has(edge.id))}
+          highlighted={!connectDrag && (crossLinkPeek !== null && interaction.edgeIds.has(edge.id)
+            || (finding ? matchesOntologyFind(findQuery, edge.style.showLabel ? relationLabel(edge.typeDefinition) ?? undefined : undefined) : interaction.edgeIds.has(edge.id)))}
           dimmed={connectDrag ? connectBlockedEdgeIds.has(edge.id) : !finding && hover !== null && !interaction.edgeIds.has(edge.id)}
+          passive={Boolean(crossLinkPeek && !showCrossLinks && edge.isCrossLink)}
           onHover={(event) => { if (!connectDrag && !nodeDrag) scheduleEdgeHover(edge, event); }}
           onMove={(event) => { if (!connectDrag && !nodeDrag) moveEdgeHover(edge, event); }}
           onLeave={() => { if (!connectDrag && !nodeDrag) clearHoverIntent(true); }}

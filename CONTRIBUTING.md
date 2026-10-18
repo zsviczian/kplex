@@ -106,7 +106,7 @@ never substitutes direct K-Plex materialization for external creation. The drive
 drawings and restores settings, workspace and configuration bytes even on failure. Run it serially
 after exact-build staging; Linux, macOS and physical-device acceptance remain separate.
 
-After exact-build staging, `npm run verify:obsidian:hover-highlight` checks the actual **Plex behavior** Settings toggle, durable saves, trusted mouse/modifier activation on nodes, gates and connectors in main/popout windows, and restored default delayed hover in `kplex-test-small`. Use the same three explicit vault variables and a fresh report directory. The lane owns two temporary notes, restores settings/workspace/configuration bytes and releases listeners/controllers. It counts body reads/parses/acquisitions and semantic/search calls during the tested Settings/hover intervals; fixture and popout initialization are recorded separately. Windows Electron input does not replace macOS Option/menu or physical-device acceptance. Run native drivers serially.
+After exact-build staging, `npm run verify:obsidian:hover-highlight` checks the actual **Plex behavior** Settings toggle, durable saves, trusted mouse/modifier activation on nodes, gates and connectors in main/popout windows, and restored default delayed hover in `kplex-test-small`. Use the same three explicit vault variables and a fresh report directory. The lane owns six temporary notes, restores settings/workspace/configuration bytes and releases listeners/controllers. Its shared `crosslinkPeek.mjs` fixture also checks disabled-crosslink node/four-gate/incoming previews, stationary and held Alt, both hover settings, zero opacity, enabled-crosslink deduplication, geometry/count stability and independent main/popout previews with blur cleanup. It counts body reads/parses/acquisitions and semantic/search calls during guarded hover intervals, plus settings writes during the new preview intervals; fixture, preference and popout initialization are recorded separately. Windows Electron input does not replace macOS Option/menu or physical-device acceptance. Run native drivers serially. See the [PR181 validation record](docs/validation/alt-hover-crosslinks-181-2026-10-18.md) for results and the combined matrix deferred to PR147.
 
 `npm run verify:obsidian:interaction-updates` uses the same exact-build prerequisites and explicit Small-vault variables. It checks the actual area-outline Settings toggle, stationary Alt transitions, scroll transparency, gate-to-gate draft geometry, sibling additions through the relationship composer, actual Bases link dragstart/drop, placeholder materialization during a held build, and native File properties following and overlap recovery in main/popout windows. It owns a bounded synthetic folder, restores workspace/settings/window geometry and checks the original file inventory. Setup rebuilds are excluded from presentation-only resource claims. Run this lane serially; desktop input does not establish physical mobile or macOS acceptance.
 
@@ -999,6 +999,17 @@ restart and physical mobile touch remain separate acceptance. See the
 [rename validation record](docs/validation/rename-identity-2026-10-11.md).
 
 ## Navigation and embedded drawing fit acceptance
+
+For focused Markdown autosave continuity, use the same exact-build disposable-vault
+setup and run `scripts/testing/obsidian/adaptiveFit.mjs` with
+`KPLEX_MARKDOWN_SAVE_ONLY=true` and a fresh `KPLEX_HOST_REPORT_DIR`. Keep
+`KPLEX_MARKDOWN_SAVE_OBSERVE_ONLY` false for acceptance; true records a baseline
+without asserting the no-op contract. The shared owner restores fixtures/settings/
+workspace and snapshots the serialized helper. It checks native Sidecar and central
+source-editor autosaves, intermediate parent roles, DOM/focus and real parent
+removal. Functional work counts are not controlled CPU/memory benchmarks. See the
+[PR180 validation record](docs/validation/markdown-save-continuity-180-2026-10-18.md)
+for the deferred combined matrix and platform limits.
 
 After exact-build staging, run `npm run verify:obsidian:adaptive-fit` with the three explicit
 disposable `kplex-test-small` vault variables and a fresh `KPLEX_HOST_REPORT_DIR`. The driver

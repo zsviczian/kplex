@@ -53,6 +53,15 @@ test('gate modifier withholds hints, accepts a stationary Alt/Option press, and 
  }finally{await host.cleanup()}
 });
 
+test('a child gate prefers above even with room below, retaining viewport fallback',async()=>{
+ const host=await chromiumHarness(result.outputFiles[0].text);
+ try{await fixture(host);
+  const data=await host.evaluate(`(async()=>{const gate=document.querySelector('#top');gate.dataset.kplexGate='bottom';gate.dataset.tooltipPosition='top';gate.style.top='180px';fire('#top','pointerover');await pause(720);const preferred=read(),r=gate.getBoundingClientRect();fire('#top','pointerout');gate.style.top='10px';fire('#top','pointerover');await pause(720);const fallback=read(),edge=gate.getBoundingClientRect();return{preferred,gateTop:r.top,fallback,gateBottom:edge.bottom}})()`);
+  assert.equal(data.preferred.above,true);assert(data.preferred.bottom<=data.gateTop-8);
+  assert.equal(data.fallback.above,false);assert(data.fallback.top>=data.gateBottom+8);
+ }finally{await host.cleanup()}
+});
+
 test('range wrapper supplies measured help; quick crossing, clicking, scrolling and removal cancel work',/** Input labels remain accessible while the longer wrapper hint owns hover. */async()=>{
  const host=await chromiumHarness(result.outputFiles[0].text);
  try{await fixture(host);

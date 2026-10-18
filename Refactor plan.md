@@ -5005,3 +5005,85 @@ HANDOFF excluded. MANIFEST SHA-256
 Originals and prior backups retained; nothing raw published. Remote0ab6091 CI is
 in progress when recorded; previous41fd2f8 CI passed. A docs-only evidence pin
 changes no validated runtime. Keep PR177 draft.
+
+### 2026-10-18 PR180 — stationary Markdown saves
+
+Merged accepted PR177 to main4396768; integrated main into the existing180 branch
+without rewriting history (1160cb2). Native Sidecar/central-editor autosaves
+reproduce body parents temporarily demoted to children, lost DOM and126 animations
+per3saves. The accepted read priority keeps the exact prior canonical/body owner
+only while replacement work is active; policy/native identity/write fences remain.
+A first semantic-scope-only candidate had no effect and is retained as failed evidence.
+
+On-demand invalidation now distinguishes dirty source admission from the compiled
+policy token, restoring SourceFingerprint no-op use without skipping validation.
+Prepared view identity survives non-settings publications; ordinary scene geometry
+compares consumed values, strips paint via the existing owner and rebinds current
+pages. Sections keep conservative invalidation. No new scheduler/schema/receipt.
+
+Red controls independently fail for read retention, no-op policy and scene work.
+111affected owner tests,8final held-parser Eager/On-demand/same-stat/removal cases,
+143focused presentation/UI/follow/layout tests,7architecture/130core/full lint/real
+build pass. Strict native1792346311955 passes4 cases:3prose autosaves each in
+Sidecar and central editor give0semantic/0animation, retained DOM/focus and parent
+roles; actual parent removal/restoration passes. Native adaptive-fit1792346448185
+passes7positive relationship/navigation/camera controls. Exact main713b17c1 hash
+and source/read counts are recorded in docs/validation/markdown-save-continuity-180-2026-10-18.md.
+
+Per maintainer, defer full verify/native/platform/dependency matrix to147; keep180
+draft. No CPU/memory/latency claim. Source parsing/acquisition and many presentation
+notifications remain. Follow-up147 should attribute those passes before optimizing.
+No personal vault, comparative performance test, release or180merge. Remaining
+manual priorities: combined property-lens/section/provenance matrix, independent
+popouts/macOS and physical mobile. Separate Settings-close freeze stays in179.
+
+Checkpoint `256c6cc7bb15952b5ec58609f21798c5e10f07fa` is committed/pushed.
+The final policy/lifetime subset passes35 tests after the same-stat/policy guards.
+Sanity1792346630038 repeats original fixture counts, exact hashes and capture-off
+restoration after the seven native positive controls. Verified private evidence:
+`%LOCALAPPDATA%/KplexValidation/markdown-saves-180-20261018-1792346670447`;
+42 files/6,996,864bytes; source ZIP544 entries, CRC/per-file SHA verified; HANDOFF
+excluded. MANIFEST SHA-256
+`7ff510049d3231bfc828952bd70731c2d9fd18ae477d1080fed4d1513b9cb5d0`.
+Originals remain in Temp; nothing raw published. CI runs asynchronously; no final
+CI-green claim or merge recommendation replaces the deferred combined checks.
+
+
+### 2026-10-18 PR181 â€” Alt/Option crosslink preview
+
+| Checkpoint | Result |
+| --- | --- |
+| Main integration | Main177/180 incorporated without rewriting; draft181 targets main@e95d3db through7d0a014. |
+| Shared owners | Optional trusted mouse feedback in HoverHighlight; focused appendVisibleCrossLinks, existing gates/style/paint/lifecycle. No indexing/settings/schema change; C14 remains paused. |
+| Focused checks | 60 hover/layout/UI +2 Eager/On-demand source-backed +23 gate/tooltip/motion;7architecture/130core/full lint/real build pass. Two projection/Find-highlight controls fail as expected; restored bytes. |
+| Native checks | Exact build1792348138137; native1792348226865 passes11: four gates/incoming, both modes, enabled dedup, zero opacity, main/popout and blur. Guarded reads/parses/acquisition/semantic/search/settings writes0; setup separate. |
+| Maintainer boundary | Complete/push181 then pause for maintainer testing/merge. Keep draft. No147 implementation, merge, release, personal vault or comparative performance test. Full/platform matrix pending. |
+
+Projection uses eligible displayed persistent endpoints; modifier changes do not
+enter geometry or semantic gate-count dependencies. Preserve canonical orientation
+through earlier incident reciprocal lookups, not all-pairs or a second classifier.
+Expanded minis keep their separate non-connection-hover policy. Extra hits passive.
+
+Report: docs/validation/alt-hover-crosslinks-181-2026-10-18.md. Initial UI fixture
+lacked explicit null peek input (59/60); corrected fixture passes60. Final sanity
+1792348322853 restores107files/88Markdown, configuration/workspace, no controllers/
+dialogs, desktop/captureoff. No CPU/memory/latency comparison. Remaining manual:
+native lens/section/scroll provenance; actual Eager/drag/paint; macOS/migration/
+physical devices. Maintainer will test181 before its merge or the next work package.
+
+181runtime checkpoint e8e8814744ebc8eb1beb43a8674a5951b91be9be committed/pushed.
+Private verified backup1792348500765:38files/8645196bytes, sourceZIP545entries,
+CRC/per-fileSHA pass, HANDOFF excluded. Manifest381e9879634ca0a01b5f04df9bf08af2b39bb4fa7aad8d98188a9321931d95c8.
+Originals retained/private. Pause for maintainer testing; no next task started.
+
+
+### 2026-10-18 PR181 child-gate tooltip follow-up
+
+Shared LongPressTooltip now honors existing data-tooltip-position=top rather than
+always preferring below; viewport/canvas fallback retained. Gates already request
+top, no new control/settings/strings.8browser tooltip checks, full lint/real build/
+exact stage1792349032305 and8native node-only cases1792349051302 pass, including
+child gate above in main/popout/return. Sanity1792349085739 restores107files/88md,
+config/workspace/captureoff. Installed main f40ff506c3a8990c98493d46b77ef1e4cebdb219085ed3a278812d0f1bc19a0d.
+Existing crosslink validation not rerun; no indexing or CSS change. Remain paused
+for maintainer testing/merge; no next PR. macOS/physical acceptance still separate.

@@ -468,7 +468,7 @@ export class GraphIndex {
   private onDemandTasks = new Map<string, Promise<void>>();
   /** Only actual build-blocked demands wait for that owner's completion; no timer or retry loop. */
   private onDemandBuildWaiters = new Map<string, number>();
-  private onDemandIndexed = new Map<string, { file: TFile; mtime: number; size: number; policyRevision: number }>();
+  private onDemandIndexed = new Map<string, { file: TFile; mtime: number; size: number; policyRevision: number; dirty?: boolean }>();
   /** Bounded fresh snapshot acceleration remains presentation-only until its owners are canonicalized. */
   private onDemandCachedScopes = new Map<string, ReturnType<typeof createGraphState>>();
   /** Host-known frontmatter overrides cover all direct host contributors, independently of body-owner caps. */
@@ -873,7 +873,7 @@ export class GraphIndex {
           const file = this.app.vault.getFileByPath(path);
           if (!file || file.extension !== "md") continue;
           const token = this.onDemandIndexed.get(path);
-          if (token?.file === file && token.mtime === file.stat.mtime && token.size === file.stat.size
+          if (!token?.dirty && token?.file === file && token.mtime === file.stat.mtime && token.size === file.stat.size
             && token.policyRevision === policy) continue;
           const revision = captureFileRevision(file);
           if (this.building) {
@@ -885,7 +885,7 @@ export class GraphIndex {
           if (this.state.pages.get(path)?.file !== file) this.insertCreatedFile(file);
           if (!current() || this.app.vault.getFileByPath(path) !== file || !fileRevisionMatches(file, revision)) return;
           const result = await this.patchMarkdownPaths([path], {
-            useDurableCache: true, forceRecompile: token?.policyRevision !== policy, isCurrent: current,
+            useDurableCache: true, forceRecompile: token?.file !== file || token.policyRevision !== policy, isCurrent: current,
           });
           if (!current() || result.outcome !== "patched" || !fileRevisionMatches(file, revision)
             || this.app.vault.getFileByPath(path) !== file) return;
@@ -1100,10 +1100,17 @@ export class GraphIndex {
     return page.neighbours.has(targetPath);
   }
 
+  /** Retire same-stat admission without discarding the policy of already compiled source semantics.
+   * A real edit must validate/parse again, but its existing fingerprint can still prove a no-op. */
+  private markOnDemandSourceDirty(path: string): void {
+    const previous = this.onDemandIndexed.get(path);
+    if (previous) previous.dirty = true;
+  }
+
   /** Canonicalize one visible source ahead of unrelated dirty files; background builds retain their progress. */
   refreshVisibleMarkdownPath(path: string): Promise<void> {
     if (this.usesLocalForeground()) {
-      this.onDemandIndexed.delete(path);
+      this.markOnDemandSourceDirty(path);
       for (const center of this.semanticDemandCounts.keys()) if (center === path || this.hasReadableNeighbour(center, path)) {
         this.semanticDemandRevision.set(center, (this.semanticDemandRevision.get(center) ?? 0) + 1);
       }
@@ -1323,7 +1330,7 @@ export class GraphIndex {
       for (const [center, scope] of this.onDemandCachedScopes) {
         if (scope.pages.has(changedPath) || affectedTargets.has(center)) this.onDemandCachedScopes.delete(center);
       }
-      this.onDemandIndexed.delete(changedPath);
+      this.markOnDemandSourceDirty(changedPath);
       let visible = false;
       for (const center of this.semanticDemandCounts.keys()) {
         if (center !== changedPath && !affectedTargets.has(center) && !this.hasReadableNeighbour(center, changedPath)) continue;
@@ -2682,6 +2689,15 @@ export class GraphIndex {
     if (this.retiredHostTagPaths.has(path)) return undefined;
     const tagPreview = this.hostPreviewScopes.get(path)?.pages.get(path);
     if (tagPreview?.isTag && !this.hasCurrentCanonicalTag(path)) return tagPreview;
+    // A pending replacement may have only host link facts while body-defined roles await parsing.
+    // Keep the exact center's prior compiled read presentation during that task. Its old source/
+    // maintenance stamps still fail every currentness/write check; a current scope above wins.
+    const predecessor = this.state.pages.get(path), priorBody = this.fieldCache.get(path);
+    if (this.onDemandTasks.has(path) && predecessor?.file && priorBody
+      && this.onDemandIndexed.get(path)?.policyRevision === this.semanticPolicyRevision
+      && predecessor.file.path === path && this.app.vault.getFileByPath(path) === predecessor.file
+      && priorBody.mtime === predecessor.mtime
+      && (priorBody.mtime !== predecessor.file.stat.mtime || this.sourceAcquisition.needsBodyRead(predecessor.file))) return predecessor;
     if (this.usesLocalForeground() && this.onDemandBaselineReady) {
       // A native baseline contains all host edges, while the early preview is deliberately capped.
       // Counts must never be limited by that preview/candidate cap.

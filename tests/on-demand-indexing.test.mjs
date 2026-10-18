@@ -8,7 +8,7 @@ import { chromiumHarness } from './support/browserTypeScript.mjs';
 import { centerGateSettings } from './support/requestedCenterGateFixture.mjs';
 
 const bundle = await contributorBrowserBundle(['src/index/GraphIndex.ts', 'src/index/GraphBuilder.ts', 'src/index/GraphState.ts', 'src/index/IndexSnapshot.ts',
-  'src/core/graph/settingsPolicy.ts', 'src/core/plex/typographyPreferences.ts', 'src/core/contracts/appearance.ts', 'src/core/plex/colorPreferences.ts', 'src/core/plex/appearanceThemes.ts']);
+  'src/core/graph/settingsPolicy.ts', 'src/core/plex/typographyPreferences.ts', 'src/core/contracts/appearance.ts', 'src/core/plex/colorPreferences.ts', 'src/core/plex/appearanceThemes.ts', 'src/ui/layout.ts']);
 
 /** Keep the actual settings classifier, save queue and typography writers without plugin startup. */
 function typographyHostSource() {
@@ -48,6 +48,29 @@ const initialize = `(() => {
   };
   return true;
 })()`;
+
+for(const mode of ['on-demand','eager']) test('focused crosslinks use actual published adjacency without source or semantic work ('+mode+')',async()=>scenario(`(async()=>{
+  const mode=${JSON.stringify(mode)},o=await onDemandFixture('v2-crosslink-peek-'+mode,{indexingMode:mode,baseLinkStyle:{},hierarchyLinkStyles:{Child:{strokeWidth:3,showLabel:true}}});const {f,index}=o,releases=[];
+  try{
+    f.add('Center.md','',{Child:['[[A]]','[[B]]','[[C]]']});f.add('A.md','',{Child:'[[B]]',Friend:'[[C]]'});f.add('B.md','',{Right:'[[C]]'});f.add('C.md','');
+    f.app.metadataCache.resolvedLinks={'Center.md':{'A.md':1,'B.md':1,'C.md':1},'A.md':{'B.md':1,'C.md':1},'B.md':{'C.md':1}};
+    ok(await index.initializeOnDemandBaseline(),'Actual physical baseline');
+    if(mode==='eager'){delete index.sourceAcquisition.enableInventory;index.plugin.startupDiagnostics.processed=()=>{};index.sourceAcquisition.enableInventory();await index.sourceAcquisition.reconcile();await index.sourceAcquisition.flush();ok(index.sourceAcquisition.hasSemanticDependencies(),'Actual source authority');}
+    for(const path of ['Center.md','A.md','B.md','C.md'])releases.push(index.acquireSemanticDemand(path));
+    await settleDemand(index);if(mode==='eager')for(const path of ['Center.md','A.md','B.md','C.md'])await index.ensureSemanticScope(path);
+    const nodes=['Center.md','A.md','B.md','C.md'].map(path=>({page:index.get(path)}));
+    const normal=[];sourceModules.appendVisibleCrossLinks(nodes,normal,index,o.settings,'Center.md');
+    equal(normal.map(edge=>edge.id).sort(),['cross:A.md:B.md:child','cross:A.md:C.md:left','cross:B.md:C.md:right'],'Independently specified real ontology pairs and canonical orientation');
+    const before=[f.reads.length,o.parses.length,index.publicationRevision,index.semanticPolicyRevision];let notifications=0;const stop=index.subscribe(()=>notifications++);
+    for(const path of ['A.md','B.md','C.md']){
+      const focused=[];sourceModules.appendVisibleCrossLinks(nodes,focused,index,o.settings,'Center.md',{path,accepts:()=>true});
+      equal(focused,normal.filter(edge=>edge.sourcePath===path||edge.targetPath===path),'Incoming and outgoing exact styles/orientation for '+path);
+    }
+    const clipped=[];sourceModules.appendVisibleCrossLinks(nodes.filter(node=>node.page.path!=='B.md'),clipped,index,o.settings,'Center.md',{path:'A.md',accepts:()=>true});
+    equal(clipped.map(edge=>edge.id),['cross:A.md:C.md:left'],'Absent endpoints remain absent');stop();
+    equal([f.reads.length,o.parses.length,index.publicationRevision,index.semanticPolicyRevision],before,'No read/parse/revision work');equal(notifications,0,'No semantic notifications');return true;
+  }finally{for(const release of releases)release();o.close();}
+})()`));
 
 for (const mode of ['on-demand','eager']) test('native rename synchronously remaps separately published center incidence before source repair ('+mode+')', async()=>scenario(`(async()=>{
   const mode=${JSON.stringify(mode)};const o=await onDemandFixture('v2-rename-read-scope-'+mode,{renderAlias:false,indexingMode:mode});const {f,index}=o;let release;
@@ -736,6 +759,28 @@ test('a file change during current demand cancels the old owner and retries the 
     ok(index.get('A.md').neighbours.has('https://example.com/new'),'Latest revision publishes');ok(!index.get('A.md').neighbours.has('https://example.com/old'),'Late stale owner does not publish');
     equal(index.onDemandIndexed.get('A.md').mtime,2,'Current physical token');equal(o.inventoryStarts,0,'No inventory');return true;
   }finally{unblock?.();release?.();o.close();}
+})()`));
+
+for(const mode of ['on-demand','eager'])for(const remove of [false,true])for(const sameStat of [false,true])test('pending body replacement retains its prior parent presentation then publishes the real result ('+mode+', remove='+remove+', same-stat='+sameStat+')',async()=>scenario(`(async()=>{
+ const o=await onDemandFixture('save-parent-'+${JSON.stringify(mode)}+'-'+${remove}+'-'+${sameStat},{indexingMode:${JSON.stringify(mode)}});const{f,index}=o;let release,unblock;
+ try{
+  const file=f.add('A.md','Parent:: [[B]]');f.add('B.md','');f.app.metadataCache.resolvedLinks={'A.md':{'B.md':1}};
+  ok(await index.initializeOnDemandBaseline(),'Physical baseline');release=index.acquireSemanticDemand('A.md');await settleDemand(index);
+  equal(index.getNeighborhood('A.md').parents.map(row=>row.page.path),['B.md'],'Actual body-defined parent initially compiled');
+  const commits=[],publish=index.publishIncrementalFile;index.publishIncrementalFile=(commit,apply)=>{commits.push(commit.semanticChanged);return publish(commit,apply)};
+  const parse=index.metadataParser.parse.bind(index.metadataParser);let entered,first=true;const parsing=new Promise(resolve=>entered=resolve),hold=new Promise(resolve=>unblock=resolve);
+  index.metadataParser.parse=async(...args)=>{if(first){first=false;entered();await hold}return parse(...args)};
+  f.texts.set('A.md',${remove}?'Prose without the parent declaration.':'Parent:: [[B]]\\n\\nAnother paragraph.');if(!${sameStat})file.stat.mtime++;
+  f.app.metadataCache.resolvedLinks={'A.md':${remove}?{}:{'B.md':1}};
+  f.app.vault.trigger('modify',file);o.bump();index.refreshVisibleHostMetadataPreviews('A.md',0);await parsing;
+  equal(index.getNeighborhood('A.md').parents.map(row=>row.page.path),['B.md'],'Pending host projection cannot demote a compiled body parent');
+  ok(!index.isSemanticWriteReady('A.md','B.md'),'Presentation retention never renews source or relationship-write authority');
+  unblock();await settleDemand(index);
+  equal(index.getNeighborhood('A.md').parents.map(row=>row.page.path),${remove}?[]:['B.md'],'Real replacement publishes after parsing, including parent removal');
+  equal(index.onDemandIndexed.get('A.md').mtime,file.stat.mtime,'Newest source revision is indexed');
+  if(!${remove}){ok(commits.length>0,'The ordinary source patch still commits');ok(commits.every(changed=>!changed),'Prose-only source uses existing fingerprint no-op instead of forced compilation')}
+  equal(o.inventoryStarts,0,'No global inventory/rebuild workaround');return true;
+ }finally{unblock?.();release?.();o.close()}
 })()`));
 
 test('foreground navigation preempts and resumes an optional URL scan without acquiring unrelated ontology', async()=>scenario(`(async()=>{
