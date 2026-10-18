@@ -48,3 +48,17 @@ Next fullverify oncleancommittedcandidate, stageexactbuild, serial native quiet/
 overlap On-demand+Eager, main/popout/Sidecar plain vsrealdrawing andPropertiesfactor,
 held/failed disk+close/unload/reload; recordactual limits. Do not claim wholeapp
 freeze reproduced. Remove planmarker done.149/176 not started; eachcausalgated.
+
+
+Final-verification correction:941full stops Node1098/1127 (29 missing timer fixture
+failures);c814full passesmain1127 thenUI179/183 (4 imagery fixture completion method
+missing). Both actual dependency fixtures corrected without weakened oracles:
+migration/runner88, imagery7, onDemand117 pass. Three genuine-drain style/color/
+typography oracles pass after awaiting owned optional flight outside foreground
+lease. Actual callback remove/re-register red reproduced; registration tokens now
+preserve deduplication and fence old delivery/cleanup. GraphIndex/imagery31 pass.
+Next clean source thirdfull kplex-179-full-complete.log; no live native driver.
+Private native matrix prepared at TEMP/kplex-179-native-matrix.mjs, mustnotrununtil
+fullpass/stage exact. It uses8serial Small scenarios with mode restart and original
+config/workspace restoration, real drawing companion required, finite deadlines.
+Source pending clock is200ms host timer (notwallclockpaint/CPU rescue guarantee).

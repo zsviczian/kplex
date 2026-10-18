@@ -465,7 +465,7 @@ function start(referenceOnly = false, referenceProperties = false, sidecarGateOn
     check(file?.path===path,'Companion returned a non-owned drawing');
     c.fixtureFile=file;
     await app.fileManager.processFrontMatter(c.fixtureFile,/** Keep generated scene data and all other drawing metadata intact. */ fm=>{fm['excalidraw-open-md']=true});
-    await until(()=>app.metadataCache.getFileCache(c.fixtureFile)?.frontmatter?.['excalidraw-plugin']&&app.metadataCache.getFileCache(c.fixtureFile)?.frontmatter?.['excalidraw-open-md']===true,'Drawing Markdown metadata absent');
+    await until(/** Native cache must recognize both the real drawing and its selected representation. */ ()=>app.metadataCache.getFileCache(c.fixtureFile)?.frontmatter?.['excalidraw-plugin']&&app.metadataCache.getFileCache(c.fixtureFile)?.frontmatter?.['excalidraw-open-md']===true,'Drawing Markdown metadata absent');
     p.index.insertCreatedFile(c.fixtureFile);return c.fixtureFile;
   };
   /** Execute the serial no-view/active-view and fault matrix, then report facts before retiring the controller. */
@@ -636,12 +636,12 @@ function start(referenceOnly = false, referenceProperties = false, sidecarGateOn
           const search=p.index.prepareSearchIndex,refresh=p.index.refreshPresentationSettings;
           let entered=false,held=false;
           // Hold actual facet-changing preparation; another durable style Save must not own its disk queue.
-          p.index.prepareSearchIndex=/** Hold only the first real earlier preparation; keep its exact receiver. */ async function(...args){if(!entered){entered=true;await new Promise(resolve=>releasePrevious=resolve)}return search.apply(this,args)};
+          p.index.prepareSearchIndex=/** Hold only the first real earlier preparation; keep its exact receiver. */ async function(...args){if(!entered){entered=true;await new Promise(/** Expose only the finite probe-owned earlier-preparation gate. */ resolve=>releasePrevious=resolve)}return search.apply(this,args)};
           p.settings.showFullTagName=!p.settings.showFullTagName;
           const previous=p.index.refreshPresentationSettings();
           try{
             await until(()=>entered,'Earlier facet-changing preparation did not enter');
-            p.index.refreshPresentationSettings=/** Model a held optional host continuation after durable Save. */ async function(...args){held=true;await new Promise(resolve=>releaseRefresh=resolve);return refresh.apply(this,args)};
+            p.index.refreshPresentationSettings=/** Model a held optional host continuation after durable Save. */ async function(...args){held=true;await new Promise(/** Cleanup releases the exact optional continuation even after a failed assertion. */ resolve=>releaseRefresh=resolve);return refresh.apply(this,args)};
             record('overlap-parent-save','start');button(root,'common.save').click();
             await until(()=>held,'Saved operation did not enter held optional refresh');await wait(300);
             const observed={editorPending:root.isConnected,heartbeats,durable:Boolean((await stored()).noteTypeStyles[key]),earlierPreparationHeld:Boolean(releasePrevious),writes:c.counts.writes-before.writes};

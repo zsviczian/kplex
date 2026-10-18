@@ -8,12 +8,12 @@ import { chromiumHarness } from './support/browserTypeScript.mjs';
 import { centerGateSettings } from './support/requestedCenterGateFixture.mjs';
 
 const bundle = await contributorBrowserBundle(['src/index/GraphIndex.ts', 'src/index/GraphBuilder.ts', 'src/index/GraphState.ts', 'src/index/IndexSnapshot.ts',
-  'src/core/graph/settingsPolicy.ts', 'src/core/plex/typographyPreferences.ts', 'src/core/contracts/appearance.ts', 'src/core/plex/colorPreferences.ts', 'src/core/plex/appearanceThemes.ts', 'src/ui/layout.ts']);
+  'src/core/graph/settingsPolicy.ts', 'src/core/plex/typographyPreferences.ts', 'src/core/contracts/appearance.ts', 'src/core/plex/colorPreferences.ts', 'src/core/plex/appearanceThemes.ts', 'src/ui/layout.ts', 'src/adapters/obsidian/savedSettingsRefresh.ts']);
 
 /** Keep the actual settings classifier, save queue and typography writers without plugin startup. */
 function typographyHostSource() {
   const file=ts.createSourceFile('main.ts',readFileSync('src/main.ts','utf8'),ts.ScriptTarget.Latest,true);
-  const names=new Set(['saveSettings','updateStyleSettings','enqueueSettingsWrite','settingsSnapshotForPersistence','persistSettingsSnapshot','settingsForWrite','writeSettingsSnapshot',
+  const names=new Set(['saveSettings','refreshSavedSettings','updateStyleSettings','enqueueSettingsWrite','settingsSnapshotForPersistence','persistSettingsSnapshot','settingsForWrite','writeSettingsSnapshot',
     'captureAppearanceOwner','isAppearanceOwnerCurrent','stageTypographyOverride','persistTypographySettings','updateTypographyOverride','resetTypographyOverride']);
   const methods=[];
   const visit=node=>{if(ts.isMethodDeclaration(node)&&names.has(node.name.getText(file)))methods.push(node.getText(file));ts.forEachChild(node,visit);};
@@ -38,7 +38,7 @@ const initialize = `(() => {
   window.settleDemand=async(index)=>{while(index.onDemandTasks.size)await Promise.all([...index.onDemandTasks.values()]);};
   window.typographyHost=o=>{
     const appearanceThemes=sourceModules;
-    const {STYLE_SETTINGS_KEYS,cyclicSemanticColorSlots,migrateColorPreferences,captureSettingsPolicy,classifySettingsChange,isStyleOnlySettingsChange,mergeTypographyOverride,resetTypographyOverride:resetDeviceTypography}=sourceModules;
+    const {SavedSettingsRefresh,STYLE_SETTINGS_KEYS,cyclicSemanticColorSlots,migrateColorPreferences,captureSettingsPolicy,classifySettingsChange,isStyleOnlySettingsChange,mergeTypographyOverride,resetTypographyOverride:resetDeviceTypography}=sourceModules;
     class Notice {constructor(message){throw new Error('Unexpected settings failure: '+message);}}
     ${typographyHostSource()}
     const host=new TypographyHost();host.settings=o.settings;host.index=o.index;host.settingsWriteQueue=Promise.resolve();
@@ -371,6 +371,8 @@ test('durable and compatibility style saves retain real on-demand authority with
         host.settings.hierarchyLinkStyles.parent={strokeWidth:3};await host.saveSettings(false);
       })(),new Promise((_,reject)=>timer=setTimeout(()=>reject(new Error('Style save awaited unrelated semantic work')),3000))]);}finally{clearTimeout(timer);}
     });
+    // Measure genuine optional drain outside the foreground lease, not only durable UI completion.
+    await host.savedSettingsRefresh?.flight;
     equal(work,{reads:0,parses:0,acquisitions:0,semanticRefreshes:0,publications:0},'Styles never acquire sources or rebuild semantics');
     equal(index.publicationRevision,publication,'Canonical publication retained');equal(index.semanticPolicyRevision,policy,'Semantic policy retained');
     ok(index.onDemandIndexed.get('A.md')===token,'Demanded scope token retained');ok(index.isSemanticWriteReady('A.md','B.md'),'Exact selected pair remains authoritative');
@@ -391,6 +393,7 @@ test('actual color saves emit paint only and retain source, search and presentat
  await host.updateStyleSettings(draft=>{draft.baseNodeStyle={...draft.baseNodeStyle,textColor:{kind:'theme',variable:'--text-normal'}};});
  await host.updateStyleSettings(draft=>{draft.colorPreferences.palette.push({id:'a',name:'A',light:'#11223300',dark:'#aabbcc80'});draft.backgroundColor={kind:'palette',id:'a'};});
  host.settings.baseLinkStyle={...host.settings.baseLinkStyle,strokeColor:'#abcdef80'};await host.saveSettings(false);
+ await host.savedSettingsRefresh?.flight; // Include all owned post-save work in the unchanged zero-work oracle.
  equal(work,{reads:0,parses:0,acquisitions:0,semantics:0,search:0,visuals:0,publications:0},'Color changes do not request work');equal(events.map(event=>event.kind),['paint','paint','paint'],'No ordinary scene notification');equal(index.presentationRevision,revision,'Presentation capability remains valid');ok(index.onDemandIndexed.get('A.md')===token,'Exact source token retained');return true;
  }finally{restores.reverse().forEach(restore=>restore());release?.();o.close()}
 })()`));
@@ -421,6 +424,7 @@ test('actual typography saves and resets retain on-demand authority with zero so
       })(),new Promise((_,reject)=>timer=setTimeout(()=>reject(new Error('Typography save awaited lower-priority semantic work')),3000))]);}
       finally{clearTimeout(timer);}
     });
+    await host.savedSettingsRefresh?.flight; // Drain after the foreground lease so lower-priority work cannot deadlock the test.
     equal(work,{reads:0,parses:0,acquisitions:0,publications:0},'Device save/reset performs no Markdown/source or semantic publication work');
     equal(o.parses.length,parseCount,'The actual metadata parser is not invoked');
     equal(index.publicationRevision,publication,'Canonical publication retained');equal(index.semanticPolicyRevision,policy,'Semantic policy retained');
@@ -434,7 +438,7 @@ test('actual typography saves and resets retain on-demand authority with zero so
     host.stageTypographyOverride('mobile',{maxLabelLength:60});const early=host.saveSettings(false);await storing;
     host.settings.hierarchy.parents=[];host.settings.hierarchy.leftFriends=['Parent'];host.stageTypographyOverride('mobile',{maxWidth:450});
     const mixed=host.saveSettings(false);equal(index.semanticPolicyRevision,policy+1,'Mixed semantic edit invalidates before queued persistence');
-    releaseStorage();await Promise.all([early,mixed]);await settleDemand(index);
+    releaseStorage();await Promise.all([early,mixed]);await host.savedSettingsRefresh?.flight;await settleDemand(index);
     ok(index.state.pages.get('A.md').neighbours.get('B.md').isLeftFriend,'Actual mixed save recanonicalizes the published relationship');
     ok(!index.isSemanticWriteReady('A.md','B.md'),'Old exact-pair authority is revoked by the semantic edit');
     // Existing pair projections remain visible until exact re-preparation. Require current real

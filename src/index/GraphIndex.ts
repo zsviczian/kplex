@@ -504,7 +504,7 @@ export class GraphIndex {
   private urlBackgroundTask: Promise<boolean> | null = null;
   private persistentCachePurged = false;
   private listeners = new Set<() => void>();
-  private presentationListeners = new Set<(event: PresentationChange) => void>();
+  private presentationListeners = new Map<(event: PresentationChange) => void, symbol>();
   private presentationSettings: KplexSettings;
   private presentationStatuses = new WeakMap<GraphPage, PresentationStatus>();
   private presentationRun = 0;
@@ -2917,10 +2917,13 @@ export class GraphIndex {
   }
   notify(): void { this.emit(); }
 
-  /** Subscribe to presentation publication without invalidating evidence/relationship consumers. */
+  /** Subscribe without evidence invalidation; a retired registration cannot revive through callback reuse. */
   subscribePresentation(listener: (event: PresentationChange) => void): () => void {
-    this.presentationListeners.add(listener);
-    return () => { this.presentationListeners.delete(listener); };
+    // Preserve existing same-function deduplication while fencing removal/re-registration and
+    // an old owner's repeated cleanup against the replacement subscription.
+    const registration = this.presentationListeners.get(listener) ?? Symbol();
+    this.presentationListeners.set(listener, registration);
+    return /** Retire only this captured registration; repeated old cleanup cannot remove its replacement. */ () => {if (this.presentationListeners.get(listener) === registration) this.presentationListeners.delete(listener);};
   }
 
   /** Evidence consumers use this revision rather than render-only updates. */
@@ -3088,9 +3091,9 @@ export class GraphIndex {
           this.plugin.getIndexSourceRevision(), this.presentationSettings === settings, this.state === state]);
         if (seen.has(signature)) continue;
         seen.add(signature);
-        for (const listener of [...this.presentationListeners]) {
+        for (const [listener, registration] of [...this.presentationListeners]) {
           if (this.diagnosticsClosed) break;
-          if (!this.presentationListeners.has(listener)) continue;
+          if (this.presentationListeners.get(listener) !== registration) continue;
           try {listener(next);} catch (error) {console.error("K-Plex optional presentation subscriber failed", error);}
         }
       }

@@ -293,3 +293,13 @@ test("presentation snapshot respects removal, subscriber failure, changed-key un
  off();faulty();survivor();const retire=index.subscribePresentation(()=>index.destroy());index.subscribePresentation(()=>{throw Error('Post-unload listener called')});index.notifyPresentation();retire();return true;
  }finally{o.close()}
 })()`));
+
+
+test("removed and re-registered later subscriber waits for the next dispatch",async()=>scenario(`(async()=>{
+ const o=await presentationFixture('presentation-later-subscription-epoch');
+ try{let targetCalls=0,replaced=false,offTarget;const target=()=>targetCalls++;
+ const first=o.index.subscribePresentation(()=>{if(!replaced){replaced=true;const old=offTarget;old();offTarget=o.index.subscribePresentation(target);old()}});
+ offTarget=o.index.subscribePresentation(target);o.index.notifyPresentation();equal(targetCalls,0,'Retired opening subscription cannot revive under the same function');
+ o.index.notifyPresentation();equal(targetCalls,1,'Replacement survives old cleanup and participates in the next independent dispatch');first();offTarget();return true;
+ }finally{o.close()}
+})()`));

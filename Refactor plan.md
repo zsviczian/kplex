@@ -5297,3 +5297,8 @@ Four causal owner reds green;105 surrounding cases pass before final boundary/co
 ### PR179 test-host correction (2026-10-19)
 
 First full941ddda stops at Node group1098pass/29fail: migration fixture crypto-only or absent window lacks native timers required by completion owner. No production fallback/clock weakening: explicit Node host now supplies real task timers; migration/runner88 pass with original assertions. Native drawing ownership acquired only after exact requested-path guard. Runtime remains941ddda; corrected full verification must run again on clean committed source. Raw failed log retained private; no archive/publication. C14 paused.
+
+
+### PR179 registration finality and complete host dependencies (2026-10-19)
+
+Second fullc814main1127 passes, UI179/183 stops4 imagery fixtures missing actual completion dependency. Imagery7 and onDemand117 corrected host cases pass, including held-consent immediate revocation. Three unchanged style/color/typography work-count oracles now await genuine owned completion outside foreground lease and pass. Actual callback-epoch red fails old revived subscription; registration identities fence replacement and stale cleanup while preserving same-function deduplication. GraphIndex/imagery31 pass. Third fullverification on clean committed source required next.200ms is a host callback timer, not paint or whole-renderer-starvation rescue. Native candidate pending; C14 paused, no new schema/source/architecture work.

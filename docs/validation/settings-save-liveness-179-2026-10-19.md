@@ -65,7 +65,9 @@ localization checks pass; the generic saved/pending notice is translated in8 loc
 Real production build and official lint pass at the earlier candidate; full final
 verification and exact native candidate acceptance remain pending. Keep #179 draft.
 
-The completion lease waits at most200ms after durable/live publication. A held
+The completion lease races a200ms host timer after durable/live publication.
+This is a callback scheduling bound, not a paint guarantee or a rescue for an
+already starved renderer; native/background throttling remains a platform factor. A held
 native operation remains one owned flight, with one coalesced newer obligation;
 no disk replay/cancellation or independent refresh task per edit. Repeated newer
 intent has an8-attempt convergence bound, then remains truthfully pending for
@@ -100,3 +102,23 @@ cleanup now acquires ownership only after checking the companion returned the
 exact requested test path. Production source is unchanged by these corrections.
 The failed log remains private (`kplex-179-full-final.log`); the corrected full run
 uses `kplex-179-full-retry.log`. Acceptance remains pending until it completes.
+
+
+Second full run at `c814c1f`: architecture7/core130/main1127 pass; UI179/183
+pass,4 fail because the imagery fixture extracted `saveSettings()` without its new
+actual completion dependency. It now compiles that dependency, not a fake refresh;
+all7 image cases pass, including held-refresh immediate consent revocation with
+truthful pending feedback and zero semantic/read/parse work. The corresponding
+existing typography host now also compiles that dependency:117 cases pass. Its
+three style/color/typography work-count oracles additionally await genuine owned
+refresh drain outside the foreground lease; all3 pass with unchanged source and
+authority assertions. No work-count claim uses the earlier UI completion boundary.
+
+A further actual-owner red exposed callback-identity reuse: a later subscriber
+removed/re-registered before its turn still received the old event. Registration
+identities now fence that sequence and repeated stale cleanup, preserving the
+previous same-function deduplication behavior. GraphIndex/imagery31 focused cases
+pass; raw red and corrected logs remain private. This is a bounded extension of
+the demonstrated notification correction, not a global event framework. The
+third full run uses `kplex-179-full-complete.log`; final native acceptance remains
+pending until that exact clean source completes verification.
