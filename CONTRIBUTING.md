@@ -1000,6 +1000,17 @@ restart and physical mobile touch remain separate acceptance. See the
 
 ## Navigation and embedded drawing fit acceptance
 
+For focused Markdown autosave continuity, use the same exact-build disposable-vault
+setup and run `scripts/testing/obsidian/adaptiveFit.mjs` with
+`KPLEX_MARKDOWN_SAVE_ONLY=true` and a fresh `KPLEX_HOST_REPORT_DIR`. Keep
+`KPLEX_MARKDOWN_SAVE_OBSERVE_ONLY` false for acceptance; true records a baseline
+without asserting the no-op contract. The shared owner restores fixtures/settings/
+workspace and snapshots the serialized helper. It checks native Sidecar and central
+source-editor autosaves, intermediate parent roles, DOM/focus and real parent
+removal. Functional work counts are not controlled CPU/memory benchmarks. See the
+[PR180 validation record](docs/validation/markdown-save-continuity-180-2026-10-18.md)
+for the deferred combined matrix and platform limits.
+
 After exact-build staging, run `npm run verify:obsidian:adaptive-fit` with the three explicit
 disposable `kplex-test-small` vault variables and a fresh `KPLEX_HOST_REPORT_DIR`. The driver
 uses ordinary native frontmatter changes and source/index publication to check central-node

@@ -16,6 +16,7 @@ import type { GraphPage, Neighborhood, Neighbour, NodeStyle, PositionedEdge, Pos
 import { RelationType } from "../types";
 import { resolveLinkStyle, resolveNodeStyle } from "../index/style";
 import type { GraphIndex } from "../index/GraphIndex";
+import { appearanceWithoutColors } from "../core/contracts/appearance";
 
 /** Bound a geometry input to its supported presentation interval. */
 const clamp = (n: number, min: number, max: number) => Math.max(min, Math.min(max, n));
@@ -90,6 +91,52 @@ export type PlexScene = {
   zoneAreas: Partial<Record<ScrollZone, ZoneAreaBounds>>;
   sectionTreeEdges?: SectionTreeEdge[];
 };
+
+/** Ordinary geometry policy only. The existing appearance projection removes paint fields;
+ * inactive themes, workflow settings and lens behavior never enter this finite layout key. */
+export function sceneLayoutPolicyKey(settings: KplexSettings): string {
+  return JSON.stringify([
+    settings.baseFontSize, settings.childColumns, settings.childMaxHeight, settings.compactingFactor,
+    settings.compactView, settings.friendMaxHeight, settings.graphDepth, settings.horizontalCompactingFactor,
+    settings.lateralArrangement, settings.maxItemCount, settings.minLinkLength, settings.parentColumns,
+    settings.parentMaxHeight, settings.siblingMaxHeight, settings.siblingRelativeSize, settings.wrapNodeLabels,
+    ...(["baseNodeStyle", "centralNodeStyle", "baseLinkStyle", "inferredLinkStyle", "folderLinkStyle", "tagLinkStyle", "hierarchyLinkStyles"] as const)
+      .map(/** Compare the active prepared style policy, preserving every supported non-color field. */ key => appearanceWithoutColors(key, settings[key])),
+  ]);
+}
+
+/** Snapshot bounded ordinary-geometry inputs. Source clocks/provenance do not position nodes;
+ * ordered membership, labels, winning styles and relations do. Settings, semantic crosslinks
+ * and section projections retain their separate caller-owned invalidation. */
+export function neighborhoodSceneKey(neighborhood: Neighborhood | null, index: Pick<GraphIndex, "titleFor">, settings: KplexSettings): string {
+  if (!neighborhood) return "";
+  const node = (page: GraphPage, relation: Neighbour | null, role: Role | "center"): unknown => [
+    page.path, page.isFolder, page.isTag, Boolean(page.file), page.url, page.noteType,
+    index.titleFor(page), appearanceWithoutColors("baseNodeStyle", resolveNodeStyle(page, relation, role, settings)),
+    relation?.relationType, relation?.typeDefinition, relation?.linkDirection,
+  ];
+  return JSON.stringify([node(neighborhood.center, null, "center"),
+    ...(["parents", "children", "leftFriends", "rightFriends", "siblings"] as const).map(
+      /** Preserve exact rendered order, including sorting and filtered candidate admission. */ key => neighborhood[key].map(row => node(row.page, row, row.role)),
+    )]);
+}
+
+/** Rebind reused ordinary geometry to current read pages. Coordinate reuse must never retain
+ * an old mtime/property/filter context or replaced native file as the displayed endpoint. */
+export function bindSceneNeighborhood(scene: PlexScene, neighborhood: Neighborhood | null): PlexScene {
+  if (!neighborhood) return scene;
+  const pages = new Map([neighborhood.center, ...neighborhood.parents.map(row => row.page),
+    ...neighborhood.children.map(row => row.page), ...neighborhood.leftFriends.map(row => row.page),
+    ...neighborhood.rightFriends.map(row => row.page), ...neighborhood.siblings.map(row => row.page)]
+    .map(page => [page.path, page]));
+  let changed = false;
+  const nodes = scene.nodes.map(node => {
+    const page = pages.get(node.page.path);
+    if (!page || page === node.page) return node;
+    changed = true; return {...node, page};
+  });
+  return changed ? {...scene, nodes} : scene;
+}
 
 /** Keep the gate visually subordinate while preserving the legacy style radius. */
 export function gateDiameter(style: NodeStyle): number {

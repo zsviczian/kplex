@@ -2252,14 +2252,15 @@ function colorPaintBrowserEntry() {
  return `
 import React, {useMemo,useEffect,useState} from 'react';
 import {flushSync} from 'react-dom';import {createRoot} from 'react-dom/client';
-import {buildScene as realBuildScene} from ${JSON.stringify(join(root,'src/ui/layout.ts'))};
+import {buildScene as realBuildScene,sceneLayoutPolicyKey,neighborhoodSceneKey,bindSceneNeighborhood} from ${JSON.stringify(join(root,'src/ui/layout.ts'))};
 import {currentNodeColorStyle,nodePaint,nodePaintFallbacks} from ${JSON.stringify(join(root,'src/index/style.ts'))};
 import {centerViewSettings} from ${JSON.stringify(join(root,'src/ui/KplexCenterPresentation.ts'))};
 const result=document.querySelector('#result'),check=(condition,message)=>{if(!condition)throw Error(message)};
 const counters={layout:0,images:0,mounts:0};const buildScene=(...args)=>{counters.layout++;return realBuildScene(...args)};
 const page=path=>({path,name:path,file:{extension:'md'},aliases:[],tags:[],styleTags:[],neighbours:new Map()});
 const index={titleFor:p=>p.name,neighbourCount:()=>0,gateStats:()=>({}),neighbours:()=>[],visibleRelationshipsWithin:()=>[]};
-const layoutNeighborhood={center:page('Center.md'),parents:[],children:[{page:page('Child.md'),relationType:1}],leftFriends:[],rightFriends:[],siblings:[]};
+let layoutNeighborhood={center:page('Center.md'),parents:[],children:[{page:page('Child.md'),role:'child',relationType:1}],leftFriends:[],rightFriends:[],siblings:[]};
+let semanticRevision=0;
 const layoutSectionExpansion=null,expandedSectionIds=new Set(),layoutRevision=0,showCrossLinks=false,globalFiltering=false,centralEditorSize=undefined;
 const profileSurface='tab',compiledGraphLenses={lenses:[],errors:[],usesFrontmatter:false},centerMode={embedCentralNode:false,centralNodeMarkdownMode:'source'};
 const plugin={settings:{baseNodeStyle:{fontSize:18,textColor:'#abcdef'},centralNodeStyle:{fontSize:30},baseLinkStyle:{},noteTypeStyles:{},tagNodeStyles:{},tagStyleList:[],hierarchyLinkStyles:{},graphLenses:[],
@@ -2267,7 +2268,8 @@ const plugin={settings:{baseNodeStyle:{fontSize:18,textColor:'#abcdef'},centralN
 let sceneBefore,nodeBefore,inputBefore,cameraBefore;
 function NativeEditor(){useEffect(()=>{counters.mounts++},[]);return <input defaultValue='unsaved text'/>}
 function Scene({settings,paintSettings}){
- ${uiDefinitions('src/ui/PlexGraph.tsx',['scene'])}
+ ${uiDefinitions('src/ui/PlexGraph.tsx',['scenePolicyKey','sceneGeometryKey','sceneGeometry','scene'])}
+ window.lastColorScene=scene;
  const visualPages=useMemo(()=>scene.nodes.map(node=>node.page),[scene.nodes]);useEffect(()=>{counters.images++},[visualPages]);
  return <div className='camera' style={{transform:'translate(17px, 23px) scale(1.25)'}}>{scene.nodes.map(node=>{const paint=nodePaint(currentNodeColorStyle(node,paintSettings),nodePaintFallbacks(node));return <div key={node.page.path} data-path={node.page.path} style={{color:paint.foreground,left:node.x,top:node.y}}>{node.role==='center'?<NativeEditor/>:node.label}</div>})}</div>;
 }
@@ -2280,7 +2282,17 @@ try{const container=document.createElement('div');document.body.append(container
  plugin.settings.baseNodeStyle={...plugin.settings.baseNodeStyle,textColor:'#12345680'};flushSync(()=>root.render(<App paintRevision={1} renderRevision={0}/>));
  check(counters.layout===prior.layout,'Color edit rebuilt whole scene');check(counters.images===prior.images,'Color edit reacquired imagery');check(counters.mounts===prior.mounts,'Color edit remounted native editor');
  check(container.querySelector('[data-path="Center.md"]')===nodeBefore&&container.querySelector('input')===inputBefore,'Color edit replaced DOM');check(inputBefore.value==='still typing'&&document.activeElement===inputBefore&&inputBefore.selectionStart===2,'Draft/focus/caret lost');check(container.querySelector('.camera')===cameraBefore&&cameraBefore.style.transform==='translate(17px, 23px) scale(1.25)','Camera reset');check(/^rgba\\(18, 52, 86, 0\\.50?2?\\)$/.test(getComputedStyle(nodeBefore).color),'Current winning source did not repaint');
- plugin.settings.baseNodeStyle={...plugin.settings.baseNodeStyle,fontSize:21};flushSync(()=>root.render(<App paintRevision={1} renderRevision={1}/>));check(counters.layout===prior.layout+1,'Geometry edit skipped layout');flushSync(()=>root.unmount());result.dataset.status='passed';result.textContent='Color paint preserves layout and editor passed';
+ for(let revision=1;revision<=3;revision++){
+  layoutNeighborhood={...layoutNeighborhood,center:{...layoutNeighborhood.center,mtime:revision},children:layoutNeighborhood.children.map(row=>({...row,page:{...row.page,mtime:revision}}))};
+  flushSync(()=>root.render(<App paintRevision={1} renderRevision={revision}/>));
+  check(counters.layout===prior.layout,'Equivalent source publication rebuilt geometry');check(window.lastColorScene.nodes.find(node=>node.role==='center').page.mtime===revision,'Geometry reuse retained an old page clock');
+ }
+ check(counters.mounts===prior.mounts&&container.querySelector('input')===inputBefore&&document.activeElement===inputBefore&&inputBefore.selectionStart===2,'Source publication lost editor DOM/focus/caret');
+ plugin.settings.baseNodeStyle={...plugin.settings.baseNodeStyle,fontSize:21};flushSync(()=>root.render(<App paintRevision={1} renderRevision={4}/>));check(counters.layout===prior.layout+1,'Geometry edit skipped layout');
+ layoutNeighborhood={...layoutNeighborhood,children:layoutNeighborhood.children.map(row=>({...row,page:{...row.page,name:'A genuinely changed label'}}))};flushSync(()=>root.render(<App paintRevision={1} renderRevision={5}/>));check(counters.layout===prior.layout+2,'Changed label skipped geometry');
+ semanticRevision++;flushSync(()=>root.render(<App paintRevision={1} renderRevision={6}/>));check(counters.layout===prior.layout+3,'Changed semantic crosslinks skipped geometry');
+ layoutNeighborhood={...layoutNeighborhood,children:[]};flushSync(()=>root.render(<App paintRevision={1} renderRevision={7}/>));check(counters.layout===prior.layout+4&&window.lastColorScene.nodes.length===1,'Changed filter membership skipped geometry');
+ flushSync(()=>root.unmount());result.dataset.status='passed';result.textContent='Color paint preserves layout and editor passed';
 }catch(error){result.dataset.status='failed';result.textContent=String(error.stack||error)}
 `;
 }
