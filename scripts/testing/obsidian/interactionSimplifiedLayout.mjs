@@ -59,6 +59,24 @@ export async function acceptSimplifiedLayout({app,p,c,check,wait,until,frames,ro
  /** Keep screen-space comparisons independent from the existing camera's world-space scale. */
  const fit=async leaf=>{const button=leaf.view.contentEl.querySelector('button[aria-label="'+p.translator('graph.fitGraph')+'"]');check(button,'Native fit action absent');button.click();await wait(180);await frames()};
  try{
+  const originalTabs=new Set(app.workspace.getLeavesOfType('k-plex-react-view'));
+  const plus=c.leaf.view.contentEl.querySelector('button[aria-label="'+p.translator('actions.surface.new-tab')+'"]');
+  check(plus?.querySelector('.lucide-plus'),'New Plex toolbar action absent');
+  const plusBounds=plus.getBoundingClientRect(),point={x:Math.round(plusBounds.left+plusBounds.width/2),y:Math.round(plusBounds.top+plusBounds.height/2)};
+  let trustedPlus=false;const observePlus=event=>{trustedPlus=event.isTrusted};plus.addEventListener('click',observePlus,{once:true});
+  try{for(const type of ['mouseDown','mouseUp'])native(c.leaf).webContents.sendInputEvent({type,...point,button:'left',clickCount:1});
+   await until(()=>app.workspace.getLeavesOfType('k-plex-react-view').some(leaf=>!originalTabs.has(leaf)),'Toolbar did not create an additional Plex tab');
+  }finally{plus.removeEventListener('click',observePlus)}
+  check(trustedPlus,'Toolbar new-tab input was not trusted');
+  const extra=app.workspace.getLeavesOfType('k-plex-react-view').find(leaf=>!originalTabs.has(leaf));owned.push(extra);c.leaves.push(extra);await extra.view.waitUntilReady();
+  const afterToolbar=new Set(app.workspace.getLeavesOfType('k-plex-react-view'));
+  check(app.commands.executeCommandById('k-plex:kplex-new-tab'),'Published new Plex tab command absent');
+  await until(()=>app.workspace.getLeavesOfType('k-plex-react-view').some(leaf=>!afterToolbar.has(leaf)),'Command reused an existing Plex tab');
+  const commandTab=app.workspace.getLeavesOfType('k-plex-react-view').find(leaf=>!afterToolbar.has(leaf));owned.push(commandTab);c.leaves.push(commandTab);await commandTab.view.waitUntilReady();
+  check([...originalTabs].every(leaf=>leaf.view.containerEl.isConnected),'Opening another Plex replaced an existing tab');
+  extra.detach();commandTab.detach();await navigate('Center');native(c.leaf);await frames();
+  check(!c.leaf.view.contentEl.querySelector('button .lucide-spline'),'Curved connectors still occupy the toolbar');
+  c.cases.push({id:'new-plex-tabs',status:'passed',trustedToolbar:true,publishedCommand:true,independentTabs:true,curvedToolbarRemoved:true});
   const side=app.workspace.getRightLeaf(true);check(side,'Native sidebar leaf unavailable');owned.push(side);c.leaves.push(side);
   await side.setViewState({type:'k-plex-sidepanel-view',active:true});await app.workspace.revealLeaf(side);await side.view.waitUntilReady();await navigate('Center',side);
   const popout=app.workspace.getLeaf('window');owned.push(popout);c.leaves.push(popout);

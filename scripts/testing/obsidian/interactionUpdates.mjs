@@ -168,6 +168,17 @@ function start(scenario='legacy',layoutAcceptance,nativeDragAcceptance,htmlDrag)
    try{await navigate('Challenger');const active=app.workspace.activeLeaf,history=JSON.stringify(p.settings.navigationHistory);await until(()=>view.modifyingFile===app.vault.getFileByPath(path('Challenger')),'Properties editable file stale');await wait(150);check(app.workspace.activeLeaf===active&&JSON.stringify(p.settings.navigationHistory)===history,'Properties changed native focus or Plex history');check(!events.length,'Follower emitted file-open')}finally{app.workspace.offref(ref)}
    properties.setPinned(true);await navigate('Friend');await wait(200);check(view.modifyingFile===app.vault.getFileByPath(path('Challenger')),'Pinned Properties changed');properties.setPinned(false);await navigate('Center');await until(()=>view.modifyingFile===app.vault.getFileByPath(path('Center')),'Unpinned Properties did not recover');
    c.cases.push({id:'file-properties',status:'passed',editableFileFollows:true,pinnedPreserved:true,noSyntheticFileOpen:true,focusAndHistoryPreserved:true});
+   const convergingLoader=view.loadFile;let refused=0;
+   // A private host loader can resolve without applying its target. The safety cap makes this
+   // regression fail without hanging Obsidian when run against the old unbounded retry loop.
+   view.loadFile=async function(file){if(++refused>12)return convergingLoader.call(this,file)};
+   c.restores.push(()=>{view.loadFile=convergingLoader});
+   try{await navigate('Friend');await wait(300);await frames();
+    check(refused>0&&refused<=3,'Resolved Properties refusal retried without a bounded repair budget: '+refused);
+    const settled=refused;await wait(250);check(refused===settled,'Properties refusal restarted from its own notifications');
+   }finally{view.loadFile=convergingLoader}
+   await navigate('Challenger');await until(()=>view.file===app.vault.getFileByPath(path('Challenger'))&&view.modifyingFile===view.file,'Properties did not recover for a genuine newer center');
+   c.cases.push({id:'properties-resolved-refusal',status:'passed',faultInjected:true,nativeAttempts:refused,framesResponsive:true,newIntentRecovered:true,reportedFreezeReproduced:false});
    const originalLoad=view.onLoadFile;let releaseRead,reading=false;
    const readGate=new Promise(resolve=>releaseRead=resolve);c.restores.push(()=>{releaseRead();view.onLoadFile=originalLoad});
    view.onLoadFile=async function(file){if(file.path===path('Friend')&&!reading){reading=true;await readGate}return originalLoad.call(this,file)};

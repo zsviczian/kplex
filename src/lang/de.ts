@@ -1231,6 +1231,8 @@ const germanTranslations = {
   "ghost.relocationChanged": "Der Platzhalter oder seine eingehenden Links wurden geändert. Öffne den Dialog erneut und versuche es noch einmal.",
   "ghost.recoverCreated": "Die Notiz wurde unter {path} erstellt, aber einige Änderungen sind noch offen: {error}. Versuche es erneut, um dieselbe Notiz fertigzustellen.",
   "ghost.relocationUnsupported": "Wähle einen anderen Ordner. Einige eingehende Links können an diesem Ziel nicht sicher erhalten bleiben.",
+  "actions.surface.new-tab": "Neuer K-Plex-Tab",
+  "actions.surface.new-tab.description": "Einen zusätzlichen K-Plex-Tab öffnen, ohne einen vorhandenen Plex zu ersetzen.",
 } as const satisfies LocaleTranslationMap;
 
 export const germanCatalog = buildLocaleCatalog(germanTranslations);

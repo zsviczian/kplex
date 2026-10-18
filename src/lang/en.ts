@@ -486,6 +486,8 @@ export const englishCatalog = {
   "actions.view.sidecar.detach.description": { message: "Keep the companion note pane open as an independent workspace tab.", context: "Action catalog label or target guidance.", params: [] },
   "actions.view.sidecar.collapse-plex": { message: "Fold or unfold K-Plex tab group", context: "Stable fold action; the entire native K-Plex tab group is hidden or restored.", params: [] },
   "actions.view.sidecar.collapse-plex.description": { message: "Fold or restore the whole K-Plex tab group. Other tabs in that group are hidden too.", context: "Stable fold action; the entire native K-Plex tab group is hidden or restored.", params: [] },
+  "actions.surface.new-tab": { message: "New K-Plex tab", context: "Explicit additional Plex workspace tab command and toolbar button.", params: [] },
+  "actions.surface.new-tab.description": { message: "Open an additional K-Plex tab without replacing an existing Plex.", context: "Explicit additional Plex workspace tab command and toolbar button.", params: [] },
   "actions.surface.open-tab": { message: "Open graph", context: "Action catalog label or target guidance.", params: [] },
   "actions.surface.open-tab.description": { message: "Show K-Plex in an Obsidian workspace tab.", context: "Action catalog label or target guidance.", params: [] },
   "actions.surface.open-popout": { message: "Open graph in pop-out window", context: "Action catalog label or target guidance.", params: [] },

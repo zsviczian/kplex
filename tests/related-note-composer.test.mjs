@@ -342,8 +342,31 @@ test("explicit folder choice opens the reused picker with the calculated placeho
   assert.equal(opened[0][6],true,"Explicit modifier opening focuses the folder field");
   await opened[0][5]("markdown", "Other");
   assert.equal(materialized.at(-1)[3], "Other");
+  await create.call(context, ghost, true, true);
+  await opened[1][5]("markdown", "Projects");
+  assert.equal(materialized.at(-1)[8], true, "The accepted modal must retain its opening in-place creation intent");
   context.isExcalidrawAvailable=()=>true;await create.call(context,ghost,false);
-  assert.equal(opened[1][6],false,"Ordinary drawing-choice opening must retain quick default submission");
+  assert.equal(opened[2][6],false,"Ordinary drawing-choice opening must retain quick default submission");
+});
+
+/** In-place creation promotes the endpoint without opening a document that could move a synchronized center. */
+test("in-place materialization preserves the center while retaining ordinary document opening", async () => {
+  const materialize = production("materializeGhostPage", {}, "src/main.ts");
+  for (const wasCenter of [false, true]) for (const preserveCenter of [false, true]) {
+    const file = {path: "Next.md", parent: {path: "/"}}, opened = [], promoted = [], navigated = [];
+    const context = { settings: {lastActivePath: wasCenter ? "Next" : "Origin.md"}, unloading: false,
+      app: {vault: {getFileByPath: () => file}}, translator: key => key,
+      validateNoteFolderPath: () => ({folderPath: "", error: null}),
+      createNewFileInFolder: async () => file, writeCreatedNodeDisplayName: async () => {}, rememberNewNodeDefaultType: async () => {},
+      index: {materializeFile: (...args) => {promoted.push(args); return true;}},
+      remapNavigationPaths: () => {if (wasCenter) context.settings.lastActivePath = file.path; return wasCenter;},
+      saveSettings: async () => {}, notifyNavigation: path => navigated.push(path), openInDocumentLeaf: async value => opened.push(value),
+    };
+    assert.equal(await materialize.call(context, {path: "Next", name: "Next"}, "Next", "markdown", "", "Next", undefined, {}, () => true, preserveCenter), true);
+    assert.deepEqual(promoted, [["Next", file]]); assert.deepEqual(opened, preserveCenter ? [] : [file]);
+    assert.deepEqual(navigated, !preserveCenter && wasCenter ? [file.path] : [], "A different Plex's saved center cannot broadcast during in-place creation");
+    assert.equal(context.settings.lastActivePath, wasCenter ? file.path : "Origin.md");
+  }
 });
 
 /** A rejected durable relationship write must not publish a detached pathful placeholder. */
@@ -362,21 +385,29 @@ test("shared folder suggestions preserve case-distinct native paths without chan
   const rank = production("fuzzyFilterStrings", {}, "src/ui/FuzzySearchInput.tsx");
   assert.deepEqual(rank(["Foo", "foo", "Foo"], ""), ["Foo"]);
   const render = production("FolderPathInput", {
-    createElement: (type, props) => ({ type, props }), useMemo: evaluate => evaluate(), useState: () => [false, assert.fail],
-    FuzzySearchInput() {}, ObsidianIcon() {}, fuzzyFilterStrings: rank,
+    createElement: (type, props) => ({ type, props }), useMemo: evaluate => evaluate(),
+    FuzzySearchInput() {}, fuzzyFilterStrings: rank,
   }, "src/ui/FolderPathInput.tsx");
   const props = render({ value: "fo", onChange() {}, folders: ["Foo", "foo", "Foo", "Other"], translate: key => key }).props;
   assert.deepEqual(new Set(props.results), new Set(["Foo", "foo"]));
   assert.equal(props.getKey("Foo"), "Foo"); assert.equal(props.getKey("foo"), "foo");
   assert.equal(props.autoFocus, undefined, "Normal creation keeps autofocus in the name field");
+  assert.equal(props.icon, ""); assert.equal(props.disclosure, undefined, "Folder choice reuses the ordinary text suggester without a second button");
+  assert.equal(props.minFloatingWidth, 560); assert.equal(props.resultsClassName, "kplex-folder-path-results");
+  const partial=render({value:"/08",onChange(){},folders:["08 About","Archive/08 Meetings","Archive/09 Later"],translate:key=>key}).props;
+  assert.deepEqual(partial.results,["08 About","Archive/08 Meetings"]);assert.equal(partial.matchingQuery,"08");
+  assert.equal(partial.value,"/08","Search normalization must not replace the editable destination");
+  const root=render({value:"/",onChange(){},folders:["/","08 About"],translate:key=>key}).props;
+  assert.deepEqual(root.results,["/","08 About"]);
 });
 
 /** The explicit materialization prompt owns folder focus after its asynchronous React commit. */
 test("native materialization focuses the shared folder field without changing quick-create focus", () => {
-  let rendered;
+  let rendered; const folderClasses=[];
   class NativeSetting {
     constructor() { this.controlEl = { createDiv: () => ({}) }; }
     setName() { return this; } setDesc() { return this; }
+    setClass(value) { folderClasses.push(value); return this; }
     addButton(configure) {
       const button = { setButtonText() { return this; }, setIcon() { return this; }, onClick() { return this; }, setCta() { return this; }, setDisabled() { return this; } };
       configure(button); return this;
@@ -393,8 +424,25 @@ test("native materialization focuses the shared folder field without changing qu
   };
   context.refreshControls = production("refreshControls", { createElement: (type, props) => ({ type, props }), MaterializationFolderInput() {} }, "src/ui/MaterializeGhostModal.ts");
   open.call(context);
+  assert.deepEqual(folderClasses,["kplex-materialize-folder-row"],"Folder label and input share the modal width without the description column");
   assert.equal(rendered.props.value, "Projects"); assert.equal(rendered.props.autoFocus, true);
   context.focusFolder=false;context.refreshControls();assert.equal(rendered.props.autoFocus,false,"Ordinary materialization must retain its one-step default submission");
+});
+
+/** Wider folder results retain the shared suggester's visual-viewport clamping in main windows and popouts. */
+test("folder suggestion width expands readable paths but clamps to the owning visual viewport",()=>{
+  for(const [viewport,minWidth,expectedWidth,expectedLeft]of [
+    [{offsetLeft:0,offsetTop:0,width:1200,height:800},560,560,250],
+    [{offsetLeft:40,offsetTop:60,width:320,height:400},560,304,48],
+    [{offsetLeft:0,offsetTop:0,width:1200,height:800},0,220,250],
+  ]){
+    let style;
+    const update=production("updatePosition",{shell:{getBoundingClientRect:()=>({left:250,top:150,bottom:184,width:220})},
+      visualViewport:viewport,ownerWindow:{innerWidth:1200,innerHeight:800},floatingMode:"viewport",
+      minFloatingWidth:minWidth,maxFloatingHeight:240,setOverlayStyle:value=>{style=value;}},"src/ui/components/FuzzySuggester.tsx");
+    update();assert.equal(style.width,expectedWidth);assert.equal(style.left,expectedLeft);
+    assert(style.left>=viewport.offsetLeft+8);assert(style.left+style.width<=viewport.offsetLeft+viewport.width-8);
+  }
 });
 
 /** Reuse the actual canonical grammar and host-resolution facade in serializer/relocation tests. */

@@ -16,6 +16,12 @@ function production(name, dependencies = {}, filename = "src/main.ts") {
   let expression;
   /** Preserve the production implementation and its asynchronous boundaries verbatim. */
   function visit(node) {
+    if (name === "centerPublication" && ts.isCallExpression(node)
+      && node.expression.getText(source) === "plugin.index.subscribe"
+      && ts.isArrowFunction(node.arguments[0]) && node.arguments[0].getText(source).includes("const trackedFile")) expression = node.arguments[0].getText(source);
+    if (name === "navigationRequest" && ts.isCallExpression(node)
+      && node.expression.getText(source) === "plugin.subscribeNavigation"
+      && ts.isArrowFunction(node.arguments[0])) expression = node.arguments[0].getText(source);
     if (name === "presentationPublication" && ts.isCallExpression(node)
       && node.expression.getText(source) === "plugin.index.subscribePresentation"
       && ts.isArrowFunction(node.arguments[0])) expression = node.arguments[0].getText(source);
@@ -405,7 +411,7 @@ function appFollowFixture() {
     demandCounts: new Map(), ephemeral: new Set(), borrowedFrom: new Map(), graphActionPorts: {current: null}, wander: {pause() {}}, wasLeafVisibleRef: {current: true},
     pendingDocumentDemandRef: {current: null},
     pendingDocumentFollowRef: {current: null}, pendingFileExplorerDropRef: {current: null},
-    activePathRef: {current: "A.md"}, activeFileRef: {current: files.get("A.md")}, hostLeaf: {}};
+    activePathRef: {current: "A.md"}, activePageRef: {current: pages.get("A.md")}, activeFileRef: {current: files.get("A.md")}, hostLeaf: {}};
   const plugin = state.plugin = {
     settings: {navigationHistory: ["A.md"]}, saveSettings: /** Settings persistence is independent from demand publication in this test. */ async () => {},
     app: {vault: {getFileByPath: /** Resolve a real current file incarnation. */ path => files.get(path) ?? null}},
@@ -449,6 +455,50 @@ function appFollowFixture() {
     forceRender: /** Count visible geometry catch-up without synthesizing a plugin visibility notification. */ () => { state.visibilityRenders = (state.visibilityRenders ?? 0) + 1; }}, "src/ui/App.tsx");
   return {state, files, pages};
 }
+
+/** Publication remaps only a surface's accepted ghost identity, independently from shared last-active settings. */
+test("centered ghost materialization preserves two Plex centers without navigation or document events",()=>{
+  const f=appFollowFixture(),ghost={path:"Projects/Ghost",file:null};f.pages.set(ghost.path,ghost);
+  const other={activePathRef:{current:"A.md"},activePageRef:{current:f.pages.get("A.md")},activeFileRef:{current:f.files.get("A.md")}};
+  const center={activePathRef:{current:ghost.path},activePageRef:{current:ghost},activeFileRef:{current:null}};
+  f.state.plugin.settings.lastActivePath="A.md";let refreshes=0;
+  const bind=refs=>production("centerPublication",{...refs,plugin:f.state.plugin,hostLeaf:f.state.hostLeaf,
+    activatePendingDocumentFollow(){},setActivePath:path=>{refs.renderPath=path;},forceRender:()=>refreshes++},"src/ui/App.tsx");
+  const centerPublication=bind(center),otherPublication=bind(other);
+  const oldPath=ghost.path,file={path:"Other/Ghost.md"};f.files.set(file.path,file);f.pages.delete(oldPath);
+  ghost.path=file.path;ghost.file=file;f.pages.set(file.path,ghost);
+  centerPublication();otherPublication();
+  assert.equal(center.activePathRef.current,file.path);assert.equal(center.activeFileRef.current,file);
+  assert.equal(other.activePathRef.current,"A.md");assert.equal(other.renderPath,undefined);
+  assert.deepEqual(f.state.plugin.settings.navigationHistory,["A.md"]);assert.equal(f.state.plugin.settings.lastActivePath,"A.md");
+  assert.equal(f.state.companions.length,0);assert.equal(f.state.activates.length,0);assert.equal(refreshes,2);
+});
+
+/** Replacement pages and unrelated publications do not inherit the earlier accepted center's authority. */
+test("center remapping rejects retired ghost objects, native replacements and unrelated publications",()=>{
+  for(const mode of ["replacement-page","replacement-at-old-path","replacement-file","unrelated"]){
+    const f=appFollowFixture(),ghost={path:"Projects/Ghost",file:null},refs={activePathRef:{current:"Projects/Ghost"},activePageRef:{current:ghost},activeFileRef:{current:null}};
+    f.pages.set(ghost.path,ghost);let moves=0;
+    const publish=production("centerPublication",{...refs,plugin:f.state.plugin,hostLeaf:f.state.hostLeaf,
+      activatePendingDocumentFollow(){},setActivePath:()=>moves++,forceRender(){}},"src/ui/App.tsx");
+    const file={path:"Other/Ghost.md"};
+    if(mode!=="unrelated"){
+      f.pages.delete(ghost.path);ghost.path=file.path;ghost.file=file;f.files.set(file.path,file);f.pages.set(file.path,ghost);
+      if(mode==="replacement-page")f.pages.set(file.path,{path:file.path,file});
+      if(mode==="replacement-at-old-path")f.pages.set("Projects/Ghost",{path:"Projects/Ghost",file:null});
+      if(mode==="replacement-file")f.files.set(file.path,{path:file.path});
+    }
+    publish();assert.equal(refs.activePathRef.current,"Projects/Ghost");assert.equal(moves,0);
+  }
+});
+
+/** Explicit navigation continues through the established activation route, including its intentional sync/history effects. */
+test("ordinary navigation requests still activate after local identity remapping support",()=>{
+  const f=appFollowFixture(),requested=[];
+  const request=production("navigationRequest",{plugin:f.state.plugin,activate:(...args)=>requested.push(args)},"src/ui/App.tsx");
+  request("B.md");request("missing.md");
+  assert.deepEqual(requested,[[f.pages.get("B.md"),true]]);
+});
 
 test("hidden follow retains only the newest native identity and settles immediately on reveal without user motion", /** Hidden observations cannot activate or render the old/intermediate scenes. */ () => {
   const {state, files} = appFollowFixture(); state.visible = false;
@@ -632,7 +682,7 @@ test("stationary central double taps open in the main tab on a sidepanel and con
   assert.deepEqual(opened.slice(1), [["ghost", ghost], ["sidecar", noncentral]]);
   const modifier={page:ghost,request:{id:"node.open",args:{chooseFolder:true}},target:{kind:"node"}};
   assert.equal(available(modifier),true);open(modifier);
-  assert.deepEqual(folderPrompts,[{target:ghost,doc:dependencies.viewport.current.ownerDocument,options:{chooseFolder:true}}]);
+  assert.deepEqual(folderPrompts,[{target:ghost,doc:dependencies.viewport.current.ownerDocument,options:{chooseFolder:true,preserveCenter:false}}]);
 });
 
 test('color publication never promotes a pending native follow or expands its demand',()=>{

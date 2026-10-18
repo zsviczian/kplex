@@ -33,6 +33,7 @@ import { FileView, Menu, type TFile, type WorkspaceLeaf } from "obsidian";
 import type KplexPlugin from "../main";
 import type { GraphPage } from "../types";
 import type { PresentationEnvironment } from "../core/contracts/presentationEnvironment";
+import { isGraphTabCommandAvailable } from "../core/plex/viewPresentation";
 import { type ActionContext } from "../application/ActionManager";
 import { type ActionId, type ActionOutcome, type NodeRef } from "../core/plex/actions";
 import { actionNodeRef, resolveActionPage } from "../adapters/obsidian/actionNode";
@@ -301,6 +302,7 @@ export function KplexApp({ plugin, surface, hostLeaf, translate, environment, on
     );
   });
   const activePathRef = useRef(activePath);
+  const activePageRef = useRef<GraphPage | null>(plugin.index.get(activePath) ?? null);
   const [navigationOrigin, setNavigationOrigin] = useState<"user" | "wander" | "follow">("user");
   const pendingDocumentFollowRef = useRef<TFile | null>(null);
   const pendingDocumentDemandRef = useRef<{ file: TFile; path: string; release: () => void } | null>(null);
@@ -332,6 +334,7 @@ export function KplexApp({ plugin, surface, hostLeaf, translate, environment, on
     // Any newer explicit navigation supersedes a note waiting for partial indexing.
     pendingFileExplorerDropRef.current = null;
     activePathRef.current = target.path;
+    activePageRef.current = target;
     activeFileRef.current = target.file;
     pendingDocumentFollowRef.current = null;
     // A just-published preview can depend on this lease. Keep it until the child graph acquires its own.
@@ -407,6 +410,7 @@ export function KplexApp({ plugin, surface, hostLeaf, translate, environment, on
     pendingDocumentFollowRef.current = file;
     pendingFileExplorerDropRef.current = null;
     activePathRef.current = file.path;
+    activePageRef.current = plugin.index.get(file.path) ?? null;
     activeFileRef.current = file;
     activatePendingDocumentFollow();
   }, [plugin, hostLeaf, activatePendingDocumentFollow]);
@@ -439,6 +443,18 @@ export function KplexApp({ plugin, surface, hostLeaf, translate, environment, on
     // by that identity and adopt its new path only after the rebuilt index has published it. This
     // prevents the center from briefly/finally falling back to folder:/ when its filename changes.
     const trackedFile = activeFileRef.current;
+    const currentPage = plugin.index.get(activePathRef.current);
+    const trackedPage = activePageRef.current;
+    // A centered ghost has no native file to track until materialization mutates that exact
+    // accepted page. Follow only its identity remap; replacement objects and other Plex centers
+    // cannot authorize navigation, history changes or document synchronization on this surface.
+    if (!trackedFile && !currentPage && trackedPage?.file && trackedPage.path !== activePathRef.current
+      && plugin.index.get(trackedPage.path) === trackedPage
+      && plugin.app.vault.getFileByPath(trackedPage.file.path) === trackedPage.file) {
+      activePathRef.current = trackedPage.path;
+      activeFileRef.current = trackedPage.file;
+      setActivePath(trackedPage.path);
+    }
     if (trackedFile && trackedFile.path === activePathRef.current && !plugin.index.get(trackedFile.path)
       && plugin.isManagedCreatedFile(trackedFile) && plugin.app.vault.getFileByPath(trackedFile.path) === trackedFile) {
       // A full index build can have started before this note was created. If that stale snapshot
@@ -451,6 +467,7 @@ export function KplexApp({ plugin, surface, hostLeaf, translate, environment, on
       activePathRef.current = trackedFile.path;
       setActivePath(trackedFile.path);
     }
+    activePageRef.current = plugin.index.get(activePathRef.current) ?? activePageRef.current;
     // Hidden tabs/sidebars stay mounted in Obsidian. Do not run the graph React tree for a shared
     // index publication unless this surface is actually visible; it catches up on reveal.
     if (plugin.isKplexLeafVisible(hostLeaf)) forceRender((value) => value + 1);
@@ -655,6 +672,7 @@ export function KplexApp({ plugin, surface, hostLeaf, translate, environment, on
     // genuinely missing center falls back through navigation history and only then to folder:/.
     if (replacingMissingCenter && page.path === "folder:/" && !plugin.isNavigationFallbackReady()) return;
     activePathRef.current = page.path;
+    activePageRef.current = page;
     activeFileRef.current = page.file;
     if (replacingMissingCenter) {
       setActivePath(page.path);
@@ -1252,7 +1270,7 @@ export function KplexApp({ plugin, surface, hostLeaf, translate, environment, on
             />
             <span className="kplex-toolbar-divider" />
             <ToolButton icon={plugin.settings.graphDepth === 2 ? "list-chevrons-down-up" : "list-chevrons-up-down"} title={translate(plugin.settings.graphDepth === 2 ? "app.singleLevelView" : "app.expandedView")} on={plugin.settings.graphDepth === 2} onClick={() => runAction("view.depth.toggle")} />
-            <ToolButton icon="spline" title={translate(plugin.settings.connectorStyle === "bezier" ? "app.useStraightConnectors" : "app.useCurvedConnectors")} on={plugin.settings.connectorStyle === "bezier"} onClick={() => runAction("view.connectors.toggle")} />
+            {isGraphTabCommandAvailable(environment) && <ToolButton icon="plus" title={translate("actions.surface.new-tab")} onClick={() => runAction("surface.new-tab")} />}
             <ToolButton icon="settings" title={translate("app.settingsMenu")} on={areaSettingsMode} onClick={showSettingsMenu} />
           </div>
         </header>

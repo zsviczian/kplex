@@ -1038,6 +1038,10 @@ try {
     resultIcon: hit => React.createElement("i", { "data-result-kind": hit.node.kind }),
   })));
   render(0);
+  check(calls.length === 0, "blurred Find eagerly ranked the vault");
+  render(1);
+  check(calls.length === 0, "background publication ranked a blurred Find field");
+  render(0);
   const input = host.querySelector("input");
   host.querySelector(".kplex-fuzzy-search").getBoundingClientRect = () => ({ left: 10, top: 20, right: 310, bottom: 50, width: 300, height: 30 });
   flushSync(() => input.focus());
@@ -1060,6 +1064,8 @@ try {
   flushSync(() => input.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true, cancelable: true })));
   check(chosen.length === 1 && chosen[0] === first.node.id, "activation reinterpreted/normalized the opaque ID");
   check(input.value === "", "selection did not clear query");
+  const blurredCalls = calls.length; render(3);
+  check(calls.length === blurredCalls, "closed Find reranked on background publication");
   flushSync(() => input.focus());
   flushSync(() => type(input, "needle"));
   check(rows().length === 1, "deletion fixture must be visible before its publication");
@@ -1298,12 +1304,13 @@ const activePath = "Editor.md", centralEditorAvailable = true, sectionExpanded =
 const page = (path, materialized = true) => ({ path, name: path, file: materialized ? { extension: "png", path } : null });
 const centerPage = page(activePath), attachmentPage = page("Before.png"), placeholderPage = page("After.png", false), sentinelPage = page("Other.png");
 const neighborhood = { center: centerPage }, miniPage = page("Descendant.png");
-const nativeNodeDrag={current:null},viewport={current:null},suppressActivateUntil={current:0},suppressSyntheticClickUntil={current:0},miniOpened=[],activated=[];
+const nativeNodeDrag={current:null},viewport={current:null},suppressActivateUntil={current:0},suppressSyntheticClickUntil={current:0},miniOpened=[],activated=[],materialized=[],actionSurfaceId="gesture-fixture";
+const actionNodeRef=page=>({identity:page.path,path:page.path,kind:"ghost"});
 const Keymap={isModEvent:event=>event.ctrlKey||event.metaKey},openNode=(...args)=>miniOpened.push(args),clearHoverIntent=()=>{},setExternalDropZone=()=>{};
 const runNodeAction=(...args)=>activated.push(args);
 ${uiDefinitions("src/ui/PlexGraph.tsx", ["isPlaceholderFolderGesture", "activateNode"])}
 const manager={draggable:null,dragLink:(event,linktext,sourcePath,title,source)=>({type:"link",linktext,sourcePath,title,source}),onDragStart(event,value){this.draggable=value},onDragEnd(){this.draggable=null}};
-const plugin={app:{dragManager:manager,vault:{getFileByPath:path=>[centerPage,attachmentPage,placeholderPage,sentinelPage,miniPage].find(page=>page.file?.path===path)?.file??null}}};
+const plugin={actionManager:{dispatch:request=>materialized.push(request)},app:{dragManager:manager,vault:{getFileByPath:path=>[centerPage,attachmentPage,placeholderPage,sentinelPage,miniPage].find(page=>page.file?.path===path)?.file??null}}};
 // The production center renderer publishes already-rendered local gate coverage for readiness.
 const renderedCenterGates = { current: null };
 const gates = Object.fromEntries(["top", "bottom", "left", "right"].map((gate) => [gate, { visibleCount: 0, hasAny: false, complete: true }]));
@@ -1339,10 +1346,11 @@ try {
   const recoloredReads=styleReads;render(initial,true);check(styleReads===recoloredReads,"New paint cache did not settle");
   check(container.querySelectorAll(".kplex-thought").length === 4, "initial real endpoint and unresolved placeholder were not distinct");
   check(clusters() === 3, "fixture did not render expanded strips through the production owner");
-  const ghost=[...container.querySelectorAll('.kplex-thought')].find(element=>element.dataset.kplexPath===placeholderPage.path),beforeActivations=activated.length;
+  const ghost=[...container.querySelectorAll('.kplex-thought')].find(element=>element.dataset.kplexPath===placeholderPage.path),beforeActivations=activated.length,beforeMaterializations=materialized.length;
   suppressActivateUntil.current=0;
   for(const modifier of [{ctrlKey:true},{metaKey:true}])flushSync(()=>ghost.dispatchEvent(new MouseEvent('click',{bubbles:true,...modifier})));
-  check(activated.length===beforeActivations,'Modified placeholder first click navigated away from its double-click target');
+  check(activated.length===beforeActivations,'Modified placeholder click navigated away from the current center'
+  );check(materialized.length===beforeMaterializations+2&&materialized.every(request=>request.args.chooseFolder&&request.args.preserveCenter&&request.target.node.path===placeholderPage.path),'Modified single click did not request in-place creation');
   flushSync(()=>ghost.dispatchEvent(new MouseEvent('click',{bubbles:true})));
   check(activated.length===beforeActivations+1,'Ordinary placeholder click stopped navigating');
   const real=[...container.querySelectorAll('.kplex-thought')].find(element=>element.dataset.kplexPath===attachmentPage.path);
@@ -1353,7 +1361,7 @@ try {
   flushSync(()=>mini.dispatchEvent(new DragEvent("dragstart",{bubbles:true,cancelable:true,dataTransfer:transfer})));
   check(manager.draggable?.linktext===miniPage.path&&manager.draggable?.source.owner===mini,"Expanded drag did not retain its endpoint and distinct occurrence authority");
   flushSync(()=>mini.dispatchEvent(new DragEvent("dragend",{bubbles:true,dataTransfer:transfer})));check(manager.draggable===null,"Expanded native drag did not retire");
-  flushSync(()=>mini.dispatchEvent(new MouseEvent("dblclick",{bubbles:true,ctrlKey:true})));check(miniOpened.at(-1)?.[0]===miniPage&&miniOpened.at(-1)?.[1]===true,"Expanded opening lost the folder modifier");
+  flushSync(()=>mini.dispatchEvent(new MouseEvent("dblclick",{bubbles:true,ctrlKey:true})));check(miniOpened.at(-1)?.[0]===miniPage&&miniOpened.at(-1)?.[1]===undefined,"Real expanded node double-click gained placeholder-only creation behavior");
   // GraphIndex.renameTreeEndpoint intentionally retains canonical page identity and mutates its
   // path; an unrelated React update may reuse the existing scene before its publication commits.
   attachmentPage.path = "After.png"; attachmentPage.name = "After.png"; attachmentPage.file.path = "After.png";

@@ -1235,6 +1235,8 @@ const frenchTranslations = {
   "ghost.relocationChanged": "L’espace réservé ou ses liens entrants ont changé. Rouvrez la boîte de dialogue et réessayez.",
   "ghost.recoverCreated": "La note a été créée dans {path}, mais certaines modifications restent inachevées : {error}. Réessayez pour terminer avec cette même note.",
   "ghost.relocationUnsupported": "Choisissez un autre dossier. Certains liens entrants ne peuvent pas être conservés correctement à cet emplacement.",
+  "actions.surface.new-tab": "Nouvel onglet K-Plex",
+  "actions.surface.new-tab.description": "Ouvrir un onglet K-Plex supplémentaire sans remplacer un Plex existant.",
 } as const satisfies LocaleTranslationMap;
 
 export const frenchCatalog = buildLocaleCatalog(frenchTranslations);

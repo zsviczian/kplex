@@ -299,6 +299,55 @@ test("native swallowed read failure stops an unchanged request and retries only 
   } finally { f.cleanup(); }
 });
 
+test("resolved native refusal cannot spin through an unchanged Properties repair intent", async t => {
+  for (const state of ["stale same-file metadata", "foreign file", "wrong metadata after load"]) {
+    await t.test(state, async () => {
+      const f = fixture();
+      try {
+        const original = f.properties.view.loadFile;
+        f.properties.view.file = state === "stale same-file metadata" ? f.a : f.b;
+        f.properties.view.modifyingFile = f.b;
+        f.properties.view.loadFile = async function(file) {
+          f.loads.push({ leaf: f.properties, file });
+          if (state === "wrong metadata after load") this.file = file;
+          f.emit("layout-change"); f.emit("file-open", this.file);
+          // Bound the old implementation's infinite microtask loop so a regression fails safely.
+          if (f.loads.length === 12) this.containerEl.isConnected = false;
+          return false;
+        };
+        const { center, lease } = f.register(); await settle();
+        assert.ok(f.loads.length <= 3, `unchanged intent performed ${f.loads.length} native calls`);
+        const count = f.loads.length;
+        f.emit("layout-change"); f.emit("file-open", f.properties.view.file); await settle();
+        assert.equal(f.loads.length, count, "native event noise does not restart a rejected repair");
+        lease.refresh(); await settle();
+        assert.ok(f.loads.length > count && f.loads.length <= count + 3, "a genuine refresh permits one bounded repair sequence");
+        f.properties.view.loadFile = original; center.file = f.c; lease.refresh(); await settle();
+        assert.equal(f.properties.view.file, f.c); assert.equal(f.properties.view.modifyingFile, f.c);
+      } finally { f.cleanup(); }
+    });
+  }
+});
+
+test("a newer center arriving during the final bounded repair retains the accepted native queue", async () => {
+  const f = fixture();
+  try {
+    const hold = deferred(), original = f.properties.view.loadFile;
+    f.properties.view.loadFile = async function(file) {
+      f.loads.push({ leaf: f.properties, file });
+      if (f.loads.length === 3) await hold.promise;
+      this.file = f.b; this.modifyingFile = f.b;
+      return false;
+    };
+    const { center, lease } = f.register(); await settle(); assert.equal(f.loads.length, 3);
+    center.file = f.c; lease.refresh(); await settle();
+    assert.equal(f.loads.length, 3, "the new center cannot overlap an accepted native request");
+    f.properties.view.loadFile = original; hold.resolve(); await settle();
+    assert.deepEqual(f.loads.map(item => item.file), [f.a, f.a, f.a, f.c]);
+    assert.equal(f.properties.view.file, f.c); assert.equal(f.properties.view.modifyingFile, f.c);
+  } finally { f.cleanup(); }
+});
+
 test("read-error layout/file-open noise cannot retry a failed file until an explicit center intent", async () => {
   const f = fixture();
   try {

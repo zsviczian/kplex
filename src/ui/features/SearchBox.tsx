@@ -34,7 +34,8 @@ export function SearchBox({
   resultIcon?: (hit: GraphSearchHit) => ReactNode;
 }) {
   const [query, setQuery] = useState("");
-  const results = useMemo(/** Requery only a changed term or publication, never icon/chrome changes. */ () => graph.search(query, 24), [graph, query, revision]);
+  const [focused, setFocused] = useState(false);
+  const results = useMemo(/** Hidden Find fields do not rank the vault on every graph/progress update. */ () => focused ? graph.search(query, 24) : [], [graph, query, revision, focused]);
 
   return <FuzzySuggester
     value={query}
@@ -52,6 +53,7 @@ export function SearchBox({
     portalSelector={portalSelector}
     appTopbarSelector={appTopbarSelector}
     focusRequest={focusRequest}
+    onFocusChange={setFocused}
     closeOnChoose={!repeatFind}
     advanceOnChoose={repeatFind}
   />;

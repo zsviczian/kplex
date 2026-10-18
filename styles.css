@@ -266,7 +266,19 @@ button.kplex-sidecar-unfold-plex:hover,
 .kplex-create-folder-caption { color: var(--text-muted); font-size: var(--font-ui-small); flex: none; }
 .kplex-create-folder-row .kplex-folder-path-input { flex: 1; min-width: 0; }
 .kplex-materialize-folder-input { width: 100%; min-width: 0; }
-.kplex-materialize-folder-input .kplex-folder-path-input { min-width: 0; }
+.kplex-materialize-folder-input .kplex-folder-path-input { width: 100%; max-width: none; min-width: 0; }
+.kplex-materialize-folder-row { gap: 8px; }
+.kplex-materialize-folder-row .setting-item-info { flex: none; margin: 0; }
+.kplex-materialize-folder-row .setting-item-name { color: var(--text-muted); font-size: var(--font-ui-small); }
+.kplex-materialize-folder-row .setting-item-control { flex: 1; min-width: 0; }
+.kplex-folder-path-results .kplex-search-result { display: block; height: auto; }
+.kplex-folder-path-results .kplex-search-result > span {
+  display: block;
+  overflow: visible;
+  text-overflow: clip;
+  white-space: normal;
+  overflow-wrap: break-word;
+}
 
 .kplex-workspace { min-height: 0; display: flex; }
 .kplex-graph-area { position: relative; min-width: 0; min-height: 0; flex: 1; overflow: hidden; }
@@ -1913,7 +1925,8 @@ button.kplex-sidecar-unfold-plex,
   min-width: 0;
   flex: 1 1 auto;
 }
-.kplex-add-related-form .kplex-search {
+.kplex-add-related-form .kplex-search,
+.kplex-folder-path-input .kplex-search {
   box-sizing: border-box;
   width: 100%;
   height: 38px;
@@ -1924,7 +1937,14 @@ button.kplex-sidecar-unfold-plex,
   border-radius: var(--input-radius, 5px);
   box-shadow: none;
 }
-.kplex-add-related-form .kplex-search:focus {
+.kplex-folder-path-input .kplex-search,
+.kplex-add-related-form .kplex-folder-path-input .kplex-search {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 0 12px;
+}
+.kplex-add-related-form .kplex-search:focus,
+.kplex-folder-path-input .kplex-search:focus {
   border-color: var(--interactive-accent);
   box-shadow: 0 0 0 2px color-mix(in srgb, var(--interactive-accent) 18%, transparent);
 }

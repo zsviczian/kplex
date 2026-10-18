@@ -144,6 +144,14 @@ function startNative(token, mode, expected) {
       leaves: app.workspace.getLeavesOfType('k-plex-sidepanel-view').map(leaf => ({ id: leaf.id, shown: leaf.view.containerEl.isShown(), rect: rect(leaf.view.containerEl) })) });
     split.expand(); await until(() => !split.collapsed && getComputedStyle(drawer).transform === 'none' && host.view.containerEl.isShown(), 'Actual owner drawer did not settle');
     const ui = await controls(host); c.ui = ui;
+    check(!ui.root.querySelector('button[aria-label="'+p.translator('actions.surface.new-tab')+'"]'), 'Phone toolbar exposes unsupported tab creation');
+    const tabsBefore=app.workspace.getLeavesOfType('k-plex-react-view').length;
+    const command=app.commands.commands['k-plex:kplex-new-tab'];
+    check(command?.checkCallback?.(true)===false, 'Phone command remains available');
+    // Native dispatch reports registration/no exception, not the command's availability result.
+    const dispatcherResult=app.commands.executeCommandById('k-plex:kplex-new-tab');await wait(100);
+    check(app.workspace.getLeavesOfType('k-plex-react-view').length===tabsBefore, 'Unavailable phone command allocated a tab');
+    c.cases.push({id:'phone-tab-policy',status:'passed',toolbarHidden:true,commandUnavailable:true,noTabAllocated:true,dispatcherResult});
     const density = ui.owner.querySelector('input[type=range]'), widthRail = ui.owner.querySelector(`input[aria-label="${p.translator('settings.ui.maximum.node.width')}"]`);
     check(widthRail, 'Native typography width rail missing');
     if (mode === 'reload') {

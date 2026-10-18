@@ -1227,6 +1227,8 @@ const japaneseTranslations = {
   "ghost.relocationChanged": "仮ノートまたは参照リンクが変更されました。ダイアログを開き直して再試行してください。",
   "ghost.recoverCreated": "ノートは {path} に作成されましたが、未完了の更新があります: {error}。同じノートで処理を完了するには再試行してください。",
   "ghost.relocationUnsupported": "別のフォルダーを選んでください。この保存先では一部の参照リンクを安全に維持できません。",
+  "actions.surface.new-tab": "新しい K-Plex タブ",
+  "actions.surface.new-tab.description": "既存の Plex を置き換えずに K-Plex タブを追加します。",
 } as const satisfies LocaleTranslationMap;
 
 export const japaneseCatalog = buildLocaleCatalog(japaneseTranslations);

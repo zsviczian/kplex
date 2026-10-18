@@ -1865,6 +1865,8 @@ export default class KplexPlugin extends Plugin {
       async () => { await run(); return { status: "completed" }; };
     operation("surface.open-tab", completed(() => this.activateView()),
       /** Preserve device-specific command visibility. */ () => isGraphTabCommandAvailable(readObsidianPresentationEnvironment(window.activeWindow ?? window)) ? enabled : { state: "disabled", reasonKey: "actions.deviceUnavailable" });
+    operation("surface.new-tab", completed(() => this.createPlexTab()),
+      /** Additional tabs share the existing desktop/tablet surface policy. */ () => isGraphTabCommandAvailable(readObsidianPresentationEnvironment(window.activeWindow ?? window)) ? enabled : { state: "disabled", reasonKey: "actions.deviceUnavailable" });
     operation("surface.open-popout", completed(() => this.activateViewInPopout()),
       /** Phone/tablet surfaces do not publish an available desktop popout operation. */ () => isPopoutCommandAvailable(readObsidianPresentationEnvironment(window.activeWindow ?? window)) ? enabled : { state: "disabled", reasonKey: "actions.deviceUnavailable" });
     operation("surface.open-sidepanel", completed(() => this.activateSidepanel()));
@@ -4086,6 +4088,14 @@ export default class KplexPlugin extends Plugin {
     await this.app.workspace.revealLeaf(leaf);
   }
 
+  /** Create an independent Plex tab explicitly, without reusing an existing tab or startup surface preference. */
+  async createPlexTab(): Promise<void> {
+    this.rememberDocumentLeaf(this.app.workspace.getMostRecentLeaf());
+    const leaf = this.app.workspace.getLeaf("tab");
+    await leaf.setViewState({ type: KPLEX_VIEW_TYPE, active: true });
+    await this.app.workspace.revealLeaf(leaf);
+  }
+
   /** Activate the native K-Plex sidepanel and report host-opening failures through localized notices. */
   async activateSidepanel(): Promise<void> {
     this.rememberDocumentLeaf(this.app.workspace.getMostRecentLeaf());
@@ -4197,7 +4207,7 @@ export default class KplexPlugin extends Plugin {
   }
 
   /** Open a graph page through its supported host target and localize product feedback; semantic identities remain unchanged. */
-  async openPage(page: GraphPage, ownerDocument = this.app.workspace.containerEl.ownerDocument, options: { chooseFolder?: boolean } = {}): Promise<void> {
+  async openPage(page: GraphPage, ownerDocument = this.app.workspace.containerEl.ownerDocument, options: { chooseFolder?: boolean; preserveCenter?: boolean } = {}): Promise<void> {
     if (page.url) {
       openExternalUrl(page.url, ownerDocument);
       return;
@@ -4210,7 +4220,7 @@ export default class KplexPlugin extends Plugin {
       new Notice(this.translator(page.isFolder ? "notice.folder" : "notice.tag", { name: page.isTag ? `#${page.name}` : page.name }), 1600);
       return;
     }
-    await this.createGhostNote(page, options.chooseFolder === true);
+    await this.createGhostNote(page, options.chooseFolder === true, options.preserveCenter === true);
   }
 
   /** Render facets and styles under the same prepared policy, including during async refresh. */
@@ -6462,6 +6472,7 @@ export default class KplexPlugin extends Plugin {
     retainedFile?: TFile,
     continuation: { relocation?: PlaceholderRelocation } = {},
     current: () => boolean = () => true,
+    preserveCenter = false,
   ): Promise<boolean> {
     const retainedPlan = retainedFile ? continuation.relocation : undefined;
     const oldPath = retainedPlan?.oldPath ?? page.path;
@@ -6499,15 +6510,19 @@ export default class KplexPlugin extends Plugin {
       const wasCenter = this.settings.lastActivePath === oldPath;
       if (!this.index.materializeFile(oldPath, file)) throw new Error(changed);
       const navigationChanged = this.remapNavigationPaths(oldPath, file.path);
-      if (wasCenter && current()) this.notifyNavigation(file.path);
+      // Another Plex may own lastActivePath. In-place creation must never broadcast its new
+      // center to unrelated surfaces; each mounted App follows its own canonical identity remap.
+      if (!preserveCenter && wasCenter && current()) this.notifyNavigation(file.path);
       if (navigationChanged) await this.saveSettings(false, false);
-      if (current()) await this.openInDocumentLeaf(file);
+      // Opening a document can trigger follow-active-note synchronization. In-place creation
+      // promotes the endpoint and its saved references without issuing that navigation request.
+      if (current() && !preserveCenter) await this.openInDocumentLeaf(file);
       return true;
     } catch (error) { throw error instanceof PartialRelatedFileError ? error : new PartialRelatedFileError(file, error); }
   }
 
   /** Materialize the requested ghost note through the existing vault/index workflow and localize user-visible validation and failures. */
-  async createGhostNote(page: GraphPage, chooseFolder = false): Promise<void> {
+  async createGhostNote(page: GraphPage, chooseFolder = false, preserveCenter = false): Promise<void> {
     if (page.file) {
       await this.openInDocumentLeaf(page.file);
       return;
@@ -6523,7 +6538,7 @@ export default class KplexPlugin extends Plugin {
     const locations = this.ghostCreationLocations(page, validation.stem);
     if (!chooseFolder && locations.length === 1) {
       const existing = this.validateRelatedNoteName(rawLeafName, locations[0].folderPath).existing;
-      if (existing) { await this.openInDocumentLeaf(existing); return; }
+      if (existing) { if (!preserveCenter) await this.openInDocumentLeaf(existing); return; }
     }
     const excalidrawAvailable = this.isExcalidrawAvailable();
     const defaultKind: GhostMaterializationKind = this.settings.newNodeDefaultType === "excalidraw" && excalidrawAvailable
@@ -6531,7 +6546,7 @@ export default class KplexPlugin extends Plugin {
       : "markdown";
 
     if (!chooseFolder && locations.length === 1 && !excalidrawAvailable) {
-      await this.materializeGhostPage(page, validation.stem, "markdown", locations[0].folderPath, rawLeafName);
+      await this.materializeGhostPage(page, validation.stem, "markdown", locations[0].folderPath, rawLeafName, undefined, {}, undefined, preserveCenter);
       return;
     }
 
@@ -6542,7 +6557,7 @@ export default class KplexPlugin extends Plugin {
       locations,
       excalidrawAvailable,
       defaultKind,
-      (kind, folderPath, retainedFile, current) => this.materializeGhostPage(page, validation.stem, kind, folderPath, rawLeafName, retainedFile, continuation, current),
+      (kind, folderPath, retainedFile, current) => this.materializeGhostPage(page, validation.stem, kind, folderPath, rawLeafName, retainedFile, continuation, current, preserveCenter),
       chooseFolder,
     ).open();
   }

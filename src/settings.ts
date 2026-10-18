@@ -2372,8 +2372,8 @@ export class KplexSettingTab extends PluginSettingTab {
             type: "group",
             heading: translate("settings.ui.layout.sizing"),
             items: [
-              { name: translate("settings.ui.parent.maximum.height"), desc: translate("settings.ui.parent.rows.become.vertically.scrollable.above.this.heig"), control: { type: "slider", key: "parentMaxHeight", min: 140, max: 800, step: 20 } },
               { type: "page", name: translate("layout.simplifiedTitle"), desc: translate("layout.simplifiedHelp"), items: this.lateralArrangementDefinitions() },
+              { name: translate("settings.ui.parent.maximum.height"), desc: translate("settings.ui.parent.rows.become.vertically.scrollable.above.this.heig"), control: { type: "slider", key: "parentMaxHeight", min: 140, max: 800, step: 20 } },
               { name: translate("settings.ui.friend.challenger.maximum.height"), desc: translate("settings.ui.friend.and.challenger.lists.become.vertically.scrollable"), control: { type: "slider", key: "friendMaxHeight", min: 140, max: 800, step: 20 } },
               { name: translate("settings.ui.sibling.maximum.height"), desc: translate("settings.ui.sibling.lists.become.vertically.scrollable.above.this.he"), control: { type: "slider", key: "siblingMaxHeight", min: 120, max: 700, step: 10 } },
               { name: translate("settings.ui.sibling.relative.size"), desc: translate("settings.ui.scale.sibling.nodes.and.their.expanded.descendants.relat"), control: { type: "slider", key: "siblingRelativeSize", min: 30, max: 85, step: 5 } },

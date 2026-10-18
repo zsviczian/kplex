@@ -4687,3 +4687,30 @@ HANDOFF. The feature report records source/build hashes, failed controls, the
 unrelated gate/filter guard failure, conservative relocation limits and the three
 prioritized physical OS/macOS/device acceptance checks. No further implementation,
 architectural checkpoint, merge or release is authorized. PR #177 remains draft.
+
+### 2026-10-18 — PR #177 feedback: creation and navigation UX
+
+The shared filename suggester now supplies readable, wide folder suggestions in
+both actual creation dialogs, with partial root-path matching and no extra icon,
+disclosure or help paragraph. New-tab actions reuse the existing device policy:
+desktop/tablet expose the plus and command; phone retains side-panel-only opening.
+Simplified layout is first in Plex behavior's Layout & sizing group. Modified
+single-click creates placeholders in place, without global center broadcasts;
+each surface follows only its accepted ghost's canonical identity remap.
+Properties repairs stop after three attempts per unchanged intent. Counterexamples
+prove the old retry hazard; the maintainer's intermittent freeze remains unproven.
+
+Combined working-tree validation passes architecture7/core130, Obsidian lint,
+Node1029/UI131/source334/browser598, actual-types production build, and serial
+exact-build Find, folder, layout, legacy, drag and touch-emulation lanes. Native
+Settings, two-Plex materialization and phone availability/no-allocation are exercised.
+Two below-normal Windows aggregate attempts exceed the unchanged35-minute wrapper
+deadline: preserve those failures separately from their completed passing children.
+The folder guard now reports navigation/opening preparation separately from zero
+typing/selection/Cancel work; native dispatch availability is checked independently
+of its success-return convention. No assertion is relaxed. All owned fixtures,
+configuration/workspace, desktop mode and opening console state restore;107files/
+88Markdown remain. Final-head CI/standard-priority verification remain pending.
+C14 remains accepted/paused. Remaining prioritized acceptance is physical OS drag,
+macOS/minimum-host modifiers/IME, and physical phone/tablet interaction; see the
+feature report. No merge or release; PR #177 stays draft.

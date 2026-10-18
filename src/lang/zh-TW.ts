@@ -1227,6 +1227,8 @@ const traditionalChineseTranslations = {
   "ghost.relocationChanged": "預留筆記或其傳入連結已變更。請重新開啟對話框後再試一次。",
   "ghost.recoverCreated": "筆記已建立於 {path}，但部分更新尚未完成：{error}。請重試以使用同一篇筆記完成更新。",
   "ghost.relocationUnsupported": "請選擇其他資料夾。部分傳入連結無法在此位置安全保留。",
+  "actions.surface.new-tab": "新增 K-Plex 分頁",
+  "actions.surface.new-tab.description": "開啟額外的 K-Plex 分頁，不取代現有的 Plex。",
 } as const satisfies LocaleTranslationMap;
 
 export const traditionalChineseCatalog = buildLocaleCatalog(traditionalChineseTranslations);

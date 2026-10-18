@@ -57,6 +57,7 @@ K-Plex uses its own plugin ID, so you can keep ExcaliBrain installed while migra
 Useful commands include:
 
 - **Open K-Plex**
+- **New K-Plex tab** — also available from the **+** toolbar button
 - **Focus active note in K-Plex**
 - **Open K-Plex in side panel**
 - **Open K-Plex in pop-out window** (desktop)
@@ -70,7 +71,7 @@ On phones, K-Plex opens naturally in the side panel. Tablets can use either a no
 - **Single-click / tap** a node to make it the center.
 - **Double-click** a file-backed node to open it in Obsidian.
 - Double-clicking a URL opens it in the browser.
-- Double-clicking an unresolved link can create the missing note. Hold **Ctrl/Cmd** while double-clicking to choose its folder first. A placeholder can already specify its intended folder.
+- Double-clicking an unresolved link can create the missing note. **Control-click** (**Command-click** on macOS) opens its creation dialog without moving the Plex center. A placeholder can already specify its intended folder.
 - Folder and tag nodes can also become the center.
 - An open, unpinned **File properties** pane follows the central file while K-Plex is active. Pinned or grouped Properties panes keep their own file; non-file centers clear the unpinned pane.
 - Drag empty graph space to pan and use the mouse wheel or pinch gesture to zoom.
@@ -105,7 +106,9 @@ The toolbar search box (**F4**) searches notes, folders, tags, attachments, Canv
 
 Drag a note, attachment, URL or placeholder node into a Markdown editor to insert its link, or into another K-Plex view to navigate or start a relationship. Tags are inserted as `#tag` text and can also be dragged between Plexes for navigation. Desktop node dragging uses Obsidian's native link handling; gates retain their connection gestures.
 
-For a narrower Plex, enable **Simplified layout** under **Settings → K-Plex → Plex behavior**. Friends and challengers appear in separate groups on the left, retaining their relationship meanings and filters. Choose this separately for desktop, tablet and mobile, and for main tabs and side panels. Pop-outs use the main-tab choice for their device.
+For a narrower Plex, open **Settings → K-Plex → Plex behavior → Simplified layout**, the first entry under **Layout & sizing**. Friends and challengers appear in separate groups on the left, retaining their relationship meanings and filters. Choose this separately for desktop, tablet and mobile, and for main tabs and side panels. Pop-outs use the main-tab choice for their device.
+
+Choose curved or straight connections under **Settings → K-Plex → Visual styling → Link styling → Link shape**.
 
 Display names are configurable in **Settings → K-Plex → Visual styling → Canvas & labels → Name fields**. Enter a comma-separated precedence list such as `title, aliases, backup_names`. K-Plex uses the first non-empty text/list value and falls back to the file name. The default is `aliases`, which preserves the previous alias-rendering behavior.
 

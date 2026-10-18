@@ -1239,6 +1239,8 @@ const russianTranslations = {
   "ghost.relocationChanged": "Заглушка или входящие ссылки изменились. Откройте диалог снова и повторите попытку.",
   "ghost.recoverCreated": "Заметка создана в {path}, но часть изменений не завершена: {error}. Повторите попытку, чтобы завершить работу с той же заметкой.",
   "ghost.relocationUnsupported": "Выберите другую папку. Некоторые входящие ссылки нельзя безопасно сохранить для этого расположения.",
+  "actions.surface.new-tab": "Новая вкладка K-Plex",
+  "actions.surface.new-tab.description": "Открыть дополнительную вкладку K-Plex, не заменяя существующий Plex.",
 } as const satisfies LocaleTranslationMap;
 
 export const russianCatalog = buildLocaleCatalog(russianTranslations);

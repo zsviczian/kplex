@@ -118,7 +118,7 @@ test("cleanup is idempotent and cannot retire a newer drag; native file fallback
 });
 
 test("folder prompting is a finite optional node-open argument, never an executable override", () => {
-  for (const args of [undefined, {}, { chooseFolder: true }, { chooseFolder: false }]) assert.equal(api.validActionArguments("node.open", args), true);
-  for (const args of [{ chooseFolder: "yes" }, { chooseFolder: () => true }, { chooseFolder: true, run: "other" }]) assert.equal(api.validActionArguments("node.open", args), false);
+  for (const args of [undefined, {}, { chooseFolder: true }, { chooseFolder: false }, {chooseFolder: true, preserveCenter: true}]) assert.equal(api.validActionArguments("node.open", args), true);
+  for (const args of [{ chooseFolder: "yes" }, { chooseFolder: () => true }, { chooseFolder: true, run: "other" }, {preserveCenter: "yes"}]) assert.equal(api.validActionArguments("node.open", args), false);
   assert.equal(api.validActionArguments("node.activate", { chooseFolder: true }), false);
 });

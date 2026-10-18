@@ -1235,6 +1235,8 @@ const spanishTranslations = {
   "ghost.relocationChanged": "El marcador o sus enlaces entrantes han cambiado. Abre de nuevo el diálogo e inténtalo otra vez.",
   "ghost.recoverCreated": "La nota se creó en {path}, pero algunas actualizaciones están pendientes: {error}. Reintenta para terminar con esta misma nota.",
   "ghost.relocationUnsupported": "Elige otra carpeta. Algunos enlaces entrantes no se pueden conservar de forma segura en este destino.",
+  "actions.surface.new-tab": "Nueva pestaña de K-Plex",
+  "actions.surface.new-tab.description": "Abrir otra pestaña de K-Plex sin reemplazar un Plex existente.",
 } as const satisfies LocaleTranslationMap;
 
 export const spanishCatalog = buildLocaleCatalog(spanishTranslations);

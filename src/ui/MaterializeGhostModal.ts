@@ -101,7 +101,7 @@ export class MaterializeGhostModal extends Modal {
     });
 
     const folderSetting = new Setting(this.contentEl).setName(this.translate("folderPicker.label"))
-      .setDesc(this.translate(this.locations.length > 1 ? "ghost.locationConflictHelp" : "folderPicker.help"));
+      .setClass("kplex-materialize-folder-row");
     const folderHost = folderSetting.controlEl.createDiv({ cls: "kplex-materialize-folder-input" });
     this.folderRoot = createRoot(folderHost);
     this.folderPaths = this.app.vault.getAllFolders(true).map(/** Include root without exposing note contents. */ folder => folder.path === "/" ? "/" : folder.path);

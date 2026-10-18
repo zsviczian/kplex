@@ -133,7 +133,8 @@ assert(newRelatedSource.includes("this.releaseDesktopDrag?.()"), "Add-related mo
 assert(draggableDialogSource.includes('ownerDocument.addEventListener("pointermove", onPointerMove, true)'), "Dialog drag must capture active pointer moves in the owning document before the Plex can pan");
 assert(draggableDialogSource.includes('ownerWindow.addEventListener("pagehide", cleanup)'), "Dialog drag must clean itself up when its owning desktop/pop-out window tears down");
 assert(ghostModalSource.includes('this.scope.register(["Mod"], "Enter"'), "Ghost materialization must support the same Ctrl/Cmd+Enter default action as create-related");
-assert(ghostModalSource.includes('setName(this.translate("folderPicker.label"))') && ghostModalSource.includes('"ghost.locationConflictHelp"') && ghostModalSource.includes('createElement(MaterializationFolderInput'), "Ghost destinations must use the shared localized folder field and retain ambiguous-location guidance");
+assert(ghostModalSource.includes('setName(this.translate("folderPicker.label"))') && ghostModalSource.includes('createElement(MaterializationFolderInput') && ghostModalSource.includes('setClass("kplex-materialize-folder-row")'), "Ghost destinations must reuse the localized full-width folder field");
+assert(!ghostModalSource.includes('"ghost.locationConflictHelp"') && !ghostModalSource.includes('"folderPicker.help"'), "The requested compact folder row must not restore the removed guidance");
 assert(ghostModalSource.includes('setButtonText(this.translate("common.excalidraw"))'), "Ghost materialization must offer localized Excalidraw copy when the integration is available");
 assert(!appSource.includes('void plugin.openSidecar(hostLeaf, page);'), "React mount must not create a sidecar during startup restore; plugin-level restore owns re-association");
 assert(appSource.includes("plugin.isStartupInitializing() && plugin.settings.lastActivePath"), "A restored K-Plex view must keep its persisted center while Obsidian startup tab ordering is unstable");
@@ -291,7 +292,7 @@ assert(mainSource.includes("element.classList.add(\"kplex-linked-leaf-alert\")")
 assert(!mainSource.includes("element.style.flexBasis"), "Sidecar footprint restoration must use Obsidian DOM style helpers rather than direct style mutation");
 assert(!mainSource.includes("tabHeaderForLeaf"), "Linked-tab feedback cleanup must not retain the obsolete tab-header bridge");
 assert(mainSource.includes("viewWindow.requestAnimationFrame"), "Sidecar/link UI scheduling should use the target leaf window for pop-out compatibility");
-const createGhostStart = mainSource.indexOf("  async createGhostNote(page: GraphPage, chooseFolder = false)");
+const createGhostStart = mainSource.indexOf("  async createGhostNote(page: GraphPage, chooseFolder = false, preserveCenter = false)");
 const createGhostSource = mainSource.slice(createGhostStart);
 assert(createGhostSource.includes("ghostCreationLocations(page, validation.stem)"), "Ghost creation must resolve destinations from the graph rather than defaulting to vault root");
 assert(!createGhostSource.includes("rebuildIndex("), "Materializing a ghost node must not trigger a full graph rebuild");

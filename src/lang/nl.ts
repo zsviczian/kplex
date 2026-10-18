@@ -1231,6 +1231,8 @@ const dutchTranslations = {
   "ghost.relocationChanged": "De tijdelijke notitie of de inkomende links zijn gewijzigd. Open het dialoogvenster opnieuw en probeer het nogmaals.",
   "ghost.recoverCreated": "De notitie is aangemaakt op {path}, maar enkele wijzigingen zijn nog niet voltooid: {error}. Probeer opnieuw om dezelfde notitie af te maken.",
   "ghost.relocationUnsupported": "Kies een andere map. Sommige inkomende links kunnen op deze bestemming niet veilig behouden blijven.",
+  "actions.surface.new-tab": "Nieuw K-Plex-tabblad",
+  "actions.surface.new-tab.description": "Open een extra K-Plex-tabblad zonder een bestaande Plex te vervangen.",
 } as const satisfies LocaleTranslationMap;
 
 export const dutchCatalog = buildLocaleCatalog(dutchTranslations);
