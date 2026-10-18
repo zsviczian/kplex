@@ -4967,3 +4967,31 @@ CRCs/per-file hashes; HANDOFF excluded. MANIFEST
 57c5c60589a7ce06d73d55ed49323eb8cb0d9d8cec1025381351eafe2b8ff8d5.
 Originals/prior backups retained; no raw publication. Exact-head remote CI is
 running when recorded, not claimed green. PR remains draft.
+
+### 2026-10-18 PR177 — shared completion and context layout follow-up
+
+One CreationCompletionSelect now owns the actual caption/dropdown in both creation
+shells. It shows the resolved outcome, keeps explicit choices local, and uses common
+native styling. Guard ToggleComponent.setValue reflection because the real host
+invokes onChange on changed values. Native user toggle persistence is retained.
+Folder creation passes the exact current destination through all validation paths,
+allowing parent/nested matching basenames while refusing exact collisions. Initial
+materialization suggestions reuse the existing closed-focus policy.
+
+LayoutCheckbox is shared by Wrap labels and one Simplified layout checkbox beneath
+Parents/Children. Existing context writer, environment and eight-locale copy remain
+owners. A shared surface route keeps popout reads/writes aligned with main-tab
+arrangement, retaining independent density. No new preference/indexing owner.
+
+Full1792341320441 plus final affected1792343479987 (7/130/lint/206/build/native smoke)
+pass on Node22.22.2. Final Windows folders12/layout7 pass exact artifact3fbbe208;
+layout source/storage/build/semantic counters0. Four native visual captures, two
+inspected, plus final sanity1792344084125 verify original107files/88Markdown,
+no dialogs/controllers and capture off. Retain failed controls and the earlier
+unattributed1-acquisition typing interval, not universal efficiency claims. No
+comparative performance or personal-vault access. Report carries exact hashes,
+receipts and driver corrections. Remaining risk: whole-app Settings-close freeze
+still unreproduced; macOS/minimum host and physical mobile/touch require separate
+acceptance. Highest-priority manual checks: affected full-process startup, native
+Settings close with Markdown Sidecar, and physical-device layout controls. Keep
+draft/no merge/release. Private originals/verified earlier backups remain intact.

@@ -15,6 +15,7 @@ async function bundle() {
   const result = await build({ stdin: { resolveDir: process.cwd(), loader: "tsx", contents: `
     import React,{useState} from 'react';import {createRoot} from 'react-dom/client';import {flushSync} from 'react-dom';
     import {LayoutControls} from './src/ui/components/LayoutControls';import {LayoutSlider} from './src/ui/components/LayoutSlider';
+    import {LayoutCheckbox} from './src/ui/components/LayoutCheckbox';
     export function mountFixture(){
       document.body.style.margin='0';const host=document.createElement('div');host.className='kplex-view-host';
       const pane=document.createElement('div');pane.className='kplex-plex';pane.style.width='900px';pane.style.height='700px';pane.style.flex='none';host.append(pane);document.body.append(host);
@@ -24,14 +25,14 @@ async function bundle() {
       const definitions=[['Horizontal',.75,4,.05,1.5],['Vertical',.75,4,.05,1.5],['Parents',1,3,1,2],['Children',1,7,1,3],['Font',8,28,.1,13],['Label',5,120,1,49],['Width',120,800,1,286]];
       /** Caller-owned state makes native input visible while the production shell only arranges it. */
       function Fixture(){
-        const [geometry,setGeometry]=useState({width:900,height:700}),[open,setOpen]=useState(true),[values,setValues]=useState(definitions.map(item=>item[4])),[wrap,setWrap]=useState(false);
+        const [geometry,setGeometry]=useState({width:900,height:700}),[open,setOpen]=useState(true),[values,setValues]=useState(definitions.map(item=>item[4])),[wrap,setWrap]=useState(false),[simplified,setSimplified]=useState(false);
         Object.assign(state,{values,wrap,resize:(width,height)=>flushSync(()=>{pane.style.width=width+'px';pane.style.height=height+'px';setGeometry({width,height})}),setRail:(index,value)=>flushSync(()=>setValues(current=>current.map((old,key)=>key===index?value:old))),setOpen:value=>flushSync(()=>setOpen(value))});
         /** The actual rail emits scalar values; no fixture pointer/value math replaces native input. */
         const rail=index=>{const [label,min,max,step]=definitions[index];return <LayoutSlider key={label} label={label} caption={label} icon={<span />} value={values[index]} displayValue={String(values[index])} min={min} max={max} step={step} onChange={value=>{state.changes.push({index,value});setValues(current=>current.map((old,key)=>key===index?value:old))}}/>};
         return <><LayoutControls width={geometry.width} height={geometry.height} expanded={open} toggle={<button type="button" className="kplex-icon-button kplex-layout-toggle" aria-label="Configure" aria-expanded={open} onClick={()=>setOpen(value=>!value)}>L</button>}>
-          <div className="kplex-density-axes">{rail(0)}{rail(1)}</div><div className="kplex-density-axes">{rail(2)}{rail(3)}</div>
+          <div className="kplex-density-axes">{rail(0)}{rail(1)}</div><div className="kplex-density-axes">{rail(2)}{rail(3)}<LayoutCheckbox label="Simplified layout" controlId="simplified-layout" checked={simplified} onChange={setSimplified}/></div>
           <div className="kplex-typography-group"><div className="kplex-typography-scope"><span>Desktop</span><button type="button" aria-label="Reset" onClick={()=>setValues(definitions.map(item=>item[4]))}>R</button></div>
-            <div className="kplex-typography-controls"><div className="kplex-density-axes">{rail(4)}{rail(5)}{rail(6)}</div><label className="kplex-density-control kplex-wrap-label-control"><input type="checkbox" aria-label="Wrap" checked={wrap} onChange={event=>setWrap(event.currentTarget.checked)}/><span className="kplex-wrap-label-caption">Wrap node labels</span></label></div>
+            <div className="kplex-typography-controls"><div className="kplex-density-axes">{rail(4)}{rail(5)}{rail(6)}</div><LayoutCheckbox label="Wrap" controlId="wrap-node-labels" checked={wrap} onChange={setWrap}/></div>
           </div>
         </LayoutControls><div className="kplex-zoom-controls">{['Zoom in','Zoom out','Fit','Fullscreen','Zen'].map(label=><button key={label} type="button" aria-label={label}>Z</button>)}</div></>;
       }
@@ -208,9 +209,15 @@ test("native arrows, Tab/Shift+Tab, mouse range input and reset retain the discl
     await key(host, "Tab", "Tab", 9, 8);
     assert.equal(await host.evaluate("document.activeElement.getAttribute('aria-label')"), "Configure");
     await key(host, "Tab", "Tab", 9);
-    for (const expected of ["Vertical", "Parents", "Children", "Reset", "Font", "Label", "Width", "Wrap"]) {
+    for (const expected of ["Vertical", "Parents", "Children", "Simplified layout", "Reset", "Font", "Label", "Width", "Wrap"]) {
       await key(host, "Tab", "Tab", 9);
       assert.equal(await host.evaluate("document.activeElement.getAttribute('aria-label')"), expected, "Tab follows the visible panel's DOM order");
+      if (expected === "Simplified layout") {
+        await key(host, " ", "Space", 32);
+        assert.equal(await host.evaluate("document.activeElement.checked"), true, "Space enables the focused context checkbox");
+        await key(host, " ", "Space", 32);
+        assert.equal(await host.evaluate("document.activeElement.checked"), false, "Space restores the context without moving focus");
+      }
     }
     await key(host, "Tab", "Tab", 9, 8);
     assert.equal(await host.evaluate("document.activeElement.getAttribute('aria-label')"), "Width");

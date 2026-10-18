@@ -15,6 +15,7 @@ import { ObsidianIcon } from "./ObsidianIcon";
 import { fitMobileModalToViewport } from "./mobileModalViewport";
 import { PartialRelatedFileError } from "../adapters/obsidian/relatedFileOutcome";
 import type { CompletionIntent } from "../core/plex/actions";
+import { CreationCompletionSelect, creationCompletionValue } from "./features/CreationCompletionSelect";
 
 /**
  * Confirmed saved relationship state; a pending publication remains a committed vault write.
@@ -462,7 +463,7 @@ function RelatedNoteComposer({
           ),
   );
 
-  const completionValue = continuation === "configured" ? !selectedTarget && !webUrl && editAfterCreate ? "edit" : "return" : continuation;
+  const completionValue = creationCompletionValue(continuation, !selectedTarget && !webUrl && editAfterCreate);
   const editToggle = !selectedTarget && !webUrl ? createElement(
     "label",
     { className: "kplex-create-edit-toggle" },
@@ -486,15 +487,11 @@ function RelatedNoteComposer({
     ),
   ) : null;
 
-  const completionSelect = createElement("label", { className: "kplex-add-related-completion" },
-    createElement("span", null, plugin.translator("addRelated.completionMode")),
-    createElement("select", {
-      value: completionValue, disabled: busy || Boolean(savedPending), "aria-label": plugin.translator("addRelated.completionMode"),
-      onChange: /** Keep explicit intent local to this invocation. */ (event: { currentTarget: HTMLSelectElement }) => setContinuation(event.currentTarget.value as CompletionIntent),
-    }, ...(["return", "another", "follow", "edit"] as const)
-      .filter(/** URLs and unresolved notes do not support an editor completion. */ intent => intent !== "edit" || Boolean(selectedTarget?.file || !webUrl))
-      .map(/** Localized finite choices cannot inject executable preferences. */ intent => createElement("option", { key: intent, value: intent }, plugin.translator(`addRelated.completion.${intent}`)))),
-  );
+  const completionSelect = createElement(CreationCompletionSelect, {
+      translate: plugin.translator, intent: continuation, editAfterCreate: !selectedTarget && !webUrl && editAfterCreate,
+      canEdit: Boolean(selectedTarget?.file || !webUrl), disabled: busy || Boolean(savedPending),
+      onChange: setContinuation,
+  });
   const recovery = savedPending ? createElement("div", { className: "kplex-add-related-recovery", role: "status" },
     createElement("div", null, plugin.translator("addRelated.savedPending")),
     createElement("div", { className: "kplex-add-related-recovery-actions" },

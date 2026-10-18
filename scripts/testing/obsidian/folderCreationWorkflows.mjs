@@ -17,7 +17,7 @@ export async function runFolderCreationWorkflows(h) {
   const readableFolder=c.folder+'/08 About a long folder name with enough descriptive text to verify that the full destination remains readable in a shared suggestion';
   c.folderCreation={counts:[],placeholderGestures:[],zeroWork:[]};
   c.acceptedWrites=new Set();
-  for(const method of ['createNewRelatedFileForOrigin','linkNewRelatedFile','createPlaceholderRelatedPage','materializeGhostPage']){
+  for(const method of ['createNewRelatedFileForOrigin','createNewNodeInFolder','linkNewRelatedFile','createPlaceholderRelatedPage','materializeGhostPage']){
     const original=p[method];check(typeof original==='function','Native creation owner absent: '+method);
     p[method]=function(...args){const task=original.apply(this,args);c.acceptedWrites.add(task);return Promise.resolve(task).finally(()=>c.acceptedWrites.delete(task))};
     let live=true;c.wrappers.push(()=>{if(live){live=false;p[method]=original}});
@@ -80,20 +80,20 @@ export async function runFolderCreationWorkflows(h) {
   /** Count actual resource-owner calls only during an already-drained presentation interval. */
   const noWork=async(id,action)=>{
     await idle();const work={reads:0,parses:0,acquisitions:0,builds:0,semantics:0,writes:0,snapshotWrites:0};
-    const stops=[];
+    const stops=[],unexpectedCalls=[];
     for(const [object,method,counter]of [[app.vault,'read','reads'],[app.vault,'cachedRead','reads'],
       [p.index.sourceAcquisition,'parse','parses'],[p.index.sourceAcquisition,'acquire','acquisitions'],
       [p.index,'rebuild','builds'],[p.index,'rebuildProgressively','builds'],[p.index,'refreshSemanticSettings','semantics'],
       [p.index.indexedDb,'writeSnapshot','snapshotWrites'],
       [app.vault,'create','writes'],[app.vault,'createFolder','writes'],[app.fileManager,'processFrontMatter','writes']]){
       check(typeof object[method]==='function','Counter owner absent: '+method);
-      const original=object[method];object[method]=function(...args){work[counter]++;return original.apply(this,args)};
+      const original=object[method];object[method]=function(...args){work[counter]++;unexpectedCalls.push({method,stack:new Error().stack});return original.apply(this,args)};
       let live=true;const stop=()=>{if(live){live=false;object[method]=original}};stops.push(stop);c.wrappers.push(stop);
     }
     try{await action();await delay(150);check(!p.index.building&&!p.rebuildTask&&!p.index.hasActiveSemanticPreparation()
       &&!p.index.hasPendingSemanticPreparation()&&p.index.snapshotPersistTimer===null,'Typing/cancel queued later index work')}
     finally{for(const stop of stops.reverse())stop()}
-    c.folderCreation.zeroWork.push({id,work});check(Object.values(work).every(value=>value===0),'Typing/cancel caused resource work '+JSON.stringify(work));
+    c.folderCreation.zeroWork.push({id,work,...(unexpectedCalls.length?{unexpectedCalls}:{})});check(Object.values(work).every(value=>value===0),'Typing/cancel caused resource work '+JSON.stringify(work));
     return work;
   };
   /** Trusted Electron double-click reaches the actual node, preserving modifiers and reporting trust. */
@@ -135,7 +135,9 @@ export async function runFolderCreationWorkflows(h) {
   const materializationDialog=async()=>{
     await until(()=>[...owner.querySelectorAll('.modal')].some(element=>!element.classList.contains('kplex-add-related-modal')&&folderInput(element)),'Materialization folder prompt missing');
     const element=[...owner.querySelectorAll('.modal')].find(element=>!element.classList.contains('kplex-add-related-modal')&&folderInput(element));
-    c.dialogs.add(element);return element;
+    c.dialogs.add(element);await delay(50);
+    check(folderInput(element).getAttribute('aria-expanded')==='false'&&!owner.querySelector('.kplex-folder-path-results'),'Prefilled materialization opened folder suggestions before editing');
+    return element;
   };
   /** Choose the existing real Markdown action by localized button text. */
   const confirmMaterialization=async(element)=>{
@@ -143,6 +145,76 @@ export async function runFolderCreationWorkflows(h) {
     check(button&&!button.disabled,'Materialization Markdown action missing');button.click();
     await until(()=>!element.isConnected,'Materialization did not finish',30000);
   };
+
+  await scenario('shared-folder-completion-control',async()=>{
+    const saved=p.settings.editNewNodeAfterCreate;
+    try{
+      for(const configured of [false,true]){
+        p.settings.editNewNodeAfterCreate=configured;await p.saveSettings(false,false);
+        await center('folder:'+c.folder);focus(c.host);
+        const outcome=await dispatch('relationship.create-center.child');check(outcome.status==='opened','Folder creation action did not open');
+        await until(()=>owner.querySelector('.kplex-create-folder-note-modal select[data-kplex-control="creation-completion"]'),'Shared folder completion did not mount');
+        const element=owner.querySelector('.kplex-create-folder-note-modal');c.dialogs.add(element);
+        const select=element.querySelector('select[data-kplex-control="creation-completion"]'),toggle=element.querySelector('.checkbox-container');
+        c.folderCreation.nativeToggleSetter=[...p.actionDialogs.keys()].find(dialog=>dialog.modalEl===element)?.editToggle?.setValue.toString();
+        check(select.value===(configured?'edit':'return')&&![...select.options].some(option=>option.value==='configured'),'Folder completion did not resolve its actual configured outcome');
+        check(select.closest('.kplex-creation-completion')?.querySelector('.kplex-creation-completion-caption')?.textContent===p.translator('addRelated.completionMode'),'Shared caption/control absent');
+        check(select.classList.contains('dropdown')&&view.getComputedStyle(select).height===view.getComputedStyle(owner.body).getPropertyValue('--input-height').trim(),'Completion does not use native control height');
+        const row=element.querySelector('.kplex-creation-completion-row'),caption=row.querySelector('.kplex-creation-completion-caption');
+        for(const width of [640,240]){
+          row.style.setProperty('width',width+'px');await delay(50);
+          const bounds=row.getBoundingClientRect(),labelBounds=caption.getBoundingClientRect(),controlBounds=select.getBoundingClientRect();
+          check(controlBounds.right<=bounds.right+1&&controlBounds.left>=bounds.left-1,'Completion overflows its available row');
+          check(labelBounds.right<=controlBounds.left||labelBounds.bottom<=controlBounds.top,'Completion caption overlaps its control');
+          check(view.getComputedStyle(caption).fontSize===view.getComputedStyle(select).fontSize,'Completion caption and control typography differ');
+        }
+        row.style.removeProperty('width');
+        await noWork('folder-completion-choices-'+configured,async()=>{
+          for(const choice of ['another','follow','edit','return']){
+            select.value=choice;select.dispatchEvent(new view.Event('change',{bubbles:true}));
+            await until(()=>select.value===choice&&toggle?.classList.contains('is-enabled')===(choice==='edit'),'Folder outcome/toggle did not stay synchronized');
+            check(p.settings.editNewNodeAfterCreate===configured,'Local choice changed the global editing preference');
+          }
+        });
+        check(toggle,'Native editing toggle absent');toggle.click();
+        await until(()=>select.value==='edit'&&p.settings.editNewNodeAfterCreate,'Editing toggle did not update the actual completion');
+        await p.settingsWriteQueue;
+        toggle.click();await until(()=>select.value==='return'&&!p.settings.editNewNodeAfterCreate,'Disabling editing did not restore Return');
+        await p.settingsWriteQueue;
+        await close(element);check(!element.querySelector('select'),'Completion root survived native modal cleanup');
+      }
+    }finally{p.settings.editNewNodeAfterCreate=saved;await p.saveSettings(false,false)}
+    await center(c.a.path);
+    return{actualNativeFolderModal:true,configuredReturnAndEdit:true,sharedCaptionAndSelector:true,nativeSizing:true,allExplicitChoices:true,localChoicesDoNotSave:true,toggleSynchronization:true,cancelNoNoteWrite:true};
+  });
+
+  await scenario('folder-child-matching-parent-basename',async()=>{
+    const destination=c.folder+'/B',name='test file',parentPath=path(c.folder,name),childPath=path(destination,name);
+    allowedPaths.add(destination);allowedPaths.add(parentPath);allowedPaths.add(childPath);
+    await app.vault.createFolder(destination);c.owned.push(destination);
+    const parent=await app.vault.create(parentPath,'Owned parent note must remain unchanged.\n');c.owned.push(parentPath);
+    await until(()=>p.index.get('folder:'+destination),'Nested physical folder graph node missing');
+    await center('folder:'+destination);focus(c.host);
+    check((await dispatch('relationship.create-center.child')).status==='opened','Nested folder action unavailable');
+    await until(()=>owner.querySelector('.kplex-create-folder-note-modal'),'Nested folder dialog absent');
+    const element=owner.querySelector('.kplex-create-folder-note-modal');c.dialogs.add(element);
+    const field=element.querySelector('.kplex-create-folder-note-name-setting input');input(field,name);
+    const markdownButton=modal=>modal.querySelector('button:has(svg.lucide-file-text)');
+    const markdown=()=>markdownButton(element);
+    await until(()=>markdown()&&!markdown().disabled,'Parent basename incorrectly disables nested-folder creation');
+    field.focus();await key('Enter',[mod]);
+    await until(()=>!element.isConnected&&app.vault.getFileByPath(childPath),'Keyboard submit did not create the independent nested note',30000);
+    check(app.vault.getFileByPath(parentPath)===parent&&(await app.vault.read(parent))==='Owned parent note must remain unchanged.\n','Nested creation changed the existing parent note');
+    focus(c.host);check((await dispatch('relationship.create-center.child')).status==='opened','Exact-collision folder action unavailable');
+    await until(()=>owner.querySelector('.kplex-create-folder-note-modal'),'Collision dialog absent');
+    const collision=owner.querySelector('.kplex-create-folder-note-modal');c.dialogs.add(collision);
+    input(collision.querySelector('.kplex-create-folder-note-name-setting input'),name);
+    check(markdownButton(collision)?.disabled,'Exact destination duplicate is not disabled');
+    await close(collision);
+    await center(c.a.path);
+    for(const item of [app.vault.getFileByPath(childPath),parent,app.vault.getFolderByPath(destination)])if(item)await app.vault.delete(item,true);
+    return{actualFolderModal:true,parentBasenameAllowed:true,keyboardCreate:true,exactDestinationBlocked:true,parentUnchanged:true,boundedOwnedFixtureRemoved:true};
+  });
 
   await scenario('composer-direction-footer-and-lazy-note-search',async()=>{
     const element=await composer('');await idle();

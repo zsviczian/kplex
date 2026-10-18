@@ -50,6 +50,8 @@ import { LayoutSlider } from "./components/LayoutSlider";
 import { centeredViewportFit, sameFitCamera, type FitCamera } from "./components/viewportFit";
 import { projectFilteredGateCounts } from "./filteredGateCounts";
 import { LayoutControls } from "./components/LayoutControls";
+import { LayoutCheckbox } from "./components/LayoutCheckbox";
+import { lateralArrangementSurface } from "./viewProfile";
 import { centerArrivalFrames, type MotionRect } from "./components/centerArrival";
 import type { WanderDestination, WanderScene } from "../application/WanderController";
 import { ElementMotion } from "./components/ElementMotion";
@@ -4239,6 +4241,14 @@ export function PlexGraph({ plugin, index, settings: viewSettings, paintSettings
     setLayoutRevision((revision) => revision + 1);
     scheduleLayoutSave();
   };
+  /** Persist only this device's arrangement context; pop-outs use the same main-tab owner as reads. */
+  const changeSimplifiedLayout = (enabled: boolean): void => {
+    suppressLayoutMotionUntil.current = Date.now() + 800;
+    suppressAutoFitUntil.current = Date.now() + 1200;
+    sceneMotion.cancelAll();
+    preserveCameraOnNextLayout.current = true;
+    void plugin.updateLayoutProfile(lateralArrangementSurface(surface), {lateralArrangement: enabled ? "left" : "split"});
+  };
   /** Report each scalar's inheritance separately from its effective displayed value. */
   const typographyHint = (field: keyof TypographyValues, help: string): string => {
     const customized = Object.keys(plugin.settings.typographyProfiles[typographyDevice] ?? {}).includes(field);
@@ -4546,6 +4556,12 @@ export function PlexGraph({ plugin, index, settings: viewSettings, paintSettings
         <LayoutSlider label={translate("graph.childColumns")} caption={translate("graph.childColumnsShort")}
           icon={<ObsidianIcon name="columns-3" size={11} />} value={layoutColumns(settings, "child")} displayValue={String(layoutColumns(settings, "child"))}
           min={1} max={7} step={1} onChange={/** Persist the exact child grid width. */ (value) => changeLayoutValue("childColumns", value)} />
+        <LayoutCheckbox label={translate("layout.simplifiedTitle")} checked={settings.lateralArrangement === "left"}
+          controlId="simplified-layout" onChange={changeSimplifiedLayout}
+          hint={`${translate("layout.simplifiedHelp")} ${translate("layout.arrangementScope", {
+            device: translate(`typography.${typographyDevice}`),
+            surface: translate(lateralArrangementSurface(surface) === "leaf" ? "layout.mainTab" : "layout.sidepanel"),
+          })}`} />
       </div>
       <div className="kplex-typography-group">
       <div className="kplex-typography-scope">
@@ -4576,11 +4592,9 @@ export function PlexGraph({ plugin, index, settings: viewSettings, paintSettings
           value={settings.baseNodeStyle.maxWidth ?? 286} displayValue={String(settings.baseNodeStyle.maxWidth ?? 286)} min={TYPOGRAPHY_LIMITS.maxWidth.min} max={TYPOGRAPHY_LIMITS.maxWidth.max} step={TYPOGRAPHY_LIMITS.maxWidth.step}
           onChange={/** Override this device regular-node width before explicit style precedence. */ (value) => changeTypography({ maxWidth: value })} />
         </div>
-        <label className="kplex-density-control kplex-wrap-label-control" aria-label={typographyHint("wrapNodeLabels", translate("settings.ui.wrap.node.labels.help"))} data-kplex-control-tooltip>
-          <input type="checkbox" checked={settings.wrapNodeLabels} aria-label={translate("settings.ui.wrap.node.labels")}
-            onChange={/** Set this device fixed two-line label setting. */ (event) => changeTypography({ wrapNodeLabels: event.currentTarget.checked })} />
-          <span className="kplex-wrap-label-caption">{translate("settings.ui.wrap.node.labels")}</span>
-        </label>
+        <LayoutCheckbox label={translate("settings.ui.wrap.node.labels")} checked={settings.wrapNodeLabels}
+          hint={typographyHint("wrapNodeLabels", translate("settings.ui.wrap.node.labels.help"))} controlId="wrap-node-labels"
+          onChange={/** Set this device fixed two-line label setting. */ enabled => changeTypography({wrapNodeLabels: enabled})} />
       </div>
       </div>
     </LayoutControls>

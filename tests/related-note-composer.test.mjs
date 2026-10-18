@@ -56,11 +56,12 @@ test("relationship note provider uses bounded physical catalog ranking without g
 });
 
 test("configured completion displays the actual outcome without changing saved compatibility intent", () => {
+  const creationCompletionValue = production("creationCompletionValue", {}, "src/ui/features/CreationCompletionSelect.tsx");
   for (const [continuation, selectedTarget, webUrl, editAfterCreate, expected] of [
     ["configured", null, null, false, "return"], ["configured", null, null, true, "edit"],
     ["configured", page("Target.md"), null, true, "return"], ["configured", null, "https://example.com", true, "return"],
     ["another", null, null, true, "another"], ["follow", null, null, false, "follow"],
-  ]) assert.equal(production("completionValue", { continuation, selectedTarget, webUrl, editAfterCreate }), expected);
+  ]) assert.equal(production("completionValue", { creationCompletionValue, continuation, selectedTarget, webUrl, editAfterCreate }), expected);
 });
 
 test("native Modal isOpen boolean cannot shadow composer readiness for button or Scope submit", async () => {
@@ -340,6 +341,26 @@ test("folder-aware name validation is local to the selected destination", () => 
   assert.equal(lookups.length, 6);
 });
 
+/** The actual folder writer must use the destination-aware validator, not a vault-wide basename query. */
+test("folder-child creation permits a parent's basename but rejects an exact destination collision", async () => {
+  const parent = {path: "A/test file.md"}, child = {path: "A/B/test file.md"};
+  const files = new Map([[parent.path, parent]]), requests = [];
+  const validateRelatedNoteName = production("validateRelatedNoteName", {}, "src/main.ts");
+  const create = production("createNewNodeInFolder", {normalizePath: path => path, normalizeFieldName: value => value, Notice: class {}}, "src/main.ts");
+  const context = {translator: key => key, unloading: false,
+    app: {vault: {getFiles: assert.fail, getFileByPath: path => files.get(path) ?? null}},
+    index: {withForegroundPriority: work => work(), insertCreatedFile: file => file},
+    createNewFileInFolder: async (stem, kind, folder) => {requests.push([stem, kind, folder]);files.set(child.path, child);return child;},
+    writeCreatedNodeDisplayName: async () => "", configuredDisplayNameField: () => null,
+  };
+  context.validateRelatedNoteName = validateRelatedNoteName.bind(context);
+  assert.equal(await create.call(context, {isFolder:true, path:"folder:A/B"}, "test file", "markdown"), child);
+  assert.deepEqual(requests, [["test file", "markdown", "A/B"]]);
+  assert.equal(await create.call(context, {isFolder:true, path:"folder:A/B"}, "test file", "markdown"), null);
+  assert.equal(requests.length, 1, "The same-folder collision must not reach creation");
+  assert.equal(files.get(parent.path), parent, "The original parent's file is untouched");
+});
+
 /** A pathful unresolved reference preserves its exact folder and explicit/default display alias without creating files. */
 test("placeholder references preserve the chosen folder and the filename/default or supplied alias", async () => {
   const origin = page("Origin.md"), references = [], inserted = [];
@@ -456,6 +477,7 @@ test("native materialization focuses the shared folder field without changing qu
   open.call(context);
   assert.deepEqual(folderClasses,["kplex-materialize-folder-row"],"Folder label and input share the modal width without the description column");
   assert.equal(rendered.props.value, "Projects"); assert.equal(rendered.props.autoFocus, true);
+  assert.equal(rendered.props.openResultsOnFocus, false, "The prefilled destination must start closed without losing keyboard focus");
   context.focusFolder=false;context.refreshControls();assert.equal(rendered.props.autoFocus,false,"Ordinary materialization must retain its one-step default submission");
 });
 

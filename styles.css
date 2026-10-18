@@ -2009,15 +2009,32 @@ button.kplex-sidecar-unfold-plex,
   flex-wrap: wrap;
   gap: 8px 16px;
 }
-.kplex-add-related-completion {
+.kplex-creation-completion-row {
   display: flex;
+  justify-content: flex-end;
+  min-width: 0;
+  padding: var(--size-4-3) 0;
+}
+.kplex-creation-completion {
+  display: inline-flex;
   align-items: center;
   flex-wrap: wrap;
-  gap: 8px;
+  min-width: 0;
+  max-width: 100%;
+  gap: var(--size-4-2);
   color: var(--text-muted);
   font-size: var(--font-ui-small);
+  font-weight: normal;
 }
-.kplex-add-related-completion select,
+.kplex-creation-completion-caption {
+  white-space: nowrap;
+}
+.kplex-creation-completion select.dropdown {
+  min-width: 9em;
+  max-width: 100%;
+  height: var(--input-height);
+  font-size: var(--font-ui-small);
+}
 .kplex-add-related-control-row .kplex-add-related-role-select {
   height: 38px;
   max-width: 100%;

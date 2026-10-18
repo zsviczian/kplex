@@ -1116,6 +1116,7 @@ import { createRoot } from "react-dom/client";
 import { FuzzySuggester } from ${JSON.stringify(join(root, "src/ui/components/FuzzySuggester.tsx"))};
 import { SavedRelationshipPendingError } from ${JSON.stringify(join(root, "src/adapters/obsidian/relationshipMetadataWrite.ts"))};
 import { PartialRelatedFileError } from ${JSON.stringify(join(root, "src/adapters/obsidian/relatedFileOutcome.ts"))};
+import { CreationCompletionSelect, creationCompletionValue } from ${JSON.stringify(join(root, "src/ui/features/CreationCompletionSelect.tsx"))};
 const FuzzySearchInput = (props) => createElement(FuzzySuggester, { ...props, icon: null });
 const ObsidianIcon = ({ name }) => createElement("span", null, name);
 ${uiDefinitions("src/ui/FuzzySearchInput.tsx", ["fuzzyFilterStrings"])}

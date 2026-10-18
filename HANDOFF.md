@@ -1,4 +1,4 @@
-# Standing instructions — preserve this header
+# Standing instructions â€” preserve this header
 
 This is a temporary handoff document between agents. The development of the solution involves agents with access to Obsidian CLI and a full development environment with all node packages installed, but also agents with more limited access. Development is done in "ping-pong" between these two types of agents. Agents should use this document to pass instructions and status from one another, such as instructions for testing/validation, or instructions for development work that can only be done in a full environment.
 
@@ -19,60 +19,37 @@ Obsidian is the production host; preserve the established portable semantic, ide
 
 ---
 
-# PR177 — validated and pushed startup follow-up
+# PR177 — final creation/layout checkpoint
 
-Main validation agent; branch2026-10-17-navigation-and-native-drag. Feature1941b48 and docs dd4ef63 pushed; dd4 CI green. Startup runtime/test
-checkpointba8ad7e7b1ad7d714edc2340f330e5f706e723d3 pushed and validated. Commit/push authorized. Keep PR177 DRAFT;
-no merge/release, no personal vault access and no comparative performance tests.
-Small only. Native/browser lanes serial; no independent CLI probes while polling.
-No native/browser driver active. No subagents.
+Branch2026-10-17-navigation-and-native-drag, base41fd2f8. No subagents. Keep draft;
+commit/push authorized; no merge/release or personal-vault access. Small only.
+No comparative performance tests while HandBrake encodes. No native driver active.
 
-Two follow-up fixes validated: GraphIndex.publishOnDemandHostScope retries only
-superseded private preparation under existing demand/finality/budget ownership;
-main.finishStartupIndexPreparation joins initialization after restore classification
-then queues real remaining visible/complete/live backlog via existing scheduler.
-No new scheduler, schema, parser, classifier, polling or source-proof relaxation.
+Delivered: common CreationCompletionSelect in folder/related dialogs; native
+styling; exact-folder duplicates; materialization suggestions initially closed;
+one context-only Simplified layout checkbox below columns, using LayoutCheckbox
+shared with Wrap and existing device/surface writer. Native setter feedback is
+guarded. Startup ba8ad7e remains unchanged. All8 locale labels reused.
 
-Causal trace1792336984693 reproduces missing Parent: gate0->1 retires first host
-cover, ordinary new-target patch needs-rebuild, current task drains with no cover.
-Trace1792338821140 attributes writer to actual publishUrlSearch. Exact dd4 source
-negative control1792338661957 fails2 Parent cases, passes2 cancellations, restores
-candidate bytes. Four real GraphIndex/IDB regressions cover eager/on-demand retry
-and cancellation. Trace1792339143489 separately observes dirty startup:no-snapshot
-without work after local initialization finishes while Sidecar restore awaits.
-Startup regression preserves newer edits and closed/unloaded/incomplete/clean gates.
+Full baseline1792341320441 passes; final affected1792343479987 passes7/130/lint/
+206/build/native smoke after last runtime change. Final main SHA3fbbe208b0498657a6f11d7b3d71655e15416ececce38d34315e2e9bdb790670;
+CSS433605d6f9a88b23e4ac35940de23afd2b37faf7102d3e978a077259ff281801.
+Folders1792343825848 passes12; layout1792344017489 passes7 including context
+isolation and zero source/index work. Four visual captures1792344082616; wide
+light/narrow dark inspected. Sanity1792344084125 restores107files/88Markdown,
+exact artifacts, no controllers/dialogs, desktop and CLI capture off.
 
-FINAL full verify:obsidian1792339241307 PASS Node22.22.2: architecture7/core130/
-lint/Node1058/UI142/source334/browser612/build/native smoke. All4 changed source
-hashes match the run. No private trace instrumentation in source or bundle.
-Exact native reference matrix4 each: both1792340401520, Sidecar1792340411889,
-Properties1792340422330, closed1792340432438; all PASS, including stationary
-Parent/plugin restart, timer receipt, genuine-idle prerequisite and recovery.
-Styles15(1792340442402), trusted Sidecar gate-close8(1792340449543), held-P3
-foreground live-updates(1792340458120), structural12(1792340462722), layout6
-(1792340515852) PASS. Configuration/workspace and owned fixtures restored.
-Sanity1792340561280 confirms107files/88Markdown, matching deployed artifacts,
-no controllers/dialogs, desktop and opening CLI capture off.
+Raw failures remain private, including initial native setter feedback, driver
+setup/selector/root/overlay errors and1 unattributed acquisition in earlier
+1792343791614. Final strict guarded counts pass, not a universal efficiency claim.
+Visual failed close lookups were repaired via owned Cancel; final cleanup verified.
+No runtime/test changes since final successful build except native driver fixes.
+Whole-app Settings-close freeze remains unreproduced; do not claim it fixed.
+macOS/minimum host/physical mobile and existing OS-gesture gaps remain.
 
-Main b5d453d57bb1b21963a32f161591efb4a951a88dc1093dddf3860c6d8b28c1ef;
-CSS9664241e9e87f357ebfa57fcfe5477a5b8f592db4e4bbbb53f65db680dd6a7c0;
-manifest19d9ecce5557733e0ff0f2e27155e635c30158c3cfa6fbca0f11c16e4dedfd2c.
-Build dd4ef63.dirty, Windows11/Obsidian1.14.4 installer1.14.0/Electron43.3.0.
-
-Earlier raw failures remain private, never relabeled as passed. The reported whole
-application Save/Settings-close freeze with normal center and Markdown Sidecar
-remains unreproduced; the retired-control guard and these startup fixes do not
-prove it solved. Remaining affected full-process/macOS/minimum-host/physical
-mobile/touch/IME/OS-drag/Bases-tag-cell acceptance stays pending.
-
-Private durable backup1792340626104 verified outside Temp:685files/38,971,887bytes,
-sourceZIP541 entries/CRCs/per-file hashes, HANDOFF excluded. MANIFEST
-57c5c60589a7ce06d73d55ed49323eb8cb0d9d8cec1025381351eafe2b8ff8d5.
-Originals and prior backups retained; no raw publication. Remote CI forba8ad7e
-is running at16:24UTC, not claimed green. Evidence is pinned in the report. Recheck exact remote head/CI on resume; no
-uncommitted runtime work or additional benchmark is required. Keep
-PR draft and report unreproduced full-app freeze/platform limitations candidly.
-Report docs/validation/navigation-and-native-drag-2026-10-18.md; ledger
-Refactor plan.md. Private helpers use Node22.22.2 and explicit Small variables.
-No further implementation is required solely for closeout; no claimed resource
-savings or broader startup/freeze resolution.
+Next: diff check, commit/push this validated checkpoint; verify private backup
+outside Temp pinned to exact commit (exclude HANDOFF, retain originals); record
+its manifest and update draft PR body. Prior backup1792340626104 still verified.
+Do not publish raw evidence. Remote41fd2f8 CI is green; new head CI not yet known.
+Report: docs/validation/navigation-and-native-drag-2026-10-18.md. Source owner and
+limitations in Refactor plan.md. No further implementation authorized by handoff.

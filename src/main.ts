@@ -6151,11 +6151,17 @@ export default class KplexPlugin extends Plugin {
     }
   }
 
-  /** Create and materialize a folder child using the existing optimistic/index reconciliation workflow and localized feedback. */
+  /** Create a child with exact destination collision checks and existing optimistic/index reconciliation. */
   async createNewNodeInFolder(folder: GraphPage, rawName: string, kind: GhostMaterializationKind, capturedFolder?: TFolder): Promise<GraphPage | null> {
     return this.index.withForegroundPriority(async () => {
       if (!folder.isFolder) return null;
-      const validation = this.validateRelatedNoteName(rawName);
+      const folderPath = folder.path === "folder:/"
+        ? ""
+        : folder.path.startsWith("folder:")
+          ? normalizePath(folder.path.slice("folder:".length))
+          : "";
+      const currentFolderPath = capturedFolder?.path ?? folderPath;
+      const validation = this.validateRelatedNoteName(rawName, currentFolderPath === "/" ? "" : currentFolderPath);
       if (!validation.valid) {
         new Notice(validation.error ?? this.translator("note.validation.enterValid"), 2800);
         return null;
@@ -6165,12 +6171,6 @@ export default class KplexPlugin extends Plugin {
         return null;
       }
 
-      const folderPath = folder.path === "folder:/"
-        ? ""
-        : folder.path.startsWith("folder:")
-          ? normalizePath(folder.path.slice("folder:".length))
-          : "";
-      const currentFolderPath = capturedFolder?.path ?? folderPath;
       /** Check again inside queued work and after the shared file creator's awaited folder check. */
       const current = (): boolean => !this.unloading && (!capturedFolder ||
         (capturedFolder === this.app.vault.getRoot() ? this.app.vault.getRoot() : this.app.vault.getFolderByPath(capturedFolder.path)) === capturedFolder);

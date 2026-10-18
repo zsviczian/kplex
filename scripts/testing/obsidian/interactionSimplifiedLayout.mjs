@@ -120,6 +120,30 @@ export async function acceptSimplifiedLayout({app,p,c,check,wait,until,frames,ro
   for(const device of ['desktop','tablet','mobile'])for(const surface of ['leaf','sidepanel'])await toggle(device,surface,true);
   c.cases.push({id:'layout-six-native-settings',status:'passed',rows,durable:true,independentProfiles:true,actualDevice:initialDevice,mobileEmulation:false});
   await toggle('desktop','sidepanel',false);app.setting.close();await wait(100);await frames();
+  /** Actual pane controls must show/save only their current scope, with no extra arrangement writer. */
+  const quickToggle=async(leaf,enabled)=>{
+   native(leaf);const el=leaf.view.contentEl,disclosure=el.querySelector('button.kplex-layout-toggle');check(disclosure,'Layout disclosure absent');
+   if(disclosure.getAttribute('aria-expanded')!=='true')disclosure.click();
+   await until(()=>el.querySelector('input[data-kplex-control="simplified-layout"]'),'Context checkbox absent');
+   const control=el.querySelector('input[data-kplex-control="simplified-layout"]'),group=control.closest('.kplex-density-axes');
+   check(el.querySelectorAll('input[data-kplex-control="simplified-layout"]').length===1,'Pane rendered multiple arrangement contexts');
+   check(group?.querySelector('input[aria-label="'+p.translator('graph.parentColumns')+'"]')&&group.querySelector('input[aria-label="'+p.translator('graph.childColumns')+'"]')&&group.lastElementChild.contains(control),'Context checkbox is not below both column sliders');
+   const target=leaf===side?'desktop:sidepanel':'desktop:leaf',before=structuredClone(p.settings.layoutProfiles);
+   if(control.checked!==enabled)control.click();
+   await until(()=>(p.settings.layoutProfiles[target]?.lateralArrangement==='left')===enabled,'Quick checkbox wrote the wrong context');
+   await p.settingsWriteQueue;await until(()=>el.querySelector('input[data-kplex-control="simplified-layout"]').checked===enabled,'Quick checkbox did not reflect saved scope');
+   const persisted=await p.loadData();check((persisted.layoutProfiles[target]?.lateralArrangement==='left')===enabled,'Quick checkbox did not persist');
+   for(const key of Object.keys(before))if(key!==target)check(JSON.stringify(before[key])===JSON.stringify(p.settings.layoutProfiles[key]),'Quick checkbox changed unrelated scope '+key);
+  };
+  await quickToggle(c.leaf,false);await quickToggle(side,true);await quickToggle(popout,true);await quickToggle(side,false);
+  await until(()=>c.leaf.view.contentEl.querySelector('input[data-kplex-control="simplified-layout"]')?.checked===true,'Main checkbox did not follow its pop-out scope');
+  c.cases.push({id:'layout-context-quick-checkbox',status:'passed',mainSidepanelPopout:true,onePerPane:true,belowColumns:true,sharedWrapControl:true,durable:true,otherScopesPreserved:true});
+  // The later canvas drag oracle requires exposed canvas, rather than an open rail over its target.
+  for(const leaf of [c.leaf,side,popout]){
+   const disclosure=leaf.view.contentEl.querySelector('button.kplex-layout-toggle');
+   if(disclosure?.getAttribute('aria-expanded')==='true')disclosure.click();
+  }
+  native(c.leaf);await frames();
   check(p.getViewSettings('leaf').lateralArrangement==='left'&&p.getViewSettings('popout').lateralArrangement==='left','Main-tab arrangement did not own native pop-out');
   check(p.getViewSettings('sidepanel').lateralArrangement==='split','Sidebar arrangement did not remain independent');
   await fit(c.leaf);await fit(side);await fit(popout);

@@ -179,9 +179,9 @@ native identity. Trusted pointer selection from the actual modal portal is cover
 The toolbar plus and **New K-Plex tab** command create an independent desktop/tablet
 tab. Both reuse the existing surface policy: phones retain side-panel-only opening,
 with the plus hidden and command unavailable. Curved
-connectors remain configurable at **Settings → K-Plex → Visual styling → Link
-styling → Link shape**. **Simplified layout** is the first entry in the Layout &
-sizing group under **Settings → K-Plex → Plex behavior**; its six device/surface
+connectors remain configurable at **Settings Ã¢â€ â€™ K-Plex Ã¢â€ â€™ Visual styling Ã¢â€ â€™ Link
+styling Ã¢â€ â€™ Link shape**. **Simplified layout** is the first entry in the Layout &
+sizing group under **Settings Ã¢â€ â€™ K-Plex Ã¢â€ â€™ Plex behavior**; its six device/surface
 choices remain independent. All eight locale catalogs include the new action.
 
 Control-single-click (Command-single-click on macOS) opens the folder/materialization
@@ -495,7 +495,7 @@ checkpoint. All eight locales and the appearance guide are maintained.
 
 Focused regressions cover custom-scope preview alpha, duplicate named identities,
 bounded repeated queries, native close-before-choice ordering, cancelled callbacks,
-theme A → B → A fencing, dimension inheritance, legacy values, concurrency, restart
+theme A Ã¢â€ â€™ B Ã¢â€ â€™ A fencing, dimension inheritance, legacy values, concurrency, restart
 and rejected storage. Four additional real-IndexedDB startup cases retain the same
 center demand across preview restore, with/without an ontology change and demand
 registered before/after restore. A current changed Parent appears before held
@@ -505,7 +505,7 @@ The supplied restart report shows a non-authoritative saved preview while source
 inventory is active and records a semantic policy change. It does not prove that
 the border-color save caused semantic work or identify the intermittent freeze.
 Earlier one-Plex native Save probes passed with File properties closed and open;
-the first negative control had no usable `--h1-color` in Small’s installed theme.
+the first negative control had no usable `--h1-color` in SmallÃ¢â‚¬â„¢s installed theme.
 Positive controls supply a temporary test-owned heading token when missing.
 These results do not establish a fix for either reported symptom. The reusable
 native style lane now includes the same actual Settings route and a stationary
@@ -949,3 +949,117 @@ Originals and previous backups remain intact; nothing raw is published. CI for
 dd4ef63 passed; the new checkpoint's CI is running when recorded. Keep PR draft;
 no merge or release. Documentation-only evidence pinning does not change the
 validated runtime or require another performance experiment.
+
+## Follow-up: shared creation completion and exact folder collisions
+
+The folder-child modal retained its own opaque configured dropdown after the
+related-note composer had switched to explicit outcomes. Both now use the actual
+`CreationCompletionSelect` feature component: one localized label, finite choice
+inventory, configured-value resolution, native dropdown and common CSS. The
+native shell owns/unmounts its React root. Configured stays an internal compatible
+intent; selection-only changes remain local. The editing toggle and outcome stay
+consistent, with busy/pending controls disabled. Captions share muted typography,
+native control height, compact spacing and wrapping; no new theme tokens or UI
+strings. Existing labels cover all8 locales.
+
+A second reported defect blocked `A/B/test file.md` when `A/test file.md` existed.
+The shared validator already supports destination-aware lookups, but the native
+folder dialog and final folder creation caller omitted that argument. Both now
+pass the exact current physical folder; name input, keyboard submission and final
+creation agree. Same-folder collisions and the existing final native parent/file
+checks remain. A folder rename refreshes validation against the captured folder's
+current path. No parser/schema/indexing policy change; no whole-vault filename scan
+is needed. The actual writer regression allows the two paths, rejects a second
+exact destination and retains the original parent file. The follow-up results are
+recorded below; the earlier startup checkpoint remains
+unchanged at ba8ad7e with docs41fd2f8.
+
+The maintainer also requested a closed initial folder list in placeholder creation.
+Materialization now passes the existing shared suggester's `openResultsOnFocus:false`
+through FolderPathInput. The calculated path and requested keyboard focus remain;
+typing opens the normal list. Other folder fields keep their existing default.
+This arrived after the full run's UI phase; fresh affected checks and the final
+production build cover it before native acceptance. No new
+suggestion controller, disclosure button or timing-based dismissal is introduced.
+
+## Context-only simplified layout control
+
+Layout controls now show one Simplified layout checkbox directly below Parents and
+Children, using the same LayoutCheckbox component as Wrap node labels. It reads
+the current effective arrangement and writes through updateLayoutProfile for the
+current device and surface. The shared lateralArrangementSurface helper keeps
+reads/writes aligned: popouts use the device's main-tab arrangement while retaining
+their independent density. Existing eight-locale labels and scoped help are reused.
+No new setting, writer, semantic invalidation or source acquisition is introduced.
+The actual handler/writer regression covers desktop/tablet/phone crossed with
+main/sidepanel/popout, including unrelated-profile preservation and camera intent.
+Native pane checks cover placement, single-control count, persistence and cross-pane
+updates; browser checks cover pane fit, Tab order and Space-key activation.
+
+The initial aggregate test failed because its keyboard-order expectation still
+assumed Reset followed Children. It now includes the newly added checkbox and
+checks keyboard activation rather than removing the assertion. A separate native
+folder trial caught Obsidian ToggleComponent.setValue invoking onChange during
+programmatic reflection of a local choice. A guarded refresh prevents that callback
+from saving a local outcome globally; native user clicks retain existing persistence.
+The faithful native-control double reproduces the failure before the guard. All raw
+failures and restored-fixture receipts are retained privately. Final follow-up
+verification remains pending until the fresh build and serial native checks finish.
+
+### Final follow-up validation
+
+Full verification1792341320441 passed architecture7/core130/Obsidian lint,
+Node1059/UI142/source334/browser612, production build and native smoke before
+the final native-toggle reflection guard. The late closed-focus and context
+checkbox changes followed its UI phase, so that run alone is not final evidence.
+Fresh Node22.22.2 follow-up1792343479987 passes architecture7/core130/full lint,
+all206 affected browser/UI/model tests, the real production build, exact staging
+and native smoke. Runtime sources were unchanged through final native acceptance.
+This is a full baseline plus affected follow-up, not a claim that every long source
+suite was rerun after the UI-only guard.
+
+Final installed SHA-256:
+
+| Artifact | SHA-256 |
+| --- | --- |
+| main.js | `3fbbe208b0498657a6f11d7b3d71655e15416ececce38d34315e2e9bdb790670` |
+| styles.css | `433605d6f9a88b23e4ac35940de23afd2b37faf7102d3e978a077259ff281801` |
+| manifest.json | `19d9ecce5557733e0ff0f2e27155e635c30158c3cfa6fbca0f11c16e4dedfd2c` |
+
+Windows11, Obsidian1.14.4 installer1.14.0, Electron43.3.0/Chrome150.0.7871.212;
+validation Node22.22.2, native Node24.18.1. All runs use authorized Small only.
+
+- Native folders1792343825848 passes12 cases: common selector, actual configured
+  outcomes, local choices without preference writes, native toggle synchronization,
+  240/640px sizing, independent parent/child basenames, exact duplicate refusal,
+  ordinary folder/placeholder flows and closed-on-open materialization suggestions.
+- Native layout1792344017489 passes7 cases: actual six-scope Settings, one quick
+  checkbox beneath columns in main/sidebar/popout, durable context isolation,
+  main/popout agreement, independent density, semantic drop previews and unchanged
+  semantic revision. Guarded reads/acquisitions/parses/snapshot writes/builds/
+  semantic refreshes are all0, with no delayed preparation or persistence timer.
+- Actual native dialog captures1792344082616 cover light/dark at640/300px. Wide
+  light and narrow dark captures were visually inspected; native colors, alignment,
+  spacing and wrapping are coherent. This does not prove every community theme.
+- Sanity1792344084125 verifies original107files/88Markdown, exact installed/build
+  hashes, no test controllers/dialogs, desktop restored and opening CLI capture off.
+  Native drivers independently verify configuration/workspace/fixture restoration.
+
+Failures remain evidence, never acceptance: initial keyboard-order expectation;
+native local-selection toggle feedback; navigation before fixture folder publication;
+text lookup after native icon replacement; main-only root used for sidebar/popout;
+and an open rail obstructing the separate drag target. Drivers now use real folder
+publication, native icons, leaf-owned DOM and close controls before canvas drops.
+Visual capture's close-control lookup failed twice; both owned dialogs were cancelled,
+body classes restored, and the final capture plus sanity passed. No runtime change
+was needed for those driver prerequisites.
+
+One earlier typing-only interval1792343791614 observed1 acquisition, with0 reads,
+parses/builds/writes. Its caller was not captured, so it is an unresolved attribution
+exclusion rather than proof of zero work in every run. The driver now retains stacks
+for unexpected owner calls without note payloads. The final folder run and layout
+interval pass unchanged strict zero-work checks. These are functional operation
+counts, not comparative CPU/memory or latency measurements. No personal access or
+comparative performance tests. The previously reported whole-app Settings-close
+freeze remains unreproduced. macOS/minimum-host, physical mobile/touch/IME and the
+other platform/gesture limitations above remain open. Keep PR draft, no merge/release.
