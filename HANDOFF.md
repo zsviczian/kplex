@@ -22,7 +22,7 @@ Obsidian is the production host; preserve the established portable semantic, ide
 # PR177 feature checkpoint and focused missing-Parent follow-up
 
 Main validation agent. Existing branch2026-10-17-navigation-and-native-drag,
-parent8f65dd5181d3cb0ef7bc90cb6a47336fdf008d10. Commit/push authorized; PR177
+feature checkpoint1941b48c13a9eea2ff2dc4b6f156b55bfbd8f54d pushed. Commit/push authorized; PR177
 stays DRAFT, no merge/release. No personal vault; Small only. No comparative
 performance tests while HandBrake encodes. All native/browser lanes serial;
 no CLI probes during native polling. No native or browser driver currently active.
@@ -51,7 +51,11 @@ Properties1792336295440 FAILED after successful Save/Settings close: fixture Par
 never reconciled before reload. Both clean up and restore exact configuration.
 These failures remain open, not passes/exclusions. All raw evidence private.
 
-NEXT: checkpoint commit/push, verified private backup outside Temp, update PR body,
+NEXT: update PR body, then focused investigation. Evidence backup is verified at
+%LOCALAPPDATA%/KplexValidation/structural-drops-177-20261018-1792336531810:
+583files/36,151,035bytes, sourceZIP541 CRCs/hashes; MANIFEST
+ba61eb5d95513393ae661ee6ca351023bd5dfdacd5e86e6421ff623ba38f7937. CI in progress.
+
 then a separate focused causal investigation of combined Sidecar+Properties
 missing Parent. Its native failure receipt has current frontmatter/resolved target,
 local ready/upToDate true, sourceReady false, no source-backed startup, no active

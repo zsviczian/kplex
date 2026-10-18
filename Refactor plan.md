@@ -4915,3 +4915,8 @@ stationary Parent/plugin restart and actual timer receipt, then fails the separa
 synthetic recovery-fixture idle prerequisite. Cleanup/configuration pass in both.
 Preserve these failures and investigate the confirmed missing-relation reproduction
 separately from the feature checkpoint; no freeze or complete startup fix claimed.
+
+Feature checkpoint1941b48 is pushed. Private evidence backup1792336531810 verifies
+583 files/36,151,035 bytes and source ZIP541 entries/CRCs/per-file SHA-256,
+HANDOFF excluded; manifestba61eb5d95513393ae661ee6ca351023bd5dfdacd5e86e6421ff623ba38f7937.
+Originals/prior backups retained, nothing raw published. Remote CI is in progress.

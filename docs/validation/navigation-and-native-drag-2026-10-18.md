@@ -775,8 +775,9 @@ below identify the rebuilt artifact containing this guard.
 
 Full `verify:obsidian`1792334769085 passes on Node22.22.2: architecture7,
 core130, Obsidian lint, Node1058, UI142, portable source334, browser/IndexedDB608,
-production build and native smoke. Runtime source is unchanged since that run
-started. The final native driver additionally captures bounded index activity on
+production build and native smoke. Runtime logic is unchanged since that run
+started; an extra EOF blank line was removed before commit. The final native
+driver additionally captures bounded index activity on
 its synthetic-fixture failures; it does not install production diagnostics.
 
 | Exact-build native lane | Receipt | Result |
@@ -816,3 +817,13 @@ Build provenance is8f65dd5.dirty. Windows11/Obsidian1.14.4 installer1.14.0,
 Electron43.3.0/Chrome150.0.7871.212/native Node24.18.1. macOS, minimum host,
 physical mobile/touch/IME, OS drag, actual Bases tag-cell gesture and affected
 full-process restart remain unverified. Keep PR draft; no merge/release.
+
+Feature runtime/test checkpoint: `1941b48c13a9eea2ff2dc4b6f156b55bfbd8f54d`.
+Verified private backup outside Temp:
+`%LOCALAPPDATA%/KplexValidation/structural-drops-177-20261018-1792336531810`;
+583 files/36,151,035 bytes, source ZIP541 entries with CRCs and per-file SHA-256
+verified, HANDOFF excluded. MANIFEST SHA-256
+`ba61eb5d95513393ae661ee6ca351023bd5dfdacd5e86e6421ff623ba38f7937`.
+Originals and previous backups remain; no raw publication. CI for1941b48 is
+in progress when this checkpoint is recorded, not claimed green. The missing
+Parent/Sidecar drain failures remain separate open investigation work.
