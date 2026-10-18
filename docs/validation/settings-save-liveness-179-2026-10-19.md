@@ -122,3 +122,16 @@ pass; raw red and corrected logs remain private. This is a bounded extension of
 the demonstrated notification correction, not a global event framework. The
 third full run uses `kplex-179-full-complete.log`; final native acceptance remains
 pending until that exact clean source completes verification.
+
+
+Third full run at `f2fef82`: architecture7/core130/main1127/UI184 pass; the
+portable source group stops at333/334 because one structural guard requires the
+retired inline semantic await. The guard now checks its full replacement path:
+semantic invalidation remains immediate, its obligation reaches the completion
+lease, presentation precedes semantic refresh, and unload/currentness fence it.
+Behavioral mixed-edit/source assertions remain unchanged. Source/runner38 checks
+pass. Existing native events now carry opaque operation IDs, queue/preparation
+counts and source/policy/publication tokens, bounded at2048 events with explicit
+dropped counts. Forwarders retain the original returned promises and collect no
+note payloads. Fourth full run: `kplex-179-full-verified.log`; no native candidate
+acceptance or whole-renderer fix is claimed yet.

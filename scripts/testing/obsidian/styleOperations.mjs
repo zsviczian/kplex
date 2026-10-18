@@ -118,6 +118,7 @@ function start(referenceOnly = false, referenceProperties = false, sidecarGateOn
     },
     cases: [],
     events: [],
+    trace: {next: 0, current: 0, last: 0, waiting: 0, active: 0},
     restores: [],
     modals: [],
     done: false,
@@ -133,6 +134,10 @@ function start(referenceOnly = false, referenceProperties = false, sidecarGateOn
       reads: 0,
       sourceReads: 0,
       nativeLeafReads: 0,
+      peakQueueDepth: 0,
+      peakDiskWriters: 0,
+      preparations: 0,
+      droppedTraceEvents: 0,
     },
     release: null,
   });
@@ -186,8 +191,13 @@ function start(referenceOnly = false, referenceProperties = false, sidecarGateOn
         element.textContent === p.translator(name)
     );
   /** Record separate storage/presentation/manager boundaries; times are diagnostics, not paint measurements. */
-  const record = (phase, edge) =>
-    c.events.push({ phase, edge, time: performance.now() });
+  const record = (phase, edge, operation = c.trace.current || c.trace.last) => {
+    if (c.cancelled || c.done) return;
+    if (c.events.length >= 2048) {c.counts.droppedTraceEvents++; return;}
+    c.events.push({phase, edge, operation, time: performance.now(), queued: c.trace.waiting,
+      sourceRevision: p.getIndexSourceRevision(), policyRevision: p.index.semanticPolicyRevision,
+      publicationRevision: p.index.publicationRevision, presentationRun: p.index.presentationRun});
+  };
   /** Retain an exact forwarding receiver and restore only the probe's installed method. */
   const wrap = (owner, key, replacement) => {
     const original = owner[key];
@@ -199,6 +209,33 @@ function start(referenceOnly = false, referenceProperties = false, sidecarGateOn
       }
     );
   };
+  wrap(p, "enqueueSettingsWrite", /** Observe the existing queue without changing intent capture or its returned promise. */ original => function(write) {
+    const operation = ++c.trace.next; let started = false;
+    c.trace.waiting++;
+    c.counts.peakQueueDepth = Math.max(c.counts.peakQueueDepth, c.trace.waiting + c.trace.active);
+    record("write-queue", "queued", operation);
+    const result = original.call(this, /** The existing writer still owns persistence and live-settings installation. */ async () => {
+      started = true; c.trace.waiting--; c.trace.active++; c.trace.current = operation;
+      c.counts.peakDiskWriters = Math.max(c.counts.peakDiskWriters, c.trace.active);
+      record("write-body", "start", operation);
+      try {const value = await write(); record("write-body", "complete", operation); c.trace.last = operation; return value;}
+      finally {c.trace.active--; if (c.trace.current === operation) c.trace.current = 0;}
+    });
+    void result.then(/** Refused preflight never entered the body, but must retire its observer count. */ () => {
+      if (!started) c.trace.waiting--; record("write-queue", "complete", operation);
+    }, /** Observe failure without consuming or transforming the caller's original rejection. */ () => {
+      if (!started) c.trace.waiting--; record("write-queue", "failed", operation);
+    });
+    return result;
+  });
+  wrap(p.index, "prepareSearchIndex", /** Count actual preparation without retaining graph or source payloads. */ original => function(...args) {
+    c.counts.preparations++; record("search-preparation", "start");
+    const result = original.apply(this, args);
+    void result.then(/** Retain scalar readiness only; production owns the prepared records. */ prepared => record("search-preparation", prepared ? "ready" : "rejected"),
+      /** Failure stays a rejection to the production caller. */ () => record("search-preparation", "failed"));
+    return result;
+  });
+  c.restores.push(p.index.subscribePresentation(/** Publication is distinct from preparation, callback scheduling or actual paint. */ event => record("presentation-publication", event.kind)));
   wrap(
     p,
     "saveData",
