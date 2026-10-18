@@ -130,3 +130,13 @@ positive controls on the same exact artifacts: genuine late parents/friends,
 new navigation, explicit fit renewal, manual camera/zoom/wheel/resize retention
 and disabled-autofit behavior. Cleanup and native error checks pass. No additional
 runtime changes followed the strict native run.
+Checkpoint `256c6cc7bb15952b5ec58609f21798c5e10f07fa` is committed/pushed.
+The final policy/lifetime subset passes35 tests after the same-stat/policy guards.
+Sanity1792346630038 repeats original fixture counts, exact hashes and capture-off
+restoration after the seven native positive controls. Verified private evidence:
+`%LOCALAPPDATA%/KplexValidation/markdown-saves-180-20261018-1792346670447`;
+42 files/6,996,864bytes; source ZIP544 entries, CRC/per-file SHA verified; HANDOFF
+excluded. MANIFEST SHA-256
+`7ff510049d3231bfc828952bd70731c2d9fd18ae477d1080fed4d1513b9cb5d0`.
+Originals remain in Temp; nothing raw published. CI runs asynchronously; no final
+CI-green claim or merge recommendation replaces the deferred combined checks.

@@ -1,4 +1,4 @@
-# Standing instructions ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â preserve this header
+# Standing instructions ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â preserve this header
 
 This is a temporary handoff document between agents. The development of the solution involves agents with access to Obsidian CLI and a full development environment with all node packages installed, but also agents with more limited access. Development is done in "ping-pong" between these two types of agents. Agents should use this document to pass instructions and status from one another, such as instructions for testing/validation, or instructions for development work that can only be done in a full environment.
 
@@ -43,12 +43,17 @@ Source reads/parses and many presentation queries remain; no universal efficienc
 claim. Actual Eager native and full dependency/popout/platform matrix deferred147.
 Separate Settings-close freeze remains179. Full report records exact data/limits.
 
-Current final lifetime/policy test subset running in session25723; no native driver
-active. After it finishes: final capture-off/sanity, commit/push180, private verified
-backup outsideTemp (excludeHANDOFF; retain originals; no raw publication), update
-180title/body with delivered scope and honest deferred checks. Do not wait for CI.
-Then continue existing181branch2026-10-18-alt-hover-crosslinks, integrate main and
-stack on180 so next working build retains both, keeping reviews separate.181 scope
-is current PR description; shared HoverHighlight owner and bounded display-only
-appendVisibleCrossLinks must own modifier peek. No new setting or index work.
-No mutation to unfinished180 while starting181. Final user reply after both.
+180committed/pushed256c6cc7bb15952b5ec58609f21798c5e10f07fa. Final35lifetime/
+policy cases pass; native adaptive positive7 and final sanity1792346630038 pass.
+Private backup1792346670447 verified42files/6,996,864bytes; ZIP544 CRC/per-fileSHA;
+HANDOFF excluded; manifest7ff510049d3231bfc828952bd70731c2d9fd18ae477d1080fed4d1513b9cb5d0.
+No active native/browser work; captureoff/original107files/88Markdown. No rawupload.
+
+Next update180draft body/title and proceed181 existing branch, integrating main
+and180without rewriting history. Stack181on180 to preserve both changes for147;
+keep both drafts/no merge/release and do not wait for CI.181scope is current PR
+body: shared HoverHighlight modifier state, target-scoped eligible crosslinks via
+existing projection, no layout/camera/settings/source work; retain all visibility/
+filter/gate/occurrence boundaries. Existing branch2026-10-18-alt-hover-crosslinks.
+No new setting, broad indexing, personal vault or subagents. Main validation agent
+owns full environment. Report/ledger carry actual results and deferred147matrix.
