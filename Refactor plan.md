@@ -4734,3 +4734,13 @@ Tag lookup retention/metadata traversal adds real work, and selected early tags
 perform bounded compilation. Remaining indexing speed and physical-platform gaps
 are not solved by this checkpoint. C14 remains accepted/paused; final CI and the
 standard-priority aggregate retry are recorded through the PR. Keep PR #177 draft.
+
+Closeout evidence: runtime/test/driver source d86fea3 is pushed; all six exact-build
+native lanes pass, with original107/88inventory, configuration/workspace and console
+state restored. The new private208-file backup verifies all copies,524 source ZIP
+entries/CRCs and its manifest checksum; old evidence/originals remain untouched,
+HANDOFF excluded and nothing raw published. The feature report records both below-
+normal aggregate deadline failures, harness corrections and remaining acceptance.
+The maintainer reports Resolve has finished; final clean-source standard-priority
+verification and final-head CI are recorded through the draft PR, with unchanged
+deadlines and no further runtime changes or performance experiments.

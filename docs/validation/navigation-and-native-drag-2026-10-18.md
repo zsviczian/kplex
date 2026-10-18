@@ -24,7 +24,7 @@ structural refactoring paused.
   roles, gates, ontology and filters are unchanged. The independent
   Challenger/Sibling seam no longer inherits negative parent compaction.
 - One compact folder component serves new-note/placeholder creation and explicit
-  Ctrl/Cmd-double-click materialization. Obsidian's calculated destination is
+  Control-click (Command-click on macOS) materialization without moving the center. Obsidian's calculated destination is
   prefilled; normal name-first quick creation remains available. Placeholder
   references default to the filename alias. Existing-target duplicate/relink
   policy remains unchanged.
@@ -40,7 +40,10 @@ Ambiguous/stale source proof fails closed. Accepted file/reference writes are
 retained on a later failure, with a modal-local continuation rather than a second
 creation. This is not a multi-file transaction.
 
-## Final validation
+## Initial checkpoint validation
+
+This section records the initial delivered checkpoint. The subsequent maintainer-feedback
+checkpoint below supersedes its gesture, build hashes and final-source references.
 
 Runtime and tests are pinned to [ac22f45](https://github.com/zsviczian/kplex/commit/ac22f45600e6835fb22f849dcf3e82b86f5f8f88).
 The final local `verify:obsidian` run starts and builds from a clean tree on
@@ -162,3 +165,161 @@ and the transient handoff is excluded from the source archive.
 [the draft PR's current checks](https://github.com/zsviczian/kplex/pull/177/checks)
 provide the remote results; the PR description records final-head CI status.
 No merge or release is authorized for this implementation branch.
+
+## Maintainer-feedback checkpoint
+
+The folder field now uses the same `FuzzySearchInput`/`FuzzySuggester` owner as
+filename search. Both creation dialogs have a full-width, same-line Folder row,
+the established 38px input, no folder icon/disclosure/help paragraph, and a
+viewport-clamped suggestion list with a 560px preferred minimum width. Paths wrap
+instead of being ellipsized. Leading root slashes do not prevent partial matching:
+`/08` finds `08 About`. Editing preserves the entered destination and case-sensitive
+native identity. Trusted pointer selection from the actual modal portal is covered.
+
+The toolbar plus and **New K-Plex tab** command create an independent desktop/tablet
+tab. Both reuse the existing surface policy: phones retain side-panel-only opening,
+with the plus hidden and command unavailable. Curved
+connectors remain configurable at **Settings → K-Plex → Visual styling → Link
+styling → Link shape**. **Simplified layout** is the first entry in the Layout &
+sizing group under **Settings → K-Plex → Plex behavior**; its six device/surface
+choices remain independent. All eight locale catalogs include the new action.
+
+Control-single-click (Command-single-click on macOS) opens the folder/materialization
+dialog without moving the originating center. It replaces the requested modified
+double-click gesture. Cancellation writes nothing. In-place materialization avoids
+document-follow and global navigation broadcasts; a second Plex already centered
+on the exact ghost follows its canonical identity into the real file locally.
+Other Plex centers, history and unrelated document ownership remain unchanged.
+
+Find already had a 24-result cap; that cap is retained. An unfocused field now skips
+ranking. `GraphIndex` caches its merged search projection until actual vocabulary,
+publication, maintenance or policy changes, and reuses exact/repeated prefix query
+candidates. A regression with 1,000 partial search entries and eight typed/repeated
+queries builds one 1,000-row projection instead of eight. This is an operation-count
+improvement, not a measured native CPU/heap or startup improvement. Initial query
+scoring remains linear and up to two merged read projections can remain retained.
+
+The existing startup inventory also captures native folders, including empty ones,
+and loaded tag metadata through `getAllTags`. It owns no second inventory or body
+read. Availability can survive an unrelated source event during its cooperative
+traversal; finite newer native file/folder events win over the older captured
+inventory. Exact native identities still fence deletion, rename and replacement.
+Durable restore validation retains its strict source-revision fence. Regressions
+hold actual yielded preparation across those events and verify one inventory,
+late file/tag discovery, and event preservation after an older publication.
+
+Selecting an early tag builds a bounded cover from current metadata witnesses via
+the existing structural fact producer and `NormalizedGraphCompiler`. This does
+perform bounded compilation; it is not a zero-work tag shortcut. It does not read
+note bodies, acquire/persist semantic sources, grant complete-source authority, or
+change durable policy. Canonical complete counts outrank capped previews. Metadata
+changes update shared ancestry and last-witness retirement; uncertain/oversized
+metadata stays conservative. Preview admission retains the existing record/byte
+budgets and configured visible limit (maximum 300); canonical publication supplies
+the eventual full graph. The extra lexical lookups/retained tag memberships are
+real startup/memory work, whose net native cost has not been benchmarked.
+
+The intermittent host freeze reported by the maintainer was not reproduced. A
+separate causal regression proves that a private Properties loader resolving
+without converging could form an unbounded microtask retry chain. The existing
+owner now allows at most three repair steps for an unchanged target/ownership
+intent, latches failure, and retries for a genuinely newer intent. Native injected
+refusal checks the three-attempt bound, responsive animation frames and subsequent
+recovery, alongside overlap, pinning, unsupported-file and popout behavior. This
+does not establish that Properties caused the original freeze.
+
+No receipt, source scheduler, schema, relationship classifier or broad architectural
+refactor is added. The separate gate/filter guard and physical-platform limitations
+above remain open. Only disposable kplex-test-small is accessed. DaVinci Resolve
+was rendering concurrently; long verification/native launcher runs used below-normal
+process priority, while short focused checks/probes used default priority. All ran
+serially without changing Resolve or unrelated applications. These conditions support
+functional assertions, not controlled resource or latency comparisons.
+
+The first combined follow-up verification exceeded the established 35-minute
+aggregate portable deadline. Its child storage suite subsequently finished
+598/598, but the wrapper/host report remains **failed** and is preserved as such.
+Assertions and deadlines were not weakened; descendant work was allowed to drain
+before the next serial verification attempt. Earlier follow-up attempts also
+preserve two obsolete test expectations (removed help text and the old command
+count), corrected to assert the intended UI and new public command.
+The next run was intentionally cancelled in its owned headless validation process
+tree before correcting the phone availability omission found in final review.
+The command-policy regression fails before that correction; native touch-emulation
+acceptance additionally checks the absent toolbar action and zero tab allocation.
+
+The corrected candidate's below-normal aggregate attempt also reached the
+35-minute wrapper deadline. All child assertions then finished: architecture 7/7,
+restricted core 130/130, Node 1,029/1,029, UI 131/131, portable source 334/334 and
+browser storage 598/598, with no skips/cancellations, plus Obsidian lint. That
+wrapper report remains failed; production build and native lanes are run separately.
+Final-head CI and the final standard-priority verification outcome are recorded in
+the PR description, without treating these failed wrappers as passes.
+
+The first final-build folder run failed its zero-work guard because the guarded
+block also navigated back and opened the composer. The reusable driver now records
+that setup separately and waits for genuine drain before observing folder typing,
+selection and Cancel. On the successful control, setup adds two checked/repaired
+sources and zero body reads/parses; all seven guarded operation categories remain
+zero. This narrows the measurement to its stated interaction, preserves the zero
+assertion and does not claim that opening/navigation is free. Both receipts and
+the existing no-note/configuration-write checks are preserved.
+
+### Final artifact and native acceptance
+
+Runtime, regression tests and reusable drivers are pinned to
+[`d86fea3`](https://github.com/zsviczian/kplex/commit/d86fea32cad34f92cbb14cfff9d9c8d6e882196d).
+The subsequent closeout commit changes documentation only. Production build passes
+on Node 22.22.2 against the installed Obsidian types. Installed/build SHA-256 values:
+
+| Artifact | SHA-256 |
+| --- | --- |
+| `main.js` | `f10694fe6eb79bdb1349ffc1edb98bbbae8db4ab9d04acd417eb0f9dad1e7050` |
+| `styles.css` | `b22bad683a71019b03f663bc4b48ad26e450b22e64a5aea4a2102ad475b2b056` |
+| `manifest.json` | `19d9ecce5557733e0ff0f2e27155e635c30158c3cfa6fbca0f11c16e4dedfd2c` |
+
+All six final-build native lanes pass serially on the same Windows/Obsidian host
+and disposable fixture described above:
+
+- Find: eight guarded queries, six navigations and both scenario groups.
+- Folder creation: nine workflows and actual plugin reload, including trusted
+  long-path selection and two-Plex in-place materialization.
+- Layout: five cases, all six actual Settings controls, native plus/command and
+  main/sidepanel/popout geometry, with unchanged semantic/source/storage counters.
+- Existing interactions: fifteen assertions and one separately labelled fixture
+  observation, including native Properties refusal/overlap and held-build creation.
+- Native dragging: six cases covering Markdown/cross-Plex payloads, popout/gates
+  and trusted intercepted renderer drag delivery; physical OS dragging stays open.
+- Touch emulation: eight range gestures, phone command/toolbar policy, durable
+  reload and seven pane geometries. Native dispatcher success means no exception,
+  not command availability: the driver checks the actual availability callback and
+  verifies zero tab allocation. Its initial dispatcher assumption and subsequent
+  test-only helper-name error are retained as failed controls.
+
+Every lane restores owned fixtures, workspace and configuration bytes. Independent
+final sanity confirms 107 files/88 Markdown notes, matching artifacts, no controllers or
+dialogs, desktop mode, and the opening disabled CLI console capture state. This
+does not establish physical touch, macOS/minimum-host compatibility, OS drag or a
+native large-vault startup/performance result. The reported intermittent freeze,
+separate gate/filter guard and ordinary moving-placeholder double-click limitation
+remain as described above. Established graph owners are used; no deferred indexing
+experiment is reopened.
+
+### Follow-up evidence and final-head checks
+
+The new private durable backup is
+`%LOCALAPPDATA%/KplexValidation/navigation-feedback-177-20261018-1792308483120`:
+208 verified files (43,617,105 bytes). The source ZIP contains 524 files with verified
+CRCs/per-entry checksums and excludes HANDOFF. Its source references, fixture
+instructions, artifacts, successful/failed native trials and aggregate failures
+are preserved. Every copied file is rehashed; root `MANIFEST.json` SHA-256:
+`43205a56fd58dc859fa8a4d933d7cb7b46d611e30c63f855db2eab0cdf232975`.
+The earlier 403-file backup and Temp originals remain untouched. No raw evidence
+is published or added to Git.
+
+The maintainer subsequently reports that the Resolve render has finished. The
+post-push standard-priority full verification uses that changed condition, without
+changing test deadlines or application processes. Its exact outcome, any additional
+private receipt, and final-head CI are recorded in the
+[draft PR description/checks](https://github.com/zsviczian/kplex/pull/177).
+Keep the PR draft; no merge or release is authorized.
