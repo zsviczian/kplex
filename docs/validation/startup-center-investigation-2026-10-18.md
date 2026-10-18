@@ -339,3 +339,50 @@ and reopen, interrupted again after 5–10 seconds, should retain the same compl
 stationary center without navigation. Renderer reload evidence does not exercise
 process-exit cache/save behavior. Physical mobile is not claimed by this desktop
 startup correction.
+
+
+## Main reconciliation and merge validation
+
+The maintainer subsequently authorizes committing, reconciling current main and
+merging PR183 immediately after local acceptance, without waiting for GitHub CI.
+The earlier uncommitted-delivery statement describes the initial closeout only.
+Implementation checkpoint `e847a50` preserves that accepted fix. Integration
+`e2e391ffe895c2ce6ae3bf7aafea1a247930adc9` incorporates main
+`658793fe16896f2ae02f7e531ede5d1849077b2e`, including #181 crosslink preview and
+#182 incoming-settings reconciliation.
+
+Conflicts are limited to HANDOFF, the append-only Refactor plan ledger and the
+package test command. Both feature histories and both new suite registrations are
+preserved. Runtime PlexGraph merges cleanly; compared with incoming main it has
+only the startup-recovery callback and module-comment changes. GraphIndex and
+source acquisition remain byte-identical to the accepted implementation. Main and
+offline read-only source reviews confirm separate recovery/hover visibility
+lifetimes and synchronous semantic-policy invalidation on incoming settings.
+No new parser, scheduler, cache schema or semantic authority is introduced.
+
+Full `npm run verify` via `runPortableVerification` on Node22.22.2 exits **0**:
+architecture7, core130, Node1069, UI165, portable source334 and real IndexedDB632,
+with zero failures/skips, official lint, installed typings and production build.
+The unchanged 20,015-owner oracle passes; its cached-publication observation is
+113.467 s, not a comparative native timing claim. Complete log:
+`/private/tmp/kplex183-startup/verify-merged.log`.
+
+The merged 558-file input/artifact receipt is
+`f3d09d8a8e592be3bf40ad8a0f647b23f4a35ce3e61f01fb5ada7c6f4aa36131`.
+Merged main.js SHA256 is
+`a709657e06d8f893d185fbc933967266e50007424ccbab751e1410c8c286ff68`;
+styles.css is `0135225519ad680cace5c7a35e8eab8388a3c6e6a8ead1a10a49f337324b106a`;
+manifest identity is unchanged from the preceding table. The standard exact-build
+Small runner validates that complete successful receipt before staging. Command
+registration, actual rendered K-Plex and captured-JavaScript-error checks pass.
+Original Small settings/workspace/enabled-list bytes and all78 content files
+(74Markdown) are restored/unchanged; deployed artifacts match. The independent
+closeout audit confirms all558 verified inputs remain unchanged. Private reports:
+`strict-merged/report.json`, `merged-small-cleanup.json` and
+`merged-closeout-audit.json` under the same private task directory.
+
+This reconciliation does not redeploy the personal vault: its prior accepted
+startup artifact and timings above remain separately identified. The merged build
+has exact Small smoke acceptance plus full portable regression coverage; no new
+personal-vault startup timing or full-process/mobile claim is made. Git publication
+and final merge identity are recorded on PR183; no release/tag is created.

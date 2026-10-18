@@ -19,24 +19,23 @@ Obsidian is the production host; preserve the established portable semantic, ide
 
 ---
 
-# PR183 main reconciliation — main validator active
+# PR183 main reconciliation — accepted, inactive
 
-The maintainer explicitly authorizes reconciling and merging PR183, without waiting
-for GitHub CI, then switching to main and fetching. Implementation checkpoint:
-`e847a50`; incoming main: `658793f` (#181 and #182). C14 remains paused.
+Implementation e847a50; combined integration e2e391ffe895c2ce6ae3bf7aafea1a247930adc9
+includes main658793f (#181/#182). Maintainer authorizes immediate PR183 merge after
+local checks without waiting GitHub CI, then main+fetch. All code work is complete.
+No refactoring or new feature is queued; C14 remains paused.
 
-- [x] Commit previously accepted startup fix and its regression/native evidence.
-- [x] Preserve both new test entries and all append-only feature ledger records.
-  Runtime PlexGraph changes merge cleanly: #181 hover projection and #183 recovery
-  own separate effects; #182 settings reconciliation remains intact.
-- [ ] Independently review combined runtime and run full npm run verify on Node22.22.2.
-- [ ] Run applicable exact-build Small native smoke, restore original config/content.
-- [ ] Publish reviewed PR result and merge without waiting for GitHub CI.
-- [ ] End on synchronized main and fetch; mark this handoff inactive.
+- [x] Preserve both feature/test/ledger histories and independently review lifetimes.
+- [x] Full npm run verify on Node22.22.2 passes7/130/1069/165/334/632 groups,
+  zero failures/skips, real build/types and official lint.
+- [x] Exact combined-build Small command/render/error smoke passes. Fresh original
+  settings/workspace/enabled bytes restored and all78 content files unchanged.
+- [x] All558 verified inputs unchanged at independent closeout audit; deployed
+  Small main a709657e06d8f893d185fbc933967266e50007424ccbab751e1410c8c286ff68.
 
-Prior startup acceptance and caveats remain in
+Main validator owns only authorized Git publication/merge and the newly assigned
+PR148 metadata work after PR183 completes. Final Git identity belongs to PR183.
+Durable results and prior personal-vault/native limitations are in
 [the validation report](docs/validation/startup-center-investigation-2026-10-18.md).
-Its artifact hashes and test counts describe the pre-reconciliation build, not the
-new combined build. Personal-vault access remains read-only except authorized
-main.js deployment. No personal note/settings writes or screenshots are needed.
-Small testing/deployment remains authorized. No new feature or refactoring queued.
+No personal deployment in this reconciliation; no note edits or screenshots.
