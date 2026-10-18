@@ -4830,3 +4830,35 @@ causal startup handoff investigation. No personal-vault access; no broad indexin
 or receipt experiment. Risk-based remaining acceptance: actual intermittent
 restart/freeze workflow, macOS, minimum host, physical phone/tablet, OS drag and
 prior separately documented gate/filter and moving-placeholder limitations.
+
+### 2026-10-18 — Initial-center subscription catch-up and bounded recovery
+
+PR177 follow-up to5fe9c80. A real React reproduction confirms publication between
+first render and subscription attachment leaves2 rendered children instead of7.
+The existing App publication owner now subscribes then refreshes immediately;
+identity/materialization logic remains in that owner. A separate initial-visible-
+center watchdog checks after3s and admits at most one source-ready follow-up.
+Existing preview/local/requested-scope owners perform repair; no polling loop,
+new scheduler, full-build request, note write or snapshot rewrite. File/source/
+policy/demand/window fences retire stale completions. Current canonical stale-view
+repair requires no source acquisition/read/semantic revision/snapshot write.
+
+Existing diagnostic persistence/export owners retain sanitized counts, flags,
+coverage and outcomes, with a20-entry ring and latest2 non-healthy center entries
+protected. No paths/content/errors in production receipts, no DB schema change,
+no new settings writer. Documentation distinguishes historical receipts and local
+read coverage from current activity and canonical/write authority. C14 stays paused.
+
+Full verify:obsidian passes architecture7/core130/lint/Node1049/UI140/source334/
+browser607, actual build/native smoke. Native style15, live-updates foreground,
+support exports24 and Properties-closed/open Save/reload/actual timer recovery4
+each pass. Report records exact sources/artifacts, retained failed extractor and
+native setup controls, and two unresolved pre-reload fixture Parent timeouts.
+Those two Properties-open failures are not erased by later passes. Watchdog and
+subscription fix do not establish resolution of every startup or Save-freeze cause.
+
+Risk-based remaining manual acceptance: affected full application restart while
+stationary plus Copy index diagnostics; intermittent style Save with Properties;
+macOS/minimum host and physical phone/tablet lifecycle. No personal-vault access,
+comparative performance work, receipt experiment, merge or release. Raw evidence
+remains private with verified backup outside Temp; never archive HANDOFF.md.

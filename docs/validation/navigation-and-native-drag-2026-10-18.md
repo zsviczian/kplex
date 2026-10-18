@@ -542,3 +542,96 @@ manifest `19d9ecce5557733e0ff0f2e27155e635c30158c3cfa6fbca0f11c16e4dedfd2c`.
 Build provenance is parent `a9e5a86.dirty`; runtime source is unchanged after full
 verification. The verified private backup/source manifest is recorded in PR177;
 originals and prior backups are retained, and no raw archive is published.
+
+## Stationary-center subscription race and bounded recovery
+
+Follow-up to appearance checkpoint `5fe9c802cd19f219e3731fadd8e057d5678300ac`.
+The maintainer still observed partial central children after restart and authorized
+a delayed recovery check. A focused real-React reproduction confirms one cause:
+a child demand/layout publication can occur after the parent's first render but
+before its subscription effect attaches. Both semantic and presentation variants
+leave 2 rendered children when the backing index has 7. The existing App owner now
+subscribes and immediately refreshes, preserving identity/materialization handling.
+Both reproductions then show 7 without navigation, source work or the watchdog.
+This establishes a real race, not every cause of the maintainer's intermittent case.
+
+The separate safeguard checks one newly mounted visible stationary Markdown
+center after three seconds, without restarting that timer on indexing progress.
+It compares the rendered pre-lens neighborhood against the current index and
+existing coverage proofs. Current canonical coverage requires no acquisition;
+otherwise existing host preview/local foreground/requested-scope owners perform
+bounded repair. At most one source-ready follow-up is admitted after an incomplete
+initial check. There is no polling loop, new scheduler, full-build request,
+source-validation relaxation, note write or watchdog snapshot rewrite.
+Navigation, hidden/closed surfaces and captured file/source/policy lifetimes
+cancel or fence stale completion. Already accepted underlying work retains its
+existing demand owner.
+
+The existing persisted 20-entry diagnostic history protects its latest two
+non-healthy center entries. Both Copy index diagnostics and Report bug export the
+same sanitized fixed flags, coverage labels, role counts and inclusive duration.
+No center identity, content or error payload is retained. The
+[diagnostic guide](../INDEXING_DIAGNOSTICS.md#initial-center-recovery) documents
+the fields, interpretation and collection steps. This is diagnostic metadata,
+not the rejected persistent source-validation receipt experiment.
+
+Focused checks pass 42 cases: actual React subscription races, finite timer and
+cancellation behavior, both sanitized exports, existing eager startup cases and
+real IndexedDB recovery. The canonical stale-view case emits one presentation
+with zero new source acquisitions, Markdown reads, semantic revisions or snapshot
+writes. A held-source case refreshes late host Parent metadata without navigation
+or a full build, grants no pair-write authority, and converges after source
+release. Navigation, same-stat source revision and physical file replacement
+reject stale continuations. A durable cache reread retains the diagnostic after
+40 subsequent background decisions. Tests distinguish local repair from complete
+canonical coverage.
+
+Limits: count vectors cannot detect every same-count relationship substitution;
+missing host metadata still depends on its existing source owner. Accepted repair
+work can await that owner; an outstanding `checking` entry is not an idle claim.
+The watchdog is finite and cannot guarantee recovery from arbitrary future source
+failures. The reported Save freeze remains unreproduced. No comparative resource
+or startup-performance claim is made while HandBrake runs. Final full/native
+results are recorded below; macOS and physical-device acceptance
+remain separate.
+
+Final runtime verification passes on Node22.22.2: architecture7/core130, Obsidian
+lint, Node1049/UI140/source334/browser607, real production build and native smoke.
+Private full receipt: `kplex-structural-drops-verify-1792324807460`. The first full
+attempt1792324552238 failed two test-only callback-extractor assumptions; the
+extractor now reads the named production callback, and all42 native-follow/
+materialization assertions still pass unchanged. Final driver/architecture checks
+pass27 cases after native-driver refinements.
+
+Exact-build Windows11/Obsidian1.14.4 acceptance passes the full native style
+matrix15 (1792326297211), held-source live updates (1792326304258) and native
+support/clipboard/main-popout exports24 (1792326309024). Focused actual Settings
+Save/plugin-reload/watchdog lanes pass4 cases each with Properties closed
+(1792326331855) and open (1792326286964, also1792326259257). Both variants use the
+real three-second timer. A temporary presentation-only reader wrapper supplies
+an incomplete new-tab frame, is restored without notification, and the timer
+repaints the stationary Parent from0 to1 without navigation during recovery.
+The receipt explicitly reports local coverage/source-not-ready where appropriate.
+The style Save interval still records1 write/1 presentation/0 semantic refreshes/
+0 source acquisitions; these counts exclude startup, fixture setup and reload.
+
+Failures remain evidence, not acceptance:1792326023637 assumed a new tab would
+start on the fixture rather than the native active document; setup now explicitly
+selects the fixture before recovery begins. Two Properties-open attempts
+(1792326132804 and1792326213319) passed Save but timed out waiting for fixture
+Parent reconciliation before plugin reload. Closing Settings did not explain
+the second failure. Later repeated runs pass without a runtime change; the cause
+remains unresolved. The native driver now captures bounded synthetic-fixture
+metadata, current role counts, demand, visible centers and diagnostic entries on
+failure. This does not establish a fix for that intermittent variant or the
+reported freeze. Full Obsidian-process restart and the maintainer's affected-vault
+workflow remain manual acceptance; plugin reload is a narrower positive control.
+
+Sanity1792326341858 verifies original107 files/88Markdown, exact artifacts,
+configuration restoration, no dialogs/controllers, desktop mode and opening CLI
+capture restored to false. Native Electron43.3.0/Chrome150.0.7871.212/Node24.18.1.
+Main SHA-256 `bb5126d3d4a0aa17b0365740b73a2ef7009b7f460047cc7e4b27fd568bd0ee23`;
+CSS and manifest match the preceding checkpoint. Build provenance is
+`5fe9c80.dirty`; production runtime source is unchanged after full verification.
+All trials use Small only; no personal-vault access or comparative performance
+testing. Original private evidence and failures are retained; no raw publication.

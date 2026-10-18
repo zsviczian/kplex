@@ -2,11 +2,46 @@
 
 PR #174 implementation reference (schema 1, capture 1; draft acceptance). Both **Copy index diagnostics** and **Report bug** include the shared, bounded `indexingActivity` summary. Explicit report capture reads retained scalar health without recording readiness or starting work. Windows native main/popout export acceptance has passed. Two foreground-soak attempts stop on failed focus prerequisites; the required real two-hour acceptance remains unproven. No actual 24-hour device run has been completed. No efficiency claim follows from the schema alone.
 
+## Initial-center recovery
+
+Each newly mounted visible Plex checks its initial stationary Markdown center after
+three seconds. Progress events do not postpone the check. An incomplete check may
+get one further check after the existing source owner becomes ready; there is no
+polling loop. Navigation, hiding, closing and window retirement fence or cancel
+the check. Existing foreground readers and demand owners perform any repair;
+the watchdog does not start a full build or write notes.
+
+The existing persisted decision history and both diagnostic exports include
+`center-watchdog:*` entries. Their optional `centerCheck` contains the trigger,
+outcome, source-readiness flags, active-work flag, before/after coverage and three
+five-number count vectors: `presented`, `before` and `after`. Vector order is
+parents, children, left friends, right friends, siblings. Counts describe the
+display-limited neighborhood before lenses and section expansion. `durationMs`
+includes awaited work and is not CPU time or paint latency.
+
+`canonical` denotes the existing current complete-center proof. `local`, `cached`,
+`preview` and `missing` describe progressively different read coverage, not write
+authority. `repaired` means role counts changed; `repainted` means a presentation
+notification was needed; neither alone proves complete coverage. A `checking`
+entry without completion can identify work still awaiting its existing owner,
+or a completion no longer present in the bounded history. Entries are historical;
+use the report's current active-work counters to distinguish those situations.
+Counts cannot detect every same-count relationship substitution or explain a host
+that has not yet supplied the missing metadata.
+
+No center path, filename, tag, URL, note content or raw error is retained. The
+decision history stays capped at 20 entries and protects its latest two
+non-healthy center entries from later background traffic. Collection uses the
+existing diagnostic storage queue, without a new database schema or settings
+writer. After an incomplete startup, use **Copy index diagnostics** or **Report
+bug** before restarting again. Repair remains a bounded safeguard, not a claim
+that every intermittent startup failure has been eliminated.
+
 ## Collection and privacy
 
 Use the reviewed build normally for several hours to a day, then use **Copy index diagnostics** or **Report bug**. Review the copied text before sharing it. Record symptoms, build changes and plugin reloads separately. Copying never uploads a report or resets the capture. Several reports from one session overlap; they are not independent samples. No debug-console setup or profiling is needed.
 
-Capture lasts for one plugin lifetime. Reload, process termination and mobile process eviction reset it. There is no cross-session diagnostic identifier or persistent diagnostic log. Only fixed categories, counts, durations and public build/mode metadata enter the new recorder. It retains no note/drawing content, paths, names, URLs, property values, custom field names, queries, raw exceptions/stacks or source identities. Existing disclosed theme/plugin metadata remains subject to the existing support-report policy.
+The `indexingActivity` capture lasts for one plugin lifetime. Reload, process termination and mobile process eviction reset it. This activity summary has no cross-session identifier or persistent log; the separate bounded startup-decision history, including center checks, uses existing diagnostic storage. Only fixed categories, counts, durations and public build/mode metadata enter the activity recorder. It retains no note/drawing content, paths, names, URLs, property values, custom field names, queries, raw exceptions/stacks or source identities. Existing disclosed theme/plugin metadata remains subject to the existing support-report policy.
 
 The default recorder creates no timers, polling, watchers, heartbeat, I/O, network, CPU/heap sampling or background maintenance. `processed()`/per-file/parser/link/evidence/IDB loops add no new instrumentation. Coarse pass/phase/invalidation boundaries sample already maintained numeric counters; detailed owner/overlap profiling stays opt-in and separate.
 

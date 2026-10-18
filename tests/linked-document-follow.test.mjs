@@ -16,9 +16,9 @@ function production(name, dependencies = {}, filename = "src/main.ts") {
   let expression;
   /** Preserve the production implementation and its asynchronous boundaries verbatim. */
   function visit(node) {
-    if (name === "centerPublication" && ts.isCallExpression(node)
-      && node.expression.getText(source) === "plugin.index.subscribe"
-      && ts.isArrowFunction(node.arguments[0]) && node.arguments[0].getText(source).includes("const trackedFile")) expression = node.arguments[0].getText(source);
+    if (name === "centerPublication" && ts.isVariableDeclaration(node) && node.name.getText(source) === "refresh"
+      && node.initializer && ts.isArrowFunction(node.initializer)
+      && node.initializer.getText(source).includes("const trackedFile")) expression = node.initializer.getText(source);
     if (name === "navigationRequest" && ts.isCallExpression(node)
       && node.expression.getText(source) === "plugin.subscribeNavigation"
       && ts.isArrowFunction(node.arguments[0])) expression = node.arguments[0].getText(source);

@@ -114,6 +114,7 @@ import { MAX_CACHED_SCOPE_RETAINED_BYTES } from "./CachedSourceSemantics";
 import { KplexIndexedDbCache, URL_ALIAS_FACET_VERSION, sanitizeIndexDiagnostics, type IndexedDbSnapshotMeta, type IndexDiagnosticEntry,
   type SnapshotWriteFailureReason, type SnapshotReadOperation, type SnapshotReadFailureReason } from "./IndexedDbCache";
 import { createGraphState, getGraphPage, type GraphState } from "./GraphState";
+import {centerRelationCounts, type CenterCoverage, type CenterRecoveryDiagnostic, type CenterRelationCounts} from "../core/contracts/centerRecovery";
 import { ACTIVITY_CURRENT_COLUMNS, type ActivityKind, type ActivityOutcome, type ActivityReason } from "../application/IndexingActivity";
 import type { EvidenceRole, EvidenceSourceKind, RelationEvidence } from "./RelationEvidence";
 import { MetadataParser } from "./MetadataParser";
@@ -1855,6 +1856,62 @@ export class GraphIndex {
 
   /** Active work is distinct from demand that already ended with an unavailable or bounded outcome. */
   hasActiveSemanticPreparation(): boolean { return this.hasOnDemandWork() || this.pendingStructuralTasks > 0 || this.semanticPreparationTasks.size > 0; }
+
+  /** Passive startup milestone used only to admit a bounded visible-center follow-up. */
+  isCenterRecoverySourceReady(): boolean { return this.sourceAcquisition.hasSemanticDependencies(); }
+
+  /** Read coverage is deliberately separate from global/source/write completeness. */
+  private centerRecoveryCoverage(path: string): CenterCoverage {
+    if (this.hasCurrentCanonicalCenter(path)) return "canonical";
+    if (this.onDemandHostScopes.has(path)) return "local";
+    if (this.onDemandCachedScopes.has(path)) return "cached";
+    return this.hostPreviewScopes.has(path) ? "preview" : "missing";
+  }
+
+  /** Recheck one live center through existing readers/foreground owners; never rebuild or rewrite notes. */
+  async recheckVisibleCenter(path: string, presented: CenterRelationCounts, trigger: CenterRecoveryDiagnostic["trigger"],
+    ownsView: () => boolean): Promise<boolean> {
+    if (this.diagnosticsClosed || this.persistentCachePurged || !ownsView() || !this.semanticDemandCounts.has(path)) return true;
+    const page = this.get(path), file = page?.file;
+    if (!file || file.extension !== "md") return true;
+    const physical = captureFileRevision(file), source = this.plugin.getIndexSourceRevision(), policy = this.semanticPolicyRevision;
+    const current = (): boolean => !this.diagnosticsClosed && !this.persistentCachePurged && ownsView()
+      && this.semanticDemandCounts.has(path) && file.path === path && this.app.vault.getFileByPath(path) === file
+      && fileRevisionMatches(file, physical) && source === this.plugin.getIndexSourceRevision() && policy === this.semanticPolicyRevision;
+    const started = performance.now(), coverageBefore = this.centerRecoveryCoverage(path);
+    const before = centerRelationCounts(this.getNeighborhood(path));
+    const activeBefore = this.onDemandTasks.has(path) || this.semanticPreparationTasks.has(path) || this.building;
+    const sourceReady = this.isCenterRecoverySourceReady();
+    /** Only fixed role counts/proofs cross the existing persisted/user-exported diagnostic boundary. */
+    const record = (outcome: CenterRecoveryDiagnostic["outcome"], after = before): void => this.recordIndexDiagnostic("reconcile", `center-watchdog:${outcome}`, {
+      durationMs: Math.max(0, Math.round(performance.now() - started)),
+      centerCheck: {trigger, outcome, coverageBefore, coverageAfter: this.centerRecoveryCoverage(path), sourceReadyBefore: sourceReady, sourceReadyAfter: this.isCenterRecoverySourceReady(),
+        activeBefore, presented, before, after},
+    });
+    const matches = (a: CenterRelationCounts, b: CenterRelationCounts): boolean => a.every((value, i) => value === b[i]);
+    if (coverageBefore === "canonical" && matches(before, presented)) {record("healthy"); return true;}
+    record("checking");
+    try {
+      if (coverageBefore !== "canonical") {
+        // Reuse loaded host/cached-body paint immediately, independently of global source closure.
+        await this.withForegroundPriority(() => this.publishHostMetadataPreview(path, INDEX_WORK_PRIORITY.visibleNeighborhood), 2);
+        if (!current()) {record("cancelled"); return true;}
+        if (this.usesLocalForeground()) {
+          if (this.onDemandBaselineReady) await this.withForegroundPriority(() => this.publishOnDemandHostScope(path, current), 2);
+          if (current()) await this.ensureOnDemandCenter(path);
+        } else await this.ensureSemanticScope(path);
+      }
+      if (!current()) {record("cancelled"); return true;}
+      this.relationViewCache = new WeakMap();
+      const after = centerRelationCounts(this.getNeighborhood(path));
+      const changed = !matches(after, before), staleView = !matches(after, presented);
+      // A missed notification needs a new presentation, not a semantic rebuild or source epoch.
+      if (changed || staleView || coverageBefore !== "canonical") this.emitPresentation();
+      const complete = this.centerRecoveryCoverage(path) === "canonical";
+      record(changed ? "repaired" : staleView ? "repainted" : complete ? "healthy" : "pending", after);
+      return complete;
+    } catch { if (current()) record("failed"); else record("cancelled"); return true; }
+  }
 
   /** Actual local tasks are separate from optional absent global authority. */
   private hasOnDemandWork(): boolean { return this.usesLocalForeground() && (this.onDemandBaselineTask !== null || this.onDemandTasks.size > 0 || this.onDemandGateTasks.size > 0); }
@@ -5049,7 +5106,7 @@ export class GraphIndex {
   private recordIndexDiagnostic(
     stage: IndexDiagnosticEntry["stage"],
     reason: string,
-    counts: Pick<IndexDiagnosticEntry, "added" | "removed" | "modified" | "completedMarkdownFiles" | "durationMs" | "changedKeys"> = {},
+    counts: Pick<IndexDiagnosticEntry, "added" | "removed" | "modified" | "completedMarkdownFiles" | "durationMs" | "changedKeys" | "centerCheck"> = {},
   ): void {
     this.indexDiagnostics = sanitizeIndexDiagnostics([...this.indexDiagnostics, { at: Date.now(), stage, reason, ...counts }]);
     const entries = this.getIndexDiagnostics();

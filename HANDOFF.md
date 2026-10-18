@@ -19,57 +19,41 @@ Obsidian is the production host; preserve the established portable semantic, ide
 
 ---
 
-# PR #177 appearance checkpoint and stationary-startup follow-up
+# PR177 stationary-center recovery checkpoint
 
-Branch2026-10-17-navigation-and-native-drag; parent a9e5a8620afdd2ba772b6483d1f1c3a2afaa21cc.
-Regular validated commits/pushes authorized; PR177 remains draft, Closes157/Refs175.
-No merge/release/personal vault. No comparative performance tests (HandBrake).
-Native/browser drivers serial, prepared kplex-test-small only; foreground permitted.
+Main validation agent; branch2026-10-17-navigation-and-native-drag.
+Parent5fe9c802cd19f219e3731fadd8e057d5678300ac. Commit/push authorized; PR stays
+DRAFT, no merge/release. No personal vault. Small only. No comparative performance
+tests (HandBrake). All native/browser lanes serial; no driver currently running.
 
-Appearance checkpoint is validated: shared native searchable color-source chooser
-with existing Light/Dark swatches for theme/current custom variables and named
-pairs; existing node-style border-width/gate-radius controls, all eight locales,
-exact/inherited source/legacy records and field-level merge. No production indexing
-change in this checkpoint. Full verify1792321482318 PASS Node22.22.2: architecture7/
-core130/lint/Node1048/UI135/source334/browser602, actual build/native smoke.
-Native color28 (1792322740105), style15 (1792322777292) and focused single-Plex
-Properties-closed/open Save+restart2each (1792322856204/1792322867808) PASS.
-Sanity1792322883091 restores107 files/88Markdown, exact config, no controllers/
-modals, desktop, opening CLI capture false. No driver currently running.
-Artifacts: main32704b03fb222562073caccf1722c713dbc266403ad5d3cd694e586426619d7a,
-CSS9664241e9e87f357ebfa57fcfe5477a5b8f592db4e4bbbb53f65db680dd6a7c0,
+Delivered: real React App subscription catch-up (2-to7 child reproduction), finite
+3s initial-center watchdog plus at most one source-ready follow-up, existing
+foreground owners and exact demand/file/source/policy/window fences. Existing
+20-entry diagnostic storage/export owners retain path-free aggregate outcomes;
+latest2 non-healthy center entries protected. No full build/new scheduler/schema,
+note/snapshot writes or source-validation relaxation. Read docs/INDEXING_DIAGNOSTICS.md
+and docs/validation/navigation-and-native-drag-2026-10-18.md for scope/limits.
+
+Full verify1792324807460 PASS Node22.22.2: architecture7/core130/lint/Node1049/UI140/
+source334/browser607, actual build/native smoke. Native styles15(1792326297211),
+foreground live-updates(1792326304258), support24(1792326309024), focused Properties
+closed4(1792326331855)/open4(1792326286964,1792326259257) PASS. Actual native timer
+restores deliberately incomplete frame's Parent0-to1 without navigation during
+recovery. Final driver/architecture27 PASS. Sanity1792326341858:107files/88Markdown,
+exact artifacts/config, no controllers/dialogs, desktop, original CLI capture false.
+Mainbb5126d3d4a0aa17b0365740b73a2ef7009b7f460047cc7e4b27fd568bd0ee23;
+CSS9664241e9e87f357ebfa57fcfe5477a5b8f592db4e4bbbb53f65db680dd6a7c0;
 manifest19d9ecce5557733e0ff0f2e27155e635c30158c3cfa6fbca0f11c16e4dedfd2c.
-Build carries a9e5a86.dirty; runtime source unchanged after full validation.
+Build5fe9c80.dirty; runtime unchanged after full verification.
 
-Commit/push this validated checkpoint, preserve verified private evidence/source
-backup outside Temp without publishing/deleting originals, update PR description.
-Existing prior backup1792320576325 remains; HANDOFF must never be archived.
+IMPORTANT OPEN: two Properties-open controls passed Save but timed out waiting
+for fixture Parent before reload (1792326132804/1792326213319). Closing Settings
+did not explain it. Later passes with no runtime change do not erase these failures.
+Driver captures fixture-only failure facts now. No freeze reproduced. Full Obsidian
+process restart/affected-vault case, macOS/minimum host and physical devices remain
+manual acceptance. Do not claim all startup causes fixed or recommend merge from
+these positive controls alone. Preserve Closes157/Refs175 and earlier PR limitations.
 
-LATEST USER: current build still starts with few central children and remains
-stationary/incomplete until away/back. They explicitly authorize a pragmatic
-watchdog that rechecks the visible center after a few seconds, repairs incomplete
-coverage and records diagnostics in the existing index diagnostics report.
-Root has acknowledged: bounded, current-center-scoped, lifecycle-owned; record
-before/after proof/outcome, cancel on navigation/close, no full-vault rebuild or
-polling loop. Preserve appearance as a separate commit. Continue causal investigation
-of restore-to-visible-demand/publication race in disposable fixtures only.
-
-Existing positive cases do NOT fix/reproduce either startup symptom or style Save
-freeze. Four held-source-authority/demand-before-after/offline-Parent/policy cases
-now pass in foreground-startup-indexeddb. Native source trace in styleOperations
-reference-only mode is test-only and records function names, no note payload.
-The failed first source-count guard crossed fixture startup; waiting local drain
-passes0 acquisitions during Save. Supplied diagnostic attachment reports Eager,
-non-authoritative saved-preview/source-authority, demanded center1 and no active
-local scope task; no color-induced semantic cause is established. Its device field
-says macos; current native validation is Windows. User confirms only one Plex,
-Properties perhaps open. Do not infer a new source format/reader-sharing design.
-
-Relevant owners: GraphIndex.acquireSemanticDemand/ensureOnDemandCenter/
-ensureSemanticScope/publishHostMetadataPreview/retryDemandedSemanticScopes;
-PlexGraph's demand effect and memoized neighborhood; App's index/presentation
-subscriptions and pending-document handover; existing index diagnostic decision
-contracts/sanitization/export. Inspect completion proofs before choosing a bounded
-retry. Keep source authority/epoch/identity and no-write safeguards.
-
-Remaining platform/workflow gaps stay in feature report. C14 accepted/paused.
+Finish checkpoint commit/push, verified private backup outside Temp (include
+kplex-center-* logs; HANDOFF excluded), then update PR/report with exact saved head
+and evidence manifest. Originals/prior backups remain, no raw publication.

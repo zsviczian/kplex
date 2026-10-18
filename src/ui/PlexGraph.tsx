@@ -24,6 +24,8 @@ import {COMPASS_DIRECTIONS, COMPASS_COLOR_VARIABLES, COMPASS_SEMANTIC_SLOTS, com
 import {colorValueCss, semanticColorCss} from "../adapters/obsidian/colorPresentation";
 import type {MotionPose} from "./components/motionPose";
 import { ColorScope } from "../adapters/obsidian/colorScope";
+import {centerRelationCounts} from "../core/contracts/centerRecovery";
+import {startCenterWatchdog} from "./components/centerWatchdog";
 import { appearanceColorReferences, STYLE_SETTINGS_KEYS } from "../core/contracts/appearance";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ChangeEvent, type CSSProperties, type DragEvent, type MouseEvent, type PointerEvent, type RefObject } from "react";
 import { createPlexContextMenu } from "./plexContextMenu";
@@ -806,6 +808,9 @@ export function PlexGraph({ plugin, index, settings: viewSettings, paintSettings
   // pointer/camera/hover state updates; only rebuild it when navigation, settings, or the index
   // actually changes. This removes the largest source of wasted work in dense Plex scenes.
   const persistentNeighborhood = useMemo(() => index.getNeighborhood(activePath), [index, activePath, renderRevision, semanticRevision]);
+  const recoveryNeighborhood = useRef(persistentNeighborhood), recoveryCenter = useRef(activePath);
+  const initialCenterChecked = useRef(false);
+  recoveryNeighborhood.current = persistentNeighborhood; recoveryCenter.current = activePath;
   const centralEditorCapable = Boolean(
     supportsCentralEditorFile(persistentNeighborhood?.center)
     || (persistentNeighborhood?.center.url && urlEmbed(persistentNeighborhood.center.url)),
@@ -997,6 +1002,36 @@ export function PlexGraph({ plugin, index, settings: viewSettings, paintSettings
     };
   }, [plugin, index, visualPageByPath, settings.thumbnailProperty, settings.nodeImageProperty, settings.attachmentImageDisplay, settings.allowRemoteNodeImages]);
   const viewport = useRef<HTMLDivElement | null>(null);
+  useEffect(/** Check the initial stationary center, with no timer reset on ordinary graph progress. */ () => {
+    if (initialCenterChecked.current) return;
+    const element = viewport.current, owner = element?.ownerDocument, view = owner?.defaultView;
+    if (!element || !owner || !view) return;
+    let alive = true, releaseWatch: (() => void) | null = null;
+    const visible = (): boolean => alive && !owner.hidden && element.ownerDocument === owner
+      && recoveryCenter.current === activePath && plugin.isKplexLeafVisible(hostLeaf);
+    /** Hidden/replaced surfaces never acquire repair work; a still-unchecked reveal gets a fresh delay. */
+    const reconcile = (): void => {
+      if (!visible()) {releaseWatch?.(); releaseWatch = null; return;}
+      if (releaseWatch || initialCenterChecked.current) return;
+      releaseWatch = startCenterWatchdog({
+        schedule: (run, delay) => {const timer = view.setTimeout(run, delay); return () => view.clearTimeout(timer);},
+        sourceReady: () => index.isCenterRecoverySourceReady(),
+        subscribe: changed => index.subscribePresentation(changed),
+        check: async (trigger, isCurrent) => {
+          if (!isCurrent() || !visible()) return true;
+          initialCenterChecked.current = true;
+          return index.recheckVisibleCenter(activePath, centerRelationCounts(recoveryNeighborhood.current), trigger, () => isCurrent() && visible());
+        },
+      });
+    };
+    const releaseVisibility = plugin.subscribeKplexVisibility(reconcile);
+    const closed = (): void => {alive = false; releaseWatch?.(); releaseWatch = null;};
+    owner.addEventListener("visibilitychange", reconcile); view.addEventListener("pagehide", closed, {once: true});
+    reconcile();
+    return /** Release the exact owning document, timer, readiness subscription and view generation. */ () => {
+      closed(); releaseVisibility(); owner.removeEventListener("visibilitychange", reconcile); view.removeEventListener("pagehide", closed);
+    };
+  }, [plugin, index, hostLeaf, activePath]);
   const cameraElement = useRef<HTMLDivElement | null>(null);
   const centralEditorOverlayElement = useRef<HTMLDivElement | null>(null);
   const compassElement = useRef<SVGSVGElement | null>(null);

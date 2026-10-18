@@ -426,3 +426,76 @@ for(const policy of [false,true])for(const order of ['before','after'])test('sta
   })()`),true);
  }finally{await browser.cleanup()}
 });
+
+
+test('center watchdog repaints a canonical stationary view without semantic/source/snapshot work and keeps its receipt',async()=>{
+ const browser=await chromiumHarness(bundle);try{
+  assert.equal(await browser.evaluate(contributorBrowserInitialize),true);assert.equal(await browser.evaluate(initialize),true);
+  assert.equal(await browser.evaluate(`(async()=>{
+   const M=sourceModules,{f,settings}=await startupSeed('center-watchdog-current');let index,release;
+   try{
+    index=new M.GraphIndex({app:f.app,settings,getIndexSourceRevision:()=>0},f.app);index.scheduleOrphanCleanup=()=>{};
+    release=index.acquireSemanticDemand('A.md');ok((await index.restorePersistedSnapshot(['A.md'])).restored,'Actual warm restore');await index.waitForSnapshotHydration();await index.adoptStartupSources();await index.ensureSemanticScope('A.md');
+    ok(index.hasCurrentCanonicalCenter('A.md'),'Current complete center proof');const before=index.getSemanticRevision();let acquisitions=0,reads=0,snapshots=0,presentations=0;
+    const acquire=index.sourceAcquisition.acquire.bind(index.sourceAcquisition);index.sourceAcquisition.acquire=(...args)=>{acquisitions++;return acquire(...args)};
+    const read=f.app.vault.read.bind(f.app.vault);f.app.vault.read=(...args)=>{reads++;return read(...args)};
+    const write=index.indexedDb.writeSnapshot.bind(index.indexedDb);index.indexedDb.writeSnapshot=(...args)=>{snapshots++;return write(...args)};
+    const stop=index.subscribePresentation(()=>presentations++);
+    ok(await index.recheckVisibleCenter('A.md',[0,0,0,0,0],'initial',()=>true),'Watchdog reads current canonical coverage');stop();
+    equal([acquisitions,reads,snapshots,index.getSemanticRevision()-before],[0,0,0,0],'Repaint is presentation-only');equal(presentations,1,'Exactly one corrective notification');
+    const receipt=index.getIndexDiagnostics().find(item=>item.reason==='center-watchdog:repainted');ok(receipt,'Repair is shareable');equal(receipt.centerCheck.before[0],1,'Available Parent count');equal(receipt.centerCheck.presented[0],0,'Stale rendered Parent count');equal(receipt.centerCheck.coverageAfter,'canonical','Coverage is explicit');
+    for(let i=0;i<40;i++)index.noteBuildDecision('per-file-patch','fixture',i);
+    equal(index.getIndexDiagnostics().length,20,'Diagnostic ring stays bounded');ok(index.getIndexDiagnostics().some(item=>item.reason==='center-watchdog:repainted'),'Background traffic cannot erase the latest useful receipt');await index.diagnosticWriteTask;
+    ok((await f.cache.readIndexDiagnostics()).some(item=>item.reason==='center-watchdog:repainted'),'Receipt uses existing durable diagnostics');return true;
+   }finally{release?.();index?.destroy();f.close()}
+  })()`),true);
+ }finally{await browser.cleanup()}
+});
+
+test('center watchdog refreshes late host relationships while global source authority is held',async()=>{
+ const browser=await chromiumHarness(bundle);try{
+  assert.equal(await browser.evaluate(contributorBrowserInitialize),true);assert.equal(await browser.evaluate(initialize),true);
+  assert.equal(await browser.evaluate(`(async()=>{
+   const M=sourceModules,{f,settings}=await startupSeed('center-watchdog-pending');let index,release,unblock;
+   try{
+    settings.hierarchy={...settings.hierarchy,rightFriends:['Changed challenger policy']};
+    const gate=new Promise(resolve=>unblock=resolve);index=new M.GraphIndex({app:f.app,settings,getIndexSourceRevision:()=>0},f.app);index.scheduleOrphanCleanup=()=>{};
+    const reconcile=index.sourceAcquisition.reconcile.bind(index.sourceAcquisition);index.sourceAcquisition.reconcile=async(...args)=>{await gate;return reconcile(...args)};
+    release=index.acquireSemanticDemand('A.md');ok((await deadline(index.restorePersistedSnapshot(['A.md']),'preview')).restored,'Saved preview');
+    await deadline((async()=>{while(index.onDemandTasks.size)await Promise.all([...index.onDemandTasks.values()])})(),'initial center');
+    const visible=index.getNeighborhood('A.md'),presented=[visible.parents.length,visible.children.length,visible.leftFriends.length,visible.rightFriends.length,visible.siblings.length];
+    equal(visible.parents.map(node=>node.page.path),['B.md'],'Initial stationary view');
+    // Model a late host cache observation whose normal foreground notification was missed.
+    f.metadata.get('A.md').frontmatter.Parent='[[C]]';f.app.metadataCache.resolvedLinks['A.md']={'C.md':1};f.files.get('A.md').stat.mtime++;
+    let builds=0;index.rebuild=async()=>{builds++;throw Error('Watchdog requested a full build')};
+    const complete=await deadline(index.recheckVisibleCenter('A.md',presented,'initial',()=>true),'bounded local watchdog');
+    equal(complete,false,'Local paint is not global authority');equal(builds,0,'No full build');equal(index.getNeighborhood('A.md').parents.map(node=>node.page.path),['C.md'],'Same center updates from current host metadata without navigation');
+    ok(!index.isSemanticWriteReady('A.md','C.md'),'Watchdog does not weaken write proof');const receipt=index.getIndexDiagnostics().filter(item=>item.centerCheck).at(-1);equal(receipt.centerCheck.sourceReadyBefore,false,'Held source closure recorded');ok(receipt.centerCheck.coverageAfter!=='canonical','Local repair is not represented as complete');equal(receipt.centerCheck.outcome,'repaired','Changed role counts recorded');
+    unblock();await deadline(index.waitForSnapshotHydration(),'hydration');await deadline(index.adoptStartupSources(),'source closure');await deadline(index.ensureSemanticScope('A.md'),'canonical center');ok(await index.recheckVisibleCenter('A.md',presented,'source-ready',()=>true),'Single readiness follow-up');equal(index.getNeighborhood('A.md').parents.map(node=>node.page.path),['C.md'],'Canonical result preserved');return true;
+   }finally{unblock?.();release?.();index?.destroy();f.close()}
+  })()`),true);
+ }finally{await browser.cleanup()}
+});
+
+for(const cancellation of ['navigation','same-stat-source-revision','file-replacement'])test('center watchdog rejects stale repair completion after '+cancellation,async()=>{
+ const browser=await chromiumHarness(bundle);try{
+  assert.equal(await browser.evaluate(contributorBrowserInitialize),true);assert.equal(await browser.evaluate(initialize),true);
+  assert.equal(await browser.evaluate(`(async()=>{
+   const M=sourceModules,{f,settings}=await startupSeed('center-watchdog-fence-${cancellation}');let index,release,unblock,finish;
+   try{
+    let source=0,owns=true,entered;settings.hierarchy={...settings.hierarchy,rightFriends:['Changed challenger policy']};
+    const sourceGate=new Promise(resolve=>unblock=resolve);index=new M.GraphIndex({app:f.app,settings,getIndexSourceRevision:()=>source},f.app);index.scheduleOrphanCleanup=()=>{};
+    const reconcile=index.sourceAcquisition.reconcile.bind(index.sourceAcquisition);index.sourceAcquisition.reconcile=async(...args)=>{await sourceGate;return reconcile(...args)};
+    release=index.acquireSemanticDemand('A.md');await index.restorePersistedSnapshot(['A.md']);while(index.onDemandTasks.size)await Promise.all([...index.onDemandTasks.values()]);
+    const reached=new Promise(resolve=>entered=resolve),gate=new Promise(resolve=>finish=resolve),preview=index.publishHostMetadataPreview.bind(index);
+    index.publishHostMetadataPreview=async(...args)=>{await preview(...args);entered();await gate};
+    const task=index.recheckVisibleCenter('A.md',[0,0,0,0,0],'initial',()=>owns);await deadline(reached,'held preview');
+    if('${cancellation}'==='navigation')owns=false;
+    if('${cancellation}'==='same-stat-source-revision')source++;
+    if('${cancellation}'==='file-replacement')f.files.set('A.md',Object.assign(Object.create(Object.getPrototypeOf(f.files.get('A.md'))),f.files.get('A.md')));
+    let notifications=0;const stop=index.subscribePresentation(()=>notifications++);finish();await deadline(task,'retired repair');stop();
+    equal(notifications,0,'Retired continuation does not repaint or acquire its next scope');equal(index.getIndexDiagnostics().filter(row=>row.centerCheck).at(-1).centerCheck.outcome,'cancelled','Exact stale lifetime is diagnosed');return true;
+   }finally{finish?.();unblock?.();release?.();index?.destroy();f.close()}
+  })()`),true);
+ }finally{await browser.cleanup()}
+});

@@ -423,6 +423,7 @@ for (const file of [
   "src/core/graph/settingsPolicy.ts",
   "src/core/contracts/appearance.ts",
   "src/core/contracts/colorValue.ts",
+  "src/core/contracts/centerRecovery.ts",
   "src/core/plex/colorPreferences.ts",
   "src/core/plex/compassBackground.ts",
   "src/core/plex/colorEditing.ts",

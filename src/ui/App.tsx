@@ -438,41 +438,49 @@ export function KplexApp({ plugin, surface, hostLeaf, translate, environment, on
 
   useEffect(subscribePendingFileExplorerDrop, [subscribePendingFileExplorerDrop]);
 
-  useEffect(/** Publications settle a pending native identity before any visible scene catches up. */ () => plugin.index.subscribe(/** Keep rename identity and latest native-follow intent coherent with this publication. */ () => {
-    activatePendingDocumentFollow();
-    // A TFile keeps its object identity while Obsidian renames or moves it. Track the central file
-    // by that identity and adopt its new path only after the rebuilt index has published it. This
-    // prevents the center from briefly/finally falling back to folder:/ when its filename changes.
-    const trackedFile = activeFileRef.current;
-    const currentPage = plugin.index.get(activePathRef.current);
-    const trackedPage = activePageRef.current;
-    // A centered ghost has no native file to track until materialization mutates that exact
-    // accepted page. Follow only its identity remap; replacement objects and other Plex centers
-    // cannot authorize navigation, history changes or document synchronization on this surface.
-    if (!trackedFile && !currentPage && trackedPage?.file && trackedPage.path !== activePathRef.current
-      && plugin.index.get(trackedPage.path) === trackedPage
-      && plugin.app.vault.getFileByPath(trackedPage.file.path) === trackedPage.file) {
-      activePathRef.current = trackedPage.path;
-      activeFileRef.current = trackedPage.file;
-      setActivePath(trackedPage.path);
-    }
-    if (trackedFile && trackedFile.path === activePathRef.current && !plugin.index.get(trackedFile.path)
-      && plugin.isManagedCreatedFile(trackedFile) && plugin.app.vault.getFileByPath(trackedFile.path) === trackedFile) {
-      // A full index build can have started before this note was created. If that stale snapshot
-      // publishes after the user has already selected the optimistic node, immediately reinsert the
-      // known TFile instead of allowing the center to fall back to the previous history entry.
-      plugin.index.insertCreatedFile(trackedFile);
-      return;
-    }
-    if (trackedFile && trackedFile.path !== activePathRef.current && plugin.index.get(trackedFile.path)) {
-      activePathRef.current = trackedFile.path;
-      setActivePath(trackedFile.path);
-    }
-    activePageRef.current = plugin.index.get(activePathRef.current) ?? activePageRef.current;
-    // Hidden tabs/sidebars stay mounted in Obsidian. Do not run the graph React tree for a shared
-    // index publication unless this surface is actually visible; it catches up on reveal.
-    if (plugin.isKplexLeafVisible(hostLeaf)) forceRender((value) => value + 1);
-  }), [plugin, hostLeaf, activatePendingDocumentFollow]);
+  useEffect(/** Publications settle a pending native identity before any visible scene catches up. */ () => {
+    /** Keep rename identity and latest native-follow intent coherent with this publication. */
+    const refresh = () => {
+      activatePendingDocumentFollow();
+      // A TFile keeps its object identity while Obsidian renames or moves it. Track the central file
+      // by that identity and adopt its new path only after the rebuilt index has published it. This
+      // prevents the center from briefly/finally falling back to folder:/ when its filename changes.
+      const trackedFile = activeFileRef.current;
+      const currentPage = plugin.index.get(activePathRef.current);
+      const trackedPage = activePageRef.current;
+      // A centered ghost has no native file to track until materialization mutates that exact
+      // accepted page. Follow only its identity remap; replacement objects and other Plex centers
+      // cannot authorize navigation, history changes or document synchronization on this surface.
+      if (!trackedFile && !currentPage && trackedPage?.file && trackedPage.path !== activePathRef.current
+        && plugin.index.get(trackedPage.path) === trackedPage
+        && plugin.app.vault.getFileByPath(trackedPage.file.path) === trackedPage.file) {
+        activePathRef.current = trackedPage.path;
+        activeFileRef.current = trackedPage.file;
+        setActivePath(trackedPage.path);
+      }
+      if (trackedFile && trackedFile.path === activePathRef.current && !plugin.index.get(trackedFile.path)
+        && plugin.isManagedCreatedFile(trackedFile) && plugin.app.vault.getFileByPath(trackedFile.path) === trackedFile) {
+        // A full index build can have started before this note was created. If that stale snapshot
+        // publishes after the user has already selected the optimistic node, immediately reinsert the
+        // known TFile instead of allowing the center to fall back to the previous history entry.
+        plugin.index.insertCreatedFile(trackedFile);
+        return;
+      }
+      if (trackedFile && trackedFile.path !== activePathRef.current && plugin.index.get(trackedFile.path)) {
+        activePathRef.current = trackedFile.path;
+        setActivePath(trackedFile.path);
+      }
+      activePageRef.current = plugin.index.get(activePathRef.current) ?? activePageRef.current;
+      // Hidden tabs/sidebars stay mounted in Obsidian. Do not run the graph React tree for a shared
+      // index publication unless this surface is actually visible; it catches up on reveal.
+      if (plugin.isKplexLeafVisible(hostLeaf)) forceRender((value) => value + 1);
+    };
+    const release = plugin.index.subscribe(refresh);
+    // A child's demand/layout effect can publish after render but before App's effects attach.
+    // Catch that settled snapshot now, without reacquiring sources or waiting for another event.
+    refresh();
+    return release;
+  }, [plugin, hostLeaf, activatePendingDocumentFollow]);
   useEffect(/** Host previews publish through presentation; settle the owned native intent without refreshing semantics. */ () => plugin.index.subscribePresentation(/** Adopt a newly readable exact center, then repaint only visible surfaces. */ (event) => {
     if (event.kind === "paint") {
       if (plugin.isKplexLeafVisible(hostLeaf)) forcePaint(value => value + 1);

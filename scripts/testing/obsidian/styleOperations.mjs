@@ -533,13 +533,38 @@ function start(referenceOnly = false, referenceProperties = false) {
         check(style.strokeWidth===3&&style.gateRadius===8&&durable.strokeWidth===3&&durable.gateRadius===8,'Native dimensions not persisted');
         await until(()=>{const center=[...document.querySelectorAll('.kplex-role-center')].find(el=>el.dataset.kplexPath===path);return center&&getComputedStyle(center).borderWidth==='3px'&&center.style.getPropertyValue('--kplex-gate-size')==='8.4px'},'Native dimension paint absent');
         passed('actual Settings Node styles Border h1 reference child draft and parent Save',{source:expected,dimensions,counts:{writes:c.counts.writes-before.writes,presentations:c.counts.presentations-before.presentations,semantics:c.counts.semantics-before.semantics,acquisitions:c.counts.acquisitions-before.acquisitions},properties:referenceProperties,testOwnedHeadingToken:c.testHeadingToken,context:'Actual Visual styling / Node styling subpages'});
+        app.setting.close();c.ownsSettings=false;
         await until(()=>p.index.getNeighborhood(path)?.parents.some(node=>node.page.path===parentPath),'Parent fixture did not reconcile');
-        await app.plugins.disablePlugin('k-plex');await app.plugins.enablePlugin('k-plex');const reloaded=app.plugins.plugins['k-plex'];
+        const restartAt=Date.now();await app.plugins.disablePlugin('k-plex');await app.plugins.enablePlugin('k-plex');const reloaded=app.plugins.plugins['k-plex'];
         await reloaded.activateView();
         await until(()=>[...document.querySelectorAll('.kplex-role-center')].some(el=>el.dataset.kplexPath===path),'Restart did not restore stationary center');
         await until(()=>[...document.querySelectorAll('.kplex-role-parent')].some(el=>el.dataset.kplexPath===parentPath),'Restart did not complete stationary Parent without navigation');
         check(reloaded.settings.noteTypeStyles[key]?.strokeWidth===3&&reloaded.settings.noteTypeStyles[key]?.gateRadius===8&&reloaded.settings.noteTypeStyles[key]?.borderColor?.variable===heading,'Native reload lost reference or sizes');
         passed('native plugin restart restores stationary central relationship and saved reference/dimensions without history navigation',{properties:referenceProperties,scope:'Small disposable vault; normal startup, not a long-validation timing comparison'});
+        await until(()=>reloaded.index.getIndexDiagnostics().some(row=>row.at>=restartAt&&row.centerCheck?.trigger==='initial'&&row.centerCheck.outcome!=='checking'),'Actual visible-center watchdog timer did not leave a diagnostic');
+        const receipt=reloaded.index.getIndexDiagnostics().filter(row=>row.at>=restartAt&&row.centerCheck?.trigger==='initial'&&row.centerCheck.outcome!=='checking').at(-1);
+        check(!['failed','cancelled'].includes(receipt.centerCheck.outcome),'Native watchdog did not finish against the live initial center');
+        check(receipt.centerCheck.after[0]===reloaded.index.getNeighborhood(path).parents.length,'Watchdog did not observe stationary Parent coverage');
+        passed('actual initial-center watchdog timer records a bounded shareable receipt after native restart',{properties:referenceProperties,receipt});
+        await until(()=>reloaded.getIndexStatus().upToDate&&!reloaded.index.hasActiveSemanticPreparation(),'Recovery fixture did not drain');
+        const getter=reloaded.index.getNeighborhood.bind(reloaded.index),openingLeaves=new Set(app.workspace.getLeavesOfType('k-plex-react-view')),repairAt=Date.now();
+        // Present one deliberately incomplete frame, then restore the real reader without a notification.
+        // The actual new surface's timer must discover the missed presentation by itself.
+        reloaded.index.getNeighborhood=(target,...args)=>{const value=getter(target,...args);return target===path&&value?{...value,parents:[]}:value};
+        let recoveryLeaf;
+        try{
+          await reloaded.createPlexTab();recoveryLeaf=app.workspace.getLeavesOfType('k-plex-react-view').find(leaf=>!openingLeaves.has(leaf));check(recoveryLeaf,'Recovery tab missing');
+          await recoveryLeaf.view.waitUntilReady();reloaded.notifyNavigation(path);
+          await until(()=>[...recoveryLeaf.view.containerEl.querySelectorAll('.kplex-role-center')].some(el=>el.dataset.kplexPath===path),'Recovery center missing');
+          await until(()=>!reloaded.index.onDemandTasks.size&&!reloaded.index.hasActiveSemanticPreparation(),'New-tab demand did not drain');await wait(100);
+          check(!recoveryLeaf.view.containerEl.querySelector('.kplex-role-parent'),'Incomplete-frame control did not reproduce');
+          check(!reloaded.index.getIndexDiagnostics().some(row=>row.at>=repairAt&&row.centerCheck),'Initial timer ran before the incomplete-frame setup finished');
+        }finally{reloaded.index.getNeighborhood=getter}
+        await until(()=>reloaded.index.getIndexDiagnostics().some(row=>row.at>=repairAt&&row.reason==='center-watchdog:repainted'),'Timer did not diagnose the missing presentation');
+        await until(()=>[...recoveryLeaf.view.containerEl.querySelectorAll('.kplex-role-parent')].some(el=>el.dataset.kplexPath===parentPath),'Actual watchdog did not restore stationary Parent');
+        const repaired=reloaded.index.getIndexDiagnostics().find(row=>row.at>=repairAt&&row.reason==='center-watchdog:repainted');
+        check(repaired.centerCheck.presented[0]===0&&repaired.centerCheck.after[0]>=1,'Native repair receipt lacks before/after evidence');
+        recoveryLeaf.detach();passed('actual new-tab watchdog repairs a missed stationary presentation without navigation',{properties:referenceProperties,receipt:repaired,control:'Temporary getNeighborhood presentation wrapper; real index and timer unchanged'});
         c.result={status:'passed',cases:c.cases,counts:c.counts,events:c.events};return;
       }
       for (const type of ["k-plex-react-view", "k-plex-sidepanel-view"])
@@ -955,6 +980,14 @@ function start(referenceOnly = false, referenceProperties = false) {
       };
     } catch (error) {
       c.error = String(error);
+      if(referenceOnly&&c.fixtureFile){
+        const live=app.plugins.plugins['k-plex'],path=c.fixtureFile.path,neighborhood=live?.index.getNeighborhood(path);
+        c.failureObservation={fixtureMetadata:app.metadataCache.getFileCache(c.fixtureFile)?.frontmatter,
+          resolvedTargets:Object.keys(app.metadataCache.resolvedLinks[path]??{}),filePresent:app.vault.getFileByPath(path)===c.fixtureFile,
+          parents:neighborhood?.parents.map(item=>item.page.path),children:neighborhood?.children.map(item=>item.page.path),
+          centerFile:neighborhood?.center.file?.path,demanded:live?.index.semanticDemandCounts.get(path)??0,
+          diagnostics:live?.index.getIndexDiagnostics(),visibleCenters:[...document.querySelectorAll('.kplex-role-center')].map(el=>el.dataset.kplexPath)};
+      }
     } finally {
       if (!c.cleaned) {
         try {
@@ -989,7 +1022,7 @@ try {
   while (true) {
     await pause(100);
     const state = evaluate(
-      "JSON.stringify((()=>{const c=window.__kplex146Styles;return {done:c?.done,error:c?.error,cleanupError:c?.cleanupError,cleaned:c?.cleaned,result:c?.result,submitted:c?.submitted,counts:c?.counts,events:c?.events,cases:c?.cases,noViewBefore:c?.noViewBefore,readFacts:c?.readFacts}})())"
+      "JSON.stringify((()=>{const c=window.__kplex146Styles;return {done:c?.done,error:c?.error,cleanupError:c?.cleanupError,cleaned:c?.cleaned,result:c?.result,submitted:c?.submitted,counts:c?.counts,events:c?.events,cases:c?.cases,noViewBefore:c?.noViewBefore,readFacts:c?.readFacts,failureObservation:c?.failureObservation}})())"
     );
     if (state.done) {
       Object.assign(report, state);
