@@ -1,17 +1,23 @@
-/** Serial native foreground smoke using only owned fixtures in the explicit disposable small vault. */
+/** Serial native foreground smoke with optional live-update cases; owns target/hash/report/config guards for disposable fixtures. */
 import { spawnNativeSync as spawnSync, obsidianCliExecutable } from "./processTools.mjs";
-import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
+import { readFileSync, writeFileSync, mkdirSync, existsSync, readdirSync } from 'node:fs';
 import { createHash } from 'node:crypto';
 import { join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { validateTarget } from './runner.mjs';
+import { runLiveUpdatesForeground } from './foregroundLiveUpdates.mjs';
+const scenario = process.env.KPLEX_FOREGROUND_SCENARIO ?? 'inventory';
+if (!['inventory', 'live-updates'].includes(scenario)) throw Error('Use inventory or live-updates foreground scenario');
 const root = resolve(fileURLToPath(new URL('../../..', import.meta.url))), vaultName = process.env.KPLEX_TEST_VAULT_NAME;
+if (scenario === 'live-updates' && vaultName !== 'kplex-test-small') throw Error('Live updates require the explicitly selected disposable small vault');
 const target = validateTarget({ vaultName, vaultPath: process.env.KPLEX_TEST_VAULT_PATH, configDir: process.env.KPLEX_TEST_CONFIG_DIR });
 const out = process.env.KPLEX_HOST_REPORT_DIR;
 if (!out)
     throw Error('Set KPLEX_HOST_REPORT_DIR explicitly');
+if (scenario === 'live-updates' && existsSync(out) && readdirSync(out).length) throw Error('Live updates require a fresh report directory');
 mkdirSync(out, { recursive: true });
 const data = readFileSync(join(target.pluginDir, 'data.json')), enabled = readFileSync(join(target.config, 'community-plugins.json'));
+const workspace = scenario === 'live-updates' ? readFileSync(join(target.config, 'workspace.json')) : null;
 const report = { status: 'running', startedAt: new Date().toISOString(), artifacts: {}, limitations: ['Desktop native API/DOM smoke, controlled acquisition pause outside transactions; no trusted pointer or physical mobile timing claim'] };
 /** Execute one serial native command with the established deadline and fail closed on eval errors. */
 const cli = (name, ...args) => { const r = spawnSync(obsidianCliExecutable(), [`vault=${vaultName}`, name, ...args], { encoding: 'utf8', timeout: 30000, killSignal: 'SIGKILL', maxBuffer: 4 * 1024 * 1024 }); if (r.error || r.status !== 0 || /^Error:/m.test(r.stdout))
@@ -30,6 +36,16 @@ try {
         if (report.artifacts[name] !== hash(join(target.pluginDir, name)))
             throw Error('Installed build mismatch');
     }
+    if (scenario === 'live-updates') {
+        report.scenario = scenario;
+        const source = readFileSync(new URL('./foregroundLiveUpdates.mjs', import.meta.url));
+        report.scenarioSourceSha256 = createHash('sha256').update(source).digest('hex');
+        report.driverSha256 = createHash('sha256').update(readFileSync(import.meta.filename)).digest('hex');
+        report.resourceProbeSha256 = createHash('sha256').update(readFileSync(new URL('./startupResources.mjs', import.meta.url))).digest('hex');
+        writeFileSync(join(out, 'foregroundLiveUpdates.mjs'), source);
+        writeFileSync(join(out, 'foreground.mjs'), readFileSync(import.meta.filename));
+        report.result = await runLiveUpdatesForeground({ cli, evaluate, wait, report, vaultName, composer: process.env.KPLEX_FOREGROUND_COMPOSER === '1', progress: () => writeFileSync(join(out, 'report.json'), JSON.stringify(report, null, 2)) });
+    } else {
     evaluate(`(()=>{if(window.__kplexForegroundTest)throw Error('Controller exists');const p=app.plugins.plugins['k-plex'],remote=require('@electron/remote'),w=remote.getCurrentWindow();remote.app.show?.();remote.app.focus({steal:true});w.show();w.moveTop();w.focus();const c=window.__kplexForegroundTest={p,originalSettings:JSON.parse(JSON.stringify(p.settings)),folder:'Kplex-Foreground-Regression',owned:[],scenarios:[],pairTrace:[],done:false};c.timer=window.setTimeout(()=>{c.task=(async()=>{
  const delay=ms=>new Promise(r=>window.setTimeout(r,ms)),check=(v,m)=>{if(!v)throw Error(m)},until=async(fn,m,ms=15000)=>{const end=Date.now()+ms;while(!fn()){check(!c.cancelled,'Controller cancelled');if(Date.now()>end)throw Error(m);await delay(25)}};
  const timed=async(id,work)=>{check(!c.cancelled,'Controller cancelled');const start=performance.now();await work();check(!c.cancelled,'Controller cancelled');c.scenarios.push({id,elapsedMs:performance.now()-start,backgroundHeld:c.held===true})};
@@ -53,7 +69,10 @@ try {
  Object.assign(p.settings,{documentSyncMode:'off',followActiveFile:false,autoOpenCentralDocument:false,embedCentralNode:false,lastActivePath:c.a.path,renderSiblings:false,showFolderNodes:true,showPageNodes:true,showAttachments:true,showNeighborCount:true,maxItemCount:100,excludeFilepaths:[]});
  p.settings.hierarchy={...p.settings.hierarchy,parents:['Parent'],leftFriends:['Friend']};p.index.invalidateSemanticPolicy();
  for(const f of [c.a,c.b,c.d])p.index.insertCreatedFile(f);
- await p.index.publishHostMetadataPreview(c.a.path);await p.activateView();p.notifyNavigation(c.a.path);
+ await p.index.publishHostMetadataPreview(c.a.path);await p.activateView();
+ // Native reveal can precede React's navigation subscription; use the existing surface readiness owner.
+ const fixtureHost=['k-plex-react-view','k-plex-sidepanel-view'].flatMap(type=>app.workspace.getLeavesOfType(type)).find(leaf=>p.isKplexLeafVisible(leaf));
+ check(fixtureHost,'Visible fixture surface missing');await fixtureHost.view.waitUntilReady();p.notifyNavigation(c.a.path);
  await until(()=>[...document.querySelectorAll('.kplex-role-center')].some(el=>el.dataset.kplexPath===c.a.path),'Initial fixture DOM');
  await until(()=>!p.index.pendingStructuralTasks&&p.index.getWorkPriorityDiagnostics().active.slice(0,3).every(count=>count===0),'Fixture foreground setup work settled');
  const s=p.index.sourceAcquisition;c.source=s;c.originalCheckpoint=s.backgroundCheckpoint;
@@ -87,6 +106,7 @@ try {
         }
         if (Date.now() > end)
             throw Error('Native foreground smoke deadline');
+    }
     }
     report.status = 'passed';
 }
@@ -127,6 +147,11 @@ finally {
     }
     try {
         writeFileSync(join(target.pluginDir, 'data.json'), data);
+        if (workspace) {
+            writeFileSync(join(target.config, 'workspace.json'), workspace);
+            writeFileSync(join(target.config, 'community-plugins.json'), enabled);
+            if (!readFileSync(join(target.config, 'workspace.json')).equals(workspace) || !readFileSync(join(target.pluginDir, 'data.json')).equals(data)) throw Error('Live-update configuration bytes differ');
+        }
         if (!readFileSync(join(target.config, 'community-plugins.json')).equals(enabled)) throw Error('Enabled list changed');
         report.configurationRestored = true;
     } catch (error) {

@@ -1,13 +1,21 @@
-/** Production-method SI0/SI1/SI2 regressions using the indexing harness's host/cache doubles. */
+/**
+ * Production-method SI0/SI1/SI2 regressions using finite host/cache doubles. Each scenario retires
+ * its own indexes; narrow cached-presentation work counts pause unrelated broad inventory because
+ * this persistence double cannot certify a durable source inventory. Explicit acquisition remains
+ * observed. Real IndexedDB suites own source/authority concurrency and background integration.
+ */
 import assert from "node:assert/strict";
 
 export async function runSettingsIndependence(c) {
   const { GraphIndex, GraphBuilder, KplexPlugin, settingsModule, policy, sanitize, app, settings,
     index, warmRecord, caches, obsidianTestApi, canonicalGraph, computeIndexSettingsSignature } = c;
   let cases = 0;
+  /** Retire each scenario's owners before another scenario mutates shared native file doubles. */
   async function scenario(name, run) {
+    const firstOwner = alive.length;
     try { await run(); cases++; }
     catch (error) { console.error(`Settings independence scenario failed: ${name}`); error.message = `Settings independence ${name}: ${error.message}`; throw error; }
+    finally { for (const idx of alive.splice(firstOwner)) {idx.plugin.savedSettingsRefresh?.close();idx.destroy();assert.equal(idx.diagnosticsClosed,true,"Scenario owner retired");} }
   }
   const legacy = (overrides = {}) => JSON.stringify({ schema: 1, hierarchy: settings.hierarchy,
     inferAllLinksAsFriends: settings.inferAllLinksAsFriends, inverseInfer: settings.inverseInfer,
@@ -47,12 +55,21 @@ export async function runSettingsIndependence(c) {
     alive.push(idx);
     return p;
   }
+  /** Complete cached graph setup, then join paused broad work before a caller installs any hold. */
   async function restore(p, seeds = ["Note A.md"]) {
     await p.index.restoreIndexedDbSnapshot(seeds);
-    return p.index.waitForSnapshotHydration();
+    const result = await p.index.waitForSnapshotHydration();
+    p.index.sourceAcquisition.pauseInventory();
+    if (p.index.sourceAcquisition.inventory) await p.index.sourceAcquisition.inventory;
+    return result;
   }
   /** Count actual semantic entry points and body acquisition, not only coordinator intentions. */
   async function zeroSemanticWork(p, run) {
+    // A direct mtime fault must exercise presentation's native revision fence, not wake a broad
+    // source repair on this cache double. Retire/join its existing pass before installing spies;
+    // explicit reads/acquire/patch/rebuild remain unconditionally counted during the operation.
+    const inventoryEnabled = p.index.sourceAcquisition.pauseInventory();
+    if (p.index.sourceAcquisition.inventory) await p.index.sourceAcquisition.inventory;
     const calls = { rebuild: 0, progressive: 0, patch: 0, builderPatch: 0, read: 0, cachedRead: 0, pluginRebuild: 0, parse: 0, acquire: 0 };
     const restores = [];
     for (const [object, method, key] of [
@@ -67,8 +84,12 @@ export async function runSettingsIndependence(c) {
       restores.push(() => { object[method] = original; });
     }
     try { await run(); assert.deepEqual(calls, { rebuild: 0, progressive: 0, patch: 0, builderPatch: 0, read: 0, cachedRead: 0, pluginRebuild: 0, parse: 0, acquire: 0 }); }
-    finally { restores.reverse().forEach((undo) => undo()); }
+    finally { restores.reverse().forEach((undo) => undo()); p.index.sourceAcquisition.resumeInventory(inventoryEnabled); }
   }
+  // The shared compatibility index outlives these cases. Preserve its enabled state, while its
+  // unrelated background pass cannot consume the temporary file facts of a scenario's owner.
+  const baselineInventoryEnabled = index.sourceAcquisition.pauseInventory();
+  if (index.sourceAcquisition.inventory) await index.sourceAcquisition.inventory;
   try {
     await scenario("immutable classifier and signature-only semantics", async () => {
       const original = structuredClone(settings), before = policy.captureSettingsPolicy(original);
@@ -312,6 +333,9 @@ export async function runSettingsIndependence(c) {
           if (mode === "mtime-change") file.stat.mtime++;
           else app.vault.getFileByPath = (path) => path === file.path ? null : getFile.call(app.vault, path);
           release(); await refresh;
+          // Keep the physical fault beyond the real 350 ms inventory-admission timer. The
+          // strict assertion must stay deterministic even when the host yields to other tasks.
+          await new Promise(resolve => setTimeout(resolve, 450));
           assert.equal(page.noteType, knownType);
           assert.equal(p.index.getPresentationStatus(page).noteType, "pending");
         });
@@ -339,6 +363,6 @@ export async function runSettingsIndependence(c) {
       release(); await first;
       assert.equal(page.noteType, mode === "unload" ? oldType : "fixture");
     });
-  } finally { alive.forEach((idx) => idx.destroy()); }
+  } finally { alive.forEach((idx) => idx.destroy()); index.sourceAcquisition.resumeInventory(baselineInventoryEnabled); }
   console.log(`Settings independence: ${cases} production scenarios passed (signatures, controls/managers/import, restore, zero-work, privacy, lifetime).`);
 }

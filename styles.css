@@ -1,11 +1,5 @@
-/* Canvas, toolbar and detached Sidecar controls share one palette and interaction contract. */
-.kplex-app,
-.kplex-sidecar-unfold-plex {
-  --kplex-text: #e9f1fb;
-  --kplex-control-bg: rgba(12,17,23,.78);
-  --kplex-control-hover: rgba(255,255,255,.11);
-  --kplex-control-border: rgba(255,255,255,.09);
-}
+/* Native theme fallbacks are consumed at each surface. Public K-Plex variables are deliberately
+   not declared on view roots: body and view-local theme/snippet overrides must both inherit. */
 
 .kplex-view-host,
 .kplex-view-host > div,
@@ -18,21 +12,8 @@
 
 .kplex-app {
   position: relative;
-  --kplex-panel: rgba(15, 19, 25, 0.96);
-  --kplex-panel-2: rgba(25, 31, 40, 0.96);
-  --kplex-line: rgba(255, 255, 255, 0.10);
-  --kplex-muted: rgba(222, 231, 243, 0.56);
-  --kplex-accent: #74b6ff;
-  /* Host-owned values for migrated action controls. Keep the current dark Plex palette until
-     the broader shell is themed; the component itself remains independent of Obsidian CSS. */
-  --kplex-action-fg: var(--kplex-text);
-  --kplex-action-bg: var(--kplex-control-bg);
-  --kplex-action-bg-hover: var(--kplex-control-hover);
-  --kplex-action-border: var(--kplex-control-border);
-  --kplex-action-focus: var(--interactive-accent);
-  --kplex-action-disabled-opacity: .28;
-  color: var(--kplex-text);
-  background: #0d1219;
+  color: var(--kplex-text, var(--text-normal));
+  background: var(--kplex-panel, var(--background-primary));
   font-family: var(--font-interface);
   overflow: hidden;
 }
@@ -50,9 +31,9 @@
   align-items: center;
   gap: 7px;
   padding: 0 10px;
-  background: linear-gradient(180deg, rgba(24, 30, 39, .98), rgba(14, 18, 24, .98));
-  border-bottom: 1px solid var(--kplex-line);
-  box-shadow: 0 5px 18px rgba(0,0,0,.24);
+  background: var(--kplex-panel-2, var(--background-secondary));
+  border-bottom: 1px solid var(--kplex-line, var(--background-modifier-border));
+  box-shadow: var(--shadow-s);
 }
 
 .kplex-brand {
@@ -73,7 +54,7 @@
   flex: 0 0 9px;
   padding: 0;
   border-radius: 50%;
-  border: 1px solid rgba(255,255,255,.28);
+  border: 1px solid var(--background-modifier-border);
   cursor: pointer;
 }
 
@@ -94,7 +75,7 @@
   height: 9px;
   min-width: 9px;
   padding: 0;
-  border: 1px solid rgba(255,255,255,.28);
+  border: 1px solid var(--background-modifier-border);
   border-radius: 50%;
 }
 
@@ -105,14 +86,14 @@
 
 .kplex-index-status.is-ready,
 .kplex-topbar button.kplex-index-status.is-ready {
-  background: #45c86f;
-  box-shadow: 0 0 7px rgba(69,200,111,.72);
+  background: var(--color-green);
+  box-shadow: var(--shadow-s);
 }
 
 .kplex-index-status.is-updating,
 .kplex-topbar button.kplex-index-status.is-updating {
-  background: #ff4d4d;
-  box-shadow: 0 0 8px rgba(255,77,77,.78);
+  background: var(--color-red);
+  box-shadow: var(--shadow-s);
   animation: kplex-index-status-blink 1s ease-in-out infinite;
 }
 
@@ -168,14 +149,15 @@
 }
 
 .kplex-brand-mark {
-  color: #f0aa43;
+  color: var(--interactive-accent);
   font-size: 20px;
-  text-shadow: 0 0 16px rgba(240,170,67,.55);
+  text-shadow: none;
 }
 
 .kplex-topbar button,
 .kplex-content-actions button,
 .kplex-find button,
+button.kplex-footprints-trigger,
 button.kplex-layout-toggle,
 button.kplex-zone-filter-button,
 .kplex-sidecar-controls button,
@@ -183,9 +165,9 @@ button.kplex-sidecar-unfold-plex,
 .kplex-central-editor-toolbar button,
 .kplex-zoom-controls button,
 .kplex-wander-controls button {
-  color: var(--kplex-text);
-  background: var(--kplex-control-bg);
-  border: 1px solid var(--kplex-control-border);
+  color: var(--kplex-text, var(--text-normal));
+  background: var(--kplex-control-bg, var(--interactive-normal));
+  border: 1px solid var(--kplex-control-border, var(--background-modifier-border));
   border-radius: 7px;
   height: 28px;
   padding: 0 9px;
@@ -199,24 +181,25 @@ button.kplex-sidecar-unfold-plex,
 .kplex-topbar button:hover,
 .kplex-content-actions button:hover,
 .kplex-find button:hover,
+button.kplex-footprints-trigger:hover,
 button.kplex-layout-toggle:hover,
 button.kplex-zone-filter-button:hover,
 .kplex-sidecar-controls button:hover,
 button.kplex-sidecar-unfold-plex:hover,
 .kplex-central-editor-toolbar button:hover,
 .kplex-zoom-controls button:hover,
-.kplex-wander-controls button:hover { background: var(--kplex-control-hover); }
+.kplex-wander-controls button:hover { background: var(--kplex-control-hover, var(--interactive-hover)); }
 
 .kplex-topbar button:disabled { opacity: .28; cursor: default; }
 .kplex-topbar .kplex-action-button {
-  color: var(--kplex-action-fg);
-  background: var(--kplex-action-bg);
-  border-color: var(--kplex-action-border);
+  color: var(--kplex-action-fg, var(--text-normal));
+  background: var(--kplex-action-bg, var(--interactive-normal));
+  border-color: var(--kplex-action-border, var(--background-modifier-border));
 }
-.kplex-topbar .kplex-action-button:hover { background: var(--kplex-action-bg-hover); }
-.kplex-topbar .kplex-action-button:disabled { opacity: var(--kplex-action-disabled-opacity); }
+.kplex-topbar .kplex-action-button:hover { background: var(--kplex-action-bg-hover, var(--interactive-hover)); }
+.kplex-topbar .kplex-action-button:disabled { opacity: var(--kplex-action-disabled-opacity, var(--disabled-opacity, .5)); }
 .kplex-topbar .kplex-action-button:focus-visible {
-  outline: 2px solid var(--kplex-action-focus);
+  outline: 2px solid var(--kplex-action-focus, var(--interactive-accent));
   outline-offset: 2px;
 }
 .kplex-view-host .kplex-icon-button { width: 30px; padding: 0; font-size: 17px; }
@@ -224,28 +207,28 @@ button.kplex-sidecar-unfold-plex:hover,
 .kplex-top-actions .kplex-auto-open { width: 32px; padding: 0; }
 
 .kplex-search-shell { position: relative; flex: 1; max-width: 520px; min-width: 100px; }
-.kplex-search-icon { position: absolute; left: 10px; top: 5px; color: var(--kplex-muted); font-size: 18px; pointer-events: none; }
+.kplex-search-icon { position: absolute; left: 10px; top: 5px; color: var(--kplex-muted, var(--text-muted)); font-size: 18px; pointer-events: none; }
 .kplex-view-host .kplex-search {
   width: 100%;
   height: 30px;
   padding: 0 12px 0 33px;
-  color: var(--kplex-text);
-  background: rgba(0,0,0,.30);
-  border: 1px solid rgba(255,255,255,.10);
+  color: var(--kplex-text, var(--text-normal));
+  background: var(--background-secondary);
+  border: 1px solid var(--background-modifier-border);
   border-radius: 8px;
-  box-shadow: inset 0 1px 4px rgba(0,0,0,.22);
+  box-shadow: var(--shadow-s);
 }
-.kplex-view-host .kplex-search:focus { border-color: rgba(116,182,255,.48); box-shadow: 0 0 0 2px rgba(70,145,226,.14); }
+.kplex-view-host .kplex-search:focus { border-color: var(--interactive-accent); box-shadow: 0 0 0 1px var(--interactive-accent); }
 .kplex-search-results {
   position: absolute;
   z-index: 60;
   box-sizing: border-box;
   overflow: auto;
   overscroll-behavior: contain;
-  border: 1px solid rgba(255,255,255,.12);
-  background: rgba(18,23,31,.99);
+  border: 1px solid var(--background-modifier-border);
+  background: var(--background-secondary);
   border-radius: 9px;
-  box-shadow: 0 18px 50px rgba(0,0,0,.48);
+  box-shadow: var(--shadow-s);
   padding: 6px;
 }
 .kplex-search-result {
@@ -256,13 +239,23 @@ button.kplex-sidecar-unfold-plex:hover,
   gap: 18px;
   text-align: left;
   border: 0;
-  color: var(--kplex-text);
+  color: var(--kplex-text, var(--text-normal));
   background: transparent;
   border-radius: 6px;
   padding: 8px 10px;
   cursor: pointer;
 }
-.kplex-search-result:hover { background: rgba(116,182,255,.10); }
+.kplex-search-result:hover { background: var(--background-modifier-hover); }
+.kplex-search-result.has-prefix {
+  grid-template-columns: 16px minmax(0, .9fr) minmax(0, 1.1fr);
+  gap: 10px;
+}
+.kplex-search-result-prefix {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-muted);
+}
 .kplex-search-result > span,
 .kplex-search-result small {
   min-width: 0;
@@ -270,7 +263,24 @@ button.kplex-sidecar-unfold-plex:hover,
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.kplex-search-result small { color: var(--kplex-muted); text-align: right; }
+.kplex-search-result small { color: var(--kplex-muted, var(--text-muted)); text-align: right; }
+.kplex-create-folder-row { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.kplex-create-folder-caption { color: var(--text-muted); font-size: var(--font-ui-small); flex: none; }
+.kplex-create-folder-row .kplex-folder-path-input { flex: 1; min-width: 0; }
+.kplex-materialize-folder-input { width: 100%; min-width: 0; }
+.kplex-materialize-folder-input .kplex-folder-path-input { width: 100%; max-width: none; min-width: 0; }
+.kplex-materialize-folder-row { gap: 8px; }
+.kplex-materialize-folder-row .setting-item-info { flex: none; margin: 0; }
+.kplex-materialize-folder-row .setting-item-name { color: var(--text-muted); font-size: var(--font-ui-small); }
+.kplex-materialize-folder-row .setting-item-control { flex: 1; min-width: 0; }
+.kplex-folder-path-results .kplex-search-result { display: block; height: auto; }
+.kplex-folder-path-results .kplex-search-result > span {
+  display: block;
+  overflow: visible;
+  text-overflow: clip;
+  white-space: normal;
+  overflow-wrap: break-word;
+}
 
 .kplex-workspace { min-height: 0; display: flex; }
 .kplex-graph-area { position: relative; min-width: 0; min-height: 0; flex: 1; overflow: hidden; }
@@ -281,17 +291,18 @@ button.kplex-sidecar-unfold-plex:hover,
   position: absolute;
   inset: 0;
   pointer-events: none;
-  background: radial-gradient(circle at 50% 48%, rgba(108,170,225,.12), transparent 34%), linear-gradient(180deg, rgba(255,255,255,.018), transparent 24%, rgba(0,0,0,.12));
+  background: none;
 }
 .kplex-camera { position: absolute; width: 0; height: 0; transform-origin: 0 0; will-change: transform; }
 .kplex-links { position: absolute; left: -1600px; top: -1200px; overflow: visible; pointer-events: none; z-index: 4; }
 .kplex-nodes { position: absolute; left: 0; top: 0; z-index: 8; }
 .kplex-edge { transition: opacity .11s ease, filter .11s ease; }
-.kplex-edge-visible { pointer-events: none; filter: drop-shadow(0 1px 1px rgba(0,0,0,.55)); transition: opacity .11s ease, filter .11s ease; }
+.kplex-edge-visible { pointer-events: none; filter: none; transition: opacity .11s ease, filter .11s ease; }
 .kplex-edge-hit { pointer-events: stroke; cursor: pointer; }
-.kplex-edge.is-highlighted .kplex-edge-visible { filter: drop-shadow(0 0 4px rgba(190,226,255,.8)) drop-shadow(0 1px 1px rgba(0,0,0,.55)); }
+.kplex-edge.is-hover-peek .kplex-edge-hit { pointer-events: none; }
+.kplex-edge.is-highlighted .kplex-edge-visible { filter: none; }
 .kplex-edge.is-dimmed { opacity: .16; }
-.kplex-edge-label { pointer-events: none; paint-order: stroke; stroke: rgba(0,0,0,.72); stroke-width: 3px; stroke-linejoin: round; }
+.kplex-edge-label { pointer-events: none; paint-order: stroke; stroke: var(--kplex-link-label-background, var(--background-primary)); stroke-width: 3px; stroke-linejoin: round; }
 
 .kplex-zone-label {
   position: absolute;
@@ -299,7 +310,7 @@ button.kplex-sidecar-unfold-plex:hover,
   pointer-events: none;
   font-size: 9px;
   letter-spacing: .18em;
-  color: rgba(230,240,255,.25);
+  color: var(--text-faint);
   font-weight: 700;
 }
 .zone-parent { top: 12px; left: 50%; transform: translateX(-50%); }
@@ -318,14 +329,14 @@ button.kplex-sidecar-unfold-plex:hover,
   box-sizing: border-box;
   text-align: center;
   line-height: 1.08;
-  box-shadow: 0 4px 14px rgba(0,0,0,.32), inset 0 1px 0 rgba(255,255,255,.075);
+  box-shadow: var(--kplex-node-shadow, var(--shadow-s));
   cursor: pointer;
   transition: filter .11s ease, box-shadow .11s ease, opacity .11s ease;
 }
 .kplex-thought:hover { filter: brightness(1.12); z-index: 12; }
-.kplex-thought.is-highlighted { filter: brightness(1.22); box-shadow: 0 0 0 1px rgba(184,222,255,.66), 0 0 18px rgba(112,184,255,.32), 0 5px 18px rgba(0,0,0,.36); z-index: 13; }
+.kplex-thought.is-highlighted { filter: brightness(1.22); box-shadow: 0 0 0 2px var(--interactive-accent), var(--shadow-s); z-index: 13; }
 .kplex-thought.is-dimmed { opacity: .24; filter: saturate(.55) brightness(.72); }
-.kplex-thought.is-selected { box-shadow: 0 0 0 2px rgba(255,255,255,.55), 0 0 34px rgba(112,184,255,.28), 0 8px 24px rgba(0,0,0,.42); }
+.kplex-thought.is-selected { box-shadow: 0 0 0 2px var(--interactive-accent), var(--shadow-s); }
 /* Legacy clipping preserves accessible region names and announcements without newer clip-path. */
 .kplex-keyboard-announcement,
 .kplex-accessible-name {
@@ -337,7 +348,7 @@ button.kplex-sidecar-unfold-plex:hover,
   white-space: nowrap;
 }
 .kplex-hotkey-setting .setting-item-control { flex-wrap: wrap; }
-.kplex-thought.is-selected.is-highlighted { box-shadow: 0 0 0 2px rgba(255,255,255,.72), 0 0 34px rgba(112,184,255,.42), 0 8px 24px rgba(0,0,0,.42); }
+.kplex-thought.is-selected.is-highlighted { box-shadow: 0 0 0 2px var(--interactive-accent), var(--shadow-s); }
 .kplex-role-center { font-weight: 650; z-index: 14; padding: 8px 13px; }
 .kplex-role-sibling { opacity: .86; }
 .kplex-role-sibling.is-dimmed { opacity: .22; }
@@ -355,20 +366,20 @@ button.kplex-sidecar-unfold-plex:hover,
   padding: 0;
   border: 1px solid transparent;
   border-radius: 4px;
-  color: var(--kplex-muted);
-  background: rgba(13, 18, 25, .36);
+  color: var(--kplex-muted, var(--text-muted));
+  background: var(--background-secondary);
   cursor: pointer;
   opacity: .76;
 }
 .kplex-thought-corner-action:hover,
 .kplex-thought-corner-action:focus-visible {
-  color: var(--kplex-text);
-  border-color: var(--kplex-line);
-  background: rgba(255, 255, 255, .10);
+  color: var(--kplex-text, var(--text-normal));
+  border-color: var(--kplex-line, var(--background-modifier-border));
+  background: var(--background-modifier-hover);
   opacity: 1;
 }
 .kplex-thought-corner-action:focus-visible {
-  outline: 1px solid var(--kplex-accent);
+  outline: 1px solid var(--kplex-accent, var(--interactive-accent));
   outline-offset: 1px;
 }
 .kplex-count {
@@ -380,9 +391,9 @@ button.kplex-sidecar-unfold-plex:hover,
   justify-content: center;
   border-radius: 9px;
   font-size: 9px;
-  color: rgba(255,255,255,.78);
-  background: rgba(0,0,0,.30);
-  border: 1px solid rgba(255,255,255,.15);
+  color: var(--text-muted);
+  background: var(--background-secondary);
+  border: 1px solid var(--background-modifier-border);
 }
 .kplex-role-center .kplex-count { min-width: 19px; height: 19px; border-radius: 10px; font-size: 10px; }
 .kplex-gate-wrap {
@@ -404,9 +415,9 @@ button.kplex-sidecar-unfold-plex:hover,
   box-sizing: border-box;
   border-radius: 50%;
   background: transparent;
-  border: 1.25px solid var(--kplex-gate-stroke, rgba(226,239,255,.84));
+  border: 1.25px solid var(--kplex-gate-stroke, var(--background-modifier-border));
   opacity: .82;
-  box-shadow: 0 0 5px rgba(190,222,255,.22);
+  box-shadow: var(--shadow-s);
   pointer-events: auto;
   cursor: crosshair;
   transition: opacity .1s ease, box-shadow .1s ease, background .1s ease;
@@ -417,22 +428,22 @@ button.kplex-sidecar-unfold-plex:hover,
   inset: -5px;
   border-radius: 50%;
 }
-.kplex-gate.has-connections { background: var(--kplex-gate-fill, rgba(226,239,255,.84)); }
+.kplex-gate.has-connections { background: var(--kplex-gate-fill, var(--interactive-accent)); }
 .kplex-gate.is-empty { background: transparent; }
 .kplex-gate.is-link-disabled { cursor: default; opacity: .56; }
 .kplex-gate.is-link-disabled::after { display: none; }
 .kplex-gate:hover,
-.kplex-gate.is-highlighted { opacity: 1; box-shadow: 0 0 0 2px rgba(139,205,255,.30), 0 0 9px rgba(162,216,255,.72); }
+.kplex-gate.is-highlighted { opacity: 1; box-shadow: 0 0 0 2px var(--interactive-accent); }
 .kplex-gate-count {
   position: absolute;
   z-index: 20;
   pointer-events: none;
   min-width: 12px;
-  color: rgba(239,247,255,.9);
+  color: var(--text-normal);
   font-size: 8px;
   font-weight: 650;
   line-height: 1;
-  text-shadow: 0 1px 3px rgba(0,0,0,.9);
+  text-shadow: none;
 }
 .gate-wrap-top .kplex-gate-count { left: calc(100% + 4px); top: 50%; transform: translateY(-50%); text-align: left; }
 .gate-wrap-bottom .kplex-gate-count { left: calc(100% + 4px); top: 50%; transform: translateY(-50%); text-align: left; }
@@ -445,14 +456,14 @@ button.kplex-sidecar-unfold-plex:hover,
   overflow-y: auto;
   overflow-x: hidden;
   scrollbar-width: thin;
-  scrollbar-color: rgba(170,205,235,.35) transparent;
+  scrollbar-color: var(--scrollbar-thumb-bg) transparent;
   overscroll-behavior: contain;
   border-radius: 10px;
-  background: linear-gradient(90deg, transparent, rgba(5,18,30,.08));
+  background: transparent;
 }
 .kplex-sibling-scroll::-webkit-scrollbar { width: 7px; }
 .kplex-sibling-scroll::-webkit-scrollbar-track { background: transparent; }
-.kplex-sibling-scroll::-webkit-scrollbar-thumb { background: rgba(170,205,235,.32); border-radius: 8px; }
+.kplex-sibling-scroll::-webkit-scrollbar-thumb { background: var(--background-modifier-hover); border-radius: 8px; }
 .kplex-sibling-content { position: relative; width: 100%; min-height: 100%; }
 
 .kplex-zoom-controls { position: absolute; z-index: 20; right: 12px; bottom: 12px; display: flex; gap: 5px; }
@@ -471,28 +482,28 @@ button.kplex-sidecar-unfold-plex,
   min-height: 0;
   display: flex;
   flex-direction: column;
-  background: linear-gradient(180deg, rgba(24,29,37,.99), rgba(15,19,25,.99));
-  border-left: 1px solid var(--kplex-line);
-  box-shadow: -12px 0 36px rgba(0,0,0,.22);
+  background: var(--background-secondary);
+  border-left: 1px solid var(--kplex-line, var(--background-modifier-border));
+  box-shadow: var(--shadow-s);
   z-index: 24;
 }
-.kplex-content-header { padding: 18px 22px 14px; border-bottom: 1px solid var(--kplex-line); }
-.kplex-content-kicker { font-size: 9px; letter-spacing: .16em; color: #79baff; font-weight: 700; margin-bottom: 6px; }
-.kplex-content-header h2 { margin: 0 0 4px; font-size: 22px; color: var(--kplex-text); }
-.kplex-content-path { color: var(--kplex-muted); font-size: 11px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.kplex-content-header { padding: 18px 22px 14px; border-bottom: 1px solid var(--kplex-line, var(--background-modifier-border)); }
+.kplex-content-kicker { font-size: 9px; letter-spacing: .16em; color: var(--text-accent); font-weight: 700; margin-bottom: 6px; }
+.kplex-content-header h2 { margin: 0 0 4px; font-size: 22px; color: var(--kplex-text, var(--text-normal)); }
+.kplex-content-path { color: var(--kplex-muted, var(--text-muted)); font-size: 11px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .kplex-content-actions { display: flex; gap: 6px; margin-top: 12px; }
 .kplex-content-scroll { min-height: 0; overflow: auto; padding: 18px 22px 32px; }
 .kplex-markdown { color: var(--text-normal); }
 .kplex-markdown h1:first-child { margin-top: 0; }
-.kplex-loading { color: var(--kplex-muted); padding: 8px 0; }
-.kplex-special-content { padding: 28px 16px; text-align: center; border: 1px solid var(--kplex-line); border-radius: 10px; background: rgba(255,255,255,.025); }
+.kplex-loading { color: var(--kplex-muted, var(--text-muted)); padding: 8px 0; }
+.kplex-special-content { padding: 28px 16px; text-align: center; border: 1px solid var(--kplex-line, var(--background-modifier-border)); border-radius: 10px; background: var(--background-modifier-hover); }
 .kplex-special-icon { font-size: 34px; margin-bottom: 10px; }
-.kplex-mapped-links { margin-top: 28px; padding-top: 16px; border-top: 1px solid var(--kplex-line); }
-.kplex-mapped-links h3 { margin: 0 0 10px; font-size: 12px; text-transform: uppercase; letter-spacing: .09em; color: var(--kplex-muted); }
+.kplex-mapped-links { margin-top: 28px; padding-top: 16px; border-top: 1px solid var(--kplex-line, var(--background-modifier-border)); }
+.kplex-mapped-links h3 { margin: 0 0 10px; font-size: 12px; text-transform: uppercase; letter-spacing: .09em; color: var(--kplex-muted, var(--text-muted)); }
 .kplex-mapped-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 6px; }
-.kplex-mapped-list button { display: flex; justify-content: space-between; gap: 10px; color: var(--kplex-text); background: rgba(255,255,255,.035); border: 1px solid var(--kplex-line); border-radius: 6px; padding: 7px 8px; cursor: pointer; text-align: left; }
-.kplex-mapped-list button:hover { background: rgba(116,182,255,.08); }
-.kplex-mapped-list small { color: var(--kplex-muted); text-transform: uppercase; font-size: 8px; letter-spacing: .08em; }
+.kplex-mapped-list button { display: flex; justify-content: space-between; gap: 10px; color: var(--kplex-text, var(--text-normal)); background: var(--background-modifier-hover); border: 1px solid var(--kplex-line, var(--background-modifier-border)); border-radius: 6px; padding: 7px 8px; cursor: pointer; text-align: left; }
+.kplex-mapped-list button:hover { background: var(--background-modifier-hover); }
+.kplex-mapped-list small { color: var(--kplex-muted, var(--text-muted)); text-transform: uppercase; font-size: 8px; letter-spacing: .08em; }
 
 .kplex-history-bar {
   z-index: 30;
@@ -508,6 +519,12 @@ button.kplex-sidecar-unfold-plex,
 .kplex-history-list { min-width: 0; display: flex; gap: 5px; overflow-x: auto; scrollbar-width: none; }
 .kplex-history-list::-webkit-scrollbar { display: none; }
 .kplex-history-list button { flex: 0 0 auto; width: 180px; max-width: 180px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-align: left; justify-content: flex-start; color: var(--text-normal); border: 1px solid var(--background-modifier-border); border-radius: 6px; background: var(--background-primary); padding: 5px 9px; cursor: pointer; font-size: 11px; }
+.kplex-history-list button { display: flex; align-items: center; gap: 5px; }
+.kplex-history-list button > .kplex-icon,
+.kplex-pinned-open > .kplex-icon { flex: 0 0 auto; }
+.kplex-action-picker-row { display: flex; align-items: center; gap: 8px; }
+.kplex-action-picker-row .suggestion-icon { flex: 0 0 auto; display: flex; }
+.kplex-action-picker-row .suggestion-content { min-width: 0; }
 /* A shrinking text box keeps overflowing history titles anchored to their first character,
    even when the host theme centers button contents with flexbox. */
 .kplex-history-text {
@@ -559,11 +576,11 @@ button.kplex-sidecar-unfold-plex,
 /* K-Plex Lucide icons */
 .kplex-icon { display: inline-flex; align-items: center; justify-content: center; line-height: 0; flex: 0 0 auto; }
 .kplex-icon svg { display: block; stroke: currentColor; }
-.kplex-brand-mark { color: #f0aa43; filter: drop-shadow(0 0 7px rgba(240,170,67,.42)); }
+.kplex-brand-mark { color: var(--interactive-accent); filter: none; }
 .kplex-node-icon { opacity: .88; margin-right: 4px; }
 .kplex-thought-label { display: inline-flex; align-items: center; justify-content: center; min-width: 0; }
 .kplex-thought-label > span:last-child { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.kplex-thought.is-dragging { cursor: grabbing; z-index: 28; filter: brightness(1.16); box-shadow: 0 0 0 1px rgba(187,226,255,.75), 0 10px 28px rgba(0,0,0,.45); }
+.kplex-thought.is-dragging { cursor: grabbing; z-index: 28; filter: brightness(1.16); box-shadow: 0 0 0 2px var(--interactive-accent), var(--shadow-s); }
 .kplex-role-parent,
 .kplex-role-child,
 .kplex-role-left,
@@ -583,16 +600,16 @@ button.kplex-sidecar-unfold-plex,
 }
 .kplex-top-actions::-webkit-scrollbar { display: none; }
 .kplex-view-host .kplex-icon-button { display: inline-flex; align-items: center; justify-content: center; flex: 0 0 30px; }
-.kplex-toolbar-divider { width: 1px; height: 20px; flex: 0 0 1px; margin: 0 2px; background: rgba(255,255,255,.11); }
+.kplex-toolbar-divider { width: 1px; height: 20px; flex: 0 0 1px; margin: 0 2px; background: var(--background-modifier-hover); }
 .kplex-search-icon { display: flex; align-items: center; top: 7px; }
 
 /* Interactive relationship editing */
 .kplex-drag-connector {
   pointer-events: none;
-  stroke: var(--interactive-accent, #7ab8ff);
+  stroke: var(--interactive-accent);
   stroke-width: 2.2px;
   stroke-dasharray: 5 4;
-  filter: drop-shadow(0 0 5px rgba(130,196,255,.72));
+  filter: none;
 }
 .kplex-relation-popover {
   position: absolute;
@@ -601,10 +618,10 @@ button.kplex-sidecar-unfold-plex,
   max-width: calc(100% - 16px);
   padding: 10px;
   color: var(--text-normal);
-  background: var(--background-primary, #171c23);
-  border: 1px solid var(--background-modifier-border, rgba(255,255,255,.14));
+  background: var(--background-primary);
+  border: 1px solid var(--background-modifier-border, var(--background-modifier-border));
   border-radius: 10px;
-  box-shadow: 0 18px 54px rgba(0,0,0,.55);
+  box-shadow: var(--shadow-s);
   user-select: text;
   cursor: default;
 }
@@ -619,20 +636,20 @@ button.kplex-sidecar-unfold-plex,
   height: 28px;
   padding: 0;
   color: var(--text-normal);
-  border: 1px solid var(--background-modifier-border, rgba(255,255,255,.12));
+  border: 1px solid var(--background-modifier-border, var(--background-modifier-border));
   border-radius: 6px;
-  background: var(--background-secondary, rgba(255,255,255,.05));
+  background: var(--background-secondary, var(--background-modifier-hover));
   cursor: pointer;
 }
 .kplex-relation-label { display: block; margin: 9px 0 5px; color: var(--text-muted); font-size: 10px; font-weight: 650; text-transform: uppercase; letter-spacing: .06em; }
 .kplex-relation-search-wrap { display: flex; align-items: center; gap: 7px; padding: 0 8px; border: 1px solid var(--background-modifier-border); border-radius: 7px; background: var(--background-secondary); }
 .kplex-relation-modal .kplex-relation-search-wrap input { width: 100%; height: 30px; padding: 0; border: 0; box-shadow: none; background: transparent; }
-.kplex-relation-results { max-height: 210px; overflow-y: auto; margin-top: 6px; padding: 3px; border-radius: 7px; background: var(--background-secondary-alt, rgba(0,0,0,.12)); }
+.kplex-relation-results { max-height: 210px; overflow-y: auto; margin-top: 6px; padding: 3px; border-radius: 7px; background: var(--background-secondary-alt, var(--background-secondary)); }
 .kplex-relation-results button { width: 100%; display: grid; grid-template-columns: 18px minmax(80px, 1fr) minmax(80px, .9fr); align-items: center; gap: 6px; min-height: 30px; padding: 4px 7px; text-align: left; border: 0; border-radius: 5px; color: var(--text-normal); background: transparent; cursor: pointer; }
 .kplex-relation-results button:hover,
-.kplex-relation-results button.is-selected { background: var(--background-modifier-hover, rgba(120,170,225,.13)); }
+.kplex-relation-results button.is-selected { background: var(--background-modifier-hover, var(--background-modifier-hover)); }
 .kplex-relation-results button.is-selected {
-  box-shadow: inset 0 0 0 1px var(--interactive-accent, rgba(116,182,255,.72));
+  box-shadow: inset 2px 0 0 var(--interactive-accent);
 }
 .kplex-relation-file-name,
 .kplex-relation-results small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -728,9 +745,8 @@ button.kplex-sidecar-unfold-plex,
 }
 .kplex-toolbar-divider { align-self: center; }
 
-/* Direct manipulation for the configured relationship-area heights. Frames are transient and
-   theme-native: hovering empty area space reveals the dashed boundary; the draggable edge is
-   promoted to the accent color when the pointer reaches it. */
+/* Eligible hover reveals transient relationship-area boundaries; the modifier preference gates
+   normal pointer input. Explicit area settings retain all frames and keyboard height controls. */
 .kplex-area-frame {
   position: absolute;
   z-index: 14;
@@ -793,7 +809,8 @@ button.kplex-sidecar-unfold-plex,
   z-index: 16;
   overflow: visible;
   border-radius: 10px;
-  background: linear-gradient(90deg, rgba(5,18,30,.025), rgba(5,18,30,.10));
+  /* Connectors and the Compass decoration remain visible beneath overflowing rows. */
+  background: transparent;
 }
 /* An overflowing focused field must remain interactive above adjacent areas' node clips. */
 .kplex-zone-panel:focus-within { z-index: 17; }
@@ -805,11 +822,11 @@ button.kplex-sidecar-unfold-plex,
   overflow-x: hidden;
   overscroll-behavior: contain;
   scrollbar-width: thin;
-  scrollbar-color: rgba(170,205,235,.35) transparent;
+  scrollbar-color: var(--scrollbar-thumb-bg) transparent;
 }
 .kplex-zone-scroll::-webkit-scrollbar { width: 7px; }
 .kplex-zone-scroll::-webkit-scrollbar-track { background: transparent; }
-.kplex-zone-scroll::-webkit-scrollbar-thumb { background: rgba(170,205,235,.32); border-radius: 8px; }
+.kplex-zone-scroll::-webkit-scrollbar-thumb { background: var(--background-modifier-hover); border-radius: 8px; }
 .kplex-zone-content {
   position: relative;
   width: 100%;
@@ -835,9 +852,9 @@ button.kplex-sidecar-unfold-plex,
   height: 28px;
   padding: 0 7px;
   font-size: 10px;
-  border: 1px solid rgba(116,182,255,.36);
+  border: 1px solid var(--background-modifier-border);
   border-radius: 6px;
-  box-shadow: 0 3px 12px rgba(0,0,0,.34);
+  box-shadow: var(--shadow-s);
 }
 
 /* Gate-drag selection is intentionally inverted: only unavailable targets dim. */
@@ -849,12 +866,12 @@ button.kplex-sidecar-unfold-plex,
   opacity: 1;
 }
 .kplex-thought.is-connect-candidate:hover {
-  box-shadow: 0 0 0 1px rgba(124,194,255,.60), 0 0 18px rgba(83,164,235,.26), 0 5px 18px rgba(0,0,0,.34);
+  box-shadow: 0 0 0 2px var(--interactive-accent), var(--shadow-s);
 }
 .kplex-thought.is-connect-origin {
   opacity: 1;
   filter: brightness(1.16);
-  box-shadow: 0 0 0 1px rgba(163,216,255,.72), 0 0 20px rgba(94,178,247,.34), 0 6px 18px rgba(0,0,0,.36);
+  box-shadow: 0 0 0 2px var(--interactive-accent), var(--shadow-s);
 }
 
 /* Centered Obsidian relationship modal. */
@@ -966,9 +983,9 @@ button.kplex-sidecar-unfold-plex,
   align-items: center;
   justify-content: center;
   border-radius: 7px;
-  color: rgba(235,244,255,.78);
-  background: rgba(8,18,28,.76);
-  border: 1px solid rgba(255,255,255,.10);
+  color: var(--text-muted);
+  background: var(--background-secondary);
+  border: 1px solid var(--background-modifier-border);
   font-size: 8px;
   line-height: 1;
   font-weight: 700;
@@ -985,7 +1002,7 @@ button.kplex-sidecar-unfold-plex,
   gap: 12px;
   padding: 5px 7px 4px;
   border-radius: 8px;
-  background: rgba(7,17,27,.32);
+  background: var(--background-secondary);
   backdrop-filter: blur(2px);
 }
 .kplex-mini-slider {
@@ -993,7 +1010,7 @@ button.kplex-sidecar-unfold-plex,
   grid-template-rows: 15px 11px;
   justify-items: center;
   width: 104px;
-  color: rgba(238,246,255,.78);
+  color: var(--text-muted);
   font-size: 8px;
   line-height: 1;
   letter-spacing: .02em;
@@ -1035,7 +1052,7 @@ button.kplex-sidecar-unfold-plex,
 .kplex-mini-slider input[type="range"]::-webkit-slider-runnable-track {
   height: 2px;
   border-radius: 999px;
-  background: rgba(232,242,252,.40);
+  background: var(--background-modifier-border);
 }
 .kplex-mini-slider input[type="range"]::-webkit-slider-thumb {
   -webkit-appearance: none;
@@ -1043,24 +1060,24 @@ button.kplex-sidecar-unfold-plex,
   width: 9px;
   height: 9px;
   margin-top: -3.5px;
-  border: 1px solid rgba(255,255,255,.82);
+  border: 1px solid var(--background-modifier-border);
   border-radius: 50%;
-  background: rgba(247,251,255,.96);
-  box-shadow: 0 0 0 1px rgba(0,0,0,.22);
+  background: var(--interactive-accent);
+  box-shadow: 0 0 0 1px var(--background-modifier-border);
 }
 .kplex-mini-slider input[type="range"]::-moz-range-track {
   height: 2px;
   border: 0;
   border-radius: 999px;
-  background: rgba(232,242,252,.40);
+  background: var(--background-modifier-border);
 }
 .kplex-mini-slider input[type="range"]::-moz-range-thumb {
   width: 9px;
   height: 9px;
-  border: 1px solid rgba(255,255,255,.82);
+  border: 1px solid var(--background-modifier-border);
   border-radius: 50%;
-  background: rgba(247,251,255,.96);
-  box-shadow: 0 0 0 1px rgba(0,0,0,.22);
+  background: var(--interactive-accent);
+  box-shadow: 0 0 0 1px var(--background-modifier-border);
 }
 
 /* Expanded view: each first-level thought can expose a lightweight, scrollable 3x2 child strip. */
@@ -1076,12 +1093,12 @@ button.kplex-sidecar-unfold-plex,
   overflow: hidden;
   overscroll-behavior: contain;
   scrollbar-width: thin;
-  scrollbar-color: rgba(170,205,235,.28) transparent;
+  scrollbar-color: var(--scrollbar-thumb-bg) transparent;
 }
 .kplex-expanded-scroll.is-scrollable { overflow-y: auto; overflow-x: hidden; }
 .kplex-expanded-scroll::-webkit-scrollbar { width: 5px; }
 .kplex-expanded-scroll::-webkit-scrollbar-track { background: transparent; }
-.kplex-expanded-scroll::-webkit-scrollbar-thumb { background: rgba(170,205,235,.26); border-radius: 8px; }
+.kplex-expanded-scroll::-webkit-scrollbar-thumb { background: var(--background-modifier-hover); border-radius: 8px; }
 .kplex-expanded-content { position: relative; width: 100%; }
 .kplex-expanded-mini-thought {
   position: absolute;
@@ -1093,13 +1110,13 @@ button.kplex-sidecar-unfold-plex,
   gap: 3px;
   padding: 1px 4px;
   overflow: visible;
-  border: 1px solid rgba(255,255,255,.16);
+  border: 1px solid var(--background-modifier-border);
   border-radius: 6px;
-  color: rgba(235,244,255,.76);
+  color: var(--text-muted);
   font-size: 8px;
   line-height: 1;
   opacity: .70;
-  box-shadow: 0 2px 7px rgba(0,0,0,.22);
+  box-shadow: var(--shadow-s);
   cursor: pointer;
   transition: opacity .1s ease, filter .1s ease;
 }
@@ -1113,15 +1130,15 @@ button.kplex-sidecar-unfold-plex,
   width: 4px;
   height: 4px;
   transform: translate(-50%, -50%);
-  border: 1px solid rgba(226,239,255,.64);
+  border: 1px solid var(--background-modifier-border);
   border-radius: 50%;
-  background: rgba(226,239,255,.52);
+  background: var(--background-modifier-border);
   pointer-events: none;
 }
 .kplex-expanded-edge {
   pointer-events: none;
   opacity: .52;
-  filter: drop-shadow(0 1px 1px rgba(0,0,0,.38));
+  filter: none;
 }
 
 /* Interaction polish: navigable thoughts use a pointer; the Plex background remains pannable. */
@@ -1143,10 +1160,10 @@ button.kplex-sidecar-unfold-plex,
 .kplex-layout-controls {
   gap: 14px;
   padding: 6px 9px 5px;
-  border: 1px solid rgba(255,255,255,.055);
+  border: 1px solid var(--background-modifier-border);
   border-radius: 7px;
-  background: rgba(6,15,24,.42);
-  box-shadow: 0 4px 14px rgba(0,0,0,.14);
+  background: var(--background-secondary);
+  box-shadow: var(--shadow-s);
 }
 .kplex-mini-slider {
   grid-template-rows: 12px 10px;
@@ -1155,7 +1172,7 @@ button.kplex-sidecar-unfold-plex,
   font-size: 7px;
   letter-spacing: .08em;
   text-transform: uppercase;
-  color: rgba(230,240,250,.60);
+  color: var(--text-muted);
 }
 .kplex-plex .kplex-layout-controls .kplex-mini-slider input[type="range"] {
   -webkit-appearance: none;
@@ -1177,7 +1194,7 @@ button.kplex-sidecar-unfold-plex,
   height: 1px;
   border: 0;
   border-radius: 999px;
-  background: rgba(226,238,250,.44);
+  background: var(--background-modifier-border);
   box-shadow: none;
 }
 .kplex-plex .kplex-layout-controls .kplex-mini-slider input[type="range"]::-webkit-slider-thumb {
@@ -1189,26 +1206,26 @@ button.kplex-sidecar-unfold-plex,
   min-height: 7px;
   margin-top: -3px;
   padding: 0;
-  border: 1px solid rgba(255,255,255,.9);
+  border: 1px solid var(--background-primary);
   border-radius: 50%;
-  background: rgba(231,240,249,.96);
-  box-shadow: 0 0 0 1px rgba(3,10,18,.55);
+  background: var(--interactive-accent);
+  box-shadow: 0 0 0 1px var(--background-modifier-border);
 }
 .kplex-plex .kplex-layout-controls .kplex-mini-slider input[type="range"]::-moz-range-track {
   height: 1px;
   border: 0;
   border-radius: 999px;
-  background: rgba(226,238,250,.44);
+  background: var(--background-modifier-border);
   box-shadow: none;
 }
 .kplex-plex .kplex-layout-controls .kplex-mini-slider input[type="range"]::-moz-range-thumb {
   width: 7px;
   height: 7px;
   padding: 0;
-  border: 1px solid rgba(255,255,255,.9);
+  border: 1px solid var(--background-primary);
   border-radius: 50%;
-  background: rgba(231,240,249,.96);
-  box-shadow: 0 0 0 1px rgba(3,10,18,.55);
+  background: var(--interactive-accent);
+  box-shadow: 0 0 0 1px var(--background-modifier-border);
 }
 
 /* Performance/UI pass: tighter thought chrome and professional micro controls. */
@@ -1238,11 +1255,11 @@ button.kplex-sidecar-unfold-plex,
   grid-template-rows: 14px 12px;
   gap: 2px;
   box-sizing: border-box;
-  border: 1px solid rgba(255,255,255,.08);
+  border: 1px solid var(--background-modifier-border);
   border-radius: 7px;
-  background: rgba(7,16,25,.66);
-  box-shadow: 0 2px 8px rgba(0,0,0,.16);
-  color: rgba(232,241,250,.72);
+  background: var(--background-secondary);
+  box-shadow: var(--shadow-s);
+  color: var(--text-muted);
   cursor: default;
   user-select: none;
 }
@@ -1264,7 +1281,7 @@ button.kplex-sidecar-unfold-plex,
 .kplex-density-heading output {
   min-width: 24px;
   text-align: right;
-  color: rgba(242,247,252,.88);
+  color: var(--text-muted);
   font-variant-numeric: tabular-nums;
   letter-spacing: 0;
   text-transform: none;
@@ -1284,7 +1301,7 @@ button.kplex-sidecar-unfold-plex,
   top: 5px;
   height: 1px;
   border-radius: 999px;
-  background: rgba(214,228,241,.24);
+  background: var(--background-modifier-border);
 }
 .kplex-density-rail.is-stepped::after {
   content: "";
@@ -1294,7 +1311,7 @@ button.kplex-sidecar-unfold-plex,
   top: 3px;
   height: 5px;
   opacity: .28;
-  background: repeating-linear-gradient(to right, transparent 0 calc(14.285% - 1px), rgba(230,240,250,.65) calc(14.285% - 1px) 14.285%);
+  background: repeating-linear-gradient(to right, transparent 0 calc(14.285% - 1px), var(--background-modifier-border) calc(14.285% - 1px) 14.285%);
   pointer-events: none;
 }
 .kplex-density-fill {
@@ -1337,10 +1354,10 @@ button.kplex-sidecar-unfold-plex,
   min-height: 8px;
   margin-top: 2px;
   padding: 0;
-  border: 1px solid rgba(255,255,255,.8);
+  border: 1px solid var(--background-modifier-border);
   border-radius: 50%;
   background: var(--interactive-accent);
-  box-shadow: 0 0 0 2px rgba(7,16,25,.85);
+  box-shadow: var(--shadow-s);
 }
 .kplex-view-host .kplex-density-rail input[type="range"]::-moz-range-track {
   height: 12px;
@@ -1351,10 +1368,10 @@ button.kplex-sidecar-unfold-plex,
 .kplex-view-host .kplex-density-rail input[type="range"]::-moz-range-thumb {
   width: 8px;
   height: 8px;
-  border: 1px solid rgba(255,255,255,.8);
+  border: 1px solid var(--background-modifier-border);
   border-radius: 50%;
   background: var(--interactive-accent);
-  box-shadow: 0 0 0 2px rgba(7,16,25,.85);
+  box-shadow: var(--shadow-s);
 }
 
 /* K-Plex top stack: toolbar plus persistent quick-access pins. */
@@ -1362,8 +1379,8 @@ button.kplex-sidecar-unfold-plex,
   position: relative;
   z-index: 30;
   min-width: 0;
-  background: rgba(14, 18, 24, .98);
-  border-bottom: 1px solid var(--kplex-line);
+  background: var(--background-secondary);
+  border-bottom: 1px solid var(--kplex-line, var(--background-modifier-border));
 }
 .kplex-top-stack .kplex-topbar {
   border-bottom: 0;
@@ -1378,31 +1395,31 @@ button.kplex-sidecar-unfold-plex,
   overflow-x: auto;
   overflow-y: hidden;
   scrollbar-width: thin;
-  background: rgba(12, 17, 23, .94);
+  background: var(--background-secondary);
 }
 .kplex-pinned-chip {
   flex: 0 0 auto;
   display: inline-flex;
   align-items: stretch;
   max-width: 240px;
-  border: 1px solid rgba(255,255,255,.08);
+  border: 1px solid var(--background-modifier-border);
   border-radius: 7px;
   overflow: hidden;
-  background: rgba(255,255,255,.035);
+  background: var(--background-modifier-hover);
 }
 .kplex-pinned-chip.is-active {
-  border-color: rgba(116,182,255,.42);
-  background: rgba(67,132,205,.13);
+  border-color: var(--background-modifier-border);
+  background: var(--background-modifier-hover);
 }
 .kplex-pinned-chip button {
   height: 25px;
   border: 0;
   border-radius: 0;
   background: transparent;
-  color: rgba(230,238,248,.78);
+  color: var(--text-muted);
   cursor: pointer;
 }
-.kplex-pinned-chip button:hover { background: rgba(255,255,255,.075); color: var(--kplex-text); }
+.kplex-pinned-chip button:hover { background: var(--background-modifier-hover); color: var(--kplex-text, var(--text-normal)); }
 .kplex-pinned-open {
   min-width: 0;
   max-width: 205px;
@@ -1413,7 +1430,7 @@ button.kplex-sidecar-unfold-plex,
   text-align: left;
   font-size: 10px;
 }
-.kplex-pinned-open svg { flex: 0 0 auto; color: #e2a64d; }
+.kplex-pinned-open svg { flex: 0 0 auto; color: var(--text-accent); }
 .kplex-pinned-open span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .kplex-view-host .kplex-pinned-remove {
   width: 25px;
@@ -1421,15 +1438,15 @@ button.kplex-sidecar-unfold-plex,
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  border-left: 1px solid rgba(255,255,255,.06);
-  color: rgba(230,238,248,.50);
+  border-left: 1px solid var(--background-modifier-border);
+  color: var(--text-muted);
 }
 
 /* Keyboard search selection mirrors pointer hover and remains visible while arrowing. */
 .kplex-search-result.is-selected {
-  color: #eef7ff;
-  background: rgba(116,182,255,.15);
-  box-shadow: inset 2px 0 0 rgba(116,182,255,.70);
+  color: var(--text-normal);
+  background: var(--background-modifier-hover);
+  box-shadow: inset 2px 0 0 var(--interactive-accent);
 }
 
 /* Sibling nodes and their expanded descendants deliberately read as secondary context. */
@@ -1543,9 +1560,9 @@ button.kplex-sidecar-unfold-plex,
 }
 .kplex-filter > summary::-webkit-details-marker { display: none; }
 .kplex-filter.is-active > summary {
-  color: #dcecff;
-  border-color: rgba(116,182,255,.48);
-  background: rgba(67,132,205,.18);
+  color: var(--text-normal);
+  border-color: var(--background-modifier-border);
+  background: var(--background-modifier-hover);
 }
 .kplex-filter-panel {
   position: absolute;
@@ -1560,7 +1577,7 @@ button.kplex-sidecar-unfold-plex,
   border: 1px solid var(--background-modifier-border);
   border-radius: 8px;
   background: var(--background-primary-alt, var(--background-primary));
-  box-shadow: 0 10px 30px rgba(0,0,0,.42);
+  box-shadow: var(--shadow-s);
 }
 .kplex-filter-panel label {
   display: grid;
@@ -1620,7 +1637,7 @@ button.kplex-sidecar-unfold-plex,
 }
 
 .kplex-plex.is-section-expanded .kplex-thought.is-selected {
-  box-shadow: 0 0 0 2px rgba(255,255,255,.48), 0 0 28px rgba(112,184,255,.22), 0 8px 24px rgba(0,0,0,.42);
+  box-shadow: 0 0 0 2px var(--interactive-accent), var(--shadow-s);
 }
 
 /* Relation/new-note modal additions. */
@@ -1750,13 +1767,13 @@ button.kplex-sidecar-unfold-plex,
   border-left: 3px solid color-mix(in srgb, var(--interactive-accent) 66%, var(--text-accent));
   background: color-mix(in srgb, var(--background-secondary) 94%, var(--interactive-accent) 6%);
   color: var(--text-normal);
-  box-shadow: 0 1px 2px rgba(0,0,0,.12);
+  box-shadow: var(--shadow-s);
 }
 .kplex-thought.is-kplex-section:hover {
   border-color: color-mix(in srgb, var(--interactive-accent) 58%, var(--background-modifier-border));
   border-left-color: var(--interactive-accent);
   background: color-mix(in srgb, var(--background-secondary) 90%, var(--interactive-accent) 10%);
-  box-shadow: 0 2px 5px rgba(0,0,0,.15);
+  box-shadow: var(--shadow-s);
 }
 /* Incoming structural port: the L-branch terminates here at the card's left-center edge. */
 .kplex-thought.is-kplex-section::after {
@@ -1917,7 +1934,8 @@ button.kplex-sidecar-unfold-plex,
   min-width: 0;
   flex: 1 1 auto;
 }
-.kplex-add-related-form .kplex-search {
+.kplex-add-related-form .kplex-search,
+.kplex-folder-path-input .kplex-search {
   box-sizing: border-box;
   width: 100%;
   height: 38px;
@@ -1928,7 +1946,14 @@ button.kplex-sidecar-unfold-plex,
   border-radius: var(--input-radius, 5px);
   box-shadow: none;
 }
-.kplex-add-related-form .kplex-search:focus {
+.kplex-folder-path-input .kplex-search,
+.kplex-add-related-form .kplex-folder-path-input .kplex-search {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 0 12px;
+}
+.kplex-add-related-form .kplex-search:focus,
+.kplex-folder-path-input .kplex-search:focus {
   border-color: var(--interactive-accent);
   box-shadow: 0 0 0 2px color-mix(in srgb, var(--interactive-accent) 18%, transparent);
 }
@@ -1944,7 +1969,7 @@ button.kplex-sidecar-unfold-plex,
   color: var(--text-normal);
   background: var(--background-primary);
   border-color: var(--background-modifier-border);
-  box-shadow: var(--shadow-l, 0 12px 32px rgba(0,0,0,.28));
+  box-shadow: var(--shadow-s);
 }
 .kplex-add-related-form .kplex-search-result {
   color: var(--text-normal);
@@ -1980,8 +2005,53 @@ button.kplex-sidecar-unfold-plex,
 .kplex-add-related-control-row .kplex-add-related-ontology-search {
   flex: 1 1 280px;
 }
-.kplex-add-related-control-row .kplex-create-edit-toggle {
-  flex: 0 1 auto;
+.kplex-add-related-footer {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+}
+.kplex-creation-completion-row {
+  display: flex;
+  justify-content: flex-end;
+  min-width: 0;
+  padding: var(--size-4-3) 0;
+}
+.kplex-creation-completion {
+  display: inline-flex;
+  align-items: center;
+  flex-wrap: wrap;
+  min-width: 0;
+  max-width: 100%;
+  gap: var(--size-4-2);
+  color: var(--text-muted);
+  font-size: var(--font-ui-small);
+  font-weight: normal;
+}
+.kplex-creation-completion-caption {
+  white-space: nowrap;
+}
+.kplex-creation-completion select.dropdown {
+  min-width: 9em;
+  max-width: 100%;
+  height: var(--input-height);
+  font-size: var(--font-ui-small);
+}
+.kplex-add-related-control-row .kplex-add-related-role-select {
+  height: 38px;
+  max-width: 100%;
+}
+.kplex-add-related-footer .kplex-create-edit-toggle {
+  background: transparent;
+  border: 0;
+  padding: 0;
+  color: var(--text-muted);
+  font-size: var(--font-ui-small);
+}
+.kplex-add-related-footer .kplex-create-edit-copy strong {
+  font-weight: normal;
+  color: var(--text-muted);
 }
 .kplex-add-related-compose-row {
   display: grid;
@@ -2033,6 +2103,34 @@ button.kplex-sidecar-unfold-plex,
 }
 .kplex-add-related-link-button:not(:disabled):hover {
   background: var(--interactive-accent-hover);
+}
+/* Recovery is a separate message and action row; paths and translated buttons wrap safely. */
+.kplex-add-related-recovery {
+  display: grid;
+  gap: 10px;
+  min-width: 0;
+  padding: 12px;
+  border: 1px solid var(--background-modifier-border);
+  border-radius: var(--input-radius, 5px);
+  background: var(--background-secondary);
+  font-size: var(--font-ui-small);
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+.kplex-add-related-recovery-reason {
+  color: var(--text-muted);
+}
+.kplex-add-related-recovery-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+.kplex-add-related-recovery-actions button {
+  max-width: 100%;
+  height: auto;
+  min-height: var(--input-height);
+  white-space: normal;
 }
 .kplex-add-related-create-hint.is-error {
   color: var(--text-error);
@@ -2116,6 +2214,8 @@ button.kplex-sidecar-unfold-plex,
 
 /* Folding K-Plex in companion-sidecar mode removes the Plex tab group from the split. The
    surviving native document group owns this small edge control so K-Plex is always recoverable. */
+.kplex-folded-workspace-group { display: none; }
+.kplex-fold-recovery-host { position: relative; }
 .kplex-sidecar-unfold-plex {
   position: absolute;
   z-index: 1000;
@@ -2155,7 +2255,7 @@ button.kplex-sidecar-unfold-plex,
   color: var(--text-normal);
   background: var(--background-primary);
   border-color: var(--background-modifier-border);
-  box-shadow: var(--shadow-l, 0 12px 32px rgba(0,0,0,.28));
+  box-shadow: var(--shadow-s);
 }
 .kplex-fuzzy-floating-results .kplex-search-result { color: var(--text-normal); }
 .kplex-fuzzy-floating-results .kplex-search-result small { color: var(--text-muted); }
@@ -2172,9 +2272,9 @@ button.kplex-sidecar-unfold-plex,
 /* Relationship-create/link feedback. The animation intentionally changes only glow/brightness so
    it composes with FLIP positioning and never moves the thought itself. */
 @keyframes kplex-new-relationship-flair {
-  0%, 100% { box-shadow: 0 4px 14px rgba(0,0,0,.32), inset 0 1px 0 rgba(255,255,255,.075); filter: brightness(1); }
-  12%, 38%, 64% { box-shadow: 0 0 0 3px color-mix(in srgb, var(--interactive-accent) 82%, white), 0 0 34px color-mix(in srgb, var(--interactive-accent) 58%, transparent), 0 8px 24px rgba(0,0,0,.42); filter: brightness(1.28); }
-  25%, 51%, 77% { box-shadow: 0 0 0 1px color-mix(in srgb, var(--interactive-accent) 50%, transparent), 0 0 16px color-mix(in srgb, var(--interactive-accent) 34%, transparent), 0 6px 18px rgba(0,0,0,.36); filter: brightness(1.08); }
+  0%, 100% { box-shadow: var(--kplex-node-shadow, var(--shadow-s)); filter: brightness(1); }
+  12%, 38%, 64% { box-shadow: 0 0 0 3px color-mix(in srgb, var(--interactive-accent) 82%, white), 0 0 34px color-mix(in srgb, var(--interactive-accent) 58%, transparent), var(--shadow-s); filter: brightness(1.28); }
+  25%, 51%, 77% { box-shadow: 0 0 0 1px color-mix(in srgb, var(--interactive-accent) 50%, transparent), 0 0 16px color-mix(in srgb, var(--interactive-accent) 34%, transparent), var(--shadow-s); filter: brightness(1.08); }
 }
 .kplex-thought.is-new-flair {
   z-index: 35;
@@ -2275,12 +2375,12 @@ button.kplex-sidecar-unfold-plex,
 .kplex-filter { position: relative; flex: 0 0 auto; }
 .kplex-filter-trigger { position: relative; }
 .kplex-filter.is-active .kplex-filter-trigger {
-  color: #dcecff;
-  border-color: rgba(116,182,255,.48);
-  background: rgba(67,132,205,.18);
+  color: var(--text-normal);
+  border-color: var(--background-modifier-border);
+  background: var(--background-modifier-hover);
 }
 .kplex-filter.is-open .kplex-filter-trigger {
-  box-shadow: 0 0 0 1px rgba(116,182,255,.22);
+  box-shadow: 0 0 0 1px var(--background-modifier-border);
 }
 .kplex-filter-portal {
   z-index: 100000;
@@ -2289,7 +2389,7 @@ button.kplex-sidecar-unfold-plex,
   overscroll-behavior: contain;
   color: var(--text-normal);
   background: var(--background-primary-alt, var(--background-primary));
-  box-shadow: 0 18px 56px rgba(0,0,0,.58);
+  box-shadow: var(--shadow-s);
 }
 /* Obsidian's styled tooltip is also portalled outside the filter panel. While this overlay is
    open, keep those tooltips one layer above it instead of letting the panel cover them. */
@@ -2579,7 +2679,7 @@ body.kplex-filter-panel-open .tooltip { z-index: 100300; }
   .kplex-node-visual:hover { z-index: 70; }
   .kplex-node-visual:hover img {
     transform: scale(7);
-    box-shadow: 0 7px 28px rgba(0,0,0,.58), 0 0 0 1px var(--background-modifier-border-hover);
+    box-shadow: 0 0 0 1px var(--background-modifier-border);
   }
 }
 
@@ -2951,7 +3051,7 @@ button.kplex-style-manager-row { height: fit-content; }
   .kplex-create-alias-input { min-width: 62px; }
 }
 
-/* Add-related modal: relationship role lives in the title and the filename field does not
+/* Add-related modal: direction shares the ontology row and the filename field does not
    spend horizontal space on a decorative search glyph. */
 .kplex-add-related-title {
   display: flex;
@@ -2963,8 +3063,7 @@ button.kplex-style-manager-row { height: fit-content; }
   width: auto;
   min-width: 128px;
   max-width: min(46vw, 220px);
-  font: inherit;
-  font-weight: inherit;
+  flex: 0 1 auto;
 }
 .kplex-create-name-pair .kplex-add-related-note-search .kplex-search-icon {
   display: none;
@@ -3211,10 +3310,10 @@ button.kplex-style-manager-row { height: fit-content; }
   display: flex;
   gap: 2px;
   padding: 2px;
-  border: 1px solid var(--kplex-line);
+  border: 1px solid var(--kplex-line, var(--background-modifier-border));
   border-radius: 6px;
-  background: var(--kplex-panel);
-  box-shadow: 0 3px 10px rgba(0, 0, 0, .28);
+  background: var(--kplex-panel, var(--background-primary));
+  box-shadow: var(--shadow-s);
 }
 .kplex-central-editor-status {
   position: absolute;
@@ -3280,7 +3379,7 @@ button.kplex-style-manager-row { height: fit-content; }
 }
 
 /* Find stays local to the Plex, with a touch target and no result popup. */
-.kplex-find {
+.kplex-scene-tools {
   position: absolute;
   top: 8px;
   right: 8px;
@@ -3291,11 +3390,41 @@ button.kplex-style-manager-row { height: fit-content; }
   max-width: calc(100% - 16px);
   padding: 0;
 }
+.kplex-scene-tools.is-suspended { display: none; }
+.kplex-find { display: flex; align-items: center; gap: 4px; min-width: 0; }
+.kplex-footprints-panel {
+  position: fixed;
+  z-index: var(--layer-popover);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  color: var(--text-normal);
+  background: var(--background-primary);
+  border: 1px solid var(--background-modifier-border);
+  border-radius: var(--radius-m);
+  box-shadow: var(--shadow-s);
+}
+.kplex-footprints-heading { display: flex; align-items: center; gap: var(--size-4-2); padding: var(--size-4-2); }
+.kplex-footprints-heading strong { flex: 1; }
+.kplex-footprints-heading > span, .kplex-footprints-empty { color: var(--text-muted); font-size: var(--font-ui-small); }
+.kplex-footprints-empty { padding: var(--size-4-3); }
+.kplex-footprints-list { max-height: 320px; min-height: 0; overflow-y: auto; overscroll-behavior: contain; touch-action: pan-y; }
+.kplex-footprints-row {
+  display: flex; align-items: center; gap: var(--size-4-2); width: 100%; height: 40px;
+  margin: 0; padding: 0 var(--size-4-3); border: 0; border-radius: 0; box-shadow: none;
+  color: var(--text-normal); background: transparent; text-align: start;
+}
+.kplex-footprints-row > span:not(.kplex-icon) { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.kplex-footprints-row > .kplex-icon { flex-shrink: 0; }
+.kplex-footprints-row small { color: var(--text-muted); }
+.kplex-footprints-row[aria-current="location"] { background: var(--background-secondary); }
+.kplex-footprints-row:hover, .kplex-footprints-row:focus-visible { background: var(--background-modifier-hover); }
+.kplex-footprints-row[aria-disabled="true"] { color: var(--text-muted); }
 .kplex-view-host .kplex-find-input {
   width: 170px;
   min-width: 0;
   height: 28px;
-  border: 1px solid var(--kplex-line);
+  border: 1px solid var(--kplex-line, var(--background-modifier-border));
 }
 /* Pair text and surface for both pointer focus and programmatic filter autofocus. */
 .kplex-view-host .kplex-find-input,
@@ -3310,10 +3439,10 @@ button.kplex-style-manager-row { height: fit-content; }
   color: var(--text-muted);
 }
 .kplex-find-count {
-  color: var(--kplex-muted);
+  color: var(--kplex-muted, var(--text-muted));
   font-size: var(--font-smallest);
   white-space: nowrap;
-  background: var(--kplex-control-bg);
+  background: var(--kplex-control-bg, var(--interactive-normal));
   border-radius: 7px;
   padding: 3px 5px;
 }
@@ -3446,12 +3575,14 @@ button.kplex-style-manager-row { height: fit-content; }
 /* Toggles retain one common active state instead of changing their surface palette. */
 .kplex-topbar button.is-on,
 .kplex-find button[aria-pressed="true"],
+button.kplex-footprints-trigger[aria-expanded="true"],
 button.kplex-layout-toggle[aria-pressed="true"],
 button.kplex-zone-filter-button.is-on,
 .kplex-sidecar-controls button[aria-pressed="true"] { color: var(--text-accent); border-color: var(--interactive-accent); }
 
 .kplex-topbar button:focus-visible,
 .kplex-find button:focus-visible,
+button.kplex-footprints-trigger:focus-visible,
 button.kplex-layout-toggle:focus-visible,
 button.kplex-zone-filter-button:focus-visible,
 .kplex-sidecar-controls button:focus-visible,
@@ -3598,3 +3729,64 @@ button.kplex-sidecar-unfold-plex:focus-visible,
 
 /* Wander reuses the Plex button and layout-rail palette; only its floating position differs. */
 .kplex-layout-controls.kplex-wander-controls { z-index: 35; bottom: 12px; left: 50%; transform: translateX(-50%); max-width: calc(100% - 24px); }
+/* Detached color editors use native chrome; preview variables stay on their private cards. */
+.kplex-color-modal { width: min(740px, 94vw); }
+.kplex-color-source-editor { display: grid; gap: var(--size-4-3); margin-block: var(--size-4-3); }
+.kplex-color-source-editor label, .kplex-literal-controls label, .kplex-literal-opacity label { display: grid; gap: var(--size-4-1); min-width: 0; }
+.kplex-color-source-editor input[type="text"] { width: 100%; }
+.kplex-literal-editor { border: 1px solid var(--background-modifier-border); border-radius: var(--radius-m); margin: 0; padding: var(--size-4-3); min-width: 0; }
+.kplex-literal-controls { display: grid; grid-template-columns: auto auto minmax(0, 1fr); align-items: end; gap: var(--size-4-2); }
+.kplex-color-swatch { background: var(--kplex-color-swatch); width: 28px; height: 28px; border: 1px solid var(--background-modifier-border); border-radius: var(--radius-s); }
+.kplex-literal-opacity { display: grid; grid-template-columns: minmax(0, 1fr) 5.5em auto; align-items: end; gap: var(--size-4-3); margin-top: var(--size-4-3); }
+.kplex-literal-opacity input { width: 100%; }
+.kplex-color-previews { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--size-4-3); margin-top: var(--size-4-3); }
+.kplex-color-preview { border: 1px solid var(--background-modifier-border); border-radius: var(--radius-m); padding: var(--size-4-2); min-width: 0; }
+.kplex-color-preview-heading { display: flex; align-items: baseline; justify-content: space-between; gap: var(--size-4-2); }
+.kplex-color-preview-canvas { position: relative; height: 140px; overflow: hidden; border-radius: var(--radius-s); margin-top: var(--size-4-2); background: var(--_kplex-preview-base); }
+.kplex-color-preview-canvas svg { position: absolute; inset: 0; width: 100%; height: 100%; }
+.kplex-color-preview-canvas::before { content: ""; position: absolute; inset: 0; pointer-events: none; background: var(--_kplex-preview-canvas); }
+.kplex-color-preview-node { position: absolute; left: 35%; top: 27%; width: 60%; min-height: 56px; padding: var(--size-4-2); border: 1px solid var(--_kplex-preview-node-border); border-radius: var(--radius-m); background: var(--_kplex-preview-node-fill); color: var(--_kplex-preview-node-text); font-size: var(--font-ui-small); }
+.kplex-color-preview-gate { position: absolute; width: 10px; height: 10px; left: -6px; top: calc(50% - 5px); border: 1px solid var(--_kplex-preview-gate-stroke); border-radius: 50%; background: var(--_kplex-preview-gate-fill); }
+.kplex-color-preview-gate.is-empty { left: auto; right: -6px; background: transparent; }
+.kplex-color-preview-label { position: absolute; left: 4%; bottom: 8%; font-size: var(--font-ui-smaller); padding: 2px 4px; border-radius: var(--radius-s); color: var(--_kplex-preview-label-text); background: var(--_kplex-preview-label-fill); }
+.kplex-color-preview-contrast { margin-top: var(--size-4-2); color: var(--text-muted); font-size: var(--font-ui-smaller); }
+@media (max-width: 500px) { .kplex-color-previews { grid-template-columns: minmax(0, 1fr); } }
+
+.kplex-color-source-editor select { width: 100%; max-width: 100%; min-width: 0; }
+.kplex-color-source-editor button { white-space: normal; overflow-wrap: anywhere; max-width: 100%; }
+
+.kplex-lens-fields { border: 0; margin: 0; padding: 0; min-width: 0; }
+.kplex-palette-controls, .kplex-palette-row { display: flex; align-items: center; gap: 0.5em; flex-wrap: wrap; }
+.kplex-palette-controls input { flex: 1; min-width: 8em; }
+.kplex-palette-row { padding: var(--size-4-2) 0; border-bottom: var(--border-width) solid var(--background-modifier-border); }
+.kplex-palette-name { flex: 1; min-width: 8em; overflow-wrap: anywhere; }
+
+/* Four viewport decorations stay beneath the camera and never participate in input or drop routing. */
+.kplex-compass-background { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
+.kplex-compass-intensity { max-width: 26em; }
+@media (forced-colors: active) { .kplex-compass-background, .kplex-color-preview-compass { display: none; } }
+
+/* Shared paired property samples and palette sequences in native Settings and style editors. */
+.kplex-color-strips { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.kplex-color-strip { display: flex; align-items: center; gap: var(--size-4-2); }
+.kplex-color-strip-label { color: var(--text-muted); font-size: var(--font-ui-smaller); min-width: 3.5em; }
+.kplex-color-strip-cells { display: flex; gap: 1px; min-width: 0; }
+.kplex-color-strip-cells .kplex-color-swatch { display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 16px; border-radius: 0; flex-shrink: 1; }
+.setting-item-control > .kplex-color-strips { margin-inline-end: var(--size-4-2); }
+.kplex-style-row > .kplex-color-strips { margin-inline-start: auto; }
+.kplex-color-suggestion { display: flex; align-items: center; gap: var(--size-4-3); }
+.kplex-color-suggestion > .suggestion-content { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.kplex-color-suggestion > .kplex-color-strips { flex-shrink: 0; }
+.kplex-color-suggestion .kplex-color-strip-label { min-width: 0; }
+.kplex-color-suggestion .kplex-color-strip-cells .kplex-color-swatch { width: 18px; height: 12px; }
+
+/* Explicit appearance drafts share one scrolling body; native Save/Cancel stay visible. */
+.modal.kplex-scroll-editor-modal { display: flex; flex-direction: column; max-height: 90vh; }
+.modal.kplex-scroll-editor-modal .modal-content { display: flex; flex-direction: column; min-height: 0; overflow: hidden; }
+.kplex-style-editor-body { flex: 1 1 auto; min-height: 0; overflow-y: auto; }
+.kplex-style-editor-actions { flex: 0 0 auto; background: var(--modal-background, var(--background-primary)); }
+.kplex-style-editor-actions .setting-item { border-top: var(--border-width) solid var(--background-modifier-border); padding-bottom: 0; }
+
+/* Native theme controls wrap on narrow Settings pages without a separate toolbar. */
+.kplex-theme-setting .setting-item-control { flex-wrap: wrap; gap: var(--size-4-2); }
+.kplex-theme-setting select { max-width: min(260px, 100%); }

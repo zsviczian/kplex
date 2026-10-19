@@ -6,6 +6,7 @@
  * Mobile note opening owns a drawer-dismiss transition; observe its completion before revealing again.
  * Desktop mobile emulation is layout/routing evidence, never physical Android/iOS acceptance.
  */
+import {withNativeDocumentSessions} from "./nativeDocumentSessions.mjs";
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import { existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
@@ -38,7 +39,7 @@ function cli(command, ...args) {
   return result.stdout.trim();
 }
 /** Detached observations avoid retaining renderer objects across host reloads. */
-function evaluate(code) { return JSON.parse(cli("eval", `code=${code}`).replace(/^=>\s*/, "")); }
+function evaluate(code) {code=withNativeDocumentSessions(code); return JSON.parse(cli("eval", `code=${code}`).replace(/^=>\s*/, "")); }
 /** Short outer waits keep the renderer and CLI free to process native events. */
 const delay = milliseconds => new Promise(resolveDelay => setTimeout(resolveDelay, milliseconds));
 
@@ -57,7 +58,7 @@ function startProbe() {
   const p = app.plugins.plugins["k-plex"], remote = require("@electron/remote"), win = remote.getCurrentWindow();
   if (!p?.actionManager || window.__kplexSidebarFollow || app.setting.isOpen || document.querySelector(".modal-container,.menu")) throw Error("Clean native prerequisites required");
   const c = window.__kplexSidebarFollow = { settings: JSON.parse(JSON.stringify(p.settings)), layout: app.workspace.getLayout(),
-    owners: { linked: p.linkedDocumentLeaf, last: p.lastDocumentLeaf, recent: [...p.recentLeafHistory], sidecars: new Map(p.sidecarLeaves) },
+    owners: { documents:documentSessions(p).capture(), last: p.lastDocumentLeaf, recent: [...p.recentLeafHistory], sidecars: new Map(p.sidecarLeaves) },
     bounds: win.getBounds(), minimum: win.getMinimumSize(), cases: [], observations: [], done: false, cancelled: false, owned: false };
   const folder = "__kplex_sidebar_follow_native";
   let host, root, surface, noteLeaf;
@@ -75,7 +76,7 @@ function startProbe() {
   /** Record only completed assertions, with finite serializable facts. */
   const passed = (id, details = {}) => c.cases.push({ id, status: "passed", ...details });
   /** Capture finite native ownership facts without exposing note bodies or mutating follow policy. */
-  const observe = phase => c.observations.push({ phase, mode: p.settings.documentSyncMode, active: app.workspace.activeLeaf?.id,
+  const observe = phase => c.observations.push({ phase, mode: p.getDocumentSyncMode(host), active: app.workspace.activeLeaf?.id,
     activeFile: app.workspace.getActiveFile()?.path, eligibleFile: p.getDocumentFollowFile()?.path,
     hostVisible: host ? p.isKplexLeafVisible(host) : false, center: center(), noteFile: noteLeaf?.view.file?.path,
     rootClass: root?.className, indexed: noteLeaf?.view.file ? Boolean(p.index.get(noteLeaf.view.file.path)) : false,
@@ -116,7 +117,7 @@ function startProbe() {
     win.setMinimumSize(...c.minimum); win.setBounds(c.bounds); await app.workspace.changeLayout(c.layout);
     const leaves = []; app.workspace.iterateAllLeaves(leaf => leaves.push(leaf));
     const rebind = old => old ? leaves.find(leaf => leaf.id === old.id) ?? null : null;
-    p.linkedDocumentLeaf = rebind(c.owners.linked); p.lastDocumentLeaf = rebind(c.owners.last);
+    await documentSessions(p).restore(c.owners.documents); p.lastDocumentLeaf = rebind(c.owners.last);
     p.recentLeafHistory = c.owners.recent.map(rebind).filter(Boolean); p.sidecarLeaves.clear();
     for (const [oldHost, oldNote] of c.owners.sidecars) { const newHost = rebind(oldHost), newNote = rebind(oldNote); if (newHost && newNote) p.sidecarLeaves.set(newHost, newNote); }
     if (c.settings.lastActivePath) p.notifyNavigation(c.settings.lastActivePath);
@@ -133,9 +134,9 @@ function startProbe() {
       const file = await app.vault.create(`${folder}/${name}.md`, `# ${name}\n`); files.push(file); p.index.insertCreatedFile(file);
     }
     p.settings.embedCentralNode = false; p.settings.animationSpeed = 1;
-    await p.setDocumentSyncMode("recent");
+    p.settings.documentSyncMode="recent";
     noteLeaf = app.workspace.getLeaf("tab"); await noteLeaf.openFile(files[0], { active: true });
-    await p.activateSidepanel(); await until(acquire, "Sidebar React/action surface absent");
+    await p.activateSidepanel(); await until(acquire, "Sidebar React/action surface absent");await p.setDocumentSyncMode(host,"recent");await noteLeaf.openFile(files[0],{active:true});
     await until(() => center() === files[0].path, "Initial native note did not center sidebar");
     app.workspace.rightSplit.collapse(); app.workspace.setActiveLeaf(noteLeaf, { focus: true });
     await until(() => !p.isKplexLeafVisible(host), "Native sidebar did not collapse");
@@ -156,7 +157,7 @@ function startProbe() {
     app.workspace.rightSplit.expand(); await app.workspace.revealLeaf(host);
     await until(() => p.isKplexLeafVisible(host), "Pending-note drawer did not reveal");
     await until(() => {
-      root = host.view.contentEl.querySelector(".kplex-app"); return root?.classList.contains("kplex-empty");
+      root = host.view.contentEl.querySelector(".kplex-app"); return Boolean(root?.querySelector(".kplex-empty"));
     }, "Pending native note retained stale scene");
     check(!root.querySelector(".kplex-role-center"), "Pending note still displayed an old central node");
     await noteLeaf.openFile(files[2], { active: true });
@@ -178,7 +179,7 @@ function startProbe() {
     passed("history-navigation-retains-arrival-motion");
     await wait(600); p.notifyNavigation(files[0].path); await until(() => center() === files[0].path, "Central opening setup did not navigate"); await wait(600);
     // Decouple so opening the central note is an explicit action, not passive synchronization.
-    await p.setDocumentSyncMode("off"); await noteLeaf.openFile(files[1], { active: true });
+    await documentSessions(p).off(); await noteLeaf.openFile(files[1], { active: true });
     await wait(400); app.workspace.rightSplit.expand(); await p.activateSidepanel();
     await until(() => p.isKplexLeafVisible(host), "Central touch drawer did not reveal");
     await wait(400); // Native drawer visibility precedes its final touch hit-test geometry.
@@ -255,7 +256,7 @@ finally {
         if (state.done) { assert(!state.error, state.error); break; }
         assert(Date.now() < end, "Sidebar native cleanup deadline exceeded"); await delay(250);
       }
-      evaluate("delete window.__kplexSidebarFollow;JSON.stringify(true)"); report.cleaned = true;
+      evaluate("(()=>{delete window.__kplexSidebarFollow;return JSON.stringify(true)})()"); report.cleaned = true;
     } catch (error) { report.status = "failed"; report.cleanupError = String(error.stack ?? error); }
   }
   if (baseline) {
@@ -268,7 +269,7 @@ finally {
         if (state.done) { assert(!state.error, state.error); break; }
         assert(Date.now() < end, "Native mode layout cleanup deadline exceeded"); await delay(250);
       }
-      evaluate("delete window.__kplexSidebarModeCleanup;JSON.stringify(true)");
+      evaluate("(()=>{delete window.__kplexSidebarModeCleanup;return JSON.stringify(true)})()");
     } catch (error) { report.status = "failed"; report.modeCleanupError = String(error.stack ?? error); }
   }
   for (const item of configuration) writeFileSync(item.path, item.bytes);

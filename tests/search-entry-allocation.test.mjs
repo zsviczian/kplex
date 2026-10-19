@@ -19,9 +19,9 @@ writeFileSync(join(obsidianDirectory, "index.js"), `
 module.exports = { Platform: { isMobile: false, isIosApp: false }, TFile: class {}, TFolder: class {}, normalizePath: path => path };
 `);
 const output = join(directory, "graph-index.cjs");
-buildSync({ entryPoints: ["src/index/GraphIndex.ts"], outfile: output, bundle: true,
+buildSync({ stdin: { resolveDir: process.cwd(), contents: 'export * from "./src/index/GraphIndex"; export * from "./src/ui/features/searchResultPresentation";' }, outfile: output, bundle: true,
   platform: "node", format: "cjs", external: ["obsidian"] });
-const { GraphIndex } = createRequire(import.meta.url)(output);
+const { GraphIndex, searchResultIconName } = createRequire(import.meta.url)(output);
 
 /** Instantiate only search/title owners; constructing a live repository would introduce timers and storage. */
 function fixture(settings = {}) {
@@ -50,6 +50,18 @@ function legacyEntry(page, title, name = page.name, aliases = page.aliases) {
   return { page, name: title.toLowerCase(), aliases: [...alternatives].map(value => value.toLowerCase()),
     path: page.path.toLowerCase() };
 }
+
+/** Search icons refine explicit file/type facets and never infer semantic kind from an opaque ID. */
+test("Find selects native type icons including common attachment subtypes", () => {
+  for (const [kind, extension, expected] of [
+    ["document", "md", "file-text"], ["container", undefined, "folder"], ["tag", undefined, "tags"],
+    ["url", undefined, "globe"], ["unresolved", undefined, "file-question"],
+    ["attachment", "PNG", "image"], ["attachment", "mp4", "video"], ["attachment", "mp3", "audio-lines"],
+    ["attachment", "pdf", "file-text"], ["attachment", "canvas", "layout-dashboard"], ["attachment", "zip", "paperclip"],
+    ["attachment", undefined, "paperclip"],
+  ]) assert.equal(searchResultIconName({ kind, file: extension ? { extension } : undefined }), expected);
+  assert.equal(searchResultIconName({ kind: "document", file: { extension: "png" } }), "file-text", "Extension does not override semantic type");
+});
 
 /** URL labels have no configured note-title interpretation; current versus explicit policy differs for name overrides. */
 test("URL search entries match previous vocabulary with aliases and explicit name/policy overrides", () => {

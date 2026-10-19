@@ -1,6 +1,8 @@
 /**
  * Exercises legacy settings import through the real K-Plex UI in an explicit disposable vault.
  * Uses canonical K-Plex selectors/commands and restores test-owned settings, notes and controllers.
+ * On-demand fixtures explicitly lease their selected source before asserting its lazy style facets;
+ * global/local readiness alone does not materialize every newly created note.
  */
 import assert from "node:assert/strict";
 import { obsidianCliExecutable, runPortableVerification } from "./processTools.mjs";
@@ -12,7 +14,7 @@ import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { Script } from "node:vm";
 import { runObsidianVerification, validateTarget } from "./runner.mjs";
-import { assertMigratedExcaliBrainSettings } from "../../../tests/support/excalibrainMigration.mjs";
+import { assertMigratedExcaliBrainSettings, assertRestoredKplexAppearance } from "../../../tests/support/excalibrainMigration.mjs";
 
 const projectRoot = resolve(dirname(fileURLToPath(import.meta.url)), "../../..");
 const reportDir = process.env.KPLEX_HOST_REPORT_DIR || mkdtempSync(join(tmpdir(), "kplex-migration-host-"));
@@ -145,7 +147,7 @@ try {
     const names=Array.from(content.querySelectorAll(".kplex-style-manager-name")).map(el=>el.textContent);
     const row=Array.from(content.querySelectorAll(".kplex-style-manager-row")).find(el=>el.querySelector(".kplex-style-manager-name").textContent==="#person");
     if(!row) throw new Error("Imported #person style missing");
-    const nodeSwatch=row.querySelector(".kplex-style-manager-node-swatch").style.getPropertyValue("--kplex-style-node-border");
+    const nodeSwatch=doc.defaultView.getComputedStyle(row.querySelector(".kplex-style-manager-node-swatch")).borderTopColor;
     row.click();
     const editor=doc.querySelector(".kplex-style-editor");
     const inputs=Array.from(editor.querySelectorAll("input")).map(el=>({type:el.type,value:el.value}));
@@ -167,21 +169,22 @@ try {
     while((more=links.querySelector(".kplex-style-manager-more"))) more.click();
     const linkNames=Array.from(links.querySelectorAll(".kplex-style-manager-name")).map(el=>el.textContent);
     const inspired=Array.from(links.querySelectorAll(".kplex-style-manager-row")).find(el=>el.querySelector(".kplex-style-manager-name").textContent==="Inspired by");
-    const linkSwatch=inspired?.querySelector(".kplex-style-manager-line-swatch").style.getPropertyValue("--kplex-style-swatch");
+    const linkSwatch=doc.defaultView.getComputedStyle(inspired.querySelector(".kplex-style-manager-line-swatch")).borderTopColor;
     inspired.click();
+    const linkSourceAction=doc.querySelector('button[aria-label="Line color"]')?.textContent;
     const linkEditor=Array.from(doc.querySelector(".kplex-style-editor").querySelectorAll("input")).map(el=>({type:el.type,value:el.value,checked:el.checked}));
     doc.querySelector(".kplex-style-editor").closest(".modal").querySelector(".modal-close-button, .modal-header-button").click();
     modal.querySelector(".modal-close-button, .modal-header-button").click();
     app.setting.close();
-    return JSON.stringify({names,nodeSwatch,prefix,linkNames,customNames,linkSwatch,linkEditor});
+    return JSON.stringify({names,nodeSwatch,prefix,linkNames,customNames,linkSwatch,linkEditor,linkSourceAction});
   })()`);
   for (const key of Object.keys(fixture.tagNodeStyles)) assert(managers.names.includes(key), `Node manager missing ${key}`);
-  assert.equal(managers.nodeSwatch, "#f7ce46"); assert.equal(managers.prefix, true);
+  assert.equal(managers.nodeSwatch, "rgb(247, 206, 70)"); assert.equal(managers.prefix, true);
   for (const key of Object.keys(fixture.hierarchyLinkStyles).filter(Boolean))
     assert(managers.linkNames.some(name => name.toLowerCase().replaceAll(" ", "-") === key.toLowerCase().replaceAll(" ", "-")), `Link manager missing ${key}`);
   assert(managers.customNames.includes("Inspired by"));
-  assert.equal(managers.linkSwatch, "#fefb41");
-  assert(managers.linkEditor.some(input => input.type === "color" && input.value === "#fefb41"));
+  assert.equal(managers.linkSwatch, "rgba(254, 251, 65, 0.6)");
+  assert.equal(managers.linkSourceAction,Object.entries(fixture.hierarchyLinkStyles).find(([key])=>key.toLowerCase().replaceAll(" ","-") === "inspired-by")[1].strokeColor);
   console.log("Node and link style managers passed");
   report.scenarios.push({ id: "rendered-settings-style-managers", status: "passed", ...managers });
 
@@ -207,6 +210,9 @@ try {
     (async()=>{try{
       await app.vault.create(${JSON.stringify(targetPath)},${JSON.stringify("# Migration target\n")});state.owned.push(${JSON.stringify(targetPath)});
       await app.vault.create(${JSON.stringify(sourcePath)},${JSON.stringify('---\nNote type: "#person"\ntags: [person, work]\nInspired by: "[[Kplex-Migration-Test-Target]]"\n---\n# Migration source\n')});state.owned.push(${JSON.stringify(sourcePath)});
+      // The style under test is lazy in local mode; lease this exact fixture through the same owner
+      // used by a visible Plex. Do not force an Eager/global build or weaken the facet assertion.
+      if(app.plugins.plugins["k-plex"].index.isOnDemandMode())state.releaseFixtureDemand=app.plugins.plugins["k-plex"].index.acquireSemanticDemand(${JSON.stringify(sourcePath)});
       state.done=true;
     }catch(error){state.error=String(error)}})();return JSON.stringify(true);
   })()`);
@@ -238,6 +244,7 @@ try {
   assert.equal(rendered.width,"2");
   report.scenarios.push({ id: "rendered-plex-styles", status: "passed", ...rendered });
 
+  evaluate(`(()=>{const state=window.${controller};state.releaseFixtureDemand?.();delete state.releaseFixtureDemand;return JSON.stringify(true)})()`);
   const beforeReload = evaluate('JSON.stringify(app.plugins.plugins["k-plex"].settings)');
   cli(target.vaultName,"plugin:disable","id=k-plex");cli(target.vaultName,"plugin:enable","id=k-plex");
   cli(target.vaultName,"command","id=k-plex:kplex-start");
@@ -254,11 +261,13 @@ try {
   console.log("Restoring test settings and removing owned notes");
   if(installedController){
     try {
+      const expectedRestore = evaluate(`JSON.stringify(window.${controller}.settings)`);
       evaluate(`(()=>{const state=window.${controller};state.done=false;state.error=null;
         (async()=>{try{
           app.setting.doc.querySelectorAll(".kplex-style-editor,.kplex-style-manager,.kplex-import-settings-modal").forEach(el=>el.closest(".modal").querySelector(".modal-close-button, .modal-header-button").click());
           app.setting.close();
           for(const path of state.owned){const file=app.vault.getFileByPath(path);if(file)await app.vault.delete(file);}
+          state.releaseFixtureDemand?.();delete state.releaseFixtureDemand;
           const p=app.plugins.plugins["k-plex"];p.settings=state.settings;await p.saveSettings(false);state.done=true;
         }catch(error){state.error=String(error)}})();return JSON.stringify(true)})()`);
       await until(`JSON.stringify(window.${controller}.error?{error:window.${controller}.error}:window.${controller}.done)`,"Cleanup failed");
@@ -268,7 +277,9 @@ try {
       cli(target.vaultName,"plugin:disable","id=k-plex");cli(target.vaultName,"plugin:enable","id=k-plex");
       cli(target.vaultName,"command","id=k-plex:kplex-start");
       await until('JSON.stringify(app.plugins.plugins["k-plex"].getIndexStatus().upToDate)',"Restored settings index did not settle");
-      report.cleanup={settingsRestored:true,notesRemoved:true,controllerRemoved:true,indexSettled:true};
+      assertRestoredKplexAppearance(evaluate('JSON.stringify(app.plugins.plugins["k-plex"].settings)'), expectedRestore);
+      assertRestoredKplexAppearance(JSON.parse(readFileSync(join(validateTarget(target).pluginDir, "data.json"), "utf8")), expectedRestore);
+      report.cleanup={settingsRestored:true,appearanceAndLibraryVerified:true,durableAppearanceVerified:true,notesRemoved:true,controllerRemoved:true,indexSettled:true};
     }catch(error){report.status="failed";report.cleanupError=String(error);}
   }
   report.completedAt=new Date().toISOString();

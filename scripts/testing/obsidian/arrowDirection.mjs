@@ -5,6 +5,7 @@
  * Own only fixture notes/settings/workspace/controller, and restore them on assertion failure.
  * Baseline mode characterizes the unfixed BOTH result; it never grants candidate acceptance.
  */
+import {withNativeDocumentSessions} from "./nativeDocumentSessions.mjs";
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import { existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
@@ -37,7 +38,7 @@ function cli(command, ...args) {
   return result.stdout.trim();
 }
 /** Return detached finite facts rather than retaining renderer objects through reload. */
-function evaluate(code) { return JSON.parse(cli("eval", `code=${code}`).replace(/^=>\s*/, "")); }
+function evaluate(code) {code=withNativeDocumentSessions(code); return JSON.parse(cli("eval", `code=${code}`).replace(/^=>\s*/, "")); }
 /** Outer waits leave the actual host event loop free. */
 const delay = milliseconds => new Promise(done => setTimeout(done, milliseconds));
 
@@ -46,7 +47,7 @@ function installProbe(expectBaseline) {
   const p = app.plugins.plugins["k-plex"], remote = require("@electron/remote"), win = remote.getCurrentWindow();
   if (!p?.index || window.__kplexArrowProbe || app.setting.isOpen || document.querySelector(".modal-container,.menu")) throw Error("Clean native prerequisites required");
   const c = window.__kplexArrowProbe = { originalSettings: structuredClone(p.settings), originalLayout: app.workspace.getLayout(),
-    owners: { linked: p.linkedDocumentLeaf, last: p.lastDocumentLeaf, recent: [...p.recentLeafHistory], sidecars: [...p.sidecarLeaves] },
+    owners: { documents:documentSessions(p).capture(), last: p.lastDocumentLeaf, recent: [...p.recentLeafHistory], sidecars: [...p.sidecarLeaves] },
     observations: [], phase: "setup", done: false, cancelled: false, owned: false, releases: [] };
   const folder = "__kplex_arrow_direction_native";
   c.a = `${folder}/A-Star.md`; c.b = `${folder}/Uniform Cost Search.md`;
@@ -117,7 +118,7 @@ function installProbe(expectBaseline) {
     await current.index.refreshSemanticSettings(); await app.workspace.changeLayout(c.originalLayout);
     const leaves = []; app.workspace.iterateAllLeaves(leaf => leaves.push(leaf));
     const rebind = old => old ? leaves.find(leaf => leaf.id === old.id) ?? null : null;
-    current.linkedDocumentLeaf = rebind(c.owners.linked); current.lastDocumentLeaf = rebind(c.owners.last);
+    await documentSessions(current).restore(c.owners.documents); current.lastDocumentLeaf = rebind(c.owners.last);
     current.recentLeafHistory = c.owners.recent.map(rebind).filter(Boolean); current.sidecarLeaves.clear();
     for (const [oldHost, oldNote] of c.owners.sidecars) { const host = rebind(oldHost), note = rebind(oldNote); if (host && note) current.sidecarLeaves.set(host, note); }
     if (c.originalSettings.lastActivePath) current.notifyNavigation(c.originalSettings.lastActivePath);
@@ -140,7 +141,7 @@ function installProbe(expectBaseline) {
       showCrossLinks: false, renderSiblings: false, inferAllLinksAsFriends: false, applyPowerFilter: false, animationSpeed: 0 });
     p.settings.baseLinkStyle = { ...p.settings.baseLinkStyle, startArrowHead: "none", endArrowHead: "arrow" };
     p.settings.hierarchyLinkStyles = {};
-    await p.setDocumentSyncMode("off"); await p.saveSettings(); await p.activateView();
+    await documentSessions(p).off(); await p.saveSettings(); await p.activateView();
     p.index.insertCreatedFile(a); p.index.insertCreatedFile(b);
     c.releases.push(p.index.acquireSemanticDemand(c.a), p.index.acquireSemanticDemand(c.b));
     await p.index.refreshSemanticSettings();

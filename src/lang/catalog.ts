@@ -12,12 +12,12 @@ type TranslationValue<K extends EnglishKey> = SourceEntry<K> extends { readonly 
   ? Readonly<Record<string, string>>
   : string;
 
-/** Historical English-fallback allowances remain compatible; maintained deletion/Hidden and Sidecar attachment copy requires every supported translation. */
+/** Historical English-fallback allowances remain compatible; maintained Sidecar attachment/folding copy requires every supported translation. */
 type EnglishFallbackKey = Exclude<Extract<EnglishKey, `styles.operation.${string}` | `indexing.${string}` | `hotkeys.${string}` | `wander.${string}` | `actions.${string}` | `addRelated.completion.${string}` | "addRelated.endpointChanged" | "addRelated.partialCreation" | "addRelated.originTitle" | "addRelated.completionMode" | "addRelated.savedPending" | "addRelated.refreshSaved" | "addRelated.recoverFile" | "addRelated.linkCreatedFile" | "addRelated.openCreatedFile" | "addRelated.closedBeforeLink" | "node.gateLocalCount" | "node.gateCachedCount" | "node.gateHostUnavailable"
   | "filter.sourcePropertyUrl" | "graph.sourcePropertyUrl" | "graph.typeSelectionStatus" | "graph.typeSelectionCount" | "explain.sourcePropertyUrl"
   | "explain.summarySourcePropertyUrl" | "references.propertyUrl" | "explain.summaryDatePropertyPolicy" | `settings.datePropertyRelations.${string}`
   | "settings.ui.allowRemoteNodeImages" | "settings.ui.allowRemoteNodeImages.help"
-  | "graph.evidenceFieldDecision" | "graph.evidenceFieldDecisionOverridden">, Extract<EnglishKey, `actions.view.sidecar.attach-${string}`>>;
+  | "graph.evidenceFieldDecision" | "graph.evidenceFieldDecisionOverridden">, Extract<EnglishKey, `actions.view.sidecar.attach-${string}` | "actions.view.sidecar.collapse-plex" | "actions.view.sidecar.collapse-plex.description">>;
 
 /** Maintained translations are required; only the explicitly retained historical allowances may fall back to English. */
 export type LocaleTranslationMap = {

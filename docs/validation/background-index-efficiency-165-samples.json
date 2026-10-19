@@ -1,0 +1,2195 @@
+{
+  "baseline": {
+    "mergedBaseline": "8df393a44272e4d6a5d2b403447ef0f3c81ae527",
+    "integrationCommit": "a86b4a03c670f4dd7dc2f534d7fb9245d6d2785c",
+    "artifacts": {
+      "main.js": "e5994ecce833d5e3e17ad3615fec740ffa45aa3e87066e0c58b7f8d501440a0b",
+      "manifest.json": "19d9ecce5557733e0ff0f2e27155e635c30158c3cfa6fbca0f11c16e4dedfd2c",
+      "styles.css": "e8c9279e8904888aa71d5dd2b01f320d5b32fd10e15feb0b9a9576a34f11cea3"
+    },
+    "runtimeDiff": ""
+  },
+  "workFixture": {
+    "sourceRef": "8df393a",
+    "node": "v22.22.2",
+    "browser": {
+      "product": "Chrome/155.0.8059.79",
+      "jsVersion": "15.5.35.23"
+    },
+    "driver": "scripts/testing/source-validation-work.mjs",
+    "driverSha256": "7963c7f330513943edd31435a6c28cf3e35d65b001cf21f43b555a43c14599c4",
+    "probeSha256": "72f5851d3f39f4ba44fe1c1ae0e9f1568c5828a8d0a0cf6ce4f5f8adb36f8e16",
+    "source": {
+      "src/adapters/obsidian/sourceAcquisition.ts": "ae74132f407c10815d26b1d9c23ed4df0bb5a83eecfb19bdeff8c8e8220c7a8b",
+      "src/index/SourceRepository.ts": "39190bdcef7720d38afd7b4a32c718945164f94d4492adc9c3630c71ac64ae2b"
+    },
+    "cases": [
+      {
+        "owners": 32,
+        "resolvedWave": false,
+        "transactions": 233,
+        "inspections": 64,
+        "pins": 96,
+        "dependencyChecks": 64,
+        "metadataFamilyVisits": 32,
+        "resolutionFamilyVisits": 0,
+        "digestCalls": 128,
+        "ready": true,
+        "bodyReads": 0,
+        "parses": 0,
+        "repairs": 0
+      },
+      {
+        "owners": 32,
+        "resolvedWave": true,
+        "transactions": 682,
+        "inspections": 96,
+        "pins": 192,
+        "dependencyChecks": 64,
+        "metadataFamilyVisits": 64,
+        "resolutionFamilyVisits": 64,
+        "digestCalls": 704,
+        "ready": true,
+        "bodyReads": 0,
+        "parses": 0,
+        "repairs": 0
+      },
+      {
+        "owners": 64,
+        "resolvedWave": false,
+        "transactions": 457,
+        "inspections": 128,
+        "pins": 192,
+        "dependencyChecks": 128,
+        "metadataFamilyVisits": 64,
+        "resolutionFamilyVisits": 0,
+        "digestCalls": 256,
+        "ready": true,
+        "bodyReads": 0,
+        "parses": 0,
+        "repairs": 0
+      },
+      {
+        "owners": 64,
+        "resolvedWave": true,
+        "transactions": 1354,
+        "inspections": 192,
+        "pins": 384,
+        "dependencyChecks": 128,
+        "metadataFamilyVisits": 128,
+        "resolutionFamilyVisits": 128,
+        "digestCalls": 1408,
+        "ready": true,
+        "bodyReads": 0,
+        "parses": 0,
+        "repairs": 0
+      },
+      {
+        "owners": 128,
+        "resolvedWave": false,
+        "transactions": 905,
+        "inspections": 256,
+        "pins": 384,
+        "dependencyChecks": 256,
+        "metadataFamilyVisits": 128,
+        "resolutionFamilyVisits": 0,
+        "digestCalls": 512,
+        "ready": true,
+        "bodyReads": 0,
+        "parses": 0,
+        "repairs": 0
+      },
+      {
+        "owners": 128,
+        "resolvedWave": true,
+        "transactions": 2698,
+        "inspections": 384,
+        "pins": 768,
+        "dependencyChecks": 256,
+        "metadataFamilyVisits": 256,
+        "resolutionFamilyVisits": 256,
+        "digestCalls": 2816,
+        "ready": true,
+        "bodyReads": 0,
+        "parses": 0,
+        "repairs": 0
+      }
+    ]
+  },
+  "nativeDiagnosticBaseline": {
+    "runtimeRef": "8df393a44272e4d6a5d2b403447ef0f3c81ae527",
+    "testMainSha256": "55cc3055c8da2bea67205e69c5da764c6205760db0f093cfc498dd3b38179a56",
+    "driverSha256": "b83d1f8d9846730ba42d63c45d5488b8c78633c8a83b31978831a8a2aa23590e",
+    "evidenceEntry": "kplex-165-large-restarts/baseline-profile-help-1.json",
+    "reportSha256": "13f2991f696523f6483cd4238caceb64323be3d6acbf0aad0b8d7ac427c60b0e",
+    "status": "passed",
+    "firstReadyMs": 1047093.6999511719,
+    "settledReadyMs": 1049299.6999511719,
+    "cacheDrainMs": 1051499.6999511719,
+    "quietMs": 610709,
+    "quietViolations": 0,
+    "cpuUserUs": 294578000,
+    "cpuSystemUs": 43328000,
+    "quietCpuUs": 5672000,
+    "transactions": 455929,
+    "actualSourcePasses": 2,
+    "inventoryMethodAdmissions": 3,
+    "actualFullBuilds": 1,
+    "successfulCompleteSaves": 1,
+    "resolutionFamilyVisits": 40176,
+    "pageChunkPutJsonBytes": 279044330,
+    "localDependencyOwnerPuts": 20076,
+    "peakDecodeBytes": 183261,
+    "sampledHeapMaximumBytes": 2148379820,
+    "sampledRssMaximumBytes": 2865561600,
+    "bodyReads": 0,
+    "parses": 0,
+    "repairs": 0,
+    "allObservedForeground": true,
+    "limitations": "Detailed diagnostic, not matched performance result; CPU begins at observer installation. No initial graph equivalence checksum or controlled retained heap. Stored input identities and explicit CPU process-PID verification added for subsequent trials."
+  },
+  "status": "Duplicate-resolution proof reduction measured; native matched resource comparisons and graph-retention acceptance remain pending.",
+  "proofReduction": {
+    "method": "Three counterbalanced synthetic source-only pairs in real Chromium/IndexedDB; AB BA AB. Work counts are deterministic; elapsed is not native CPU/startup/battery evidence.",
+    "tools": {
+      "driverSha256": "ab79309e656573474cbd7a1aff7408c399ce574be5d50553d5d6104cca068f03",
+      "probeSha256": "72f5851d3f39f4ba44fe1c1ae0e9f1568c5828a8d0a0cf6ce4f5f8adb36f8e16",
+      "node": "v22.22.2",
+      "browser": {
+        "product": "Chrome/155.0.8059.79",
+        "jsVersion": "15.5.35.23"
+      }
+    },
+    "source": {
+      "baseline": {
+        "src/adapters/obsidian/sourceAcquisition.ts": "ae74132f407c10815d26b1d9c23ed4df0bb5a83eecfb19bdeff8c8e8220c7a8b",
+        "src/index/SourceRepository.ts": "39190bdcef7720d38afd7b4a32c718945164f94d4492adc9c3630c71ac64ae2b",
+        "src/adapters/obsidian/startupDiagnostics.ts": "2d448138de3f169eb57238b3f6d4059aeecd3fccd038d59e60945164b49abbab"
+      },
+      "candidate": {
+        "src/adapters/obsidian/sourceAcquisition.ts": "9d3c31ac6c997b2eec1e91db4bd50e2e4854d6e6148f04a586f3ce814ee015c3",
+        "src/index/SourceRepository.ts": "39190bdcef7720d38afd7b4a32c718945164f94d4492adc9c3630c71ac64ae2b",
+        "src/adapters/obsidian/startupDiagnostics.ts": "c56e74719f68905d40f73044c51da220409007c10fa6aef22c15daeb0974cb6b"
+      }
+    },
+    "trials": [
+      {
+        "trial": 1,
+        "kind": "baseline",
+        "evidenceEntry": "kplex-165-proof-work-1-baseline.json",
+        "sha256": "91e7adcd477e3d6f6716f6bb44a38b47f8709db4e03da8591fa1bd90bfee8e88"
+      },
+      {
+        "trial": 2,
+        "kind": "candidate",
+        "evidenceEntry": "kplex-165-proof-work-2-candidate.json",
+        "sha256": "65219a3dc16724723f28cfb824c30d66c22460ffbdd6741de663ddf744e71507"
+      },
+      {
+        "trial": 3,
+        "kind": "candidate",
+        "evidenceEntry": "kplex-165-proof-work-3-candidate.json",
+        "sha256": "86a21f25ba2493756aa0799007c349d028fa0f7026bdf9cfdd4c58cf3440f4e3"
+      },
+      {
+        "trial": 4,
+        "kind": "baseline",
+        "evidenceEntry": "kplex-165-proof-work-4-baseline.json",
+        "sha256": "48fd19e253517e93a16a047bce023d9129348086d98120f16adb688f7843a3a2"
+      },
+      {
+        "trial": 5,
+        "kind": "baseline",
+        "evidenceEntry": "kplex-165-proof-work-5-baseline.json",
+        "sha256": "afdc5836d34d9664535700a8c59aa07c6bcc4bd050bec267e9e12d30f1690185"
+      },
+      {
+        "trial": 6,
+        "kind": "candidate",
+        "evidenceEntry": "kplex-165-proof-work-6-candidate.json",
+        "sha256": "994e403e3dd6361167d5f796f03b7f607267ed1228601c37d80a530b46d849bd"
+      }
+    ],
+    "columns": [
+      "trial",
+      "owners",
+      "resolvedWave",
+      "transactions",
+      "resolutionFamilyVisits",
+      "digestCalls",
+      "elapsedMs",
+      "peakDecodeBytes",
+      "bodyReads",
+      "parses"
+    ],
+    "rows": [
+      [1,32,false,233,0,128,58.8,1655,0,0],
+      [1,32,true,682,64,704,193.9,5197,0,0],
+      [1,64,false,457,0,256,111.2,1655,0,0],
+      [1,64,true,1354,128,1408,379.6,5197,0,0],
+      [1,128,false,905,0,512,224.4,1665,0,0],
+      [1,128,true,2698,256,2816,814.8,5277,0,0],
+      [2,32,false,233,0,128,61.3,1655,0,0],
+      [2,32,true,650,32,608,204,5197,0,0],
+      [2,64,false,457,0,256,115.6,1655,0,0],
+      [2,64,true,1290,64,1216,350,5197,0,0],
+      [2,128,false,905,0,512,228.1,1665,0,0],
+      [2,128,true,2570,128,2432,734.3,5277,0,0],
+      [3,32,false,233,0,128,57.1,1655,0,0],
+      [3,32,true,650,32,608,197.9,5197,0,0],
+      [3,64,false,457,0,256,123.9,1655,0,0],
+      [3,64,true,1290,64,1216,349.2,5197,0,0],
+      [3,128,false,905,0,512,222.5,1665,0,0],
+      [3,128,true,2570,128,2432,723.7,5277,0,0],
+      [4,32,false,233,0,128,62.9,1655,0,0],
+      [4,32,true,682,64,704,207.5,5197,0,0],
+      [4,64,false,457,0,256,112.4,1655,0,0],
+      [4,64,true,1354,128,1408,379,5197,0,0],
+      [4,128,false,905,0,512,229.4,1665,0,0],
+      [4,128,true,2698,256,2816,830.3,5277,0,0],
+      [5,32,false,233,0,128,59.6,1655,0,0],
+      [5,32,true,682,64,704,215,5197,0,0],
+      [5,64,false,457,0,256,111.9,1655,0,0],
+      [5,64,true,1354,128,1408,381.8,5197,0,0],
+      [5,128,false,905,0,512,223.3,1665,0,0],
+      [5,128,true,2698,256,2816,817.3,5277,0,0],
+      [6,32,false,233,0,128,61.4,1655,0,0],
+      [6,32,true,650,32,608,188.8,5197,0,0],
+      [6,64,false,457,0,256,111.9,1655,0,0],
+      [6,64,true,1290,64,1216,352.5,5197,0,0],
+      [6,128,false,905,0,512,231.6,1665,0,0],
+      [6,128,true,2570,128,2432,724.5,5277,0,0]
+    ]
+  },
+  "productFit": {
+    "decision": "Defer the current receipt; retain independent duplicate-read correction. Scale matched comparisons remain pending.",
+    "candidate": {
+      "baseCommit": "5d11456da3f29b24edb3fddf7830f8dc7cf7b481",
+      "patchSha256": "4a0e43f4b10853fc805fecd47138b4fdb5af65a3322c6529c6683805445c714c",
+      "shippingMainSha256": "e00f5ec596365858be90f1bfe953d8808706022986d744f82b27f49cbcf80c11",
+      "commonProbeSha256": "cfad37cb8c321b8fd95803112bc7d5a2b02f31867e6beafd7136f8289e5c6cbc"
+    },
+    "eligibility": {
+      "wholeVaultLimitBytesPerMarkdownFile": 131072,
+      "nativeMixedProseBytes": 163840,
+      "nativeMixedDrawingBytes": 196813,
+      "nativeMixedReceiptPresent": false,
+      "nativeMixedCanonicalGraphComplete": true
+    },
+    "normalUse": {
+      "proseAndSemanticCasesPassed": true,
+      "normalSaveDelayUnchangedMs": 300000,
+      "receiptAfterOrdinarySave": false,
+      "receiptAfterTwoFurtherRestarts": false,
+      "forcedFullBuildAfterEdit": false
+    },
+    "promotionRace": {
+      "realSecondConnection": true,
+      "oldCodeRejected": false,
+      "correctedCodeRejected": true,
+      "finality": "Final durable source-sequence selection after awaited active metadata/receipt authentication, before synchronous promotion; no additional whole-vault pass"
+    },
+    "arms": [
+      {
+        "arm": "M",
+        "rawReceipt": "kplex-165-native-edit-lifecycle-net-M.json",
+        "sha256": "e23e28a8099c284fb2ee233e9b851731aad281e85921a39cbe69712b17ea4791",
+        "method": "One sequential native plugin-reload lifecycle per arm; creation through active source/cache/task drain; no 610s quiet window in this diagnostic. Includes host/probe/identity overhead; not a timing effect-size claim.",
+        "cpuSeconds": 9.109,
+        "wallSeconds": 44.492,
+        "transactions": 6416,
+        "readwriteTransactions": 1402,
+        "requests": 15509,
+        "snapshotWriteCalls": 1,
+        "hashCalls": 5596,
+        "hashInputUtf16Units": 9323345,
+        "sourceBodyReads": 2,
+        "sourceParses": 2,
+        "addedReceiptVaultReadCalls": 0,
+        "finalPostEditHeapAfterTwoGcBytes": 260012744,
+        "memoryLimit": "After receipt eligibility is lost; same-window sequence B/A/M drifts upward. Not attributable receipt overhead or a proven peak.",
+        "maximumSampledHeapBytes": 297941180,
+        "maximumSampledRssBytes": 738086912,
+        "hashCallsByFamily": {
+          "source": 5596,
+          "snapshot-pages": 0,
+          "snapshot-evidence": 0,
+          "snapshot-binding": 0,
+          "source-heads": 0,
+          "semantic-inputs": 0
+        },
+        "hashUnitsByFamily": {
+          "source": 9323345,
+          "snapshot-pages": 0,
+          "snapshot-evidence": 0,
+          "snapshot-binding": 0,
+          "source-heads": 0,
+          "semantic-inputs": 0
+        },
+        "endStates": [
+          {
+            "stage": "creation",
+            "receiptVersion": null,
+            "sourceBacked": false,
+            "fresh": true
+          },
+          {
+            "stage": "first-restart",
+            "receiptVersion": null,
+            "sourceBacked": true,
+            "fresh": true
+          },
+          {
+            "stage": "normal-edit-and-natural-save",
+            "receiptVersion": null,
+            "sourceBacked": true,
+            "fresh": true
+          },
+          {
+            "stage": "post-edit-restart-1",
+            "receiptVersion": null,
+            "sourceBacked": true,
+            "fresh": false
+          },
+          {
+            "stage": "post-edit-restart-2",
+            "receiptVersion": null,
+            "sourceBacked": true,
+            "fresh": false
+          }
+        ]
+      },
+      {
+        "arm": "A",
+        "rawReceipt": "kplex-165-native-edit-lifecycle-net-A.json",
+        "sha256": "0ba7f37c3fa276a5a23ef504434a57517d03eb2dba0fafcc0437118564b95bf3",
+        "method": "One sequential native plugin-reload lifecycle per arm; creation through active source/cache/task drain; no 610s quiet window in this diagnostic. Includes host/probe/identity overhead; not a timing effect-size claim.",
+        "cpuSeconds": 8.515,
+        "wallSeconds": 44.414,
+        "transactions": 6415,
+        "readwriteTransactions": 1400,
+        "requests": 15502,
+        "snapshotWriteCalls": 1,
+        "hashCalls": 5593,
+        "hashInputUtf16Units": 9322804,
+        "sourceBodyReads": 2,
+        "sourceParses": 2,
+        "addedReceiptVaultReadCalls": 0,
+        "finalPostEditHeapAfterTwoGcBytes": 222023220,
+        "memoryLimit": "After receipt eligibility is lost; same-window sequence B/A/M drifts upward. Not attributable receipt overhead or a proven peak.",
+        "maximumSampledHeapBytes": 249061640,
+        "maximumSampledRssBytes": 700747776,
+        "hashCallsByFamily": {
+          "source": 5593,
+          "snapshot-pages": 0,
+          "snapshot-evidence": 0,
+          "snapshot-binding": 0,
+          "source-heads": 0,
+          "semantic-inputs": 0
+        },
+        "hashUnitsByFamily": {
+          "source": 9322804,
+          "snapshot-pages": 0,
+          "snapshot-evidence": 0,
+          "snapshot-binding": 0,
+          "source-heads": 0,
+          "semantic-inputs": 0
+        },
+        "endStates": [
+          {
+            "stage": "creation",
+            "receiptVersion": null,
+            "sourceBacked": false,
+            "fresh": true
+          },
+          {
+            "stage": "first-restart",
+            "receiptVersion": null,
+            "sourceBacked": true,
+            "fresh": true
+          },
+          {
+            "stage": "normal-edit-and-natural-save",
+            "receiptVersion": null,
+            "sourceBacked": true,
+            "fresh": true
+          },
+          {
+            "stage": "post-edit-restart-1",
+            "receiptVersion": null,
+            "sourceBacked": true,
+            "fresh": false
+          },
+          {
+            "stage": "post-edit-restart-2",
+            "receiptVersion": null,
+            "sourceBacked": true,
+            "fresh": false
+          }
+        ]
+      },
+      {
+        "arm": "B",
+        "rawReceipt": "kplex-165-native-edit-lifecycle-net-B.json",
+        "sha256": "56f224ebfa6029c532d48ec4573ad15f3221794d83264a0133b228b11e89ed36",
+        "method": "One sequential native plugin-reload lifecycle per arm; creation through active source/cache/task drain; no 610s quiet window in this diagnostic. Includes host/probe/identity overhead; not a timing effect-size claim.",
+        "cpuSeconds": 10.75,
+        "wallSeconds": 349.938,
+        "transactions": 9197,
+        "readwriteTransactions": 2544,
+        "requests": 20341,
+        "snapshotWriteCalls": 2,
+        "hashCalls": 8450,
+        "hashInputUtf16Units": 16620955,
+        "sourceBodyReads": 91,
+        "sourceParses": 91,
+        "addedReceiptVaultReadCalls": 89,
+        "finalPostEditHeapAfterTwoGcBytes": 183891336,
+        "memoryLimit": "After receipt eligibility is lost; same-window sequence B/A/M drifts upward. Not attributable receipt overhead or a proven peak.",
+        "maximumSampledHeapBytes": 208793060,
+        "maximumSampledRssBytes": 651317248,
+        "hashCallsByFamily": {
+          "source": 8345,
+          "snapshot-pages": 40,
+          "snapshot-evidence": 30,
+          "snapshot-binding": 6,
+          "source-heads": 21,
+          "semantic-inputs": 8
+        },
+        "hashUnitsByFamily": {
+          "source": 13590899,
+          "snapshot-pages": 1328570,
+          "snapshot-evidence": 1017184,
+          "snapshot-binding": 6996,
+          "source-heads": 619746,
+          "semantic-inputs": 57560
+        },
+        "endStates": [
+          {
+            "stage": "creation",
+            "receiptVersion": 2,
+            "sourceBacked": false,
+            "fresh": true
+          },
+          {
+            "stage": "first-restart",
+            "receiptVersion": 2,
+            "sourceBacked": false,
+            "fresh": true
+          },
+          {
+            "stage": "normal-edit-and-natural-save",
+            "receiptVersion": null,
+            "sourceBacked": false,
+            "fresh": true
+          },
+          {
+            "stage": "post-edit-restart-1",
+            "receiptVersion": null,
+            "sourceBacked": true,
+            "fresh": true
+          },
+          {
+            "stage": "post-edit-restart-2",
+            "receiptVersion": null,
+            "sourceBacked": true,
+            "fresh": true
+          }
+        ]
+      }
+    ],
+    "sourceProvenanceSafety": {
+      "decision": "Reject and defer receipt",
+      "failingCases": [
+        "same-stat YAML with cached host frontmatter",
+        "same-stat ordinary wiki link with cached host resolvedLinks",
+        "same-stat body tag with cached host tags"
+      ],
+      "failed": 3,
+      "passed": 0,
+      "rawEvidence": "kplex-165-receipt-stale-host-source-proof-red.log",
+      "probeSourceSha256": "07345c146354e39518f017d7150fa3b9d137e56efbdfd92188107f81c32357d8",
+      "priorGreenVerification": "40 receipt cases / 564 browser checks, before these new failing probes"
+    },
+    "nativeLargeProtocol2FirstUse": {
+      "candidateCommit": "9124f5b4a523932ea468e9d73ffdbda2fddbeedd",
+      "measurementArtifactSha256": "8d7da3c3a2b7ec386555d32f6b4dba6ff8b9b2954897aa5272019038ef42c0d3",
+      "kind": "Normal startup from the existing protocol1 graph; no forced preparation build",
+      "status": "passed",
+      "markdownOwners": 20088,
+      "receiptVersionAfterCreation": 2,
+      "readyMs": 1966652.6999511719,
+      "drainMs": 2034740.6999511719,
+      "quietMs": 610352,
+      "quietViolations": 0,
+      "inclusiveRendererCpuMicroseconds": {
+        "user": 490188000,
+        "system": 79547000
+      },
+      "profileRendererCpuMicroseconds": {
+        "user": 489078000,
+        "system": 79422000
+      },
+      "transactions": 826340,
+      "requests": 1678868,
+      "work": {
+        "sourceInventoryPasses": 2,
+        "fullBuildStarts": 1,
+        "nodeCatalogStarts": 0,
+        "completeSnapshotSaves": 1,
+        "checkpointSaves": 0
+      },
+      "source": {
+        "checked": 40192,
+        "reusedBodies": 40192,
+        "legacyBodies": 0,
+        "vaultReads": 0,
+        "parses": 0,
+        "repaired": 0,
+        "resolutionRefreshes": 0,
+        "pendingMetadata": 0,
+        "failures": 0
+      },
+      "hashing": {
+        "source": {
+          "calls": 764407,
+          "utf16Units": 1291542457
+        },
+        "snapshot-pages": {
+          "calls": 3545,
+          "utf16Units": 129650408
+        },
+        "snapshot-evidence": {
+          "calls": 1200,
+          "utf16Units": 45700193
+        },
+        "snapshot-binding": {
+          "calls": 2,
+          "utf16Units": 13700
+        },
+        "source-heads": {
+          "calls": 2048,
+          "utf16Units": 73189776
+        },
+        "semantic-inputs": {
+          "calls": 264,
+          "utf16Units": 9591642
+        }
+      },
+      "unforcedSampledHeapMaximumBytes": 2005530420,
+      "unforcedSampledRssMaximumBytes": 2716008448,
+      "allForeground": true,
+      "rawReceipt": "kplex-165-large-restarts/receipt-v2-create-before-01.json",
+      "rawReceiptSha256": "2668ad6806f01d9334813785a57e310d33d07a13f22c34c6be59556d06e30f6f",
+      "limitations": "Absolute creation cost, not a matched creation speedup or attributable memory difference. Hash units are argument UTF16 length, not disk bytes or allocation totals. Rejected candidate; warm retention is tested separately."
+    }
+  },
+  "nativeCloseout": {
+    "scopeChange": "Maintainer superseded nine-trial plan: receipt deferred; preserve first completed B-A-M group and finish only matched M-A / A-M. Receipt correctness/product-fit failures are decisive regardless of timing.",
+    "mergedBaseline": "8df393a44272e4d6a5d2b403447ef0f3c81ae527",
+    "shippingComparison": "A includes independently reviewable duplicate-read correction and truthful progress/work reporting; no receipt.",
+    "profiles": {
+      "B": {
+        "path": "C:\\Users\\viczi\\AppData\\Local\\Temp\\kplex-165-receipt-fit-counts\\main.js",
+        "identity": {
+          "sourceCommit": "5d11456da3f29b24edb3fddf7830f8dc7cf7b481",
+          "sourceDirty": true,
+          "mode": "counts",
+          "node": "v22.22.2",
+          "testOnly": true,
+          "semantics": "Native process CPU/IDB counters and bounded resource observations; no source/graph authority, settings, scheduling, watchdog or cache changes. Counts mode keeps detailed StartupDiagnostics disabled.",
+          "sha256": "8d7da3c3a2b7ec386555d32f6b4dba6ff8b9b2954897aa5272019038ef42c0d3",
+          "probeSha256": "cfad37cb8c321b8fd95803112bc7d5a2b02f31867e6beafd7136f8289e5c6cbc"
+        }
+      },
+      "A": {
+        "path": "C:\\Users\\viczi\\AppData\\Local\\Temp\\kplex-165-control-d0-fit-counts\\main.js",
+        "identity": {
+          "sourceCommit": "d0d16fb06781c9b8efdf3522a5c1d1bd4971caac",
+          "sourceDirty": false,
+          "mode": "counts",
+          "node": "v22.22.2",
+          "testOnly": true,
+          "semantics": "Native process CPU/IDB counters and bounded resource observations; no source/graph authority, settings, scheduling, watchdog or cache changes. Counts mode keeps detailed StartupDiagnostics disabled.",
+          "sha256": "3a02cdc63a95aa3382f6a178d6d7bdc0203b7f8e48abce0e0b946d0e9b212449",
+          "probeSha256": "cfad37cb8c321b8fd95803112bc7d5a2b02f31867e6beafd7136f8289e5c6cbc"
+        }
+      },
+      "M": {
+        "path": "C:\\Users\\viczi\\AppData\\Local\\Temp\\kplex-165-merged-8df-fit-counts\\main.js",
+        "identity": {
+          "sourceCommit": "8df393a44272e4d6a5d2b403447ef0f3c81ae527",
+          "sourceDirty": false,
+          "mode": "counts",
+          "node": "v22.22.2",
+          "testOnly": true,
+          "semantics": "Native process CPU/IDB counters and bounded resource observations; no source/graph authority, settings, scheduling, watchdog or cache changes. Counts mode keeps detailed StartupDiagnostics disabled.",
+          "sha256": "b00c303f5cbb563070b975176e264bc8d0ed3029bb5246be262ad33d0adc9288",
+          "probeSha256": "cfad37cb8c321b8fd95803112bc7d5a2b02f31867e6beafd7136f8289e5c6cbc"
+        }
+      }
+    },
+    "remainingSchedule": [],
+    "focusExclusion": {
+      "at": "2026-10-15T16:44:29.708Z",
+      "label": "closeout-v1-05-A",
+      "decision": "Exclude whole observation from controlled native comparison; preserve complete raw summary/sample stream and original flags. Finish safely, do not clear focus violations.",
+      "observed": {
+        "documentHidden": false,
+        "documentFocused": false,
+        "windowFocused": false,
+        "throttling": true
+      },
+      "restoration": "Only named kplex-test native window shown/focused; no other window inspection or OS/lock/throttle policy change.",
+      "boundedRecovery": "At most one replacement A trial; preserve failed coordinator/progress unchanged. Remaining A-M pair stays unchanged. If controls fail again, close out with reduced sample count and qualify resource conclusions.",
+      "completedAt": "2026-10-15T17:05:49.299Z",
+      "rawReceipt": "kplex-165-large-restarts/closeout-v1-05-A.json",
+      "rawReceiptSha256": "03d912cffa7a252b2ca7469e6974faa91cb20e9dfb9dfe3678430db23062efc1",
+      "driverStatus": "passed",
+      "coordinatorStatus": "failed foreground control",
+      "allForeground": false,
+      "foregroundByOrigin": {
+        "1792080644597": {
+          "samples": 5,
+          "violations": 0
+        },
+        "1792082299217": {
+          "samples": 1497,
+          "violations": 84
+        }
+      },
+      "quietViolations": 0,
+      "broadWorkUnchanged": true,
+      "cleanupUnavailable": false,
+      "pluginRestoreUnavailable": false
+    },
+    "originalCoordinatorFailure": {
+      "group": 0,
+      "at": "2026-10-15T17:05:49.323Z",
+      "message": "Primary foreground/drain/CPU control failed"
+    },
+    "trials": [
+      {
+        "group": 0,
+        "arm": "B",
+        "label": "primary-v2-01-B",
+        "receiptAcceptance": "failed",
+        "hostReplayEqual": false,
+        "rawGraphEqual": false,
+        "elapsedReadyMs": 2079425.3000488281,
+        "drainMs": 2149901.300048828,
+        "cpuMicroseconds": {
+          "user": 635781000,
+          "system": 183266000
+        },
+        "lifecycleCpuMicroseconds": {
+          "user": 637312000,
+          "system": 183344000
+        },
+        "work": {
+          "sourceInventoryPasses": 2,
+          "fullBuildStarts": 1,
+          "nodeCatalogStarts": 0,
+          "completeSnapshotSaves": 1,
+          "checkpointSaves": 0
+        },
+        "retainedMemory": {
+          "startedAt": 1792077113157,
+          "completedAt": 1792077113897,
+          "pid": 23216,
+          "collections": 2,
+          "method": "Selected renderer live heap after two forced collections; outside startup/quiet timing; not plugin-exclusive retained overhead",
+          "heapBytes": {
+            "usedSize": 498599824,
+            "totalSize": 521728000,
+            "embedderHeapUsedSize": 6699360,
+            "backingStorageSize": 9516528
+          },
+          "processMemoryKb": {
+            "private": 1054184,
+            "shared": 9360,
+            "residentSet": 1080368
+          },
+          "cpuMicroseconds": {
+            "user": 3594000,
+            "system": 63000
+          }
+        },
+        "startedAt": "2026-10-15T14:25:28.172Z",
+        "rawReceipt": "kplex-165-large-restarts/primary-v2-01-B.json",
+        "rawReceiptSha256": "2078051dfc57e2546747f0fd24b010927fcaf1435a5248fbd0650b30daf851aa",
+        "sourceChunkReads": 201132,
+        "sourcePostingReads": 201132,
+        "savedPagePuts": 108217,
+        "transactions": 826275,
+        "readwriteTransactions": 341794,
+        "requests": 1678730,
+        "hashing": {
+          "source": {
+            "calls": 764199,
+            "utf16Units": 1291217294
+          },
+          "snapshot-pages": {
+            "calls": 7090,
+            "utf16Units": 259300816
+          },
+          "snapshot-evidence": {
+            "calls": 2400,
+            "utf16Units": 91400386
+          },
+          "snapshot-binding": {
+            "calls": 4,
+            "utf16Units": 27400
+          },
+          "source-heads": {
+            "calls": 3072,
+            "utf16Units": 109784664
+          },
+          "semantic-inputs": {
+            "calls": 352,
+            "utf16Units": 12788856
+          }
+        },
+        "source": {
+          "checked": 40176,
+          "reusedBodies": 40176,
+          "legacyBodies": 0,
+          "vaultReads": 20088,
+          "parses": 20088,
+          "repaired": 0,
+          "resolutionRefreshes": 0,
+          "pendingMetadata": 0,
+          "failures": 0
+        },
+        "sourceRepository": {
+          "activated": 0,
+          "unsaved": 0,
+          "empty": 0,
+          "chunksWritten": 0,
+          "bytesWritten": 0,
+          "readFailures": 0,
+          "sequenceMin": 0,
+          "sequenceMax": 0,
+          "peakDecodeBytes": 183261
+        },
+        "firstReadyMs": 2079425.3000488281,
+        "quietMs": 610989,
+        "quietViolations": 0,
+        "broadWorkUnchanged": true,
+        "admissions": {
+          "inventoryRuns": 5,
+          "fullBuildCalls": 1,
+          "nodeCatalogCalls": 0,
+          "snapshotWrites": 1,
+          "checkpointWrites": 0
+        },
+        "sourceWorkGroups": {
+          "all:tx.readonly.meta": 39,
+          "all:request.readonly.meta.get": 80468,
+          "all:tx.readwrite.meta": 160773,
+          "all:request.readwrite.meta.put": 20081,
+          "all:tx.readwrite.meta,sourceHeads,sourceImpacts": 1,
+          "all:request.readwrite.meta.get": 20085,
+          "all:tx.readonly.sourceHeads": 201818,
+          "all:request.readonly.sourceHeads.get": 282225,
+          "all:tx.readonly.meta,sourceHeads,sourceLocalDependencyOwners,sourceLocalDependencyRepairs": 80352,
+          "all:tx.readwrite.meta,sourceHeads": 160767,
+          "all:request.readwrite.sourceHeads.get": 180839,
+          "all:request.readwrite.meta.add": 160767,
+          "all:tx.readonly.sourceChunks,sourcePostings": 201132,
+          "all:request.readonly.sourceChunks.get": 201132,
+          "all:request.readwrite.meta.delete": 160768,
+          "all:tx.readwrite.meta,sourceHeads,sourceLocalDependencyOwners": 20072,
+          "all:request.readonly.sourceHeads.getAll": 560,
+          "all:request.readonly.sourceHeads.getAllKeys": 560,
+          "all:tx.readonly.meta,sourceLocalDependencyRepairs": 4,
+          "all:tx.readwrite.meta,sourceLocalDependencyRepairs": 4,
+          "all:tx.readonly.meta,sourceLocalDependencyKeys": 2,
+          "all:tx.readonly.meta,sourceHeads,sourceLocalDependencies,sourceLocalDependencyOwners": 23,
+          "all:tx.readonly.meta,sourceHeads": 8
+        },
+        "quietCpuMicroseconds": {
+          "user": 4797000,
+          "system": 1187000
+        },
+        "allForeground": true,
+        "cpuProcessIdentityVerified": true,
+        "unforcedSampledHeapMaximumBytes": 2001558796,
+        "unforcedSampledRssMaximumBytes": 2947932160,
+        "heartbeat": {
+          "samples": 54902,
+          "maxGapMs": 370.09999999403954
+        },
+        "pending": 0,
+        "activeTransactions": 0,
+        "cleanupUnavailable": false,
+        "pluginRestoreUnavailable": false
+      },
+      {
+        "group": 0,
+        "arm": "A",
+        "label": "primary-v2-02-A",
+        "receiptAcceptance": "passed",
+        "hostReplayEqual": false,
+        "rawGraphEqual": false,
+        "elapsedReadyMs": 1021504.1999511719,
+        "drainMs": 1025877.1999511719,
+        "cpuMicroseconds": {
+          "user": 291547000,
+          "system": 44640000
+        },
+        "lifecycleCpuMicroseconds": {
+          "user": 292281000,
+          "system": 44797000
+        },
+        "work": {
+          "sourceInventoryPasses": 2,
+          "fullBuildStarts": 1,
+          "nodeCatalogStarts": 0,
+          "completeSnapshotSaves": 1,
+          "checkpointSaves": 0
+        },
+        "retainedMemory": {
+          "startedAt": 1792078787571,
+          "completedAt": 1792078788416,
+          "pid": 23216,
+          "collections": 2,
+          "method": "Selected renderer live heap after two forced collections; outside startup/quiet timing; not plugin-exclusive retained overhead",
+          "heapBytes": {
+            "usedSize": 406129128,
+            "totalSize": 417247232,
+            "embedderHeapUsedSize": 6802696,
+            "backingStorageSize": 9513104
+          },
+          "processMemoryKb": {
+            "private": 938476,
+            "shared": 9364,
+            "residentSet": 965888
+          },
+          "cpuMicroseconds": {
+            "user": 3344000,
+            "system": 219000
+          }
+        },
+        "startedAt": "2026-10-15T15:12:06.341Z",
+        "rawReceipt": "kplex-165-large-restarts/primary-v2-02-A.json",
+        "rawReceiptSha256": "f2c9cc72228c4f3a6fb7a1a48e66677cf660a9e7584f4904b722783e0585f54c",
+        "sourceChunkReads": 103256,
+        "sourcePostingReads": 103256,
+        "savedPagePuts": 108217,
+        "transactions": 437355,
+        "readwriteTransactions": 186594,
+        "requests": 1000806,
+        "hashing": {
+          "source": {
+            "calls": 390120,
+            "utf16Units": 656378120
+          },
+          "snapshot-pages": {
+            "calls": 0,
+            "utf16Units": 0
+          },
+          "snapshot-evidence": {
+            "calls": 0,
+            "utf16Units": 0
+          },
+          "snapshot-binding": {
+            "calls": 0,
+            "utf16Units": 0
+          },
+          "source-heads": {
+            "calls": 0,
+            "utf16Units": 0
+          },
+          "semantic-inputs": {
+            "calls": 0,
+            "utf16Units": 0
+          }
+        },
+        "source": {
+          "checked": 20088,
+          "reusedBodies": 20088,
+          "legacyBodies": 0,
+          "vaultReads": 0,
+          "parses": 0,
+          "repaired": 0,
+          "resolutionRefreshes": 0,
+          "pendingMetadata": 0,
+          "failures": 0
+        },
+        "sourceRepository": {
+          "activated": 0,
+          "unsaved": 0,
+          "empty": 0,
+          "chunksWritten": 0,
+          "bytesWritten": 0,
+          "readFailures": 0,
+          "sequenceMin": 0,
+          "sequenceMax": 0,
+          "peakDecodeBytes": 183261
+        },
+        "firstReadyMs": 1021504.1999511719,
+        "quietMs": 610149,
+        "quietViolations": 0,
+        "broadWorkUnchanged": true,
+        "admissions": {
+          "inventoryRuns": 3,
+          "fullBuildCalls": 1,
+          "nodeCatalogCalls": 0,
+          "snapshotWrites": 1,
+          "checkpointWrites": 0
+        },
+        "sourceWorkGroups": {
+          "all:tx.readonly.meta": 5,
+          "all:request.readonly.meta.get": 43003,
+          "all:tx.readwrite.meta": 83174,
+          "all:request.readwrite.meta.put": 20079,
+          "all:tx.readwrite.meta,sourceHeads,sourceImpacts": 1,
+          "all:request.readwrite.meta.get": 20080,
+          "all:tx.readonly.sourceHeads": 103417,
+          "all:request.readonly.sourceHeads.get": 146249,
+          "all:tx.readonly.meta,sourceHeads,sourceLocalDependencyOwners,sourceLocalDependencyRepairs": 42992,
+          "all:tx.readwrite.meta,sourceHeads,sourceLocalDependencyOwners": 20072,
+          "all:request.readwrite.sourceHeads.get": 103240,
+          "all:tx.readwrite.meta,sourceHeads": 83168,
+          "all:request.readwrite.meta.add": 83168,
+          "all:tx.readonly.sourceChunks,sourcePostings": 103256,
+          "all:request.readonly.sourceChunks.get": 103256,
+          "all:request.readwrite.meta.delete": 83169,
+          "all:request.readonly.sourceHeads.getAll": 160,
+          "all:request.readonly.sourceHeads.getAllKeys": 160,
+          "all:tx.readonly.meta,sourceLocalDependencyRepairs": 2,
+          "all:tx.readwrite.meta,sourceLocalDependencyRepairs": 2
+        },
+        "quietCpuMicroseconds": {
+          "user": 3235000,
+          "system": 453000
+        },
+        "allForeground": true,
+        "cpuProcessIdentityVerified": true,
+        "unforcedSampledHeapMaximumBytes": 1661504168,
+        "unforcedSampledRssMaximumBytes": 2410004480,
+        "heartbeat": {
+          "samples": 32420,
+          "maxGapMs": 414.30000001192093
+        },
+        "pending": 0,
+        "activeTransactions": 0,
+        "cleanupUnavailable": false,
+        "pluginRestoreUnavailable": false
+      },
+      {
+        "group": 0,
+        "arm": "M",
+        "label": "primary-v2-03-M",
+        "receiptAcceptance": "passed",
+        "hostReplayEqual": false,
+        "rawGraphEqual": false,
+        "elapsedReadyMs": 1022765.6999511719,
+        "drainMs": 1027175.6999511719,
+        "cpuMicroseconds": {
+          "user": 321485000,
+          "system": 52297000
+        },
+        "lifecycleCpuMicroseconds": {
+          "user": 322094000,
+          "system": 52406000
+        },
+        "work": null,
+        "retainedMemory": {
+          "startedAt": 1792080462277,
+          "completedAt": 1792080463137,
+          "pid": 23216,
+          "collections": 2,
+          "method": "Selected renderer live heap after two forced collections; outside startup/quiet timing; not plugin-exclusive retained overhead",
+          "heapBytes": {
+            "usedSize": 406673744,
+            "totalSize": 421699584,
+            "embedderHeapUsedSize": 6769672,
+            "backingStorageSize": 9514577
+          },
+          "processMemoryKb": {
+            "private": 949360,
+            "shared": 9364,
+            "residentSet": 977620
+          },
+          "cpuMicroseconds": {
+            "user": 3297000,
+            "system": 187000
+          }
+        },
+        "startedAt": "2026-10-15T15:40:00.705Z",
+        "rawReceipt": "kplex-165-large-restarts/primary-v2-03-M.json",
+        "rawReceiptSha256": "f1995e2901d504af50af97bf7d600b8d0965e65e1409d4fad0ebc10a2682d045",
+        "sourceChunkReads": 123333,
+        "sourcePostingReads": 123333,
+        "savedPagePuts": 108217,
+        "transactions": 457395,
+        "readwriteTransactions": 186578,
+        "requests": 1040902,
+        "hashing": {
+          "source": {
+            "calls": 450351,
+            "utf16Units": 829613548
+          },
+          "snapshot-pages": {
+            "calls": 0,
+            "utf16Units": 0
+          },
+          "snapshot-evidence": {
+            "calls": 0,
+            "utf16Units": 0
+          },
+          "snapshot-binding": {
+            "calls": 0,
+            "utf16Units": 0
+          },
+          "source-heads": {
+            "calls": 0,
+            "utf16Units": 0
+          },
+          "semantic-inputs": {
+            "calls": 0,
+            "utf16Units": 0
+          }
+        },
+        "source": {
+          "checked": 20088,
+          "reusedBodies": 20088,
+          "legacyBodies": 0,
+          "vaultReads": 0,
+          "parses": 0,
+          "repaired": 0,
+          "resolutionRefreshes": 0,
+          "pendingMetadata": 0,
+          "failures": 0
+        },
+        "sourceRepository": {
+          "activated": 0,
+          "unsaved": 0,
+          "empty": 0,
+          "chunksWritten": 0,
+          "bytesWritten": 0,
+          "readFailures": 0,
+          "sequenceMin": 0,
+          "sequenceMax": 0,
+          "peakDecodeBytes": 183261
+        },
+        "firstReadyMs": 1022765.6999511719,
+        "quietMs": 610381,
+        "quietViolations": 0,
+        "broadWorkUnchanged": true,
+        "admissions": {
+          "inventoryRuns": 3,
+          "fullBuildCalls": 1,
+          "nodeCatalogCalls": 0,
+          "snapshotWrites": 1,
+          "checkpointWrites": 0
+        },
+        "sourceWorkGroups": {
+          "all:tx.readonly.meta": 5,
+          "all:request.readonly.meta.get": 42992,
+          "all:tx.readwrite.meta": 83163,
+          "all:request.readwrite.meta.put": 20085,
+          "all:tx.readwrite.meta,sourceHeads,sourceImpacts": 1,
+          "all:request.readwrite.meta.get": 20086,
+          "all:tx.readonly.sourceHeads": 103406,
+          "all:request.readonly.sourceHeads.get": 146227,
+          "all:tx.readonly.meta,sourceHeads,sourceLocalDependencyOwners,sourceLocalDependencyRepairs": 42981,
+          "all:tx.readwrite.meta,sourceHeads,sourceLocalDependencyOwners": 20078,
+          "all:request.readwrite.sourceHeads.get": 103235,
+          "all:tx.readwrite.meta,sourceHeads": 83157,
+          "all:request.readwrite.meta.add": 83157,
+          "all:tx.readonly.sourceChunks,sourcePostings": 123333,
+          "all:request.readonly.sourceChunks.get": 123333,
+          "all:request.readwrite.meta.delete": 83158,
+          "all:request.readonly.sourceHeads.getAll": 160,
+          "all:request.readonly.sourceHeads.getAllKeys": 160,
+          "all:tx.readonly.meta,sourceLocalDependencyRepairs": 2,
+          "all:tx.readwrite.meta,sourceLocalDependencyRepairs": 2
+        },
+        "quietCpuMicroseconds": {
+          "user": 4844000,
+          "system": 703000
+        },
+        "allForeground": true,
+        "cpuProcessIdentityVerified": true,
+        "unforcedSampledHeapMaximumBytes": 2312910788,
+        "unforcedSampledRssMaximumBytes": 3037655040,
+        "heartbeat": {
+          "samples": 32375,
+          "maxGapMs": 468.40000000596046
+        },
+        "pending": 0,
+        "activeTransactions": 0,
+        "cleanupUnavailable": false,
+        "pluginRestoreUnavailable": false
+      },
+      {
+        "group": 0,
+        "arm": "M",
+        "label": "closeout-v1-04-M",
+        "receiptAcceptance": "passed",
+        "hostReplayEqual": false,
+        "rawGraphEqual": false,
+        "elapsedReadyMs": 1002129,
+        "drainMs": 1006515,
+        "cpuMicroseconds": {
+          "user": 270000000,
+          "system": 42297000
+        },
+        "lifecycleCpuMicroseconds": {
+          "user": 271297000,
+          "system": 42453000
+        },
+        "work": null,
+        "retainedMemory": {
+          "startedAt": 1792082279630,
+          "completedAt": 1792082280258,
+          "pid": 23216,
+          "collections": 2,
+          "method": "Selected renderer live heap after two forced collections; outside startup/quiet timing; not plugin-exclusive retained overhead",
+          "heapBytes": {
+            "usedSize": 405436136,
+            "totalSize": 417243136,
+            "embedderHeapUsedSize": 7067392,
+            "backingStorageSize": 9511368
+          },
+          "processMemoryKb": {
+            "private": 949592,
+            "shared": 9368,
+            "residentSet": 974692
+          },
+          "cpuMicroseconds": {
+            "user": 2922000,
+            "system": 109000
+          }
+        },
+        "startedAt": "2026-10-15T16:10:38.175Z",
+        "rawReceipt": "kplex-165-large-restarts/closeout-v1-04-M.json",
+        "rawReceiptSha256": "15b153f1e4a8d5375ab877bbabb3470190ceb6b29d31a5a522ce035078b7da41",
+        "sourceChunkReads": 123559,
+        "sourcePostingReads": 123559,
+        "savedPagePuts": 108217,
+        "transactions": 452316,
+        "readwriteTransactions": 180822,
+        "requests": 1012121,
+        "hashing": {
+          "source": {
+            "calls": 451029,
+            "utf16Units": 830549930
+          },
+          "snapshot-pages": {
+            "calls": 0,
+            "utf16Units": 0
+          },
+          "snapshot-evidence": {
+            "calls": 0,
+            "utf16Units": 0
+          },
+          "snapshot-binding": {
+            "calls": 0,
+            "utf16Units": 0
+          },
+          "source-heads": {
+            "calls": 0,
+            "utf16Units": 0
+          },
+          "semantic-inputs": {
+            "calls": 0,
+            "utf16Units": 0
+          }
+        },
+        "source": {
+          "checked": 20088,
+          "reusedBodies": 20088,
+          "legacyBodies": 0,
+          "vaultReads": 0,
+          "parses": 0,
+          "repaired": 0,
+          "resolutionRefreshes": 0,
+          "pendingMetadata": 0,
+          "failures": 0
+        },
+        "sourceRepository": {
+          "activated": 0,
+          "unsaved": 0,
+          "empty": 0,
+          "chunksWritten": 0,
+          "bytesWritten": 0,
+          "readFailures": 0,
+          "sequenceMin": 0,
+          "sequenceMax": 0,
+          "peakDecodeBytes": 183261
+        },
+        "firstReadyMs": 1002129,
+        "quietMs": 610831,
+        "quietViolations": 0,
+        "broadWorkUnchanged": true,
+        "admissions": {
+          "inventoryRuns": 3,
+          "fullBuildCalls": 1,
+          "nodeCatalogCalls": 0,
+          "snapshotWrites": 1,
+          "checkpointWrites": 0
+        },
+        "sourceWorkGroups": {
+          "all:tx.readonly.meta": 5,
+          "all:request.readonly.meta.get": 43218,
+          "all:tx.readwrite.meta": 83389,
+          "all:request.readwrite.meta.put": 13877,
+          "all:tx.readwrite.meta,sourceHeads,sourceImpacts": 1,
+          "all:request.readwrite.meta.get": 13878,
+          "all:tx.readonly.sourceHeads": 103631,
+          "all:request.readonly.sourceHeads.get": 146678,
+          "all:tx.readonly.meta,sourceHeads,sourceLocalDependencyOwners,sourceLocalDependencyRepairs": 43207,
+          "all:tx.readwrite.meta,sourceHeads": 83383,
+          "all:request.readwrite.sourceHeads.get": 97253,
+          "all:request.readwrite.meta.add": 83383,
+          "all:tx.readonly.sourceChunks,sourcePostings": 123559,
+          "all:request.readonly.sourceChunks.get": 123559,
+          "all:request.readwrite.meta.delete": 83384,
+          "all:tx.readwrite.meta,sourceHeads,sourceLocalDependencyOwners": 13870,
+          "all:request.readonly.sourceHeads.getAll": 160,
+          "all:request.readonly.sourceHeads.getAllKeys": 160,
+          "all:tx.readonly.meta,sourceLocalDependencyRepairs": 2,
+          "all:tx.readwrite.meta,sourceLocalDependencyRepairs": 2
+        },
+        "quietCpuMicroseconds": {
+          "user": 4078000,
+          "system": 766000
+        },
+        "allForeground": true,
+        "cpuProcessIdentityVerified": true,
+        "unforcedSampledHeapMaximumBytes": 2081364732,
+        "unforcedSampledRssMaximumBytes": 3207176192,
+        "heartbeat": {
+          "samples": 31977,
+          "maxGapMs": 485.59999999403954
+        },
+        "pending": 0,
+        "activeTransactions": 0,
+        "cleanupUnavailable": false,
+        "pluginRestoreUnavailable": false
+      },
+      {
+        "group": 0,
+        "arm": "A",
+        "label": "closeout-focus-retry-v1-08-A",
+        "receiptAcceptance": "passed",
+        "hostReplayEqual": false,
+        "rawGraphEqual": false,
+        "elapsedReadyMs": 1063219,
+        "drainMs": 1067599,
+        "cpuMicroseconds": {
+          "user": 276422000,
+          "system": 43781000
+        },
+        "lifecycleCpuMicroseconds": {
+          "user": 277204000,
+          "system": 43843000
+        },
+        "work": {
+          "sourceInventoryPasses": 2,
+          "fullBuildStarts": 1,
+          "nodeCatalogStarts": 0,
+          "completeSnapshotSaves": 1,
+          "checkpointSaves": 0
+        },
+        "retainedMemory": {
+          "startedAt": 1792085747347,
+          "completedAt": 1792085748106,
+          "pid": 23216,
+          "collections": 2,
+          "method": "Selected renderer live heap after two forced collections; outside startup/quiet timing; not plugin-exclusive retained overhead",
+          "heapBytes": {
+            "usedSize": 406747652,
+            "totalSize": 419344384,
+            "embedderHeapUsedSize": 6766024,
+            "backingStorageSize": 9508480
+          },
+          "processMemoryKb": {
+            "private": 935028,
+            "shared": 9368,
+            "residentSet": 962692
+          },
+          "cpuMicroseconds": {
+            "user": 2860000,
+            "system": 141000
+          }
+        },
+        "startedAt": "2026-10-15T17:07:24.318Z",
+        "rawReceipt": "kplex-165-large-restarts/closeout-focus-retry-v1-08-A.json",
+        "rawReceiptSha256": "f0c1a993a77478b795e0911a741a8f0759b631d8f2c5c0983b23e4ea669f8f2a",
+        "sourceChunkReads": 102889,
+        "sourcePostingReads": 102889,
+        "savedPagePuts": 108217,
+        "transactions": 425738,
+        "readwriteTransactions": 176077,
+        "requests": 948221,
+        "hashing": {
+          "source": {
+            "calls": 389019,
+            "utf16Units": 654855971
+          },
+          "snapshot-pages": {
+            "calls": 0,
+            "utf16Units": 0
+          },
+          "snapshot-evidence": {
+            "calls": 0,
+            "utf16Units": 0
+          },
+          "snapshot-binding": {
+            "calls": 0,
+            "utf16Units": 0
+          },
+          "source-heads": {
+            "calls": 0,
+            "utf16Units": 0
+          },
+          "semantic-inputs": {
+            "calls": 0,
+            "utf16Units": 0
+          }
+        },
+        "source": {
+          "checked": 20088,
+          "reusedBodies": 20088,
+          "legacyBodies": 0,
+          "vaultReads": 0,
+          "parses": 0,
+          "repaired": 0,
+          "resolutionRefreshes": 0,
+          "pendingMetadata": 0,
+          "failures": 0
+        },
+        "sourceRepository": {
+          "activated": 0,
+          "unsaved": 0,
+          "empty": 0,
+          "chunksWritten": 0,
+          "bytesWritten": 0,
+          "readFailures": 0,
+          "sequenceMin": 0,
+          "sequenceMax": 0,
+          "peakDecodeBytes": 183261
+        },
+        "firstReadyMs": 1063219,
+        "quietMs": 610612,
+        "quietViolations": 0,
+        "broadWorkUnchanged": true,
+        "admissions": {
+          "inventoryRuns": 3,
+          "fullBuildCalls": 1,
+          "nodeCatalogCalls": 0,
+          "snapshotWrites": 1,
+          "checkpointWrites": 0
+        },
+        "sourceWorkGroups": {
+          "all:tx.readonly.meta": 5,
+          "all:request.readonly.meta.get": 42636,
+          "all:tx.readwrite.meta": 82807,
+          "all:request.readwrite.meta.put": 10296,
+          "all:tx.readwrite.meta,sourceHeads,sourceImpacts": 1,
+          "all:request.readwrite.meta.get": 10297,
+          "all:tx.readonly.sourceHeads": 103050,
+          "all:request.readonly.sourceHeads.get": 145515,
+          "all:tx.readonly.meta,sourceHeads,sourceLocalDependencyOwners,sourceLocalDependencyRepairs": 42625,
+          "all:tx.readwrite.meta,sourceHeads": 82801,
+          "all:request.readwrite.sourceHeads.get": 93090,
+          "all:request.readwrite.meta.add": 82801,
+          "all:tx.readonly.sourceChunks,sourcePostings": 102889,
+          "all:request.readonly.sourceChunks.get": 102889,
+          "all:request.readwrite.meta.delete": 82802,
+          "all:tx.readwrite.meta,sourceHeads,sourceLocalDependencyOwners": 10289,
+          "all:request.readonly.sourceHeads.getAll": 160,
+          "all:request.readonly.sourceHeads.getAllKeys": 160,
+          "all:tx.readonly.meta,sourceLocalDependencyRepairs": 2,
+          "all:tx.readwrite.meta,sourceLocalDependencyRepairs": 2
+        },
+        "quietCpuMicroseconds": {
+          "user": 4219000,
+          "system": 1172000
+        },
+        "allForeground": true,
+        "cpuProcessIdentityVerified": true,
+        "unforcedSampledHeapMaximumBytes": 1175045508,
+        "unforcedSampledRssMaximumBytes": 1933361152,
+        "heartbeat": {
+          "samples": 33275,
+          "maxGapMs": 386.80000001192093
+        },
+        "pending": 0,
+        "activeTransactions": 0,
+        "cleanupUnavailable": false,
+        "pluginRestoreUnavailable": false
+      },
+      {
+        "group": 1,
+        "arm": "A",
+        "label": "closeout-v1-06-A",
+        "receiptAcceptance": "passed",
+        "hostReplayEqual": false,
+        "rawGraphEqual": false,
+        "elapsedReadyMs": 1063757.1999511719,
+        "drainMs": 1068155.1999511719,
+        "cpuMicroseconds": {
+          "user": 272328000,
+          "system": 42531000
+        },
+        "lifecycleCpuMicroseconds": {
+          "user": 273125000,
+          "system": 42609000
+        },
+        "work": {
+          "sourceInventoryPasses": 2,
+          "fullBuildStarts": 1,
+          "nodeCatalogStarts": 0,
+          "completeSnapshotSaves": 1,
+          "checkpointSaves": 0
+        },
+        "retainedMemory": {
+          "startedAt": 1792087490545,
+          "completedAt": 1792087491294,
+          "pid": 23216,
+          "collections": 2,
+          "method": "Selected renderer live heap after two forced collections; outside startup/quiet timing; not plugin-exclusive retained overhead",
+          "heapBytes": {
+            "usedSize": 406739424,
+            "totalSize": 415154176,
+            "embedderHeapUsedSize": 6691480,
+            "backingStorageSize": 9509529
+          },
+          "processMemoryKb": {
+            "private": 933104,
+            "shared": 9372,
+            "residentSet": 962008
+          },
+          "cpuMicroseconds": {
+            "user": 2969000,
+            "system": 79000
+          }
+        },
+        "startedAt": "2026-10-15T17:36:27.943Z",
+        "rawReceipt": "kplex-165-large-restarts/closeout-v1-06-A.json",
+        "rawReceiptSha256": "75642dab3a7f3a529a8be11575e5a8826750a03a29420537804d1bf225cb4748",
+        "sourceChunkReads": 103359,
+        "sourcePostingReads": 103359,
+        "savedPagePuts": 108217,
+        "transactions": 437882,
+        "readwriteTransactions": 186810,
+        "requests": 1001890,
+        "hashing": {
+          "source": {
+            "calls": 390429,
+            "utf16Units": 656792561
+          },
+          "snapshot-pages": {
+            "calls": 0,
+            "utf16Units": 0
+          },
+          "snapshot-evidence": {
+            "calls": 0,
+            "utf16Units": 0
+          },
+          "snapshot-binding": {
+            "calls": 0,
+            "utf16Units": 0
+          },
+          "source-heads": {
+            "calls": 0,
+            "utf16Units": 0
+          },
+          "semantic-inputs": {
+            "calls": 0,
+            "utf16Units": 0
+          }
+        },
+        "source": {
+          "checked": 20088,
+          "reusedBodies": 20088,
+          "legacyBodies": 0,
+          "vaultReads": 0,
+          "parses": 0,
+          "repaired": 0,
+          "resolutionRefreshes": 0,
+          "pendingMetadata": 0,
+          "failures": 0
+        },
+        "sourceRepository": {
+          "activated": 0,
+          "unsaved": 0,
+          "empty": 0,
+          "chunksWritten": 0,
+          "bytesWritten": 0,
+          "readFailures": 0,
+          "sequenceMin": 0,
+          "sequenceMax": 0,
+          "peakDecodeBytes": 183261
+        },
+        "firstReadyMs": 1063757.1999511719,
+        "quietMs": 610456,
+        "quietViolations": 0,
+        "broadWorkUnchanged": true,
+        "admissions": {
+          "inventoryRuns": 3,
+          "fullBuildCalls": 1,
+          "nodeCatalogCalls": 0,
+          "snapshotWrites": 1,
+          "checkpointWrites": 0
+        },
+        "sourceWorkGroups": {
+          "all:tx.readonly.meta": 5,
+          "all:request.readonly.meta.get": 43107,
+          "all:tx.readwrite.meta": 83277,
+          "all:request.readwrite.meta.put": 20089,
+          "all:tx.readwrite.meta,sourceHeads,sourceImpacts": 1,
+          "all:request.readwrite.meta.get": 20090,
+          "all:tx.readonly.sourceHeads": 103520,
+          "all:request.readonly.sourceHeads.get": 146456,
+          "all:tx.readonly.meta,sourceHeads,sourceLocalDependencyOwners,sourceLocalDependencyRepairs": 43096,
+          "all:tx.readwrite.meta,sourceHeads,sourceLocalDependencyOwners": 20082,
+          "all:request.readwrite.sourceHeads.get": 103353,
+          "all:tx.readwrite.meta,sourceHeads": 83271,
+          "all:request.readwrite.meta.add": 83271,
+          "all:tx.readonly.sourceChunks,sourcePostings": 103359,
+          "all:request.readonly.sourceChunks.get": 103359,
+          "all:request.readwrite.meta.delete": 83272,
+          "all:request.readonly.sourceHeads.getAll": 160,
+          "all:request.readonly.sourceHeads.getAllKeys": 160,
+          "all:tx.readonly.meta,sourceLocalDependencyRepairs": 2,
+          "all:tx.readwrite.meta,sourceLocalDependencyRepairs": 2
+        },
+        "quietCpuMicroseconds": {
+          "user": 4765000,
+          "system": 703000
+        },
+        "allForeground": true,
+        "cpuProcessIdentityVerified": true,
+        "unforcedSampledHeapMaximumBytes": 1922171264,
+        "unforcedSampledRssMaximumBytes": 2865463296,
+        "heartbeat": {
+          "samples": 33261,
+          "maxGapMs": 390.19999998807907
+        },
+        "pending": 0,
+        "activeTransactions": 0,
+        "cleanupUnavailable": false,
+        "pluginRestoreUnavailable": false
+      },
+      {
+        "group": 1,
+        "arm": "M",
+        "label": "closeout-v1-07-M",
+        "receiptAcceptance": "passed",
+        "hostReplayEqual": false,
+        "rawGraphEqual": false,
+        "elapsedReadyMs": 1079450.1000976562,
+        "drainMs": 1083841.1000976562,
+        "cpuMicroseconds": {
+          "user": 272828000,
+          "system": 42360000
+        },
+        "lifecycleCpuMicroseconds": {
+          "user": 273562000,
+          "system": 42453000
+        },
+        "work": null,
+        "retainedMemory": {
+          "startedAt": 1792089221762,
+          "completedAt": 1792089222548,
+          "pid": 23216,
+          "collections": 2,
+          "method": "Selected renderer live heap after two forced collections; outside startup/quiet timing; not plugin-exclusive retained overhead",
+          "heapBytes": {
+            "usedSize": 405531000,
+            "totalSize": 419340288,
+            "embedderHeapUsedSize": 6655072,
+            "backingStorageSize": 9516419
+          },
+          "processMemoryKb": {
+            "private": 935540,
+            "shared": 9372,
+            "residentSet": 964908
+          },
+          "cpuMicroseconds": {
+            "user": 2641000,
+            "system": 187000
+          }
+        },
+        "startedAt": "2026-10-15T18:05:03.700Z",
+        "rawReceipt": "kplex-165-large-restarts/closeout-v1-07-M.json",
+        "rawReceiptSha256": "8a927968ee8e34be318557a60592d7970936c7b1390c67d72d6a6b4d87d28ea8",
+        "sourceChunkReads": 123118,
+        "sourcePostingReads": 123118,
+        "savedPagePuts": 108217,
+        "transactions": 456319,
+        "readwriteTransactions": 186147,
+        "requests": 1038747,
+        "hashing": {
+          "source": {
+            "calls": 449706,
+            "utf16Units": 828722699
+          },
+          "snapshot-pages": {
+            "calls": 0,
+            "utf16Units": 0
+          },
+          "snapshot-evidence": {
+            "calls": 0,
+            "utf16Units": 0
+          },
+          "snapshot-binding": {
+            "calls": 0,
+            "utf16Units": 0
+          },
+          "source-heads": {
+            "calls": 0,
+            "utf16Units": 0
+          },
+          "semantic-inputs": {
+            "calls": 0,
+            "utf16Units": 0
+          }
+        },
+        "source": {
+          "checked": 20088,
+          "reusedBodies": 20088,
+          "legacyBodies": 0,
+          "vaultReads": 0,
+          "parses": 0,
+          "repaired": 0,
+          "resolutionRefreshes": 0,
+          "pendingMetadata": 0,
+          "failures": 0
+        },
+        "sourceRepository": {
+          "activated": 0,
+          "unsaved": 0,
+          "empty": 0,
+          "chunksWritten": 0,
+          "bytesWritten": 0,
+          "readFailures": 0,
+          "sequenceMin": 0,
+          "sequenceMax": 0,
+          "peakDecodeBytes": 183261
+        },
+        "firstReadyMs": 1079450.1000976562,
+        "quietMs": 610246,
+        "quietViolations": 0,
+        "broadWorkUnchanged": true,
+        "admissions": {
+          "inventoryRuns": 3,
+          "fullBuildCalls": 1,
+          "nodeCatalogCalls": 0,
+          "snapshotWrites": 1,
+          "checkpointWrites": 0
+        },
+        "sourceWorkGroups": {
+          "all:tx.readonly.meta": 5,
+          "all:request.readonly.meta.get": 42777,
+          "all:tx.readwrite.meta": 82948,
+          "all:request.readwrite.meta.put": 20084,
+          "all:tx.readwrite.meta,sourceHeads,sourceImpacts": 1,
+          "all:request.readwrite.meta.get": 20085,
+          "all:tx.readonly.sourceHeads": 103191,
+          "all:request.readonly.sourceHeads.get": 145797,
+          "all:tx.readonly.meta,sourceHeads,sourceLocalDependencyOwners,sourceLocalDependencyRepairs": 42766,
+          "all:tx.readwrite.meta,sourceHeads,sourceLocalDependencyOwners": 20077,
+          "all:request.readwrite.sourceHeads.get": 103019,
+          "all:tx.readwrite.meta,sourceHeads": 82942,
+          "all:request.readwrite.meta.add": 82942,
+          "all:tx.readonly.sourceChunks,sourcePostings": 123118,
+          "all:request.readonly.sourceChunks.get": 123118,
+          "all:request.readwrite.meta.delete": 82943,
+          "all:request.readonly.sourceHeads.getAll": 160,
+          "all:request.readonly.sourceHeads.getAllKeys": 160,
+          "all:tx.readonly.meta,sourceLocalDependencyRepairs": 2,
+          "all:tx.readwrite.meta,sourceLocalDependencyRepairs": 2
+        },
+        "quietCpuMicroseconds": {
+          "user": 3578000,
+          "system": 453000
+        },
+        "allForeground": true,
+        "cpuProcessIdentityVerified": true,
+        "unforcedSampledHeapMaximumBytes": 1638890984,
+        "unforcedSampledRssMaximumBytes": 2653761536,
+        "heartbeat": {
+          "samples": 33564,
+          "maxGapMs": 402.7999999821186
+        },
+        "pending": 0,
+        "activeTransactions": 0,
+        "cleanupUnavailable": false,
+        "pluginRestoreUnavailable": false
+      }
+    ],
+    "limitations": "Three valid observations per M/A arm complete. Original A-M/M-A/A-M order, with one excluded middle A and one bounded replacement breaking strict adjacency. Same static config/source/fingerprint inputs verified; host compiler replay/raw graph order differs and remains recorded. CPU/drain directions vary; no repeatable CPU/startup or attributable retained-memory benefit. IDB/hash counters are not physical disk bytes or allocation totals.",
+    "measurementComplete": true,
+    "acceptedObservationsPerArm": {
+      "M": 3,
+      "A": 3
+    },
+    "finalControlsAndStatistics": {
+      "rawReport": "kplex-165-final-ma-controls-and-statistics.json",
+      "rawReportSha256": "144bf4ca95852c1c70f310c903202b0aa57e3981cd4d7f308afcf8edffaa2b90",
+      "status": "passed",
+      "controls": [
+        {
+          "label": "primary-v2-02-A",
+          "samples": 1484,
+          "foregroundViolations": 0,
+          "visibleCenterOrDemandViolations": 0,
+          "driverSha256": "eeac76cb696e88cf29acdacc41b5c3bd0d8971ee0ff2ee03efe9c1eb87ff52a4",
+          "host": {
+            "node": "24.18.1",
+            "electron": "43.3.0",
+            "chrome": "150.0.7871.212",
+            "cpuPid": 23216,
+            "rendererPid": 23216,
+            "processType": "renderer"
+          },
+          "hashGroups": 49,
+          "allPassed": true
+        },
+        {
+          "label": "primary-v2-03-M",
+          "samples": 1486,
+          "foregroundViolations": 0,
+          "visibleCenterOrDemandViolations": 0,
+          "driverSha256": "eeac76cb696e88cf29acdacc41b5c3bd0d8971ee0ff2ee03efe9c1eb87ff52a4",
+          "host": {
+            "node": "24.18.1",
+            "electron": "43.3.0",
+            "chrome": "150.0.7871.212",
+            "cpuPid": 23216,
+            "rendererPid": 23216,
+            "processType": "renderer"
+          },
+          "hashGroups": 49,
+          "allPassed": true
+        },
+        {
+          "label": "closeout-v1-04-M",
+          "samples": 1465,
+          "foregroundViolations": 0,
+          "visibleCenterOrDemandViolations": 0,
+          "driverSha256": "eeac76cb696e88cf29acdacc41b5c3bd0d8971ee0ff2ee03efe9c1eb87ff52a4",
+          "host": {
+            "node": "24.18.1",
+            "electron": "43.3.0",
+            "chrome": "150.0.7871.212",
+            "cpuPid": 23216,
+            "rendererPid": 23216,
+            "processType": "renderer"
+          },
+          "hashGroups": 49,
+          "allPassed": true
+        },
+        {
+          "label": "closeout-focus-retry-v1-08-A",
+          "samples": 1522,
+          "foregroundViolations": 0,
+          "visibleCenterOrDemandViolations": 0,
+          "driverSha256": "eeac76cb696e88cf29acdacc41b5c3bd0d8971ee0ff2ee03efe9c1eb87ff52a4",
+          "host": {
+            "node": "24.18.1",
+            "electron": "43.3.0",
+            "chrome": "150.0.7871.212",
+            "cpuPid": 23216,
+            "rendererPid": 23216,
+            "processType": "renderer"
+          },
+          "hashGroups": 49,
+          "allPassed": true
+        },
+        {
+          "label": "closeout-v1-06-A",
+          "samples": 1523,
+          "foregroundViolations": 0,
+          "visibleCenterOrDemandViolations": 0,
+          "driverSha256": "eeac76cb696e88cf29acdacc41b5c3bd0d8971ee0ff2ee03efe9c1eb87ff52a4",
+          "host": {
+            "node": "24.18.1",
+            "electron": "43.3.0",
+            "chrome": "150.0.7871.212",
+            "cpuPid": 23216,
+            "rendererPid": 23216,
+            "processType": "renderer"
+          },
+          "hashGroups": 49,
+          "allPassed": true
+        },
+        {
+          "label": "closeout-v1-07-M",
+          "samples": 1538,
+          "foregroundViolations": 0,
+          "visibleCenterOrDemandViolations": 0,
+          "driverSha256": "eeac76cb696e88cf29acdacc41b5c3bd0d8971ee0ff2ee03efe9c1eb87ff52a4",
+          "host": {
+            "node": "24.18.1",
+            "electron": "43.3.0",
+            "chrome": "150.0.7871.212",
+            "cpuPid": 23216,
+            "rendererPid": 23216,
+            "processType": "renderer"
+          },
+          "hashGroups": 49,
+          "allPassed": true
+        }
+      ],
+      "statistics": {
+        "cpuSeconds": {
+          "M": {
+            "count": 3,
+            "min": 313.75,
+            "median": 316.015,
+            "max": 374.5
+          },
+          "A": {
+            "count": 3,
+            "min": 315.734,
+            "median": 321.047,
+            "max": 337.078
+          },
+          "observedMedianChangePercent": 1.5923294780311181
+        },
+        "readySeconds": {
+          "M": {
+            "count": 3,
+            "min": 1002.129,
+            "median": 1022.7656999511719,
+            "max": 1079.4501000976563
+          },
+          "A": {
+            "count": 3,
+            "min": 1021.5041999511719,
+            "median": 1063.219,
+            "max": 1063.757199951172
+          },
+          "observedMedianChangePercent": 3.955285169492817
+        },
+        "drainSeconds": {
+          "M": {
+            "count": 3,
+            "min": 1006.515,
+            "median": 1027.175699951172,
+            "max": 1083.8411000976562
+          },
+          "A": {
+            "count": 3,
+            "min": 1025.8771999511719,
+            "median": 1067.599,
+            "max": 1068.1551999511719
+          },
+          "observedMedianChangePercent": 3.935383211533283
+        },
+        "transactions": {
+          "M": {
+            "count": 3,
+            "min": 452316,
+            "median": 456319,
+            "max": 457395
+          },
+          "A": {
+            "count": 3,
+            "min": 425738,
+            "median": 437355,
+            "max": 437882
+          },
+          "observedMedianChangePercent": -4.155864647319085
+        },
+        "requests": {
+          "M": {
+            "count": 3,
+            "min": 1012121,
+            "median": 1038747,
+            "max": 1040902
+          },
+          "A": {
+            "count": 3,
+            "min": 948221,
+            "median": 1000806,
+            "max": 1001890
+          },
+          "observedMedianChangePercent": -3.652573725844699
+        },
+        "readwriteTransactions": {
+          "M": {
+            "count": 3,
+            "min": 180822,
+            "median": 186147,
+            "max": 186578
+          },
+          "A": {
+            "count": 3,
+            "min": 176077,
+            "median": 186594,
+            "max": 186810
+          },
+          "observedMedianChangePercent": 0.24013279827233003
+        },
+        "sourceChunkReads": {
+          "M": {
+            "count": 3,
+            "min": 123118,
+            "median": 123333,
+            "max": 123559
+          },
+          "A": {
+            "count": 3,
+            "min": 102889,
+            "median": 103256,
+            "max": 103359
+          },
+          "observedMedianChangePercent": -16.278692645115257
+        },
+        "sourcePostingReads": {
+          "M": {
+            "count": 3,
+            "min": 123118,
+            "median": 123333,
+            "max": 123559
+          },
+          "A": {
+            "count": 3,
+            "min": 102889,
+            "median": 103256,
+            "max": 103359
+          },
+          "observedMedianChangePercent": -16.278692645115257
+        },
+        "sourceDigestCalls": {
+          "M": {
+            "count": 3,
+            "min": 449706,
+            "median": 450351,
+            "max": 451029
+          },
+          "A": {
+            "count": 3,
+            "min": 389019,
+            "median": 390120,
+            "max": 390429
+          },
+          "observedMedianChangePercent": -13.374234763551096
+        },
+        "sourceDigestUtf16Units": {
+          "M": {
+            "count": 3,
+            "min": 828722699,
+            "median": 829613548,
+            "max": 830549930
+          },
+          "A": {
+            "count": 3,
+            "min": 654855971,
+            "median": 656378120,
+            "max": 656792561
+          },
+          "observedMedianChangePercent": -20.881460822045305
+        },
+        "peakDecodeBytes": {
+          "M": {
+            "count": 3,
+            "min": 183261,
+            "median": 183261,
+            "max": 183261
+          },
+          "A": {
+            "count": 3,
+            "min": 183261,
+            "median": 183261,
+            "max": 183261
+          },
+          "observedMedianChangePercent": 0
+        },
+        "sampledHeapMaxBytes": {
+          "M": {
+            "count": 3,
+            "min": 1638890984,
+            "median": 2081364732,
+            "max": 2312910788
+          },
+          "A": {
+            "count": 3,
+            "min": 1175045508,
+            "median": 1661504168,
+            "max": 1922171264
+          },
+          "observedMedianChangePercent": -20.172368520751892
+        },
+        "sampledRssMaxBytes": {
+          "M": {
+            "count": 3,
+            "min": 2653761536,
+            "median": 3037655040,
+            "max": 3207176192
+          },
+          "A": {
+            "count": 3,
+            "min": 1933361152,
+            "median": 2410004480,
+            "max": 2865463296
+          },
+          "observedMedianChangePercent": -20.662338275250637
+        },
+        "retainedMainHeapBytes": {
+          "M": {
+            "count": 3,
+            "min": 405436136,
+            "median": 405531000,
+            "max": 406673744
+          },
+          "A": {
+            "count": 3,
+            "min": 406129128,
+            "median": 406739424,
+            "max": 406747652
+          },
+          "observedMedianChangePercent": 0.2979856040598694
+        },
+        "heartbeatMaximumGapMs": {
+          "M": {
+            "count": 3,
+            "min": 402.7999999821186,
+            "median": 468.40000000596046,
+            "max": 485.59999999403954
+          },
+          "A": {
+            "count": 3,
+            "min": 386.80000001192093,
+            "median": 390.19999998807907,
+            "max": 414.30000001192093
+          },
+          "observedMedianChangePercent": -16.69513236910467
+        },
+        "leaseStoreTransactions": {
+          "M": {
+            "count": 3,
+            "min": 165890,
+            "median": 166320,
+            "max": 166772
+          },
+          "A": {
+            "count": 3,
+            "min": 165608,
+            "median": 166342,
+            "max": 166548
+          },
+          "observedMedianChangePercent": 0.013227513227520582
+        }
+      }
+    },
+    "finalValidation": {
+      "fullVerification": "passed",
+      "node": "v22.22.2",
+      "counts": {
+        "architecture": 7,
+        "core": 128,
+        "general": 838,
+        "ui": 63,
+        "portable": 334,
+        "browser": 525
+      },
+      "failures": 0,
+      "skips": 0,
+      "nativeJavascriptErrors": 0,
+      "artifacts": {
+        "main.js": "4cb08ded50af580470c6049b3e10a88d9f0d356399368442379e0515fa8f2711",
+        "manifest.json": "19d9ecce5557733e0ff0f2e27155e635c30158c3cfa6fbca0f11c16e4dedfd2c",
+        "styles.css": "9d244b30cab5cbda418e7a3e51d2ddd38a59808bd0f72f713dc4b28595155082"
+      },
+      "sourceReportRevision": "9af675e7e7bf0657ce02c021419a0dc56abe0a25",
+      "sourceReportDirty": false,
+      "integratedMain": "b29833c6d2e79c173cc658b8e00e9aceef413e27",
+      "prSpecificRuntimePatchMatchesIndependentCheckpoint": true,
+      "performanceTrialsRerun": false,
+      "foregroundCasesPassed": 6,
+      "foregroundBroadFlushes": 0,
+      "nativeRestoration": "passed",
+      "bothOriginalConfigurationsByteRestored": true,
+      "bothOriginalEnablementsByteRestored": true,
+      "uninstrumentedInstancesLoaded": true,
+      "smallDriverFunctionalSmoke": "passed",
+      "controllersAndProbesAbsent": true,
+      "expectedMarkdownCounts": [
+        20088,
+        88
+      ],
+      "workspaceByteRestorationProven": false,
+      "awakeLeaseReleasedAt": "2026-10-15T19:35:25.5045498Z",
+      "evidenceSupplement": {
+        "filename": "kplex-165-integrated-closeout-evidence.zip",
+        "sha256": "d370d964ee86fcfdcf6b0c4f0e9ba24bb0586d54b55e88a291f83db70432d0f1",
+        "bytes": 3537489,
+        "files": 30,
+        "entries": 31,
+        "published": false
+      },
+      "ci": {
+        "capturedAt": "2026-10-15T19:30:40.215266+00:00",
+        "priorCleanupHead": {
+          "attempt1": "failure during Chromium startup before hotkey-search assertions",
+          "attempt2": {
+            "attempt": 2,
+            "conclusion": "success",
+            "headSha": "9c156e95abb6ccdedb9808163c9fc26dc99f476a",
+            "status": "completed",
+            "url": "https://github.com/zsviczian/kplex/actions/runs/38790687242"
+          }
+        },
+        "integratedHead": {
+          "attempt1": {
+            "attempt": 1,
+            "conclusion": "failure",
+            "headSha": "9af675e7e7bf0657ce02c021419a0dc56abe0a25",
+            "status": "completed",
+            "url": "https://github.com/zsviczian/kplex/actions/runs/38792635213"
+          },
+          "failureBoundary": "Chromium startup timeout before existing hotkey-search assertions; DBus diagnostic is not proof of cause",
+          "manuallyRerun": false
+        },
+        "assertionsOrDeadlinesChanged": false,
+        "logs": {
+          "kplex-165-final-ci-failure-38790687242.log": {
+            "bytes": 1160302,
+            "sha256": "c45d287e79b49f9f5d240211e988bdc6ae710960fcd05c7edf636c680761dce4"
+          },
+          "kplex-165-integrated-ci-failure-38792635213.log": {
+            "bytes": 1158922,
+            "sha256": "c6ef878b733065fb75b74336d512175000c24e4da198072f046dc11c3aa8c397"
+          },
+          "kplex-165-integrated-ci-prior-retry-38790687242.log": {
+            "bytes": 2298754,
+            "sha256": "36adb6636b84e3fe5800ddc17c703d20ac73ad174843128b8a251e59741ec50a"
+          }
+        }
+      },
+      "rawEvidence": {
+        "kplex-165-integrated-verification-13/report.json": {
+          "sha256": "a208fdb2c7999ddfee7cf747fd14db0ed41b917c86bfa71d4163796f1968a5ff",
+          "bytes": 1597
+        },
+        "kplex-165-integrated-native-foreground/report.json": {
+          "sha256": "73495c84aaec12b2ec18a4ac45c0fa90dd44cd15069d66ef6480660235fab595",
+          "bytes": 34511
+        },
+        "kplex-165-integrated-native-restoration.json": {
+          "sha256": "6e7a1c5901146bfe2445f8fff1a4dad230b32477e56bb8421b924cec43125334",
+          "bytes": 2829
+        },
+        "kplex-165-integrated-native-cleanup-inspection.json": {
+          "sha256": "6d258a7efda5ff6521a7fed2796a628fe79075e3a06a1cbf51312b9fa88f6c6a",
+          "bytes": 549
+        },
+        "kplex-165-integrated-awake-receipt.json": {
+          "sha256": "b05bde79d91bdde65ab716fe318b8e7d239a1e5de39ab05f6a87e609180f94e1",
+          "bytes": 377
+        }
+      }
+    }
+  }
+}

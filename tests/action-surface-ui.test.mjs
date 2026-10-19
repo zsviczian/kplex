@@ -26,9 +26,10 @@ export class Modal {constructor(app){this.app=app;this.modalEl=document.createEl
  open(){document.body.append(this.modalEl);this.onOpen?.()}close(){this.onClose?.();this.modalEl.remove()}}
 export class Setting {constructor(parent){this.settingEl=element(parent,'div');this.settingEl.addClass=(...names)=>this.settingEl.classList.add(...names)}setName(){return this}setDesc(){return this}
  addText(callback){const inputEl=element(this.settingEl,'input'),text={inputEl,setPlaceholder(value){inputEl.placeholder=value;return this},onChange(callback){inputEl.addEventListener('input',()=>callback(inputEl.value));return this}};callback(text);return this}
- addToggle(callback){const input=element(this.settingEl,'input');input.type='checkbox';callback({setValue(value){input.checked=value;return this},onChange(callback){input.addEventListener('change',()=>callback(input.checked));return this}});return this}
+ addToggle(callback){const input=element(this.settingEl,'input');input.type='checkbox';let changed;callback({setValue(value){const previous=input.checked;input.checked=value;if(previous!==value)changed?.(value);return this},setDisabled(value){input.disabled=value;return this},onChange(callback){changed=callback;input.addEventListener('change',()=>callback(input.checked));return this}});return this}
  addDropdown(callback){const input=element(this.settingEl,'select');callback({addOption(value,label){element(input,'option',{text:label,attr:{value}});return this},setValue(value){input.value=value;return this},onChange(callback){input.addEventListener('change',()=>callback(input.value));return this}});return this}
  addButton(callback){const input=element(this.settingEl,'button');callback({setButtonText(value){input.textContent=value;return this},setIcon(){return this},setCta(){return this},setDisabled(value){input.disabled=value;return this},onClick(callback){input.addEventListener('click',callback);return this}});return this}}
+export function getIcon(){return null;}
 export class FuzzySuggestModal {
  constructor(app){this.app=app;this.closed=false;this.inputEl=document.createElement('input');this.modalEl=element(document.createElement('div'),'div')}
  setPlaceholder(value){this.placeholder=value}
@@ -201,7 +202,7 @@ function productionToolbarMenus() {
   const helperImport = variables.has("showToolbarMenu") ? "import { toolbarMenuAnchor } from './src/ui/menuAnchor';" : "";
   return ts.transpileModule(`${helperImport}
     export function createToolbarMenuFixture({plugin,rootRef,syncMenuButtonRef,sidecarMoveButtonRef,hostLeaf,actions,page}){
-      const translate=key=>key, syncMode='off',syncTargetAvailable=false,syncTitle='Off',syncIcon='link',sidecarPosition='right',surface='tab';
+      const translate=key=>key, syncMode='off',syncTargetAvailable=false,syncTitle='Off',syncIcon='link',sidecarPosition='right',sidecarEdgePosition='right',surface='tab';
       const ObsidianIcon=()=>null,forceRender=()=>{},activate=()=>{},setDocumentSyncMode=mode=>plugin.effects.push(mode);
       const runAction=id=>actions.dispatch({id,source:'toolbar',surfaceId:actions.surfaceId});
       ${[...variables].map(([name,value])=>`const ${name}=${value};`).join('\n')}
@@ -416,7 +417,7 @@ test("folder creation retains original native folder, continuation and post-clos
   const browser = await chromiumHarness(await bundle());
   try {
     const result = await browser.evaluate(`(async()=>{
-      const {CreateFolderNoteModal,captureSurfaceContinuation}=window.sourceModules;window.testNotices=[];
+      const {CreateFolderNoteModal,captureSurfaceContinuation,flushSync}=window.sourceModules;window.testNotices=[];
       const root=document.createElement('div'),invoker=document.createElement('button');root.append(invoker);document.body.append(root);invoker.focus();
       const folder={path:'Folder'},vaultRoot={path:'/'},page={path:'Created.md',file:{path:'Created.md'}},renameListeners=new Set();let currentFolder=folder,writes=0,closed=0,follow=0,edit=0,current=true,release;
       let pending=new Promise(r=>release=r),writtenPath;
@@ -425,10 +426,20 @@ test("folder creation retains original native folder, continuation and post-clos
         createNewNodeInFolder:async(target,name,kind,native)=>{writes++;writtenPath=target.path;if(native!==folder)throw Error('lost native folder');await pending;return page},
         finishNewRelatedNode:async(target,host,editing,stillValid)=>{if(stillValid()){follow++;if(editing)edit++}}};
       const makeModal=()=>{const modal=new CreateFolderNoteModal(plugin,{path:'folder:'+folder.path,isFolder:true,name:'Folder'}, {view:{containerEl:root}},
-        {current:()=>current,onClosed:()=>closed++,focusGraph:()=>root.focus()});modal.open();return modal};
-      let modal=makeModal();modal.noteName='First';folder.path='Renamed';for(const callback of renameListeners)callback(folder,'Folder');
+        {current:()=>current,onClosed:()=>closed++,focusGraph:()=>root.focus()});flushSync(()=>modal.open());return modal};
+      let modal=makeModal();await new Promise(r=>setTimeout(r,0));
+      const choices=()=>modal.contentEl.querySelector('select[data-kplex-control="creation-completion"]');
+      const sharedChoice=choices()?.value==='return'&&![...choices().options].some(option=>option.value==='configured')&&modal.continuation==='configured';
+      const select=async value=>{const control=choices();flushSync(()=>{control.value=value;control.dispatchEvent(new Event('change',{bubbles:true}))});await new Promise(r=>setTimeout(r,0))};
+      await select('follow');const explicitChoice=modal.continuation==='follow'&&!plugin.settings.editNewNodeAfterCreate;
+      await select('edit');const editingChoice=modal.contentEl.querySelector('input[type="checkbox"]').checked&&!plugin.settings.editNewNodeAfterCreate;
+      const toggle=modal.contentEl.querySelector('input[type="checkbox"]');flushSync(()=>{toggle.checked=false;toggle.dispatchEvent(new Event('change',{bubbles:true}))});await new Promise(r=>setTimeout(r,0));
+      const toggleSynchronized=choices().value==='return'&&modal.continuation==='configured';
+      plugin.settings.editNewNodeAfterCreate=true;flushSync(()=>modal.renderCompletionControls());await new Promise(r=>setTimeout(r,0));
+      const configuredEdit=choices().value==='edit';plugin.settings.editNewNodeAfterCreate=false;
+      modal.noteName='First';folder.path='Renamed';for(const callback of renameListeners)callback(folder,'Folder');
       const displayedOrigin=modal.contentEl.querySelector('p').textContent==='Create inside Renamed';
-      const task=modal.create('markdown','another');await modal.create('markdown','another');const singleflight=writes===1;release();await task;
+      let task;flushSync(()=>{task=modal.create('markdown','another')});await modal.create('markdown','another');const busyChoice=choices().disabled;const singleflight=writes===1;release();await task;
       const another=modal.opened&&modal.noteName===''&&writtenPath==='folder:Renamed';
       modal.noteName='Second';pending=Promise.resolve();await modal.create('markdown','return');
       const returned=!modal.opened&&document.activeElement===invoker&&closed===1&&follow===0;
@@ -443,9 +454,9 @@ test("folder creation retains original native folder, continuation and post-clos
       let liveRoot=root,snapshot={mounted:true,center:{identity:'A',fileIdentity:'one'},interactionRevision:1};
       const guard=captureSurfaceContinuation(()=>liveRoot,()=>snapshot);const initiallyValid=guard();snapshot={...snapshot,interactionRevision:2};const interactionRetired=!guard();
       const newer=captureSurfaceContinuation(()=>liveRoot,()=>snapshot);liveRoot=document.createElement('div');const remountRetired=!newer();
-      const renameCleanup=renameListeners.size===0;root.remove();return{displayedOrigin,renameCleanup,singleflight,another,returned,replacement,noLateFocus,outsideNotificationFence,navigationFence,initiallyValid,interactionRetired,remountRetired};
+      const renameCleanup=renameListeners.size===0,choiceCleanup=modal.completionRoot===null;root.remove();return{sharedChoice,explicitChoice,editingChoice,toggleSynchronized,configuredEdit,busyChoice,choiceCleanup,displayedOrigin,renameCleanup,singleflight,another,returned,replacement,noLateFocus,outsideNotificationFence,navigationFence,initiallyValid,interactionRetired,remountRetired};
     })()`);
-    assert.deepEqual(result, { displayedOrigin:true,renameCleanup:true,singleflight:true,another:true,returned:true,replacement:true,noLateFocus:true,outsideNotificationFence:true,navigationFence:true,initiallyValid:true,interactionRetired:true,remountRetired:true });
+    assert.deepEqual(result, { sharedChoice:true,explicitChoice:true,editingChoice:true,toggleSynchronized:true,configuredEdit:true,busyChoice:true,choiceCleanup:true,displayedOrigin:true,renameCleanup:true,singleflight:true,another:true,returned:true,replacement:true,noLateFocus:true,outsideNotificationFence:true,navigationFence:true,initiallyValid:true,interactionRetired:true,remountRetired:true });
   } finally { await browser.cleanup(); }
 });
 
@@ -593,7 +604,7 @@ test("graph typing matches exact displayed label phrases across areas and wraps 
       const compactFeedback=statusRect.right<=viewportRect.right&&statusRect.height<48&&querySpan.scrollWidth>querySpan.clientWidth&&getComputedStyle(querySpan).textOverflow==='ellipsis'&&countSpan.getBoundingClientRect().right<=statusRect.right&&getComputedStyle(status).pointerEvents==='none';
       const layoutControl=document.createElement('div');layoutControl.className='kplex-layout-controls';const layoutButton=document.createElement('button');layoutButton.className='kplex-layout-toggle';layoutButton.textContent='Layout';layoutControl.append(layoutButton);mount.querySelector('.type-viewport').append(layoutControl);const controlRect=layoutControl.getBoundingClientRect();
       const controlsClear=statusRect.right<=controlRect.left||statusRect.left>=controlRect.right||statusRect.bottom<=controlRect.top||statusRect.top>=controlRect.bottom;
-      const find=document.createElement('div');find.className='kplex-find';const findButton=document.createElement('button');findButton.textContent='Find';find.append(findButton);mount.querySelector('.type-viewport').append(find);const findRect=find.getBoundingClientRect();const symmetricCorners=Math.abs(statusRect.top-findRect.top)<1&&Math.abs(statusRect.left-viewportRect.left-(viewportRect.right-findRect.right))<1&&statusRect.right<=findRect.left;
+      const tools=document.createElement('div');tools.className='kplex-scene-tools';const find=document.createElement('div');find.className='kplex-find';const findButton=document.createElement('button');findButton.textContent='Find';find.append(findButton);tools.append(find);mount.querySelector('.type-viewport').append(tools);const findRect=tools.getBoundingClientRect();const symmetricCorners=Math.abs(statusRect.top-findRect.top)<1&&Math.abs(statusRect.left-viewportRect.left-(viewportRect.right-findRect.right))<1&&statusRect.right<=findRect.left;
       flushSync(()=>root.unmount());mount.remove();style.remove();return{exact,afterExcludedOrigin,acrossAreas,next,wrap,reverseWrap,noMatch,backspace,shiftBackspace,receipt,escape,noLeadingSpace,unicodeEdit,rejected,altGraphSafe,inactive,notResurrected,centerRetired,filtered,noHiding,compactFeedback,controlsClear,symmetricCorners,revealUsed:revealed.includes('first')&&revealed.includes('last')&&revealed.includes('expanded')};
     })()`);
     assert.deepEqual(result, Object.fromEntries(Object.keys(result).map(key => [key, true])));

@@ -35,25 +35,14 @@ jobs:
           npm ci
           npm run build 
 
-      # 4. Check if the tag has a hyphen (e.g. v2.2.5-beta). If yes, mark as pre-release.
-      - name: Determine if Pre-release
-        id: check-prerelease
-        run: |
-          if [[ "${{ github.ref_name }}" == *"-"* ]]; then
-            echo "is_prerelease=true" >> $GITHUB_OUTPUT
-          else
-            echo "is_prerelease=false" >> $GITHUB_OUTPUT
-          fi
+      # Select and validate the actual shipped manifest before signing or publishing it.
+      - name: Validate release metadata and prepare manifest
+        id: release-metadata
+        env:
+          KPLEX_RELEASE_TAG: ${{ github.ref_name }}
+        run: node scripts/check-release-metadata.mjs --prepare-dist
 
-      # 5. Swap to the Beta Manifest if it's a pre-release
-      - name: Prepare Beta Manifest
-        if: steps.check-prerelease.outputs.is_prerelease == 'true'
-        run: |
-          echo "Pre-release detected! Swapping dist/manifest.json with manifest-beta.json..."
-          cp manifest-beta.json dist/manifest.json
-
-      # 6. Generate the cryptographic attestations for your built files
-      # (Because this runs AFTER step 5, it will correctly sign the beta manifest!)
+      # Generate the cryptographic attestations for the selected, validated files.
       - name: Attest Build Provenance
         uses: actions/attest-build-provenance@v2
         with:
@@ -68,7 +57,6 @@ jobs:
             dist/main.js
             dist/styles.css
             dist/manifest.json
-          # Dynamically set pre-release based on step 4
-          prerelease: ${{ steps.check-prerelease.outputs.is_prerelease == 'true' }}
+          prerelease: ${{ steps.release-metadata.outputs.is_prerelease == 'true' }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

@@ -1,4 +1,4 @@
-# Standing instructions — preserve this header
+# Standing instructions ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â preserve this header
 
 This is a temporary handoff document between agents. The development of the solution involves agents with access to Obsidian CLI and a full development environment with all node packages installed, but also agents with more limited access. Development is done in "ping-pong" between these two types of agents. Agents should use this document to pass instructions and status from one another, such as instructions for testing/validation, or instructions for development work that can only be done in a full environment.
 
@@ -16,16 +16,19 @@ Obsidian is the production host; preserve the established portable semantic, ide
 
 
 
+
 ---
 
-# Scanner assertion cleanup — validation return
+# PR #187 newest-first and Markdown-copy follow-up returned
 
-Directly on main, base a77e9c0da44a65fdc173657e08740867986c6f3a; changes remain uncommitted. The maintainer requested the three unnecessary assertion findings in src/main.ts and explicitly excluded extensive tests.
+Main validation agent. Existing branch 2026-10-19-plex-sync-footprints. Newest-first 9d9a66c; clipboard 3a48f0e; clean validated runtime 39abfbc23190f3318b80b97f4cd76c8271f1c41a (later report/handoff only). Prior full implementation/runtime95d82fd and delivery2aa2a96 remain documented. User requested newest-first Footprints and explicit Markdown-copy header button. Keep PR draft and issues #31/#59 open; no merge/release, raw archive/publication or personal-vault access.
 
-All three modal-close wrappers now invoke the original class callback through prototype.onClose.call(modal), preserving the receiver without bind's weak return type or a redundant assertion. The original consent/cancellation cleanup remains in its existing wrapper.
+Delivered newest-first bounded projection without reversing the chronological store, visual Home/End/arrows, stable older-reader/focus anchoring and memoized visible-row resolution. Explicit Copy as Markdown snapshots all visits in displayed order, including repeats/non-rendered entries. Full tags, wiki links for notes/attachments/placeholders/folders, Markdown URL links and cached source-section facets. Existing folder/tag coordinate owners are reused; opaque IDs are not paths. ClipboardSession mechanically extracts common same-turn/pending/denial/retirement mechanics for Footprints and the retained support-report compatibility facade. Owner-document clipboard, truthful feedback, duplicate exclusion and retired callbacks. All eight locales. No source/index scheduler change; C14 refactoring remains paused.
 
-Node 22.22.2: `npx eslint src/main.ts` passes without warnings/errors; `npm run build` passes against actual Obsidian types; git diff --check passes. No extended suites ran. Logs are `/private/tmp/kplex-assertion-cleanup-lint.log` and `/private/tmp/kplex-assertion-cleanup-build-final.log`.
+Clean-head verify:obsidian PASSED: 1149 primary, 189 browser, 334 source, 642 browser-storage, architecture/core/official lint/real build/exact Small smoke. Final unchanged native retry 15passed on identical staged main.js 5da3070f56a0012d3cd9404eab6961c99a6180cc3c54f403183453b3bb5079ed, including main/popout real clipboard forwarding and restart. Focused38 plus shared browser/dialog9 passed earlier. Disclosure/copy/reset interval zero semantic demands/reads/rebuilds/settings saves. This is work-count evidence, no comparative performance claim.
 
-The exact built artifacts were staged in CLI-confirmed kplex-test-small, preserving data.json. Main.js SHA-256: 9707dde2c484435a84d53ac3ea4d08955d3e969ec83caef74b552f6719a7b8d4. A single native Cancel smoke check passed: deletion consent cancelled, modal removed, pending ownership released, note retained; no errors captured. No note was deleted/edited and the temporary controller was removed. Receipt: `/private/tmp/kplex-assertion-cleanup-smoke.json`. Production and sibling repositories were untouched.
+Preserved controls: superseded newest-first full after1149primary (user added copy); missing ClipboardSession in legacy harness inventory (fixed, harness passes); native baseline had plugin disabled on disk after staging (exact cleanup/durable recovery, new fail-fast baseline guard); final immediate-after-stage trial failed Native A follow before copy, cleaned/restored; unchanged retry 15passed. This last cause remains unknown; no sync fix is claimed. Existing intermittent native popout getZoomFactor exception and macOS/physical-phone/tablet/WebView/screen-reader gaps remain documented. Highest-value manual checks: immediate post-reload pair follow, then copy/focus on physical mobile and popout teardown.
 
-Prior work is merged through PR #152. Its full verification CI passed after replacing a stale comment-based status-hook extractor with TypeScript AST selection. Prior [attachment/localization](docs/validation/sidecar-attachment-2026-10-13.md), [callout](docs/validation/index-status-callout-2026-10-13.md), and [risk regression](docs/validation/risk-based-regression-2026-10-13.md) evidence remains historical. The earlier #25 ResizeObserver error gate, physical Android acceptance and Windows production-vault vocabulary observation remain separately tracked; this cleanup does not claim to resolve them.
+Latest native baseline/fixture/config cleanup completed; no old baseline replayed. Small only. TEMP originals retained. Durable private backup LOCALAPPDATA/KplexValidation/plex-sync-footprints-187-2026-10-19 verifies 265 entries; manifest SHA256 8c76393bcef208007a3f9af5a026404d4016bff21ecb3dc0f94bd2e74b51f136. Prior manifest preserved. Do not create/publish archive or delete originals. No unrelated apps or personal vaults used.
+
+Ready for maintainer review. Final remote CI is reported in PR, not inferred from local checks. No further autonomous runtime work pending. Windows nativeCLI, Node22.22.2, build/lint/browser/GitHub capabilities verified; no delegated agent active.

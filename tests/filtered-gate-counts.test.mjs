@@ -20,7 +20,7 @@ class TFile { constructor(path) { this.path=path; this.name=path.split('/').pop(
 class TFolder {}
 module.exports={TFile,TFolder,Platform:{isMobile:false,isIosApp:false},normalizePath:x=>x,
 getAllTags:()=>[],getIcon:()=>null,PluginSettingTab:class{},Modal:class{},Notice:class{},Setting:class{},
-AbstractInputSuggest:class{},Scope:class{},getLanguage:()=>"en"};
+SuggestModal:class{},ColorComponent:class{},AbstractInputSuggest:class{},Scope:class{},getLanguage:()=>"en"};
 `);
 const output = join(directory, "gates.cjs");
 buildSync({ stdin: { resolveDir: process.cwd(), contents: `

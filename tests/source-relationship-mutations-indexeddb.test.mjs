@@ -12,7 +12,7 @@ import { centerGateSettings } from "./support/requestedCenterGateFixture.mjs";
 function productionMethods() {
   const source=ts.createSourceFile("main.ts",readFileSync(new URL("../src/main.ts",import.meta.url),"utf8"),ts.ScriptTarget.Latest,true,ts.ScriptKind.TS);
   const names=new Set(["prepareRelationshipMutation","publishSavedRelationship","mutateRelationshipMetadata","writeRelationship",
-    "addRelationshipOntology","clearFrontmatterRelationship","createRelationToPage","addOntologyToConnection","relinkCentralNeighbour",
+    "addRelationshipOntology","appendRelationshipReference","clearFrontmatterRelationship","createRelationToPage","addOntologyToConnection","relinkCentralNeighbour",
     "unlinkFrontmatterEvidence","captureFrontmatterUnlinkExpectation","referenceForPage","referenceMatchesTarget","nonTargetReferenceCounts","valueContainsTarget","removeTargetFromValue","stripTargetFromScalar",
     "normalizedNoteReferenceMatches","inverseOntologyField","inverseRelationshipRole","allOntologyFields","ontologyRoleForField","defaultOntologyField","ontologyFieldsForRole","linkNewRelatedFile","createWebLinkRelatedPage","createPlaceholderRelatedPage","normalizedWebUrl","placeholderPath","configuredDisplayNameField"]), methods=[];
   /** Keep the method body intact and remove only the inaccessible native class wrapper. */
@@ -27,11 +27,12 @@ function productionMethods() {
 }
 const bundle=await contributorBrowserBundle(["src/index/GraphIndex.ts","src/index/GraphBuilder.ts","src/index/IndexSnapshot.ts",
   "src/core/graph/compiler.ts","src/core/graph/evidence.ts","src/core/graph/relations.ts","src/adapters/obsidian/metadataSourceCollector.ts",
-  "src/adapters/obsidian/ontologySourceCollector.ts","src/adapters/obsidian/relationshipMetadataWrite.ts","src/application/frontmatterUnlink.ts"]);
+  "src/adapters/obsidian/ontologySourceCollector.ts","src/adapters/obsidian/relationshipMetadataWrite.ts","src/application/frontmatterUnlink.ts","src/adapters/obsidian/placeholderRelocation.ts"]);
 const methods=`const assert=Object.assign((value,message)=>ok(value,message),{equal}),M=sourceModules,normalizeFieldName=M.normalizeFieldName,extractLinksFromValue=M.extractLinksFromValue;
 const writeRelationshipMetadata=M.writeRelationshipMetadata,SavedRelationshipPendingError=M.SavedRelationshipPendingError;
 const relationshipMetadataPayload=M.relationshipMetadataPayload,SOURCE_DECODE_BUDGET_BYTES=M.SOURCE_DECODE_BUDGET_BYTES;
 const frontmatterDeclarationKey=M.frontmatterDeclarationKey,iterateResolvedLinksFromValue=M.iterateResolvedLinksFromValue;
+const placeholderReference=M.placeholderReference;
 const normalizePath=x=>x,LinkDirection=M.LinkDirection,Notice=class{constructor(message){window.notices.push(message);}};
 const isUnknownRecord=x=>x!==null&&typeof x==='object'&&!Array.isArray(x);${productionMethods()}`;
 const setup=`window.notices=[];${methods}
@@ -533,9 +534,9 @@ test("selected property transforms preserve non-target grammar and refuse mixed 
  }finally{await browser.cleanup();}
 });
 
-/** New nodes keep their actual physical/provisional insertion ordering and finish under exact pair authority. */
+/** New physical files save before graph reconciliation; virtual targets retain their existing canonical publication contract. */
 for(const kind of ['file','url','placeholder']){
- test(`new ${kind} related node awaits bound canonical saved publication`,async()=>{
+ test(`new ${kind} related node persists and reconciles to canonical saved publication`,async()=>{
   const browser=await chromiumHarness(bundle);
   try{
    assert.equal(await browser.evaluate(contributorBrowserInitialize),true);await browser.evaluate(setup);
@@ -544,7 +545,7 @@ for(const kind of ['file','url','placeholder']){
     try{
      let page;
      c.validateRelatedNoteName=name=>({valid:true,existing:null,stem:name});
-     if(kind==='file'){const file=f.add('Created.md','');f.app.vault.trigger('create',file);page=await c.linkNewRelatedFile(i.get('A.md'),'child',file,'Children');}
+     if(kind==='file'){const file=f.add('Created.md','');f.app.vault.trigger('create',file);const result=await c.linkNewRelatedFile(i.get('A.md'),'child',file,'Children');equal(result.state,'saved-pending','Native write completes before index reconciliation');page=result.page;ok(await i.prepareRelationshipPair('A.md',page.path),'Ordinary source reconciliation can publish the saved pair afterward');}
      if(kind==='url')page=await c.createWebLinkRelatedPage(i.get('A.md'),'child','https://created.example/path','Created label','Children');
      if(kind==='placeholder')page=await c.createPlaceholderRelatedPage(i.get('A.md'),'child','New placeholder','Children');
      ok(page&&i.get(page.path),'Established creator inserted its bound node');
@@ -716,3 +717,29 @@ for (const mode of ["cancel-read", "cancel-delayed", "cancel-write", "domain-rol
   }finally{await browser.cleanup();}
  });
 }
+
+/** An actively blocked index cannot prevent persisting a new drawing's additive parent property. */
+test("new drawing relationship saves during structural refresh with unavailable semantic pair readiness", async () => {
+ const browser=await chromiumHarness(bundle);
+ try {
+  assert.equal(await browser.evaluate(contributorBrowserInitialize),true);await browser.evaluate(setup);
+  assert.equal(await browser.evaluate(`(async()=>{
+   const f=await makeRelationshipFixture('new-drawing-index-independent'),i=f.index,c=f.context;
+   const previous=i.pendingStructuralTasks;let pairCalls=0;
+   try {
+    const file=f.add('New drawing.md','',{ 'excalidraw-plugin':'parsed' });f.app.vault.trigger('create',file);
+    const parent=f.files.get('A.md'),prior={ 'excalidraw-plugin':'parsed',Children:['[[Unrelated]]'],Parents:['[[B]]'],Title:'Preserved' };
+    f.metadata.set(parent.path,{frontmatter:prior});i.pendingStructuralTasks++;
+    const pair=i.prepareRelationshipPair;i.prepareRelationshipPair=async()=>{pairCalls++;return false;};
+    ok(!i.isSemanticWriteReady(parent.path,file.path),'Actual structural refresh closes semantic authority');
+    const result=await c.linkNewRelatedFile(i.get(parent.path),'child',file,'Children');
+    equal(result.state,'saved-pending','Persistence succeeds independently of graph publication');ok(result.page.file===file,'Exact created file retained');
+    equal(pairCalls,0,'Creation never asks the canonical pair gate to authorize a property addition');
+    equal(f.metadata.get(parent.path).frontmatter,{...prior,Children:['[[Unrelated]]','[[New drawing.md]]']},'Native additive property saved without changing other metadata');
+    i.pendingStructuralTasks=previous;i.prepareRelationshipPair=pair;
+    ok(await i.prepareRelationshipPair(parent.path,file.path),'Ordinary canonical reconciliation catches up after refresh');
+    ok(i.isConnected(i.get(parent.path),file.path),'Saved new child becomes canonical');return true;
+   }finally{i.pendingStructuralTasks=previous;f.close();}
+  })()`),true);
+ }finally{await browser.cleanup();}
+});

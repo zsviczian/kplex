@@ -3,6 +3,7 @@
  * allowlisted projections, never entire mutable plugin settings. Encoded values remain private;
  * only built-in key names may cross the diagnostic boundary. Array order/multiplicity is retained for the owning policy.
  */
+import {appearanceWithoutColors,isColorAppearanceKey} from "../contracts/appearance";
 import { sanitizeDatePropertyRelations, type DatePropertyRelations, type SemanticHierarchy } from "./settings";
 
 export const HIERARCHY_ROLES = ["hidden", "parents", "children", "leftFriends", "rightFriends", "previous", "next"] as const;
@@ -11,6 +12,7 @@ export const PRESENTATION_KEYS = [
   "baseNodeStyle", "centralNodeStyle", "inferredNodeStyle", "virtualNodeStyle", "siblingNodeStyle", "urlNodeStyle",
   "attachmentNodeStyle", "folderNodeStyle", "tagNodeStyle", "tagNodeStyles", "noteTypeStyles", "displayAllStylePrefixes",
   "baseLinkStyle", "inferredLinkStyle", "folderLinkStyle", "tagLinkStyle", "hierarchyLinkStyles", "attachmentImageDisplay", "allowRemoteNodeImages",
+  "colorPreferences", "standardStyleDefaults",
 ] as const;
 const SEMANTIC_KEYS = ["inferAllLinksAsFriends", "inverseInfer", "thumbnailProperty", "nodeImageProperty", "datePropertyRelations"] as const;
 const VIEW_KEYS = [
@@ -54,6 +56,8 @@ export type SettingsEffects = Readonly<{
   render: boolean;
   /** Device typography changes require rendering, without expanding or recanonicalizing a scope. */
   typographyOnly: boolean;
+  /** Color source/value edits repaint existing geometry without requesting semantic work. */
+  paintOnly: boolean;
   changedKeys: readonly SettingDiagnosticKey[];
 }>;
 
@@ -111,6 +115,7 @@ function effectsForKeys(changedKeys: readonly SettingDiagnosticKey[]): SettingsE
     searchTerms: has("showFullTagName", "renderAlias", "nameFields", "nodeTitleScript"),
     nodeVisuals: has("thumbnailProperty", "nodeImageProperty", "attachmentImageDisplay", "allowRemoteNodeImages"),
     render: changedKeys.length > 0,
+    paintOnly: false,
     typographyOnly: changedKeys.length === 1 && changedKeys[0] === "typographyProfiles",
     changedKeys,
   };
@@ -118,7 +123,17 @@ function effectsForKeys(changedKeys: readonly SettingDiagnosticKey[]): SettingsE
 
 /** Compare immutable projections, including changes made through managers or legacy imports. */
 export function classifySettingsChange(before: SettingsPolicy, after: SettingsPolicy): SettingsEffects {
-  return effectsForKeys(SETTING_DIAGNOSTIC_KEYS.filter((key) => before.values[key] !== after.values[key]));
+  const changed = SETTING_DIAGNOSTIC_KEYS.filter((key) => before.values[key] !== after.values[key]);
+  const paintOnly = changed.length > 0 && changed.every(key => {
+    if (!isColorAppearanceKey(key)) return false;
+    try {
+      const previous = before.values[key], next = after.values[key];
+      const decodedPrevious: unknown = previous === undefined || previous === "undefined" ? undefined : JSON.parse(previous);
+      const decodedNext: unknown = next === undefined || next === "undefined" ? undefined : JSON.parse(next);
+      return encode(appearanceWithoutColors(key, decodedPrevious)) === encode(appearanceWithoutColors(key, decodedNext));
+    } catch { return false; }
+  });
+  return { ...effectsForKeys(changed), paintOnly };
 }
 
 /** Style dictionaries and their matching order change presentation without invalidating requested semantic coverage. Mixed changes retain their existing refresh policy. */

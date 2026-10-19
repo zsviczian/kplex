@@ -4,6 +4,7 @@
  * and restoration. Requires the explicit disposable small vault, an unlocked foreground Mac and
  * exactly matching built/installed artifacts; Electron input does not prove physical-device use.
  */
+import {withNativeDocumentSessions} from "./nativeDocumentSessions.mjs";
 import { spawnNativeSync as spawnSync, obsidianCliExecutable } from "./processTools.mjs";
 import assert from 'node:assert/strict';
 import { existsSync, readFileSync, writeFileSync, mkdirSync, rmSync, readdirSync } from 'node:fs';
@@ -38,7 +39,7 @@ function invoke(label,command,args,deadline=Infinity){
 /** Run a named native CLI command without retaining arguments or stdout in timing diagnostics. */
 function cli(command,...args){return invoke(command,command,args);}
 /** Decode one native JSON result; the label identifies its purpose without retaining eval source. */
-function evaluate(code,label='native-eval',deadline=Infinity){return JSON.parse(invoke(label,'eval',[`code=${code}`],deadline).replace(/^=>\s*/,''));}
+function evaluate(code,label='native-eval',deadline=Infinity){code=withNativeDocumentSessions(code);return JSON.parse(invoke(label,'eval',[`code=${code}`],deadline).replace(/^=>\s*/,''));}
 /** Retry only lost read-only state/result responses under the caller's original deadline. */
 async function readState(code,label,deadline){
  for(let attempt=0;attempt<3;attempt++){
@@ -58,7 +59,7 @@ function probe(expectNativePolicy=false){
  if(app.setting.isOpen||document.querySelector('.modal-container'))throw Error('Existing modal');
  const host=app.workspace.getLeavesOfType('k-plex-react-view').find(/** Acquire the visible real K-Plex host rather than a synthetic or hidden native leaf. */ leaf=>leaf.view.containerEl.isShown());
  if(!p||!host||!ex?.createDrawing||!ex.ea?.getAPI||typeof p.createNewFileInFolder!=='function')throw Error('Native prerequisites unavailable');
- const c=window.__kplexInteractionFinal={p,ex,host,folder:`Kplex-Zoom-${Date.now()}`,originalSettings:JSON.parse(JSON.stringify(p.settings)),originalExSettings:JSON.parse(JSON.stringify(ex.settings)),originalExModes:{...ex.excalidrawFileModes},layout:app.workspace.getLayout(),originalLeaf:app.workspace.activeLeaf,originalBounds:win.getBounds(),originalSidebarStates:{left:app.workspace.leftSplit.collapsed,right:app.workspace.rightSplit.collapsed},owners:{linkedDocumentLeaf:p.linkedDocumentLeaf,lastDocumentLeaf:p.lastDocumentLeaf,recentLeafHistory:[...p.recentLeafHistory],sidecarLeaves:new Map(p.sidecarLeaves)},leaves:[],wrappers:[],events:[],cases:[],done:false,ownedFiles:new Set(),phase:'setup',styles:[],fixtureBytes:new Map(),timers:new Set(),retiredViews:new Set()};
+ const c=window.__kplexInteractionFinal={p,ex,host,folder:`Kplex-Zoom-${Date.now()}`,originalSettings:JSON.parse(JSON.stringify(p.settings)),originalExSettings:JSON.parse(JSON.stringify(ex.settings)),originalExModes:{...ex.excalidrawFileModes},layout:app.workspace.getLayout(),originalLeaf:app.workspace.activeLeaf,originalBounds:win.getBounds(),originalSidebarStates:{left:app.workspace.leftSplit.collapsed,right:app.workspace.rightSplit.collapsed},owners:{documents:documentSessions(p).capture(),lastDocumentLeaf:p.lastDocumentLeaf,recentLeafHistory:[...p.recentLeafHistory],sidecarLeaves:new Map(p.sidecarLeaves)},leaves:[],wrappers:[],events:[],cases:[],done:false,ownedFiles:new Set(),phase:'setup',styles:[],fixtureBytes:new Map(),timers:new Set(),retiredViews:new Set()};
  /** Reject additional probe work after outer cleanup has retired this controller's lifetime. */
  const ensureActive=()=>{if(c.cancelled)throw Error('Owned zoom probe cancelled');};
  /** Yield within the bounded probe, retiring its timer before checking cancellation on resume. */
@@ -128,7 +129,7 @@ function probe(expectNativePolicy=false){
  };
  /** Own sequential native mutations; every awaited probe yield fences cancellation. */
  c.task=(async()=>{
-  win.show();win.focus();wc.focus();await p.setDocumentSyncMode('off');await app.vault.createFolder(c.folder);
+  win.show();win.focus();wc.focus();await documentSessions(p).off();await app.vault.createFolder(c.folder);
   c.other=await app.vault.create(c.folder+'/Ordinary.md','# Disposable zoom fixture\n');c.ownedFiles.add(c.other.path);p.index.insertCreatedFile(c.other);await p.index.publishHostMetadataPreview(c.other.path);
   // This invokes the actual K-Plex creation owner used by its related-note drawing action.
   c.blank=await p.createNewFileInFolder('Embedded-created','excalidraw',c.folder);check(c.blank,'K-Plex drawing creation failed');
@@ -327,13 +328,13 @@ finally{
    await attempt('settings-before-layout',/** Restore K-Plex preferences before recreating its original workspace views. */ async()=>{Object.assign(c.p.settings,c.originalSettings);await c.p.saveSettings(false,false);await c.p.settingsWriteQueue;});
    await attempt('workspace-layout',/** Recreate the original serialized workspace without retaining test leaves. */ async()=>{await app.workspace.changeLayout(c.layout);});
    await attempt('settings-after-layout',/** Restore preferences again after view initialization may have persisted state. */ async()=>{Object.assign(c.p.settings,c.originalSettings);await c.p.saveSettings(false,false);await c.p.settingsWriteQueue;});
-   await attempt('native-leaf-associations',/** Rebind original native routing owners to the restored workspace leaf identities. */ ()=>{
+   await attempt('native-leaf-associations',/** Rebind original native routing owners to the restored workspace leaf identities. */ async()=>{
     // Workspace restoration may replace leaves. Rebind original associations by serialized native id.
     /** Restore original associations by native serialized id after layout replaces leaf objects. */
     const rebind=old=>old?app.workspace.getLeavesOfType(old.getViewState().type).find(/** Locate only the original serialized leaf identity in the restored workspace. */ leaf=>leaf.id===old.id)??null:null;
-    c.p.linkedDocumentLeaf=rebind(c.owners.linkedDocumentLeaf);c.p.lastDocumentLeaf=rebind(c.owners.lastDocumentLeaf);
+    await documentSessions(c.p).restore(c.owners.documents);c.p.lastDocumentLeaf=rebind(c.owners.lastDocumentLeaf);
     c.p.recentLeafHistory=c.owners.recentLeafHistory.map(rebind).filter(Boolean);c.p.sidecarLeaves.clear();
-    for(const [oldHost,oldLeaf] of c.owners.sidecarLeaves){const host=rebind(oldHost),leaf=rebind(oldLeaf);if(host&&leaf)c.p.sidecarLeaves.set(host,leaf);}
+    for(const [oldHost,oldLeaf] of c.owners.sidecarLeaves){const host=rebind(oldHost),leaf=rebind(oldLeaf);if(host&&leaf)c.p.setSidecarOwner(host,leaf);}
     c.p.index.notify();
    });
    const result={errors,steps,nativeWrappersRemoved:steps.filter(/** Select restoration receipts for every temporary native observer. */ step=>step.name.startsWith('native-wrapper-')).every(/** Require every native method wrapper to be restored successfully. */ step=>step.status==='passed')};

@@ -7,15 +7,26 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
 import ts from "typescript";
+import {build} from "esbuild";
+const sessionBuild = await build({entryPoints:["src/ui/KplexDocumentSession.ts"],bundle:true,write:false,platform:"node",format:"esm"});
+const {KplexDocumentSession} = await import('data:text/javascript;base64,' + Buffer.from(sessionBuild.outputFiles[0].text).toString('base64'));
+const actionNodeRef = page => ({identity:page.path,path:page.path,kind:page.file?"file":"ghost"});
 import {loadPortableModules} from "./support/portableTypeScript.mjs";
 const {exports: {DoubleTapGesture}} = loadPortableModules(["src/ui/components/DoubleTapGesture.ts"]);
 
 /** Extract a real plugin method or App follow callback without invoking native plugin startup. */
 function production(name, dependencies = {}, filename = "src/main.ts") {
+  dependencies = {isEmbeddedMarkdownLeaf: leaf => Boolean(leaf?.embedded), nativeLeafId: (_workspace, leaf) => leaf?.id ?? null, ...dependencies};
   const source = ts.createSourceFile(filename, readFileSync(new URL(`../${filename}`, import.meta.url), "utf8"), ts.ScriptTarget.Latest, true);
   let expression;
   /** Preserve the production implementation and its asynchronous boundaries verbatim. */
   function visit(node) {
+    if (name === "centerPublication" && ts.isVariableDeclaration(node) && node.name.getText(source) === "refresh"
+      && node.initializer && ts.isArrowFunction(node.initializer)
+      && node.initializer.getText(source).includes("const trackedFile")) expression = node.initializer.getText(source);
+    if (name === "navigationRequest" && ts.isCallExpression(node)
+      && node.expression.getText(source) === "plugin.subscribeNavigation"
+      && ts.isArrowFunction(node.arguments[0])) expression = node.arguments[0].getText(source);
     if (name === "presentationPublication" && ts.isCallExpression(node)
       && node.expression.getText(source) === "plugin.index.subscribePresentation"
       && ts.isArrowFunction(node.arguments[0])) expression = node.arguments[0].getText(source);
@@ -69,7 +80,7 @@ function fixture() {
     settings: {documentSyncMode: "pinned", sidecarMarkdownMode: "preview"},
     app: {vault: {getFileByPath: /** Resolve only current canonical native file identities. */ path => files.get(path) ?? null}, workspace: {revealLeaf: /** Explicit Open may reveal without adding another navigation mutation. */ async () => {}}},
     sidecarLeaves: new Map([[host, leaf]]), passiveSidecarSyncRequests: new WeakMap(),
-    syncKplexToLeafEnabled: /** Preserve the tested off/recent/pinned eligibility boundary. */ () => context.settings.documentSyncMode !== "off",
+    syncKplexToLeafEnabled: /** Preserve the tested off/recent/pinned eligibility boundary. */ () => context.session.preferences.documentSyncMode !== "off",
     targetNoteLeaf: /** Supply an exact existing linked destination, with no inferred creation. */ () => context.target ?? leaf,
     validateSidecarLeaf: /** Resolve only this host's owned companion. */ owner => context.sidecarLeaves.get(owner) ?? null,
     leafIsAttached: /** Let each test retire exact native leaf ownership. */ candidate => leaves.has(candidate),
@@ -88,14 +99,115 @@ function fixture() {
     openPageInSidecarLeaf: production("openPageInSidecarLeaf", {isWebViewerAvailable: /** Web Viewer availability is an explicit host capability, not part of identity comparison. */ () => true}),
     syncPageToDocumentLeaf: production("syncPageToDocumentLeaf"), syncSidecarToPage: production("syncSidecarToPage"),
   };
-  return {context, host, leaf, files, leaves, opens, modes, page: {path: "opaque:A", file: pageFile}, other: {path: "opaque:B", file: otherFile}};
+  const session = context.session = new KplexDocumentSession(context.settings, "host", () => {context.writes++;});
+  session.preferences.documentSyncMode="pinned";session.linkedDocumentLeaf=leaf;
+  context.documentSession = owner => (!owner || owner===host) && !session.disposed ? session : null;
+  context.nativeDocumentRequests=new WeakMap();
+  context.isManagedSidecarLeaf = candidate => [...context.sidecarLeaves.values()].includes(candidate);
+  context.documentSyncTargetLeaf = () => context.target ?? leaf;
+  context.syncPageToDocumentLeaf = production("syncPageToDocumentLeaf");
+  context.setDocumentSyncMode=production("setDocumentSyncMode");
+  context.deleteSidecarOwner=owner=>{context.sidecarLeaves.delete(owner);session.retire();};
+  return {context, session, host, leaf, files, leaves, opens, modes, page: {path: "opaque:A", file: pageFile}, other: {path: "opaque:B", file: otherFile}};
 }
+
+/** Two actual session owners share only native/index host capabilities and the global saved settings. */
+function twoPlexFixture() {
+  const a=fixture(),b=fixture();
+  for(const [oldPath,file] of [...b.files]) {b.files.delete(oldPath);file.path=`Other-${oldPath}`;b.files.set(file.path,file);a.files.set(file.path,file);}
+  const sessions=new Map([[a.host,a.session],[b.host,b.session]]),context=a.context;
+  a.host.view={};b.host.view={};
+  for(const leaf of b.leaves)a.leaves.add(leaf);
+  context.sidecarLeaves.set(b.host,b.leaf);
+  context.documentSession=host=>!context.unloading&&sessions.get(host)&&!sessions.get(host).disposed&&a.leaves.has(host)?sessions.get(host):null;
+  context.targetNoteLeaf=host=>sessions.get(host)?.linkedDocumentLeaf??null;
+  context.getDocumentSyncMode=production("getDocumentSyncMode");
+  context.syncKplexToLeafEnabled=production("syncKplexToLeafEnabled");context.syncLeafToKplexEnabled=production("syncLeafToKplexEnabled");
+  context.documentSyncTargetLeaf=production("documentSyncTargetLeaf");
+  context.deleteSidecarOwner=host=>{context.sidecarLeaves.delete(host);sessions.get(host)?.retire();context.passiveSidecarSyncRequests.delete(host);};
+  context.shouldFollowDocumentFile=production("shouldFollowDocumentFile");
+  return {a,b,context,sessions};
+}
+
+test("two Plex pairs navigate and change sync mode independently without mutating shared defaults",async()=>{
+  const {a,b,context}=twoPlexFixture(),before=JSON.stringify(context.settings),pause=deferred();a.leaf.pause=pause.promise;
+  const opening=context.syncPageToDocumentLeaf(a.page,a.host);
+  await context.setDocumentSyncMode(b.host,"off");pause.resolve();await opening;
+  assert.equal(a.leaf.file,a.page.file);assert.equal(b.opens.length,0);assert.equal(a.modes.length,1);
+  assert.equal(a.session.preferences.documentSyncMode,"pinned");assert.equal(b.session.preferences.documentSyncMode,"off");
+  assert.equal(context.sidecarLeaves.get(a.host),a.leaf);assert.equal(context.sidecarLeaves.has(b.host),false);
+  assert.equal(JSON.stringify(context.settings),before,"Live modes are native-view state, never other devices' global settings");
+  assert.equal(a.session.preferences.sidecarLastFilePath,a.page.file.path);assert.equal(b.session.preferences.sidecarLastFilePath,"");
+});
+
+test("native follow admits exact target leaves even when two panes display the very same TFile",()=>{
+  const {a,b,context}=twoPlexFixture();context.startupInitializing=false;a.leaf.file=a.page.file;b.leaf.file=a.page.file;
+  assert.equal(context.shouldFollowDocumentFile(a.page.file,a.host,a.leaf),true);
+  assert.equal(context.shouldFollowDocumentFile(a.page.file,a.host,b.leaf),false);
+  assert.equal(context.shouldFollowDocumentFile(a.page.file,b.host,b.leaf),true);
+  assert.equal(context.shouldFollowDocumentFile(a.page.file,{},a.leaf),false);
+});
+
+test("Recent target resolution excludes another pair's managed Sidecar",()=>{
+  const {a,b,context}=twoPlexFixture();
+  context.deleteSidecarOwner(a.host);a.session.preferences.documentSyncMode="recent";
+  context.recentLeafHistory=[a.leaf,b.leaf];context.pruneRecentLeafHistory=()=>{};
+  context.isDocumentLeafCandidate=(leaf,host)=>Boolean(leaf?.getViewState)&&(!context.isManagedSidecarLeaf(leaf)||context.sidecarLeaves.get(host)===leaf);context.leafIsVisible=()=>true;context.leafViewIsLoaded=()=>true;
+  context.app.workspace.getMostRecentLeaf=()=>b.leaf;context.app.workspace.iterateAllLeaves=callback=>[a.leaf,b.leaf].forEach(callback);
+  context.findRecentDocumentLeaf=production("findRecentDocumentLeaf");
+  assert.equal(context.findRecentDocumentLeaf(a.host),a.leaf);
+  context.recentLeafHistory=[b.leaf];a.session.lastDocumentLeaf=null;context.lastDocumentLeaf=b.leaf;
+  assert.equal(context.findRecentDocumentLeaf(a.host),a.leaf,"Fallback traversal cannot steal B's managed companion");
+});
+
+test("a closed/reopened native Plex rejects old completion while its non-cancellable open drains before the replacement",async()=>{
+  const {a,context,sessions}=twoPlexFixture(),pause=deferred();a.leaf.pause=pause.promise;a.leaf.publishAfterAwait=true;
+  const previous=context.syncSidecarToPage(a.host,a.page);a.session.dispose();a.host.view={replacement:true};
+  const replacement=new KplexDocumentSession(context.settings,"replacement",()=>{context.replacementWrites=(context.replacementWrites??0)+1;});
+  replacement.linkedDocumentLeaf=a.leaf;replacement.preferences.documentSyncMode="pinned";sessions.set(a.host,replacement);
+  const next=context.syncSidecarToPage(a.host,a.other);assert.equal(a.opens.length,1);
+  pause.resolve();await Promise.all([previous,next]);assert.equal(a.leaf.file,a.other.file);
+  assert.equal(a.modes.length,1);assert.equal(a.context.writes,0);assert.equal(context.replacementWrites,1);
+});
+
+test("ordinary native destinations share the same serialized route and late stale owners cannot publish",async()=>{
+  const {a,b,context}=twoPlexFixture(),pause=deferred();context.deleteSidecarOwner(a.host);context.deleteSidecarOwner(b.host);
+  a.leaf.pause=pause.promise;a.leaf.publishAfterAwait=true;context.documentSyncTargetLeaf=()=>a.leaf;
+  const first=context.syncSidecarToPage(a.host,a.page,a.leaf),next=context.syncSidecarToPage(b.host,b.page,a.leaf);
+  assert.equal(a.opens.length,1);pause.resolve();await Promise.all([first,next]);
+  assert.equal(a.leaf.file,b.page.file);assert.equal(a.modes.length,0);assert.equal(a.opens.length,2);
+  assert.equal(a.context.writes,0);assert.equal(b.context.writes,1);
+});
+
+test("ordinary same-target requests from two Plex owners join one native open without reapplying representation",async()=>{
+  const {a,b,context}=twoPlexFixture(),pause=deferred();context.deleteSidecarOwner(a.host);context.deleteSidecarOwner(b.host);
+  a.leaf.pause=pause.promise;a.leaf.publishAfterAwait=true;context.documentSyncTargetLeaf=()=>a.leaf;
+  const first=context.syncSidecarToPage(a.host,a.page,a.leaf),second=context.syncSidecarToPage(b.host,a.page,a.leaf);
+  pause.resolve();await Promise.all([first,second]);assert.equal(a.opens.length,1);assert.equal(a.modes.length,0);assert.equal(a.leaf.file,a.page.file);
+});
+
+test("ordinary pinned URL navigation shares target equality and exact source-leaf follow admission",async()=>{
+  const state=fixture(),url="https://example.com/kplex-187",page={file:null,url};state.context.sidecarLeaves.delete(state.host);
+  state.leaf.file=null;state.leaf.state={type:"webviewer",state:{url:"https://example.com/previous"}};
+  await state.context.syncPageToDocumentLeaf(page,state.host);assert.equal(state.leaf.state.state.url,url);assert.equal(state.modes.length,1);
+  await state.context.syncPageToDocumentLeaf(page,state.host);assert.equal(state.modes.length,1,"Same URL observation cannot reopen the native representation");
+  state.context.startupInitializing=false;state.context.syncLeafToKplexEnabled=()=>true;state.context.indexedUrlPathForLeaf=()=>url;
+  const follow=production("getDocumentFollowUrl");assert.deepEqual(follow.call(state.context,state.host,state.leaf),{path:url,url});
+  assert.equal(follow.call(state.context,state.host,{...state.leaf}),null);
+});
+
+test("pending native follow captures a leaf as well as the canonical file and rejects a same-file target replacement",()=>{
+  const {a,b,context}=twoPlexFixture();context.startupInitializing=false;a.leaf.file=a.page.file;b.leaf.file=a.page.file;
+  const intent=production("captureDocumentFollow").call(context,a.page.file,a.host);assert.equal(intent.leaf,a.leaf);assert.equal(intent.revision,a.session.revision);
+  a.session.linkedDocumentLeaf=b.leaf;
+  assert.equal(context.shouldFollowDocumentFile(a.page.file,a.host,intent.leaf),false,"Matching file paths and unchanged host epochs do not authorize another native leaf");
+});
 
 test("same exact linked file preserves Markdown/drawing representation in recent and pinned modes", /** Invoke both passive production routes and reject reopening or mode/persistence side effects. */ async () => {
   for (const mode of ["recent", "pinned"]) for (const type of ["markdown", "excalidraw"]) {
-    const state = fixture(); state.context.settings.documentSyncMode = mode;
+    const state = fixture(); state.context.session.preferences.documentSyncMode = mode;
     state.leaf.file = state.page.file; state.leaf.state = {type, state: {file: state.page.file.path}};
-    await state.context.syncPageToDocumentLeaf(state.page); await state.context.syncSidecarToPage(state.host, state.page);
+    await state.context.syncPageToDocumentLeaf(state.page,state.host); await state.context.syncSidecarToPage(state.host, state.page);
     assert.equal(state.opens.length, 0); assert.equal(state.modes.length, 0); assert.equal(state.context.writes, 0);
     assert.equal(state.leaf.getViewState().type, type);
   }
@@ -104,7 +216,7 @@ test("same exact linked file preserves Markdown/drawing representation in recent
 test("passive follow still updates a genuinely different-file companion while preserving its originating drawing leaf", /** Distinguish the observed destination from a separately managed follower requiring real navigation. */ async () => {
   const state = fixture(), origin = {file: state.page.file, state: {type: "excalidraw"}};
   state.leaves.add(origin); state.context.target = origin;
-  await state.context.syncPageToDocumentLeaf(state.page); await state.context.syncSidecarToPage(state.host, state.page);
+  await state.context.syncPageToDocumentLeaf(state.page,state.host); await state.context.syncSidecarToPage(state.host, state.page);
   assert.equal(state.opens.length, 1); assert.equal(state.opens[0].leaf, state.leaf);
   assert.equal(state.leaf.file, state.page.file); assert.equal(state.modes[0].state.mode, "preview");
   assert.equal(state.context.writes, 1); assert.equal(origin.state.type, "excalidraw");
@@ -112,18 +224,18 @@ test("passive follow still updates a genuinely different-file companion while pr
 
 test("different canonical file identity opens even when an obsolete loaded incarnation has the same path", /** Prevent path equality from concealing deletion/recreation of the native file identity. */ async () => {
   const state = fixture(); state.leaf.file = {path: state.page.file.path};
-  await state.context.syncPageToDocumentLeaf(state.page);
+  await state.context.syncPageToDocumentLeaf(state.page,state.host);
   assert.equal(state.opens.length, 1); assert.equal(state.opens[0].file, state.page.file);
 });
 
 test("off, unload, detached destinations and noncanonical targets reject passive document opens", /** Independently retire eligibility, plugin lifetime, destination and canonical file ownership. */ async () => {
   for (const condition of ["off", "unload", "detach", "replace-file"]) {
     const state = fixture();
-    if (condition === "off") state.context.settings.documentSyncMode = "off";
+    if (condition === "off") state.context.session.preferences.documentSyncMode = "off";
     if (condition === "unload") state.context.unloading = true;
     if (condition === "detach") state.leaves.delete(state.leaf);
     if (condition === "replace-file") state.files.set(state.page.file.path, {path: state.page.file.path});
-    await state.context.syncPageToDocumentLeaf(state.page); assert.equal(state.opens.length, 0);
+    await state.context.syncPageToDocumentLeaf(state.page,state.host); assert.equal(state.opens.length, 0);
   }
 });
 
@@ -133,7 +245,7 @@ test("a newer A-to-B request retires A's awaited mode and persistence work", /**
   const newer = state.context.syncSidecarToPage(state.host, state.other);
   pause.resolve(); await Promise.all([older, newer]);
   assert.equal(state.leaf.file, state.other.file); assert.equal(state.modes.length, 1);
-  assert.equal(state.context.writes, 1); assert.equal(state.context.settings.sidecarLastFilePath, state.other.file.path);
+  assert.equal(state.context.writes, 1); assert.equal(state.session.preferences.sidecarLastFilePath, state.other.file.path);
 });
 
 test("duplicate same-target observations preserve an in-flight companion's source/preview completion", /** Model a native file-open echo before the configured initial Markdown mode has completed. */ async () => {
@@ -149,10 +261,9 @@ test("duplicate same-target observations preserve an in-flight companion's sourc
 test("explicit same-file source inspection retires an older passive preview completion", /** Reproduce native state publication before await, then preserve the later deliberate source request. */ async () => {
   const state = fixture(), pause = deferred(); state.leaf.pause = pause.promise;
   const pending = state.context.syncSidecarToPage(state.host, state.page);
-  await production("openMarkdownInSidecar").call(state.context, state.host, state.page.file, 7, true);
+  const explicit = production("openMarkdownInSidecar").call(state.context, state.host, state.page.file, 7, true);
+  pause.resolve(); await Promise.all([pending, explicit]);
   const writes = state.context.writes;
-  assert.equal(state.leaf.state.state.mode, "source");
-  pause.resolve(); await pending;
   assert.equal(state.leaf.state.state.mode, "source");
   assert.deepEqual(state.modes.map(item => item.state.mode), ["source"]);
   assert.equal(state.context.writes, writes);
@@ -190,7 +301,7 @@ test("App navigation shares one managed Sidecar open across both passive routes"
   state.leaf.pause = pause.promise; state.leaf.publishAfterAwait = true;
   const completions = [];
   app.state.plugin.syncPageToDocumentLeaf = /** Retain the actual linked route's completion for assertion. */ page => {
-    const task = state.context.syncPageToDocumentLeaf(page); completions.push(task); return task;
+    const task = state.context.syncPageToDocumentLeaf(page,state.host); completions.push(task); return task;
   };
   app.state.plugin.syncSidecarToPage = /** Retain the actual managed route without replacing its request owner. */ (_host, page) => {
     const task = state.context.syncSidecarToPage(state.host, page); completions.push(task); return task;
@@ -201,12 +312,12 @@ test("App navigation shares one managed Sidecar open across both passive routes"
   assert.equal(count, 1, "One center request must not open its pinned managed companion twice");
   assert.equal(state.leaf.file, state.page.file); assert.equal(state.leaf.state.state.mode, "preview");
   assert.equal(state.context.writes, 1);
-  assert.equal(state.context.lastDocumentLeaf, state.leaf, "Delegation preserves the linked destination's native recent-leaf bookkeeping");
+  assert.equal(state.session.lastDocumentLeaf, state.leaf, "Delegation preserves the linked destination's native recent-leaf bookkeeping");
 });
 
 test("linked routing cannot bypass a managed Sidecar's supersession fences", /** A newer completion must own representation and persistence even when the older request came from linked-tab sync. */ async () => {
   const state = fixture(), pause = deferred(); state.leaf.pause = pause.promise;
-  const old = state.context.syncPageToDocumentLeaf(state.page);
+  const old = state.context.syncPageToDocumentLeaf(state.page,state.host);
   const newer = state.context.syncSidecarToPage(state.host, state.other);
   pause.resolve(); await Promise.all([old, newer]);
   assert.equal(state.leaf.file, state.other.file);
@@ -292,22 +403,22 @@ test("a superseded Sidecar file-open echo cannot become a new center intent", /*
   const first = state.context.syncSidecarToPage(state.host, state.page);
   const latest = state.context.syncSidecarToPage(state.host, state.other);
   state.leaf.file = state.page.file; // The still-opening native operation publishes its older file.
-  const eligible = production("shouldFollowDocumentFile").call(state.context, state.page.file);
+  const eligible = production("shouldFollowDocumentFile").call(state.context,state.page.file,state.host,state.leaf);
   state.leaf.file = manual;
-  assert.equal(production("shouldFollowDocumentFile").call(state.context, manual), true);
+  assert.equal(production("shouldFollowDocumentFile").call(state.context,manual,state.host,state.leaf), true);
   state.leaf.file = state.page.file;
   state.context.retirePassiveSidecarRequestsForLeaf(state.leaf);
-  assert.equal(production("shouldFollowDocumentFile").call(state.context, state.page.file), true);
+  assert.equal(production("shouldFollowDocumentFile").call(state.context,state.page.file,state.host,state.leaf), true);
   pause.resolve(); await Promise.all([first, latest]);
   assert.equal(eligible, false, "The older native echo must not retire the newest graph navigation");
   assert.equal(state.modes.length, 0); assert.equal(state.context.writes, 0);
 });
 
 test("passive native opening skips an already correct Markdown mode while explicit opening reapplies it", /** Avoid redundant host state work after a genuine file change without weakening deliberate representation requests. */ async () => {
-  const state = fixture(); state.context.settings.sidecarMarkdownMode = "source";
+  const state = fixture(); state.session.preferences.sidecarMarkdownMode = "source";
   await state.context.syncSidecarToPage(state.host, state.page);
   assert.equal(state.opens.length, 1); assert.equal(state.modes.length, 0);
-  await state.context.openPageInSidecarLeaf(state.leaf, state.page);
+  await state.context.openPageInSidecarLeaf(state.leaf,state.page,undefined,state.host);
   assert.equal(state.opens.length, 2); assert.equal(state.modes.length, 1);
 });
 
@@ -319,24 +430,25 @@ test("explicit native opens retire only their managed destination's passive comp
     state.context.passiveSidecarSyncRequests.set(otherHost, otherLease);
     state.leaf.pause = pause.promise;
     const pending = state.context.syncSidecarToPage(state.host, state.page);
-    if (route === "openInDocumentLeaf") await production(route).call(state.context, state.page.file);
-    if (route === "syncMostRecentTabWithKplex") await production(route).call(state.context, state.page);
-    if (route === "openPageInSidecarLeaf") await state.context.openPageInSidecarLeaf(state.leaf, state.page);
+    let explicit;
+    if (route === "openInDocumentLeaf") explicit = production(route).call(state.context,state.page.file,state.host);
+    if (route === "syncMostRecentTabWithKplex") explicit = production(route).call(state.context,state.page,state.host);
+    if (route === "openPageInSidecarLeaf") explicit = state.context.openPageInSidecarLeaf(state.leaf,state.page,undefined,state.host);
     if (route === "setDocumentSyncMode") {
       state.context.isManagedSidecarLeaf = /** Report ownership from this fixture's exact managed inventory. */ leaf => [...state.context.sidecarLeaves.values()].includes(leaf);
-      await production(route).call(state.context, "pinned", state.page);
+      explicit = production(route).call(state.context,state.host,"pinned",state.page);
     }
-    if (route === "relinkDocumentLeafToMostRecent") await production(route).call(state.context, state.page);
+    if (route === "relinkDocumentLeafToMostRecent") explicit = production(route).call(state.context,state.host,state.page);
     if (route === "openSection") {
       class TFile {}
       Object.setPrototypeOf(state.page.file, TFile.prototype);
       state.context.app.vault.getAbstractFileByPath = /** Resolve the exact source file for the production section route. */ path => state.files.get(path);
-      await production(route, {TFile}).call(state.context, {transient: {sourcePath: state.page.file.path, subpath: "#Heading"}});
-      assert.equal(state.opens.at(-1).options.eState.subpath, "#Heading");
+      explicit = production(route, {TFile}).call(state.context,{transient:{sourcePath:state.page.file.path,subpath:"#Heading"}},state.host);
     }
-    const modes = state.modes.length, writes = state.context.writes;
-    pause.resolve(); await pending;
-    assert.equal(state.modes.length, modes, route); assert.equal(state.context.writes, writes, route);
+    assert.equal(state.opens.length, 1, "Explicit native work waits for the non-cancellable earlier open");
+    pause.resolve(); await Promise.all([pending, explicit]);
+    assert(state.modes.length <= 1, route);
+    if (route === "openSection") assert.equal(state.opens.at(-1).options.eState.subpath, "#Heading");
     assert.equal(state.context.passiveSidecarSyncRequests.get(otherHost), otherLease, route);
   }
 });
@@ -375,8 +487,8 @@ test("same URL and empty targets remain idempotent without changing native view 
 
 test("explicit Open, one-shot sync and Go-to-source retain same-file navigation and source mode", /** Guard the deliberate navigation routes against accidental adoption of passive no-op policy. */ async () => {
   const state = fixture(); state.leaf.file = state.page.file;
-  await production("openInDocumentLeaf").call(state.context, state.page.file);
-  await production("syncMostRecentTabWithKplex").call(state.context, state.page);
+  await production("openInDocumentLeaf").call(state.context,state.page.file,state.host);
+  await production("syncMostRecentTabWithKplex").call(state.context,state.page,state.host);
   await production("openMarkdownInSidecar").call(state.context, state.host, state.page.file, 7, true);
   assert.equal(state.opens.length, 3); assert.equal(state.opens[0].options.active, true);
   assert.equal(state.modes.at(-1).state.mode, "source");
@@ -401,11 +513,11 @@ test("App document follow retains companion propagation while rejecting embedded
 function appFollowFixture() {
   const files = new Map(["A.md", "B.md", "C.md"].map(path => [path, {path}]));
   const pages = new Map([...files].map(([path, file]) => [path, {path, file}]));
-  const state = {visible: true, mode: "recent", current: files.get("B.md"), renderPath: "A.md", activates: [], companions: [], demands: [], releases: [],
+  const state = {actionNodeRef,documentSession:{centerPath:null,revision:0,pendingFollow:null,persist(){},footprints:{accept(){}}},visible: true, mode: "recent", current: files.get("B.md"), renderPath: "A.md", activates: [], companions: [], demands: [], releases: [],
     demandCounts: new Map(), ephemeral: new Set(), borrowedFrom: new Map(), graphActionPorts: {current: null}, wander: {pause() {}}, wasLeafVisibleRef: {current: true},
     pendingDocumentDemandRef: {current: null},
     pendingDocumentFollowRef: {current: null}, pendingFileExplorerDropRef: {current: null},
-    activePathRef: {current: "A.md"}, activeFileRef: {current: files.get("A.md")}, hostLeaf: {}};
+    activePathRef: {current: "A.md"}, activePageRef: {current: pages.get("A.md")}, activeFileRef: {current: files.get("A.md")}, hostLeaf: {}};
   const plugin = state.plugin = {
     settings: {navigationHistory: ["A.md"]}, saveSettings: /** Settings persistence is independent from demand publication in this test. */ async () => {},
     app: {vault: {getFileByPath: /** Resolve a real current file incarnation. */ path => files.get(path) ?? null}},
@@ -425,15 +537,17 @@ function appFollowFixture() {
     isKplexLeafVisible: /** Hidden state must not be confused with file ownership. */ () => state.visible,
     shouldFollowDocumentFile: /** Represent off and pinned/recent ownership independently from index readiness. */ file => state.mode !== "off" && state.current === file,
     getDocumentFollowFile: /** Resolve the current eligible native file when the sidebar itself has acquired focus. */ () => state.mode === "off" ? null : state.current,
+    captureDocumentFollow: /** The native target and epoch survive while the actual App owns partial-index admission. */ file => state.mode === "off" || state.current !== file ? null : {file,leaf:state.hostLeaf,revision:state.documentSession.revision},
     syncPageToDocumentLeaf: /** Capture companion propagation without native timing in this App test. */ page => state.companions.push(["document", page]),
     syncSidecarToPage: /** Keep separately managed companions observable on same-file echoes. */ (host, page) => state.companions.push(["sidecar", page]),
   };
-  const dependencies = {...state, plugin,
+  const dependencies = {...state, plugin, activatePendingDocumentUrl(){},
     releasePendingDocumentDemand: production("releasePendingDocumentDemand", state, "src/ui/App.tsx"),
     setNavigationOrigin: /** Observe the exact motion policy supplied to the graph. */ origin => { state.origin = origin; },
     setActivePath: /** A visible render reads only the latest native requested path. */ path => { state.renderPath = path; },
     setHistoryCursor: /** Cursor changes are retained by the tested App activation but are immaterial to its demand ownership. */ () => {}};
   const activate = production("activate",dependencies,"src/ui/App.tsx");
+  dependencies.restoreAcceptedDocumentCenter=production("restoreAcceptedDocumentCenter",dependencies,"src/ui/App.tsx");
   state.activate = activate;
   dependencies.activate = /** Observe the real activation arguments without replacing its demand handover or native synchronization logic. */ (page,...args) => {
     state.activates.push([page.path,...args]); activate(page,...args);
@@ -443,11 +557,77 @@ function appFollowFixture() {
   state.handover = production("acknowledgeDocumentDemandHandover",dependencies,"src/ui/App.tsx");
   state.observe = production("observeDocumentFollow", {...dependencies, activatePendingDocumentFollow: state.flush}, "src/ui/App.tsx");
   state.presentation = production("presentationPublication", {...dependencies, activatePendingDocumentFollow: state.flush,
+    forcePaint: () => { state.paintRenders = (state.paintRenders ?? 0) + 1; },
     forceRender: /** Observe the actual render-only publication after pending settlement. */ () => { state.presentationRenders = (state.presentationRenders ?? 0) + 1; }}, "src/ui/App.tsx");
   state.reconcile = production("reconcileDocumentFollowVisibility", {...dependencies, activatePendingDocumentFollow: state.flush, observeDocumentFollow: state.observe,
     forceRender: /** Count visible geometry catch-up without synthesizing a plugin visibility notification. */ () => { state.visibilityRenders = (state.visibilityRenders ?? 0) + 1; }}, "src/ui/App.tsx");
   return {state, files, pages};
 }
+
+/** Publication remaps only a surface's accepted ghost identity, independently from shared last-active settings. */
+test("centered ghost materialization preserves two Plex centers without navigation or document events",()=>{
+  const f=appFollowFixture(),ghost={path:"Projects/Ghost",file:null};f.pages.set(ghost.path,ghost);
+  const other={activePathRef:{current:"A.md"},activePageRef:{current:f.pages.get("A.md")},activeFileRef:{current:f.files.get("A.md")}};
+  const center={activePathRef:{current:ghost.path},activePageRef:{current:ghost},activeFileRef:{current:null}};
+  f.state.plugin.settings.lastActivePath="A.md";let refreshes=0;
+  const bind=refs=>production("centerPublication",{...refs,plugin:f.state.plugin,hostLeaf:f.state.hostLeaf,
+    activatePendingDocumentFollow(){},activatePendingDocumentUrl(){},setActivePath:path=>{refs.renderPath=path;},forceRender:()=>refreshes++},"src/ui/App.tsx");
+  const centerPublication=bind(center),otherPublication=bind(other);
+  const oldPath=ghost.path,file={path:"Other/Ghost.md"};f.files.set(file.path,file);f.pages.delete(oldPath);
+  ghost.path=file.path;ghost.file=file;f.pages.set(file.path,ghost);
+  centerPublication();otherPublication();
+  assert.equal(center.activePathRef.current,file.path);assert.equal(center.activeFileRef.current,file);
+  assert.equal(other.activePathRef.current,"A.md");assert.equal(other.renderPath,undefined);
+  assert.deepEqual(f.state.plugin.settings.navigationHistory,["A.md"]);assert.equal(f.state.plugin.settings.lastActivePath,"A.md");
+  assert.equal(f.state.companions.length,0);assert.equal(f.state.activates.length,0);assert.equal(refreshes,2);
+});
+
+/** Replacement pages and unrelated publications do not inherit the earlier accepted center's authority. */
+test("center remapping rejects retired ghost objects, native replacements and unrelated publications",()=>{
+  for(const mode of ["replacement-page","replacement-at-old-path","replacement-file","unrelated"]){
+    const f=appFollowFixture(),ghost={path:"Projects/Ghost",file:null},refs={activePathRef:{current:"Projects/Ghost"},activePageRef:{current:ghost},activeFileRef:{current:null}};
+    f.pages.set(ghost.path,ghost);let moves=0;
+    const publish=production("centerPublication",{...refs,plugin:f.state.plugin,hostLeaf:f.state.hostLeaf,
+      activatePendingDocumentFollow(){},activatePendingDocumentUrl(){},setActivePath:()=>moves++,forceRender(){}},"src/ui/App.tsx");
+    const file={path:"Other/Ghost.md"};
+    if(mode!=="unrelated"){
+      f.pages.delete(ghost.path);ghost.path=file.path;ghost.file=file;f.files.set(file.path,file);f.pages.set(file.path,ghost);
+      if(mode==="replacement-page")f.pages.set(file.path,{path:file.path,file});
+      if(mode==="replacement-at-old-path")f.pages.set("Projects/Ghost",{path:"Projects/Ghost",file:null});
+      if(mode==="replacement-file")f.files.set(file.path,{path:file.path});
+    }
+    publish();assert.equal(refs.activePathRef.current,"Projects/Ghost");assert.equal(moves,0);
+  }
+});
+
+/** Explicit navigation continues through the established activation route, including its intentional sync/history effects. */
+test("ordinary navigation requests still activate after local identity remapping support",()=>{
+  const f=appFollowFixture(),requested=[];
+  const request=production("navigationRequest",{plugin:f.state.plugin,activate:(...args)=>requested.push(args)},"src/ui/App.tsx");
+  request("B.md");request("missing.md");
+  assert.deepEqual(requested,[[f.pages.get("B.md"),true]]);
+});
+
+test("native URL follow retains hidden/unpublished intent, fences owner changes and accepts exactly once",()=>{
+  const {state,pages}=appFollowFixture(),leaf={},url="https://example.com/pending";
+  let native={path:null,url};state.visible=false;
+  state.plugin.getDocumentFollowUrl=(_host,source)=>source===leaf?native:null;
+  const dependencies={...state,plugin:state.plugin,activate:state.activate,restoreAcceptedDocumentCenter(){},
+    releasePendingDocumentDemand:state.releaseDemand};
+  const complete=production("activatePendingDocumentUrl",dependencies,"src/ui/App.tsx");
+  const observe=production("observeDocumentUrl",{...dependencies,activatePendingDocumentUrl:complete},"src/ui/App.tsx");
+  observe(leaf);const intent=state.documentSession.pendingUrl;assert.equal(intent.leaf,leaf);
+  state.visible=true;complete();assert.equal(state.documentSession.centerPath,null);assert.deepEqual(state.demands,[]);
+  native={path:"opaque:url",url};pages.set(native.path,{path:native.path,url,file:null});complete();complete();
+  assert.equal(state.documentSession.centerPath,"opaque:url");assert.equal(state.documentSession.pendingUrl,null);
+  assert.deepEqual(state.plugin.settings.navigationHistory,["A.md","opaque:url"]);
+  state.activePathRef.current="A.md";state.documentSession.pendingUrl=intent;state.documentSession.revision++;complete();
+  assert.equal(state.documentSession.pendingUrl,null);assert.equal(state.documentSession.centerPath,"opaque:url");
+  state.documentSession.pendingUrl={...intent,revision:state.documentSession.revision};native={path:"other:url",url:"https://example.com/newer"};complete();
+  assert.equal(state.documentSession.pendingUrl,null);assert.deepEqual(state.demands,[]);
+  native={path:"canonical:root",url:"https://example.com"};pages.set(native.path,{path:native.path,url:"https://example.com/",file:null});observe(leaf);
+  assert.equal(state.documentSession.centerPath,"canonical:root","Verified native source follows the existing canonical URL mapping");
+});
 
 test("hidden follow retains only the newest native identity and settles immediately on reveal without user motion", /** Hidden observations cannot activate or render the old/intermediate scenes. */ () => {
   const {state, files} = appFollowFixture(); state.visible = false;
@@ -489,7 +669,7 @@ test("App-to-graph handover preserves preview-backed pages without a zero-demand
 test("presentation-only native preview publication settles a missing follow before graph handover", /** Host previews and on-demand local scopes publish without a semantic event. */ () => {
   const {state,files,pages}=appFollowFixture(),page=pages.get("B.md");pages.delete("B.md");state.observe(files.get("B.md"));
   assert.equal(state.pendingDocumentFollowRef.current,files.get("B.md"));assert.equal(state.activates.length,0);
-  pages.set("B.md",page);state.presentation();
+  pages.set("B.md",page);state.presentation({kind:"presentation"});
   assert.equal(state.pendingDocumentFollowRef.current,null);assert.deepEqual(state.activates,[["B.md",true,true,"follow"]]);
   assert.equal(state.plugin.settings.lastActivePath,"B.md");assert.equal(state.presentationRenders,1);assert.equal(state.demandCounts.get("B.md"),1);
   const releaseGraph=state.plugin.index.acquireSemanticDemand("B.md");state.handover("B.md");releaseGraph();
@@ -498,7 +678,7 @@ test("presentation-only native preview publication settles a missing follow befo
 
 test("presentation catch-up reconciles a hidden native file when reveal geometry precedes its visibility notification", /** React's old path must not remain empty merely because refs advanced while the drawer was hidden. */ () => {
   const {state,files}=appFollowFixture();state.visible=false;state.observe(files.get("B.md"));assert.equal(state.renderPath,"A.md");
-  state.visible=true;state.presentation();assert.equal(state.renderPath,"B.md");assert.equal(state.pendingDocumentFollowRef.current,null);
+  state.visible=true;state.presentation({kind:"presentation"});assert.equal(state.renderPath,"B.md");assert.equal(state.pendingDocumentFollowRef.current,null);
   assert.deepEqual(state.activates,[["B.md",true,true,"follow"]]);
 });
 
@@ -535,7 +715,7 @@ test("an already-readable borrowed target obtains its own demand before the prev
   assert.equal(state.demandCounts.get("B.md"),2,"the App lease remains until this graph's exact native center is readable");
   assert.equal(production("waitingForDocument",{pendingDocumentFollowRef:state.pendingDocumentFollowRef,navigationOrigin:state.origin,
     activeFileRef:state.activeFileRef,plugin:state.plugin},"src/ui/App.tsx"),true,"a settled follow cannot fall back to unrelated history during preview handover");
-  state.borrowedFrom.delete("B.md");state.presentation();assert.equal(state.plugin.index.get("B.md"),page);
+  state.borrowedFrom.delete("B.md");state.presentation({kind:"presentation"});assert.equal(state.plugin.index.get("B.md"),page);
   state.handover("B.md");assert.equal(state.demandCounts.get("B.md"),1);
   releaseGraph();assert.equal(state.plugin.index.get("B.md"),undefined);
 });
@@ -543,7 +723,7 @@ test("an already-readable borrowed target obtains its own demand before the prev
 test("a synchronous preview publication and graph acknowledgment during acquisition retire only the temporary App lease", /** Acquisition may reenter settlement before returning its cleanup capability. */ () => {
   const {state,files,pages}=appFollowFixture(),page=pages.get("B.md");pages.delete("B.md");let releaseGraph;
   state.onAcquire=/** Publish exactly once during the temporary acquisition, then model the child's independent owner. */ path=>{
-    state.onAcquire=null;pages.set(path,page);state.presentation();
+    state.onAcquire=null;pages.set(path,page);state.presentation({kind:"presentation"});
     releaseGraph=state.plugin.index.acquireSemanticDemand(path);state.handover(path);
   };
   state.observe(files.get("B.md"));assert.equal(state.pendingDocumentFollowRef.current,null);assert.equal(state.pendingDocumentDemandRef.current,null);
@@ -602,7 +782,10 @@ test("central native Open reuses the visible main tab and excludes sidebar, embe
 
 test("stationary central double taps open in the main tab on a sidepanel and consume synthetic duplicates", /** Run the real gesture owner and graph action, preserving first-tap activation and default ghost behavior. */ () => {
   const file = {path: "A.md"}, page = {path: file.path, file}, requests = [], opened = [], activated = [];
-  const dependencies = {plugin: {openFileInMainTab: /** Capture the central explicit native destination. */ target => opened.push(target)},
+  const folderPrompts=[];
+  const dependencies = {plugin: {openFileInMainTab: /** Capture the central explicit native destination. */ target => opened.push(target),
+    openPage: /** Explicit modifier opening owns its native folder prompt, independent of Sidecar availability. */ (target,doc,options)=>folderPrompts.push({target,doc,options})},
+    viewport:{current:{ownerDocument:{}}},hostLeaf:{},
     activePath: page.path, surface: "sidepanel", graphActionPage: /** Use the graph's accepted exact target in this finite action fixture. */ context => context.page,
     onActivate: /** Capture the first accepted touch selection/activation. */ target => activated.push(target),
     onOpen: /** Existing unresolved nodes keep their deliberate materialization route. */ target => opened.push(["ghost", target]),
@@ -613,7 +796,7 @@ test("stationary central double taps open in the main tab on a sidepanel and con
   const touchDependencies = {index: {get: /** Return the currently accepted central page. */ () => page},
     touchDoubleTap: {current: new DoubleTapGesture()}, suppressSyntheticClickUntil: {current: 0}, suppressNativeDoubleClickUntil: {current: 0},
     runNodeAction: /** The touch owner dispatches once through the same graph implementation used by menus/keyboard. */ (id, target) => {
-      requests.push(id); if (id === "node.open") { assert(available({page: target})); open({page: target, target: {kind: "node"}}); }
+      requests.push(id); if (id === "node.open") { assert(available({page: target,request:{id}})); open({page: target, request:{id}, target: {kind: "node"}}); }
       else dependencies.onActivate(target);
     }};
   const complete = production("completeTouchTap", touchDependencies, "src/ui/PlexGraph.tsx");
@@ -623,7 +806,38 @@ test("stationary central double taps open in the main tab on a sidepanel and con
   assert.deepEqual(requests, ["node.activate", "node.open"]); assert.deepEqual(opened, [file]); assert.deepEqual(activated, [page]);
   assert(touchDependencies.suppressNativeDoubleClickUntil.current > Date.now()); assert(touchDependencies.suppressSyntheticClickUntil.current > Date.now());
   const noncentral = {path: "B.md", file: {path: "B.md"}}, ghost = {path: "Missing"};
-  assert.equal(available({page: noncentral}), false); assert.equal(available({page: ghost}), false);
-  open({page: ghost, target: {kind: "node"}}); open({page: noncentral, target: {kind: "node"}});
+  assert.equal(available({page: noncentral,request:{id:"node.open"}}), false); assert.equal(available({page: ghost,request:{id:"node.open"}}), false);
+  open({page: ghost,request:{id:"node.open"}, target: {kind: "node"}}); open({page: noncentral,request:{id:"node.open"}, target: {kind: "node"}});
   assert.deepEqual(opened.slice(1), [["ghost", ghost], ["sidecar", noncentral]]);
+  const modifier={page:ghost,request:{id:"node.open",args:{chooseFolder:true}},target:{kind:"node"}};
+  assert.equal(available(modifier),true);open(modifier);
+  assert.deepEqual(folderPrompts,[{target:ghost,doc:dependencies.viewport.current.ownerDocument,options:{chooseFolder:true,preserveCenter:false,hostLeaf:dependencies.hostLeaf}}]);
+});
+
+test('color publication never promotes a pending native follow or expands its demand',()=>{
+ const {state,files}=appFollowFixture();state.visible=false;state.observe(files.get('B.md'));const demands=[...state.demands],rendered=state.renderPath;
+ state.visible=true;state.presentation({kind:'paint'});assert.equal(state.renderPath,rendered);assert.deepEqual(state.demands,demands);assert.equal(state.paintRenders,1);assert.equal(state.presentationRenders,undefined);
+ state.visible=false;state.presentation({kind:'paint'});assert.equal(state.paintRenders,1);state.releaseDemand();
+});
+
+test('partial native follow records its accepted Footprint once, and an ownership revision cancels delayed acceptance',()=>{
+ const {state,files,pages}=appFollowFixture(),session=new KplexDocumentSession({documentSyncMode:'recent'},'test',()=>{});
+ state.documentSession.footprints=session.footprints;session.footprints.accept(actionNodeRef(pages.get('A.md')));state.documentSession.centerPath='A.md';
+ const pending=pages.get('B.md');pages.delete('B.md');state.observe(files.get('B.md'));for(let i=0;i<5;i++)state.flush();assert.equal(session.footprints.length,1);
+ pages.set('B.md',pending);state.flush();for(let i=0;i<5;i++)state.flush();assert.equal(session.footprints.length,2);assert.equal(session.footprints.at(1).node.identity,'B.md');
+ const next=pages.get('C.md');pages.delete('C.md');state.current=files.get('C.md');state.observe(state.current);state.documentSession.revision++;pages.set('C.md',next);state.flush();
+ assert.equal(session.footprints.length,2);assert.equal(state.renderPath,'B.md');assert.equal(state.documentSession.pendingFollow,null);
+});
+
+test('partial startup cannot replace the saved center with an earlier available history tag', () => {
+  const pages = new Map([['tag:#Fiction', {path: 'tag:#Fiction'}], ['folder:/', {path: 'folder:/'}]]);
+  const plugin = {settings: {lastActivePath: 'Center.md', navigationHistory: ['tag:#Fiction', 'Center.md']},
+    index: {get: path => pages.get(path)}, initialIndexComplete: false,
+    isNavigationFallbackReady() {return this.initialIndexComplete;}};
+  const fallback = production('resolveNavigationFallbackPath');
+  assert.equal(fallback.call(plugin, 'Center.md'), null, 'Absence from a partial publication is not proof of deletion');
+  pages.set('Center.md', {path: 'Center.md'});
+  assert.equal(fallback.call(plugin, 'Center.md'), 'Center.md');
+  pages.delete('Center.md'); plugin.initialIndexComplete = true;
+  assert.equal(fallback.call(plugin, 'Center.md'), 'tag:#Fiction', 'A genuinely missing center still recovers after readiness');
 });

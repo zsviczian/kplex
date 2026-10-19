@@ -1,22 +1,24 @@
+/** Portable lens matching and appearance layers; color references retain identity until host paint. */
 import type { GraphNodeView } from "../graph/model";
+import type { ColorValue } from "../contracts/colorValue";
 import { GraphPredicateEngine, type CompiledGraphPredicate, type GraphPredicateEdgeContext, type GraphPredicateEvidence } from "./predicate";
 
 export type PortableLensScope = "node" | "edge" | "evidence";
 export type PortableLensMode = "include" | "exclude" | "style";
 export type PortableLensNodeStyle = {
-  backgroundColor?: string;
+  backgroundColor?: ColorValue;
   fillStyle?: "solid" | "hachure" | "cross-hatch";
-  textColor?: string;
-  borderColor?: string;
+  textColor?: ColorValue;
+  borderColor?: ColorValue;
   strokeWidth?: number;
   strokeStyle?: "solid" | "dashed" | "dotted";
 };
 export type PortableLensEdgeStyle = {
-  strokeColor?: string;
+  strokeColor?: ColorValue;
   strokeWidth?: number;
   strokeStyle?: "solid" | "dashed" | "dotted";
   showLabel?: boolean;
-  textColor?: string;
+  textColor?: ColorValue;
 };
 export type PortableLensStyle = Readonly<{ node?: Readonly<PortableLensNodeStyle>; edge?: Readonly<PortableLensEdgeStyle> }>;
 export type PortableCompiledLens = Readonly<{ scope: PortableLensScope; mode: PortableLensMode; predicate: CompiledGraphPredicate; style?: PortableLensStyle }>;

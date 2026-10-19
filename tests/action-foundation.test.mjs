@@ -21,10 +21,119 @@ const implementation = (execute = () => ({status: "completed"})) => ({availabili
 /** Provide a shared center independently of whichever editor has focus. */
 const manager = (extra = {}) => new api.ActionManager({readCommandContext: () => ({sharedCenter: node("shared"), windowId: "main", focusRegion: "graph"}), ...extra});
 
+test("document-sync commands capture their originating surface and its center independently of shared history",async()=>{
+ let preferred="B";const calls=[],app=manager({readCommandContext:()=>({sharedCenter:node("global-saved"),windowId:"main",preferredSurfaceId:preferred}),implementations:Object.fromEntries(["document.sync-from-center","center.sync-from-document","center.focus-active-note"].map(id=>[id,implementation(context=>{calls.push({id,surface:context.surfaceId,node:context.target.kind==="node"?context.target.node.identity:null});return{status:"completed"};})]))});
+ app.registerSurface({id:"A",generation:1,readSnapshot:()=>snapshot(node("A"))});app.registerSurface({id:"B",generation:2,readSnapshot:()=>snapshot(node("B"))});
+ const prepared=app.prepare({id:"document.sync-from-center",source:"obsidian-command"});assert.equal(prepared.state,"accepted");preferred="A";await prepared.run();
+ assert.deepEqual(calls[0],{id:"document.sync-from-center",surface:"B",node:"B"});
+ await app.dispatch({id:"center.sync-from-document",source:"obsidian-command"});assert.equal(calls[1].surface,"A");
+ await app.dispatch({id:"center.focus-active-note",source:"obsidian-command",surfaceId:"B"});assert.equal(calls[2].surface,"B");app.dispose();
+});
+
+test("native sync publication offers an explicit picker for ambiguity, never for a stale explicit surface",()=>{
+ const commands=[],checks=[],app=manager({readCommandContext:()=>({sharedCenter:node("global"),windowId:"other"}),implementations:{"document.sync-from-center":implementation()}});
+ for(const id of["A","B"])app.registerSurface({id,generation:1,readSnapshot:()=>snapshot(node(id),{windowId:id})});
+ const publisher=api.createActionCommandPublisher({host:{addCommand:command=>commands.push(command),removeCommand(){}},manager:app,translate:key=>key,
+ makeRequest:id=>({id,source:"obsidian-command"}),ambiguousSurface:(request,checking)=>{checks.push({id:request.id,checking});return request.id==="document.sync-from-center";}});
+ publisher.sync(api.migrateActionPreferences(undefined).preferences);const command=commands.find(item=>item.id==="kplex-sync-tab-from-plex");
+ assert.equal(command.checkCallback(true),true);assert.deepEqual(checks,[{id:"document.sync-from-center",checking:true}]);
+ assert.equal(command.checkCallback(false),true);assert.equal(checks[1].checking,false);
+ assert.equal(app.check({id:"document.sync-from-center",source:"obsidian-command",surfaceId:"closed"}).reasonKey,"actions.surface-unavailable");
+ publisher.dispose();app.dispose();
+});
+
+test("fold recovery captures the host pair without a graph, surface fallback or App override", async () => {
+  const id="view.sidecar.collapse-plex",target={id:"pair-incarnation",windowId:"main"},calls=[];
+  const app=manager({readCommandContext:assert.fail,validateNode:assert.fail,resolveSidecarFold:()=>({state:"resolved",target}),
+    validateSidecarFold:value=>value.id==="pair-incarnation",implementations:{[id]:implementation(context=>{calls.push(context);return{status:"completed"};})}});
+  app.registerSurface({id:"explicit",generation:1,readSnapshot:()=>snapshot(null),implementations:{[id]:implementation(assert.fail)}});
+  const prepared=app.prepare({id,source:"toolbar",surfaceId:"explicit"});assert.equal(prepared.state,"accepted");
+  target.id="caller-mutated";assert.equal((await prepared.run()).status,"completed");
+  assert.deepEqual(calls[0].sidecarFold,{state:"resolved",target:{id:"pair-incarnation",windowId:"main"}});
+  assert(Object.isFrozen(calls[0].sidecarFold)&&Object.isFrozen(calls[0].sidecarFold.target));
+  target.id="pair-incarnation";assert.equal((await app.dispatch({id,source:"obsidian-command"})).status,"completed");
+  assert.equal(calls[1].surfaceId,undefined,"Unregistered host-owned recovery needs no mounted React implementation");app.dispose();
+});
+
+test("fold unavailability is explicit and cannot fall through to another eligible Plex", async () => {
+  const id="view.sidecar.collapse-plex";let executed=0,resolved=0;
+  const app=manager({readCommandContext:assert.fail,resolveSidecarFold:request=>{resolved++;assert.equal(request.surfaceId,"ineligible");return{state:"unavailable",reasonKey:"sidecar.foldUnavailable"};},
+    validateSidecarFold:assert.fail,implementations:{[id]:implementation(()=>{executed++;return{status:"completed"};})}});
+  app.registerSurface({id:"ineligible",generation:1,readSnapshot:()=>snapshot(null)});
+  app.registerSurface({id:"other",generation:1,readSnapshot:()=>snapshot(),implementations:{[id]:implementation(assert.fail)}});app.recordInteraction("other");
+  assert.deepEqual(app.check({id,source:"obsidian-command",surfaceId:"ineligible"}),{state:"disabled",reasonKey:"sidecar.foldUnavailable"});
+  assert.equal((await app.dispatch({id,source:"obsidian-command",surfaceId:"ineligible"})).status,"unavailable");
+  assert.equal(resolved,2);assert.equal(executed,0);app.dispose();
+});
+
+test("ambiguous fold checking stays pure and execution retains the exact finite chooser candidates", async () => {
+  const id="view.sidecar.collapse-plex",targets=[{id:"pair-A",windowId:"main"},{id:"pair-B",windowId:"main"}];let opens=0,captured;
+  const app=manager({readCommandContext:assert.fail,resolveSidecarFold:()=>({state:"ambiguous",targets}),validateSidecarFold:()=>true,implementations:{[id]:{
+    availability:context=>({state:context.sidecarFold.state==="ambiguous"?"preparable":"enabled",reasonKey:"sidecar.chooseFoldPair"}),
+    execute:context=>{opens++;captured=context.sidecarFold;return{status:"opened",sessionId:"fold-picker"};}}}});
+  assert.equal(app.check({id,source:"obsidian-command"}).state,"preparable");assert.equal(opens,0);
+  const prepared=app.prepare({id,source:"obsidian-command"});assert.equal(prepared.state,"accepted");targets[0].id="replacement";targets.pop();
+  assert.equal((await prepared.run()).status,"opened");assert.equal(opens,1);
+  assert.deepEqual(captured.targets,[{id:"pair-A",windowId:"main"},{id:"pair-B",windowId:"main"}]);assert(Object.isFrozen(captured.targets));
+  app.closeSession("fold-picker");app.dispose();
+});
+
+test("stale accepted fold incarnation cancels instead of resolving a newer pair", async () => {
+  const id="view.sidecar.collapse-plex";let current="old",resolutions=0;const calls=[];
+  const app=manager({readCommandContext:assert.fail,resolveSidecarFold:()=>{resolutions++;return{state:"resolved",target:{id:current,windowId:"main"}};},
+    validateSidecarFold:target=>target.id===current,implementations:{[id]:implementation(context=>{calls.push(context.sidecarFold.target.id);return{status:"completed"};})}});
+  const old=app.prepare({id,source:"obsidian-command"});assert.equal(old.state,"accepted");current="new";
+  assert.equal((await old.run()).status,"cancelled");assert.equal(resolutions,1,"Running accepted intent never asks the host to retarget");assert.deepEqual(calls,[]);
+  assert.equal((await app.dispatch({id,source:"obsidian-command"})).status,"completed");assert.deepEqual(calls,["new"]);app.dispose();
+});
+
+test("fold routing rejects missing proof, malformed targets and cross-window candidates without fallback", () => {
+  const id="view.sidecar.collapse-plex",host={[id]:implementation(assert.fail)};
+  const absent=manager({implementations:host});assert.equal(absent.check({id,source:"obsidian-command"}).state,"disabled");absent.dispose();
+  for(const route of [{state:"resolved",target:{id:"A",windowId:"other"}}, {state:"ambiguous",targets:[{id:"A",windowId:"main"},{id:"B",windowId:"other"}]},
+    {state:"ambiguous",targets:[]},{state:"ambiguous",targets:[{id:"A",windowId:"main"},{id:"A",windowId:"main"}]},{state:"resolved",target:{id:"",windowId:"main"}}]){
+    const app=manager({readCommandContext:assert.fail,resolveSidecarFold:()=>route,validateSidecarFold:()=>true,implementations:host});
+    app.registerSurface({id:"fallback",generation:1,readSnapshot:()=>snapshot()});
+    assert.equal(app.check({id,source:"obsidian-command",windowId:"main"}).state,"disabled");app.dispose();
+  }
+  const missingValidator=manager({resolveSidecarFold:()=>({state:"resolved",target:{id:"A",windowId:"main"}}),implementations:host});
+  assert.equal(missingValidator.check({id,source:"obsidian-command"}).state,"disabled");missingValidator.dispose();
+});
+
+test("fold routing preserves exact local keyboard region, window and surface-generation fences", async () => {
+  const id="view.sidecar.collapse-plex";let state=snapshot(null),calls=0;
+  const app=manager({readCommandContext:assert.fail,resolveSidecarFold:()=>({state:"resolved",target:{id:"A",windowId:"main"}}),validateSidecarFold:()=>true,
+    implementations:{[id]:implementation(()=>{calls++;return{status:"completed"};})}});
+  const register=()=>app.registerSurface({id:"own",generation:1,readSnapshot:()=>state});let release=register();
+  for(const focusRegion of ["search","embedded-editor","sidecar-editor","external"]){state={...state,focusRegion};assert.equal(app.check({id,source:"local-hotkey",surfaceId:"own"}).state,"disabled");}
+  state={...state,focusRegion:"graph"};assert.equal(app.check({id,source:"local-hotkey"}).state,"disabled");
+  assert.equal(app.check({id,source:"local-hotkey",surfaceId:"own",windowId:"other"}).state,"disabled");
+  const accepted=app.prepare({id,source:"local-hotkey",surfaceId:"own"});assert.equal(accepted.state,"accepted");release();release=register();
+  assert.equal((await accepted.run()).status,"cancelled","A replacement registration cannot inherit an old accepted local action");
+  assert.equal((await app.dispatch({id,source:"local-hotkey",surfaceId:"own"})).status,"completed");assert.equal(calls,1);release();app.dispose();
+});
+
+test("fold single-flight follows the captured pair while disjoint pairs remain independent", async () => {
+  const id="view.sidecar.collapse-plex";let chosen="A",finish;const gate=new Promise(resolve=>{finish=resolve;});const calls=[];
+  const app=manager({readCommandContext:assert.fail,resolveSidecarFold:()=>({state:"resolved",target:{id:chosen,windowId:"main"}}),validateSidecarFold:()=>true,
+    implementations:{[id]:implementation(async context=>{calls.push(context.sidecarFold.target.id);await gate;return{status:"completed"};})}});
+  const first=app.prepare({id,source:"obsidian-command"});assert.equal(first.state,"accepted");const running=first.run();assert.equal(first.run(),running);
+  assert.equal(app.prepare({id,source:"obsidian-command"}).state,"rejected");chosen="B";
+  const second=app.prepare({id,source:"obsidian-command"});assert.equal(second.state,"accepted");const other=second.run();assert.deepEqual(calls,["A","B"]);
+  finish();await Promise.all([running,other]);app.dispose();
+});
+
+test("fold recency consumers read the existing interaction order without recording checks", () => {
+  const app=manager();app.registerSurface({id:"A",generation:1,readSnapshot:()=>snapshot()});app.registerSurface({id:"B",generation:1,readSnapshot:()=>snapshot()});
+  assert.equal(app.readInteractionOrder("missing"),0);assert.equal(app.readInteractionOrder("A"),0);app.recordInteraction("A");
+  const first=app.readInteractionOrder("A");app.recordInteraction("B");assert(app.readInteractionOrder("B")>first);assert.equal(app.readInteractionOrder("A"),first);
+  app.check({id:"graph.focus",source:"obsidian-command"});assert.equal(app.readInteractionOrder("A"),first);app.dispose();
+});
+
 test("catalog contains bounded variants, 22 preserved IDs, nine new publication defaults and session-only actions", () => {
   assert.equal(new Set(api.ACTION_CATALOG.map(item => item.id)).size, api.ACTION_CATALOG.length);
   assert.equal(new Set(api.ACTION_CATALOG.flatMap(item => item.command ? [item.command.id] : [])).size, api.ACTION_CATALOG.filter(item => item.command).length);
-  assert.equal(api.ACTION_CATALOG.filter(item => item.command?.defaultPublished).length, 31);
+  assert.equal(api.ACTION_CATALOG.filter(item => item.command?.defaultPublished).length, 32);
   const support = api.ACTION_BY_ID.get("support.report-bug");
   assert.equal(support.command.id, "kplex-support-report-bug");
   assert.equal(support.target, "none");
@@ -203,8 +312,8 @@ test("public command diff preserves editor callbacks, omits global hotkeys and r
   const app = manager({implementations: {"index.rebuild": implementation(), "ontology.assign.parent": implementation()}});
   const publisher = api.createActionCommandPublisher({host: {addCommand: command => {added.push(command); return command;}, removeCommand: id => removed.push(id)}, manager: app, translate: key => key, makeRequest: id => ({id, source: "obsidian-command", ...(id.startsWith("ontology.") ? {target: {kind: "editor-field", editorInvocationId: "cursor"}} : {})}), releaseRequest: request => released.push(request.id)});
   const preferences = api.migrateActionPreferences(undefined).preferences;
-  publisher.sync(preferences); assert.equal(added.length, 31);
-  publisher.sync(preferences); assert.equal(added.length, 31);
+  publisher.sync(preferences); assert.equal(added.length, 32);
+  publisher.sync(preferences); assert.equal(added.length, 32);
   assert(added.every(command => command.hotkeys === undefined));
   const editor = added.find(command => command.id === "kplex-ontology-parent"); assert.equal(typeof editor.editorCheckCallback, "function"); assert.equal(editor.checkCallback, undefined);
   assert.equal(editor.editorCheckCallback(true, {}, {}), true); assert.deepEqual(released, ["ontology.assign.parent"]);
@@ -259,9 +368,9 @@ test("partial public registration failure reports actual state and stable-ID ret
   const app = manager();
   const publisher = api.createActionCommandPublisher({host: {addCommand: command => {counts.set(command.id, (counts.get(command.id) ?? 0) + 1); if (command.id === "kplex-actions" && fail) throw new Error("native failure"); return command;}, removeCommand: () => {}}, manager: app, translate: key => key, makeRequest: id => ({id, source: "obsidian-command"})});
   const preferences = api.migrateActionPreferences(undefined).preferences;
-  const first = publisher.sync(preferences); assert.equal(first.failures.length, 1); assert.equal(publisher.registeredIds().length, 30);
-  const actual = publisher.registeredIds(); actual.pop(); assert.equal(publisher.registeredIds().length, 30);
-  fail = false; assert.equal(publisher.sync(preferences).failures.length, 0); assert.equal(publisher.registeredIds().length, 31);
+  const first = publisher.sync(preferences); assert.equal(first.failures.length, 1); assert.equal(publisher.registeredIds().length, 31);
+  const actual = publisher.registeredIds(); actual.pop(); assert.equal(publisher.registeredIds().length, 31);
+  fail = false; assert.equal(publisher.sync(preferences).failures.length, 0); assert.equal(publisher.registeredIds().length, 32);
   assert.equal(counts.get("kplex-actions"), 2); assert.equal(counts.get("kplex-start"), 1);
   publisher.dispose(); app.dispose();
 });

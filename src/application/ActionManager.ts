@@ -1,12 +1,24 @@
-/** Portable dispatch facade; bounded snapshots resolve intent and injected implementations own effects. */
+/**
+ * Portable dispatch facade: bounded snapshots resolve ordinary intent and injected owners perform
+ * effects. Sidecar folding captures an explicit host-resolved pair/window incarnation independently
+ * of graph readiness; it never falls back to the ordinary surface chooser or imports host objects.
+ */
 import { ACTION_BY_ID, isActionId, validActionArguments, type ActionId, type ActionMetadata, type ActionOutcome, type ActionRequest, type Availability, type FocusRegion, type NodeRef, type ResolvedTarget } from "../core/plex/actions";
 export type SurfaceSnapshot = Readonly<{ mounted: boolean; visible: boolean; windowId?: string; center: NodeRef | null; selected: Readonly<{node: NodeRef; occurrenceId: string}> | null; focusRegion: FocusRegion; commandFocusRegion?: FocusRegion; interactionRevision: number; historyBack?: boolean; historyForward?: boolean; editorAvailable?: boolean }>;
-export type ActionContext = Readonly<{request: ActionRequest; metadata: ActionMetadata; surfaceId?: string; generation?: number; snapshot?: SurfaceSnapshot; invocationSnapshot?: SurfaceSnapshot; target: ResolvedTarget}>;
+/** Opaque native pair/session incarnation; the host retains all leaf, group and document objects. */
+export type SidecarFoldTarget = Readonly<{id: string; windowId: string}>;
+/** Explicit absence and ambiguity never grant the generic surface resolver permission to choose. */
+export type SidecarFoldRoute = Readonly<{state: "resolved"; target: SidecarFoldTarget}
+  | {state: "unavailable"; reasonKey: string} | {state: "ambiguous"; targets: readonly SidecarFoldTarget[]}>;
+export type ActionContext = Readonly<{request: ActionRequest; metadata: ActionMetadata; surfaceId?: string; generation?: number; snapshot?: SurfaceSnapshot; invocationSnapshot?: SurfaceSnapshot; target: ResolvedTarget;
+  sidecarFold?: Exclude<SidecarFoldRoute, {state: "unavailable"}>}>;
 export type ActionImplementation = Readonly<{availability: (context: ActionContext) => Availability; execute: (context: ActionContext) => ActionOutcome | Promise<ActionOutcome>}>;
 export type ActionImplementations = Partial<Record<ActionId, ActionImplementation>>;
 export type SurfaceRegistration = Readonly<{id: string; generation: number; readSnapshot: () => SurfaceSnapshot; implementations?: ActionImplementations}>;
 export type CommandContext = Readonly<{sharedCenter: NodeRef | null; windowId?: string; preferredSurfaceId?: string; editorInvocationId?: string; focusRegion?: FocusRegion}>;
-export type ActionManagerOptions = Readonly<{readCommandContext: (request: ActionRequest) => CommandContext; implementations?: ActionImplementations; validateNode?: (node: NodeRef) => boolean; onError?: (error: unknown, context: ActionContext) => void}>;
+export type ActionManagerOptions = Readonly<{readCommandContext: (request: ActionRequest) => CommandContext; implementations?: ActionImplementations; validateNode?: (node: NodeRef) => boolean;
+  resolveSidecarFold?: (request: ActionRequest) => SidecarFoldRoute; validateSidecarFold?: (target: SidecarFoldTarget) => boolean;
+  onError?: (error: unknown, context: ActionContext) => void}>;
 export type PreparedAction = Readonly<{state: "rejected"; reasonKey: string} | {state: "accepted"; run: () => Promise<ActionOutcome>; cancel: () => void}>;
 type Registered = {registration: SurfaceRegistration; order: number; interactionOrder: number};
 const ACTION_SOURCES = ["obsidian-command", "local-hotkey", "local-menu", "toolbar", "context-menu", "composer", "internal"];
@@ -23,6 +35,26 @@ function captureRequest<Request extends ActionRequest>(request: Request): Reques
   Object.assign(captured, {args: request.args === undefined ? undefined : Object.freeze({...request.args}), target});
   Object.freeze(captured);
   return captured;
+}
+/** Copy finite pair identities before acceptance; reject malformed, mixed-window or implicit routes. */
+function captureSidecarFold(route: SidecarFoldRoute | undefined, expectedWindow?: string): Exclude<SidecarFoldRoute, {state: "unavailable"}> | string {
+  if (!route) return "actions.operation-unavailable";
+  if (route.state === "unavailable") return typeof route.reasonKey === "string" && route.reasonKey ? route.reasonKey : "actions.invalid-request";
+  if (route.state !== "resolved" && route.state !== "ambiguous") return "actions.invalid-request";
+  const supplied = route.state === "resolved" ? [route.target] : route.targets;
+  // Validate the runtime container without replacing its typed element contract with any[].
+  const container: unknown = supplied;
+  if (!Array.isArray(container) || !supplied.length || route.state === "ambiguous" && supplied.length < 2) return "actions.invalid-request";
+  const targets: SidecarFoldTarget[] = [], ids = new Set<string>();
+  let windowId = expectedWindow;
+  for (const target of supplied) {
+    if (!target || typeof target.id !== "string" || !target.id || typeof target.windowId !== "string" || !target.windowId || ids.has(target.id)) return "actions.invalid-request";
+    windowId ??= target.windowId;
+    if (target.windowId !== windowId) return "actions.surface-unavailable";
+    ids.add(target.id); targets.push(Object.freeze({id: target.id, windowId: target.windowId}));
+  }
+  return route.state === "resolved" ? Object.freeze({state: "resolved", target: targets[0]})
+    : Object.freeze({state: "ambiguous", targets: Object.freeze(targets)});
 }
 /** Own ephemeral preparation, generation fences and modal/session exclusivity. */
 export class ActionManager {
@@ -48,6 +80,8 @@ export class ActionManager {
   }
   /** Record deliberate interaction in one shared ledger; per-surface revision counters are incomparable. */
   recordInteraction(surfaceId: string): void { const surface = this.surfaces.get(surfaceId); if (surface) surface.interactionOrder = ++this.interactionOrder; }
+  /** Read the existing deliberate-interaction ledger without recording activity or selecting a surface. */
+  readInteractionOrder(surfaceId: string): number { return this.surfaces.get(surfaceId)?.interactionOrder ?? 0; }
   /** Read current bounded presentation facts. */
   readSnapshot(surfaceId: string): SurfaceSnapshot | null { return this.surfaces.get(surfaceId)?.registration.readSnapshot() ?? null; }
   /** Check eligibility synchronously without opening, focusing, saving or scanning. */
@@ -120,14 +154,16 @@ export class ActionManager {
   private resolve(request: ActionRequest): Resolved | string {
     if (this.disposed || !request || !isActionId(request.id) || !ACTION_SOURCES.includes(request.source) || !validActionArguments(request.id, request.args) || request.surfaceId !== undefined && typeof request.surfaceId !== "string" || request.windowId !== undefined && typeof request.windowId !== "string") return "actions.invalid-request";
     const metadata = ACTION_BY_ID.get(request.id)!;
-    const command = request.source === "obsidian-command" ? this.options.readCommandContext(request) : null;
-    const ownerless = metadata.id.startsWith("index.") || metadata.id.startsWith("surface.open-") || metadata.id.startsWith("ontology.assign.") || ["actions.configure", "document.sync-from-center", "center.sync-from-document", "center.focus-active-note"].includes(metadata.id);
+    const sidecarFoldAction = request.id === "view.sidecar.collapse-plex";
+    const command = request.source === "obsidian-command" && !sidecarFoldAction ? this.options.readCommandContext(request) : null;
+    const ownerless = metadata.id.startsWith("index.") || metadata.id.startsWith("surface.open-") || metadata.id.startsWith("ontology.assign.") || metadata.id === "actions.configure";
     const chosen = request.surfaceId ? this.surfaces.get(request.surfaceId) ?? null : command && !ownerless ? this.chooseSurface(command) : null;
     if (chosen === "ambiguous") return "actions.ambiguous-surface";
     if (request.surfaceId && !chosen) return "actions.surface-unavailable";
     const registration = chosen?.registration, snapshot = registration?.readSnapshot();
     if (snapshot && !snapshot.mounted) return "actions.surface-unavailable";
     if (request.source === "local-hotkey" && (!snapshot || !metadata.localContexts.includes(snapshot.focusRegion))) return "actions.context-unavailable";
+    if (sidecarFoldAction && snapshot && request.windowId !== undefined && snapshot.windowId !== request.windowId) return "actions.surface-unavailable";
     if (metadata.id.startsWith("selection.") && command && command.focusRegion !== "graph" && snapshot?.commandFocusRegion !== "graph") return "actions.context-unavailable";
     if (request.target !== undefined && (!request.target || typeof request.target !== "object")) return "actions.invalid-request";
     const requested = request.target ?? {kind: metadata.target};
@@ -143,16 +179,20 @@ export class ActionManager {
     else if (requested.kind === "editor-field") { const token = "editorInvocationId" in requested ? requested.editorInvocationId : command?.editorInvocationId; if (!token || typeof token !== "string") return "actions.editor-unavailable"; target = {kind: "editor-field", editorInvocationId: token}; }
     else if (requested.kind === "none") target = {kind: "none"};
     else if (["center", "selected", "selected-or-center"].includes(requested.kind)) {
-      const selected = snapshot?.selected, center = command ? command.sharedCenter : snapshot?.center;
+      const selected = snapshot?.selected, center = command && metadata.id !== "document.sync-from-center" ? command.sharedCenter : snapshot?.center;
       const node = requested.kind === "selected" ? selected?.node : requested.kind === "selected-or-center" ? selected?.node ?? center : center;
       if (!node || !validNode(node)) return "actions.target-unavailable";
       target = {kind: "node", node: {...node}, ...(selected?.node === node ? {occurrenceId: selected.occurrenceId} : {})};
     } else return "actions.invalid-request";
     // Validated payloads are tiny finite values. Capture them without retaining a caller's mutable
     // args/reference objects or introducing a generic object traversal into dispatch.
-    const context: ActionContext = {request: captureRequest(request), metadata, surfaceId: registration?.id, generation: registration?.generation, snapshot, invocationSnapshot: snapshot, target};
+    const sidecarFold = sidecarFoldAction ? captureSidecarFold(this.options.resolveSidecarFold?.(request), request.windowId ?? snapshot?.windowId) : undefined;
+    if (typeof sidecarFold === "string") return sidecarFold;
+    const context: ActionContext = {request: captureRequest(request), metadata, surfaceId: registration?.id, generation: registration?.generation, snapshot, invocationSnapshot: snapshot, target,
+      ...(sidecarFold ? {sidecarFold} : {})};
     if (!this.contextLive(context)) return "actions.target-unavailable";
-    const implementation = registration?.implementations?.[request.id] ?? this.options.implementations?.[request.id];
+    const implementation = sidecarFoldAction ? this.options.implementations?.[request.id]
+      : registration?.implementations?.[request.id] ?? this.options.implementations?.[request.id];
     if (!implementation) return "actions.operation-unavailable";
     return {context, registration, implementation, availability: implementation.availability(context)};
   }
@@ -160,6 +200,11 @@ export class ActionManager {
   private contextLive(context: ActionContext, expectedRegistration?: SurfaceRegistration): boolean {
     if (expectedRegistration && this.surfaces.get(expectedRegistration.id)?.registration !== expectedRegistration) return false;
     if (this.disposed || context.surfaceId && (this.surfaces.get(context.surfaceId)?.registration.generation !== context.generation || !this.readSnapshot(context.surfaceId)?.mounted)) return false;
+    if (context.sidecarFold) {
+      const targets = context.sidecarFold.state === "resolved" ? [context.sidecarFold.target] : context.sidecarFold.targets;
+      const validate = this.options.validateSidecarFold;
+      if (!validate || !targets.every(/** Native incarnation validation is injected and pure; never resolve a replacement pair here. */ target => validate(target))) return false;
+    }
     if (!this.options.validateNode) return true;
     if (context.target.kind === "node") return this.options.validateNode(context.target.node);
     if (context.target.kind === "edge") return this.options.validateNode(context.target.origin) && this.options.validateNode(context.target.target);
@@ -168,6 +213,10 @@ export class ActionManager {
   /** Guard modal families together; movement remains repeatable and unqueued. */
   private guardKey(context: ActionContext): string | null {
     if (context.metadata.repeat === "allow") return null;
+    if (context.sidecarFold) {
+      const targets = context.sidecarFold.state === "resolved" ? [context.sidecarFold.target] : context.sidecarFold.targets;
+      return JSON.stringify(["sidecar-fold", targets[0].windowId, targets.map(/** Copies preserve route order; guards identify the same finite candidate set. */ target => target.id).sort()]);
+    }
     const family = context.request.id.startsWith("relationship.") && context.request.id !== "relationship.details" ? "relationship-composer" : context.request.id;
     return JSON.stringify([context.surfaceId === undefined ? "host" : "surface", context.surfaceId ?? null, context.generation ?? 0, family]);
   }

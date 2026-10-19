@@ -6,7 +6,9 @@ import type { Command, Editor, MarkdownFileInfo, MarkdownView, Plugin } from "ob
 import { ACTION_CATALOG, type ActionId, type ActionRequest } from "../../core/plex/actions";
 import { isActionPublished, type ActionPreferencesV1 } from "../../core/plex/actionPreferences";
 import type { ActionManager } from "../../application/ActionManager";
-export type ActionCommandOptions = Readonly<{host: Pick<Plugin, "addCommand" | "removeCommand">; manager: ActionManager; translate: (key: string) => string; makeRequest: (id: ActionId, editor?: Editor, context?: MarkdownView | MarkdownFileInfo) => ActionRequest; releaseRequest?: (request: ActionRequest) => void}>;
+export type ActionCommandOptions = Readonly<{host: Pick<Plugin, "addCommand" | "removeCommand">; manager: ActionManager; translate: (key: string) => string; makeRequest: (id: ActionId, editor?: Editor, context?: MarkdownView | MarkdownFileInfo) => ActionRequest; releaseRequest?: (request: ActionRequest) => void;
+  /** Host-owned finite picker for eligible commands with an ambiguous surface; checking is read-only. */
+  ambiguousSurface?: (request: ActionRequest, checking: boolean) => boolean}>;
 export type CommandPublicationResult = Readonly<{registered: readonly string[]; failures: readonly Readonly<{id: string; error: unknown}>[]}>;
 /** Own only actual registered commands; local action availability never depends on publication. */
 export class ActionCommandPublisher {
@@ -49,7 +51,10 @@ export class ActionCommandPublisher {
   private invoke(checking: boolean, request: ActionRequest): boolean {
     let accepted = false;
     try {
-      accepted = this.options.manager.check(request).state !== "disabled";
+      const availability = this.options.manager.check(request);
+      if (availability.state === "disabled" && availability.reasonKey === "actions.ambiguous-surface"
+        && this.options.ambiguousSurface?.(request, checking)) return true;
+      accepted = availability.state !== "disabled";
       if (!checking && accepted) {
         void this.options.manager.dispatch(request).finally(/** Short-lived editor capabilities cannot outlive their invocation. */ () => this.options.releaseRequest?.(request));
         return true;

@@ -1,11 +1,14 @@
 /**
- * Serial native acceptance for linked-document representation and embedded initial defaults.
+ * Serial native acceptance for linked-document representation, embedded defaults and issue-161
+ * external drawing materialization, pinned navigation and stationary explicit relationships.
  * Owns test-scoped fixture files, native call observations, trusted shortcut assignments and
- * restoration. Requires the explicit disposable small vault, an unlocked foreground Mac and
+ * restoration. Requires the explicit disposable small vault, an unlocked foreground desktop and
  * exactly matching built/installed artifacts; Electron input does not prove physical-device use.
  */
+import {withNativeDocumentSessions} from "./nativeDocumentSessions.mjs";
 import { spawnNativeSync as spawnSync, obsidianCliExecutable } from "./processTools.mjs";
 import assert from 'node:assert/strict';
+import {issue161Scenarios} from './issue161Scenarios.mjs';
 import { existsSync, readFileSync, writeFileSync, mkdirSync, rmSync, readdirSync } from 'node:fs';
 import { createHash } from 'node:crypto';
 import { fileURLToPath, pathToFileURL } from 'node:url';
@@ -21,19 +24,22 @@ mkdirSync(out,{recursive:true});
 /** Hash exact driver and artifact bytes for reproducible receipts. */
 const sha=bytes=>createHash('sha256').update(bytes).digest('hex');
 const driver=readFileSync(fileURLToPath(import.meta.url));writeFileSync(join(out,'driver-source.mjs'),driver);
-const names=['plugins/k-plex/data.json','plugins/obsidian-excalidraw-plugin/data.json','community-plugins.json','hotkeys.json'];
+const issue161Driver=readFileSync(new URL('./issue161Scenarios.mjs',import.meta.url));writeFileSync(join(out,'issue161Scenarios.mjs'),issue161Driver);
+const scenario=process.env.KPLEX_EXCALIDRAW_SCENARIO??'representation';
+assert(['representation','issue161'].includes(scenario),'Use representation or issue161');
+const names=['plugins/k-plex/data.json','plugins/obsidian-excalidraw-plugin/data.json','community-plugins.json','hotkeys.json','workspace.json'];
 const backups=names.map(name=>({name,bytes:existsSync(`${config}/${name}`)?readFileSync(`${config}/${name}`):null}));
 const sourceHead=spawnSync('git',['rev-parse','HEAD'],{cwd:root,encoding:'utf8',timeout:5000});assert.equal(sourceHead.status,0,'Read actual native receipt source provenance');
-const report={startedAt:new Date().toISOString(),base:sourceHead.stdout.trim(),driverSha256:sha(driver),vault:vaultName,scope:'native representation/command routing, passive destination identity and embedded initial defaults',limits:['Electron trusted input is not physical keyboard or Windows acceptance','Bounded settlement/DOM checks do not establish actual paint latency','Embedded leaf capture is temporary native-call observation, not a production diagnostic API'],artifacts:{}};
+const report={startedAt:new Date().toISOString(),base:sourceHead.stdout.trim(),driverSha256:sha(driver),issue161Sha256:sha(issue161Driver),vault:vaultName,scope:scenario==='issue161'?'issue-161 actual external creation, pinned navigation and stationary explicit relationships':'native representation/command routing, passive destination identity and embedded initial defaults',limits:['Electron input is native-host automation, not a physical keyboard/touch-device test','Bounded settlement/DOM checks do not establish actual paint latency','Embedded leaf capture is temporary native-call observation, not a production diagnostic API'],artifacts:{}};
 /** Invoke one bounded CLI operation and retain exact failure text. */
 function cli(command,...args){const r=spawnSync(obsidianCliExecutable(),[`vault=${vaultName}`,command,...args],{cwd:root,encoding:'utf8',timeout:30000,killSignal:'SIGKILL',maxBuffer:8*1024*1024});if(r.error||r.status!==0||/^Error:/m.test(r.stdout))throw r.error??Error(r.stderr||r.stdout);return r.stdout.trim();}
 /** Read the serializable result of a native owning-window operation. */
-function evaluate(code){return JSON.parse(cli('eval',`code=${code}`).replace(/^=>\s*/,''));}
+function evaluate(code){code=withNativeDocumentSessions(code);return JSON.parse(cli('eval',`code=${code}`).replace(/^=>\s*/,''));}
 /** Yield between bounded native controller reads without blocking the renderer. */
 const delay=ms=>new Promise(resolve=>setTimeout(resolve,ms));
 
 /** Install an owned, bounded fixture/controller and begin its asynchronous native scenarios. */
-function probe(){
+function probe(scenario,issue161Scenarios){
  if(window.__kplexInteractionFinal)throw Error('Existing interaction final controller');
  const p=app.plugins.plugins['k-plex'],ex=app.plugins.plugins['obsidian-excalidraw-plugin'];
  const remote=require('@electron/remote');
@@ -45,7 +51,7 @@ function probe(){
  remote.app.show?.();remote.app.focus({steal:true});win.show();win.moveTop();win.focus();wc.focus();
  const host=app.workspace.getLeavesOfType('k-plex-react-view').find(leaf=>leaf.view.containerEl.isShown());
  if(!p||!host||!ex?.createDrawing||!ex.ea?.toggleViewMode||!app.hotkeyManager?.setHotkeys)throw Error('Native prerequisites unavailable');
- const c=window.__kplexInteractionFinal={p,ex,host,folder:`Kplex-Interaction-Final-${Date.now()}`,originalSettings:JSON.parse(JSON.stringify(p.settings)),originalExModes:{...ex.excalidrawFileModes},layout:app.workspace.getLayout(),originalLeaf:app.workspace.activeLeaf,owners:{linkedDocumentLeaf:p.linkedDocumentLeaf,lastDocumentLeaf:p.lastDocumentLeaf,recentLeafHistory:[...p.recentLeafHistory],sidecarLeaves:new Map(p.sidecarLeaves)},leaves:[],wrappers:[],events:[],cases:[],done:false};
+ const c=window.__kplexInteractionFinal={p,ex,host,folder:`Kplex-Interaction-Final-${Date.now()}`,originalSettings:JSON.parse(JSON.stringify(p.settings)),originalExModes:{...ex.excalidrawFileModes},layout:app.workspace.getLayout(),originalLeaf:app.workspace.activeLeaf,owners:{documents:documentSessions(p).capture(),lastDocumentLeaf:p.lastDocumentLeaf,recentLeafHistory:[...p.recentLeafHistory],sidecarLeaves:new Map(p.sidecarLeaves)},leaves:[],wrappers:[],events:[],cases:[],done:false};
  /** Let native events settle without imposing product timing behavior. */
  const wait=ms=>new Promise(resolve=>window.setTimeout(resolve,ms));
  /** Fail with the captured native scenario evidence retained in the controller. */
@@ -105,6 +111,7 @@ function probe(){
  c.restoreHotkeys=async()=>{if(originalHotkeys===undefined)app.hotkeyManager.removeHotkeys(commandId);else app.hotkeyManager.setHotkeys(commandId,originalHotkeys);await app.hotkeyManager.save();};
  c.task=(async()=>{
   await app.vault.createFolder(c.folder);
+  if(scenario==='issue161')return issue161Scenarios({app,p,ex,host,c,check,wait,until,activate,emit,record,win});
   const created=await ex.createDrawing('Interaction-default.excalidraw.md',c.folder);
   c.file=typeof created==='string'?app.vault.getFileByPath(created):created;
   check(c.file?.path.startsWith(c.folder+'/'),'Excalidraw returned a non-owned file');
@@ -120,13 +127,13 @@ function probe(){
   check(c.hotkeyKey,'No unused bounded native shortcut fixture chord');
   app.hotkeyManager.setHotkeys(commandId,[{modifiers:['Mod','Alt','Shift'],key:c.hotkeyKey}]);await app.hotkeyManager.save();
   await activate(host);c.note=app.workspace.getLeaf('split');c.leaves.push(c.note);wrapLeaf(c.note);
-  p.settings.embedCentralNode=false;p.index.notify();
+  host.view.centerPresentation.update({embedCentralNode:false});
   for(const mode of ['off','recent','pinned','sidecar']){
-   await p.setDocumentSyncMode('off');await c.note.openFile(c.file,{active:false});await activate(c.note);
+   await documentSessions(p).off();await c.note.openFile(c.file,{active:false});await activate(c.note);
    if(mode==='sidecar'){
     await p.openSidecar(host,p.index.get(c.file.path));c.sidecar=p.sidecarLeaves.get(host);
     check(c.sidecar,'Managed Sidecar missing');c.leaves.push(c.sidecar);wrapLeaf(c.sidecar);
-   }else{p.lastDocumentLeaf=c.note;await p.setDocumentSyncMode(mode,p.index.get(c.file.path));}
+   }else{p.documentSession(host).lastDocumentLeaf=c.note;await p.setDocumentSyncMode(host,mode,p.index.get(c.file.path));}
    const leaf=mode==='sidecar'?c.sidecar:c.note;
    for(const action of ['canonical-toggle','native-command','trusted-shortcut']){
     // Establish the original report's Markdown representation before each independent path.
@@ -136,8 +143,8 @@ function probe(){
     if(action==='canonical-toggle')returned=(await ex.ea.toggleViewMode(leaf.view))?.getViewType();
     if(action==='native-command')accepted=app.commands.executeCommandById(commandId);
     if(action==='trusted-shortcut'){
-     wc.sendInputEvent({type:'keyDown',keyCode:c.hotkeyKey,modifiers:['meta','alt','shift']});await wait(35);
-     wc.sendInputEvent({type:'keyUp',keyCode:c.hotkeyKey,modifiers:['meta','alt','shift']});
+     wc.sendInputEvent({type:'keyDown',keyCode:c.hotkeyKey,modifiers:[require('process').platform==='darwin'?'meta':'control','alt','shift']});await wait(35);
+     wc.sendInputEvent({type:'keyUp',keyCode:c.hotkeyKey,modifiers:[require('process').platform==='darwin'?'meta':'control','alt','shift']});
     }
     await until(()=>leaf.getViewState().type==='excalidraw'&&leaf.view.excalidrawAPI,'Toggle did not enter mounted native drawing: '+mode+'/'+action);await wait(600);
     const settled=snap(leaf),events=c.events.slice(start);
@@ -149,24 +156,27 @@ function probe(){
    }
    if(mode==='sidecar'){await p.closeSidecar(host,false);c.sidecar=null;}
   }
-  // An observed originating file must still propagate into another, genuinely different companion.
-  await p.setDocumentSyncMode('off');await p.openSidecar(host,p.index.get(c.other.path));
-  c.sidecar=p.sidecarLeaves.get(host);c.leaves.push(c.sidecar);wrapLeaf(c.sidecar);
-  p.settings.sidecarMarkdownMode='preview';
-  p.settings.documentSyncMode='recent';p.linkedDocumentLeaf=null;p.lastDocumentLeaf=c.note;
+  // Recent follows its ordinary native source; another Plex's managed pair remains independent.
+  await documentSessions(p).off();p.documentSession(host).lastDocumentLeaf=c.note;await p.setDocumentSyncMode(host,'recent');
+  const companionHost=app.workspace.getLeaf('split');c.leaves.push(companionHost);await companionHost.setViewState({type:'k-plex-react-view',active:false});await companionHost.view.waitUntilReady();
+  p.notifyNavigation(c.other.path,companionHost);await p.openSidecar(companionHost,p.index.get(c.other.path));
+  c.sidecar=p.sidecarLeaves.get(companionHost);c.leaves.push(c.sidecar);wrapLeaf(c.sidecar);
+  p.documentSession(companionHost).preferences.sidecarMarkdownMode='preview';
   await c.note.setViewState({type:'markdown',state:{file:c.file.path,mode:'source'},active:false},{focus:false});
   await until(()=>c.note.getViewState().type==='markdown','Different-file origin Markdown precondition');await activate(c.note);
-  await ex.ea.toggleViewMode(c.note.view);await until(()=>c.note.getViewState().type==='excalidraw','Different-file origin drawing missing');
-  await until(()=>c.sidecar.getViewState().state?.file===c.file.path,'Different-file companion did not follow');await wait(350);
+  await ex.ea.toggleViewMode(c.note.view);await until(()=>c.note.getViewState().type==='excalidraw','Different-file origin drawing missing');await wait(350);
+  check(c.sidecar.getViewState().state?.file===c.other.path,'Another owner followed an unrelated native source');
+  p.notifyNavigation(c.file.path,companionHost);
+  await until(()=>c.sidecar.getViewState().state?.file===c.file.path,'Explicit owner navigation did not update its companion');await wait(350);
   check(c.note.getViewState().type==='excalidraw','Different-file companion update reset originating drawing');
   check(c.sidecar.getViewState().type==='markdown'&&c.sidecar.getViewState().state?.mode==='preview','Different-file companion lost configured Markdown mode');
-  record('different-file-companion',{origin:snap(c.note),sidecar:snap(c.sidecar)});
+  record('different-owner-companion-isolation',{origin:snap(c.note),sidecar:snap(c.sidecar)});
   // Explicit provenance inspection must retain its source representation and requested location.
-  await p.openMarkdownInSidecar(host,c.other,1,true);await wait(200);
+  await p.openMarkdownInSidecar(companionHost,c.other,1,true);await wait(200);
   check(c.sidecar.getViewState().type==='markdown'&&c.sidecar.getViewState().state?.file===c.other.path&&c.sidecar.getViewState().state?.mode==='source','Explicit source inspection contract lost');
   check(c.sidecar.view.editor?.getCursor?.().line===1,'Explicit source inspection did not apply requested line');
   record('explicit-source-inspection',{sidecar:snap(c.sidecar),line:c.sidecar.view.editor?.getCursor?.().line});
-  await p.closeSidecar(host,false);c.sidecar=null;await p.setDocumentSyncMode('off');
+  await p.closeSidecar(companionHost,false);c.sidecar=null;companionHost.detach();await documentSessions(p).off();
   // Fresh editor sessions exercise both initial Markdown modes, not a settings edit on an old session.
   /** Navigate through the production graph signal and await its actual embedded native destination. */
   const go=async file=>{
@@ -176,8 +186,8 @@ function probe(){
   };
   /** Dispose the preceding session so initial defaults are evaluated from fresh metadata. */
   const fresh=async(mode,flag)=>{
-   p.settings.embedCentralNode=false;p.index.notify();await until(()=>!editor(),'Previous embedded editor did not dispose');c.embeddedLeaf=null;
-   p.settings.centralNodeMarkdownMode=mode;await setFlag(flag);p.settings.embedCentralNode=true;p.index.notify();await go(c.file);
+   host.view.centerPresentation.update({embedCentralNode:false});await until(()=>!editor(),'Previous embedded editor did not dispose');c.embeddedLeaf=null;
+   host.view.centerPresentation.update({centralNodeMarkdownMode:mode});await setFlag(flag);host.view.centerPresentation.update({embedCentralNode:true});await go(c.file);
    await wait(250);return snap(c.embeddedLeaf);
   };
   for(const mode of ['source','preview']){
@@ -200,7 +210,7 @@ function probe(){
    check(initial.type==='excalidraw'&&button('centralEditor.showMarkdown'),'Flag false/missing lost drawing default');
    record('embedded-drawing-default/'+String(flag),{initial});
   }
-  p.settings.embedCentralNode=false;p.index.notify();await until(()=>!editor(),'Final embedded teardown did not complete');
+  host.view.centerPresentation.update({embedCentralNode:false});await until(()=>!editor(),'Final embedded teardown did not complete');
   return {cases:c.cases,events:c.events,folder:c.folder,metadata:app.metadataCache.getFileCache(c.file).frontmatter,hotkey:{key:c.hotkeyKey,modifiers:['Mod','Alt','Shift']},foreground:{hidden:document.hidden,focused:document.hasFocus()}};
  })().then(value=>{c.value=value;c.done=true;},error=>{c.error=String(error);c.done=true;});
  return JSON.stringify({started:true,folder:c.folder});
@@ -213,8 +223,8 @@ try{
   const built=sha(readFileSync(`${root}/dist/${name}`)),installed=sha(readFileSync(`${config}/plugins/k-plex/${name}`));
   report.artifacts[name]={built,installed};if(built!==installed)throw Error('Installed/build hash mismatch: '+name);
  }
- report.obsidian=cli('version');cli('dev:errors','clear');attempted=true;report.start=evaluate(`(${probe.toString()})()`);started=true;
- const end=Date.now()+240000;
+ report.obsidian=cli('version');cli('dev:errors','clear');attempted=true;report.start=evaluate(`(${probe.toString()})(${JSON.stringify(scenario)},${issue161Scenarios.toString()})`);started=true;
+ const end=Date.now()+(scenario==='issue161'?360000:240000);
  while(true){await delay(300);const state=evaluate('JSON.stringify({done:window.__kplexInteractionFinal?.done,error:window.__kplexInteractionFinal?.error})');
   if(state.done){report.result=evaluate('JSON.stringify(window.__kplexInteractionFinal.value??{error:window.__kplexInteractionFinal.error,cases:window.__kplexInteractionFinal.cases,events:window.__kplexInteractionFinal.events})');if(state.error)throw Error(state.error);break;}
   if(Date.now()>end)throw Error('Native acceptance deadline');
@@ -233,20 +243,20 @@ finally{
    await attempt('finish-probe-task',async()=>{await c.task;});
    for(const [index,undo] of c.wrappers.reverse().entries())await attempt('native-wrapper-'+index,undo);
    await attempt('native-shortcut',async()=>{await c.restoreHotkeys?.();});
-   await attempt('embedded-editor-disposal',async()=>{c.p.settings.embedCentralNode=false;c.p.index.notify();await new Promise(resolve=>window.setTimeout(resolve,100));});
+   await attempt('embedded-editor-disposal',async()=>{c.host.view.centerPresentation?.update({embedCentralNode:false});await new Promise(resolve=>window.setTimeout(resolve,100));});
    for(const [index,leaf] of [...new Set(c.leaves)].reverse().entries())await attempt('owned-leaf-'+index,()=>{if(leaf?.view.containerEl.isConnected)leaf.detach();});
    await attempt('Excalidraw-representation-memory',()=>{for(const key of Object.keys(c.ex.excalidrawFileModes))if(!Object.hasOwn(c.originalExModes,key))delete c.ex.excalidrawFileModes[key];Object.assign(c.ex.excalidrawFileModes,c.originalExModes);});
    await attempt('fixture-folder',async()=>{const folder=app.vault.getFolderByPath(c.folder);if(folder)await app.vault.delete(folder,true);});
    await attempt('settings-before-layout',async()=>{Object.assign(c.p.settings,c.originalSettings);await c.p.saveSettings(false,false);await c.p.settingsWriteQueue;});
    await attempt('workspace-layout',async()=>{await app.workspace.changeLayout(c.layout);});
    await attempt('settings-after-layout',async()=>{Object.assign(c.p.settings,c.originalSettings);await c.p.saveSettings(false,false);await c.p.settingsWriteQueue;});
-   await attempt('native-leaf-associations',()=>{
+   await attempt('native-leaf-associations',async()=>{
     // Workspace restoration may replace leaves. Rebind original associations by serialized native id.
     /** Restore original associations by native serialized id after layout replaces leaf objects. */
     const rebind=old=>old?app.workspace.getLeavesOfType(old.getViewState().type).find(leaf=>leaf.id===old.id)??null:null;
-    c.p.linkedDocumentLeaf=rebind(c.owners.linkedDocumentLeaf);c.p.lastDocumentLeaf=rebind(c.owners.lastDocumentLeaf);
+    await documentSessions(c.p).restore(c.owners.documents);c.p.lastDocumentLeaf=rebind(c.owners.lastDocumentLeaf);
     c.p.recentLeafHistory=c.owners.recentLeafHistory.map(rebind).filter(Boolean);c.p.sidecarLeaves.clear();
-    for(const [oldHost,oldLeaf] of c.owners.sidecarLeaves){const host=rebind(oldHost),leaf=rebind(oldLeaf);if(host&&leaf)c.p.sidecarLeaves.set(host,leaf);}
+    for(const [oldHost,oldLeaf] of c.owners.sidecarLeaves){const host=rebind(oldHost),leaf=rebind(oldLeaf);if(host&&leaf)c.p.setSidecarOwner(host,leaf);}
     c.p.index.notify();
    });
    const result={errors,steps,nativeWrappersRemoved:steps.filter(step=>step.name.startsWith('native-wrapper-')).every(step=>step.status==='passed')};

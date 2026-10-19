@@ -5,6 +5,7 @@
  * its fixture folder, temporary probe and server and restores settings/workspace/configuration bytes
  * independently of assertions. No personal image URL or third-party image origin is used.
  */
+import {withNativeDocumentSessions} from "./nativeDocumentSessions.mjs";
 import assert from 'node:assert/strict';
 import {createHash} from 'node:crypto';
 import {existsSync,mkdirSync,readFileSync,readdirSync,writeFileSync,unlinkSync} from 'node:fs';
@@ -31,14 +32,14 @@ const server=createServer(/** Serve owned images and expose phase counts without
 /** Reject CLI Error payloads even when the launcher returns zero. */
 function cli(command,...args){const result=spawnNativeSync(obsidianCliExecutable(),[`vault=${vaultName}`,command,...args],{cwd:root,encoding:'utf8',timeout:30000,killSignal:'SIGKILL',maxBuffer:4*1024*1024});if(result.error||result.status!==0||/^Error:/m.test(result.stdout))throw result.error??Error(result.stderr||result.stdout);return result.stdout.trim()}
 /** Read detached JSON observations; live instances remain owned by the renderer probe. */
-function evaluate(code){return JSON.parse(cli('eval',`code=${code}`).replace(/^=>\s*/,''))}
+function evaluate(code){code=withNativeDocumentSessions(code);return JSON.parse(cli('eval',`code=${code}`).replace(/^=>\s*/,''))}
 /** Keep native task polling separate from renderer work and preserve normal throttling. */
 const delay=ms=>new Promise(resolve=>setTimeout(resolve,ms));
 /** Own one fixture/probe across reload, reacquiring the plugin and native roots after each replacement. */
 function probe(origin){
  let p=app.plugins.plugins['k-plex'];const remote=require('@electron/remote'),win=remote.getCurrentWindow(),folder='__kplex_remote_image_consent';
  if(!p?.index?.invalidateNodeVisuals||window.__kplexRemoteImageProbe||app.setting.isOpen)throw Error('Clean exact-build native prerequisites required');
- const c=window.__kplexRemoteImageProbe={settings:JSON.parse(JSON.stringify(p.settings)),layout:app.workspace.getLayout(),cases:[],done:false,cancelled:false,owned:false,popout:null,owners:{linked:p.linkedDocumentLeaf?.id,last:p.lastDocumentLeaf?.id,recent:p.recentLeafHistory.map(leaf=>leaf.id),sidecars:[...p.sidecarLeaves].map(([host,leaf])=>[host.id,leaf.id])}};
+ const c=window.__kplexRemoteImageProbe={settings:JSON.parse(JSON.stringify(p.settings)),layout:app.workspace.getLayout(),cases:[],done:false,cancelled:false,owned:false,popout:null,owners:{documents:documentSessions(p).capture(),last:p.lastDocumentLeaf?.id,recent:p.recentLeafHistory.map(leaf=>leaf.id),sidecars:[...p.sidecarLeaves].map(([host,leaf])=>[host.id,leaf.id])}};
  let mainLeaf;
  /** Reject continuations after independent cleanup cancels the probe. */
  const check=(value,message)=>{if(c.cancelled)throw Error('Retired remote imagery probe');if(!value)throw Error(message)};
@@ -66,7 +67,7 @@ function probe(origin){
   if(c.popout){c.popout.detach();c.popout=null;}
   if(p){Object.assign(p.settings,c.settings);await p.saveSettings(false,false);if(c.settings.lastActivePath)p.notifyNavigation(c.settings.lastActivePath);}
   await app.workspace.changeLayout(c.layout);
-  if(p){p.linkedDocumentLeaf=c.owners.linked?app.workspace.getLeafById(c.owners.linked):null;p.lastDocumentLeaf=c.owners.last?app.workspace.getLeafById(c.owners.last):null;p.recentLeafHistory=c.owners.recent.map(id=>app.workspace.getLeafById(id)).filter(Boolean);p.sidecarLeaves.clear();for(const[hostId,leafId]of c.owners.sidecars){const host=app.workspace.getLeafById(hostId),leaf=app.workspace.getLeafById(leafId);if(host&&leaf)p.sidecarLeaves.set(host,leaf);}}
+  if(p){await documentSessions(p).restore(c.owners.documents);p.lastDocumentLeaf=c.owners.last?app.workspace.getLeafById(c.owners.last):null;p.recentLeafHistory=c.owners.recent.map(id=>app.workspace.getLeafById(id)).filter(Boolean);p.sidecarLeaves.clear();for(const[hostId,leafId]of c.owners.sidecars){const host=app.workspace.getLeafById(hostId),leaf=app.workspace.getLeafById(leafId);if(host&&leaf)p.setSidecarOwner(host,leaf);}}
   if(c.owned){const owned=app.vault.getFolderByPath(folder);if(owned)await app.vault.delete(owned,true);c.owned=false;}
   win.show();win.focus();c.cleaned=true;
  })();return c.cleanupTask};
@@ -74,7 +75,7 @@ function probe(origin){
   remote.app.focus({steal:true});win.show();win.focus();win.webContents.focus();await until(()=>document.hasFocus()&&!document.hidden,'Native foreground unavailable');
   mainLeaf=app.workspace.getLeavesOfType('k-plex-react-view').find(leaf=>leaf.view.contentEl.ownerDocument===document&&p.isKplexLeafVisible(leaf));check(mainLeaf,'Visible main Plex required');
   check(!app.vault.getFolderByPath(folder),'Fixture collision');await app.vault.createFolder(folder);c.owned=true;
-  await consent(false);p.settings.embedCentralNode=false;p.settings.animationSpeed=0;p.settings.graphDepth=2;p.settings.showFolderNodes=false;p.settings.showTagNodes=false;p.settings.renderSiblings=false;p.settings.thumbnailProperty='thumbnail';p.settings.nodeImageProperty='node-image';p.settings.graphLenses=[];p.settings.applyPowerFilter=false;await p.setDocumentSyncMode('off');await p.saveSettings();
+  await consent(false);p.settings.embedCentralNode=false;p.settings.animationSpeed=0;p.settings.graphDepth=2;p.settings.showFolderNodes=false;p.settings.showTagNodes=false;p.settings.renderSiblings=false;p.settings.thumbnailProperty='thumbnail';p.settings.nodeImageProperty='node-image';p.settings.graphLenses=[];p.settings.applyPowerFilter=false;await documentSessions(p).off();await p.saveSettings();
   const key=p.settings.hierarchy.children[0];check(key,'Configured child ontology required');
   const local=await app.vault.createBinary(folder+'/Local.png',Uint8Array.from(atob('iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAIAAAD91JpzAAAAEElEQVR4nGNwONAARAwQCgApDgYBWgscUQAAAABJRU5ErkJggg=='),ch=>ch.charCodeAt(0)).buffer);p.index.insertCreatedFile(local);
   const names=['Center','Child','Grandchild','Inline','Replacement','LocalNode'];

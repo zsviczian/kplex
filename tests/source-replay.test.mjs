@@ -632,7 +632,14 @@ test("production GraphIndex semantic refresh matches fresh full oracle from sour
 test("SI4 production settings route owns revisioned cached preparation without adding a second parser/resolver", async () => {
   const [main, index, replay, semantic] = await Promise.all(["src/main.ts", "src/index/GraphIndex.ts", "src/index/SourceReplay.ts", "src/index/CachedSourceSemantics.ts"].map(file => readFile(file, "utf8")));
   assert.match(main, /if \(effects.semanticInvalidation\) this.index.invalidateSemanticPolicy\(\)/);
-  assert.match(main, /if \(effects.semanticInvalidation\) await this.index.refreshSemanticSettings\(\)/);
+  // The completion lease changes UI waiting, never the classifier's semantic obligation.
+  // Check the complete delegation and its lifetime fences rather than the retired inline await.
+  const save = main.slice(main.indexOf("  async saveSettings("), main.indexOf("  private isDocumentLeafCandidate("));
+  const completion = main.slice(main.indexOf("  private refreshSavedSettings("), main.indexOf("  private enqueueSettingsWrite("));
+  assert.match(save, /const needsSemantic = effects.semanticInvalidation \|\|/);
+  assert.match(save, /await this.refreshSavedSettings\(needsSemantic\)/);
+  assert.match(completion, /await this.index.refreshPresentationSettings\(\)/);
+  assert.match(completion, /if \(needsSemantic && !this.unloading && current\(\)\) await this.index.refreshSemanticSettings\(\)/);
   assert(!/scheduleRebuild\("settings"\)/.test(main));
   assert.equal(M.ObsidianSourceAcquisition.prototype.prepareCachedSemantics, undefined, "Historical selected-owner wrapper is fixture-only");
   assert.equal(M.ObsidianSourceAcquisition.prototype.contributorDiscovery, undefined, "Global catalog construction has no shipped adapter entry point");

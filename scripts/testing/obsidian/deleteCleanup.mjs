@@ -5,6 +5,7 @@
  * Only owned fixtures are mutated; settings/layout/raw configuration and
  * temporary native wrappers are restored independently of assertions. Device input is separate.
  */
+import {withNativeDocumentSessions} from "./nativeDocumentSessions.mjs";
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import { existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
@@ -36,7 +37,7 @@ function cli(command, ...args) {
   return result.stdout.trim();
 }
 /** Marshal only finite detached receipts rather than native files or index objects. */
-function evaluate(code) { return JSON.parse(cli("eval", `code=${code}`).replace(/^=>\s*/, "")); }
+function evaluate(code) {code=withNativeDocumentSessions(code); return JSON.parse(cli("eval", `code=${code}`).replace(/^=>\s*/, "")); }
 /** Yield the driver process while native work proceeds in the selected foreground window. */
 const delay = milliseconds => new Promise(done => setTimeout(done, milliseconds));
 
@@ -46,7 +47,7 @@ function installProbe() {
   if (!p?.index || window.__kplexDeleteProbe || app.setting.isOpen || document.querySelector(".modal-container,.menu")) throw Error("Clean native prerequisites required");
   const folder = "__kplex_delete_cleanup_native";
   const c = window.__kplexDeleteProbe = { settings: structuredClone(p.settings), layout: app.workspace.getLayout(),
-    owners: { linked: p.linkedDocumentLeaf?.id, last: p.lastDocumentLeaf?.id, recent: p.recentLeafHistory.map(leaf => leaf.id),
+    owners: { documents:documentSessions(p).capture(), last: p.lastDocumentLeaf?.id, recent: p.recentLeafHistory.map(leaf => leaf.id),
       sidecars: [...p.sidecarLeaves].map(([host, note]) => [host.id, note.id]) }, originalCount: app.vault.getMarkdownFiles().length,
     cases: [], warm: [], releases: [], restores: [], operations: new Set(), phase: "setup", done: false, cancelled: false, owned: false };
   /** Reject both assertions and continuations after this controller has been retired. */
@@ -280,7 +281,7 @@ function installProbe() {
     await p.index.refreshSemanticSettings(); await app.workspace.changeLayout(c.layout);
     const leaves = []; app.workspace.iterateAllLeaves(leaf => leaves.push(leaf));
     const rebind = id => leaves.find(leaf => leaf.id === id) ?? null;
-    p.linkedDocumentLeaf = rebind(c.owners.linked); p.lastDocumentLeaf = rebind(c.owners.last);
+    await documentSessions(p).restore(c.owners.documents); p.lastDocumentLeaf = rebind(c.owners.last);
     p.recentLeafHistory = c.owners.recent.map(rebind).filter(Boolean); p.sidecarLeaves.clear();
     for (const [hostId, noteId] of c.owners.sidecars) { const host = rebind(hostId), note = rebind(noteId); if (host && note) p.sidecarLeaves.set(host, note); }
     if (c.settings.lastActivePath) p.notifyNavigation(c.settings.lastActivePath);
@@ -323,7 +324,7 @@ function installProbe() {
       showInferredNodes: true, inferAllLinksAsFriends: false, applyPowerFilter: false, animationSpeed: 0 });
     p.settings.deletePromptInitialized = false; p.settings.confirmFileDelete = true;
     p.settings.removeOntologyLinksOnDelete = true;
-    await p.setDocumentSyncMode("off"); await p.saveSettings(); await p.activateView(); await p.index.refreshSemanticSettings();
+    await documentSessions(p).off(); await p.saveSettings(); await p.activateView(); await p.index.refreshSemanticSettings();
 
     const mixed = await fixture("default", [["owner", item => yaml({ Parent: `[[${item.targetPath}]]`, hidden: `[[${item.targetPath}]]`,
       arbitrary: `[[${item.targetPath}]]`, list: [`[[${item.targetPath}]]`, `[[${item.other.path}]]`, `[[${item.targetPath}]]`],
