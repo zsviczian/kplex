@@ -1,4 +1,6 @@
 /**
+ * Every per-file publisher retires affected local read covers before notifying, including batched
+ * progressive ingestion. Newly compiled ontology cannot remain hidden by an inferred local cover.
  * Startup metadata resolution keeps an unchanged finite read cover only while its replacement
  * is pending. Source/policy/native revision fences and relationship write authority stay separate.
  * Saved native navigation is available before asynchronous catalogs; its filename/folder facets
@@ -5477,6 +5479,8 @@ export class GraphIndex {
 
   /**
    * Apply one prepared file commit and refresh every repository-owned derived view synchronously.
+   * Local cover/count invalidation belongs here so progressive and ordinary patches share it;
+   * their different notification batching must not change which incidence a stationary view reads.
    * Record its source owner in an active bounded restore window after the real publication;
    * touched endpoints do not substitute for the source's semantic fingerprint proof.
    *
@@ -5560,14 +5564,9 @@ export class GraphIndex {
     this.patchSearchIndex(commit.touchedPagePaths);
     this.suggestionCatalogCache = null;
     void this.refreshVisiblePresentation(commit.sourcePath);
-  }
-
-  /** Complete one normal incremental publication synchronously and notify graph subscribers only
-   * when graph topology changed. The publisher never awaits or retains the prepared-state callback. */
-  private publishIncrementalFile: PatchFilePublisher = (commit: PatchFileCommit, publishPreparedState: () => void): void => {
-    this.commitPreparedFile(commit, publishPreparedState);
     // Partial Eager and On-demand foreground owners share these local count proofs. Once a full
-    // current Eager graph exists, ordinary commits avoid unnecessary per-URL local tokens.
+    // current Eager graph exists, commits avoid unnecessary per-URL local tokens. Progressive
+    // ingestion must also retire a cover whose inferred pairs the current source just refined.
     if (this.usesLocalForeground()) {
       for (const path of commit.touchedPagePaths) {
         this.onDemandGateRevisions.set(path, (this.onDemandGateRevisions.get(path) ?? 0) + 1);
@@ -5587,6 +5586,12 @@ export class GraphIndex {
         void this.ensureOnDemandCenter(center);
       }
     }
+  }
+
+  /** Complete one normal incremental publication synchronously and notify graph subscribers only
+   * when graph topology changed. The publisher never awaits or retains the prepared-state callback. */
+  private publishIncrementalFile: PatchFilePublisher = (commit: PatchFileCommit, publishPreparedState: () => void): void => {
+    this.commitPreparedFile(commit, publishPreparedState);
     for (const [center, preview] of this.hostPreviewScopes) if (center === commit.sourcePath || preview.pages.has(commit.sourcePath)) {
       this.hostPreviewScopes.delete(center);
       this.hostPreviewRequests.set(center, (this.hostPreviewRequests.get(center) ?? 0) + 1);

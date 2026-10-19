@@ -1233,7 +1233,7 @@ const russianTranslations = {
   "folderPicker.invalid": "Введите допустимый путь к папке внутри этого хранилища.",
   "folderPicker.fileConflict": "Этот путь уже используется файлом.",
   "folderPicker.invalidAlias": "Псевдоним не может содержать две закрывающие квадратные скобки подряд.",
-  "layout.simplifiedTitle": "Упрощённая компоновка",
+  "layout.simplifiedTitle": "Односторонняя компоновка",
   "layout.simplifiedHelp": "Разместить друзей и оппонентов отдельными группами слева. Связи и фильтры остаются прежними. Отдельные окна используют настройку основной вкладки.",
   "layout.arrangementScope": "{device}: {surface}",
   "layout.mainTab": "Основная вкладка",

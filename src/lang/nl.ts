@@ -1225,7 +1225,7 @@ const dutchTranslations = {
   "folderPicker.invalid": "Voer een geldig mappad binnen deze kluis in.",
   "folderPicker.fileConflict": "Een bestand gebruikt dit mappad al.",
   "folderPicker.invalidAlias": "De alias mag geen twee sluitende vierkante haken bevatten.",
-  "layout.simplifiedTitle": "Vereenvoudigde indeling",
+  "layout.simplifiedTitle": "Eenzijdige indeling",
   "layout.simplifiedHelp": "Plaats vrienden en uitdagers in afzonderlijke groepen links. Hun relaties en filters blijven gelijk. Losse vensters gebruiken de keuze van het hoofdtabblad.",
   "layout.arrangementScope": "{device}: {surface}",
   "layout.mainTab": "Hoofdtabblad",

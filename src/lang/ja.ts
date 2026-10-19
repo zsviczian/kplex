@@ -1221,7 +1221,7 @@ const japaneseTranslations = {
   "folderPicker.invalid": "この保管庫内の有効なフォルダーパスを入力してください。",
   "folderPicker.fileConflict": "このフォルダーパスは既にファイルで使用されています。",
   "folderPicker.invalidAlias": "エイリアスに閉じ角括弧を2つ続けて含めることはできません。",
-  "layout.simplifiedTitle": "簡易レイアウト",
+  "layout.simplifiedTitle": "片側レイアウト",
   "layout.simplifiedHelp": "友人と挑戦者を左側の別々のグループに配置します。関係とフィルターは変わりません。別ウィンドウにはメインタブの設定を使用します。",
   "layout.arrangementScope": "{device}: {surface}",
   "layout.mainTab": "メインタブ",

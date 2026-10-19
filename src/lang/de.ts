@@ -1225,7 +1225,7 @@ const germanTranslations = {
   "folderPicker.invalid": "Gib einen gültigen Ordnerpfad innerhalb dieses Tresors ein.",
   "folderPicker.fileConflict": "Dieser Ordnerpfad wird bereits von einer Datei verwendet.",
   "folderPicker.invalidAlias": "Der Alias darf keine zwei schließenden eckigen Klammern enthalten.",
-  "layout.simplifiedTitle": "Vereinfachtes Layout",
+  "layout.simplifiedTitle": "Einseitiges Layout",
   "layout.simplifiedHelp": "Zeige Freunde und Herausforderer links in getrennten Gruppen. Beziehungen und Filter bleiben gleich. Separate Fenster verwenden die Auswahl des Haupt-Tabs.",
   "layout.arrangementScope": "{device}: {surface}",
   "layout.mainTab": "Haupt-Tab",

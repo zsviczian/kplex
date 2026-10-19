@@ -1221,7 +1221,7 @@ const traditionalChineseTranslations = {
   "folderPicker.invalid": "請輸入此儲存庫內的有效資料夾路徑。",
   "folderPicker.fileConflict": "已有檔案使用此資料夾路徑。",
   "folderPicker.invalidAlias": "別名不可包含兩個連續的右方括號。",
-  "layout.simplifiedTitle": "簡化版面配置",
+  "layout.simplifiedTitle": "單側版面配置",
   "layout.simplifiedHelp": "將朋友與挑戰者分別放在左側群組。關係與篩選條件不變。彈出視窗使用主要分頁的選項。",
   "layout.arrangementScope": "{device}：{surface}",
   "layout.mainTab": "主要分頁",
