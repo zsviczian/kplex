@@ -386,6 +386,13 @@ When overflow requires a scroll zone, first-level zones expose a funnel/name fil
 
 ## Section-outline checks
 
+After exact-build staging, `npm run verify:obsidian:sections` uses the same three explicit
+`kplex-test-small` variables and a fresh `KPLEX_HOST_REPORT_DIR`. It checks the actual central fold
+control, preamble/repeated-link placement, stationary inbound ontology add/remove and an inferred
+visibility round trip with zero Markdown reads, parser calls or rebuilds during that presentation
+interval. Four owned notes, a temporary native tab, settings and wrappers are restored independently
+of assertions. This Windows functional lane does not establish mobile/popout acceptance or speedup.
+
 - central Markdown expansion is runtime-only; no heading may enter `GraphIndex`
 - nested heading levels create parent/child outline structure
 - section nodes and outline connectors are visually distinct from semantic graph relations; structural connectors use vertical-spine + horizontal L branches that enter the child at its left-center edge, never the semantic top gate; density 4 should collapse these branches/gaps aggressively rather than merely scaling the ordinary graph spacing

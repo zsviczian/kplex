@@ -180,11 +180,6 @@ function linkDestination(app: App, raw: string, hostPath: string): { path: strin
   return { path: file?.path ?? candidate, file };
 }
 
-/** Bind a lexical link to the currently published target; absence never creates semantic data. */
-function resolveTarget(app: App, index: GraphIndex, raw: string, hostPath: string): GraphPage | null {
-  return index.get(linkDestination(app, raw, hostPath).path) ?? null;
-}
-
 function roleDefinition(relation: Relation, role: Exclude<Role, "sibling">): string | undefined {
   switch (role) {
     case "parent": return relation.parentTypeDefinition;
@@ -279,12 +274,18 @@ export async function buildCentralSectionExpansion(
     return low > 0 ? headings[low - 1] : null;
   };
   const linkPlacements: LinkPlacement[] = [];
+  // Capture and initial section construction share native resolution, including repeated links.
+  const linkDestinations = new Map<string, ReturnType<typeof linkDestination>>();
 
   // Assign cached links to heading ranges once. The previous per-heading full link scan made an
   // expanded document with H headings and L links do O(H x L) projection work.
   for (const link of links) {
     const line = (link.position?.start.line ?? Number.MAX_SAFE_INTEGER) + 1;
-    const destination = linkDestination(plugin.app, link.link, file.path);
+    let destination = linkDestinations.get(link.link);
+    if (!destination) {
+      destination = linkDestination(plugin.app, link.link, file.path);
+      linkDestinations.set(link.link, destination);
+    }
 
     if (line < firstHeadingLine) {
       preambleTargets.add(destination.path);
@@ -376,7 +377,7 @@ export async function buildCentralSectionExpansion(
     const byTarget = new Map<string, { target: GraphPage; evidence: RelationEvidence[] }>();
     let counter = 0;
     for (const item of propertyUrlsBySection.get(heading.id) ?? []) {
-      const target = sectionTarget(item.target, heading.id);
+      const target = sectionTarget(item.target, heading.id, byTarget);
       addEvidence(byTarget, target, { ...item.evidence, sourcePath: sectionPath, targetPath: target.path });
     }
 
@@ -384,9 +385,11 @@ export async function buildCentralSectionExpansion(
     // also participates in a Dataview ontology field.
     for (const link of linksBySection.get(heading.id) ?? []) {
       const line = (link.position?.start.line ?? -1) + 1;
-      const actual = resolveTarget(plugin.app, index, link.link, file.path);
+      const destination = linkDestinations.get(link.link);
+      if (!destination) continue;
+      const actual = index.get(destination.path);
       if (!actual) continue;
-      const target = sectionTarget(actual, heading.id);
+      const target = sectionTarget(actual, heading.id, byTarget);
       const role = inferredRole(plugin);
       addEvidence(byTarget, target, evidence(`section-${heading.id}-link-${counter++}`, sectionPath, target.path, role, RelationType.INFERRED, "obsidian-link", centerPage.path, {
         declaredTargetPath: actual.path, declaredRole: role, line,
@@ -399,7 +402,7 @@ export async function buildCentralSectionExpansion(
       for (const actualPath of extractLinksFromValue(plugin.app, occurrence.value, file)) {
         const actual = index.get(actualPath);
         if (!actual) continue;
-        const target = sectionTarget(actual, heading.id);
+        const target = sectionTarget(actual, heading.id, byTarget);
         addEvidence(byTarget, target, evidence(`section-${heading.id}-ontology-${counter++}`, sectionPath, target.path, role, RelationType.DEFINED, "inline-ontology", centerPage.path, {
           declaredTargetPath: actual.path,
           declaredRole: role,
@@ -412,7 +415,7 @@ export async function buildCentralSectionExpansion(
     for (const reference of parsed.urls) {
       const actual = index.get(canonicalWebUrl(reference.url));
       if (!actual) continue;
-      const target = sectionTarget(actual, heading.id);
+      const target = sectionTarget(actual, heading.id, byTarget);
       const role = inferredRole(plugin);
       addEvidence(byTarget, target, evidence(`section-${heading.id}-url-${counter++}`, sectionPath, target.path, role, RelationType.INFERRED, "body-url", centerPage.path, {
         declaredTargetPath: actual.path, declaredRole: role, line: heading.line + (reference.line ?? 1) - 1,
@@ -506,10 +509,12 @@ function currentSectionEvidence(
   center: EvidenceTargetMap; sections: ReadonlyMap<string, EvidenceTargetMap>;
 }> {
   const center: EvidenceTargetMap = new Map();
-  const sections = new Map<string, EvidenceTargetMap>(source.sections.map((section) => [section.id, new Map()]));
+  const sections = new Map<string, EvidenceTargetMap>(source.sections.map(/** Allocate one current evidence bucket per cached physical heading. */
+    (section) => [section.id, new Map()]));
   // buildCentralSectionExpansion retains physical heading order; do not sort it on every update.
   const orderedSections = source.sections;
-  const sectionById = new Map(source.sections.map((s) => [s.id, s] as const));
+  const sectionById = new Map(source.sections.map(/** Resolve cached occurrences without scanning headings. */
+    (section) => [section.id, section] as const));
 
   const placementsByFile = new Map<TFile, LinkPlacement[]>();
   const placementsByPath = new Map<string, LinkPlacement[]>();

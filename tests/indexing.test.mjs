@@ -3103,6 +3103,23 @@ try {
     assert(conflictRestored);
     expandedHas(conflictRestored.neighborhood, "child", "Note F.md", RelationType.INFERRED);
 
+    settings.inferAllLinksAsFriends = true;
+    try {
+      // Unpublished UI settings cannot reinterpret evidence owned by the current semantic policy.
+      const beforePolicy = projectCentralSectionExpansion(plugin, index, expandedA);
+      expandedHas(beforePolicy.sections.find((section) => section.page.name === "Inference and conflict cases").neighborhood,
+        "child", "Note F.md", RelationType.INFERRED);
+      await index.rebuild();
+      const asFriends = projectCentralSectionExpansion(plugin, index, expandedA);
+      // The canonical resolver presents infer-all-as-friends using its defined friend tier.
+      expectRole("Note A.md", "left", "Note F.md", RelationType.DEFINED);
+      expandedHas(asFriends.sections.find((section) => section.page.name === "Inference and conflict cases").neighborhood,
+        "left", "Note F.md", RelationType.DEFINED);
+    } finally {
+      settings.inferAllLinksAsFriends = false;
+      await index.rebuild();
+    }
+
     // Regression 3: Target rename.
     // Renaming a target updates the section projection to the renamed target without rereading Markdown.
     const pageY = index.get("Note Y.md");
@@ -3159,6 +3176,12 @@ try {
       assert(expansion, "Expected section expansion for both newline conventions");
       const section = expansion.sections.find(item => item.page.name === "Inference and conflict cases");
       expandedHas(section.neighborhood, "left", "Note G.md", RelationType.DEFINED);
+      const projected = projectCentralSectionExpansion(plugin, index, expansion);
+      expandedHas(projected.sections.find(item => item.page.name === "Inference and conflict cases").neighborhood,
+        "child", "Note F.md", RelationType.INFERRED);
+      expandedHas(projected.sections.find(item => item.page.name === "Friend and challenger cases").neighborhood,
+        "child", "Note Y.md", RelationType.INFERRED);
+      expandedLacks(projected.centerNeighborhood, "Note F.md");
       for (const item of expansion.sections) {
         const range = item.page.transient;
         assert(body.slice(range.start, range.end).startsWith(`## ${item.page.name}`), "Section offsets must address the original physical body");
