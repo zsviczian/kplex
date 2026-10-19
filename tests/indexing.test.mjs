@@ -13,6 +13,7 @@ import { dirname, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { runSettingsIndependence } from "./support/settingsIndependence.mjs";
 import { applyDefaultDateRoleFixture } from "./support/dateRoleFixture.mjs";
+import { runSectionProjectionCases } from "./support/sectionProjection.mjs";
 import { canonicalGraph, canonicalNeighborhood, canonicalPair, canonicalScene } from "./support/canonicalGraph.mjs";
 
 const require = createRequire(import.meta.url);
@@ -3009,6 +3010,18 @@ try {
   expandedHas(urls.neighborhood, "child", "https://source.com/inferred", RelationType.INFERRED);
   expandedHas(urls.neighborhood, "child", "https://youtu.be/excalibrain-fixture-video", RelationType.INFERRED);
 
+  // A native target may already resolve in MetadataCache before its page is published. Keep its
+  // physical placement so a later graph publication can fill the stationary expanded section.
+  const unpublishedY = index.get("Note Y.md");
+  let expansionBeforeTarget;
+  try {
+    index.state.pages.delete("Note Y.md");
+    expansionBeforeTarget = await buildCentralSectionExpansion(plugin, index, index.get("Note A.md"));
+  } finally {
+    index.state.pages.set("Note Y.md", unpublishedY);
+  }
+  assert(expansionBeforeTarget);
+
   let sectionProjectionReads = 0;
   const originalReadForSectionProjection = app.vault.cachedRead;
   app.vault.cachedRead = async (file) => {
@@ -3017,6 +3030,11 @@ try {
   };
 
   try {
+    const delayedTargetProjection = projectCentralSectionExpansion(plugin, index, expansionBeforeTarget);
+    const delayedFriends = delayedTargetProjection.sections.find((section) => section.page.name === "Friend and challenger cases");
+    assert(delayedFriends);
+    expandedHas(delayedFriends.neighborhood, "child", "Note Y.md", RelationType.INFERRED);
+
     const projectedA = projectCentralSectionExpansion(plugin, index, expandedA);
     const projFriends = projectedA.sections.find((section) => section.page.name === "Friend and challenger cases");
     const projConflict = projectedA.sections.find((section) => section.page.name === "Inference and conflict cases");
@@ -3038,6 +3056,15 @@ try {
 
       const projectedAfterAdd = projectCentralSectionExpansion(plugin, index, expandedA);
       expandedHas(projectedAfterAdd.centerNeighborhood, "child", "Note Y.md", RelationType.DEFINED);
+      // Also retain an expansion captured while the inbound declaration exists. Both starting
+      // states must agree after removal; cached semantic decisions may never survive the edit.
+      app.vault.cachedRead = originalReadForSectionProjection;
+      const expansionWhileLinked = await buildCentralSectionExpansion(plugin, index, index.get("Note A.md"));
+      app.vault.cachedRead = async (file) => {
+        sectionProjectionReads += 1;
+        return originalReadForSectionProjection(file);
+      };
+      assert(expansionWhileLinked);
 
       // Now remove the property and patch Y again: center loses the defined relationship.
       contents.set("Note Y.md", originalYBody);
@@ -3045,6 +3072,7 @@ try {
       const patchRemoveRes = await index.patchMarkdownPaths(["Note Y.md"]);
       assert.equal(patchRemoveRes.outcome, "patched");
       expandedLacks(projectCentralSectionExpansion(plugin, index, expandedA).centerNeighborhood, "Note Y.md");
+      expandedLacks(projectCentralSectionExpansion(plugin, index, expansionWhileLinked).centerNeighborhood, "Note Y.md");
 
       // Ordinary link under section heading is still preserved after edit/revert sequence.
       const friendsAfterRevert = projectCentralSectionExpansion(plugin, index, expandedA).sections.find((s) => s.page.name === "Friend and challenger cases");
@@ -3116,6 +3144,9 @@ try {
   } finally {
     app.vault.cachedRead = originalReadForSectionProjection;
   }
+
+  await runSectionProjectionCases({ GraphIndex, TFile, app, plugin, files, contents, caches,
+    resolvedLinks, unresolvedLinks, rootFolder, cacheLinks, buildCentralSectionExpansion, projectCentralSectionExpansion });
 
   // Git may check this fixture out with CRLF on Windows. Both newline conventions must retain
   // the same section relationships and physical heading ranges without weakening accepted goldens.

@@ -3,6 +3,8 @@
  * slices retain physical LF/CRLF offsets to match native metadata positions. Transient explanation
  * codes reuse the UI language boundary without persisting section nodes. Projected/folded pairs
  * share the core defined-direction tier instead of independently merging arrow directions.
+ * Cached physical link placements survive late target publication; each projection rebinds live
+ * evidence/policy, with at most one native lookup per distinct lexical link and no body reads.
  */
 import type { App, CachedMetadata, TFile } from "obsidian";
 import type KplexPlugin from "../main";
@@ -25,7 +27,8 @@ export type ExpandedSection = {
 
 type EvidenceTargetMap = Map<string, { target: GraphPage; evidence: RelationEvidence[] }>;
 
-export type LinkPlacement = {
+/** Physical body occurrence, retained even before its target has a published graph page. */
+type LinkPlacement = {
   sectionId: string | null;
   line: number;
   rawLink: string;
@@ -167,13 +170,19 @@ function evidence(
   };
 }
 
-function resolveTarget(app: App, index: GraphIndex, raw: string, hostPath: string): GraphPage | null {
+/** Resolve native file identity without requiring that progressive graph publication reached it. */
+function linkDestination(app: App, raw: string, hostPath: string): { path: string; file: TFile | null } {
   let candidate = raw.trim();
   try { candidate = decodeURIComponent(candidate); } catch { /* raw is still useful */ }
   const hash = candidate.indexOf("#");
   if (hash >= 0) candidate = candidate.slice(0, hash);
   const file = app.metadataCache.getFirstLinkpathDest(candidate, hostPath);
-  return (file ? index.get(file.path) : index.get(candidate)) ?? null;
+  return { path: file?.path ?? candidate, file };
+}
+
+/** Bind a lexical link to the currently published target; absence never creates semantic data. */
+function resolveTarget(app: App, index: GraphIndex, raw: string, hostPath: string): GraphPage | null {
+  return index.get(linkDestination(app, raw, hostPath).path) ?? null;
 }
 
 function roleDefinition(relation: Relation, role: Exclude<Role, "sibling">): string | undefined {
@@ -224,8 +233,12 @@ function addEvidence(map: Map<string, { target: GraphPage; evidence: RelationEvi
   map.set(target.path, current);
 }
 
-function sectionTarget(page: GraphPage, sectionId: string): GraphPage {
-  const clone = clonePage(page, `kplex-section-target:${sectionId}:${page.path}`);
+/** Reuse one transient target per section bucket even when many occurrences share that target. */
+function sectionTarget(page: GraphPage, sectionId: string, bucket?: EvidenceTargetMap): GraphPage {
+  const path = `kplex-section-target:${sectionId}:${page.path}`;
+  const retained = bucket?.get(path)?.target;
+  if (retained) return retained;
+  const clone = clonePage(page, path);
   clone.transient = { kind: "section-target", sourcePath: page.path, actualPath: page.path, sectionId };
   return clone;
 }
@@ -271,17 +284,16 @@ export async function buildCentralSectionExpansion(
   // expanded document with H headings and L links do O(H x L) projection work.
   for (const link of links) {
     const line = (link.position?.start.line ?? Number.MAX_SAFE_INTEGER) + 1;
-    const target = resolveTarget(plugin.app, index, link.link, file.path);
-    if (!target) continue;
+    const destination = linkDestination(plugin.app, link.link, file.path);
 
     if (line < firstHeadingLine) {
-      preambleTargets.add(target.path);
+      preambleTargets.add(destination.path);
       linkPlacements.push({
         sectionId: null,
         line,
         rawLink: link.link,
-        initialPath: target.path,
-        file: target.file,
+        initialPath: destination.path,
+        file: destination.file,
       });
       continue;
     }
@@ -296,8 +308,8 @@ export async function buildCentralSectionExpansion(
       sectionId: heading.id,
       line,
       rawLink: link.link,
-      initialPath: target.path,
-      file: target.file,
+      initialPath: destination.path,
+      file: destination.file,
     });
   }
 
@@ -460,7 +472,7 @@ export async function buildCentralSectionExpansion(
  * @param line 1-based line number in the declaring file.
  */
 function sectionForLine(
-  ordered: ReadonlyArray<{ section: SectionProjectionSource["sections"][number]; line: number }>,
+  ordered: SectionProjectionSource["sections"],
   line: number,
 ): SectionProjectionSource["sections"][number] | null {
   let low = 0;
@@ -470,7 +482,7 @@ function sectionForLine(
     if (ordered[mid].line <= line) low = mid + 1;
     else high = mid;
   }
-  return low > 0 ? ordered[low - 1].section : null;
+  return low > 0 ? ordered[low - 1] : null;
 }
 
 /**
@@ -481,6 +493,7 @@ function sectionForLine(
  * their heading assignment is established from cached link locations while their live evidence, roles,
  * precedence, multiplicity and target rebinding are derived from the current GraphIndex.
  *
+ * @param plugin Native link resolution for rebinding previously unresolved lexical targets.
  * @param index The authoritative persistent GraphIndex.
  * @param source Cached section projection source captured when the center was expanded.
  * @returns Re-projected center and section evidence maps ready for neighborhood evaluation.
@@ -494,13 +507,13 @@ function currentSectionEvidence(
 }> {
   const center: EvidenceTargetMap = new Map();
   const sections = new Map<string, EvidenceTargetMap>(source.sections.map((section) => [section.id, new Map()]));
-  const orderedSections = source.sections
-    .map((section) => ({ section, line: section.line }))
-    .sort((a, b) => a.line - b.line);
+  // buildCentralSectionExpansion retains physical heading order; do not sort it on every update.
+  const orderedSections = source.sections;
   const sectionById = new Map(source.sections.map((s) => [s.id, s] as const));
 
   const placementsByFile = new Map<TFile, LinkPlacement[]>();
   const placementsByPath = new Map<string, LinkPlacement[]>();
+  const currentPaths = new Map<string, string>();
 
   for (const placement of source.linkPlacements) {
     if (placement.file) {
@@ -508,21 +521,17 @@ function currentSectionEvidence(
       bucket.push(placement);
       placementsByFile.set(placement.file, bucket);
     }
-    const pathBucket = placementsByPath.get(placement.initialPath) ?? [];
-    pathBucket.push(placement);
-    placementsByPath.set(placement.initialPath, pathBucket);
-
-    if (placement.rawLink && placement.rawLink !== placement.initialPath) {
-      const rawBucket = placementsByPath.get(placement.rawLink) ?? [];
-      rawBucket.push(placement);
-      placementsByPath.set(placement.rawLink, rawBucket);
+    let currentPath = currentPaths.get(placement.rawLink);
+    if (currentPath === undefined) {
+      currentPath = linkDestination(plugin.app, placement.rawLink, source.centerPage.file?.path ?? source.centerPage.path).path;
+      currentPaths.set(placement.rawLink, currentPath);
     }
-
-    const currentTarget = resolveTarget(plugin.app, index, placement.rawLink, source.centerPage.file?.path ?? "");
-    if (currentTarget && currentTarget.path !== placement.initialPath) {
-      const currentBucket = placementsByPath.get(currentTarget.path) ?? [];
-      currentBucket.push(placement);
-      placementsByPath.set(currentTarget.path, currentBucket);
+    // A resolved link can become an unresolved link whose path equals its raw spelling. Aliases
+    // are lookup keys, not additional occurrences; append each placement once per distinct key.
+    for (const path of new Set([placement.initialPath, currentPath])) {
+      const bucket = placementsByPath.get(path) ?? [];
+      bucket.push(placement);
+      placementsByPath.set(path, bucket);
     }
   }
 
@@ -555,7 +564,7 @@ function currentSectionEvidence(
         if (!section) {
           addEvidence(center, actual, item);
         } else {
-          const target = sectionTarget(actual, section.id);
+          const target = sectionTarget(actual, section.id, sections.get(section.id));
           const projected: RelationEvidence = {
             ...item,
             sourcePath: section.page.path,
@@ -582,7 +591,7 @@ function currentSectionEvidence(
               const section = sectionById.get(placement.sectionId);
               const sectionMap = sections.get(placement.sectionId);
               if (section && sectionMap) {
-                const target = sectionTarget(actual, placement.sectionId);
+                const target = sectionTarget(actual, placement.sectionId, sectionMap);
                 const projected: RelationEvidence = {
                   ...item,
                   sourcePath: section.page.path,
