@@ -690,3 +690,16 @@ test('color publication never promotes a pending native follow or expands its de
  state.visible=true;state.presentation({kind:'paint'});assert.equal(state.renderPath,rendered);assert.deepEqual(state.demands,demands);assert.equal(state.paintRenders,1);assert.equal(state.presentationRenders,undefined);
  state.visible=false;state.presentation({kind:'paint'});assert.equal(state.paintRenders,1);state.releaseDemand();
 });
+
+test('partial startup cannot replace the saved center with an earlier available history tag', () => {
+  const pages = new Map([['tag:#Fiction', {path: 'tag:#Fiction'}], ['folder:/', {path: 'folder:/'}]]);
+  const plugin = {settings: {lastActivePath: 'Center.md', navigationHistory: ['tag:#Fiction', 'Center.md']},
+    index: {get: path => pages.get(path)}, initialIndexComplete: false,
+    isNavigationFallbackReady() {return this.initialIndexComplete;}};
+  const fallback = production('resolveNavigationFallbackPath');
+  assert.equal(fallback.call(plugin, 'Center.md'), null, 'Absence from a partial publication is not proof of deletion');
+  pages.set('Center.md', {path: 'Center.md'});
+  assert.equal(fallback.call(plugin, 'Center.md'), 'Center.md');
+  pages.delete('Center.md'); plugin.initialIndexComplete = true;
+  assert.equal(fallback.call(plugin, 'Center.md'), 'tag:#Fiction', 'A genuinely missing center still recovers after readiness');
+});

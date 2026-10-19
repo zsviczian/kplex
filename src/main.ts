@@ -1,4 +1,6 @@
 /**
+ * Saved native centers/history are primed before asynchronous startup. Partial graph absence
+ * cannot select and persist an unrelated history entry while the requested center is loading.
  * Obsidian plugin lifecycle and host orchestration for indexing, navigation and vault mutations. Portable owners determine semantics; this host boundary supplies effects, cleanup and localized product feedback. Native metadata events request finite visible presentation repair independently of semantic readiness. Passive document synchronization preserves the current representation of exact matching native destinations; explicit opening and source inspection retain their separate navigation contracts. Support reporting projects retained facts without starting index work; this lifetime owns its bounded recorder and native report dialogs. Per-note Markdown zoom preferences follow Vault rename/delete events independently of index readiness.
  * Remote node image consent publishes synchronously before persistence and never requests semantics.
  * Style-manager drafts commit on the settings disk queue before live publication; style-only
@@ -343,6 +345,7 @@ export default class KplexPlugin extends Plugin {
 
     this.startupDiagnostics.mark("settings-loaded");
     this.index = new GraphIndex(this);
+    this.index.primeSavedNavigation([this.settings.lastActivePath, ...this.settings.navigationHistory.slice(-14), ...this.settings.pinnedNodes]);
     this.registerMarkdownZoomPreferenceListeners();
     // URL acquisition is independent of MetadataCache, local graph preparation and full Eager inventory.
     this.registerEvent(this.app.vault.on("modify", /** Retire exact URL facts on content edits, including equal-stat writes. */
@@ -450,6 +453,9 @@ export default class KplexPlugin extends Plugin {
       void (async () => {
         if (this.unloading) return;
         this.installPreRestoreChangeFence();
+        // The native tree may have settled since plugin load. Saved navigation must not await
+        // appearance persistence, the vault-wide search catalog or semantic cache restoration.
+        this.index.primeSavedNavigation([this.settings.lastActivePath, ...this.settings.navigationHistory.slice(-14), ...this.settings.pinnedNodes]);
         const legacySettings = !alreadyKplex && !this.externalSettingsReceived ? this.runningKplexSettings() : null;
         // First-use migration follows the actual loaded-data/import state. Never persist pristine
         // factory presets before a running ExcaliBrain appearance has had its existing import path.
@@ -558,7 +564,8 @@ export default class KplexPlugin extends Plugin {
     return [...new Set(paths.filter(Boolean))];
   }
 
-  /** Resolve a missing center through persisted navigation history before using the vault root. */
+  /** Keep the requested center through partial startup; only completed indexing proves its absence.
+   * After readiness, recover a genuinely missing center through saved history and then the root. */
   resolveNavigationFallbackPath(preferredPath?: string | null): string | null {
     const seen = new Set<string>();
     const candidates: string[] = [];
@@ -574,6 +581,9 @@ export default class KplexPlugin extends Plugin {
     for (let index = this.settings.navigationHistory.length - 1; index >= 0; index -= 1) {
       add(this.settings.navigationHistory[index]);
     }
+
+    const preferred = candidates[0];
+    if (preferred && !this.isNavigationFallbackReady()) return this.index.get(preferred)?.path ?? null;
 
     for (const path of candidates) {
       if (this.index.get(path)) return path;

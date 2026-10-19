@@ -1,4 +1,6 @@
 /**
+ * Saved navigation remains visible before native tree/cache readiness. Provisional absence never
+ * authorizes replacing the requested center with a different history entry or the vault root.
  * Host-bound React shell for K-Plex navigation, startup guidance, File Explorer note drops, toolbar and Sidecar controls. It composes shared components and injected environment/localization capabilities; plugin methods own host effects. The native view owns session display modes; React projects Zen chrome and supplies exact camera-resize preparation without replacing its root. Search/Find scopes and hints use effective action bindings; each surface releases its own registrations on teardown.
  * Wander owns one cancellable per-view session over graph projection ports and the shared activation path;
  * explicit navigation origins and native input pause it without replacing history, editor or Zen owners.
@@ -558,9 +560,12 @@ export function KplexApp({ plugin, surface, hostLeaf, translate, environment, on
   const waitingForDocument = pendingDocumentFollowRef.current !== null || navigationOrigin === "follow"
     && activeFileRef.current !== null && plugin.app.vault.getFileByPath(activeFileRef.current.path) === activeFileRef.current;
   const fallbackPath = exactPage || waitingForDocument ? null : plugin.resolveNavigationFallbackPath(activePath);
+  // Before the native tree/cache is ready, absence is provisional. Keep this surface's saved
+  // center and loading state rather than displaying a different node and persisting it.
+  const waitingForStartupCenter = !exactPage && !plugin.isNavigationFallbackReady();
   const page = exactPage
     ?? (fallbackPath ? plugin.index.get(fallbackPath) : undefined)
-    ?? (waitingForDocument ? undefined : plugin.index.get("folder:/"));
+    ?? (waitingForDocument || waitingForStartupCenter ? undefined : plugin.index.get("folder:/"));
   const hasPage = Boolean(page);
   const propertiesCenterFile = useRef<TFile | null>(null);
   const propertiesCenterLease = useRef<FilePropertiesCenterLease | null>(null);
@@ -1096,34 +1101,57 @@ export function KplexApp({ plugin, surface, hostLeaf, translate, environment, on
   const runAction = (id: ActionId): void => actions.dispatch({ id, source: "toolbar" });
   const supportButton = <ToolButton icon="bug" title={translate("support.reportTitle")} onClick={/** Invoke the owning clipboard writer directly before any action-dispatch await, including partial startup. */ event => plugin.reportBug(event.currentTarget, actions.surfaceId)} />;
 
+  // History belongs to loaded settings, not semantic readiness. Preserve every saved slot on
+  // both loading and graph surfaces; unresolved targets stay inert until their owner publishes.
+  const historyBar = <footer className="kplex-history-bar">
+    <span className="kplex-history-label">{translate("app.pastNodes")}</span>
+    <div className="kplex-history-list">
+      {plugin.settings.navigationHistory.slice(-14).reverse().map((path, indexValue) => {
+        const item = plugin.index.get(path);
+        const {label: title, icon} = item ? nodeListPresentation(item, plugin.index.titleFor(item)) : {label: path, icon: "file-question"};
+        return <button key={`${path}:${indexValue}`} data-kplex-history-path={path} aria-label={`${title}\n${path}`} disabled={!item}
+          className={path === activePath ? "is-active" : ""}
+          onClick={/** Dispatch only this currently available saved identity; no fallback or note creation. */ () => {if (item) actions.dispatch({id: "node.activate", source: "toolbar", target: {kind: "explicit", node: actionNodeRef(item)}});}}>
+          <ObsidianIcon name={icon} size={12} /><span className="kplex-history-text">{title}</span>
+        </button>;
+      })}
+    </div>
+  </footer>;
+
   if (!page) return <div
     ref={rootRef}
     tabIndex={0}
     role="region"
     aria-labelledby={canvasNameId}
-    className="kplex-app kplex-empty"
+    className="kplex-app"
     data-kplex-tooltip-scope
     onDragOver={handlePlexDragOver}
     onDrop={handlePlexDrop}
   >
     <span id={canvasNameId} className="kplex-accessible-name">{translate("view.displayName")}</span>
-    <div className="kplex-index-status-empty">
-      <IndexStatusIndicator
-        status={indexStatus}
-        indicatorRef={indexStatusRef}
-        open={indexStatusInfoOpen}
-        onHoverStart={showIndexStatusOnHover}
-        onHoverEnd={hideIndexStatusAfterHover}
-        onToggle={openVaultStats}
-      />
-      <InfoBubble
-        open={indexStatusInfoOpen}
-        targetRef={indexStatusRef}
-        message={indexStatusMessage}
-        onDismiss={dismissIndexStatusInfo}
-      />
+    <div className={`kplex-main-column${plugin.settings.wrapNodeLabels ? " is-two-line-history" : ""}`}>
+      <div aria-hidden="true" />
+      <div className="kplex-graph-area kplex-empty">
+        <div className="kplex-index-status-empty">
+          <IndexStatusIndicator
+            status={indexStatus}
+            indicatorRef={indexStatusRef}
+            open={indexStatusInfoOpen}
+            onHoverStart={showIndexStatusOnHover}
+            onHoverEnd={hideIndexStatusAfterHover}
+            onToggle={openVaultStats}
+          />
+          <InfoBubble
+            open={indexStatusInfoOpen}
+            targetRef={indexStatusRef}
+            message={indexStatusMessage}
+            onDismiss={dismissIndexStatusInfo}
+          />
+        </div>
+        <span>{translate("app.buildingIndex")}</span>
+      </div>
+      {!displayState.zen && historyBar}
     </div>
-    <span>{translate("app.buildingIndex")}</span>
     {!displayState.zen && <div className="kplex-empty-support">{supportButton}</div>}
   </div>;
 
@@ -1325,17 +1353,7 @@ export function KplexApp({ plugin, surface, hostLeaf, translate, environment, on
         </>}
       </div>}
 
-      <footer className="kplex-history-bar">
-        <span className="kplex-history-label">{translate("app.pastNodes")}</span>
-        <div className="kplex-history-list">
-          {plugin.settings.navigationHistory.slice(-14).reverse().map((path, indexValue) => {
-            const item = plugin.index.get(path);
-            if (!item) return null;
-            const { label: title, icon } = nodeListPresentation(item, plugin.index.titleFor(item));
-            return <button key={`${path}:${indexValue}`} data-kplex-history-path={path} aria-label={`${title}\n${path}`} className={path === page.path ? "is-active" : ""} onClick={() => actions.dispatch({ id: "node.activate", source: "toolbar", target: { kind: "explicit", node: actionNodeRef(item) } })}><ObsidianIcon name={icon} size={12} /><span className="kplex-history-text">{title}</span></button>;
-          })}
-        </div>
-      </footer>
+      {historyBar}
     </div>
   </div>;
 }

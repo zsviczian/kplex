@@ -1,4 +1,6 @@
 /**
+ * Saved native navigation is available before asynchronous catalogs; its filename/folder facets
+ * own no semantic incidence, source acquisition, negative inventory proof or write authority.
  * Optional presentation dispatch uses finite snapshots and nonrecursive coalescing. Settings-only
  * retries preserve coherent predecessors and yield host tasks under one finite retry window.
  * Complete fresh physical ownership can qualify one observed empty-folder create before insertion;
@@ -1289,6 +1291,30 @@ export class GraphIndex {
     };
     return {mode: this.isOnDemandMode() ? "on-demand" : "eager", urls: "background", pacing: scheduler.throttle,
       current: ACTIVITY_CURRENT_COLUMNS.map(/** Copy only the fixed dictionary, never dynamic source keys. */ name => current[name])};
+  }
+
+  /** Publish only existing saved native identities before any asynchronous startup work.
+   * These filename/folder facets reuse search availability, never claim relationship completeness,
+   * and remain subject to exact Vault identity checks and the ordinary catalog replacement. */
+  primeSavedNavigation(paths: readonly string[]): void {
+    if (this.diagnosticsClosed) return;
+    let changed = false;
+    for (const path of new Set(paths)) {
+      const file = this.app.vault.getFileByPath(path);
+      const folder = !file && path.startsWith("folder:")
+        ? path === "folder:/" ? this.app.vault.getRoot() : this.app.vault.getFolderByPath(path.slice("folder:".length)) : null;
+      const previous = this.currentPhysicalSearchPage(path);
+      if ((file && previous?.file === file) || (folder && previous?.isFolder)) continue;
+      const page = file ? this.hostFileSearchPage(file) : folder ? this.hostFolderSearchPage(folder) : null;
+      if (!page) continue;
+      this.physicalSearchEntries.set(path, {page, name: page.name.toLowerCase(), aliases: [], path: path.toLowerCase()});
+      changed = true;
+    }
+    if (changed) {
+      this.physicalSearchMerge = null;
+      this.invalidateSearchCatalog();
+      this.emitPresentation();
+    }
   }
 
   /** Prime native files/folders and loaded tag metadata once after layout-ready, without durable/body work. */
@@ -6864,11 +6890,7 @@ export class GraphIndex {
     changed = this.physicalSearchEntries.delete(path) || changed;
     this.physicalSearchUpdatedPaths.delete(path);
     if (replacement && this.app.vault.getFileByPath(replacement.path) === replacement) {
-      const page: GraphPage = {
-        path: replacement.path, file: replacement, name: replacement.basename, url: null, isFolder: false,
-        isTag: false, mtime: replacement.stat.mtime, aliases: [], tags: [], noteType: null,
-        primaryStyleTag: null, styleTags: [], maxLabelLength: 0, neighbours: new Map(),
-      };
+      const page = this.hostFileSearchPage(replacement);
       this.physicalSearchEntries.set(page.path, { page, name: page.name.toLowerCase(), aliases: [], path: page.path.toLowerCase() });
       this.physicalSearchUpdatedPaths.add(page.path);
       changed = true;
@@ -8401,10 +8423,7 @@ export class GraphIndex {
       for (const [path, file] of files) {
         if (!inventoryCurrent()) return false;
         if (this.app.vault.getFileByPath(path) !== file) continue;
-        const page: GraphPage = {
-          path, file, name: file.basename, url: null, isFolder: false, isTag: false, mtime: file.stat.mtime,
-          aliases: [], tags: [], noteType: null, primaryStyleTag: null, styleTags: [], maxLabelLength: 0, neighbours: new Map(),
-        };
+        const page = this.hostFileSearchPage(file);
         next.set(path, { page, name: file.basename.toLowerCase(), aliases: [], path: path.toLowerCase() });
         addFolder(file.parent);
         this.hostPreview.observeTagSource(file);
@@ -8513,6 +8532,13 @@ export class GraphIndex {
     if (canonical) return canonical.file && (canonical.path !== canonical.file.path
       || this.app.vault.getFileByPath(canonical.path) !== canonical.file) ? undefined : canonical;
     return this.currentPhysicalSearchPage(path);
+  }
+
+  /** Native file availability contains no incidence, metadata acquisition or semantic authority. */
+  private hostFileSearchPage(file: TFile): GraphPage {
+    return {path: file.path, file, name: file.basename, url: null, isFolder: false, isTag: false,
+      mtime: file.stat.mtime, aliases: [], tags: [], noteType: null, primaryStyleTag: null,
+      styleTags: [], maxLabelLength: 0, neighbours: new Map()};
   }
 
   /** Availability facets contain no incidence; the shared compiler prepares selected tag relations. */
