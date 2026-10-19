@@ -128,9 +128,10 @@ summary). Build profile prefix `kplex-176-counts-1792368728432`; focused log
 are not deleted or published. Final durable-copy verification is recorded below.
 
 Native executable/configuration bytes, original On-demand mode, workspace/follow
-owners and 107/88 file counts are restored; no test controllers remain. The normal
-untimed oracle overlaps a headless focused test briefly; no resource/latency claim
-uses that interval. The primary warm observation completed independently earlier.
+owners and 107/88 file counts are restored; no test controllers remain. The untimed
+oracle finished at 00:17:25 UTC; the focused browser test began at 00:17:42 UTC.
+The primary warm observation completed independently earlier. No resource/latency
+claim uses the later oracle or tests.
 
 The remaining observed storage work is source-head/local-dependency validation:
 761 readonly source-head gets, 295 local-owner gets and 204 chunk/posting reads
