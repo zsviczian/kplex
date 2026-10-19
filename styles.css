@@ -244,6 +244,16 @@ button.kplex-sidecar-unfold-plex:hover,
   cursor: pointer;
 }
 .kplex-search-result:hover { background: var(--background-modifier-hover); }
+.kplex-search-result.has-prefix {
+  grid-template-columns: 16px minmax(0, .9fr) minmax(0, 1.1fr);
+  gap: 10px;
+}
+.kplex-search-result-prefix {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-muted);
+}
 .kplex-search-result > span,
 .kplex-search-result small {
   min-width: 0;
@@ -252,6 +262,23 @@ button.kplex-sidecar-unfold-plex:hover,
   white-space: nowrap;
 }
 .kplex-search-result small { color: var(--kplex-muted, var(--text-muted)); text-align: right; }
+.kplex-create-folder-row { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.kplex-create-folder-caption { color: var(--text-muted); font-size: var(--font-ui-small); flex: none; }
+.kplex-create-folder-row .kplex-folder-path-input { flex: 1; min-width: 0; }
+.kplex-materialize-folder-input { width: 100%; min-width: 0; }
+.kplex-materialize-folder-input .kplex-folder-path-input { width: 100%; max-width: none; min-width: 0; }
+.kplex-materialize-folder-row { gap: 8px; }
+.kplex-materialize-folder-row .setting-item-info { flex: none; margin: 0; }
+.kplex-materialize-folder-row .setting-item-name { color: var(--text-muted); font-size: var(--font-ui-small); }
+.kplex-materialize-folder-row .setting-item-control { flex: 1; min-width: 0; }
+.kplex-folder-path-results .kplex-search-result { display: block; height: auto; }
+.kplex-folder-path-results .kplex-search-result > span {
+  display: block;
+  overflow: visible;
+  text-overflow: clip;
+  white-space: normal;
+  overflow-wrap: break-word;
+}
 
 .kplex-workspace { min-height: 0; display: flex; }
 .kplex-graph-area { position: relative; min-width: 0; min-height: 0; flex: 1; overflow: hidden; }
@@ -270,6 +297,7 @@ button.kplex-sidecar-unfold-plex:hover,
 .kplex-edge { transition: opacity .11s ease, filter .11s ease; }
 .kplex-edge-visible { pointer-events: none; filter: none; transition: opacity .11s ease, filter .11s ease; }
 .kplex-edge-hit { pointer-events: stroke; cursor: pointer; }
+.kplex-edge.is-hover-peek .kplex-edge-hit { pointer-events: none; }
 .kplex-edge.is-highlighted .kplex-edge-visible { filter: none; }
 .kplex-edge.is-dimmed { opacity: .16; }
 .kplex-edge-label { pointer-events: none; paint-order: stroke; stroke: var(--kplex-link-label-background, var(--background-primary)); stroke-width: 3px; stroke-linejoin: round; }
@@ -489,6 +517,12 @@ button.kplex-sidecar-unfold-plex,
 .kplex-history-list { min-width: 0; display: flex; gap: 5px; overflow-x: auto; scrollbar-width: none; }
 .kplex-history-list::-webkit-scrollbar { display: none; }
 .kplex-history-list button { flex: 0 0 auto; width: 180px; max-width: 180px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-align: left; justify-content: flex-start; color: var(--text-normal); border: 1px solid var(--background-modifier-border); border-radius: 6px; background: var(--background-primary); padding: 5px 9px; cursor: pointer; font-size: 11px; }
+.kplex-history-list button { display: flex; align-items: center; gap: 5px; }
+.kplex-history-list button > .kplex-icon,
+.kplex-pinned-open > .kplex-icon { flex: 0 0 auto; }
+.kplex-action-picker-row { display: flex; align-items: center; gap: 8px; }
+.kplex-action-picker-row .suggestion-icon { flex: 0 0 auto; display: flex; }
+.kplex-action-picker-row .suggestion-content { min-width: 0; }
 /* A shrinking text box keeps overflowing history titles anchored to their first character,
    even when the host theme centers button contents with flexbox. */
 .kplex-history-text {
@@ -1898,7 +1932,8 @@ button.kplex-sidecar-unfold-plex,
   min-width: 0;
   flex: 1 1 auto;
 }
-.kplex-add-related-form .kplex-search {
+.kplex-add-related-form .kplex-search,
+.kplex-folder-path-input .kplex-search {
   box-sizing: border-box;
   width: 100%;
   height: 38px;
@@ -1909,7 +1944,14 @@ button.kplex-sidecar-unfold-plex,
   border-radius: var(--input-radius, 5px);
   box-shadow: none;
 }
-.kplex-add-related-form .kplex-search:focus {
+.kplex-folder-path-input .kplex-search,
+.kplex-add-related-form .kplex-folder-path-input .kplex-search {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 0 12px;
+}
+.kplex-add-related-form .kplex-search:focus,
+.kplex-folder-path-input .kplex-search:focus {
   border-color: var(--interactive-accent);
   box-shadow: 0 0 0 2px color-mix(in srgb, var(--interactive-accent) 18%, transparent);
 }
@@ -1961,8 +2003,53 @@ button.kplex-sidecar-unfold-plex,
 .kplex-add-related-control-row .kplex-add-related-ontology-search {
   flex: 1 1 280px;
 }
-.kplex-add-related-control-row .kplex-create-edit-toggle {
-  flex: 0 1 auto;
+.kplex-add-related-footer {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+}
+.kplex-creation-completion-row {
+  display: flex;
+  justify-content: flex-end;
+  min-width: 0;
+  padding: var(--size-4-3) 0;
+}
+.kplex-creation-completion {
+  display: inline-flex;
+  align-items: center;
+  flex-wrap: wrap;
+  min-width: 0;
+  max-width: 100%;
+  gap: var(--size-4-2);
+  color: var(--text-muted);
+  font-size: var(--font-ui-small);
+  font-weight: normal;
+}
+.kplex-creation-completion-caption {
+  white-space: nowrap;
+}
+.kplex-creation-completion select.dropdown {
+  min-width: 9em;
+  max-width: 100%;
+  height: var(--input-height);
+  font-size: var(--font-ui-small);
+}
+.kplex-add-related-control-row .kplex-add-related-role-select {
+  height: 38px;
+  max-width: 100%;
+}
+.kplex-add-related-footer .kplex-create-edit-toggle {
+  background: transparent;
+  border: 0;
+  padding: 0;
+  color: var(--text-muted);
+  font-size: var(--font-ui-small);
+}
+.kplex-add-related-footer .kplex-create-edit-copy strong {
+  font-weight: normal;
+  color: var(--text-muted);
 }
 .kplex-add-related-compose-row {
   display: grid;
@@ -2962,7 +3049,7 @@ button.kplex-style-manager-row { height: fit-content; }
   .kplex-create-alias-input { min-width: 62px; }
 }
 
-/* Add-related modal: relationship role lives in the title and the filename field does not
+/* Add-related modal: direction shares the ontology row and the filename field does not
    spend horizontal space on a decorative search glyph. */
 .kplex-add-related-title {
   display: flex;
@@ -2974,8 +3061,7 @@ button.kplex-style-manager-row { height: fit-content; }
   width: auto;
   min-width: 128px;
   max-width: min(46vw, 220px);
-  font: inherit;
-  font-weight: inherit;
+  flex: 0 1 auto;
 }
 .kplex-create-name-pair .kplex-add-related-note-search .kplex-search-icon {
   display: none;
@@ -3654,6 +3740,11 @@ button.kplex-sidecar-unfold-plex:focus-visible,
 .kplex-color-strip-cells .kplex-color-swatch { display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 16px; border-radius: 0; flex-shrink: 1; }
 .setting-item-control > .kplex-color-strips { margin-inline-end: var(--size-4-2); }
 .kplex-style-row > .kplex-color-strips { margin-inline-start: auto; }
+.kplex-color-suggestion { display: flex; align-items: center; gap: var(--size-4-3); }
+.kplex-color-suggestion > .suggestion-content { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.kplex-color-suggestion > .kplex-color-strips { flex-shrink: 0; }
+.kplex-color-suggestion .kplex-color-strip-label { min-width: 0; }
+.kplex-color-suggestion .kplex-color-strip-cells .kplex-color-swatch { width: 18px; height: 12px; }
 
 /* Explicit appearance drafts share one scrolling body; native Save/Cancel stay visible. */
 .modal.kplex-scroll-editor-modal { display: flex; flex-direction: column; max-height: 90vh; }

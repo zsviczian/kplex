@@ -1,4 +1,4 @@
-# Standing instructions — preserve this header
+# Standing instructions ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â preserve this header
 
 This is a temporary handoff document between agents. The development of the solution involves agents with access to Obsidian CLI and a full development environment with all node packages installed, but also agents with more limited access. Development is done in "ping-pong" between these two types of agents. Agents should use this document to pass instructions and status from one another, such as instructions for testing/validation, or instructions for development work that can only be done in a full environment.
 
@@ -19,28 +19,25 @@ Obsidian is the production host; preserve the established portable semantic, ide
 
 ---
 
-# PR #173 - implementation returned for draft review
+# PR179 validated closeout; sequential work remains authorized
 
-Branch: `2026-10-17-issue-164-safe-plex-folding`. #172 merged at `ef301dc07fa6a8754455a6aeb94ae871d2aacd75`; #161 closed with the requested comment referencing #172. Main integrated without rewriting history at `2735550a28b7ad16a68da1df2a0cac4ad9845217`. Animation prerequisite checkpoint `75ac2ab` pushed. Feature checkpoint `5e53eb6` committed and pushed; keep #173 draft and #164 open. No merge/release/branch deletion/personal-vault access.
+Main/root agent implements/reviews/validates; no delegation.147 merged60d2239.
+179 main integration3bc489c, runtimef2fef82, full-testedbe7247a. User authorizes
+merge179, then149 then176 sequentially, no CI wait/release/personal vault.
+No comparative performance under encoding load, receipt/reader-sharing revival,
+source-proof weakening or broad architecture. Preserve private originals.
 
-## Returned implementation and review
-
-Stable fold action/command now toggles a graph-independent captured native pair. Existing Sidecar/fold maps remain sole ownership inventories. Exact generation/revision/window/group/ancestry fences, finite native picker, complete-group recovery, restore-before-release/reveal/migration, four edges, overlap/disjoint ownership and a proven late-startup-adoption race are covered. New folds deliberately require two direct native groups in an isolated split; unsafe layouts stay expanded. Native model/flex/dimensions are untouched. All eight locales and user documentation updated. No index/source/parser/settings/schema/scheduler changes; C14 structural refactoring remains paused.
-
-Offline agent source review and independent main review found no additional concrete source blocker. Runtime tests exercise production owners, and UI tests compile real components. Main reviewed ownership, async fencing, architectural seams, lifecycle/document cleanup, native types, localization/accessibility and paint-versus-semantic boundaries. Automated verification supplements rather than replaces that review.
-
-## Actual evidence
-
-Only authorized disposable Small (107 files / 88 Markdown), Windows 10.0.26200 / Obsidian 1.14.4 / Electron 43.3.0 / Excalidraw 2.29.0; Node22.22.2. Final artifact SHA-256 `8d20bf308e935f353a9eea24256d44838b33863cd6d99d7b00ed056e7459e8c1` matches strict staging.
-
-Full `npm run verify:obsidian` passes: 937 portable, 131 general Chromium, 334 source-contract and 560 source-browser tests; architecture/core, installed types, official scanner, production build and strict native staging. Persistence passes all five checks including trusted asymmetric native divider drag, live disable, enabled/disabled reload, and actual selected-renderer interruption with a new PID followed by disabled startup. Both groups remain reachable at the same native share. Configuration/runtime and note inventory restore, no errors. Full application/OS restart is separate.
-
-The final-artifact matrix passes 36 functional checks, but runs nine/ten/eleven capture Obsidian's zoom-status exception during companion popout close. Simple no-fold controls and a matched matrix omitting the preceding fold are clean: this does not prove the exception unrelated. The helper-only control removing diagnostic child-realm remote proxies still passes all36 functional checks and reproduces the same zoom-status exception; exact closed-window and native-leaf-removal assertions remain. Do not suppress the error or claim native overall acceptance unless the final lane is clean.
-
-Existing display-mode lane passes after correcting its proven Mac-only chrome assertion for Windows. Sidecar navigation passes38 samples. Existing broader action lane's semantic Mod transport was corrected for Windows; 13 groups pass before explicit F1 recorder assertion fails. Relationship workflow stops at Wrong child target/storage on both final and merged-#172 baseline; final artifact restored afterward. These partial lanes remain explicit, not accepted passes.
-
-## Evidence and next owner
-
-Curated source/artifact/driver/results/limits: `docs/validation/safe-plex-folding-173-2026-10-17.md`. Raw originals and failed controls retained in `%TEMP%/kplex-173-*`; verified private backup is `%LOCALAPPDATA%/KplexValidation/pr-173-2026-10-17/final-evidence/`, manifest SHA-256 `8c5461f9f5b18f30de8a34df295fa2c458326ea303a0af10ec37017306efbd26`; all749 files plus patch independently verified. Implementation CI39023891312 is running; prerequisite75ac CI passed. Native-runner20 contracts pass. Do not publish private configuration/raw evidence or delete originals. All native drivers run serially with the three explicit disposable-vault variables. No active portable/native suite should overlap another.
-
-Remaining acceptance: settle native popout-close error and broad action recorder gap; physical desktop group dragging/multi-monitor; full application interruption/restart and macOS/Linux/physical tablet lifecycle/touch. Never infer physical-device or perceived-paint coverage from Electron automation. Native repository management remains root-owned. Commit/push checkpoints within standing user authorization, update #173 with real outcomes, keep draft/#164 open. Do not resume receipts/reader optimizations or C15+ refactoring.
+Full verify passes7/130/1127/184/334/638 plus lint/build. Native exact2c6dce74
+bundle staged/smoke passed. Native matrix results and all failures in concise
+report docs/validation/settings-save-liveness-179-2026-10-19.md. Main/Sidecar
+controlled Save closes after1durablewrite while optional work held. Whole-renderer
+freeze remains unproved. On-demand drawing/radius stricter fixture drain refuses
+pendingKnown1 despite no active work; earlier8pass is not repeatability proof.
+Eager quiet15, radius8, final real-drawing+Properties overlap5pass. Config/workspace
+107/88 and originalmode restored, no controllers, CLIdebug capture released.
+Final native helper syntax/20runner pass. Only native tooling/docs changed since
+full-testedbe724. Private verified durable copy141files/8210671B, manifestSHA in
+report, originals retained/no publication. Next finalize authorized179merge,
+switch/fetch main, integrate149branch normally; cause-first visual probe. If no
+confirmed defect, precise no-go rather than speculative rendering hack.176 Gate1
+causal checkpoint follows, no broad benchmark or new persistent protocol.

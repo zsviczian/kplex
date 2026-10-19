@@ -24,6 +24,7 @@
  * may retire unabortable storage work without allowing a late consumer publication.
  */
 import { yieldToHostTask } from "../adapters/obsidian/yieldToHostTask";
+import {sanitizeCenterRecoveryDiagnostic, type CenterRecoveryDiagnostic} from "../core/contracts/centerRecovery";
 import { sanitizeChangedSettingKeys, type SettingDiagnosticKey } from "../core/graph/settingsPolicy";
 import { Platform } from "obsidian";
 import { NeutralSourceRepository, SOURCE_HEAD_STORE, SOURCE_CHUNK_STORE, SOURCE_POSTING_STORE,
@@ -80,11 +81,12 @@ export type IndexDiagnosticEntry = {
   completedMarkdownFiles?: number;
   durationMs?: number;
   changedKeys?: SettingDiagnosticKey[];
+  centerCheck?: CenterRecoveryDiagnostic;
 };
 
 /** Revalidate stored history and public exports without copying arbitrary diagnostic fields. */
 export function sanitizeIndexDiagnostics(entries: readonly unknown[]): IndexDiagnosticEntry[] {
-  return entries.flatMap((item): IndexDiagnosticEntry[] => {
+  const all = entries.flatMap((item): IndexDiagnosticEntry[] => {
     if (!isUnknownRecord(item) || typeof item.at !== "number" || !Number.isFinite(item.at) || typeof item.reason !== "string" ||
       !/^[a-z0-9:|_-]{1,240}$/.test(item.reason) ||
       (item.stage !== "restore" && item.stage !== "reconcile" && item.stage !== "build" && item.stage !== "persist")) return [];
@@ -95,8 +97,19 @@ export function sanitizeIndexDiagnostics(entries: readonly unknown[]): IndexDiag
     }
     const changedKeys = sanitizeChangedSettingKeys(item.changedKeys);
     if (changedKeys.length) sanitized.changedKeys = changedKeys;
+    const centerCheck = sanitizeCenterRecoveryDiagnostic(item.centerCheck);
+    if (centerCheck) sanitized.centerCheck = centerCheck;
     return [sanitized];
-  }).slice(-20);
+  });
+  const recent = all.slice(-20);
+  // Keep the latest two nontrivial center receipts shareable after later background patch traffic.
+  for (const entry of all.filter(item => item.centerCheck && item.centerCheck.outcome !== "healthy").slice(-2).reverse()) {
+    if (recent.includes(entry)) continue;
+    const replace = recent.findIndex(item => !item.centerCheck);
+    if (replace < 0) break;
+    recent.splice(replace, 1); recent.unshift(entry);
+  }
+  return recent;
 }
 
 /** Path-free reason codes for an unsuccessful snapshot stream. */
@@ -333,6 +346,11 @@ export class KplexIndexedDbCache {
   private newerDatabase = false;
   private maintenanceReads = new Set<IDBTransaction>();
   private purgePromise: Promise<boolean> | null = null;
+
+  /** Read retained body-write state only; queued includes the current batch until its ordinary commit. */
+  getActivityState(): Readonly<{queuedBodies: number; writerActive: boolean}> {
+    return {queuedBodies: this.queuedBodyWrites.size, writerActive: this.bodyWriteInFlight};
+  }
 
   /** Share one connection owner. The injected checkpoint belongs to broad cache maintenance (P4);
    * caller-specific URL restore overrides it with P3 and foreground point reads never borrow it. */

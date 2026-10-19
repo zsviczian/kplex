@@ -52,7 +52,28 @@ Canvas, standard styles, custom node/link styles, style lenses, semantic colors 
 
 Zero opacity is transparent. It is different from **Default**. Changing RGB preserves the current alpha; opening an editor does not convert a reference to a fixed color. Unsupported old literals remain intact until you deliberately replace them.
 
+Theme and named-color choices open a searchable list with small Light/Dark swatches. Search for a variable name, or choose **Custom variable** to enter another CSS color variable. Your current custom variable also appears in the list with its preview. A question mark means that color could not be resolved in the preview. Choosing a swatch keeps the variable or named-color reference.
+
 In a style, lens or tint editor, **Use color** updates its local draft. Select **Save** in the containing editor to keep the change. **Cancel** discards that draft. Opening, cancelling and saving an unchanged color make no settings write.
+
+Custom node styles support **Border width**, **Gate radius** and **Font size** sliders with visible values, in pixels. Use the adjacent reset icon to inherit the base value. Zero border width hides the border. These fields are saved with the selected theme alongside the style’s colors and icon. Link style editors use the same controls for line width and label size. In the relationship-style manager, select **All relationship fields**, then search for the field you want to configure.
+
+## Tag and Note Type links
+
+Ordinary tag links use **Colors → Standard colors → Tag link**. A tag that is also
+the note's selected **Note Type** inherits that link style with twice its line
+width. Customize this separately under **Link styling → Note Type tag links**;
+the existing link editor supports colors, width, line style, arrowheads and labels.
+**Reset** restores inheritance, including the doubled width. The override belongs
+to the selected K-Plex theme and uses the same named/native color sources.
+
+Assign a tag through a connector or tag drop and choose **Tag** or **Note Type**.
+The tag stays in the note's YAML `tags` list; Note Type additionally uses the
+configured **Style property**. Replacing a different type requires an explicit
+choice; the old type can remain as an ordinary tag. Connector context menus also
+offer conversion. This does not change the ontology or create a second kind of
+indexed tag relationship. If legacy property data cannot safely be represented as
+one type/tag, edit that property before replacing it.
 
 ## Manage named colors
 
@@ -100,6 +121,17 @@ Save and Cancel remain visible while the directional-tint controls scroll. Turni
 **Tint intensity** accepts whole percentages from 0–15%. **Use default intensity** follows a theme override, then 7% in either mode. An explicit zero hides tint. Source alpha and intensity multiply, leaving text, nodes and controls at their normal opacity. Decorative tint is suppressed in forced-colors mode.
 
 For CSS snippets and theme-author tokens, see [Theming K-Plex](THEMING.md).
+
+## Settings received from another device
+
+K-Plex applies settings received through Obsidian Sync without restarting or moving
+your current Plex center. An unrelated local preference change keeps the received
+appearance. Indexing strategy changes still take effect after restarting Obsidian.
+
+If another device changes the appearance while an editor is open, K-Plex keeps
+your draft visible and asks you to reopen the editor before reapplying it. Incoming
+settings do not save themselves back. Simultaneous edits to the same settings on
+different devices remain subject to Obsidian Sync's conflict resolution.
 
 ## Labels
 

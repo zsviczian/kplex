@@ -20,7 +20,7 @@ function sourceParts() {
   visit(graph);assert(controls&&resize&&prepare&&editorResize);
   const view=ts.createSourceFile('view.tsx',readFileSync('src/ui/KplexView.tsx','utf8'),ts.ScriptTarget.Latest,true,ts.ScriptKind.TSX);
   const declaration=view.statements.find(node=>ts.isClassDeclaration(node)&&node.name.text==='BaseKplexView');
-  const methods=['onOpen','onClose'].map(name=>declaration.members.find(node=>ts.isMethodDeclaration(node)&&node.name.getText(view)===name).getText(view)).join('\n');
+  const methods=['onOpen','onClose','getState','setState'].map(name=>declaration.members.find(node=>ts.isMethodDeclaration(node)&&node.name.getText(view)===name).getText(view)).join('\n');
   return {controls,resize,prepare,editorResize,methods};
 }
 
@@ -31,11 +31,12 @@ async function bundle() {
     import React from 'react';export {createElement,useState,useEffect,useSyncExternalStore} from 'react';export {createRoot} from 'react-dom/client';export {flushSync} from 'react-dom';
     import {KplexDisplayModes,registerDisplayModeUnload} from './src/ui/KplexDisplayModes';export {KplexDisplayModes}; export {fullscreenControlInset} from './src/adapters/obsidian/fullscreenChrome'; export {Platform} from 'obsidian';
     import {ObsidianIcon} from './src/ui/ObsidianIcon';
+    import {KplexCenterPresentation} from './src/ui/KplexCenterPresentation';export {KplexCenterPresentation,centerViewSettings} from './src/ui/KplexCenterPresentation';
     export {ActionManager} from './src/application/ActionManager';export {surfaceAction} from './src/ui/surfaceActionImplementation';export {createTranslator} from './src/lang';
     export function DisplayControls({plugin,translate,displayState,fullscreenAvailable,actionSurfaceId}){return ${controls}}
     export function resizePolicy(ports){const compassSync={current:()=>false},requestCameraFrame=()=>{};const{el,displayResizePending,measuredViewport,preserveCameraOnNextLayout,displayResizeLayout,setViewportSize,centralEditorMaximized,suppressAutoFitUntil,settings,fit,colorScope}=ports;const viewport={current:el},centralEditorAvailable=true,restoreCentralEditorCamera={current:false},centralEditorRestoreCamera={current:null},applyCamera=()=>ports.applyCount++,flushCameraTransform=()=>{},activePath='Center.md',camera={current:{}},automaticFit={current:{path:activePath,camera:camera.current}},sameFitCamera=(a,b)=>a===b,fitCurrentScene={current:fit};return{update:${resize},prepare:${prepare},editor:${editorResize}}}
     const readObsidianPresentationEnvironment=()=>({device:'desktop'});
-    class NativeBase {async onOpen(){}async onClose(){}getSurface(){return'leaf'}}
+    class NativeBase {async onOpen(){}async onClose(){}getSurface(){return'leaf'}getState(){return{native:'preserved'}}async setState(){}}
     class NativeView extends NativeBase {${methods}}
     export function lifecycleView(properties){return Object.assign(new NativeView(),{root:null,windowMigrationCleanup:null,ready:false,renderGeneration:0,readyResolvers:[],displayModes:null,releaseDisplayLifecycle:null},properties)}
   `},bundle:true,write:false,platform:'browser',format:'iife',globalName:'sourceModules',plugins:[{name:'native-icons',setup(builder){builder.onResolve({filter:/^obsidian$/},()=>({path:'obsidian',namespace:'native'}));builder.onLoad({filter:/.*/,namespace:'native'},()=>({contents:`export const Platform={isWin:false,isDesktop:true};export function getIcon(name){const icon=document.createElementNS('http://www.w3.org/2000/svg','svg');icon.setAttribute('data-icon',name);return icon}`,loader:'js'}));}}]});
@@ -186,4 +187,21 @@ test('Windows fullscreen Zen keeps maximized editor controls outside native butt
     })()`);
     assert.deepEqual(result, Object.fromEntries(Object.keys(result).map(key => [key, true])));
   } finally { await host.cleanup(); }
+});
+
+test('center representation belongs to each native leaf and survives workspace restore without copying plugin settings',async()=>{
+ const host=await browser();try{assert.equal(await host.evaluate(`(async()=>{
+  const M=sourceModules;let aWrites=0,bWrites=0;
+  const initial={embedCentralNode:false,centralNodeMarkdownMode:'source',privateSetting:'must not serialize'},a=new M.KplexCenterPresentation(initial,()=>aWrites++),b=new M.KplexCenterPresentation(initial,()=>bWrites++);
+  const inherited={tagStyleList:['Topic'],tagNodeStyles:{Topic:{}}},profile=Object.assign(Object.create(inherited),initial),view=M.centerViewSettings(profile,a.getSnapshot());
+  if(view.tagStyleList!==inherited.tagStyleList||view.tagNodeStyles!==inherited.tagNodeStyles||Object.keys(view).length!==2)throw Error('Local representation lost inherited profile settings or copied unrelated fields');
+  let aEvents=0,bEvents=0;const stopA=a.subscribe(()=>aEvents++),stopB=b.subscribe(()=>bEvents++);
+  a.update({embedCentralNode:true,centralNodeMarkdownMode:'preview'});if(b.getSnapshot().embedCentralNode||b.getSnapshot().centralNodeMarkdownMode!=='source'||aWrites!==1||bWrites||bEvents)throw Error('Representation leaked into another leaf');
+  const first=M.lifecycleView({centerPresentation:a}),saved=JSON.parse(JSON.stringify(first.getState()));if(saved.native!=='preserved'||Object.keys(saved.centerPresentation).length!==2)throw Error('Workspace copied unrelated settings');
+  const restored=new M.KplexCenterPresentation(initial,()=>{throw Error('Restore wrote layout')}),second=M.lifecycleView({centerPresentation:restored});await second.setState(saved,{});
+  if(!restored.getSnapshot().embedCentralNode||restored.getSnapshot().centralNodeMarkdownMode!=='preview')throw Error('Workspace mode lost');
+  const snapshot=a.getSnapshot();a.update({embedCentralNode:true});if(a.getSnapshot()!==snapshot||aWrites!==1)throw Error('Unchanged mode wrote layout');
+  b.restore({embedCentralNode:'future',centralNodeMarkdownMode:'future'});if(bEvents||bWrites||b.getSnapshot().embedCentralNode)throw Error('Unsupported mode changed another leaf');
+  stopA();stopB();a.update({embedCentralNode:false});if(aEvents!==1||bEvents)throw Error('Retired React subscriber retained');return true;
+ })()`),true)}finally{await host.cleanup()}
 });

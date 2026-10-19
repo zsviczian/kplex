@@ -133,7 +133,8 @@ assert(newRelatedSource.includes("this.releaseDesktopDrag?.()"), "Add-related mo
 assert(draggableDialogSource.includes('ownerDocument.addEventListener("pointermove", onPointerMove, true)'), "Dialog drag must capture active pointer moves in the owning document before the Plex can pan");
 assert(draggableDialogSource.includes('ownerWindow.addEventListener("pagehide", cleanup)'), "Dialog drag must clean itself up when its owning desktop/pop-out window tears down");
 assert(ghostModalSource.includes('this.scope.register(["Mod"], "Enter"'), "Ghost materialization must support the same Ctrl/Cmd+Enter default action as create-related");
-assert(ghostModalSource.includes('setName(this.translate("common.location"))'), "Ambiguous ghost destinations must expose a localized location dropdown");
+assert(ghostModalSource.includes('setName(this.translate("folderPicker.label"))') && ghostModalSource.includes('createElement(MaterializationFolderInput') && ghostModalSource.includes('setClass("kplex-materialize-folder-row")'), "Ghost destinations must reuse the localized full-width folder field");
+assert(!ghostModalSource.includes('"ghost.locationConflictHelp"') && !ghostModalSource.includes('"folderPicker.help"'), "The requested compact folder row must not restore the removed guidance");
 assert(ghostModalSource.includes('setButtonText(this.translate("common.excalidraw"))'), "Ghost materialization must offer localized Excalidraw copy when the integration is available");
 assert(!appSource.includes('void plugin.openSidecar(hostLeaf, page);'), "React mount must not create a sidecar during startup restore; plugin-level restore owns re-association");
 assert(appSource.includes("plugin.isStartupInitializing() && plugin.settings.lastActivePath"), "A restored K-Plex view must keep its persisted center while Obsidian startup tab ordering is unstable");
@@ -291,7 +292,7 @@ assert(mainSource.includes("element.classList.add(\"kplex-linked-leaf-alert\")")
 assert(!mainSource.includes("element.style.flexBasis"), "Sidecar footprint restoration must use Obsidian DOM style helpers rather than direct style mutation");
 assert(!mainSource.includes("tabHeaderForLeaf"), "Linked-tab feedback cleanup must not retain the obsolete tab-header bridge");
 assert(mainSource.includes("viewWindow.requestAnimationFrame"), "Sidecar/link UI scheduling should use the target leaf window for pop-out compatibility");
-const createGhostStart = mainSource.indexOf("  async createGhostNote(page: GraphPage)");
+const createGhostStart = mainSource.indexOf("  async createGhostNote(page: GraphPage, chooseFolder = false, preserveCenter = false)");
 const createGhostSource = mainSource.slice(createGhostStart);
 assert(createGhostSource.includes("ghostCreationLocations(page, validation.stem)"), "Ghost creation must resolve destinations from the graph rather than defaulting to vault root");
 assert(!createGhostSource.includes("rebuildIndex("), "Materializing a ghost node must not trigger a full graph rebuild");
@@ -324,10 +325,10 @@ assert(createFolderNoteModalSource.includes('nameSetting.settingEl.addClass("kpl
 assert(createFolderNoteModalSource.includes('this.scope.register(["Mod"], "Enter"'), "Folder creation must use the shared Ctrl/Cmd+Enter create default");
 assert(createFolderNoteModalSource.includes('this.plugin.settings.newNodeDefaultType'), "Folder creation must share the create-child Markdown/Excalidraw default");
 assert(!createFolderNoteModalSource.includes("addRelated.createPlaceholder"), "Folder creation must not offer a placeholder because folders require real files");
-assert(plexGraphSource.includes('const folderChildCreation = node.page.isFolder && gate === "bottom"'), "A folder child gate must be a valid creation drag origin");
-assert(plexGraphSource.includes('if (origin?.isFolder && drag.gate === "bottom")'), "Releasing a dragged folder child gate must open file-only folder creation");
+assert(plexGraphSource.includes('if (event.button !== 0 || node.page.transient) return;'), "Persistent tag and physical folder gates must remain valid structural drag origins");
+assert(plexGraphSource.includes('drag.moved && drag.gate === "bottom" && !target'), "Only an empty-space folder child-gate drop starts file creation");
 assert(thoughtNodeSource.includes('translate("node.gateFolderChild")'), "Folder child gates must explain their creation gesture through localized copy");
-assert(plexGraphSource.includes("plugin.openCreateInFolderModal(target, hostLeaf)"), "Dropping a regular note gate on a folder may continue to start the secondary file-only folder flow");
+assert(plexGraphSource.includes("plugin.openStructuralNodeDrop(origin, target)"), "Dropping a physical node gate onto a folder must use native move confirmation");
 assert(mainSource.includes("createNewNodeInFolder(folder: GraphPage"), "Folder creation must materialize directly in the selected folder");
 assert(newRelatedSource.includes('className: "kplex-add-related-control-row"'), "Ontology and open-for-editing controls must share the first responsive row");
 assert(newRelatedSource.includes('className: "kplex-add-related-compose-row"'), "Name search and create/link actions must share the second row");
@@ -350,7 +351,7 @@ assert(!plexFilterSource.includes('"renderAlias"'), "Display aliases is presenta
 assert(plexFilterSource.indexOf('translate("filter.nodeOrder")') < plexFilterSource.indexOf('translate("filter.quickLens")'), "Node order must precede Quick lens");
 assert(plexFilterSource.indexOf('translate("filter.quickLens")') < plexFilterSource.indexOf('translate("filter.graphLenses")'), "Quick lens must precede Graph lenses");
 assert(plexFilterSource.includes("data-kplex-long-press-tooltip"), "Filter toggles must expose touch-friendly tooltips");
-assert(newRelatedSource.includes('{ value: "previous", label: this.plugin.translator("role.previous") }') && newRelatedSource.includes('{ value: "next", label: this.plugin.translator("role.next") }'), "Add-note relationship dropdown must include localized previous and next labels");
+assert(newRelatedSource.includes('["previous", "role.previous"]') && newRelatedSource.includes('["next", "role.next"]') && newRelatedSource.includes('plugin.translator(key)'), "Add-note relationship dropdown must include localized previous and next labels");
 assert(newRelatedSource.includes('className: "kplex-create-alias-input"'), "Add-note dialog must retain its optional alias editor");
 assert(plexGraphSource.includes('.setTitle(translate("graph.addNote"))'), "Node context menus must expose localized Add note copy");
 assert(plexGraphSource.includes("TOUCH_GATE_LONG_PRESS_MS"), "Touch gate long-press must enter relationship drag mode");
@@ -360,12 +361,12 @@ assert(stylesSource.includes("min-inline-size: 14px") && stylesSource.includes("
 assert(mainSource.includes("showKplexMenuAtPosition") && mainSource.includes("kplexMenuOutsidePointerDown"), "K-Plex context menus must be centrally dismissed by outside pointer input");
 assert(longPressTooltipSource.includes("event.stopImmediatePropagation()"), "Completed long presses must consume the synthesized button click");
 assert(longPressTooltipSource.includes("showTooltip(activeTarget)"), "Completed long presses must show the active control tooltip");
-const placeholderPathStart = mainSource.indexOf("  private placeholderPath(stem: string)");
+const placeholderPathStart = mainSource.indexOf('  private placeholderPath(stem: string, folderPath = "")');
 const placeholderPathEnd = mainSource.indexOf("  async createPlaceholderRelatedPage(", placeholderPathStart);
 assert(placeholderPathStart >= 0 && placeholderPathEnd > placeholderPathStart);
 const placeholderPathSource = mainSource.slice(placeholderPathStart, placeholderPathEnd);
-assert(placeholderPathSource.includes("return stem.trim()"), "New placeholders must use only their unresolved note name as identity");
-assert(!placeholderPathSource.includes("getNewFileParent"), "A placeholder must not receive a physical folder before it is materialized");
+assert(placeholderPathSource.includes('`${folderPath}/${stem.trim()}`'), "Explicit placeholder destinations must survive in the unresolved link identity");
+assert(!placeholderPathSource.includes("createFolder"), "A placeholder destination must not manufacture physical folders");
 
 globalThis.window = globalThis;
 
@@ -422,6 +423,7 @@ for (const file of [
   "src/core/graph/settingsPolicy.ts",
   "src/core/contracts/appearance.ts",
   "src/core/contracts/colorValue.ts",
+  "src/core/contracts/centerRecovery.ts",
   "src/core/plex/colorPreferences.ts",
   "src/core/plex/compassBackground.ts",
   "src/core/plex/colorEditing.ts",
@@ -446,6 +448,8 @@ for (const file of [
   "src/adapters/obsidian/embeddedMarkdownLeaf.ts",
   "src/adapters/obsidian/EmbeddedDrawingFit.ts",
   "src/ui/components/viewportFit.ts",
+  "src/ui/structuralConnectionActions.ts",
+  "src/adapters/obsidian/tagMembership.ts",
   "src/adapters/obsidian/embeddedMarkdownFocus.ts",
   "src/adapters/obsidian/externalUrl.ts",
   "src/adapters/obsidian/indexDiagnosticsReport.ts",
@@ -456,9 +460,15 @@ for (const file of [
   "src/adapters/obsidian/metadataSourceCollector.ts",
   "src/adapters/obsidian/relationshipMetadataWrite.ts",
   "src/adapters/obsidian/settingsNavigation.ts",
+  "src/adapters/obsidian/settingsReconciliation.ts",
+  "src/adapters/obsidian/savedSettingsRefresh.ts",
+  "src/adapters/obsidian/settingsInput.ts",
   "src/adapters/obsidian/hiddenPropertyName.ts",
   "src/ui/StyleEditorModal.ts",
+    "src/ui/OntologyFieldControl.ts",
+    "src/ui/components/textSettingDraft.ts",
   "src/ui/ColorSourceModal.ts",
+  "src/ui/ColorSourceSuggest.ts",
   "src/ui/CompassSettingsModal.tsx",
   "src/ui/ColorPaletteModal.ts",
   "src/ui/ColorPairModal.ts",
@@ -466,6 +476,7 @@ for (const file of [
   "src/ui/AppearanceThemesModal.ts",
   "src/ui/StyleManagerList.ts",
   "src/ui/StyleColorControls.ts",
+  "src/ui/styleNumberSlider.ts",
   "src/ui/StyleSwatchScope.ts",
   "src/adapters/obsidian/colorChanges.ts",
   "src/ui/ColorLiteralEditor.ts",
@@ -525,6 +536,7 @@ for (const file of [
   "src/core/plex/actionPreferences.ts",
   "src/core/plex/typographyPreferences.ts",
   "src/application/ActionManager.ts",
+  "src/application/IndexingActivity.ts",
   "src/application/SessionEventRecorder.ts",
   "src/application/supportClipboard.ts",
   "src/application/supportReport.ts",
@@ -536,6 +548,7 @@ for (const file of [
   "src/adapters/obsidian/actionCommands.ts",
   "src/adapters/obsidian/actionNode.ts",
   "src/adapters/obsidian/relatedFileOutcome.ts",
+  "src/adapters/obsidian/placeholderRelocation.ts",
   "src/ui/actionPresentation.ts",
   "src/ui/layout.ts",
   "src/ui/components/collectionWindow.ts",
@@ -665,6 +678,7 @@ for (const [path, name] of [
   ["src/ui/NewRelatedNoteModal.js", "NewRelatedNoteModal"],
   ["src/ui/MaterializeGhostModal.js", "MaterializeGhostModal"],
   ["src/ui/CreateFolderNoteModal.js", "CreateFolderNoteModal"],
+  ["src/ui/StructuralNodeDropActions.js", "StructuralNodeDropActions"],
   ["src/editor/OntologySuggester.js", "OntologySuggester"],
   ["src/ui/AddToOntologyModal.js", "AddToOntologyModal"],
   ["src/ui/NoteTypeModal.js", "NoteTypeModal"],
@@ -819,6 +833,78 @@ const KplexPlugin = require(join(temp, "src/main.js")).default;
     getIndexStatus: () => { throw new Error("Clipboard report must not enumerate the vault"); },
   });
   assert.deepEqual(readyStatus, { upToDate: true, phase: "ready", indexedFiles: 8, totalFiles: null });
+  let readinessWrites = 0;
+  const passive = {
+    cachedMarkdownFileCount: null,
+    computeIndexStatusFacts: KplexPlugin.prototype.computeIndexStatusFacts,
+    initialIndexComplete: true, indexDirty: false, rebuildTask: null, rebuildTimer: null,
+    index: { isOnDemandMode: () => false, hasPendingSnapshotHydration: () => false,
+      hasPendingSemanticPreparation: () => false, hasPendingSearchVocabulary: () => false,
+      indexedMarkdownFileCount: () => 8, getSnapshotHydrationDiagnostics: () => null,
+      getSourceAcquisitionCounters: () => null, getSemanticPreparationDiagnostics: () => null },
+    startupDiagnostics: { finish() { readinessWrites++; }, snapshot: () => ({ phases: [] }), progress: () => null },
+    app: { vault: { getMarkdownFiles() { throw new Error("Passive diagnostics must not enumerate files"); } } },
+  };
+  KplexPlugin.prototype.getIndexDiagnosticsStatus.call(passive);
+  KplexPlugin.prototype.getStartupDiagnostics.call(passive);
+  assert.equal(readinessWrites, 0, "Both diagnostic readers preserve strict-readiness observations");
+  passive.computeIndexStatusFacts(8);
+  assert.equal(readinessWrites, 1, "Ordinary product readiness retains its existing completion boundary");
+}
+
+// Explicit report capture projects actual scalar facts once and tolerates independent optional failures.
+{
+  const facts = { mode: "on-demand", urls: "background", pacing: "responsive", current: [3, null, 1] };
+  const owned = Object.freeze({ status: "active" });
+  let healthReads = 0, captured;
+  const context = {
+    index: { getIndexingActivityFacts() { healthReads++; return facts; } },
+    startupDiagnostics: { captureActivity(...args) { captured = args; return owned; } },
+    app: new Proxy({}, { get() { throw new Error("Activity capture must not consult host state"); } }),
+  };
+  assert.equal(KplexPlugin.prototype.captureIndexingActivity.call(context), owned);
+  assert.equal(healthReads, 1);
+  assert.deepEqual(captured, ["on-demand", "background", "responsive", "source-archive", 3, null, 1]);
+  assert.deepEqual(facts.current, [3, null, 1], "Capture does not mutate the health owner's array");
+  context.index.getIndexingActivityFacts = () => { throw new Error("Optional health unavailable"); };
+  assert.equal(KplexPlugin.prototype.captureIndexingActivity.call(context), owned);
+  assert.deepEqual(captured, [undefined, undefined, undefined, "source-archive"], "Retained activity survives unavailable health");
+  context.startupDiagnostics.captureActivity = () => { throw new Error("Optional recorder unavailable"); };
+  assert.equal(KplexPlugin.prototype.captureIndexingActivity.call(context), null);
+  context.startupDiagnostics = undefined;
+  assert.equal(KplexPlugin.prototype.captureIndexingActivity.call(context), null);
+}
+
+// Copy Index Diagnostics selects and retains the invoking window before its first await.
+{
+  const descriptors = Object.fromEntries(["navigator", "activeWindow"].map(key => [key, Object.getOwnPropertyDescriptor(window, key)]));
+  let mainWrites = 0, popoutWrites = 0, captures = 0, release;
+  const context = {
+    manifest: { version: "0.1.3" }, translator: () => "Copied",
+    captureIndexingActivity() { captures++; return null; },
+    getIndexDiagnosticsStatus: () => ({ upToDate: true, phase: "ready", indexedFiles: 0, totalFiles: null }),
+    index: { size: 0, getSavedSnapshotSummary: () => null, indexedMarkdownFileCount: () => 0,
+      isFullSnapshotHydrated: () => false, getSnapshotHydrationDiagnostics: () => null,
+      getIndexDiagnostics: () => [] },
+  };
+  try {
+    Object.defineProperty(window, "navigator", { configurable: true, value: { clipboard: { writeText() { mainWrites++; return Promise.resolve(); } } } });
+    Object.defineProperty(window, "activeWindow", { configurable: true, writable: true, value: {
+      navigator: { clipboard: { writeText(text) { popoutWrites++; assert.equal(JSON.parse(text).formatVersion, 1); return new Promise(resolve => { release = resolve; }); } } },
+    } });
+    const pending = KplexPlugin.prototype.copyIndexDiagnostics.call(context);
+    assert.equal(popoutWrites, 1, "Invoking popout writes synchronously before any await");
+    assert.equal(mainWrites, 0, "Main clipboard remains untouched for a distinct popout capability");
+    window.activeWindow = window;
+    release(); await pending;
+    assert.equal(popoutWrites, 1, "A later active-window change cannot duplicate or redirect the accepted copy");
+    await KplexPlugin.prototype.copyIndexDiagnostics.call(context);
+    assert.equal(mainWrites, 1); assert.equal(captures, 2, "Each invocation captures exactly once");
+  } finally {
+    for (const [key, descriptor] of Object.entries(descriptors)) {
+      if (descriptor) Object.defineProperty(window, key, descriptor); else delete window[key];
+    }
+  }
 }
 
 // URL selection must not replace a companion with Obsidian's missing-plugin placeholder.
@@ -1035,6 +1121,7 @@ assert.equal(indexingStatusContext.markdownFileCountReads, 1, "Progress publicat
   };
   statusMembershipCoordinator.index = { isOnDemandMode: () => false,
     hasLocalBaseline: () => false,
+    hasPhysicalBaseline: () => false,
     getUrlIndexProgress: () => ({ active: false, failed: false, processed: 0, total: 0 }),
     invalidateHostStructure: () => { structuralInvalidations += 1; },
     size: 10,
@@ -1559,6 +1646,35 @@ for (const { inventoryRevision, fresh, remainsDirty } of [
   assert.deepEqual([...startup.dirtyMarkdownPaths], ["Note A.md"]);
 }
 
+// Sidecar restore can await after a visible view has already completed local initialization.
+// Later restore classification must queue actual reconciliation without clearing newer events.
+for (const { visible, unloading, complete, dirty, expected } of [
+  { visible: true, unloading: false, complete: true, dirty: true, expected: 1 },
+  { visible: false, unloading: false, complete: true, dirty: true, expected: 0 },
+  { visible: true, unloading: true, complete: true, dirty: true, expected: 0 },
+  { visible: true, unloading: false, complete: false, dirty: true, expected: 0 },
+  { visible: true, unloading: false, complete: true, dirty: false, expected: 0 },
+]) {
+  const startup = new KplexPlugin();
+  startup.initialIndexTask = Promise.resolve();
+  startup.initialIndexComplete = complete;
+  startup.layoutReady = true;
+  startup.indexDirty = dirty;
+  startup.unloading = unloading;
+  startup.hasVisibleKplexSurface = () => visible;
+  startup.indexBacklogReasons.add("startup:no-snapshot");
+  startup.indexBacklogReasons.add("metadata:changed");
+  startup.dirtyMarkdownPaths.add("Note A.md");
+  const scheduled = [];
+  startup.scheduleRebuild = reason => { scheduled.push(reason); };
+  await startup.finishStartupIndexPreparation();
+  assert.equal(scheduled.length, expected, "Only visible, complete, live startup queues its outstanding backlog");
+  if (expected) assert.deepEqual(scheduled, ["startup:post-initial-backlog"]);
+  assert.equal(startup.indexDirty, dirty, "Queueing is not proof that the backlog has been reconciled");
+  assert.deepEqual([...startup.indexBacklogReasons], ["startup:no-snapshot", "metadata:changed"]);
+  assert.deepEqual([...startup.dirtyMarkdownPaths], ["Note A.md"], "A newer source edit must remain queued");
+}
+
 // Source progress is a startup authority independently of optional full-graph hydration.
 for (const adopted of [true, false]) {
   const startup = new KplexPlugin();
@@ -1816,7 +1932,15 @@ try {
   };
   applyTypographySceneDelta("width", typographyWidths);
   applyTypographySceneDelta("x", typographyPositions);
-  assert.deepEqual(baseline, frozenBaseline, "Exact compatibility except approved URL, default Date-role and density-independent label geometry deltas");
+  // Explicit product change: only the two archived tag-backed Note Type connectors double width.
+  // All indexed facts, evidence, classification, search results and other scene fields stay exact.
+  for (const [source, target] of [["Note A.md", "tag:project"], ["tag:project", "Note C.md"]]) {
+    const edges = frozenBaseline.scene.edges.filter(edge => edge.sourcePath === source && edge.targetPath === target && edge.typeDefinition === "tag-tree");
+    assert.equal(edges.length, 1, "One exact archived Note Type tag edge");
+    assert.deepEqual(edges[0].style, {}, "Unreviewed archived Note Type tag styling");
+    edges[0].style = {strokeWidth: 2.4};
+  }
+  assert.deepEqual(baseline, frozenBaseline, "Exact compatibility except approved URL, Date-role, label geometry and two Note Type stroke-width deltas");
 
   // A new Markdown file may arrive after the last complete snapshot and before the five-minute
   // edit idle write. Warm startup must reuse that snapshot and ingest only the new source.
@@ -4504,11 +4628,12 @@ try {
     const edgeJs = ts.transpileModule(plexGraphSource.slice(markerStart, markerEnd) + plexGraphSource.slice(edgeStart, edgeEnd), {
       compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.None, jsx: ts.JsxEmit.React },
     }).outputText;
-    const Edge = new Function("React", "LinkDirection", "gatesForEdge", "gatePoint", "edgeGeometry", "alphaHexToCss", "relationLabel", "NATIVE_LINK_STROKE", "NATIVE_LINK_TEXT", `${edgeJs}; return Edge;`)(
+    const Edge = new Function("React", "LinkDirection", "gatesForEdge", "gatePoint", "edgeGeometry", "alphaHexToCss", "relationLabel", "NATIVE_LINK_STROKE", "NATIVE_LINK_TEXT", "DEFAULT_RENDERED_LINK_WIDTH", `${edgeJs}; return Edge;`)(
       { createElement: (type, props, ...children) => ({ type, props, children }) }, LinkDirection,
       () => ({ source: "left", target: "right" }), () => ({ x: 0, y: 0 }),
       () => ({ d: "M0 0L1 1", midpoint: { x: 0, y: 0 } }), value => value, value => value,
       require(join(temp, "src/index/style.js")).NATIVE_LINK_STROKE, require(join(temp, "src/index/style.js")).NATIVE_LINK_TEXT,
+      require(join(temp, "src/index/style.js")).DEFAULT_RENDERED_LINK_WIDTH,
     );
     try {
       assert.equal(await arrowIndex.rebuild(), true);

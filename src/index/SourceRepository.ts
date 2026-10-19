@@ -386,6 +386,10 @@ export class NeutralSourceRepository {
   getDiagnostics(): SourceRepositoryDiagnostics {
     return sanitizeSourceRepositoryDiagnostics({ ...this.diagnostics, activated: this.knownHeads.size, unsaved: this.unsaved.size });
   }
+  /** Passive admitted writer-lane/delete-task counts; no storage open, transaction or queue drainage. */
+  getActivityState(): Readonly<{writes: number; deleteTask: boolean}> {
+    return {writes: this.lanes.size, deleteTask: this.deleteTask !== null};
+  }
   /** Reject local writes/evictions before consulting a disk-only closed-world certificate. */
   private dependencyAvailable(current: () => boolean): void {
     if (this.closed || !current()) throw new SourceFactError("cancelled");

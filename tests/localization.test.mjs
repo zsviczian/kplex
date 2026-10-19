@@ -360,6 +360,7 @@ test("SearchBox React consumer forwards localized copy into its input surface", 
     writeFileSync(reactPath, `
 exports.useState = (initial) => [initial, () => {}];
 exports.useMemo = (factory) => factory();
+exports.useCallback = (callback) => callback;
 `);
     writeFileSync(jsxRuntimePath, `
 exports.jsx = (type, props) => ({ type, props });

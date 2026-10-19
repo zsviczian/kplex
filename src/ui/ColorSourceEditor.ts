@@ -16,6 +16,7 @@ export type ColorSourceEditorOptions = Readonly<{
   preferences: (draftSource?: ColorValue) => ColorPreferencesV1;
   themeTokens: readonly Readonly<{ variable: string; label: string }>[];
   chooseNamed: (chosen: (pair: SemanticColorPair) => void) => () => void;
+  chooseTheme: (current: string, chosen: (variable: string | null) => void) => () => void;
   fixedSeed: (source: ColorValue | undefined) => string;
   onChange: () => void;
   onPreview: (source: ColorValue | undefined, finishedThemeName: boolean) => void;
@@ -30,7 +31,8 @@ export class ColorSourceEditor {
   private readonly namedPane: HTMLElement;
   private readonly themePane: HTMLElement;
   private readonly namedButton: HTMLButtonElement;
-  private readonly tokens: HTMLSelectElement;
+  private readonly tokens: HTMLButtonElement;
+  private customVariable = false;
   private readonly variable: HTMLInputElement;
   private readonly feedback: HTMLElement;
   private readonly validationRoot: HTMLElement;
@@ -69,11 +71,8 @@ export class ColorSourceEditor {
       });
     });
     const themeLabel = this.themePane.createEl("label", { text: t("colors.theme") });
-    this.tokens = themeLabel.createEl("select", {cls: "dropdown"});
-    this.tokens.createEl("option", { text: t("colors.chooseTheme"), attr: { value: "" } });
-    for (const token of options.themeTokens) this.tokens.createEl("option", { text: token.label, attr: { value: token.variable } });
-    this.tokens.createEl("option", { text: t("colors.advanced"), attr: { value: "custom" } });
-    this.tokens.value = options.themeTokens.some(token => token.variable === this.themeName) ? this.themeName : this.themeName ? "custom" : "";
+    this.tokens = themeLabel.createEl("button", {cls: "kplex-theme-color-choice", attr: {type: "button"}});
+    this.customVariable = !!this.themeName && !options.themeTokens.some(token => token.variable === this.themeName);
     const variableLabel = this.themePane.createEl("label", { text: t("colors.variableName") });
     this.variable = variableLabel.createEl("input", { attr: { type: "text", spellcheck: "false", autocomplete: "off", maxlength: "128" } });
     this.variable.value = this.themeName;
@@ -90,10 +89,15 @@ export class ColorSourceEditor {
       if (kind === "fixed" && !this.literal) this.mountLiteral(typeof initial === "string" ? initial : options.fixedSeed(previous));
       this.refresh(kind === "theme");
     });
-    this.tokens.addEventListener("change", /** Curated selections are complete names; advanced entry keeps its independent text draft. */ () => {
+    this.tokens.addEventListener("click", /** Native search shows swatches; custom entry keeps its independent text draft. */ () => {
       if (!this.editable()) return;
-      if (this.tokens.value !== "custom") { this.themeName = this.tokens.value; this.variable.value = this.themeName; }
-      this.refresh(this.tokens.value !== "custom");
+      this.releaseChooser?.(); this.releaseChooser = options.chooseTheme(this.themeName, variable => {
+        if (!this.editable()) return;
+        this.customVariable = variable === null;
+        if (variable !== null) {this.themeName = variable; this.variable.value = variable;}
+        this.refresh(variable !== null);
+        if (variable === null) this.variable.focus();
+      });
     });
     this.variable.addEventListener("compositionstart", /** Do not sample partial IME names. */ () => { if (this.editable()) { this.composing = true; options.onChange(); } });
     this.variable.addEventListener("compositionend", /** Revalidate the complete case-sensitive name without rewriting its text. */ () => { if (this.editable()) { this.composing = false; this.themeName = this.variable.value; this.refresh(true); } });
@@ -128,7 +132,8 @@ export class ColorSourceEditor {
       this.validatedSource = reference; this.validatedPreferences = preferences;
     }
     this.fixedPane.toggle(this.kind === "fixed"); this.namedPane.toggle(this.kind === "named"); this.themePane.toggle(this.kind === "theme");
-    this.variable.parentElement?.toggle(this.tokens.value === "custom");
+    this.variable.parentElement?.toggle(this.customVariable);
+    this.tokens.setText(this.themeName || this.options.translate("colors.chooseTheme"));
     this.namedButton.setText(colorIdentityText({ kind: "palette", id: this.namedId }, this.options.preferences().palette) || this.options.translate("colors.chooseNamed"));
     this.variable.setAttribute("aria-invalid", String(this.kind === "theme" && !this.isValid()));
     this.feedback.setText(this.kind !== "unsupported" && this.isValid() && !this.validation.getIssues().some(issue => colorValuesEqual(issue.source, value)) ? "" : this.options.translate("colors.invalidSource"));
@@ -138,7 +143,7 @@ export class ColorSourceEditor {
   /** Cancel only owned local UI resources; an enclosing submitted disk operation keeps its independent lifetime. */
   dispose(): void { if (!this.alive) return; this.alive = false; this.releaseChooser?.(); this.literal?.dispose(); this.validation.dispose(); this.validationRoot.remove(); this.root.remove(); }
   /** Native callbacks cannot alter a retired or pending source draft. */
-  private editable(): boolean { return this.alive && !this.disabled; }
+  private editable(): boolean { return this.alive && !this.disabled && !this.selector.disabled; }
   /** The same literal field serves fixed sources and both variants of the palette editor. */
   private mountLiteral(initial: string): void {
     const t = this.options.translate;

@@ -1,4 +1,6 @@
 /**
+ * One transient empty-folder create can join a known file resolver wave only under a complete
+ * physical owner's pre-insertion proof; bounded native membership never replaces source validation.
  * Obsidian-owned neutral acquisition and inventory reconciliation. Physical parser inputs and lexical
  * references have a different lifetime from host target resolution. This adapter uses the existing
  * parser/Date collector/host resolver, never semantic settings or custom path guessing. It owns its
@@ -34,10 +36,13 @@
  * input left by cancelled foreground work; ambiguous revisions and observed edits still force I/O.
  * Restart metadata I/O rechecks background admission before fencing a source, allowing an active
  * foreground parser to finish its current input instead of abandoning it before the cache write.
+ * Requested readonly center previews reuse this body loader and its native/cache/parser fences,
+ * queueing optional parser persistence without acquiring neutral-source or semantic authority.
  */
 import { yieldToHostTask } from "./yieldToHostTask";
 import { canonicalTagPaths } from "../../core/graph/tagPaths";
 import type { StartupDiagnostics } from "./startupDiagnostics";
+import type { ActivityReason, ActivitySourceWork } from "../../application/IndexingActivity";
 import { Platform, TFile, TFolder, type App, type CachedMetadata } from "obsidian";
 import type { GraphCompilerRuntime, NormalizedGraphCompiler, CompiledGraphNode } from "../../core/graph/compiler";
 import { estimateReferenceRecordBytes, sourceRevision, acceptSourceBatch, beginSourceRead, sourceReadCanPublish, type NormalizedSourceBatch,
@@ -72,6 +77,11 @@ import { resolveObsidianReferenceTarget } from "./ontologySourceCollector";
 type FileObservation = { identity: string | null; observation?: SourceObservation; validatedHostRevision?: number; revision: number; dirty: boolean; bodyDirty: boolean; resolutionDirty: boolean; path: string; oldPath?: string; created: boolean; impact: Promise<void> | null };
 type SourceCoordinates = Readonly<{ order: number; markdownOrder: number }>;
 type Capture = { physical: SourcePhysical; revision: number; hostRevision: number; state: FileObservation; file: TFile };
+/** One short native create wave; never a retained folder catalog or durable source certificate. */
+type EmptyFolderCreateWave = {
+  folder: TFolder; path: string; parent: TFolder; parentPath: string; openedAt: number; lastCauseAt: number;
+  hostRevision: number; members: Map<TFile, string>; current: (() => boolean) | null; invalidate: (() => void) | null;
+};
 /** Narrow parser port: acquisition does not import GraphBuilder or own a second parser. */
 export type SourceBodyParser = (content: string, backgroundCheckpoint?: () => Promise<void>) => Promise<ParsedBodyMetadata>;
 /** Exact pair lifetime rechecks finite captured host tokens; it grants no global source authority. */
@@ -88,9 +98,10 @@ export type SourceAcquisitionResult = Readonly<{ current: boolean; saved: boolea
 /**
  * Native Obsidian file events are followed by metadata:resolved within the same short resolver wave.
  * The timer is only a bounded stale-token retirement guard; coverage still requires an observed,
- * fully known TFile wave and is consumed by the first resolved event.
+ * fully known TFile wave or a separately qualified empty-folder create, consumed by the first close.
  */
 const KNOWN_RESOLVER_WAVE_RETIRE_MS = 50;
+const EMPTY_FOLDER_CREATE_MAX_MEMBERS = 32;
 /** Retry transient local dependency fences quickly, then back off instead of polling in a tight loop. */
 const DEFERRED_RESOLUTION_RETRY_MIN_MS = 350;
 const DEFERRED_RESOLUTION_RETRY_MAX_MS = 30000;
@@ -175,6 +186,13 @@ export class ObsidianSourceAcquisition {
   /** Retires a known wave if the host never emits its traced closing resolved event. */
   private resolverWaveTimer: number | null = null;
   private resolverWaveGeneration = 0;
+  /** Bounded until the existing resolver deadline; qualification comes from the physical owner. */
+  private emptyFolderCreateWave: EmptyFolderCreateWave | null = null;
+  /** Finite coarse observations only; no event/source identities enter diagnostic history. */
+  private resolverWaveExpired = false;
+  private resolverCloseObserved = false;
+  private resolverActivityReason: ActivityReason = "unscoped-resolved";
+  private activityGlobalReason: ActivityReason | null = null;
   /** One coalesced retry clock keeps transient deferred local fan-out live without a per-event queue. */
   private deferredResolutionRetryTimer: number | null = null;
   private deferredResolutionRetryDelay = DEFERRED_RESOLUTION_RETRY_MIN_MS;
@@ -231,6 +249,14 @@ export class ObsidianSourceAcquisition {
   }
   /** Keep immutable copies of aggregate counters suitable for a native read/parser reuse probe. */
   getCounters(): SourceAcquisitionCounters { return { ...this.counters }; }
+  /** Trusted diagnostic boundary port: read existing numeric counters without copying or retaining owners. */
+  getActivityCounters(): ActivitySourceWork { return this.counters; }
+  /** Read only existing collection sizes/task flags; never request source work or inspect a file. */
+  getActivityState(): Readonly<{pendingKnown: number; knownImpactTasks: number; sourceActive: number; repoWrites: number; repoDeleteTask: number}> {
+    const repository = this.repository.getActivityState();
+    return {pendingKnown: this.pendingKnownFiles.size, knownImpactTasks: this.knownImpactTasks, sourceActive: Number(this.inventory !== null),
+      repoWrites: repository.writes, repoDeleteTask: Number(repository.deleteTask)};
+  }
   /** The repository independently sanitizes all persistent diagnostic fields. */
   getDiagnostics(): SourceRepositoryDiagnostics { return this.repository.getDiagnostics(); }
   /** Subscribe before asynchronous acquisition; pure graph no-ops never suppress this fence. */
@@ -238,21 +264,33 @@ export class ObsidianSourceAcquisition {
     if (this.started || this.closed) return;
     this.started = true;
     this.epoch = this.repository.createIdentity();
-    /** Observe host changes before scheduling acquisition. Known file events use source-local fan-out;
-     * only an unscoped resolver wave advances the global host fence. */
+    /**
+     * Observe each native change before ordinary acquisition/fan-out. A closing resolver event
+     * consumes one proven native wave or retains the existing global uncertainty path.
+     * @param file A real source owner; absent for folder/non-file activity and resolver closes.
+     * @param created Allocate the ordinary new native source identity and mark its body dirty.
+     * @param oldPath Preserve prior aliases/path incidence through the existing rename owner.
+     * @param bodyChanged Invalidate a modified file's parser input without inventing new identity.
+     * @param kind The unchanged source/environment/resolver journal classification.
+     * @param createdFolder Only the actual Vault:create folder event may open a bounded candidate;
+     * the separate complete graph owner must still qualify its pre-insertion absence.
+     */
     const changed = (file?: TFile, created = false, oldPath?: string, bodyChanged = false,
-      kind: ContributorHostChange["kind"] = "source"): void => {
+      kind: ContributorHostChange["kind"] = "source", createdFolder?: TFolder): void => {
       const effectiveKind = created || oldPath ? "topology" : kind;
       if (!file && effectiveKind === "resolution") {
         // Obsidian 1.14.4 closes ordinary create/rename/modify/delete waves with metadata:resolved.
-        // Consume exactly one fully known TFile wave without globalizing it. A resolved event with
-        // no live token, or one preceded by folder/non-file activity, remains the uncertain lane.
+        // Consume exactly one fully known native wave without globalizing it. Folder coverage
+        // additionally requires the complete physical owner's bounded pre-insertion proof.
         if (this.consumeKnownResolverWave()) return;
-        this.markContributorHostChange("resolution", true);
+        this.markContributorHostChange("resolution", true, this.resolverActivityReason);
         this.requestInventory();
         return;
       }
-      this.noteResolverWaveCause(Boolean(file));
+      const coveredFolder = createdFolder ? this.beginEmptyFolderCreateWave(createdFolder) : false;
+      if (!createdFolder && !file) this.retireEmptyFolderCreateWave();
+      if (file && created) this.observeEmptyFolderMember(file);
+      this.noteResolverWaveCause(Boolean(file) || coveredFolder);
       const dependenciesWereReady = this.localDependencyAuthorityReady;
       this.markContributorHostChange(effectiveKind, false);
       if (file) {
@@ -267,11 +305,13 @@ export class ObsidianSourceAcquisition {
       }
       this.requestInventory();
     };
-    const create = this.app.vault.on("create", (file) => changed(file instanceof TFile ? file : undefined, true));
+    const create = this.app.vault.on("create", (file) => changed(file instanceof TFile ? file : undefined, true,
+      undefined, false, "source", file instanceof TFolder ? file : undefined));
     const modify = this.app.vault.on("modify", (file) => changed(file instanceof TFile ? file : undefined, false, undefined, true));
     const rename = this.app.vault.on("rename",
       /** Fence the new path immediately; retire old body/incidence after existing fan-out closes. */
       (file, oldPath) => {
+      this.retireEmptyFolderCreateWave();
       changed(file instanceof TFile ? file : undefined, false, oldPath);
       if (file instanceof TFile) {
         this.pendingUrlAliasSources.delete(oldPath);
@@ -288,6 +328,7 @@ export class ObsidianSourceAcquisition {
     const remove = this.app.vault.on("delete",
       /** Mask source authority immediately and preserve finite retired incidence before deletion. */
       (file) => {
+      this.retireEmptyFolderCreateWave();
       changed(file instanceof TFile ? file : undefined, false, undefined, false, "topology");
       if (file instanceof TFile) {
         this.pendingUrlAliasSources.delete(file.path);
@@ -308,11 +349,97 @@ export class ObsidianSourceAcquisition {
       () => this.app.metadataCache.offref(metadata), () => this.app.metadataCache.offref(resolved));
   }
   /**
+   * Match only the already observed native create. The complete graph owner supplies a synchronous
+   * pre-insert absence proof; cold listener ordering and replayed existing folders remain unqualified.
+   * The callback fences that owner's lifetime, not durable source heads or semantic authority.
+   */
+  qualifyEmptyFolderCreate(folder: TFolder, current: () => boolean, invalidate: () => void): void {
+    const wave = this.emptyFolderCreateWave;
+    if (!wave || wave.folder !== folder || wave.current || !this.emptyFolderWaveCurrent(wave) || !current()) return;
+    wave.current = current;
+    wave.invalidate = invalidate;
+  }
+
+  /** Require settled source-local authority before opening the one bounded native folder witness. */
+  private beginEmptyFolderCreateWave(folder: TFolder): boolean {
+    if (this.emptyFolderCreateWave) { this.retireEmptyFolderCreateWave(); return false; }
+    const parent = folder.parent;
+    if (this.closed || !this.enabled || !this.localDependencyAuthorityReady || !this.localDependenciesReady
+      || !this.restartInventoryChecked || this.uncertainResolution || this.environmentMaintenancePending
+      || this.resolutionBackpressure || this.localInventoryCompletionPending || this.pendingResolutionKeys.size
+      || this.knownResolverWave || this.uncoveredResolverWave || !parent || folder.children.length !== 0
+      || this.app.vault.getFolderByPath(folder.path) !== folder
+      || (parent.path && parent.path !== "/" ? this.app.vault.getFolderByPath(parent.path) : this.app.vault.getRoot()) !== parent) return false;
+    const openedAt = window.performance.now();
+    this.emptyFolderCreateWave = { folder, path: folder.path, parent, parentPath: parent.path,
+      openedAt, lastCauseAt: openedAt, hostRevision: this.hostRevision, members: new Map(), current: null, invalidate: null };
+    return true;
+  }
+
+  /** Retirement poisons this unresolved wave; a following known file cannot erase the missing proof. */
+  private retireEmptyFolderCreateWave(): void {
+    if (!this.emptyFolderCreateWave) return;
+    this.emptyFolderCreateWave.invalidate?.();
+    this.emptyFolderCreateWave = null;
+    this.uncoveredResolverWave = true;
+  }
+
+  /** Track only real direct native CREATE identities, bounded independently of vault size. */
+  private observeEmptyFolderMember(file: TFile): void {
+    const wave = this.emptyFolderCreateWave;
+    if (!wave || file.parent !== wave.folder) return;
+    if (!this.emptyFolderWaveCurrent(wave) || wave.members.has(file)
+      || wave.members.size >= EMPTY_FOLDER_CREATE_MAX_MEMBERS || this.app.vault.getFileByPath(file.path) !== file) {
+      this.retireEmptyFolderCreateWave(); return;
+    }
+    wave.members.set(file, file.path);
+  }
+
+  /** No async boundary, inventory read or durable-source shortcut participates in this native proof. */
+  private emptyFolderWaveCurrent(wave: EmptyFolderCreateWave): boolean {
+    return !this.closed && this.enabled && this.localDependencyAuthorityReady && this.restartInventoryChecked
+      && !this.uncertainResolution && !this.environmentMaintenancePending && !this.resolutionBackpressure
+      && wave.hostRevision === this.hostRevision
+      && window.performance.now() - wave.lastCauseAt <= KNOWN_RESOLVER_WAVE_RETIRE_MS
+      && wave.folder.path === wave.path && wave.folder.parent === wave.parent && wave.parent.path === wave.parentPath
+      && this.app.vault.getFolderByPath(wave.path) === wave.folder
+      && (wave.parentPath && wave.parentPath !== "/" ? this.app.vault.getFolderByPath(wave.parentPath) : this.app.vault.getRoot()) === wave.parent;
+  }
+
+  /** Close exactly the recorded direct membership; a missing create, nested folder or replacement rejects. */
+  private emptyFolderWaveComplete(wave: EmptyFolderCreateWave): boolean {
+    const membership = this.emptyFolderMembershipComplete(wave);
+    if (!membership) wave.invalidate?.();
+    return membership && this.emptyFolderWaveCurrent(wave) && Boolean(wave.current?.());
+  }
+
+  /** Check at most 32 direct members without a clock or inventory scan. Missing native topology
+   * retires the physical owner's proof; an ordinary elapsed deadline alone does not. */
+  private emptyFolderMembershipComplete(wave: EmptyFolderCreateWave): boolean {
+    if (wave.folder.path !== wave.path || wave.folder.parent !== wave.parent || wave.parent.path !== wave.parentPath
+      || this.app.vault.getFolderByPath(wave.path) !== wave.folder
+      || (wave.parentPath && wave.parentPath !== "/" ? this.app.vault.getFolderByPath(wave.parentPath) : this.app.vault.getRoot()) !== wave.parent
+      || wave.folder.children.length !== wave.members.size || wave.folder.children.length > EMPTY_FOLDER_CREATE_MAX_MEMBERS) return false;
+    for (const child of wave.folder.children) {
+      if (!(child instanceof TFile) || wave.members.get(child) !== child.path || child.parent !== wave.folder
+        || this.app.vault.getFileByPath(child.path) !== child) return false;
+    }
+    return true;
+  }
+  /**
    * Coalesce all causes since the previous resolver close into constant-size causal state. TFile
-   * events are source-local proof; folder/non-file events make the whole wave unprovable. The one
-   * timer prevents a missing host close from suppressing a later unrelated resolved event.
+   * events are source-local proof; only one independently qualified folder create can accompany
+   * them. The timer prevents a missing close from suppressing a later unrelated resolved event.
    */
   private noteResolverWaveCause(covered: boolean): void {
+    const wave = this.emptyFolderCreateWave;
+    if (wave) {
+      const observedAt = window.performance.now();
+      // Reuse the existing per-cause expiry, without reviving an overdue witness when the
+      // native timer was delayed or suspended. This changes no timer duration or member cap.
+      if (observedAt - wave.lastCauseAt > KNOWN_RESOLVER_WAVE_RETIRE_MS) this.retireEmptyFolderCreateWave();
+      else wave.lastCauseAt = observedAt;
+    }
     if (covered) this.knownResolverWave = true;
     else this.uncoveredResolverWave = true;
     const generation = ++this.resolverWaveGeneration;
@@ -320,33 +447,53 @@ export class ObsidianSourceAcquisition {
     this.resolverWaveTimer = window.setTimeout(() => {
       if (this.closed || generation !== this.resolverWaveGeneration) return;
       this.resolverWaveTimer = null;
+      this.resolverWaveExpired = this.knownResolverWave || this.uncoveredResolverWave;
       this.knownResolverWave = false;
       this.uncoveredResolverWave = false;
+      const wave = this.emptyFolderCreateWave;
+      if (wave && !this.emptyFolderMembershipComplete(wave)) wave.invalidate?.();
+      this.emptyFolderCreateWave = null;
     }, KNOWN_RESOLVER_WAVE_RETIRE_MS);
   }
 
-  /** Consume only a live wave whose every observed cause was a known TFile event. */
+  /** Consume a known native wave only after its optional bounded folder witness also closes. */
   private consumeKnownResolverWave(): boolean {
-    const covered = this.knownResolverWave && !this.uncoveredResolverWave;
+    const folderCovered = !this.emptyFolderCreateWave || this.emptyFolderWaveComplete(this.emptyFolderCreateWave);
+    const covered = this.knownResolverWave && !this.uncoveredResolverWave && folderCovered;
+    if (!folderCovered) this.uncoveredResolverWave = true;
+    this.resolverActivityReason = covered ? (this.emptyFolderCreateWave ? "qualified-folder" : "known-resolver")
+      : this.uncoveredResolverWave ? "uncovered-non-file"
+      : this.resolverWaveExpired ? "expired-resolver" : this.resolverCloseObserved ? "extra-resolved" : "unscoped-resolved";
+    if (covered && this.emptyFolderCreateWave) {
+      try { this.startupDiagnostics?.activityCause?.("qualified-folder"); }
+      catch { /* Successful native coverage never depends on optional accounting. */ }
+    }
+    this.resolverCloseObserved = true;
+    this.resolverWaveExpired = false;
     this.resolverWaveGeneration += 1;
     if (this.resolverWaveTimer !== null) window.clearTimeout(this.resolverWaveTimer);
     this.resolverWaveTimer = null;
     this.knownResolverWave = false;
     this.uncoveredResolverWave = false;
+    this.emptyFolderCreateWave = null;
     return covered;
   }
   /** Synchronously fence host authority and persist a bounded, coalesced host observation. */
-  private markContributorHostChange(kind: ContributorHostChange["kind"], global = kind === "resolution"): void {
+  private markContributorHostChange(kind: ContributorHostChange["kind"], global = kind === "resolution", activityReason: ActivityReason = "unknown"): void {
     // Known source events fence only their source plus proven referrers. Unscoped resolver and
     // environment observations are coalesced until reconciliation starts, so a native burst causes
     // one cached-fact pass rather than a per-event vault scan.
     if (global) {
+      this.activityGlobalReason ??= activityReason;
+      try { this.startupDiagnostics?.activityCause?.(activityReason); } catch { /* Optional diagnostics never fence sources. */ }
       if (!this.uncertainResolution) {
         this.uncertainResolution = true; this.hostRevision += 1; this.inventoryRevision += 1;
         this.maintenanceRevision += 1; this.localDependenciesReady = false; this.localDependencyAuthorityReady = false;
       }
     } else if (kind === "environment") {
       if (!this.environmentMaintenancePending) {
+        this.activityGlobalReason ??= "environment";
+        try { this.startupDiagnostics?.activityCause?.("environment"); } catch { /* Preserve environment validation independently. */ }
         this.environmentMaintenancePending = true; this.inventoryRevision += 1;
         this.maintenanceRevision += 1; this.localDependenciesReady = false; this.localDependencyAuthorityReady = false;
       }
@@ -371,6 +518,7 @@ export class ObsidianSourceAcquisition {
     if (this.deferredResolutionRetryTimer !== null) window.clearTimeout(this.deferredResolutionRetryTimer);
     this.timer = null; this.pollTimer = null; this.resolverWaveTimer = null; this.deferredResolutionRetryTimer = null;
     this.knownResolverWave = false; this.uncoveredResolverWave = false;
+    this.emptyFolderCreateWave = null;
   }
   /** Allocate an incarnation lazily; a matching restart head can supply its already durable identity. */
   private state(file: TFile): FileObservation {
@@ -457,6 +605,8 @@ export class ObsidianSourceAcquisition {
   private promoteUnknownFanout(): void {
     this.clearDeferredResolutionRetry(true);
     if (this.uncertainResolution) return;
+    this.activityGlobalReason ??= "dependency-repair";
+    try { this.startupDiagnostics?.activityCause?.("dependency-repair"); } catch { /* Diagnostics cannot repair or invalidate dependencies. */ }
     this.uncertainResolution = true; this.hostRevision += 1; this.inventoryRevision += 1;
     this.maintenanceRevision += 1;
     this.localDependenciesReady = false; this.localDependencyAuthorityReady = false; this.requested = true;
@@ -776,8 +926,13 @@ export class ObsidianSourceAcquisition {
           if (state.oldPath) {
             const oldPath = state.oldPath;
             const tombstone = await this.repository.tombstone(oldPath, () => current() && !this.app.vault.getFileByPath(oldPath), true);
-            complete &&= tombstone.outcome === "activated";
-            if (tombstone.outcome === "activated") state.oldPath = undefined;
+            // A rapid create/fill/rename may never have persisted the old path. The repository's
+            // exact missing-head transaction proves that absence without inventing a tombstone.
+            // Neither successful outcome may clear a newer rename observed during this await.
+            const retired = current() && state.oldPath === oldPath && !this.app.vault.getFileByPath(oldPath)
+              && (tombstone.outcome === "activated" || tombstone.outcome === "absent");
+            complete &&= retired;
+            if (retired) state.oldPath = undefined;
             else this.pendingKnownFiles.add(file);
           }
         }
@@ -1365,11 +1520,21 @@ export class ObsidianSourceAcquisition {
     if (body) this.counters.reusedBodies += 1;
     return body;
   }
+  /** Acquire only a requested center's parser input without waiting for optional cache persistence.
+   * The shared loader retains native/event/parser fences and cache reuse; this read grants no
+   * neutral-source or semantic authority. Cancellation and optional read/parser failures return
+   * null; a detached presentation request must not leak an unhandled native I/O rejection. */
+  async readRequestedBody(file: TFile, current: () => boolean): Promise<ParsedBodyMetadata | null> {
+    try { return await this.loadBody(file, current, false, false, false); }
+    catch { return null; }
+  }
   /** Load one current body, yielding background misses before native I/O and rechecking shared
    * cache inputs acquired by foreground work during awaited misses. Every retry preserves the
    * captured file/event/host lifetime; optional parser bodies never certify source durability.
-   * Foreground callers do not borrow P4 checkpoints or join its paused parser work. */
-  private async loadBody(file: TFile, current: () => boolean, requireCurrentParser = false, background = false): Promise<ParsedBodyMetadata | null> {
+   * Foreground callers do not borrow P4 checkpoints or join its paused parser work. Readonly
+   * center previews may use the existing write-behind queue instead of joining cache storage. */
+  private async loadBody(file: TFile, current: () => boolean, requireCurrentParser = false, background = false,
+    awaitBodyWrite = true): Promise<ParsedBodyMetadata | null> {
     const capture = this.capture(file); const valid = (): boolean => this.current(capture, current);
     if (background) await this.backgroundCheckpoint?.();
     if (!valid()) return null;
@@ -1407,6 +1572,11 @@ export class ObsidianSourceAcquisition {
     const body = await this.parse(text, background ? this.backgroundCheckpoint : undefined);
     if (!valid()) return null;
     // Versioned parser body cache remains an optional accelerator, not neutral-source durability.
+    if (!awaitBodyWrite) {
+      this.cache.queueBodyWrite(capture.physical.path, capture.physical.mtime, body);
+      this.notifyPresentationInputs(capture.physical.path, valid);
+      return valid() ? body : null;
+    }
     const saved = await this.cache.putBody(capture.physical.path, capture.physical.mtime, body);
     if (saved && valid()) this.notifyPresentationInputs(capture.physical.path, valid);
     return valid() ? body : null;
@@ -1693,6 +1863,7 @@ export class ObsidianSourceAcquisition {
   }
   /** Yield storage bandwidth to a complete graph rebuild; preserve the pending inventory request. */
   pauseInventory(): boolean {
+    this.retireEmptyFolderCreateWave();
     const wasEnabled = this.enabled;
     this.enabled = false;
     this.inventoryRevision += 1;
@@ -1730,6 +1901,7 @@ export class ObsidianSourceAcquisition {
     this.requested = false;
     // Events that arrive after this boundary advance inventoryRevision and cancel this pass.
     const revision = this.inventoryRevision;
+    let activityToken = 0, activityFailed = false;
     this.inventoryCaptureRevision = revision;
     const current = (): boolean => !this.closed && revision === this.inventoryRevision;
     /** Retain one broad task's priority without changing its existing inventory/CAS lifetime. */
@@ -1743,7 +1915,16 @@ export class ObsidianSourceAcquisition {
         }
         if (!current()) return false;
         if (this.localDependencyAuthorityReady && this.restartInventoryChecked
-          && !this.uncertainResolution && !this.environmentMaintenancePending) return this.reconcileKnownImpacts(current);
+          && !this.uncertainResolution && !this.environmentMaintenancePending) {
+          try { activityToken = this.startupDiagnostics?.beginActivity?.("local-maintenance", "local",
+            this.pendingKnownFiles.size ? "known-file" : "known-topology", this.counters) ?? 0; }
+          catch { /* The local work owner is authoritative even if accounting fails. */ }
+          return this.reconcileKnownImpacts(current);
+        }
+        try { activityToken = this.startupDiagnostics?.beginActivity?.("host-inventory", "global",
+          this.activityGlobalReason ?? (this.restartInventoryChecked ? "local-authority-unavailable" : "startup-offline"), this.counters) ?? 0; }
+        catch { /* No work admission or validation result depends on diagnostic state. */ }
+        this.activityGlobalReason = null;
         // Events observed before this boundary are one coalesced cached-fact pass. A new unscoped
         // resolver/environment event after this point advances inventoryRevision and cancels the pass.
         // Keep whether this pass was already globally fenced so polling-discovered environment drift
@@ -1886,10 +2067,25 @@ export class ObsidianSourceAcquisition {
           this.inventoryReady?.();
         }
         return ready;
-      } catch { this.counters.failures += 1; return false; }
+      } catch { activityFailed = true; this.counters.failures += 1; return false; }
     };
     this.inventory = this.runBackgroundWork ? this.runBackgroundWork(work) : work();
-    try { return await this.inventory; }
+    try {
+      const result = await this.inventory;
+      try { this.startupDiagnostics?.endActivity?.(activityToken,
+        activityFailed ? "failed" : !current() ? "cancelled" : result ? "complete" : "incomplete", this.counters); }
+      catch { /* Keep the original source result, including an unsuccessful pass. */ }
+      try { this.startupDiagnostics?.stopActivityPhase?.("source"); }
+      catch { /* Capacity-limited pass detail cannot leave an idle phase accumulating time. */ }
+      return result;
+    }
+    catch (error) {
+      try { this.startupDiagnostics?.endActivity?.(activityToken, "failed", this.counters); }
+      catch { /* Accounting must not replace an existing task rejection. */ }
+      try { this.startupDiagnostics?.stopActivityPhase?.("source"); }
+      catch { /* Preserve the original rejection when optional accounting is unavailable. */ }
+      throw error;
+    }
     finally { this.inventory = null; this.inventoryCaptureRevision = null; if (this.requested) this.requestInventory(); }
   }
   /**

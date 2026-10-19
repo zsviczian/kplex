@@ -37,5 +37,53 @@ test('all production hover targets forward the pointer modifier to one owner; pr
  assert.match(graph,/scheduleHoverIntent\(\{ kind: "gate", path: baseNode.page.path, gate \}, event\)/);
  assert.match(node,/onHoverNode\(node, e\)/);assert.match(node,/onHoverGate\(node, gate, e\)/);
  const themes=readFileSync('src/core/plex/appearanceThemes.ts','utf8');
- assert(!themes.includes('hoverHighlightRequiresAlt'));assert(!themes.includes('areaOutlineRequiresAlt'));
+ assert(!themes.includes('hoverHighlightRequiresAlt'));assert(!themes.includes('areaOutlineRequiresAlt'));assert(!themes.includes('gateTooltipRequiresAlt'));
+});
+
+test('opted-in mouse modifier feedback is immediate in both policies and never starts from synthetic, pen, touch or edge targets',async()=>{
+ const result=await host.evaluate(`(async()=>{
+  const results=[];for(const required of[false,true]){
+   const ordinary=[],peeks=[],H=sourceModules.HoverHighlight;
+   const h=new H(window,required,v=>ordinary.push(v),750,{accepts:t=>t!=='edge',publish:v=>peeks.push(v)});
+   h.enter('node',{pointerType:'mouse',altKey:false,isTrusted:true});const initial=peeks.at(-1);
+   h.modifier(true,true);const pressed={ordinary:ordinary.at(-1),peek:peeks.at(-1)},count=peeks.length;
+   h.modifier(true,true);const repeat=peeks.length===count;
+   h.modifier(false,true);const released=peeks.at(-1);
+   await new Promise(r=>setTimeout(r,790));const delayed={ordinary:ordinary.at(-1),peek:peeks.at(-1)};
+   h.enter('gate',{pointerType:'mouse',altKey:true,isTrusted:true});const held=peeks.at(-1);
+   h.clear(false);h.modifier(true,true);const drag=peeks.at(-1);
+   h.enter('edge',{pointerType:'mouse',altKey:true,isTrusted:true});const edge=peeks.at(-1);h.clear();
+   h.enter('synthetic',{pointerType:'mouse',altKey:true,isTrusted:false});const synthetic=peeks.at(-1);h.clear();
+   h.enter('pen',{pointerType:'pen',altKey:true,isTrusted:true});const pen=peeks.at(-1);h.clear();
+   h.enter('node',{pointerType:'mouse',altKey:true,isTrusted:true});h.enter('touch',{pointerType:'touch',altKey:true,isTrusted:true});const touch=peeks.at(-1);h.clear();
+   results.push({required,initial,pressed,repeat,released,delayed,held,drag,edge,synthetic,pen,touch});
+  }return results;
+ })()`);
+ for(const row of result){assert.equal(row.initial,null);assert.deepEqual(row.pressed,{ordinary:'node',peek:'node'});assert(row.repeat);assert.equal(row.released,null);assert.equal(row.delayed.peek,null);assert.equal(row.delayed.ordinary,row.required?null:'node');assert.equal(row.held,'gate');for(const key of['drag','edge','synthetic','pen','touch'])assert.equal(row[key],null,key);}
+});
+
+test('trusted stationary Alt input reaches the existing bound owner; synthetic keys, leave, blur and teardown cannot retain a peek',async()=>{
+ await host.evaluate(`(()=>{
+  const button=document.createElement('button');button.textContent='Trusted peek target';button.style.cssText='position:fixed;left:20px;top:20px;width:180px;height:50px';document.body.append(button);
+  const h=new sourceModules.HoverHighlight(window,false,v=>button.dataset.highlight=v??'',750,{accepts:()=>true,publish:v=>button.dataset.peek=v??''});
+  button.addEventListener('pointerenter',event=>h.enter('node',event));button.addEventListener('pointerleave',()=>h.clear());
+  const release=sourceModules.bindHoverHighlight(button,h);window.peekOwnerFixture={button,h,dispose(){release();button.remove();delete window.peekOwnerFixture}};return true;
+ })()`);
+ try{
+  await host.command('Input.dispatchMouseEvent',{type:'mouseMoved',x:80,y:40});
+  assert.equal(await host.evaluate("peekOwnerFixture.button.dataset.peek"),'');
+  await host.evaluate("window.dispatchEvent(new KeyboardEvent('keydown',{key:'Alt',altKey:true}));true");
+  assert.equal(await host.evaluate("peekOwnerFixture.button.dataset.peek"),'','Synthetic modifier cannot start trusted mouse feedback');
+  await host.command('Input.dispatchKeyEvent',{type:'keyDown',key:'Alt',code:'AltLeft',windowsVirtualKeyCode:18,modifiers:1});
+  assert.equal(await host.evaluate("peekOwnerFixture.button.dataset.peek"),'node');
+  assert.equal(await host.evaluate("peekOwnerFixture.button.dataset.highlight"),'node');
+  await host.command('Input.dispatchKeyEvent',{type:'keyUp',key:'Alt',code:'AltLeft',windowsVirtualKeyCode:18,modifiers:0});
+  assert.equal(await host.evaluate("peekOwnerFixture.button.dataset.peek"),'');
+  await host.command('Input.dispatchKeyEvent',{type:'keyDown',key:'Alt',code:'AltLeft',windowsVirtualKeyCode:18,modifiers:1});
+  assert.equal(await host.evaluate("peekOwnerFixture.button.dataset.peek"),'node');
+  await host.evaluate("window.dispatchEvent(new Event('blur'));true");
+  assert.equal(await host.evaluate("peekOwnerFixture.button.dataset.peek"),'');
+  await host.command('Input.dispatchKeyEvent',{type:'keyUp',key:'Alt',code:'AltLeft',windowsVirtualKeyCode:18,modifiers:0});
+  await host.command('Input.dispatchMouseEvent',{type:'mouseMoved',x:300,y:120});
+ }finally{await host.evaluate('peekOwnerFixture.dispose();true')}
 });

@@ -37,10 +37,22 @@ export function capturePresentationSettings(settings: KplexSettings): KplexSetti
   return Object.assign({}, settings, Object.fromEntries(PRESENTATION_KEYS.map((key) => [key, structuredClone(settings[key])])));
 }
 
-/** Render prepared presentation with live consent, so revocation never waits for asynchronous saves. */
+/** One weakly owned facade per live settings root; prepared records remain immutable generations.
+ * Shallow source values include unknown future keys without inspecting saved theme contents.
+ * Nested view profiles retain their own existing field-level cache/invalidations downstream. */
+const preparedViews = new WeakMap<KplexSettings, {
+  prepared: KplexSettings; entries: [string, unknown][]; value: KplexSettings;
+}>();
+
+/** Render prepared presentation with live consent, retaining identity across source/status events. */
 export function withPreparedPresentation(settings: KplexSettings, prepared: KplexSettings): KplexSettings {
-  return Object.assign({}, settings, Object.fromEntries(PRESENTATION_KEYS.map((key) => [key, prepared[key]])),
+  const entries = Object.entries(settings), previous = preparedViews.get(settings);
+  if (previous?.prepared === prepared && entries.length === previous.entries.length
+    && entries.every(([key, value], index) => key === previous.entries[index][0] && Object.is(value, previous.entries[index][1]))) return previous.value;
+  const value = Object.assign({}, settings, Object.fromEntries(PRESENTATION_KEYS.map((key) => [key, prepared[key]])),
     { allowRemoteNodeImages: settings.allowRemoteNodeImages === true });
+  preparedViews.set(settings, {prepared, entries, value});
+  return value;
 }
 
 /** Read only the requested field, preserving the collector's first-match note-type precedence. */

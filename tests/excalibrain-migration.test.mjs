@@ -13,6 +13,12 @@ import test from "node:test";
 import {styleSettingsHostSource} from "./support/styleSettingsHost.mjs";
 import { assertMigratedExcaliBrainSettings, localPreferenceKeys } from "./support/excalibrainMigration.mjs";
 
+// The production completion adapter owns native timers. This Node-only form fixture supplies
+// real task timers rather than a synchronous fake or a production no-window compatibility branch.
+const openingWindow = globalThis.window;
+globalThis.window = {crypto: globalThis.crypto, setTimeout, clearTimeout};
+process.on("exit", /** Retire only this isolated test process's host boundary. */ () => {globalThis.window = openingWindow;});
+
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const fixture = JSON.parse(readFileSync(join(root, "tests/fixtures/excalibrain-migration/data.json"), "utf8"));
 const temp = mkdtempSync(join(tmpdir(), "kplex-migration-"));
@@ -48,6 +54,7 @@ await build({
         createDiv(options) { return this.createEl("div", options); }
         createSpan(options) { return this.createEl("span", options); }
         appendChild(child) { if (child.parent) child.parent.children = child.parent.children.filter(item => item !== child); this.children.push(child); child.parent = this; }
+        append(...children) { for (const child of children) this.appendChild(child); }
         prepend(child) { this.appendChild(child); this.children = [child, ...this.children.filter(item => item !== child)]; }
         setText(text) { this.text = text; }
         get tagName() { return this.tag.toUpperCase(); }
@@ -72,7 +79,19 @@ await build({
       export class SuggestModal extends Modal {}
       export class Notice { static messages = []; constructor(message) { Notice.messages.push(message); } }
       export class Setting {
-        constructor(container) { this.container = container; }
+        constructor(container) { this.container = container; this.settingEl = container.createDiv(); this.nameEl = this.settingEl.createDiv(); this.descEl = this.settingEl.createDiv(); this.controlEl = this.settingEl.createDiv(); }
+        setName(value) { this.nameEl.setText(value); return this; }
+        setDesc(value) { this.descEl.setText(value); return this; }
+        addSlider(create) {
+          const input = this.controlEl.createEl("input", {attr: {type: "range"}});
+          const api = {sliderEl: input, setLimits(min, max, step) {Object.assign(input, {min, max, step}); return api;}, setInstant() {return api;}, setValue(value) {input.value = String(value); return api;}, onChange(run) {input.addEventListener("input", () => run(Number(input.value))); return api;}};
+          create(api); return this;
+        }
+        addExtraButton(create) {
+          const input = this.controlEl.createEl("button");
+          const api = {extraSettingsEl: input, setIcon() {return api;}, setTooltip(value) {input.setAttribute("aria-label", value); return api;}, setDisabled(value) {input.disabled = value; return api;}, onClick(run) {input.addEventListener("click", run); return api;}};
+          create(api); return this;
+        }
         addButton(cb) {
           const button = { setButtonText(text) { this.text = text; return this; }, setDestructive() { return this; }, setDisabled(value) { this.disabled = value; return this; }, onClick(cb) { this.activate = cb; return this; } };
           this.container.buttons.push(button); cb(button); return this;
@@ -97,7 +116,7 @@ const migrated = importExcaliBrainGraphSettings(fixture);
 
 /** Keep theme identities native-shaped while preserving the real queue and all source/color policy. */
 async function withThemeWindow(run) {
-  const previous = globalThis.window; globalThis.window = {crypto: globalThis.crypto};
+  const previous = globalThis.window; globalThis.window = {...previous, crypto: globalThis.crypto};
   try {return await run();} finally {globalThis.window = previous;}
 }
 
@@ -670,7 +689,8 @@ test("new node style explicitly selects a tag prefix and preserves the appearanc
   assert.deepEqual(select.children.map(option => [option.value, option.text]), [["property", "Note type"], ["tag", "Tag"]]);
   assert.equal(select.disabled, false);
   const name = byLabel("Note type"), icon = byLabel("Lucide icon"), prefix = byLabel("Label prefix");
-  icon.value = "briefcase"; assert.equal(byLabel("Background").tag, "button"); byLabel("Font size").value = "23";
+  icon.value = "briefcase"; assert.equal(byLabel("Background").tag, "button");
+  byLabel("Font size").value = "23"; await activate(byLabel("Font size"), "input");
   assert.equal(prefix.parent.visible, false);
   name.value = "project/active";
   select.value = "tag"; await activate(select, "change");
@@ -713,6 +733,13 @@ test("style editor controls expose visible linked descriptions and type switches
   const { tab, settings } = styleEditorFixture();
   const modal = openStyle(tab, "property"); const elements = formElements(modal);
   for (const control of elements.filter(element => ["input", "select"].includes(element.tag))) {
+    if (control.type === "range") {
+      assert(control.attrs["aria-label"]?.trim(), "Native dimension sliders need accessible names");
+      assert(control.attrs["aria-valuetext"]?.trim(), "Native dimension sliders expose their visible value");
+      assert(control.parent.children.some(element => element.tag === "output" && element.text.trim()));
+      assert.equal(control.attrs.title, undefined);
+      continue;
+    }
     const description = elements.find(element => element.attrs.id === control.attrs["aria-describedby"]);
     assert(description?.text.trim(), `${control.attrs["aria-label"]} needs a visible accessible description`);
     assert(elements.some(element => element.tag === "label" && element.attrs.for === control.attrs.id));
@@ -1121,6 +1148,20 @@ test("compatibility saves skip semantics only for style-only edits; mixed view c
   settings.hierarchyLinkStyles.parent = { strokeWidth: 4 }; settings.renderSiblings = !settings.renderSiblings; await plugin.saveSettings(false); assert.equal(semantic, 1);
 });
 
+test("actual layout-profile saves stay presentation-only while mixed visibility and ontology edits retain semantic refresh", async () => {
+  const {plugin,settings}=styleEditorFixture();let semantic=0,invalidations=0;
+  plugin.index.refreshSemanticSettings=async()=>{semantic++};
+  plugin.index.invalidateSemanticPolicy=()=>{invalidations++};
+  settings.layoutProfiles['desktop:leaf']={...settings.layoutProfiles['desktop:leaf'],lateralArrangement:'left'};
+  await plugin.saveSettings(false);assert.equal(semantic,0);
+  settings.layoutProfiles['desktop:leaf']={...settings.layoutProfiles['desktop:leaf'],horizontalCompactingFactor:4};
+  await plugin.saveSettings(false,false);assert.equal(semantic,0);assert.equal(invalidations,0);
+  settings.layoutProfiles['desktop:sidepanel']={...settings.layoutProfiles['desktop:sidepanel'],lateralArrangement:'left'};
+  settings.renderSiblings=!settings.renderSiblings;await plugin.saveSettings(false);assert.equal(semantic,1);
+  settings.layoutProfiles['desktop:leaf']={...settings.layoutProfiles['desktop:leaf'],lateralArrangement:'split'};
+  settings.hierarchy.parents.push('Other parent');await plugin.saveSettings(false);assert.equal(semantic,2);assert.equal(invalidations,1);
+});
+
 test("explicit normalized link-style keys take precedence over legacy display names", () => {
   const settings = structuredClone(migrated);
   settings.hierarchyLinkStyles["inspired-by"] = { strokeColor: "#123456ff" };
@@ -1223,7 +1264,7 @@ test("standard adoption and named deletion durably clear an existing canvas thro
 
 
 test("hover modifier preferences default on while explicit false survives migration, restart and foreign import", () => {
-  for (const key of ["hoverHighlightRequiresAlt", "areaOutlineRequiresAlt"]) {
+  for (const key of ["hoverHighlightRequiresAlt", "areaOutlineRequiresAlt", "gateTooltipRequiresAlt"]) {
     assert.equal(defaults[key], true, key);
     for (const malformed of [undefined, null, "true", "false", 0, 1, [], {}])
       assert.equal(migrateAndMergeSettings({kplexInitialized: true, [key]: malformed})[key], true, `${key}: ${JSON.stringify(malformed)}`);
@@ -1237,7 +1278,7 @@ test("hover modifier preferences default on while explicit false survives migrat
 });
 
 test("hover modifier preferences remain independent of theme application and all graph work policies", () => {
-  const changed = {...defaults, hoverHighlightRequiresAlt: false, areaOutlineRequiresAlt: false};
+  const changed = {...defaults, hoverHighlightRequiresAlt: false, areaOutlineRequiresAlt: false, gateTooltipRequiresAlt: false};
   assert.deepEqual(classifySettingsChange(captureSettingsPolicy(defaults), captureSettingsPolicy(changed)), {
     semanticInvalidation: false, presentationFacets: false, searchTerms: false, nodeVisuals: false,
     render: false, typographyOnly: false, paintOnly: false, changedKeys: [],
@@ -1248,6 +1289,7 @@ test("hover modifier preferences remain independent of theme application and all
   themeModel.applyThemeAppearance(changed, appearance);
   assert.equal(changed.hoverHighlightRequiresAlt, false);
   assert.equal(changed.areaOutlineRequiresAlt, false);
+  assert.equal(changed.gateTooltipRequiresAlt, false);
 });
 
 test("native declarative hover controls expose both local preferences and persist explicit opt-outs", async () => {
@@ -1259,7 +1301,7 @@ test("native declarative hover controls expose both local preferences and persis
   const tab = new KplexSettingTab({}, plugin);
   const behavior = tab.getSettingDefinitions().find(item => item.name === "Plex behavior");
   const navigation = behavior.items.find(item => item.heading === "Navigation & interaction");
-  for (const key of ["hoverHighlightRequiresAlt", "areaOutlineRequiresAlt"]) {
+  for (const key of ["hoverHighlightRequiresAlt", "areaOutlineRequiresAlt", "gateTooltipRequiresAlt"]) {
     const row = navigation.items.find(item => item.control?.key === key);
     assert.equal(row?.control?.type, "toggle", key);
     assert.equal(typeof row?.desc, "string", key);
@@ -1267,5 +1309,5 @@ test("native declarative hover controls expose both local preferences and persis
     await tab.setControlValue(key, false);
     assert.equal(plugin.settings[key], false, key);
   }
-  assert.deepEqual(saves, [[], []], "workflow controls use the existing settings writer");
+  assert.deepEqual(saves, [[], [], []], "workflow controls use the existing settings writer");
 });

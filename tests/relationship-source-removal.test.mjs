@@ -42,6 +42,25 @@ const setup = `(()=>{
  return true;
 })()`;
 
+/** Read-only structural membership never displays a Hidden or ontology-edit control in real rendered details. */
+test('tag and folder connection details omit impossible source mutation controls',async()=>{
+ const browser=await chromiumHarness(bundle);
+ try{
+  assert.equal(await browser.evaluate(setup),true);
+  assert.equal(await browser.evaluate(`(async()=>{
+   for(const kind of ['isTag','isFolder']){
+    const f=makeDetails(),source=f.plugin.index.get('Owner.md');source[kind]=true;
+    f.explanation={...f.explanation,decisions:[],summary:kind==='isTag'?'source:tag-tree':'source:file-tree'};
+    f.plugin.hideRelationship=()=>{throw new Error('Structural Hidden must not run')};
+    f.modal=new sourceModules.RelationshipExplanationModal(f.plugin,f.explanation,{role:'child'});f.modal.open();await tick();
+    ok(!f.modal.modalEl.querySelector('[data-kplex-hide-connection]'),'Structural Hidden leaked');
+    ok(!f.modal.modalEl.querySelector('.kplex-edge-ontology-row button'),'Structural ontology edit leaked');
+    f.modal.close();
+   }return true;
+  })()`),true);
+ }finally{await browser.cleanup()}
+});
+
 /** Declaration coordinates remain independent of occurrence grouping and generic cache mirrors. */
 test("connection source actions deduplicate declaration tuples and retain independent fields/owners", async () => {
  const browser=await chromiumHarness(bundle);

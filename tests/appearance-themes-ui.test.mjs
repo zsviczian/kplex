@@ -3,6 +3,36 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {colorEditorScenario as scenario} from "./support/colorEditorBrowser.mjs";
 
+test("node-style dimensions inherit, clear, merge concurrently, preserve legacy values and survive failed storage",async()=>{
+ assert.equal(await scenario(`(async()=>{
+  const p=await createAppearanceHost({baseNodeStyle:{strokeWidth:2,gateRadius:6},noteTypeStyles:{Project:{borderColor:{kind:'theme',variable:'--text-normal'},icon:'star',strokeWidth:1.25,gateRadius:12}}}),t=p.translator;
+  const tab=new sourceModules.KplexSettingTab({workspace:{on:()=>({}),offref:()=>{}}},p);
+  const open=()=>{tab.openNodeStyleEditor('property','Project');return sourceModules.TestModal.instances.at(-1)};
+  const save=modal=>[...modal.contentEl.querySelectorAll('button')].find(el=>el.textContent===t('common.save')).click();
+  const field=(modal,key)=>modal.contentEl.querySelector('input[aria-label="'+t(key)+'"]');
+  let modal=open(),before=p.writes.length;save(modal);await waitFor(()=>!modal.modalEl.isConnected);if(p.writes.length!==before||p.settings.noteTypeStyles.Project.strokeWidth!==1.25||p.settings.noteTypeStyles.Project.gateRadius!==12)throw Error('Unchanged legacy dimensions normalized');
+  modal=open();if(field(modal,'filter.borderWidth').type!=='range'||field(modal,'settings.ui.gate.radius').type!=='range'||!field(modal,'filter.borderWidth').parentElement.querySelector('output'))throw Error('Native slider or visible dimension value absent');
+  input(field(modal,'filter.borderWidth'),'0');input(field(modal,'settings.ui.gate.radius'),'8');await p.updateStyleSettings(d=>{d.noteTypeStyles.Project.fontSize=29});save(modal);await waitFor(()=>!modal.modalEl.isConnected);
+  const style=p.settings.noteTypeStyles.Project;if(style.strokeWidth!==0||style.gateRadius!==8||style.fontSize!==29||style.icon!=='star'||style.borderColor.variable!=='--text-normal')throw Error('Dimension save lost zero or concurrent fields');
+  const restarted=sourceModules.migrateAndMergeSettings(p.writes.at(-1));if(restarted.noteTypeStyles.Project.strokeWidth!==0||restarted.noteTypeStyles.Project.gateRadius!==8)throw Error('Dimensions lost on restart');
+  const inherit=(modal,key)=>field(modal,key).parentElement.querySelector('button[aria-label="'+t('styles.inheritDimension',{name:t(key)})+'"]').click();
+  modal=open();inherit(modal,'filter.borderWidth');inherit(modal,'settings.ui.gate.radius');const store=p.saveData;p.saveData=async()=>{throw Error('Expected dimension disk failure')};save(modal);await waitFor(()=>modal.modalEl.getAttribute('aria-busy')==='false');if(!modal.modalEl.isConnected||p.settings.noteTypeStyles.Project.gateRadius!==8||!field(modal,'filter.borderWidth').parentElement.querySelector('output').textContent.includes(t('colors.inherit')))throw Error('Failed write lost durable state/draft');p.saveData=store;save(modal);await waitFor(()=>!modal.modalEl.isConnected);
+  if('strokeWidth' in p.settings.noteTypeStyles.Project||'gateRadius' in p.settings.noteTypeStyles.Project)throw Error('Empty dimensions did not restore inheritance');
+  modal=open();input(field(modal,'filter.borderWidth'),'9');if(field(modal,'filter.borderWidth').value!=='8')throw Error('Native range failed to constrain the maximum');save(modal);await waitFor(()=>!modal.modalEl.isConnected);if(p.settings.noteTypeStyles.Project.strokeWidth!==8)throw Error('Bounded slider value lost');tab.disposeActionSettings();return true;
+ })()`),true);
+});
+
+test("an open native color chooser cannot complete into a theme draft after A to B to A",async()=>{
+ assert.equal(await scenario(`(async()=>{
+  const p=await createAppearanceHost({baseNodeStyle:{textColor:{kind:'theme',variable:'--text-normal'}}}),t=p.translator;
+  const tab=new sourceModules.KplexSettingTab({workspace:{on:()=>({}),offref:()=>{}}},p);tab.openStandardColor('baseNodeStyle','textColor');const modal=sourceModules.TestModal.instances.at(-1);
+  modal.contentEl.querySelector('.kplex-theme-color-choice').click();const chooser=sourceModules.TestModal.instances.at(-1),choice=chooser.getSuggestions('--color-green').find(item=>item.value==='--color-green');
+  await p.updateAppearanceThemes({kind:'select',id:'default'});await p.updateAppearanceThemes({kind:'select',id:'user'});await new Promise(r=>setTimeout(r,0));const before=p.writes.length;
+  chooser.selectSuggestion(choice,new MouseEvent('click'));if(modal.editor.getValue().variable!=='--text-normal'||modal.canEdit()||p.writes.length!==before)throw Error('Stale chooser changed the frozen draft or settings');
+  modal.retire();tab.disposeActionSettings();if(window.migrationListeners)throw Error('Stale chooser leaked');return true;
+ })()`),true);
+});
+
 test("unsupported future theme libraries expose existing appearance editors read-only and survive unrelated persistence", async () => {
  assert.equal(await scenario(`(async()=>{
   const future={version:999,themes:[{opaque:{keep:['future',42]}}]},p=await createAppearanceHost({appearanceThemes:future,noteTypeStyles:{Project:{fontSize:25,textColor:'#12345680'}}}),t=p.translator;
@@ -121,7 +151,9 @@ test("immediate native theme/scalar rows follow document adoption, fence replace
  assert.equal(await scenario(`(async()=>{
   const p=await createAppearanceHost({baseLinkStyle:{strokeWidth:3}}),tab=new sourceModules.KplexSettingTab({workspace:{on:()=>({}),offref:()=>{}}},p),t=p.translator;
   const row=new sourceModules.Setting(scope).setName(t('themes.label')),release=tab.mountThemeControls(row),old=row.controlEl.querySelector('select');
-  const replacement=document.implementation.createHTMLDocument('Native Settings owner');replacement.body.append(row.settingEl);emitMigration(row.settingEl);
+  const frame=document.createElement('iframe');document.body.append(frame);const replacement=frame.contentDocument;
+  for(const name of ['createEl','createDiv','createSpan','setText','empty','addClass','setCssStyles','setCssProps','toggle','onWindowMigrated'])frame.contentWindow.HTMLElement.prototype[name]=HTMLElement.prototype[name];
+  replacement.body.append(row.settingEl);emitMigration(row.settingEl);
   if(row.controlEl.querySelector('select')===old||p.appearanceThemeListeners.size!==1)throw Error('Adopted header retired instead of rebinding');
   let count=p.writes.length;input(old,'default','change');await new Promise(r=>setTimeout(r,10));if(p.writes.length!==count)throw Error('Replaced pre-adoption header wrote');
   input(row.controlEl.querySelector('select'),'native-base','change');await waitFor(()=>p.settings.appearanceThemes.selectedId==='native-base');
@@ -130,7 +162,7 @@ test("immediate native theme/scalar rows follow document adoption, fence replace
   replacement.body.append(scalar.settingEl);emitMigration(scalar.settingEl);if(scalar.controlEl.querySelector('input')===retired)throw Error('Adopted scalar retained old realm handler');
   count=p.writes.length;input(retired,'6');await new Promise(r=>setTimeout(r,10));if(p.writes.length!==count)throw Error('Retired scalar event wrote');
   await p.updateStyleSettings(d=>{d.baseLinkStyle.strokeWidth=4});if(scalar.controlEl.querySelector('input').value!=='4')throw Error('Concurrent committed field did not refresh native peer');
-  input(scalar.controlEl.querySelector('input'),'5');await waitFor(()=>p.settings.baseLinkStyle.strokeWidth===5);stop();tab.disposeActionSettings();if(p.appearanceThemeListeners.size||window.migrationListeners)throw Error('Adopted row ownership leaked');return true;
+  input(scalar.controlEl.querySelector('input'),'5');await waitFor(()=>p.settings.baseLinkStyle.strokeWidth===5);stop();tab.disposeActionSettings();frame.remove();if(p.appearanceThemeListeners.size||window.migrationListeners)throw Error('Adopted row ownership leaked');return true;
  })()`),true);
 });
 
@@ -140,12 +172,29 @@ test("named-color deletion remaps only the active theme across base, semantic, C
    colorPreferences:{version:1,palette:[{id:'shared',name:'Shared',light:'#11223380',dark:'#aabbcc40'},{id:'replacement',name:'Replacement',light:'#ff000080',dark:'#00ff0080'}],semantic:{origin:ref},compass:{enabled:true,fills:{north:ref}}},graphLenses:[{id:'lens',name:'Global',enabled:false,scope:'node',mode:'style',expression:'node.kind == "note"',style:{node:{textColor:ref,strokeWidth:3}}}]};
   const p=await createAppearanceHost(raw),t=p.translator,tab=new sourceModules.KplexSettingTab({workspace:{on:()=>({}),offref:()=>{}}},p);await p.createAppearanceTheme('Independent',false);const inactive=structuredClone(p.settings.appearanceThemes.themes.find(x=>x.id==='user'));
   tab.openColorPalette();const palette=sourceModules.TestModal.instances.at(-1);palette.deletePair(p.settings.colorPreferences.palette[0]);const modal=sourceModules.TestModal.instances.at(-1);
-  const select=modal.contentEl.querySelector('select');input(select,'named','change');modal.contentEl.querySelector('.kplex-color-source-editor button').click();const chooser=sourceModules.TestModal.instances.at(-1);chooser.onChooseSuggestion(p.settings.colorPreferences.palette[1]);chooser.close();
+  const select=modal.contentEl.querySelector('select');input(select,'named','change');modal.contentEl.querySelector('.kplex-color-source-editor button').click();const chooser=sourceModules.TestModal.instances.at(-1);chooser.selectSuggestion(chooser.getSuggestions('').find(item=>item.value.id===p.settings.colorPreferences.palette[1].id),new MouseEvent('click'));
   [...modal.contentEl.querySelectorAll('button')].find(x=>x.textContent===t('common.delete')).click();await waitFor(()=>!modal.modalEl.isConnected);
   if(p.settings.backgroundColor.id!=='replacement'||p.settings.baseNodeStyle.textColor.id!=='replacement'||p.settings.noteTypeStyles.Project.textColor.id!=='replacement'||p.settings.colorPreferences.semantic.origin.id!=='replacement'||p.settings.colorPreferences.compass.fills.north.id!=='replacement'||p.settings.graphLenses[0].style.node.textColor.id!=='replacement'||p.settings.colorPreferences.palette.some(x=>x.id==='shared'))throw Error('Active consumers/palette not atomically replaced');
   if(JSON.stringify(p.settings.appearanceThemes.themes.find(x=>x.id==='user'))!==JSON.stringify(inactive))throw Error('Inactive palette changed');
   const active=p.settings.appearanceThemes.themes.find(x=>x.id===p.settings.appearanceThemes.selectedId);if(active.appearance.base.backgroundColor.id!=='replacement'||active.appearance.semantic.colorPreferences.palette.length!==1)throw Error('Selected saved projection not synchronized');
   palette.retire();await p.updateAppearanceThemes({kind:'select',id:'user'});if(p.settings.backgroundColor.id!=='shared'||p.settings.colorPreferences.palette.length!==2||p.settings.graphLenses[0].style.node.textColor.id!=='shared'||p.settings.graphLenses[0].style.node.strokeWidth!==3||p.settings.graphLenses[0].enabled)throw Error('Theme-local palette/lens identity lost');tab.disposeActionSettings();return true;
+ })()`),true);
+});
+
+test("a queued native scalar save survives Settings removal without touching its retired slider or accepting later events", async () => {
+ assert.equal(await scenario(`(async()=>{
+  const p=await createAppearanceHost({baseNodeStyle:{gateRadius:5}}),tab=new sourceModules.KplexSettingTab({workspace:{on:()=>({}),offref:()=>{}}},p);
+  const row=new sourceModules.Setting(scope).setName('Gate radius');
+  const release=tab.bindThemeScalar({name:'Gate radius',control:{type:'slider',key:'baseNodeStyle.gateRadius',min:2,max:8,step:.5}}).render(row);
+  const slider=row.controlEl.querySelector('input'),descriptor=Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value');let touches=0;
+  Object.defineProperty(slider,'value',{get(){return descriptor.get.call(this)},set(value){touches++;descriptor.set.call(this,value)}});
+  const original=p.saveData;let finish,entered=false;p.saveData=async snapshot=>{entered=true;await new Promise(resolve=>{finish=resolve});return original.call(p,snapshot)};
+  input(slider,'8');await waitFor(()=>entered);row.settingEl.remove();const before=touches;finish();await p.settingsWriteQueue;await new Promise(resolve=>setTimeout(resolve,20));
+  if(p.settings.baseNodeStyle.gateRadius!==8||p.writes.at(-1).baseNodeStyle.gateRadius!==8)throw Error('Accepted save was canceled by Settings removal');
+  if(touches!==before)throw Error('Save completion touched the retired native slider');
+  p.saveData=original;const writes=p.writes.length;input(slider,'3');await new Promise(resolve=>setTimeout(resolve,20));
+  if(p.writes.length!==writes)throw Error('Detached native scalar accepted a new save');
+  release();tab.disposeActionSettings();return true;
  })()`),true);
 });
 
@@ -157,5 +206,46 @@ test("theme reset and manager previews retain the stable owning Settings body af
   if(!modal.modalEl.isConnected)throw Error('Root replacement retired valid reset draft');[...modal.contentEl.querySelectorAll('button')].find(x=>x.textContent===t('common.cancel')).click();
   tab.openAppearanceThemes();const manager=sourceModules.TestModal.instances.at(-1);if(manager.options.context.sourceScope!==document.body)throw Error('Manager retained detached Settings root');await waitFor(()=>manager.contentEl.querySelector('.kplex-color-swatch')?.style.getPropertyValue('--kplex-color-swatch'));
   manager.retire();tab.disposeActionSettings();await new Promise(r=>setTimeout(r,20));if(document.querySelector('iframe[sandbox]')||p.appearanceThemeListeners.size||window.migrationListeners)throw Error('Stable preview ownership leaked');return true;
+ })()`),true);
+});
+
+
+test("durable style Save releases its modal while one optional refresh is held and later edits stay bounded",async()=>{
+ assert.equal(await scenario(`(async()=>{
+  const p=await createAppearanceHost({noteTypeStyles:{Project:{strokeWidth:1}}}),t=p.translator;
+  const tab=new sourceModules.KplexSettingTab({workspace:{on:()=>({}),offref:()=>{}}},p);let release,refreshes=0;
+  const refresh=p.index.refreshPresentationSettings;p.index.refreshPresentationSettings=async()=>{refreshes++;await new Promise(resolve=>release=resolve);await refresh()};
+  tab.openNodeStyleEditor('property','Project');const modal=sourceModules.TestModal.instances.at(-1);
+  input(modal.contentEl.querySelector('input[aria-label="'+t('filter.borderWidth')+'"]'),'2');
+  [...modal.contentEl.querySelectorAll('button')].find(el=>el.textContent===t('common.save')).click();
+  await waitFor(()=>p.settings.noteTypeStyles.Project.strokeWidth===2);await new Promise(r=>setTimeout(r,300));
+  if(modal.modalEl.isConnected)throw Error('Durable editor remains trapped by optional refresh');
+  const writes=p.writes.length;for(let n=0;n<12;n++)await p.updateStyleSettings(d=>{d.noteTypeStyles.Project.strokeWidth=3+n});
+  if(p.writes.length!==writes+12||refreshes!==1)throw Error('Held optional work blocked writes or accumulated refresh tasks');
+  const end=refreshes;release();p.index.refreshPresentationSettings=refresh;await new Promise(r=>setTimeout(r,30));
+  if(p.settings.noteTypeStyles.Project.strokeWidth!==14||refreshes!==end)throw Error('Late refresh changed durable state');return true;
+ })()`),true);
+});
+
+
+test("optional refresh retires on unload and consumes a late rejection without replaying disk",async()=>{
+ assert.equal(await scenario(`(async()=>{
+  const p=await createAppearanceHost({noteTypeStyles:{Project:{strokeWidth:1}}});let reject,semantics=0,unhandled=0;
+  const onUnhandled=()=>unhandled++;window.addEventListener('unhandledrejection',onUnhandled);
+  p.index.refreshPresentationSettings=()=>new Promise((resolve,fail)=>reject=fail);p.index.refreshSemanticSettings=async()=>{semantics++};
+  const pending=p.refreshSavedSettings(true);await waitFor(()=>Boolean(reject));p.unloading=true;p.savedSettingsRefresh.close();reject(Error('Retired optional refresh'));
+  const result=await pending;await new Promise(r=>setTimeout(r,20));window.removeEventListener('unhandledrejection',onUnhandled);
+  if(!result.refreshPending||semantics||unhandled)throw Error('Retired refresh revived, misreported or rejected unobserved');return true;
+ })()`),true);
+});
+
+
+test("optional refresh exhaustion is pending and a later explicit request converges",async()=>{
+ assert.equal(await scenario(`(async()=>{
+  const p=await createAppearanceHost({});let calls=0;
+  p.index.refreshPresentationSettings=async()=>{calls++;if(calls<=8)void p.refreshSavedSettings(false)};
+  const first=await p.refreshSavedSettings(false);if(!first.refreshPending||calls!==8)throw Error('Optional feedback was unbounded or falsely complete');
+  p.index.refreshPresentationSettings=async()=>{calls++};const next=await p.refreshSavedSettings(false);
+  if(next.refreshPending||calls!==9)throw Error('Valid later explicit request was stranded');return true;
  })()`),true);
 });

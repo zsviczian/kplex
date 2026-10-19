@@ -7,6 +7,7 @@
  */
 import { projectSupportCustomizations } from "./supportCustomizationProjection";
 import { SETTING_DIAGNOSTIC_KEYS } from "../core/graph/settingsPolicy";
+import {CENTER_RECOVERY_OUTCOMES, sanitizeCenterRecoveryDiagnostic} from "../core/contracts/centerRecovery";
 import { supportCode, supportCount, supportDuration, supportField, SUPPORT_PHASES } from "./SessionEventRecorder";
 
 const SOURCE_REASONS = ["ready", "missing", "stale", "pending-metadata", "tombstone", "format-version", "invalid-head", "missing-chunk", "invalid-chunk",
@@ -58,6 +59,7 @@ export function supportRows(input: unknown, limit: number): unknown[] {
 function supportDecisionReason(input: unknown): string {
   if (typeof input !== "string" || input.length > 240) return "unrecognized";
   if (DECISION_REASONS.some(/** Compare an enum literal, never a regular expression accepting private text. */ code => code === input)) return input;
+  if (CENTER_RECOVERY_OUTCOMES.some(outcome => `center-watchdog:${outcome}` === input)) return input;
   const stream = /^(active|checkpoint)-(pages|relations|evidence)-(storage-unavailable|missing-chunk|invalid-chunk|invalid-record|read-error|cancelled)$/.test(input);
   const write = /^(checkpoint|complete)-(storage-unavailable|cancelled|quota-exceeded|write-error|write-failed)$/.test(input);
   if (stream || write) return input;
@@ -103,11 +105,14 @@ export function projectSupportIndex(input: unknown) {
   if (source === null || typeof source !== "object" || supportIsArray(source)) return { availability: "unavailable" as const };
   const status = supportField(source, "status"), graph = supportField(source, "graph"), hydration = supportField(source, "hydration");
   const saved = supportField(source, "saved"), sources = supportField(source, "sources"), plugin = supportField(source, "plugin"), device = supportField(source, "device");
-  const decisions = supportRows(supportField(source, "decisions"), 20).map(/** Each retained decision is rebuilt without extra fields, raw errors or dynamic setting values. */ row => ({
+  const decisions = supportRows(supportField(source, "decisions"), 20).map(/** Each retained decision is rebuilt without extra fields, raw errors or dynamic setting values. */ row => {
+    const centerCheck = sanitizeCenterRecoveryDiagnostic(supportField(row, "centerCheck"));
+    return {
     at: supportMilliseconds(supportField(row, "at")), stage: supportCode(supportField(row, "stage"), ["restore", "reconcile", "build", "persist"]),
     reason: supportDecisionReason(supportField(row, "reason")),
     ...supportCounters(row, ["added", "removed", "modified", "completedMarkdownFiles", "durationMs"]), changedKeys: supportChangedKeys(supportField(row, "changedKeys")),
-  }));
+    ...(centerCheck ? {centerCheck} : {}),
+  };});
   return {
     availability: "available" as const, decisionsOmitted: Math.max(0, supportRowCount(supportField(source, "decisions")) - 20), formatVersion: supportCount(supportField(source, "formatVersion")),
     generatedAt: supportIsoTime(supportField(source, "generatedAt")), plugin: { id: "k-plex", version: supportVersion(supportField(plugin, "version")) },
