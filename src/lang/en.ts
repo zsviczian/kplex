@@ -5251,6 +5251,10 @@ export const englishCatalog = {
   "footprints.startHere": {"message":"Start here","context":"Reset this Plex trail to its current node only.","params":[],"referenceParams":[]},
   "footprints.empty": {"message":"Your visits appear here.","context":"Empty session trail.","params":[],"referenceParams":[]},
   "footprints.unavailable": {"message":"Unavailable","context":"A trail reference no longer resolves; never create a note.","params":[],"referenceParams":[]},
+  "footprints.copyMarkdown": {"message":"Copy as Markdown","context":"Explicit session-trail Markdown clipboard action; show success only after native fulfillment.","params":[],"referenceParams":[]},
+  "footprints.copying": {"message":"Copying...","context":"Explicit session-trail Markdown clipboard action; show success only after native fulfillment.","params":[],"referenceParams":[]},
+  "footprints.copied": {"message":"Copied to clipboard.","context":"Explicit session-trail Markdown clipboard action; show success only after native fulfillment.","params":[],"referenceParams":[]},
+  "footprints.copyFailed": {"message":"Could not copy. Try again.","context":"Explicit session-trail Markdown clipboard action; show success only after native fulfillment.","params":[],"referenceParams":[]},
 } as const;
 
 export type EnglishCatalog = typeof englishCatalog;

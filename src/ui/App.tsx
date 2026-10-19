@@ -60,6 +60,7 @@ import type { DocumentSyncMode, KplexViewSurface, NodeSortOrder, SidecarMarkdown
 import { SearchBox } from "./features/SearchBox";
 import { searchResultIconName } from "./features/searchResultPresentation";
 import { nodeListPresentation } from "./nodeListPresentation";
+import {nodeMarkdownLink} from "./nodeMarkdownLink";
 import { createLegacyGraphSearchRead } from "../adapters/obsidian/graphContracts";
 import { isEmbeddedMarkdownLeaf } from "../adapters/obsidian/embeddedMarkdownLeaf";
 import { focusEmbeddedMarkdown } from "../adapters/obsidian/embeddedMarkdownFocus";
@@ -1404,7 +1405,8 @@ export function KplexApp({ plugin, surface, hostLeaf, translate, environment, on
                 const target = resolveActionPage(plugin.index, visit.node);
                 return target ? {...nodeListPresentation(target, plugin.index.titleFor(target)), available: true}
                   : {label: visit.node.identity, icon: "circle-help", available: false};
-              }} navigate={/** Normal activation preserves global history and records this repeated visit once. */ visit => {
+              }} formatLink={/** Explicit clipboard projection uses current cached facets or the captured link; never acquire sources. */ visit => nodeMarkdownLink(visit.node, resolveActionPage(plugin.index, visit.node))}
+              navigate={/** Normal activation preserves global history and records this repeated visit once. */ visit => {
                 const target = resolveActionPage(plugin.index, visit.node);if (target && target.path !== activePathRef.current) activate(target);
               }} />}
           actionPorts={graphActionPorts} actionSurfaceId={actions.surfaceId} displayState={displayState} fullscreenAvailable={displayModes.fullscreenAvailable && environment.device === "desktop"}

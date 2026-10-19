@@ -1291,6 +1291,10 @@ const frenchTranslations = {
   "footprints.startHere": "Commencer ici",
   "footprints.empty": "Vos visites apparaîtront ici.",
   "footprints.unavailable": "Indisponible",
+  "footprints.copyMarkdown": "Copier en Markdown",
+  "footprints.copying": "Copie en cours...",
+  "footprints.copied": "Copié dans le presse-papiers.",
+  "footprints.copyFailed": "Impossible de copier. Réessayez.",
 } as const satisfies LocaleTranslationMap;
 
 export const frenchCatalog = buildLocaleCatalog(frenchTranslations);

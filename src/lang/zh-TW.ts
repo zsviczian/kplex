@@ -1283,6 +1283,10 @@ const traditionalChineseTranslations = {
   "footprints.startHere": "從這裡開始",
   "footprints.empty": "造訪的節點會顯示在這裡。",
   "footprints.unavailable": "無法使用",
+  "footprints.copyMarkdown": "複製為 Markdown",
+  "footprints.copying": "正在複製...",
+  "footprints.copied": "已複製到剪貼簿。",
+  "footprints.copyFailed": "無法複製。請重試。",
 } as const satisfies LocaleTranslationMap;
 
 export const traditionalChineseCatalog = buildLocaleCatalog(traditionalChineseTranslations);

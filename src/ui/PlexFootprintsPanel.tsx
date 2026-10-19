@@ -5,6 +5,7 @@
  */
 import { useCallback, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import type { PlexFootprints, FootprintVisit } from "../application/PlexFootprints";
+import {ClipboardSession, type ClipboardState} from "../application/ClipboardSession";
 import type { Translator } from "../lang";
 import { FloatingLayer } from "./components/FloatingLayer";
 import { collectionRange } from "./components/collectionWindow";
@@ -17,8 +18,9 @@ const WINDOW_SIZE = 40;
 export type FootprintRow = {label: string; icon: string; available: boolean};
 
 /** Show newest visits first without reversing/copying the retained chronological trail. */
-export function PlexFootprintsPanel({trail, translate, readRow, navigate}: {
+export function PlexFootprintsPanel({trail, translate, readRow, formatLink, navigate}: {
   trail: PlexFootprints; translate: Translator; readRow: (visit: FootprintVisit) => FootprintRow;
+  formatLink: (visit: FootprintVisit) => string;
   navigate: (visit: FootprintVisit) => void;
 }) {
   const revision = useSyncExternalStore(trail.subscribe, trail.getSnapshot);
@@ -34,6 +36,25 @@ export function PlexFootprintsPanel({trail, translate, readRow, navigate}: {
   const anchor = useRef<HTMLButtonElement>(null), panel = useRef<HTMLDivElement>(null), list = useRef<HTMLDivElement>(null);
   const following = useRef(true), initialFocus = useRef(false);
   const scrollPosition = useRef(0);
+  const clipboard = useRef<ClipboardSession | null>(null);
+  const [copyState, setCopyState] = useState<ClipboardState>("idle");
+  useLayoutEffect(/** Closing/unmounting retires clipboard feedback without cancelling an accepted native write. */ () => {
+    if (!open) setCopyState("idle");
+    return () => {clipboard.current?.dispose();clipboard.current = null;};
+  }, [open]);
+  /** Snapshot every visit only on explicit copy; invoke the owning writer before any await. */
+  const copyMarkdown = (button: HTMLButtonElement): void => {
+    if (clipboard.current?.state === "copying") return;
+    const lines: string[] = [];
+    for (let ordinal = trail.length - 1; ordinal >= 0; ordinal--) {
+      const visit = trail.at(ordinal);if (visit) lines.push(`- ${formatLink(visit)}`);
+    }
+    const owner = button.ownerDocument.defaultView;
+    clipboard.current?.dispose();
+    const session = new ClipboardSession(lines.join("\n"), owner?.navigator.clipboard?.writeText
+      ? text => owner.navigator.clipboard.writeText(text) : null);
+    clipboard.current = session;session.listen(setCopyState);session.copy();
+  };
   // A prepend shifts display positions, but older readers keep the same visit and focus anchor.
   const added = open && !following.current ? Math.max(0, trail.length - previousLength) : 0;
   const range = collectionRange(open ? trail.length : 0, start + added, WINDOW_SIZE);
@@ -84,8 +105,11 @@ export function PlexFootprintsPanel({trail, translate, readRow, navigate}: {
         onWheel={/** Retain list wheel scrolling independently from the Plex camera. */ event => event.stopPropagation()}
         onTouchMove={/** Native scrolling stays in this single bounded region. */ event => event.stopPropagation()}>
         <div className="kplex-footprints-heading"><strong>{translate("footprints.title")}</strong><span>{translate("footprints.count", {count: trail.length})}</span>
+          <button type="button" className="kplex-icon-button kplex-action-button" aria-label={translate("footprints.copyMarkdown")} disabled={!trail.length || copyState === "copying"}
+            onClick={/** Copy the whole displayed trail order, including repeated visits outside the rendered window. */ event => copyMarkdown(event.currentTarget)}><ObsidianIcon name={copyState === "copied" ? "check" : "copy"} size={16} /></button>
           <button type="button" className="kplex-icon-button kplex-action-button" aria-label={translate("footprints.startHere")} disabled={trail.length < 2}
             onClick={/** Reset only this owner; global history, center and other trails are unchanged. */ () => {following.current = true;trail.startHere();}}><ObsidianIcon name="map-pin" size={16} /></button></div>
+        {copyState !== "idle" && <div role="status" className={`kplex-footprints-empty${copyState === "failed" ? " mod-warning" : ""}`}>{translate(copyState === "copied" ? "footprints.copied" : copyState === "failed" ? "footprints.copyFailed" : "footprints.copying")}</div>}
         {!trail.length && <div className="kplex-footprints-empty">{translate("footprints.empty")}</div>}
         <div ref={list} className="kplex-footprints-list" role="list"
           onScroll={/** Resolve only the scroll viewport plus bounded overscan. */ event => {

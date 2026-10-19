@@ -60,6 +60,14 @@ function nativeProbe(phase,saved){
  const escape=async doc=>{const owner=doc.defaultView.require("@electron/remote").getCurrentWindow();owner.webContents.sendInputEvent({type:"keyDown",keyCode:"Escape"});owner.webContents.sendInputEvent({type:"keyUp",keyCode:"Escape"});await wait(100);};
  /** One forwarding wrapper captures only operation counts; exact originals restore on every exit. */
  const wrap=(owner,key,observe)=>{const original=owner[key];check(typeof original==="function",`Missing native owner ${key}`);owner[key]=function(...args){observe(...args);return original.apply(this,args);};const restore=()=>{owner[key]=original;};c.restores.push(restore);return restore;};
+ /** Observe only our outgoing fixture payload while forwarding the real native clipboard write. Never read unrelated clipboard contents. */
+ const copyTrail=async panel=>{
+  const clipboard=panel.ownerDocument.defaultView.navigator.clipboard,descriptor=Object.getOwnPropertyDescriptor(clipboard,"writeText"),original=clipboard.writeText,writes=[];
+  const replacement=function(text){writes.push(text);return original.call(this,text);};
+  Object.defineProperty(clipboard,"writeText",{configurable:true,writable:true,value:replacement});
+  const restore=()=>{if(clipboard.writeText!==replacement)return;if(descriptor)Object.defineProperty(clipboard,"writeText",descriptor);else delete clipboard.writeText;};c.restores.push(restore);
+  try{await click(panel.querySelector(`[aria-label="${p.translator("footprints.copyMarkdown")}"]`));await until(()=>panel.querySelector("[role=status]")?.textContent===p.translator("footprints.copied"),"Native clipboard copy did not fulfill");check(writes.length===1,"Clipboard gesture wrote more than once");return writes[0];}finally{restore();}
+ };
  /** Hold one non-cancellable native open before publication, without changing its real implementation. */
  const hold=(leaf,file)=>{
   const original=leaf.openFile;let release;const state={entered:false},gate=new Promise(resolve=>{release=resolve;});
@@ -134,6 +142,7 @@ function nativeProbe(phase,saved){
   check(panel.querySelectorAll(".kplex-footprints-row").length<=40,"Unbounded native trail DOM");
   const displayed=[...panel.querySelectorAll(".kplex-footprints-row")].map(row=>Number(row.dataset.footprintOrdinal));
   check(displayed[0]===aTrail.length-1&&displayed.every((ordinal,index)=>!index||ordinal===displayed[index-1]-1),"Footprints must show newest visits first");
+  const copied=await copyTrail(panel),expected=Array.from({length:aTrail.length},(_,i)=>`- [[${aTrail.at(aTrail.length-1-i).node.path}]]`).join("\n");check(copied===expected,"Native clipboard lost displayed order or repeated visits");
   await click(panel.querySelector(`[aria-label="${p.translator("footprints.startHere")}"]`));await escape(trigger.ownerDocument);
   for(const restore of restores)restore();
   check(aTrail.length===1&&bTrail.length===bLength&&JSON.stringify(p.settings.navigationHistory)===history&&center(hostA)===active&&rootA.querySelector(".kplex-camera").style.transform===camera,"Start here affected navigation/history/other trail/camera");
@@ -159,7 +168,9 @@ function nativeProbe(phase,saved){
   for(const identity of [tag,folder,url,ghost,attachment.path])await navigate(hostA,identity);
   await click(trigger);panel=trigger.ownerDocument.querySelector(".kplex-footprints-panel");
   check([...panel.querySelectorAll(".kplex-footprints-row")].some(row=>row.textContent.includes("#kplex187/session")&&row.querySelector("svg")),"Full hierarchical tag/type-icon presentation missing");
-  check(Array.from({length:aTrail.length},(_,i)=>aTrail.at(i)).slice(-5).map(visit=>visit.node.kind).join(",")==="tag,folder,url,ghost,file","Supported footprint kinds lost");await escape(trigger.ownerDocument);passed("native-supported-node-types-full-tag-label-and-icons");
+  check(Array.from({length:aTrail.length},(_,i)=>aTrail.at(i)).slice(-5).map(visit=>visit.node.kind).join(",")==="tag,folder,url,ghost,file","Supported footprint kinds lost");
+  const markdown=await copyTrail(panel),lines=markdown.split("\n");check(lines.length===aTrail.length&&JSON.stringify(lines.slice(0,5))===JSON.stringify([`- [[${attachment.path}]]`,`- [[${ghost}]]`,`- [${url}](<${url}>)`,`- [[${c.folder}]]`,"- #kplex187/session"]),"Mixed-kind native clipboard output is not Markdown");
+  await escape(trigger.ownerDocument);passed("native-supported-node-types-full-tag-label-icons-and-markdown-copy");
   await navigate(hostA,path("A"));await p.openSidecar(hostA,p.index.get(path("A")));sideA=p.sidecarLeaves.get(hostA);
   await navigate(hostB,path("C"));check(p.settings.lastActivePath===path("C"),"Command control needs a different shared last center");
   const modeB=p.getDocumentSyncMode(hostB),centerB=center(hostB);await workspace.revealLeaf(sideA);workspace.setActiveLeaf(sideA,{focus:true});sideA.view.editor?.focus();

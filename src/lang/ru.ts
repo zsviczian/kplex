@@ -1295,6 +1295,10 @@ const russianTranslations = {
   "footprints.startHere": "Начать отсюда",
   "footprints.empty": "Здесь появятся посещённые узлы.",
   "footprints.unavailable": "Недоступно",
+  "footprints.copyMarkdown": "Копировать как Markdown",
+  "footprints.copying": "Копирование...",
+  "footprints.copied": "Скопировано в буфер обмена.",
+  "footprints.copyFailed": "Не удалось скопировать. Попробуйте ещё раз.",
 } as const satisfies LocaleTranslationMap;
 
 export const russianCatalog = buildLocaleCatalog(russianTranslations);

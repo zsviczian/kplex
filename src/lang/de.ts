@@ -1287,6 +1287,10 @@ const germanTranslations = {
   "footprints.startHere": "Hier beginnen",
   "footprints.empty": "Deine Besuche erscheinen hier.",
   "footprints.unavailable": "Nicht verfügbar",
+  "footprints.copyMarkdown": "Als Markdown kopieren",
+  "footprints.copying": "Wird kopiert...",
+  "footprints.copied": "In die Zwischenablage kopiert.",
+  "footprints.copyFailed": "Kopieren fehlgeschlagen. Erneut versuchen.",
 } as const satisfies LocaleTranslationMap;
 
 export const germanCatalog = buildLocaleCatalog(germanTranslations);

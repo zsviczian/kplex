@@ -1287,6 +1287,10 @@ const dutchTranslations = {
   "footprints.startHere": "Hier beginnen",
   "footprints.empty": "Je bezoeken verschijnen hier.",
   "footprints.unavailable": "Niet beschikbaar",
+  "footprints.copyMarkdown": "Kopiëren als Markdown",
+  "footprints.copying": "Bezig met kopiëren...",
+  "footprints.copied": "Gekopieerd naar het klembord.",
+  "footprints.copyFailed": "Kopiëren mislukt. Probeer opnieuw.",
 } as const satisfies LocaleTranslationMap;
 
 export const dutchCatalog = buildLocaleCatalog(dutchTranslations);

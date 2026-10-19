@@ -1283,6 +1283,10 @@ const japaneseTranslations = {
   "footprints.startHere": "ここから開始",
   "footprints.empty": "訪問したノードがここに表示されます。",
   "footprints.unavailable": "利用不可",
+  "footprints.copyMarkdown": "Markdown としてコピー",
+  "footprints.copying": "コピー中...",
+  "footprints.copied": "クリップボードにコピーしました。",
+  "footprints.copyFailed": "コピーできませんでした。もう一度お試しください。",
 } as const satisfies LocaleTranslationMap;
 
 export const japaneseCatalog = buildLocaleCatalog(japaneseTranslations);

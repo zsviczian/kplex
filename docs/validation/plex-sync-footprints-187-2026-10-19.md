@@ -20,7 +20,7 @@ The native session owns `PlexFootprints`, a chronological list of small visit ID
 
 The host Lucide Footprints icon sits beside Find. The disclosure reuses `FloatingLayer`, the collection-window owner, native icons and the existing saved-node presentation. It resolves/renders at most 40 rows, shows the newest visit at the top on opening, supports keyboard navigation and keeps the scroll position when a reader is inspecting older visits.
 
-The trail has no persistence/export method. It is absent from native `getState()`, plugin settings, graph caches and support-report projections. Renames update occurrence coordinates without manufacturing visits. Missing or replaced references stay unavailable; selecting them never creates a note. Memory grows with the session's visits; the UI window is bounded, not the retained visit sequence.
+The trail has no persistence method. An explicit Copy as Markdown action copies its links/tags to the clipboard; no automatic trail export is added. It is absent from native `getState()`, plugin settings, graph caches and support-report projections. Renames update occurrence coordinates without manufacturing visits. Missing or replaced references stay unavailable; selecting them never creates a note. Memory grows with the session's visits; the UI window is bounded, not the retained visit sequence.
 
 ## Checkpoint evidence
 
@@ -72,3 +72,9 @@ Final native cleanup and the preserved pre-lane baseline restore the original Sm
 ## Newest-first follow-up
 
 The stored chronological trail is unchanged. The disclosure projects newest-first through the existing bounded window. Home selects newest, End oldest, and arrows follow visual order. Stable visit IDs and scroll offsets preserve older reading/focus anchors when visits arrive; short lists clamp correctly. Row projection is memoized so scroll/focus settlement does not repeat resolution. Seven focused Chromium/session checks pass, including 10,000 visits with the existing 40-row/80-resolution bound. Earlier failed scroll-anchor and short-list controls remain private. Full verification and exact-build native replay of this follow-up are pending; the earlier full/native results above apply to their recorded revisions.
+
+## Explicit Markdown copy follow-up
+
+The disclosure header has a native Lucide Copy as Markdown button. It snapshots all current visits in newest-first display order, including repetitions and entries outside the rendered window. Files/attachments/placeholders/folders become wiki links, full hierarchical tags remain #tags, and URLs become Markdown links. Cached source-section coordinates are used when available; opaque identities are not interpreted as paths. Existing semantic folder/tag owners supply their coordinates. No note content or source preparation is needed.
+
+The support-report clipboard lifecycle is mechanically extracted into ClipboardSession and reused by both real consumers. The support facade retains its report-preview contract. Writes begin in the gesture turn in the owning document, pending clicks cannot duplicate, failure remains retryable, and close/unmount retires status callbacks without pretending to cancel an accepted native write. Success feedback is shown only after fulfillment. All eight locales are maintained. Thirty-eight focused Node/Chromium checks plus nine shared-dialog/browser checks and production build/lint pass. The earlier newest-first full run was superseded after 1,149 primary tests passed when this new action was requested; it is retained as partial evidence, not a completed full verification. Combined full/native results remain pending.

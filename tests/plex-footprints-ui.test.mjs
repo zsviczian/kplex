@@ -7,13 +7,15 @@ import {chromiumHarness} from "./support/browserTypeScript.mjs";
 const built=await build({stdin:{resolveDir:process.cwd(),loader:"tsx",contents:`
 import React from 'react';import{createRoot}from'react-dom/client';import{flushSync}from'react-dom';
 import{PlexFootprints}from'./src/application/PlexFootprints';import{PlexFootprintsPanel}from'./src/ui/PlexFootprintsPanel';import{createTranslator}from'./src/lang';
+import{nodeMarkdownLink}from'./src/ui/nodeMarkdownLink';
 export {PlexFootprints};
-window.trail=new PlexFootprints();window.resolves=0;window.navigation=[];
+window.trail=new PlexFootprints();window.resolves=0;window.navigation=[];window.formats=0;window.clipboardWrites=[];
+window.clipboardMode='resolved';Object.defineProperty(navigator,'clipboard',{configurable:true,value:{writeText(text){clipboardWrites.push(text);if(clipboardMode==='throws')throw Error('private clipboard failure');if(clipboardMode==='rejected')return Promise.reject(Error('private clipboard failure'));if(clipboardMode==='pending')return new Promise(resolve=>window.finishCopy=resolve);return Promise.resolve();}}});
 let root;
 window.visit=(identity)=>trail.accept({identity,path:identity,kind:'file'});
 window.mount=()=>{root??=createRoot(document.body.appendChild(document.createElement('div')));flushSync(()=>root.render(<PlexFootprintsPanel trail={trail} translate={createTranslator('en')}
  readRow={visit=>{window.resolves++;return{label:visit.node.identity,icon:'file-text',available:visit.node.identity!=='Missing.md'}}}
- navigate={entry=>{navigation.push(entry.id);trail.accept(entry.node)}}/>));};
+ formatLink={entry=>{window.formats++;return nodeMarkdownLink(entry.node)}} navigate={entry=>{navigation.push(entry.id);trail.accept(entry.node)}}/>));};
 `},bundle:true,write:false,format:"iife",globalName:"sourceModules",platform:"browser",plugins:[{name:"host-icons",setup(builder){builder.onResolve({filter:/^obsidian$/},()=>({path:"obsidian",namespace:"native"}));builder.onLoad({filter:/.*/,namespace:"native"},()=>({contents:`export function getIcon(name){const icon=document.createElementNS('http://www.w3.org/2000/svg','svg');icon.setAttribute('data-icon',name);return icon}`,loader:"js"}));}}]});
 
 /** Install repository CSS and keep the control at the actual upper-right disclosure position. */
@@ -43,6 +45,39 @@ test("Footprints repeats, row activation, Start here, Escape, outside dismissal 
   await host.evaluate("document.querySelector('.kplex-footprints-trigger').parentElement.style.display='none'");await settle(host);
   assert.equal(await host.evaluate("Boolean(document.querySelector('.kplex-footprints-panel'))"),false,"A native hidden tab must not leave its body portal visible");
   assert.equal(await host.evaluate("trail.length"),1,"Hiding the disclosure retains this native session's trail");
+ }finally{await host.cleanup();}
+});
+
+test("copy uses all visits in visible order with native link kinds, repetitions and truthful clipboard feedback",async()=>{
+ const host=await browser();try{
+  await host.evaluate(`const refs=[{identity:'opaque-note',path:'First.md',kind:'file'},{identity:'opaque-tag',path:'tag:topic/subtag',kind:'tag'},{identity:'opaque-folder',path:'folder:Projects/Notes',kind:'folder'},{identity:'opaque-attachment',path:'Assets/file.pdf',kind:'file'},{identity:'opaque-url',path:'https://example.com/a_(b)?x=[1]',kind:'url'},{identity:'opaque-ghost',path:'Planned note',kind:'ghost'},{identity:'opaque-note',path:'First.md',kind:'file'}];refs.forEach(ref=>trail.accept(ref));document.querySelector('.kplex-footprints-trigger').click()`);await settle(host);
+  assert.equal(await host.evaluate("formats"),0,"Disclosure never formats the whole trail");
+  await host.evaluate(`document.querySelector('[aria-label="Copy as Markdown"]').click();window.wroteInHandler=clipboardWrites.length===1`);await settle(host);
+  assert.equal(await host.evaluate("wroteInHandler"),true);
+  assert.deepEqual(await host.evaluate("clipboardWrites"),["- [[First.md]]\n- [[Planned note]]\n- [https://example.com/a_(b)?x=\\[1\\]](<https://example.com/a_(b)?x=[1]>)\n- [[Assets/file.pdf]]\n- [[Projects/Notes]]\n- #topic/subtag\n- [[First.md]]"]);
+  assert.equal(await host.evaluate("document.querySelector('[role=status]').textContent"),"Copied to clipboard.");
+  await host.evaluate(`trail.startHere();for(let i=0;i<100;i++)visit(i%2?'A.md':'B.md');document.querySelector('[aria-label="Copy as Markdown"]').click()`);await settle(host);
+  assert((await host.evaluate("document.querySelectorAll('.kplex-footprints-row').length"))<=40);
+  assert.equal(await host.evaluate("clipboardWrites[1].split('\\n').length"),101,"Copy includes visits beyond the rendered window");
+  assert.equal(await host.evaluate("trail.length"),101,"Copy leaves the trail untouched");
+ }finally{await host.cleanup();}
+});
+
+test("clipboard denial retries, pending duplicate clicks and stale completion after dismissal remain safe",async()=>{
+ const host=await browser();try{
+  await host.evaluate(`visit('A.md');document.querySelector('.kplex-footprints-trigger').click();clipboardMode='rejected'`);await settle(host);
+  await host.evaluate(`document.querySelector('[aria-label="Copy as Markdown"]').click()`);await settle(host);
+  assert.equal(await host.evaluate("document.querySelector('[role=status]').textContent"),"Could not copy. Try again.");
+  assert.equal(await host.evaluate("document.querySelector('[aria-label=\"Copy as Markdown\"]').disabled"),false);
+  await host.evaluate(`clipboardMode='pending';const button=document.querySelector('[aria-label="Copy as Markdown"]');button.click();button.click()`);await settle(host);
+  assert.equal(await host.evaluate("clipboardWrites.length"),2,"Pending attempts cannot submit twice");
+  assert.equal(await host.evaluate("document.querySelector('[role=status]').textContent"),"Copying...");
+  await host.evaluate(`document.querySelector('.kplex-footprints-trigger').click();finishCopy()`);await settle(host);
+  assert.equal(await host.evaluate("Boolean(document.querySelector('.kplex-footprints-panel'))"),false);
+  await host.evaluate(`document.querySelector('.kplex-footprints-trigger').click()`);await settle(host);
+  assert.equal(await host.evaluate("Boolean(document.querySelector('[role=status]'))"),false,"A retired copy cannot publish into the reopened panel");
+  await host.evaluate(`clipboardMode='resolved';document.querySelector('[aria-label="Copy as Markdown"]').click()`);await settle(host);
+  assert.equal(await host.evaluate("document.querySelector('[role=status]').textContent"),"Copied to clipboard.");
  }finally{await host.cleanup();}
 });
 
