@@ -5307,3 +5307,8 @@ Second fullc814main1127 passes, UI179/183 stops4 imagery fixtures missing actual
 ### PR179 delegated semantic guard and bounded native trace (2026-10-19)
 
 Third fullf2fef82 architecture7/core130/main1127/UI184 pass; sources333/334 stop only on old inline-await source assertion. Replacement guard checks immediate invalidation, semantic obligation delegation, presentation-before-semantic and unload/currentness fences; behavioral mixed/source oracles unchanged. Source/runner38 pass. Existing native event collector gains opaque operation IDs, queue/preparation peaks and revision tokens, capped2048 with dropped count; original promises forwarded, no note payload/new recorder. Production runtime remainsf2fef82; next clean fullverified log before exact native. No new compiler/receipt/schema/refactoring scope; C14 paused.
+
+
+## 2026-10-19 - PR179 validated bounded liveness closeout
+
+Full be7247a verify: architecture7/core130/main1127/UI184/sources334/browser638, lint/build pass. Final native tooling syntax/20runner pass. Exact staged build and serial native Settings overlap, Sidecar/drawing, Properties, storage/reload observations recorded in docs/validation/settings-save-liveness-179-2026-10-19.md. Whole-renderer freeze remains unresolved; On-demand drawing quiet prerequisite pendingKnown1 remains excluded. No source/compiler/schema change or performance claim. Private evidence durable-copy verified, originals retained. Manual priority: real incident owner trace; macOS Settings/Sidecar; physical mobile. User authorizes merge then149/176 in sequence, no CI wait.

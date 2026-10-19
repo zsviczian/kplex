@@ -1,137 +1,62 @@
-# Settings-save liveness (#179)
+﻿# Settings-save liveness (#179)
 
-## Causal checkpoint
+## Outcome
 
-Baseline main `60d2239`, integrated without rewriting at `3bc489c`. Node22.22.2,
-installed production types/dependencies, real Chromium/IndexedDB and native Windows
-Obsidian1.14.4. No personal vault, comparative performance campaign or new archive.
-Native uses the previously validated installed `1137fc1` bundle (production source
-identical to this baseline), SHA-256
-`96ae2f09efce197dfacecf0fa29760f1867bcd719b6714979283752f5e453cee`.
+Ship the bounded optional post-save completion and presentation-notification safeguards. Four actual-owner baseline regressions are corrected. The original intermittent whole-application freeze is **not reproduced or proved fixed**. No CPU, memory, indexing-speed or perceived-paint gain is claimed.
 
-Four bounded baseline regressions fail through actual production owners:
+Main `60d2239` was integrated normally at `3bc489c`. Runtime candidate `f2fef82` and final test checkpoint `be7247a` preserve compiler/parser, source validation, persistence schema and synchronous semantic per-file publication. Later edits concern native tooling and documentation only. No receipt, reader sharing, new scheduler or #176 implementation.
 
-- GraphIndex presentation notification revisits a removed/re-registered subscriber
-  16 times in one dispatch. The test stops re-registering at16 to remain safe.
-- A subscriber's nested notifications enter recursively to depth4; the defensive
-  test caps nesting. No particular real subscriber is proved to cause a freeze.
-- Actual preparation with controlled source-currentness invalidation completes65
-  attempts rather than a finite retry outcome. Normal private facet/search owners
-  run; a forwarding fault rejects each completed search and advances source input.
-- The real queued appearance writer and native-shaped style editor remain locked
-  after durable Save while optional refresh is held. This is a blocked editor,
-  not evidence of a starved renderer.
+## Cause and correction
 
-A native actual Settings/Node-style/Border `--h1-color` probe holds an earlier
-facet-and-search preparation, then submits the parent style Save. After300ms:
-**1 write, durable style present, editor pending, 25 task heartbeats**, earlier
-preparation still held. Releasing the holds lets it finish. Five native checks
-pass, including restoration; this is an observation control, not fix acceptance.
-The first attempt held search after changing only label length, which does not
-request search preparation; that failed prerequisite is preserved. The corrected
-probe changes full-tag display, exercising both facets and search.
+| Actual-owner baseline failure | Correction |
+| --- | --- |
+| Removed/re-registered subscriber revisited 16 times in one dispatch | Opening snapshot and registration identities; old cleanup cannot retire a replacement |
+| Nested presentation notifications recursed to depth 4 | Nonrecursive stronger/keyed coalescing; redundant feedback deduplicates; host-task continuation after four synchronous rounds |
+| Controlled source-currentness churn completed 65 optional settings-preparation attempts | Eight attempts / 64 ms retry window, initial attempt plus one retry allowed, real task yields and explicit later retry |
+| Durable style writer/editor trapped by held optional refresh | One optional completion flight and coalesced newer obligation; truthful saved/pending after a 200 ms host timer |
 
-Raw logs remain private in Temp (`kplex-179-owner-red.log`,
-`kplex-179-durable-red.log`, `kplex-179-native-baseline-*`,
-`kplex-179-native-overlap-*`). No raw traces are committed or published.
+Disk persistence and coherent live-settings publication still precede completion. Accepted disk writes are never cancelled/replayed. Separate semantic-intent revisions prevent unrelated workflow saves replaying completed semantic work. Eight convergence attempts bound newer-intent adaptation; unload fences follow-up effects and consumes late failures. Existing modal, theme, field-merge, copy-on-write, failed-storage and duplicate-submit owners remain authoritative. Generic saved/pending feedback covers all eight locales.
 
-## Bounded correction selected
+The 200 ms timer bounds callback waiting when host tasks run. It cannot rescue an already starved renderer or guarantee wall-clock latency, paint or background timer delivery. A permanently held provider retains one flight; recovery may require explicit later input or reload. Private/compiler preparation contracts remain unchanged.
 
-Keep optional settings adaptation in GraphIndex: at most8 attempts, a64ms retry
-window after allowing an initial attempt and one retry, real host-task yields,
-unchanged source/policy/identity finality and coherent old publication on exhaustion.
-Later explicit valid input can retry. No automatic
-rebuild or source-read workaround. Make presentation dispatch snapshot-based and
-non-recursive, retaining stronger/keyed work while suppressing redundant feedback.
+A compiler retry-cap experiment was rejected because null could enter missing-cache recovery; the baseline implementation was restored exactly. Private source SHA-256: `219d426ee872163784e5dc3c43b83091f4f3d020374636e6ba251e0bee27c96a`. Only the source-restore caller of optional adaptation distinguishes typed presentation-pending from cache damage. A real IndexedDB regression proves retained body-only relations, zero recovery/body-read admission and later valid display convergence. No source-proof relaxation.
 
-Keep the one settings writer. After disk and coherent live-settings publication,
-bound editor waiting on optional refresh. Retain at most one optional refresh
-flight and one coalesced newer obligation; consume failure and fence teardown.
-A deadline is saved/refresh-pending, never cancellation or replay of disk writes.
-Existing pending feedback and modal controls remain the UX owner.
+## Verification
 
-These are validated safeguard candidates. The original whole-application freezes
-remain unproven; no Sidecar/Properties/root-cause claim follows from these faults.
-Scalar coalescing and mixed-effect classification remain unimplemented leads.
+Node **22.22.2**, actual production dependencies/types and real Chromium/IndexedDB. Clean **be7247a** passes `npm run verify`: architecture **7**, core **130**, main **1,127**, UI **184**, sources **334**, source-browser **638**, official Obsidian lint and real production build; no failures/skips. Final native-tool-only follow-up passes syntax and **20** runner tests. Final runtime/test diff from that full-tested checkpoint is empty.
 
-## Acceptance
+Full log SHA-256: `49bd618dd06c599896117f73bbb5ac48629934755c21959eb24823efdc4991ad`.
+Exact staged/native main.js SHA-256: `2c6dce74c2930ec435ff23caa88de9fd8e231f4cc98f4d967dbe52a7990eeaea`. Strict staging/render smoke passed before native testing.
 
-The bounded owner regressions pass, and the surrounding105 editor/presentation/
-external-settings/ontology cases pass before the final snapshot-specific addition.
-An overlap regression first caught an unnecessary second semantic refresh after a
-workflow save; separate semantic-obligation revision tracking corrects it without
-changing the existing oracle. The corrected overlap/unload checks3 pass. All23
-localization checks pass; the generic saved/pending notice is translated in8 locales.
-Real production build and official lint pass at the earlier candidate; full final
-verification and exact native candidate acceptance remain pending. Keep #179 draft.
+Windows **Obsidian 1.14.4 / installer 1.14.0**, real Excalidraw **2.29.0**; authorized Small only, **107 files / 88 Markdown** before and after. Serial foreground functional tests, no comparative performance campaign. Drawing fixtures use the companion's generated drawing displayed as Markdown beside a normal center. Returned-path identity precedes cleanup ownership.
 
-The completion lease races a200ms host timer after durable/live publication.
-This is a callback scheduling bound, not a paint guarantee or a rescue for an
-already starved renderer; native/background throttling remains a platform factor. A held
-native operation remains one owned flight, with one coalesced newer obligation;
-no disk replay/cancellation or independent refresh task per edit. Repeated newer
-intent has an8-attempt convergence bound, then remains truthfully pending for
-explicit retry/reload. Unload fences follow-up effects and consumes late errors.
-Default copy-on-write, theme fencing, failed/uncertain storage and native modal
-submission ownership retain their existing owners and regression coverage.
+| Native lane | Actual result |
+| --- | --- |
+| On-demand quiet managers/editors, main/popout, held/failed storage and reload | 15 pass |
+| On-demand held earlier facet/search + parent Save, main | 5 pass |
+| Same, plain Markdown Sidecar | 5 pass |
+| Same, real drawing as Markdown Sidecar | 5 pass |
+| On-demand global radius, real drawing Sidecar | Earlier diagnostic repeat: 8 pass; final stricter prerequisite refuses to start (below) |
+| Eager quiet managers/editors and storage/reload | 15 pass |
+| Eager real drawing Sidecar + Properties, controlled overlap | Final repeat: 5 pass, including strict work-count and stationary restart checks |
+| Eager global radius, real drawing Sidecar | 8 pass, including trusted slider/Settings-close interactions |
 
-Only presentation notifications change: snapshot/removal semantics, isolated
-optional-subscriber errors and nonrecursive key/stronger-kind coalescing. Same
-publication feedback deduplicates; at most4 synchronous rounds precede one bounded
-host-task continuation for actual newer work. Semantic per-file publication is not
-made asynchronous.
+Controlled main overlap at 300 ms: baseline **one durable write, editor pending, 25 task heartbeats**; candidate **one durable write, editor closed, 28 heartbeats**. Final Eager overlap also closes while earlier preparation remains held. This distinguishes a blocked dialog from renderer starvation. Native scalar traces are bounded to 2,048 events with dropped counts. IDs correlate queue, preparation and publication; they are not CPU attribution. Whole-trial reads/acquisitions include fixtures, native leaves, reload and cleanup. Only scoped unchanged oracles support zero-source/semantic claims. Portable work-count assertions await actual owned refresh drain outside the early UI-completion lease.
 
-A separate uncommitted private/compiler-preparation cap was rejected during owner
-review: returning null would enter existing missing-cache recovery paths. It is
-restored to the exact baseline, not shipped. Private source SHA-256:
-`219d426ee872163784e5dc3c43b83091f4f3d020374636e6ba251e0bee27c96a`.
-No new source outcome protocol or #176 redesign is introduced. The one source-
-restore caller of optional settings adaptation now distinguishes its typed pending
-outcome from cache damage. A real IndexedDB regression proves retained body-only
-relations, zero source-recovery admission/body reads, and later valid display
-convergence. Compiler/source preparation retry contracts themselves remain a
-separate limitation; no whole-renderer-freeze resolution is claimed.
+## Failures and exclusions
 
+All originals and failed trials remain private. Three earlier full runs stopped on fixture defects: missing real Node timers (29), missing actual completion dependency in imagery (4), and one retired inline-await structural guard (1). Actual dependencies/timers and the delegated semantic obligation guard were corrected. Behavioral/source/work-count assertions were not weakened.
 
-First full verification at `941ddda` stops in the Node test group:1098 pass/29
-fail, all from the narrow migration host lacking `window.setTimeout` (or no window).
-The browser host already supplies real timers. The Node fixture now supplies real
-`setTimeout`/`clearTimeout` rather than a production fallback or synchronous fake;
-all88 migration/runner tests pass without changing their assertions. Native drawing
-cleanup now acquires ownership only after checking the companion returned the
-exact requested test path. Production source is unchanged by these corrections.
-The failed log remains private (`kplex-179-full-final.log`); the corrected full run
-uses `kplex-179-full-retry.log`. Acceptance remains pending until it completes.
+Native failures include an initial wrong-facet hold; first radius run whose strict guard saw overlapping source acquisition; ineffective live mode switching; and startup-strategy/canonical-authority prerequisites that rejected valid source-backed readiness. Eager mode now uses the existing ontology lane's disable/configure/enable procedure. Normal fixture preparation is recorded separately; functional deadlines remain 15 seconds. An Eager overlap passed liveness but failed its later source-work guard; observed fixture-work drainage before fault injection gives the final five-case pass.
 
+The final On-demand drawing/radius control still refuses to start: **one known source owner remains queued**, while scheduler, hydration, semantics, writer and visible-metadata activity are zero and local status is ready. This is not genuine drain and is not relabeled a pass. Its earlier eight passing interactions do not establish repeatable quiet preparation. No build, forced proof, cleared queue or enlarged functional deadline was added.
 
-Second full run at `c814c1f`: architecture7/core130/main1127 pass; UI179/183
-pass,4 fail because the imagery fixture extracted `saveSettings()` without its new
-actual completion dependency. It now compiles that dependency, not a fake refresh;
-all7 image cases pass, including held-refresh immediate consent revocation with
-truthful pending feedback and zero semantic/read/parse work. The corresponding
-existing typography host now also compiles that dependency:117 cases pass. Its
-three style/color/typography work-count oracles additionally await genuine owned
-refresh drain outside the foreground lease; all3 pass with unchanged source and
-authority assertions. No work-count claim uses the earlier UI completion boundary.
+Reproduce with existing [styleOperations.mjs](../../scripts/testing/obsidian/styleOperations.mjs) and explicit Small-vault variables in [CONTRIBUTING.md](../../CONTRIBUTING.md). `KPLEX_STYLE_REFERENCE_ONLY=true` plus `KPLEX_STYLE_LIVENESS=assert` selects overlap; documented Sidecar, Properties and real-drawing factors remain available. Global radius uses `KPLEX_STYLE_SIDECAR_GATE_ONLY=true`. Wrappers, fixtures, configuration bytes, workspace/follow owners and original On-demand mode are restored independently of assertions; final controller count zero. CLI debugger capture released. No personal vault, app termination or cache purge.
 
-A further actual-owner red exposed callback-identity reuse: a later subscriber
-removed/re-registered before its turn still received the old event. Registration
-identities now fence that sequence and repeated stale cleanup, preserving the
-previous same-function deduplication behavior. GraphIndex/imagery31 focused cases
-pass; raw red and corrected logs remain private. This is a bounded extension of
-the demonstrated notification correction, not a global event framework. The
-third full run uses `kplex-179-full-complete.log`; final native acceptance remains
-pending until that exact clean source completes verification.
+## Private evidence and recommendation
 
+Raw Temp prefixes: `kplex-179-owner-red`, `kplex-179-durable-red`, `kplex-179-native-baseline`, `kplex-179-native-overlap`, `kplex-179-native-1792366866794`, `kplex-179-radius-cause`, `kplex-179-native-remaining`, `kplex-179-native-final-controls-1792368089931`. Native reports retain driver/artifact identities; portable receipt is `kplex-179-portable-receipt.json`. Earlier installed baseline `1137fc1` is runtime-identical to main `60d2239`, bundle SHA-256 `96ae2f09efce197dfacecf0fa29760f1867bcd719b6714979283752f5e453cee`.
 
-Third full run at `f2fef82`: architecture7/core130/main1127/UI184 pass; the
-portable source group stops at333/334 because one structural guard requires the
-retired inline semantic await. The guard now checks its full replacement path:
-semantic invalidation remains immediate, its obligation reaches the completion
-lease, presentation precedes semantic refresh, and unload/currentness fence it.
-Behavioral mixed-edit/source assertions remain unchanged. Source/runner38 checks
-pass. Existing native events now carry opaque operation IDs, queue/preparation
-counts and source/policy/publication tokens, bounded at2048 events with explicit
-dropped counts. Forwarders retain the original returned promises and collect no
-note payloads. Fourth full run: `kplex-179-full-verified.log`; no native candidate
-acceptance or whole-renderer fix is claimed yet.
+Verified durable private copy: `%LOCALAPPDATA%/KplexValidation/settings-save-liveness-179-1792368186633`, **141 files / 8,210,671 bytes**; manifest SHA-256 `00a4fa5312067154bb6ad35a6825f3e4550d8e27efd6304638bc0b1b5f73deb8`. Every original/copied file hash was checked. No archive or raw traces published, originals retained.
+
+Recommend merging these bounded safeguards while retaining the intermittent freeze as unresolved. macOS, physical mobile, different-DPI displays and long real-vault freeze conditions remain untested. Highest-value follow-up is an incident trace identifying the blocked owner. Scalar coalescing and mixed-effect classification remain unimplemented leads. #149 and #176 are separate next work packages.

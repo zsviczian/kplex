@@ -19,46 +19,25 @@ Obsidian is the production host; preserve the established portable semantic, ide
 
 ---
 
-# PR179 candidate; final verification
+# PR179 validated closeout; sequential work remains authorized
 
-Main/root agent implements/reviews/validates; no subagents.147 merged60d2239,
-179 integrated main3bc489c and causal checkpoint7f5d17d pushed. User authorizes
-validated179merge, then149 then176 sequentially; no CIwait/release/personalvault,
-comparative performance under encoding load, new receipt/schema/scheduler/archives.
+Main/root agent implements/reviews/validates; no delegation.147 merged60d2239.
+179 main integration3bc489c, runtimef2fef82, full-testedbe7247a. User authorizes
+merge179, then149 then176 sequentially, no CI wait/release/personal vault.
+No comparative performance under encoding load, receipt/reader-sharing revival,
+source-proof weakening or broad architecture. Preserve private originals.
 
-Four original production-owner red regressions are now green. Surrounding105 cases
-pass before final boundary/copy additions;23 localization checks pass; prior lint/
-realbuild pass. Candidate adds one optional completion lease (disk writer unchanged),
-8-attempt settings adaptation with task yields, finite nonrecursive presentation
-notification. Semantic revision tracking prevents redundant replay in an existing
-ontology overlap regression. Exact native candidate/fullfinal checks pending.
-
-Private/compiler preparation cap experiment restored to exact baseline after source
-review found null would trigger cache recovery; no private compiler retry redesign.
-One restore caller catches only typed optional-settings pending, retaining valid
-source snapshot. Actual IndexedDB proof plus budget/explicit-retry tests3 pass.
-Prototype remains private in Temp with SHA inreport, not in shipped code.
-
-Native baseline actual Settings overlap5 cases pass: durable1write, editor still
-pending,25heartbeats while actual earlier facet/search and later refresh held.
-First wrong-facet search prerequisite failed and remains rawprivate. Existing
-styleOperations now supports LIVENESS=assert/observe and actual companion drawing
-as Markdown via EXCALIDRAW_SIDECAR, with existing cleanup. Small107/88/config restored.
-Next fullverify oncleancommittedcandidate, stageexactbuild, serial native quiet/
-overlap On-demand+Eager, main/popout/Sidecar plain vsrealdrawing andPropertiesfactor,
-held/failed disk+close/unload/reload; recordactual limits. Do not claim wholeapp
-freeze reproduced. Remove planmarker done.149/176 not started; eachcausalgated.
-
-
-Final-verification correction:941full stops Node1098/1127 (29 missing timer fixture
-failures);c814full passesmain1127 thenUI179/183 (4 imagery fixture completion method
-missing). Both actual dependency fixtures corrected without weakened oracles:
-migration/runner88, imagery7, onDemand117 pass. Three genuine-drain style/color/
-typography oracles pass after awaiting owned optional flight outside foreground
-lease. Actual callback remove/re-register red reproduced; registration tokens now
-preserve deduplication and fence old delivery/cleanup. GraphIndex/imagery31 pass.
-Next clean source thirdfull kplex-179-full-complete.log; no live native driver.
-Private native matrix prepared at TEMP/kplex-179-native-matrix.mjs, mustnotrununtil
-fullpass/stage exact. It uses8serial Small scenarios with mode restart and original
-config/workspace restoration, real drawing companion required, finite deadlines.
-Source pending clock is200ms host timer (notwallclockpaint/CPU rescue guarantee).
+Full verify passes7/130/1127/184/334/638 plus lint/build. Native exact2c6dce74
+bundle staged/smoke passed. Native matrix results and all failures in concise
+report docs/validation/settings-save-liveness-179-2026-10-19.md. Main/Sidecar
+controlled Save closes after1durablewrite while optional work held. Whole-renderer
+freeze remains unproved. On-demand drawing/radius stricter fixture drain refuses
+pendingKnown1 despite no active work; earlier8pass is not repeatability proof.
+Eager quiet15, radius8, final real-drawing+Properties overlap5pass. Config/workspace
+107/88 and originalmode restored, no controllers, CLIdebug capture released.
+Final native helper syntax/20runner pass. Only native tooling/docs changed since
+full-testedbe724. Private verified durable copy141files/8210671B, manifestSHA in
+report, originals retained/no publication. Next finalize authorized179merge,
+switch/fetch main, integrate149branch normally; cause-first visual probe. If no
+confirmed defect, precise no-go rather than speculative rendering hack.176 Gate1
+causal checkpoint follows, no broad benchmark or new persistent protocol.
