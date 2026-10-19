@@ -5312,3 +5312,8 @@ Third fullf2fef82 architecture7/core130/main1127/UI184 pass; sources333/334 stop
 ## 2026-10-19 - PR179 validated bounded liveness closeout
 
 Full be7247a verify: architecture7/core130/main1127/UI184/sources334/browser638, lint/build pass. Final native tooling syntax/20runner pass. Exact staged build and serial native Settings overlap, Sidecar/drawing, Properties, storage/reload observations recorded in docs/validation/settings-save-liveness-179-2026-10-19.md. Whole-renderer freeze remains unresolved; On-demand drawing quiet prerequisite pendingKnown1 remains excluded. No source/compiler/schema change or performance claim. Private evidence durable-copy verified, originals retained. Manual priority: real incident owner trace; macOS Settings/Sidecar; physical mobile. User authorizes merge then149/176 in sequence, no CI wait.
+
+
+## 2026-10-19 - PR149 visual investigation no-go
+
+Main integrated44e6103. Actual Windows/DPR1 screenshots24main+26popout, zoom1/.83 and motion1/0 show finite interpolation, centertransform none and no running graph animation at600ms onward. Rapid navigation/resize settle; will-change discrimination does not establish improvement.44 existing motion/fit/typography/Wander tests pass. No persistent defect reproduced, no runtime patch or index work change. Keep149draft/115open, do not merge speculative rendering changes. Private61file backup verified; Small107/88/config restored. Next manual discriminator: affected device/version/DPI/zoom plus idle recording; macOS/otherDPI/physicalmobile pending. Continue176 independently.

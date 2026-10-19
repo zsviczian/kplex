@@ -19,25 +19,6 @@ Obsidian is the production host; preserve the established portable semantic, ide
 
 ---
 
-# PR179 validated closeout; sequential work remains authorized
+# PR149 bounded no-go; continue176 independently
 
-Main/root agent implements/reviews/validates; no delegation.147 merged60d2239.
-179 main integration3bc489c, runtimef2fef82, full-testedbe7247a. User authorizes
-merge179, then149 then176 sequentially, no CI wait/release/personal vault.
-No comparative performance under encoding load, receipt/reader-sharing revival,
-source-proof weakening or broad architecture. Preserve private originals.
-
-Full verify passes7/130/1127/184/334/638 plus lint/build. Native exact2c6dce74
-bundle staged/smoke passed. Native matrix results and all failures in concise
-report docs/validation/settings-save-liveness-179-2026-10-19.md. Main/Sidecar
-controlled Save closes after1durablewrite while optional work held. Whole-renderer
-freeze remains unproved. On-demand drawing/radius stricter fixture drain refuses
-pendingKnown1 despite no active work; earlier8pass is not repeatability proof.
-Eager quiet15, radius8, final real-drawing+Properties overlap5pass. Config/workspace
-107/88 and originalmode restored, no controllers, CLIdebug capture released.
-Final native helper syntax/20runner pass. Only native tooling/docs changed since
-full-testedbe724. Private verified durable copy141files/8210671B, manifestSHA in
-report, originals retained/no publication. Next finalize authorized179merge,
-switch/fetch main, integrate149branch normally; cause-first visual probe. If no
-confirmed defect, precise no-go rather than speculative rendering hack.176 Gate1
-causal checkpoint follows, no broad benchmark or new persistent protocol.
+147 merged60d2239,179 mergedb4c144a.149 integrated main normally44e6103. Native Small visual probes24main+26popout, actual1/.83zoom, animation1/0, interrupted navigation and resize: expected transient softness, no persistent idle blur.44 existing motion/fit/typography/Wander tests pass. No runtime change justified;149 remains draft,115 open, no merge. Report docs/validation/label-sharpness-149-2026-10-19.md includes missing affected-device discriminator and private verified61file evidence backup. Small107/88/config/workspace restored. User authorizes176 next, integrate currentmain normally, bounded causal Gate1 before any candidate. No personalvault, comparative performance under encoding load, broad scheduler/source/receipt/reader redesign, release or branch deletion.
