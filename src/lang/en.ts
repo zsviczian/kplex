@@ -5192,7 +5192,7 @@ export const englishCatalog = {
   "folderPicker.invalid": {"message":"Enter a valid folder path inside this vault.","context":"Note destination selection and device-specific navigation layout settings.","params":[]},
   "folderPicker.fileConflict": {"message":"A file already uses this folder path.","context":"Note destination selection and device-specific navigation layout settings.","params":[]},
   "folderPicker.invalidAlias": {"message":"The alias cannot contain two closing brackets.","context":"Note destination selection and device-specific navigation layout settings.","params":[]},
-  "layout.simplifiedTitle": {"message":"Simplified layout","context":"Note destination selection and device-specific navigation layout settings.","params":[]},
+  "layout.simplifiedTitle": {"message":"One-sided layout","context":"Note destination selection and device-specific navigation layout settings.","params":[]},
   "layout.simplifiedHelp": {"message":"Place friends and challengers in separate groups on the left. Their relationships and filters stay the same. Pop-out windows use the main-tab choice.","context":"Note destination selection and device-specific navigation layout settings.","params":[]},
   "layout.arrangementScope": {"message":"{device}: {surface}","context":"Note destination selection and device-specific navigation layout settings.","params":["device","surface"],"referenceParams":[]},
   "layout.mainTab": {"message":"Main tab","context":"Note destination selection and device-specific navigation layout settings.","params":[]},

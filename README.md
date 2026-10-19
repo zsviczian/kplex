@@ -114,7 +114,7 @@ Drag a file or folder's gate onto a folder to move it there. With a folder in th
 
 Drag a tag's gate onto a Markdown note in the Plex, history or pins to assign it. You can also drop a tag from another Plex into a note's **Parents** area. Choose **Tag** or **Note Type** before saving. A note has one Note Type: when replacing it, choose whether to keep the current type or keep the new type, with the other remaining an ordinary tag. Right-click the tag connection to change between the two. Note Type tag links are twice as thick by default; customize them under **Visual styling → Link styling → Note Type tag links**.
 
-For a narrower Plex, select **Simplified layout** below the Parents and Children sliders in **Layout controls**. This checkbox changes the current device and pane context. Friends and challengers appear in separate groups on the left, retaining their relationship meanings and filters. All six choices are also available under **Settings → K-Plex → Plex behavior → Simplified layout**: desktop, tablet and mobile, each with main-tab and side-panel settings. Pop-outs use the main-tab choice for their device.
+For a narrower Plex, select **One-sided layout** below the Parents and Children sliders in **Layout controls**. This checkbox changes the current device and pane context. Friends and challengers appear in separate groups on the left, retaining their relationship meanings and filters. All six choices are also available under **Settings → K-Plex → Plex behavior → One-sided layout**: desktop, tablet and mobile, each with main-tab and side-panel settings. Pop-outs use the main-tab choice for their device.
 
 Choose curved or straight connections under **Settings → K-Plex → Visual styling → Link styling → Link shape**.
 

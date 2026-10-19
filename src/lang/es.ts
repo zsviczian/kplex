@@ -1229,7 +1229,7 @@ const spanishTranslations = {
   "folderPicker.invalid": "Introduce una ruta de carpeta válida dentro de esta bóveda.",
   "folderPicker.fileConflict": "Un archivo ya utiliza esta ruta de carpeta.",
   "folderPicker.invalidAlias": "El alias no puede contener dos corchetes de cierre.",
-  "layout.simplifiedTitle": "Diseño simplificado",
+  "layout.simplifiedTitle": "Diseño de un solo lado",
   "layout.simplifiedHelp": "Coloca amigos y oponentes en grupos separados a la izquierda. Sus relaciones y filtros no cambian. Las ventanas emergentes usan la opción de la pestaña principal.",
   "layout.arrangementScope": "{device}: {surface}",
   "layout.mainTab": "Pestaña principal",

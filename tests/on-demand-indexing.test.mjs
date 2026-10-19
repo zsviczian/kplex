@@ -8,7 +8,7 @@ import { chromiumHarness } from './support/browserTypeScript.mjs';
 import { centerGateSettings } from './support/requestedCenterGateFixture.mjs';
 
 const bundle = await contributorBrowserBundle(['src/index/GraphIndex.ts', 'src/index/GraphBuilder.ts', 'src/index/GraphState.ts', 'src/index/IndexSnapshot.ts',
-  'src/core/graph/settingsPolicy.ts', 'src/core/plex/typographyPreferences.ts', 'src/core/contracts/appearance.ts', 'src/core/plex/colorPreferences.ts', 'src/core/plex/appearanceThemes.ts', 'src/ui/layout.ts', 'src/adapters/obsidian/savedSettingsRefresh.ts']);
+  'src/core/graph/settingsPolicy.ts', 'src/core/graph/relations.ts', 'src/core/plex/typographyPreferences.ts', 'src/core/contracts/appearance.ts', 'src/core/plex/colorPreferences.ts', 'src/core/plex/appearanceThemes.ts', 'src/ui/layout.ts', 'src/adapters/obsidian/savedSettingsRefresh.ts']);
 
 /** Keep the actual settings classifier, save queue and typography writers without plugin startup. */
 function typographyHostSource() {
@@ -1588,6 +1588,52 @@ for (const progressive of [false, true]) for(const lateEvent of [false,true]) te
   }finally{restoreBuild?.();o.close();}
 })()`));
 
+
+for(const reciprocal of [false,true]) test('stationary local center adopts late ontology before the progressive indexing tail completes ('+(reciprocal?'changed role':'same role')+')', async()=>scenario(`(async()=>{
+  const M=sourceModules,o=await onDemandFixture('late-progressive-ontology-'+${JSON.stringify(reciprocal)},{indexingMode:'eager'}),{f,index}=o;
+  let release,unblockBackground,unblockTail,building,stop;
+  const prototype=M.GraphBuilder.prototype,patch=prototype.patchMarkdownFiles,read=f.app.vault.read,cachedRead=f.app.vault.cachedRead;
+  const wait=async(label,predicate)=>{const until=Date.now()+8000;while(!predicate()){if(Date.now()>until)throw Error(label+' '+JSON.stringify({reads:f.reads,local:index.onDemandHostScopes.size,tasks:index.onDemandTasks.size,previews:index.onDemandPreviewTasks.size,work:index.getWorkPriorityDiagnostics(),canonicalParent:index.state.pages.get('A.md')?.neighbours.get('B.md')?.parentType}));await new Promise(resolve=>setTimeout(resolve,0));}};
+  try{
+    delete index.sourceAcquisition.enableInventory;
+    f.add('A.md',${JSON.stringify(reciprocal?'[[B]]':'')});f.add('B.md','Child:: [[A]]');
+    for(let n=0;n<9;n++)f.add('Idle'+n+'.md','');f.add('Tail.md','');
+    f.app.metadataCache.resolvedLinks=${JSON.stringify(reciprocal?{'A.md':{'B.md':1},'B.md':{'A.md':1}}:{'B.md':{'A.md':1}})};
+    let backgroundEntered,tailEntered,tailReached=false;
+    const backgroundReady=new Promise(resolve=>backgroundEntered=resolve),backgroundGate=new Promise(resolve=>unblockBackground=resolve);
+    const tailReady=new Promise(resolve=>tailEntered=resolve),tailGate=new Promise(resolve=>unblockTail=resolve);
+    // Keep the real first publication, per-file commits and ten-file notification batching.
+    prototype.patchMarkdownFiles=async function(state,files,options){
+      if(options?.publishFileCommit&&files.some(file=>file.path==='Tail.md')){backgroundEntered();await backgroundGate;}
+      return patch.call(this,state,files,options);
+    };
+    const heldRead=original=>async file=>{if(file.path==='Tail.md'){tailReached=true;tailEntered();await tailGate;}return original.call(f.app.vault,file);};
+    f.app.vault.read=heldRead(read);f.app.vault.cachedRead=heldRead(cachedRead);
+    ok(await index.initializeOnDemandBaseline(['A.md']),'Real local baseline precedes progressive ingestion');
+    building=index.rebuildProgressively(['A.md']);
+    await Promise.race([backgroundReady,building.then(()=>{throw Error('Expected real progressive background admission');})]);
+    release=index.acquireSemanticDemand('A.md');
+    await wait('Finite local center cover did not publish',()=>index.onDemandHostScopes.has('A.md'));
+    const relation=()=>{const n=index.getNeighborhood('A.md');return [...n.parents,...n.children,...n.leftFriends,...n.rightFriends].find(row=>row.page.path==='B.md');};
+    equal(relation()?.relationType,M.RelationType.INFERRED,'Real native links initially show an inferred relationship');
+    equal(relation()?.role,${JSON.stringify(reciprocal?'left':'parent')},'Initial ordinary-link role is genuine');
+    let observedDefined=false;stop=index.subscribe(()=>{if(relation()?.relationType===M.RelationType.DEFINED)observedDefined=true;});
+    unblockBackground();await wait('Actual progressive tail did not arrive',()=>tailReached);await tailReady;
+    equal(index.state.pages.get('A.md').neighbours.get('B.md').parentType,M.RelationType.DEFINED,'Real body ontology committed before the unrelated tail');
+    equal(relation()?.relationType,M.RelationType.DEFINED,'Stationary center must adopt the committed ontology without navigation or full-build completion');
+    equal(relation()?.role,'parent','The compiled role reaches the stationary view');
+    ok(observedDefined,'The actual progressive notification exposes the defined relationship');
+    equal(relation()?.typeDefinition,'child','The normalized ontology definition reaches the displayed relationship');
+    equal(index.semanticDemandCounts.get('A.md'),1,'The same demand stays active without navigating away');
+    ok(index.building,'Unrelated background indexing is still held, not complete');
+    equal(f.reads.filter(path=>path==='A.md').length,1,'Refreshing the cover does not reread the center');
+    equal(f.reads.filter(path=>path==='B.md').length,1,'The late owner is read once by its original producer');
+    return true;
+  }finally{
+    prototype.patchMarkdownFiles=patch;f.app.vault.read=read;f.app.vault.cachedRead=cachedRead;
+    stop?.();unblockBackground?.();unblockTail?.();release?.();index.destroy();await building?.catch(()=>{});f.close();
+  }
+})()`));
 
 test('progressive full coverage retires partial relation views on retained page identities', async()=>scenario(`(async()=>{
   const o=await onDemandFixture('stable-progressive-count-coverage',{indexingMode:'eager'});const{f,index}=o;let stop;
