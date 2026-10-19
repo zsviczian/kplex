@@ -113,7 +113,24 @@ including a private stronger one-second control. Real-IDB/background/native
 integration is not replaced by this isolated unit fixture. Production source
 behavior is unchanged; the failed CI and private causal traces remain evidence.
 
-Full final verification and source/reference preservation are recorded at closeout.
+Final clean-head `npm run verify:obsidian` passes at **468d27c**: architecture
+**7**, core **130**, main **1,127**, UI **184**, sources **334**, browser-sources
+**639**; zero failures/skips, official lint, installed production typings and
+real production build. Exact-build native command/render smoke passes with no
+captured JavaScript errors. [CI at that same head is green](https://github.com/zsviczian/kplex/actions/runs/39181207660).
+Subsequent closeout edits are documentation only; the final diff has no runtime,
+dependency, CSS or settings-format changes.
+
+Final full/native raw log SHA-256:
+`b5dd93b370a266de296c86c02e3413682a81af0b7b585a5caa280e4727524039`.
+Exact staged main.js SHA-256:
+`23b25a1bf7bb4873563769986828fc2efe6e51d17cf44020f2bf0a456950f54e`.
+The verified build remains installed in Small. Original data/workspace/community
+configuration bytes and follow owners are restored after smoke; final counts
+107/88, original On-demand mode, zero controllers/pending settings reconciliation.
+CLI debugger capture is released. These maintenance checks do not extend the
+resource observation interval or establish a performance improvement.
+
 No scale, mixed-large-note, edit/two-restart, full-process restart, macOS or physical
 mobile claim follows from this single Gate 1 run. The candidate acceptance campaign
 is deliberately not started because no redundant operation was reproduced.
@@ -125,7 +142,14 @@ source-pinned counts profile, warm trace, before/after identities, restore recei
 and `%TEMP%/kplex-176-oracle-1792369022805` (bounded exact records and difference
 summary). Build profile prefix `kplex-176-counts-1792368728432`; focused log
 `kplex-176-hydration-focused.log`. Existing reusable tools/tests remain; originals
-are not deleted or published. Final durable-copy verification is recorded below.
+are not deleted or published. Final full/native receipt is in
+`kplex-176-final-native-1792370434930/report.json`; raw log:
+`kplex-176-final-verify-native.log`; post-smoke state: `kplex-176-final-sanity.json`.
+Verified durable private copy:
+`%LOCALAPPDATA%/KplexValidation/warm-start-rebuilds-176-1792371771879`,
+**67 files / 15,784,852 bytes**, manifest SHA-256
+`2aec5c58fd3b10bc78a5cb2b859aeee22c3e68b52d9556fef87f100dcef62c85`.
+Every original/copied file hash is verified; no archive publication or deletion.
 
 Native executable/configuration bytes, original On-demand mode, workspace/follow
 owners and 107/88 file counts are restored; no test controllers remain. The untimed
@@ -140,3 +164,9 @@ redundancy. Highest-value next evidence is a current affected-vault causal trace
 that actually admits a full build/save, with its rejecting predicate and ordered
 old/new output. Do not reopen receipt/reader-sharing experiments or optimize
 these validation calls without a new bounded cause and explicit scope.
+
+Recommend merging the regression/report and fixture-lifetime correction as the
+completed Gate 1 result. **No new production resource saving is demonstrated.**
+Keep any further optimization deferred until a current redundant operation is
+reproduced. #149 remains draft pending the affected-device blur discriminator;
+it is not silently merged or treated as fixed by this checkpoint.
