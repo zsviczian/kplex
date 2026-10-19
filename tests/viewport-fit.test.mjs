@@ -27,14 +27,15 @@ function callback(name, dependencies) {
 function graphFixture() {
   const ctx={camera:{current:{x:0,y:0,scale:1}},automaticFit:{current:null},activePath:'Center.md',
     cameraIntentPlaced:{current:false},
+    centralEditorOverlayElement:{current:null},cameraWritePending:{current:false},compassCenter:{current:null},compassSync:{current:()=>false},requestCameraFrame:()=>{},
     cameraFrame:{current:1},cameraElement:{current:null},syncCentralEditorOverlay:()=>{},
     scene:{nodes:[{role:'center',page:{path:'Center.md'},x:30,y:-20,width:200,height:100}],zoneViewports:{}},
     centralEditorMaximized:false,Platform:{isIosApp:false},IOS_MAX_ZOOM:2,MAX_ZOOM:5,ZONES:['child'],zoneForRole:role=>role==='child'?'child':null,
     centeredViewportFit,sameFitCamera,sceneMotion:{cancelAll(){}},preserveCameraOnNextLayout:{current:false},displayResizeLayout:{current:false},
     centralEditorAvailabilityRef:{current:false},centralEditorAvailable:false,centralEditorSize:null,centralEditorSizeKeyRef:{current:''},
     previousNodeRects:{current:new Map([['prior',{}]])},pathChangedThisRender:true,navigationOrigin:'user',settings:{allowAutozoom:true,animationSpeed:0},incomingCenter:{current:null}};
-  ctx.viewport={current:{clientWidth:800,clientHeight:600,ownerDocument:{defaultView:{}},querySelectorAll:()=>[
-    {dataset:{kplexPath:ctx.activePath},getBoundingClientRect:()=>({left:300,top:250,width:200,height:100})}]}};
+  ctx.viewport={current:{clientWidth:800,clientHeight:600,clientLeft:0,clientTop:0,getBoundingClientRect:()=>({left:0,top:0}),ownerDocument:{defaultView:{getComputedStyle:()=>({transformOrigin:'100px 50px'})}},querySelectorAll:()=>[
+    {classList:{contains:value=>value==='kplex-role-center'},dataset:{kplexPath:ctx.activePath},getBoundingClientRect:()=>({left:300,top:250,width:200,height:100})}]}};
   /** Rebind render-owned callbacks after navigation just as React composition does. */
   ctx.render=()=>{ctx.applyCamera=callback('applyCamera',ctx);ctx.flushCameraTransform=callback('flushCameraTransform',ctx);ctx.fit=callback('fit',ctx);ctx.layout=callback('layout',ctx);};
   ctx.render();return ctx;

@@ -7,6 +7,7 @@
  */
 import { projectSupportCustomizations } from "./supportCustomizationProjection";
 import { SETTING_DIAGNOSTIC_KEYS } from "../core/graph/settingsPolicy";
+import {CENTER_RECOVERY_OUTCOMES, sanitizeCenterRecoveryDiagnostic} from "../core/contracts/centerRecovery";
 import { supportCode, supportCount, supportDuration, supportField, SUPPORT_PHASES } from "./SessionEventRecorder";
 
 const SOURCE_REASONS = ["ready", "missing", "stale", "pending-metadata", "tombstone", "format-version", "invalid-head", "missing-chunk", "invalid-chunk",
@@ -18,7 +19,7 @@ const DECISION_REASONS = ["source-backed-physical-baseline", "source-node-incide
   "unsupported-physical-change", "startup-host-wave-cached-presentation", "checkpoint-restored", "complete-markdown-delta", "complete-modified-markdown", "complete-restored",
   "storage-unavailable", "invalid-snapshot-metadata", "no-complete-snapshot", "source-backed-policy-baseline", "compatible", "signature-format-changed",
   "semantic-settings-changed", "signature-format-unknown", "retired-policy-reconcile", "retired-policy-no-affected-sources", "checkpoint-selected",
-  "complete-snapshot-fresh", "complete-snapshot-stale", "startup-source-authority-pending", "hydration-incomplete", "restore-exception", "hydration-stalled",
+  "complete-snapshot-fresh", "complete-snapshot-stale", "startup-source-authority-pending", "hydration-incomplete", "restore-exception", "hydration-stalled", "snapshot-foreground-proof-mismatch",
   "source-changed-during-reconcile", "per-file-reconcile-complete", "snapshot-write-cancelled", "checkpoint-saved", "complete-saved"] as const;
 const BUILD_PARTS = ["cold-progressive", "full-rebuild", "per-file-patch", "startup", "vault", "metadata", "kplex", "stale-snapshot", "no-snapshot",
   "partial-restore-incomplete", "post-initial-backlog", "initial-index", "create-during-rebuild", "create-markdown", "create", "delete-folder-failed", "delete",
@@ -58,6 +59,7 @@ export function supportRows(input: unknown, limit: number): unknown[] {
 function supportDecisionReason(input: unknown): string {
   if (typeof input !== "string" || input.length > 240) return "unrecognized";
   if (DECISION_REASONS.some(/** Compare an enum literal, never a regular expression accepting private text. */ code => code === input)) return input;
+  if (CENTER_RECOVERY_OUTCOMES.some(outcome => `center-watchdog:${outcome}` === input)) return input;
   const stream = /^(active|checkpoint)-(pages|relations|evidence)-(storage-unavailable|missing-chunk|invalid-chunk|invalid-record|read-error|cancelled)$/.test(input);
   const write = /^(checkpoint|complete)-(storage-unavailable|cancelled|quota-exceeded|write-error|write-failed)$/.test(input);
   if (stream || write) return input;
@@ -84,17 +86,33 @@ function supportIndexInput(input: unknown): unknown {
   if (input.length > 64 * 1024) return null;
   try { return JSON.parse(input); } catch { return null; }
 }
+/** Rebuild one bounded failed-candidate explanation; no paths, source signatures or error payloads survive. */
+function supportHydrationFailure(input: unknown) {
+  if (!input || typeof input !== "object" || supportIsArray(input)) return null;
+  return {
+    reason: supportCode(supportField(input, "reason"), ["publication-superseded", "physical-membership-changed", "physical-identity-changed",
+      "physical-stat-changed", "physical-inventory-changed", "policy-changed", "restore-superseded", "storage-unavailable", "missing-chunk",
+      "invalid-chunk", "invalid-record", "read-error", "cancelled"]),
+    phase: supportCode(supportField(input, "phase"), SUPPORT_PHASES),
+    operation: supportCode(supportField(input, "operation"), ["guard", "open", "checkpoint", "transaction", "record", "task", "chunk"]),
+    publicationCause: supportCode(supportField(input, "publicationCause"), ["none", "snapshot", "file-patch", "progressive-build", "full-build", "rename"]),
+    ...supportCounters(input, ["attempt", "pages", "relations", "evidence", "expectedPublication", "actualPublication", "sourceRevision", "policyRevision"]),
+  };
+}
 /** Rebuild the existing native index schema from explicit safe fields; unavailable input is named. */
 export function projectSupportIndex(input: unknown) {
   const source = supportIndexInput(input);
   if (source === null || typeof source !== "object" || supportIsArray(source)) return { availability: "unavailable" as const };
   const status = supportField(source, "status"), graph = supportField(source, "graph"), hydration = supportField(source, "hydration");
   const saved = supportField(source, "saved"), sources = supportField(source, "sources"), plugin = supportField(source, "plugin"), device = supportField(source, "device");
-  const decisions = supportRows(supportField(source, "decisions"), 20).map(/** Each retained decision is rebuilt without extra fields, raw errors or dynamic setting values. */ row => ({
+  const decisions = supportRows(supportField(source, "decisions"), 20).map(/** Each retained decision is rebuilt without extra fields, raw errors or dynamic setting values. */ row => {
+    const centerCheck = sanitizeCenterRecoveryDiagnostic(supportField(row, "centerCheck"));
+    return {
     at: supportMilliseconds(supportField(row, "at")), stage: supportCode(supportField(row, "stage"), ["restore", "reconcile", "build", "persist"]),
     reason: supportDecisionReason(supportField(row, "reason")),
     ...supportCounters(row, ["added", "removed", "modified", "completedMarkdownFiles", "durationMs"]), changedKeys: supportChangedKeys(supportField(row, "changedKeys")),
-  }));
+    ...(centerCheck ? {centerCheck} : {}),
+  };});
   return {
     availability: "available" as const, decisionsOmitted: Math.max(0, supportRowCount(supportField(source, "decisions")) - 20), formatVersion: supportCount(supportField(source, "formatVersion")),
     generatedAt: supportIsoTime(supportField(source, "generatedAt")), plugin: { id: "k-plex", version: supportVersion(supportField(plugin, "version")) },
@@ -104,10 +122,12 @@ export function projectSupportIndex(input: unknown) {
     status: { upToDate: supportBoolean(supportField(status, "upToDate")), phase: supportCode(supportField(status, "phase"), SUPPORT_PHASES),
       ...supportCounters(status, ["indexedFiles", "totalFiles"]) },
     graph: { ...supportCounters(graph, ["nodes", "publishedMarkdownFiles"]), authoritative: supportBoolean(supportField(graph, "authoritative")) },
-    hydration: { ...supportCounters(hydration, ["run", "pages", "relations", "evidence"]), phase: supportCode(supportField(hydration, "phase"), SUPPORT_PHASES),
+    hydration: { ...supportCounters(hydration, ["run", "pages", "relations", "evidence", "attempts"]), phase: supportCode(supportField(hydration, "phase"), SUPPORT_PHASES),
       lastActivePhase: supportCode(supportField(hydration, "lastActivePhase"), SUPPORT_PHASES), startedAt: supportMilliseconds(supportField(hydration, "startedAt")),
       phaseStartedAt: supportMilliseconds(supportField(hydration, "phaseStartedAt")), lastProgressAt: supportMilliseconds(supportField(hydration, "lastProgressAt")),
-      outcome: supportCode(supportField(hydration, "outcome"), ["idle", "running", "complete", "failed", "timed-out", "cancelled"]) },
+      outcome: supportCode(supportField(hydration, "outcome"), ["idle", "running", "complete", "failed", "timed-out", "cancelled"]),
+      route: supportCode(supportField(hydration, "route"), ["none", "saved-preview", "full-snapshot", "checkpoint", "source-recovery", "source-vocabulary", "on-demand-preview"]),
+      firstFailure: supportHydrationFailure(supportField(hydration, "firstFailure")) },
     saved: { storage: supportCode(supportField(saved, "storage"), ["unchecked", "available", "unavailable"]), invalidActive: supportBoolean(supportField(saved, "invalidActive")),
       active: supportSavedGeneration(supportField(saved, "active"), false), checkpoint: supportSavedGeneration(supportField(saved, "checkpoint"), true) },
     sources: { ...supportCounters(sources, ["formatVersion", "databaseVersion", "factFormatVersion", "factCompilerVersion", "bodyParserVersion", "resolutionVersion", "activated",
@@ -161,6 +181,8 @@ export function projectSupportStartup(input: unknown) {
   const source = supportField(input, "source"), semantic = supportField(input, "semantic");
   return { availability: input !== null && typeof input === "object" ? "available" : "unavailable",
     detailedTelemetry: enabled === true ? "enabled" : enabled === false ? "disabled" : "unavailable", frozen: supportBoolean(supportField(input, "frozen")),
+    sessionWork: supportCounters(supportField(input, "sessionWork"),
+      ["sourceInventoryPasses", "fullBuildStarts", "nodeCatalogStarts", "completeSnapshotSaves", "checkpointSaves"]),
     progress: { source: supportField(progress, "source") == null ? null : supportStartupPhase(supportField(progress, "source"), false, "source"),
       hydration: supportField(progress, "hydration") == null ? null : supportStartupPhase(supportField(progress, "hydration"), false, "hydration") },
     milestones, phases, overlaps, phasesOmitted: enabled === true ? Math.max(0, supportRowCount(supportField(input, "phases")) - 32) : 0,

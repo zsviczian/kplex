@@ -1,13 +1,18 @@
 /**
- * Native Obsidian dialog for creating a real note in a physical folder. The plugin owns vault changes; this shell owns localized controls, validation feedback and close cleanup.
+ * Native Obsidian dialog for creating a real note in a physical folder. The plugin owns vault
+ * changes; this shell owns controls, validation, the shared completion selector's root and cleanup.
  */
+import { graphFolder } from "../adapters/obsidian/graphFolder";
 import { SavedRelationshipPendingError } from "../adapters/obsidian/relationshipMetadataWrite";
-import { Modal, Notice, Setting, type ButtonComponent, type TFolder, type WorkspaceLeaf } from "obsidian";
+import { Modal, Notice, Setting, type ButtonComponent, type TFolder, type ToggleComponent, type WorkspaceLeaf } from "obsidian";
+import { createElement } from "react";
+import { createRoot, type Root } from "react-dom/client";
 import type KplexPlugin from "../main";
 import type { GraphPage } from "../types";
 import type { GhostMaterializationKind } from "./MaterializeGhostModal";
 import type { CompletionIntent } from "../core/plex/actions";
 import type { RelatedNoteInvocation } from "./NewRelatedNoteModal";
+import { CreationCompletionSelect, creationCompletionValue } from "./features/CreationCompletionSelect";
 
 export class CreateFolderNoteModal extends Modal {
   private noteName = "";
@@ -25,6 +30,9 @@ export class CreateFolderNoteModal extends Modal {
   private continuation: CompletionIntent;
   private nameInput: HTMLInputElement | null = null;
   private folderDescription: HTMLParagraphElement | null = null;
+  private completionRoot: Root | null = null;
+  private editToggle: ToggleComponent | null = null;
+  private refreshingCompletionControls = false;
   private readonly nativeFolder: TFolder | null;
   private readonly hostContainer: HTMLElement | null;
   private readonly invokingDocument: Document;
@@ -39,8 +47,7 @@ export class CreateFolderNoteModal extends Modal {
     private readonly invocation: RelatedNoteInvocation = {},
   ) {
     super(plugin.app);
-    const path = folder.path === "folder:/" ? "" : folder.path.slice("folder:".length);
-    this.nativeFolder = path ? plugin.app.vault.getFolderByPath(path) : plugin.app.vault.getRoot();
+    this.nativeFolder = graphFolder(plugin.app, folder);
     this.hostContainer = hostLeaf?.view.containerEl ?? null;
     this.invokingDocument = this.hostContainer?.ownerDocument ?? this.modalEl.ownerDocument;
     const active = this.invokingDocument.activeElement;
@@ -69,11 +76,38 @@ export class CreateFolderNoteModal extends Modal {
     return this.folder.path.startsWith("folder:") ? this.folder.path.slice("folder:".length) : this.folder.name;
   }
 
+  /** Reuse exact-destination validation; matching basenames elsewhere never block this folder. */
+  private validateName(): ReturnType<KplexPlugin["validateRelatedNoteName"]> {
+    const folderPath = this.nativeFolder?.path ?? "";
+    return this.plugin.validateRelatedNoteName(this.noteName, folderPath === "/" ? "" : folderPath);
+  }
+
   /** Save/Clear controls remain unavailable during writes and saved publication-pending states. */
   private refreshButtons(): void {
-    const validation = this.plugin.validateRelatedNoteName(this.noteName);
+    const validation = this.validateName();
     const enabled = this.canComplete() && this.opened && !this.creating && !this.pending && validation.valid && !validation.existing;
     for (const button of this.createButtons) button.setDisabled(!enabled);
+    this.renderCompletionControls();
+  }
+
+  /** Keep the native editing toggle and shared outcome control consistent without saving local choices. */
+  private renderCompletionControls(): void {
+    if (!this.opened || !this.completionRoot) return;
+    // Obsidian's native setter can invoke onChange; reflecting a local selection must not save
+    // that value as the global preference or replace the invocation's explicit intent.
+    this.refreshingCompletionControls = true;
+    try {
+      this.editToggle?.setValue(creationCompletionValue(this.continuation, this.plugin.settings.editNewNodeAfterCreate) === "edit");
+    } finally { this.refreshingCompletionControls = false; }
+    this.completionRoot.render(createElement(CreationCompletionSelect, {
+      translate: this.plugin.translator, intent: this.continuation, editAfterCreate: this.plugin.settings.editNewNodeAfterCreate,
+      disabled: this.creating || this.pending,
+      onChange: /** Explicit completion is invocation-local; changing it never persists a global preference. */ choice => {
+        this.continuation = choice;
+        this.renderCompletionControls();
+      },
+    }));
+    this.editToggle?.setDisabled(this.creating || this.pending);
   }
 
   /** Submit the validated creation request to the plugin and show localized failure feedback; the modal retains its existing busy/close lifecycle. */
@@ -83,7 +117,7 @@ export class CreateFolderNoteModal extends Modal {
     if (!folder || (folder === this.plugin.app.vault.getRoot() ? this.plugin.app.vault.getRoot() : this.plugin.app.vault.getFolderByPath(folder.path)) !== folder) {
       new Notice(this.plugin.translator("addRelated.endpointChanged")); return;
     }
-    const validation = this.plugin.validateRelatedNoteName(this.noteName);
+    const validation = this.validateName();
     if (!validation.valid) {
       new Notice(validation.error ?? this.plugin.translator("note.validation.enterValid"), 2800);
       return;
@@ -161,7 +195,10 @@ export class CreateFolderNoteModal extends Modal {
       cls: "setting-item-description",
     });
     const renameRef = this.plugin.app.vault.on("rename", /** Follow the exact captured physical folder; a replacement at its former path is a different origin. */ file => {
-      if (file === this.nativeFolder && this.opened && this.folderDescription?.isConnected) this.folderDescription.setText(this.plugin.translator("folderNote.help", { folder: this.folderLabel() }));
+      if (file === this.nativeFolder && this.opened && this.folderDescription?.isConnected) {
+        this.folderDescription.setText(this.plugin.translator("folderNote.help", { folder: this.folderLabel() }));
+        this.refreshButtons();
+      }
     });
     this.releaseFolderRename = /** Retire the native source subscription with the visible form, including intentional completion closes. */ () => this.plugin.app.vault.offref(renameRef);
 
@@ -182,19 +219,21 @@ export class CreateFolderNoteModal extends Modal {
     new Setting(this.contentEl)
       .setName(this.plugin.translator("folderNote.openForEditing"))
       .setDesc(this.plugin.translator("folderNote.openForEditingHelp"))
-      .addToggle((toggle) => toggle
-        .setValue(this.plugin.settings.editNewNodeAfterCreate)
-        .onChange((enabled) => {
-          this.plugin.settings.editNewNodeAfterCreate = enabled;
-          void this.plugin.saveSettings(false, false);
-        }));
-
-    new Setting(this.contentEl).setName(this.plugin.translator("addRelated.completionMode")).addDropdown(/** Explicit continuation remains local to this folder invocation. */ dropdown => {
-      for (const intent of ["configured", "return", "another", "follow", "edit"] as const) dropdown.addOption(intent, this.plugin.translator(`addRelated.completion.${intent}`));
-      dropdown.setValue(this.continuation).onChange(/** Accept only the finite continuation protocol. */ value => {
-        if (value === "configured" || value === "return" || value === "another" || value === "follow" || value === "edit") this.continuation = value;
+      .addToggle((toggle) => {
+        this.editToggle = toggle;
+        toggle
+          .setValue(this.plugin.settings.editNewNodeAfterCreate)
+          .onChange((enabled) => {
+            if (this.refreshingCompletionControls) return;
+            this.continuation = "configured";
+            this.plugin.settings.editNewNodeAfterCreate = enabled;
+            this.renderCompletionControls();
+            void this.plugin.saveSettings(false, false);
+          });
       });
-    });
+
+    const completion = this.contentEl.createDiv({cls: "kplex-creation-completion-row"});
+    this.completionRoot = createRoot(completion);
 
     const actions = new Setting(this.contentEl);
     actions.addButton((button) => {
@@ -225,7 +264,7 @@ export class CreateFolderNoteModal extends Modal {
     /** Submit protocol excludes composition, AltGraph and held keys before scheduling any file creation. */
     const submit = (event: KeyboardEvent, intent?: CompletionIntent): false | undefined => {
       if (event.isComposing || event.key === "Dead" || event.getModifierState?.("AltGraph")) return;
-      const validation = this.plugin.validateRelatedNoteName(this.noteName);
+      const validation = this.validateName();
       if (!validation.valid || validation.existing || this.creating || this.pending) return false;
       event.preventDefault();
       event.stopPropagation();
@@ -245,6 +284,7 @@ export class CreateFolderNoteModal extends Modal {
     if (!this.completing) this.restoreInvoker();
     this.opened = false;
     if (!this.completing) this.invalidated = true;
+    this.completionRoot?.unmount(); this.completionRoot = null; this.editToggle = null;
     this.contentEl.empty();
     this.nameInput = null; this.folderDescription = null; this.createButtons.length = 0;
     this.invocation.onClosed?.();

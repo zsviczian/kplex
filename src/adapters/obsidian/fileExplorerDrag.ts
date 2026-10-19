@@ -1,5 +1,5 @@
 /**
- * Obsidian host adapter for reading the active File Explorer drag payload.
+ * Obsidian host adapter for reading active single-file and resolved internal-link drags.
  * The host's drag manager is not part of the public typed API, so this module owns the narrow,
  * guarded compatibility bridge and returns current Vault files of any type to host-bound UI.
  */
@@ -23,17 +23,21 @@ function hasFilePath(value: unknown): value is FileDragCandidate {
 }
 
 /**
- * Extract the one file candidate represented by an Obsidian File Explorer drag.
- * Multi-file drags and other internal drag kinds are intentionally ignored because issue #30 is
- * a single-note navigation gesture rather than a generic Obsidian drop protocol.
+ * Extract one file from File Explorer or the resolved link payload used by Bases and note links.
+ * Require the native link context as well as a resolved file; unresolved/external links and
+ * multi-file selections cannot choose an arbitrary graph endpoint. No plain-text drop is parsed.
  *
  * @param draggable Host drag-manager payload whose runtime shape is validated before use.
- * @returns The candidate object for a single File Explorer file, or `null` when unsupported.
+ * @returns The candidate for one native file or resolved link, or `null` when unsupported.
  */
 export function singleFileExplorerDragCandidate(draggable: unknown): FileDragCandidate | null {
   if (!draggable || typeof draggable !== "object") return null;
   const value = draggable as Record<string, unknown>;
   if (value.type === "file") {
+    return hasFilePath(value.file) ? value.file : null;
+  }
+  if (value.type === "link" && typeof value.linktext === "string" && value.linktext.trim()
+    && typeof value.sourcePath === "string") {
     return hasFilePath(value.file) ? value.file : null;
   }
   if (value.type === "files") {
@@ -45,9 +49,9 @@ export function singleFileExplorerDragCandidate(draggable: unknown): FileDragCan
 }
 
 /**
- * Resolve the active Obsidian File Explorer drag to the Vault's current `TFile` of any type.
- * Resolving by path avoids trusting stale/private drag objects and also rejects folders,
- * editor-link drags and external operating-system drags.
+ * Resolve a supported native file/link drag to the Vault's current `TFile` of any type.
+ * Resolving by path avoids trusting stale/private file objects and rejects folders and
+ * external operating-system drags. Native link resolution remains owned by Obsidian.
  *
  * @param app Obsidian application instance owning the Vault and internal drag manager.
  * @returns The current file for a supported single-file drag, otherwise `null`.

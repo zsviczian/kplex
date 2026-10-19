@@ -1,6 +1,7 @@
 /** Real Chromium runner for production TypeScript modules, using shared desktop browser discovery.
  * Explicit host stubs do not emulate IDB. The test-only command capability delivers trusted CDP
- * input to native controls; it shares the existing browser lifetime and deadlines. */
+ * input to native controls; it shares the existing browser lifetime and deadlines. A blank target
+ * receives one explicit navigation, and tests start only in the loaded, focused intended document. */
 import { browserExecutable } from "./browserExecutable.mjs";
 import { createRequire } from "node:module";
 import { mkdtemp, readFile, writeFile, mkdir, rm } from "node:fs/promises";
@@ -14,14 +15,14 @@ const require = createRequire(import.meta.url);
 const ts = require("typescript");
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
 
-/** Bundle actual emitted runtime imports (not type-only imports), without substituting production modules. */
-export async function browserBundle(entries, stubs = {}) {
+/** Bundle actual runtime imports; optional committed source inputs let benchmarks compare exact prior revisions. */
+export async function browserBundle(entries, stubs = {}, sourceOverrides = {}) {
   const modules = new Map();
   async function visit(file) {
     const key = relative(root, file).replaceAll("\\", "/");
     if (modules.has(key)) return key;
     modules.set(key, "");
-    const source = await readFile(file, "utf8");
+    const source = sourceOverrides[key] ?? await readFile(file, "utf8");
     const output = ts.transpileModule(source, { fileName: file, reportDiagnostics: true,
       compilerOptions: { target: ts.ScriptTarget.ES2021, module: ts.ModuleKind.CommonJS, esModuleInterop: true } });
     const errors = (output.diagnostics ?? []).filter(d => d.category === ts.DiagnosticCategory.Error);
@@ -90,7 +91,9 @@ export async function chromiumHarness(bundle) {
       await new Promise(r => setTimeout(r, 25));
     }
     if (!port) throw new Error("Chromium startup timeout: " + stderr);
-    const target = await (await fetch(`http://127.0.0.1:${port}/json/new?${pageUrl}`, { method: "PUT" })).json();
+    // Create a blank target before subscribing, then own exactly one explicit document navigation.
+    // Opening the test URL here as well starts an unobserved competing initial load.
+    const target = await (await fetch(`http://127.0.0.1:${port}/json/new?about:blank`, { method: "PUT" })).json();
     socket = new WebSocket(target.webSocketDebuggerUrl);
     await new Promise((resolve, reject) => { socket.addEventListener("open", resolve, { once: true }); socket.addEventListener("error", reject, { once: true }); });
     socket.addEventListener("message", event => {
@@ -98,11 +101,12 @@ export async function chromiumHarness(bundle) {
       pending.delete(message.id); if (message.error) entry.reject(new Error(JSON.stringify(message.error))); else entry.resolve(message.result);
     });
     await call("Runtime.enable");
+    await call("Page.bringToFront");
     const navigation = await call("Page.navigate", { url: pageUrl });
     if (navigation.errorText) throw new Error("Chromium page blocked: " + navigation.errorText);
     for (let attempt = 0; attempt < 200; attempt++) {
       try {
-        if (await evaluate("Boolean(window.sourceModules)")) return;
+        if (await evaluate(`Boolean(window.sourceModules) && location.href === ${JSON.stringify(pageUrl)} && document.readyState === "complete" && document.hasFocus()`)) return;
         const error = await evaluate("window.bundleError || null");
         if (error) throw new Error("Bundle failed: " + error);
       } catch (error) {
@@ -110,7 +114,9 @@ export async function chromiumHarness(bundle) {
       }
       await new Promise(resolve => setTimeout(resolve, 25));
     }
-    throw new Error("Production bundle did not load in Chromium");
+    // Failure-only state is bounded to synthetic test resources; it never reads application data.
+    const state = await evaluate("JSON.stringify({url:location.href,ready:document.readyState,scripts:[...document.scripts].map(script=>script.src),resources:performance.getEntriesByType('resource').slice(0,8).map(entry=>({name:entry.name,duration:entry.duration})),error:window.bundleError||null})");
+    throw new Error("Production bundle did not load in Chromium: " + state);
   }
   async function evaluate(expression) {
     const result = await call("Runtime.evaluate", { expression, awaitPromise: true, returnByValue: true });

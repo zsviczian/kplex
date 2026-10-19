@@ -18,7 +18,7 @@ const initialize = `(() => {
       inferAllLinksAsFriends:false,inverseInfer:false,showFullTagName:true,tagStyleList:['#card','#drawing'],
       indexingMode:'on-demand',urlIndexingMode:'background',lastActivePath:file.path,pinnedNodes:[]};
     let revision=0;const index=new sourceModules.GraphIndex({app:f.app,settings,getIndexSourceRevision:()=>revision,
-      startupDiagnostics:{mark:()=>{},count:()=>{},phase:()=>{}}},f.app);
+      startupDiagnostics:{mark:()=>{},count:()=>{},phase:()=>{},recordWork:/** Presentation fixture discards aggregate work receipts. */()=>{}}},f.app);
     index.scheduleOrphanCleanup=()=>{};
     ok(await index.initializeOnDemandBaseline(),'Production structural baseline');
     const page=index.state.pages.get(file.path),clone={...page,tags:[],styleTags:[...page.styleTags]};
@@ -199,4 +199,107 @@ test('repeated ephemeral visible facade reacquisition settles without a presenta
     equal(emitted,0,'Stable facade values cannot feed back into render emissions');equal(index.getSemanticRevision(),semantic,'Stable retries never notify semantics');equal(f.reads.length,0,'No repeated body acquisition');equal(f.parses.length,0,'No repeated acquisition parses');equal(index.getVisiblePresentationDiagnostics().demanded,0,'All finite facade leases released');
     equal(cacheBatches,12,'Each explicit facade lease performs one finite cache-only batch, with no self-triggered extra batches');off();return true;
   }finally{release?.();o.close();}
+})()`));
+
+test("paint during a held presentation read must not repeat cache-only preparation",async()=>scenario(`(async()=>{
+ const o=await presentationFixture('paint-held-facets',{},[]);const{f,file,index,settings}=o;let release;
+ const original=index.indexedDb.getBodies.bind(index.indexedDb);let batches=0,searches=0;const search=index.prepareSearchIndex.bind(index);
+ try{
+  await f.cache.putBody(file.path,file.stat.mtime,sourceModules.parseBodyMetadata(''));index.fieldCache.delete(file.path);
+  const entered=new Promise(resolve=>{index.indexedDb.getBodies=async requests=>{const result=await original(requests);batches++;if(batches===1){resolve();await new Promise(done=>release=done)}return result}});
+  index.prepareSearchIndex=(...args)=>{searches++;return search(...args)};
+  const reads=f.reads.length,parses=f.parses.length,pending=index.preparePresentationPublication(index.state,()=>true);
+  await entered;settings.baseNodeStyle={...settings.baseNodeStyle,textColor:'#12345680'};await index.refreshPresentationSettings();release();const prepared=await pending;
+  ok(prepared,'Prepared current publication');equal(batches,1,'Paint cannot repeat whole presentation cache preparation');equal(searches,1,'Search preparation remains one normal pass');equal(f.reads.length,reads,'No extra Markdown reads');equal(f.parses.length,parses,'No extra parsing');return true;
+ }finally{release?.();index.indexedDb.getBodies=original;index.prepareSearchIndex=search;o.close()}
+})()`));
+
+test("paint between prepared return and final acceptance retains the latest colors",async()=>scenario(`(async()=>{
+ const o=await presentationFixture('paint-accept-boundary',{},[]);const{f,file,index,settings}=o;
+ try{await f.cache.putBody(file.path,file.stat.mtime,sourceModules.parseBodyMetadata(''));settings.baseNodeStyle={...settings.baseNodeStyle,textColor:'#112233'};
+  const prepared=await index.preparePresentationPublication(index.state,()=>true);ok(prepared,'Prepared publication');settings.baseNodeStyle={...settings.baseNodeStyle,textColor:'#aabbcc'};await index.refreshPresentationSettings();index.acceptPresentation(prepared);
+  equal(index.withPreparedPresentationSettings(settings).baseNodeStyle.textColor,'#aabbcc','Final acceptance must not restore stale paint');return true;
+ }finally{o.close()}
+})()`));
+
+test("prepared view identity survives source notifications while geometry, consent and future keys remain live",async()=>scenario(`(async()=>{
+ const o=await presentationFixture('stable-prepared-view',{},[]);const{index,settings}=o;
+ try{
+  const first=index.withPreparedPresentationSettings(settings);
+  equal(index.withPreparedPresentationSettings(settings)===first,true,'Unchanged read reuses the settings facade');
+  settings.compactingFactor=3;const density=index.withPreparedPresentationSettings(settings);
+  ok(density!==first&&density.compactingFactor===3,'Real geometry change gets a current facade');
+  settings.allowRemoteNodeImages=true;const allowed=index.withPreparedPresentationSettings(settings);
+  ok(allowed!==density&&allowed.allowRemoteNodeImages,'Live image consent takes effect immediately');
+  settings.allowRemoteNodeImages=false;ok(!index.withPreparedPresentationSettings(settings).allowRemoteNodeImages,'Revocation never waits for prepared policy');
+  settings.futureWorkflow='preserved';const future=index.withPreparedPresentationSettings(settings);equal(future.futureWorkflow,'preserved','Unknown future values retained');
+  settings.futureWorkflow='updated';equal(index.withPreparedPresentationSettings(settings).futureWorkflow,'updated','Future scalar changes are not frozen');
+  const before=index.withPreparedPresentationSettings(settings);index.presentationSettings={...index.presentationSettings,baseNodeStyle:{maxLabelLength:44}};
+  const after=index.withPreparedPresentationSettings(settings);ok(after!==before,'New prepared generation invalidates facade');equal(after.baseNodeStyle.maxLabelLength,44,'New prepared fields apply');return true;
+ }finally{o.close()}
+})()`));
+
+test("mixed geometry and paint changes retain conservative presentation preparation retry",async()=>scenario(`(async()=>{
+ const o=await presentationFixture('paint-held-mixed',{},[]);const{f,file,index,settings}=o;let release;
+ const original=index.indexedDb.getBodies.bind(index.indexedDb);let batches=0,searches=0;const search=index.prepareSearchIndex.bind(index);
+ try{
+  await f.cache.putBody(file.path,file.stat.mtime,sourceModules.parseBodyMetadata(''));index.fieldCache.delete(file.path);
+  const entered=new Promise(resolve=>{index.indexedDb.getBodies=async requests=>{const result=await original(requests);batches++;if(batches===1){resolve();await new Promise(done=>release=done)}return result}});
+  index.prepareSearchIndex=(...args)=>{searches++;return search(...args)};
+  const reads=f.reads.length,parses=f.parses.length,pending=index.preparePresentationPublication(index.state,()=>true);
+  await entered;settings.baseNodeStyle={...settings.baseNodeStyle,fontSize:24,textColor:'#12345680'};await index.refreshPresentationSettings();release();const prepared=await pending;
+  ok(prepared,'Prepared current publication');equal(batches,2,'Mixed geometry changes retain their existing retry');equal(searches,1,'Search preparation remains one normal pass');equal(f.reads.length,reads,'No extra Markdown reads');equal(f.parses.length,parses,'No extra parsing');return true;
+ }finally{release?.();index.indexedDb.getBodies=original;index.prepareSearchIndex=search;o.close()}
+})()`));
+
+
+test("presentation delivery does not revisit a listener re-registered during its own notification",async()=>scenario(`(async()=>{
+ const o=await presentationFixture('presentation-dispatch-registration');
+ try{let calls=0,release;const listener=()=>{calls++;release();if(calls<16)release=o.index.subscribePresentation(listener)};
+ release=o.index.subscribePresentation(listener);o.index.notifyPresentation();equal(calls,1,'One delivery per opening subscription snapshot');release();return true;
+ }finally{o.close()}
+})()`));
+
+test("nested presentation notifications preserve stronger work without recursive dispatch",async()=>scenario(`(async()=>{
+ const o=await presentationFixture('presentation-dispatch-nesting');
+ try{let depth=0,max=0,count=0;const events=[];
+ const off=o.index.subscribePresentation(event=>{depth++;max=Math.max(max,depth);events.push(event);if(++count<4)o.index.notifyPresentation();depth--});
+ o.index.emitPresentation({kind:'paint',changedKeys:['backgroundColor']});await new Promise(r=>setTimeout(r,30));
+ equal(max,1,'No recursive subscriber entry');ok(events.some(e=>e.kind==='presentation'),'Stronger nested work delivered');ok(count<=2,'Redundant feedback bounded');off();return true;
+ }finally{o.close()}
+})()`));
+
+test("rejected production settings preparation has a finite retry budget and a later explicit retry converges",async()=>scenario(`(async()=>{
+ const o=await presentationFixture('presentation-settings-retry-budget',{Type:'Drawing'});
+ try{const {index,settings}=o;let attempts=0,heartbeats=0;const search=index.prepareSearchIndex;
+ index.prepareSearchIndex=async function(...args){const result=await search.apply(this,args);if(++attempts<=64){o.bump();return null}return result};
+ const beat=setInterval(()=>heartbeats++,0);const before=index.presentationSettings;
+ settings.renderAlias=!settings.renderAlias;settings.nameFields=['alias'];let rejected=false;
+ try{await index.refreshPresentationSettings()}catch{rejected=true}clearInterval(beat);
+ ok(attempts<=8,'Attempts bounded across failed preparation, got '+attempts);ok(heartbeats>0,'A real browser task ran');ok(rejected,'Exhaustion is pending, not successful publication');ok(index.presentationSettings===before,'No stale publication');
+ index.prepareSearchIndex=search;await index.refreshPresentationSettings();equal(index.presentationSettings.renderAlias,settings.renderAlias,'Explicit valid retry converges');return true;
+ }finally{o.close()}
+})()`));
+
+
+test("presentation snapshot respects removal, subscriber failure, changed-key union and unload",async()=>scenario(`(async()=>{
+ const o=await presentationFixture('presentation-delivery-lifetimes');
+ try{const {index}=o,events=[];let calls=0,offRetired;
+ const off=index.subscribePresentation(event=>{events.push(event);if(++calls===1){offRetired();index.emitPresentation({kind:'paint',changedKeys:['baseNodeStyle']});index.emitPresentation({kind:'presentation',changedKeys:['noteTypeField']})}});
+ offRetired=index.subscribePresentation(()=>{throw Error('Retired listener revived')});
+ const faulty=index.subscribePresentation(()=>{throw Error('Controlled optional subscriber error')});let surviving=0;const survivor=index.subscribePresentation(()=>surviving++);
+ index.emitPresentation({kind:'paint',changedKeys:['backgroundColor']});equal(calls,2,'One coalesced nonrecursive followup');equal(surviving,2,'Optional failure does not block other live owners');
+ equal(events[1].kind,'presentation','Stronger kind preserved');ok(events[1].changedKeys.includes('baseNodeStyle')&&events[1].changedKeys.includes('noteTypeField'),'Nested changed keys preserved');
+ off();faulty();survivor();const retire=index.subscribePresentation(()=>index.destroy());index.subscribePresentation(()=>{throw Error('Post-unload listener called')});index.notifyPresentation();retire();return true;
+ }finally{o.close()}
+})()`));
+
+
+test("removed and re-registered later subscriber waits for the next dispatch",async()=>scenario(`(async()=>{
+ const o=await presentationFixture('presentation-later-subscription-epoch');
+ try{let targetCalls=0,replaced=false,offTarget;const target=()=>targetCalls++;
+ const first=o.index.subscribePresentation(()=>{if(!replaced){replaced=true;const old=offTarget;old();offTarget=o.index.subscribePresentation(target);old()}});
+ offTarget=o.index.subscribePresentation(target);o.index.notifyPresentation();equal(targetCalls,0,'Retired opening subscription cannot revive under the same function');
+ o.index.notifyPresentation();equal(targetCalls,1,'Replacement survives old cleanup and participates in the next independent dispatch');first();offTarget();return true;
+ }finally{o.close()}
 })()`));

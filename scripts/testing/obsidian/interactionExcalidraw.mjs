@@ -1,11 +1,13 @@
 /**
- * Serial native acceptance for linked-document representation and embedded initial defaults.
+ * Serial native acceptance for linked-document representation, embedded defaults and issue-161
+ * external drawing materialization, pinned navigation and stationary explicit relationships.
  * Owns test-scoped fixture files, native call observations, trusted shortcut assignments and
- * restoration. Requires the explicit disposable small vault, an unlocked foreground Mac and
+ * restoration. Requires the explicit disposable small vault, an unlocked foreground desktop and
  * exactly matching built/installed artifacts; Electron input does not prove physical-device use.
  */
 import { spawnNativeSync as spawnSync, obsidianCliExecutable } from "./processTools.mjs";
 import assert from 'node:assert/strict';
+import {issue161Scenarios} from './issue161Scenarios.mjs';
 import { existsSync, readFileSync, writeFileSync, mkdirSync, rmSync, readdirSync } from 'node:fs';
 import { createHash } from 'node:crypto';
 import { fileURLToPath, pathToFileURL } from 'node:url';
@@ -21,10 +23,13 @@ mkdirSync(out,{recursive:true});
 /** Hash exact driver and artifact bytes for reproducible receipts. */
 const sha=bytes=>createHash('sha256').update(bytes).digest('hex');
 const driver=readFileSync(fileURLToPath(import.meta.url));writeFileSync(join(out,'driver-source.mjs'),driver);
-const names=['plugins/k-plex/data.json','plugins/obsidian-excalidraw-plugin/data.json','community-plugins.json','hotkeys.json'];
+const issue161Driver=readFileSync(new URL('./issue161Scenarios.mjs',import.meta.url));writeFileSync(join(out,'issue161Scenarios.mjs'),issue161Driver);
+const scenario=process.env.KPLEX_EXCALIDRAW_SCENARIO??'representation';
+assert(['representation','issue161'].includes(scenario),'Use representation or issue161');
+const names=['plugins/k-plex/data.json','plugins/obsidian-excalidraw-plugin/data.json','community-plugins.json','hotkeys.json','workspace.json'];
 const backups=names.map(name=>({name,bytes:existsSync(`${config}/${name}`)?readFileSync(`${config}/${name}`):null}));
 const sourceHead=spawnSync('git',['rev-parse','HEAD'],{cwd:root,encoding:'utf8',timeout:5000});assert.equal(sourceHead.status,0,'Read actual native receipt source provenance');
-const report={startedAt:new Date().toISOString(),base:sourceHead.stdout.trim(),driverSha256:sha(driver),vault:vaultName,scope:'native representation/command routing, passive destination identity and embedded initial defaults',limits:['Electron trusted input is not physical keyboard or Windows acceptance','Bounded settlement/DOM checks do not establish actual paint latency','Embedded leaf capture is temporary native-call observation, not a production diagnostic API'],artifacts:{}};
+const report={startedAt:new Date().toISOString(),base:sourceHead.stdout.trim(),driverSha256:sha(driver),issue161Sha256:sha(issue161Driver),vault:vaultName,scope:scenario==='issue161'?'issue-161 actual external creation, pinned navigation and stationary explicit relationships':'native representation/command routing, passive destination identity and embedded initial defaults',limits:['Electron input is native-host automation, not a physical keyboard/touch-device test','Bounded settlement/DOM checks do not establish actual paint latency','Embedded leaf capture is temporary native-call observation, not a production diagnostic API'],artifacts:{}};
 /** Invoke one bounded CLI operation and retain exact failure text. */
 function cli(command,...args){const r=spawnSync(obsidianCliExecutable(),[`vault=${vaultName}`,command,...args],{cwd:root,encoding:'utf8',timeout:30000,killSignal:'SIGKILL',maxBuffer:8*1024*1024});if(r.error||r.status!==0||/^Error:/m.test(r.stdout))throw r.error??Error(r.stderr||r.stdout);return r.stdout.trim();}
 /** Read the serializable result of a native owning-window operation. */
@@ -33,7 +38,7 @@ function evaluate(code){return JSON.parse(cli('eval',`code=${code}`).replace(/^=
 const delay=ms=>new Promise(resolve=>setTimeout(resolve,ms));
 
 /** Install an owned, bounded fixture/controller and begin its asynchronous native scenarios. */
-function probe(){
+function probe(scenario,issue161Scenarios){
  if(window.__kplexInteractionFinal)throw Error('Existing interaction final controller');
  const p=app.plugins.plugins['k-plex'],ex=app.plugins.plugins['obsidian-excalidraw-plugin'];
  const remote=require('@electron/remote');
@@ -105,6 +110,7 @@ function probe(){
  c.restoreHotkeys=async()=>{if(originalHotkeys===undefined)app.hotkeyManager.removeHotkeys(commandId);else app.hotkeyManager.setHotkeys(commandId,originalHotkeys);await app.hotkeyManager.save();};
  c.task=(async()=>{
   await app.vault.createFolder(c.folder);
+  if(scenario==='issue161')return issue161Scenarios({app,p,ex,host,c,check,wait,until,activate,emit,record,win});
   const created=await ex.createDrawing('Interaction-default.excalidraw.md',c.folder);
   c.file=typeof created==='string'?app.vault.getFileByPath(created):created;
   check(c.file?.path.startsWith(c.folder+'/'),'Excalidraw returned a non-owned file');
@@ -213,8 +219,8 @@ try{
   const built=sha(readFileSync(`${root}/dist/${name}`)),installed=sha(readFileSync(`${config}/plugins/k-plex/${name}`));
   report.artifacts[name]={built,installed};if(built!==installed)throw Error('Installed/build hash mismatch: '+name);
  }
- report.obsidian=cli('version');cli('dev:errors','clear');attempted=true;report.start=evaluate(`(${probe.toString()})()`);started=true;
- const end=Date.now()+240000;
+ report.obsidian=cli('version');cli('dev:errors','clear');attempted=true;report.start=evaluate(`(${probe.toString()})(${JSON.stringify(scenario)},${issue161Scenarios.toString()})`);started=true;
+ const end=Date.now()+(scenario==='issue161'?360000:240000);
  while(true){await delay(300);const state=evaluate('JSON.stringify({done:window.__kplexInteractionFinal?.done,error:window.__kplexInteractionFinal?.error})');
   if(state.done){report.result=evaluate('JSON.stringify(window.__kplexInteractionFinal.value??{error:window.__kplexInteractionFinal.error,cases:window.__kplexInteractionFinal.cases,events:window.__kplexInteractionFinal.events})');if(state.error)throw Error(state.error);break;}
   if(Date.now()>end)throw Error('Native acceptance deadline');

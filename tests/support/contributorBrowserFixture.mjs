@@ -2,8 +2,8 @@
 import { installRetiredSourcePrototypes } from "./retiredSourcePrototypes.mjs";
 import { browserBundle } from "./browserTypeScript.mjs";
 
-/** Compile real modules plus optional test-owned entries; only the Obsidian host API is doubled. */
-export async function contributorBrowserBundle(extraEntries = []) {
+/** Compile real modules plus test-owned entries or exact committed benchmark sources; only the host API is doubled. */
+export async function contributorBrowserBundle(extraEntries = [], sourceOverrides = {}) {
   return browserBundle([
     "src/core/graph/source.ts", "src/adapters/obsidian/hostLinkSourceCollector.ts", "src/index/CachedSourceSemantics.ts", ...extraEntries, "src/index/IndexedDbCache.ts", "src/index/SourceFacts.ts", "src/index/SourceLocalDependencies.ts", "src/index/SourceContributorDiscovery.ts",
     "src/adapters/obsidian/sourceAcquisition.ts", "src/core/parser/metadata.ts",
@@ -12,7 +12,7 @@ export async function contributorBrowserBundle(extraEntries = []) {
     constructor(path){this.path=path;this.name=path.split('/').pop();this.extension=path.split('.').pop();this.basename=this.name.replace(/\\.[^.]+$/,'');this.stat={mtime:1,size:100,ctime:1};this.parent=null;}
   }; exports.TFolder=class TFolder {constructor(){this.path='';this.name='';this.children=[];this.parent=null;}};
   exports.normalizePath=path=>path.replaceAll('\\\\','/').replace(/\\/{2,}/g,'/').replace(/^\\/|\\/$/g,'');
-  exports.getAllTags=cache=>cache.hostTags??[];window.ContributorFile=exports.TFile;window.ContributorFolder=exports.TFolder;` });
+  exports.getAllTags=cache=>cache.hostTags??[];window.ContributorFile=exports.TFile;window.ContributorFolder=exports.TFolder;` }, sourceOverrides);
 }
 
 /** Executed in the real browser: no IDB implementation, transaction or source module is substituted. */

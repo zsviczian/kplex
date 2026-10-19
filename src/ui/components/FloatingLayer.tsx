@@ -24,6 +24,8 @@ export interface FloatingLayerProps {
   dragHandleRef?: RefObject<HTMLElement | null>;
   insideRoots: () => readonly (Node | null | undefined)[];
   onDismiss: (reason: FloatingLayerDismissReason) => void;
+  /** Let a nested owning surface receive Escape before this layer consumes it or restores focus. */
+  handleEscape?: (event: KeyboardEvent) => boolean;
   portalTarget: (ownerDocument: Document) => Element | null;
   positioning: FloatingLayerPositioning;
   children: (style: CSSProperties) => ReactNode;
@@ -53,13 +55,14 @@ export function FloatingLayer({
   dragHandleRef,
   insideRoots,
   onDismiss,
+  handleEscape,
   portalTarget,
   positioning,
   children,
 }: FloatingLayerProps) {
   const [style, setStyle] = useState<CSSProperties>({});
-  const current = useRef({ insideRoots, onDismiss });
-  current.current = { insideRoots, onDismiss };
+  const current = useRef({ insideRoots, onDismiss, handleEscape });
+  current.current = { insideRoots, onDismiss, handleEscape };
 
   const anchor = anchorRef.current;
   const ownerDocument = anchor?.ownerDocument ?? null;
@@ -104,7 +107,7 @@ export function FloatingLayer({
     };
     /** Escape restores the still-connected trigger in its owning document. */
     const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key !== "Escape") return;
+      if (event.key !== "Escape" || current.current.handleEscape?.(event) === false) return;
       event.preventDefault();
       event.stopPropagation();
       current.current.onDismiss("escape");

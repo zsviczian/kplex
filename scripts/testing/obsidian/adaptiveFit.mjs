@@ -10,6 +10,7 @@ import {existsSync,mkdirSync,readFileSync,readdirSync,writeFileSync,unlinkSync} 
 import {join,resolve} from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {validateTarget} from './runner.mjs';
+import {acceptMarkdownSaveContinuity} from './markdownSaveContinuity.mjs';
 const projectRoot=resolve(fileURLToPath(new URL('../../..',import.meta.url)));
 const vaultName=process.env.KPLEX_TEST_VAULT_NAME;
 assert.equal(vaultName,'kplex-test-small','Select the disposable small vault explicitly');
@@ -17,7 +18,9 @@ const target=validateTarget({vaultName,vaultPath:process.env.KPLEX_TEST_VAULT_PA
 const output=process.env.KPLEX_HOST_REPORT_DIR;
 assert(output&&(!existsSync(output)||!readdirSync(output).length),'Choose a fresh report directory');mkdirSync(output,{recursive:true});
 const driver=readFileSync(fileURLToPath(import.meta.url));writeFileSync(join(output,'driver-source.mjs'),driver);
+const saveHelper=readFileSync(new URL('./markdownSaveContinuity.mjs',import.meta.url));writeFileSync(join(output,'markdownSaveContinuity.mjs'),saveHelper);
 const report={status:'running',startedAt:new Date().toISOString(),node:process.version,driverSha256:createHash('sha256').update(driver).digest('hex'),artifacts:{},scenarios:[],limitations:['Electron input and observed native geometry/keyframes are functional evidence; physical touch and perceived paint remain separate.']};
+report.markdownSave={selected:process.env.KPLEX_MARKDOWN_SAVE_ONLY==='true',observationOnly:process.env.KPLEX_MARKDOWN_SAVE_OBSERVE_ONLY==='true',helperSha256:createHash('sha256').update(saveHelper).digest('hex')};
 const configurations=['data.json','community-plugins.json'].map(name=>{const path=name==='data.json'?join(target.pluginDir,name):join(target.config,name);return{path,bytes:existsSync(path)?readFileSync(path):null}});
 /** Reject native eval errors even when CLI returns zero. */
 function cli(command,...args){const r=spawnSync(obsidianCliExecutable(),[`vault=${vaultName}`,command,...args],{cwd:projectRoot,encoding:'utf8',timeout:30000,killSignal:'SIGKILL',maxBuffer:4*1024*1024});if(r.error||r.status!==0||/^Error:/m.test(r.stdout))throw r.error??Error(r.stderr||r.stdout);return r.stdout.trim()}
@@ -26,11 +29,12 @@ function evaluate(code){return JSON.parse(cli('eval',`code=${code}`).replace(/^=
 /** Poll briefly without blocking the renderer or changing its throttling. */
 const delay=ms=>new Promise(resolve=>setTimeout(resolve,ms));
 /** Install one cancellable native owner; metadata events publish through the existing source/index path. */
-function probe(){
+function probe(saveAcceptance,saveOnly,observeSavesOnly){
  const p=app.plugins.plugins['k-plex'],win=require('@electron/remote').getCurrentWindow();
  if(!p?.actionManager||window.__kplexAutoFitProbe||app.setting.isOpen||document.querySelector('.modal-container,.menu'))throw Error('Clean native prerequisites required');
  const c=window.__kplexAutoFitProbe={settings:JSON.parse(JSON.stringify(p.settings)),layout:app.workspace.getLayout(),bounds:win.getBounds(),owners:{linkedDocumentLeaf:p.linkedDocumentLeaf,lastDocumentLeaf:p.lastDocumentLeaf,recentLeafHistory:[...p.recentLeafHistory],sidecarLeaves:new Map(p.sidecarLeaves)},cases:[],done:false,cancelled:false,owned:false};
  const folder='__kplex_auto_fit_native';let leaf,root,surface;
+ c.observeSavesOnly=observeSavesOnly;
  /** Fence every task against cleanup and retain strict native deadlines. */
  const check=(value,message)=>{if(c.cancelled)throw Error('Retired auto-fit probe');if(!value)throw Error(message)};
  /** Yield native tasks without changing renderer throttling. */
@@ -57,6 +61,7 @@ function probe(){
   p.settings.embedCentralNode=false;p.settings.animationSpeed=0;p.settings.allowAutozoom=true;p.settings.showFolderNodes=false;p.settings.showTagNodes=false;p.settings.renderSiblings=false;p.settings.graphDepth=1;await p.setDocumentSyncMode('off');
   const childKey=p.settings.hierarchy.children[0],parentKey=p.settings.hierarchy.parents[0],leftKey=p.settings.hierarchy.leftFriends[0];check(childKey&&parentKey&&leftKey,'Configured ontology absent');
   const files=new Map();for(const name of ['Center','Child','Next',...Array.from({length:24},(_,n)=>'Late-'+n)]){const file=await app.vault.create(folder+'/'+name+'.md','# '+name+'\n');files.set(name,file);p.index.insertCreatedFile(file)}
+  if(saveOnly){p.settings.animationSpeed=1;return saveAcceptance({app,p,leaf,root,files,center:files.get('Center'),parentKey,childKey,wait,until,check,passed,c})}
   const center=files.get('Center');await app.fileManager.processFrontMatter(center,fm=>{fm[childKey]='[['+files.get('Child').path+']]'});p.index.notifyPresentation();await navigate(center);await until(()=>p.index.getNeighborhood(center.path)?.children.some(item=>item.page.path===files.get('Child').path),'Initial child absent');await wait(150);centered();contained();const initial=camera();passed('navigation-centered-fit',{camera:initial});
   await app.fileManager.processFrontMatter(center,fm=>{fm[parentKey]=Array.from({length:12},(_,n)=>'[['+files.get('Late-'+n).path+']]')});await until(()=>p.index.getNeighborhood(center.path)?.parents.length>=12,'Late native metadata did not publish parents');await until(()=>camera().scale<initial.scale,'Late layout did not refit');centered();contained();passed('late-publication-refit',{initial,after:camera(),parents:12});
   await action('view.zoom-in');await action('view.pan.right');const manual=camera();await app.fileManager.processFrontMatter(center,fm=>{fm[leftKey]=Array.from({length:6},(_,n)=>'[['+files.get('Late-'+(12+n)).path+']]')});await until(()=>p.index.getNeighborhood(center.path)?.leftFriends.length>=6,'Late friends did not publish');await wait(200);check(JSON.stringify(camera())===JSON.stringify(manual),'Late publication overwrote manual graph camera');passed('manual-camera-preserved',{camera:manual});
@@ -72,7 +77,7 @@ try{
  assert.equal(cli('vault','info=path'),target.vault);
  report.obsidian=cli('version');cli('dev:errors','clear');
  for(const name of ['main.js','styles.css','manifest.json']){const built=readFileSync(join(projectRoot,'dist',name)),actual=readFileSync(join(target.pluginDir,name));assert(built.equals(actual),`Installed ${name} mismatch`);report.artifacts[name]=createHash('sha256').update(actual).digest('hex')}
- cli('command','id=k-plex:kplex-start');await delay(1000);evaluate(`JSON.stringify((${probe.toString()})())`);installed=true;
+ cli('command','id=k-plex:kplex-start');await delay(1000);evaluate(`JSON.stringify((${probe.toString()})(${acceptMarkdownSaveContinuity.toString()},${process.env.KPLEX_MARKDOWN_SAVE_ONLY==='true'},${process.env.KPLEX_MARKDOWN_SAVE_OBSERVE_ONLY==='true'}))`);installed=true;
  const end=Date.now()+180000;
  while(true){const state=evaluate('JSON.stringify((()=>{const c=window.__kplexAutoFitProbe;return {done:c?.done,error:c?.error,cases:c?.cases,stopAnimations:c?.stopAnimations}})())');report.scenarios=state.cases??[];if(state.stopAnimations)report.stopAnimations=state.stopAnimations;if(state.done){if(state.error)throw Error(state.error);break}assert(Date.now()<end,'Native adaptive fit deadline exceeded');await delay(500)}
  report.nativeErrors=cli('dev:errors');assert(!report.nativeErrors||/^No errors captured\.?$/i.test(report.nativeErrors),'Native JavaScript errors captured');

@@ -5,6 +5,7 @@
  * available counts as lower bounds without granting relationship authority.
  */
 import type { TFile } from "obsidian";
+import type { ColorValue } from "./core/contracts/colorValue";
 import { LinkDirection, RelationType, type Role, type RelationshipRole, type SemanticRelation } from "./core/graph/relations";
 
 export { LinkDirection, RelationType };
@@ -32,10 +33,10 @@ export type Hierarchy = {
 export type NodeStyle = {
   prefix?: string;
   icon?: string;
-  backgroundColor?: string;
+  backgroundColor?: ColorValue;
   fillStyle?: FillStyle;
-  textColor?: string;
-  borderColor?: string;
+  textColor?: ColorValue;
+  borderColor?: ColorValue;
   fontSize?: number;
   fontFamily?: number;
   maxLabelLength?: number;
@@ -47,15 +48,15 @@ export type NodeStyle = {
   padding?: number;
   gateRadius?: number;
   gateOffset?: number;
-  gateStrokeColor?: string;
-  gateBackgroundColor?: string;
+  gateStrokeColor?: ColorValue;
+  gateBackgroundColor?: ColorValue;
   gateFillStyle?: FillStyle;
   embedWidth?: number;
   embedHeight?: number;
 };
 
 export type LinkStyle = {
-  strokeColor?: string;
+  strokeColor?: ColorValue;
   strokeWidth?: number;
   strokeStyle?: StrokeStyle;
   roughness?: number;
@@ -64,7 +65,7 @@ export type LinkStyle = {
   showLabel?: boolean;
   fontSize?: number;
   fontFamily?: number;
-  textColor?: string;
+  textColor?: ColorValue;
 };
 
 export type Relation = SemanticRelation<GraphPage>;

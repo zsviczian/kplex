@@ -1,0 +1,2436 @@
+{
+  "baseCommit": "186aec3aa6565a7014897b206c1f8cc0e9b9dba1",
+  "branch": "PR-cleanup",
+  "patchState": "uncommitted",
+  "host": {
+    "node": "v22.22.2",
+    "os": "darwin 23.5.0",
+    "obsidian": "1.14.4 (installer 1.14.0)"
+  },
+  "finalArtifacts": {
+    "main.js": "99a1d30e0c8c6e1e44e4ce0bf28a521068ee0bbc46ed5fe4667f4c9f17973eec",
+    "manifest.json": "0beacdb94adc4a0ec318d69dba87fcb4dc9c1a86784058db341fdefe0dfb4250",
+    "styles.css": "e8c9279e8904888aa71d5dd2b01f320d5b32fd10e15feb0b9a9576a34f11cea3"
+  },
+  "results": {
+    "passed": 23,
+    "partial": 0,
+    "failed": 1,
+    "pending": 1
+  },
+  "fullVerification": {
+    "status": "passed",
+    "artifacts": {
+      "main.js": "6bff98ddaf36957cc1d2b2a7dcb022f5634d7157c5e124509cd080eee916a657",
+      "manifest.json": "0beacdb94adc4a0ec318d69dba87fcb4dc9c1a86784058db341fdefe0dfb4250",
+      "styles.css": "e8c9279e8904888aa71d5dd2b01f320d5b32fd10e15feb0b9a9576a34f11cea3"
+    },
+    "testPassCountsByLane": [
+      7,
+      94,
+      735,
+      60,
+      334,
+      443
+    ],
+    "log": "/private/tmp/kplex-risk-20261013-verify-r4.log",
+    "note": "Before the subsequently discovered Sidecar repair; final repair has build, lint, architecture, 99 focused checks and native evidence."
+  },
+  "deletion": {
+    "status": "passed",
+    "cases": [
+      {
+        "id": "default-ontology-and-inline-navigation",
+        "status": "passed",
+        "outcome": "committed",
+        "survivingProperties": [
+          "arbitrary",
+          "list",
+          "nested"
+        ],
+        "lastActivePath": "__kplex_delete_cleanup_native/default-other.md"
+      },
+      {
+        "id": "cleanup-preference-off-preserves-all-source-bytes",
+        "status": "passed",
+        "outcome": "committed"
+      },
+      {
+        "id": "legacy-preference-preserves-property-only-ghost",
+        "status": "passed",
+        "outcome": "committed"
+      },
+      {
+        "id": "resolved-short-ontology-captured-and-body-references-kept",
+        "status": "passed",
+        "outcome": "committed"
+      },
+      {
+        "id": "cancel-no-write",
+        "status": "passed"
+      },
+      {
+        "id": "explicit-extra-field-removal",
+        "status": "passed",
+        "outcome": "committed"
+      },
+      {
+        "id": "delete-hide-preserves-links",
+        "status": "passed",
+        "outcome": "committed"
+      },
+      {
+        "id": "placeholder-default-scope",
+        "status": "passed",
+        "outcome": "committed"
+      },
+      {
+        "id": "hidden-is-configured-ontology",
+        "status": "passed",
+        "outcome": "committed"
+      },
+      {
+        "id": "partial-source-failure-keeps-evidence",
+        "status": "passed",
+        "outcome": "committed"
+      },
+      {
+        "id": "confirmation-target-replacement-refused",
+        "status": "passed"
+      },
+      {
+        "id": "native-await-source-replacement-refused",
+        "status": "passed",
+        "outcome": "committed"
+      },
+      {
+        "id": "post-trash-target-recreation-refused",
+        "status": "passed",
+        "outcome": "committed"
+      },
+      {
+        "id": "context-hide-cancel-preserves-source",
+        "status": "passed"
+      },
+      {
+        "id": "context-hide-keeps-original-links-and-note",
+        "status": "passed"
+      },
+      {
+        "id": "context-hide-opposite-save-note-updates-direction-and-keeps-current-view",
+        "status": "passed"
+      },
+      {
+        "id": "plugin-reload-cancels-pending-delete-consent",
+        "status": "passed"
+      },
+      {
+        "id": "warm:property-only",
+        "status": "passed",
+        "targetPath": "__kplex_delete_cleanup_native/property-only-target",
+        "sourcePath": "__kplex_delete_cleanup_native/property-only-owner.md",
+        "hidden": false
+      },
+      {
+        "id": "warm:delete-hide",
+        "status": "passed",
+        "targetPath": "__kplex_delete_cleanup_native/delete-hide-target",
+        "sourcePath": "__kplex_delete_cleanup_native/delete-hide-owner.md",
+        "hidden": true
+      },
+      {
+        "id": "warm:context-hide",
+        "status": "passed",
+        "targetPath": "__kplex_delete_cleanup_native/context-hide-target.md",
+        "sourcePath": "__kplex_delete_cleanup_native/context-hide-owner.md",
+        "hidden": true
+      },
+      {
+        "id": "warm:context-hide-other-owner",
+        "status": "passed",
+        "targetPath": "__kplex_delete_cleanup_native/context-hide-other-owner-owner.md",
+        "sourcePath": "__kplex_delete_cleanup_native/context-hide-other-owner-target.md",
+        "hidden": true
+      }
+    ],
+    "cleanup": {
+      "cleaned": true,
+      "markdownFiles": 74,
+      "pluginEnabled": true
+    }
+  },
+  "styles": {
+    "status": "passed",
+    "cases": [
+      {
+        "name": "unsaved name/color draft Cancel leaves live and durable styles unchanged",
+        "status": "passed"
+      },
+      {
+        "name": "no-view create, duplicate clicks and pending Cancel/Escape",
+        "status": "passed",
+        "writes": 1
+      },
+      {
+        "name": "native RGB normalization/edit preserves imported alpha and inheritance",
+        "status": "passed"
+      },
+      {
+        "name": "failed Save reports not saved and Cancel preserves the previous style",
+        "status": "passed"
+      },
+      {
+        "name": "create both style families durably",
+        "status": "passed"
+      },
+      {
+        "name": "rename updates the correct manager family",
+        "status": "passed"
+      },
+      {
+        "name": "failed delete retains draft/live/disk; one retry deletes its family",
+        "status": "passed"
+      },
+      {
+        "name": "durable presentationFailure closes with saved recovery feedback",
+        "status": "passed"
+      },
+      {
+        "name": "durable managerFailure closes with saved recovery feedback",
+        "status": "passed"
+      },
+      {
+        "name": "no-view style operations perform no semantic refresh, source acquisition or K-Plex body reads",
+        "status": "passed",
+        "nativeLeafReads": 1
+      },
+      {
+        "name": "active on-demand graph and tag priority retain prepared editing authority without source work",
+        "status": "passed",
+        "indexingMode": "on-demand"
+      },
+      {
+        "name": "tag Delete persists and preserves identically named property style",
+        "status": "passed"
+      },
+      {
+        "name": "actual Settings subpages and style manager complete in their owning document",
+        "status": "passed",
+        "popout": true
+      },
+      {
+        "name": "committed style survives native plugin reload",
+        "status": "passed"
+      }
+    ]
+  },
+  "rename": {
+    "status": "passed",
+    "observations": [
+      {
+        "mode": "on-demand",
+        "phase": "initial",
+        "physical": "__kplex_rename_identity_native/Old.md",
+        "nodes": [
+          {
+            "path": "__kplex_rename_identity_native/Old.md",
+            "file": "__kplex_rename_identity_native/Old.md",
+            "name": "Old",
+            "title": "Old",
+            "same": true
+          }
+        ],
+        "dom": [
+          {
+            "path": "__kplex_rename_identity_native/Origin.md",
+            "label": "Origin0100"
+          },
+          {
+            "path": "__kplex_rename_identity_native/Old.md",
+            "label": "Old1000"
+          }
+        ],
+        "raw": "---\nChild: \"[[__kplex_rename_identity_native/Old]]\"\n---\n[[__kplex_rename_identity_native/Old]]\n",
+        "resolved": {
+          "__kplex_rename_identity_native/Old.md": 2
+        },
+        "unresolved": {},
+        "pinned": [],
+        "history": [
+          "__kplex_rename_identity_native/Origin.md"
+        ]
+      },
+      {
+        "mode": "on-demand",
+        "phase": "synchronous-rename",
+        "oldPath": "__kplex_rename_identity_native/Old.md",
+        "path": "__kplex_rename_identity_native/New.md",
+        "title": "New",
+        "expectedKnownTitle": "New",
+        "beforeAliases": [],
+        "afterAliases": [],
+        "occurrences": 1,
+        "vaultSearch": true
+      },
+      {
+        "mode": "on-demand",
+        "phase": "native-file-manager-auto-links",
+        "physical": "__kplex_rename_identity_native/New.md",
+        "nodes": [
+          {
+            "path": "__kplex_rename_identity_native/New.md",
+            "file": "__kplex_rename_identity_native/New.md",
+            "name": "New",
+            "title": "New",
+            "same": true
+          }
+        ],
+        "dom": [
+          {
+            "path": "__kplex_rename_identity_native/Origin.md",
+            "label": "Origin0100"
+          },
+          {
+            "path": "__kplex_rename_identity_native/New.md",
+            "label": "New1000"
+          }
+        ],
+        "raw": "---\nChild: \"[[New]]\"\n---\n[[New]]\n",
+        "resolved": {
+          "__kplex_rename_identity_native/New.md": 2
+        },
+        "unresolved": {},
+        "pinned": [
+          "__kplex_rename_identity_native/New.md"
+        ],
+        "history": [
+          "__kplex_rename_identity_native/New.md",
+          "__kplex_rename_identity_native/Origin.md"
+        ]
+      },
+      {
+        "mode": "on-demand",
+        "phase": "alias-ready-before-modal",
+        "physical": "__kplex_rename_identity_native/New.md",
+        "nodes": [
+          {
+            "path": "__kplex_rename_identity_native/New.md",
+            "file": "__kplex_rename_identity_native/New.md",
+            "name": "New",
+            "title": "Stable alias",
+            "same": true
+          }
+        ],
+        "dom": [
+          {
+            "path": "__kplex_rename_identity_native/Origin.md",
+            "label": "Origin0100"
+          },
+          {
+            "path": "__kplex_rename_identity_native/New.md",
+            "label": "Stable alias1000"
+          }
+        ],
+        "raw": "---\nChild: \"[[New]]\"\n---\n[[New]]\n",
+        "resolved": {
+          "__kplex_rename_identity_native/New.md": 2
+        },
+        "unresolved": {},
+        "pinned": [
+          "__kplex_rename_identity_native/New.md"
+        ],
+        "history": [
+          "__kplex_rename_identity_native/New.md",
+          "__kplex_rename_identity_native/Origin.md"
+        ]
+      },
+      {
+        "mode": "on-demand",
+        "phase": "synchronous-rename",
+        "oldPath": "__kplex_rename_identity_native/New.md",
+        "path": "__kplex_rename_identity_native/Modal.md",
+        "title": "Stable alias",
+        "expectedKnownTitle": "Stable alias",
+        "beforeAliases": [
+          "Stable alias"
+        ],
+        "afterAliases": [
+          "Stable alias"
+        ],
+        "occurrences": 1,
+        "vaultSearch": true
+      },
+      {
+        "mode": "on-demand",
+        "phase": "kplex-modal-alias-preserved",
+        "physical": "__kplex_rename_identity_native/Modal.md",
+        "nodes": [
+          {
+            "path": "__kplex_rename_identity_native/Modal.md",
+            "file": "__kplex_rename_identity_native/Modal.md",
+            "name": "Modal",
+            "title": "Stable alias",
+            "same": true
+          }
+        ],
+        "dom": [
+          {
+            "path": "__kplex_rename_identity_native/Origin.md",
+            "label": "Origin0100"
+          },
+          {
+            "path": "__kplex_rename_identity_native/Modal.md",
+            "label": "Stable alias1000"
+          }
+        ],
+        "raw": "---\nChild: \"[[Modal]]\"\n---\n[[Modal]]\n",
+        "resolved": {
+          "__kplex_rename_identity_native/Modal.md": 2
+        },
+        "unresolved": {},
+        "pinned": [
+          "__kplex_rename_identity_native/Modal.md"
+        ],
+        "history": [
+          "__kplex_rename_identity_native/Modal.md",
+          "__kplex_rename_identity_native/Origin.md"
+        ]
+      },
+      {
+        "mode": "on-demand",
+        "phase": "explicit-old-path-before-link-updates-off",
+        "physical": "__kplex_rename_identity_native/Modal.md",
+        "nodes": [
+          {
+            "path": "__kplex_rename_identity_native/Modal.md",
+            "file": "__kplex_rename_identity_native/Modal.md",
+            "name": "Modal",
+            "title": "Stable alias",
+            "same": true
+          }
+        ],
+        "dom": [
+          {
+            "path": "__kplex_rename_identity_native/Origin.md",
+            "label": "Origin0100"
+          },
+          {
+            "path": "__kplex_rename_identity_native/Modal.md",
+            "label": "Stable alias1000"
+          }
+        ],
+        "raw": "---\nChild: \"[[__kplex_rename_identity_native/Modal]]\"\n---\n[[__kplex_rename_identity_native/Modal]]\n",
+        "resolved": {
+          "__kplex_rename_identity_native/Modal.md": 2
+        },
+        "unresolved": {},
+        "pinned": [
+          "__kplex_rename_identity_native/Modal.md"
+        ],
+        "history": [
+          "__kplex_rename_identity_native/Modal.md",
+          "__kplex_rename_identity_native/Origin.md"
+        ]
+      },
+      {
+        "mode": "on-demand",
+        "phase": "synchronous-rename",
+        "oldPath": "__kplex_rename_identity_native/Modal.md",
+        "path": "__kplex_rename_identity_native/Nested/Moved.md",
+        "title": "Stable alias",
+        "expectedKnownTitle": "Stable alias",
+        "beforeAliases": [
+          "Stable alias"
+        ],
+        "afterAliases": [
+          "Stable alias"
+        ],
+        "occurrences": 1,
+        "vaultSearch": true
+      },
+      {
+        "mode": "on-demand",
+        "phase": "off-preference-raw-references",
+        "preference": false,
+        "declinedPrompt": true,
+        "beforeMove": "---\nChild: \"[[__kplex_rename_identity_native/Modal]]\"\n---\n[[__kplex_rename_identity_native/Modal]]\n",
+        "afterMove": "---\nChild: \"[[__kplex_rename_identity_native/Modal]]\"\n---\n[[__kplex_rename_identity_native/Modal]]\n",
+        "previous": "__kplex_rename_identity_native/Modal.md"
+      },
+      {
+        "mode": "on-demand",
+        "phase": "auto-links-off-supported-ghost",
+        "physical": "__kplex_rename_identity_native/Nested/Moved.md",
+        "nodes": [
+          {
+            "path": "__kplex_rename_identity_native/Modal",
+            "file": null,
+            "name": "Modal",
+            "title": "Modal",
+            "same": false
+          }
+        ],
+        "dom": [
+          {
+            "path": "__kplex_rename_identity_native/Origin.md",
+            "label": "Origin0100"
+          },
+          {
+            "path": "__kplex_rename_identity_native/Modal",
+            "label": "Modal1000"
+          }
+        ],
+        "raw": "---\nChild: \"[[__kplex_rename_identity_native/Modal]]\"\n---\n[[__kplex_rename_identity_native/Modal]]\n",
+        "resolved": {},
+        "unresolved": {
+          "__kplex_rename_identity_native/Modal": 2
+        },
+        "pinned": [
+          "__kplex_rename_identity_native/Nested/Moved.md"
+        ],
+        "history": [
+          "__kplex_rename_identity_native/Nested/Moved.md",
+          "__kplex_rename_identity_native/Origin.md"
+        ]
+      },
+      {
+        "mode": "on-demand",
+        "phase": "explicit-relink-after-move",
+        "physical": "__kplex_rename_identity_native/Nested/Moved.md",
+        "nodes": [
+          {
+            "path": "__kplex_rename_identity_native/Nested/Moved.md",
+            "file": "__kplex_rename_identity_native/Nested/Moved.md",
+            "name": "Moved",
+            "title": "Stable alias",
+            "same": true
+          }
+        ],
+        "dom": [
+          {
+            "path": "__kplex_rename_identity_native/Origin.md",
+            "label": "Origin0100"
+          },
+          {
+            "path": "__kplex_rename_identity_native/Nested/Moved.md",
+            "label": "Stable alias1000"
+          }
+        ],
+        "raw": "---\nChild: \"[[__kplex_rename_identity_native/Nested/Moved]]\"\n---\n[[__kplex_rename_identity_native/Nested/Moved]]\n",
+        "resolved": {
+          "__kplex_rename_identity_native/Nested/Moved.md": 2
+        },
+        "unresolved": {},
+        "pinned": [
+          "__kplex_rename_identity_native/Nested/Moved.md"
+        ],
+        "history": [
+          "__kplex_rename_identity_native/Nested/Moved.md",
+          "__kplex_rename_identity_native/Origin.md"
+        ]
+      },
+      {
+        "mode": "on-demand",
+        "phase": "synchronous-rename",
+        "oldPath": "__kplex_rename_identity_native/Nested/Moved.md",
+        "path": "__kplex_rename_identity_native/Nested/moved.md",
+        "title": "Stable alias",
+        "expectedKnownTitle": "Stable alias",
+        "beforeAliases": [
+          "Stable alias"
+        ],
+        "afterAliases": [
+          "Stable alias"
+        ],
+        "occurrences": 1,
+        "vaultSearch": true
+      },
+      {
+        "mode": "on-demand",
+        "phase": "case-only",
+        "physical": "__kplex_rename_identity_native/Nested/moved.md",
+        "nodes": [
+          {
+            "path": "__kplex_rename_identity_native/Nested/moved.md",
+            "file": "__kplex_rename_identity_native/Nested/moved.md",
+            "name": "moved",
+            "title": "Stable alias",
+            "same": true
+          }
+        ],
+        "dom": [
+          {
+            "path": "__kplex_rename_identity_native/Origin.md",
+            "label": "Origin0100"
+          },
+          {
+            "path": "__kplex_rename_identity_native/Nested/moved.md",
+            "label": "Stable alias1000"
+          }
+        ],
+        "raw": "---\nChild: \"[[__kplex_rename_identity_native/Nested/moved]]\"\n---\n[[__kplex_rename_identity_native/Nested/moved]]\n",
+        "resolved": {
+          "__kplex_rename_identity_native/Nested/moved.md": 2
+        },
+        "unresolved": {},
+        "pinned": [
+          "__kplex_rename_identity_native/Nested/moved.md"
+        ],
+        "history": [
+          "__kplex_rename_identity_native/Nested/moved.md",
+          "__kplex_rename_identity_native/Origin.md"
+        ]
+      },
+      {
+        "mode": "on-demand",
+        "phase": "configured-title-before-repeat",
+        "physical": "__kplex_rename_identity_native/Nested/moved.md",
+        "nodes": [
+          {
+            "path": "__kplex_rename_identity_native/Nested/moved.md",
+            "file": "__kplex_rename_identity_native/Nested/moved.md",
+            "name": "moved",
+            "title": "Stable title",
+            "same": true
+          }
+        ],
+        "dom": [
+          {
+            "path": "__kplex_rename_identity_native/Origin.md",
+            "label": "Origin0100"
+          },
+          {
+            "path": "__kplex_rename_identity_native/Nested/moved.md",
+            "label": "Stable title1000"
+          }
+        ],
+        "raw": "---\nChild: \"[[__kplex_rename_identity_native/Nested/moved]]\"\n---\n[[__kplex_rename_identity_native/Nested/moved]]\n",
+        "resolved": {
+          "__kplex_rename_identity_native/Nested/moved.md": 2
+        },
+        "unresolved": {},
+        "pinned": [
+          "__kplex_rename_identity_native/Nested/moved.md"
+        ],
+        "history": [
+          "__kplex_rename_identity_native/Nested/moved.md",
+          "__kplex_rename_identity_native/Origin.md"
+        ]
+      },
+      {
+        "mode": "on-demand",
+        "phase": "synchronous-rename",
+        "oldPath": "__kplex_rename_identity_native/Nested/moved.md",
+        "path": "__kplex_rename_identity_native/Final.md",
+        "title": "Stable title",
+        "expectedKnownTitle": "Stable title",
+        "beforeAliases": [
+          "Stable alias"
+        ],
+        "afterAliases": [
+          "Stable alias"
+        ],
+        "occurrences": 1,
+        "vaultSearch": true
+      },
+      {
+        "mode": "on-demand",
+        "phase": "repeat-move-title-preserved",
+        "physical": "__kplex_rename_identity_native/Final.md",
+        "nodes": [
+          {
+            "path": "__kplex_rename_identity_native/Final.md",
+            "file": "__kplex_rename_identity_native/Final.md",
+            "name": "Final",
+            "title": "Stable title",
+            "same": true
+          }
+        ],
+        "dom": [
+          {
+            "path": "__kplex_rename_identity_native/Origin.md",
+            "label": "Origin0100"
+          },
+          {
+            "path": "__kplex_rename_identity_native/Final.md",
+            "label": "Stable title1000"
+          }
+        ],
+        "raw": "---\nChild: \"[[Final]]\"\n---\n[[Final]]\n",
+        "resolved": {
+          "__kplex_rename_identity_native/Final.md": 2
+        },
+        "unresolved": {},
+        "pinned": [
+          "__kplex_rename_identity_native/Final.md"
+        ],
+        "history": [
+          "__kplex_rename_identity_native/Final.md",
+          "__kplex_rename_identity_native/Origin.md"
+        ]
+      },
+      {
+        "mode": "on-demand",
+        "phase": "alias-restored-before-warm-enable",
+        "physical": "__kplex_rename_identity_native/Final.md",
+        "nodes": [
+          {
+            "path": "__kplex_rename_identity_native/Final.md",
+            "file": "__kplex_rename_identity_native/Final.md",
+            "name": "Final",
+            "title": "Stable alias",
+            "same": true
+          }
+        ],
+        "dom": [
+          {
+            "path": "__kplex_rename_identity_native/Origin.md",
+            "label": "Origin0100"
+          },
+          {
+            "path": "__kplex_rename_identity_native/Final.md",
+            "label": "Stable alias1000"
+          }
+        ],
+        "raw": "---\nChild: \"[[Final]]\"\n---\n[[Final]]\n",
+        "resolved": {
+          "__kplex_rename_identity_native/Final.md": 2
+        },
+        "unresolved": {},
+        "pinned": [
+          "__kplex_rename_identity_native/Final.md"
+        ],
+        "history": [
+          "__kplex_rename_identity_native/Final.md",
+          "__kplex_rename_identity_native/Origin.md"
+        ]
+      },
+      {
+        "mode": "on-demand",
+        "phase": "warm-reload",
+        "physical": "__kplex_rename_identity_native/Final.md",
+        "nodes": [
+          {
+            "path": "__kplex_rename_identity_native/Final.md",
+            "file": "__kplex_rename_identity_native/Final.md",
+            "name": "Final",
+            "title": "Stable alias",
+            "same": true
+          }
+        ],
+        "dom": [
+          {
+            "path": "__kplex_rename_identity_native/Origin.md",
+            "label": "Origin1"
+          },
+          {
+            "path": "__kplex_rename_identity_native/Final.md",
+            "label": "Stable alias1000"
+          }
+        ],
+        "raw": "---\nChild: \"[[Final]]\"\n---\n[[Final]]\n",
+        "resolved": {
+          "__kplex_rename_identity_native/Final.md": 2
+        },
+        "unresolved": {},
+        "pinned": [
+          "__kplex_rename_identity_native/Final.md"
+        ],
+        "history": [
+          "__kplex_rename_identity_native/Final.md",
+          "__kplex_rename_identity_native/Origin.md"
+        ]
+      },
+      {
+        "mode": "eager",
+        "phase": "initial",
+        "physical": "__kplex_rename_identity_native/Old.md",
+        "nodes": [
+          {
+            "path": "__kplex_rename_identity_native/Old.md",
+            "file": "__kplex_rename_identity_native/Old.md",
+            "name": "Old",
+            "title": "Old",
+            "same": true
+          }
+        ],
+        "dom": [
+          {
+            "path": "__kplex_rename_identity_native/Origin.md",
+            "label": "Origin0100"
+          },
+          {
+            "path": "__kplex_rename_identity_native/Old.md",
+            "label": "Old1000"
+          }
+        ],
+        "raw": "---\nChild: \"[[__kplex_rename_identity_native/Old]]\"\n---\n[[__kplex_rename_identity_native/Old]]\n",
+        "resolved": {
+          "__kplex_rename_identity_native/Old.md": 2
+        },
+        "unresolved": {},
+        "pinned": [],
+        "history": [
+          "__kplex_rename_identity_native/Origin.md"
+        ]
+      },
+      {
+        "mode": "eager",
+        "phase": "synchronous-rename",
+        "oldPath": "__kplex_rename_identity_native/Old.md",
+        "path": "__kplex_rename_identity_native/New.md",
+        "title": "New",
+        "expectedKnownTitle": "New",
+        "beforeAliases": [],
+        "afterAliases": [],
+        "occurrences": 1,
+        "vaultSearch": true
+      },
+      {
+        "mode": "eager",
+        "phase": "native-file-manager-auto-links",
+        "physical": "__kplex_rename_identity_native/New.md",
+        "nodes": [
+          {
+            "path": "__kplex_rename_identity_native/New.md",
+            "file": "__kplex_rename_identity_native/New.md",
+            "name": "New",
+            "title": "New",
+            "same": true
+          }
+        ],
+        "dom": [
+          {
+            "path": "__kplex_rename_identity_native/Origin.md",
+            "label": "Origin0100"
+          },
+          {
+            "path": "__kplex_rename_identity_native/New.md",
+            "label": "New1000"
+          }
+        ],
+        "raw": "---\nChild: \"[[New]]\"\n---\n[[New]]\n",
+        "resolved": {
+          "__kplex_rename_identity_native/New.md": 2
+        },
+        "unresolved": {},
+        "pinned": [
+          "__kplex_rename_identity_native/New.md"
+        ],
+        "history": [
+          "__kplex_rename_identity_native/New.md",
+          "__kplex_rename_identity_native/Origin.md"
+        ]
+      },
+      {
+        "mode": "eager",
+        "phase": "alias-ready-before-modal",
+        "physical": "__kplex_rename_identity_native/New.md",
+        "nodes": [
+          {
+            "path": "__kplex_rename_identity_native/New.md",
+            "file": "__kplex_rename_identity_native/New.md",
+            "name": "New",
+            "title": "Stable alias",
+            "same": true
+          }
+        ],
+        "dom": [
+          {
+            "path": "__kplex_rename_identity_native/Origin.md",
+            "label": "Origin0100"
+          },
+          {
+            "path": "__kplex_rename_identity_native/New.md",
+            "label": "Stable alias1000"
+          }
+        ],
+        "raw": "---\nChild: \"[[New]]\"\n---\n[[New]]\n",
+        "resolved": {
+          "__kplex_rename_identity_native/New.md": 2
+        },
+        "unresolved": {},
+        "pinned": [
+          "__kplex_rename_identity_native/New.md"
+        ],
+        "history": [
+          "__kplex_rename_identity_native/New.md",
+          "__kplex_rename_identity_native/Origin.md"
+        ]
+      },
+      {
+        "mode": "eager",
+        "phase": "synchronous-rename",
+        "oldPath": "__kplex_rename_identity_native/New.md",
+        "path": "__kplex_rename_identity_native/Modal.md",
+        "title": "Stable alias",
+        "expectedKnownTitle": "Stable alias",
+        "beforeAliases": [
+          "Stable alias"
+        ],
+        "afterAliases": [
+          "Stable alias"
+        ],
+        "occurrences": 1,
+        "vaultSearch": true
+      },
+      {
+        "mode": "eager",
+        "phase": "kplex-modal-alias-preserved",
+        "physical": "__kplex_rename_identity_native/Modal.md",
+        "nodes": [
+          {
+            "path": "__kplex_rename_identity_native/Modal.md",
+            "file": "__kplex_rename_identity_native/Modal.md",
+            "name": "Modal",
+            "title": "Stable alias",
+            "same": true
+          }
+        ],
+        "dom": [
+          {
+            "path": "__kplex_rename_identity_native/Origin.md",
+            "label": "Origin0100"
+          },
+          {
+            "path": "__kplex_rename_identity_native/Modal.md",
+            "label": "Stable alias1000"
+          }
+        ],
+        "raw": "---\nChild: \"[[Modal]]\"\n---\n[[Modal]]\n",
+        "resolved": {
+          "__kplex_rename_identity_native/Modal.md": 2
+        },
+        "unresolved": {},
+        "pinned": [
+          "__kplex_rename_identity_native/Modal.md"
+        ],
+        "history": [
+          "__kplex_rename_identity_native/Modal.md",
+          "__kplex_rename_identity_native/Origin.md"
+        ]
+      },
+      {
+        "mode": "eager",
+        "phase": "explicit-old-path-before-link-updates-off",
+        "physical": "__kplex_rename_identity_native/Modal.md",
+        "nodes": [
+          {
+            "path": "__kplex_rename_identity_native/Modal.md",
+            "file": "__kplex_rename_identity_native/Modal.md",
+            "name": "Modal",
+            "title": "Stable alias",
+            "same": true
+          }
+        ],
+        "dom": [
+          {
+            "path": "__kplex_rename_identity_native/Origin.md",
+            "label": "Origin0100"
+          },
+          {
+            "path": "__kplex_rename_identity_native/Modal.md",
+            "label": "Stable alias1000"
+          }
+        ],
+        "raw": "---\nChild: \"[[__kplex_rename_identity_native/Modal]]\"\n---\n[[__kplex_rename_identity_native/Modal]]\n",
+        "resolved": {
+          "__kplex_rename_identity_native/Modal.md": 2
+        },
+        "unresolved": {},
+        "pinned": [
+          "__kplex_rename_identity_native/Modal.md"
+        ],
+        "history": [
+          "__kplex_rename_identity_native/Modal.md",
+          "__kplex_rename_identity_native/Origin.md"
+        ]
+      },
+      {
+        "mode": "eager",
+        "phase": "synchronous-rename",
+        "oldPath": "__kplex_rename_identity_native/Modal.md",
+        "path": "__kplex_rename_identity_native/Nested/Moved.md",
+        "title": "Stable alias",
+        "expectedKnownTitle": "Stable alias",
+        "beforeAliases": [
+          "Stable alias"
+        ],
+        "afterAliases": [
+          "Stable alias"
+        ],
+        "occurrences": 1,
+        "vaultSearch": true
+      },
+      {
+        "mode": "eager",
+        "phase": "off-preference-raw-references",
+        "preference": false,
+        "declinedPrompt": true,
+        "beforeMove": "---\nChild: \"[[__kplex_rename_identity_native/Modal]]\"\n---\n[[__kplex_rename_identity_native/Modal]]\n",
+        "afterMove": "---\nChild: \"[[__kplex_rename_identity_native/Modal]]\"\n---\n[[__kplex_rename_identity_native/Modal]]\n",
+        "previous": "__kplex_rename_identity_native/Modal.md"
+      },
+      {
+        "mode": "eager",
+        "phase": "auto-links-off-supported-ghost",
+        "physical": "__kplex_rename_identity_native/Nested/Moved.md",
+        "nodes": [
+          {
+            "path": "__kplex_rename_identity_native/Modal",
+            "file": null,
+            "name": "Modal",
+            "title": "Modal",
+            "same": false
+          }
+        ],
+        "dom": [
+          {
+            "path": "__kplex_rename_identity_native/Origin.md",
+            "label": "Origin0100"
+          },
+          {
+            "path": "__kplex_rename_identity_native/Modal",
+            "label": "Modal1000"
+          }
+        ],
+        "raw": "---\nChild: \"[[__kplex_rename_identity_native/Modal]]\"\n---\n[[__kplex_rename_identity_native/Modal]]\n",
+        "resolved": {},
+        "unresolved": {
+          "__kplex_rename_identity_native/Modal": 2
+        },
+        "pinned": [
+          "__kplex_rename_identity_native/Nested/Moved.md"
+        ],
+        "history": [
+          "__kplex_rename_identity_native/Nested/Moved.md",
+          "__kplex_rename_identity_native/Origin.md"
+        ]
+      },
+      {
+        "mode": "eager",
+        "phase": "explicit-relink-after-move",
+        "physical": "__kplex_rename_identity_native/Nested/Moved.md",
+        "nodes": [
+          {
+            "path": "__kplex_rename_identity_native/Nested/Moved.md",
+            "file": "__kplex_rename_identity_native/Nested/Moved.md",
+            "name": "Moved",
+            "title": "Stable alias",
+            "same": true
+          }
+        ],
+        "dom": [
+          {
+            "path": "__kplex_rename_identity_native/Origin.md",
+            "label": "Origin0100"
+          },
+          {
+            "path": "__kplex_rename_identity_native/Nested/Moved.md",
+            "label": "Stable alias1000"
+          }
+        ],
+        "raw": "---\nChild: \"[[__kplex_rename_identity_native/Nested/Moved]]\"\n---\n[[__kplex_rename_identity_native/Nested/Moved]]\n",
+        "resolved": {
+          "__kplex_rename_identity_native/Nested/Moved.md": 2
+        },
+        "unresolved": {},
+        "pinned": [
+          "__kplex_rename_identity_native/Nested/Moved.md"
+        ],
+        "history": [
+          "__kplex_rename_identity_native/Nested/Moved.md",
+          "__kplex_rename_identity_native/Origin.md"
+        ]
+      },
+      {
+        "mode": "eager",
+        "phase": "synchronous-rename",
+        "oldPath": "__kplex_rename_identity_native/Nested/Moved.md",
+        "path": "__kplex_rename_identity_native/Nested/moved.md",
+        "title": "Stable alias",
+        "expectedKnownTitle": "Stable alias",
+        "beforeAliases": [
+          "Stable alias"
+        ],
+        "afterAliases": [
+          "Stable alias"
+        ],
+        "occurrences": 1,
+        "vaultSearch": true
+      },
+      {
+        "mode": "eager",
+        "phase": "case-only",
+        "physical": "__kplex_rename_identity_native/Nested/moved.md",
+        "nodes": [
+          {
+            "path": "__kplex_rename_identity_native/Modal",
+            "file": null,
+            "name": "Modal",
+            "title": "Modal",
+            "same": false
+          }
+        ],
+        "dom": [
+          {
+            "path": "__kplex_rename_identity_native/Origin.md",
+            "label": "Origin0100"
+          },
+          {
+            "path": "__kplex_rename_identity_native/Modal",
+            "label": "Modal0000"
+          }
+        ],
+        "raw": "---\nChild: \"[[__kplex_rename_identity_native/Nested/moved]]\"\n---\n[[__kplex_rename_identity_native/Nested/moved]]\n",
+        "resolved": {
+          "__kplex_rename_identity_native/Nested/moved.md": 2
+        },
+        "unresolved": {},
+        "pinned": [
+          "__kplex_rename_identity_native/Nested/moved.md"
+        ],
+        "history": [
+          "__kplex_rename_identity_native/Nested/moved.md",
+          "__kplex_rename_identity_native/Origin.md"
+        ]
+      },
+      {
+        "mode": "eager",
+        "phase": "configured-title-before-repeat",
+        "physical": "__kplex_rename_identity_native/Nested/moved.md",
+        "nodes": [
+          {
+            "path": "__kplex_rename_identity_native/Nested/moved.md",
+            "file": "__kplex_rename_identity_native/Nested/moved.md",
+            "name": "moved",
+            "title": "Stable title",
+            "same": true
+          }
+        ],
+        "dom": [
+          {
+            "path": "__kplex_rename_identity_native/Origin.md",
+            "label": "Origin0100"
+          },
+          {
+            "path": "__kplex_rename_identity_native/Nested/moved.md",
+            "label": "Stable title1000"
+          }
+        ],
+        "raw": "---\nChild: \"[[__kplex_rename_identity_native/Nested/moved]]\"\n---\n[[__kplex_rename_identity_native/Nested/moved]]\n",
+        "resolved": {
+          "__kplex_rename_identity_native/Nested/moved.md": 2
+        },
+        "unresolved": {},
+        "pinned": [
+          "__kplex_rename_identity_native/Nested/moved.md"
+        ],
+        "history": [
+          "__kplex_rename_identity_native/Nested/moved.md",
+          "__kplex_rename_identity_native/Origin.md"
+        ]
+      },
+      {
+        "mode": "eager",
+        "phase": "synchronous-rename",
+        "oldPath": "__kplex_rename_identity_native/Nested/moved.md",
+        "path": "__kplex_rename_identity_native/Final.md",
+        "title": "Stable title",
+        "expectedKnownTitle": "Stable title",
+        "beforeAliases": [
+          "Stable alias"
+        ],
+        "afterAliases": [
+          "Stable alias"
+        ],
+        "occurrences": 1,
+        "vaultSearch": true
+      },
+      {
+        "mode": "eager",
+        "phase": "repeat-move-title-preserved",
+        "physical": "__kplex_rename_identity_native/Final.md",
+        "nodes": [
+          {
+            "path": "__kplex_rename_identity_native/Final.md",
+            "file": "__kplex_rename_identity_native/Final.md",
+            "name": "Final",
+            "title": "Stable title",
+            "same": true
+          }
+        ],
+        "dom": [
+          {
+            "path": "__kplex_rename_identity_native/Origin.md",
+            "label": "Origin0100"
+          },
+          {
+            "path": "__kplex_rename_identity_native/Final.md",
+            "label": "Stable title1000"
+          }
+        ],
+        "raw": "---\nChild: \"[[Final]]\"\n---\n[[Final]]\n",
+        "resolved": {
+          "__kplex_rename_identity_native/Final.md": 2
+        },
+        "unresolved": {},
+        "pinned": [
+          "__kplex_rename_identity_native/Final.md"
+        ],
+        "history": [
+          "__kplex_rename_identity_native/Final.md",
+          "__kplex_rename_identity_native/Origin.md"
+        ]
+      },
+      {
+        "mode": "eager",
+        "phase": "alias-restored-before-warm-enable",
+        "physical": "__kplex_rename_identity_native/Final.md",
+        "nodes": [
+          {
+            "path": "__kplex_rename_identity_native/Final.md",
+            "file": "__kplex_rename_identity_native/Final.md",
+            "name": "Final",
+            "title": "Stable alias",
+            "same": true
+          }
+        ],
+        "dom": [
+          {
+            "path": "__kplex_rename_identity_native/Origin.md",
+            "label": "Origin0100"
+          },
+          {
+            "path": "__kplex_rename_identity_native/Final.md",
+            "label": "Stable alias1000"
+          }
+        ],
+        "raw": "---\nChild: \"[[Final]]\"\n---\n[[Final]]\n",
+        "resolved": {
+          "__kplex_rename_identity_native/Final.md": 2
+        },
+        "unresolved": {},
+        "pinned": [
+          "__kplex_rename_identity_native/Final.md"
+        ],
+        "history": [
+          "__kplex_rename_identity_native/Final.md",
+          "__kplex_rename_identity_native/Origin.md"
+        ]
+      },
+      {
+        "mode": "eager",
+        "phase": "warm-reload",
+        "physical": "__kplex_rename_identity_native/Final.md",
+        "nodes": [
+          {
+            "path": "__kplex_rename_identity_native/Final.md",
+            "file": "__kplex_rename_identity_native/Final.md",
+            "name": "Final",
+            "title": "Stable alias",
+            "same": true
+          }
+        ],
+        "dom": [
+          {
+            "path": "__kplex_rename_identity_native/Origin.md",
+            "label": "Origin0100"
+          },
+          {
+            "path": "__kplex_rename_identity_native/Final.md",
+            "label": "Stable alias1000"
+          }
+        ],
+        "raw": "---\nChild: \"[[Final]]\"\n---\n[[Final]]\n",
+        "resolved": {
+          "__kplex_rename_identity_native/Final.md": 2
+        },
+        "unresolved": {},
+        "pinned": [
+          "__kplex_rename_identity_native/Final.md"
+        ],
+        "history": [
+          "__kplex_rename_identity_native/Final.md",
+          "__kplex_rename_identity_native/Origin.md"
+        ]
+      }
+    ],
+    "configurationRestored": true
+  },
+  "toolbarMenus": {
+    "status": "passed",
+    "scenarios": [
+      {
+        "id": "main-pointer",
+        "status": "passed",
+        "position": {
+          "x": 895,
+          "y": 131.1171875
+        },
+        "control": {
+          "left": 895,
+          "bottom": 127.1171875
+        },
+        "menu": {
+          "left": 608,
+          "top": 133.1171875,
+          "right": 892.6640625,
+          "bottom": 322.5078125
+        },
+        "owner": "main"
+      },
+      {
+        "id": "focused-button-enter",
+        "status": "passed",
+        "position": {
+          "x": 895,
+          "y": 131.1171875
+        },
+        "control": {
+          "left": 895,
+          "bottom": 127.1171875
+        },
+        "menu": {
+          "left": 608,
+          "top": 133.1171875,
+          "right": 892.6640625,
+          "bottom": 322.5078125
+        },
+        "owner": "main"
+      },
+      {
+        "id": "published-command",
+        "status": "passed",
+        "position": {
+          "x": 895,
+          "y": 131.1171875
+        },
+        "control": {
+          "left": 895,
+          "bottom": 127.1171875
+        },
+        "menu": {
+          "left": 608,
+          "top": 133.1171875,
+          "right": 892.6640625,
+          "bottom": 322.5078125
+        },
+        "owner": "main"
+      },
+      {
+        "id": "rapid-reopen-0",
+        "status": "passed",
+        "position": {
+          "x": 895,
+          "y": 131.1171875
+        },
+        "control": {
+          "left": 895,
+          "bottom": 127.1171875
+        },
+        "menu": {
+          "left": 608,
+          "top": 133.1171875,
+          "right": 892.6640625,
+          "bottom": 322.5078125
+        },
+        "owner": "main"
+      },
+      {
+        "id": "rapid-reopen-1",
+        "status": "passed",
+        "position": {
+          "x": 895,
+          "y": 131.1171875
+        },
+        "control": {
+          "left": 895,
+          "bottom": 127.1171875
+        },
+        "menu": {
+          "left": 608,
+          "top": 133.1171875,
+          "right": 892.6640625,
+          "bottom": 322.5078125
+        },
+        "owner": "main"
+      },
+      {
+        "id": "rapid-reopen-2",
+        "status": "passed",
+        "position": {
+          "x": 895,
+          "y": 131.1171875
+        },
+        "control": {
+          "left": 895,
+          "bottom": 127.1171875
+        },
+        "menu": {
+          "left": 608,
+          "top": 133.1171875,
+          "right": 892.6640625,
+          "bottom": 322.5078125
+        },
+        "owner": "main"
+      },
+      {
+        "id": "outside-dismissal",
+        "status": "passed"
+      },
+      {
+        "id": "hidden-toolbar-fallback",
+        "status": "passed",
+        "position": {
+          "x": 96,
+          "y": 130.1171875
+        },
+        "control": null,
+        "menu": {
+          "left": 98,
+          "top": 132.1171875,
+          "right": 382.6640625,
+          "bottom": 321.5078125
+        },
+        "owner": "main"
+      },
+      {
+        "id": "sidecar-pointer",
+        "status": "passed",
+        "position": {
+          "x": 524.5,
+          "y": 501.0546875
+        },
+        "control": {
+          "left": 524.5,
+          "bottom": 497.0546875
+        },
+        "menu": {
+          "left": 526.5,
+          "top": 503.0546875,
+          "right": 636.125,
+          "bottom": 616.6484375
+        },
+        "owner": "main"
+      },
+      {
+        "id": "migration-retires-main-menu",
+        "status": "passed"
+      },
+      {
+        "id": "popout-pointer",
+        "status": "passed",
+        "position": {
+          "x": 403,
+          "y": 132.0234375
+        },
+        "control": {
+          "left": 403,
+          "bottom": 128.0234375
+        },
+        "menu": {
+          "left": 116,
+          "top": 134.0234375,
+          "right": 400.6640625,
+          "bottom": 323.4140625
+        },
+        "owner": "popout"
+      },
+      {
+        "id": "narrow-popout-clamping",
+        "status": "passed",
+        "position": {
+          "x": 303,
+          "y": 130.5703125
+        },
+        "control": {
+          "left": 303,
+          "bottom": 126.5703125
+        },
+        "menu": {
+          "left": 16,
+          "top": 132.5703125,
+          "right": 300.6640625,
+          "bottom": 321.9609375
+        },
+        "owner": "popout"
+      },
+      {
+        "id": "returned-main-pointer",
+        "status": "passed",
+        "position": {
+          "x": 368.5,
+          "y": 165.1171875
+        },
+        "control": {
+          "left": 368.5,
+          "bottom": 161.1171875
+        },
+        "menu": {
+          "left": 370.5,
+          "top": 167.1171875,
+          "right": 655.1640625,
+          "bottom": 356.5078125
+        },
+        "owner": "main"
+      },
+      {
+        "id": "retired-popout-owner",
+        "status": "passed"
+      }
+    ],
+    "backend": "Inspectable Obsidian DOM menu; trusted Electron pointer and keyboard input"
+  },
+  "combinedIndexingAndRename": {
+    "cases": [
+      {
+        "id": "setup",
+        "status": "passed"
+      },
+      {
+        "id": "indexing-style-save-navigate",
+        "status": "passed",
+        "saveMs": 31.5,
+        "backgroundStillPending": true,
+        "colorsRendered": true
+      },
+      {
+        "id": "save-edit-delete-during-active-indexing",
+        "status": "passed",
+        "deleteMs": 31.300000190734863
+      },
+      {
+        "id": "index-converges-after-style-and-navigation",
+        "status": "passed",
+        "backgroundComplete": true
+      },
+      {
+        "id": "sidecar-modes-position-and-native-note-navigation",
+        "status": "passed"
+      },
+      {
+        "id": "combined-sidecar-acquisition",
+        "status": "passed",
+        "originalHost": "c8e2e90b2ebee4a4",
+        "currentHost": "c8e2e90b2ebee4a4",
+        "mappings": [
+          {
+            "host": "c8e2e90b2ebee4a4",
+            "note": "da6a80a367a58e98",
+            "path": "__kplex_risk_combined_20261013/A.md",
+            "position": "left"
+          }
+        ]
+      },
+      {
+        "id": "rename-navigate-delete",
+        "status": "passed",
+        "outcome": "committed"
+      }
+    ],
+    "status": "failed",
+    "error": "Error: Error: Popout Sidecar not moved\n    at c.check (eval at <anonymous> (app://obsidian.md/app.js:1:1638663), <anonymous>:6:29)\n    at c.until (eval at <anonymous> (app://obsidian.md/app.js:1:1638663), <anonymous>:8:69)\n    at async eval (eval at <anonymous> (app://obsidian.md/app.js:1:1638663), <anonymous>:6:240)\n    at wait (file:///private/tmp/kplex-risk-combined-runner.mjs:9:414)\n    at async file:///private/tmp/kplex-risk-combined-runner.mjs:11:399",
+    "note": "Indexing/style/navigation and rename/navigation/delete passed. Run continued into popout where synthetic menu selection did not move the Sidecar; preserved here separately."
+  },
+  "popoutNative": {
+    "cases": [
+      {
+        "id": "setup",
+        "status": "passed"
+      },
+      {
+        "id": "popout-menus-sidecar-return",
+        "status": "passed",
+        "mode": "pinned",
+        "position": "below",
+        "path": "__kplex_risk_combined_20261013/C.md"
+      },
+      {
+        "id": "popout-menus-sidecar-reload",
+        "status": "passed",
+        "mode": "pinned",
+        "position": "below",
+        "path": "__kplex_risk_combined_20261013/C.md"
+      }
+    ],
+    "status": "failed",
+    "nativeNotifications": "14:51:52 ResizeObserver loop completed with undelivered notifications.\n\n14:51:52 ResizeObserver loop completed with undelivered notifications.\n\n14:51:52 ResizeObserver loop completed with undelivered notifications.\n\n14:51:52 ResizeObserver loop completed with undelivered notifications.\n\n14:51:52 ResizeObserver loop completed with undelivered notifications.\n\n14:51:52 ResizeObserver loop completed with undelivered notifications.\n\n14:51:52 ResizeObserver loop completed with undelivered notifications.\n\n14:51:52 ResizeObserver loop completed with undelivered notifications.\n\n14:51:52 ResizeObserver loop completed with undelivered notifications.\n\n14:51:52 ResizeObserver loop completed with undelivered notifications.\n\n14:51:52 ResizeObserver loop completed with undelivered notifications.\n\n14:51:52 ResizeObserver loop completed with undelivered notifications.\n\n14:51:52 ResizeObserver loop completed with undelivered notifications.\n\n14:51:52 ResizeObserver loop completed with undelivered notifications.\n\n14:51:52 ResizeObserver loop completed with undelivered notifications.\n\n14:51:52 ResizeObserver loop completed with undelivered notifications.\n\n14:51:52 ResizeObserver loop completed with undelivered notifications.\n\n14:51:52 ResizeObserver loop completed with undelivered notifications.\n\n14:51:52 ResizeObserver loop completed with undelivered notifications.\n\n14:51:52 ResizeObserver loop completed with undelivered notifications.\n\n14:51:52 ResizeObserver loop completed with undelivered notifications.\n\n14:51:52 ResizeObserver loop completed with undelivered notifications.\n\n14:51:52 ResizeObserver loop completed with undelivered notifications.\n\n14:51:52 ResizeObserver loop completed with undelivered notifications.\n\n14:51:52 ResizeObserver loop completed with undelivered notifications.\n\n14:51:52 ResizeObserver loop completed with undelivered notifications.\n\n14:51:52 ResizeObserver loop completed with undelivered notifications.\n\n14:51:52 ResizeObserver loop completed with undelivered notifications.\n\n14:51:53 ResizeObserver loop completed with undelivered notifications.\n\n14:51:53 ResizeObserver loop completed with undelivered notifications.\n\n14:51:53 ResizeObserver loop completed with undelivered notifications.\n\n14:51:53 ResizeObserver loop completed with undelivered notifications.\n\n14:51:53 ResizeObserver loop completed with undelivered notifications.\n\n14:51:53 ResizeObserver loop completed with undelivered notifications.\n\n14:51:53 ResizeObserver loop completed with undelivered notifications.\n\n14:51:53 ResizeObserver loop completed with undelivered notifications.\n\n14:51:53 ResizeObserver loop completed with undelivered notifications.\n\n14:51:53 ResizeObserver loop completed with undelivered notifications.\n\n14:51:53 ResizeObserver loop completed with undelivered notifications.\n\n14:51:53 ResizeObserver loop completed with undelivered notifications.\n\n14:51:53 ResizeObserver loop completed with undelivered notifications.\n\n14:51:53 ResizeObserver loop completed with undelivered notifications.\n\n14:51:53 ResizeObserver loop completed with undelivered notifications.\n\n14:51:53 ResizeObserver loop completed with undelivered notifications.\n\n14:51:53 ResizeObserver loop completed with undelivered notifications.\n\n14:51:53 ResizeObserver loop completed with undelivered notifications.\n\n14:51:53 ResizeObserver loop completed with undelivered notifications.\n\n14:51:53 ResizeObserver loop completed with undelivered notifications.\n\n14:51:53 ResizeObserver loop completed with undelivered notifications.\n\n14:51:53 ResizeObserver loop completed with undelivered notifications.",
+    "notificationCount": 50,
+    "error": "Error: 14:51:52 ResizeObserver loop completed with undelivered notifications.\n\n14:51:52 ResizeObserver loop completed with undelivered notifications.\n\n14:51:52 ResizeObserver loop completed with undelivered notifications.\n\n14:51:52 ResizeObserver loop completed with undelivered notifications.\n\n14:51:52 ResizeObserver loop completed with undelivered notifications.\n\n14:51:52 ResizeObserver loop completed with undelivered notifications.\n\n14:51:52 ResizeObserver loop completed with undelivered notifications.\n\n14:51:52 ResizeObserver loop completed with undelivered notifications.\n\n14:51:52 ResizeObserver loop completed with undelivered notifications.\n\n14:51:52 ResizeObserver loop completed with undelivered notifications.\n\n14:51:52 ResizeObserver loop completed with undelivered notifications.\n\n14:51:52 ResizeObserver loop completed with undelivered notifications.\n\n14:51:52 ResizeObserver loop completed with undelivered notifications.\n\n14:51:52 ResizeObserver loop completed with undelivered notifications.\n\n14:51:52 ResizeObserver loop completed with undelivered notifications.\n\n14:51:52 ResizeObserver loop completed with undelivered notifications.\n\n14:51:52 ResizeObserver loop completed with undelivered notifications.\n\n14:51:52 ResizeObserver loop completed with undelivered notifications.\n\n14:51:52 ResizeObserver loop completed with undelivered notifications.\n\n14:51:52 ResizeObserver loop completed with undelivered notifications.\n\n14:51:52 ResizeObserver loop completed with undelivered notifications.\n\n14:51:52 ResizeObserver loop completed with undelivered notifications.\n\n14:51:52 ResizeObserver loop completed with undelivered notifications.\n\n14:51:52 ResizeObserver loop completed with undelivered notifications.\n\n14:51:52 ResizeObserver loop completed with undelivered notifications.\n\n14:51:52 ResizeObserver loop completed with undelivered notifications.\n\n14:51:52 ResizeObserver loop completed with undelivered notifications.\n\n14:51:52 ResizeObserver loop completed with undelivered notifications.\n\n14:51:53 ResizeObserver loop completed with undelivered notifications.\n\n14:51:53 ResizeObserver loop completed with undelivered notifications.\n\n14:51:53 ResizeObserver loop completed with undelivered notifications.\n\n14:51:53 ResizeObserver loop completed with undelivered notifications.\n\n14:51:53 ResizeObserver loop completed with undelivered notifications.\n\n14:51:53 ResizeObserver loop completed with undelivered notifications.\n\n14:51:53 ResizeObserver loop completed with undelivered notifications.\n\n14:51:53 ResizeObserver loop completed with undelivered notifications.\n\n14:51:53 ResizeObserver loop completed with undelivered notifications.\n\n14:51:53 ResizeObserver loop completed with undelivered notifications.\n\n14:51:53 ResizeObserver loop completed with undelivered notifications.\n\n14:51:53 ResizeObserver loop completed with undelivered notifications.\n\n14:51:53 ResizeObserver loop completed with undelivered notifications.\n\n14:51:53 ResizeObserver loop completed with undelivered notifications.\n\n14:51:53 ResizeObserver loop completed with undelivered notifications.\n\n14:51:53 ResizeObserver loop completed with undelivered notifications.\n\n14:51:53 ResizeObserver loop completed with undelivered notifications.\n\n14:51:53 ResizeObserver loop completed with undelivered notifications.\n\n14:51:53 ResizeObserver loop completed with undelivered notifications.\n\n14:51:53 ResizeObserver loop completed with undelivered notifications.\n\n14:51:53 ResizeObserver loop completed with undelivered notifications.\n\n14:51:53 ResizeObserver loop completed with undelivered notifications.\n    at file:///private/tmp/kplex-risk-combined-runner.mjs:11:572",
+    "cleanup": {
+      "cleaned": true,
+      "count": 74
+    },
+    "note": "Trusted pointer selections pass all functional assertions. Strict clean-error gate fails."
+  },
+  "sidecarFinal": {
+    "status": "failed",
+    "sampleCount": 38,
+    "rapidLatestTarget": true,
+    "rapidReturnTarget": {
+      "passed": true,
+      "nativeOpens": 1
+    },
+    "reopenAfterUnlink": {
+      "passed": true,
+      "position": "left",
+      "width": 176
+    },
+    "notificationCount": 50,
+    "errors": "14:52:59 ResizeObserver loop completed with undelivered notifications.\n\n14:52:59 ResizeObserver loop completed with undelivered notifications.\n\n14:52:59 ResizeObserver loop completed with undelivered notifications.\n\n14:52:59 ResizeObserver loop completed with undelivered notifications.\n\n14:52:59 ResizeObserver loop completed with undelivered notifications.\n\n14:52:59 ResizeObserver loop completed with undelivered notifications.\n\n14:52:59 ResizeObserver loop completed with undelivered notifications.\n\n14:52:59 ResizeObserver loop completed with undelivered notifications.\n\n14:52:59 ResizeObserver loop completed with undelivered notifications.\n\n14:52:59 ResizeObserver loop completed with undelivered notifications.\n\n14:52:59 ResizeObserver loop completed with undelivered notifications.\n\n14:52:59 ResizeObserver loop completed with undelivered notifications.\n\n14:52:59 ResizeObserver loop completed with undelivered notifications.\n\n14:52:59 ResizeObserver loop completed with undelivered notifications.\n\n14:52:59 ResizeObserver loop completed with undelivered notifications.\n\n14:52:59 ResizeObserver loop completed with undelivered notifications.\n\n14:52:59 ResizeObserver loop completed with undelivered notifications.\n\n14:52:59 ResizeObserver loop completed with undelivered notifications.\n\n14:52:59 ResizeObserver loop completed with undelivered notifications.\n\n14:52:59 ResizeObserver loop completed with undelivered notifications.\n\n14:52:59 ResizeObserver loop completed with undelivered notifications.\n\n14:52:59 ResizeObserver loop completed with undelivered notifications.\n\n14:52:59 ResizeObserver loop completed with undelivered notifications.\n\n14:52:59 ResizeObserver loop completed with undelivered notifications.\n\n14:52:59 ResizeObserver loop completed with undelivered notifications.\n\n14:52:59 ResizeObserver loop completed with undelivered notifications.\n\n14:52:59 ResizeObserver loop completed with undelivered notifications.\n\n14:52:59 ResizeObserver loop completed with undelivered notifications.\n\n14:52:59 ResizeObserver loop completed with undelivered notifications.\n\n14:52:59 ResizeObserver loop completed with undelivered notifications.\n\n14:52:59 ResizeObserver loop completed with undelivered notifications.\n\n14:52:59 ResizeObserver loop completed with undelivered notifications.\n\n14:52:59 ResizeObserver loop completed with undelivered notifications.\n\n14:52:59 ResizeObserver loop completed with undelivered notifications.\n\n14:52:59 ResizeObserver loop completed with undelivered notifications.\n\n14:53:00 ResizeObserver loop completed with undelivered notifications.\n\n14:53:00 ResizeObserver loop completed with undelivered notifications.\n\n14:53:00 ResizeObserver loop completed with undelivered notifications.\n\n14:53:00 ResizeObserver loop completed with undelivered notifications.\n\n14:53:00 ResizeObserver loop completed with undelivered notifications.\n\n14:53:00 ResizeObserver loop completed with undelivered notifications.\n\n14:53:00 ResizeObserver loop completed with undelivered notifications.\n\n14:53:00 ResizeObserver loop completed with undelivered notifications.\n\n14:53:00 ResizeObserver loop completed with undelivered notifications.\n\n14:53:00 ResizeObserver loop completed with undelivered notifications.\n\n14:53:00 ResizeObserver loop completed with undelivered notifications.\n\n14:53:00 ResizeObserver loop completed with undelivered notifications.\n\n14:53:00 ResizeObserver loop completed with undelivered notifications.\n\n14:53:00 ResizeObserver loop completed with undelivered notifications.\n\n14:53:00 ResizeObserver loop completed with undelivered notifications.",
+    "cleanup": true,
+    "configurationRestored": true
+  },
+  "offlineRestart": {
+    "status": "passed",
+    "startedAt": "2026-10-13T12:49:31.577Z",
+    "cases": [
+      {
+        "id": "closed-vault-external-edit-and-native-restart",
+        "status": "passed",
+        "freshRenderer": true,
+        "oldWindowId": 32,
+        "newWindowId": 57,
+        "initializingAtFirstNavigation": true,
+        "latestRelationship": "__kplex_risk_offline_20261013/C.md",
+        "obsoleteRelationshipAbsent": true,
+        "nativeEditorLatest": true,
+        "finalCenter": "__kplex_risk_offline_20261013/A.md"
+      }
+    ],
+    "setup": {
+      "cachedOldTarget": "__kplex_risk_offline_20261013/B.md",
+      "windowId": 32,
+      "initializing": false,
+      "optionalSnapshotSaved": false
+    },
+    "externalEdit": {
+      "whileVaultClosed": true,
+      "path": "__kplex_risk_offline_20261013/A.md",
+      "bytes": 121
+    },
+    "reopenWait": "Error: Command \"vault\" not found. Did you mean: daily?\n",
+    "restart": {
+      "freshRenderer": true,
+      "oldWindowId": 32,
+      "newWindowId": 57,
+      "initializingAtFirstNavigation": true,
+      "latestRelationship": "__kplex_risk_offline_20261013/C.md",
+      "obsoleteRelationshipAbsent": true,
+      "nativeEditorLatest": true,
+      "finalCenter": "__kplex_risk_offline_20261013/A.md"
+    },
+    "cleanup": {
+      "restoredCount": 74,
+      "ownedFixtureRemoved": true
+    },
+    "configurationRestored": true,
+    "finishedAt": "2026-10-13T12:49:39.985Z"
+  },
+  "foreground": {
+    "status": "passed",
+    "scenarios": [
+      {
+        "id": "folder-tree-and-numeric-gates-during-inventory",
+        "elapsedMs": 28.699999809265137,
+        "backgroundHeld": true
+      },
+      {
+        "id": "navigate-during-inventory",
+        "elapsedMs": 4.6000001430511475,
+        "backgroundHeld": true
+      },
+      {
+        "id": "create-link-during-inventory",
+        "elapsedMs": 102.39999985694885,
+        "backgroundHeld": true
+      },
+      {
+        "id": "remove-link-during-inventory",
+        "elapsedMs": 78.5,
+        "backgroundHeld": true
+      },
+      {
+        "id": "create-node-during-inventory",
+        "elapsedMs": 10.5,
+        "backgroundHeld": true
+      },
+      {
+        "id": "visible-edit-during-inventory",
+        "elapsedMs": 65.89999985694885,
+        "backgroundHeld": true
+      }
+    ],
+    "resumed": true,
+    "flushCalls": 0,
+    "artifacts": {
+      "main.js": "99a1d30e0c8c6e1e44e4ce0bf28a521068ee0bbc46ed5fe4667f4c9f17973eec",
+      "styles.css": "e8c9279e8904888aa71d5dd2b01f320d5b32fd10e15feb0b9a9576a34f11cea3",
+      "manifest.json": "0beacdb94adc4a0ec318d69dba87fcb4dc9c1a86784058db341fdefe0dfb4250"
+    },
+    "cleanup": {
+      "remainingOwned": 0,
+      "convergence": {
+        "attempts": 2,
+        "ready": true,
+        "elapsedMs": 644
+      },
+      "pairTrace": [
+        {
+          "owner": "source",
+          "elapsedMs": 37.09999990463257,
+          "outcome": "ready",
+          "cacheChanged": [
+            false,
+            false
+          ],
+          "fileChanged": [
+            false,
+            false
+          ],
+          "publicationChanged": false,
+          "sourceRevisionChanged": false,
+          "maintenanceChanged": false,
+          "pendingStructuralBefore": 0,
+          "pendingStructuralAfter": 0,
+          "priority": {
+            "active": [
+              2,
+              1,
+              1,
+              0,
+              1
+            ],
+            "waiting": 3,
+            "pauses": 227,
+            "pausesByLane": [
+              0,
+              1,
+              224,
+              2,
+              0
+            ],
+            "idleWindows": 0,
+            "pacing": false,
+            "throttle": "responsive"
+          }
+        },
+        {
+          "owner": "index",
+          "elapsedMs": 37.5,
+          "outcome": "ready",
+          "cacheChanged": [
+            false,
+            false
+          ],
+          "fileChanged": [
+            false,
+            false
+          ],
+          "publicationChanged": false,
+          "sourceRevisionChanged": false,
+          "maintenanceChanged": false,
+          "pendingStructuralBefore": 0,
+          "pendingStructuralAfter": 0,
+          "priority": {
+            "active": [
+              1,
+              1,
+              1,
+              0,
+              1
+            ],
+            "waiting": 3,
+            "pauses": 227,
+            "pausesByLane": [
+              0,
+              1,
+              224,
+              2,
+              0
+            ],
+            "idleWindows": 0,
+            "pacing": false,
+            "throttle": "responsive"
+          }
+        },
+        {
+          "owner": "source",
+          "elapsedMs": 53,
+          "outcome": "ready",
+          "cacheChanged": [
+            false,
+            false
+          ],
+          "fileChanged": [
+            false,
+            false
+          ],
+          "publicationChanged": false,
+          "sourceRevisionChanged": false,
+          "maintenanceChanged": false,
+          "pendingStructuralBefore": 0,
+          "pendingStructuralAfter": 0,
+          "priority": {
+            "active": [
+              2,
+              1,
+              4,
+              0,
+              1
+            ],
+            "waiting": 8,
+            "pauses": 232,
+            "pausesByLane": [
+              0,
+              1,
+              229,
+              2,
+              0
+            ],
+            "idleWindows": 0,
+            "pacing": false,
+            "throttle": "responsive"
+          }
+        },
+        {
+          "owner": "index",
+          "elapsedMs": 53.19999980926514,
+          "outcome": "ready",
+          "cacheChanged": [
+            false,
+            false
+          ],
+          "fileChanged": [
+            false,
+            false
+          ],
+          "publicationChanged": false,
+          "sourceRevisionChanged": false,
+          "maintenanceChanged": false,
+          "pendingStructuralBefore": 0,
+          "pendingStructuralAfter": 0,
+          "priority": {
+            "active": [
+              1,
+              1,
+              4,
+              0,
+              1
+            ],
+            "waiting": 8,
+            "pauses": 232,
+            "pausesByLane": [
+              0,
+              1,
+              229,
+              2,
+              0
+            ],
+            "idleWindows": 0,
+            "pacing": false,
+            "throttle": "responsive"
+          }
+        },
+        {
+          "owner": "source",
+          "elapsedMs": 37.5,
+          "outcome": "ready",
+          "cacheChanged": [
+            false,
+            false
+          ],
+          "fileChanged": [
+            false,
+            false
+          ],
+          "publicationChanged": false,
+          "sourceRevisionChanged": false,
+          "maintenanceChanged": false,
+          "pendingStructuralBefore": 0,
+          "pendingStructuralAfter": 0,
+          "priority": {
+            "active": [
+              2,
+              0,
+              3,
+              0,
+              1
+            ],
+            "waiting": 4,
+            "pauses": 236,
+            "pausesByLane": [
+              0,
+              3,
+              231,
+              2,
+              0
+            ],
+            "idleWindows": 0,
+            "pacing": false,
+            "throttle": "responsive"
+          }
+        },
+        {
+          "owner": "index",
+          "elapsedMs": 37.799999952316284,
+          "outcome": "ready",
+          "cacheChanged": [
+            false,
+            false
+          ],
+          "fileChanged": [
+            false,
+            false
+          ],
+          "publicationChanged": false,
+          "sourceRevisionChanged": false,
+          "maintenanceChanged": false,
+          "pendingStructuralBefore": 0,
+          "pendingStructuralAfter": 0,
+          "priority": {
+            "active": [
+              1,
+              0,
+              3,
+              0,
+              1
+            ],
+            "waiting": 4,
+            "pauses": 236,
+            "pausesByLane": [
+              0,
+              3,
+              231,
+              2,
+              0
+            ],
+            "idleWindows": 0,
+            "pacing": false,
+            "throttle": "responsive"
+          }
+        },
+        {
+          "owner": "index",
+          "elapsedMs": 37.700000047683716,
+          "outcome": "ready",
+          "cacheChanged": [
+            false,
+            false
+          ],
+          "fileChanged": [
+            false,
+            false
+          ],
+          "publicationChanged": false,
+          "sourceRevisionChanged": false,
+          "maintenanceChanged": false,
+          "pendingStructuralBefore": 0,
+          "pendingStructuralAfter": 0,
+          "priority": {
+            "active": [
+              1,
+              0,
+              3,
+              0,
+              1
+            ],
+            "waiting": 4,
+            "pauses": 236,
+            "pausesByLane": [
+              0,
+              3,
+              231,
+              2,
+              0
+            ],
+            "idleWindows": 0,
+            "pacing": false,
+            "throttle": "responsive"
+          }
+        },
+        {
+          "owner": "index",
+          "elapsedMs": 32.40000009536743,
+          "outcome": "ready",
+          "cacheChanged": [
+            false,
+            false
+          ],
+          "fileChanged": [
+            false,
+            false
+          ],
+          "publicationChanged": false,
+          "sourceRevisionChanged": false,
+          "maintenanceChanged": false,
+          "pendingStructuralBefore": 0,
+          "pendingStructuralAfter": 0,
+          "priority": {
+            "active": [
+              1,
+              0,
+              3,
+              0,
+              1
+            ],
+            "waiting": 4,
+            "pauses": 236,
+            "pausesByLane": [
+              0,
+              3,
+              231,
+              2,
+              0
+            ],
+            "idleWindows": 0,
+            "pacing": false,
+            "throttle": "responsive"
+          }
+        },
+        {
+          "owner": "source",
+          "elapsedMs": 38.799999952316284,
+          "outcome": "ready",
+          "cacheChanged": [
+            false,
+            false
+          ],
+          "fileChanged": [
+            false,
+            false
+          ],
+          "publicationChanged": false,
+          "sourceRevisionChanged": false,
+          "maintenanceChanged": false,
+          "pendingStructuralBefore": 0,
+          "pendingStructuralAfter": 0,
+          "priority": {
+            "active": [
+              2,
+              0,
+              6,
+              0,
+              1
+            ],
+            "waiting": 9,
+            "pauses": 241,
+            "pausesByLane": [
+              0,
+              3,
+              236,
+              2,
+              0
+            ],
+            "idleWindows": 0,
+            "pacing": false,
+            "throttle": "responsive"
+          }
+        },
+        {
+          "owner": "index",
+          "elapsedMs": 39.09999990463257,
+          "outcome": "ready",
+          "cacheChanged": [
+            false,
+            false
+          ],
+          "fileChanged": [
+            false,
+            false
+          ],
+          "publicationChanged": false,
+          "sourceRevisionChanged": false,
+          "maintenanceChanged": false,
+          "pendingStructuralBefore": 0,
+          "pendingStructuralAfter": 0,
+          "priority": {
+            "active": [
+              1,
+              0,
+              6,
+              0,
+              1
+            ],
+            "waiting": 9,
+            "pauses": 241,
+            "pausesByLane": [
+              0,
+              3,
+              236,
+              2,
+              0
+            ],
+            "idleWindows": 0,
+            "pacing": false,
+            "throttle": "responsive"
+          }
+        },
+        {
+          "owner": "source",
+          "elapsedMs": 9.599999904632568,
+          "outcome": "cancelled",
+          "reason": "cancelled",
+          "cacheChanged": [
+            false,
+            false
+          ],
+          "fileChanged": [
+            false,
+            false
+          ],
+          "publicationChanged": false,
+          "sourceRevisionChanged": false,
+          "maintenanceChanged": true,
+          "pendingStructuralBefore": 0,
+          "pendingStructuralAfter": 0,
+          "priority": {
+            "active": [
+              2,
+              0,
+              5,
+              0,
+              1
+            ],
+            "waiting": 5,
+            "pauses": 246,
+            "pausesByLane": [
+              0,
+              3,
+              241,
+              2,
+              0
+            ],
+            "idleWindows": 0,
+            "pacing": false,
+            "throttle": "responsive"
+          }
+        },
+        {
+          "owner": "source",
+          "elapsedMs": 1.7000000476837158,
+          "outcome": "cancelled",
+          "reason": "cancelled",
+          "cacheChanged": [
+            false,
+            false
+          ],
+          "fileChanged": [
+            false,
+            false
+          ],
+          "publicationChanged": false,
+          "sourceRevisionChanged": false,
+          "maintenanceChanged": true,
+          "pendingStructuralBefore": 0,
+          "pendingStructuralAfter": 0,
+          "priority": {
+            "active": [
+              2,
+              0,
+              5,
+              0,
+              1
+            ],
+            "waiting": 5,
+            "pauses": 246,
+            "pausesByLane": [
+              0,
+              3,
+              241,
+              2,
+              0
+            ],
+            "idleWindows": 0,
+            "pacing": false,
+            "throttle": "responsive"
+          }
+        },
+        {
+          "owner": "index",
+          "elapsedMs": 11.5,
+          "outcome": "not-ready",
+          "cacheChanged": [
+            false,
+            false
+          ],
+          "fileChanged": [
+            false,
+            false
+          ],
+          "publicationChanged": false,
+          "sourceRevisionChanged": false,
+          "maintenanceChanged": true,
+          "pendingStructuralBefore": 0,
+          "pendingStructuralAfter": 0,
+          "priority": {
+            "active": [
+              1,
+              0,
+              5,
+              0,
+              1
+            ],
+            "waiting": 5,
+            "pauses": 246,
+            "pausesByLane": [
+              0,
+              3,
+              241,
+              2,
+              0
+            ],
+            "idleWindows": 0,
+            "pacing": false,
+            "throttle": "responsive"
+          }
+        },
+        {
+          "owner": "index",
+          "elapsedMs": 11.5,
+          "outcome": "not-ready",
+          "cacheChanged": [
+            false,
+            false
+          ],
+          "fileChanged": [
+            false,
+            false
+          ],
+          "publicationChanged": false,
+          "sourceRevisionChanged": false,
+          "maintenanceChanged": true,
+          "pendingStructuralBefore": 0,
+          "pendingStructuralAfter": 0,
+          "priority": {
+            "active": [
+              1,
+              0,
+              5,
+              0,
+              1
+            ],
+            "waiting": 5,
+            "pauses": 246,
+            "pausesByLane": [
+              0,
+              3,
+              241,
+              2,
+              0
+            ],
+            "idleWindows": 0,
+            "pacing": false,
+            "throttle": "responsive"
+          }
+        },
+        {
+          "owner": "source",
+          "elapsedMs": 39.30000019073486,
+          "outcome": "ready",
+          "cacheChanged": [
+            false,
+            false
+          ],
+          "fileChanged": [
+            false,
+            false
+          ],
+          "publicationChanged": false,
+          "sourceRevisionChanged": false,
+          "maintenanceChanged": false,
+          "pendingStructuralBefore": 0,
+          "pendingStructuralAfter": 0,
+          "priority": {
+            "active": [
+              1,
+              0,
+              3,
+              0,
+              1
+            ],
+            "waiting": 5,
+            "pauses": 255,
+            "pausesByLane": [
+              0,
+              3,
+              250,
+              2,
+              0
+            ],
+            "idleWindows": 0,
+            "pacing": false,
+            "throttle": "responsive"
+          }
+        },
+        {
+          "owner": "index",
+          "elapsedMs": 39.60000014305115,
+          "outcome": "ready",
+          "cacheChanged": [
+            false,
+            false
+          ],
+          "fileChanged": [
+            false,
+            false
+          ],
+          "publicationChanged": false,
+          "sourceRevisionChanged": false,
+          "maintenanceChanged": false,
+          "pendingStructuralBefore": 0,
+          "pendingStructuralAfter": 0,
+          "priority": {
+            "active": [
+              1,
+              0,
+              3,
+              0,
+              1
+            ],
+            "waiting": 0,
+            "pauses": 255,
+            "pausesByLane": [
+              0,
+              3,
+              250,
+              2,
+              0
+            ],
+            "idleWindows": 0,
+            "pacing": false,
+            "throttle": "responsive"
+          }
+        },
+        {
+          "owner": "source",
+          "elapsedMs": 35.89999985694885,
+          "outcome": "ready",
+          "cacheChanged": [
+            false,
+            false
+          ],
+          "fileChanged": [
+            false,
+            false
+          ],
+          "publicationChanged": false,
+          "sourceRevisionChanged": false,
+          "maintenanceChanged": false,
+          "pendingStructuralBefore": 0,
+          "pendingStructuralAfter": 0,
+          "priority": {
+            "active": [
+              1,
+              0,
+              5,
+              0,
+              1
+            ],
+            "waiting": 7,
+            "pauses": 262,
+            "pausesByLane": [
+              0,
+              5,
+              254,
+              2,
+              1
+            ],
+            "idleWindows": 0,
+            "pacing": false,
+            "throttle": "responsive"
+          }
+        },
+        {
+          "owner": "index",
+          "elapsedMs": 36.200000047683716,
+          "outcome": "ready",
+          "cacheChanged": [
+            false,
+            false
+          ],
+          "fileChanged": [
+            false,
+            false
+          ],
+          "publicationChanged": false,
+          "sourceRevisionChanged": false,
+          "maintenanceChanged": false,
+          "pendingStructuralBefore": 0,
+          "pendingStructuralAfter": 0,
+          "priority": {
+            "active": [
+              0,
+              0,
+              5,
+              0,
+              1
+            ],
+            "waiting": 1,
+            "pauses": 262,
+            "pausesByLane": [
+              0,
+              5,
+              254,
+              2,
+              1
+            ],
+            "idleWindows": 0,
+            "pacing": false,
+            "throttle": "responsive"
+          }
+        }
+      ],
+      "controllerRemoved": true
+    }
+  },
+  "restoration": {
+    "time": "2026-10-13T12:57:21.879Z",
+    "restored": [
+      {
+        "name": "plugins/k-plex/data.json",
+        "matches": true
+      },
+      {
+        "name": "app.json",
+        "matches": true
+      },
+      {
+        "name": "community-plugins.json",
+        "matches": true
+      },
+      {
+        "name": "workspace.json",
+        "matches": true
+      }
+    ],
+    "vault": "kplex-test-small",
+    "count": 74,
+    "status": {
+      "upToDate": true,
+      "phase": "ready",
+      "indexedFiles": 15,
+      "totalFiles": 74,
+      "label": "Local graph ready"
+    },
+    "controllers": [],
+    "owned": [],
+    "recentOriginalChanges": [],
+    "menu": false
+  },
+  "limitations": [
+    "Physical Android unavailable; adb not installed. No emulation counted as physical acceptance.",
+    "Test-vault window/renderer restarted; shared Electron process and another test vault were kept running. Full process restart was not performed; the maintainer accepts this coverage as sufficient for #21.",
+    "Windows native-menu and Linux rename acceptance not executed on this macOS host.",
+    "ResizeObserver notifications during native Sidecar pane rearrangement remain unresolved. Do not suppress them or claim a clean native pass."
+  ],
+  "maintainerAcceptance": {
+    "test21": {
+      "status": "passed",
+      "acceptedOn": "2026-10-13",
+      "basis": "The maintainer explicitly accepted the closed-test-vault external-edit and fresh-renderer restart scenario as sufficient proof.",
+      "fullElectronProcessRestartPerformed": false
+    }
+  }
+}

@@ -26,7 +26,7 @@ await build({
         ()=>({path:'obsidian',namespace:'native'}));
       builder.onLoad({filter:/.*/,namespace:'native'},
         /** Supply unused native UI exports plus the editor-owned context required by selection. */
-        ()=>({contents:'export class EditorSuggest {constructor(app){this.app=app;this.context=null}} export class App {} export class Modal {} export class Notice {} export class AbstractInputSuggest {} export class PluginSettingTab {} export class Scope {} export class Setting {} export class ButtonComponent {} export class ExtraButtonComponent {} export class SearchComponent {} export const setIcon=()=>{},setTooltip=()=>{},getIcon=()=>null,getIconIds=()=>[],getLanguage=()=>"en",Platform={};',loader:'js'}));
+        ()=>({contents:'export class EditorSuggest {constructor(app){this.app=app;this.context=null}} export class App {} export class Modal {} export class SuggestModal extends Modal {} export class ColorComponent {} export class Notice {} export class AbstractInputSuggest {} export class PluginSettingTab {} export class Scope {} export class Setting {} export class ButtonComponent {} export class ExtraButtonComponent {} export class SearchComponent {} export const setIcon=()=>{},setTooltip=()=>{},getIcon=()=>null,getIconIds=()=>[],getLanguage=()=>"en",Platform={};',loader:'js'}));
     }
   }]
 });

@@ -1,4 +1,4 @@
-# Standing instructions — preserve this header
+# Standing instructions ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â preserve this header
 
 This is a temporary handoff document between agents. The development of the solution involves agents with access to Obsidian CLI and a full development environment with all node packages installed, but also agents with more limited access. Development is done in "ping-pong" between these two types of agents. Agents should use this document to pass instructions and status from one another, such as instructions for testing/validation, or instructions for development work that can only be done in a full environment.
 
@@ -16,16 +16,28 @@ Obsidian is the production host; preserve the established portable semantic, ide
 
 
 
+
 ---
 
-# PR141 - Accepted publication checkpoint
+# PR179 validated closeout; sequential work remains authorized
 
-State: inactive implementation handoff; root reviewed and accepted combined scope for authorized commit/push/merge/closure of originalPR141. Branch2026-10-11-issue-128-delete-cleanup-scope, validationHEADf0ce0467ecd0697247fd2e8360c72ad65e92da00, integratedmain001170c9615c0ee6672fa1a472df55203c907d0f. Original tree retained in recovery stash276d2932aeb7c323bbb780a35ff5b5877105ee0c. Final Git publication identity is verified in PR141 aftercommit. No competing PR; originalissue128 linked.
+Main/root agent implements/reviews/validates; no delegation.147 merged60d2239.
+179 main integration3bc489c, runtimef2fef82, full-testedbe7247a. User authorizes
+merge179, then149 then176 sequentially, no CI wait/release/personal vault.
+No comparative performance under encoding load, receipt/reader-sharing revival,
+source-proof weakening or broad architecture. Preserve private originals.
 
-Approved changes: configured-ontology default deletion, explicit arbitrary property Remove/Hide consent, retained body/inline links and navigable partial results. Directional Hidden consent follows selected central/write note, preserves original links and inverse visibility. User wording retained. Shared source-owned referenceParams annotations56literal/127plain across183entries produce once-only double quotes across locales; values stay opaque, no role/count/shortcut heuristics, no catalog cloning. Locale tag prefix mechanical only; actual field tooltip distinguished from descriptive source kind. Latestmain rename/menu implementation preserved.
-
-Independent root review and validation complete: architecture7/core94/portable710/browserUI60/portableSources334/browserIndexedDB442 allpass, zero failures/cancellations/skips/todos. Official Obsidian lint, actual installed-type production build and exact-artifact native render pass. Serial exact-artifact native deletion20, rename36observations(on-demand/eager), menu14includingpopout/migration/retirement pass. Source/artifact hashes match finalproductiongate. Original88notes/rawconfig restored, no ownedfixture/controllers/modals. Main.js 8c39cca6feddb3402fc0f9e98606c597b56cc70e38372d1447df5a301044d3df.
-
-Durable evidence: docs/validation/delete-cleanup-release-2026-10-12.json; olderfeature reports retain original receipts/limitations. Physical phone/macOS/OS-native menu backend not claimed passed. User authorizes publication despite prior stated phone limitation. No unrelated refactor/schema/parser change, generated artifacts tracked or archivedhandoff.
-
-Next root workflow: publish this accepted snapshot to existingPR141, merge/verifyclosed, switchmain/fetch/fastforward. Then execute separately requested unassisted Windows investigation on updatedmain, checking implementation inventories and versions before standaloneUI test, strictnativegate, renameacceptance and three serial historical-startup runs. Preserve Mac failures and deadlines; Windows diagnostic evidence belongs in a separate report, never substitute premerge results.
+Full verify passes7/130/1127/184/334/638 plus lint/build. Native exact2c6dce74
+bundle staged/smoke passed. Native matrix results and all failures in concise
+report docs/validation/settings-save-liveness-179-2026-10-19.md. Main/Sidecar
+controlled Save closes after1durablewrite while optional work held. Whole-renderer
+freeze remains unproved. On-demand drawing/radius stricter fixture drain refuses
+pendingKnown1 despite no active work; earlier8pass is not repeatability proof.
+Eager quiet15, radius8, final real-drawing+Properties overlap5pass. Config/workspace
+107/88 and originalmode restored, no controllers, CLIdebug capture released.
+Final native helper syntax/20runner pass. Only native tooling/docs changed since
+full-testedbe724. Private verified durable copy141files/8210671B, manifestSHA in
+report, originals retained/no publication. Next finalize authorized179merge,
+switch/fetch main, integrate149branch normally; cause-first visual probe. If no
+confirmed defect, precise no-go rather than speculative rendering hack.176 Gate1
+causal checkpoint follows, no broad benchmark or new persistent protocol.

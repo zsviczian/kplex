@@ -942,6 +942,29 @@ try {
   flushSync(() => movingRoot.unmount());
   check(observerDisconnects > 0, "ResizeObserver cleanup was not observed");
 
+  // The component, rather than every caller, gates expensive providers by actual list visibility.
+  const lazyHost=document.createElement("div");document.body.append(lazyHost);
+  const lazyRoot=createRoot(lazyHost), ranking=[];let updateLazy;
+  const rank=value=>{ranking.push(value);return [value+" result"];};
+  function LazyProvider(){const [value,setValue]=React.useState("");updateLazy=setValue;
+    return React.createElement(FuzzySuggester,{value,onChange:setValue,getResults:rank,onChoose:()=>{},getKey:String,getLabel:String,
+      placeholder:"Search",ariaLabel:"Lazy search",openResultsOnFocus:false});}
+  flushSync(()=>lazyRoot.render(React.createElement(LazyProvider)));
+  const lazyInput=lazyHost.querySelector("input");
+  check(ranking.length===0,"hidden suggester eagerly ranked its provider");
+  flushSync(()=>lazyInput.focus());
+  check(ranking.length===0,"typing-only focus ranked before typing");
+  flushSync(()=>type(lazyInput,"a"));
+  check(ranking.join(',')==='a',"typing did not rank once");
+  flushSync(()=>lazyRoot.render(React.createElement(LazyProvider)));
+  check(ranking.length===1,"unrelated parent render reranked the provider");
+  flushSync(()=>lazyInput.dispatchEvent(new KeyboardEvent("keydown",{key:"Escape",bubbles:true,cancelable:true})));
+  flushSync(()=>updateLazy("ab"));
+  check(ranking.length===1,"dismissed list ranked hidden updates");
+  flushSync(()=>type(lazyInput,"abc"));
+  check(ranking.join(',')==='a,abc',"reopened list did not rank the latest query");
+  flushSync(()=>lazyRoot.unmount());lazyHost.remove();
+
   toolbarRoot.unmount();
   HTMLElement.prototype.scrollIntoView = originalScrollIntoView;
   Object.defineProperty(window, "ResizeObserver", { configurable: true, value: NativeResizeObserver });
@@ -1035,7 +1058,12 @@ try {
   const render = (revision) => flushSync(() => root.render(React.createElement(SearchBox, {
     graph, revision, onActivate: (id) => chosen.push(id), placeholder: "Localized placeholder", ariaLabel: "Localized search",
     icon: React.createElement("span", { "data-test-icon": "true" }, "search icon"), portalSelector: ".test-search-host", appTopbarSelector: ".test-search-topbar",
+    resultIcon: hit => React.createElement("i", { "data-result-kind": hit.node.kind }),
   })));
+  render(0);
+  check(calls.length === 0, "blurred Find eagerly ranked the vault");
+  render(1);
+  check(calls.length === 0, "background publication ranked a blurred Find field");
   render(0);
   const input = host.querySelector("input");
   host.querySelector(".kplex-fuzzy-search").getBoundingClientRect = () => ({ left: 10, top: 20, right: 310, bottom: 50, width: 300, height: 30 });
@@ -1043,7 +1071,9 @@ try {
   flushSync(() => type(input, "needle"));
   const rows = () => [...host.querySelectorAll(".kplex-search-result")];
   check(rows().length === 2, "search hits did not render");
-  check(rows()[0].querySelector("span").textContent === second.label, "source ranking was changed");
+  check(rows()[0].querySelector("span:not(.kplex-search-result-prefix)").textContent === second.label, "source ranking was changed");
+  check(rows().every(row => row.classList.contains("has-prefix") && row.querySelector('.kplex-search-result-prefix[aria-hidden="true"]')), "caller icon prefixes lost decorative semantics");
+  check(rows()[0].querySelector("[data-result-kind]").dataset.resultKind === "url" && rows()[1].querySelector("[data-result-kind]").dataset.resultKind === "document", "result type facets were reinterpreted");
   check(rows()[1].querySelector("small").textContent === first.detail, "opaque ID was used as display detail");
   check(input.getAttribute("aria-label") === "Localized search" && input.placeholder === "Localized placeholder", "localized copy was changed");
   check(host.querySelector("[data-test-icon]"), "host icon slot missing");
@@ -1053,10 +1083,12 @@ try {
   hits = [{ ...first, label: "Renamed first", detail: "actual/Renamed.md" }]; render(1);
   check(calls.length === count + 1 && calls.at(-1)[0] === "needle", "publication revision did not refresh the same query");
   check(input.value === "needle" && document.activeElement === input, "publication lost query or focus");
-  check(rows().length === 1 && rows()[0].querySelector("span").textContent === "Renamed first", "stale label/result survived publication");
+  check(rows().length === 1 && rows()[0].querySelector("span:not(.kplex-search-result-prefix)").textContent === "Renamed first", "stale label/result survived publication");
   flushSync(() => input.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true, cancelable: true })));
   check(chosen.length === 1 && chosen[0] === first.node.id, "activation reinterpreted/normalized the opaque ID");
   check(input.value === "", "selection did not clear query");
+  const blurredCalls = calls.length; render(3);
+  check(calls.length === blurredCalls, "closed Find reranked on background publication");
   flushSync(() => input.focus());
   flushSync(() => type(input, "needle"));
   check(rows().length === 1, "deletion fixture must be visible before its publication");
@@ -1078,15 +1110,17 @@ function relatedComposerBrowserEntry() {
     && ["RelatedNoteComposer", "isNoteTarget", "captureRelatedEndpoint", "refreshCapturedPage"].includes(statement.name?.text)).map((statement) => statement.getText(source)).join("\n");
   const production = ts.transpileModule(functions, { compilerOptions: { target: ts.ScriptTarget.ES2021, module: ts.ModuleKind.None } }).outputText;
   return `
-import React, { createElement, useEffect, useMemo, useRef, useState } from "react";
+import React, { createElement, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { flushSync } from "react-dom";
 import { createRoot } from "react-dom/client";
 import { FuzzySuggester } from ${JSON.stringify(join(root, "src/ui/components/FuzzySuggester.tsx"))};
 import { SavedRelationshipPendingError } from ${JSON.stringify(join(root, "src/adapters/obsidian/relationshipMetadataWrite.ts"))};
 import { PartialRelatedFileError } from ${JSON.stringify(join(root, "src/adapters/obsidian/relatedFileOutcome.ts"))};
+import { CreationCompletionSelect, creationCompletionValue } from ${JSON.stringify(join(root, "src/ui/features/CreationCompletionSelect.tsx"))};
 const FuzzySearchInput = (props) => createElement(FuzzySuggester, { ...props, icon: null });
 const ObsidianIcon = ({ name }) => createElement("span", null, name);
-const fuzzyFilterStrings = (values, query, limit) => values.filter((value) => !query || value.includes(query)).slice(0, limit);
+${uiDefinitions("src/ui/FuzzySearchInput.tsx", ["fuzzyFilterStrings"])}
+${uiDefinitions("src/ui/FolderPathInput.tsx", ["FolderPathInput"])}
 const notices = []; class Notice { constructor(message) { notices.push(message); } }
 ${production}
 (async () => {
@@ -1100,13 +1134,19 @@ ${production}
   const host = document.createElement("div"); document.body.append(host);
   const origin = { path: "Origin.md", file: { path: "Origin.md", extension: "md" } }; const target = { path: "Target.md", file: { path: "Target.md", extension: "md" } };
   const intents = [], outcomes = []; let commits = 0; let closes = 0; let rejectCommit = true; let savedPending = false;
+  let folderEnumerations = 0;
   const session = { continuation: "return", suggestionOwnerId: "composer-browser-fixture", isSessionOpen: () => true, canComplete: () => true, setWriting: () => {}, registerSubmit: () => () => {}, focusName: () => host.querySelector("input")?.focus(), closeForCompletion: () => { closes++; }, finishCompletion: () => {}, focusGraph: () => {} };
   const plugin = {
-   app: { vault: { on: () => ({}), offref: () => {}, getFileByPath: path => [origin, target].find(page => page.path === path)?.file } },
+   app: { vault: { on: () => ({}), offref: () => {}, getFileByPath: path => [origin, target].find(page => page.path === path)?.file,
+    getAllFolders: includeRoot => { check(includeRoot === true, "folder inventory must include the vault root"); folderEnumerations++; return [{ path: "/" }, { path: "Projects" }, { path: "Projects/Ideas" }]; } } },
    settings: { editNewNodeAfterCreate: false, newNodeDefaultType: "markdown" },
    translator: (key) => key, isExcalidrawAvailable: () => false, defaultOntologyField: () => "children",
    ontologyFieldsForRole: () => ["children", "review", "example"],
+   allOntologyFields: () => ["children", "review", "example", "parent"],
+   ontologyRoleForField: field => field === "parent" ? "parent" : ["children", "review", "example"].includes(field) ? "child" : null,
    validateRelatedNoteName: () => ({ valid: true, existing: false, stem: "Target" }),
+   newRelatedNoteFolder: () => "Projects",
+   validateNoteFolderPath: value => ({ folderPath: value === "/" ? "" : value, error: null }),
    index: { search: () => [target], titleFor: (page) => page.path, get: path => [origin, target].find(page => page.path === path), prepareRelationshipPair: async () => true },
    rememberRelationshipOntology: async (_role, field) => field,
    createRelationToPage: async (...args) => { if (savedPending) throw new SavedRelationshipPendingError("Saved; graph pending"); if (rejectCommit) throw new Error("not ready"); intents.push(args); return { state: "saved-published", page: target }; },
@@ -1115,12 +1155,20 @@ ${production}
   const root = createRoot(host);
   flushSync(() => root.render(createElement(RelatedNoteComposer, { plugin, origin, session, initialRole: "child", onCommitted: outcome => { commits += 1; outcomes.push(outcome); }, onClose: () => { closes += 1; } })));
   const input = host.querySelector(".kplex-add-related-note-search input");
+  const folder = host.querySelector(".kplex-folder-path-input input");
+  check(folder?.value === "Projects" && !folder.autofocus, "computed folder did not prefill independently of quick-name focus");
+  flushSync(() => folder.focus()); flushSync(() => type(folder, "Projects/Id"));
+  let folders = document.body.querySelector(".kplex-fuzzy-floating-results");
+  check(folders?.textContent.includes("Projects/Ideas"), "actual shared folder autocomplete did not rank the native folder vocabulary");
+  flushSync(() => folders.querySelector("button").click());
+  check(folder.value === "Projects/Ideas" && commits === 0 && closes === 0 && folderEnumerations === 1, "folder choice wrote, submitted or reacquired the inventory");
   flushSync(() => input.focus()); flushSync(() => type(input, "Target"));
   let list = document.body.querySelector(".kplex-fuzzy-floating-results");
   check(list, "existing-target suggestions did not open");
   flushSync(() => list.querySelector("button").click());
   const link = host.querySelector(".kplex-add-related-link-button");
   check(link && input.value === "Target.md", "existing selection was not retained as explicit Link action");
+  check(!host.querySelector(".kplex-folder-path-input"), "linking an existing target exposed an unrelated creation folder");
   const ontology = host.querySelector(".kplex-add-related-ontology-search input");
   flushSync(() => ontology.focus()); flushSync(() => type(ontology, ""));
   flushSync(() => host.querySelector(".kplex-fuzzy-disclosure").click());
@@ -1154,6 +1202,65 @@ ${production}
   flushSync(() => host.querySelector(".kplex-add-related-link-button").click());
   await new Promise((resolve) => setTimeout(resolve, 0));
   check(intents.length === 1 && intents[0][1] === "right" && intents[0][2].file === target.file && commits === 1 && closes === 1, "history fixed target did not commit through the shared Link action");
+  // All is a vocabulary filter, not permission to move another direction's ontology.
+  plugin.settings.editNewNodeAfterCreate = true; session.continuation = "configured";
+  plugin.saveSettings = async () => {};
+  flushSync(() => root.render(createElement(RelatedNoteComposer, { key: "all-directions", plugin, origin, session, initialRole: "child", fixedTarget: target })));
+  const changeSelect = (selector, value) => flushSync(() => { const element=host.querySelector(selector); element.value=value; element.dispatchEvent(new Event("change", {bubbles:true})); });
+  check(host.querySelector('.kplex-add-related-completion select').value === "return", "configured existing-note action must show Return");
+  check(![...host.querySelector('.kplex-add-related-completion select').options].some(option=>option.value==="configured"), "ambiguous configured choice remains visible");
+  const direction=host.querySelector('.kplex-add-related-role-select');
+  check(direction.parentElement===host.querySelector('.kplex-add-related-ontology-search').parentElement, "direction is not beside the ontology field");
+  changeSelect('.kplex-add-related-role-select','all');
+  flushSync(() => host.querySelector('.kplex-fuzzy-disclosure').click());
+  let allRows=[...document.body.querySelectorAll('.kplex-fuzzy-floating-results button')];
+  check(allRows.length===4 && allRows.some(row=>row.textContent==='parent'), "All omitted another direction's configured field");
+  flushSync(() => allRows.find(row=>row.textContent==='parent').click());
+  check(direction.value==='all', "choosing a field unexpectedly changed the browsing filter");
+  intents.length=0;
+  flushSync(() => host.querySelector('.kplex-add-related-link-button').click()); await new Promise(resolve=>setTimeout(resolve,0));
+  check(intents.length===1 && intents[0][1]==='parent' && intents[0][3]==='parent', "All reclassified a known ontology field");
+  flushSync(() => root.render(createElement(RelatedNoteComposer, { key: "effective-default", plugin, origin, session, initialRole: "child" })));
+  check(host.querySelector('.kplex-add-related-completion select').value==='edit', "configured create action must show Edit note");
+  const footer=host.querySelector('.kplex-add-related-footer');
+  check(footer.contains(host.querySelector('.kplex-create-edit-toggle')) && footer===host.querySelector('.kplex-add-related-form').lastElementChild, "completion controls are not together at the bottom");
+  plugin.settings.editNewNodeAfterCreate=false; session.continuation='return';
+  // Hold an actual drawing submission after durability: ordinary progress must never offer recovery.
+  const style = document.createElement("style"); style.textContent = ${JSON.stringify(readFileSync(join(root, "styles.css"), "utf8"))}; document.head.append(style);
+  const created = { path: "Projects/" + "Long-folder-name/".repeat(8) + "Drawing.md", file: { path: "", extension: "md" } }; created.file.path = created.path;
+  const originalLookup = plugin.app.vault.getFileByPath;
+  plugin.app.vault.getFileByPath = path => path === created.path ? created.file : originalLookup(path);
+  plugin.isExcalidrawAvailable = () => true;
+  plugin.translator = (key, params) => params?.error ? "Reason: " + params.error : params?.path ? "Created " + params.path + "; setup or linking failed. Retry using this file." : key;
+  let creations = 0, links = 0, rejectLink;
+  plugin.createNewRelatedFileForOrigin = async (_origin, _query, kind) => { check(kind === "excalidraw", "wrong drawing kind"); creations++; return created.file; };
+  plugin.rememberNewNodeDefaultType = async () => {};
+  plugin.linkNewRelatedFile = async (_origin, _role, file) => { check(file === created.file, "recovery changed physical file identity"); links++; if (links === 1) await new Promise((_resolve, reject) => { rejectLink = reject; }); return { state: "saved-pending", page: created }; };
+  plugin.openInDocumentLeaf = async file => check(file === created.file, "open changed physical file identity");
+  flushSync(() => root.render(createElement(RelatedNoteComposer, { key: "drawing-recovery", plugin, origin, session, initialRole: "child" })));
+  flushSync(() => type(host.querySelector(".kplex-add-related-note-search input"), "Drawing"));
+  flushSync(() => host.querySelector('[aria-label="addRelated.createExcalidrawLink"]').click());
+  await new Promise(resolve => setTimeout(resolve, 0)); flushSync(() => {});
+  check(creations === 1 && links === 1 && rejectLink, "drawing did not reach held relationship step");
+  check(!host.querySelector(".kplex-add-related-recovery"), "normal in-progress creation falsely offered recovery");
+  rejectLink(new Error("Owned relationship failure")); await new Promise(resolve => setTimeout(resolve, 0)); flushSync(() => {});
+  const panel = host.querySelector(".kplex-add-related-recovery");
+  check(panel?.getAttribute("role") === "alert" && panel.textContent.includes(created.path), "actual failure lost its durable file path");
+  check(panel.querySelector(".kplex-add-related-recovery-reason")?.textContent.includes("Owned relationship failure"), "failure reason disappeared with the notice");
+  check(!host.querySelector(".kplex-add-related-create-hint"), "failure retained contradictory create instructions");
+  check([...host.querySelectorAll(".kplex-add-related-type-button")].every(button => button.disabled), "partial file allowed fresh drawing/Markdown/placeholder creation");
+  for (const width of [680, 260]) {
+    host.style.width = width + "px";
+    const actions = panel.querySelector(".kplex-add-related-recovery-actions"), buttons = [...actions.querySelectorAll("button")];
+    const [a, b] = buttons.map(button => button.getBoundingClientRect());
+    check(getComputedStyle(actions).display === "flex" && getComputedStyle(actions).flexWrap === "wrap", "recovery actions do not wrap");
+    check(a.right + 7 <= b.left || a.bottom + 7 <= b.top, "recovery actions touch or overlap at width " + width);
+    check(panel.scrollWidth <= panel.clientWidth, "long path overflowed recovery panel at width " + width);
+    check(actions.getBoundingClientRect().top >= panel.querySelector(".kplex-add-related-recovery-reason").getBoundingClientRect().bottom, "actions overlap failure text");
+  }
+  flushSync(() => panel.querySelector("button").click()); await new Promise(resolve => setTimeout(resolve, 0));
+  check(creations === 1 && links === 2, "retry created another file or failed to link the retained file");
+  style.remove();
   flushSync(() => root.unmount());
   check(!document.body.querySelector(".kplex-fuzzy-floating-results"), "composer list survived unmount");
   result.dataset.status = "passed"; result.textContent = "Related composer browser behavior passed";
@@ -1214,10 +1321,11 @@ test("ActionButton rendered browser behavior", () => {
 /** Exercise production reconciliation keys and thought DOM across a mutable rename/placeholder handover. */
 function attachmentRenameBrowserEntry() {
   return `
-import React, { useMemo } from "react";
+import {canDragNodeLink,startNodeLinkDrag,finishNodeLinkDrag} from ${JSON.stringify(join(root,"src/adapters/obsidian/nodeLinkDrag.ts"))};
+import React, { useId, useMemo } from "react";
 import { flushSync } from "react-dom";
 import { createRoot } from "react-dom/client";
-import { alphaHexToCss, resolveNodeStyle } from ${JSON.stringify(join(root, "src/index/style.ts"))};
+import { alphaHexToCss, resolveNodeStyle, currentNodeColorStyle, nodePaint, nodePaintFallbacks } from ${JSON.stringify(join(root, "src/index/style.ts"))};
 import { effectiveLabelLimit, nodeLabelFontSize, gateDiameter, projectNodeCounts, expandedMiniLayout, siblingScale } from ${JSON.stringify(join(root, "src/ui/layout.ts"))};
 import { physicalPositionLabel } from ${JSON.stringify(join(root, "src/ui/features/positionPresentation.ts"))};
 
@@ -1234,15 +1342,24 @@ const translate = (key) => key;
 const interaction = { gates: new Set(), nodePaths: new Set() }, connectDrag = null, nodeDrag = null;
 // The production unfiltered projection is absent; rename reconciliation must not invent a filtered read.
 const globalFiltering = false, filteredGateCounts = null, nodeVisuals = new Map();
-const predicate = null, lenses = { lenses: [] }, predicateEngine = {}, predicateRevision = 0, layoutRevision = 0;
+const predicate = null, lenses = { lenses: [] }, paintLenses = lenses, predicateEngine = {}, predicateRevision = 0, layoutRevision = 0;
+let styleReads=0;const measuredStyle=()=>new Proxy({textColor:"#abcdef"},{ownKeys(target){styleReads++;return Reflect.ownKeys(target)}});
+settings.baseNodeStyle=measuredStyle();let paintSettings=settings;
 const graphLensNodeStyle = () => ({});
-const centralEditorCapable = true, finding = false, hover = null, activeNodeFlair = null, findNodePaths = new Set(), keyboardSelection = null;
+const centralEditorCapable = true, finding = false, hover = null, crossLinkPeek = null, activeNodeFlair = null, findNodePaths = new Set(), keyboardSelection = null;
 const connectionStateFor = () => "normal", onCentralNodeEditorChange = () => {}, gateKey = (path, gate) => path + ":" + gate;
 const persistentPageFor = (page) => page;
 const activePath = "Editor.md", centralEditorAvailable = true, sectionExpanded = false;
 const page = (path, materialized = true) => ({ path, name: path, file: materialized ? { extension: "png", path } : null });
 const centerPage = page(activePath), attachmentPage = page("Before.png"), placeholderPage = page("After.png", false), sentinelPage = page("Other.png");
 const neighborhood = { center: centerPage }, miniPage = page("Descendant.png");
+const nativeNodeDrag={current:null},viewport={current:null},suppressActivateUntil={current:0},suppressSyntheticClickUntil={current:0},miniOpened=[],activated=[],materialized=[],actionSurfaceId="gesture-fixture";
+const actionNodeRef=page=>({identity:page.path,path:page.path,kind:"ghost"});
+const Keymap={isModEvent:event=>event.ctrlKey||event.metaKey},openNode=(...args)=>miniOpened.push(args),clearHoverIntent=()=>{},setExternalDropZone=()=>{};
+const runNodeAction=(...args)=>activated.push(args);
+${uiDefinitions("src/ui/PlexGraph.tsx", ["isPlaceholderFolderGesture", "activateNode"])}
+const manager={draggable:null,dragLink:(event,linktext,sourcePath,title,source)=>({type:"link",linktext,sourcePath,title,source}),onDragStart(event,value){this.draggable=value},onDragEnd(){this.draggable=null}};
+const plugin={actionManager:{dispatch:request=>materialized.push(request)},app:{dragManager:manager,vault:{getFileByPath:path=>[centerPage,attachmentPage,placeholderPage,sentinelPage,miniPage].find(page=>page.file?.path===path)?.file??null}}};
 // The production center renderer publishes already-rendered local gate coverage for readiness.
 const renderedCenterGates = { current: null };
 const gates = Object.fromEntries(["top", "bottom", "left", "right"].map((gate) => [gate, { visibleCount: 0, hasAny: false, complete: true }]));
@@ -1250,12 +1367,12 @@ const index = { gateStats: () => gates, neighbours: () => [{ page: miniPage, rol
 const node = (page, role, x, y, height = 26) => ({ page, role, x, y, width: 180, height, style: { fontSize: 18 }, label: page.name, neighbourCount: 0, gateStats: gates });
 /** Render actual base nodes with separate zone-local/count-hydrated display copies. */
 function Scene({ scene: sourceScene, expanded }) {
-  const scene = { ...sourceScene, zoneViewports: {}, zoneAreas: {} };
+  const scene = useMemo(() => ({ ...sourceScene, zoneViewports: {}, zoneAreas: {} }), [sourceScene]);
   const centralEditorPage = expanded ? centerPage : null;
-  const sectionExpansion = null, expandedScrollTop = {};
+  const sectionExpansion = null, expandedScrollTop = useMemo(() => ({}), []);
   const visibleNodePaths = useMemo(() => new Set(scene.nodes.map((item) => item.page.path)), [scene.nodes]);
   const renderedNodeMap = useMemo(() => new Map(scene.nodes.map((item) => [item.page.path, { ...item }])), [scene.nodes]);
-  ${uiDefinitions("src/ui/PlexGraph.tsx", ["sceneNodeKeys", "expandedClusters", "renderNode", "renderExpandedCluster", "zoneForRole"])}
+  ${uiDefinitions("src/ui/PlexGraph.tsx", ["paintedNodeStyles", "sceneNodeKeys", "expandedClusters", "beginNativeNodeDrag", "endNativeNodeDrag", "renderNode", "renderExpandedCluster", "zoneForRole"])}
   const miniKeys = expandedClusters.flatMap((cluster) => cluster.children.map((child) => child.key));
   check(new Set(miniKeys).size === miniKeys.length, "expanded connector keys collide during rename");
   return <><div className="kplex-nodes">{scene.nodes.map((item) => renderNode(item, { ...item }))}</div><div>{expandedClusters.map(renderExpandedCluster)}</div></>;
@@ -1271,8 +1388,29 @@ try {
   const attachments = () => [...container.querySelectorAll(".kplex-thought")].filter((element) => element.dataset.kplexPath === "After.png");
   const clusters = () => container.querySelectorAll(".kplex-expanded-cluster").length;
   render(initial, true);
+  const firstStyleReads=styleReads;render(initial,true);render(initial,true);
+  check(styleReads===firstStyleReads,"Stable scene rerenders repeated style-dictionary work");
+  paintSettings={...settings,baseNodeStyle:measuredStyle()};render(initial,true);
+  check(styleReads>firstStyleReads,"New paint settings failed to re-resolve colors");
+  const recoloredReads=styleReads;render(initial,true);check(styleReads===recoloredReads,"New paint cache did not settle");
   check(container.querySelectorAll(".kplex-thought").length === 4, "initial real endpoint and unresolved placeholder were not distinct");
   check(clusters() === 3, "fixture did not render expanded strips through the production owner");
+  const ghost=[...container.querySelectorAll('.kplex-thought')].find(element=>element.dataset.kplexPath===placeholderPage.path),beforeActivations=activated.length,beforeMaterializations=materialized.length;
+  suppressActivateUntil.current=0;
+  for(const modifier of [{ctrlKey:true},{metaKey:true}])flushSync(()=>ghost.dispatchEvent(new MouseEvent('click',{bubbles:true,...modifier})));
+  check(activated.length===beforeActivations,'Modified placeholder click navigated away from the current center'
+  );check(materialized.length===beforeMaterializations+2&&materialized.every(request=>request.args.chooseFolder&&request.args.preserveCenter&&request.target.node.path===placeholderPage.path),'Modified single click did not request in-place creation');
+  flushSync(()=>ghost.dispatchEvent(new MouseEvent('click',{bubbles:true})));
+  check(activated.length===beforeActivations+1,'Ordinary placeholder click stopped navigating');
+  const real=[...container.querySelectorAll('.kplex-thought')].find(element=>element.dataset.kplexPath===attachmentPage.path);
+  flushSync(()=>real.dispatchEvent(new MouseEvent('click',{bubbles:true,ctrlKey:true})));
+  check(activated.length===beforeActivations+2,'Modified real-file click was incorrectly reserved for placeholder creation');
+  const mini=container.querySelector(".kplex-expanded-mini-thought"),transfer=new DataTransfer();
+  check(mini.draggable,"Expanded descendants do not expose native dragging");
+  flushSync(()=>mini.dispatchEvent(new DragEvent("dragstart",{bubbles:true,cancelable:true,dataTransfer:transfer})));
+  check(manager.draggable?.linktext===miniPage.path&&manager.draggable?.source.owner===mini,"Expanded drag did not retain its endpoint and distinct occurrence authority");
+  flushSync(()=>mini.dispatchEvent(new DragEvent("dragend",{bubbles:true,dataTransfer:transfer})));check(manager.draggable===null,"Expanded native drag did not retire");
+  flushSync(()=>mini.dispatchEvent(new MouseEvent("dblclick",{bubbles:true,ctrlKey:true})));check(miniOpened.at(-1)?.[0]===miniPage&&miniOpened.at(-1)?.[1]===undefined,"Real expanded node double-click gained placeholder-only creation behavior");
   // GraphIndex.renameTreeEndpoint intentionally retains canonical page identity and mutates its
   // path; an unrelated React update may reuse the existing scene before its publication commits.
   attachmentPage.path = "After.png"; attachmentPage.name = "After.png"; attachmentPage.file.path = "After.png";
@@ -1355,9 +1493,10 @@ function uiDefinitions(path, names) {
 
 /** Native-free real DOM checks for history targeting/cancellation and the center's shared menu button. */
 function editorHistoryBrowserEntry(){
-  const history=uiDefinitions("src/ui/PlexGraph.tsx",["normalizedRole","startNodeDrag","relationshipDropRoles","historyRelationshipTarget","clearHistoryDragHover","updateHistoryDragHover","cancel","lostPointerCapture"]);
+  const history=uiDefinitions("src/ui/structuralConnectionActions.ts",["tagMembershipPair"])+uiDefinitions("src/ui/StructuralNodeDropActions.ts",["structuralDropKind"])+uiDefinitions("src/ui/PlexGraph.tsx",["normalizedRole","startNodeDrag","relationshipDropRoles","historyRelationshipTarget","clearHistoryDragHover","updateHistoryDragHover","cancel","lostPointerCapture"]);
   const editor=uiDefinitions("src/ui/CentralNodeEditor.tsx",["CentralNodeEditor"]);
   return `
+import {canDragNodeLink} from ${JSON.stringify(join(root,"src/adapters/obsidian/nodeLinkDrag.ts"))};
 import {markdownZoomMode,withMarkdownZoomMode} from ${JSON.stringify(join(root,"src/core/plex/markdownZoomPreferences.ts"))};
 import React,{useEffect,useLayoutEffect,useRef,useState} from "react";
 import {flushSync} from "react-dom";
@@ -1373,14 +1512,15 @@ try{
  const touchDoubleTap={current:{reset(){}}},areaSettingsDismissPointer={current:null},areaResizeDrag={current:null},pendingGateLongPress={current:null},panDrag={current:null};
  let relocatedRow=null;
  const touchLongPress={current:null},setNodeDrag=value=>{nodeDrag=value;if(value?.path&&relocatedRow)relocatedRow.remove()};let resizeFinishes=0,areaClears=0;
- const viewport={current:null},neighborhood={center:origin},renderedNodeMap=new Map(),toWorld=(x,y)=>({x,y});
+ const touchPointers={current:new Map()},cancelTouchLongPress=()=>{if(touchLongPress.current)window.clearTimeout(touchLongPress.current.timer);touchLongPress.current=null};
+ const viewport={current:null},neighborhood={center:origin},renderedNodeMap=new Map(),toWorld=(x,y)=>({x,y}),areaOutline={current:null};
  const finishAreaResize=()=>{resizeFinishes++;return true},setAreaHoverIfChanged=()=>areaClears++;
  const setConnectDrag=value=>{connectDrag=value},clearHoverIntent=()=>{};
  ${history}
  const point=button.getBoundingClientRect(),x=point.left+10,y=point.top+10;
  updateHistoryDragHover(origin,x,y,document);check(button.classList.contains("is-relationship-drop-target"),"eligible historical endpoint not highlighted");
  updateHistoryDragHover(origin,1,1,document);check(!button.classList.contains("is-relationship-drop-target"),"leaving the endpoint retained hover");
- target.isTag=true;updateHistoryDragHover(origin,x,y,document);check(!button.classList.contains("is-relationship-drop-target"),"ineligible tag history endpoint highlighted");delete target.isTag;
+ target.isTag=true;updateHistoryDragHover(origin,x,y,document);check(button.classList.contains("is-relationship-drop-target"),"saved tag membership endpoint not highlighted");delete target.isTag;
  updateHistoryDragHover(target,x,y,document);check(!button.classList.contains("is-relationship-drop-target"),"self history endpoint highlighted");
  updateHistoryDragHover(origin,x,y,document);cancel({pointerId:7,pointerType:"mouse"});check(connectDrag===null&&!button.classList.contains("is-relationship-drop-target"),"real pointer cancellation retained highlight or drag");
  const viewportElement=document.body.appendChild(document.createElement("div")),gateElement=viewportElement.appendChild(document.createElement("span"));
@@ -1390,8 +1530,14 @@ try{
  const bodyNode={role:"parent",page:origin,x:20,y:30};relocatedRow=gateElement;
  gateElement.addEventListener("pointerdown",event=>startNodeDrag(bodyNode,event));
  gateElement.dispatchEvent(new PointerEvent("pointerdown",{bubbles:true,pointerId:6,pointerType:"mouse",button:0,clientX:25,clientY:35}));
+ check(gateElement.isConnected&&nodeDrag===null&&captured.length===0,"Desktop native drag lost its original source or acquired pointer capture");
+ gateElement.dispatchEvent(new PointerEvent("pointerdown",{bubbles:true,pointerId:5,pointerType:"pen",button:0,clientX:25,clientY:35}));
+ check(!gateElement.isConnected&&nodeDrag?.pointerId===5&&captured[0]?.owner===viewportElement,"Pen input lost its established pointer-owned relink gesture");
+ nodeDrag=null;captured.length=0;viewportElement.append(gateElement);
+ gateElement.dispatchEvent(new PointerEvent("pointerdown",{bubbles:true,pointerId:6,pointerType:"touch",button:0,clientX:25,clientY:35}));
  check(!gateElement.isConnected&&nodeDrag?.path===origin.path,"Fixture did not move the original row into a floating layer");
- check(captured.length===1&&captured[0].owner===viewportElement&&captured[0].id===6,"Body drag captured its removed overflow row instead of the stable viewport");
+ check(captured.length===1&&captured[0].owner===viewportElement&&captured[0].id===6,"Touch drag captured its removed overflow row instead of the stable viewport");
+ cancelTouchLongPress();touchPointers.current.clear();
  relocatedRow=null;nodeDrag=null;viewportElement.append(gateElement);
  viewportElement.addEventListener("lostpointercapture",lostPointerCapture);
  connectDrag={pointerId:7};updateHistoryDragHover(origin,x,y,document);
@@ -1429,11 +1575,12 @@ try{
 
 /** Exercise production fixed-target routing with real DOM hit tests and the actual host file-drag adapter. */
 function externalAndPinnedDropBrowserEntry() {
-  const callbacks = uiDefinitions("src/ui/PlexGraph.tsx", ["normalizedRole", "semanticRoleForGate", "toWorld", "isAreaControlTarget", "isEmptyAreaTarget", "areaHoverAt",
+  const callbacks = uiDefinitions("src/ui/structuralConnectionActions.ts",["tagMembershipPair"])+uiDefinitions("src/ui/StructuralNodeDropActions.ts",["structuralDropKind", "structuralAreaDrop"])+uiDefinitions("src/ui/PlexGraph.tsx", ["normalizedRole", "semanticRoleForGate", "toWorld", "isAreaControlTarget", "isEmptyAreaTarget", "areaHoverAt",
     "relationshipDropRoles", "historyRelationshipTarget", "clearHistoryDragHover", "updateHistoryDragHover", "openHistoryRelationshipMenu",
-    "externalFileDropTarget", "dragExternalFileOver", "leaveExternalFile", "dropExternalFile", "semanticRoleForPosition", "relationshipDropArea", "up"]);
+    "externalFileDropTarget", "dragExternalFileOver", "leaveExternalFile", "dropExternalFile", "semanticRoleForPosition", "nodeDropRole", "commitNodeAreaDrop", "relationshipDropArea", "up"]);
   return `
 import {getDraggedFile} from ${JSON.stringify(join(root,"src/adapters/obsidian/fileExplorerDrag.ts"))};
+import {draggedGraphPage,nodeLinkDragSource} from ${JSON.stringify(join(root,"src/adapters/obsidian/nodeLinkDrag.ts"))};
 import {captureSurfaceContinuation} from ${JSON.stringify(join(root,"src/ui/surfaceContinuation.ts"))};
 const check=(ok,message)=>{if(!ok)throw new Error(message)},result=document.querySelector("#result");
 try {
@@ -1444,13 +1591,16 @@ try {
  const snapshot={mounted:true,interactionRevision:1,center:{identity:origin.path}};let shown=null,hoverCleared=0;
  const plugin={app:{dragManager:{draggable:{type:"file",file:{path:target.path}}},vault:{getFileByPath:path=>filePaths.has(path)?{path}:null}},
   actionManager:{readSnapshot:()=>({...snapshot,center:{...snapshot.center}})},
-  openRelationModal:options=>calls.push(options),showKplexMenuAtPosition:(menu,point,doc)=>{shown={menu,point,doc}}};
+  openStructuralNodeDrop:()=>false,openRelationModal:options=>calls.push(options),showKplexMenuAtPosition:(menu,point,doc)=>{shown={menu,point,doc}}};
  const translate=key=>key,clearHoverIntent=()=>hoverCleared++,onActivate=page=>navigated.push(page);
  class Menu {items=[];addItem(build){const item={setTitle(value){this.title=value;return this},setIcon(){return this},onClick(value){this.run=value;return this}};build(item);this.items.push(item)}}
  const surface=document.body.appendChild(document.createElement("div"));surface.style.cssText="position:absolute;left:0;top:0;width:900px;height:650px";
  const viewport={current:surface},camera={current:{x:0,y:0,scale:1}},neighborhood={center:origin},historyDragHover={current:null};
+ const settings={lateralArrangement:"split"};
  let connectDrag=null,nodeDrag=null,externalDropZone=null;const setExternalDropZone=value=>{externalDropZone=value};const areaResizeDrag={current:null},pendingGateLongPress={current:null},touchLongPress={current:null},suppressActivateUntil={current:0};
  const finishAreaSettingsDismiss=()=>{},setConnectDrag=value=>{connectDrag=value},setNodeDrag=value=>{nodeDrag=value},renderedNodeMap=new Map();
+ const optimisticCommitToken={current:0};let optimistic=null,updating=false;
+ const setOptimisticRelink=value=>{optimistic=value},setRelationshipUpdating=value=>{updating=value};
  const scene={zoneAreas:{parent:{left:300,top:60,width:110,height:100,resizeEdge:"top"},child:{left:450,top:60,width:110,height:100,resizeEdge:"bottom"},left:{left:300,top:230,width:110,height:100,resizeEdge:"top"},right:{left:450,top:230,width:110,height:100,resizeEdge:"top"}}};
  const ZONES=["parent","child","left","right","sibling"],AREA_RESIZE_EDGE_PX=10;
  ${callbacks}
@@ -1485,10 +1635,10 @@ try {
  blocked.set("left",new Set([target.path]));updateHistoryDragHover(origin,40,365,document,"left");check(!pinned.classList.contains("is-relationship-drop-target"),"blocked pinned gate retained highlight");
  check(openHistoryRelationshipMenu(origin,40,365,document),"pinned body chooser rejected");check(shown.doc===document&&shown.menu.items.length===3&&!shown.menu.items.some(item=>item.title==="role.friend"),"body chooser did not filter canonical duplicate role");shown.menu.items[0].run();check(calls.at(-1).fixedTarget===target,"body chooser lost fixed endpoint");
  target.file={extension:"png"};check(relationshipDropRoles(origin,target).length===3,"Markdown origin cannot link attachment endpoint");origin.file={extension:"png"};check(relationshipDropRoles(origin,target).length===0,"two non-Markdown endpoints incorrectly writable");origin.file={extension:"md"};target.file={extension:"md"};
- for(const flag of ["isFolder","isTag"]) {target[flag]=true;check(!historyRelationshipTarget(origin,40,365,document),"structural pinned endpoint accepted");delete target[flag];}
+ for(const flag of ["isFolder","isTag"]) {target[flag]=true;check(historyRelationshipTarget(origin,40,365,document),"structural saved target rejected");delete target[flag];}
  check(!historyRelationshipTarget(target,40,365,document),"pinned self endpoint accepted");
- const rejectCount=calls.length;target.isFolder=true;connectDrag={pointerId:21,originPath:origin.path,gate:"top",moved:true};up({...event(40,365),pointerId:21,pointerType:"mouse"});
- check(connectDrag===null&&calls.length===rejectCount,"rejected pinned gate fell through into empty composer");delete target.isFolder;
+ const rejectCount=calls.length;origin.file={extension:"png"};target.isTag=true;connectDrag={pointerId:21,originPath:origin.path,gate:"top",moved:true};up({...event(40,365),pointerId:21,pointerType:"mouse"});
+ check(connectDrag===null&&calls.length===rejectCount,"rejected pinned gate fell through into empty composer");delete target.isTag;origin.file={extension:"md"};
  scene.nodes=[{page:target,role:"parent"}];nodeDrag={pointerId:22,path:target.path,startClientX:0,startClientY:0,moved:true};
  const touchDoubleTap={current:{reset(){}}},NODE_RELINK_MIN_DRAG_PX=36,NODE_RELINK_HYSTERESIS_PX=48;up({...event(40,365),pointerId:22,pointerType:"mouse"});
  check(nodeDrag===null&&calls.length===rejectCount,"rejected pinned body fell through into spatial relink");
@@ -1511,9 +1661,29 @@ try {
  connectDrag.current={x:40,y:365};check(relationshipDropArea()===null,"pinned target retained area preview");
  connectDrag.current={x:1000,y:700};check(relationshipDropArea()===null,"outside pointer retained gate preview");
  other.style.setProperty("left","320px");other.style.setProperty("top","100px");other.dataset.kplexPath=target.path;other.dataset.kplexGate="left";
- connectDrag.current={x:330,y:110};check(relationshipDropArea()==="right","hovered gate inverse role missing");
+ connectDrag.current={x:330,y:110};check(relationshipDropArea()===null,"node-to-node gate target must not highlight a center relation area");
  target.isFolder=true;check(relationshipDropArea()===null,"structural endpoint highlighted");delete target.isFolder;
+ connectDrag={originPath:target.path,gate:"left",current:{x:700,y:300},moved:true};
+ check(relationshipDropArea()===null,"noncentral gate origin highlighted a center relation area");
  connectDrag=null;check(relationshipDropArea()===null,"cancel retained area preview");
+
+ // The same real area geometry owns sibling preview and submitted composer intent. Only the
+ // center/sibling pair is handed to the additive create flow; shared-parent evidence stays intact.
+ const sibling={page:target,role:"sibling",linkDirection:"shared-parent"};scene.nodes=[sibling];
+ blocked.clear();
+ for(const [role,x,y]of [["parent",350,80],["child",510,80],["left",350,280],["right",510,280]]){
+  nodeDrag={path:target.path,pointerId:31,x,y,offsetX:0,offsetY:0,startClientX:800,startClientY:550,moved:true};
+  renderedNodeMap.set(target.path,{...sibling,x,y});
+  check(relationshipDropArea()===role,"sibling did not preview exact area: "+role);
+  const before=calls.length;up({...event(x,y),pointerId:31,pointerType:"mouse"});
+  const opened=calls.at(-1);check(calls.length===before+1&&opened.mode==="create"&&opened.origin===origin&&opened.fixedTarget===target&&opened.semanticRole===role,"sibling drop did not add the center relation: "+role);
+  check(opened.existingDirection===undefined&&sibling.linkDirection==="shared-parent","sibling shared-parent relation was treated as a moved direct relation");
+  check(nodeDrag===null,"sibling drag did not retire");
+ }
+ blocked.set("left",new Set([target.path]));const duplicateCount=calls.length;
+ commitNodeAreaDrop(sibling,"left");check(calls.length===duplicateCount,"duplicate sibling role bypassed canonical drop eligibility");blocked.clear();
+ nodeDrag={path:target.path,pointerId:32,x:700,y:500,offsetX:0,offsetY:0,startClientX:800,startClientY:550,moved:true};
+ check(relationshipDropArea()===null,"sibling accepted empty canvas outside real areas");nodeDrag=null;
  pages.delete(target.path);e=event(90,90);dragExternalFileOver(e);check(externalDropZone==="center","unindexed center did not preview queued navigation");e=event(90,90);dropExternalFile(e);check(!e.stopped,"unindexed center drop lost App readiness fallback");
  result.dataset.status="passed";result.textContent="External and pinned drop behavior passed";
 }catch(error){result.dataset.status="failed";result.textContent=String(error.stack||error)}
@@ -1524,6 +1694,43 @@ test("External file areas and pinned relationship targets use shared production 
   const app=readFileSync(join(root,"src/ui/App.tsx"),"utf8");
   assert.match(app, /className="kplex-pinned-open" data-kplex-pinned-path=\{pinned.path\}/);
   runBrowserDom(externalAndPinnedDropBrowserEntry(),"External and pinned drop behavior passed");
+});
+
+/** Verify painted gate coordinates and approach directions through real zoomed, scrolled DOM. */
+function draftConnectorBrowserEntry() {
+  const callbacks = uiDefinitions("src/ui/PlexGraph.tsx", ["gateVector", "cubicPoint", "edgeGeometry", "oppositeGate", "toWorld", "connectionDragPath"]);
+  return `
+const result=document.querySelector("#result"),check=(ok,message)=>{if(!ok)throw Error(message)};
+try{
+ const surface=document.body.appendChild(document.createElement("div"));surface.style.cssText="position:absolute;left:10px;top:20px;width:900px;height:700px";
+ const camera={current:{x:40,y:40,scale:1.25}},viewport={current:surface},settings={connectorStyle:"bezier"};
+ const layer=surface.appendChild(document.createElement("div"));layer.style.cssText="position:absolute;left:0;top:0;transform-origin:0 0;transform:translate(40px,40px) scale(1.25)";
+ const scroll=layer.appendChild(document.createElement("div"));scroll.style.cssText="position:absolute;left:20px;top:30px;width:600px;height:260px;overflow:auto";
+ const content=scroll.appendChild(document.createElement("div"));content.style.cssText="position:relative;height:800px";
+ const make=(path,left,top)=>{const node=content.appendChild(document.createElement("div"));node.dataset.kplexPath=path;node.style.cssText="position:absolute;width:44px;height:28px;left:"+left+"px;top:"+top+"px";const gate=node.appendChild(document.createElement("span"));gate.dataset.kplexGate="left";gate.style.cssText="position:absolute;left:-14px;top:7px;width:14px;height:14px";return gate};
+ const source=make("Source.md",36,200),target=make("Target.md",330,240),page={path:"Target.md"};
+ const index={get:path=>path===page.path?page:null},connectBlockedPaths=new Set();
+ let connectDrag={originPath:"Source.md",sourceGateElement:source,gate:"left",current:{x:0,y:0}};
+ ${callbacks}
+ for(const top of [90,160])for(const side of ["left","right","top","bottom"]){
+  scroll.scrollTop=top;target.dataset.kplexGate=side;
+  const a=source.getBoundingClientRect(),b=target.getBoundingClientRect();
+  // Deliberately hover away from the port center; snapping must select its actual painted center.
+  connectDrag.current=toWorld(b.left+2,b.top+2);
+  check(surface.ownerDocument.elementFromPoint(b.left+2,b.top+2)===target,"Fixture target is clipped/covered");
+  const values=connectionDragPath().match(/-?\\d+(?:\\.\\d+)?/g).map(Number),start=toWorld(a.left+a.width/2,a.top+a.height/2),end=toWorld(b.left+b.width/2,b.top+b.height/2);
+  check(Math.abs(values[0]-start.x)<0.001&&Math.abs(values[1]-start.y)<0.001,"draft origin escaped the visible scrolled gate");
+  check(Math.abs(values[6]-end.x)<0.001&&Math.abs(values[7]-end.y)<0.001,"draft failed to snap to target gate center");
+  const vector=gateVector(side);check((values[4]-end.x)*vector.x+(values[5]-end.y)*vector.y>0,"target gate approach is reversed: "+side);
+ }
+ source.remove();check(connectionDragPath()===null,"detached gate retained a draft connector");
+ result.dataset.status="passed";result.textContent="Draft connector gate geometry passed";
+}catch(error){result.dataset.status="failed";result.textContent=String(error.stack||error)}
+`;
+}
+
+test("draft connectors follow actual scrolled gates and the destination gate direction",()=>{
+  runBrowserDom(draftConnectorBrowserEntry(),"Draft connector gate geometry passed");
 });
 
 /** Exercise the production glow and shared CSS across covered/clipped areas and both host themes. */
@@ -1911,13 +2118,69 @@ test("Native hotkey pills support disable, customize, restore, conflicts and rec
  runBrowserDom(internalHotkeySettingsBrowserEntry(),"Native hotkey pills and recording lifecycle passed");
 });
 
+/** Keep native compact titles separate from accessible naming without altering gate or preview ownership. */
+function nodeTooltipBrowserEntry() {
+ return `
+import React, {useId} from 'react';
+import {flushSync} from 'react-dom';
+import {createRoot} from 'react-dom/client';
+import {nodePaint,nodePaintFallbacks} from ${JSON.stringify(join(root,'src/index/style.ts'))};
+import {effectiveLabelLimit,nodeLabelFontSize,gateDiameter} from ${JSON.stringify(join(root,'src/ui/layout.ts'))};
+import {physicalPositionLabel} from ${JSON.stringify(join(root,'src/ui/features/positionPresentation.ts'))};
+import {canDisplayNodeImage} from ${JSON.stringify(join(root,'src/core/plex/nodeImagePolicy.ts'))};
+import {createTranslator} from ${JSON.stringify(join(root,'src/lang/index.ts'))};
+const ObsidianIcon=()=>null;
+${uiDefinitions('src/ui/ThoughtNode.tsx',['GATES','ThoughtNode'])}
+const result=document.querySelector('#result'),container=document.body.appendChild(document.createElement('div')),root=createRoot(container);
+const check=(condition,message)=>{if(!condition)throw Error(message)},translate=createTranslator('en'),noop=()=>{};
+const label='A long meaningful note name',page={path:'Folder/Original.md',name:label},gates=Object.fromEntries(['top','bottom','left','right'].map(gate=>[gate,{visibleCount:0,complete:true,hasAny:false}]));
+const node={page,label,role:'child',style:{prefix:'@ ',maxLabelLength:8},x:0,y:0,width:180,height:40,gateStats:gates},settings={baseFontSize:12.4,showNeighborCount:false};
+const events={preview:0,node:0,gate:0,end:0};
+const props={node,settings,selected:false,highlighted:false,dimmed:false,highlightedGates:new Set(),translate,onActivate:noop,onOpen:noop,onHoverNode:()=>events.node++,onHoverGate:()=>events.gate++,onHoverEnd:()=>events.end++,onHoverPreview:()=>events.preview++,onGatePointerDown:noop,onNodePointerDown:noop};
+try{
+ let firstNameId;
+ for(const mode of [null,'thumbnail','replace']){
+  const visual=mode?{mode,path:'Picture.png',src:'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw==',alt:'Local picture'}:undefined;
+  flushSync(()=>root.render(<ThoughtNode {...props} visual={visual}/>));
+  const element=container.querySelector('.kplex-thought'),nameId=element.getAttribute('aria-labelledby'),name=document.getElementById(nameId);
+  check(name&&name.classList.contains('kplex-accessible-name'),'Node lost its established accessible-name mechanism');
+  check(name.textContent===translate('node.accessibleLabel',{label,path:page.path}),'Localized accessible name lost note label/path');
+  check(!element.hasAttribute('aria-label')&&!element.hasAttribute('title'),'Node reintroduced a competing host tooltip');
+  check(firstNameId===undefined||nameId===firstNameId,'Same mounted node changed its accessible name identity');firstNameId=nameId;
+  const text=container.querySelector('.kplex-thought-text');
+  if(mode!=='replace')check(text.title==='@ '+label&&text.textContent==='@ A lon…','Compact full-title hint or visible truncation changed');
+  if(mode)check(container.querySelector('.kplex-node-visual').title===visual.alt,'Image compact title changed');
+  for(const gate of container.querySelectorAll('.kplex-gate'))check(gate.getAttribute('aria-label')&&!gate.hasAttribute('title'),'Gate native hint/accessibility changed');
+ }
+ const element=container.querySelector('.kplex-thought');
+ element.dispatchEvent(new PointerEvent('pointerover',{bubbles:true,pointerType:'mouse'}));
+ check(events.node===1&&events.preview===0,'Unmodified pointer unexpectedly opened page preview');
+ element.dispatchEvent(new PointerEvent('pointerout',{bubbles:true,pointerType:'mouse'}));
+ element.dispatchEvent(new PointerEvent('pointerover',{bubbles:true,pointerType:'mouse',ctrlKey:true}));
+ check(events.preview===1&&events.node===2,'Explicit page preview stopped forwarding');
+ const gate=container.querySelector('.kplex-gate');
+ element.dispatchEvent(new PointerEvent('pointerout',{bubbles:true,pointerType:'mouse',relatedTarget:gate}));
+ gate.dispatchEvent(new PointerEvent('pointerover',{bubbles:true,pointerType:'mouse',relatedTarget:element}));
+ check(events.gate===1,'Gate hover ownership changed');
+ flushSync(()=>root.render(<><ThoughtNode {...props}/><ThoughtNode {...props}/></>));
+ const ids=[...container.querySelectorAll('.kplex-thought')].map(node=>node.getAttribute('aria-labelledby'));
+ check(ids.length===2&&new Set(ids).size===2&&ids.every(id=>document.getElementById(id)),'Repeated node occurrences share accessible-name IDs');
+ result.dataset.status='passed';result.textContent='Node tooltip ownership passed';
+}catch(error){result.dataset.status='failed';result.textContent=String(error?.stack??error)}finally{flushSync(()=>root.unmount());container.remove()}
+`;
+}
+
+test('nodes retain compact delayed titles and accessible names without a duplicate styled tooltip owner',()=>{
+ runBrowserDom(nodeTooltipBrowserEntry(),'Node tooltip ownership passed');
+});
+
 /** Render the actual ThoughtNode text and geometry for long titles/aliases across independent density values. */
 function typographyLabelsBrowserEntry() {
   return `
-import React from "react";
+import React, { useId } from "react";
 import { flushSync } from "react-dom";
 import { createRoot } from "react-dom/client";
-import { alphaHexToCss } from ${JSON.stringify(join(root, "src/index/style.ts"))};
+import { alphaHexToCss, nodePaint, nodePaintFallbacks } from ${JSON.stringify(join(root, "src/index/style.ts"))};
 import { effectiveLabelLimit, nodeLabelFontSize, gateDiameter } from ${JSON.stringify(join(root, "src/ui/layout.ts"))};
 ${uiDefinitions("src/ui/layout.ts", ["clamp", "nodeSize"])}
 import { physicalPositionLabel } from ${JSON.stringify(join(root, "src/ui/features/positionPresentation.ts"))};
@@ -1983,3 +2246,118 @@ try{
 test("long node titles and aliases retain exact rendered truncation and measured width across all density values", () => {
   runBrowserDom(typographyLabelsBrowserEntry(), "Density-independent rendered typography passed");
 });
+
+/** Execute the production App/scene memo owners and layout with real React reconciliation. */
+function colorPaintBrowserEntry() {
+ return `
+import React, {useMemo,useEffect,useState} from 'react';
+import {flushSync} from 'react-dom';import {createRoot} from 'react-dom/client';
+import {buildScene as realBuildScene,sceneLayoutPolicyKey,neighborhoodSceneKey,bindSceneNeighborhood} from ${JSON.stringify(join(root,'src/ui/layout.ts'))};
+import {currentNodeColorStyle,nodePaint,nodePaintFallbacks} from ${JSON.stringify(join(root,'src/index/style.ts'))};
+import {centerViewSettings} from ${JSON.stringify(join(root,'src/ui/KplexCenterPresentation.ts'))};
+const result=document.querySelector('#result'),check=(condition,message)=>{if(!condition)throw Error(message)};
+const counters={layout:0,images:0,mounts:0};const buildScene=(...args)=>{counters.layout++;return realBuildScene(...args)};
+const page=path=>({path,name:path,file:{extension:'md'},aliases:[],tags:[],styleTags:[],neighbours:new Map()});
+const index={titleFor:p=>p.name,neighbourCount:()=>0,gateStats:()=>({}),neighbours:()=>[],visibleRelationshipsWithin:()=>[]};
+let layoutNeighborhood={center:page('Center.md'),parents:[],children:[{page:page('Child.md'),role:'child',relationType:1}],leftFriends:[],rightFriends:[],siblings:[]};
+let semanticRevision=0;
+const layoutSectionExpansion=null,expandedSectionIds=new Set(),layoutRevision=0,showCrossLinks=false,globalFiltering=false,centralEditorSize=undefined;
+const profileSurface='tab',compiledGraphLenses={lenses:[],errors:[],usesFrontmatter:false},centerMode={embedCentralNode:false,centralNodeMarkdownMode:'source'};
+const plugin={settings:{baseNodeStyle:{fontSize:18,textColor:'#abcdef'},centralNodeStyle:{fontSize:30},baseLinkStyle:{},noteTypeStyles:{},tagNodeStyles:{},tagStyleList:[],hierarchyLinkStyles:{},graphLenses:[],
+ compactingFactor:2,horizontalCompactingFactor:2,graphDepth:1,baseFontSize:12.4,compactView:false,maxItemCount:100,parentColumns:2,childColumns:5,parentMaxHeight:300,childMaxHeight:400,friendMaxHeight:350,siblingMaxHeight:250,siblingRelativeSize:50,minLinkLength:18,wrapNodeLabels:false},getViewSettings(){return {...this.settings}}};
+let sceneBefore,nodeBefore,inputBefore,cameraBefore;
+function NativeEditor(){useEffect(()=>{counters.mounts++},[]);return <input defaultValue='unsaved text'/>}
+function Scene({settings,paintSettings}){
+ ${uiDefinitions('src/ui/PlexGraph.tsx',['scenePolicyKey','sceneGeometryKey','sceneGeometry','scene'])}
+ window.lastColorScene=scene;
+ const visualPages=useMemo(()=>scene.nodes.map(node=>node.page),[scene.nodes]);useEffect(()=>{counters.images++},[visualPages]);
+ return <div className='camera' style={{transform:'translate(17px, 23px) scale(1.25)'}}>{scene.nodes.map(node=>{const paint=nodePaint(currentNodeColorStyle(node,paintSettings),nodePaintFallbacks(node));return <div key={node.page.path} data-path={node.page.path} style={{color:paint.foreground,left:node.x,top:node.y}}>{node.role==='center'?<NativeEditor/>:node.label}</div>})}</div>;
+}
+function App({paintRevision,renderRevision}){
+ ${uiDefinitions('src/ui/App.tsx',['baseViewSettings','basePaintSettings','viewSettings','paintSettings','paintLenses'])}
+ return <Scene settings={viewSettings} paintSettings={paintSettings}/>;
+}
+try{const container=document.createElement('div');document.body.append(container);const root=createRoot(container);flushSync(()=>root.render(<App paintRevision={0} renderRevision={0}/>));
+ const prior={...counters};nodeBefore=container.querySelector('[data-path="Center.md"]');inputBefore=container.querySelector('input');cameraBefore=container.querySelector('.camera');inputBefore.value='still typing';inputBefore.focus();inputBefore.setSelectionRange(2,5);
+ plugin.settings.baseNodeStyle={...plugin.settings.baseNodeStyle,textColor:'#12345680'};flushSync(()=>root.render(<App paintRevision={1} renderRevision={0}/>));
+ check(counters.layout===prior.layout,'Color edit rebuilt whole scene');check(counters.images===prior.images,'Color edit reacquired imagery');check(counters.mounts===prior.mounts,'Color edit remounted native editor');
+ check(container.querySelector('[data-path="Center.md"]')===nodeBefore&&container.querySelector('input')===inputBefore,'Color edit replaced DOM');check(inputBefore.value==='still typing'&&document.activeElement===inputBefore&&inputBefore.selectionStart===2,'Draft/focus/caret lost');check(container.querySelector('.camera')===cameraBefore&&cameraBefore.style.transform==='translate(17px, 23px) scale(1.25)','Camera reset');check(/^rgba\\(18, 52, 86, 0\\.50?2?\\)$/.test(getComputedStyle(nodeBefore).color),'Current winning source did not repaint');
+ for(let revision=1;revision<=3;revision++){
+  layoutNeighborhood={...layoutNeighborhood,center:{...layoutNeighborhood.center,mtime:revision},children:layoutNeighborhood.children.map(row=>({...row,page:{...row.page,mtime:revision}}))};
+  flushSync(()=>root.render(<App paintRevision={1} renderRevision={revision}/>));
+  check(counters.layout===prior.layout,'Equivalent source publication rebuilt geometry');check(window.lastColorScene.nodes.find(node=>node.role==='center').page.mtime===revision,'Geometry reuse retained an old page clock');
+ }
+ check(counters.mounts===prior.mounts&&container.querySelector('input')===inputBefore&&document.activeElement===inputBefore&&inputBefore.selectionStart===2,'Source publication lost editor DOM/focus/caret');
+ plugin.settings.baseNodeStyle={...plugin.settings.baseNodeStyle,fontSize:21};flushSync(()=>root.render(<App paintRevision={1} renderRevision={4}/>));check(counters.layout===prior.layout+1,'Geometry edit skipped layout');
+ layoutNeighborhood={...layoutNeighborhood,children:layoutNeighborhood.children.map(row=>({...row,page:{...row.page,name:'A genuinely changed label'}}))};flushSync(()=>root.render(<App paintRevision={1} renderRevision={5}/>));check(counters.layout===prior.layout+2,'Changed label skipped geometry');
+ semanticRevision++;flushSync(()=>root.render(<App paintRevision={1} renderRevision={6}/>));check(counters.layout===prior.layout+3,'Changed semantic crosslinks skipped geometry');
+ layoutNeighborhood={...layoutNeighborhood,children:[]};flushSync(()=>root.render(<App paintRevision={1} renderRevision={7}/>));check(counters.layout===prior.layout+4&&window.lastColorScene.nodes.length===1,'Changed filter membership skipped geometry');
+ flushSync(()=>root.unmount());result.dataset.status='passed';result.textContent='Color paint preserves layout and editor passed';
+}catch(error){result.dataset.status='failed';result.textContent=String(error.stack||error)}
+`;
+}
+test('color publication reuses actual scene layout, images, native editor, focus and camera',()=>runBrowserDom(colorPaintBrowserEntry(),'Color paint preserves layout and editor passed'));
+
+/** Mount the actual hover effect, edge projection/highlight memos and SVG renderer around finite host inputs. */
+function crosslinkPeekBrowserEntry(){
+ const source=ts.createSourceFile('PlexGraph.tsx',readFileSync('src/ui/PlexGraph.tsx','utf8'),ts.ScriptTarget.Latest,true,ts.ScriptKind.TSX),effects=[],edgeHighlights=[];
+ /** Keep production lifetime/visibility callbacks intact without constructing the native plugin shell. */
+ const visit=node=>{if(ts.isCallExpression(node)&&node.expression.getText(source)==='useEffect'&&
+   (node.arguments[0]?.getText(source).includes('const intent = new HoverHighlight<Exclude<HoverState, null>>')||node.arguments[0]?.getText(source).includes('!visibleNodePaths.has(crossLinkPeek.path)')))effects.push(node.getText(source)+';');
+   if(ts.isJsxAttribute(node)&&node.name.getText(source)==='highlighted'&&node.initializer?.expression?.getText(source).includes('edge.style.showLabel'))edgeHighlights.push(node.initializer.expression.getText(source));
+   ts.forEachChild(node,visit)};visit(source);assert.equal(effects.length,2);assert.equal(edgeHighlights.length,1);
+ const effectCode=ts.transpileModule(effects.join('\n'),{compilerOptions:{target:ts.ScriptTarget.ES2021}}).outputText;
+ return `
+import React,{useState,useMemo,useRef,useEffect} from 'react';import{flushSync}from'react-dom';import{createRoot}from'react-dom/client';
+import{HoverHighlight,bindHoverHighlight}from ${JSON.stringify(join(root,'src/ui/components/hoverHighlight.ts'))};
+import{LinkDirection}from ${JSON.stringify(join(root,'src/types.ts'))};
+import{buildScene as realBuildScene,sceneLayoutPolicyKey,neighborhoodSceneKey,bindSceneNeighborhood,appendVisibleCrossLinks,gateDiameter}from ${JSON.stringify(join(root,'src/ui/layout.ts'))};
+import{alphaHexToCss,resolveLinkStyle,DEFAULT_RENDERED_LINK_WIDTH,NATIVE_LINK_STROKE,NATIVE_LINK_TEXT,NATIVE_LINK_LABEL_FILL}from ${JSON.stringify(join(root,'src/index/style.ts'))};
+const result=document.querySelector('#result'),check=(value,message)=>{if(!value)throw Error(message)};
+const css=document.createElement('style');css.textContent=${JSON.stringify(readFileSync('styles.css','utf8'))};document.head.append(css);
+${uiDefinitions('src/ui/PlexGraph.tsx',['GATE_GAP','GENERIC_RELATION_LABELS','gateKey','gatesForEdge','gatePoint','gateVector','cubicPoint','edgeGeometry','relationLabel','markerFor','Edge'])}
+const page=path=>({path,name:path,file:{path,extension:'md'},aliases:[],tags:[],styleTags:[],neighbours:new Map()});
+const pages=new Map(['Center','A','B','C','D','E'].map(name=>[name,page(name)]));
+const pairs={A:[['B','child','ab'],['C','parent','ac'],['D','left','ad'],['E','right','ae']],B:[['A','parent','ab'],['C','left','unrelated']],C:[['A','child','ac'],['B','right','unrelated']],D:[['A','right','ad']],E:[['A','left','ae']]};
+const counters={layout:0,adjacency:0},buildScene=(...args)=>{counters.layout++;return realBuildScene(...args)};
+const index={titleFor:p=>p.name,neighbourCount:()=>0,gateStats:()=>({}),neighbours:()=>[],visibleRelationshipsWithin(source,targets){counters.adjacency++;return(pairs[source.path]??[]).filter(([path])=>targets.has(path)).map(([path,role,typeDefinition])=>({page:pages.get(path),role,typeDefinition,relationType:1,linkDirection:1}))}};
+const settings={baseNodeStyle:{fontSize:18},centralNodeStyle:{fontSize:30},baseLinkStyle:{},hierarchyLinkStyles:{ab:{showLabel:true,fontSize:12,strokeWidth:3}},noteTypeStyles:{},tagNodeStyles:{},tagStyleList:[],compactingFactor:2,horizontalCompactingFactor:2,graphDepth:1,baseFontSize:12.4,maxItemCount:100,parentColumns:2,childColumns:5,parentMaxHeight:300,childMaxHeight:400,friendMaxHeight:350,siblingMaxHeight:250,siblingRelativeSize:50,minLinkLength:18};
+const layoutNeighborhood={center:pages.get('Center'),parents:[],children:['A','B','C','D','E'].map(path=>({page:pages.get(path),role:'child',relationType:1})),leftFriends:[],rightFriends:[],siblings:[]};
+const layoutSectionExpansion=null,expandedSectionIds=new Set(),layoutRevision=0,globalFiltering=false,centralEditorSize=undefined,neighborhood=layoutNeighborhood,activePath='Center',hostLeaf={};let semanticRevision=0;
+const predicateEngine={},lenses={},paintLenses=lenses,paintSettings=settings,predicateRevision=0,graphLensEdgeStyle=()=>({}),connectDrag=null,nodeDrag=null,resizingArea=false,areaSettingsMode=false;
+const finding=true,findQuery='no search hit',matchesOntologyFind=()=>false;
+const listeners=new Set(),plugin={visible:true,subscribeKplexVisibility(fn){listeners.add(fn);return()=>listeners.delete(fn)},isKplexLeafVisible(){return this.visible}};
+let fixture;
+class PeekBoundary extends React.Component{state={error:null};static getDerivedStateFromError(error){return{error:String(error.stack||error)}}render(){return this.state.error?<pre data-peek-error>{this.state.error}</pre>:this.props.children}}
+function Graph(){
+ const viewport=useRef(null),hoverHighlight=useRef(null),[hover,setHover]=useState(null),[crossLinkPeek,setCrossLinkPeek]=useState(null),[required,setRequired]=useState(true),[showCrossLinks,setShown]=useState(false),[hidden,setHidden]=useState([]);
+ const viewSettings={hoverHighlightRequiresAlt:required},clearEdgeTooltip=()=>{};
+ ${uiDefinitions('src/ui/PlexGraph.tsx',['scenePolicyKey','sceneGeometryKey','sceneGeometry','scene','clearHoverIntent','scheduleHoverIntent'])}
+ const visibleNodePaths=useMemo(()=>new Set(scene.nodes.filter(node=>!hidden.includes(node.page.path)).map(node=>node.page.path)),[scene.nodes,hidden]);
+ const renderedNodeMap=useMemo(()=>new Map(scene.nodes.map(node=>[node.page.path,node])),[scene.nodes]);
+ ${uiDefinitions('src/ui/PlexGraph.tsx',['visibleEdges','paintedEdges','interaction'])}
+ ${effectCode}
+ fixture={enter(path,gate,alt=false){scheduleHoverIntent(gate?{kind:'gate',path,gate}:{kind:'node',path},{pointerType:'mouse',isTrusted:true,altKey:alt})},key:alt=>hoverHighlight.current.modifier(alt,true),leave:()=>clearHoverIntent(true),setRequired,setShown,setHidden,scene,interaction};
+ return <div ref={viewport} className='kplex-plex' style={{width:1000,height:800}}><input defaultValue='unsaved editor'/><svg width='1000' height='800'>{paintedEdges.map(edge=><Edge key={edge.id} edge={edge} nodes={renderedNodeMap} inverseArrowDirection={true} connectorStyle='bezier' labelBackground={NATIVE_LINK_LABEL_FILL} crossLinkOpacity={0} highlighted={${edgeHighlights[0]}} dimmed={false} passive={Boolean(crossLinkPeek&&!showCrossLinks&&edge.isCrossLink)} onHover={()=>{}} onMove={()=>{}} onLeave={()=>{}} onContextMenu={()=>{}}/>)}</svg>{scene.nodes.map(node=><div key={node.page.path} data-node={node.page.path}>{node.label}</div>)}</div>;
+}
+try{
+ const element=document.createElement('div');document.body.append(element);const root=createRoot(element);flushSync(()=>root.render(<PeekBoundary><Graph/></PeekBoundary>));const initial=counters.layout,nodes=[...element.querySelectorAll('[data-node]')],input=element.querySelector('input');check(input,element.querySelector('[data-peek-error]')?.textContent||'Mounted graph input absent');input.focus();input.setSelectionRange(2,2);
+ const ids=()=>[...element.querySelectorAll('.is-cross-link .kplex-edge-hit')].map(node=>node.dataset.kplexEdgeId).sort();
+ for(const required of[true,false]){
+  flushSync(()=>fixture.setRequired(required));flushSync(()=>fixture.enter('A',null));check(ids().length===0,'Unmodified hover revealed disabled crosslinks');flushSync(()=>fixture.key(true));check(ids().join('|')===['cross:A:B:child','cross:A:C:parent','cross:A:D:left','cross:A:E:right'].sort().join('|'),'Node peek set differs');
+  check(element.querySelectorAll('.is-cross-link.is-highlighted').length===4,'Peek connectors not highlighted');check([...element.querySelectorAll('.is-hover-peek .kplex-edge-hit')].every(node=>getComputedStyle(node).pointerEvents==='none'),'Peek steals pointer');
+  check([...element.querySelectorAll('.is-cross-link .kplex-edge-visible')].every(node=>getComputedStyle(node).opacity==='1'),'Zero ordinary crosslink opacity hid a highlighted peek');
+  const visits=counters.adjacency;flushSync(()=>fixture.key(true));check(counters.adjacency===visits,'Key repeat re-queried adjacency');flushSync(()=>fixture.key(false));check(ids().length===0,'Release retained temporary edges');
+  flushSync(()=>fixture.enter('A','top',true));check(ids().join('|')==='cross:A:C:parent','Gate peek included another gate');
+  flushSync(()=>fixture.setHidden(['C']));check(ids().length===0,'Peek revealed a filtered/clipped counterpart');flushSync(()=>fixture.setHidden(['A']));flushSync(()=>fixture.setHidden([]));check(ids().length===0,'Retired target resurrected without new entry');
+  flushSync(()=>fixture.enter('B','top',true));check(ids().join('|')==='cross:A:B:child','Target-side gate flipped canonical orientation');
+  flushSync(()=>{plugin.visible=false;for(const listener of listeners)listener()});check(ids().length===0,'Hidden view retained a peek');plugin.visible=true;flushSync(()=>fixture.leave());
+ }
+ check(counters.layout===initial,'Alt state rebuilt scene geometry');check(nodes.every(node=>node.isConnected),'Alt state replaced node DOM');check(element.querySelector('input')===input&&document.activeElement===input&&input.selectionStart===2,'Alt state changed editor focus/caret');
+ flushSync(()=>fixture.setShown(true));const normal=ids();check(normal.length===5,'Normal crosslink policy changed');flushSync(()=>fixture.enter('A',null,true));check(ids().join('|')===normal.join('|'),'Enabled crosslinks duplicated/changed');flushSync(()=>fixture.key(false));check(ids().join('|')===normal.join('|'),'Release hid normal crosslinks');
+ flushSync(()=>root.unmount());check(listeners.size===0,'Visibility listener leaked');element.remove();css.remove();result.dataset.status='passed';result.textContent='Transient crosslink paint passed';
+}catch(error){result.dataset.status='failed';result.textContent=String(error.stack||error)}
+`;
+}
+
+test('transient crosslink paint uses mounted projection/highlight/SVG owners without scene, focus or visibility changes',()=>runBrowserDom(crosslinkPeekBrowserEntry(),'Transient crosslink paint passed'));
