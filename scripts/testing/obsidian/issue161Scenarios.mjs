@@ -47,7 +47,7 @@ export async function issue161Scenarios({app,p,ex,host,c,check,wait,until,activa
  const snapshot=path=>{
   const graph=p.index.getNeighborhood(path);
   const relations=items=>items.map(item=>({path:item.page.path,relationType:item.relationType,typeDefinition:item.typeDefinition,file:item.page.file?.path}));
-  return{center:center(),pinned:p.linkedDocumentLeaf?.view.file?.path,
+  return{center:center(),pinned:p.documentSession(host)?.linkedDocumentLeaf?.view.file?.path,
    parents:graph?relations(graph.parents):[],children:graph?relations(graph.children):[],
    rendered:[...root().querySelectorAll('.kplex-thought')].map(element=>({path:element.dataset.kplexPath,role:[...element.classList].find(name=>name.startsWith('kplex-role-'))})),
    edges:[...root().querySelectorAll('.kplex-edge:not(.is-cross-link) .kplex-edge-visible')].map(element=>({dash:element.getAttribute('stroke-dasharray')})),
@@ -61,7 +61,7 @@ export async function issue161Scenarios({app,p,ex,host,c,check,wait,until,activa
  /** One graph action must synchronize the graph and pinned file without a second click/tab reveal. */
  const navigate=async(path,file=app.vault.getFileByPath(path))=>{
   await activate(host);await click(node(path));
-  await stable(()=>center()===path&&(!file||p.linkedDocumentLeaf?.view.file===file)
+  await stable(()=>center()===path&&(!file||p.documentSession(host)?.linkedDocumentLeaf?.view.file===file)
    &&!p.index.onDemandTasks.has(path)&&!p.index.semanticPreparationTasks.has(path),'One-click graph/pinned-file agreement failed');
   check(center()!=='folder:/','Physical navigation fell back to the folder root');
   if(file)check(p.index.get(path)?.file===file,'Centered endpoint lost its exact native identity');
@@ -82,15 +82,15 @@ export async function issue161Scenarios({app,p,ex,host,c,check,wait,until,activa
   c.note=app.workspace.getLeaf('tab');c.leaves.push(c.note);await c.note.openFile(start,{active:true});await activate(c.note);
   const [rectangle,text]=await edit(c.note,ea=>[ea.addRect(0,0,150,60),ea.addText(0,100,'Child:: [['+childName+']]')]);
   await until(()=>app.metadataCache.getFileCache(start)?.links?.some(link=>link.link===childName),'Saved Child text missing from native metadata');
-  p.lastDocumentLeaf=c.note;await p.setDocumentSyncMode('pinned');
-  check(p.linkedDocumentLeaf===c.note,'Fixed native document pin not established');
+  p.documentSession(host).lastDocumentLeaf=c.note;await p.setDocumentSyncMode(host,'pinned');
+  check(p.documentSession(host).linkedDocumentLeaf===c.note,'Fixed native document pin not established');
   await choose(start);
   await until(()=>p.index.getNeighborhood(start.path)?.children.some(item=>item.page.name===childName),'Native ghost child missing');
   const ghost=p.index.getNeighborhood(start.path).children.find(item=>item.page.name===childName).page.path;
   await until(()=>explicit(start.path,'children',ghost,'child'),'Stationary drawing Child relation did not become explicit');
   check(node(ghost)?.classList.contains('kplex-role-child'),'Explicit child rendered in wrong area');
   record('issue-161/'+variant+'/before-creation',snapshot(start.path));
-  if(prior){await navigate(ghost,null);check(p.linkedDocumentLeaf.view.file===start,'Ghost navigation replaced the pinned real file');await navigate(start.path,start);}
+  if(prior){await navigate(ghost,null);check(p.documentSession(host).linkedDocumentLeaf.view.file===start,'Ghost navigation replaced the pinned real file');await navigate(start.path,start);}
   await activate(c.note);
   // The installed companion supplies its configured new-tab action and actual Create EX modal.
   await c.note.view.linkClick(null,{id:text,text:'Child:: [['+childName+']]'},null,null);
@@ -105,7 +105,7 @@ export async function issue161Scenarios({app,p,ex,host,c,check,wait,until,activa
   await edit(childLeaf,ea=>[ea.addRect(20,20,120,50)]);
   await activate(host);
   await until(()=>node(child.path)?.classList.contains('kplex-role-child'),'Materialized child not rendered');
-  check(center()===start.path&&p.linkedDocumentLeaf===c.note&&c.note.view.file===start,'External new tab changed the genuinely pinned target');
+  check(center()===start.path&&p.documentSession(host).linkedDocumentLeaf===c.note&&c.note.view.file===start,'External new tab changed the genuinely pinned target');
   record('issue-161/'+variant+'/pinned-target-control',snapshot(start.path));
   check(p.index.get(child.path)?.file===child,'Displayed native endpoint is absent from exact lookup');
   check([...root().querySelectorAll('.kplex-thought')].filter(element=>element.dataset.kplexPath===ghost||element.dataset.kplexPath===child.path).length===1,'Old ghost and native child are duplicated');
@@ -127,8 +127,8 @@ export async function issue161Scenarios({app,p,ex,host,c,check,wait,until,activa
    record('issue-161/'+variant+'/cycle-'+cycle+'/child',childState);
   }
   // Re-run the reporter's tab reveal sequence as a control, after first-click success is established.
-  await activate(p.linkedDocumentLeaf);await activate(host);
-  check(center()===child.path&&p.linkedDocumentLeaf.view.file===child,'Tab-switch control changed the settled native identity');
+  await activate(p.documentSession(host).linkedDocumentLeaf);await activate(host);
+  check(center()===child.path&&p.documentSession(host).linkedDocumentLeaf.view.file===child,'Tab-switch control changed the settled native identity');
   record('issue-161/'+variant+'/tab-switch-control',snapshot(child.path));
   await navigate(start.path,start);await activate(c.note);
   await until(()=>c.note.view.file===start&&c.note.view.excalidrawAPI?.getSceneElements().some(element=>element.id===rectangle),'Original starting scene not remounted');
@@ -145,7 +145,7 @@ export async function issue161Scenarios({app,p,ex,host,c,check,wait,until,activa
   check(state.edges.length===2&&state.edges.every(edge=>!edge.dash),'Explicit fixture relations are not both solid');
   record('issue-161/'+variant+'/parent-edit',state);
   // Following disabled must retain the current graph when its owned native document changes.
-  await p.setDocumentSyncMode('off');await c.note.openFile(child,{active:true});await activate(c.note);await activate(host);await stable(()=>center()===start.path,'Disabled document follow changed graph center');
+  await documentSessions(p).off();await c.note.openFile(child,{active:true});await activate(c.note);await activate(host);await stable(()=>center()===start.path,'Disabled document follow changed graph center');
   record('issue-161/'+variant+'/disabled-follow',snapshot(start.path));
   emit('issue-161-complete',{variant,cycles:4});
  }

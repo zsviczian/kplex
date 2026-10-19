@@ -165,7 +165,7 @@ function installProbe(extendedCases, routingCases, lifecycleCases) {
   c.cleanup = async () => {
     c.cancelled = true; await c.task; releaseWrappers(); window.removeEventListener("error", c.onError);
     for (const owner of [...p.collapsedPlexHosts.keys()]) p.restorePlexFoldBeforeReveal(owner);
-    p.sidecarLeaves.clear(); p.linkedDocumentLeaf = null; Object.assign(p.settings, structuredClone(c.settings));
+    p.sidecarLeaves.clear();  Object.assign(p.settings, structuredClone(c.settings));
     await workspace.setLayout(c.layout); await p.saveSettings(false, false); p.actionPublisher.sync(p.settings.actionPreferences);
     for (const file of c.createdFiles.reverse()) if (app.vault.getFileByPath(file.path) === file) await app.vault.delete(file, true);
     if (c.createdFolder) { const folder = app.vault.getFolderByPath(c.createdFolder); check(!folder || folder.children.length === 0, "Fixture cleanup encountered unowned content"); if (folder) await app.vault.delete(folder, true); }
@@ -184,7 +184,7 @@ function installProbe(extendedCases, routingCases, lifecycleCases) {
     await host.view.waitUntilReady(); check(surface(host), "Current action surface required");
     check(p.sidecarLeaves.size === 0 && p.collapsedPlexHosts.size === 0, "Start without managed companions/folds");
     const page = p.index.get(p.settings.lastActivePath); check(page?.file, "An existing physical center is required");
-    p.settings.sidecarPosition = "right"; await p.openSidecar(host, page); companion = p.sidecarLeaves.get(host); check(companion, "Normal Sidecar did not open");
+    await p.moveSidecar(host,"right",page); await p.openSidecar(host, page); companion = p.sidecarLeaves.get(host); check(companion, "Normal Sidecar did not open");
     sibling = workspace.createLeafInParent(companion.parent, companion.parent.children.length); c.createdLeaves.push(sibling);
     await sibling.setViewState({ type: "empty", active: false });
     const desired = structuredClone(p.settings.actionPreferences); desired.publishedCommands["view.sidecar.collapse-plex"] = true; await p.updateActionPreferences(desired);
@@ -226,7 +226,7 @@ function installProbe(extendedCases, routingCases, lifecycleCases) {
       for (const mode of ["off", "recent"]) {
         if (!p.sidecarLeaves.has(host)) { workspace.setActiveLeaf(host, { focus: true }); await p.attachAdjacentSidecar(host, "to-plex"); }
         check(p.sidecarLeaves.get(host) === companion, "Explicit reattachment did not recover original managed file");
-        await command(true); await p.setDocumentSyncMode(mode); await frames();
+        await command(true); await p.setDocumentSyncMode(host,mode); await frames();
         check(!folded() && !p.sidecarLeaves.has(host) && p.leafIsAttached(companion) && p.leafIsAttached(sibling), `${mode} left a fold or closed content`);
         workspace.setActiveLeaf(companion, { focus: true }); await frames();
       }

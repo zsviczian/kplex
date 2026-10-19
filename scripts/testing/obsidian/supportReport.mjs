@@ -6,6 +6,7 @@
  * Owns reversible synchronous side-effect guards, temporary surfaces, window geometry and settings.
  * Desktop narrow layout/pop-outs are not physical Android/iOS clipboard permission acceptance.
  */
+import {withNativeDocumentSessions} from "./nativeDocumentSessions.mjs";
 import assert from "node:assert/strict";
 import { obsidianCliExecutable } from "./processTools.mjs";
 import { spawnNativeSync as spawnSync } from "./processTools.mjs";
@@ -40,7 +41,7 @@ function cli(command, ...args) {
   return result.stdout.trim();
 }
 /** Validate injected syntax and require the native expression's explicit serializable JSON receipt. */
-function evaluate(code) { new Script(code); return JSON.parse(cli("eval", `code=${code}`).replace(/^=>\s*/, "")); }
+function evaluate(code) {code=withNativeDocumentSessions(code); new Script(code); return JSON.parse(cli("eval", `code=${code}`).replace(/^=>\s*/, "")); }
 /** Yield between finite native observations without blocking the renderer or changing product timers. */
 const delay = ms => new Promise(/** Resume the serial driver after its bounded observation interval. */ resolve => setTimeout(resolve, ms));
 
@@ -55,7 +56,7 @@ function probe() {
   if (app.setting.isOpen || document.querySelector(".modal-container")) throw Error("Existing native modal/settings");
   const c = window.__kplexSupportReport = { p, win, mainClipboard: window.navigator.clipboard, originalSettings: JSON.parse(JSON.stringify(p.settings)), originalLayout: app.workspace.getLayout(), originalBounds: win.getBounds(), originalMinimum: win.getMinimumSize(), originalSidebarStates: { left: app.workspace.leftSplit.collapsed, right: app.workspace.rightSplit.collapsed },
     originalWindowIds: new Set(remote.BrowserWindow.getAllWindows().map(/** Retain only opaque ids to distinguish test-created windows without reading unrelated titles into evidence. */ item => item.id)),
-    owners: { linkedDocumentLeaf: p.linkedDocumentLeaf, lastDocumentLeaf: p.lastDocumentLeaf, recentLeafHistory: [...p.recentLeafHistory], sidecarLeaves: new Map(p.sidecarLeaves) },
+    owners: { documents:documentSessions(p).capture(), lastDocumentLeaf: p.lastDocumentLeaf, recentLeafHistory: [...p.recentLeafHistory], sidecarLeaves: new Map(p.sidecarLeaves) },
     leaves: [], wrappers: [], writes: [], attempts: [], cases: [], closeChecks: [], docs: new Set(), clipUndo: null, realClipboardModified: false, realClipboardWrites: 0, phase: "setup", done: false, cancelled: false, lastTrusted: false, ownedModal: null };
   /** Refuse native scenario effects once cleanup has cancelled the owned task. */
   const ensureActive = () => { if (c.cancelled) throw Error("Native support task cancelled"); };
@@ -426,7 +427,7 @@ function probe() {
     }
   };
   c.task = (async () => {
-    win.show(); win.focus(); win.webContents.focus(); await p.setDocumentSyncMode("off"); ensureActive(); p.settings.embedCentralNode = false; p.index.notifyPresentation();
+    win.show(); win.focus(); win.webContents.focus(); await documentSessions(p).off(); ensureActive(); p.settings.embedCentralNode = false; p.index.notifyPresentation();
     app.workspace.leftSplit.collapse(); app.workspace.rightSplit.collapse();
     c.main = app.workspace.getLeaf("tab"); c.leaves.push(c.main); await c.main.setViewState({ type: "k-plex-react-view", active: true }); await until(/** Observe native mounted readiness with a finite, cancellable driver deadline. */ () => surfaceId(c.main), "Main native surface did not become ready");
     let current = await toolbar(c.main, win, "tab"); await close(current.owner, win);
@@ -597,9 +598,9 @@ finally {
         await attempt('native-leaf-associations',/** Restore native linked/sidecar associations after layout replaces leaf instances. */ ()=>{
           /** Native layout restoration can replace objects; use the original serialized leaf id. */
           const rebind=old=>old?app.workspace.getLeavesOfType(old.getViewState().type).find(/** Identify the serialized original native leaf rather than selecting an arbitrary same-type surface. */ leaf=>leaf.id===old.id)??null:null;
-          c.p.linkedDocumentLeaf=rebind(c.owners.linkedDocumentLeaf);c.p.lastDocumentLeaf=rebind(c.owners.lastDocumentLeaf);
+          await documentSessions(c.p).restore(c.owners.documents);c.p.lastDocumentLeaf=rebind(c.owners.lastDocumentLeaf);
           c.p.recentLeafHistory=c.owners.recentLeafHistory.map(rebind).filter(Boolean);c.p.sidecarLeaves.clear();
-          for(const [oldHost,oldLeaf]of c.owners.sidecarLeaves){const host=rebind(oldHost),leaf=rebind(oldLeaf);if(host&&leaf)c.p.sidecarLeaves.set(host,leaf);}
+          for(const [oldHost,oldLeaf]of c.owners.sidecarLeaves){const host=rebind(oldHost),leaf=rebind(oldLeaf);if(host&&leaf)c.p.setSidecarOwner(host,leaf);}
         });
         await attempt('native-layout-settlement',/** Let test-triggered native workspace saves settle before exact outer configuration-byte restoration. */ async()=>{await new Promise(/** This finite cleanup timer is observed to completion and never becomes product scheduling. */ resolve=>window.setTimeout(resolve,500));});
         return{errors,steps,originalClipboardRestored:!c.realClipboardModified&&!c.originalClipboard,reportDialogsRemaining:[...c.p.actionDialogs].filter(/** Count only this feature's native dialogs without exposing unrelated dialog contents. */ ([dialog])=>dialog.modalEl?.classList.contains('kplex-support-report-modal')).length,settingsRestored:JSON.stringify(c.p.settings)===JSON.stringify(c.originalSettings),debuggerReleased:true,debuggerUse:"none"};

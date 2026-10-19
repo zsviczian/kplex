@@ -961,6 +961,24 @@ After exact-build staging, run `npm run verify:obsidian:wander` with the three e
 
 `tests/wander.test.mjs` covers route backtracking/exhaustion, bounded weighted recency, stale preflight rejection, single-callback generation fencing, cycle pacing/readiness, actual occurrence geometry, selection ownership and real Chromium controls/motion. The controls use `LayoutSlider` and shared Plex button CSS, with computed-style parity checked against real graph zoom buttons. Native keyframe/geometry assertions do not establish perceived paint, physical touch or every device lifecycle; validate those separately.
 
+## Independent document sessions and Footprints
+
+After `npm run verify:obsidian` stages the exact build, run
+`npm run verify:obsidian:plex-sessions` with the three explicit disposable
+`kplex-test-small` vault variables and a fresh `KPLEX_HOST_REPORT_DIR`.
+The lane checks two native pairings, same-file leaf identity, held opens,
+Excalidraw shown as Markdown, repeated visits, reset, bounded rows, source-work
+counts, rename/recreation, native duplication, popout migration and actual
+renderer restart. It restores configuration/workspace and removes only its
+owned fixture subtree. Run it serially with other native/browser drivers.
+Private output includes configuration backups and must not be published.
+
+Existing native drivers use `nativeDocumentSessions.mjs` to capture scalar
+native state and disable/restore each actual owner explicitly. Changing global
+sync defaults alone does not change live views. The lexical test wrapper adds
+no production global or settings writer. macOS and physical-device interaction
+remain separate acceptance; work counts are not comparative resource timings.
+
 ## Shared control hints and canvas menu acceptance
 
 After exact-build staging, run `npm run verify:obsidian:tooltips` with the three explicit disposable

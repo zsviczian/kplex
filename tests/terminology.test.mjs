@@ -90,7 +90,7 @@ const actionRuntimeSource = buildSync({ stdin: {
 function registerPluginCommands(plugin, device) {
   // The native command boundary resolves public active view classes even for ownerless commands.
   // Represent that API explicitly; a missing host method is not a legitimate unavailable action.
-  class KplexView {} class KplexSidepanelView {}
+  class KplexView {} class KplexSidepanelView {} class FileView {}
   const ownerWindow = {};
   plugin.app.workspace.getActiveViewOfType ??= () => null;
   const filename = join(root, "src/main.ts");
@@ -110,10 +110,11 @@ function registerPluginCommands(plugin, device) {
   const api = module.exports;
   plugin.settings = {lastActivePath: "", actionPreferences: api.migrateActionPreferences({}).preferences};
   plugin.actionSurfaceHosts = new Map(); plugin.actionEditors = new Map(); plugin.actionDialogs = new Map(); plugin.actionInvocationSequence = 0;
+  plugin.sidecarLeaves=new Map();
   plugin.actionWindowId = () => "main";
   plugin.index = {get: () => null};
   runInNewContext(`${result.outputText}\ninitializeActions.call(plugin);`, {
-    ...api, plugin, KplexView, KplexSidepanelView, window: {activeWindow: ownerWindow},
+    ...api, plugin, KplexView, KplexSidepanelView, FileView, window: {activeWindow: ownerWindow},
     translateActionText: (_translate, key) => key,
     readObsidianPresentationEnvironment: () => ({device, hostActions: {graphTab: device !== "phone", popout: device === "desktop", sidepanel: true}}),
     Notice: class { constructor(message) { throw new Error(`Unexpected notice: ${message}`); } },
@@ -264,6 +265,8 @@ test("commands are registered once with canonical IDs and unchanged availability
     assert.equal(byId("kplex-rebuild-index").checkCallback(false), true);
     assert.deepEqual(activations.splice(0), [["rebuild", true]]);
     const focus = byId("kplex-focus-active-note");
+    const focusHost={view:{}};plugin.actionHostLeaf=id=>id==="focus-plex"?focusHost:null;
+    plugin.actionManager.registerSurface({id:"focus-plex",generation:1,readSnapshot:()=>({mounted:true,visible:true,windowId:"main",center:null,selected:null,focusRegion:"graph",commandFocusRegion:"graph",interactionRevision:0})});
     assert.equal(focus.checkCallback(true), false);
     assert.equal(focus.checkCallback(false), false);
     assert.deepEqual(activations, []);

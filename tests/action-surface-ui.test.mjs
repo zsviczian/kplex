@@ -202,7 +202,7 @@ function productionToolbarMenus() {
   const helperImport = variables.has("showToolbarMenu") ? "import { toolbarMenuAnchor } from './src/ui/menuAnchor';" : "";
   return ts.transpileModule(`${helperImport}
     export function createToolbarMenuFixture({plugin,rootRef,syncMenuButtonRef,sidecarMoveButtonRef,hostLeaf,actions,page}){
-      const translate=key=>key, syncMode='off',syncTargetAvailable=false,syncTitle='Off',syncIcon='link',sidecarPosition='right',surface='tab';
+      const translate=key=>key, syncMode='off',syncTargetAvailable=false,syncTitle='Off',syncIcon='link',sidecarPosition='right',sidecarEdgePosition='right',surface='tab';
       const ObsidianIcon=()=>null,forceRender=()=>{},activate=()=>{},setDocumentSyncMode=mode=>plugin.effects.push(mode);
       const runAction=id=>actions.dispatch({id,source:'toolbar',surfaceId:actions.surfaceId});
       ${[...variables].map(([name,value])=>`const ${name}=${value};`).join('\n')}
@@ -604,7 +604,7 @@ test("graph typing matches exact displayed label phrases across areas and wraps 
       const compactFeedback=statusRect.right<=viewportRect.right&&statusRect.height<48&&querySpan.scrollWidth>querySpan.clientWidth&&getComputedStyle(querySpan).textOverflow==='ellipsis'&&countSpan.getBoundingClientRect().right<=statusRect.right&&getComputedStyle(status).pointerEvents==='none';
       const layoutControl=document.createElement('div');layoutControl.className='kplex-layout-controls';const layoutButton=document.createElement('button');layoutButton.className='kplex-layout-toggle';layoutButton.textContent='Layout';layoutControl.append(layoutButton);mount.querySelector('.type-viewport').append(layoutControl);const controlRect=layoutControl.getBoundingClientRect();
       const controlsClear=statusRect.right<=controlRect.left||statusRect.left>=controlRect.right||statusRect.bottom<=controlRect.top||statusRect.top>=controlRect.bottom;
-      const find=document.createElement('div');find.className='kplex-find';const findButton=document.createElement('button');findButton.textContent='Find';find.append(findButton);mount.querySelector('.type-viewport').append(find);const findRect=find.getBoundingClientRect();const symmetricCorners=Math.abs(statusRect.top-findRect.top)<1&&Math.abs(statusRect.left-viewportRect.left-(viewportRect.right-findRect.right))<1&&statusRect.right<=findRect.left;
+      const tools=document.createElement('div');tools.className='kplex-scene-tools';const find=document.createElement('div');find.className='kplex-find';const findButton=document.createElement('button');findButton.textContent='Find';find.append(findButton);tools.append(find);mount.querySelector('.type-viewport').append(tools);const findRect=tools.getBoundingClientRect();const symmetricCorners=Math.abs(statusRect.top-findRect.top)<1&&Math.abs(statusRect.left-viewportRect.left-(viewportRect.right-findRect.right))<1&&statusRect.right<=findRect.left;
       flushSync(()=>root.unmount());mount.remove();style.remove();return{exact,afterExcludedOrigin,acrossAreas,next,wrap,reverseWrap,noMatch,backspace,shiftBackspace,receipt,escape,noLeadingSpace,unicodeEdit,rejected,altGraphSafe,inactive,notResurrected,centerRetired,filtered,noHiding,compactFeedback,controlsClear,symmetricCorners,revealUsed:revealed.includes('first')&&revealed.includes('last')&&revealed.includes('expanded')};
     })()`);
     assert.deepEqual(result, Object.fromEntries(Object.keys(result).map(key => [key, true])));

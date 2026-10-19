@@ -11,11 +11,13 @@ import { readObsidianPresentationEnvironment } from "../adapters/obsidian/presen
 import { KplexApp } from "./App";
 import { KplexDisplayModes, registerDisplayModeUnload } from "./KplexDisplayModes";
 import { KplexCenterPresentation } from "./KplexCenterPresentation";
+import { KplexDocumentSession, nativeLeafId } from "./KplexDocumentSession";
 
 export const KPLEX_VIEW_TYPE = "k-plex-react-view";
 export const KPLEX_SIDEPANEL_VIEW_TYPE = "k-plex-sidepanel-view";
 
 abstract class BaseKplexView extends ItemView {
+  readonly documentSession: KplexDocumentSession;
   private readonly centerPresentation: KplexCenterPresentation;
   private root: Root | null = null;
   private windowMigrationCleanup: (() => void) | null = null;
@@ -29,16 +31,19 @@ abstract class BaseKplexView extends ItemView {
   constructor(leaf: WorkspaceLeaf, protected plugin: KplexPlugin) {
     super(leaf);
     this.scope = new Scope(this.app.scope);
+    this.documentSession = new KplexDocumentSession(plugin.settings, nativeLeafId(this.app.workspace, leaf), () => this.app.workspace.requestSaveLayout());
     this.centerPresentation = new KplexCenterPresentation(this.plugin.settings, () => {this.app.workspace.requestSaveLayout();});
   }
 
   /** Each native leaf serializes its representation independently of other Plex views. */
-  getState(): Record<string, unknown> {return {...super.getState(), centerPresentation: {...this.centerPresentation.getSnapshot()}};}
+  getState(): Record<string, unknown> {return {...super.getState(), centerPresentation: {...this.centerPresentation.getSnapshot()}, plexSession: this.documentSession.getState()};}
 
   /** Restore native workspace state without writing plugin settings or replacing the React root. */
   async setState(state: unknown, result: ViewStateResult): Promise<void> {
     if (state && typeof state === "object" && "centerPresentation" in state) this.centerPresentation.restore(state.centerPresentation);
+    this.documentSession.restore(state && typeof state === "object" && "plexSession" in state ? state.plexSession : undefined);
     await super.setState(state, result);
+    this.plugin.onKplexViewStateRestored(this.leaf, this.documentSession);
   }
 
   /** Return the localized native-view title without changing the view registration ID. */
@@ -82,6 +87,7 @@ abstract class BaseKplexView extends ItemView {
       environment={readObsidianPresentationEnvironment(this.contentEl.ownerDocument.defaultView ?? undefined)}
       displayModes={this.displayModes!}
       centerPresentation={this.centerPresentation}
+      documentSession={this.documentSession}
       onReady={/** Readiness belongs to the current mounted action/focus adapter, including migration. */ () => {
         if (generation === this.renderGeneration && this.root) this.markReady();
       }}
@@ -119,12 +125,12 @@ abstract class BaseKplexView extends ItemView {
     // awaiting the build here makes the sidepanel appear not to open at all and can keep
     // setViewState() pending long enough for the WebView to look hung. Render the indexing state
     // immediately, then let the index publish asynchronously into the mounted React view.
-    void this.plugin.onKplexViewOpened(this.leaf).catch((error) => console.error("K-Plex view initialization failed", error));
+    void this.plugin.onKplexViewOpened(this.leaf, this.documentSession).catch((error) => console.error("K-Plex view initialization failed", error));
   }
 
   /** Release window hooks, React resources and pending waiters before native view teardown. */
   async onClose(): Promise<void> {
-    this.plugin.restorePlexFoldBeforeReveal(this.leaf);
+    if (this.leaf.view === this) this.plugin.restorePlexFoldBeforeReveal(this.leaf);
     this.displayModes?.dispose(); this.displayModes = null;
     this.releaseDisplayLifecycle?.(); this.releaseDisplayLifecycle = null;
     this.windowMigrationCleanup?.();
@@ -134,7 +140,8 @@ abstract class BaseKplexView extends ItemView {
     this.root = null;
     this.ready = false;
     for (const resolve of this.readyResolvers.splice(0)) resolve();
-    this.plugin.onKplexViewClosed(this.leaf);
+    this.plugin.onKplexViewClosed(this.leaf, this.documentSession);
+    this.documentSession.dispose();
     await super.onClose();
   }
 }

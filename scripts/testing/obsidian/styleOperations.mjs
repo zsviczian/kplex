@@ -5,6 +5,7 @@
  * cleanup restores configuration bytes independently of assertions. DOM activation is programmatic,
  * not physical touch or perceived-latency evidence. No production diagnostics are installed.
  */
+import {withNativeDocumentSessions} from "./nativeDocumentSessions.mjs";
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import {
@@ -58,7 +59,7 @@ function cli(command, ...args) {
   return result.stdout.trim();
 }
 /** Decode finite observations without retaining native objects across IPC or reloads. */
-function evaluate(code) {
+function evaluate(code) {code=withNativeDocumentSessions(code);
   return JSON.parse(cli("eval", "code=" + code).replace(/^=>\s*/, ""));
 }
 /** Poll outside the renderer, leaving its ordinary tasks and native cleanup free to progress. */
@@ -111,7 +112,7 @@ function start(referenceOnly = false, referenceProperties = false, sidecarGateOn
     policy: p.savedSettingsPolicy,
     layout: app.workspace.getLayout(),
     owners: {
-      linked: p.linkedDocumentLeaf,
+      documents:documentSessions(p).capture(),
       last: p.lastDocumentLeaf,
       recent: [...p.recentLeafHistory],
       sidecars: new Map(p.sidecarLeaves),
@@ -487,7 +488,7 @@ function start(referenceOnly = false, referenceProperties = false, sidecarGateOn
     current.settings = c.settings;
     current.savedSettingsPolicy = c.policy;
     if (current === p) {
-      p.linkedDocumentLeaf = c.owners.linked;
+      await documentSessions(p).restore(c.owners.documents);
       p.lastDocumentLeaf = c.owners.last;
       p.recentLeafHistory = c.owners.recent;
       p.sidecarLeaves = c.owners.sidecars;

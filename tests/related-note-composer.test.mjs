@@ -382,7 +382,7 @@ test("explicit folder choice opens the reused picker with the calculated placeho
   const create = production("createGhostNote", { MaterializeGhostModal: class {
     constructor(...args) { this.args = args; } open() { opened.push(this.args); }
   } }, "src/main.ts");
-  const context = { app: {}, settings: {}, validateRelatedNoteName: () => ({ stem: "Next", valid: true, existing: null }),
+  const context = { app: {}, settings: {}, documentSession:()=>null, validateRelatedNoteName: () => ({ stem: "Next", valid: true, existing: null }),
     ghostCreationLocations: () => [{ folderPath: "Projects", label: "Projects" }], isExcalidrawAvailable: () => false,
     materializeGhostPage: async (...args) => materialized.push(args) };
   await create.call(context, ghost, false);
@@ -403,19 +403,21 @@ test("explicit folder choice opens the reused picker with the calculated placeho
 /** In-place creation promotes the endpoint without opening a document that could move a synchronized center. */
 test("in-place materialization preserves the center while retaining ordinary document opening", async () => {
   const materialize = production("materializeGhostPage", {}, "src/main.ts");
-  for (const wasCenter of [false, true]) for (const preserveCenter of [false, true]) {
+  for (const wasCenter of [false, true]) for (const preserveCenter of [false, true]) for (const scoped of [false,true]) {
     const file = {path: "Next.md", parent: {path: "/"}}, opened = [], promoted = [], navigated = [];
+    const host=scoped?{view:{}}:undefined;
     const context = { settings: {lastActivePath: wasCenter ? "Next" : "Origin.md"}, unloading: false,
       app: {vault: {getFileByPath: () => file}}, translator: key => key,
       validateNoteFolderPath: () => ({folderPath: "", error: null}),
       createNewFileInFolder: async () => file, writeCreatedNodeDisplayName: async () => {}, rememberNewNodeDefaultType: async () => {},
       index: {materializeFile: (...args) => {promoted.push(args); return true;}},
       remapNavigationPaths: () => {if (wasCenter) context.settings.lastActivePath = file.path; return wasCenter;},
-      saveSettings: async () => {}, notifyNavigation: path => navigated.push(path), openInDocumentLeaf: async value => opened.push(value),
+      documentSession:()=>({centerPath:wasCenter?"Next":"Origin.md"}),
+      saveSettings: async () => {}, notifyNavigation: (path,owner) => navigated.push({path,owner}), openInDocumentLeaf: async value => opened.push(value),
     };
-    assert.equal(await materialize.call(context, {path: "Next", name: "Next"}, "Next", "markdown", "", "Next", undefined, {}, () => true, preserveCenter), true);
+    assert.equal(await materialize.call(context, {path: "Next", name: "Next"}, "Next", "markdown", "", "Next", undefined, {}, () => true, preserveCenter,host), true);
     assert.deepEqual(promoted, [["Next", file]]); assert.deepEqual(opened, preserveCenter ? [] : [file]);
-    assert.deepEqual(navigated, !preserveCenter && wasCenter ? [file.path] : [], "A different Plex's saved center cannot broadcast during in-place creation");
+    assert.deepEqual(navigated, scoped && !preserveCenter && wasCenter ? [{path:file.path,owner:host}] : [], "Materialization never broadcasts another Plex's saved center");
     assert.equal(context.settings.lastActivePath, wasCenter ? file.path : "Origin.md");
   }
 });

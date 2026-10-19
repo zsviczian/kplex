@@ -5,6 +5,7 @@
  * restoration. Requires the explicit disposable small vault, an unlocked foreground desktop and
  * exactly matching built/installed artifacts; Electron input does not prove physical-device use.
  */
+import {withNativeDocumentSessions} from "./nativeDocumentSessions.mjs";
 import { spawnNativeSync as spawnSync, obsidianCliExecutable } from "./processTools.mjs";
 import assert from 'node:assert/strict';
 import {issue161Scenarios} from './issue161Scenarios.mjs';
@@ -33,7 +34,7 @@ const report={startedAt:new Date().toISOString(),base:sourceHead.stdout.trim(),d
 /** Invoke one bounded CLI operation and retain exact failure text. */
 function cli(command,...args){const r=spawnSync(obsidianCliExecutable(),[`vault=${vaultName}`,command,...args],{cwd:root,encoding:'utf8',timeout:30000,killSignal:'SIGKILL',maxBuffer:8*1024*1024});if(r.error||r.status!==0||/^Error:/m.test(r.stdout))throw r.error??Error(r.stderr||r.stdout);return r.stdout.trim();}
 /** Read the serializable result of a native owning-window operation. */
-function evaluate(code){return JSON.parse(cli('eval',`code=${code}`).replace(/^=>\s*/,''));}
+function evaluate(code){code=withNativeDocumentSessions(code);return JSON.parse(cli('eval',`code=${code}`).replace(/^=>\s*/,''));}
 /** Yield between bounded native controller reads without blocking the renderer. */
 const delay=ms=>new Promise(resolve=>setTimeout(resolve,ms));
 
@@ -50,7 +51,7 @@ function probe(scenario,issue161Scenarios){
  remote.app.show?.();remote.app.focus({steal:true});win.show();win.moveTop();win.focus();wc.focus();
  const host=app.workspace.getLeavesOfType('k-plex-react-view').find(leaf=>leaf.view.containerEl.isShown());
  if(!p||!host||!ex?.createDrawing||!ex.ea?.toggleViewMode||!app.hotkeyManager?.setHotkeys)throw Error('Native prerequisites unavailable');
- const c=window.__kplexInteractionFinal={p,ex,host,folder:`Kplex-Interaction-Final-${Date.now()}`,originalSettings:JSON.parse(JSON.stringify(p.settings)),originalExModes:{...ex.excalidrawFileModes},layout:app.workspace.getLayout(),originalLeaf:app.workspace.activeLeaf,owners:{linkedDocumentLeaf:p.linkedDocumentLeaf,lastDocumentLeaf:p.lastDocumentLeaf,recentLeafHistory:[...p.recentLeafHistory],sidecarLeaves:new Map(p.sidecarLeaves)},leaves:[],wrappers:[],events:[],cases:[],done:false};
+ const c=window.__kplexInteractionFinal={p,ex,host,folder:`Kplex-Interaction-Final-${Date.now()}`,originalSettings:JSON.parse(JSON.stringify(p.settings)),originalExModes:{...ex.excalidrawFileModes},layout:app.workspace.getLayout(),originalLeaf:app.workspace.activeLeaf,owners:{documents:documentSessions(p).capture(),lastDocumentLeaf:p.lastDocumentLeaf,recentLeafHistory:[...p.recentLeafHistory],sidecarLeaves:new Map(p.sidecarLeaves)},leaves:[],wrappers:[],events:[],cases:[],done:false};
  /** Let native events settle without imposing product timing behavior. */
  const wait=ms=>new Promise(resolve=>window.setTimeout(resolve,ms));
  /** Fail with the captured native scenario evidence retained in the controller. */
@@ -128,11 +129,11 @@ function probe(scenario,issue161Scenarios){
   await activate(host);c.note=app.workspace.getLeaf('split');c.leaves.push(c.note);wrapLeaf(c.note);
   p.settings.embedCentralNode=false;p.index.notify();
   for(const mode of ['off','recent','pinned','sidecar']){
-   await p.setDocumentSyncMode('off');await c.note.openFile(c.file,{active:false});await activate(c.note);
+   await documentSessions(p).off();await c.note.openFile(c.file,{active:false});await activate(c.note);
    if(mode==='sidecar'){
     await p.openSidecar(host,p.index.get(c.file.path));c.sidecar=p.sidecarLeaves.get(host);
     check(c.sidecar,'Managed Sidecar missing');c.leaves.push(c.sidecar);wrapLeaf(c.sidecar);
-   }else{p.lastDocumentLeaf=c.note;await p.setDocumentSyncMode(mode,p.index.get(c.file.path));}
+   }else{p.documentSession(host).lastDocumentLeaf=c.note;await p.setDocumentSyncMode(host,mode,p.index.get(c.file.path));}
    const leaf=mode==='sidecar'?c.sidecar:c.note;
    for(const action of ['canonical-toggle','native-command','trusted-shortcut']){
     // Establish the original report's Markdown representation before each independent path.
@@ -156,10 +157,10 @@ function probe(scenario,issue161Scenarios){
    if(mode==='sidecar'){await p.closeSidecar(host,false);c.sidecar=null;}
   }
   // An observed originating file must still propagate into another, genuinely different companion.
-  await p.setDocumentSyncMode('off');await p.openSidecar(host,p.index.get(c.other.path));
+  await documentSessions(p).off();await p.openSidecar(host,p.index.get(c.other.path));
   c.sidecar=p.sidecarLeaves.get(host);c.leaves.push(c.sidecar);wrapLeaf(c.sidecar);
   p.settings.sidecarMarkdownMode='preview';
-  p.settings.documentSyncMode='recent';p.linkedDocumentLeaf=null;p.lastDocumentLeaf=c.note;
+  await p.setDocumentSyncMode(host,'recent');p.documentSession(host).lastDocumentLeaf=c.note;
   await c.note.setViewState({type:'markdown',state:{file:c.file.path,mode:'source'},active:false},{focus:false});
   await until(()=>c.note.getViewState().type==='markdown','Different-file origin Markdown precondition');await activate(c.note);
   await ex.ea.toggleViewMode(c.note.view);await until(()=>c.note.getViewState().type==='excalidraw','Different-file origin drawing missing');
@@ -172,7 +173,7 @@ function probe(scenario,issue161Scenarios){
   check(c.sidecar.getViewState().type==='markdown'&&c.sidecar.getViewState().state?.file===c.other.path&&c.sidecar.getViewState().state?.mode==='source','Explicit source inspection contract lost');
   check(c.sidecar.view.editor?.getCursor?.().line===1,'Explicit source inspection did not apply requested line');
   record('explicit-source-inspection',{sidecar:snap(c.sidecar),line:c.sidecar.view.editor?.getCursor?.().line});
-  await p.closeSidecar(host,false);c.sidecar=null;await p.setDocumentSyncMode('off');
+  await p.closeSidecar(host,false);c.sidecar=null;await documentSessions(p).off();
   // Fresh editor sessions exercise both initial Markdown modes, not a settings edit on an old session.
   /** Navigate through the production graph signal and await its actual embedded native destination. */
   const go=async file=>{
@@ -250,9 +251,9 @@ finally{
     // Workspace restoration may replace leaves. Rebind original associations by serialized native id.
     /** Restore original associations by native serialized id after layout replaces leaf objects. */
     const rebind=old=>old?app.workspace.getLeavesOfType(old.getViewState().type).find(leaf=>leaf.id===old.id)??null:null;
-    c.p.linkedDocumentLeaf=rebind(c.owners.linkedDocumentLeaf);c.p.lastDocumentLeaf=rebind(c.owners.lastDocumentLeaf);
+    await documentSessions(c.p).restore(c.owners.documents);c.p.lastDocumentLeaf=rebind(c.owners.lastDocumentLeaf);
     c.p.recentLeafHistory=c.owners.recentLeafHistory.map(rebind).filter(Boolean);c.p.sidecarLeaves.clear();
-    for(const [oldHost,oldLeaf] of c.owners.sidecarLeaves){const host=rebind(oldHost),leaf=rebind(oldLeaf);if(host&&leaf)c.p.sidecarLeaves.set(host,leaf);}
+    for(const [oldHost,oldLeaf] of c.owners.sidecarLeaves){const host=rebind(oldHost),leaf=rebind(oldLeaf);if(host&&leaf)c.p.setSidecarOwner(host,leaf);}
     c.p.index.notify();
    });
    const result={errors,steps,nativeWrappersRemoved:steps.filter(step=>step.name.startsWith('native-wrapper-')).every(step=>step.status==='passed')};

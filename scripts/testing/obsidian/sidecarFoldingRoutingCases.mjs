@@ -56,7 +56,7 @@ export async function runSidecarFoldRoutingCases(ports) {
   /** Reassociation explicitly shows the original document, never accidentally claims its New tab. */
   const restoreOriginalPair = async () => {
     p.restorePlexFoldBeforeReveal(host);
-    p.settings.sidecarPosition = "right";
+    p.documentSession(host).preferences.sidecarPosition = "right";
     check(p.leafIsAttached(host) && p.leafIsAttached(companion) && p.leafIsAttached(sibling), "Routing fixture lost original native content");
     workspace.setActiveLeaf(companion, {focus: true}); await frames();
     if (p.sidecarLeaves.get(host) !== companion) await p.attachAdjacentSidecar(host, "to-plex");
@@ -116,7 +116,7 @@ export async function runSidecarFoldRoutingCases(ports) {
 
   // Native split creation and inactive setViewState keep these new graph generations free of
   // explicit focus/pointer interaction. Their actual ledger is checked; it is never reset.
-  const created = [], graphs = [], pairs = [], dialogs = new Set(), position = p.settings.sidecarPosition, openingLeaves = new Set();
+  const created = [], graphs = [], pairs = [], dialogs = new Set(), position = p.getDocumentSidecarPosition(host), openingLeaves = new Set();
   workspace.iterateAllLeaves(/** Native iteration stops on a truthy result; always return void after recording. */ leaf => { openingLeaves.add(leaf); });
   check(openingLeaves.has(host) && openingLeaves.has(companion) && openingLeaves.has(sibling), "Full opening native inventory must protect every original prepared leaf");
   try {
@@ -133,7 +133,7 @@ export async function runSidecarFoldRoutingCases(ports) {
       const graph = workspace.createLeafBySplit(host, "vertical"); graphs.push(graph); created.push(graph); c.createdLeaves.push(graph);
       await openFreshPlex(graph);
       await until(/** Require the real mounted action generation before any route assertion. */ () => surface(graph), `Fresh ${name} action surface did not mount`);
-      p.settings.sidecarPosition = "below"; await p.openSidecar(graph, page);
+      await p.moveSidecar(graph,"below",page); await p.openSidecar(graph, page);
       const documentLeaf = p.sidecarLeaves.get(graph); check(documentLeaf, `Fresh ${name} managed companion missing`);
       check(!openingLeaves.has(documentLeaf), "Fresh disjoint fixture unexpectedly adopted original native content");
       created.push(documentLeaf); c.createdLeaves.push(documentLeaf); pairs.push({name, graph, documentLeaf});
@@ -209,7 +209,7 @@ export async function runSidecarFoldRoutingCases(ports) {
     // the second pass closes only those equally fixture-owned native document leaves.
     for (const graph of graphs) if (p.leafIsAttached(graph)) graph.detach();
     for (const leaf of created.slice().reverse()) if (p.leafIsAttached(leaf)) leaf.detach();
-    await frames(); p.settings.sidecarPosition = position; await restoreOriginalPair();
+    await frames(); p.documentSession(host).preferences.sidecarPosition = position; await restoreOriginalPair();
   }
 
   await scenario("overlapping-host-group-replaces-only-the-old-fold-session", async () => {
@@ -217,7 +217,7 @@ export async function runSidecarFoldRoutingCases(ports) {
     try {
       await openFreshPlex(extra);
       await until(/** The overlap route requires a genuine mounted second Plex generation. */ () => surface(extra), "Overlapping host action surface did not mount");
-      p.settings.sidecarPosition = "right"; workspace.setActiveLeaf(sibling, {focus: true}); await frames();
+      p.documentSession(extra).preferences.sidecarPosition = "right"; workspace.setActiveLeaf(sibling, {focus: true}); await frames();
       await p.attachAdjacentSidecar(extra, "to-leaf", page);
       check(p.sidecarLeaves.get(extra) === sibling && p.sidecarLeaves.get(host) === companion, "Natural overlap fixture did not retain two exact managed tabs");
       check(group(extra) === group(host) && group(sibling) === group(companion), "Natural overlap fixture did not share both native groups");

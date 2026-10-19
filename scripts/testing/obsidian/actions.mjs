@@ -467,7 +467,7 @@ function nativeActionProbe(publishableActions, nativeOSKeys, diagnosticH13Only, 
     await scenario("H03-explicit-create-edit-focuses-owned-native-sidecar", async () => {
       await center(c.a.path); check(!p.hasAssociatedEditor(c.hostLeaf), "Owned test surface already has an editor before explicit edit");
       const beforeLeaves = new Set(); app.workspace.iterateAllLeaves(leaf => beforeLeaves.add(leaf));
-      const before = c.created.length, priorMode = p.settings.documentSyncMode;
+      const before = c.created.length, priorMode = p.getDocumentSyncMode(c.hostLeaf);
       /** Capture ownership/focus facts only; leaf contents and unrelated vault paths are excluded. */
       const captureEdit = phase => {
         const managed = p.sidecarLeaves.get(c.hostLeaf), file = c.created.length > before ? c.created.at(-1) : null;
@@ -501,7 +501,7 @@ function nativeActionProbe(publishableActions, nativeOSKeys, diagnosticH13Only, 
         app.workspace.iterateAllLeaves(leaf => { if (!beforeLeaves.has(leaf)) c.newLeaves.push(leaf); });
         const managed = p.sidecarLeaves.get(c.hostLeaf);
         if (managed && !beforeLeaves.has(managed) && p.hasAssociatedEditor(c.hostLeaf)) await p.closeSidecar(c.hostLeaf, false);
-        p.settings.documentSyncMode = priorMode;
+        await p.setDocumentSyncMode(c.hostLeaf,priorMode);
       }
       await center(c.a.path); c.hostLeaf.view.containerEl.querySelector(".kplex-app").focus();
     });

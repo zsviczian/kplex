@@ -1278,6 +1278,11 @@ const japaneseTranslations = {
   "settingsSync.conflict": "別のデバイスで設定が変更されました。このコントロールを開き直し、変更を適用し直してください。",
   "settingsSync.loadFailed": "変更されたK-Plex設定を読み込めませんでした。現在の設定は保持されます。同期を確認して再試行してください。",
   "settingsSync.refreshPending": "設定を受信しました。一部のビューを更新できませんでした。該当するビューを開き直してください。",
+  "footprints.title": "足跡",
+  "footprints.count": {other: "{count} 回の訪問"},
+  "footprints.startHere": "ここから開始",
+  "footprints.empty": "訪問したノードがここに表示されます。",
+  "footprints.unavailable": "利用不可",
 } as const satisfies LocaleTranslationMap;
 
 export const japaneseCatalog = buildLocaleCatalog(japaneseTranslations);

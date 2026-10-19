@@ -5,6 +5,7 @@
  * The probe restores workspace, settings, modes, follow owners and wrappers even after failure.
  * OS-native menu rendering and physical-device touch remain separate acceptance environments.
  */
+import {withNativeDocumentSessions} from "./nativeDocumentSessions.mjs";
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import { existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
@@ -35,7 +36,7 @@ function cli(command, ...args) {
   return result.stdout.trim();
 }
 /** Return only detached observations from the actual selected native renderer. */
-function evaluate(code) { return JSON.parse(cli("eval", `code=${code}`).replace(/^=>\s*/, "")); }
+function evaluate(code) {code=withNativeDocumentSessions(code); return JSON.parse(cli("eval", `code=${code}`).replace(/^=>\s*/, "")); }
 /** Yield between bounded native controller observations. */
 const delay = ms => new Promise(done => setTimeout(done, ms));
 
@@ -44,7 +45,7 @@ function probe() {
   const p = app.plugins.plugins["k-plex"], remote = require("@electron/remote"), mainWindow = remote.getCurrentWindow();
   if (!p?.actionManager || window.__kplexMenuAnchorProbe || document.querySelector(".modal-container,.menu")) throw Error("Clean native prerequisites required");
   const c = window.__kplexMenuAnchorProbe = { layout: app.workspace.getLayout(), settings: structuredClone(p.settings),
-    owners: { linked: p.linkedDocumentLeaf, last: p.lastDocumentLeaf, recent: [...p.recentLeafHistory] },
+    owners: { documents:documentSessions(p).capture(), last: p.lastDocumentLeaf, recent: [...p.recentLeafHistory] },
     cases: [], calls: [], cancelled: false, done: false, originalMenu: p.showKplexMenuAtPosition };
   let leaf, root, surface, popDocument;
   /** Fence every assertion and continuation against external cleanup. */
@@ -89,8 +90,8 @@ function probe() {
     } finally { doc.defaultView.removeEventListener("keydown", record, true); }
   };
   /** Freeze the state that opening and dismissing a menu must not alter. */
-  const state = () => JSON.stringify({ sync: p.getDocumentSyncMode(), sidecar: p.getSidecarPosition(leaf), history: p.settings.navigationHistory,
-    linkedLeaf: p.linkedDocumentLeaf?.id, sidecarLeaf: p.sidecarLeaves.get(leaf)?.id,
+  const state = () => JSON.stringify({ sync: p.getDocumentSyncMode(leaf), sidecar: p.getSidecarPosition(leaf), history: p.settings.navigationHistory,
+    linkedLeaf: p.documentSession(leaf)?.linkedDocumentLeaf?.id, sidecarLeaf: p.sidecarLeaves.get(leaf)?.id,
     modes: leaf.view.displayModes.getSnapshot(),
     center: root.querySelector(".kplex-role-center")?.dataset.kplexPath, semantic: p.index.getSemanticRevision() });
   /** Verify seed geometry, owner/leaf attribution, host viewport clamping and unchanged semantics. */
@@ -118,7 +119,7 @@ function probe() {
     await app.workspace.changeLayout(c.layout);
     const original = app.workspace.getLeavesOfType("k-plex-react-view").find(item => item.id === c.leafId);
     if (original && c.modes) { const modes = original.view.displayModes; if (modes.getSnapshot().fullscreen !== c.modes.fullscreen) modes.toggleFullscreen(); modes.setZen(c.modes.zen); }
-    p.linkedDocumentLeaf = c.owners.linked; p.lastDocumentLeaf = c.owners.last; p.recentLeafHistory = c.owners.recent;
+    await documentSessions(p).restore(c.owners.documents); p.lastDocumentLeaf = c.owners.last; p.recentLeafHistory = c.owners.recent;
     mainWindow.show(); mainWindow.focus(); mainWindow.webContents.focus(); c.calls.length = 0; c.cleaned = true;
   })(); return c.cleanupTask; };
   c.task = new Promise(done => window.setTimeout(done, 0)).then(async () => {

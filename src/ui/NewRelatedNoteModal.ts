@@ -506,7 +506,7 @@ function RelatedNoteComposer({
     partialFailure ? createElement("div", { className: "kplex-add-related-recovery-reason" }, plugin.translator("addRelated.failureReason", { error: partialFailure })) : null,
     createElement("div", { className: "kplex-add-related-recovery-actions" },
       createElement("button", { type: "button", disabled: busy || Boolean(savedPending), onClick: /** Recover the existing file relationship rather than creating a duplicate. */ () => submit() }, plugin.translator("addRelated.linkCreatedFile")),
-      createElement("button", { type: "button", disabled: busy, onClick: /** Deliberately inspect the retained file in the supported editor. */ () => { void plugin.openInDocumentLeaf(partialFile); } }, plugin.translator("addRelated.openCreatedFile"))),
+      createElement("button", { type: "button", disabled: busy, onClick: /** Deliberately inspect the retained file in the supported editor. */ () => { void plugin.openInDocumentLeaf(partialFile, hostLeaf); } }, plugin.translator("addRelated.openCreatedFile"))),
   ) : null;
   const roleChoices = [
     ["all", "addRelated.allDirections"], ["child", "role.child"], ["parent", "role.parent"],

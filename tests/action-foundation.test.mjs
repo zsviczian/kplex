@@ -21,6 +21,27 @@ const implementation = (execute = () => ({status: "completed"})) => ({availabili
 /** Provide a shared center independently of whichever editor has focus. */
 const manager = (extra = {}) => new api.ActionManager({readCommandContext: () => ({sharedCenter: node("shared"), windowId: "main", focusRegion: "graph"}), ...extra});
 
+test("document-sync commands capture their originating surface and its center independently of shared history",async()=>{
+ let preferred="B";const calls=[],app=manager({readCommandContext:()=>({sharedCenter:node("global-saved"),windowId:"main",preferredSurfaceId:preferred}),implementations:Object.fromEntries(["document.sync-from-center","center.sync-from-document","center.focus-active-note"].map(id=>[id,implementation(context=>{calls.push({id,surface:context.surfaceId,node:context.target.kind==="node"?context.target.node.identity:null});return{status:"completed"};})]))});
+ app.registerSurface({id:"A",generation:1,readSnapshot:()=>snapshot(node("A"))});app.registerSurface({id:"B",generation:2,readSnapshot:()=>snapshot(node("B"))});
+ const prepared=app.prepare({id:"document.sync-from-center",source:"obsidian-command"});assert.equal(prepared.state,"accepted");preferred="A";await prepared.run();
+ assert.deepEqual(calls[0],{id:"document.sync-from-center",surface:"B",node:"B"});
+ await app.dispatch({id:"center.sync-from-document",source:"obsidian-command"});assert.equal(calls[1].surface,"A");
+ await app.dispatch({id:"center.focus-active-note",source:"obsidian-command",surfaceId:"B"});assert.equal(calls[2].surface,"B");app.dispose();
+});
+
+test("native sync publication offers an explicit picker for ambiguity, never for a stale explicit surface",()=>{
+ const commands=[],checks=[],app=manager({readCommandContext:()=>({sharedCenter:node("global"),windowId:"other"}),implementations:{"document.sync-from-center":implementation()}});
+ for(const id of["A","B"])app.registerSurface({id,generation:1,readSnapshot:()=>snapshot(node(id),{windowId:id})});
+ const publisher=api.createActionCommandPublisher({host:{addCommand:command=>commands.push(command),removeCommand(){}},manager:app,translate:key=>key,
+ makeRequest:id=>({id,source:"obsidian-command"}),ambiguousSurface:(request,checking)=>{checks.push({id:request.id,checking});return request.id==="document.sync-from-center";}});
+ publisher.sync(api.migrateActionPreferences(undefined).preferences);const command=commands.find(item=>item.id==="kplex-sync-tab-from-plex");
+ assert.equal(command.checkCallback(true),true);assert.deepEqual(checks,[{id:"document.sync-from-center",checking:true}]);
+ assert.equal(command.checkCallback(false),true);assert.equal(checks[1].checking,false);
+ assert.equal(app.check({id:"document.sync-from-center",source:"obsidian-command",surfaceId:"closed"}).reasonKey,"actions.surface-unavailable");
+ publisher.dispose();app.dispose();
+});
+
 test("fold recovery captures the host pair without a graph, surface fallback or App override", async () => {
   const id="view.sidecar.collapse-plex",target={id:"pair-incarnation",windowId:"main"},calls=[];
   const app=manager({readCommandContext:assert.fail,validateNode:assert.fail,resolveSidecarFold:()=>({state:"resolved",target}),

@@ -32,13 +32,14 @@ async function bundle() {
     import {KplexDisplayModes,registerDisplayModeUnload} from './src/ui/KplexDisplayModes';export {KplexDisplayModes}; export {fullscreenControlInset} from './src/adapters/obsidian/fullscreenChrome'; export {Platform} from 'obsidian';
     import {ObsidianIcon} from './src/ui/ObsidianIcon';
     import {KplexCenterPresentation} from './src/ui/KplexCenterPresentation';export {KplexCenterPresentation,centerViewSettings} from './src/ui/KplexCenterPresentation';
+    import {KplexDocumentSession} from './src/ui/KplexDocumentSession';
     export {ActionManager} from './src/application/ActionManager';export {surfaceAction} from './src/ui/surfaceActionImplementation';export {createTranslator} from './src/lang';
     export function DisplayControls({plugin,translate,displayState,fullscreenAvailable,actionSurfaceId}){return ${controls}}
     export function resizePolicy(ports){const compassSync={current:()=>false},requestCameraFrame=()=>{};const{el,displayResizePending,measuredViewport,preserveCameraOnNextLayout,displayResizeLayout,setViewportSize,centralEditorMaximized,suppressAutoFitUntil,settings,fit,colorScope}=ports;const viewport={current:el},centralEditorAvailable=true,restoreCentralEditorCamera={current:false},centralEditorRestoreCamera={current:null},applyCamera=()=>ports.applyCount++,flushCameraTransform=()=>{},activePath='Center.md',camera={current:{}},automaticFit={current:{path:activePath,camera:camera.current}},sameFitCamera=(a,b)=>a===b,fitCurrentScene={current:fit};return{update:${resize},prepare:${prepare},editor:${editorResize}}}
     const readObsidianPresentationEnvironment=()=>({device:'desktop'});
     class NativeBase {async onOpen(){}async onClose(){}getSurface(){return'leaf'}getState(){return{native:'preserved'}}async setState(){}}
     class NativeView extends NativeBase {${methods}}
-    export function lifecycleView(properties){return Object.assign(new NativeView(),{root:null,windowMigrationCleanup:null,ready:false,renderGeneration:0,readyResolvers:[],displayModes:null,releaseDisplayLifecycle:null},properties)}
+    export function lifecycleView(properties){return Object.assign(new NativeView(),{plugin:{onKplexViewStateRestored(){}},documentSession:new KplexDocumentSession({documentSyncMode:'off',sidecarPosition:'right',sidecarMarkdownMode:'source'},null,()=>{}),root:null,windowMigrationCleanup:null,ready:false,renderGeneration:0,readyResolvers:[],displayModes:null,releaseDisplayLifecycle:null},properties)}
   `},bundle:true,write:false,platform:'browser',format:'iife',globalName:'sourceModules',plugins:[{name:'native-icons',setup(builder){builder.onResolve({filter:/^obsidian$/},()=>({path:'obsidian',namespace:'native'}));builder.onLoad({filter:/.*/,namespace:'native'},()=>({contents:`export const Platform={isWin:false,isDesktop:true};export function getIcon(name){const icon=document.createElementNS('http://www.w3.org/2000/svg','svg');icon.setAttribute('data-icon',name);return icon}`,loader:'js'}));}}]});
   return result.outputFiles[0].text;
 }

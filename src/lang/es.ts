@@ -1286,6 +1286,11 @@ const spanishTranslations = {
   "settingsSync.conflict": "Los ajustes cambiaron en otro dispositivo. Vuelve a abrir este control y aplica tu cambio de nuevo.",
   "settingsSync.loadFailed": "No se pudieron cargar los ajustes modificados de K-Plex. Se conservan los ajustes actuales. Comprueba la sincronización e inténtalo de nuevo.",
   "settingsSync.refreshPending": "Ajustes recibidos. Algunas vistas no se pudieron actualizar. Vuelve a abrir la vista afectada.",
+  "footprints.title": "Huellas",
+  "footprints.count": {one: "{count} visita", many: "{count} visitas", other: "{count} visitas"},
+  "footprints.startHere": "Empezar aquí",
+  "footprints.empty": "Tus visitas aparecerán aquí.",
+  "footprints.unavailable": "No disponible",
 } as const satisfies LocaleTranslationMap;
 
 export const spanishCatalog = buildLocaleCatalog(spanishTranslations);

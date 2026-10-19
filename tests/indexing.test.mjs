@@ -142,12 +142,12 @@ assert(appSource.includes('getDraggedFile(plugin.app)') && appSource.includes('o
 assert(appSource.includes('pendingFileExplorerDropRef.current = file') && appSource.includes('activatePendingFileExplorerDrop'), "A dropped note that is not indexed yet must activate when partial indexing publishes it");
 assert(appSource.includes("pendingFileExplorerDropRef.current = null;\n    activePathRef.current = target.path"), "An explicit navigation must supersede an older pending File Explorer drop");
 assert(appSource.includes('setTitle(translate("app.showLinkedTab"))'), "The pin/link menu must provide an explicit localized way to reveal the linked document tab");
-assert(appSource.includes("plugin.showLinkedDocumentLeaf()"), "Show linked/pinned tab must reveal the actual resolved sync target");
+assert(appSource.includes("plugin.showLinkedDocumentLeaf(hostLeaf)"), "Show linked/pinned tab must reveal this Plex's resolved sync target");
 const ensureSidecarStart = mainSource.indexOf("  private ensureSidecarLeaf(");
 const ensureSidecarEnd = mainSource.indexOf("  async openMarkdownInSidecar(", ensureSidecarStart);
 const ensureSidecarSource = mainSource.slice(ensureSidecarStart, ensureSidecarEnd);
 assert(ensureSidecarStart >= 0 && ensureSidecarEnd > ensureSidecarStart);
-assert(ensureSidecarSource.includes("createSidecarLeaf(hostLeaf, this.settings.sidecarPosition)"), "Sidecar must create a dedicated companion leaf");
+assert(ensureSidecarSource.includes("createSidecarLeaf(hostLeaf, session.preferences.sidecarPosition)"), "Sidecar must create a dedicated companion on this Plex's chosen side");
 assert(!ensureSidecarSource.includes("findVisibleAdjacentDocumentLeaf"), "Sidecar must not adopt an arbitrary adjacent document leaf");
 assert(!ensureSidecarSource.includes("leaf = this.linkedDocumentLeaf"), "Sidecar must not adopt a separately pinned document leaf");
 const sidecarPositionStart = mainSource.indexOf("  getSidecarPosition(");
@@ -203,7 +203,7 @@ const moveSidecarStart = mainSource.indexOf("  async moveSidecar(");
 const moveSidecarEnd = mainSource.indexOf("  async syncSidecarToPage(", moveSidecarStart);
 const moveSidecarSource = mainSource.slice(moveSidecarStart, moveSidecarEnd);
 assert(moveSidecarSource.includes("const replacement = this.createSidecarLeaf(hostLeaf, position)"), "Moving a sidecar must create the replacement before removing the old companion");
-assert(moveSidecarSource.indexOf("this.sidecarLeaves.set(hostLeaf, replacement)") < moveSidecarSource.indexOf("previousSidecar.detach()"), "Replacement ownership must be established before the old sidecar is detached");
+assert(moveSidecarSource.indexOf("this.setSidecarOwner(hostLeaf, replacement)") < moveSidecarSource.indexOf("previousSidecar.detach()"), "Replacement ownership must be established before the old sidecar is detached");
 assert(!moveSidecarSource.includes("closeSidecar(hostLeaf, false)"), "Moving a sidecar must not collapse the old split before the replacement exists");
 assert(mainSource.includes("private sidecarFootprint("), "Sidecar moves must measure the combined K-Plex + sidecar workspace footprint");
 assert(mainSource.includes("getBoundingClientRect()"), "Sidecar footprint preservation must use settled workspace geometry");
@@ -252,7 +252,7 @@ const findRecentDocumentStart = mainSource.indexOf("  private findRecentDocument
 const findRecentDocumentEnd = mainSource.indexOf("  private fileForLeaf(", findRecentDocumentStart);
 const findRecentDocumentSource = mainSource.slice(findRecentDocumentStart, findRecentDocumentEnd);
 assert(findRecentDocumentSource.indexOf("for (let index = this.recentLeafHistory.length - 1; index >= 0; index -= 1)") < findRecentDocumentSource.indexOf("this.app.workspace.getMostRecentLeaf()"), "File-leaf resolution must walk activation history newest-to-oldest before Obsidian fallbacks");
-const historyResolverSource = findRecentDocumentSource.slice(findRecentDocumentSource.indexOf("for (let index = this.recentLeafHistory.length - 1"), findRecentDocumentSource.indexOf("if (this.isDocumentLeafCandidate(this.lastDocumentLeaf)"));
+const historyResolverSource = findRecentDocumentSource.slice(findRecentDocumentSource.indexOf("for (let index = this.recentLeafHistory.length - 1"), findRecentDocumentSource.indexOf("if (eligible((session?.lastDocumentLeaf"));
 assert(historyResolverSource.includes("this.fileForLeaf(leaf)"), "File history must qualify each historical leaf at resolution time");
 assert(!historyResolverSource.includes("leafIsVisible"), "A previously active file tab remains valid while hidden behind K-Plex in the same tab group");
 const indexedNavigationStart = mainSource.indexOf("  private findRecentIndexedNavigationTarget(");
@@ -265,9 +265,9 @@ assert(indexedNavigationSource.includes("if (hasActivationHistory) return null")
 const syncRecentStart = mainSource.indexOf("  async syncKplexWithMostRecentTab(");
 const syncRecentEnd = mainSource.indexOf("  async showPageInDocumentLeaf(", syncRecentStart);
 const syncRecentSource = mainSource.slice(syncRecentStart, syncRecentEnd);
-assert(syncRecentSource.includes("this.findRecentIndexedNavigationTarget()"), "Sync K-Plex from recent tab must use the chronological file/URL history resolver");
-assert(syncRecentSource.includes("this.notifyNavigation(target.path)"), "Resolved file and URL targets must use the same graph-navigation publication path");
-assert(mainSource.includes("if (this.startupInitializing) return false;"), "Normal note-tab following must be suppressed until startup re-association finishes");
+assert(syncRecentSource.includes("this.findRecentIndexedNavigationTarget(hostLeaf)"), "Sync K-Plex from recent tab must use the owner-scoped chronological file/URL resolver");
+assert(syncRecentSource.includes("this.notifyNavigation(target.path, hostLeaf)"), "Resolved file and URL targets must use the owner-scoped graph-navigation path");
+assert(mainSource.includes("if (!session || this.startupInitializing || !this.syncLeafToKplexEnabled(hostLeaf)) return false;"), "Normal note-tab following must be suppressed until startup re-association finishes");
 assert(mainSource.includes("this.sidecarMovingHosts.has(host) || this.startupInitializing"), "Transient startup geometry must not release a just-restored sidecar before its split settles");
 assert(mainSource.includes("sidecarLastFilePath"), "Sidecar content identity must be persisted independently of the graph center");
 assert(mainSource.includes("leafMatchesPersistedSidecarTarget"), "Startup re-association must prefer the sidecar's actual persisted document/URL");
@@ -279,10 +279,11 @@ const restoreSidecarSource = mainSource.slice(restoreSidecarStart, restoreSideca
 assert(!restoreSidecarSource.includes("openSidecar(hostLeaf, page)"), "Startup restore must never create an extra workspace pane when native restoration cannot be identified safely");
 assert(restoreSidecarSource.includes("waitForWorkspaceLayout(hostLeaf, 3)"), "Startup restore should wait for native split geometry before matching the companion");
 assert(mainSource.includes("rememberedGroups.size === 1"), "Startup sidecar recovery must bind only to one unambiguous tab-group on the remembered side");
-assert(mainSource.includes("this.adjacentPosition(hostLeaf, leaf) !== this.settings.sidecarPosition"), "Startup sidecar recovery must reject adjacent panes on the wrong side");
+assert(mainSource.includes("this.adjacentPosition(hostLeaf, leaf) !== session.preferences.sidecarPosition"), "Startup sidecar recovery must reject adjacent panes on the owner's wrong side");
 assert(mainSource.includes("const visible = candidates.filter((leaf) => this.leafIsVisible(leaf))"), "When the restored sidecar group has several tabs, K-Plex should adopt the tab Obsidian restored as visible");
 assert(mainSource.includes("waitForRestoredSidecarCandidate"), "Startup sidecar recovery should briefly wait for DeferredView/tab-group geometry instead of creating a split");
-assert(mainSource.includes("releaseSidecar(hostLeaf, true, true)"), "Closing a K-Plex host must preserve sidecar restore intent");
+const closeHostSource=mainSource.slice(mainSource.indexOf("  onKplexViewClosed("),mainSource.indexOf("  private async adoptInitialSourceIndex("));
+assert(closeHostSource.includes("this.deleteSidecarOwner(hostLeaf)")&&!closeHostSource.includes(".detach()")&&!closeHostSource.includes("sidecarOpen = false"), "Closing a Plex releases ownership without closing its document or rewriting saved restore intent");
 
 const stylesSource = readFileSync(join(root, "styles.css"), "utf8");
 assert(stylesSource.includes(".kplex-linked-leaf-alert"), "Linked/pinned-tab feedback must highlight the entire target leaf");
@@ -292,7 +293,7 @@ assert(mainSource.includes("element.classList.add(\"kplex-linked-leaf-alert\")")
 assert(!mainSource.includes("element.style.flexBasis"), "Sidecar footprint restoration must use Obsidian DOM style helpers rather than direct style mutation");
 assert(!mainSource.includes("tabHeaderForLeaf"), "Linked-tab feedback cleanup must not retain the obsolete tab-header bridge");
 assert(mainSource.includes("viewWindow.requestAnimationFrame"), "Sidecar/link UI scheduling should use the target leaf window for pop-out compatibility");
-const createGhostStart = mainSource.indexOf("  async createGhostNote(page: GraphPage, chooseFolder = false, preserveCenter = false)");
+const createGhostStart = mainSource.indexOf("  async createGhostNote(page: GraphPage, chooseFolder = false, preserveCenter = false,");
 const createGhostSource = mainSource.slice(createGhostStart);
 assert(createGhostSource.includes("ghostCreationLocations(page, validation.stem)"), "Ghost creation must resolve destinations from the graph rather than defaulting to vault root");
 assert(!createGhostSource.includes("rebuildIndex("), "Materializing a ghost node must not trigger a full graph rebuild");
@@ -405,6 +406,8 @@ for (const file of [
   "src/lang/zh-TW.ts",
   "src/lang/index.ts",
   "src/types.ts",
+  "src/application/PlexFootprints.ts",
+  "src/ui/KplexDocumentSession.ts",
   "src/core/plex/viewPresentation.ts",
   "src/core/plex/internalHotkeys.ts",
   "src/core/plex/markdownZoomPreferences.ts",
@@ -916,16 +919,18 @@ const KplexPlugin = require(join(temp, "src/main.js")).default;
     passiveSidecarSyncRequests: new WeakMap(),
     retirePassiveSidecarRequestsForLeaf: KplexPlugin.prototype.retirePassiveSidecarRequestsForLeaf,
     settings: { sidecarLastUrl: "", sidecarLastFilePath: "Existing.md" },
+    documentSession(){return {preferences:this.settings};},
+    leafDisplaysPage:(_leaf,page)=>Boolean(page.url),
     translator: () => "Web Viewer unavailable",
   };
   let assignments = 0;
   const leaf = { async setViewState() { assignments += 1; } };
-  await KplexPlugin.prototype.openPageInSidecarLeaf.call(context, leaf, { url: "https://example.com" });
+  await KplexPlugin.prototype.openPageInSidecarLeaf.call(context, leaf, { url: "https://example.com" },()=>true);
   assert.equal(assignments, 0, "Unavailable Web Viewer must not be assigned to a native leaf");
   assert.equal(context.settings.sidecarLastFilePath, "Existing.md");
   assert.equal(context.settings.sidecarLastUrl, "");
   context.app.viewRegistry = { getViewCreatorByType: () => () => {} };
-  await KplexPlugin.prototype.openPageInSidecarLeaf.call(context, leaf, { url: "https://example.com" });
+  await KplexPlugin.prototype.openPageInSidecarLeaf.call(context, leaf, { url: "https://example.com" },()=>true);
   assert.equal(assignments, 1, "An available Web Viewer must retain explicit Sidecar preview support");
   assert.equal(context.settings.sidecarLastFilePath, "");
   assert.equal(context.settings.sidecarLastUrl, "https://example.com");
@@ -1068,10 +1073,10 @@ assert.equal(indexingStatusContext.markdownFileCountReads, 1, "Progress publicat
   const handlers = new Map();
   const registrations = [];
   const writes = [];
-  coordinator.app = { vault: { on: (name, callback) => { handlers.set(name, callback); return { name }; } } };
+  coordinator.app = { workspace:{getLeavesOfType:()=>[]}, vault: { on: (name, callback) => { handlers.set(name, callback); return { name }; } } };
   coordinator.registerEvent = handle => registrations.push(handle);
   coordinator.index = new Proxy({}, { get() { throw new Error("Markdown zoom preferences must not access the index"); } });
-  coordinator.settings = { centralNodeMarkdownZoomModes: { "Folder/A.md": "scale", "Folder/Sub/B.md": "scale", "Folderish/C.md": "scale" } };
+  coordinator.settings = {lastActivePath:"",sidecarLastFilePath:"",navigationHistory:[],pinnedNodes:[],centralNodeMarkdownZoomModes: { "Folder/A.md": "scale", "Folder/Sub/B.md": "scale", "Folderish/C.md": "scale" } };
   coordinator.persistSettingsSnapshot = async () => { writes.push(structuredClone(coordinator.settings.centralNodeMarkdownZoomModes)); };
   coordinator.initialIndexComplete = false;
   coordinator.registerMarkdownZoomPreferenceListeners();
@@ -4331,6 +4336,7 @@ try {
   assert.equal(index.pendingStructuralTasks, 0, "Folder operations release their lifetime");
 
   const navigationFolder = new KplexPlugin();
+  navigationFolder.app={workspace:{getLeavesOfType:()=>[]}};
   navigationFolder.settings = { lastActivePath:"Old/Sub/A.md",sidecarLastFilePath:"Old/Sub/A.md",
     navigationHistory:["folder:Old","Old/Sub/A.md","Other.md"],pinnedNodes:["folder:Old/Sub","Oldish/A.md"] };
   assert.equal(navigationFolder.remapNavigationPaths("Old","New",true),true);
@@ -4530,8 +4536,9 @@ try {
   const fastRenameCalls = [];
   const renamedPresentationRepairs = [];
   renameCoordinator.app = {
+    workspace:{getLeavesOfType:()=>[]},
     vault: {
-      on: (name, callback) => { renameHandlers.set(`vault:${name}`, callback); return {}; },
+      on: (name, callback) => {const previous=renameHandlers.get(`vault:${name}`);renameHandlers.set(`vault:${name}`, (...args)=>{previous?.(...args);callback(...args);});return {};},
       getFileByPath: (path) => path === renamedCentral?.path ? renamedCentral : null,
     },
     metadataCache: {
@@ -4543,13 +4550,16 @@ try {
     refreshVisibleHostMetadataPreviews: () => false, renameFile: (oldPath, file) => { fastRenameCalls.push([oldPath, file.path]); return true; } };
   renameCoordinator.settings = {
     ...settings,
+    centralNodeMarkdownZoomModes:{},
     primaryTagField: "Note type",
     lastActivePath: "Folder/Old.md",
     navigationHistory: ["Start.md", "Folder/Old.md", "Folder/Old.md"],
     pinnedNodes: ["Folder/Old.md", "Pinned.md"],
   };
   renameCoordinator.saveSettings = async () => {};
+  renameCoordinator.persistSettingsSnapshot = async () => {};
   renameCoordinator.scheduleRebuild = (reason) => { rebuildReasons.push(reason); };
+  renameCoordinator.registerMarkdownZoomPreferenceListeners();
   renameCoordinator.registerReactiveIndexListeners();
   const renamedCentral = new TFile("Moved/New.md", 123);
   const renameHandler = renameHandlers.get("vault:rename");

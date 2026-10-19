@@ -158,6 +158,8 @@ Press **Ctrl/Cmd+F**, or select the magnifier in the upper-right corner of the P
 
 K-Plex also keeps a **Past nodes** history for back/forward navigation. Drag a relationship gate onto a history entry or pinned note to connect using that gate’s relationship type; the entry lights up while you hover. Dragging a node’s body onto history or a pinned note offers a choice of relationship type. Pins are separate from history and are useful for keeping a small number of important nodes available as stable shortcuts.
 
+Select **Footprints**, beside Find in the upper-right corner, to see this Plex's visits in order. Repeated visits stay in the list. Selecting an older visit appends a new visit; **Start here** keeps only the current one. Each Plex has its own trail, retained when moving between windows and cleared when that Plex closes or Obsidian restarts. Saved history and pins remain shared across Plexes.
+
 Select **Editor node** to expand a file or URL inside the central node. Images fit both dimensions without cropping. The editor’s **Open menu** button provides the same opening destinations as the node context menu. Maximizing the editor temporarily hides Find and preserves its query. Webpages use a desktop webview with browser authentication, or an iframe on Obsidian mobile. YouTube and Vimeo links use embedded players; YouTube Shorts use a portrait frame. Expanding a URL loads that website, which receives normal browser requests and may store its own cookies.
 
 For Markdown notes in a normal editor node, select **Scale text with Plex zoom** to make text grow or shrink with the graph. Select **Keep text size** to retain the native font size as the frame changes. K-Plex remembers this choice for each note. Fullscreen editors use the native text size.
@@ -303,6 +305,8 @@ Expanded children are intentionally smaller and more subdued. Larger child group
 ## Companion sidecar
 
 K-Plex can create a dedicated normal Obsidian note pane beside the graph as a **companion sidecar**. Existing neighboring tabs are never taken over or closed by Sidecar actions.
+
+Each Plex has independent document-sync settings and can own its own Sidecar. Changing one Plex's **Off**, **Recent** or **Pinned** mode does not change another's pairing. **Recent** can follow ordinary document tabs, but does not take over another Plex's managed Sidecar. Obsidian's saved workspace restores each pairing; duplicating a Plex starts a separate session with a fresh Footprints trail.
 
 The sidecar:
 

@@ -1286,6 +1286,11 @@ const frenchTranslations = {
   "settingsSync.conflict": "Les paramètres ont changé sur un autre appareil. Rouvrez ce contrôle et appliquez à nouveau votre modification.",
   "settingsSync.loadFailed": "Impossible de charger les paramètres K-Plex modifiés. Vos paramètres actuels sont conservés. Vérifiez la synchronisation et réessayez.",
   "settingsSync.refreshPending": "Paramètres reçus. Certaines vues n’ont pas pu être actualisées. Rouvrez la vue concernée.",
+  "footprints.title": "Traces",
+  "footprints.count": {one: "{count} visite", many: "{count} visites", other: "{count} visites"},
+  "footprints.startHere": "Commencer ici",
+  "footprints.empty": "Vos visites apparaîtront ici.",
+  "footprints.unavailable": "Indisponible",
 } as const satisfies LocaleTranslationMap;
 
 export const frenchCatalog = buildLocaleCatalog(frenchTranslations);

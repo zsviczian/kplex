@@ -4,6 +4,7 @@
  * Functional work counts only; this is not a comparative resource/latency benchmark. Private config
  * backups, forwarding probes, owned source fixtures and window/layout restoration belong here.
  */
+import {withNativeDocumentSessions} from "./nativeDocumentSessions.mjs";
 import assert from 'node:assert/strict';
 import {createHash} from 'node:crypto';
 import {existsSync,mkdirSync,readFileSync,readdirSync,writeFileSync} from 'node:fs';
@@ -19,7 +20,7 @@ const output=process.env.KPLEX_HOST_REPORT_DIR;assert(output&&(!existsSync(outpu
 /** Use the same bounded native IPC owner as other repository lanes. */
 function cli(name,...args){const r=spawnNativeSync(obsidianCliExecutable(),[`vault=${vaultName}`,name,...args],{encoding:'utf8',timeout:30000,killSignal:'SIGKILL',maxBuffer:4*1024*1024});if(r.error||r.status||/^Error:/m.test(r.stdout))throw r.error??Error(r.stderr||r.stdout);return r.stdout.trim()}
 /** Transfer finite detached observations, never live host objects or unrelated note data. */
-function evaluate(code){return JSON.parse(cli('eval','code=JSON.stringify(('+code+'))').replace(/^=>\s*/,''))}
+function evaluate(code){code=withNativeDocumentSessions(code);return JSON.parse(cli('eval','code=JSON.stringify(('+code+'))').replace(/^=>\s*/,''))}
 /** Leave the selected renderer's ordinary task/throttling policy unchanged. */
 const pause=ms=>new Promise(resolve=>setTimeout(resolve,ms));
 assert.equal(cli('vault','info=path'),target.vault);assert.equal(resolve(target.vault,evaluate('app.vault.configDir')),target.config);
@@ -33,7 +34,7 @@ async function untilNative(code,label){const end=Date.now()+30000;while(!evaluat
 /** Native fixture/lifetime owner; no production hooks beyond temporary forwarding counters and reversible faults. */
 function start(){
  let p=app.plugins.plugins['k-plex'];if(!p?.updateOntologyField||window.__kplexOntologyInputProbe||app.setting.isOpen)throw Error('Clean exact-build prerequisites required');
- const c=window.__kplexOntologyInputProbe={settings:structuredClone(p.settings),policy:p.savedSettingsPolicy,layout:app.workspace.getLayout(),owners:{linked:p.linkedDocumentLeaf,last:p.lastDocumentLeaf,recent:[...p.recentLeafHistory],sidecars:[...p.sidecarLeaves]},owned:[],releases:[],restores:[],cases:[],phase:'setup',counts:{inputs:0,trusted:0,writes:0,invalidations:0,semantic:0,presentation:0,reads:0,parses:0,acquisitions:0,builds:0},done:false};
+ const c=window.__kplexOntologyInputProbe={settings:structuredClone(p.settings),policy:p.savedSettingsPolicy,layout:app.workspace.getLayout(),owners:{documents:documentSessions(p).capture(),last:p.lastDocumentLeaf,recent:[...p.recentLeafHistory],sidecars:[...p.sidecarLeaves]},owned:[],releases:[],restores:[],cases:[],phase:'setup',counts:{inputs:0,trusted:0,writes:0,invalidations:0,semantic:0,presentation:0,reads:0,parses:0,acquisitions:0,builds:0},done:false};
  const paths=['__kplex147_A.md','__kplex147_B.md','__kplex147_C.md'],wait=ms=>new Promise(resolve=>window.setTimeout(resolve,ms)),check=(value,message)=>{if(c.cancelled||!value)throw Error(message)};
  /** Every wait is bounded and observes actual native/controller readiness. */
  const until=async(read,label)=>{const end=Date.now()+25000;while(!read()){check(Date.now()<end,label);await wait(40)}};
@@ -65,7 +66,7 @@ function start(){
   const a=await app.vault.create(paths[0],'---\nKplex147Parent: "[['+paths[1].slice(0,-3)+']]"\nKplex147Child: "[['+paths[2].slice(0,-3)+']]"\n---\nSynthetic ontology source\n');c.owned.push(paths[0]);
   await until(()=>app.metadataCache.getFileCache(a)?.frontmatter?.Kplex147Parent,'Fixture metadata absent');
   Object.assign(p.settings,{embedCentralNode:false,inferAllLinksAsFriends:false,showFolderNodes:false,showTagNodes:false,renderSiblings:false,animationSpeed:0,graphDepth:1,hierarchy:{...p.settings.hierarchy,parents:['Parent'],children:['Child'],leftFriends:['Friend'],rightFriends:['Challenger'],previous:['Previous'],next:['Next'],hidden:['Hidden']}});
-  await p.setDocumentSyncMode('off');await p.saveSettings();
+  await documentSessions(p).off();await p.saveSettings();
   for(const path of paths){p.index.insertCreatedFile(app.vault.getFileByPath(path));c.releases.push(p.index.acquireSemanticDemand(path))}
   await p.index.refreshSemanticSettings();await p.activateView();await p.activateSidepanel();
   c.popout=app.workspace.getLeaf('window');await c.popout.setViewState({type:'k-plex-react-view',active:true});await c.popout.view.waitUntilReady();p.notifyNavigation(paths[0]);
@@ -95,7 +96,7 @@ function start(){
   c.phase='complete';
  })().catch(error=>{c.error=String(error.stack||error);c.phase='failed'}).finally(()=>{c.done=true});
  /** Cleanup is independent of comparisons; no test wrappers or owned source files survive a failure. */
-  c.cleanup=()=>{if(c.cleanupTask)return true;c.cancelled=true;c.cleanupTask=(async()=>{await c.task;for(const restore of c.restores.reverse())restore();p=app.plugins.plugins['k-plex']??p;if(app.setting.isOpen)app.setting.close();p.settingsTab.disposeOntologySettings();c.popout?.detach();for(const release of c.releases)release();p.settings=c.settings;p.savedSettingsPolicy=c.policy;await p.saveSettings(false,false);p.index.invalidateSemanticPolicy();await p.index.refreshSemanticSettings();for(const path of c.owned){const file=app.vault.getFileByPath(path);if(file)await app.vault.delete(file)}await app.workspace.changeLayout(c.layout);const leaves=[];app.workspace.iterateAllLeaves(leaf=>leaves.push(leaf));const rebind=old=>old?leaves.find(leaf=>leaf.id===old.id)??null:null;p.linkedDocumentLeaf=rebind(c.owners.linked);p.lastDocumentLeaf=rebind(c.owners.last);p.recentLeafHistory=c.owners.recent.map(rebind).filter(Boolean);p.sidecarLeaves.clear();for(const[oldHost,oldNote]of c.owners.sidecars){const host=rebind(oldHost),note=rebind(oldNote);if(host&&note)p.sidecarLeaves.set(host,note)}if(c.settings.lastActivePath)p.notifyNavigation(c.settings.lastActivePath);await p.settingsWriteQueue;if(!c.owned.every(path=>!app.vault.getFileByPath(path)))throw Error('Owned notes remain')})().catch(error=>{c.cleanupError=String(error.stack||error)}).finally(()=>{c.cleaned=true});return true};
+  c.cleanup=()=>{if(c.cleanupTask)return true;c.cancelled=true;c.cleanupTask=(async()=>{await c.task;for(const restore of c.restores.reverse())restore();p=app.plugins.plugins['k-plex']??p;if(app.setting.isOpen)app.setting.close();p.settingsTab.disposeOntologySettings();c.popout?.detach();for(const release of c.releases)release();p.settings=c.settings;p.savedSettingsPolicy=c.policy;await p.saveSettings(false,false);p.index.invalidateSemanticPolicy();await p.index.refreshSemanticSettings();for(const path of c.owned){const file=app.vault.getFileByPath(path);if(file)await app.vault.delete(file)}await app.workspace.changeLayout(c.layout);const leaves=[];app.workspace.iterateAllLeaves(leaf=>leaves.push(leaf));const rebind=old=>old?leaves.find(leaf=>leaf.id===old.id)??null:null;await documentSessions(p).restore(c.owners.documents);p.lastDocumentLeaf=rebind(c.owners.last);p.recentLeafHistory=c.owners.recent.map(rebind).filter(Boolean);p.sidecarLeaves.clear();for(const[oldHost,oldNote]of c.owners.sidecars){const host=rebind(oldHost),note=rebind(oldNote);if(host&&note)p.setSidecarOwner(host,note)}if(c.settings.lastActivePath)p.notifyNavigation(c.settings.lastActivePath);await p.settingsWriteQueue;if(!c.owned.every(path=>!app.vault.getFileByPath(path)))throw Error('Owned notes remain')})().catch(error=>{c.cleanupError=String(error.stack||error)}).finally(()=>{c.cleaned=true});return true};
  return true;
 }
 

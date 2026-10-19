@@ -5246,6 +5246,11 @@ export const englishCatalog = {
   "settingsSync.conflict": {"message":"Settings changed on another device. Reopen this control and reapply your change.","context":"Live external settings reconciliation, conflict and recovery feedback.","params":[],"referenceParams":[]},
   "settingsSync.loadFailed": {"message":"Could not load changed K-Plex settings. Your current settings are kept. Check sync and try again.","context":"Live external settings reconciliation, conflict and recovery feedback.","params":[],"referenceParams":[]},
   "settingsSync.refreshPending": {"message":"Settings received. Some views could not refresh. Reopen the affected view.","context":"Live external settings reconciliation, conflict and recovery feedback.","params":[],"referenceParams":[]},
+  "footprints.title": {"message":"Footprints","context":"Per-Plex memory-only chronological visits.","params":[],"referenceParams":[]},
+  "footprints.count": {plural: {one: "{count} visit", other: "{count} visits"}, countParam: "count", context: "Number of chronological session visits including repetitions.", params: ["count"], referenceParams: []},
+  "footprints.startHere": {"message":"Start here","context":"Reset this Plex trail to its current node only.","params":[],"referenceParams":[]},
+  "footprints.empty": {"message":"Your visits appear here.","context":"Empty session trail.","params":[],"referenceParams":[]},
+  "footprints.unavailable": {"message":"Unavailable","context":"A trail reference no longer resolves; never create a note.","params":[],"referenceParams":[]},
 } as const;
 
 export type EnglishCatalog = typeof englishCatalog;

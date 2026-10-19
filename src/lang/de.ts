@@ -1282,6 +1282,11 @@ const germanTranslations = {
   "settingsSync.conflict": "Die Einstellungen wurden auf einem anderen Gerät geändert. Öffne dieses Steuerelement erneut und wende deine Änderung nochmals an.",
   "settingsSync.loadFailed": "Die geänderten K-Plex-Einstellungen konnten nicht geladen werden. Deine aktuellen Einstellungen bleiben erhalten. Prüfe die Synchronisierung und versuche es erneut.",
   "settingsSync.refreshPending": "Einstellungen empfangen. Einige Ansichten konnten nicht aktualisiert werden. Öffne die betroffene Ansicht erneut.",
+  "footprints.title": "Spuren",
+  "footprints.count": {one: "{count} Besuch", other: "{count} Besuche"},
+  "footprints.startHere": "Hier beginnen",
+  "footprints.empty": "Deine Besuche erscheinen hier.",
+  "footprints.unavailable": "Nicht verfügbar",
 } as const satisfies LocaleTranslationMap;
 
 export const germanCatalog = buildLocaleCatalog(germanTranslations);
