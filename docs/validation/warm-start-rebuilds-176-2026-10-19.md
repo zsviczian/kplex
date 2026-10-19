@@ -98,6 +98,21 @@ owners and assert zero builds, zero writes, no deferred persistence timer, fresh
 promotion, zero fresh reads/parses. It does not stamp metadata or manufacture
 authority. All **43** focused hydration guard cases pass.
 
+Linux CI at `fc227c1` caught a separate Node settings-fixture lifetime defect:
+one cached read during a held-mtime presentation test. A stronger private one-
+second fault reproduces 36 reads from actual source reconciliation across retained
+old owners and the shared compatibility owner, not from the presentation loader.
+Each scenario now retires its own indexes/completion lease. Narrow cached-
+presentation assertions pause/join independent inventory through its real owner
+API, since this storage double cannot certify durable source authority; the shared
+compatibility owner's enabled state is restored afterward. Spies on every read,
+parse, acquire, patch and build remain unchanged and unconditional. A 450 ms
+physical-fault window now crosses the real 350 ms admission timer deterministically.
+All 24 actual settings scenarios and the complete Node indexing fixture pass,
+including a private stronger one-second control. Real-IDB/background/native
+integration is not replaced by this isolated unit fixture. Production source
+behavior is unchanged; the failed CI and private causal traces remain evidence.
+
 Full final verification and source/reference preservation are recorded at closeout.
 No scale, mixed-large-note, edit/two-restart, full-process restart, macOS or physical
 mobile claim follows from this single Gate 1 run. The candidate acceptance campaign

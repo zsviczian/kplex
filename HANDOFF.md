@@ -19,25 +19,8 @@ Obsidian is the production host; preserve the established portable semantic, ide
 
 ---
 
-# PR179 validated closeout; sequential work remains authorized
+# PR176 bounded Gate1 closeout pending final verification
 
-Main/root agent implements/reviews/validates; no delegation.147 merged60d2239.
-179 main integration3bc489c, runtimef2fef82, full-testedbe7247a. User authorizes
-merge179, then149 then176 sequentially, no CI wait/release/personal vault.
-No comparative performance under encoding load, receipt/reader-sharing revival,
-source-proof weakening or broad architecture. Preserve private originals.
+147 merged60d2239;179 mergedb4c144a.149 no runtime fix justified, native24main+26popout/44tests, saved850da4e and remainsdraft/115open.176 main integrated22a19d3. One Small107/88 complete-cache warm restart:215pages/1568declarations, no build/save/freshread/parse/repair, genuine observed drain16.783s. No current redundant operation reproduced; no production optimization or performance win. Untimed canonical oracle has samecounts but order and8combinedrelationshiplabels differ, so sorted/count shortcuts unsafe. Actual-IDB complete-cache exact-record/no-rewrite regression43cases pass.
 
-Full verify passes7/130/1127/184/334/638 plus lint/build. Native exact2c6dce74
-bundle staged/smoke passed. Native matrix results and all failures in concise
-report docs/validation/settings-save-liveness-179-2026-10-19.md. Main/Sidecar
-controlled Save closes after1durablewrite while optional work held. Whole-renderer
-freeze remains unproved. On-demand drawing/radius stricter fixture drain refuses
-pendingKnown1 despite no active work; earlier8pass is not repeatability proof.
-Eager quiet15, radius8, final real-drawing+Properties overlap5pass. Config/workspace
-107/88 and originalmode restored, no controllers, CLIdebug capture released.
-Final native helper syntax/20runner pass. Only native tooling/docs changed since
-full-testedbe724. Private verified durable copy141files/8210671B, manifestSHA in
-report, originals retained/no publication. Next finalize authorized179merge,
-switch/fetch main, integrate149branch normally; cause-first visual probe. If no
-confirmed defect, precise no-go rather than speculative rendering hack.176 Gate1
-causal checkpoint follows, no broad benchmark or new persistent protocol.
+Linuxfc227 CI failure separately reproduced in Node settings fixture with1secondmtimefault: retainedold/shared sourceinventories consume sharedVault mutations. Per-scenario retirement, real inventory pause/join and450msfault preserve strict all-read/parse/acquire/build zero oracles.24settings/fullindexing pass; strongerprivatecontrol passes. No production code change. InitialfullWindowsfc227 stillrunning at TEMP/kplex-176-full-verify.log (notfinal afterhelpercorrection). Next clean checkpoint/fullfinal verify, exact native smoke, private durable-copy checks, concise report/PR decision. Stop after Gate1 no-go, no scale campaign/receipt/readersharing/personalvault/release. Source and originals preserved; no evidence publication.
