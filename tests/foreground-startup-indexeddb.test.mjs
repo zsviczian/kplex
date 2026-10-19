@@ -539,7 +539,7 @@ test('stationary startup watchdog retains finite center reads across a late real
 });
 
 /** A current center's finite host/body cover must not join unrelated whole-vault compilation. */
-for (const surface of ["frontmatter", "body", "cached-body"]) {
+for (const surface of ["frontmatter", "body", "cached-body", "body-resolve"]) {
   test(`stationary dense ${surface} center becomes readable before a held whole-vault baseline`, async () => {
     const browser = await chromiumHarness(bundle);
     try {
@@ -548,7 +548,8 @@ for (const surface of ["frontmatter", "body", "cached-body"]) {
       assert.equal(await browser.evaluate(`(async () => {
         const M = sourceModules, { f, settings } = await startupSeed('finite-center-before-baseline-${surface}');
         const build = M.GraphBuilder.prototype.buildStructuralBaseline;
-        let index, releaseDemand, releaseBaseline, releaseSources, unsubscribe;
+        let index, releaseDemand, releaseBaseline, releaseSources, unsubscribe, releaseReplacement;
+        let sourceRevision = 0;
         let baselineEntered = false, baselineReleased = false;
         const baselineGate = new Promise(resolve => { releaseBaseline = resolve; });
         const sourceGate = new Promise(resolve => { releaseSources = resolve; });
@@ -583,7 +584,7 @@ for (const surface of ["frontmatter", "body", "cached-body"]) {
             await baselineGate;
             return build.apply(this, args);
           };
-          index = new M.GraphIndex({ app: f.app, settings, getIndexSourceRevision: () => 0 }, f.app);
+          index = new M.GraphIndex({ app: f.app, settings, getIndexSourceRevision: () => sourceRevision }, f.app);
           index.scheduleOrphanCleanup = () => {};
           const reconcile = index.sourceAcquisition.reconcile.bind(index.sourceAcquisition);
           index.sourceAcquisition.reconcile = async (...args) => { await sourceGate; return reconcile(...args); };
@@ -617,9 +618,54 @@ for (const surface of ["frontmatter", "body", "cached-body"]) {
             equal(f.reads, [], 'Current warm parser input avoids native body reads');
             equal(index.getSourceAcquisitionCounters().parses, 0, 'Current warm parser input avoids parsing');
           }
+          if (${JSON.stringify(surface)} === 'body-resolve') {
+            const publish = index.publishOnDemandHostScope;
+            let gate, entered;
+            // Hold only the replacement producer. The real body/compiler/read selection stays active.
+            index.publishOnDemandHostScope = async function (...args) {
+              entered(); await gate; return publish.apply(this, args);
+            };
+            for (const change of ['resolve', 'same-stat-change', 'unknown-revision', 'native-stat-change', 'native-identity-change']) {
+              const predecessor = index.onDemandHostScopes.get('A.md');
+              const admission = new Promise(resolve => { entered = resolve; });
+              gate = new Promise(resolve => { releaseReplacement = resolve; });
+              const previous = sourceRevision;
+              if (change === 'same-stat-change') sourceRevision++;
+              if (change === 'unknown-revision') sourceRevision += 2;
+              index.refreshVisibleHostMetadataPreviews('A.md', previous);
+              await deadline(admission, change + ' replacement admission');
+              const children = index.getNeighborhood('A.md')?.children.map(node => node.page.path) ?? [];
+              if (change !== 'same-stat-change' && change !== 'unknown-revision') equal(children.sort(), [...targets].sort(), 'Identity-only startup resolve must not erase the visible body cover before replacement');
+              else ok(children.length !== targets.length, 'A known same-stat source change retires the old read proof immediately');
+              equal(index.isSemanticWriteReady('A.md', 'B.md'), false, 'Read continuity never grants writes');
+              if (change === 'native-stat-change') {
+                f.files.get('A.md').stat.mtime++;
+                ok((index.getNeighborhood('A.md')?.children.length ?? 0) !== targets.length, 'An unnotified native revision cannot borrow the rejected predecessor as its own neighbor');
+              }
+              if (change === 'native-identity-change') {
+                const original = f.files.get('A.md');
+                const replacement = Object.assign(Object.create(Object.getPrototypeOf(original)), original, {stat: {...original.stat}});
+                f.files.set('A.md', replacement);
+                ok((index.getNeighborhood('A.md')?.children.length ?? 0) !== targets.length, 'A same-stat native replacement cannot retain the previous file incarnation');
+              }
+              releaseReplacement();
+              await deadline((async () => {
+                while (index.onDemandPreviewTasks.size || index.onDemandHostScopes.get('A.md') === predecessor)
+                  await new Promise(resolve => setTimeout(resolve, 0));
+              })(), change + ' certified replacement');
+              equal(index.getNeighborhood('A.md').children.map(node => node.page.path).sort(), [...targets].sort(), 'The real successor replaces the predecessor');
+            }
+            index.publishOnDemandHostScope = publish;
+            f.metadata.delete('A.md');
+            index.refreshVisibleHostMetadataPreviews('A.md', sourceRevision);
+            await deadline((async () => {while (index.onDemandPreviewTasks.size) await new Promise(resolve => setTimeout(resolve, 0));})(), 'unavailable metadata retires replacement');
+            ok(!index.onDemandHostScopes.has('A.md'), 'A guarded replacement failure retires the obsolete read cover');
+            ok((index.getNeighborhood('A.md')?.children.length ?? 0) !== targets.length, 'Unavailable input cannot preserve old relations indefinitely');
+          }
           return true;
         } finally {
           unsubscribe?.();
+          releaseReplacement?.();
           releaseDemand?.();
           index?.destroy();
           baselineReleased = true;

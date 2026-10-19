@@ -1,4 +1,6 @@
 /**
+ * Startup metadata resolution keeps an unchanged finite read cover only while its replacement
+ * is pending. Source/policy/native revision fences and relationship write authority stay separate.
  * Saved native navigation is available before asynchronous catalogs; its filename/folder facets
  * own no semantic incidence, source acquisition, negative inventory proof or write authority.
  * Optional presentation dispatch uses finite snapshots and nonrecursive coalescing. Settings-only
@@ -989,7 +991,16 @@ export class GraphIndex {
       }
     })().catch(/** Optional readonly preparation cannot reject a detached input-event observer. */ () => undefined).finally(
       /** Release only this exact finite owner, then notify readers without starting another pass. */ () => {
-        if (this.onDemandPreviewTasks.get(centerPath) === task) this.onDemandPreviewTasks.delete(centerPath);
+        if (this.onDemandPreviewTasks.get(centerPath) === task) {
+          this.onDemandPreviewTasks.delete(centerPath);
+          const predecessor = this.onDemandHostScopes.get(centerPath);
+          const certificate = predecessor && this.localScopeCertificates.get(predecessor);
+          // A failed/guarded replacement cannot leave its obsolete-demand read cover installed.
+          // Successful publication already owns the new demand certificate and survives here.
+          if (certificate && certificate.demandRevision !== (this.semanticDemandRevision.get(centerPath) ?? 0)) {
+            this.onDemandHostScopes.delete(centerPath);
+          }
+        }
         this.emitPresentation();
       });
     this.onDemandPreviewTasks.set(centerPath, task);
@@ -1451,6 +1462,8 @@ export class GraphIndex {
   /**
    * Refresh affected demanded previews. A caller may supply the revision immediately before this
    * one known metadata event; unrelated or unbounded source revisions never renew warm freshness.
+   * Identity-only startup resolution may retain an unchanged read cover during its replacement;
+   * demand retirement still cancels old producers, and no certificate is renewed for that read.
    */
   refreshVisibleHostMetadataPreviews(changedPath: string, previousSourceRevision = this.plugin.getIndexSourceRevision()): boolean {
     const urlBody = this.urlOwnerBodies.get(changedPath), urlFile = this.app.vault.getFileByPath(changedPath), owner = this.urlOwners.get(changedPath);
@@ -1489,7 +1502,16 @@ export class GraphIndex {
       for (const center of this.semanticDemandCounts.keys()) {
         if (center !== changedPath && !affectedTargets.has(center) && !this.hasReadableNeighbour(center, changedPath)) continue;
         visible = true;
-        this.onDemandHostScopes.delete(center);
+        const predecessor = this.onDemandHostScopes.get(center);
+        const certificate = predecessor && this.localScopeCertificates.get(predecessor);
+        // Identity-only startup resolution is not a source edit. Keep the already displayed
+        // read cover through its private replacement; never restamp its proof or retain it
+        // across a real/unknown source revision or policy change. Native-file checks still
+        // reject a retained read, including an unnotified change during the pending work.
+        const replacingStartupRead = !this.onDemandBaselineReady && !knownMetadataChange
+          && certificate?.sourceRevision === this.plugin.getIndexSourceRevision()
+          && certificate.policyRevision === this.semanticPolicyRevision;
+        if (!replacingStartupRead) this.onDemandHostScopes.delete(center);
         if (this.hostPreview.hasTag(center)) void this.withForegroundPriority(
           () => this.publishHostMetadataPreview(center, INDEX_WORK_PRIORITY.visibleNeighborhood), 2);
         this.semanticDemandRevision.set(center, (this.semanticDemandRevision.get(center) ?? 0) + 1);
@@ -2846,14 +2868,16 @@ export class GraphIndex {
     if (tagPreview?.isTag && !this.hasCurrentCanonicalTag(path)) return tagPreview;
     // A finite current-center cover is independently readable while the global baseline is
     // still private. Its captured source/file certificate grants no global or write readiness.
-    // Unrelated host waves preserve published cover; affected native events retire its map/demand token.
+    // Identity-only resolve may keep its predecessor while a replacement is actually pending.
+    // The old certificate remains unchanged; source/policy/native-file guards still close reads.
     const foreground = !this.onDemandBaselineReady && this.usesLocalForeground()
       ? this.onDemandHostScopes.get(path) : undefined;
     const foregroundCertificate = foreground && this.localScopeCertificates.get(foreground);
     if (foreground && foregroundCertificate && this.semanticDemandCounts.has(path)
       && foregroundCertificate.sourceRevision === currentSourceRevision
       && foregroundCertificate.policyRevision === this.semanticPolicyRevision
-      && foregroundCertificate.demandRevision === (this.semanticDemandRevision.get(path) ?? 0)) {
+      && (foregroundCertificate.demandRevision === (this.semanticDemandRevision.get(path) ?? 0)
+        || this.onDemandPreviewTasks.has(path))) {
       let filesCurrent = true;
       for (const [file, revision] of foregroundCertificate.files) if (this.app.vault.getFileByPath(file.path) !== file
         || !fileRevisionMatches(file, revision)) { filesCurrent = false; break; }
@@ -2919,6 +2943,9 @@ export class GraphIndex {
     const sourceRevision = this.plugin.getIndexSourceRevision();
     for (const [center, scope] of this.onDemandHostScopes) {
       if (!this.semanticDemandCounts.has(center)) continue;
+      // A center must pass its full read-cover certificate above, including every captured file.
+      // Borrowing itself here would bypass those guards after a pending predecessor is rejected.
+      if (path === center) continue;
       const page = scope.pages.get(path), file = page?.file;
       if (!page || !file || page.path !== file.path || this.app.vault.getFileByPath(path) !== file) continue;
       const certificate = this.localScopeCertificates.get(scope), revision = certificate?.files.get(file);

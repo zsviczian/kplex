@@ -19,10 +19,12 @@ Obsidian is the production host; preserve the established portable semantic, ide
 
 ---
 
-# Startup history regression closeout
+# PR185 startup neighborhood continuity closeout
 
-Branch fix/startup-history-center, base main98843fc. Saved settings contain history before native tree/catalog/cache readiness. Fixed premature history-tag fallback, shared visible saved footer on loading/graph routes, and exact saved native facet priming. No parser/schema/source/scheduler/settings-writer/CSS change. Introducing recent PR not bisected; fallback itself predates179.
+Main validation agent; branch fix/startup-history-center, starting head226e007. Original saved-center/history correction preserved. Same-source startup metadata resolve deleted its readable body cover while an asynchronous replacement was pending; the actual held producer regression fails37children->0 on the original runtime. Native baseline did not capture a painted clear, so that limitation is retained.
 
-86focused cases passed; full verify:obsidian release/architecture7/core130/lint/main1129/UI185/sources334/browser639/build/nativeSmall pass. Final loading markup uses existing layout,185UI/lint rerun green. Tested/installable main7f034ae8e119919361737e60d45929442beb2e18cdbde34764bb857cadec98aa. Production authorized main-only restarts show40saved/14visible slots, correct first center, unchanged saved identity/footerbottom; foreground hidden=false. Earlier incomplete candidate and occluded capture preserved. Production settings bytes unchanged, no diagnostic note reads/writes. Originalmain/raw evidence private; no publication.
+Keep the same finite map entry readable only during pending replacement; certificate/source/policy/native file checks and write readiness remain separate. Failed input retires the predecessor; self-borrow cannot bypass center guards. No new watchdog, scheduler, source acquisition, parser, persistence or UI/CSS change. Runtime source SHA256 7ab184164d17b27e87af0b68843db5a28be2156dbb7d878b9f0fba85ee45cbb0.
 
-Report docs/validation/startup-history-center-2026-10-19.md. Native-tree startup can still delay the correct center; no comparative performance claim. macOS/mobile/multiple-restored-view acceptance pending. Review branch; no new merge/release authorized for this regression.
+209focused pass. Full verify:obsidian release/architecture7/core130/lint/main1129/UI185/sources334/browser640/build/exactSmall native smoke pass,0fail/cancel/skip. Tested/staged main2bf57fb13cfea51f17995862c9a2bb512385666cfc2fe4c5a34094af80e395ce. Candidate foreground production trace retains3parents/37children through both replacements and adds siblings normally. Only main.js deployed; settings bytes unchanged; diagnostics acquire no note text and write no notes. Temporary observers removed by clean deployment/reload. Original bundles/raw outcomes stay private with originals retained.
+
+Report docs/validation/startup-history-center-2026-10-19.md. No comparative performance or universal absence-of-flicker claim. Native tree/progressive sibling discovery remain; macOS/physical mobile/multiple restored-view acceptance pending. Keep185 draft. No merge/release authorization for this follow-up.
