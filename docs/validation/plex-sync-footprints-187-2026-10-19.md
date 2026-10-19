@@ -18,7 +18,7 @@ Command-palette sync uses the originating surface and its center. Cross-window a
 
 The native session owns `PlexFootprints`, a chronological list of small visit IDs and canonical action references. Repeated visits remain separate. Same-center publications and native echoes add nothing. Normal navigation, including older trail selection, uses the existing activation/history path. Selecting an older visit appends; it does not truncate the trail. **Start here** retains only the current visit in that Plex.
 
-The host Lucide Footprints icon sits beside Find. The disclosure reuses `FloatingLayer`, the collection-window owner, native icons and the existing saved-node presentation. It resolves/renders at most 40 rows, reveals the newest visit on opening, supports keyboard navigation and keeps the scroll position when a reader is inspecting older visits.
+The host Lucide Footprints icon sits beside Find. The disclosure reuses `FloatingLayer`, the collection-window owner, native icons and the existing saved-node presentation. It resolves/renders at most 40 rows, shows the newest visit at the top on opening, supports keyboard navigation and keeps the scroll position when a reader is inspecting older visits.
 
 The trail has no persistence/export method. It is absent from native `getState()`, plugin settings, graph caches and support-report projections. Renames update occurrence coordinates without manufacturing visits. Missing or replaced references stay unavailable; selecting them never creates a note. Memory grows with the session's visits; the UI window is bounded, not the retained visit sequence.
 
@@ -68,3 +68,7 @@ macOS, physical phone/tablet touch, mobile WebView and screen-reader acceptance 
 ## Closeout
 
 Final native cleanup and the preserved pre-lane baseline restore the original Small workspace and settings exactly. No owned fixtures/controllers/fullscreen DOM remain, and mobile emulation is off. TEMP originals and failed trials remain; the durable private backup has a per-file checksum manifest. Nothing is archived or published. The branch remains draft for maintainer review; issues #31 and #59 remain open. Highest-value manual checks are two independent pairs with the same file, popout teardown, and Footprints keyboard/touch behavior on physical devices.
+
+## Newest-first follow-up
+
+The stored chronological trail is unchanged. The disclosure projects newest-first through the existing bounded window. Home selects newest, End oldest, and arrows follow visual order. Stable visit IDs and scroll offsets preserve older reading/focus anchors when visits arrive; short lists clamp correctly. Row projection is memoized so scroll/focus settlement does not repeat resolution. Seven focused Chromium/session checks pass, including 10,000 visits with the existing 40-row/80-resolution bound. Earlier failed scroll-anchor and short-list controls remain private. Full verification and exact-build native replay of this follow-up are pending; the earlier full/native results above apply to their recorded revisions.

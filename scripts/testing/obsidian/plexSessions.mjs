@@ -132,6 +132,8 @@ function nativeProbe(phase,saved){
   const restores=[wrap(p.index,"acquireSemanticDemand",()=>counts.demands++),wrap(app.vault,"read",()=>counts.reads++),wrap(p,"rebuildIndex",()=>counts.rebuilds++),wrap(p,"saveSettings",()=>counts.settings++)];
   await click(trigger);let panel=trigger.ownerDocument.querySelector(".kplex-footprints-panel");check(panel?.parentElement===trigger.ownerDocument.body,"Footprints portal ownership wrong");
   check(panel.querySelectorAll(".kplex-footprints-row").length<=40,"Unbounded native trail DOM");
+  const displayed=[...panel.querySelectorAll(".kplex-footprints-row")].map(row=>Number(row.dataset.footprintOrdinal));
+  check(displayed[0]===aTrail.length-1&&displayed.every((ordinal,index)=>!index||ordinal===displayed[index-1]-1),"Footprints must show newest visits first");
   await click(panel.querySelector(`[aria-label="${p.translator("footprints.startHere")}"]`));await escape(trigger.ownerDocument);
   for(const restore of restores)restore();
   check(aTrail.length===1&&bTrail.length===bLength&&JSON.stringify(p.settings.navigationHistory)===history&&center(hostA)===active&&rootA.querySelector(".kplex-camera").style.transform===camera,"Start here affected navigation/history/other trail/camera");

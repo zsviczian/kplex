@@ -1,4 +1,4 @@
-/** Actual browser Footprints disclosure: bounded chronological DOM, repeated visits and shared owner-document dismissal. */
+/** Actual browser Footprints disclosure: bounded newest-first DOM, repeated visits and owner-document dismissal. */
 import assert from "node:assert/strict";
 import test from "node:test";
 import {readFileSync} from "node:fs";
@@ -24,7 +24,8 @@ async function settle(host){await host.evaluate("new Promise(resolve=>requestAni
 test("Footprints repeats, row activation, Start here, Escape, outside dismissal and focus stay in one owner",async()=>{
  const host=await browser();try{
   await host.evaluate(`['A.md','B.md','A.md','C.md'].forEach(visit);document.querySelector('.kplex-footprints-trigger').click()`);await settle(host);
-  assert.deepEqual(await host.evaluate("Array.from(document.querySelectorAll('.kplex-footprints-row > span:not(.kplex-icon)')).map(el=>el.textContent)"),["A.md","B.md","A.md","C.md"]);
+  assert.deepEqual(await host.evaluate("Array.from(document.querySelectorAll('.kplex-footprints-row > span:not(.kplex-icon)')).map(el=>el.textContent)"),["C.md","A.md","B.md","A.md"]);
+  assert.deepEqual(await host.evaluate("Array.from(document.querySelectorAll('.kplex-footprints-row')).map(el=>el.parentElement.getAttribute('aria-posinset'))"),["1","2","3","4"]);
   assert.equal(await host.evaluate("document.activeElement.dataset.footprintOrdinal"),"3");
   assert.equal(await host.evaluate("document.querySelector('.kplex-footprints-panel').parentElement===document.body"),true);
   await host.evaluate("document.querySelector('[data-footprint-ordinal=\"1\"]').click()");await settle(host);assert.equal(await host.evaluate("trail.length"),5);
@@ -45,18 +46,31 @@ test("Footprints repeats, row activation, Start here, Escape, outside dismissal 
  }finally{await host.cleanup();}
 });
 
-test("long trails render a bounded window, retain order and keep readers at older visits on append",async()=>{
+test("newest-first long trails retain older reading/focus anchors and follow visual keyboard order",async()=>{
  const host=await browser();try{
   await host.evaluate("for(let i=0;i<10000;i++)visit(i%2?'B.md':'A.md');document.querySelector('.kplex-footprints-trigger').click()");await settle(host);
   const initial=await host.evaluate("({length:trail.length,rows:document.querySelectorAll('.kplex-footprints-row').length,last:document.querySelector('.kplex-footprints-row:last-of-type')?.textContent,scroll:document.querySelector('.kplex-footprints-list').scrollTop})");
-  assert.equal(initial.length,10000);assert(initial.rows<=40);assert(initial.scroll>100000);
-  await host.evaluate("const list=document.querySelector('.kplex-footprints-list');list.scrollTop=0;list.dispatchEvent(new Event('scroll'))");await settle(host);
-  assert.equal(await host.evaluate("document.querySelector('.kplex-footprints-row').dataset.footprintOrdinal"),"0");
+  assert.equal(initial.length,10000);assert(initial.rows<=40);assert.equal(initial.scroll,0);
+  assert.equal(await host.evaluate("document.querySelector('.kplex-footprints-row').dataset.footprintOrdinal"),"9999");
+  await host.evaluate("const list=document.querySelector('.kplex-footprints-list');list.scrollTop=160000;list.dispatchEvent(new Event('scroll'))");await settle(host);
+  const older=await host.evaluate("({ordinal:document.querySelector('.kplex-footprints-row').dataset.footprintOrdinal,scroll:document.querySelector('.kplex-footprints-list').scrollTop})");
+  await host.evaluate("document.querySelectorAll('.kplex-footprints-row')[4].focus()");await settle(host);
+  const focused=await host.evaluate("document.activeElement.dataset.footprintOrdinal");
   const resolves=await host.evaluate("window.resolves");await host.evaluate("visit('C.md')");await settle(host);
-  assert.equal(await host.evaluate("document.querySelector('.kplex-footprints-list').scrollTop"),0);
+  assert.equal(await host.evaluate("document.querySelector('.kplex-footprints-list').scrollTop"),older.scroll+40);
+  assert.equal(await host.evaluate("document.querySelector('.kplex-footprints-row').dataset.footprintOrdinal"),older.ordinal);
+  assert.equal(await host.evaluate("document.activeElement.dataset.footprintOrdinal"),focused);
   assert((await host.evaluate("window.resolves"))-resolves<=80,"One append resolves only the visible bounded window");
-  await host.evaluate("document.querySelector('.kplex-footprints-row').focus()");await host.command("Input.dispatchKeyEvent",{type:"keyDown",key:"End",code:"End"});await settle(host);
+  await host.command("Input.dispatchKeyEvent",{type:"keyDown",key:"End",code:"End"});await settle(host);
+  assert.equal(await host.evaluate("document.activeElement.dataset.footprintOrdinal"),"0");
+  await host.command("Input.dispatchKeyEvent",{type:"keyDown",key:"ArrowUp",code:"ArrowUp"});await settle(host);
+  assert.equal(await host.evaluate("document.activeElement.dataset.footprintOrdinal"),"1");
+  await host.command("Input.dispatchKeyEvent",{type:"keyDown",key:"Home",code:"Home"});await settle(host);
   assert.equal(await host.evaluate("document.activeElement.dataset.footprintOrdinal"),"10000");
+  assert.equal(await host.evaluate("document.querySelector('.kplex-footprints-list').scrollTop"),0);
+  await host.command("Input.dispatchKeyEvent",{type:"keyDown",key:"ArrowDown",code:"ArrowDown"});await settle(host);
+  assert.equal(await host.evaluate("document.activeElement.dataset.footprintOrdinal"),"9999");
+  await host.command("Input.dispatchKeyEvent",{type:"keyDown",key:"Home",code:"Home"});await settle(host);
   await host.evaluate("visit('Missing.md')");await settle(host);const length=await host.evaluate("trail.length");
   await host.evaluate("document.querySelector('.kplex-footprints-row[aria-disabled=true]').click()");assert.equal(await host.evaluate("trail.length"),length);
  }finally{await host.cleanup();}
