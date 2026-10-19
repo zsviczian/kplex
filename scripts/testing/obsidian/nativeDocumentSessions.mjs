@@ -11,7 +11,7 @@ export function nativeDocumentSessions(plugin) {
     /** Fixture isolation explicitly disables each current owner and defaults for subsequently created views. */
     async off(){for(const host of hosts())await plugin.setDocumentSyncMode(host,"off");Object.assign(plugin.settings,{documentSyncMode:"off",sidecarOpen:false,followActiveFile:false,autoOpenCentralDocument:false});},
     /** Capture only native scalar serialization; Footprints and pending native work are intentionally absent. */
-    capture(){return hosts().map(host=>({id:host.view.documentSession.ownerId,type:host.view.getViewType(),state:host.view.getState()}));},
+    capture(){return hosts().map(host=>({id:typeof host.id==="string"&&workspace.getLeafById(host.id)===host?host.id:null,type:host.view.getViewType(),state:host.view.getState()}));},
     /** Restore changed test-owned state through a new native incarnation, never direct map/field mutation. */
     async restore(states){for(const saved of states){const host=saved.id?workspace.getLeafById(saved.id):null;if(!host||host.view.getViewType()!==saved.type)continue;
       if(JSON.stringify(host.view.getState())===JSON.stringify(saved.state))continue;

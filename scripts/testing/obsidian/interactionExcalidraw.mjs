@@ -127,7 +127,7 @@ function probe(scenario,issue161Scenarios){
   check(c.hotkeyKey,'No unused bounded native shortcut fixture chord');
   app.hotkeyManager.setHotkeys(commandId,[{modifiers:['Mod','Alt','Shift'],key:c.hotkeyKey}]);await app.hotkeyManager.save();
   await activate(host);c.note=app.workspace.getLeaf('split');c.leaves.push(c.note);wrapLeaf(c.note);
-  p.settings.embedCentralNode=false;p.index.notify();
+  host.view.centerPresentation.update({embedCentralNode:false});
   for(const mode of ['off','recent','pinned','sidecar']){
    await documentSessions(p).off();await c.note.openFile(c.file,{active:false});await activate(c.note);
    if(mode==='sidecar'){
@@ -143,8 +143,8 @@ function probe(scenario,issue161Scenarios){
     if(action==='canonical-toggle')returned=(await ex.ea.toggleViewMode(leaf.view))?.getViewType();
     if(action==='native-command')accepted=app.commands.executeCommandById(commandId);
     if(action==='trusted-shortcut'){
-     wc.sendInputEvent({type:'keyDown',keyCode:c.hotkeyKey,modifiers:['meta','alt','shift']});await wait(35);
-     wc.sendInputEvent({type:'keyUp',keyCode:c.hotkeyKey,modifiers:['meta','alt','shift']});
+     wc.sendInputEvent({type:'keyDown',keyCode:c.hotkeyKey,modifiers:[require('process').platform==='darwin'?'meta':'control','alt','shift']});await wait(35);
+     wc.sendInputEvent({type:'keyUp',keyCode:c.hotkeyKey,modifiers:[require('process').platform==='darwin'?'meta':'control','alt','shift']});
     }
     await until(()=>leaf.getViewState().type==='excalidraw'&&leaf.view.excalidrawAPI,'Toggle did not enter mounted native drawing: '+mode+'/'+action);await wait(600);
     const settled=snap(leaf),events=c.events.slice(start);
@@ -156,24 +156,27 @@ function probe(scenario,issue161Scenarios){
    }
    if(mode==='sidecar'){await p.closeSidecar(host,false);c.sidecar=null;}
   }
-  // An observed originating file must still propagate into another, genuinely different companion.
-  await documentSessions(p).off();await p.openSidecar(host,p.index.get(c.other.path));
-  c.sidecar=p.sidecarLeaves.get(host);c.leaves.push(c.sidecar);wrapLeaf(c.sidecar);
-  p.settings.sidecarMarkdownMode='preview';
-  await p.setDocumentSyncMode(host,'recent');p.documentSession(host).lastDocumentLeaf=c.note;
+  // Recent follows its ordinary native source; another Plex's managed pair remains independent.
+  await documentSessions(p).off();p.documentSession(host).lastDocumentLeaf=c.note;await p.setDocumentSyncMode(host,'recent');
+  const companionHost=app.workspace.getLeaf('split');c.leaves.push(companionHost);await companionHost.setViewState({type:'k-plex-react-view',active:false});await companionHost.view.waitUntilReady();
+  p.notifyNavigation(c.other.path,companionHost);await p.openSidecar(companionHost,p.index.get(c.other.path));
+  c.sidecar=p.sidecarLeaves.get(companionHost);c.leaves.push(c.sidecar);wrapLeaf(c.sidecar);
+  p.documentSession(companionHost).preferences.sidecarMarkdownMode='preview';
   await c.note.setViewState({type:'markdown',state:{file:c.file.path,mode:'source'},active:false},{focus:false});
   await until(()=>c.note.getViewState().type==='markdown','Different-file origin Markdown precondition');await activate(c.note);
-  await ex.ea.toggleViewMode(c.note.view);await until(()=>c.note.getViewState().type==='excalidraw','Different-file origin drawing missing');
-  await until(()=>c.sidecar.getViewState().state?.file===c.file.path,'Different-file companion did not follow');await wait(350);
+  await ex.ea.toggleViewMode(c.note.view);await until(()=>c.note.getViewState().type==='excalidraw','Different-file origin drawing missing');await wait(350);
+  check(c.sidecar.getViewState().state?.file===c.other.path,'Another owner followed an unrelated native source');
+  p.notifyNavigation(c.file.path,companionHost);
+  await until(()=>c.sidecar.getViewState().state?.file===c.file.path,'Explicit owner navigation did not update its companion');await wait(350);
   check(c.note.getViewState().type==='excalidraw','Different-file companion update reset originating drawing');
   check(c.sidecar.getViewState().type==='markdown'&&c.sidecar.getViewState().state?.mode==='preview','Different-file companion lost configured Markdown mode');
-  record('different-file-companion',{origin:snap(c.note),sidecar:snap(c.sidecar)});
+  record('different-owner-companion-isolation',{origin:snap(c.note),sidecar:snap(c.sidecar)});
   // Explicit provenance inspection must retain its source representation and requested location.
-  await p.openMarkdownInSidecar(host,c.other,1,true);await wait(200);
+  await p.openMarkdownInSidecar(companionHost,c.other,1,true);await wait(200);
   check(c.sidecar.getViewState().type==='markdown'&&c.sidecar.getViewState().state?.file===c.other.path&&c.sidecar.getViewState().state?.mode==='source','Explicit source inspection contract lost');
   check(c.sidecar.view.editor?.getCursor?.().line===1,'Explicit source inspection did not apply requested line');
   record('explicit-source-inspection',{sidecar:snap(c.sidecar),line:c.sidecar.view.editor?.getCursor?.().line});
-  await p.closeSidecar(host,false);c.sidecar=null;await documentSessions(p).off();
+  await p.closeSidecar(companionHost,false);c.sidecar=null;companionHost.detach();await documentSessions(p).off();
   // Fresh editor sessions exercise both initial Markdown modes, not a settings edit on an old session.
   /** Navigate through the production graph signal and await its actual embedded native destination. */
   const go=async file=>{
@@ -183,8 +186,8 @@ function probe(scenario,issue161Scenarios){
   };
   /** Dispose the preceding session so initial defaults are evaluated from fresh metadata. */
   const fresh=async(mode,flag)=>{
-   p.settings.embedCentralNode=false;p.index.notify();await until(()=>!editor(),'Previous embedded editor did not dispose');c.embeddedLeaf=null;
-   p.settings.centralNodeMarkdownMode=mode;await setFlag(flag);p.settings.embedCentralNode=true;p.index.notify();await go(c.file);
+   host.view.centerPresentation.update({embedCentralNode:false});await until(()=>!editor(),'Previous embedded editor did not dispose');c.embeddedLeaf=null;
+   host.view.centerPresentation.update({centralNodeMarkdownMode:mode});await setFlag(flag);host.view.centerPresentation.update({embedCentralNode:true});await go(c.file);
    await wait(250);return snap(c.embeddedLeaf);
   };
   for(const mode of ['source','preview']){
@@ -207,7 +210,7 @@ function probe(scenario,issue161Scenarios){
    check(initial.type==='excalidraw'&&button('centralEditor.showMarkdown'),'Flag false/missing lost drawing default');
    record('embedded-drawing-default/'+String(flag),{initial});
   }
-  p.settings.embedCentralNode=false;p.index.notify();await until(()=>!editor(),'Final embedded teardown did not complete');
+  host.view.centerPresentation.update({embedCentralNode:false});await until(()=>!editor(),'Final embedded teardown did not complete');
   return {cases:c.cases,events:c.events,folder:c.folder,metadata:app.metadataCache.getFileCache(c.file).frontmatter,hotkey:{key:c.hotkeyKey,modifiers:['Mod','Alt','Shift']},foreground:{hidden:document.hidden,focused:document.hasFocus()}};
  })().then(value=>{c.value=value;c.done=true;},error=>{c.error=String(error);c.done=true;});
  return JSON.stringify({started:true,folder:c.folder});
@@ -240,14 +243,14 @@ finally{
    await attempt('finish-probe-task',async()=>{await c.task;});
    for(const [index,undo] of c.wrappers.reverse().entries())await attempt('native-wrapper-'+index,undo);
    await attempt('native-shortcut',async()=>{await c.restoreHotkeys?.();});
-   await attempt('embedded-editor-disposal',async()=>{c.p.settings.embedCentralNode=false;c.p.index.notify();await new Promise(resolve=>window.setTimeout(resolve,100));});
+   await attempt('embedded-editor-disposal',async()=>{c.host.view.centerPresentation?.update({embedCentralNode:false});await new Promise(resolve=>window.setTimeout(resolve,100));});
    for(const [index,leaf] of [...new Set(c.leaves)].reverse().entries())await attempt('owned-leaf-'+index,()=>{if(leaf?.view.containerEl.isConnected)leaf.detach();});
    await attempt('Excalidraw-representation-memory',()=>{for(const key of Object.keys(c.ex.excalidrawFileModes))if(!Object.hasOwn(c.originalExModes,key))delete c.ex.excalidrawFileModes[key];Object.assign(c.ex.excalidrawFileModes,c.originalExModes);});
    await attempt('fixture-folder',async()=>{const folder=app.vault.getFolderByPath(c.folder);if(folder)await app.vault.delete(folder,true);});
    await attempt('settings-before-layout',async()=>{Object.assign(c.p.settings,c.originalSettings);await c.p.saveSettings(false,false);await c.p.settingsWriteQueue;});
    await attempt('workspace-layout',async()=>{await app.workspace.changeLayout(c.layout);});
    await attempt('settings-after-layout',async()=>{Object.assign(c.p.settings,c.originalSettings);await c.p.saveSettings(false,false);await c.p.settingsWriteQueue;});
-   await attempt('native-leaf-associations',()=>{
+   await attempt('native-leaf-associations',async()=>{
     // Workspace restoration may replace leaves. Rebind original associations by serialized native id.
     /** Restore original associations by native serialized id after layout replaces leaf objects. */
     const rebind=old=>old?app.workspace.getLeavesOfType(old.getViewState().type).find(leaf=>leaf.id===old.id)??null:null;

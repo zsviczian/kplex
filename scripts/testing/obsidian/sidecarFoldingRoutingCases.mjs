@@ -68,7 +68,7 @@ export async function runSidecarFoldRoutingCases(ports) {
   const explicit = async (leaf, expected) => {
     const surfaceId = surface(leaf); check(surfaceId, "Exact routing surface is unavailable");
     const result = await p.actionManager.dispatch({id, source: "toolbar", surfaceId});
-    check(result.status === "completed", `Exact fold action returned ${result.status}`);
+    check(result.status === "completed", `Exact fold action returned ${JSON.stringify({result,managed:p.sidecarLeaves.has(leaf),candidate:Boolean(p.readPlexFoldCandidate(leaf)),foldedHosts:[...p.collapsedPlexHosts.keys()].map(host=>host.id),overlapDelete:c.overlapDelete})}`);
     await until(/** No readiness/green indicator substitutes for the expected exact native state. */ () => folded(leaf) === expected, "Exact native pair did not reach its requested state"); await frames();
   };
 
@@ -214,6 +214,8 @@ export async function runSidecarFoldRoutingCases(ports) {
 
   await scenario("overlapping-host-group-replaces-only-the-old-fold-session", async () => {
     const extra = workspace.createLeafInParent(host.parent, host.parent.children.length); c.createdLeaves.push(extra);
+    const originalDelete=p.deleteSidecarOwner;
+    const observeDelete=function(leaf,...args){if(leaf===extra)c.overlapDelete={stack:new Error().stack,folds:[...p.collapsedPlexHosts.keys()].map(host=>host.id)};return originalDelete.call(this,leaf,...args);};p.deleteSidecarOwner=observeDelete;
     try {
       await openFreshPlex(extra);
       await until(/** The overlap route requires a genuine mounted second Plex generation. */ () => surface(extra), "Overlapping host action surface did not mount");
@@ -225,10 +227,11 @@ export async function runSidecarFoldRoutingCases(ports) {
       const oldButton = group(companion).querySelector(".kplex-sidecar-unfold-plex");
       await explicit(extra, true);
       check(!folded(host) && folded(extra) && p.collapsedPlexHosts.size === 1 && !oldButton?.isConnected, "Overlapping fold retained a hidden chain/old control");
-      check(group(companion).querySelectorAll(".kplex-sidecar-unfold-plex").length === 1 && p.sidecarLeaves.get(host) === companion && p.sidecarLeaves.get(extra) === sibling, "Overlapping fold duplicated recovery or transferred associations");
+      check(group(companion).querySelectorAll(".kplex-sidecar-unfold-plex").length === 1 && p.sidecarLeaves.get(host) === companion && p.sidecarLeaves.get(extra) === sibling, `Overlapping fold duplicated recovery or transferred associations: ${JSON.stringify({controls:group(companion).querySelectorAll(".kplex-sidecar-unfold-plex").length,original:p.sidecarLeaves.get(host)?.id,expectedOriginal:companion.id,extra:p.sidecarLeaves.get(extra)?.id,expectedExtra:sibling.id,deletion:c.overlapDelete})}`);
       oldButton?.click(); await frames(); check(folded(extra), "Old overlap control retired the successor fold");
       await explicit(extra, false); check(!folded(host) && !folded(extra), "Overlapping recovery left shared group hidden");
     } finally {
+      if(p.deleteSidecarOwner===observeDelete)p.deleteSidecarOwner=originalDelete;
       p.restorePlexFoldBeforeReveal(extra); p.restorePlexFoldBeforeReveal(host);
       if (p.sidecarLeaves.has(extra)) await p.detachSidecar(extra);
       if (p.leafIsAttached(sibling)) await sibling.setViewState({type: "empty", active: false});

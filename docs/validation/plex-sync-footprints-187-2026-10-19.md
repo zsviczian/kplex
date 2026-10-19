@@ -1,6 +1,6 @@
 # Independent Plex document sync and Footprints — PR #187
 
-Status: complete repository verification passed; final native acceptance is in progress.
+Status: native acceptance passed on the folding-correction candidate; final repository verification is pending.
 
 Branch: `2026-10-19-plex-sync-footprints`. Integrated main through `1076068` without rewriting history (`42209ee`). PR #186 was merged before starting this work. This implements the approved batch for #31 and #59; both issues remain open and the PR remains draft.
 
@@ -24,24 +24,41 @@ The trail has no persistence/export method. It is absent from native `getState()
 
 ## Checkpoint evidence
 
-The final full `npm run verify:obsidian` run passes on Node 22.22.2, including `npm run verify`, production TypeScript/build and exact-build disposable-vault smoke. Its lanes pass 1,148 primary, 187 browser, 334 source and 642 browser-storage tests, plus architecture/core checks and official lint. The long 20,015-owner IndexedDB case completes under its existing deadline. These are regression checks, not a new comparative performance campaign. The later user-requested Footprints glyph adjustment uses 14 px against the magnifier's 15 px and shares its canvas button styling; affected browser/scanner rechecks accompany the checkpoint.
+Node 22.22.2; Windows Obsidian 1.14.4 (installer 1.14.0), explicit disposable `kplex-test-small`. Implementation checkpoint `106e81b` has green GitHub verification. The fourth complete local `npm run verify:obsidian` passes: 1,148 primary, 187 browser, 334 source and 642 browser-storage tests, plus architecture/core, official lint, production TypeScript/build and exact-build Small smoke. The 20,015-owner IndexedDB case completes under its existing deadline. A later, confirmed folding correction requires a final complete verification; that result is not yet claimed here.
 
-- Actual TypeScript build and changed-source scanner pass on Node 22.22.2.
-- 228 focused session, follow, action, editor and persistence tests pass at the first implementation checkpoint. Final-head checks remain pending after subsequent lifecycle/tooling changes.
-- The serial Chromium affected lane passed 159 cases before the command-palette extension. Its Footprints test retains 10,000 ordered visits with at most 40 rendered rows and bounded visible-row resolution per append. Final-head browser verification remains pending.
-- Native Windows Obsidian 1.14.4 (installer 1.14.0), `kplex-test-small`: the first complete candidate passes 11 scenarios. These cover two independent pairs, distinct panes displaying the same file, held A → B → A native opens, drawing-as-Markdown, source inspection, repeated Footprints, reset/focus, older-row append, duplicate native views, popout/main migration, scalar serialization and an actual renderer restart restoring two exact pair IDs with fresh trails.
-- In the native Footprints open/reset/Escape interval: zero semantic-demand acquisitions, Vault reads, rebuild requests and plugin settings saves. Existing passive counters also show zero parses, inventory passes, full-build starts, node-catalog starts and snapshot/checkpoint saves. Normal navigation is outside that interval and can legitimately hydrate/save global history. This is functional work-count evidence, not a comparative performance claim.
+The user-requested Footprints glyph is 14 px against Find's 15 px, with shared canvas button styling and the same 30 px hit target. Native geometry checks verify control alignment. Chromium retains 10,000 chronological visits while rendering at most 40 rows; visible-row resolution remains bounded per append. Memory for the chronological trail grows with actual visits.
 
-The native candidate above precedes the final command/lifecycle adjustments; it does not establish final-head acceptance. No production parser, compiler, source-cache schema or indexing scheduler change is proposed.
+| Native lane | Result and scope |
+| --- | --- |
+| Plex sessions, seventh | 15 passed: two independent pairs, same-file distinct panes, held A ? B ? A opens, source/drawing representation, repeated/reset/older Footprints, full tag/type rows, rename/delete/recreate, command origin, Zen portal retirement, duplicate native views, popout/main migration and real renderer restart of two exact pair IDs with fresh trails. |
+| Menu anchor, second | 14 passed, including owner-document placement, keyboard/outside dismissal and native migration. |
+| Sidecar folding, eighth | 37 passed after the bounded overlap correction, including overlapping groups, exact owner routing and cleanup. |
+| Display modes, fourth | 12 passed: desktop fullscreen/Zen independence, native lifecycle/migration and phone/tablet emulation geometry. |
+| Sidebar follow, desktop second / phone second | 8 passed in each: hidden rapid follow, exact pending-note supersession, explicit/history navigation and native note opening. |
+| Excalidraw representation, third | 18 passed: Off/Recent/Pinned/Sidecar toggles via canonical/native/trusted Windows shortcut paths, independent second-owner companion, explicit source inspection, embedded Markdown defaults and drawing defaults. |
+| General live updates, first | 15 passed plus one setup observation: structural drops/materialization, Bases drops, editable Properties synchronization, bounded refusal recovery, overlap, non-Markdown and popout. |
+| Issue #161, first | 28 passed: both ghost-navigation variants, actual external drawing creation, pinned-target control, first click, four repeated cycles per variant, tab switching, stationary Parent edit and disabled-follow control. |
+
+Native session/menu receipts precede the later folding correction; the other final native lanes use the corrected candidate. Exact artifact hashes and driver snapshots are in the private receipts. No production parser, compiler, source-cache schema or indexing scheduler changes are proposed.
+
+During Footprints open/reset/Escape, observed semantic-demand acquisitions, Vault reads, rebuilds and plugin-settings saves are zero. Passive counters also show zero parses, inventory passes, full-build starts, node-catalog starts and snapshot/checkpoint saves. Normal navigation is outside that interval and can legitimately hydrate/save shared history. These are functional operation counts, not comparative resource or performance claims.
+
+During the fold/unfold no-source-work control, K-Plex semantic/source/write/open counters remain zero. Total native `cachedRead` is **2**, both attributed to the enabled Obsidian Word count owner's verified `onSelection ? onFileOpen ? Vault.cachedRead` stack. The test retains the total and bounded raw attribution, disables no core plugin, and rejects every unattributed read. It does not claim the host performs zero reads.
+
+## Confirmed correction and test boundaries
+
+The overlap lane traced a real ownership loss: folding Plex A made Plex B's shared native tab-group geometry zero, and the layout callback released B's managed companion. The correction reuses the existing live fold-topology validator before releasing an invisible association. Invalid topology or a detached native leaf still releases it. A production-callback regression exercises all three cases. No second association map or scheduler was added.
+
+A restart control must wait for Obsidian's debounced native workspace writer to reach disk. The session driver now checks the complete serialized leaf-ID set and both exact center/target tuples in workspace.json before a renderer restart. An elapsed delay alone was not a valid durability boundary. Cleanup removes only verified fixture children before their owned folder; original raw failures remain intact.
+
+The shared native fixture helper captures verified leaf IDs even while a restored native view is deferred. It keeps no renderer global and restores native scalar state through the real view lifecycle. The sidebar test now locates the existing empty graph inside the App root, and serialized cleanup uses expressions. The Excalidraw test sends Control for Windows Mod chords and Command for macOS; native per-view representation and document preferences replace obsolete global fixture fields. Its old expectation that switching to Recent retained a managed companion was replaced by an explicit two-owner isolation control, consistent with the implemented product behavior.
 
 ## Preserved failures and limits
 
-The first full-verification attempt stopped at indexing smoke assertions that still expected global sync calls. The second reached the full 1,148-case primary test lane: five fixtures failed because they retained global materialization/command ports or the old toolbar container. The migrated fixtures then passed all 133 affected tests. These failures remain in private logs; neither failed full run is counted as acceptance. Path remapping now runs once in the startup-registered lifecycle owner, rather than repeating in the later index listener.
+Earlier full runs found obsolete global-sync assertions, five global materialization/command/toolbar fixtures, and two publication fixtures lacking the new pending-URL callback. Corrected affected lanes pass; all failed runs remain private. Rename remapping runs once in the startup lifecycle owner, rather than again in the later index listener.
 
-The third full run passed the primary lane but found two render-to-effect publication fixtures missing the new pending-URL callback. After correcting those fixtures and the final canonical-URL/hidden-portal cases, all 65 affected checks pass and the fourth complete verification passes. Failed runs are retained separately. The final native trial also checks that Zen retires an open body portal while retaining the native trail.
+Early native drawing controls used raw setViewState, which Excalidraw legitimately redirects; the corrected control uses its actual Open as Markdown action. A popout control retired during focus-time React remount, so the driver reacquires only that exact view's current control. One cleanup timed out after restoring the original layout; the exact owned fixture subtree was removed and Small reloaded to retire the test task. The sixth restart trial assumed durability too early; its recovery receipt and subsequent passing disk-boundary trial are retained.
 
-The first drawing controls used raw `setViewState()`, which Excalidraw redirects to its drawing view. K-Plex issued no extra opens or visits. The corrected control uses Excalidraw's actual **Open as Markdown** action.
+All 37 folding scenarios and cleanup passed in the seventh trial, but its final strict error check captured an intermittent native Obsidian popout teardown exception, `t.webContents.getZoomFactor is not a function`, in app.js. That run remains failed. The unchanged eighth trial passes without captured errors; the host exception is a remaining limitation, not suppressed or claimed fixed. One display-mode attempt passed all ten desktop cases then failed to reload the plugin in emulation; cleanup/configuration recovery and failed controls are preserved. A clean native reload and unchanged fourth full matrix pass. The cause of the earlier reload failure is not established.
 
-The first popout control reference retired during a focus-time React remount. The corrected driver reacquires only that same view's current control after focus. One failed trial's awaited layout cleanup timed out even though the original native layout had returned; the verified fixture subtree was removed and the disposable renderer reloaded to retire the pending test task. Later cleanup returns test popouts to main before restoring the layout. All originals/failures remain private.
-
-Required remaining work: affected native menu/Sidecar/display/interaction lanes and remaining targeted lifetime variants. macOS, physical phone/tablet touch, mobile WebView and screen-reader acceptance are not established by Windows or Chromium emulation. No personal vault was accessed. No raw archive is published, no branch deleted, and no merge or release is authorized for #187.
+macOS, physical phone/tablet touch, mobile WebView and screen-reader acceptance are not established by Windows/Chromium emulation. No personal vault was accessed. Evidence stays private in TEMP originals and a checksummed durable backup under LOCALAPPDATA/KplexValidation/plex-sync-footprints-187-2026-10-19. No archive is published, no branch deleted, and no merge or release is authorized for #187.

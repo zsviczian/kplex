@@ -20,12 +20,13 @@ import {nativeDocumentSessions,withNativeDocumentSessions} from "../scripts/test
 import ts from "typescript";
 
 test("native fixture session tools disable explicit owners and serialize only native scalar state through lexical probes",async()=>{
-  const calls=[],a={view:{documentSession:{ownerId:"A"},getViewType:()=>"k-plex-react-view",getState:()=>({plexSession:{version:1,ownerId:"A",centerPath:"A.md"}})}},b={view:{documentSession:{ownerId:"B"},getViewType:()=>"k-plex-sidepanel-view",getState:()=>({plexSession:{version:1,ownerId:"B",centerPath:"B.md"}})}};
-  const plugin={app:{workspace:{getLeavesOfType:type=>type==="k-plex-react-view"?[a]:[b]}},settings:{documentSyncMode:"pinned"},setDocumentSyncMode:async(host,mode)=>calls.push([host,mode])};
+  const calls=[],a={id:"A",view:{documentSession:{ownerId:"A"},getViewType:()=>"k-plex-react-view",getState:()=>({plexSession:{version:1,ownerId:"A",centerPath:"A.md"}})}},b={id:"B",view:{getViewType:()=>"k-plex-sidepanel-view",getState:()=>({plexSession:{version:1,ownerId:"B",centerPath:"B.md"}})}};
+  const plugin={app:{workspace:{getLeafById:id=>id==="A"?a:id==="B"?b:null,getLeavesOfType:type=>type==="k-plex-react-view"?[a]:[b]}},settings:{documentSyncMode:"pinned"},setDocumentSyncMode:async(host,mode)=>calls.push([host,mode])};
   const tools=nativeDocumentSessions(plugin);await tools.off();assert.deepEqual(calls,[[a,"off"],[b,"off"]]);assert.equal(plugin.settings.documentSyncMode,"off");
   const context={plugin};const result=runInNewContext(withNativeDocumentSessions("(()=>{const later=()=>documentSessions(plugin).capture();return later()})()"),context);
   assert.deepEqual(JSON.parse(JSON.stringify(result)),tools.capture());assert.equal(context.documentSessions,undefined,"No renderer maintenance global may leak");
   assert(!JSON.stringify(result).includes("footprints"));
+  assert.deepEqual(tools.capture().map(value=>value.id),["A","B"],"Deferred native shells have no documentSession; use verified native identity");
 });
 
 test("native gate setup binds foreground-only pages into the canonical patch baseline", () => {

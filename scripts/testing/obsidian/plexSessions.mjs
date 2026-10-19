@@ -77,7 +77,7 @@ function nativeProbe(phase,saved){
   await new Promise(resolve=>window.setTimeout(resolve,100));
   c.cleanupPhase="layout";await workspace.changeLayout(c.original.layout);c.cleanupPhase="queue";await p.settingsWriteQueue;
   if(!/^Kplex-187-Sessions-\d+$/.test(c.folder))throw Error("Unverified fixture subtree");
-  c.cleanupPhase="fixtures";const folder=app.vault.getFolderByPath(c.folder);if(folder)await app.vault.delete(folder,true);
+  c.cleanupPhase="fixtures";const folder=app.vault.getFolderByPath(c.folder);if(folder){for(const child of [...folder.children]){if(child.parent!==folder)throw Error("Unexpected fixture child");await app.vault.delete(child,true);}await app.vault.delete(folder,true);}
   p.recentLeafHistory=[];p.index.notifyPresentation();win.show();win.focus();win.webContents.focus();c.cleaned=true;
  })();return c.cleanupTask;};
  if(phase==="cleanup"){c.cleanup().then(()=>{c.status="passed"},error=>{c.status="failed";c.error=String(error.stack??error)}).finally(()=>{c.done=true});return true;}
@@ -185,6 +185,17 @@ try{
  assert.equal(cli("vault","info=path").replace(/^path /,""),target.vault);report.host=cli("version");
  for(const name of ["main.js","styles.css","manifest.json"]){const built=readFileSync(join(root,"dist",name)),installed=readFileSync(join(target.pluginDir,name));assert(built.equals(installed),`${name}: exact-build staging required`);report.artifacts[name]=createHash("sha256").update(installed).digest("hex");}
  cli("dev:errors","clear");restart=await phase("run");
+ // requestSaveLayout is debounced. A restart control must wait for durable native intent,
+ // rather than assuming an elapsed renderer delay means workspace.json has been written.
+ const durableDeadline=Date.now()+30000;
+ while(true){
+  const disk=JSON.parse(readFileSync(join(target.config,"workspace.json"),"utf8")),leaves=new Map();
+  const visit=value=>{if(!value||typeof value!=="object")return;if(value.type==="leaf"&&typeof value.id==="string")leaves.set(value.id,value.state);for(const child of Object.values(value))if(child&&typeof child==="object"){if(Array.isArray(child))child.forEach(visit);else visit(child);}};visit(disk);
+  if(restart.pairs.every(pair=>leaves.get(pair.host)?.state?.plexSession?.centerPath===pair.center&&leaves.get(pair.host)?.state?.plexSession?.targetId===pair.sidecar)&&JSON.stringify([...leaves.keys()].sort())===JSON.stringify(restart.leafIds)){
+   writeFileSync(join(output,"durable-workspace-before-reload.json"),JSON.stringify(disk,null,2));break;
+  }
+  assert(Date.now()<durableDeadline,"Native workspace intent did not reach disk before restart");await delay(200);
+ }
  evaluate('(()=>{delete window.__kplex187Sessions;return true})()');cli("reload");
  const end=Date.now()+45000;while(true){try{if(evaluate('Boolean(app.plugins.plugins["k-plex"]?.actionManager)'))break;}catch{}assert(Date.now()<end,"Native renderer reload unavailable");await delay(500);}
  await phase("restore",restart);report.status="passed";

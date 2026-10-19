@@ -421,7 +421,9 @@ export default class KplexPlugin extends Plugin {
           // settled DOMRect. During an explicit move, ownership is authoritative until the move
           // completes; otherwise a transient zero-width rect would make K-Plex orphan its own new
           // companion before Obsidian finishes laying it out.
-          if (this.sidecarMovingHosts.has(host) || this.startupInitializing) continue;
+          // Another owner's fold can hide this same native group. The existing topology validator
+          // still proves its live pair; zero geometry alone must not release that association.
+          if (this.sidecarMovingHosts.has(host) || this.startupInitializing || this.readPlexFoldCandidate(host)) continue;
           this.deleteSidecarOwner(host);
           if (session?.linkedDocumentLeaf === sidecar) {
             session.linkedDocumentLeaf = null;

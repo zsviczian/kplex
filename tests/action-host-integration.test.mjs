@@ -19,6 +19,7 @@ function method(name, dependencies = {}) {
   const source = ts.createSourceFile('src/main.ts', readFileSync(new URL('../src/main.ts', import.meta.url), 'utf8'), ts.ScriptTarget.Latest, true);
   let expression;
   function visit(node) {
+    if(name==='nativeLayoutChange'&&ts.isCallExpression(node)&&node.expression.getText(source)==='this.app.workspace.on'&&node.arguments[0]?.getText(source)==='"layout-change"')expression=`function() ${node.arguments[1].body.getText(source)}`;
     if (ts.isMethodDeclaration(node) && node.name.getText(source) === name) {
       const text = node.getText(source);
       expression = `${node.modifiers?.some(item => item.kind === ts.SyntaxKind.AsyncKeyword) ? 'async ' : ''}function ${name}${text.slice(text.indexOf('('))}`;
@@ -44,6 +45,20 @@ function documentSessions(owner) {
 const update = method('updateActionPreferences', { ...contracts, readObsidianPresentationEnvironment: () => ({ keyConvention: 'windows' }), window: {} });
 const enqueue = method('enqueueSettingsWrite');
 const persist = method('persistSettingsSnapshot');
+
+test('native layout retains a second live pair hidden by another fold but releases unproven or detached associations',()=>{
+  const a={},b={},docA={},docB={},sessions=new Map();let proof=true,attached=true,writes=0;
+  for(const host of [a,b])sessions.set(host,{linkedDocumentLeaf:host===a?docA:docB,preferences:{documentSyncMode:'pinned',sidecarOpen:true},persist(){writes++;}});
+  const context={sidecarLeaves:new Map([[a,docA],[b,docB]]),collapsedPlexHosts:new Map([[a,{}]]),sidecarMovingHosts:new Set(),startupInitializing:false,
+    documentSession:host=>sessions.get(host),reconcilePlexFolds:()=>false,leafIsAttached:leaf=>leaf!==docB||attached,
+    adjacentPosition:()=>null,readPlexFoldCandidate:host=>host===b&&proof?{}:null,
+    deleteSidecarOwner(host){this.sidecarLeaves.delete(host)},restoreCollapsedPlex(){},validateLinkedDocumentLeaf(){},notifySidecar(){},onKplexVisibilityMayHaveChanged(){},
+    app:{workspace:{requestSaveLayout(){writes++;}}},index:new Proxy({},{get(){throw Error('Native topology reconciliation must not consult the index')}})};
+  const reconcile=method('nativeLayoutChange');reconcile.call(context);
+  assert.equal(context.sidecarLeaves.get(b),docB);assert.equal(sessions.get(b).preferences.documentSyncMode,'pinned');assert.equal(writes,0);
+  proof=false;reconcile.call(context);assert.equal(context.sidecarLeaves.has(b),false);assert.equal(context.sidecarLeaves.get(a),docA);assert.equal(sessions.get(b).preferences.documentSyncMode,'off');
+  context.sidecarLeaves.set(b,docB);sessions.get(b).linkedDocumentLeaf=docB;proof=true;attached=false;reconcile.call(context);assert.equal(context.sidecarLeaves.has(b),false,'A topology proof cannot retain a detached document');
+});
 
 /** An explicit new-tab request never reuses a Plex or applies the generic startup-surface preference. */
 test('new Plex tab creates and reveals an adjacent native tab group on every invocation without index work', async () => {

@@ -157,7 +157,7 @@ function startProbe() {
     app.workspace.rightSplit.expand(); await app.workspace.revealLeaf(host);
     await until(() => p.isKplexLeafVisible(host), "Pending-note drawer did not reveal");
     await until(() => {
-      root = host.view.contentEl.querySelector(".kplex-app"); return root?.classList.contains("kplex-empty");
+      root = host.view.contentEl.querySelector(".kplex-app"); return Boolean(root?.querySelector(".kplex-empty"));
     }, "Pending native note retained stale scene");
     check(!root.querySelector(".kplex-role-center"), "Pending note still displayed an old central node");
     await noteLeaf.openFile(files[2], { active: true });
@@ -256,7 +256,7 @@ finally {
         if (state.done) { assert(!state.error, state.error); break; }
         assert(Date.now() < end, "Sidebar native cleanup deadline exceeded"); await delay(250);
       }
-      evaluate("delete window.__kplexSidebarFollow;JSON.stringify(true)"); report.cleaned = true;
+      evaluate("(()=>{delete window.__kplexSidebarFollow;return JSON.stringify(true)})()"); report.cleaned = true;
     } catch (error) { report.status = "failed"; report.cleanupError = String(error.stack ?? error); }
   }
   if (baseline) {
@@ -269,7 +269,7 @@ finally {
         if (state.done) { assert(!state.error, state.error); break; }
         assert(Date.now() < end, "Native mode layout cleanup deadline exceeded"); await delay(250);
       }
-      evaluate("delete window.__kplexSidebarModeCleanup;JSON.stringify(true)");
+      evaluate("(()=>{delete window.__kplexSidebarModeCleanup;return JSON.stringify(true)})()");
     } catch (error) { report.status = "failed"; report.modeCleanupError = String(error.stack ?? error); }
   }
   for (const item of configuration) writeFileSync(item.path, item.bytes);

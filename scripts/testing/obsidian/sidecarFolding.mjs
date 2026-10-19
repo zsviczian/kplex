@@ -15,6 +15,7 @@ import { validateTarget } from "./runner.mjs";
 import { runSidecarFoldingCases } from "./sidecarFoldingCases.mjs";
 import { runSidecarFoldRoutingCases } from "./sidecarFoldingRoutingCases.mjs";
 import { runSidecarFoldingLifecycleCases } from "./sidecarFoldingLifecycleCases.mjs";
+import {withNativeDocumentSessions} from "./nativeDocumentSessions.mjs";
 
 const projectRoot = resolve(fileURLToPath(new URL("../../..", import.meta.url)));
 const vaultName = process.env.KPLEX_TEST_VAULT_NAME;
@@ -53,7 +54,7 @@ function cli(command, ...args) {
   return result.stdout.trim();
 }
 /** Transfer detached finite observations; never retain native objects across reload. */
-function evaluate(code) { return JSON.parse(cli("eval", `code=${code}`).replace(/^=>\s*/, "")); }
+function evaluate(code) {code=withNativeDocumentSessions(code); return JSON.parse(cli("eval", `code=${code}`).replace(/^=>\s*/, "")); }
 /** Keep polling outside the renderer; production timers and throttling remain untouched. */
 function pause(milliseconds) { return new Promise(/** Yield one bounded driver interval. */ done => setTimeout(done, milliseconds)); }
 
@@ -64,6 +65,10 @@ function installProbe(extendedCases, routingCases, lifecycleCases) {
   const c = window.__kplex173FoldProbe = { done: false, scenarios: [], wrappers: [], layout: app.workspace.getLayout(), settings: structuredClone(p.settings),
     fileCount: app.vault.getFiles().length, markdownCount: app.vault.getMarkdownFiles().length, cancelled: false, createdLeaves: [], createdFiles: [] };
   const workspace = app.workspace;
+  c.documents=documentSessions(p).capture();
+  // Observe the enabled native owner without disabling it or changing its scheduling.
+  const wordCount=app.internalPlugins.plugins["word-count"]?.instance;
+  c.nativeWordCountReadOwner=Boolean(wordCount&&String(wordCount.onFileOpen).includes("this.app.vault.cachedRead")&&String(wordCount.onSelection).includes("this.onFileOpen"));
   c.errorEvents = [];
   /** Attribute native errors to the current finite case without suppressing host error delivery. */
   c.onError = event => { if (c.errorEvents.length < 80) c.errorEvents.push({message: event.message, scenario: c.currentScenario, at: performance.now()}); };
@@ -112,7 +117,11 @@ function installProbe(extendedCases, routingCases, lifecycleCases) {
     const descriptor = Object.getOwnPropertyDescriptor(owner, key);
     counts[key] = 0;
     /** Count calls without changing arguments, receiver, return or async timing. */
-    const replacement = function (...args) { counts[key] = (counts[key] ?? 0) + 1; return original.apply(this, args); };
+    const replacement = function (...args) { counts[key] = (counts[key] ?? 0) + 1;
+      if((key==="read"||key==="cachedRead")&&(c.readAttribution??=[]).length<12){const stack=new Error().stack??"";
+        const nativeWordCount=key==="cachedRead"&&c.nativeWordCountReadOwner&&/\.onFileOpen \(app:\/\/obsidian.md\/app.js/.test(stack)&&/\.onSelection \(app:\/\/obsidian.md\/app.js/.test(stack)&&!stack.includes("plugin:k-plex");
+        c.readAttribution.push({method:key,path:args[0]?.path,owner:nativeWordCount?"obsidian-word-count":"unattributed",stack});}
+      return original.apply(this, args); };
     owner[key] = replacement;
     c.wrappers.push(/** Preserve newer owners and restore inherited methods without adding own properties. */ () => { if (owner[key] === replacement) { if (descriptor) Object.defineProperty(owner, key, descriptor); else delete owner[key]; } });
   };
@@ -166,7 +175,7 @@ function installProbe(extendedCases, routingCases, lifecycleCases) {
     c.cancelled = true; await c.task; releaseWrappers(); window.removeEventListener("error", c.onError);
     for (const owner of [...p.collapsedPlexHosts.keys()]) p.restorePlexFoldBeforeReveal(owner);
     p.sidecarLeaves.clear();  Object.assign(p.settings, structuredClone(c.settings));
-    await workspace.setLayout(c.layout); await p.saveSettings(false, false); p.actionPublisher.sync(p.settings.actionPreferences);
+    await workspace.setLayout(c.layout);await documentSessions(p).restore(c.documents); await p.saveSettings(false, false); p.actionPublisher.sync(p.settings.actionPreferences);
     for (const file of c.createdFiles.reverse()) if (app.vault.getFileByPath(file.path) === file) await app.vault.delete(file, true);
     if (c.createdFolder) { const folder = app.vault.getFolderByPath(c.createdFolder); check(!folder || folder.children.length === 0, "Fixture cleanup encountered unowned content"); if (folder) await app.vault.delete(folder, true); }
     await frames(); workspace.requestSaveLayout(); await workspace.requestSaveLayout.run();
@@ -258,7 +267,10 @@ function installProbe(extendedCases, routingCases, lifecycleCases) {
       const counts = {}; for (const key of ["invalidateSemanticPolicy", "refreshSemanticSettings", "rebuild", "patchMarkdownPaths", "restoreSnapshot", "waitForSnapshotHydration"]) if (typeof p.index[key] === "function") wrap(p.index, key, counts);
       for (const key of ["read", "cachedRead", "modify", "create"]) wrap(app.vault, key, counts);
       workspace.iterateAllLeaves(/** Native file opens are counted across the finite current workspace, not only the managed tab. */ leaf => { wrap(leaf, "openFile", counts); });
-      try { await command(true); await command(false); await frames(); check(Object.values(counts).every(/** Every observed acquisition/write counter must stay zero. */ value => value === 0), `Fold caused source work: ${JSON.stringify(counts)}`); c.cleanTransitionCounts = counts; }
+      try { await command(true); await command(false); await frames();
+        c.cleanTransitionCounts=counts;c.cleanTransitionHostReads=(c.readAttribution??[]).filter(read=>read.owner==="obsidian-word-count").length;
+        check(Object.entries(counts).every(/** Preserve total native reads, while rejecting every unattributed read or K-Plex source/write operation. */ ([key,value])=>value===(key==="cachedRead"?c.cleanTransitionHostReads:0)),`Fold caused unattributed/source work: ${JSON.stringify(counts)}`);
+      }
       finally { releaseWrappers(); }
       check(p.settings.lastActivePath === c.before.center && JSON.stringify(p.settings.navigationHistory) === JSON.stringify(c.before.history), "Toggle changed center/history");
     });
@@ -295,7 +307,7 @@ try {
   const deadline = Date.now() + 240000;
   while (true) {
     const value = evaluate("JSON.stringify((()=>{const c=window.__kplex173FoldProbe;return {done:c?.done,error:c?.error,currentScenario:c?.currentScenario,scenarios:c?.scenarios,before:c?.before,final:c?.final,cleanTransitionCounts:c?.cleanTransitionCounts,routingFailure:c?.routingFailure,lifecycleFailure:c?.lifecycleFailure,errorEvents:c?.errorEvents}})())");
-    Object.assign(report, value); if (value.done) { assert(!value.error, value.error); break; }
+    Object.assign(report, value); if (value.done) {report.readAttribution=evaluate("JSON.stringify(window.__kplex173FoldProbe?.readAttribution??[])");report.nativeWordCountCachedReads=report.readAttribution.filter(read=>read.owner==="obsidian-word-count").length; assert(!value.error, value.error); break; }
     assert(Date.now() < deadline, `Native folding deadline: ${value.currentScenario}`); await pause(250);
   }
   report.status = "passed";
