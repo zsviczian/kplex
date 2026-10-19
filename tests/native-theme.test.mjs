@@ -1,9 +1,38 @@
-/** Real production CSS checks for native chrome, adaptive elevation and inherited public overrides. */
+/** Real production CSS checks for native chrome, camera raster ownership and inherited overrides. */
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import test from 'node:test';
 import {chromiumHarness} from './support/browserTypeScript.mjs';
 const css=readFileSync('styles.css','utf8');
+
+test('idle graph camera permits scale rerasterization without changing native scroll or section geometry', async () => {
+ const host=await chromiumHarness('window.sourceModules={}');
+ try {
+  await fixture(host);
+  const samples=await host.evaluate(`(async()=>{
+   const frame=()=>new Promise(resolve=>requestAnimationFrame(resolve));
+   const graph=document.querySelector('.kplex-app');
+   graph.innerHTML='<div class="kplex-plex"><div class="kplex-camera"><div class="kplex-thought" style="left:10px;top:20px;width:200px;height:30px">Expanded heading</div><div class="kplex-zone-panel" style="left:10px;top:80px;width:250px;height:120px"><div class="kplex-zone-scroll"><div class="kplex-zone-content" style="height:600px"><div class="kplex-thought" style="left:10px;top:200px;width:200px;height:30px">Scrollable label</div></div></div></div></div></div>';
+   const camera=graph.querySelector('.kplex-camera'),scroll=graph.querySelector('.kplex-zone-scroll');
+   const section=camera.firstElementChild,node=scroll.querySelector('.kplex-thought'),samples=[];
+   for(const scale of [1,1.25,.83,2,1]){
+    camera.style.transform='translate(250.3px,100.7px) scale('+scale+')';
+    scroll.scrollTop=100;await frame();const before=node.getBoundingClientRect().y;
+    scroll.scrollTop=101;await frame();const after=node.getBoundingClientRect().y;
+    samples.push({scale,scrollTop:scroll.scrollTop,delta:after-before,width:section.getBoundingClientRect().width,
+     willChange:getComputedStyle(camera).willChange,animations:camera.getAnimations({subtree:true}).filter(a=>a.playState==='running').length});
+   }
+   return samples;
+  })()`);
+  for(const sample of samples){
+   assert.equal(sample.scrollTop,101,'No scroll snapping or offset correction');
+   assert(Math.abs(sample.delta+sample.scale)<.03,'Native scroll and camera coordinates remain coherent');
+   assert(Math.abs(sample.width-200*sample.scale)<.03,'Unscrolled section geometry retains graph zoom');
+   assert.equal(sample.animations,0);
+   assert.equal(sample.willChange,'auto','Idle camera must release persistent transform raster hints');
+  }
+ } finally {await host.cleanup();}
+});
 /** Mount representative real CSS consumers without a graph, note reads or a second layout engine. */
 async function fixture(host){await host.evaluate(`(()=>{
  const style=document.createElement('style');style.textContent=${JSON.stringify(`body.theme-light{--background-primary:#f8f8f8;--background-secondary:#eeeeee;--background-modifier-border:#bbbbbb;--text-normal:#222222;--text-muted:#555555;--interactive-normal:#dddddd;--interactive-hover:#cccccc;--interactive-accent:#5533aa;--shadow-s:0 2px 4px #00000022;--color-green:#228844;--color-red:#bb2233}body.theme-dark{--background-primary:#181818;--background-secondary:#242424;--background-modifier-border:#777777;--text-normal:#eeeeee;--text-muted:#bbbbbb;--interactive-normal:#333333;--interactive-hover:#444444;--interactive-accent:#aa99ff;--shadow-s:0 2px 4px #00000088;--color-green:#44bb66;--color-red:#ee6677}`+css)};document.head.append(style);

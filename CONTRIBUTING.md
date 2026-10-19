@@ -1039,6 +1039,17 @@ restart and physical mobile touch remain separate acceptance. See the
 
 ## Navigation and embedded drawing fit acceptance
 
+For label sharpness, stage the exact build with `npm run verify:obsidian`, then run
+`npm run verify:obsidian:label-sharpness` with the three explicit Small-vault variables,
+`KPLEX_SHARPNESS_EXPECT_AUTO=true` and a fresh private `KPLEX_HOST_REPORT_DIR`.
+The driver captures actual Electron pixels at adjacent scroll positions, graph zoom 1/1.25/0.83,
+and a long expanded outline before/after native middle-button panning and idle settlement.
+Set `KPLEX_SHARPNESS_POPOUT=true` for the owning popout window. Captures and fixture/settings
+cleanup are mandatory; visual inspection of the PNGs complements geometry/state assertions.
+This proves the observed host only, not universal glyph sharpness, frame latency or physical touch.
+`KPLEX_SHARPNESS_CONTROLS=true` is an investigation-only reversible CSS control; leave it off
+for acceptance. Run native and browser lanes serially; retain failed observations privately.
+
 For focused Markdown autosave continuity, use the same exact-build disposable-vault
 setup and run `scripts/testing/obsidian/adaptiveFit.mjs` with
 `KPLEX_MARKDOWN_SAVE_ONLY=true` and a fresh `KPLEX_HOST_REPORT_DIR`. Keep

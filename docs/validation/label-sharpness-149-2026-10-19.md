@@ -1,6 +1,50 @@
 # Label sharpness investigation (#149 / #115)
 
-## Decision
+## Follow-up: scrolling and expanded outlines
+
+The maintainer supplied adjacent blurry/sharp scroll-position screenshots, then reported the
+same delayed sharpness in long expanded heading trees without scrollbars. The previous no-go
+below covered navigation/idle timing with three notes, not this overflow/zoom discriminator.
+Main including #162 (`76224fb`) is integrated normally at `d0a7c73`; no history is rewritten.
+
+Actual Windows native controls now reproduce retained low-resolution text at graph zoom 1.25.
+At the same scroll offset and camera matrix, temporarily changing the camera's permanent
+`will-change: transform` to `auto` visibly sharpens the text. This does not change fonts, layout,
+scroll position or graph state. Subsequent position/layer controls run after rerasterization and
+are **not independent causal evidence**; they do not justify scroll snapping or per-node layers.
+Chrome documents this [transform-scale raster policy](https://developer.chrome.com/blog/re-rastering-composite).
+The source documentation supports the mechanism; the native captures establish its relevance here.
+
+The candidate removes only that permanent hint from `.kplex-camera`. The existing 2D transform,
+frame coalescing, native scrolling, animation lifetimes, pointer coordinates and untransformed
+embedded surfaces remain owned by their existing code. No font smoothing, forced GPU layers,
+CSS zoom replacement, offset rounding, scheduler, source or indexing change is introduced.
+The existing touch-specific `will-change:auto` remains compatible.
+
+The real-CSS camera regression fails on the original hint and passes after removal. It also
+checks unrounded native scroll, section geometry, zoom and idle motion at scales 1/1.25/.83/2/1;
+it is geometry/state coverage, not a GPU sharpness test. The full focused motion/fit/typography/
+Wander/native-theme group passes **47 cases**, Node 22.22.3.
+
+Native candidate captures show sharper scroll labels at offsets 100–105 and cover a long
+eight-heading expanded outline with **no native scroll area**, zoom, actual middle-button pan
+and delayed idle samples. The first immediate-after-stage run captured all 25 samples but failed
+the shared driver's enablement-byte guard; it is **excluded from acceptance**. The earlier first
+fixture also failed to overflow because the saved device profile overrode its column count;
+the fixture now sets its own cloned profile explicitly. Failed runs and originals are retained.
+The unchanged-runtime retry and the separate owning-popout replay each complete **25 samples**,
+including the unscrolled outline, with settings/enablement cleanup passing.
+
+Final full verification and exact-artifact main/popout replay are pending. No merge recommendation
+or universal sharpness/performance claim follows until those checks finish. Fractional pixel
+antialiasing and temporary motion interpolation remain normal; macOS, other physical display
+scaling/GPU configurations and physical mobile need separate observation.
+The quality trade-off is allowing raster work during scale changes. No comparative CPU/GPU,
+memory, frame-time or indexing-performance benefit is claimed.
+
+## Earlier bounded investigation (preserved)
+
+### Decision at that checkpoint
 
 **No runtime fix justified on this host. Keep #149 draft and #115 open.** The
 reported persistent blur is not reproduced; normal temporary softness during

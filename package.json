@@ -50,6 +50,7 @@
     "verify:obsidian:rename": "node scripts/testing/obsidian/renameIdentity.mjs",
     "verify:obsidian:plex-sessions": "node scripts/testing/obsidian/plexSessions.mjs",
     "verify:obsidian:sections": "node scripts/testing/obsidian/sectionExpansion.mjs",
+    "verify:obsidian:label-sharpness": "node scripts/testing/obsidian/labelSharpness.mjs",
     "verify:obsidian:menu-anchor": "node scripts/testing/obsidian/menuAnchor.mjs",
     "verify:obsidian:color-styling": "node scripts/testing/obsidian/colorStyling.mjs",
     "verify:obsidian:style-operations": "node scripts/testing/obsidian/styleOperations.mjs",

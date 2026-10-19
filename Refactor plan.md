@@ -4968,7 +4968,7 @@ CRCs/per-file hashes; HANDOFF excluded. MANIFEST
 Originals/prior backups retained; no raw publication. Exact-head remote CI is
 running when recorded, not claimed green. PR remains draft.
 
-### 2026-10-18 PR177 ï¿½ shared completion and context layout follow-up
+### 2026-10-18 PR177 — shared completion and context layout follow-up
 
 One CreationCompletionSelect now owns the actual caption/dropdown in both creation
 shells. It shows the resolved outcome, keeps explicit choices local, and uses common
@@ -5006,7 +5006,7 @@ Originals and prior backups retained; nothing raw published. Remote0ab6091 CI is
 in progress when recorded; previous41fd2f8 CI passed. A docs-only evidence pin
 changes no validated runtime. Keep PR177 draft.
 
-### 2026-10-18 PR180 ï¿½ stationary Markdown saves
+### 2026-10-18 PR180 — stationary Markdown saves
 
 Merged accepted PR177 to main4396768; integrated main into the existing180 branch
 without rewriting history (1160cb2). Native Sidecar/central-editor autosaves
@@ -5364,6 +5364,12 @@ Action log: implemented and reviewed the ownership/visit boundary; affected 257-
 
 - 2026-10-19 PR #187 newest-first/manual-copy closeout: clean39abfbc complete verify:obsidian passes1149primary/189browser/334source/642browser-storage plus architecture/core/lint/build/exact Small smoke. Exact-build unchanged native retry15passes with main/popout clipboard and restart; full/raw failed setup controls retained, especially unresolved immediate-after-staging Native A follow failure. Final native baseline/fixtures restored. Private265-entry checksum backup updated with prior manifest retained; no publication/archive/personal access/merge/release. C14 remains paused, no source/index redesign or performance claim.
 
+
 ## 2026-10-19 - PR149 visual investigation no-go
 
 Main integrated44e6103. Actual Windows/DPR1 screenshots24main+26popout, zoom1/.83 and motion1/0 show finite interpolation, centertransform none and no running graph animation at600ms onward. Rapid navigation/resize settle; will-change discrimination does not establish improvement.44 existing motion/fit/typography/Wander tests pass. No persistent defect reproduced, no runtime patch or index work change. Keep149draft/115open, do not merge speculative rendering changes. Private61file backup verified; Small107/88/config restored. Next manual discriminator: affected device/version/DPI/zoom plus idle recording; macOS/otherDPI/physicalmobile pending. Continue176 independently.
+
+
+## 2026-10-19 - PR149 camera raster follow-up
+
+The maintainer supplied adjacent scroll-position blur/sharp captures and expanded-outline observations. At integrated main d0a7c73, native Windows controls reproduce retained old-scale text; removing the permanent camera transform hint sharpens the same pixels at the same camera/scroll coordinates. Only that CSS hint is removed. The geometry/state regression fails before the change; the47-case focused native-theme/motion/fit/typography/Wander group passes after it. A reusable Small probe covers18owned notes, adjacent scroll offsets,1/1.25/.83zoom, eight expanded headings with no native scroller, actual middle-button pan and idle. Candidate main and owning-popout replays each25samples/cleanup pass. Preserve the initial non-overflow setup and immediate-after-stage enablement-guard failures as excluded evidence. Full clean-head verification and exact-artifact native replay follow; C14 remains paused. No indexing/source/scheduler/persistence change, forced GPU layer, CSS zoom rewrite, scroll snapping, comparative performance claim or personal-vault access. See docs/validation/label-sharpness-149-2026-10-19.md; macOS, other physical DPI/GPU and mobile remain separate acceptance.
