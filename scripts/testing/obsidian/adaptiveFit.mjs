@@ -3,6 +3,7 @@
  * fixtures, native input, observers and settings belong to this driver and are restored on failure.
  * Actual native rectangles establish functional camera fit, not subjective paint or touch quality.
  */
+import {withNativeDocumentSessions} from "./nativeDocumentSessions.mjs";
 import assert from 'node:assert/strict';
 import {spawnNativeSync as spawnSync,obsidianCliExecutable} from './processTools.mjs';
 import {createHash} from 'node:crypto';
@@ -25,14 +26,14 @@ const configurations=['data.json','community-plugins.json'].map(name=>{const pat
 /** Reject native eval errors even when CLI returns zero. */
 function cli(command,...args){const r=spawnSync(obsidianCliExecutable(),[`vault=${vaultName}`,command,...args],{cwd:projectRoot,encoding:'utf8',timeout:30000,killSignal:'SIGKILL',maxBuffer:4*1024*1024});if(r.error||r.status!==0||/^Error:/m.test(r.stdout))throw r.error??Error(r.stderr||r.stdout);return r.stdout.trim()}
 /** Read detached JSON observations instead of retaining renderer objects. */
-function evaluate(code){return JSON.parse(cli('eval',`code=${code}`).replace(/^=>\s*/,''))}
+function evaluate(code){code=withNativeDocumentSessions(code);return JSON.parse(cli('eval',`code=${code}`).replace(/^=>\s*/,''))}
 /** Poll briefly without blocking the renderer or changing its throttling. */
 const delay=ms=>new Promise(resolve=>setTimeout(resolve,ms));
 /** Install one cancellable native owner; metadata events publish through the existing source/index path. */
 function probe(saveAcceptance,saveOnly,observeSavesOnly){
  const p=app.plugins.plugins['k-plex'],win=require('@electron/remote').getCurrentWindow();
  if(!p?.actionManager||window.__kplexAutoFitProbe||app.setting.isOpen||document.querySelector('.modal-container,.menu'))throw Error('Clean native prerequisites required');
- const c=window.__kplexAutoFitProbe={settings:JSON.parse(JSON.stringify(p.settings)),layout:app.workspace.getLayout(),bounds:win.getBounds(),owners:{linkedDocumentLeaf:p.linkedDocumentLeaf,lastDocumentLeaf:p.lastDocumentLeaf,recentLeafHistory:[...p.recentLeafHistory],sidecarLeaves:new Map(p.sidecarLeaves)},cases:[],done:false,cancelled:false,owned:false};
+ const c=window.__kplexAutoFitProbe={settings:JSON.parse(JSON.stringify(p.settings)),layout:app.workspace.getLayout(),bounds:win.getBounds(),owners:{documents:documentSessions(p).capture(),lastDocumentLeaf:p.lastDocumentLeaf,recentLeafHistory:[...p.recentLeafHistory],sidecarLeaves:new Map(p.sidecarLeaves)},cases:[],done:false,cancelled:false,owned:false};
  const folder='__kplex_auto_fit_native';let leaf,root,surface;
  c.observeSavesOnly=observeSavesOnly;
  /** Fence every task against cleanup and retain strict native deadlines. */
@@ -54,11 +55,11 @@ function probe(saveAcceptance,saveOnly,observeSavesOnly){
  /** Preserve normal navigation and wait for its real center identity. */
  const navigate=async file=>{p.notifyNavigation(file.path);await until(()=>p.actionManager.readSnapshot(surface)?.center?.identity===file.path&&root.querySelector('.kplex-role-center [data-kplex-path]')?.dataset.kplexPath===file.path||p.actionManager.readSnapshot(surface)?.center?.identity===file.path&&root.querySelector('.kplex-role-center')?.dataset.kplexPath===file.path,'Navigation center absent');await wait(150)};
  /** Cleanup is idempotent and restores settings/workspace/bounds without retaining test globals. */
- c.cleanup=()=>{if(c.cleanupTask)return c.cleanupTask;c.cleanupTask=(async()=>{c.cancelled=true;await c.task;Object.assign(p.settings,c.settings);await p.saveSettings(false,false);p.index.notifyPresentation();if(c.settings.lastActivePath)p.notifyNavigation(c.settings.lastActivePath);if(c.owned){const owned=app.vault.getFolderByPath(folder);if(owned)await app.vault.delete(owned,true);c.owned=false}win.setBounds(c.bounds);await app.workspace.changeLayout(c.layout);const leaves=app.workspace.getLeavesOfType('k-plex-react-view').concat(app.workspace.getLeavesOfType('markdown'),app.workspace.getLeavesOfType('excalidraw'));const rebind=old=>old?leaves.find(item=>item.id===old.id)??null:null;p.linkedDocumentLeaf=rebind(c.owners.linkedDocumentLeaf);p.lastDocumentLeaf=rebind(c.owners.lastDocumentLeaf);p.recentLeafHistory=c.owners.recentLeafHistory.map(rebind).filter(Boolean);p.sidecarLeaves.clear();for(const[oldHost,oldLeaf]of c.owners.sidecarLeaves){const host=rebind(oldHost),leaf=rebind(oldLeaf);if(host&&leaf)p.sidecarLeaves.set(host,leaf)}win.focus();win.webContents.sendInputEvent({type:'mouseMove',x:0,y:0});c.cleaned=true})();return c.cleanupTask};
+ c.cleanup=()=>{if(c.cleanupTask)return c.cleanupTask;c.cleanupTask=(async()=>{c.cancelled=true;await c.task;Object.assign(p.settings,c.settings);await p.saveSettings(false,false);p.index.notifyPresentation();if(c.settings.lastActivePath)p.notifyNavigation(c.settings.lastActivePath);if(c.owned){const owned=app.vault.getFolderByPath(folder);if(owned)await app.vault.delete(owned,true);c.owned=false}win.setBounds(c.bounds);await app.workspace.changeLayout(c.layout);const leaves=app.workspace.getLeavesOfType('k-plex-react-view').concat(app.workspace.getLeavesOfType('markdown'),app.workspace.getLeavesOfType('excalidraw'));const rebind=old=>old?leaves.find(item=>item.id===old.id)??null:null;await documentSessions(p).restore(c.owners.documents);p.lastDocumentLeaf=rebind(c.owners.lastDocumentLeaf);p.recentLeafHistory=c.owners.recentLeafHistory.map(rebind).filter(Boolean);p.sidecarLeaves.clear();for(const[oldHost,oldLeaf]of c.owners.sidecarLeaves){const host=rebind(oldHost),leaf=rebind(oldLeaf);if(host&&leaf)p.setSidecarOwner(host,leaf)}win.focus();win.webContents.sendInputEvent({type:'mouseMove',x:0,y:0});c.cleaned=true})();return c.cleanupTask};
  c.task=new Promise(resolve=>window.setTimeout(resolve,0)).then(async()=>{
   win.show();win.focus();win.webContents.focus();await until(()=>document.hasFocus(),'Native foreground unavailable');leaf=app.workspace.getLeavesOfType('k-plex-react-view').find(item=>item.view.contentEl.ownerDocument===document&&p.isKplexLeafVisible(item));root=leaf?.view.contentEl.querySelector('.kplex-app');surface=[...p.actionSurfaceHosts].find(([,entry])=>entry.leaf===leaf)?.[0];check(root&&surface,'Rendered native Plex absent');
   check(!app.vault.getFolderByPath(folder),'Fixture collision');await app.vault.createFolder(folder);c.owned=true;
-  p.settings.embedCentralNode=false;p.settings.animationSpeed=0;p.settings.allowAutozoom=true;p.settings.showFolderNodes=false;p.settings.showTagNodes=false;p.settings.renderSiblings=false;p.settings.graphDepth=1;await p.setDocumentSyncMode('off');
+  p.settings.embedCentralNode=false;p.settings.animationSpeed=0;p.settings.allowAutozoom=true;p.settings.showFolderNodes=false;p.settings.showTagNodes=false;p.settings.renderSiblings=false;p.settings.graphDepth=1;await documentSessions(p).off();
   const childKey=p.settings.hierarchy.children[0],parentKey=p.settings.hierarchy.parents[0],leftKey=p.settings.hierarchy.leftFriends[0];check(childKey&&parentKey&&leftKey,'Configured ontology absent');
   const files=new Map();for(const name of ['Center','Child','Next',...Array.from({length:24},(_,n)=>'Late-'+n)]){const file=await app.vault.create(folder+'/'+name+'.md','# '+name+'\n');files.set(name,file);p.index.insertCreatedFile(file)}
   if(saveOnly){p.settings.animationSpeed=1;return saveAcceptance({app,p,leaf,root,files,center:files.get('Center'),parentKey,childKey,wait,until,check,passed,c})}

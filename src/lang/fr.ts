@@ -1229,7 +1229,7 @@ const frenchTranslations = {
   "folderPicker.invalid": "Saisissez un chemin de dossier valide dans ce coffre.",
   "folderPicker.fileConflict": "Un fichier utilise déjà ce chemin de dossier.",
   "folderPicker.invalidAlias": "L’alias ne peut pas contenir deux crochets fermants.",
-  "layout.simplifiedTitle": "Disposition simplifiée",
+  "layout.simplifiedTitle": "Disposition d’un seul côté",
   "layout.simplifiedHelp": "Place les amis et les opposants dans des groupes distincts à gauche. Leurs relations et filtres restent identiques. Les fenêtres détachées utilisent le choix de l’onglet principal.",
   "layout.arrangementScope": "{device} : {surface}",
   "layout.mainTab": "Onglet principal",
@@ -1286,6 +1286,15 @@ const frenchTranslations = {
   "settingsSync.conflict": "Les paramètres ont changé sur un autre appareil. Rouvrez ce contrôle et appliquez à nouveau votre modification.",
   "settingsSync.loadFailed": "Impossible de charger les paramètres K-Plex modifiés. Vos paramètres actuels sont conservés. Vérifiez la synchronisation et réessayez.",
   "settingsSync.refreshPending": "Paramètres reçus. Certaines vues n’ont pas pu être actualisées. Rouvrez la vue concernée.",
+  "footprints.title": "Traces",
+  "footprints.count": {one: "{count} visite", many: "{count} visites", other: "{count} visites"},
+  "footprints.startHere": "Commencer ici",
+  "footprints.empty": "Vos visites apparaîtront ici.",
+  "footprints.unavailable": "Indisponible",
+  "footprints.copyMarkdown": "Copier en Markdown",
+  "footprints.copying": "Copie en cours...",
+  "footprints.copied": "Copié dans le presse-papiers.",
+  "footprints.copyFailed": "Impossible de copier. Réessayez.",
 } as const satisfies LocaleTranslationMap;
 
 export const frenchCatalog = buildLocaleCatalog(frenchTranslations);

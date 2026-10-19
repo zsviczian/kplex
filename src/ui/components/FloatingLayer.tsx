@@ -6,7 +6,7 @@ import { useLayoutEffect, useRef, useState, type CSSProperties, type ReactNode, 
 import { createPortal } from "react-dom";
 import { enableDraggableDialog } from "./DraggableDialog";
 
-export type FloatingLayerDismissReason = "outside-pointer" | "escape";
+export type FloatingLayerDismissReason = "outside-pointer" | "escape" | "anchor-hidden";
 
 export interface FloatingLayerPositioning {
   preferredWidth: number;
@@ -24,6 +24,8 @@ export interface FloatingLayerProps {
   dragHandleRef?: RefObject<HTMLElement | null>;
   insideRoots: () => readonly (Node | null | undefined)[];
   onDismiss: (reason: FloatingLayerDismissReason) => void;
+  /** Body portals may outlive a hidden native tab's trigger; opt in to ending that disclosure. */
+  dismissWhenAnchorHidden?: boolean;
   /** Let a nested owning surface receive Escape before this layer consumes it or restores focus. */
   handleEscape?: (event: KeyboardEvent) => boolean;
   portalTarget: (ownerDocument: Document) => Element | null;
@@ -55,6 +57,7 @@ export function FloatingLayer({
   dragHandleRef,
   insideRoots,
   onDismiss,
+  dismissWhenAnchorHidden = false,
   handleEscape,
   portalTarget,
   positioning,
@@ -84,6 +87,10 @@ export function FloatingLayer({
       const liveAnchor = anchorRef.current;
       if (!liveAnchor || liveAnchor.ownerDocument !== doc) return;
       const rect = liveAnchor.getBoundingClientRect();
+      if (dismissWhenAnchorHidden && (!liveAnchor.getClientRects().length || !rect.width || !rect.height)) {
+        current.current.onDismiss("anchor-hidden");
+        return;
+      }
       const margin = positioning.viewportMargin;
       const desiredWidth = Math.min(
         positioning.preferredWidth,
@@ -150,6 +157,7 @@ export function FloatingLayer({
     return cleanup;
   }, [
     open,
+    dismissWhenAnchorHidden,
     anchorRef,
     panelRef,
     dragHandleRef,

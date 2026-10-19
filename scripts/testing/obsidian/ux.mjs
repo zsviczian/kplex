@@ -2,6 +2,7 @@
  * Run verify:obsidian first. This driver checks hashes rather than building/staging another bundle.
  * It owns only one fixture folder/view and restores settings, native window geometry and wrappers.
  */
+import {withNativeDocumentSessions} from "./nativeDocumentSessions.mjs";
 import assert from "node:assert/strict";
 import { obsidianCliExecutable } from "./processTools.mjs";
 import { spawnNativeSync as spawnSync } from "./processTools.mjs";
@@ -52,7 +53,7 @@ function cli(name, ...args) {
   return run.stdout.trim();
 }
 /** Validate the expression locally and decode a native JSON result without accepting eval errors. */
-function evaluate(code) {
+function evaluate(code) {code=withNativeDocumentSessions(code);
   new Script(code);
   const raw = cli("eval", `code=${code}`).replace(/^=>\s*/, "");
   const value = JSON.parse(raw);
@@ -120,7 +121,7 @@ const nativeController = `(()=>{
   if(${findOnly}){
     c.findOnly=true;c.originalLayout=app.workspace.getLayout();c.originalPolicy=p.savedSettingsPolicy;
     c.originalInventory=app.vault.getFiles().map(file=>file.path).sort();c.originalMode=p.index.isOnDemandMode();
-    c.originalOwners={linked:p.linkedDocumentLeaf,last:p.lastDocumentLeaf,recent:[...p.recentLeafHistory],sidecars:[...p.sidecarLeaves]};
+    c.originalOwners={documents:documentSessions(p).capture(),last:p.lastDocumentLeaf,recent:[...p.recentLeafHistory],sidecars:[...p.sidecarLeaves]};
   }
   // The inactive-control fixture must not inherit persisted open intent onto its new leaf.
   // Preserve existing companion leaves and restore the captured settings during cleanup.
@@ -650,7 +651,7 @@ const scenarios = `(()=>{const c=window.${controller};c.done=false;(async()=>{
   }finally{releaseUnrelated?.();p.showKplexMenuAtPosition=nonMarkdownMenu}
   // Test a real preceding document so embedded-leaf detach cannot silently follow it back.
   c.previousLeaf=app.workspace.getLeaf(true);await c.previousLeaf.openFile(app.vault.getFileByPath(c.tall));
-  await p.setDocumentSyncMode("recent");
+  await p.setDocumentSyncMode(c.leaf,"recent");
   app.workspace.setActiveLeaf(c.leaf,{focus:true});await c.go(c.tall);await c.editor(true);
   await c.until(()=>root.querySelector('[data-type="image"] img')?.complete,"Tall native image did not load");
   const imageCheck=()=>{const img=root.querySelector('[data-type="image"] img'),frame=img.closest(".view-content"),r=img.getBoundingClientRect(),f=frame.getBoundingClientRect(),style=getComputedStyle(img);
@@ -730,7 +731,7 @@ const scenarios = `(()=>{const c=window.${controller};c.done=false;(async()=>{
   await c.click(root.querySelector('[data-type="image"] img'));
   await c.click(c.button("app.useNormalCentralNode"));await c.wait(250);
   c.check(c.center()===c.wide&&JSON.stringify(p.settings.navigationHistory)===history,"Collapsing second image navigated back");
-  await p.setDocumentSyncMode("off");
+  await documentSessions(p).off();
   await c.go(c.tall);await c.until(()=>root.querySelector(".kplex-role-center .kplex-node-visual img")?.complete,"Tall thumbnail missing");
   const thumb=root.querySelector(".kplex-role-center .kplex-node-visual img").getBoundingClientRect(),node=root.querySelector(".kplex-role-center").getBoundingClientRect();
   c.check(Math.abs(thumb.y+thumb.height/2-node.y-node.height/2)<1,"Tall thumbnail is off vertical center");record("native-image-fit-collapse-history-thumbnail",{tall,wide,thumbnailCenterError:Math.abs(thumb.y+thumb.height/2-node.y-node.height/2)});

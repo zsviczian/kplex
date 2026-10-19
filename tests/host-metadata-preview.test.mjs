@@ -74,6 +74,37 @@ function folderFixture(options = {}) {
     settings: () => liveSettings, setSettings: value => { liveSettings = value; } };
 }
 
+test('saved native history is synchronously available before catalogs, sources and storage', () => {
+  const f = folderFixture(), originalWindow = globalThis.window;
+  globalThis.window = {performance, setTimeout, clearTimeout, setInterval, clearInterval};
+  const file = f.addFile('Notes/Center.md'), attachment = f.addFile('Notes/Photo.png');
+  f.app.vault.getName = () => 'saved-navigation-test';
+  const plugin = {settings: f.settings(), getIndexSourceRevision: () => 0, getIndexMaintenanceRevision: () => 0};
+  const index = new GraphIndex(plugin, f.app);
+  index.indexedDb.open = () => {throw Error('Storage forbidden');};
+  index.sourceAcquisition.flush = () => {throw Error('Source acquisition forbidden');};
+  const revision = index.getSemanticRevision();
+  try {
+    index.primeSavedNavigation([file.path, attachment.path, 'folder:Notes', 'Missing.md', file.path]);
+    assert.equal(index.get(file.path)?.file, file);
+    assert.equal(index.get(attachment.path)?.file, attachment);
+    assert(index.get('folder:Notes')?.isFolder);
+    assert.equal(index.get('Missing.md'), undefined);
+    assert.equal(index.get(file.path).neighbours.size, 0, 'Availability owns no incidence');
+    assert.equal(index.getSemanticRevision(), revision);
+    assert.equal(index.physicalSearchUpdatedPaths.size, 0, 'Startup is not a native create event');
+    const first = index.get(file.path);
+    index.primeSavedNavigation([file.path]);
+    assert.equal(index.get(file.path), first, 'Repeated layout readiness keeps the same availability');
+    f.files.delete(file.path);
+    assert.equal(index.get(file.path), undefined, 'Exact native deletion retires an uncompiled entry');
+    f.files.set(file.path, new TFile(file.path, f.folder));
+    assert.equal(index.get(file.path), undefined, 'Same-path replacement cannot borrow old identity');
+    index.primeSavedNavigation([file.path]);
+    assert.equal(index.get(file.path)?.file, f.files.get(file.path));
+  } finally {index.destroy(); f.preview.dispose(); globalThis.window = originalWindow;}
+});
+
 /** Availability has no source completeness to grant; restore keeps its original stronger fence. */
 test("startup availability survives an ordinary edit during priming while restore remains source-revision strict", async () => {
   const f = fixture(), originalWindow = globalThis.window, clockDescriptor = Object.getOwnPropertyDescriptor(globalThis, "performance");

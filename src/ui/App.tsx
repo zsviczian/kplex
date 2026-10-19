@@ -1,4 +1,6 @@
 /**
+ * Saved navigation remains visible before native tree/cache readiness. Provisional absence never
+ * authorizes replacing the requested center with a different history entry or the vault root.
  * Host-bound React shell for K-Plex navigation, startup guidance, File Explorer note drops, toolbar and Sidecar controls. It composes shared components and injected environment/localization capabilities; plugin methods own host effects. The native view owns session display modes; React projects Zen chrome and supplies exact camera-resize preparation without replacing its root. Search/Find scopes and hints use effective action bindings; each surface releases its own registrations on teardown.
  * Wander owns one cancellable per-view session over graph projection ports and the shared activation path;
  * explicit navigation origins and native input pause it without replacing history, editor or Zen owners.
@@ -10,6 +12,8 @@
  * Existing native File properties panes follow the active surface's central file through a leased host adapter.
  * Global Find consumes existing tag/folder/file/URL vocabulary with caller-owned native type icons;
  * current native files and captured Plex links share drop navigation without source acquisition.
+ * Native-view sessions retain independent centers/pending native follow and memory-only Footprints
+ * across React/window remounts. Saved history and pins continue through the shared settings writer.
  */
 import { subscribeAppearanceSources } from "../adapters/obsidian/colorChanges";
 import type {AppearanceOwner} from "../core/plex/appearanceThemes";
@@ -29,7 +33,7 @@ import {
   type PointerEvent as ReactPointerEvent,
   type RefObject,
 } from "react";
-import { FileView, Menu, type TFile, type WorkspaceLeaf } from "obsidian";
+import { FileView, View, Menu, type TFile, type WorkspaceLeaf } from "obsidian";
 import type KplexPlugin from "../main";
 import type { GraphPage } from "../types";
 import type { PresentationEnvironment } from "../core/contracts/presentationEnvironment";
@@ -56,6 +60,7 @@ import type { DocumentSyncMode, KplexViewSurface, NodeSortOrder, SidecarMarkdown
 import { SearchBox } from "./features/SearchBox";
 import { searchResultIconName } from "./features/searchResultPresentation";
 import { nodeListPresentation } from "./nodeListPresentation";
+import {nodeMarkdownLink} from "./nodeMarkdownLink";
 import { createLegacyGraphSearchRead } from "../adapters/obsidian/graphContracts";
 import { isEmbeddedMarkdownLeaf } from "../adapters/obsidian/embeddedMarkdownLeaf";
 import { focusEmbeddedMarkdown } from "../adapters/obsidian/embeddedMarkdownFocus";
@@ -67,6 +72,7 @@ import { DoubleTapGesture } from "./components/DoubleTapGesture";
 import { InfoBubble } from "./components/InfoBubble";
 import type { FloatingLayerDismissReason } from "./components/FloatingLayer";
 import { PlexGraph } from "./PlexGraph";
+import { PlexFootprintsPanel } from "./PlexFootprintsPanel";
 import { ObsidianIcon } from "./ObsidianIcon";
 import { VaultStatsModal } from "./VaultStatsModal";
 import { EMPTY_PLEX_FILTER, PlexFilter, type GraphFilterLayoutMode, type PlexFilterState, type PlexVisibilitySetting } from "./PlexFilter";
@@ -203,7 +209,7 @@ function ToolButton({ icon, title, on, disabled, onClick }: {
 }
 
 /** Compose the native toolbar, filters and scene; shared visibility preferences persist through plugin-owned host effects. */
-export function KplexApp({ plugin, surface, hostLeaf, translate, environment, onReady, displayModes, centerPresentation }: {
+export function KplexApp({ plugin, surface, hostLeaf, translate, environment, onReady, displayModes, centerPresentation, documentSession }: {
   plugin: KplexPlugin;
   surface: KplexViewSurface;
   hostLeaf: WorkspaceLeaf;
@@ -212,6 +218,7 @@ export function KplexApp({ plugin, surface, hostLeaf, translate, environment, on
   onReady?: () => void;
   displayModes: KplexDisplayModes;
   centerPresentation: import("./KplexCenterPresentation").KplexCenterPresentation;
+  documentSession: import("./KplexDocumentSession").KplexDocumentSession;
 }) {
   const canvasNameId = useId();
   const displayState = useSyncExternalStore(displayModes.subscribe, displayModes.getSnapshot);
@@ -293,6 +300,8 @@ export function KplexApp({ plugin, surface, hostLeaf, translate, environment, on
   const [areaSettingsMode, setAreaSettingsMode] = useState(false);
   const [initialWorkspaceFile] = useState<TFile | null>(() => plugin.app.workspace.getActiveFile());
   const [activePath, setActivePath] = useState(() => {
+    if (documentSession.pendingFollow) return documentSession.pendingFollow.file.path;
+    if (documentSession.centerPath) return documentSession.centerPath;
     const history = plugin.settings.navigationHistory;
     // During Obsidian workspace restore, getActiveFile()/getMostRecentLeaf() can temporarily point
     // at the first serialized tab in a group. A restored K-Plex view should keep its own persisted
@@ -308,14 +317,24 @@ export function KplexApp({ plugin, surface, hostLeaf, translate, environment, on
   const activePathRef = useRef(activePath);
   const activePageRef = useRef<GraphPage | null>(plugin.index.get(activePath) ?? null);
   const [navigationOrigin, setNavigationOrigin] = useState<"user" | "wander" | "follow">("user");
-  const pendingDocumentFollowRef = useRef<TFile | null>(null);
+  const pendingDocumentFollowRef = useRef<TFile | null>(documentSession.pendingFollow?.file ?? null);
   const pendingDocumentDemandRef = useRef<{ file: TFile; path: string; release: () => void } | null>(null);
   const wasLeafVisibleRef = useRef(plugin.isKplexLeafVisible(hostLeaf));
   const pendingFileExplorerDropRef = useRef<TFile | null>(null);
   const activeFileRef = useRef<TFile | null>(
-    plugin.index.get(activePath)?.file ?? (initialWorkspaceFile?.path === activePath ? initialWorkspaceFile : null),
+    documentSession.pendingFollow?.file ?? plugin.index.get(activePath)?.file ?? (initialWorkspaceFile?.path === activePath ? initialWorkspaceFile : null),
   );
   const [historyCursor, setHistoryCursor] = useState(() => Math.max(0, plugin.settings.navigationHistory.length - 1));
+  useEffect(/** Catch native setState both before and after mounting without recording a provisional startup center. */ () => {
+    const restore = (): void => {
+      const path = documentSession.pendingFollow?.file.path ?? documentSession.centerPath;
+      if (!documentSession.initialized) return;
+      if (!path || path === activePathRef.current) {forceRender(value => value + 1);return;}
+      activePathRef.current = path;activePageRef.current = plugin.index.get(path) ?? null;
+      activeFileRef.current = activePageRef.current?.file ?? null;setActivePath(path);
+    };
+    const release = documentSession.subscribeRestoration(restore);restore();return release;
+  }, [documentSession, plugin]);
 
   /** Retire only this surface's native-center demand after graph handover, supersession, hiding or unmount. */
   const releasePendingDocumentDemand = useCallback((): void => {
@@ -341,11 +360,16 @@ export function KplexApp({ plugin, surface, hostLeaf, translate, environment, on
     activePageRef.current = target;
     activeFileRef.current = target.file;
     pendingDocumentFollowRef.current = null;
+    documentSession.pendingFollow = null;
+    documentSession.pendingUrl = null;
     // A just-published preview can depend on this lease. Keep it until the child graph acquires its own.
     const demand = pendingDocumentDemandRef.current;
     if (demand && (demand.file !== target.file || demand.path !== target.path)) releasePendingDocumentDemand();
     setNavigationOrigin(origin);
     setActivePath(target.path);
+    documentSession.footprints.accept(actionNodeRef(target));
+    documentSession.centerPath = target.path;
+    documentSession.persist();
     plugin.settings.lastActivePath = target.path;
     if (record) {
       const next = [...plugin.settings.navigationHistory.filter((path) => path !== target.path), target.path].slice(-40);
@@ -354,7 +378,7 @@ export function KplexApp({ plugin, surface, hostLeaf, translate, environment, on
     }
     void plugin.saveSettings(false, false);
     if (syncDocuments) {
-      void plugin.syncPageToDocumentLeaf(target);
+      void plugin.syncPageToDocumentLeaf(target, hostLeaf);
       void plugin.syncSidecarToPage(hostLeaf, target);
     }
   }, [plugin, hostLeaf, wander, releasePendingDocumentDemand]);
@@ -366,6 +390,16 @@ export function KplexApp({ plugin, surface, hostLeaf, translate, environment, on
       && plugin.index.get(path)?.file === demand.file) releasePendingDocumentDemand();
   }, [plugin, releasePendingDocumentDemand]);
 
+  /** Rejecting an unaccepted native intent returns to this view's last accepted center. */
+  const restoreAcceptedDocumentCenter = useCallback((): void => {
+    const path = documentSession.centerPath;
+    if (!path || path === activePathRef.current) return;
+    activePathRef.current = path;
+    activePageRef.current = plugin.index.get(path) ?? null;
+    activeFileRef.current = activePageRef.current?.file ?? null;
+    setActivePath(path);
+  }, [documentSession, plugin]);
+
   /** Settle only the latest eligible native file once its exact index page is available to a visible Plex. */
   const activatePendingDocumentFollow = useCallback((): void => {
     const file = pendingDocumentFollowRef.current;
@@ -375,9 +409,13 @@ export function KplexApp({ plugin, surface, hostLeaf, translate, environment, on
     }
     // Settled preview ownership survives intervening publications until the graph acknowledges acquisition.
     if (!file) return;
-    if (plugin.app.vault.getFileByPath(file.path) !== file || !plugin.shouldFollowDocumentFile(file)) {
+    const intent = documentSession.pendingFollow;
+    if (!intent || intent.file !== file || intent.revision !== documentSession.revision
+      || plugin.app.vault.getFileByPath(file.path) !== file || !plugin.shouldFollowDocumentFile(file, hostLeaf, intent.leaf)) {
       pendingDocumentFollowRef.current = null;
+      documentSession.pendingFollow = null;
       releasePendingDocumentDemand();
+      restoreAcceptedDocumentCenter();
       return;
     }
     setNavigationOrigin("follow");
@@ -397,20 +435,23 @@ export function KplexApp({ plugin, surface, hostLeaf, translate, environment, on
     if (pendingDocumentFollowRef.current !== file) return;
     const target = plugin.index.get(file.path);
     if (target?.file === file) activate(target, true, true, "follow");
-  }, [plugin, hostLeaf, activate, releasePendingDocumentDemand]);
+  }, [plugin, hostLeaf, activate, releasePendingDocumentDemand, restoreAcceptedDocumentCenter]);
 
   /** Retain native identity while hidden without rendering the graph or starting relationship acquisition. */
   const observeDocumentFollow = useCallback((file: TFile | null): void => {
-    if (!file || !plugin.shouldFollowDocumentFile(file) || plugin.app.vault.getFileByPath(file.path) !== file) return;
+    if (!file || !plugin.shouldFollowDocumentFile(file, hostLeaf) || plugin.app.vault.getFileByPath(file.path) !== file) return;
     if (!pendingDocumentFollowRef.current && activeFileRef.current === file && activePathRef.current === file.path) {
       const target = plugin.index.get(file.path);
       // Native same-file echoes preserve explicit motion/representation, but other linked companions may still differ.
       if (target?.file === file && plugin.isKplexLeafVisible(hostLeaf)) {
-        void plugin.syncPageToDocumentLeaf(target);
+        void plugin.syncPageToDocumentLeaf(target, hostLeaf);
         void plugin.syncSidecarToPage(hostLeaf, target);
       }
       return;
     }
+    const intent = plugin.captureDocumentFollow(file, hostLeaf);if (!intent) return;
+    documentSession.pendingUrl = null;
+    documentSession.pendingFollow = intent;
     pendingDocumentFollowRef.current = file;
     pendingFileExplorerDropRef.current = null;
     activePathRef.current = file.path;
@@ -418,6 +459,33 @@ export function KplexApp({ plugin, surface, hostLeaf, translate, environment, on
     activeFileRef.current = file;
     activatePendingDocumentFollow();
   }, [plugin, hostLeaf, activatePendingDocumentFollow]);
+
+  /** Retain unknown/hidden URLs without acquiring sources; publication can complete the same native intent. */
+  const activatePendingDocumentUrl = useCallback((): void => {
+    const intent = documentSession.pendingUrl;
+    if (!intent) return;
+    const followed = plugin.getDocumentFollowUrl(hostLeaf, intent.leaf);
+    if (intent.revision !== documentSession.revision || !followed || followed.url !== intent.url) {
+      documentSession.pendingUrl = null;
+      return;
+    }
+    if (!plugin.isKplexLeafVisible(hostLeaf) || !followed.path) return;
+    const target = plugin.index.get(followed.path);
+    // The existing host resolver may canonicalize the native URL (for example a root slash).
+    if (target?.url && target.path === followed.path) activate(target, true, true, "follow");
+  }, [plugin, hostLeaf, activate, documentSession]);
+
+  /** Native Web Viewer observations retain their exact source across hidden React remounts. */
+  const observeDocumentUrl = useCallback((sourceLeaf: WorkspaceLeaf | undefined): void => {
+    if (!sourceLeaf) return;
+    const followed = plugin.getDocumentFollowUrl(hostLeaf, sourceLeaf);if (!followed || followed.path === activePathRef.current) return;
+    pendingDocumentFollowRef.current = null;
+    documentSession.pendingFollow = null;
+    releasePendingDocumentDemand();
+    restoreAcceptedDocumentCenter();
+    documentSession.pendingUrl = {url: followed.url, leaf: sourceLeaf, revision: documentSession.revision};
+    activatePendingDocumentUrl();
+  }, [plugin, hostLeaf, activatePendingDocumentUrl, documentSession, releasePendingDocumentDemand, restoreAcceptedDocumentCenter]);
 
   /** Complete a queued File Explorer note drop as soon as partial indexing publishes that note. */
   const activatePendingFileExplorerDrop = useCallback(() => {
@@ -445,6 +513,7 @@ export function KplexApp({ plugin, surface, hostLeaf, translate, environment, on
     /** Keep rename identity and latest native-follow intent coherent with this publication. */
     const refresh = () => {
       activatePendingDocumentFollow();
+      activatePendingDocumentUrl();
       // A TFile keeps its object identity while Obsidian renames or moves it. Track the central file
       // by that identity and adopt its new path only after the rebuilt index has published it. This
       // prevents the center from briefly/finally falling back to folder:/ when its filename changes.
@@ -483,15 +552,16 @@ export function KplexApp({ plugin, surface, hostLeaf, translate, environment, on
     // Catch that settled snapshot now, without reacquiring sources or waiting for another event.
     refresh();
     return release;
-  }, [plugin, hostLeaf, activatePendingDocumentFollow]);
+  }, [plugin, hostLeaf, activatePendingDocumentFollow, activatePendingDocumentUrl]);
   useEffect(/** Host previews publish through presentation; settle the owned native intent without refreshing semantics. */ () => plugin.index.subscribePresentation(/** Adopt a newly readable exact center, then repaint only visible surfaces. */ (event) => {
     if (event.kind === "paint") {
       if (plugin.isKplexLeafVisible(hostLeaf)) forcePaint(value => value + 1);
       return;
     }
     activatePendingDocumentFollow();
+    activatePendingDocumentUrl();
     if (plugin.isKplexLeafVisible(hostLeaf)) forceRender((value) => value + 1);
-  }), [plugin, hostLeaf, activatePendingDocumentFollow]);
+  }), [plugin, hostLeaf, activatePendingDocumentFollow, activatePendingDocumentUrl]);
   /** Reconcile native visibility after workspace events or settled drawer geometry, retaining only the newest hidden file. */
   const reconcileDocumentFollowVisibility = useCallback((): void => {
     // A hidden mounted view may have skipped one or more shared index publications while another
@@ -501,11 +571,12 @@ export function KplexApp({ plugin, surface, hostLeaf, translate, environment, on
     wasLeafVisibleRef.current = visible;
     if (!visible) releasePendingDocumentDemand();
     if (visible) {
-      if (revealed) observeDocumentFollow(plugin.getDocumentFollowFile());
+      if (revealed) observeDocumentFollow(plugin.getDocumentFollowFile(hostLeaf));
       activatePendingDocumentFollow();
+      activatePendingDocumentUrl();
       forceRender(/** Catch up once with skipped shared publications. */ (value) => value + 1);
     }
-  }, [plugin, hostLeaf, observeDocumentFollow, activatePendingDocumentFollow, releasePendingDocumentDemand]);
+  }, [plugin, hostLeaf, observeDocumentFollow, activatePendingDocumentFollow, activatePendingDocumentUrl, releasePendingDocumentDemand]);
   useEffect(/** Native workspace notifications share the geometry observer's reveal reconciliation. */ () =>
     plugin.subscribeKplexVisibility(reconcileDocumentFollowVisibility), [plugin, reconcileDocumentFollowVisibility]);
   useEffect(() => {
@@ -519,8 +590,11 @@ export function KplexApp({ plugin, surface, hostLeaf, translate, environment, on
   }, [plugin, hostLeaf, plexFilterPredicate, compiledGraphLenses.usesFrontmatter]);
   useEffect(() => plugin.subscribeGraphLenses((next) => setGraphLensesState(current =>
     JSON.stringify(appearanceWithoutColors("graphLenses", current)) === JSON.stringify(appearanceWithoutColors("graphLenses", next)) ? current : next)), [plugin]);
-  useEffect(() => plugin.subscribeSidecar(() => setSidecarRevision((value) => value + 1)), [plugin]);
-  useEffect(() => plugin.subscribeNavigation((path) => {
+  useEffect(/** Native ownership changes retire pending follow before an unrelated index event can complete it. */ () => plugin.subscribeSidecar(() => {
+    activatePendingDocumentFollow();activatePendingDocumentUrl();setSidecarRevision(value => value + 1);
+  }), [plugin, activatePendingDocumentFollow, activatePendingDocumentUrl]);
+  useEffect(() => plugin.subscribeNavigation((path, owner) => {
+    if (owner && owner !== hostLeaf) return;
     const target = plugin.index.get(path);
     if (target) activate(target, true);
   }), [plugin, activate]);
@@ -533,22 +607,25 @@ export function KplexApp({ plugin, surface, hostLeaf, translate, environment, on
     /** Observe an eligible external document; native destinations own same-file no-op decisions. */
     const followFile = (file: TFile | null) => {
       const activeView = plugin.app.workspace.getActiveViewOfType(FileView);
+      if (!activeView) {observeDocumentUrl(plugin.app.workspace.getActiveViewOfType(View)?.leaf);return;}
       // Embedded navigation has its own callback. Re-activating/detaching that leaf must not
       // follow Obsidian's previous document back into the Plex's navigation history.
       if (!activeView || activeView.leaf === hostLeaf || isEmbeddedMarkdownLeaf(activeView.leaf)) return;
+      if (file && !plugin.shouldFollowDocumentFile(file, hostLeaf, activeView.leaf)) return;
       observeDocumentFollow(file);
     };
 
     const fileRef = plugin.app.workspace.on("file-open", followFile);
-    const leafRef = plugin.app.workspace.on("active-leaf-change", /** Hidden native activation still supplies the newest eligible file identity. */ () => {
+    const leafRef = plugin.app.workspace.on("active-leaf-change", /** Hidden native activation still supplies the newest eligible file identity. */ leaf => {
       if (plugin.isKplexLeafVisible(hostLeaf)) forceRender(/** Refresh native action availability only for visible leaves. */ (value) => value + 1);
       followFile(plugin.app.workspace.getActiveFile());
+      observeDocumentUrl(leaf ?? undefined);
     });
     return /** Release only this mounted view's workspace observations. */ () => {
       plugin.app.workspace.offref(fileRef);
       plugin.app.workspace.offref(leafRef);
     };
-  }, [plugin, hostLeaf, observeDocumentFollow]);
+  }, [plugin, hostLeaf, observeDocumentFollow, observeDocumentUrl]);
 
   const indexedPage = plugin.index.get(activePath);
   const exactPage = !pendingDocumentFollowRef.current || indexedPage?.file === pendingDocumentFollowRef.current
@@ -558,9 +635,12 @@ export function KplexApp({ plugin, surface, hostLeaf, translate, environment, on
   const waitingForDocument = pendingDocumentFollowRef.current !== null || navigationOrigin === "follow"
     && activeFileRef.current !== null && plugin.app.vault.getFileByPath(activeFileRef.current.path) === activeFileRef.current;
   const fallbackPath = exactPage || waitingForDocument ? null : plugin.resolveNavigationFallbackPath(activePath);
+  // Before the native tree/cache is ready, absence is provisional. Keep this surface's saved
+  // center and loading state rather than displaying a different node and persisting it.
+  const waitingForStartupCenter = !exactPage && !plugin.isNavigationFallbackReady();
   const page = exactPage
     ?? (fallbackPath ? plugin.index.get(fallbackPath) : undefined)
-    ?? (waitingForDocument ? undefined : plugin.index.get("folder:/"));
+    ?? (waitingForDocument || waitingForStartupCenter ? undefined : plugin.index.get("folder:/"));
   const hasPage = Boolean(page);
   const propertiesCenterFile = useRef<TFile | null>(null);
   const propertiesCenterLease = useRef<FilePropertiesCenterLease | null>(null);
@@ -677,7 +757,7 @@ export function KplexApp({ plugin, surface, hostLeaf, translate, environment, on
   }, [displayModes, hostLeaf, reconcileDocumentFollowVisibility]);
 
   useEffect(() => {
-    if (!page) return;
+    if (!page || !documentSession.initialized || documentSession.pendingFollow || documentSession.pendingUrl || activePathRef.current !== activePath) return;
     const replacingMissingCenter = page.path !== activePath;
     // During partial startup hydration the root can exist before a still-valid persisted center has
     // been restored. Never persist that temporary root. Once the authoritative index is ready, a
@@ -686,6 +766,8 @@ export function KplexApp({ plugin, surface, hostLeaf, translate, environment, on
     activePathRef.current = page.path;
     activePageRef.current = page;
     activeFileRef.current = page.file;
+    if (documentSession.initialized && !documentSession.footprints.length) documentSession.footprints.accept(actionNodeRef(page));
+    if (documentSession.centerPath !== page.path) {documentSession.centerPath = page.path;documentSession.persist();}
     if (replacingMissingCenter) {
       setActivePath(page.path);
       const historyIndex = plugin.settings.navigationHistory.lastIndexOf(page.path);
@@ -694,7 +776,7 @@ export function KplexApp({ plugin, surface, hostLeaf, translate, environment, on
     if (plugin.settings.lastActivePath === page.path) return;
     plugin.settings.lastActivePath = page.path;
     void plugin.saveSettings(false, false);
-  }, [page?.path, activePath, plugin]);
+  }, [page?.path, activePath, plugin, documentSession, documentSession.initialized]);
 
   /** Open the target through the host while preserving this surface's document for external-link routing. */
   /** Center the accepted existing note and ensure its managed sidecar is open without toggling it. */
@@ -704,7 +786,7 @@ export function KplexApp({ plugin, surface, hostLeaf, translate, environment, on
   }, [activate, plugin, hostLeaf]);
 
   const open = useCallback((target: GraphPage) => {
-    return plugin.openPage(target, hostLeaf.view.containerEl.ownerDocument);
+    return plugin.openPage(target, hostLeaf.view.containerEl.ownerDocument, {hostLeaf});
   }, [plugin, hostLeaf]);
 
   const updateGraphLenses = useCallback((next: GraphLensDefinition[], baseline?: GraphLensDefinition[], owner?: AppearanceOwner) => plugin.setGraphLenses(next, baseline, owner), [plugin]);
@@ -779,7 +861,7 @@ export function KplexApp({ plugin, surface, hostLeaf, translate, environment, on
   };
 
   const setDocumentSyncMode = async (mode: DocumentSyncMode) => {
-    await plugin.setDocumentSyncMode(mode, page);
+    await plugin.setDocumentSyncMode(hostLeaf, mode, page);
     forceRender((value) => value + 1);
   };
 
@@ -792,21 +874,17 @@ export function KplexApp({ plugin, surface, hostLeaf, translate, environment, on
   /** Open existing sync choices at the owning button for pointer, keyboard and palette invocation. */
   const showDocumentSyncMenu = () => {
     const menu = new Menu();
-    const current = plugin.getDocumentSyncMode();
+    const current = plugin.getDocumentSyncMode(hostLeaf);
 
     menu.addItem((item) => item
       .setTitle(translate("app.syncRecentTabWithPlex"))
       .setIcon("arrow-right")
-      .setDisabled(!page?.file)
-      .onClick(() => { if (page) void plugin.syncMostRecentTabWithKplex(page).then(() => forceRender((value) => value + 1)); }));
+      .setDisabled(!page?.file && !page?.url)
+      .onClick(() => { if (page) void plugin.syncMostRecentTabWithKplex(page, hostLeaf).then(() => forceRender((value) => value + 1)); }));
     menu.addItem((item) => item
       .setTitle(translate("app.syncPlexWithRecentTab"))
       .setIcon("arrow-left")
-      .onClick(() => void plugin.syncKplexWithMostRecentTab().then((file) => {
-        if (!file) return;
-        const target = plugin.index.get(file.path);
-        if (target) activate(target, true);
-      })));
+      .onClick(() => void plugin.syncKplexWithMostRecentTab(hostLeaf)));
 
     menu.addSeparator();
     const choices: Array<[DocumentSyncMode, string, string]> = [
@@ -825,8 +903,8 @@ export function KplexApp({ plugin, surface, hostLeaf, translate, environment, on
     menu.addItem((item) => item
       .setTitle(translate("app.showLinkedTab"))
       .setIcon("scan-eye")
-      .setDisabled(!plugin.hasDocumentSyncTarget())
-      .onClick(() => void plugin.showLinkedDocumentLeaf()));
+      .setDisabled(!plugin.hasDocumentSyncTarget(hostLeaf))
+      .onClick(() => void plugin.showLinkedDocumentLeaf(hostLeaf)));
     showToolbarMenu(menu, syncMenuButtonRef);
   };
 
@@ -1063,7 +1141,7 @@ export function KplexApp({ plugin, surface, hostLeaf, translate, environment, on
   const sidecarAvailable = surface !== "sidepanel";
   const sidecarPosition = sidecarAvailable ? plugin.getSidecarPosition(hostLeaf) : null;
   const sidecarOpen = Boolean(sidecarPosition);
-  const sidecarEdgePosition = sidecarPosition ?? plugin.settings.sidecarPosition;
+  const sidecarEdgePosition = sidecarPosition ?? plugin.getDocumentSidecarPosition(hostLeaf);
   const adjacentSidecar = sidecarAvailable && !sidecarOpen ? plugin.getAdjacentSidecarCandidate(hostLeaf) : null;
   const foldPlexIcon = sidecarEdgePosition === "left" ? "panel-right-close"
     : sidecarEdgePosition === "above" ? "panel-bottom-close"
@@ -1096,40 +1174,63 @@ export function KplexApp({ plugin, surface, hostLeaf, translate, environment, on
   const runAction = (id: ActionId): void => actions.dispatch({ id, source: "toolbar" });
   const supportButton = <ToolButton icon="bug" title={translate("support.reportTitle")} onClick={/** Invoke the owning clipboard writer directly before any action-dispatch await, including partial startup. */ event => plugin.reportBug(event.currentTarget, actions.surfaceId)} />;
 
+  // History belongs to loaded settings, not semantic readiness. Preserve every saved slot on
+  // both loading and graph surfaces; unresolved targets stay inert until their owner publishes.
+  const historyBar = <footer className="kplex-history-bar">
+    <span className="kplex-history-label">{translate("app.pastNodes")}</span>
+    <div className="kplex-history-list">
+      {plugin.settings.navigationHistory.slice(-14).reverse().map((path, indexValue) => {
+        const item = plugin.index.get(path);
+        const {label: title, icon} = item ? nodeListPresentation(item, plugin.index.titleFor(item)) : {label: path, icon: "file-question"};
+        return <button key={`${path}:${indexValue}`} data-kplex-history-path={path} aria-label={`${title}\n${path}`} disabled={!item}
+          className={path === activePath ? "is-active" : ""}
+          onClick={/** Dispatch only this currently available saved identity; no fallback or note creation. */ () => {if (item) actions.dispatch({id: "node.activate", source: "toolbar", target: {kind: "explicit", node: actionNodeRef(item)}});}}>
+          <ObsidianIcon name={icon} size={12} /><span className="kplex-history-text">{title}</span>
+        </button>;
+      })}
+    </div>
+  </footer>;
+
   if (!page) return <div
     ref={rootRef}
     tabIndex={0}
     role="region"
     aria-labelledby={canvasNameId}
-    className="kplex-app kplex-empty"
+    className="kplex-app"
     data-kplex-tooltip-scope
     onDragOver={handlePlexDragOver}
     onDrop={handlePlexDrop}
   >
     <span id={canvasNameId} className="kplex-accessible-name">{translate("view.displayName")}</span>
-    <div className="kplex-index-status-empty">
-      <IndexStatusIndicator
-        status={indexStatus}
-        indicatorRef={indexStatusRef}
-        open={indexStatusInfoOpen}
-        onHoverStart={showIndexStatusOnHover}
-        onHoverEnd={hideIndexStatusAfterHover}
-        onToggle={openVaultStats}
-      />
-      <InfoBubble
-        open={indexStatusInfoOpen}
-        targetRef={indexStatusRef}
-        message={indexStatusMessage}
-        onDismiss={dismissIndexStatusInfo}
-      />
+    <div className={`kplex-main-column${plugin.settings.wrapNodeLabels ? " is-two-line-history" : ""}`}>
+      <div aria-hidden="true" />
+      <div className="kplex-graph-area kplex-empty">
+        <div className="kplex-index-status-empty">
+          <IndexStatusIndicator
+            status={indexStatus}
+            indicatorRef={indexStatusRef}
+            open={indexStatusInfoOpen}
+            onHoverStart={showIndexStatusOnHover}
+            onHoverEnd={hideIndexStatusAfterHover}
+            onToggle={openVaultStats}
+          />
+          <InfoBubble
+            open={indexStatusInfoOpen}
+            targetRef={indexStatusRef}
+            message={indexStatusMessage}
+            onDismiss={dismissIndexStatusInfo}
+          />
+        </div>
+        <span>{translate("app.buildingIndex")}</span>
+      </div>
+      {!displayState.zen && historyBar}
     </div>
-    <span>{translate("app.buildingIndex")}</span>
     {!displayState.zen && <div className="kplex-empty-support">{supportButton}</div>}
   </div>;
 
-  const linkedLabel = plugin.getLinkedDocumentLeafLabel();
-  const syncMode = plugin.getDocumentSyncMode();
-  const syncTargetAvailable = plugin.hasDocumentSyncTarget();
+  const linkedLabel = plugin.getLinkedDocumentLeafLabel(hostLeaf);
+  const syncMode = plugin.getDocumentSyncMode(hostLeaf);
+  const syncTargetAvailable = plugin.hasDocumentSyncTarget(hostLeaf);
   const syncIcon = syncMode === "pinned" ? "pin" : syncMode === "recent" ? "link" : "unlink";
   const syncTitle = syncMode === "off"
     ? translate("app.syncStatusOff")
@@ -1151,7 +1252,7 @@ export function KplexApp({ plugin, surface, hostLeaf, translate, environment, on
       ["right", translate("position.right"), "panel-right"], ["left", translate("position.left"), "panel-left"], ["above", translate("position.above"), "panel-top"], ["below", translate("position.below"), "panel-bottom"],
     ];
     for (const [position, label, icon] of options) menu.addItem((item) => item
-      .setTitle(label).setIcon(icon).setChecked((sidecarPosition ?? plugin.settings.sidecarPosition) === position)
+      .setTitle(label).setIcon(icon).setChecked(sidecarEdgePosition === position)
       .onClick(/** Position choices dispatch the same typed intent as a configured shortcut. */ () => actions.dispatch({ id: "view.sidecar.position", source: "context-menu", args: { position } })));
     showToolbarMenu(menu, sidecarMoveButtonRef);
   };
@@ -1299,6 +1400,15 @@ export function KplexApp({ plugin, surface, hostLeaf, translate, environment, on
           <div className="kplex-zone-label zone-right">{translate("app.zoneChallengersNext")}</div>
           <div className="kplex-zone-label zone-child">{translate("app.zoneChildren")}</div>
           <PlexGraph plugin={plugin} index={plugin.index} settings={viewSettings} paintSettings={paintSettings} paintLenses={paintLenses} surface={profileSurface} hostLeaf={hostLeaf} predicate={plexFilterPredicate} lenses={compiledGraphLenses} filterLayoutMode={filterLayoutMode} predicateRevision={predicateRevision} showCrossLinks={plugin.settings.showCrossLinks} activePath={page.path} renderRevision={renderRevision} findFocusRequest={findFocusRequest}
+            footprintsControl={<PlexFootprintsPanel trail={documentSession.footprints} translate={translate}
+              readRow={/** Resolve visible references only; unavailable nodes never trigger acquisition or creation. */ visit => {
+                const target = resolveActionPage(plugin.index, visit.node);
+                return target ? {...nodeListPresentation(target, plugin.index.titleFor(target)), available: true}
+                  : {label: visit.node.identity, icon: "circle-help", available: false};
+              }} formatLink={/** Explicit clipboard projection uses current cached facets or the captured link; never acquire sources. */ visit => nodeMarkdownLink(visit.node, resolveActionPage(plugin.index, visit.node))}
+              navigate={/** Normal activation preserves global history and records this repeated visit once. */ visit => {
+                const target = resolveActionPage(plugin.index, visit.node);if (target && target.path !== activePathRef.current) activate(target);
+              }} />}
           actionPorts={graphActionPorts} actionSurfaceId={actions.surfaceId} displayState={displayState} fullscreenAvailable={displayModes.fullscreenAvailable && environment.device === "desktop"}
           semanticRevision={plugin.index.getSemanticRevision()} navigationOrigin={navigationOrigin} onSemanticDemandAcquired={acknowledgeDocumentDemandHandover} onActivate={/** Manual graph navigation keeps the existing history and sync path. */ target => activate(target)} onWanderActivate={/** Explicit Wander origin survives asynchronous scene publications. */ target => activate(target, true, true, "wander")} onOpen={open} onOpenInSidecar={centerAndOpenSidecar} onCentralNodeEditorChange={setCentralNodeEditorEnabled} onCentralNodeModeChange={rememberCentralNodeMarkdownMode} areaSettingsMode={areaSettingsMode} onAreaSettingsModeChange={setAreaSettingsMode}
           onApplyFindFilter={applyFindFilter} appliedFindFilterQuery={findFilterOwner?.query ?? null} onClearFindFilter={clearFindFilter} />
@@ -1325,17 +1435,7 @@ export function KplexApp({ plugin, surface, hostLeaf, translate, environment, on
         </>}
       </div>}
 
-      <footer className="kplex-history-bar">
-        <span className="kplex-history-label">{translate("app.pastNodes")}</span>
-        <div className="kplex-history-list">
-          {plugin.settings.navigationHistory.slice(-14).reverse().map((path, indexValue) => {
-            const item = plugin.index.get(path);
-            if (!item) return null;
-            const { label: title, icon } = nodeListPresentation(item, plugin.index.titleFor(item));
-            return <button key={`${path}:${indexValue}`} data-kplex-history-path={path} aria-label={`${title}\n${path}`} className={path === page.path ? "is-active" : ""} onClick={() => actions.dispatch({ id: "node.activate", source: "toolbar", target: { kind: "explicit", node: actionNodeRef(item) } })}><ObsidianIcon name={icon} size={12} /><span className="kplex-history-text">{title}</span></button>;
-          })}
-        </div>
-      </footer>
+      {historyBar}
     </div>
   </div>;
 }

@@ -107,6 +107,12 @@ Use `obsidianCliExecutable()` and `spawnNativeSync()` from `scripts/testing/obsi
 - Keep the README's first-start indexing notice and existing product screenshots unless deliberately replacing them with newer user-facing imagery.
 - Release notes should be written in product language and focus on observable behavior.
 
+## K-Plex Help authoring (separate repository)
+
+When tasked with editing the living K-Plex Help vault at [zsviczian/kplex-help](https://github.com/zsviczian/kplex-help), **first read [docs/help-authoring/README.md](docs/help-authoring/README.md)** and its [feature](docs/help-authoring/FEATURE_TEMPLATE.md), [use-case](docs/help-authoring/USE_CASE_TEMPLATE.md) and [release](docs/help-authoring/RELEASE_TEMPLATE.md) templates as applicable. K-Plex Help is a separate Obsidian-vault repository, combining readable help pages, ontology relationships, visual styling and screenshots. The K-Plex product README and interface should **not** become navigational advertising for that vault.
+
+Use the Help repository's current branch, own instructions, ontology and existing documentation as authority for content organization. Keep use cases evergreen and marked `Note type: Use case`; connect release pages to relevant feature/use-case pages via the Help vault's existing `Explains` ontology. Release pages must distinguish drafts from published history. Capture authentic screenshots locally, preserve existing visual assets and avoid changing its bundled plugin executables or `.obsidian` settings without separate authorization. Verify Help-repository writes independently of K-Plex source changes.
+
 ## Architecture boundaries
 
 **Current architecture refactoring milestone: C14 accepted; structural refactoring is paused.** Feature work may proceed within the established boundaries. Do not start C15–C26 or retire compatibility facades without an explicitly scoped task. Obsidian remains the only production host; a portable semantic engine does not mean the application and all UI are host-independent. The current ownership and retained seams are documented in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) and tracked in [Refactor plan.md](Refactor%20plan.md).

@@ -1233,7 +1233,7 @@ const russianTranslations = {
   "folderPicker.invalid": "Введите допустимый путь к папке внутри этого хранилища.",
   "folderPicker.fileConflict": "Этот путь уже используется файлом.",
   "folderPicker.invalidAlias": "Псевдоним не может содержать две закрывающие квадратные скобки подряд.",
-  "layout.simplifiedTitle": "Упрощённая компоновка",
+  "layout.simplifiedTitle": "Односторонняя компоновка",
   "layout.simplifiedHelp": "Разместить друзей и оппонентов отдельными группами слева. Связи и фильтры остаются прежними. Отдельные окна используют настройку основной вкладки.",
   "layout.arrangementScope": "{device}: {surface}",
   "layout.mainTab": "Основная вкладка",
@@ -1290,6 +1290,15 @@ const russianTranslations = {
   "settingsSync.conflict": "Настройки изменены на другом устройстве. Откройте этот элемент управления заново и повторно примените изменение.",
   "settingsSync.loadFailed": "Не удалось загрузить изменённые настройки K-Plex. Текущие настройки сохранены. Проверьте синхронизацию и повторите попытку.",
   "settingsSync.refreshPending": "Настройки получены. Некоторые представления не удалось обновить. Откройте нужное представление заново.",
+  "footprints.title": "Следы",
+  "footprints.count": {one: "{count} посещение", few: "{count} посещения", many: "{count} посещений", other: "{count} посещения"},
+  "footprints.startHere": "Начать отсюда",
+  "footprints.empty": "Здесь появятся посещённые узлы.",
+  "footprints.unavailable": "Недоступно",
+  "footprints.copyMarkdown": "Копировать как Markdown",
+  "footprints.copying": "Копирование...",
+  "footprints.copied": "Скопировано в буфер обмена.",
+  "footprints.copyFailed": "Не удалось скопировать. Попробуйте ещё раз.",
 } as const satisfies LocaleTranslationMap;
 
 export const russianCatalog = buildLocaleCatalog(russianTranslations);

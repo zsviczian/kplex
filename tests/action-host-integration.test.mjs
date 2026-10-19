@@ -10,14 +10,16 @@ import { build } from 'esbuild';
 
 const temporary = mkdtempSync(join(tmpdir(), 'kplex-action-host-'));
 process.on('exit', () => rmSync(temporary, { recursive: true, force: true }));
-await build({ stdin: { contents: 'export * from "./src/core/plex/actionPreferences"; export * from "./src/adapters/obsidian/actionNode"; export * from "./src/application/ActionManager"; export * from "./src/adapters/obsidian/relationshipMetadataWrite"; export * from "./src/core/parser/metadata"; export * from "./src/index/ForegroundWorkScheduler"; export * from "./src/adapters/obsidian/settingsNavigation";', resolveDir: fileURLToPath(new URL('..', import.meta.url)) }, outfile: join(temporary, 'contracts.mjs'), bundle: true, platform: 'node', format: 'esm' });
+await build({ stdin: { contents: 'export * from "./src/ui/KplexDocumentSession"; export * from "./src/core/plex/actionPreferences"; export * from "./src/adapters/obsidian/actionNode"; export * from "./src/application/ActionManager"; export * from "./src/adapters/obsidian/relationshipMetadataWrite"; export * from "./src/core/parser/metadata"; export * from "./src/index/ForegroundWorkScheduler"; export * from "./src/adapters/obsidian/settingsNavigation";', resolveDir: fileURLToPath(new URL('..', import.meta.url)) }, outfile: join(temporary, 'contracts.mjs'), bundle: true, platform: 'node', format: 'esm' });
 const contracts = await import(pathToFileURL(join(temporary, 'contracts.mjs')));
 
 /** Extract the real callback with its sync/async contract intact, excluding native startup. */
 function method(name, dependencies = {}) {
+  dependencies={nativeLeafId:contracts.nativeLeafId,...dependencies};
   const source = ts.createSourceFile('src/main.ts', readFileSync(new URL('../src/main.ts', import.meta.url), 'utf8'), ts.ScriptTarget.Latest, true);
   let expression;
   function visit(node) {
+    if(name==='nativeLayoutChange'&&ts.isCallExpression(node)&&node.expression.getText(source)==='this.app.workspace.on'&&node.arguments[0]?.getText(source)==='"layout-change"')expression=`function() ${node.arguments[1].body.getText(source)}`;
     if (ts.isMethodDeclaration(node) && node.name.getText(source) === name) {
       const text = node.getText(source);
       expression = `${node.modifiers?.some(item => item.kind === ts.SyntaxKind.AsyncKeyword) ? 'async ' : ''}function ${name}${text.slice(text.indexOf('('))}`;
@@ -28,9 +30,35 @@ function method(name, dependencies = {}) {
   const code = ts.transpileModule(`const selected = ${expression};`, { compilerOptions: { target: ts.ScriptTarget.ES2021, module: ts.ModuleKind.None } }).outputText;
   return Function(...Object.keys(dependencies), `${code}; return selected;`)(...Object.values(dependencies));
 }
+/** Supply real independent session values to the existing native structural ports. */
+function documentSessions(owner) {
+  const sessions=new WeakMap();owner.passiveSidecarSyncRequests??=new WeakMap();
+  owner.documentSession=host=>{
+    if(!host)return null;
+    let session=sessions.get(host);
+    if(!session){session=new contracts.KplexDocumentSession({documentSyncMode:'off',sidecarPosition:'right',sidecarOpen:false,sidecarMarkdownMode:'preview',sidecarLastFilePath:'',sidecarLastUrl:'',...owner.settings},null,()=>owner.workspacePersist?.(host));
+      Object.assign(session.preferences,owner.settings);session.linkedDocumentLeaf=owner.sidecarLeaves?.get(host)??null;sessions.set(host,session);}
+    return session;
+  };
+  owner.seedLegacyDocumentSession=()=>{};return owner;
+}
 const update = method('updateActionPreferences', { ...contracts, readObsidianPresentationEnvironment: () => ({ keyConvention: 'windows' }), window: {} });
 const enqueue = method('enqueueSettingsWrite');
 const persist = method('persistSettingsSnapshot');
+
+test('native layout retains a second live pair hidden by another fold but releases unproven or detached associations',()=>{
+  const a={},b={},docA={},docB={},sessions=new Map();let proof=true,attached=true,writes=0;
+  for(const host of [a,b])sessions.set(host,{linkedDocumentLeaf:host===a?docA:docB,preferences:{documentSyncMode:'pinned',sidecarOpen:true},persist(){writes++;}});
+  const context={sidecarLeaves:new Map([[a,docA],[b,docB]]),collapsedPlexHosts:new Map([[a,{}]]),sidecarMovingHosts:new Set(),startupInitializing:false,
+    documentSession:host=>sessions.get(host),reconcilePlexFolds:()=>false,leafIsAttached:leaf=>leaf!==docB||attached,
+    adjacentPosition:()=>null,readPlexFoldCandidate:host=>host===b&&proof?{}:null,
+    deleteSidecarOwner(host){this.sidecarLeaves.delete(host)},restoreCollapsedPlex(){},validateLinkedDocumentLeaf(){},notifySidecar(){},onKplexVisibilityMayHaveChanged(){},
+    app:{workspace:{requestSaveLayout(){writes++;}}},index:new Proxy({},{get(){throw Error('Native topology reconciliation must not consult the index')}})};
+  const reconcile=method('nativeLayoutChange');reconcile.call(context);
+  assert.equal(context.sidecarLeaves.get(b),docB);assert.equal(sessions.get(b).preferences.documentSyncMode,'pinned');assert.equal(writes,0);
+  proof=false;reconcile.call(context);assert.equal(context.sidecarLeaves.has(b),false);assert.equal(context.sidecarLeaves.get(a),docA);assert.equal(sessions.get(b).preferences.documentSyncMode,'off');
+  context.sidecarLeaves.set(b,docB);sessions.get(b).linkedDocumentLeaf=docB;proof=true;attached=false;reconcile.call(context);assert.equal(context.sidecarLeaves.has(b),false,'A topology proof cannot retain a detached document');
+});
 
 /** An explicit new-tab request never reuses a Plex or applies the generic startup-surface preference. */
 test('new Plex tab creates and reveals an adjacent native tab group on every invocation without index work', async () => {
@@ -49,14 +77,15 @@ test('new Plex tab creates and reveals an adjacent native tab group on every inv
 test('Sidecar open protects its native split through pending layout and releases on failure', async () => {
   const open = method('openSidecar'), host = {}, leaf = {}, page = {};
   let releaseLayout, notified = false, layoutCalls = 0, repairedSize = false;
-  const owner = { sidecarMovingHosts: new Set(),
-    ensureSidecarLeaf() { assert(this.sidecarMovingHosts.has(host)); return leaf; },
+  const owner = { sidecarMovingHosts: new Set(),sidecarLeaves:new Map(),
+    ensureSidecarLeaf() { assert(this.sidecarMovingHosts.has(host));this.sidecarLeaves.set(host,leaf); return leaf; },
     async openPageInSidecarLeaf(actualLeaf, actualPage) { assert.equal(actualLeaf, leaf); assert.equal(actualPage, page); assert(this.sidecarMovingHosts.has(host)); },
     waitForWorkspaceLayout() { return ++layoutCalls === 1 ? new Promise(resolve => { releaseLayout = resolve; }) : Promise.resolve(); },
     ensureAdjacentFileLeafSize(actualHost, actualLeaf) { assert.equal(actualHost, host); assert.equal(actualLeaf, leaf); assert(this.sidecarMovingHosts.has(host)); repairedSize = true; },
     async saveSettings() { assert(this.sidecarMovingHosts.has(host)); },
     notifySidecar() { notified = true; }
   };
+  documentSessions(owner);
   const pending = open.call(owner, host, page); await Promise.resolve();
   assert(owner.sidecarMovingHosts.has(host)); assert.equal(notified, false);
   releaseLayout(); await pending; assert.equal(notified, true); assert.equal(repairedSize, true); assert.equal(owner.sidecarMovingHosts.has(host), false);
@@ -81,8 +110,9 @@ test('explicit Sidecar candidates respect all edges, ambiguity, visibility and o
     app: { workspace: { iterateAllLeaves(callback) { owner.leaves.forEach(callback); } } }
   };
   const candidate = method('getAdjacentSidecarCandidate', { KPLEX_VIEW_TYPE: 'kplex', KPLEX_SIDEPANEL_VIEW_TYPE: 'sidepanel', isEmbeddedMarkdownLeaf: item => !!item.embedded });
+  documentSessions(owner);
   for (const side of ['left', 'right', 'above', 'below']) {
-    owner.settings.sidecarPosition = side; active.side = hidden.side = side;
+    owner.documentSession(host).preferences.sidecarPosition = side; active.side = hidden.side = side;
     assert.equal(candidate.call(owner, host), active); assert.equal(active.managed, undefined);
   }
   owner.leaves.push(leaf({}, 'below', 'utility')); assert.equal(candidate.call(owner, host), null, 'A second edge group is ambiguous'); owner.leaves.pop();
@@ -100,7 +130,7 @@ test('explicit Sidecar candidates respect all edges, ambiguity, visibility and o
 test('Sidecar attachment uses both initial flows, rejects empty reverse flow and releases stale completion', async () => {
   const host = {}, leaf = {}, file = { path: 'Pane.md' }, page = { file: { path: 'Center.md' } };
   const attach = method('attachAdjacentSidecar', { isWebViewerAvailable: () => true });
-  const make = () => ({ settings: { sidecarPosition: 'right', documentSyncMode: 'off', sidecarOpen: false, sidecarLastFilePath: '', sidecarLastUrl: '' },
+  const make = () => documentSessions({ settings: { sidecarPosition: 'right', documentSyncMode: 'off', sidecarOpen: false, sidecarLastFilePath: '', sidecarLastUrl: '' },
     sidecarMovingHosts: new Set(), sidecarLeaves: new Map(), currentFile: file, openCalls: 0,
     setSidecarOwner(host, leaf) { this.sidecarLeaves.set(host, leaf); }, deleteSidecarOwner(host) { this.sidecarLeaves.delete(host); },
     getAdjacentSidecarCandidate() { return this.sidecarLeaves.has(host) || this.sidecarMovingHosts.has(host) ? null : leaf; },
@@ -111,13 +141,13 @@ test('Sidecar attachment uses both initial flows, rejects empty reverse flow and
   });
   let owner = make(); owner.currentFile = null;
   assert.equal(await attach.call(owner, host, 'to-plex'), null); assert.equal(owner.sidecarLeaves.size, 0);
-  await attach.call(owner, host, 'to-leaf', page); assert.equal(owner.openCalls, 1); assert.equal(owner.sidecarLeaves.get(host), leaf); assert.equal(owner.settings.documentSyncMode, 'pinned');
+  await attach.call(owner, host, 'to-leaf', page); assert.equal(owner.openCalls, 1); assert.equal(owner.sidecarLeaves.get(host), leaf); assert.equal(owner.documentSession(host).preferences.documentSyncMode, 'pinned');
   owner = make(); assert.deepEqual(await attach.call(owner, host, 'to-plex'), {file, path:file.path}); assert.equal(owner.openCalls, 0, 'Reverse attachment cannot overwrite native content/mode');
   owner = make(); await attach.call(owner, host, 'to-leaf', {path:'folder:/'}); assert.equal(owner.sidecarLeaves.size, 0, 'A non-document center cannot clear the pane');
   owner = make(); owner.openPageInSidecarLeaf = async () => { throw Error('open failed'); };
-  await assert.rejects(attach.call(owner, host, 'to-leaf', page), /open failed/); assert.equal(owner.sidecarLeaves.size, 0); assert.equal(owner.settings.documentSyncMode, 'off'); assert.equal(owner.sidecarMovingHosts.size, 0);
-  owner = make(); let finish; owner.saveSettings = () => new Promise(resolve => { finish = resolve; });
-  const pending = attach.call(owner, host, 'to-plex'); assert.equal(owner.sidecarLeaves.get(host), leaf);
+  await assert.rejects(attach.call(owner, host, 'to-leaf', page), /open failed/); assert.equal(owner.sidecarLeaves.size, 0); assert.equal(owner.documentSession(host).preferences.documentSyncMode, 'off'); assert.equal(owner.sidecarMovingHosts.size, 0);
+  owner = make(); let finish; owner.openPageInSidecarLeaf = () => new Promise(resolve => { finish = resolve; });
+  const pending = attach.call(owner, host, 'to-leaf', page); assert.equal(owner.sidecarLeaves.get(host), leaf);
   assert.equal(await attach.call(owner, host, 'to-leaf', page), null, 'A pending attachment cannot be acquired twice');
   owner.adjacentPosition = () => 'left'; finish(); assert.equal(await pending, null); assert.equal(owner.sidecarLeaves.size, 0); assert.equal(owner.sidecarMovingHosts.size, 0);
 });
@@ -165,15 +195,15 @@ function commandContext(dependencies) {
 }
 
 test('native sidebar palette commands use its selected occurrence while legacy center and external editor resolution stay distinct', async () => {
-  class KplexView {} class KplexSidepanelView {}
+  class KplexView {} class KplexSidepanelView {} class FileView {}
   const owner = {}, otherWindow = {}, mainLeaf = { view: Object.assign(new KplexView(), { containerEl: { ownerDocument: { defaultView: owner } } }) }, sidebar = { view: Object.assign(new KplexSidepanelView(), { containerEl: { ownerDocument: { defaultView: owner } } }) };
   let activeView = sidebar.view,recentLeaf=mainLeaf;
   const node = path => ({ identity:path,path,kind:'file' }), center=node('A'), selected=node('C'), calls=[];
   let mainSnapshot={mounted:true,visible:true,windowId:'own',center,selected:null,focusRegion:'external',commandFocusRegion:'external',interactionRevision:1};
   let sidebarSnapshot={...mainSnapshot,selected:{node:selected,occurrenceId:'C@child'},focusRegion:'graph',commandFocusRegion:'graph',interactionRevision:4};
-  const plugin={app:{workspace:{getMostRecentLeaf:()=>recentLeaf,getActiveViewOfType:type=>activeView instanceof type?activeView:null}},actionSurfaceHosts:new Map([['main',{leaf:mainLeaf}],['sidebar',{leaf:sidebar}]]),settings:{lastActivePath:'A'},index:{get:()=>center},actionWindowId:value=>value===owner?'own':'other'};
+  const plugin={sidecarLeaves:new Map(),app:{workspace:{getMostRecentLeaf:()=>recentLeaf,getActiveViewOfType:type=>activeView instanceof type?activeView:null}},actionSurfaceHosts:new Map([['main',{leaf:mainLeaf}],['sidebar',{leaf:sidebar}]]),settings:{lastActivePath:'A'},index:{get:()=>center},actionWindowId:value=>value===owner?'own':'other'};
   mainLeaf.view.leaf=mainLeaf;sidebar.view.leaf=sidebar;
-  const contextFactory=commandContext({window:{activeWindow:owner},KplexView,KplexSidepanelView,actionNodeRef:page=>page});
+  const contextFactory=commandContext({window:{activeWindow:owner},KplexView,KplexSidepanelView,FileView,actionNodeRef:page=>page});
   // The native recent-leaf API deliberately excludes left/right splits. The real active
   // sidebar stays active while its prompt takes DOM focus, and the existing ledger preserves graph origin.
   const read=contextFactory.call(plugin);
@@ -346,7 +376,7 @@ test('support command stays available without a center or a readable graph durin
     index: { get: /** A diagnostic recovery command must not depend on this unavailable graph reader. */ () => assert.fail('Support attempted a center lookup') },
     actionWindowId: /** Preserve the actual native window association without a node reference. */ () => 'own',
   };
-  const create = commandContext({ window: { activeWindow: owner }, KplexView, KplexSidepanelView, actionNodeRef: assert.fail });
+  const create = commandContext({ window: { activeWindow: owner }, KplexView, KplexSidepanelView, FileView:class {}, actionNodeRef: assert.fail });
   const read = create.call(plugin);
   const manager = new contracts.ActionManager({ readCommandContext: read, implementations: {
     'support.report-bug': { availability: /** Reporting has no semantic readiness prerequisite. */ () => ({ state: 'enabled' }), execute: /** Count actual execution separately from pure availability checking. */ () => { executions++; return { status: 'completed' }; } },
@@ -614,8 +644,9 @@ function foldFixture() {
   const host={group:hostGroup,view:new KplexView(),attached:true,getViewState:()=>({type:'kplex'})},sidecar={group:sidecarGroup,view:{},kind:'markdown',attached:true,getViewState(){return{type:this.kind}}},sibling={group:sidecarGroup,view:{},attached:true,selected:true};
   const calls=[],owner={unloading:false,collapsedPlexHosts:new Map(),plexFoldRevisions:new WeakMap(),sidecarLeaves:new Map([[host,sidecar]]),sidecarMovingHosts:new Set(),passiveSidecarSyncRequests:new WeakMap(),settings:{documentSyncMode:'pinned',sidecarOpen:true},linkedDocumentLeaf:sidecar,
     leafIsAttached:leaf=>leaf.attached,leafGroupElement:leaf=>leaf.group,splitAxis:()=>owner.axis??'width',adjacentPosition:()=>owner.geometry===false?null:'right',leafTabIsActive:leaf=>!!leaf.selected,translator:key=>key,notifySidecar:()=>calls.push('notify'),onKplexVisibilityMayHaveChanged:()=>calls.push('visibility'),
-    app:{workspace:{activeLeaf:host,getActiveViewOfType(){return {leaf:this.activeLeaf}},iterateAllLeaves(fn){[host,sidecar,sibling].forEach(fn)},setActiveLeaf(leaf){calls.push(['focus',leaf]);this.activeLeaf=leaf},async revealLeaf(leaf){calls.push(['reveal',leaf])}}}};
-  for(const name of ['advancePlexFoldRevision','setSidecarOwner','deleteSidecarOwner','restoreCollapsedPlex','restorePlexFoldBeforeReveal','isPlexFoldedForSidecar','readPlexFoldCandidate','plexFoldToken','readPlexFoldCandidates','readPlexFoldUnavailableReason','isPlexFoldCandidateCurrent','isPlexFoldSessionValid','reconcilePlexFolds','togglePlexFold','expandPlexFromSidecar'])owner[name]=method(name,{KplexView,ItemView:class{},PlexFoldSession,plexFoldIdentity});
+    app:{workspace:{getLeavesOfType:type=>type==='kplex'?[host]:[],activeLeaf:host,getActiveViewOfType(){return {leaf:this.activeLeaf}},iterateAllLeaves(fn){[host,sidecar,sibling].forEach(fn)},setActiveLeaf(leaf){calls.push(['focus',leaf]);this.activeLeaf=leaf},async revealLeaf(leaf){calls.push(['reveal',leaf])}}}};
+  documentSessions(owner);
+  for(const name of ['advancePlexFoldRevision','setSidecarOwner','deleteSidecarOwner','restoreCollapsedPlex','restorePlexFoldBeforeReveal','isPlexFoldedForSidecar','readPlexFoldCandidate','plexFoldToken','readPlexFoldCandidates','readPlexFoldUnavailableReason','isPlexFoldCandidateCurrent','isPlexFoldSessionValid','reconcilePlexFolds','togglePlexFold','expandPlexFromSidecar'])owner[name]=method(name,{KplexView,ItemView:class{},PlexFoldSession,plexFoldIdentity,KPLEX_VIEW_TYPE:'kplex',KPLEX_SIDEPANEL_VIEW_TYPE:'sidepanel'});
   return {owner,host,sidecar,sibling,root,split,hostGroup,sidecarGroup,recovery,doc,events,observers,calls,Element,KplexView};
 }
 
@@ -678,13 +709,13 @@ test('native explicit unfold preserves a different native tab selected during he
 
 /** Hold one real startup boundary; native creation/ownership remains the existing production owner. */
 function startupSidecarFixture(boundary='candidate') {
-  const f=foldFixture(),owner=f.owner;owner.deleteSidecarOwner(f.host);f.host.view.getViewType=()=> 'kplex';owner.linkedDocumentLeaf=null;
-  owner.settings.sidecarOpen=true;owner.sidecarRestoreAttemptedHosts=new Set();owner.sidecarRestoreTask=null;
+  const f=foldFixture(),owner=f.owner;owner.deleteSidecarOwner(f.host);f.host.view.getViewType=()=> 'kplex';owner.documentSession(f.host).linkedDocumentLeaf=null;
+  owner.documentSession(f.host).preferences.sidecarOpen=true;owner.sidecarRestoreAttemptedHosts=new Set();
   owner.isSidecarOpen=host=>owner.sidecarLeaves.has(host);
   let finish,admit;const admitted=new Promise(resolve=>{admit=resolve}),gate=new Promise(resolve=>{finish=resolve});
   owner.waitForWorkspaceLayout=()=>{if(boundary==='layout'){admit();return gate}return Promise.resolve()};
   owner.waitForRestoredSidecarCandidate=()=>{f.candidateCalls++;if(boundary==='candidate'){admit();return gate}return Promise.resolve(f.sidecar)};
-  f.saves=0;f.candidateCalls=0;owner.saveSettings=async()=>{f.saves++};owner.fileForLeaf=leaf=>leaf.file??null;
+  f.saves=0;f.candidateCalls=0;owner.workspacePersist=()=>{f.saves++};owner.fileForLeaf=leaf=>leaf.file??null;
   owner.isManagedSidecarLeaf=leaf=>Array.from(owner.sidecarLeaves.values()).includes(leaf);
   const restore=method('restorePersistedSidecar',{KplexView:f.KplexView,KPLEX_SIDEPANEL_VIEW_TYPE:'sidepanel'});
   return Object.assign(f,{admitted,finish:()=>finish(f.sidecar),start:()=>restore.call(owner,f.host)});
@@ -694,23 +725,28 @@ function startupSidecarFixture(boundary='candidate') {
 test('native delayed startup Sidecar restore cannot overwrite a newer explicit owner',async()=>{
   const f=startupSidecarFixture(),owner=f.owner,pending=f.start();await f.admitted;
   const replacement={group:f.sidecarGroup,attached:true,view:{},file:{path:'Explicit.md'},getViewState:()=>({type:'markdown'})};
-  owner.setSidecarOwner(f.host,replacement);owner.linkedDocumentLeaf=replacement;owner.lastDocumentLeaf=replacement;owner.settings.sidecarLastFilePath='Explicit.md';
-  f.finish();await pending;assert.equal(owner.sidecarLeaves.get(f.host),replacement);assert.equal(owner.linkedDocumentLeaf,replacement);assert.equal(owner.lastDocumentLeaf,replacement);assert.equal(owner.settings.sidecarLastFilePath,'Explicit.md');assert.equal(f.saves,0);assert.equal(owner.sidecarRestoreTask,null);
+  const session=owner.documentSession(f.host);owner.setSidecarOwner(f.host,replacement);session.linkedDocumentLeaf=replacement;session.lastDocumentLeaf=replacement;session.preferences.sidecarLastFilePath='Explicit.md';
+  f.finish();await pending;assert.equal(owner.sidecarLeaves.get(f.host),replacement);assert.equal(session.linkedDocumentLeaf,replacement);assert.equal(session.lastDocumentLeaf,replacement);assert.equal(session.preferences.sidecarLastFilePath,'Explicit.md');assert.equal(f.saves,0);assert.equal(session.restoreTask,null);
 });
 
 /** Unchanged startup restoration must still adopt and persist its one exact existing native leaf. */
 test('native delayed startup Sidecar restore retains ordinary unchanged startup adoption',async()=>{
   const f=startupSidecarFixture();f.sidecar.file={path:'Restored.md'};const pending=f.start();await f.admitted;f.finish();await pending;
-  assert.equal(f.owner.sidecarLeaves.get(f.host),f.sidecar);assert.equal(f.owner.linkedDocumentLeaf,f.sidecar);assert.equal(f.owner.lastDocumentLeaf,f.sidecar);assert.equal(f.owner.settings.sidecarLastFilePath,'Restored.md');assert.equal(f.owner.settings.documentSyncMode,'pinned');assert.equal(f.saves,1);assert.equal(f.owner.sidecarRestoreTask,null);
+  const session=f.owner.documentSession(f.host);assert.equal(f.owner.sidecarLeaves.get(f.host),f.sidecar);assert.equal(session.linkedDocumentLeaf,f.sidecar);assert.equal(session.lastDocumentLeaf,f.sidecar);assert.equal(session.preferences.sidecarLastFilePath,'Restored.md');assert.equal(session.preferences.documentSyncMode,'pinned');assert.equal(f.saves,1);assert.equal(session.restoreTask,null);
 });
 
 /** View/root lifetime, ownership ABA and candidate identity remain fenced across actual awaits. */
 test('native delayed startup Sidecar restore rejects remount, detached or separately claimed candidates',async()=>{
-  for(const change of [f=>f.host.view.generation++,f=>{f.host.view=new f.KplexView()},f=>{f.host.attached=false},f=>{f.sidecar.attached=false},f=>{f.owner.sidecarLeaves.set({},f.sidecar)},f=>{f.owner.setSidecarOwner(f.host,f.sidecar);f.owner.deleteSidecarOwner(f.host)},f=>{f.owner.geometry=false}]){
+  for(const change of [f=>{f.host.view=new f.KplexView()},f=>{f.host.attached=false},f=>{f.sidecar.attached=false},f=>{f.owner.sidecarLeaves.set({},f.sidecar)},f=>{f.owner.setSidecarOwner(f.host,f.sidecar);f.owner.deleteSidecarOwner(f.host)},f=>{f.owner.geometry=false}]){
     const f=startupSidecarFixture(),pending=f.start();await f.admitted;change(f);f.finish();await pending;
-    assert.equal(f.owner.sidecarLeaves.has(f.host),false);assert.equal(f.saves,0);assert.equal(f.owner.linkedDocumentLeaf,null);assert.equal(f.owner.sidecarRestoreTask,null);
+    const session=f.owner.documentSession(f.host);assert.equal(f.owner.sidecarLeaves.has(f.host),false);assert.equal(f.saves,0);assert.equal(session.linkedDocumentLeaf,null);assert.equal(session.restoreTask,null);
   }
-  const f=startupSidecarFixture('layout'),pending=f.start();await f.admitted;f.host.view.generation++;f.finish();await pending;assert.equal(f.candidateCalls,0,'Retired layout lifetime never starts candidate matching');assert.equal(f.saves,0);
+  const f=startupSidecarFixture('layout'),pending=f.start();await f.admitted;f.host.view=new f.KplexView();f.finish();await pending;assert.equal(f.candidateCalls,0,'Retired native view never starts candidate matching');assert.equal(f.saves,0);
+});
+
+test('same native view retains pending restoration across a React/window remount',async()=>{
+  const f=startupSidecarFixture(),pending=f.start();await f.admitted;f.host.view.generation++;f.finish();await pending;
+  assert.equal(f.owner.sidecarLeaves.get(f.host),f.sidecar);assert.equal(f.saves,1);
 });
 
 /** A hidden-group programmatic owner can replace a conflicting fold without a focus chain. */

@@ -1,4 +1,5 @@
 /** Exact-build Settings and trusted mouse/modifier acceptance; owns only disposable hover fixtures. */
+import {withNativeDocumentSessions} from "./nativeDocumentSessions.mjs";
 import assert from 'node:assert/strict';
 import {createHash} from 'node:crypto';
 import {existsSync,mkdirSync,readFileSync,readdirSync,writeFileSync} from 'node:fs';
@@ -15,7 +16,7 @@ mkdirSync(output,{recursive:true});
 /** Keep CLI targeting and long-eval transport bounded and shell-free. */
 function cli(command,...args){const r=spawnNativeSync(obsidianCliExecutable(),[`vault=${vaultName}`,command,...args],{encoding:'utf8',timeout:30000,killSignal:'SIGKILL',maxBuffer:4*1024*1024});if(r.error||r.status!==0||/^Error:/m.test(r.stdout))throw r.error??Error(r.stderr||r.stdout);return r.stdout.trim()}
 /** Return finite receipts, never live renderer objects. */
-function evaluate(code){return JSON.parse(cli('eval','code='+code).replace(/^=>\s*/,''))}
+function evaluate(code){code=withNativeDocumentSessions(code);return JSON.parse(cli('eval','code='+code).replace(/^=>\s*/,''))}
 assert.equal(cli('vault','info=path'),target.vault);
 const backups=['plugins/k-plex/data.json','community-plugins.json','workspace.json','appearance.json'].filter(name=>existsSync(join(target.config,name))).map(name=>({name,bytes:readFileSync(join(target.config,name))}));
 const artifacts=Object.fromEntries(['main.js','styles.css','manifest.json'].map(name=>{const bytes=readFileSync(join(root,'dist',name));assert(bytes.equals(readFileSync(join(target.pluginDir,name))),'Stale installed '+name);return[name,createHash('sha256').update(bytes).digest('hex')]}));
@@ -24,7 +25,7 @@ const artifacts=Object.fromEntries(['main.js','styles.css','manifest.json'].map(
 function start(acceptCrosslinkPeek){
  const p=app.plugins.plugins['k-plex'],tab=p.settingsTab;
  if(window.__kplexHoverProbe||app.setting.isOpen)throw Error('Clean native prerequisites required');
- const c=window.__kplexHoverProbe={settings:structuredClone(p.settings),policy:p.savedSettingsPolicy,layout:app.workspace.getLayout(),owners:{linked:p.linkedDocumentLeaf,last:p.lastDocumentLeaf,recent:[...p.recentLeafHistory],sidecars:[...p.sidecarLeaves]},cases:[],diagnostics:[],events:[],restores:[],releases:[],owned:[],done:false,counts:{reads:0,parses:0,acquisitions:0,semantics:0,search:0}};
+ const c=window.__kplexHoverProbe={settings:structuredClone(p.settings),policy:p.savedSettingsPolicy,layout:app.workspace.getLayout(),owners:{documents:documentSessions(p).capture(),last:p.lastDocumentLeaf,recent:[...p.recentLeafHistory],sidecars:[...p.sidecarLeaves]},cases:[],diagnostics:[],events:[],restores:[],releases:[],owned:[],done:false,counts:{reads:0,parses:0,acquisitions:0,semantics:0,search:0}};
  const check=(condition,message)=>{if(!condition)throw Error(message)};
  const wait=ms=>new Promise(r=>window.setTimeout(r,ms));
  const until=async(read,message)=>{const end=Date.now()+15000;while(!read()){check(!c.cancelled&&Date.now()<end,message);await wait(30)}};
@@ -59,7 +60,7 @@ function start(acceptCrosslinkPeek){
    const b=await app.vault.create(other,'Synthetic hover endpoint\n');c.owned.push(other);
    await until(()=>app.metadataCache.getFileCache(a)?.links?.length,'Fixture metadata absent');
    Object.assign(p.settings,{embedCentralNode:false,inferAllLinksAsFriends:true,renderSiblings:false,showFolderNodes:false,showTagNodes:false,graphDepth:1,animationSpeed:0});
-   await p.setDocumentSyncMode('off');await p.saveSettings();await p.activateView();
+   await documentSessions(p).off();await p.saveSettings();await p.activateView();
    p.index.insertCreatedFile(a);p.index.insertCreatedFile(b);c.releases.push(p.index.acquireSemanticDemand(path),p.index.acquireSemanticDemand(other));
    await p.index.refreshSemanticSettings();p.notifyNavigation(path);
    const findLeaf=()=>app.workspace.getLeavesOfType('k-plex-react-view').find(leaf=>p.isKplexLeafVisible(leaf)&&rootOf(leaf).querySelector(`.kplex-role-center[data-kplex-path="${path}"]`));
@@ -98,7 +99,7 @@ function start(acceptCrosslinkPeek){
     for(const restore of c.restores.reverse())restore();c.popout?.detach();if(app.setting.isOpen)app.setting.close();for(const release of c.releases)release();
     p.settings=c.settings;p.savedSettingsPolicy=c.policy;await p.saveSettings();
     for(const path of c.owned){const file=app.vault.getFileByPath(path);if(file)await app.vault.delete(file)}
-    await app.workspace.changeLayout(c.layout);const leaves=[];app.workspace.iterateAllLeaves(leaf=>leaves.push(leaf));const rebind=old=>old?leaves.find(leaf=>leaf.id===old.id)??null:null;p.linkedDocumentLeaf=rebind(c.owners.linked);p.lastDocumentLeaf=rebind(c.owners.last);p.recentLeafHistory=c.owners.recent.map(rebind).filter(Boolean);p.sidecarLeaves.clear();for(const [oldHost,oldNote]of c.owners.sidecars){const host=rebind(oldHost),note=rebind(oldNote);if(host&&note)p.sidecarLeaves.set(host,note)}if(c.settings.lastActivePath)p.notifyNavigation(c.settings.lastActivePath);await p.settingsWriteQueue;
+    await app.workspace.changeLayout(c.layout);const leaves=[];app.workspace.iterateAllLeaves(leaf=>leaves.push(leaf));const rebind=old=>old?leaves.find(leaf=>leaf.id===old.id)??null:null;await documentSessions(p).restore(c.owners.documents);p.lastDocumentLeaf=rebind(c.owners.last);p.recentLeafHistory=c.owners.recent.map(rebind).filter(Boolean);p.sidecarLeaves.clear();for(const [oldHost,oldNote]of c.owners.sidecars){const host=rebind(oldHost),note=rebind(oldNote);if(host&&note)p.setSidecarOwner(host,note)}if(c.settings.lastActivePath)p.notifyNavigation(c.settings.lastActivePath);await p.settingsWriteQueue;
     check(c.owned.every(path=>!app.vault.getFileByPath(path)),'Owned notes remain');c.cleaned=true;
    }catch(error){c.cleanupError=String(error.stack||error)}c.done=true;
   }

@@ -3,6 +3,7 @@
  * Runs separately from actions.mjs, owns bounded fixtures/dialogs/leaves and restores configuration
  * bytes. Real Electron keys and installed UI establish desktop behavior; physical input remains separate.
  */
+import {withNativeDocumentSessions} from "./nativeDocumentSessions.mjs";
 import { spawnNativeSync as spawnSync, obsidianCliExecutable } from "./processTools.mjs";
 import { createHash } from "node:crypto";
 import { existsSync, mkdirSync, readFileSync, readdirSync, unlinkSync, writeFileSync } from "node:fs";
@@ -59,7 +60,7 @@ function cli(command, ...args) {
 }
 
 /** Parse bounded native controller responses after syntax validation in the driver process. */
-function evaluate(code) {
+function evaluate(code) {code=withNativeDocumentSessions(code);
   new Script(code);
   const output = cli("eval", `code=${code}`);
   return JSON.parse(output.slice(output.indexOf("{")));
@@ -105,7 +106,7 @@ function nativeWorkflowProbe(runToken, folderScenario) {
   if (folderScenario) {
     c.folderCreationOnly = true; c.originalLayout = app.workspace.getLayout(); c.originalSavedPolicy = p.savedSettingsPolicy;
     c.originalInventory = app.vault.getFiles().map(file => file.path).sort(); c.originalBounds = nativeWindow.getBounds(); c.originalMinimum = nativeWindow.getMinimumSize();
-    c.originalOwners = { linked: p.linkedDocumentLeaf, last: p.lastDocumentLeaf, recent: [...p.recentLeafHistory], sidecars: [...p.sidecarLeaves] };
+    c.originalOwners = { documents:documentSessions(p).capture(), last: p.lastDocumentLeaf, recent: [...p.recentLeafHistory], sidecars: [...p.sidecarLeaves] };
   }
   /** All resources remain controller-owned until independent cleanup finishes. */
   const run = async () => {
@@ -588,8 +589,8 @@ finally {
         await attempt(()=>c.p.saveSettings(false,false));await attempt(()=>c.p.settingsWriteQueue);
         if(c.folderCreationOnly)await attempt(async()=>{
           await app.workspace.changeLayout(c.originalLayout);const leaves=[];app.workspace.iterateAllLeaves(leaf=>leaves.push(leaf));const rebind=old=>old?leaves.find(leaf=>leaf.id===old.id)??null:null;
-          c.p.linkedDocumentLeaf=rebind(c.originalOwners.linked);c.p.lastDocumentLeaf=rebind(c.originalOwners.last);c.p.recentLeafHistory=c.originalOwners.recent.map(rebind).filter(Boolean);
-          c.p.sidecarLeaves.clear();for(const [oldHost,oldNote]of c.originalOwners.sidecars){const host=rebind(oldHost),note=rebind(oldNote);if(host&&note)c.p.sidecarLeaves.set(host,note)}
+          await documentSessions(c.p).restore(c.originalOwners.documents);c.p.lastDocumentLeaf=rebind(c.originalOwners.last);c.p.recentLeafHistory=c.originalOwners.recent.map(rebind).filter(Boolean);
+          c.p.sidecarLeaves.clear();for(const [oldHost,oldNote]of c.originalOwners.sidecars){const host=rebind(oldHost),note=rebind(oldNote);if(host&&note)c.p.setSidecarOwner(host,note)}
           c.p.savedSettingsPolicy=c.originalSavedPolicy;c.nativeWindow.setMinimumSize(...c.originalMinimum);c.nativeWindow.setBounds(c.originalBounds);
           c.inventoryRestored=JSON.stringify(app.vault.getFiles().map(file=>file.path).sort())===JSON.stringify(c.originalInventory);if(!c.inventoryRestored)throw Error('Original file inventory did not restore');
           await c.p.settingsWriteQueue;

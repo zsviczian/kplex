@@ -2108,13 +2108,13 @@ export class KplexSettingTab extends PluginSettingTab {
     return [...(scope === "semantic" ? [] : standardColorSlots(settings)), ...(scope === "base" ? [] : semanticColorSlots(settings))];
   }
 
-  /** Translate the finite scope while preserving literal rule/lens names instead of exposing storage paths. */
+  /** Translate the finite scope while preserving literal rule/lens names and ES2021-compatible array access. */
   private themeResetSlotLabel(slot: string, settings: StyleSettingsDraft): string {
     const t = this.kplexPlugin.translator; if (slot === "backgroundColor") return t("settings.ui.plex.background");
-    const parts = slot.split("."), key = parts[0], field = parts.at(-1) ?? "", name = parts.slice(1, -1).join(".");
+    const parts = slot.split("."), key = parts[0], field = parts[parts.length - 1] ?? "", name = parts.slice(1, -1).join(".");
     if (key === "semantic") return t(`colors.semantic.${parts[1] as SemanticColorSlot}`);
     if (key === "compass") return `${t("compass.title")} · ${t(`compass.${parts[1] as typeof COMPASS_DIRECTIONS[number]}`)}`;
-    const link = key.endsWith("LinkStyle") || key === "hierarchyLinkStyles" || parts.at(-2) === "edge";
+    const link = key.endsWith("LinkStyle") || key === "hierarchyLinkStyles" || parts[parts.length - 2] === "edge";
     const label = t(link ? linkColorLabel(field as typeof LINK_COLOR_FIELDS[number]) : nodeColorLabel(field as typeof NODE_COLOR_FIELDS[number]));
     if (key === "lens") return t("themes.lensColor", {name: settings.graphLenses.find(/** Stable lens IDs never become matching expressions or recreated definitions. */ lens => lens.id === parts[1])?.name ?? parts[1], field: label});
     if (key === "hierarchyLinkStyles" && name === NOTE_TYPE_TAG_LINK_STYLE) return `${t("tagAssignment.linkStyle")} · ${label}`;

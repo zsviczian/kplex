@@ -5192,7 +5192,7 @@ export const englishCatalog = {
   "folderPicker.invalid": {"message":"Enter a valid folder path inside this vault.","context":"Note destination selection and device-specific navigation layout settings.","params":[]},
   "folderPicker.fileConflict": {"message":"A file already uses this folder path.","context":"Note destination selection and device-specific navigation layout settings.","params":[]},
   "folderPicker.invalidAlias": {"message":"The alias cannot contain two closing brackets.","context":"Note destination selection and device-specific navigation layout settings.","params":[]},
-  "layout.simplifiedTitle": {"message":"Simplified layout","context":"Note destination selection and device-specific navigation layout settings.","params":[]},
+  "layout.simplifiedTitle": {"message":"One-sided layout","context":"Note destination selection and device-specific navigation layout settings.","params":[]},
   "layout.simplifiedHelp": {"message":"Place friends and challengers in separate groups on the left. Their relationships and filters stay the same. Pop-out windows use the main-tab choice.","context":"Note destination selection and device-specific navigation layout settings.","params":[]},
   "layout.arrangementScope": {"message":"{device}: {surface}","context":"Note destination selection and device-specific navigation layout settings.","params":["device","surface"],"referenceParams":[]},
   "layout.mainTab": {"message":"Main tab","context":"Note destination selection and device-specific navigation layout settings.","params":[]},
@@ -5246,6 +5246,15 @@ export const englishCatalog = {
   "settingsSync.conflict": {"message":"Settings changed on another device. Reopen this control and reapply your change.","context":"Live external settings reconciliation, conflict and recovery feedback.","params":[],"referenceParams":[]},
   "settingsSync.loadFailed": {"message":"Could not load changed K-Plex settings. Your current settings are kept. Check sync and try again.","context":"Live external settings reconciliation, conflict and recovery feedback.","params":[],"referenceParams":[]},
   "settingsSync.refreshPending": {"message":"Settings received. Some views could not refresh. Reopen the affected view.","context":"Live external settings reconciliation, conflict and recovery feedback.","params":[],"referenceParams":[]},
+  "footprints.title": {"message":"Footprints","context":"Per-Plex memory-only chronological visits.","params":[],"referenceParams":[]},
+  "footprints.count": {plural: {one: "{count} visit", other: "{count} visits"}, countParam: "count", context: "Number of chronological session visits including repetitions.", params: ["count"], referenceParams: []},
+  "footprints.startHere": {"message":"Start here","context":"Reset this Plex trail to its current node only.","params":[],"referenceParams":[]},
+  "footprints.empty": {"message":"Your visits appear here.","context":"Empty session trail.","params":[],"referenceParams":[]},
+  "footprints.unavailable": {"message":"Unavailable","context":"A trail reference no longer resolves; never create a note.","params":[],"referenceParams":[]},
+  "footprints.copyMarkdown": {"message":"Copy as Markdown","context":"Explicit session-trail Markdown clipboard action; show success only after native fulfillment.","params":[],"referenceParams":[]},
+  "footprints.copying": {"message":"Copying...","context":"Explicit session-trail Markdown clipboard action; show success only after native fulfillment.","params":[],"referenceParams":[]},
+  "footprints.copied": {"message":"Copied to clipboard.","context":"Explicit session-trail Markdown clipboard action; show success only after native fulfillment.","params":[],"referenceParams":[]},
+  "footprints.copyFailed": {"message":"Could not copy. Try again.","context":"Explicit session-trail Markdown clipboard action; show success only after native fulfillment.","params":[],"referenceParams":[]},
 } as const;
 
 export type EnglishCatalog = typeof englishCatalog;

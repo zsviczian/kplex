@@ -6,9 +6,21 @@ import ts from 'typescript';
 import {build} from 'esbuild';
 import {chromiumHarness} from './support/browserTypeScript.mjs';
 const source=ts.createSourceFile('src/ui/App.tsx',readFileSync('src/ui/App.tsx','utf8'),ts.ScriptTarget.Latest,true,ts.ScriptKind.TSX);
-let publicationEffect;
+let publicationEffect, historyBar, startupWaiting, startupPage, loadingSurface;
 function visit(node){if(ts.isCallExpression(node)&&node.expression.getText(source)==='useEffect'&&node.arguments[0]?.getFullText(source).includes('Publications settle a pending native identity'))publicationEffect=node.arguments[0].getText(source);ts.forEachChild(node,visit)}
 visit(source);assert(publicationEffect,'Actual App publication owner exists');
+/** Exercise the real saved-row rendering and startup page selection rather than a parallel UI. */
+function findStartup(node){
+ if(ts.isIfStatement(node)&&node.expression.getText(source)==='!page'&&ts.isReturnStatement(node.thenStatement)&&node.thenStatement.expression)loadingSurface=node.thenStatement.expression.getText(source);
+ if(ts.isVariableDeclaration(node)&&node.initializer){
+  const name=node.name.getText(source);
+  if(name==='historyBar')historyBar=node.initializer.getText(source);
+  if(name==='waitingForStartupCenter')startupWaiting=node.initializer.getText(source);
+  if(name==='page'&&node.initializer.getText(source).includes('fallbackPath'))startupPage=node.initializer.getText(source);
+ }
+ ts.forEachChild(node,findStartup);
+}
+findStartup(source);assert(historyBar&&startupWaiting&&startupPage&&loadingSurface);
 const plexSource=ts.createSourceFile('src/ui/PlexGraph.tsx',readFileSync('src/ui/PlexGraph.tsx','utf8'),ts.ScriptTarget.Latest,true,ts.ScriptKind.TSX);
 let recoveryEffect;
 /** Extract the production view lifetime rather than recreating its attempted/completed flags. */
@@ -18,6 +30,26 @@ const bundle=await build({stdin:{resolveDir:process.cwd(),loader:'tsx',contents:
 export {startCenterWatchdog} from './src/ui/components/centerWatchdog';export {sanitizeCenterRecoveryDiagnostic} from './src/core/contracts/centerRecovery';
 import {startCenterWatchdog} from './src/ui/components/centerWatchdog';
 import React,{useState,useEffect,useLayoutEffect,useRef} from 'react';import {createRoot} from 'react-dom/client';import {flushSync} from 'react-dom';
+/** Saved rows precede native tree availability; later publication upgrades the same exact slots. */
+export async function startupHistory(){
+ const paths=Array.from({length:14},(_,i)=>'Notes/Note-'+i+'.md'),pages=new Map(),clicks=[];
+ const plugin={settings:{navigationHistory:paths},index:{get:path=>pages.get(path),titleFor:page=>page.name},isNavigationFallbackReady:()=>false};
+ const activePath=paths.at(-1),translate=key=>key,actions={dispatch:request=>clicks.push(request.target.node.identity)};
+ const actionNodeRef=page=>({identity:page.path}),nodeListPresentation=(page,title)=>({label:title,icon:'file-text'}),ObsidianIcon=()=>null;
+ const rootRef={current:null},canvasNameId='test-canvas',indexStatus={},indexStatusRef={current:null},indexStatusInfoOpen=false,indexStatusMessage=null;
+ const IndexStatusIndicator=()=>null,InfoBubble=()=>null,displayState={zen:false},supportButton=null;
+ const handlePlexDragOver=()=>{},handlePlexDrop=()=>{},showIndexStatusOnHover=()=>{},hideIndexStatusAfterHover=()=>{},openVaultStats=()=>{},dismissIndexStatusInfo=()=>{};
+ const element=document.body.appendChild(document.createElement('div')),root=createRoot(element);
+ function Surface(){const historyBar=${historyBar};return ${loadingSurface}}
+ try{
+  flushSync(()=>root.render(<Surface/>));const before=element.querySelectorAll('[data-kplex-history-path]').length,disabled=element.querySelectorAll('button:disabled').length;
+  element.querySelector('button').click();
+  for(const path of paths)pages.set(path,{path,name:path});flushSync(()=>root.render(<Surface/>));element.querySelector('button').click();
+  const exactPage=undefined,waitingForDocument=false,fallbackPath=null,waitingForStartupCenter=${startupWaiting};
+  pages.set('folder:/',{path:'folder:/'});const page=${startupPage};
+  return {before,disabled,after:element.querySelectorAll('[data-kplex-history-path]').length,clicks,expected:activePath,temporaryCenter:page?.path??null};
+ }finally{flushSync(()=>root.unmount());element.remove()}
+}
 /** Exercise the actual mounted view effect across a pending check and native hide/reveal. */
 export async function recoveryAfterReveal(mode='pending'){
  const element=document.body.appendChild(document.createElement('div')),root=createRoot(element);
@@ -46,10 +78,18 @@ export async function reproduce(channel){
  const events={semantic:new Set(),presentation:new Set()},file={path:'Center.md'},page={path:'Center.md',file};let children=2,sourceCalls=0,renders=0;
  const plugin={index:{subscribe:fn=>{events.semantic.add(fn);return()=>events.semantic.delete(fn)},get:()=>page,insertCreatedFile:()=>{throw Error('Unexpected admission')}},app:{vault:{getFileByPath:()=>file}},isKplexLeafVisible:()=>true,isManagedCreatedFile:()=>false};
  function Publisher(){useLayoutEffect(()=>{children=7;for(const fn of events[channel])fn()},[]);return null}
- function Surface(){const [revision,forceRender]=useState(0);renders++;const activePathRef={current:'Center.md'},activeFileRef={current:file},activePageRef={current:page};const hostLeaf={},activatePendingDocumentFollow=()=>{},setActivePath=()=>{throw Error('Unexpected navigation')};useEffect(${publicationEffect},[]);return <><Publisher/><div data-revision={revision}>{children}</div></>}
+ function Surface(){const [revision,forceRender]=useState(0);renders++;const activePathRef={current:'Center.md'},activeFileRef={current:file},activePageRef={current:page};const hostLeaf={},activatePendingDocumentFollow=()=>{},activatePendingDocumentUrl=()=>{},setActivePath=()=>{throw Error('Unexpected navigation')};useEffect(${publicationEffect},[]);return <><Publisher/><div data-revision={revision}>{children}</div></>}
  const element=document.body.appendChild(document.createElement('div')),root=createRoot(element);flushSync(()=>root.render(<Surface/>));await new Promise(resolve=>setTimeout(resolve,40));const count=Number(element.querySelector('div').textContent);flushSync(()=>root.unmount());element.remove();return {count,renders,sourceCalls,listeners:events.semantic.size+events.presentation.size};
 }`},bundle:true,write:false,format:'iife',globalName:'sourceModules',platform:'browser'});
 for(const channel of ['semantic','presentation'])test('App catches '+channel+' publication between initial render and subscription',async()=>{const browser=await chromiumHarness(bundle.outputFiles[0].text);try{const result=await browser.evaluate(`sourceModules.reproduce(${JSON.stringify(channel)})`);assert.equal(result.count,7,'Stationary center must catch child publication without navigation or watchdog');assert.equal(result.sourceCalls,0);assert.equal(result.listeners,0)}finally{await browser.cleanup()}});
+
+test('actual startup history retains all slots before native tree availability and never shows a provisional root',async()=>{
+ const browser=await chromiumHarness(bundle.outputFiles[0].text);try{
+  const result=await browser.evaluate('sourceModules.startupHistory()');
+  assert.equal(result.before,14);assert.equal(result.disabled,14);assert.equal(result.after,14);
+  assert.deepEqual(result.clicks,[result.expected]);assert.equal(result.temporaryCenter,null);
+ }finally{await browser.cleanup()}
+});
 
 for(const mode of ['pending','retired-complete','healthy'])test('actual PlexGraph recovery owns '+mode+' checks across hide and reveal',async()=>{
  const browser=await chromiumHarness(bundle.outputFiles[0].text);try{

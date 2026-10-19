@@ -1,7 +1,8 @@
 /**
  * Hydration lifetime/value/publication regressions through the production index and real Chromium
  * IndexedDB. Only explicit reentry/await holds are injected; snapshot decoding, graph semantics and
- * cancellation ownership remain production behavior. Every fixture and wrapper is retired on failure.
+ * cancellation ownership remain production behavior. Complete warm-cache work counts preserve exact
+ * ordered records without granting new source authority. Fixtures/wrappers retire on failure.
  */
 import assert from 'node:assert/strict';
 import test from 'node:test';
@@ -35,6 +36,31 @@ test('hydration guards retain policy/lifetime/physical fences while removing per
       };
       return true;
     })()`), true);
+
+    await t.test('a genuine unchanged complete warm snapshot preserves exact records without compilation or rewriting', async () => {
+      assert.equal(await browser.evaluate(`(async()=>{
+        const M=sourceModules,f=await hydrationWorkFixture('guards-warm-no-rebuild',12,4,'eager',true);
+        const calls={build:0,persist:0,write:0},restores=[];
+        /** Observe actual owners after canonical preparation, retaining their original promises. */
+        const observe=(owner,key,count)=>{const original=owner[key];owner[key]=function(...args){calls[count]++;return original.apply(this,args)};restores.push(()=>owner[key]=original)};
+        /** Preserve every persisted page field and adjacency order outside preparation/observation. */
+        const pages=state=>[...state.pages.values()].map(page=>M.persistedPageFromGraphPage(page,f.fingerprints.get(page.path)));
+        /** Preserve declaration order, provenance and duplicate multiplicity; do not sort an oracle. */
+        const evidence=state=>[...state.evidence.declarations()].map(item=>M.persistedDeclarationFromEvidence(item));
+        try{
+          const expected={pages:pages(f.state),evidence:evidence(f.state),fields:[...f.state.discoveredFields]};
+          observe(M.GraphBuilder.prototype,'build','build');observe(f.index,'persistIndexedDbSnapshot','persist');observe(f.index.indexedDb,'writeSnapshot','write');
+          ok((await hydrationDeadline(f.index.restoreIndexedDbSnapshot(['Hub.md']),'complete warm preview')).restored,'Real saved preview');
+          const restored=await hydrationDeadline(f.index.waitForSnapshotHydration(),'complete warm promotion');
+          ok(restored.restored&&restored.fresh,'Actual unchanged complete promotion');
+          equal({pages:pages(f.index.state),evidence:evidence(f.index.state),fields:[...f.index.state.discoveredFields]},expected,'All persisted fields, adjacency, aliases and evidence preserve exact encounter order/multiplicity');
+          equal(calls,{build:0,persist:0,write:0},'No canonical rebuild or snapshot rewrite');
+          equal(f.index.snapshotPersistTimer,null,'No deferred rewrite beyond observation');
+          equal(f.f.reads.length,0,'No fresh note reads');equal(f.f.parses.length,0,'No parsing');
+          return true;
+        }finally{for(const restore of restores.reverse())restore();f.close();}
+      })()`),true);
+    });
 
     for (const records of [256, 1024, 4096]) {
       await t.test(`current chunked ${records}-record graph preserves ordered semantics with bounded signature work`, async () => {

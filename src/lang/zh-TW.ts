@@ -1221,7 +1221,7 @@ const traditionalChineseTranslations = {
   "folderPicker.invalid": "請輸入此儲存庫內的有效資料夾路徑。",
   "folderPicker.fileConflict": "已有檔案使用此資料夾路徑。",
   "folderPicker.invalidAlias": "別名不可包含兩個連續的右方括號。",
-  "layout.simplifiedTitle": "簡化版面配置",
+  "layout.simplifiedTitle": "單側版面配置",
   "layout.simplifiedHelp": "將朋友與挑戰者分別放在左側群組。關係與篩選條件不變。彈出視窗使用主要分頁的選項。",
   "layout.arrangementScope": "{device}：{surface}",
   "layout.mainTab": "主要分頁",
@@ -1278,6 +1278,15 @@ const traditionalChineseTranslations = {
   "settingsSync.conflict": "設定已在其他裝置上變更。請重新開啟此控制項並再次套用變更。",
   "settingsSync.loadFailed": "無法載入變更後的 K-Plex 設定。目前的設定將會保留。請檢查同步並重試。",
   "settingsSync.refreshPending": "已收到設定。部分檢視無法更新。請重新開啟受影響的檢視。",
+  "footprints.title": "足跡",
+  "footprints.count": {other: "{count} 次造訪"},
+  "footprints.startHere": "從這裡開始",
+  "footprints.empty": "造訪的節點會顯示在這裡。",
+  "footprints.unavailable": "無法使用",
+  "footprints.copyMarkdown": "複製為 Markdown",
+  "footprints.copying": "正在複製...",
+  "footprints.copied": "已複製到剪貼簿。",
+  "footprints.copyFailed": "無法複製。請重試。",
 } as const satisfies LocaleTranslationMap;
 
 export const traditionalChineseCatalog = buildLocaleCatalog(traditionalChineseTranslations);

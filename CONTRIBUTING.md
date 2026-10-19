@@ -386,6 +386,13 @@ When overflow requires a scroll zone, first-level zones expose a funnel/name fil
 
 ## Section-outline checks
 
+After exact-build staging, `npm run verify:obsidian:sections` uses the same three explicit
+`kplex-test-small` variables and a fresh `KPLEX_HOST_REPORT_DIR`. It checks the actual central fold
+control, preamble/repeated-link placement, stationary inbound ontology add/remove and an inferred
+visibility round trip with zero Markdown reads, parser calls or rebuilds during that presentation
+interval. Four owned notes, a temporary native tab, settings and wrappers are restored independently
+of assertions. This Windows functional lane does not establish mobile/popout acceptance or speedup.
+
 - central Markdown expansion is runtime-only; no heading may enter `GraphIndex`
 - nested heading levels create parent/child outline structure
 - section nodes and outline connectors are visually distinct from semantic graph relations; structural connectors use vertical-spine + horizontal L branches that enter the child at its left-center edge, never the semantic top gate; density 4 should collapse these branches/gaps aggressively rather than merely scaling the ordinary graph spacing
@@ -960,6 +967,24 @@ check does not prove physical-device behavior, actual paint timing or full appli
 After exact-build staging, run `npm run verify:obsidian:wander` with the three explicit disposable `kplex-test-small` vault variables and a fresh `KPLEX_HOST_REPORT_DIR`. The driver checks installed hashes, attachment candidate eligibility, actual shared center keyframes, retained camera scale, selection before navigation, normal history, trusted pointer pause/play, manual-center resume, native read/edit auto-pause, priority Escape, entry Zen restoration, fullscreen independence, Stop during anticipation, animation-off/reduced-motion and two-way popout session retirement. Its context-menu assertion selects Obsidian's DOM menu backend for observable trusted input; native OS menu behavior remains a separate check. It restores settings/workspace and removes only its own fixtures, controller and wrappers even on failure.
 
 `tests/wander.test.mjs` covers route backtracking/exhaustion, bounded weighted recency, stale preflight rejection, single-callback generation fencing, cycle pacing/readiness, actual occurrence geometry, selection ownership and real Chromium controls/motion. The controls use `LayoutSlider` and shared Plex button CSS, with computed-style parity checked against real graph zoom buttons. Native keyframe/geometry assertions do not establish perceived paint, physical touch or every device lifecycle; validate those separately.
+
+## Independent document sessions and Footprints
+
+After `npm run verify:obsidian` stages the exact build, run
+`npm run verify:obsidian:plex-sessions` with the three explicit disposable
+`kplex-test-small` vault variables and a fresh `KPLEX_HOST_REPORT_DIR`.
+The lane checks two native pairings, same-file leaf identity, held opens,
+Excalidraw shown as Markdown, repeated visits, reset, bounded rows, source-work
+counts, rename/recreation, native duplication, popout migration and actual
+renderer restart. It restores configuration/workspace and removes only its
+owned fixture subtree. Run it serially with other native/browser drivers.
+Private output includes configuration backups and must not be published.
+
+Existing native drivers use `nativeDocumentSessions.mjs` to capture scalar
+native state and disable/restore each actual owner explicitly. Changing global
+sync defaults alone does not change live views. The lexical test wrapper adds
+no production global or settings writer. macOS and physical-device interaction
+remain separate acceptance; work counts are not comparative resource timings.
 
 ## Shared control hints and canvas menu acceptance
 

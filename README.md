@@ -114,7 +114,7 @@ Drag a file or folder's gate onto a folder to move it there. With a folder in th
 
 Drag a tag's gate onto a Markdown note in the Plex, history or pins to assign it. You can also drop a tag from another Plex into a note's **Parents** area. Choose **Tag** or **Note Type** before saving. A note has one Note Type: when replacing it, choose whether to keep the current type or keep the new type, with the other remaining an ordinary tag. Right-click the tag connection to change between the two. Note Type tag links are twice as thick by default; customize them under **Visual styling → Link styling → Note Type tag links**.
 
-For a narrower Plex, select **Simplified layout** below the Parents and Children sliders in **Layout controls**. This checkbox changes the current device and pane context. Friends and challengers appear in separate groups on the left, retaining their relationship meanings and filters. All six choices are also available under **Settings → K-Plex → Plex behavior → Simplified layout**: desktop, tablet and mobile, each with main-tab and side-panel settings. Pop-outs use the main-tab choice for their device.
+For a narrower Plex, select **One-sided layout** below the Parents and Children sliders in **Layout controls**. This checkbox changes the current device and pane context. Friends and challengers appear in separate groups on the left, retaining their relationship meanings and filters. All six choices are also available under **Settings → K-Plex → Plex behavior → One-sided layout**: desktop, tablet and mobile, each with main-tab and side-panel settings. Pop-outs use the main-tab choice for their device.
 
 Choose curved or straight connections under **Settings → K-Plex → Visual styling → Link styling → Link shape**.
 
@@ -157,6 +157,8 @@ Publication is separate from local shortcuts. Published actions appear in Obsidi
 Press **Ctrl/Cmd+F**, or select the magnifier in the upper-right corner of the Plex, to **Find in Plex**. This separate field searches displayed node names and ontology labels in the current Plex and reveals matches in scrollable areas. Select its **Include paths** button to also search file paths. Matching a note does not highlight its surrounding links. It has no results dropdown and does not change the central node or navigation history. **Enter** moves to the next match, **Shift+Enter** moves to the previous match, and **Escape** clears and closes Find. Select **Filter matching notes**, beside **Include paths**, to keep nodes whose labels contain the Find text and reflow the layout around the center. The center remains visible. Select the button again to turn it off and restore the previous Quick Filter and layout. Changing the Find text and selecting the button replaces the temporary filter. Manual edits in **Filters and lenses** take ownership of that filter.
 
 K-Plex also keeps a **Past nodes** history for back/forward navigation. Drag a relationship gate onto a history entry or pinned note to connect using that gate’s relationship type; the entry lights up while you hover. Dragging a node’s body onto history or a pinned note offers a choice of relationship type. Pins are separate from history and are useful for keeping a small number of important nodes available as stable shortcuts.
+
+Select **Footprints**, beside Find in the upper-right corner, to see this Plex's visits, newest first. Repeated visits stay in the list. Use **Copy as Markdown** at the top to copy the whole trail as a bullet list of links and tags. Selecting an older visit appends a new visit; **Start here** keeps only the current one. Each Plex has its own trail, retained when moving between windows and cleared when that Plex closes or Obsidian restarts. Saved history and pins remain shared across Plexes.
 
 Select **Editor node** to expand a file or URL inside the central node. Images fit both dimensions without cropping. The editor’s **Open menu** button provides the same opening destinations as the node context menu. Maximizing the editor temporarily hides Find and preserves its query. Webpages use a desktop webview with browser authentication, or an iframe on Obsidian mobile. YouTube and Vimeo links use embedded players; YouTube Shorts use a portrait frame. Expanding a URL loads that website, which receives normal browser requests and may store its own cookies.
 
@@ -303,6 +305,8 @@ Expanded children are intentionally smaller and more subdued. Larger child group
 ## Companion sidecar
 
 K-Plex can create a dedicated normal Obsidian note pane beside the graph as a **companion sidecar**. Existing neighboring tabs are never taken over or closed by Sidecar actions.
+
+Each Plex has independent document-sync settings and can own its own Sidecar. Changing one Plex's **Off**, **Recent** or **Pinned** mode does not change another's pairing. **Recent** can follow ordinary document tabs, but does not take over another Plex's managed Sidecar. Obsidian's saved workspace restores each pairing; duplicating a Plex starts a separate session with a fresh Footprints trail.
 
 The sidecar:
 

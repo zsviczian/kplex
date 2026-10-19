@@ -1229,7 +1229,7 @@ const spanishTranslations = {
   "folderPicker.invalid": "Introduce una ruta de carpeta válida dentro de esta bóveda.",
   "folderPicker.fileConflict": "Un archivo ya utiliza esta ruta de carpeta.",
   "folderPicker.invalidAlias": "El alias no puede contener dos corchetes de cierre.",
-  "layout.simplifiedTitle": "Diseño simplificado",
+  "layout.simplifiedTitle": "Diseño de un solo lado",
   "layout.simplifiedHelp": "Coloca amigos y oponentes en grupos separados a la izquierda. Sus relaciones y filtros no cambian. Las ventanas emergentes usan la opción de la pestaña principal.",
   "layout.arrangementScope": "{device}: {surface}",
   "layout.mainTab": "Pestaña principal",
@@ -1286,6 +1286,15 @@ const spanishTranslations = {
   "settingsSync.conflict": "Los ajustes cambiaron en otro dispositivo. Vuelve a abrir este control y aplica tu cambio de nuevo.",
   "settingsSync.loadFailed": "No se pudieron cargar los ajustes modificados de K-Plex. Se conservan los ajustes actuales. Comprueba la sincronización e inténtalo de nuevo.",
   "settingsSync.refreshPending": "Ajustes recibidos. Algunas vistas no se pudieron actualizar. Vuelve a abrir la vista afectada.",
+  "footprints.title": "Huellas",
+  "footprints.count": {one: "{count} visita", many: "{count} visitas", other: "{count} visitas"},
+  "footprints.startHere": "Empezar aquí",
+  "footprints.empty": "Tus visitas aparecerán aquí.",
+  "footprints.unavailable": "No disponible",
+  "footprints.copyMarkdown": "Copiar como Markdown",
+  "footprints.copying": "Copiando...",
+  "footprints.copied": "Copiado al portapapeles.",
+  "footprints.copyFailed": "No se pudo copiar. Inténtalo de nuevo.",
 } as const satisfies LocaleTranslationMap;
 
 export const spanishCatalog = buildLocaleCatalog(spanishTranslations);

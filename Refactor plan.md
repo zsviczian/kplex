@@ -4968,7 +4968,7 @@ CRCs/per-file hashes; HANDOFF excluded. MANIFEST
 Originals/prior backups retained; no raw publication. Exact-head remote CI is
 running when recorded, not claimed green. PR remains draft.
 
-### 2026-10-18 PR177 — shared completion and context layout follow-up
+### 2026-10-18 PR177 ï¿½ shared completion and context layout follow-up
 
 One CreationCompletionSelect now owns the actual caption/dropdown in both creation
 shells. It shows the resolved outcome, keeps explicit choices local, and uses common
@@ -5006,7 +5006,7 @@ Originals and prior backups retained; nothing raw published. Remote0ab6091 CI is
 in progress when recorded; previous41fd2f8 CI passed. A docs-only evidence pin
 changes no validated runtime. Keep PR177 draft.
 
-### 2026-10-18 PR180 — stationary Markdown saves
+### 2026-10-18 PR180 ï¿½ stationary Markdown saves
 
 Merged accepted PR177 to main4396768; integrated main into the existing180 branch
 without rewriting history (1160cb2). Native Sidecar/central-editor autosaves
@@ -5313,6 +5313,56 @@ Third fullf2fef82 architecture7/core130/main1127/UI184 pass; sources333/334 stop
 
 Full be7247a verify: architecture7/core130/main1127/UI184/sources334/browser638, lint/build pass. Final native tooling syntax/20runner pass. Exact staged build and serial native Settings overlap, Sidecar/drawing, Properties, storage/reload observations recorded in docs/validation/settings-save-liveness-179-2026-10-19.md. Whole-renderer freeze remains unresolved; On-demand drawing quiet prerequisite pendingKnown1 remains excluded. No source/compiler/schema change or performance claim. Private evidence durable-copy verified, originals retained. Manual priority: real incident owner trace; macOS Settings/Sidecar; physical mobile. User authorizes merge then149/176 in sequence, no CI wait.
 
+
+## 2026-10-19 - PR176 complete-cache reuse gate and deterministic settings fixture
+
+Integrated22a19d3; one prepared Small warm native restart records0build/0save/0freshread/parse/repair. Existing full snapshot reused, no candidate redundancy. Untimed exact canonical oracle differs in ordering and8definition-label fields despite equal215/1568counts. Preserve conservative contracts, no production change or performance claim.43real-IDB hydration guards pass with exact ordered reuse/no-deferred-write case. Linuxfc227CI cached-read failure traced to retained prior/shared source owners in Node settings fixture; stronger1secondred36reads. Per-scenario retirement and actual inventory pause/join preserve all strict spies;450msphysicalfault/24settings/fullindexing pass. Fullfinal pending; no benchmark expansion. Manual: actual affected current-main full-build trigger with cause, macOS warm restart, physical mobile; retain private evidence.
+
+
+## 2026-10-19 - PR176 final validated Gate1 no-go
+
+Clean468d27c npm run verify:obsidian PASS: architecture7/core130/main1127/UI184/sources334/browser639,0fail/skip,officiallint/realbuild/exactnativeSmoke. CI468green. Full/runtime diff from main empty; later closeout docs only. Prepared Small warm run0fullbuild/0snapshotwrite/0freshread/parse/repair; genuine observed drain16.783s, no performance gain claimed. Preserve failedfc227LinuxCI and36read1secondfixture causal red; real owner isolation/retirement retains all zero-work assertions. No new source trust, schema, scheduler, receipt or reader sharing.67files/15784852B private backup hashes verified; originals retained/no publication. Small107/88/originalconfig/workspace/follow owners/On-demand restored aftersmoke; tested23b25a1b artifact retained,0controllers/pending settings, CLIcaptureoff. Recommend authorized merge of report/regression and CI fixture correction, then main/fetch.149 remains draft850da4e/115open. Manual priorities: current affected warm rebuild cause with ordered output; affected-device blur recording; macOS/physical mobile acceptance.
+
+
+## 2026-10-19 ï¿½ Saved navigation during partial startup
+
+- Confirmed loaded settings already contain history while the UI omits unavailable rows. Actual fallback selected an older available tag while the requested center was absent from a partial publication; the new deterministic regression failed before the fix. The exposing recent PR is not bisected; the fallback predates #179.
+- Keep the requested center/loading state until startup readiness; prime saved native filename/folder facets through GraphIndex without inventory/body/storage reads or semantic publication. Loading and graph surfaces share the same footer and existing main-column layout. No CSS, parser, source, schema, scheduler or settings-writer change.
+- Node22.22.2 full verify:obsidian passes release/architecture7/core130/lint/main1129/UI185/sources334/browser639/build and exact-build Small native smoke. Final markup additionally passes the complete185 UI group and official lint. Fully tested main7f034ae8e119919361737e60d45929442beb2e18cdbde34764bb857cadec98aa.
+- Authorized production main.js-only restarts: loaded40 history entries,14 footer slots during loading and graph, correct first center, unchanged saved identity and footer at bottom. Foreground repeat observed hidden=false; occluded capture and incomplete first candidate retained separately. Production settings checksum unchanged; scripts did not read/change note contents. Original main and raw outcomes retained privately, no evidence publication. No performance claim.
+- Limits: host native-tree initialization can still delay center availability; macOS/physical mobile and multiple restored views need acceptance. Manual priorities: saved-note restart with older tags must preserve center/all footer slots; disposable deleted-center recovery must work after readiness; repeat on macOS/mobile/multiple views. See docs/validation/startup-history-center-2026-10-19.md.
+
+
+## 2026-10-19 - PR185 startup neighborhood read continuity
+
+Confirmed a same-source startup metadata resolve deleted its finite body cover before private replacement: held actual producer returns37children ->0 on226e007. Native baseline reproduced populations/retire windows but did not capture painted parent/child removal; preserve that limitation. Retain the existing read cover only during pending startup replacement, without renewing its certificate/write authority. Source/policy/native identity/stat fences stay live; failed input retires old demand, self-borrow cannot bypass full-cover guards. No new scheduler/watchdog/animation/source/persistence owner.
+
+209focused pass; full verify:obsidian release/architecture7/core130/lint/main1129/UI185/sources334/browser640/build/exactSmall smoke pass,0fail/cancel/skip. Testedmain2bf57fb13cfea51f17995862c9a2bb512385666cfc2fe4c5a34094af80e395ce. Foreground production candidate keeps3parents/37children across replacement, adds44siblings then normal42 refinement; no performance or universal flicker claim. Productionmain-only deployment, settings bytes unchanged, no diagnostic note-body reads/writes; original/raw observations private. Draft185 remains unmerged; C14 paused. Manual: saved-note restart preserves shown children through unchanged updates; disposable changed/missing-source handling remains conservative; macOS/physical mobile/multiple restored views pending. See docs/validation/startup-history-center-2026-10-19.md.
+
+
+## 2026-10-19 - Stationary Plex late ontology publication
+
+From main73b0589, real progressive source commits refine a canonical pair to defined while the selected local read cover remains inferred. The actual held-tail regression fails on the original owner; ordinary patch invalidation was outside the shared commit path. Move the existing local cover/count handling into commitPreparedFile so progressive and ordinary publication share it. No classifier, scheduler or notification-batch change; C14 remains paused.
+
+239focused plus2final same-role/changed-role regressions pass, including same active demand and one native read each for center/late owner. Full verify:obsidian release/architecture7/core130/lint/main1129/UI185/sources334/browser642/build/exactSmall smoke pass,0fail/cancel/skip. Exact native ontology Settings lane passes7cases each in On-demand/Eager, stationary main/sidebar/popout and reload, configuration restoration exact. Testedmainb218c18fb12d285b07419e69551b594c1f6ad4ac83bc7e19faaa4a678e0cddd8. Preserve user English One-sided layout and translate7other locales; README labels match, stable keys unchanged. Personal vault untouched, raw results private. Native original incident not captured; controlled failure matches workaround, no performance claim. Manual: late incoming ontology updates stationary role/label/style; ordinary startup populations remain continuous; macOS/physical mobile repeat. See docs/validation/late-ontology-presentation-2026-10-19.md.
+
+## Feature checkpoint: independent Plex sessions and Footprints (#187, 2026-10-19)
+
+C14 remains accepted; C15-C26 stay paused. BaseKplexView now owns one native KplexDocumentSession incarnation, composed through existing Sidecar/action/native-open owners. The existing sidecarLeaves map remains authoritative. Off/Recent/Pinned, companion restoration/content preferences, center and pending file/URL source proof are local to the native view. A version-1 scalar native workspace projection uses verified host target IDs; global settings retain defaults and shared pins/history. Explicit stale owners cannot redirect another Plex. Accepted native opens remain non-cancellable, with completion fenced by session/destination/request/file identity.
+
+PlexFootprints stores only memory-only visit IDs and small action references. Accepted navigation appends repeated visits; same-center echoes/publications do not. Native duplication starts fresh, same-view React/window remount retains the owner, actual close/unload clears it. Early native rename handling remaps paths once. The existing collection window/FloatingLayer/icon/row owners supply a bounded disclosure; opt-in hidden-anchor dismissal retires body portals without changing other consumers. Zen/maximized editor suspension unmounts only the disclosure, retaining the native trail.
+
+Action log: implemented and reviewed the ownership/visit boundary; affected 257-case checkpoint, 133 migrated-fixture checks and 65 final URL/publication/disclosure checks pass. An earlier native candidate passed 11 disposable Small-vault scenarios, including renderer restart and popout migration. Full final verification and affected native lanes are in progress; no final acceptance claimed here. Failures/originals remain private, with an outside-TEMP backup. See docs/validation/plex-sync-footprints-187-2026-10-19.md for final results and limitations. No indexing classifier, parser, source schema, scheduler, new dependency or rejected receipt experiment is introduced. Keep the PR draft and issues #31/#59 open.
+
+#187 validation checkpoint: full verify:obsidian passes (1148 primary, 187 browser, 334 source, 642 browser-storage cases; architecture/core/lint/build and exact Small smoke). Final icon/action browser19 pass; committed-head native lanes remain pending. No C15 work resumed.
+
+- 2026-10-19 PR #187 native acceptance checkpoint: bounded layout-change correction retains a second validated pair when another owner folds its group; invalid/detached topology still releases ownership. Production-callback regression and 159 focused tests pass. Native folding37, sessions15, menu14, display12, desktop/phone sidebar8 each, Excalidraw18, issue16128, live updates15 plus1 observation pass with private failed controls retained. Word count owns2 native cachedRead calls; K-Plex fold source/work counters remain0. Final complete verify remains pending. C14 remains accepted and structural refactoring paused; no source/index scheduler change, personal-vault access, benchmark, merge or release.
+
+- 2026-10-19 PR #187 final validation: clean runtime95d82fd passes complete verify:obsidian (1149 primary,187 browser,334 source,642 browser-storage plus architecture/core/lint/build/exact Small smoke), then final exact-build15-case native session/restart/icon replay. Original Small layout/settings restored with no owned fixtures/controllers. Native matrices and preserved failures documented; private evidence backup retains per-file checksums. Draft PR remains unmerged, issues31/59 open, macOS/physical-device/WebView/screen-reader gaps retained. No performance claim or additional source/index architecture work; C14 remains paused.
+
+- 2026-10-19 PR #187 maintainer follow-up: newest-first bounded Footprints projection and explicit full-trail Markdown clipboard action. Shared clipboard pending/denial/retirement mechanics extracted for support-report and Footprints consumers; support facade retained. All8locales. Focused38 plus shared-dialog/browser9, production build/lint and dirty-candidate native15 pass; combined clean full verification next. Superseded newest-first full run retained as partial1149-primary evidence. No source/index architecture, benchmark, personal access, merge or release.
+
+- 2026-10-19 PR #187 newest-first/manual-copy closeout: clean39abfbc complete verify:obsidian passes1149primary/189browser/334source/642browser-storage plus architecture/core/lint/build/exact Small smoke. Exact-build unchanged native retry15passes with main/popout clipboard and restart; full/raw failed setup controls retained, especially unresolved immediate-after-staging Native A follow failure. Final native baseline/fixtures restored. Private265-entry checksum backup updated with prior manifest retained; no publication/archive/personal access/merge/release. C14 remains paused, no source/index redesign or performance claim.
 
 ## 2026-10-19 - PR149 visual investigation no-go
 

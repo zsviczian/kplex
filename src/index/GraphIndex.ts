@@ -1,4 +1,10 @@
 /**
+ * Every per-file publisher retires affected local read covers before notifying, including batched
+ * progressive ingestion. Newly compiled ontology cannot remain hidden by an inferred local cover.
+ * Startup metadata resolution keeps an unchanged finite read cover only while its replacement
+ * is pending. Source/policy/native revision fences and relationship write authority stay separate.
+ * Saved native navigation is available before asynchronous catalogs; its filename/folder facets
+ * own no semantic incidence, source acquisition, negative inventory proof or write authority.
  * Optional presentation dispatch uses finite snapshots and nonrecursive coalescing. Settings-only
  * retries preserve coherent predecessors and yield host tasks under one finite retry window.
  * Complete fresh physical ownership can qualify one observed empty-folder create before insertion;
@@ -987,7 +993,16 @@ export class GraphIndex {
       }
     })().catch(/** Optional readonly preparation cannot reject a detached input-event observer. */ () => undefined).finally(
       /** Release only this exact finite owner, then notify readers without starting another pass. */ () => {
-        if (this.onDemandPreviewTasks.get(centerPath) === task) this.onDemandPreviewTasks.delete(centerPath);
+        if (this.onDemandPreviewTasks.get(centerPath) === task) {
+          this.onDemandPreviewTasks.delete(centerPath);
+          const predecessor = this.onDemandHostScopes.get(centerPath);
+          const certificate = predecessor && this.localScopeCertificates.get(predecessor);
+          // A failed/guarded replacement cannot leave its obsolete-demand read cover installed.
+          // Successful publication already owns the new demand certificate and survives here.
+          if (certificate && certificate.demandRevision !== (this.semanticDemandRevision.get(centerPath) ?? 0)) {
+            this.onDemandHostScopes.delete(centerPath);
+          }
+        }
         this.emitPresentation();
       });
     this.onDemandPreviewTasks.set(centerPath, task);
@@ -1291,6 +1306,30 @@ export class GraphIndex {
       current: ACTIVITY_CURRENT_COLUMNS.map(/** Copy only the fixed dictionary, never dynamic source keys. */ name => current[name])};
   }
 
+  /** Publish only existing saved native identities before any asynchronous startup work.
+   * These filename/folder facets reuse search availability, never claim relationship completeness,
+   * and remain subject to exact Vault identity checks and the ordinary catalog replacement. */
+  primeSavedNavigation(paths: readonly string[]): void {
+    if (this.diagnosticsClosed) return;
+    let changed = false;
+    for (const path of new Set(paths)) {
+      const file = this.app.vault.getFileByPath(path);
+      const folder = !file && path.startsWith("folder:")
+        ? path === "folder:/" ? this.app.vault.getRoot() : this.app.vault.getFolderByPath(path.slice("folder:".length)) : null;
+      const previous = this.currentPhysicalSearchPage(path);
+      if ((file && previous?.file === file) || (folder && previous?.isFolder)) continue;
+      const page = file ? this.hostFileSearchPage(file) : folder ? this.hostFolderSearchPage(folder) : null;
+      if (!page) continue;
+      this.physicalSearchEntries.set(path, {page, name: page.name.toLowerCase(), aliases: [], path: path.toLowerCase()});
+      changed = true;
+    }
+    if (changed) {
+      this.physicalSearchMerge = null;
+      this.invalidateSearchCatalog();
+      this.emitPresentation();
+    }
+  }
+
   /** Prime native files/folders and loaded tag metadata once after layout-ready, without durable/body work. */
   async primePhysicalSearchCatalog(): Promise<void> {
     const inventory = this.app.vault.getAllLoadedFiles?.() ?? this.app.vault.getFiles();
@@ -1425,6 +1464,8 @@ export class GraphIndex {
   /**
    * Refresh affected demanded previews. A caller may supply the revision immediately before this
    * one known metadata event; unrelated or unbounded source revisions never renew warm freshness.
+   * Identity-only startup resolution may retain an unchanged read cover during its replacement;
+   * demand retirement still cancels old producers, and no certificate is renewed for that read.
    */
   refreshVisibleHostMetadataPreviews(changedPath: string, previousSourceRevision = this.plugin.getIndexSourceRevision()): boolean {
     const urlBody = this.urlOwnerBodies.get(changedPath), urlFile = this.app.vault.getFileByPath(changedPath), owner = this.urlOwners.get(changedPath);
@@ -1463,7 +1504,16 @@ export class GraphIndex {
       for (const center of this.semanticDemandCounts.keys()) {
         if (center !== changedPath && !affectedTargets.has(center) && !this.hasReadableNeighbour(center, changedPath)) continue;
         visible = true;
-        this.onDemandHostScopes.delete(center);
+        const predecessor = this.onDemandHostScopes.get(center);
+        const certificate = predecessor && this.localScopeCertificates.get(predecessor);
+        // Identity-only startup resolution is not a source edit. Keep the already displayed
+        // read cover through its private replacement; never restamp its proof or retain it
+        // across a real/unknown source revision or policy change. Native-file checks still
+        // reject a retained read, including an unnotified change during the pending work.
+        const replacingStartupRead = !this.onDemandBaselineReady && !knownMetadataChange
+          && certificate?.sourceRevision === this.plugin.getIndexSourceRevision()
+          && certificate.policyRevision === this.semanticPolicyRevision;
+        if (!replacingStartupRead) this.onDemandHostScopes.delete(center);
         if (this.hostPreview.hasTag(center)) void this.withForegroundPriority(
           () => this.publishHostMetadataPreview(center, INDEX_WORK_PRIORITY.visibleNeighborhood), 2);
         this.semanticDemandRevision.set(center, (this.semanticDemandRevision.get(center) ?? 0) + 1);
@@ -2820,14 +2870,16 @@ export class GraphIndex {
     if (tagPreview?.isTag && !this.hasCurrentCanonicalTag(path)) return tagPreview;
     // A finite current-center cover is independently readable while the global baseline is
     // still private. Its captured source/file certificate grants no global or write readiness.
-    // Unrelated host waves preserve published cover; affected native events retire its map/demand token.
+    // Identity-only resolve may keep its predecessor while a replacement is actually pending.
+    // The old certificate remains unchanged; source/policy/native-file guards still close reads.
     const foreground = !this.onDemandBaselineReady && this.usesLocalForeground()
       ? this.onDemandHostScopes.get(path) : undefined;
     const foregroundCertificate = foreground && this.localScopeCertificates.get(foreground);
     if (foreground && foregroundCertificate && this.semanticDemandCounts.has(path)
       && foregroundCertificate.sourceRevision === currentSourceRevision
       && foregroundCertificate.policyRevision === this.semanticPolicyRevision
-      && foregroundCertificate.demandRevision === (this.semanticDemandRevision.get(path) ?? 0)) {
+      && (foregroundCertificate.demandRevision === (this.semanticDemandRevision.get(path) ?? 0)
+        || this.onDemandPreviewTasks.has(path))) {
       let filesCurrent = true;
       for (const [file, revision] of foregroundCertificate.files) if (this.app.vault.getFileByPath(file.path) !== file
         || !fileRevisionMatches(file, revision)) { filesCurrent = false; break; }
@@ -2893,6 +2945,9 @@ export class GraphIndex {
     const sourceRevision = this.plugin.getIndexSourceRevision();
     for (const [center, scope] of this.onDemandHostScopes) {
       if (!this.semanticDemandCounts.has(center)) continue;
+      // A center must pass its full read-cover certificate above, including every captured file.
+      // Borrowing itself here would bypass those guards after a pending predecessor is rejected.
+      if (path === center) continue;
       const page = scope.pages.get(path), file = page?.file;
       if (!page || !file || page.path !== file.path || this.app.vault.getFileByPath(path) !== file) continue;
       const certificate = this.localScopeCertificates.get(scope), revision = certificate?.files.get(file);
@@ -5424,6 +5479,8 @@ export class GraphIndex {
 
   /**
    * Apply one prepared file commit and refresh every repository-owned derived view synchronously.
+   * Local cover/count invalidation belongs here so progressive and ordinary patches share it;
+   * their different notification batching must not change which incidence a stationary view reads.
    * Record its source owner in an active bounded restore window after the real publication;
    * touched endpoints do not substitute for the source's semantic fingerprint proof.
    *
@@ -5507,14 +5564,9 @@ export class GraphIndex {
     this.patchSearchIndex(commit.touchedPagePaths);
     this.suggestionCatalogCache = null;
     void this.refreshVisiblePresentation(commit.sourcePath);
-  }
-
-  /** Complete one normal incremental publication synchronously and notify graph subscribers only
-   * when graph topology changed. The publisher never awaits or retains the prepared-state callback. */
-  private publishIncrementalFile: PatchFilePublisher = (commit: PatchFileCommit, publishPreparedState: () => void): void => {
-    this.commitPreparedFile(commit, publishPreparedState);
     // Partial Eager and On-demand foreground owners share these local count proofs. Once a full
-    // current Eager graph exists, ordinary commits avoid unnecessary per-URL local tokens.
+    // current Eager graph exists, commits avoid unnecessary per-URL local tokens. Progressive
+    // ingestion must also retire a cover whose inferred pairs the current source just refined.
     if (this.usesLocalForeground()) {
       for (const path of commit.touchedPagePaths) {
         this.onDemandGateRevisions.set(path, (this.onDemandGateRevisions.get(path) ?? 0) + 1);
@@ -5534,6 +5586,12 @@ export class GraphIndex {
         void this.ensureOnDemandCenter(center);
       }
     }
+  }
+
+  /** Complete one normal incremental publication synchronously and notify graph subscribers only
+   * when graph topology changed. The publisher never awaits or retains the prepared-state callback. */
+  private publishIncrementalFile: PatchFilePublisher = (commit: PatchFileCommit, publishPreparedState: () => void): void => {
+    this.commitPreparedFile(commit, publishPreparedState);
     for (const [center, preview] of this.hostPreviewScopes) if (center === commit.sourcePath || preview.pages.has(commit.sourcePath)) {
       this.hostPreviewScopes.delete(center);
       this.hostPreviewRequests.set(center, (this.hostPreviewRequests.get(center) ?? 0) + 1);
@@ -6864,11 +6922,7 @@ export class GraphIndex {
     changed = this.physicalSearchEntries.delete(path) || changed;
     this.physicalSearchUpdatedPaths.delete(path);
     if (replacement && this.app.vault.getFileByPath(replacement.path) === replacement) {
-      const page: GraphPage = {
-        path: replacement.path, file: replacement, name: replacement.basename, url: null, isFolder: false,
-        isTag: false, mtime: replacement.stat.mtime, aliases: [], tags: [], noteType: null,
-        primaryStyleTag: null, styleTags: [], maxLabelLength: 0, neighbours: new Map(),
-      };
+      const page = this.hostFileSearchPage(replacement);
       this.physicalSearchEntries.set(page.path, { page, name: page.name.toLowerCase(), aliases: [], path: page.path.toLowerCase() });
       this.physicalSearchUpdatedPaths.add(page.path);
       changed = true;
@@ -8401,10 +8455,7 @@ export class GraphIndex {
       for (const [path, file] of files) {
         if (!inventoryCurrent()) return false;
         if (this.app.vault.getFileByPath(path) !== file) continue;
-        const page: GraphPage = {
-          path, file, name: file.basename, url: null, isFolder: false, isTag: false, mtime: file.stat.mtime,
-          aliases: [], tags: [], noteType: null, primaryStyleTag: null, styleTags: [], maxLabelLength: 0, neighbours: new Map(),
-        };
+        const page = this.hostFileSearchPage(file);
         next.set(path, { page, name: file.basename.toLowerCase(), aliases: [], path: path.toLowerCase() });
         addFolder(file.parent);
         this.hostPreview.observeTagSource(file);
@@ -8513,6 +8564,13 @@ export class GraphIndex {
     if (canonical) return canonical.file && (canonical.path !== canonical.file.path
       || this.app.vault.getFileByPath(canonical.path) !== canonical.file) ? undefined : canonical;
     return this.currentPhysicalSearchPage(path);
+  }
+
+  /** Native file availability contains no incidence, metadata acquisition or semantic authority. */
+  private hostFileSearchPage(file: TFile): GraphPage {
+    return {path: file.path, file, name: file.basename, url: null, isFolder: false, isTag: false,
+      mtime: file.stat.mtime, aliases: [], tags: [], noteType: null, primaryStyleTag: null,
+      styleTags: [], maxLabelLength: 0, neighbours: new Map()};
   }
 
   /** Availability facets contain no incidence; the shared compiler prepares selected tag relations. */

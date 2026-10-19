@@ -4,6 +4,7 @@
  * and restoration. Requires the explicit disposable small vault, an unlocked foreground Mac and
  * exactly matching built/installed artifacts; Electron input does not prove physical-device use.
  */
+import {withNativeDocumentSessions} from "./nativeDocumentSessions.mjs";
 import { spawnNativeSync as spawnSync, obsidianCliExecutable } from "./processTools.mjs";
 import assert from 'node:assert/strict';
 import { existsSync, readFileSync, writeFileSync, mkdirSync, rmSync, readdirSync } from 'node:fs';
@@ -38,7 +39,7 @@ function invoke(label,command,args,deadline=Infinity){
 /** Run a named native CLI command without retaining arguments or stdout in timing diagnostics. */
 function cli(command,...args){return invoke(command,command,args);}
 /** Decode one native JSON result; the label identifies its purpose without retaining eval source. */
-function evaluate(code,label='native-eval',deadline=Infinity){return JSON.parse(invoke(label,'eval',[`code=${code}`],deadline).replace(/^=>\s*/,''));}
+function evaluate(code,label='native-eval',deadline=Infinity){code=withNativeDocumentSessions(code);return JSON.parse(invoke(label,'eval',[`code=${code}`],deadline).replace(/^=>\s*/,''));}
 /** Retry only lost read-only state/result responses under the caller's original deadline. */
 async function readState(code,label,deadline){
  for(let attempt=0;attempt<3;attempt++){
@@ -56,7 +57,7 @@ function install(){
  if(!p||!win||!win.getTitle().includes('kplex-test-small')||remote.powerMonitor.getSystemIdleState(10)==='locked')throw Error('Native prerequisites unavailable, wrong owning vault window or locked');
  if(app.isMobile||(!app.setting.isOpen&&document.querySelector('.modal-container')))throw Error('Requires desktop without unrelated dialogs');
  const wc=win.webContents;
- const c=window.__kplexMarkdownZoom={p,folder:`Kplex-Markdown-Zoom-${Date.now()}`,settings:JSON.parse(JSON.stringify(p.settings)),layout:app.workspace.getLayout(),windowId:win.id,bounds:win.getBounds(),throttling:wc.getBackgroundThrottling(),sidebars:{left:app.workspace.leftSplit.collapsed,right:app.workspace.rightSplit.collapsed},settingsWindow:{open:app.setting.isOpen,lastTabId:app.setting.lastTabId,query:app.setting.searchComponent?.getValue?.()},owners:{linkedDocumentLeaf:p.linkedDocumentLeaf,lastDocumentLeaf:p.lastDocumentLeaf,recentLeafHistory:[...p.recentLeafHistory],sidecarLeaves:new Map(p.sidecarLeaves)},exModes:{...app.plugins.plugins['obsidian-excalidraw-plugin']?.excalidrawFileModes},scenarios:[],leaves:[],timers:new Set(),phase:'setup',done:false};
+ const c=window.__kplexMarkdownZoom={p,folder:`Kplex-Markdown-Zoom-${Date.now()}`,settings:JSON.parse(JSON.stringify(p.settings)),layout:app.workspace.getLayout(),windowId:win.id,bounds:win.getBounds(),throttling:wc.getBackgroundThrottling(),sidebars:{left:app.workspace.leftSplit.collapsed,right:app.workspace.rightSplit.collapsed},settingsWindow:{open:app.setting.isOpen,lastTabId:app.setting.lastTabId,query:app.setting.searchComponent?.getValue?.()},owners:{documents:documentSessions(p).capture(),lastDocumentLeaf:p.lastDocumentLeaf,recentLeafHistory:[...p.recentLeafHistory],sidecarLeaves:new Map(p.sidecarLeaves)},exModes:{...app.plugins.plugins['obsidian-excalidraw-plugin']?.excalidrawFileModes},scenarios:[],leaves:[],timers:new Set(),phase:'setup',done:false};
  if(c.settingsWindow.open)app.setting.close();
  if(document.querySelector('.modal-container'))throw Error('Unrelated dialog remains after retaining Settings ownership');
  /** Reject resumed asynchronous work after cleanup retires the suite lifetime. */
@@ -128,7 +129,7 @@ function install(){
   // The test deliberately covers increased camera scale. A 900px window can put the enlarged
   // editor over the zoom controls; use the established desktop acceptance viewport and restore
   // its exact prior native bounds independently during cleanup rather than clicking through it.
-  win.show();win.focus();wc.focus();win.setBounds({x:0,y:25,width:1440,height:875});await until(/** Observe the native renderer’s real resized viewport before mounting the owned graph. */ ()=>window.innerWidth>=1400&&window.innerHeight>=800,'Native acceptance viewport did not resize');app.workspace.leftSplit.collapse();app.workspace.rightSplit.collapse();await c.p.setDocumentSyncMode('off');c.p.settings.embedCentralNode=true;c.p.settings.centralNodeMarkdownMode='source';c.p.settings.sidecarOpen=false;
+  win.show();win.focus();wc.focus();win.setBounds({x:0,y:25,width:1440,height:875});await until(/** Observe the native renderer’s real resized viewport before mounting the owned graph. */ ()=>window.innerWidth>=1400&&window.innerHeight>=800,'Native acceptance viewport did not resize');app.workspace.leftSplit.collapse();app.workspace.rightSplit.collapse();await documentSessions(c.p).off();c.p.settings.embedCentralNode=true;c.p.settings.centralNodeMarkdownMode='source';c.p.settings.sidecarOpen=false;
   await app.vault.createFolder(c.folder);c.a=await app.vault.create(c.folder+'/Alpha.md','NODEZOOMMARKER ordinary native Markdown text for stable geometry.\n\nSecond paragraph stays outside the measured range.\n');c.b=await app.vault.create(c.folder+'/Beta.md','NODEZOOMMARKER separate per-note preference fixture.\n');
   for(const file of [c.a,c.b]){c.p.index.insertCreatedFile(file);await c.p.index.publishHostMetadataPreview(file.path);}
   c.leaf=app.workspace.getLeaf(true);c.leaves.push(c.leaf);await c.leaf.setViewState({type:'k-plex-react-view',active:true});await app.workspace.revealLeaf(c.leaf);await mounted();await go(c.a);
@@ -173,10 +174,10 @@ function cleanup(){
   await attempt('settings-before-layout',/** Restore settings on the currently loaded instance and flush its queue. */ async()=>{Object.assign(c.p.settings,JSON.parse(JSON.stringify(c.settings)));await c.p.saveSettings(false,false);await c.p.settingsWriteQueue;});
   await attempt('workspace-layout',/** Recreate the exact captured workspace after retiring only owned native leaves. */ async()=>{await app.workspace.changeLayout(c.layout);});
   await attempt('settings-after-layout',/** View initialization may persist preferences; restore original values again afterward. */ async()=>{Object.assign(c.p.settings,JSON.parse(JSON.stringify(c.settings)));await c.p.saveSettings(false,false);await c.p.settingsWriteQueue;});
-  await attempt('native-leaf-associations',/** Rebind original native routing owners by serialized identity after reload/layout replacement. */ ()=>{
+  await attempt('native-leaf-associations',/** Rebind original native routing owners by serialized identity after reload/layout replacement. */ async()=>{
    /** Locate only the captured original leaf identity in the restored native workspace. */
    const rebind=old=>old?app.workspace.getLeavesOfType(old.getViewState().type).find(/** Reassociate the exact serialized owner rather than another same-file leaf. */ leaf=>leaf.id===old.id)??null:null;
-   c.p.linkedDocumentLeaf=rebind(c.owners.linkedDocumentLeaf);c.p.lastDocumentLeaf=rebind(c.owners.lastDocumentLeaf);c.p.recentLeafHistory=c.owners.recentLeafHistory.map(rebind).filter(Boolean);c.p.sidecarLeaves.clear();for(const [oldHost,oldLeaf] of c.owners.sidecarLeaves){const host=rebind(oldHost),leaf=rebind(oldLeaf);if(host&&leaf)c.p.sidecarLeaves.set(host,leaf);}c.p.index.notify();
+   await documentSessions(c.p).restore(c.owners.documents);c.p.lastDocumentLeaf=rebind(c.owners.lastDocumentLeaf);c.p.recentLeafHistory=c.owners.recentLeafHistory.map(rebind).filter(Boolean);c.p.sidecarLeaves.clear();for(const [oldHost,oldLeaf] of c.owners.sidecarLeaves){const host=rebind(oldHost),leaf=rebind(oldLeaf);if(host&&leaf)c.p.setSidecarOwner(host,leaf);}c.p.index.notify();
   });
   await attempt('companion-representation-memory',/** Remove only probe-created remembered drawing representations and restore prior entries. */ ()=>{const modes=app.plugins.plugins['obsidian-excalidraw-plugin']?.excalidrawFileModes;if(modes){for(const key of Object.keys(modes))if(!Object.hasOwn(c.exModes,key))delete modes[key];Object.assign(modes,c.exModes);}});
   await attempt('bounds-sidebars-throttling',/** Restore the exact retained owning native window; a separate Settings window can share the same vault title. */ ()=>{const remote=require('@electron/remote'),win=remote.BrowserWindow.fromId(c.windowId);if(!win||!win.getTitle().includes('kplex-test-small'))throw Error('Original owning test window missing');win.setBounds(c.bounds);if(win.webContents.getBackgroundThrottling()!==c.throttling)win.webContents.setBackgroundThrottling(c.throttling);for(const side of ['left','right']){const split=app.workspace[side+'Split'];if(c.sidebars[side])split.collapse();else split.expand();}});

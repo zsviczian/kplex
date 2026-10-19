@@ -3,6 +3,7 @@
  * Owns a bounded synthetic folder and native leaves; restores configuration, workspace and window
  * geometry independently of assertions. Trusted Electron mouse input is desktop acceptance only.
  */
+import {withNativeDocumentSessions} from "./nativeDocumentSessions.mjs";
 import assert from 'node:assert/strict';
 import {createHash} from 'node:crypto';
 import {existsSync,mkdirSync,readFileSync,readdirSync,writeFileSync} from 'node:fs';
@@ -24,7 +25,7 @@ assert(output&&(!existsSync(output)||!readdirSync(output).length),'Use a fresh r
 /** Use explicit native arguments and bounded long-eval transport, without a shell. */
 function cli(command,...args){const r=spawnNativeSync(obsidianCliExecutable(),[`vault=${vaultName}`,command,...args],{cwd:root,encoding:'utf8',timeout:30000,killSignal:'SIGKILL',maxBuffer:4*1024*1024});if(r.error||r.status!==0||/^Error:/m.test(r.stdout))throw r.error??Error(r.stderr||r.stdout);return r.stdout.trim()}
 /** Only finite JSON receipts leave the renderer. */
-function evaluate(code){return JSON.parse(cli('eval','code='+code).replace(/^=>\s*/,''))}
+function evaluate(code){code=withNativeDocumentSessions(code);return JSON.parse(cli('eval','code='+code).replace(/^=>\s*/,''))}
 assert.equal(cli('vault','info=path'),target.vault);
 const backups=['plugins/k-plex/data.json','community-plugins.json','workspace.json','appearance.json'].filter(name=>existsSync(join(target.config,name))).map(name=>({name,bytes:readFileSync(join(target.config,name))}));
 const hash=bytes=>createHash('sha256').update(bytes).digest('hex');
@@ -37,7 +38,7 @@ const artifacts=Object.fromEntries(['main.js','styles.css','manifest.json'].map(
 function start(scenario='legacy',layoutAcceptance,nativeDragAcceptance,htmlDrag,structuralAcceptance){
  const p=app.plugins.plugins['k-plex'],remote=require('@electron/remote'),win=remote.getCurrentWindow();
  if(['__kplexInteractionUpdates','__kplexHoverProbe','__kplexInteractionTouch','__kplexInteractionGateProbe','__kplexActionWorkflows','__kplexActionDevice','__kplexDisplayModesProbe'].some(name=>window[name])||app.setting.isOpen||app.dragManager.draggable)throw Error('Clean native prerequisites required');
- const c=window.__kplexInteractionUpdates={settings:structuredClone(p.settings),policy:p.savedSettingsPolicy,layout:app.workspace.getLayout(),owners:{linked:p.linkedDocumentLeaf,last:p.lastDocumentLeaf,recent:[...p.recentLeafHistory],sidecars:[...p.sidecarLeaves]},bounds:win.getBounds(),minimum:win.getMinimumSize(),inventory:app.vault.getFiles().map(f=>f.path).sort(),files:[],leaves:[],releases:[],restores:[],cases:[],done:false,folder:'Kplex-Interaction-Updates-'+Date.now()};
+ const c=window.__kplexInteractionUpdates={settings:structuredClone(p.settings),policy:p.savedSettingsPolicy,layout:app.workspace.getLayout(),owners:{documents:documentSessions(p).capture(),last:p.lastDocumentLeaf,recent:[...p.recentLeafHistory],sidecars:[...p.sidecarLeaves]},bounds:win.getBounds(),minimum:win.getMinimumSize(),inventory:app.vault.getFiles().map(f=>f.path).sort(),files:[],leaves:[],releases:[],restores:[],cases:[],done:false,folder:'Kplex-Interaction-Updates-'+Date.now()};
  const check=(ok,message)=>{if(!ok)throw Error(message)},wait=ms=>new Promise(r=>window.setTimeout(r,ms));
  const until=async(fn,message)=>{const end=Date.now()+90000;while(!fn()){check(!c.cancelled&&Date.now()<end,message);await wait(50)}};
  const frames=()=>new Promise(r=>window.requestAnimationFrame(()=>window.requestAnimationFrame(r)));
@@ -202,7 +203,7 @@ function start(scenario='legacy',layoutAcceptance,nativeDragAcceptance,htmlDrag,
    try{p.settings=c.settings;p.savedSettingsPolicy=c.policy;await p.saveSettings(false,false)}catch(e){errors.push(String(e))}
    for(const name of c.files.reverse())try{const file=app.vault.getFileByPath(name);if(file)await app.vault.delete(file)}catch(e){errors.push(String(e))}
    try{const folder=c.folderCreated?app.vault.getFolderByPath(c.folder):null;if(folder){check(!folder.children.length,'Unknown files in owned folder');await app.vault.delete(folder,true)}}catch(e){errors.push(String(e))}
-   try{await app.workspace.changeLayout(c.layout);const leaves=[];app.workspace.iterateAllLeaves(leaf=>leaves.push(leaf));const rebind=old=>old?leaves.find(leaf=>leaf.id===old.id)??null:null;p.linkedDocumentLeaf=rebind(c.owners.linked);p.lastDocumentLeaf=rebind(c.owners.last);p.recentLeafHistory=c.owners.recent.map(rebind).filter(Boolean);p.sidecarLeaves.clear();for(const [oldHost,oldNote]of c.owners.sidecars){const host=rebind(oldHost),note=rebind(oldNote);if(host&&note)p.sidecarLeaves.set(host,note)}if(c.settings.lastActivePath)p.notifyNavigation(c.settings.lastActivePath);await p.settingsWriteQueue;win.setMinimumSize(...c.minimum);win.setBounds(c.bounds)}catch(e){errors.push(String(e))}
+   try{await app.workspace.changeLayout(c.layout);const leaves=[];app.workspace.iterateAllLeaves(leaf=>leaves.push(leaf));const rebind=old=>old?leaves.find(leaf=>leaf.id===old.id)??null:null;await documentSessions(p).restore(c.owners.documents);p.lastDocumentLeaf=rebind(c.owners.last);p.recentLeafHistory=c.owners.recent.map(rebind).filter(Boolean);p.sidecarLeaves.clear();for(const [oldHost,oldNote]of c.owners.sidecars){const host=rebind(oldHost),note=rebind(oldNote);if(host&&note)p.setSidecarOwner(host,note)}if(c.settings.lastActivePath)p.notifyNavigation(c.settings.lastActivePath);await p.settingsWriteQueue;win.setMinimumSize(...c.minimum);win.setBounds(c.bounds)}catch(e){errors.push(String(e))}
    const gateDeadline=Date.now()+15000;while([...p.index.onDemandGateTasks.keys()].some(name=>name.startsWith(c.folder+'/'))&&Date.now()<gateDeadline)await wait(30);
    const ownedGateTasksRemaining=[...p.index.onDemandGateTasks.keys()].filter(name=>name.startsWith(c.folder+'/')).length;if(ownedGateTasksRemaining)errors.push('Owned gate-count task did not retire');
    c.cleanup={errors,inventoryRestored:JSON.stringify(app.vault.getFiles().map(f=>f.path).sort())===JSON.stringify(c.inventory),ownedFilesRemaining:c.files.filter(name=>app.vault.getFileByPath(name)),ownedGateTasksRemaining};c.done=true;

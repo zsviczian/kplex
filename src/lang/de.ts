@@ -1225,7 +1225,7 @@ const germanTranslations = {
   "folderPicker.invalid": "Gib einen gültigen Ordnerpfad innerhalb dieses Tresors ein.",
   "folderPicker.fileConflict": "Dieser Ordnerpfad wird bereits von einer Datei verwendet.",
   "folderPicker.invalidAlias": "Der Alias darf keine zwei schließenden eckigen Klammern enthalten.",
-  "layout.simplifiedTitle": "Vereinfachtes Layout",
+  "layout.simplifiedTitle": "Einseitiges Layout",
   "layout.simplifiedHelp": "Zeige Freunde und Herausforderer links in getrennten Gruppen. Beziehungen und Filter bleiben gleich. Separate Fenster verwenden die Auswahl des Haupt-Tabs.",
   "layout.arrangementScope": "{device}: {surface}",
   "layout.mainTab": "Haupt-Tab",
@@ -1282,6 +1282,15 @@ const germanTranslations = {
   "settingsSync.conflict": "Die Einstellungen wurden auf einem anderen Gerät geändert. Öffne dieses Steuerelement erneut und wende deine Änderung nochmals an.",
   "settingsSync.loadFailed": "Die geänderten K-Plex-Einstellungen konnten nicht geladen werden. Deine aktuellen Einstellungen bleiben erhalten. Prüfe die Synchronisierung und versuche es erneut.",
   "settingsSync.refreshPending": "Einstellungen empfangen. Einige Ansichten konnten nicht aktualisiert werden. Öffne die betroffene Ansicht erneut.",
+  "footprints.title": "Spuren",
+  "footprints.count": {one: "{count} Besuch", other: "{count} Besuche"},
+  "footprints.startHere": "Hier beginnen",
+  "footprints.empty": "Deine Besuche erscheinen hier.",
+  "footprints.unavailable": "Nicht verfügbar",
+  "footprints.copyMarkdown": "Als Markdown kopieren",
+  "footprints.copying": "Wird kopiert...",
+  "footprints.copied": "In die Zwischenablage kopiert.",
+  "footprints.copyFailed": "Kopieren fehlgeschlagen. Erneut versuchen.",
 } as const satisfies LocaleTranslationMap;
 
 export const germanCatalog = buildLocaleCatalog(germanTranslations);

@@ -156,7 +156,7 @@ export class ActionManager {
     const metadata = ACTION_BY_ID.get(request.id)!;
     const sidecarFoldAction = request.id === "view.sidecar.collapse-plex";
     const command = request.source === "obsidian-command" && !sidecarFoldAction ? this.options.readCommandContext(request) : null;
-    const ownerless = metadata.id.startsWith("index.") || metadata.id.startsWith("surface.open-") || metadata.id.startsWith("ontology.assign.") || ["actions.configure", "document.sync-from-center", "center.sync-from-document", "center.focus-active-note"].includes(metadata.id);
+    const ownerless = metadata.id.startsWith("index.") || metadata.id.startsWith("surface.open-") || metadata.id.startsWith("ontology.assign.") || metadata.id === "actions.configure";
     const chosen = request.surfaceId ? this.surfaces.get(request.surfaceId) ?? null : command && !ownerless ? this.chooseSurface(command) : null;
     if (chosen === "ambiguous") return "actions.ambiguous-surface";
     if (request.surfaceId && !chosen) return "actions.surface-unavailable";
@@ -179,7 +179,7 @@ export class ActionManager {
     else if (requested.kind === "editor-field") { const token = "editorInvocationId" in requested ? requested.editorInvocationId : command?.editorInvocationId; if (!token || typeof token !== "string") return "actions.editor-unavailable"; target = {kind: "editor-field", editorInvocationId: token}; }
     else if (requested.kind === "none") target = {kind: "none"};
     else if (["center", "selected", "selected-or-center"].includes(requested.kind)) {
-      const selected = snapshot?.selected, center = command ? command.sharedCenter : snapshot?.center;
+      const selected = snapshot?.selected, center = command && metadata.id !== "document.sync-from-center" ? command.sharedCenter : snapshot?.center;
       const node = requested.kind === "selected" ? selected?.node : requested.kind === "selected-or-center" ? selected?.node ?? center : center;
       if (!node || !validNode(node)) return "actions.target-unavailable";
       target = {kind: "node", node: {...node}, ...(selected?.node === node ? {occurrenceId: selected.occurrenceId} : {})};

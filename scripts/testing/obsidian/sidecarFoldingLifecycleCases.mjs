@@ -10,7 +10,7 @@
 export async function runSidecarFoldingLifecycleCases(ports) {
   const {p, workspace, c, page, check, until, frames, scenario, click, getHost, getCompanion, openFreshPlex} = ports;
   const app = p.app, originalHost = getHost(), originalCompanion = getCompanion();
-  const doc = originalHost.view.containerEl.ownerDocument, originalPosition = p.settings.sidecarPosition;
+  const doc = originalHost.view.containerEl.ownerDocument, originalPosition = p.getDocumentSidecarPosition(originalHost);
   const originalLeaves = new Set(); workspace.iterateAllLeaves(/** A truthy native iterator result stops traversal; recording must return void. */ leaf => { originalLeaves.add(leaf); });
   check(originalLeaves.has(originalHost) && originalLeaves.has(originalCompanion), "Full lifecycle opening inventory must protect the original pair");
   /** Native groups, rather than file/graph identity, own hidden presentation and recovery. */
@@ -40,7 +40,7 @@ export async function runSidecarFoldingLifecycleCases(ports) {
     try {
       await openFreshPlex(host);
       await until(/** Native creation may precede registration and initial layout. */ () => [...p.actionSurfaceHosts.values()].some(owner => owner.leaf === host), "Lifecycle Plex did not mount");
-      p.settings.sidecarPosition = "below"; await p.openSidecar(host, page); companion = p.sidecarLeaves.get(host);
+      await p.moveSidecar(host,"below",page); await p.openSidecar(host, page); companion = p.sidecarLeaves.get(host);
       check(companion && !originalLeaves.has(companion), "Lifecycle fixture must not adopt original content");
       owned.push(companion); c.createdLeaves.push(companion);
       await until(/** Real host layout/attachment must settle before destructive transitions. */ () => !p.sidecarMovingHosts.has(host) && p.readPlexFoldCandidate(host), "Lifecycle pair is not safely eligible");
@@ -124,10 +124,10 @@ export async function runSidecarFoldingLifecycleCases(ports) {
       detail(receipt);
     });
   } finally {
-    p.settings.sidecarPosition = originalPosition;
+    p.documentSession(originalHost).preferences.sidecarPosition = originalPosition;
     check(p.leafIsAttached(originalHost) && p.leafIsAttached(originalCompanion), "Lifecycle fixtures affected original native leaves");
     workspace.setActiveLeaf(originalCompanion, {focus: true}); await frames();
-    if (p.sidecarLeaves.get(originalHost) !== originalCompanion || p.settings.documentSyncMode !== "pinned") await p.attachAdjacentSidecar(originalHost, "to-plex");
+    if (p.sidecarLeaves.get(originalHost) !== originalCompanion || p.getDocumentSyncMode(originalHost) !== "pinned") await p.attachAdjacentSidecar(originalHost, "to-plex");
     check(p.sidecarLeaves.get(originalHost) === originalCompanion, "Lifecycle cleanup did not retain the original exact companion");
     workspace.setActiveLeaf(originalHost, {focus: true}); await frames();
   }

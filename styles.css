@@ -157,6 +157,7 @@
 .kplex-topbar button,
 .kplex-content-actions button,
 .kplex-find button,
+button.kplex-footprints-trigger,
 button.kplex-layout-toggle,
 button.kplex-zone-filter-button,
 .kplex-sidecar-controls button,
@@ -180,6 +181,7 @@ button.kplex-sidecar-unfold-plex,
 .kplex-topbar button:hover,
 .kplex-content-actions button:hover,
 .kplex-find button:hover,
+button.kplex-footprints-trigger:hover,
 button.kplex-layout-toggle:hover,
 button.kplex-zone-filter-button:hover,
 .kplex-sidecar-controls button:hover,
@@ -3377,7 +3379,7 @@ button.kplex-style-manager-row { height: fit-content; }
 }
 
 /* Find stays local to the Plex, with a touch target and no result popup. */
-.kplex-find {
+.kplex-scene-tools {
   position: absolute;
   top: 8px;
   right: 8px;
@@ -3388,6 +3390,36 @@ button.kplex-style-manager-row { height: fit-content; }
   max-width: calc(100% - 16px);
   padding: 0;
 }
+.kplex-scene-tools.is-suspended { display: none; }
+.kplex-find { display: flex; align-items: center; gap: 4px; min-width: 0; }
+.kplex-footprints-panel {
+  position: fixed;
+  z-index: var(--layer-popover);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  color: var(--text-normal);
+  background: var(--background-primary);
+  border: 1px solid var(--background-modifier-border);
+  border-radius: var(--radius-m);
+  box-shadow: var(--shadow-s);
+}
+.kplex-footprints-heading { display: flex; align-items: center; gap: var(--size-4-2); padding: var(--size-4-2); }
+.kplex-footprints-heading strong { flex: 1; }
+.kplex-footprints-heading > span, .kplex-footprints-empty { color: var(--text-muted); font-size: var(--font-ui-small); }
+.kplex-footprints-empty { padding: var(--size-4-3); }
+.kplex-footprints-list { max-height: 320px; min-height: 0; overflow-y: auto; overscroll-behavior: contain; touch-action: pan-y; }
+.kplex-footprints-row {
+  display: flex; align-items: center; gap: var(--size-4-2); width: 100%; height: 40px;
+  margin: 0; padding: 0 var(--size-4-3); border: 0; border-radius: 0; box-shadow: none;
+  color: var(--text-normal); background: transparent; text-align: start;
+}
+.kplex-footprints-row > span:not(.kplex-icon) { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.kplex-footprints-row > .kplex-icon { flex-shrink: 0; }
+.kplex-footprints-row small { color: var(--text-muted); }
+.kplex-footprints-row[aria-current="location"] { background: var(--background-secondary); }
+.kplex-footprints-row:hover, .kplex-footprints-row:focus-visible { background: var(--background-modifier-hover); }
+.kplex-footprints-row[aria-disabled="true"] { color: var(--text-muted); }
 .kplex-view-host .kplex-find-input {
   width: 170px;
   min-width: 0;
@@ -3543,12 +3575,14 @@ button.kplex-style-manager-row { height: fit-content; }
 /* Toggles retain one common active state instead of changing their surface palette. */
 .kplex-topbar button.is-on,
 .kplex-find button[aria-pressed="true"],
+button.kplex-footprints-trigger[aria-expanded="true"],
 button.kplex-layout-toggle[aria-pressed="true"],
 button.kplex-zone-filter-button.is-on,
 .kplex-sidecar-controls button[aria-pressed="true"] { color: var(--text-accent); border-color: var(--interactive-accent); }
 
 .kplex-topbar button:focus-visible,
 .kplex-find button:focus-visible,
+button.kplex-footprints-trigger:focus-visible,
 button.kplex-layout-toggle:focus-visible,
 button.kplex-zone-filter-button:focus-visible,
 .kplex-sidecar-controls button:focus-visible,

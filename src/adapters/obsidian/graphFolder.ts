@@ -3,7 +3,7 @@ import type { App, TFolder } from "obsidian";
 import type { GraphPage } from "../../types";
 
 /** Translate only the legacy folder facade's explicit coordinate, never a neutral opaque NodeId. */
-export function graphFolderPath(page: GraphPage): string | null {
+export function graphFolderPath(page: Pick<GraphPage, "isFolder" | "path">): string | null {
   if (!page.isFolder || !page.path.startsWith("folder:")) return null;
   const path = page.path.slice("folder:".length);
   return path || null;

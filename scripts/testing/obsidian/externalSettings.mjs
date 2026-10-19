@@ -1,4 +1,5 @@
 /** Exact-build external-file delivery, live views/native controls and non-echo persistence in the authorized disposable vault. */
+import {withNativeDocumentSessions} from "./nativeDocumentSessions.mjs";
 import assert from 'node:assert/strict';
 import {createHash} from 'node:crypto';
 import {existsSync,mkdirSync,readFileSync,readdirSync,writeFileSync} from 'node:fs';
@@ -14,7 +15,7 @@ const output=process.env.KPLEX_HOST_REPORT_DIR;assert(output&&(!existsSync(outpu
 /** Share the repository's native transport, bounded deadlines and explicit target selection. */
 function cli(name,...args){const r=spawnNativeSync(obsidianCliExecutable(),[`vault=${vaultName}`,name,...args],{encoding:'utf8',timeout:30000,killSignal:'SIGKILL',maxBuffer:4*1024*1024});if(r.error||r.status||/^Error:/m.test(r.stdout))throw r.error??Error(r.stderr||r.stdout);return r.stdout.trim()}
 /** Only finite detached observations cross IPC; incoming full settings remain local/private. */
-function evaluate(code){return JSON.parse(cli('eval','code=JSON.stringify(('+code+'))').replace(/^=>\s*/,''))}
+function evaluate(code){code=withNativeDocumentSessions(code);return JSON.parse(cli('eval','code=JSON.stringify(('+code+'))').replace(/^=>\s*/,''))}
 const wait=ms=>new Promise(resolve=>setTimeout(resolve,ms));
 /** Poll only this owned trial; never modify renderer scheduling or compete with another native driver. */
 async function until(code,label){const end=Date.now()+25000;while(!evaluate(code)){assert(Date.now()<end,label);await wait(120)}}
@@ -29,7 +30,7 @@ const dataFile=join(target.pluginDir,'data.json');
 /** Native host owner: synthetic note fixtures, existing settings writers, real rendered views and finally cleanup. */
 function start(){
  const p=app.plugins.plugins['k-plex'];if(!p?.settingsReconciliation||window.__kplexSettingsProbe||app.setting.isOpen)throw Error('Clean exact-build prerequisites required');
- const c=window.__kplexSettingsProbe={settings:structuredClone(p.settings),policy:p.savedSettingsPolicy,layout:app.workspace.getLayout(),owners:{linked:p.linkedDocumentLeaf,last:p.lastDocumentLeaf,recent:[...p.recentLeafHistory],sidecars:[...p.sidecarLeaves]},owned:[],releases:[],restores:[],phase:'setup',cases:[],counts:{settingsReads:0,reads:0,parses:0,acquisitions:0,semantic:0,builds:0,writes:0,callbacks:0},done:false};
+ const c=window.__kplexSettingsProbe={settings:structuredClone(p.settings),policy:p.savedSettingsPolicy,layout:app.workspace.getLayout(),owners:{documents:documentSessions(p).capture(),last:p.lastDocumentLeaf,recent:[...p.recentLeafHistory],sidecars:[...p.sidecarLeaves]},owned:[],releases:[],restores:[],phase:'setup',cases:[],counts:{settingsReads:0,reads:0,parses:0,acquisitions:0,semantic:0,builds:0,writes:0,callbacks:0},done:false};
  const check=(value,message)=>{if(c.cancelled||!value)throw Error(message)},wait=ms=>new Promise(resolve=>window.setTimeout(resolve,ms));
  const until=async(read,label)=>{const end=Date.now()+20000;while(!read()){check(Date.now()<end,label);await wait(40)}};
  const paths=['__kplex_settings_A.md','__kplex_settings_B.md','__kplex_settings_C.md'];
@@ -48,7 +49,7 @@ function start(){
   await until(()=>app.metadataCache.getFileCache(a)?.frontmatter?.Other,'Fixture metadata absent');
   Object.assign(p.settings,{embedCentralNode:false,inferAllLinksAsFriends:false,inverseInfer:false,showFolderNodes:false,showTagNodes:false,renderSiblings:false,animationSpeed:0,graphDepth:1,hoverHighlightRequiresAlt:true,
    hierarchy:{...p.settings.hierarchy,parents:['Parent'],children:['Child'],leftFriends:['Friend'],rightFriends:['Challenger','Right'],previous:['Previous'],next:['Next'],hidden:['Hidden']}});
-  await p.setDocumentSyncMode('off');await p.saveSettings();
+  await documentSessions(p).off();await p.saveSettings();
   await p.updateStyleSettings(d=>{d.baseNodeStyle.borderColor='#123456';d.centralNodeStyle.borderColor='#123456';d.baseNodeStyle.strokeWidth=1;d.baseNodeStyle.gateRadius=4});
   for(const path of paths){p.index.insertCreatedFile(app.vault.getFileByPath(path));c.releases.push(p.index.acquireSemanticDemand(path))}
   await p.index.refreshSemanticSettings();await p.activateView();await p.activateSidepanel();
@@ -92,7 +93,7 @@ function start(){
   p.settings=c.settings;p.savedSettingsPolicy=c.policy;await p.saveSettings(false,false);p.actionPublisher?.sync(p.settings.actionPreferences);p.index.invalidateSemanticPolicy();await p.index.refreshSemanticSettings();
   for(const path of c.owned){const file=app.vault.getFileByPath(path);if(file)await app.vault.delete(file)}
   await app.workspace.changeLayout(c.layout);const leaves=[];app.workspace.iterateAllLeaves(leaf=>leaves.push(leaf));const rebind=old=>old?leaves.find(leaf=>leaf.id===old.id)??null:null;
-  p.linkedDocumentLeaf=rebind(c.owners.linked);p.lastDocumentLeaf=rebind(c.owners.last);p.recentLeafHistory=c.owners.recent.map(rebind).filter(Boolean);p.sidecarLeaves.clear();for(const[oldHost,oldNote]of c.owners.sidecars){const host=rebind(oldHost),note=rebind(oldNote);if(host&&note)p.sidecarLeaves.set(host,note)}
+  await documentSessions(p).restore(c.owners.documents);p.lastDocumentLeaf=rebind(c.owners.last);p.recentLeafHistory=c.owners.recent.map(rebind).filter(Boolean);p.sidecarLeaves.clear();for(const[oldHost,oldNote]of c.owners.sidecars){const host=rebind(oldHost),note=rebind(oldNote);if(host&&note)p.setSidecarOwner(host,note)}
   if(c.settings.lastActivePath)p.notifyNavigation(c.settings.lastActivePath);await p.settingsWriteQueue;if(!c.owned.every(path=>!app.vault.getFileByPath(path)))throw Error('Owned notes remain');c.cleaned=true;
  })().catch(error=>{c.cleanupError=String(error.stack||error)}).finally(()=>{c.done=true});return true};
  return true;

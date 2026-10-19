@@ -4,6 +4,7 @@
  * aliases and legitimately unresolved old-name links. Own only one disposable fixture subtree,
  * wrappers, settings and workspace; restore all of them even after an assertion failure.
  */
+import {withNativeDocumentSessions} from "./nativeDocumentSessions.mjs";
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import { existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
@@ -35,7 +36,7 @@ function cli(command, ...args) {
   return result.stdout.trim();
 }
 /** Read detached finite facts from the selected production renderer. */
-function evaluate(code) { return JSON.parse(cli("eval", `code=${code}`).replace(/^=>\s*/, "")); }
+function evaluate(code) {code=withNativeDocumentSessions(code); return JSON.parse(cli("eval", `code=${code}`).replace(/^=>\s*/, "")); }
 /** Let the real renderer progress between bounded observations. */
 const delay = ms => new Promise(done => setTimeout(done, ms));
 
@@ -44,7 +45,7 @@ function installProbe(mode) {
   const p = app.plugins.plugins["k-plex"], i = p?.index, folder = "__kplex_rename_identity_native";
   if (!i || window.__kplexRenameProbe || app.vault.getFolderByPath(folder) || document.querySelector(".modal-container,.menu")) throw Error("Clean native prerequisites required");
   const c = window.__kplexRenameProbe = { settings: structuredClone(p.settings), layout: app.workspace.getLayout(),
-    owners: { linked: p.linkedDocumentLeaf, last: p.lastDocumentLeaf, recent: [...p.recentLeafHistory], sidecars: [...p.sidecarLeaves] },
+    owners: { documents:documentSessions(p).capture(), last: p.lastDocumentLeaf, recent: [...p.recentLeafHistory], sidecars: [...p.sidecarLeaves] },
     links: app.vault.getConfig("alwaysUpdateLinks"), mode, observations: [], renameFailures: [], releases: [], retiredPaths: [], owned: false, done: false, cancelled: false };
   /** Fail retired continuations before another host mutation. */
   const check = (value, message) => { if (c.cancelled || !value) throw Error(message); };
@@ -100,7 +101,7 @@ function installProbe(mode) {
     await app.workspace.changeLayout(c.layout);
     const leaves = []; app.workspace.iterateAllLeaves(leaf => leaves.push(leaf));
     const rebind = old => old ? leaves.find(leaf => leaf.id === old.id) ?? null : null;
-    current.linkedDocumentLeaf = rebind(c.owners.linked); current.lastDocumentLeaf = rebind(c.owners.last);
+    await documentSessions(current).restore(c.owners.documents); current.lastDocumentLeaf = rebind(c.owners.last);
     current.recentLeafHistory = c.owners.recent.map(rebind).filter(Boolean); current.sidecarLeaves.clear();
     for (const [host, note] of c.owners.sidecars) { const h = rebind(host), n = rebind(note); if (h && n) current.sidecarLeaves.set(h, n); }
     if (c.settings.lastActivePath) current.notifyNavigation(c.settings.lastActivePath);
@@ -124,7 +125,7 @@ function installProbe(mode) {
     await until(() => app.metadataCache.getFileCache(origin)?.links?.length, "Native property/body metadata missing");
     Object.assign(p.settings, { renderAlias: false, nameFields: "aliases,title", animationSpeed: 0, embedCentralNode: false,
       showFolderNodes: false, showTagNodes: false, renderSiblings: false, graphDepth: 1, applyPowerFilter: false });
-    await p.setDocumentSyncMode("off"); await p.saveSettings();
+    await documentSessions(p).off(); await p.saveSettings();
     c.releases.push(i.acquireSemanticDemand(c.a)); await c.view(); await c.settle("initial", "Old");
     p.settings.pinnedNodes = [...p.settings.pinnedNodes, c.b.path]; p.settings.navigationHistory = [c.a, c.b.path];
     const rename = i.renameFile;

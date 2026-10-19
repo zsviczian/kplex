@@ -1225,7 +1225,7 @@ const dutchTranslations = {
   "folderPicker.invalid": "Voer een geldig mappad binnen deze kluis in.",
   "folderPicker.fileConflict": "Een bestand gebruikt dit mappad al.",
   "folderPicker.invalidAlias": "De alias mag geen twee sluitende vierkante haken bevatten.",
-  "layout.simplifiedTitle": "Vereenvoudigde indeling",
+  "layout.simplifiedTitle": "Eenzijdige indeling",
   "layout.simplifiedHelp": "Plaats vrienden en uitdagers in afzonderlijke groepen links. Hun relaties en filters blijven gelijk. Losse vensters gebruiken de keuze van het hoofdtabblad.",
   "layout.arrangementScope": "{device}: {surface}",
   "layout.mainTab": "Hoofdtabblad",
@@ -1282,6 +1282,15 @@ const dutchTranslations = {
   "settingsSync.conflict": "De instellingen zijn op een ander apparaat gewijzigd. Open deze bediening opnieuw en pas je wijziging opnieuw toe.",
   "settingsSync.loadFailed": "De gewijzigde K-Plex-instellingen konden niet worden geladen. Je huidige instellingen blijven behouden. Controleer de synchronisatie en probeer het opnieuw.",
   "settingsSync.refreshPending": "Instellingen ontvangen. Sommige weergaven konden niet worden vernieuwd. Open de betreffende weergave opnieuw.",
+  "footprints.title": "Voetsporen",
+  "footprints.count": {one: "{count} bezoek", other: "{count} bezoeken"},
+  "footprints.startHere": "Hier beginnen",
+  "footprints.empty": "Je bezoeken verschijnen hier.",
+  "footprints.unavailable": "Niet beschikbaar",
+  "footprints.copyMarkdown": "Kopiëren als Markdown",
+  "footprints.copying": "Bezig met kopiëren...",
+  "footprints.copied": "Gekopieerd naar het klembord.",
+  "footprints.copyFailed": "Kopiëren mislukt. Probeer opnieuw.",
 } as const satisfies LocaleTranslationMap;
 
 export const dutchCatalog = buildLocaleCatalog(dutchTranslations);

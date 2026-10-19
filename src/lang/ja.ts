@@ -1221,7 +1221,7 @@ const japaneseTranslations = {
   "folderPicker.invalid": "この保管庫内の有効なフォルダーパスを入力してください。",
   "folderPicker.fileConflict": "このフォルダーパスは既にファイルで使用されています。",
   "folderPicker.invalidAlias": "エイリアスに閉じ角括弧を2つ続けて含めることはできません。",
-  "layout.simplifiedTitle": "簡易レイアウト",
+  "layout.simplifiedTitle": "片側レイアウト",
   "layout.simplifiedHelp": "友人と挑戦者を左側の別々のグループに配置します。関係とフィルターは変わりません。別ウィンドウにはメインタブの設定を使用します。",
   "layout.arrangementScope": "{device}: {surface}",
   "layout.mainTab": "メインタブ",
@@ -1278,6 +1278,15 @@ const japaneseTranslations = {
   "settingsSync.conflict": "別のデバイスで設定が変更されました。このコントロールを開き直し、変更を適用し直してください。",
   "settingsSync.loadFailed": "変更されたK-Plex設定を読み込めませんでした。現在の設定は保持されます。同期を確認して再試行してください。",
   "settingsSync.refreshPending": "設定を受信しました。一部のビューを更新できませんでした。該当するビューを開き直してください。",
+  "footprints.title": "足跡",
+  "footprints.count": {other: "{count} 回の訪問"},
+  "footprints.startHere": "ここから開始",
+  "footprints.empty": "訪問したノードがここに表示されます。",
+  "footprints.unavailable": "利用不可",
+  "footprints.copyMarkdown": "Markdown としてコピー",
+  "footprints.copying": "コピー中...",
+  "footprints.copied": "クリップボードにコピーしました。",
+  "footprints.copyFailed": "コピーできませんでした。もう一度お試しください。",
 } as const satisfies LocaleTranslationMap;
 
 export const japaneseCatalog = buildLocaleCatalog(japaneseTranslations);

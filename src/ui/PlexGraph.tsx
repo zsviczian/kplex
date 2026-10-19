@@ -30,7 +30,7 @@ import { ColorScope } from "../adapters/obsidian/colorScope";
 import {centerRelationCounts} from "../core/contracts/centerRecovery";
 import {startCenterWatchdog} from "./components/centerWatchdog";
 import { appearanceColorReferences, STYLE_SETTINGS_KEYS } from "../core/contracts/appearance";
-import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ChangeEvent, type CSSProperties, type DragEvent, type MouseEvent, type PointerEvent, type RefObject } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ChangeEvent, type CSSProperties, type DragEvent, type MouseEvent, type PointerEvent, type RefObject, type ReactNode } from "react";
 import { createPlexContextMenu } from "./plexContextMenu";
 import { ColorSourceModal } from "./ColorSourceModal";
 import { Keymap, Menu, Notice, Platform, type WorkspaceLeaf } from "obsidian";
@@ -734,7 +734,7 @@ function Edge({
 }
 
 /** Compose the deterministic Plex scene; native-follow layouts land immediately while explicit navigation retains motion and central Open uses a main tab. */
-export function PlexGraph({ plugin, index, settings: viewSettings, paintSettings, paintLenses, surface, hostLeaf, predicate, lenses, filterLayoutMode, predicateRevision, showCrossLinks, activePath, navigationOrigin = "user", onSemanticDemandAcquired, renderRevision, semanticRevision, findFocusRequest, areaSettingsMode, onAreaSettingsModeChange, onApplyFindFilter, appliedFindFilterQuery, onClearFindFilter, onActivate, onWanderActivate, onOpen, onOpenInSidecar, onCentralNodeEditorChange, onCentralNodeModeChange, actionPorts, actionSurfaceId, displayState, fullscreenAvailable }: {
+export function PlexGraph({ plugin, index, settings: viewSettings, paintSettings, paintLenses, surface, hostLeaf, predicate, lenses, filterLayoutMode, predicateRevision, showCrossLinks, activePath, navigationOrigin = "user", onSemanticDemandAcquired, renderRevision, semanticRevision, findFocusRequest, footprintsControl, areaSettingsMode, onAreaSettingsModeChange, onApplyFindFilter, appliedFindFilterQuery, onClearFindFilter, onActivate, onWanderActivate, onOpen, onOpenInSidecar, onCentralNodeEditorChange, onCentralNodeModeChange, actionPorts, actionSurfaceId, displayState, fullscreenAvailable }: {
   plugin: KplexPlugin;
   index: GraphIndex;
   settings: KplexSettings;
@@ -753,6 +753,7 @@ export function PlexGraph({ plugin, index, settings: viewSettings, paintSettings
   renderRevision: number;
   semanticRevision: number;
   findFocusRequest: number;
+  footprintsControl?: ReactNode;
   areaSettingsMode: boolean;
   onAreaSettingsModeChange: (enabled: boolean) => void;
   onApplyFindFilter: (query: string) => void;
@@ -3538,7 +3539,7 @@ export function PlexGraph({ plugin, index, settings: viewSettings, paintSettings
     "node.activate": graphAction(/** Preserve legacy Enter on the central file, with explicit activation elsewhere. */ context => {
       const page = graphActionPage(context);
       if (!page) return;
-      if (page.transient?.kind === "section") return plugin.openSection(page);
+      if (page.transient?.kind === "section") return plugin.openSection(page, hostLeaf);
       if (context.request.source === "local-hotkey" && page.path === activePath && page.file) return renameFrom(context);
       if (context.target.kind === "node" && context.target.occurrenceId) navigationOccurrence.current = { identity: page.path, id: context.target.occurrenceId };
       onActivate(page);
@@ -3546,14 +3547,14 @@ export function PlexGraph({ plugin, index, settings: viewSettings, paintSettings
     }, context => Boolean(graphActionPage(context))),
     "node.open": graphAction(/** Central files open beneath the sidebar; other content retains owned Sidecar and ghost materialization behavior. */ context => {
       const page = graphActionPage(context);
-      if (page?.transient?.kind === "section") return plugin.openSection(page);
+      if (page?.transient?.kind === "section") return plugin.openSection(page, hostLeaf);
       if (page?.file && page.path === activePath) return plugin.openFileInMainTab(page.file);
       if (page?.file || page?.url) {
         if (context.target.kind === "node" && context.target.occurrenceId) navigationOccurrence.current = { identity: page.path, id: context.target.occurrenceId };
         return onOpenInSidecar(page);
       }
       if (page && context.request.id === "node.open" && context.request.args?.chooseFolder) {
-        return plugin.openPage(page, viewport.current?.ownerDocument, { chooseFolder: true, preserveCenter: context.request.args.preserveCenter === true });
+        return plugin.openPage(page, viewport.current?.ownerDocument, { chooseFolder: true, preserveCenter: context.request.args.preserveCenter === true, hostLeaf });
       }
       if (page) return onOpen(page);
       return;
@@ -3899,7 +3900,7 @@ export function PlexGraph({ plugin, index, settings: viewSettings, paintSettings
       menu.addItem((item) => item
         .setTitle(translate("graph.openSection"))
         .setIcon("heading")
-        .onClick(() => void plugin.openSection(page)));
+        .onClick(() => void plugin.openSection(page, hostLeaf)));
       if (section?.childIds.length) {
         menu.addSeparator();
         for (const [id, label, icon] of [
@@ -4413,6 +4414,7 @@ export function PlexGraph({ plugin, index, settings: viewSettings, paintSettings
       ? translate("hotkeys.selection", { label: keyboardNodes.find(node => node.id === keyboardSelection)?.label ?? "" }) : ""}</span>
     <PlexTypeSelectionStatus query={typeSelection.query} count={typeSelection.count} index={typeSelection.index} translate={translate} />
     {relationshipUpdating && <div className="kplex-relationship-updating" aria-live="polite" aria-busy="true"><ObsidianIcon name="loader-circle" size={16} /><span>{translate("graph.updatingRelationship")}</span></div>}
+    <div className={`kplex-scene-tools${centralEditorMaximized || displayState.zen ? " is-suspended" : ""}`}>
     <PlexFind query={findQuery} focusRequest={findFocusRequest} visible={!centralEditorMaximized && !displayState.zen}
       includePath={findIncludePath} onIncludePathChange={/** A new vocabulary starts its own reveal cycle. */ (includePath) => { setFindIncludePath(includePath); setFindCursor(0); }}
       pathIcon={<ObsidianIcon name="folder-kanban" size={15} />} pathLabel={translate("find.includePath")}
@@ -4423,6 +4425,8 @@ export function PlexGraph({ plugin, index, settings: viewSettings, paintSettings
       icon={<ObsidianIcon name="search" size={15} />} closeIcon={<ObsidianIcon name="x" size={14} />}
       label={translate("find.ariaLabel")} placeholder={translate("find.placeholder")} closeLabel={translate("find.close")}
       matchLabel={translate("find.matches", { count: findPaths.length })} />
+    {!centralEditorMaximized && !displayState.zen && footprintsControl}
+    </div>
     <svg ref={compassElement} className="kplex-compass-background" aria-hidden="true" focusable="false">
       {COMPASS_DIRECTIONS.map(/** Keep four stable decoration nodes; React never owns their animated points. */ direction => <polygon key={direction} points="" fill={colorValueCss(paintSettings.colorPreferences.compass.fills[direction],
         colorValueCss({kind: "theme", variable: COMPASS_COLOR_VARIABLES[direction]}, semanticColorCss(COMPASS_SEMANTIC_SLOTS[direction])))} />)}

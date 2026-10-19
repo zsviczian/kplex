@@ -5,6 +5,7 @@
  * latency. Native opening/representation remains authoritative. Cleanup restores fixtures, wrappers,
  * workspace, settings/follow ownership and exact configuration bytes independently of success.
  */
+import {withNativeDocumentSessions} from "./nativeDocumentSessions.mjs";
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import { existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
@@ -34,7 +35,7 @@ const cli = (command, ...args) => {
   return result.stdout.trim();
 };
 /** Deserialize finite observations without retaining renderer instances across native reloads. */
-const evalJSON = (code) => JSON.parse(cli("eval", "code=" + code).replace(/^=>\s*/, ""));
+const evalJSON = (code) => JSON.parse(cli("eval", "code=" + withNativeDocumentSessions(code)).replace(/^=>\s*/, ""));
 /** Keep polling outside the renderer so native work and cleanup can progress. */
 const pause = (ms) => new Promise(/** Resolve one bounded outer poll interval. */ (done) => setTimeout(done, ms));
 assert.equal(cli("vault", "info=path"), vault);
@@ -63,7 +64,7 @@ function start() {
   const c = (window.__kplex140Latency = {
     settings: JSON.parse(JSON.stringify(p.settings)),
     layout: app.workspace.getLayout(),
-    owners: { linked: p.linkedDocumentLeaf, last: p.lastDocumentLeaf, recent: [...p.recentLeafHistory], sidecars: new Map(p.sidecarLeaves) },
+    owners: { documents:documentSessions(p).capture(), last: p.lastDocumentLeaf, recent: [...p.recentLeafHistory], sidecars: new Map(p.sidecarLeaves) },
     samples: [],
     events: [],
     wrappers: [],
@@ -204,7 +205,7 @@ function start() {
       /** Restore ownership by native leaf identity after layout replacement, never by a remembered DOM instance. */
       const rebind = /** Rebind saved ownership to the current native leaf generation. */ (old) =>
         old ? (leaves.find(/** Match the saved native identity after layout restoration. */ (leaf) => leaf.id === old.id) ?? null) : null;
-      p.linkedDocumentLeaf = rebind(c.owners.linked);
+      await documentSessions(p).restore(c.owners.documents);
       p.lastDocumentLeaf = rebind(c.owners.last);
       p.recentLeafHistory = c.owners.recent.map(rebind).filter(Boolean);
       p.sidecarLeaves.clear();
@@ -235,7 +236,7 @@ function start() {
         p.settings.startInPopout = false;
         p.settings.animationSpeed = 1;
         p.settings.sidecarMarkdownMode = "preview";
-        await p.setDocumentSyncMode("off");
+        await documentSessions(p).off();
         await p.activateView();
         await until(acquire, "Graph absent");
         // A mode reload can still be restoring source-backed startup. Establish the ordinary
@@ -379,7 +380,7 @@ function start() {
           c.rapidReturnTarget = { passed: true, nativeOpens: openCount };
         } finally { releaseOpen?.(); if (companion.openFile === heldOpen) companion.openFile = originalOpen; }
         await p.detachSidecar(host);
-        check(!p.sidecarLeaves.has(host) && p.settings.documentSyncMode === "off", "Ordinary control must release sync");
+        check(!p.sidecarLeaves.has(host) && p.getDocumentSyncMode(host) === "off", "Ordinary control must release sync");
         c.ordinaryGeometry = {
           host: host.view.containerEl.getBoundingClientRect().toJSON(),
           note: companion.view.containerEl.getBoundingClientRect().toJSON(),
@@ -395,8 +396,8 @@ function start() {
         // geometry before normal linked navigation, even with retained pixel bases.
         await p.openSidecar(host, p.index.get(files[0].path));
         await p.moveSidecar(host, "left", p.index.get(files[0].path));
-        await p.setDocumentSyncMode("off");
-        await p.setDocumentSyncMode("pinned", p.index.get(files[0].path));
+        await documentSessions(p).off();
+        await p.setDocumentSyncMode(host,"pinned",p.index.get(files[0].path));
         await p.openSidecar(host, p.index.get(files[0].path));
         const reopened = p.sidecarLeaves.get(host);
         check(reopened && p.getSidecarPosition(host) === "left"

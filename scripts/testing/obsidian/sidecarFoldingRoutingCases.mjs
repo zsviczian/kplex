@@ -56,7 +56,7 @@ export async function runSidecarFoldRoutingCases(ports) {
   /** Reassociation explicitly shows the original document, never accidentally claims its New tab. */
   const restoreOriginalPair = async () => {
     p.restorePlexFoldBeforeReveal(host);
-    p.settings.sidecarPosition = "right";
+    p.documentSession(host).preferences.sidecarPosition = "right";
     check(p.leafIsAttached(host) && p.leafIsAttached(companion) && p.leafIsAttached(sibling), "Routing fixture lost original native content");
     workspace.setActiveLeaf(companion, {focus: true}); await frames();
     if (p.sidecarLeaves.get(host) !== companion) await p.attachAdjacentSidecar(host, "to-plex");
@@ -68,7 +68,7 @@ export async function runSidecarFoldRoutingCases(ports) {
   const explicit = async (leaf, expected) => {
     const surfaceId = surface(leaf); check(surfaceId, "Exact routing surface is unavailable");
     const result = await p.actionManager.dispatch({id, source: "toolbar", surfaceId});
-    check(result.status === "completed", `Exact fold action returned ${result.status}`);
+    check(result.status === "completed", `Exact fold action returned ${JSON.stringify({result,managed:p.sidecarLeaves.has(leaf),candidate:Boolean(p.readPlexFoldCandidate(leaf)),foldedHosts:[...p.collapsedPlexHosts.keys()].map(host=>host.id),overlapDelete:c.overlapDelete})}`);
     await until(/** No readiness/green indicator substitutes for the expected exact native state. */ () => folded(leaf) === expected, "Exact native pair did not reach its requested state"); await frames();
   };
 
@@ -116,7 +116,7 @@ export async function runSidecarFoldRoutingCases(ports) {
 
   // Native split creation and inactive setViewState keep these new graph generations free of
   // explicit focus/pointer interaction. Their actual ledger is checked; it is never reset.
-  const created = [], graphs = [], pairs = [], dialogs = new Set(), position = p.settings.sidecarPosition, openingLeaves = new Set();
+  const created = [], graphs = [], pairs = [], dialogs = new Set(), position = p.getDocumentSidecarPosition(host), openingLeaves = new Set();
   workspace.iterateAllLeaves(/** Native iteration stops on a truthy result; always return void after recording. */ leaf => { openingLeaves.add(leaf); });
   check(openingLeaves.has(host) && openingLeaves.has(companion) && openingLeaves.has(sibling), "Full opening native inventory must protect every original prepared leaf");
   try {
@@ -133,7 +133,7 @@ export async function runSidecarFoldRoutingCases(ports) {
       const graph = workspace.createLeafBySplit(host, "vertical"); graphs.push(graph); created.push(graph); c.createdLeaves.push(graph);
       await openFreshPlex(graph);
       await until(/** Require the real mounted action generation before any route assertion. */ () => surface(graph), `Fresh ${name} action surface did not mount`);
-      p.settings.sidecarPosition = "below"; await p.openSidecar(graph, page);
+      await p.moveSidecar(graph,"below",page); await p.openSidecar(graph, page);
       const documentLeaf = p.sidecarLeaves.get(graph); check(documentLeaf, `Fresh ${name} managed companion missing`);
       check(!openingLeaves.has(documentLeaf), "Fresh disjoint fixture unexpectedly adopted original native content");
       created.push(documentLeaf); c.createdLeaves.push(documentLeaf); pairs.push({name, graph, documentLeaf});
@@ -209,15 +209,17 @@ export async function runSidecarFoldRoutingCases(ports) {
     // the second pass closes only those equally fixture-owned native document leaves.
     for (const graph of graphs) if (p.leafIsAttached(graph)) graph.detach();
     for (const leaf of created.slice().reverse()) if (p.leafIsAttached(leaf)) leaf.detach();
-    await frames(); p.settings.sidecarPosition = position; await restoreOriginalPair();
+    await frames(); p.documentSession(host).preferences.sidecarPosition = position; await restoreOriginalPair();
   }
 
   await scenario("overlapping-host-group-replaces-only-the-old-fold-session", async () => {
     const extra = workspace.createLeafInParent(host.parent, host.parent.children.length); c.createdLeaves.push(extra);
+    const originalDelete=p.deleteSidecarOwner;
+    const observeDelete=function(leaf,...args){if(leaf===extra)c.overlapDelete={stack:new Error().stack,folds:[...p.collapsedPlexHosts.keys()].map(host=>host.id)};return originalDelete.call(this,leaf,...args);};p.deleteSidecarOwner=observeDelete;
     try {
       await openFreshPlex(extra);
       await until(/** The overlap route requires a genuine mounted second Plex generation. */ () => surface(extra), "Overlapping host action surface did not mount");
-      p.settings.sidecarPosition = "right"; workspace.setActiveLeaf(sibling, {focus: true}); await frames();
+      p.documentSession(extra).preferences.sidecarPosition = "right"; workspace.setActiveLeaf(sibling, {focus: true}); await frames();
       await p.attachAdjacentSidecar(extra, "to-leaf", page);
       check(p.sidecarLeaves.get(extra) === sibling && p.sidecarLeaves.get(host) === companion, "Natural overlap fixture did not retain two exact managed tabs");
       check(group(extra) === group(host) && group(sibling) === group(companion), "Natural overlap fixture did not share both native groups");
@@ -225,10 +227,11 @@ export async function runSidecarFoldRoutingCases(ports) {
       const oldButton = group(companion).querySelector(".kplex-sidecar-unfold-plex");
       await explicit(extra, true);
       check(!folded(host) && folded(extra) && p.collapsedPlexHosts.size === 1 && !oldButton?.isConnected, "Overlapping fold retained a hidden chain/old control");
-      check(group(companion).querySelectorAll(".kplex-sidecar-unfold-plex").length === 1 && p.sidecarLeaves.get(host) === companion && p.sidecarLeaves.get(extra) === sibling, "Overlapping fold duplicated recovery or transferred associations");
+      check(group(companion).querySelectorAll(".kplex-sidecar-unfold-plex").length === 1 && p.sidecarLeaves.get(host) === companion && p.sidecarLeaves.get(extra) === sibling, `Overlapping fold duplicated recovery or transferred associations: ${JSON.stringify({controls:group(companion).querySelectorAll(".kplex-sidecar-unfold-plex").length,original:p.sidecarLeaves.get(host)?.id,expectedOriginal:companion.id,extra:p.sidecarLeaves.get(extra)?.id,expectedExtra:sibling.id,deletion:c.overlapDelete})}`);
       oldButton?.click(); await frames(); check(folded(extra), "Old overlap control retired the successor fold");
       await explicit(extra, false); check(!folded(host) && !folded(extra), "Overlapping recovery left shared group hidden");
     } finally {
+      if(p.deleteSidecarOwner===observeDelete)p.deleteSidecarOwner=originalDelete;
       p.restorePlexFoldBeforeReveal(extra); p.restorePlexFoldBeforeReveal(host);
       if (p.sidecarLeaves.has(extra)) await p.detachSidecar(extra);
       if (p.leafIsAttached(sibling)) await sibling.setViewState({type: "empty", active: false});

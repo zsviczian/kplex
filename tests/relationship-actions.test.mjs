@@ -735,6 +735,7 @@ for (const consumer of ["folder", "ghost"]) test(`${consumer} creation also awai
 for (const central of [true, false]) test(`ghost promotion remaps saved navigation and ${central ? "follows the promoted center" : "preserves another center"}`, async () => {
   const previousWindow = globalThis.window; globalThis.window = { setTimeout, clearTimeout };
   const f = createdMetadataFixture(), ghost = { path: "Ghost", name: "Ghost display" }; let operation;
+  const host={},session={centerPath:central?"Ghost":"Other.md"};f.context.documentSession=owner=>owner===host?session:null;
   try {
     f.context.settings = { lastActivePath: central ? "Ghost" : "Other.md" };
     f.context.rememberNewNodeDefaultType = async () => {};
@@ -742,12 +743,13 @@ for (const central of [true, false]) test(`ghost promotion remaps saved navigati
     f.context.remapNavigationPaths = (oldPath, path) => {
       assert.equal(oldPath, "Ghost", "Captured identity survives synchronous page promotion");
       if (f.context.settings.lastActivePath === oldPath) f.context.settings.lastActivePath = path;
+      if(session.centerPath===oldPath)session.centerPath=path;
       f.events.push("remapped"); return true;
     };
-    f.context.notifyNavigation = path => { assert.equal(path, f.file.path); assert.equal(f.context.settings.lastActivePath, path); f.events.push("navigated"); };
+    f.context.notifyNavigation = (path,owner) => {assert.equal(owner,host); assert.equal(path, f.file.path); assert.equal(f.context.settings.lastActivePath, path); f.events.push("navigated"); };
     f.context.saveSettings = async (...args) => { assert.deepEqual(args, [false, false]); f.events.push("saved"); };
     f.context.openInDocumentLeaf = async file => { assert.equal(file, f.file); f.events.push("opened"); };
-    operation = productionFunction("src/main.ts", "materializeGhostPage", {}).call(f.context, ghost, "Created", "markdown", "");
+    operation = productionFunction("src/main.ts", "materializeGhostPage", {}).call(f.context, ghost, "Created", "markdown", "",undefined,undefined,{},()=>true,false,host);
     await nextCreatedStep(); f.observe(); assert.equal(await operation, true);
     assert.deepEqual(f.events, ["native-write", "cache-body-observed", "materialized", "remapped", ...(central ? ["navigated"] : []), "saved", "opened"]);
     assert.equal(f.context.settings.lastActivePath, central ? f.file.path : "Other.md");
