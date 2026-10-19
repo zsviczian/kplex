@@ -16,7 +16,7 @@ async function scenario(app, c) {
   const folder = "Kplex-Sections-162-" + Date.now();
   const path = name => folder + "/" + name + ".md";
   const owned = [], releases = [], restores = [];
-  let leaf, createdFolder, restoreWindow;
+  let leaf, createdFolder, restoreWindow, failure;
   const check = (value, message) => { if (!value) throw Error(message); };
   const wait = ms => new Promise(resolve => window.setTimeout(resolve, ms));
   /** Native metadata and React each publish independently; no manual refresh or navigation retry. */
@@ -83,7 +83,11 @@ async function scenario(app, c) {
     await wait(300);
     for (const [key, value] of Object.entries(work)) check(value === 0, "Presentation performed " + key);
     check(direct("Center") && app.vault.getFileByPath(path("Center")).stat.mtime === centerMtime, "Stationary center changed");
-    return { cases: ["native fold grouping", "preamble and repeated links", "stationary inbound add", "stationary inbound removal", "visibility round trip"], work };
+    c.progress = { phase: "complete", cases: ["native fold grouping", "preamble and repeated links", "stationary inbound add", "stationary inbound removal", "visibility round trip"], work };
+    return c.progress;
+  } catch (error) {
+    failure = error;
+    throw error;
   } finally {
     const errors = [];
     /** One cleanup failure must never skip another fixture, native owner or disk restoration. */
@@ -94,12 +98,12 @@ async function scenario(app, c) {
     p.settings = settings; p.savedSettingsPolicy = policy;
     if (active) await clean(() => app.workspace.setActiveLeaf(active, { focus: true }));
     for (const file of owned.reverse()) if (app.vault.getFileByPath(file.path) === file) await clean(() => app.vault.delete(file));
-    if (createdFolder && app.vault.getFolderByPath(folder) === createdFolder && !createdFolder.children.length) await clean(() => app.vault.delete(createdFolder));
+    if (createdFolder && app.vault.getFolderByPath(folder) === createdFolder && !createdFolder.children.length) await clean(() => app.vault.delete(createdFolder, true));
     await clean(() => p.settingsWriteQueue);
     await wait(1000);
     await clean(() => app.vault.adapter.write(p.manifest.dir + "/data.json", c.originalData));
     if (restoreWindow) await clean(restoreWindow);
-    if (errors.length) throw Error("Section fixture cleanup: " + errors.join("; "));
+    if (errors.length) throw Error((failure ? "Scenario: " + String(failure) + "; " : "") + "Section fixture cleanup: " + errors.join("; "));
   }
 }
 
