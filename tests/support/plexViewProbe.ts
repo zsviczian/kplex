@@ -7,6 +7,8 @@ export function createProbeViewDefinition(paths: {root: string; repeated: string
 return {
   id: "test.situated", version: 1, labelKey: "Situated probe", icon: "orbit",
   capabilities: {sections: false, descendants: false, editor: true, compact: false}, defaultState: null,
+  configuration: {version: 1, fields: {ridgeOffset: {defaultValue: 0,
+    validate: value => typeof value === "number" && Number.isFinite(value) && value >= 0 && value <= 50}}},
   restoreState: value => value && typeof value === "object" ? value : null,
   project(input): PlexProjection | null {
     const attention = input.read.node(input.attention), root = input.read.node(nodeId(paths.root)), repeated = input.read.node(nodeId(paths.repeated));
@@ -31,7 +33,8 @@ return {
       const members = occurrence.synthetic?.members.map(id => coordinates[id as keyof typeof coordinates]).filter(Boolean) ?? [];
       const point = coordinates[measured.id as keyof typeof coordinates] ?? {x: members.reduce((sum, row) => sum + row.x, 0) / members.length,
         y: members.reduce((sum, row) => sum + row.y, 0) / members.length};
-      return [measured.id, {...point, width: measured.width, height: measured.height}];
+      const offset = context?.configuration?.status === "available" ? Number(context.configuration.values.ridgeOffset) : 0;
+      return [measured.id, {...point, x: point.x + (measured.id === "layout-root" ? offset : 0), width: measured.width, height: measured.height}];
     })), areas: [
       {id: "harbor", labelKey: "Harbor", bounds: {x: 100, y: 0, width: 300, height: 300}},
       {id: "ridge", labelKey: "Ridge", bounds: {x: -300, y: -40, width: 260, height: 240}},

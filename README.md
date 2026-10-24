@@ -8,13 +8,15 @@
 
 **K-Plex (Knowledge Plex)** is an ontology-driven knowledge navigator for Obsidian. It turns relationships already expressed in your Markdown notes, properties, and vault structure into a spatial view you can explore and edit. The meaning of a relationship helps determine *where* it appears—not just how it looks.
 
-At its heart is the **Idea Compass**: focus on one note, then look **north** for origins and parents, **south** for children and where an idea leads, **west** for friends and supporting connections, and **east** for challengers and transformative connections. As you navigate, these directions retain their meaning, helping you reason about your knowledge in context.
+At its heart is the **Compass**: focus on one note, then look **north** for origins and parents, **south** for children and where an idea leads, **west** for friends and supporting connections, and **east** for challengers and transformative connections. As you navigate, these directions retain their meaning, helping you reason about your knowledge in context.
 
-**Explore, connect, and reshape your knowledge.** Drag notes from Obsidian's file explorer into the Plex to navigate or create relationships. Drag existing related nodes between directions to reorganize your knowledge. Open notes for editing without leaving the graph, use Graph Lenses to focus on what matters, or let Wander take you through connected ideas.
+Compass is the current K-Plex canvas view. K-Plex canvases are separate from Obsidian Canvas files, which remain ordinary attachment nodes.
+
+**Explore, connect, and reshape your knowledge.** Drag notes from Obsidian's file explorer into the canvas to navigate or create relationships. Drag existing related nodes between directions to reorganize your knowledge. Open notes for editing without leaving the graph, use Graph Lenses to focus on what matters, or let Wander take you through connected ideas.
 
 [![Watch the video](https://img.youtube.com/vi/ii15UwpsvtU/maxresdefault.jpg)](https://www.youtube.com/watch?v=ii15UwpsvtU)
 
-K-Plex is designed for people who want to *move through* their notes rather than stare at an entire vault at once: follow a parent, compare challengers, see siblings, open a related document beside the graph, expand a note into sections, or temporarily reshape the Plex with Graph Lenses.
+K-Plex is designed for people who want to *move through* their notes rather than stare at an entire vault at once: follow a parent, compare challengers, see siblings, open a related document beside the graph, expand a note into sections, or temporarily reshape the canvas with Graph Lenses.
 
 > Warning: K-Plex is a new plugin and is still undergoing real-world testing. Bugs and unexpected behavior are possible. Before using K-Plex to create or modify relationships between important notes, I strongly recommend trying it first on a small set of test notes. As with any plugin that can modify your vault, keep a current backup of your data.
 
@@ -22,7 +24,7 @@ K-Plex is designed for people who want to *move through* their notes rather than
 
 ## Why K-Plex?
 
-Large graph views can quickly become dense and hard to navigate. K-Plex uses the **Idea Compass** to show a structured neighborhood around the current note. Configured ontology and relationship evidence guide the direction of connections, rather than treating link types as styling alone. Right-click a connection and choose **Connection details…** to inspect the ontology and sources behind its placement.
+Large graph views can quickly become dense and hard to navigate. K-Plex uses the **Compass** to show a structured neighborhood around the current note. Configured ontology and relationship evidence guide the direction of connections, rather than treating link types as styling alone. Right-click a connection and choose **Connection details…** to inspect the ontology and sources behind its placement.
 
 That makes the graph useful as a working surface:
 
@@ -49,40 +51,40 @@ K-Plex uses its own plugin ID, so you can keep ExcaliBrain installed while migra
 ## Getting started
 
 1. Install and enable K-Plex.
-2. Open it from the ribbon or run **Open K-Plex** from the Command Palette.
+2. Open it from the ribbon or run **K-Plex: Open canvas** from the Command Palette.
 3. Allow the first index to complete. On later starts K-Plex restores its cached index and becomes usable much faster.
-4. Click a note in the Plex to make it the new center.
+4. Click a note in the canvas to make it the new center.
 5. Use the four relationship areas around the center to explore or build your knowledge structure.
 
 Useful commands include:
 
-- **Open K-Plex**
-- **New K-Plex tab** — also available from the **+** toolbar button
+- **K-Plex: Open canvas**
+- **K-Plex: New canvas tab** — also available from the **+** toolbar button
 - **Focus active note in K-Plex**
-- **Open K-Plex in side panel**
-- **Open K-Plex in pop-out window** (desktop)
+- **K-Plex: Open canvas in side panel**
+- **K-Plex: Open canvas in pop-out window** (desktop)
 - **Rebuild K-Plex index**
 - **Add parent / child / friend / challenger**
 
 On phones, K-Plex opens naturally in the side panel. Tablets can use either a normal K-Plex tab or the side panel.
 
-## Navigating the Plex
+## Navigating the canvas
 
 - **Single-click / tap** a node to make it the center.
 - **Double-click** a file-backed node to open it in Obsidian.
 - Double-clicking a URL opens it in the browser.
-- Double-clicking an unresolved link can create the missing note. **Control-click** (**Command-click** on macOS) opens its creation dialog without moving the Plex center. A placeholder can already specify its intended folder.
+- Double-clicking an unresolved link can create the missing note. **Control-click** (**Command-click** on macOS) opens its creation dialog without moving the canvas center. A placeholder can already specify its intended folder.
 - Folder and tag nodes can also become the center.
 - An open, unpinned **File properties** pane follows the central file while K-Plex is active. Pinned or grouped Properties panes keep their own file; non-file centers clear the unpinned pane.
 - Drag empty graph space to pan and use the mouse wheel or pinch gesture to zoom.
 - Long-press on touch devices opens the same context menus available with right-click on desktop.
 - Clicking or touching empty graph space clears temporary node, gate and connector highlights.
-- Related connections require **Alt** (**Option** on macOS) while hovering over a node, gate or connector by default. Releasing the key clears the highlight. Turn off **Require modifier for hover highlighting** under **Settings → K-Plex → Plex behavior → Navigation & interaction** to use the short hover delay instead.
+- Related connections require **Alt** (**Option** on macOS) while hovering over a node, gate or connector by default. Releasing the key clears the highlight. Turn off **Require modifier for hover highlighting** under **Settings → K-Plex → Canvas behavior → Navigation & interaction** to use the short hover delay instead.
 - Dotted relation-area outlines and resize edges also require **Alt/Option** by default. **Require modifier for area outlines** controls this separately; explicit **Area settings** always shows the editable areas. Existing saved choices are preserved.
-- Right-click empty Plex space for **K-Plex settings**, **Zen mode**, **Full-screen mode**, **Set background color…**, **Wander**, and **Report a bug**. The background picker saves only when you select **Save**.
-- Use **Fit graph** whenever you want to bring the visible Plex back into view.
+- Right-click empty canvas space for **K-Plex settings**, **Zen mode**, **Full-screen mode**, **Set background color…**, **Wander**, and **Report a bug**. The background picker saves only when you select **Save**.
+- Use **Fit graph** whenever you want to bring the visible canvas back into view.
 
-K-Plex uses positional animation when navigating: the incoming center glides from its previous position along a gentle arc, while other nodes move to their new locations. Nodes without a visible starting position use a simple entry animation. Animation speed can be changed in **Settings → K-Plex → Plex behavior**, including turning it off completely.
+K-Plex uses positional animation when navigating: the incoming center glides from its previous position along a gentle arc, while other nodes move to their new locations. Nodes without a visible starting position use a simple entry animation. Animation speed can be changed in **Settings → K-Plex → Canvas behavior**, including turning it off completely.
 
 ### Fullscreen and Zen mode
 
@@ -92,11 +94,11 @@ Use **Expand** to enter **Zen mode**, hiding K-Plex’s top toolbar, pins and bo
 
 An unclaimed **Escape** with the graph focused exits Zen first, then fullscreen. Search queries, connection sessions and native editors, menus and dialogs retain their own Escape behavior. Fullscreen exits when you switch to another native pane or close the view. These modes last only for the current view session.
 
-With **Auto fit on navigation** enabled, the central node stays centered and the Plex adjusts as additional related nodes load. Panning or zooming manually keeps your chosen view until the next navigation or **Fit graph**.
+With **Auto fit on navigation** enabled, the central node stays centered and the canvas adjusts as additional related nodes load. Panning or zooming manually keeps your chosen view until the next navigation or **Fit graph**.
 
 ### Wander
 
-Select **Wander** in K-Plex’s actions or Obsidian’s Command Palette, or right-click the Plex and select **Wander**. K-Plex enters Zen mode and explores displayed, navigable nodes, highlighting each destination before moving. The bottom controls let you pause/resume, choose **3–15 seconds per move**, or stop with **X**.
+Select **Wander** in K-Plex’s actions or Obsidian’s Command Palette, or right-click the canvas and select **Wander**. K-Plex enters Zen mode and explores displayed, navigable nodes, highlighting each destination before moving. The bottom controls let you pause/resume, choose **3–15 seconds per move**, or stop with **X**.
 
 Navigating, editing, panning or using other controls pauses wandering. Select **Play** to continue from the current center. At an exhausted route, Wander pauses so you can choose another node or explore again. **X** or **Escape** stops wandering and restores your previous Zen state; fullscreen stays independent.
 
@@ -104,17 +106,17 @@ Navigating, editing, panning or using other controls pauses wandering. Select **
 
 The toolbar search box (**F4**) searches notes, folders, tags, attachments, Canvas files and indexed URLs. It matches display names, file names, aliases, paths and URL substrings using fuzzy matching. Exact and prefix matches rank above looser matches. Type **#** before a query to search tags only; result icons identify each kind of item. Centering a hierarchical tag shows its parent, child tags and associated notes, even when tags are hidden from ordinary note neighborhoods.
 
-Use the toolbar **+** or **New K-Plex tab** command to open another Plex in an adjacent tab group. Each view keeps its own central editor/normal-node choice and Markdown reading/editing mode, including when its workspace tab is restored.
+Use the toolbar **+** or **K-Plex: New canvas tab** command to open another canvas in an adjacent tab group. Each view keeps its own central editor/normal-node choice and Markdown reading/editing mode, including when its workspace tab is restored.
 
-Drag a note, attachment, URL or placeholder node into a Markdown editor to insert its link, or into another K-Plex view to navigate or start a relationship. Tags are inserted as `#tag` text and can also be dragged between Plexes for navigation. Desktop node dragging uses Obsidian's native link handling; gates retain their connection gestures.
+Drag a note, attachment, URL or placeholder node into a Markdown editor to insert its link, or into another K-Plex view to navigate or start a relationship. Tags are inserted as `#tag` text and can also be dragged between canvases for navigation. Desktop node dragging uses Obsidian's native link handling; gates retain their connection gestures.
 
 History and pins show type icons and full tag paths. Drag a Markdown note onto a tag in either list to add that tag to the note's **tags** property.
 
 Drag a file or folder's gate onto a folder to move it there. With a folder in the center, you can also drag its gate onto a file or attachment to bring that file into the folder. K-Plex shows the source and destination for confirmation; hold **Alt** (**Option** on macOS) while dragging to move immediately. Collision and folder-ancestry checks still apply, and Obsidian updates links according to your file settings. Dragging a folder's child gate onto empty space still creates a note inside that folder.
 
-Drag a tag's gate onto a Markdown note in the Plex, history or pins to assign it. You can also drop a tag from another Plex into a note's **Parents** area. Choose **Tag** or **Note Type** before saving. A note has one Note Type: when replacing it, choose whether to keep the current type or keep the new type, with the other remaining an ordinary tag. Right-click the tag connection to change between the two. Note Type tag links are twice as thick by default; customize them under **Visual styling → Link styling → Note Type tag links**.
+Drag a tag's gate onto a Markdown note in the canvas, history or pins to assign it. You can also drop a tag from another canvas into a note's **Parents** area. Choose **Tag** or **Note Type** before saving. A note has one Note Type: when replacing it, choose whether to keep the current type or keep the new type, with the other remaining an ordinary tag. Right-click the tag connection to change between the two. Note Type tag links are twice as thick by default; customize them under **Visual styling → Link styling → Note Type tag links**.
 
-For a narrower Plex, select **One-sided layout** below the Parents and Children sliders in **Layout controls**. This checkbox changes the current device and pane context. Friends and challengers appear in separate groups on the left, retaining their relationship meanings and filters. All six choices are also available under **Settings → K-Plex → Plex behavior → One-sided layout**: desktop, tablet and mobile, each with main-tab and side-panel settings. Pop-outs use the main-tab choice for their device.
+For a narrower canvas, select **One-sided layout** below the Parents and Children sliders in **Layout controls**. This checkbox changes the current device and pane context. Friends and challengers appear in separate groups on the left, retaining their relationship meanings and filters. All six choices are also available under **Settings → K-Plex → Canvas behavior → Views → Compass → One-sided layout**: desktop, tablet and mobile, each with main-tab and side-panel settings. Pop-outs use the main-tab choice for their device.
 
 Choose curved or straight connections under **Settings → K-Plex → Visual styling → Link styling → Link shape**.
 
@@ -129,11 +131,11 @@ Keyboard shortcuts while K-Plex has focus:
 - **Escape** — close the result list
 - **Alt/Option+/** — focus Vault search
 
-Select the graph itself to use graph shortcuts. **Arrow keys** highlight displayed nodes; **Alt/Option+arrow** jumps to another area. **Cross sections at arrow-key boundaries** lets plain arrows leave an area when its edge is reached. It starts enabled in a new vault and remains off when upgrading existing settings. **Enter** brings a highlighted neighbor to the center; on the central file it opens **Rename**. **Ctrl/Cmd+Up / Down / Left / Right** creates a parent, child, friend or challenger from the Plex center.
+Select the graph itself to use graph shortcuts. **Arrow keys** highlight displayed nodes; **Alt/Option+arrow** jumps to another area. **Cross sections at arrow-key boundaries** lets plain arrows leave an area when its edge is reached. It starts enabled in a new vault and remains off when upgrading existing settings. **Enter** brings a highlighted neighbor to the center; on the central file it opens **Rename**. **Ctrl/Cmd+Up / Down / Left / Right** creates a parent, child, friend or challenger from the canvas center.
 
 Graph shortcuts work while the graph has focus, including when the Editor node is enabled. Search fields, editors, buttons and dialogs retain their own editing and navigation keys. **Ctrl/Cmd+Shift+G** focuses the graph and **Ctrl/Cmd+Shift+E** focuses its existing embedded or Sidecar editor. **Alt/Option+/** focuses Vault search from the canvas. In an editor, **Ctrl/Cmd+F** remains the editor's Find command.
 
-Type while the graph has focus to select displayed nodes by their labels across all areas. Matching ignores case and uses the exact phrase you type; nodes stay visible. Each added character selects the next match. **Tab** moves to the next match, **Shift+Tab** to the previous one, **Backspace** edits the phrase and **Escape** clears it. This does not change Vault search or the Plex center. A saved custom letter shortcut still runs its assigned action.
+Type while the graph has focus to select displayed nodes by their labels across all areas. Matching ignores case and uses the exact phrase you type; nodes stay visible. Each added character selects the next match. **Tab** moves to the next match, **Shift+Tab** to the previous one, **Backspace** edits the phrase and **Escape** clears it. This does not change Vault search or the canvas center. A saved custom letter shortcut still runs its assigned action.
 
 Open the **K-Plex command palette** with **Alt/Option+.** on the graph, or use **Alt/Option+?** for a read-only keyboard shortcut reference. The palette provides keyboard routes to node opening, relationship creation and inspection, section folding, pins, history and view controls. Additional graph defaults are:
 
@@ -144,7 +146,7 @@ Open the **K-Plex command palette** with **Alt/Option+.** on the graph, or use *
 | **Ctrl/Cmd+Enter** | Center the selected note and ensure its sidecar is open |
 | **Alt/Option+P** | Pin or unpin the selected node, or the center |
 | **Alt/Option+B** / **Alt/Option+H** | Open the complete pins / history picker |
-| **Backspace** / **Shift+Backspace** | Move back / forward in Plex history when no typing search is active |
+| **Backspace** / **Shift+Backspace** | Move back / forward in canvas history when no typing search is active |
 | **Alt/Option+C** | Connect the selected node, or the center, to an existing node |
 | **Alt/Option+M** | Open the selected node's context menu, or the center's |
 
@@ -152,22 +154,22 @@ Manage these choices under **Settings → K-Plex → Actions and shortcuts**. Se
 
 Red shortcut bubbles and the red **Conflicts** filter identify overlaps with another K-Plex action. Conflicting shortcuts stay saved; neither assignment is removed automatically. Names appear beneath each setting: red text identifies other K-Plex actions, and warning-colored text identifies Obsidian commands that also use the shortcut. A globe marks an Obsidian overlap. Ambiguous local shortcuts run neither action until you change or remove an assignment. Physical-key overlaps that depend on your keyboard layout are marked as possible. An Obsidian assignment for the same K-Plex action uses an information icon.
 
-Publication is separate from local shortcuts. Published actions appear in Obsidian's Command Palette and can receive global shortcuts under **Settings → Hotkeys**. Turning publication off leaves the local action available. Existing **Add child**, **Add parent**, **Add friend** and **Add challenger** commands operate on the Plex center even when another note's editor has focus. Actions explicitly named **selected node** require a selected graph node.
+Publication is separate from local shortcuts. Published actions appear in Obsidian's Command Palette and can receive global shortcuts under **Settings → Hotkeys**. Turning publication off leaves the local action available. Existing **Add child**, **Add parent**, **Add friend** and **Add challenger** commands operate on the canvas center even when another note's editor has focus. Actions explicitly named **selected node** require a selected graph node.
 
-Press **Ctrl/Cmd+F**, or select the magnifier in the upper-right corner of the Plex, to **Find in Plex**. This separate field searches displayed node names and ontology labels in the current Plex and reveals matches in scrollable areas. Select its **Include paths** button to also search file paths. Matching a note does not highlight its surrounding links. It has no results dropdown and does not change the central node or navigation history. **Enter** moves to the next match, **Shift+Enter** moves to the previous match, and **Escape** clears and closes Find. Select **Filter matching notes**, beside **Include paths**, to keep nodes whose labels contain the Find text and reflow the layout around the center. The center remains visible. Select the button again to turn it off and restore the previous Quick Filter and layout. Changing the Find text and selecting the button replaces the temporary filter. Manual edits in **Filters and lenses** take ownership of that filter.
+Press **Ctrl/Cmd+F**, or select the magnifier in the upper-right corner of the canvas, to **Find in canvas**. This separate field searches displayed node names and ontology labels in the current canvas and reveals matches in scrollable areas. Select its **Include paths** button to also search file paths. Matching a note does not highlight its surrounding links. It has no results dropdown and does not change the central node or navigation history. **Enter** moves to the next match, **Shift+Enter** moves to the previous match, and **Escape** clears and closes Find. Select **Filter matching notes**, beside **Include paths**, to keep nodes whose labels contain the Find text and reflow the layout around the center. The center remains visible. Select the button again to turn it off and restore the previous Quick Filter and layout. Changing the Find text and selecting the button replaces the temporary filter. Manual edits in **Views and lenses** take ownership of that filter.
 
 K-Plex also keeps a **Past nodes** history for back/forward navigation. Drag a relationship gate onto a history entry or pinned note to connect using that gate’s relationship type; the entry lights up while you hover. Dragging a node’s body onto history or a pinned note offers a choice of relationship type. Pins are separate from history and are useful for keeping a small number of important nodes available as stable shortcuts.
 
-Select **Footprints**, beside Find in the upper-right corner, to see this Plex's visits, newest first. Repeated visits stay in the list. Use **Copy as Markdown** at the top to copy the whole trail as a bullet list of links and tags. Selecting an older visit appends a new visit; **Start here** keeps only the current one. Each Plex has its own trail, retained when moving between windows and cleared when that Plex closes or Obsidian restarts. Saved history and pins remain shared across Plexes.
+Select **Footprints**, beside Find in the upper-right corner, to see this canvas's visits, newest first. Repeated visits stay in the list. Use **Copy as Markdown** at the top to copy the whole trail as a bullet list of links and tags. Selecting an older visit appends a new visit; **Start here** keeps only the current one. Each canvas has its own trail, retained when moving between windows and cleared when that canvas closes or Obsidian restarts. Saved history and pins remain shared across canvases.
 
 Select **Editor node** to expand a file or URL inside the central node. Images fit both dimensions without cropping. The editor’s **Open menu** button provides the same opening destinations as the node context menu. Maximizing the editor temporarily hides Find and preserves its query. Webpages use a desktop webview with browser authentication, or an iframe on Obsidian mobile. YouTube and Vimeo links use embedded players; YouTube Shorts use a portrait frame. Expanding a URL loads that website, which receives normal browser requests and may store its own cookies.
 
-For Markdown notes in a normal editor node, select **Scale text with Plex zoom** to make text grow or shrink with the graph. Select **Keep text size** to retain the native font size as the frame changes. K-Plex remembers this choice for each note. Fullscreen editors use the native text size.
+For Markdown notes in a normal editor node, select **Scale text with canvas zoom** to make text grow or shrink with the graph. Select **Keep text size** to retain the native font size as the frame changes. K-Plex remembers this choice for each note. Fullscreen editors use the native text size.
 
 
 ## Creating and editing relationships
 
-K-Plex lets you create Parent, Child, Friend, Challenger, Previous and Next relationships directly from the Plex. You can start from a gate, use the Command Palette, or use node/connector context menus.
+K-Plex lets you create Parent, Child, Friend, Challenger, Previous and Next relationships directly from the canvas. You can start from a gate, use the Command Palette, or use node/connector context menus.
 
 The relationship dialog provides:
 
@@ -183,13 +185,13 @@ The relationship dialog provides:
 - explicit completion choices: return, create another, follow or edit;
 - a **Placeholder** action that creates only the unresolved relationship and no file.
 
-The dialog names its captured origin. Navigating the Plex elsewhere while it is open does not change that origin. **Ctrl/Cmd+Enter** submits; **Ctrl/Cmd+Shift+Enter** creates or connects another node while keeping the same origin and ontology. If a suggestion list is open, accept or dismiss that suggestion first.
+The dialog names its captured origin. Navigating the canvas elsewhere while it is open does not change that origin. **Ctrl/Cmd+Enter** submits; **Ctrl/Cmd+Shift+Enter** creates or connects another node while keeping the same origin and ontology. If a suggestion list is open, accept or dismiss that suggestion first.
 
 The folder field starts with Obsidian's calculated destination. Select an existing folder from its suggestions, type a new folder, or use `/` for the vault root. The same picker appears when you hold **Ctrl/Cmd** while double-clicking a placeholder. Moving a path-qualified placeholder to a different folder updates its saved references while keeping their aliases. If that save stops partway, the dialog retains the created file for retry.
 
 Choose **Return** to keep the origin and return to the invoking control, **Create another** to clear the name for another entry, **Follow node** to center the result, or **Edit note** to open its supported editor. The default choice honors **Open for editing** for newly created files. Placeholders and URLs can be followed but do not open as editable notes.
 
-Saved notes and relationships update the Plex without waiting for a full indexing cycle. If a save succeeds while the Plex update remains pending, the dialog offers a targeted refresh and prevents duplicate submission. If note creation finishes only partly, use its recovery controls to link or open the file that already exists. A placeholder retains its selected destination, with the filename as its default display alias: `[[folder/path/filename|filename]]`. You can provide a different alias. You can use the same filename in different folders. **After saving** shows the action that will run: **Return**, **Create another**, **Follow node** or **Edit note**. **Edit note** centers the new note and opens it in the companion Sidecar in Obsidian's normal Markdown editor, ready for writing.
+Saved notes and relationships update the canvas without waiting for a full indexing cycle. If a save succeeds while the canvas update remains pending, the dialog offers a targeted refresh and prevents duplicate submission. If note creation finishes only partly, use its recovery controls to link or open the file that already exists. A placeholder retains its selected destination, with the filename as its default display alias: `[[folder/path/filename|filename]]`. You can provide a different alias. You can use the same filename in different folders. **After saving** shows the action that will run: **Return**, **Create another**, **Follow node** or **Edit note**. **Edit note** centers the new note and opens it in the companion Sidecar in Obsidian's normal Markdown editor, ready for writing.
 
 When folder nodes are visible, drag outward from a folder's **Child gate** to create a new Markdown note (or Excalidraw drawing when available) directly in that folder. The folder location itself supplies the file-tree relationship, so K-Plex does not create a separate note-to-note link. Ctrl/Cmd+Enter uses the same remembered Markdown/Excalidraw default as the normal create-child workflow, and folder creation never offers a placeholder because an unresolved placeholder has no physical folder yet. Dropping a regular note gate onto a folder remains available as a secondary file-only shortcut.
 
@@ -205,7 +207,7 @@ A visible connection may come from YAML properties, body fields, ordinary links,
 
 ### Deleting notes and placeholders
 
-Right-click a Markdown-backed node or unresolved placeholder and choose **Delete note…** / **Delete placeholder…**. The first time you use this workflow, K-Plex explains the behavior and asks whether file deletions should always require confirmation. That preference is also available under **Settings → K-Plex → Plex behavior → Navigation & interaction**.
+Right-click a Markdown-backed node or unresolved placeholder and choose **Delete note…** / **Delete placeholder…**. The first time you use this workflow, K-Plex explains the behavior and asks whether file deletions should always require confirmation. That preference is also available under **Settings → K-Plex → Canvas behavior → Navigation & interaction**.
 
 Deleting a note uses Obsidian's normal trash workflow. K-Plex removes it from navigation history and, when it was central, returns to the most recent remaining node or the vault root. Deleting a file outside K-Plex keeps its centered node as a placeholder.
 
@@ -224,7 +226,7 @@ Right-click a connector to inspect, unlink or hide its relationship:
 
 A fresh installation follows Obsidian’s theme. In **Settings → K-Plex → Visual styling → Colors**, choose fixed colors, live theme colors or named Light/Dark pairs for nodes, links and lenses. Existing saved colors stay intact; **Use theme colors for standard styles…** previews an explicit adoption.
 
-Optional **Directional background tint** adds four subtle Compass sectors behind the graph. It is off by default and follows the rendered center while you navigate. See [Colors and appearance](docs/APPEARANCE.md) for color sources, paired previews, palette management and tint settings.
+Optional **Area tint** adds four subtle Compass sectors behind the graph. It is off by default and follows the rendered center while you navigate. See [Colors and appearance](docs/APPEARANCE.md) for color sources, paired previews, palette management and tint settings.
 
 ## Quick Filter and Graph Lenses
 
@@ -232,7 +234,7 @@ K-Plex offers two levels of filtering.
 
 ### Quick Filter
 
-Use the funnel button for fast, temporary filtering. Drag the **Filters and lenses** heading to move the panel; closing and reopening it returns it beside the funnel. Filter by:
+Use the funnel button for fast, temporary filtering. Drag the **Views and lenses** heading to move the panel; closing and reopening it returns it beside the funnel. Filter by:
 
 - keyword;
 - tag;
@@ -242,7 +244,7 @@ Keyword matching includes title, path, alias and relationship definition.
 
 ### Graph Lenses
 
-**Graph Lenses** are reusable filters and styling rules for the Plex. They work only on the currently visible K-Plex neighborhood; they do not turn K-Plex into an arbitrary whole-vault graph query tool.
+**Graph Lenses** are reusable filters and styling rules for the canvas. They work only on the currently visible K-Plex neighborhood; they do not turn K-Plex into an arbitrary whole-vault graph query tool.
 
 A lens can match three kinds of things:
 
@@ -269,9 +271,9 @@ Saved lenses have an eye control, so you can turn them on and off without deleti
 At the top of the filter panel you can choose how filtered results are displayed:
 
 - **Keep layout** — hide nonmatching elements but leave surviving nodes in their original positions.
-- **Reflow** — lay out the surviving relationships as though they were the only items in the Plex.
+- **Reflow** — lay out the surviving relationships as though they were the only items in the canvas.
 
-Keep layout is useful when you want to preserve spatial context. Reflow is useful when a large Plex is reduced to a small focused subset.
+Keep layout is useful when you want to preserve spatial context. Reflow is useful when a large canvas is reduced to a small focused subset.
 
 When a visibility filter is active, gate counts can show **shown/total**, such as `2/12`, so you can still see that hidden relationships exist.
 
@@ -285,7 +287,7 @@ For a detailed walkthrough, see [Graph Lenses](docs/GRAPH_LENSES.md).
 
 ## Expand a Markdown note into sections
 
-A Markdown note can be expanded from the center into its heading hierarchy. This gives you a temporary document outline directly inside the Plex without permanently adding headings to the vault graph.
+A Markdown note can be expanded from the center into its heading hierarchy. This gives you a temporary document outline directly inside the canvas without permanently adding headings to the vault graph.
 
 - Heading levels become a foldable tree.
 - Relationships found inside a section attach to that section.
@@ -298,15 +300,15 @@ This is useful when a single long Markdown file contains several ideas or relati
 
 ## Expanded relationship view
 
-Expanded view can show children beneath visible first-level nodes, giving you one additional layer of context without turning the Plex into an arbitrary-depth graph.
+Expanded view can show children beneath visible first-level nodes, giving you one additional layer of context without turning the canvas into an arbitrary-depth graph.
 
-Expanded children are intentionally smaller and more subdued. Larger child groups scroll locally so the overall Plex remains readable.
+Expanded children are intentionally smaller and more subdued. Larger child groups scroll locally so the overall canvas remains readable.
 
 ## Companion sidecar
 
 K-Plex can create a dedicated normal Obsidian note pane beside the graph as a **companion sidecar**. Existing neighboring tabs are never taken over or closed by Sidecar actions.
 
-Each Plex has independent document-sync settings and can own its own Sidecar. Changing one Plex's **Off**, **Recent** or **Pinned** mode does not change another's pairing. **Recent** can follow ordinary document tabs, but does not take over another Plex's managed Sidecar. Obsidian's saved workspace restores each pairing; duplicating a Plex starts a separate session with a fresh Footprints trail.
+Each canvas has independent document-sync settings and can own its own Sidecar. Changing one canvas's **Off**, **Recent** or **Pinned** mode does not change another's pairing. **Recent** can follow ordinary document tabs, but does not take over another canvas's managed Sidecar. Obsidian's saved workspace restores each pairing; duplicating a canvas starts a separate session with a fresh Footprints trail.
 
 The sidecar:
 
@@ -353,7 +355,7 @@ You can configure:
 - visibility of attachments, folders, tags, URLs, unresolved links, inferred relationships and other node types;
 - Note type styling.
 
-Select **Configure Plex layout** in the bottom-left to show or hide the layout controls. They start hidden. The controls show **Horizontal** and **Vertical** density, plus exact **Parents** and **Children** column counts. **Font size** scales node labels while preserving role and custom-style proportions. **Node width** sets the maximum regular-node width, and **Wrap node labels** enables two-line labels. These typography controls share the global settings under **Visual styling → Node styling → Node appearance**. Higher density packs that axis more closely; horizontal density also shortens labels. Parent rows allow up to three columns and child rows up to seven. Friends, challengers, and siblings follow the parent area’s width: horizontal density 3 brings adjacent areas together, while 4 permits a small overlap of their margins. Changing child columns does not move these side areas horizontally. Expanded descendants follow narrower child-column settings, with a maximum of three columns and two visible rows. **Compact view** tightens spacing without changing node padding, and **Minimum link length** adjusts the spacing target in **Settings → K-Plex → Plex behavior**.
+Select **Configure canvas layout** in the bottom-left to show or hide the layout controls. They start hidden. The controls show **Horizontal** and **Vertical** density, plus exact **Parents** and **Children** column counts. **Font size** scales node labels while preserving role and custom-style proportions. **Node width** sets the maximum regular-node width, and **Wrap node labels** enables two-line labels. These typography controls share the global settings under **Visual styling → Node styling → Node appearance**. Higher density packs that axis more closely; horizontal density also shortens labels. Parent rows allow up to three columns and child rows up to seven. Friends, challengers, and siblings follow the parent area’s width: horizontal density 3 brings adjacent areas together, while 4 permits a small overlap of their margins. Changing child columns does not move these side areas horizontally. Expanded descendants follow narrower child-column settings, with a maximum of three columns and two visible rows. **Compact view** tightens spacing without changing node padding, and **Minimum link length** adjusts the spacing target in **Settings → K-Plex → Canvas behavior → Views → Compass**.
 
 Desktop, tablet, mobile, sidepanel and pop-out views can keep different density/column profiles, so a compact mobile layout does not have to change your desktop arrangement.
 
@@ -433,14 +435,16 @@ If classic ExcaliBrain is installed and running, K-Plex can import its ontology 
 
 K-Plex and classic ExcaliBrain can coexist while you migrate.
 
+Select **Views and lenses** (the funnel button) to choose a **Canvas view** and manage filters. Compass is currently the only view, so its selector is disabled. Each canvas owns its own view choice; saved lenses remain separate.
+
 ## Settings
 
 K-Plex settings are organized into:
 
-Sibling relative size (30–85%) is under **Plex behavior → Layout & sizing**. Cross-link opacity and connector appearance are under **Visual styling → Link styling**. Note-tab synchronization is intentionally controlled from the live K-Plex toolbar rather than duplicated in Settings.
+Sibling relative size (30–85%) is under **Canvas behavior → Views → Compass → Arrangement and sizing**. Cross-link opacity and connector appearance are under **Visual styling → Link styling**. Note-tab synchronization is intentionally controlled from the live K-Plex toolbar rather than duplicated in Settings.
 
-1. **Plex behavior** — navigation, layout, visibility, animation and relationship behavior
-2. **Ontology** — separate pages for relationship fields, editor suggestions and discovered/unassigned vault properties
+1. **Canvas behavior** — shared navigation, editor defaults and visibility; **Views → Compass** contains arrangement, sizing, neighbors and area tint
+2. **Ontology** — relationship inference and date policies, relationship fields, editor suggestions and discovered/unassigned vault properties
 3. **Visual styling** — dedicated **Colors**, **Labels**, **Node styling** and **Link styling** pages
 4. **Sidecar** — companion-pane behavior and Markdown mode
 5. **Compatibility** — ExcaliBrain settings import and Excalidraw editor-node behavior

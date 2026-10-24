@@ -535,7 +535,7 @@ Continue supporting legacy tag-specific style compatibility where feasible.
 
 Use grouped declarative settings pages with user-intent names such as:
 
-- Plex behavior
+- Canvas behavior
 - Ontology
 - Visual styling
 - Sidecar
@@ -557,13 +557,15 @@ with links:
 - https://community.sketch-your-mind.com/sym
 - https://community.sketch-your-mind.com
 
-Do not place these links inside the Plex behavior page and do not add explanatory marketing copy around them.
+Do not place these links inside the Canvas behavior page and do not add explanatory marketing copy around them.
 
 Use sliders where a bounded numeric range is meaningful (zone heights, gate radius, etc.) and show the current value next to the slider.
 
 ## Naming
 
 Use **K-Plex** in user-facing UI and current product docs, `Kplex` for named code types/components and `kplex` for CSS classes, custom properties, SVG IDs and canonical command suffixes. ExcaliBrain terminology belongs only to explicit data-migration/compatibility boundaries and their preserved source evidence. Keep supported graph-migration keys and migration fixtures stable; do not register legacy CSS or command aliases; never rebrand user data or rewrite historical validation transcripts as though they tested the new namespace. See [legacy compatibility](docs/LEGACY_COMPATIBILITY.md).
+
+Use **canvas** for the visual surface, **K-Plex canvas** where ambiguous, and **Compass** for the current directional view. Preserve internal `classic` IDs, code/CSS/command identifiers, product branding and historical evidence. Native **Obsidian Canvas** and `.canvas` files remain distinct. Shared Canvas behavior owns navigation/editor defaults/visibility; **Views → Compass** owns its layout and area-tint contribution.
 
 Use **nodes**, not "thoughts", in user-facing terminology. Legacy internal names can be migrated gradually, but new UI strings should say nodes.
 

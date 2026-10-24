@@ -364,7 +364,7 @@ test("cross-link visibility persists across reload and uses a presentation-only 
     index: { unassignedOntologyFields: () => [], allPages: () => [] } };
   plugin.translator = createObsidianTranslator();
   const tab = new KplexSettingTab({}, plugin);
-  const page = tab.getSettingDefinitions().find(item => item.name === "Plex behavior");
+  const page = tab.getSettingDefinitions().find(item => item.name === "Canvas behavior");
   const row = page.items.flatMap(group => group.items ?? []).find(item => item.control?.key === "showCrossLinks");
   assert.equal(row.name, "Show cross-links");
   assert.equal(row.control.type, "toggle");
@@ -1349,7 +1349,7 @@ test("native declarative hover controls expose both local preferences and persis
     index: {unassignedOntologyFields: () => [], allPages: () => []}};
   plugin.translator = createObsidianTranslator();
   const tab = new KplexSettingTab({}, plugin);
-  const behavior = tab.getSettingDefinitions().find(item => item.name === "Plex behavior");
+  const behavior = tab.getSettingDefinitions().find(item => item.name === "Canvas behavior");
   const navigation = behavior.items.find(item => item.heading === "Navigation & interaction");
   for (const key of ["hoverHighlightRequiresAlt", "areaOutlineRequiresAlt", "gateTooltipRequiresAlt"]) {
     const row = navigation.items.find(item => item.control?.key === key);

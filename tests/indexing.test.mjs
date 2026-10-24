@@ -173,7 +173,8 @@ const settingDefinitionsStart = settingsSource.indexOf("  getSettingDefinitions(
 const settingDefinitionsEnd = settingsSource.indexOf("  getControlValue(", settingDefinitionsStart);
 const settingDefinitionsSource = settingsSource.slice(settingDefinitionsStart, settingDefinitionsEnd);
 assert(!settingDefinitionsSource.includes('name: "Note tab link"'), "Live note-tab synchronization state must not be duplicated in Settings");
-assert(settingDefinitionsSource.includes('name: translate("settings.ui.sibling.relative.size")'));
+const compassSettingDefinitionsSource = readFileSync(join(root, "src/ui/plexViews/classic/settings.ts"), "utf8");
+assert(compassSettingDefinitionsSource.includes('name: translate("settings.ui.sibling.relative.size")'));
 assert(settingDefinitionsSource.includes('name: translate("settings.ui.cross.link.opacity")'));
 assert(settingDefinitionsSource.includes('name: translate("settings.ui.node.styling")'), "Node styling must be a localized Visual styling subpage");
 assert(settingDefinitionsSource.includes('name: translate("settings.ui.link.styling")'), "Link styling must be a localized Visual styling subpage");
@@ -556,6 +557,10 @@ for (const file of [
   "src/core/plex/actions.ts",
   "src/core/plex/actionPreferences.ts",
   "src/core/plex/typographyPreferences.ts",
+  "src/core/plex/views/configuration.ts",
+  "src/ui/plexViews/settingsContributions.ts",
+  "src/ui/plexViews/labels.ts",
+  "src/ui/plexViews/classic/settings.ts",
   "src/application/ActionManager.ts",
   "src/application/IndexingActivity.ts",
   "src/application/SessionEventRecorder.ts",

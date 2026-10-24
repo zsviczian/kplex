@@ -31,7 +31,8 @@ export async function acceptSimplifiedLayout({app,p,c,check,wait,until,frames,ro
   if(app.setting.isOpen){app.setting.close();await wait(80)}
   app.workspace.setActiveLeaf(c.leaf,{focus:true});native(c.leaf);p.openSettings();
   await until(()=>p.settingsTab.containerEl.isConnected,'Native Settings root absent');
-  check(p.settingsTab.openSettingsPage(p.translator('settings.ui.plex.behavior')),'Plex behavior Settings entry absent');
+  check(p.settingsTab.openSettingsPage(p.translator('settings.ui.plex.behavior')),'Canvas behavior Settings entry absent');
+  check(p.settingsTab.openSettingsPage(p.translator('view.classic')),'Compass Settings entry absent');
   await until(()=>[...p.settingsTab.containerEl.ownerDocument.querySelectorAll('.setting-item-name')]
    .some(el=>el.getClientRects().length&&el.textContent===p.translator('layout.simplifiedTitle')),'Simplified layout entry absent');
   check(p.settingsTab.openSettingsPage(p.translator('layout.simplifiedTitle')),'Simplified layout Settings navigation failed');

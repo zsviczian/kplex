@@ -3,6 +3,7 @@ import type {GraphNodeView, NodeId} from "../../graph/model";
 import type {EvidenceDecision, RelationEvidence} from "../../graph/evidence";
 import type {RelationshipExplanation} from "../../graph/resolver";
 import type {LinkDirection, RelationType, Role} from "../../graph/relations";
+import type {PlexViewConfiguration, PlexViewConfigurationSchema} from "./configuration";
 
 export type OccurrenceId = string;
 export type AreaId = string;
@@ -64,6 +65,8 @@ export type PlexViewLayout = Readonly<{
 }>;
 export type PlexViewInput = Readonly<{
   attention: NodeId; read: PlexViewRead; maximum: number; state: unknown;
+  /** Type-wide configuration is separate from native-session state. */
+  configuration?: PlexViewConfiguration;
 }>;
 export interface PlexViewDefinition {
   readonly id: string;
@@ -72,11 +75,12 @@ export interface PlexViewDefinition {
   readonly icon: string;
   readonly capabilities: Readonly<{sections: boolean; descendants: boolean; editor: boolean; compact: boolean}>;
   readonly defaultState: unknown;
+  readonly configuration?: PlexViewConfigurationSchema;
   /** Validate only this view's small session state; shared/native settings are not supplied. */
   restoreState(value: unknown): unknown;
   /** Material preparation is host-owned and bounded; pure projection consumes admitted facts only. */
   project(input: PlexViewInput): PlexProjection | null;
   /** Layout has no source reader, scheduling or subscription capability. */
   layout(projection: PlexProjection, measurements: readonly PlexMeasurement[], preferences: unknown, editor: boolean,
-    context?: Readonly<{areaHeights: Readonly<Record<string, number>>}>): PlexViewLayout;
+    context?: Readonly<{areaHeights: Readonly<Record<string, number>>; configuration?: PlexViewConfiguration}>): PlexViewLayout;
 }

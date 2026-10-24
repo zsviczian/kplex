@@ -49,11 +49,24 @@ and measurements; they cannot access the plugin, GraphIndex, Vault or native lea
 and exact outgoing-resource disposal. `KplexDocumentSession` retains native
 workspace/editor/Sidecar ownership. Shared actions additionally fence view
 revision; occurrence IDs remain separate from canonical endpoints. The shared
-renderer accepts explicit areas, physical ports and entry/editor/frame anchors. The editor anchor currently positions the single attention-following native editor; it is not an independent occurrence/document binding. [Occurrence editor hosting](PLEX_OCCURRENCE_EDITORS.md) is a required dependent checkpoint before parallel view jobs, with an explicit initial capacity of one and no simultaneous-editor claim.
+renderer accepts explicit areas, physical ports and entry/editor/frame anchors. The editor anchor currently positions the single attention-following native editor; it is not an independent occurrence/document binding. [Occurrence editor hosting](PLEX_OCCURRENCE_EDITORS.md) is Mind Map's required M0 checkpoint, with an explicit initial capacity of one and no simultaneous-editor claim. It must extend the existing attention-following host compatibly; Wu Xing may implement and validate its complete view independently after #218.
 Classic remains the sole production definition. Corpus scoring, multihop demand
 and compact large-map rendering require explicit follow-up capabilities.
 See [the implemented contract and capability matrix](PLEX_VIEW_PLUGINS.md#16-implemented-boundary-and-capability-matrix).
 This scoped feature does not resume C15–C26 or retire compatibility facades.
+
+`core/plex/views/configuration.ts` validates finite versioned type settings separately
+from session state. `ui/plexViews/settingsContributions.ts` composes native declarative
+pages under **Canvas behavior → Views**, with Compass's legacy controls retaining
+their flat/profile/color owners. New namespace writes share the existing serialized
+settings writer; incoming changes merge supported fields without replacing unrelated
+view configuration. Unknown/future payloads remain inert and preserved.
+
+The native **Canvas view** select is part of **Views and lenses**. It captures the
+opening session, subscribes to its successful selection, rechecks editor/lifetime
+guards and leaves the panel/draft mounted across compatible transitions. The existing
+registry supplies production options; disabled Compass remains visible when alone.
+Same-scope selection and new type configuration do not acquire or rebuild sources.
 
 ## Action dispatch boundary
 

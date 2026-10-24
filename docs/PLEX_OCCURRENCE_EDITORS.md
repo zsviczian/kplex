@@ -1,6 +1,6 @@
 # Occurrence-based editor hosting prerequisite
 
-Status: required dependent task after the verified #215 extraction, before parallel view jobs. This is an implementation assignment, not a supported runtime capability. Zsolt's Codex Agent, 2026-10-24, following the maintainer's interim steer.
+Status: required M0 for Mind Map after the verified #215 extraction and #218 settings/selector contract. Wu Xing is independent and may implement and validate its complete view using the existing attention-following native editor. M0 must extend that host compatibly, without requiring Compass or non-Classic attention-following definitions to adopt its new API simultaneously. This is an implementation assignment, not a supported runtime capability. Zsolt's Codex Agent, 2026-10-24, following the maintainer's corrected steer.
 
 ## Required behavior and current limit
 

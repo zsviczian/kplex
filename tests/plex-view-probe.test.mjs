@@ -24,6 +24,7 @@ const output=await build({stdin:{resolveDir:process.cwd(),contents:`
   export {PlexViewRegistry} from './src/core/plex/views/registry';export {PlexViewSession} from './src/application/PlexViewSession';
   export {builtInPlexViews} from './src/ui/plexViews/builtins';export {probeViewDefinition} from './tests/support/plexViewProbe';
   export {ActionManager} from './src/application/ActionManager';export {actionNodeRef} from './src/adapters/obsidian/actionNode';
+  export {editViewConfiguration} from './src/core/plex/views/configuration';
 `},write:false,bundle:true,platform:'browser',format:'iife',globalName:'sourceModules',plugins:[{name:'finite-native-host',setup(builder){
   builder.onResolve({filter:/^obsidian$/},()=>({path:'host',namespace:'finite'}));
   builder.onLoad({filter:/.*/,namespace:'finite'},()=>({contents:nativeStub}));
@@ -113,6 +114,12 @@ test('non-Classic definition uses the production scene, selection, Find and acti
       const selectionRestored=actionPorts.current.readSelected()?.occurrenceId,cameraRestored=mount.querySelector('.kplex-camera').style.transform;
       const heightRestored=session.getAreaHeights().groveHeight;
       const normalClassicReads=work.classicReads;
+      const rootNodeBefore=mount.querySelector('[data-kplex-keyboard-id="layout-root"]');
+      const configuredBefore=rootNodeBefore.style.left,sessionBefore=JSON.stringify(session.getState());
+      settings.canvasViewSettings=M.editViewConfiguration(M.probeViewDefinition,settings.canvasViewSettings,'ridgeOffset',40);
+      props.renderRevision++;M.flushSync(()=>root.render(M.createElement(Harness)));await new Promise(resolve=>setTimeout(resolve,0));
+      const configuredAfter=mount.querySelector('[data-kplex-keyboard-id="layout-root"]').style.left;
+      const configurationRetainedSession=JSON.stringify(session.getState())===sessionBefore;
       M.flushSync(()=>session.select('test.failed'));await new Promise(resolve=>setTimeout(resolve,0));
       const failureVisible=!!mount.querySelector('.kplex-view-error'),sameShell=mount.querySelector('.kplex-plex')===rootBefore;
       const failureAction=await act('node.activate');
@@ -123,7 +130,7 @@ test('non-Classic definition uses the production scene, selection, Find and acti
       M.flushSync(()=>session.recover());await new Promise(resolve=>setTimeout(resolve,0));
       const remainingFailure=!!mount.querySelector('.kplex-view-error');
       const snapshot={nodes,physicalPorts,physicalCount,entry,above,below,activations,decorativeCheck,decorativeOutcome,findText,filtered,restored,
-        resizedHeight,heightRestored,retainedSelection,selectionRestored,retainedCamera,cameraRestored,staleOutcome,groupCount,unfolded,normalClassicReads,failureVisible,sameShell,failureAction,recovered,unavailableFallback,remainingFailure,
+        resizedHeight,heightRestored,retainedSelection,selectionRestored,retainedCamera,cameraRestored,staleOutcome,groupCount,unfolded,normalClassicReads,configuredBefore,configuredAfter,configurationRetainedSession,failureVisible,sameShell,failureAction,recovered,unavailableFallback,remainingFailure,
         errors:[...errors],text:mount.textContent,ports:!!actionPorts.current,work:{...work}};
       releaseAction();
       root.unmount();session.dispose();plugin.actionManager.dispose();style.remove();mount.remove();return {...snapshot,events:events.size,after:{...work}};
@@ -138,6 +145,8 @@ test('non-Classic definition uses the production scene, selection, Find and acti
     assert.equal(result.resizedHeight,170);assert.equal(result.heightRestored,170);assert.equal(result.staleOutcome.status,'cancelled');
     assert.equal(result.groupCount,'2');assert(result.unfolded.includes('repeat-above')&&result.unfolded.includes('extra-above'));
     assert.equal(result.normalClassicReads,0);assert.equal(result.unavailableFallback,true);assert.equal(result.failureVisible,true);assert.equal(result.sameShell,true);
+    assert.notEqual(result.configuredBefore,result.configuredAfter,'type configuration reaches the actual shared renderer');
+    assert.equal(result.configurationRetainedSession,true,'configuration does not replace per-canvas state');
     assert.equal(result.failureAction.status,'unavailable');assert.equal(result.recovered,'classic');assert.equal(result.remainingFailure,false);
     assert.equal(result.work.settingsWrites,0);assert.equal(result.work.semantic,1);assert.equal(result.after.releases,1);assert.equal(result.after.presentation,0);assert.equal(result.events,0);
     assert.equal(result.after.reads,0);assert.equal(result.after.parses,0);assert.equal(result.after.publishes,0);

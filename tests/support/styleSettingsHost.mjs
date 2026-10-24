@@ -13,7 +13,7 @@ export function styleSettingsHostSource(root) {
   const names = new Set(["updateStyleSettings", "saveSettings", "enqueueSettingsWrite", "settingsSnapshotForPersistence", "persistSettingsSnapshot", "setGraphLenses",
     "captureAppearanceOwner", "isAppearanceOwnerCurrent", "subscribeAppearanceThemes", "bindAppearanceEditor", "appearanceThemeNames", "updateAppearanceThemes", "showAppearanceMigrationNotification",
     "createAppearanceTheme", "resetAppearanceThemeColors", "importLegacyAppearance", "settingsForWrite", "writeSettingsSnapshot", "updateOntologyField", "updateOntologyConfiguration", "editOntologyConfiguration", "assignFieldToOntology", "ontologyFieldsForRole", "ontologyRoleForField", "inverseOntologyField", "inverseRelationshipRole", "defaultOntologyField", "refreshSavedSettings",
-    "initializeSettingsReconciliation", "onExternalSettingsChange", "queueExternalSettingsAdoption", "reportExternalSettingsFailure", "installExternalSettings", "updateActionPreferences", "receivedSettingsOwner", "receivedSettingsRevision"]);
+    "initializeSettingsReconciliation", "onExternalSettingsChange", "queueExternalSettingsAdoption", "reportExternalSettingsFailure", "installExternalSettings", "updateActionPreferences", "receivedSettingsOwner", "receivedSettingsRevision", "updateCanvasViewSetting"]);
   const methods = [];
   /** The owning class keeps one definition for every requested method; a missing seam is an explicit failure. */
   const visit = node => {
@@ -31,6 +31,8 @@ export function styleSettingsHostSource(root) {
     import {readObsidianPresentationEnvironment} from "./src/adapters/obsidian/presentationEnvironment";
     import {migrateActionPreferences,sanitizeActionPreferences,compileActionBindings} from "./src/core/plex/actionPreferences";
     import {Notice} from "obsidian";
+    import {builtInCanvasViewSettings} from './src/ui/plexViews/settingsContributions';
+    import {editViewConfiguration,viewConfigurationOwnerDomains} from './src/core/plex/views/configuration';
     import {ontologyConfiguration,assignOntologyField,applyOntologyEdit,ontologyEndpointState,editOntologyEntries,ONTOLOGY_GROUPS} from './src/core/contracts/ontologyConfiguration';
     export * from './src/core/contracts/ontologyConfiguration';
     export {OntologyUsageModal} from './src/ui/OntologyUsageModal';

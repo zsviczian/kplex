@@ -75,7 +75,6 @@ import { InfoBubble } from "./components/InfoBubble";
 import type { FloatingLayerDismissReason } from "./components/FloatingLayer";
 import { PlexGraph } from "./PlexGraph";
 import {plexViewContributionFor} from "./plexViews/contributions";
-import {PlexViewSelector} from "./plexViews/PlexViewSelector";
 import { PlexFootprintsPanel } from "./PlexFootprintsPanel";
 import { ObsidianIcon } from "./ObsidianIcon";
 import { VaultStatsModal } from "./VaultStatsModal";
@@ -1338,6 +1337,7 @@ export function KplexApp({ plugin, surface, hostLeaf, translate, environment, on
             ariaLabel={searchCopy.ariaLabel}
           />
           <PlexFilter
+            viewSession={documentSession.plexView}
             index={plugin.index}
             center={page}
             revision={renderRevision}
@@ -1408,8 +1408,7 @@ export function KplexApp({ plugin, surface, hostLeaf, translate, environment, on
         <section className="kplex-graph-area" data-kplex-tooltip-boundary>
           {ViewLabels && <ViewLabels translate={translate} />}
           <PlexGraph viewDefinition={plexViewDefinition} viewSession={documentSession.plexView} viewRevision={viewRevision} sidecarOpen={sidecarOpen} plugin={plugin} index={plugin.index} settings={viewSettings} paintSettings={paintSettings} paintLenses={paintLenses} surface={profileSurface} hostLeaf={hostLeaf} predicate={plexFilterPredicate} lenses={compiledGraphLenses} filterLayoutMode={filterLayoutMode} predicateRevision={predicateRevision} showCrossLinks={plugin.settings.showCrossLinks} activePath={page.path} renderRevision={renderRevision} findFocusRequest={findFocusRequest}
-            footprintsControl={<><PlexViewSelector session={documentSession.plexView} translate={translate}
-              showMenu={(menu, event) => plugin.showKplexMenuAtPosition(menu, {x: event.clientX, y: event.clientY}, event.currentTarget.ownerDocument, hostLeaf)} /><PlexFootprintsPanel trail={documentSession.footprints} translate={translate}
+            footprintsControl={<PlexFootprintsPanel trail={documentSession.footprints} translate={translate}
               readRow={/** Resolve visible references only; unavailable nodes never trigger acquisition or creation. */ visit => {
                 const target = resolveActionPage(plugin.index, visit.node);
                 return target ? {...nodeListPresentation(target, plugin.index.titleFor(target)), available: true}
@@ -1417,7 +1416,7 @@ export function KplexApp({ plugin, surface, hostLeaf, translate, environment, on
               }} formatLink={/** Explicit clipboard projection uses current cached facets or the captured link; never acquire sources. */ visit => nodeMarkdownLink(visit.node, resolveActionPage(plugin.index, visit.node))}
               navigate={/** Normal activation preserves global history and records this repeated visit once. */ visit => {
                 const target = resolveActionPage(plugin.index, visit.node);if (target && target.path !== activePathRef.current) activate(target);
-              }} /></>}
+              }} />}
           actionPorts={graphActionPorts} actionSurfaceId={actions.surfaceId} displayState={displayState} fullscreenAvailable={displayModes.fullscreenAvailable && environment.device === "desktop"}
           semanticRevision={plugin.index.getSemanticRevision()} navigationOrigin={navigationOrigin} onSemanticDemandAcquired={acknowledgeDocumentDemandHandover} onActivate={/** Manual graph navigation keeps the existing history and sync path. */ target => activate(target)} onWanderActivate={/** Explicit Wander origin survives asynchronous scene publications. */ target => activate(target, true, true, "wander")} onOpen={open} onOpenInSidecar={centerAndOpenSidecar} onCentralNodeEditorChange={setCentralNodeEditorEnabled} onCentralNodeModeChange={rememberCentralNodeMarkdownMode} areaSettingsMode={areaSettingsMode} onAreaSettingsModeChange={setAreaSettingsMode}
           onApplyFindFilter={applyFindFilter} appliedFindFilterQuery={findFilterOwner?.query ?? null} onClearFindFilter={clearFindFilter} />

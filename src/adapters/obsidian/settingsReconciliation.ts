@@ -5,9 +5,10 @@
  */
 import {copyThemeValue, themeValuesEqual} from "../../core/plex/appearanceThemes";
 import {STYLE_SETTINGS_KEYS} from "../../core/contracts/appearance";
+import {viewConfigurationOwnerDomains} from "../../core/plex/views/configuration";
 
 export type SettingsSnapshot = Record<string, unknown>;
-type RootEdit = Readonly<{key: string; before: unknown; after: unknown}>;
+type RootEdit = Readonly<{key: string; before: unknown; after: unknown; canvas?: Readonly<{id: string; field?: string}>}>;
 export type SettingsWriteIntent = Readonly<{edits: readonly RootEdit[]; versions: ReadonlyMap<string, number>}>;
 type Candidate = {raw: unknown; snapshot: SettingsSnapshot; overwritten: boolean; base: SettingsSnapshot};
 type ReconciliationPorts = Readonly<{
@@ -27,7 +28,22 @@ function record(value: unknown): value is SettingsSnapshot {return !!value && ty
 function editsBetween(before: SettingsSnapshot, after: SettingsSnapshot): RootEdit[] {
   return [...new Set([...Object.keys(before), ...Object.keys(after)])].filter(
     /** A real deletion remains a replacement with absence, not a stale dictionary merge. */ key => !themeValuesEqual(before[key], after[key]),
-  ).map(/** Capture mutable caller fields before another control can change them. */ key => ({key, before: copyThemeValue(before[key]), after: copyThemeValue(after[key])}));
+  ).flatMap(/** Only the new explicit view namespace has field-level merge ownership; existing roots remain atomic. */ key => {
+    const first = before[key], last = after[key];
+    if (key !== "canvasViewSettings" || !record(first) || !record(last))
+      return [{key, before: copyThemeValue(first), after: copyThemeValue(last)}];
+    return [...new Set([...Object.keys(first), ...Object.keys(last)])].flatMap((id): RootEdit[] => {
+      const previous = first[id], next = last[id];
+      if (themeValuesEqual(previous, next)) return [];
+      const known = (value: unknown): boolean => record(value) && value.version === 1 && record(value.values);
+      const metadata = (value: unknown): unknown => record(value) ? {...value, values: undefined} : {version: 1, values: undefined};
+      if (!(previous === undefined || known(previous)) || !known(next) || !themeValuesEqual(metadata(previous), metadata(next)))
+        return [{key, canvas: {id}, before: copyThemeValue(previous), after: copyThemeValue(next)}];
+      const left = record(previous) && record(previous.values) ? previous.values : {}, right = record(next) && record(next.values) ? next.values : {};
+      return [...new Set([...Object.keys(left), ...Object.keys(right)])].filter(field => !themeValuesEqual(left[field], right[field]))
+        .map(field => ({key, canvas: {id, field}, before: copyThemeValue(left[field]), after: copyThemeValue(right[field])}));
+    });
+  });
 }
 
 /** Ignore the active appearance when comparing library management metadata and inactive presets. */
@@ -40,6 +56,9 @@ function libraryMetadata(value: unknown): unknown {
 
 /** Group only coherent real owners, retaining independent workflow/scalar roots and unknown data. */
 function domains(edit: RootEdit): string[] {
+  if (edit.key === "canvasViewSettings") {
+    return [edit.canvas ? `canvasViewSettings:${edit.canvas.id}${edit.canvas.field ? `:${edit.canvas.field}` : ""}` : edit.key];
+  }
   if (edit.key === "appearanceThemes") {
     /** Only the selected identity/content retires active drafts; inactive metadata has a separate epoch. */
     const active = (value: unknown): unknown => {
@@ -59,6 +78,20 @@ function domains(edit: RootEdit): string[] {
 function applyEdits(source: SettingsSnapshot, edits: readonly RootEdit[]): SettingsSnapshot {
   const result = {...source};
   for (const edit of edits) {
+    if (edit.canvas) {
+      const saved = result[edit.key], map: SettingsSnapshot = record(saved) ? {...saved} : {};
+      const {id, field} = edit.canvas;
+      if (field) {
+        const previous = map[id], namespace: SettingsSnapshot = record(previous) ? {...previous} : {version: 1};
+        const values = record(namespace.values) ? {...namespace.values} : {};
+        if (edit.after === undefined) delete values[field];
+        else Object.defineProperty(values, field, {value: copyThemeValue(edit.after), enumerable: true, configurable: true, writable: true});
+        Object.defineProperty(map, id, {value: {...namespace, values}, enumerable: true, configurable: true, writable: true});
+      } else if (edit.after === undefined) delete map[id];
+      else Object.defineProperty(map, id, {value: copyThemeValue(edit.after), enumerable: true, configurable: true, writable: true});
+      result[edit.key] = map;
+      continue;
+    }
     if (edit.after === undefined) delete result[edit.key];
     else Object.defineProperty(result, edit.key, {value: copyThemeValue(edit.after), enumerable: true, configurable: true, writable: true});
   }
@@ -140,7 +173,7 @@ export class SettingsReconciliation {
 
   /** Reject only roots whose remote owner changed; local field-level queue merging remains available. */
   assertCurrent(intent: SettingsWriteIntent, edits: readonly RootEdit[] = intent.edits): void {
-    if (this.closed || edits.some(/** A→B→A changes the owner epoch even when values match again. */ edit => domains(edit).some(domain =>
+    if (this.closed || edits.some(/** A→B→A changes the owner epoch even when values match again. */ edit => domains(edit).flatMap(viewConfigurationOwnerDomains).some(domain =>
       (intent.versions.get(domain) ?? 0) !== (this.versions.get(domain) ?? 0)))) throw this.ports.conflict();
   }
 
@@ -150,7 +183,7 @@ export class SettingsReconciliation {
     if (candidate.overwritten) {
       const received = new Set(editsBetween(candidate.base, candidate.snapshot).flatMap(domains));
       candidate.snapshot = applyEdits(candidate.snapshot, editsBetween(candidate.base, this.accepted).filter(
-        /** An accepted in-flight edit survives unrelated incoming roots; same-owner incoming data wins. */ edit => domains(edit).every(domain => !received.has(domain))));
+        /** An accepted in-flight edit survives unrelated incoming owners; a received schema/map replacement also retires its fields. */ edit => domains(edit).flatMap(viewConfigurationOwnerDomains).every(domain => !received.has(domain))));
     }
     const changes = editsBetween(this.accepted, candidate.snapshot);
     if (!candidate.overwritten) this.expectedDisk = copyThemeValue(candidate.raw);
@@ -160,7 +193,7 @@ export class SettingsReconciliation {
     let visible = this.accepted;
     for (const intent of this.pendingIntents) {
       const allowed = intent.edits.filter(/** Remote same-owner changes retire queued controls instead of restoring old dictionaries. */ edit =>
-        domains(edit).every(domain => (intent.versions.get(domain) ?? 0) === (this.versions.get(domain) ?? 0)));
+        domains(edit).flatMap(viewConfigurationOwnerDomains).every(domain => (intent.versions.get(domain) ?? 0) === (this.versions.get(domain) ?? 0)));
       visible = applyEdits(visible, allowed);
     }
     this.cursor = copyThemeValue(visible); this.ports.install(copyThemeValue(visible));
@@ -187,7 +220,8 @@ export class SettingsReconciliation {
   /** Rebase explicit operation roots on the accepted snapshot and retain post-write incoming candidates. */
   async commit(intent: SettingsWriteIntent, before: SettingsSnapshot, after: SettingsSnapshot, write: (snapshot: SettingsSnapshot) => Promise<void>, force = false): Promise<void> {
     const implicit = editsBetween(before, after), edits = [...intent.edits.filter(
-      /** A prepared coherent appearance/root pair supersedes that same imperative root in this operation. */ edit => !implicit.some(next => next.key === edit.key)), ...implicit];
+      /** A prepared coherent root or explicit view field supersedes only the same submitted owner. */ edit => !implicit.some(next => next.key === edit.key
+        && next.canvas?.id === edit.canvas?.id && next.canvas?.field === edit.canvas?.field)), ...implicit];
     this.assertCurrent(intent, edits);
     const next = applyEdits(this.accepted, edits);
     if (!edits.length && !force) return;
@@ -228,7 +262,7 @@ export class SettingsReconciliation {
     this.pendingIntents.delete(intent);
     let cursor = this.accepted;
     for (const pending of this.pendingIntents) cursor = applyEdits(cursor, pending.edits.filter(
-      /** Conflicted queued intent must not become the next control's implicit baseline. */ edit => domains(edit).every(domain =>
+      /** Conflicted queued intent must not become the next control's implicit baseline. */ edit => domains(edit).flatMap(viewConfigurationOwnerDomains).every(domain =>
         (pending.versions.get(domain) ?? 0) === (this.versions.get(domain) ?? 0))));
     this.cursor = copyThemeValue(cursor);
   }

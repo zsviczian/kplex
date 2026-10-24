@@ -11,7 +11,7 @@ import test from "node:test";
 const temp = mkdtempSync(join(tmpdir(), "kplex-density-"));
 process.on("exit", () => rmSync(temp, { recursive: true, force: true }));
 await build({
-  stdin: { contents: 'export * from "./src/settings"; export * from "./src/ui/layout"; export * from "./src/core/graph/settingsPolicy"; export * from "./src/core/plex/viewPresentation"; export { effectiveViewSettings } from "./src/ui/viewProfile";', resolveDir: process.cwd() },
+  stdin: { contents: 'export * from "./src/settings"; export * from "./src/ui/plexViews/classic/settings"; export * from "./src/ui/layout"; export * from "./src/core/graph/settingsPolicy"; export * from "./src/core/plex/viewPresentation"; export { effectiveViewSettings } from "./src/ui/viewProfile";', resolveDir: process.cwd() },
   outfile: join(temp, "geometry.mjs"), bundle: true, platform: "node", format: "esm",
   plugins: [{ name: "obsidian-boundary", setup(builder) {
     builder.onResolve({ filter: /^obsidian$/ }, () => ({ path: "obsidian", namespace: "double" }));
@@ -115,7 +115,10 @@ test("simplified arrangement persists independently for all devices and surfaces
       const current = geometry.captureSettingsPolicy(settings);
       effects.push(geometry.classifySettingsChange(previous, current)); previous = current;
     } };
-  const rows = tab.lateralArrangementDefinitions();
+  const contribution = geometry.classicSettingsContribution.items({translate: tab.kplexPlugin.translator,
+    areaTint: () => ({name: "Owned tint action"}), key: () => {throw Error("Compass must retain legacy keys");}});
+  const flatten = items => items.flatMap(item => [item, ...flatten(item.items ?? [])]);
+  const rows = flatten(contribution).filter(row => row.control?.key.startsWith("layout."));
   assert.equal(rows.length, 6);
   assert.equal(new Set(rows.map(row => row.control.key)).size, 6);
   const signature = geometry.encodeIndexSettingsSignature(settings);

@@ -221,7 +221,7 @@ Store each view's persistent preferences under a namespaced versioned record whe
 
 Camera, selection, hover, pending gestures and transient expansion belong to a bounded per-session/view state. Persist only explicit preferences and small workspace restoration state. Retire invalid node/occurrence references on rename, deletion, replacement or new root; do not retain old GraphPages through view-state caches.
 
-Unknown/unavailable view IDs fall back safely to Classic while retaining unrecognized preference payloads for possible restoration. The selector reuses established menu/toolbar components. Initially Classic is the only production definition; keep test probes out of the public selector and avoid a distracting one-option toolbar control. Registration/selection must be exercised in tests so adding the first real view needs only a definition and a registration entry.
+Unknown/unavailable view IDs fall back safely to Compass (`classic`) while retaining unrecognized preference payloads for possible restoration. The native **Canvas view** dropdown lives at the top of **Views and lenses** and captures the opening canvas's existing `PlexViewSession`. Compass comes first; the row stays visible and disabled when it is the only production definition. Test probes never enter production registration. The dropdown reflects successful selection, explains rejected editor transitions and retains the mounted lens draft. Selection remains per canvas, independently restored through native workspace state; it is neither a saved lens nor a global default.
 
 A view change is a presentation/session change. It must not alter semantic signatures, trigger a vault rebuild, reload parsed bodies, reset native document sync, append a fake navigation visit or reset global lens definitions.
 
@@ -361,9 +361,11 @@ actions and delayed destructive work must match both native and view lifetimes.
 | Scope preparation | Existing shared attention demand stays acquired across compatible changes; presentation demand is view-owned. | Additional multihop/frontier demand needs a separately reviewed bounded application adapter. Pure definitions cannot acquire sources. |
 | Geometry and identity | Measured thought occurrences, repeated NodeIds, arbitrary areas, physical ports and distinct anchor IDs/positions. | Editor document identity still follows attention. Synthetic groups are created by the shared grouping owner; initial policy-created synthetic nodes are rejected. |
 | Occurrence editor hosting | **Unsupported.** One live attention-following native editor per Plex; existing probe places it off-centre but edits attention. | Firm prerequisite: explicit admitted occurrence/document bindings, shared actions, per-occurrence dimensions and stable native hosting. Initial dependent task enforces capacity one and must pass R/A/B plus attention C, duplicate, resize/filter/collapse/switch/teardown cases. Multiple simultaneous editors are not claimed. |
-| Rooted state across attention changes | A pure definition can supply a different layout root. Current transient camera/selection/unfold state is attention-scoped. | Root/branch/editor state must survive attention changes for rooted views; move Classic attention-following policy behind compatibility and validate the dependent host before parallel view jobs. |
+| Rooted state across attention changes | A pure definition can supply a different layout root. Current transient camera/selection/unfold state is attention-scoped. | Mind Map requires independently retained root/branch/editor state through M0. Existing attention-following definitions, including Wu Xing, may use the accepted host without adopting M0. |
 | Filtering/grouping/Find/actions | Existing matching and grouping owners; explicit grouping partitions; occurrence selection/reveal; canonical activation/writes. | A connector without semantic evidence is presentation-only. No implicit ontology write from an arbitrary area. |
 | Preferences/lifetime | Per-native-session selection, small unknown-state preservation/fallback, finite area heights, synchronous disposal and epoch fences. | Static bundled registration only; no public plugin loading or ABI. |
+| Type configuration and Settings | Version1 bounded schema/effective values, native declarative contributions under Canvas behavior → Views, existing queued persistence and explicit incoming field ownership. Compass (`classic`) retains legacy flat/profile/appearance storage. | Type settings are shared by canvases of that type; selected view/root/expansion/editor state remain session-owned. Unknown/future payloads are inert and preserved. |
+| Canvas selector | Native Canvas view dropdown in Views and lenses, capturing the opening session and reflecting successful guarded selection while retaining the panel/draft. Compass alone remains visible/disabled. | Only registered production definitions ship; test definitions prove independent owners without exposing unfinished views. No new source acquisition for same-scope selection. |
 | Corpus/property scoring | Explicit `corpus: {available:false, reason:"unsupported"}`. | Add paged revision-scoped membership/properties and provenance-specific metrics before promising Ideaverse parity. No zero substitution. |
 | Compact large-map layer | Explicitly unsupported. Point occurrences fail locally. | Shared compact rendering must be reviewed before full-vault Emergence. Detailed DOM thoughts are not a scale claim. |
 
@@ -387,8 +389,11 @@ selection, camera/framing and native focus/navigation seams make safe runtime
 decoupling a separate host checkpoint rather than a guard removal.
 
 Following the maintainer's permitted closeout path, finish the verified extraction
-and complete [the bounded dependent task](PLEX_OCCURRENCE_EDITORS.md) before
-parallel view jobs. It specifies an occurrence-keyed binding collection with
+and complete [the bounded dependent task](PLEX_OCCURRENCE_EDITORS.md) for
+Mind Map's arbitrary-node editing. Wu Xing is independent after #218 and may
+implement and validate its complete view with the existing attention-following
+native editor. M0 must extend that host compatibly, without requiring Compass
+or Wu Xing to adopt its new API simultaneously. It specifies an occurrence-keyed binding collection with
 capacity one, Classic compatibility policy, real native-host reuse, independent
 root/attention/selection/editor/focus state and the five required proof cases.
 It does not implement Mind Map, simultaneous editors or new indexing machinery.

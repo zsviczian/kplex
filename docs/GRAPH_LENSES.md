@@ -1,15 +1,20 @@
-# Graph Lenses
+# Views and lenses
 
-Graph Lenses let you create reusable views of the **currently visible K-Plex**. A lens can show, hide or style matching notes and relationships without changing your notes or turning K-Plex into a deep whole-vault graph query tool.
+Graph Lenses let you define reusable filters and styles for the **currently visible K-Plex canvas**. A lens can show, hide or style matching notes and relationships without changing your notes or turning K-Plex into a deep whole-vault graph query tool.
 
 If you only need a temporary title/tag/type filter, use **Quick Filter**. Use a Graph Lens when you want a reusable rule, relationship-aware filtering, evidence-aware filtering, or visual styling.
 
 ## Open the lens panel
 
-Click the funnel button in the K-Plex toolbar.
+Select **Views and lenses** (the funnel button) in the K-Plex toolbar.
+
+**Canvas view** selects the view of the canvas that opened this panel. Compass is currently the only available view, so the dropdown is disabled. Each canvas keeps its own choice. View selection is separate from saved lenses and does not change their filters or enabled state.
+
+A view that cannot retain an open node editor is unavailable until that editor is closed; a rejected choice leaves the current view selected.
 
 The panel contains:
 
+- **Canvas view** for this canvas’s view;
 - **Quick Filter** for temporary keyword/tag/note-type filtering;
 - **Keep layout / Reflow** presentation choice;
 - **Graph Lenses** for saved reusable rules.
@@ -80,7 +85,7 @@ If more than one Show lens is active, their matches are combined: an item can su
 
 ### Hide matching
 
-Removes matching items from the visible Plex.
+Removes matching items from the visible canvas.
 
 Hide lenses subtract from whatever would otherwise be visible.
 
@@ -109,7 +114,7 @@ Each saved lens has an **eye** control.
 
 Turning a lens off keeps the definition but stops applying it. You do not need to delete a lens just because you temporarily do not want it.
 
-Use **Turn all off** when you want to return quickly to the unfiltered Plex while keeping your saved lenses.
+Use **Turn all off** when you want to return quickly to the unfiltered canvas while keeping your saved lenses.
 
 ## Keep layout versus Reflow
 
@@ -119,11 +124,11 @@ Filtering can be displayed in two ways.
 
 Hidden items disappear, but surviving nodes keep their original positions.
 
-Use this when spatial context matters and you want to see where the surviving nodes belong within the original Plex.
+Use this when spatial context matters and you want to see where the surviving nodes belong within the original canvas.
 
 ### Reflow
 
-K-Plex lays out the surviving relationships as though they were the only items in the Plex.
+K-Plex lays out the surviving relationships as though they were the only items in the canvas.
 
 Use this when a large graph has been reduced to a focused subset and you want a compact working view.
 

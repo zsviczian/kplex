@@ -1,5 +1,6 @@
 /** Finite static internal registration; definitions carry policy, never per-window mutable instances. */
 import type {PlexViewDefinition} from "./contracts";
+import {validateViewConfigurationSchema} from "./configuration";
 
 export class PlexViewRegistry {
   private readonly definitions = new Map<string, PlexViewDefinition>();
@@ -10,6 +11,7 @@ export class PlexViewRegistry {
       if (!/^[a-z][a-z0-9.-]{0,79}$/.test(definition.id) || definition.version !== 1 || this.definitions.has(definition.id)) {
         throw new Error("Invalid or duplicate internal Plex view definition");
       }
+      if (definition.configuration) validateViewConfigurationSchema(definition.configuration);
       this.definitions.set(definition.id, definition);
     }
     if (!this.definitions.has(fallbackId)) throw new Error("Missing fallback Plex view definition");

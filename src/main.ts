@@ -57,6 +57,8 @@ import {NotificationModal} from "./ui/NotificationModal";
 
 import { FileView, ItemView, MarkdownView, Menu, Notice, Platform, Plugin, TFile, TFolder, apiVersion, getLanguage, getAllTags, normalizePath, type Editor, type HoverParent, type WorkspaceLeaf } from "obsidian";
 import { captureSettingsPolicy, classifySettingsChange, isStyleOnlySettingsChange, type SettingsPolicy } from "./core/graph/settingsPolicy";
+import {builtInCanvasViewSettings} from "./ui/plexViews/settingsContributions";
+import {editViewConfiguration, viewConfigurationOwnerDomains} from "./core/plex/views/configuration";
 import { removeMarkdownZoomModes, renameMarkdownZoomModes } from "./core/plex/markdownZoomPreferences";
 import { GraphIndex } from "./index/GraphIndex";
 import {SavedSettingsRefresh} from "./adapters/obsidian/savedSettingsRefresh";
@@ -177,6 +179,8 @@ type StyleCommitOptions = Readonly<{themeAction?: appearanceThemes.AppearanceThe
   persistExistingChanges?: boolean}>;
 
 export default class KplexPlugin extends Plugin {
+  /** Finite native Settings composition; tests may construct an independent registry, never register production extensions dynamically. */
+  readonly viewSettingsRegistry = builtInCanvasViewSettings;
   settings: KplexSettings = DEFAULT_SETTINGS;
   index!: GraphIndex;
   /** Shared action engine; React surface ports retain their own state and owning document. */
@@ -2046,10 +2050,40 @@ export default class KplexPlugin extends Plugin {
   }
 
   /** Expose only a domain epoch for existing editor/control lifetimes, never the persistence baseline. */
-  receivedSettingsRevision(domain: string): number | undefined {return this.settingsReconciliation?.revision(domain);}
+  receivedSettingsRevision(domain: string): number | undefined {
+    const owner = this.settingsReconciliation;
+    return owner ? viewConfigurationOwnerDomains(domain).reduce((sum, key) => sum + owner.revision(key), 0) : undefined;
+  }
 
   /** Existing recorders capture their opening remote owner while keeping drafts out of live state. */
-  receivedSettingsOwner(domain: string): () => boolean {return this.settingsReconciliation?.owner(domain) ?? (/** Finite pre-startup host consumers retain their existing lifetime. */ () => !this.unloading);}
+  receivedSettingsOwner(domain: string): () => boolean {
+    const owners = viewConfigurationOwnerDomains(domain).map(key => this.settingsReconciliation?.owner(key) ?? (() => !this.unloading));
+    return () => owners.every(current => current());
+  }
+
+  /** Commit one type preference against the latest queued map. No draft publication, session mutation or source work. */
+  async updateCanvasViewSetting(id: string, field: string, value: unknown): Promise<void> {
+    const definition = (this.viewSettingsRegistry ?? builtInCanvasViewSettings).definition(id);
+    if (!definition) throw new Error(this.translator("view.settingsUnavailable"));
+    const current = this.receivedSettingsOwner(`canvasViewSettings:${id}:${field}`);
+    let changed = false;
+    await this.enqueueSettingsWrite(async () => {
+      if (this.unloading || !current()) throw new Error(this.translator("settingsSync.conflict"));
+      const source = this.settingsForWrite();
+      const canvasViewSettings = editViewConfiguration(definition, source.canvasViewSettings, field, value);
+      if (appearanceThemes.themeValuesEqual(source.canvasViewSettings, canvasViewSettings)) return;
+      const next = {...source, canvasViewSettings};
+      await this.writeSettingsSnapshot(this.settingsSnapshotForPersistence(source.actionPreferencesFuture ?? source.actionPreferences, next));
+      if (this.unloading) return;
+      this.settings.canvasViewSettings = editViewConfiguration(definition, this.settings.canvasViewSettings, field, value);
+      const policy = captureSettingsPolicy(this.settings);
+      this.savedSettingsPolicy = {values: {...(this.savedSettingsPolicy ?? policy).values, canvasViewSettings: policy.values.canvasViewSettings}};
+      changed = true;
+    });
+    if (!changed || this.unloading || !this.index) return;
+    const completion = await this.refreshSavedSettings(false);
+    if (completion.refreshPending && !this.unloading) new Notice(this.translator("settings.savedRefreshPending"));
+  }
 
   /** Read a transaction's accepted base plus only its submitted imperative roots, excluding later queued controls. */
   private settingsForWrite(intent = this.settingsWriteContext?.intent): KplexSettings {
@@ -2615,7 +2649,7 @@ export default class KplexPlugin extends Plugin {
     const previousPolicy = this.savedSettingsPolicy;
     const effects = classifySettingsChange(previousPolicy ?? next, next);
     const consentOnly = effects.changedKeys.length === 1 && effects.changedKeys[0] === "allowRemoteNodeImages";
-    const layoutOnly = effects.changedKeys.length > 0 && effects.changedKeys.every(key => key === "layoutProfiles" || key === "groupRelations");
+    const layoutOnly = effects.changedKeys.length > 0 && effects.changedKeys.every(key => key === "layoutProfiles" || key === "groupRelations" || key === "canvasViewSettings");
     const appearanceChanged = effects.changedKeys.some(/** Legacy imperative saves delegate appearance synchronization to the one queued owner. */ key => STYLE_SETTINGS_KEYS.some(/** This is the appearance-write inventory, not the theme schema. */ field => field === key));
     const queuedAppearance = appearanceChanged && (this.settings.appearanceThemes || this.settings.appearanceThemesFuture !== undefined);
     // The appearance queue owns its durable policy baseline. Advancing it here would make a

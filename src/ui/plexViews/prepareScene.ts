@@ -10,6 +10,7 @@ import {deferredNodeCounts, nodeSize} from "./measurement";
 import {projectRelationGroups} from "./groupRelations";
 import type {Translator} from "../../lang";
 import type {HostPlexScene} from "./scene";
+import {readViewConfiguration} from "../../core/plex/views/configuration";
 
 type SceneRead = Pick<GraphIndex, "get" | "neighbours" | "sortNeighbours" | "titleFor" | "captureSemanticGateRead" | "isVisiblePage" | "explainRelationship">;
 export type PreparedViewScene = Readonly<{scene: HostPlexScene; projection: PlexProjection | null; failure: boolean}>;
@@ -93,7 +94,9 @@ export function prepareViewScene(definition: PlexViewDefinition, read: PlexViewR
   const empty: HostPlexScene = {nodes: [], edges: [], zoneViewports: {}, zoneAreas: {}};
   try {
     const maximum = Math.min(2048, Math.max(1, settings.maxItemCount * 8 + 1));
-    const projection = definition.project({attention: nodeId(attention), read, maximum: settings.maxItemCount, state});
+    const configuration = readViewConfiguration(definition, settings.canvasViewSettings === undefined ? {} : settings.canvasViewSettings);
+    if (configuration.status !== "available") return {scene: empty, projection: null, failure: true};
+    const projection = definition.project({attention: nodeId(attention), read, maximum: settings.maxItemCount, state, configuration});
     if (!projection || !current() || !read.isCurrent()) return {scene: empty, projection: null, failure: true};
     validateProjection(projection, maximum);
     if (editorSize && (!projection.editor || projection.occurrences.find(row => row.id === projection.editor)?.nodeId !== attention)) throw new Error("Missing attention editor anchor");
@@ -161,7 +164,7 @@ export function prepareViewScene(definition: PlexViewDefinition, read: PlexViewR
       });
       filtered = {...filtered, occurrences: [...grouped.values()], edges};
     }
-    const layout = definition.layout(filtered, measurements, state, Boolean(editorSize), {areaHeights: grouping?.areaHeights ?? {}});
+    const layout = definition.layout(filtered, measurements, state, Boolean(editorSize), {areaHeights: grouping?.areaHeights ?? {}, configuration});
     if (!current() || !read.isCurrent()) return {scene: empty, projection: null, failure: true};
     for (const [id, node] of nodes) {
       const rect = layout.positions.get(id);

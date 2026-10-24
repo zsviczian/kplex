@@ -105,9 +105,9 @@ If there are no standard color overrides, the dialog explains that theme colors 
 
 A newer or unsupported saved color format is read-only. Other settings can still be saved without rewriting that color data. Releases predating theme/named color sources cannot interpret those references. Preserve a settings backup and convert affected fields to fixed colors before downgrading if their appearance must remain available.
 
-## Directional background tint
+## Area tint
 
-Open **Visual styling → Colors → Directional background tint**. It is off by default. Enable **Show directional tint**, choose sources if desired and select **Save**.
+Open **Settings → K-Plex → Canvas behavior → Views → Compass → Area tint**. It is off by default. Enable **Show directional tint**, choose sources if desired and select **Save**.
 
 | Direction | Compass meaning |
 | --- | --- |
@@ -118,7 +118,7 @@ Open **Visual styling → Colors → Directional background tint**. It is off by
 
 The four sectors meet at the rendered center and cover the viewport while panning, zooming and navigating. They stay independent of empty, filtered or collapsed lists. Siblings keep their own relationship role; wide rows can cross a diagonal. Tint is an orientation cue, not an exact membership boundary or a drop target.
 
-Save and Cancel remain visible while the directional-tint controls scroll. Turning the toggle on previews the draft; choose **Save** to apply it to the Plex.
+Save and Cancel remain visible while the directional-tint controls scroll. Turning the toggle on previews the draft; choose **Save** to apply it to the canvas.
 
 **Tint intensity** accepts whole percentages from 0–15%. **Use default intensity** follows a theme override, then 7% in either mode. An explicit zero hides tint. Source alpha and intensity multiply, leaving text, nodes and controls at their normal opacity. Decorative tint is suppressed in forced-colors mode.
 
@@ -127,7 +127,7 @@ For CSS snippets and theme-author tokens, see [Theming K-Plex](THEMING.md).
 ## Settings received from another device
 
 K-Plex applies settings received through Obsidian Sync without restarting or moving
-your current Plex center. An unrelated local preference change keeps the received
+your current canvas center. An unrelated local preference change keeps the received
 appearance. Indexing strategy changes still take effect after restarting Obsidian.
 
 If another device changes the appearance while an editor is open, K-Plex keeps

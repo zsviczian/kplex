@@ -6,6 +6,8 @@
 import type {AppearanceOwner} from "../core/plex/appearanceThemes";
 import type {SemanticColorPair} from "../core/plex/colorPreferences";
 import { useEffect, useId, useMemo, useRef, useState, type CSSProperties } from "react";
+import type {PlexViewSession} from "../application/PlexViewSession";
+import {PlexViewSelector} from "./plexViews/PlexViewSelector";
 import type { GraphIndex } from "../index/GraphIndex";
 import type { GraphPage, Role, NodeStyle, LinkStyle } from "../types";
 import type { NodeSortOrder } from "../settings";
@@ -303,6 +305,7 @@ export function PlexFilter({
   sortOrder,
   onSortOrderChange,
   translate,
+  viewSession,
 }: {
   index: GraphIndex;
   center?: GraphPage;
@@ -324,6 +327,8 @@ export function PlexFilter({
   sortOrder: NodeSortOrder;
   onSortOrderChange: (order: NodeSortOrder) => void;
   translate: Translator;
+  /** The exact canvas that owns this panel; never resolve a global active leaf at submission. */
+  viewSession?: PlexViewSession;
 }) {
   const roleChoices = localizeChoices(ROLE_CHOICE_SPECS, translate);
   const evidenceRoleChoices = [...roleChoices.filter((choice) => choice.value !== "sibling"), { value: "hidden", label: translate("role.hidden") }];
@@ -342,6 +347,7 @@ export function PlexFilter({
   const panelRef = useRef<HTMLDivElement>(null);
   const dragHandleRef = useRef<HTMLDivElement>(null);
   const [open, setOpen] = useState(false);
+  const openingViewSession = useRef<PlexViewSession | undefined>(undefined);
   const [draft, setDraft] = useState<LensDraft | null>(null);
   const draftSequence = useRef(0);
   const [, setThemeRevision] = useState(0);
@@ -601,6 +607,7 @@ export function PlexFilter({
     />;
   };
 
+  const panelViewSession = openingViewSession.current ?? viewSession;
   /** Render caller-owned filter content with a dedicated drag header that excludes its close control. */
   const panel = (panelStyle: CSSProperties) => <div
     ref={panelRef}
@@ -621,6 +628,8 @@ export function PlexFilter({
     <datalist id={propertyListId}>{suggestions.properties.map((property) => <option key={property} value={property} />)}</datalist>
     <datalist id={pathListId}>{suggestions.relatedPaths.map((path) => <option key={path} value={path} />)}</datalist>
     <datalist id={folderListId}>{suggestions.folders.map((folder) => <option key={folder} value={folder} />)}</datalist>
+
+    {panelViewSession && <PlexViewSelector session={panelViewSession} translate={translate} />}
 
     <section className="kplex-filter-section">
       <div className="kplex-filter-section-heading">{translate("filter.visibility")}</div>
@@ -842,7 +851,7 @@ export function PlexFilter({
       className="kplex-icon-button kplex-filter-trigger"
       aria-label={translate("filter.trigger")}
       aria-expanded={open}
-      onClick={() => {if (!operation.current.busy) setOpen(current => !current);}}
+      onClick={() => {if (!operation.current.busy) {if (!open) openingViewSession.current = viewSession;setOpen(current => !current);}}}
     >
       <ObsidianIcon name="list-filter" size={16} />
       {activeLensCount > 0 && <span className="kplex-lens-count" aria-label={translate("filter.activeLensCount", { count: String(activeLensCount) })}>{activeLensCount}</span>}

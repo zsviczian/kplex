@@ -90,7 +90,7 @@ function environment({ keyConvention = "macos", keyboard = true, pointer = true,
 
 test("English catalog is strict, typed at source, and remains the fallback", () => {
   const english = localization.createTranslator("en");
-  assert.equal(english("command.openGraph"), "Open graph");
+  assert.equal(english("command.openGraph"), "Open canvas");
   assert.equal(english("toolbar.navigateBack"), "Navigate back");
   assert.equal(english("toolbar.navigateForward"), "Navigate forward");
   assert.equal(english("search.placeholderWithShortcut", { shortcut: "Command+F" }), "Search Vault… (Command+F)");
@@ -105,8 +105,8 @@ test("English catalog is strict, typed at source, and remains the fallback", () 
   });
   assert.equal(futureGerman("search.ariaLabel"), "Suchen (DE)", "locale identifiers must normalize before exact matching");
   assert.equal(futureGerman("search.placeholder"), "Suchen…", "missing exact-locale keys must fall back to the base locale");
-  assert.equal(futureGerman("command.openGraph"), "Open graph", "missing locale keys must fall back to English");
-  assert.equal(localization.createTranslator("zz-ZZ")("command.openGraph"), "Open graph", "unknown locale must fall back to English");
+  assert.equal(futureGerman("command.openGraph"), "Open canvas", "missing locale keys must fall back to English");
+  assert.equal(localization.createTranslator("zz-ZZ")("command.openGraph"), "Open canvas", "unknown locale must fall back to English");
 });
 
 /** Named reference metadata reflects each consumer's semantics, not a global parameter-name heuristic. */
@@ -174,7 +174,7 @@ test("every action explains its behavior beyond its label, and help is distinct 
   assert.match(translate("actions.node.open.description"), /existing notes.*center.*ensure.*sidecar is open where supported/u);
   assert.match(translate("actions.actions.open"), /K-Plex command palette/u);
   assert.match(translate("actions.keyboard.help.description"), /without running commands/u);
-  assert.match(translate("actions.helpDescription"), /Plex is focused/u);
+  assert.match(translate("actions.helpDescription"), /canvas is focused/u);
 });
 
 test("bundled locale catalogs are complete and provide translated copy", () => {
@@ -189,13 +189,13 @@ test("bundled locale catalogs are complete and provide translated copy", () => {
     "sidecar.foldUnsupportedLayout", "sidecar.chooseFoldPair",
   ];
   const catalogs = [
-    ["de", "de.js", "germanCatalog", "Graph öffnen"],
-    ["fr", "fr.js", "frenchCatalog", "Ouvrir le graphe"],
-    ["es", "es.js", "spanishCatalog", "Abrir gráfico"],
-    ["nl", "nl.js", "dutchCatalog", "Graph openen"],
-    ["ja", "ja.js", "japaneseCatalog", "グラフを開く"],
-    ["zh-TW", "zh-TW.js", "traditionalChineseCatalog", "開啟圖譜"],
-    ["ru", "ru.js", "russianCatalog", "Открыть граф"],
+    ["de", "de.js", "germanCatalog", "Canvas öffnen"],
+    ["fr", "fr.js", "frenchCatalog", "Ouvrir le canevas"],
+    ["es", "es.js", "spanishCatalog", "Abrir lienzo"],
+    ["nl", "nl.js", "dutchCatalog", "Canvas openen"],
+    ["ja", "ja.js", "japaneseCatalog", "キャンバスを開く"],
+    ["zh-TW", "zh-TW.js", "traditionalChineseCatalog", "開啟畫布"],
+    ["ru", "ru.js", "russianCatalog", "Открыть холст"],
   ];
 
   for (const [locale, file, exportName, expected] of catalogs) {
@@ -210,8 +210,8 @@ test("bundled locale catalogs are complete and provide translated copy", () => {
     const pairLabel = localization.createTranslator(locale)("sidecar.foldPairLabel", {number: 2});
     assert(pairLabel.includes("2") && !pairLabel.includes("{number}") && !pairLabel.includes('"2"'), `${locale}: pair display ordinals are counts, not quoted note references`);
   }
-  assert.equal(localization.createTranslator("de-DE")("command.openGraph"), "Graph öffnen");
-  assert.equal(localization.createTranslator("zh_TW")("command.openGraph"), "開啟圖譜");
+  assert.equal(localization.createTranslator("de-DE")("command.openGraph"), "Canvas öffnen");
+  assert.equal(localization.createTranslator("zh_TW")("command.openGraph"), "開啟畫布");
 });
 
 test("Sidecar folding copy identifies the native group scope and preserves the published action identity", () => {
@@ -410,7 +410,7 @@ test("Obsidian language adapter calls the host getLanguage export and retains En
     const adapter = require(join(temp, "src/adapters/obsidian/localization.js"));
     const translate = adapter.createObsidianTranslator();
     assert.equal(obsidian.calls(), 1);
-    assert.equal(translate("command.openGraph"), "Open graph");
+    assert.equal(translate("command.openGraph"), "Open canvas");
   } finally {
     rmSync(temp, { recursive: true, force: true });
   }
@@ -443,7 +443,7 @@ test("representative production consumers use K-Plex command IDs and preserve ex
   const actions = require(join(portableTemp, "src/core/plex/actions.js"));
   const open = actions.ACTION_BY_ID.get("surface.open-tab");
   assert.equal(open.command.id, "kplex-start");
-  assert.equal(localization.createTranslator("en")(open.labelKey), "Open graph");
+  assert.equal(localization.createTranslator("en")(open.labelKey), "Open canvas");
   assert(main.includes("createActionCommandPublisher"), "Native command labels must come from catalog publication");
   assert(main.includes('this.translator("notice.excaliBrainSettingsImported")'));
   assert(main.includes('this.translator("notice.indexedNodes", { count: this.index.size })'));
@@ -458,7 +458,7 @@ test("representative production consumers use K-Plex command IDs and preserve ex
     && transport.includes("plugin.subscribeActionPreferences(preferencesChanged)"),
   "Local dispatch must compile the same effective preference owner initially and on committed changes");
   for (const exact of [
-    "Open graph",
+    "Open canvas",
     "Imported ExcaliBrain settings into K-Plex.",
     "Navigate back",
     "Navigate forward",
@@ -476,7 +476,7 @@ test("localization gate catches nested UI literals but preserves diagnostics and
     '<button aria-label={enabled ? "Enable" : "Disable"} />;',
     '<span>{`Updated ${count} notes`}</span>;',
     'element.textContent = "Missing file";',
-    'element.setAttribute("aria-label", "Open graph");',
+    'element.setAttribute("aria-label", "Open canvas");',
     'dropdown.addOption("stable-id", "Option label");',
     'dropdown.addOptions({ stable: "Visible option" });',
     'React.createElement("span", null, "Visible child");',
@@ -528,7 +528,7 @@ test("structured parser failures preserve accepted English and support future lo
   } });
   assert.equal(format({ code: "parse", issue: parser.tryParseGraphPredicateExpression("").error }, future), "EMPTY_TRANSLATED 1");
   assert.equal(format({ code: "unknown-edge-role", value: "custom-role" }, localization.createTranslator("en")),
-    'Unknown Plex position “custom-role”. To match a relationship property such as working-on, use Relationship property in Simple view (edge.definition in Code view).');
+    'Unknown canvas position “custom-role”. To match a relationship property such as working-on, use Relationship property in Simple view (edge.definition in Code view).');
 });
 
 
