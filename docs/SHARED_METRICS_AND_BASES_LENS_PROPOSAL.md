@@ -1,14 +1,14 @@
 # Draft specification: shared link metrics and Bases-backed lens filtering
 
 Status: **specification only**. No runtime/host implementation, validation claims or speculative Bases API are introduced by this branch.
-Related: [Facets PR #220](https://github.com/zsviczian/kplex/pull/220), [GQL/query API issue #132](https://github.com/zsviczian/kplex/issues/132), [query-backed nodes issue #29](https://github.com/zsviczian/kplex/issues/29), [shareable presets issue #135](https://github.com/zsviczian/kplex/issues/135).
+Related: [Facets layouts/sharing PR #222](https://github.com/zsviczian/kplex/pull/222), [Facets PR #220](https://github.com/zsviczian/kplex/pull/220), [GQL/query API issue #132](https://github.com/zsviczian/kplex/issues/132), [query-backed nodes issue #29](https://github.com/zsviczian/kplex/issues/29), [shareable presets issue #135](https://github.com/zsviczian/kplex/issues/135).
 Initial main baseline: 26623c8393bddc0c3bcac39468078ec20ceccbc8, 2026-10-25.
-**Execution order: this PR is intended AFTER the Facets layouts/sharing follow-up PR merges.**
+**Execution order: this PR is intended AFTER [Facets/lens follow-up PR #222](https://github.com/zsviczian/kplex/pull/222) merges.**
 
 ## 0. Mandatory first step: latest main BEFORE implementation
 
-1. Inspect the current GitHub main branch, PR #220 and the Facets/lens layout-and-sharing follow-up PR, related open PRs/issues and their final accepted designs. Read AGENTS.md, CONTRIBUTING.md, docs/ARCHITECTURE.md, docs/INDEXING_ARCHITECTURE.md and accepted canvas-view/lens API/docs/source/tests.
-2. **Do not start this implementation until #220 AND the Facets/lens follow-up have merged into main.** This draft starts as documentation on the current main and intentionally contains no Facets branch code. Do not consume moving unmerged branches.
+1. Inspect the current GitHub main branch, PR #220 and [Facets/lens follow-up PR #222](https://github.com/zsviczian/kplex/pull/222), related open PRs/issues and their final accepted designs. Read AGENTS.md, CONTRIBUTING.md, docs/ARCHITECTURE.md, docs/INDEXING_ARCHITECTURE.md and accepted canvas-view/lens API/docs/source/tests.
+2. **Do not start this implementation until #220 AND [#222](https://github.com/zsviczian/kplex/pull/222) have merged into main.** This draft starts as documentation on the current main and intentionally contains no Facets branch code. Do not consume moving unmerged branches.
 3. When prerequisites are merged, normally integrate the latest accepted main into this existing remote branch; inspect actual index mode, graph/publication/coverage APIs, predicate grammar, lens filtering ownership, Bases types and native runtime before deciding implementation details. Reconcile this draft with the accepted API, record the starting main SHA, and update the PR plan.
 4. Recheck latest main again before final verification/handoff. No direct writes to main, no force-push, no merge or release without separate authorization.
 5. **Bases public API feasibility is a gating investigation**, not an invitation to invent a headless query API. Preserve the independently useful metrics work if Bases needs a later decision; report the blocker and request maintainer direction before shipping a weakened substitute.
