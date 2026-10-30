@@ -26,6 +26,7 @@
  * Opt-in rooted hierarchies retain root/attention/editor intent separately, reconcile finite frontier
  * leases after scene admission and share exact ancestor filtering and catalog-backed branch actions.
  * Their first current local preparation may fit once; manual/restored cameras and live editors win.
+ * File-location menu actions share captured action targets and delegate to guarded native APIs.
  */
 import {edgeViewportClip, edgeViewportEndpoints, revealRowScrollTop, editorToolbarInsets} from "./plexViews/areaVisibility";
 import {ontologyConfiguration} from "../core/contracts/ontologyConfiguration";
@@ -123,6 +124,7 @@ import { acceptPlexKeyEvent } from "./actionKeyboardOwnership";
 import { effectiveActionBindings } from "../core/plex/actionPreferences";
 import { formatActionBinding } from "./actionPresentation";
 import { readObsidianPresentationEnvironment } from "../adapters/obsidian/presentationEnvironment";
+import { fileRevealMenuState, revealFile } from "../adapters/obsidian/fileReveal";
 import { surfaceAction } from "./surfaceActionImplementation";
 import {translateActionText} from "./actionPresentation";
 import { SavedRelationshipPendingError } from "../adapters/obsidian/relationshipMetadataWrite";
@@ -4630,12 +4632,14 @@ export function PlexGraph({ viewDefinition = classicViewDefinition, viewSession,
       execute: /** A picker exposes every displayed incident edge; selected edge actions use current evidence. */ context => pickConnection(context, id),
     };
   }
-  for (const [id, destination] of [["node.open.focus-tab", "focus-tab"], ["node.open.new-tab", "new-tab"], ["node.open.split", "split"], ["node.open.window", "window"], ["node.open.browser", "browser"], ["node.open.web-viewer", "web-viewer"]] as const) {
+  for (const [id, destination] of [["node.open.focus-tab", "focus-tab"], ["node.open.new-tab", "new-tab"], ["node.open.split", "split"], ["node.open.window", "window"], ["node.open.browser", "browser"], ["node.open.web-viewer", "web-viewer"], ["node.open.system", "system"], ["node.open.navigation", "navigation"]] as const) {
     graphImplementations[id] = graphAction(/** Open the exact accepted file/URL using existing device-aware destinations. */ context => {
       const page = graphActionPage(context); if (!page) return;
       if (destination === "browser" && page.url) return plugin.openUrlInBrowser(page.url, viewport.current?.ownerDocument);
       if (destination === "web-viewer" && page.url) return plugin.openUrlInWebViewer(page.url);
       if (!page.file) return;
+      if (destination === "system" || destination === "navigation") return revealFile(plugin.app, page.file, destination,
+        readObsidianPresentationEnvironment(viewport.current?.ownerDocument.defaultView ?? undefined));
       if (destination === "focus-tab") return plugin.focusOpenFileTab(page.file);
       if (destination === "new-tab") return plugin.openFileInNewTab(page.file);
       if (destination === "split") return plugin.openFileInAdjacentPane(page.file, hostLeaf);
@@ -4645,6 +4649,10 @@ export function PlexGraph({ viewDefinition = classicViewDefinition, viewSession,
       if (destination === "browser") return Boolean(page?.url);
       if (destination === "web-viewer") return Boolean(page?.url) && plugin.canOpenUrlInWebViewer();
       if (!page?.file) return false;
+      if (destination === "system" || destination === "navigation") {
+        const reveal = fileRevealMenuState(plugin.app, readObsidianPresentationEnvironment(viewport.current?.ownerDocument.defaultView ?? undefined));
+        return destination === "system" ? reveal.systemLabel !== null : reveal.navigation;
+      }
       const state = plugin.getFileOpenMenuState(page.file);
       return destination === "focus-tab" ? state.focusOpenTab : destination === "new-tab" || destination === "split" && state.adjacentPane || destination === "window" && state.popoutWindow;
     });
@@ -4884,6 +4892,8 @@ export function PlexGraph({ viewDefinition = classicViewDefinition, viewSession,
     const persistentFile = persistent?.file;
     if (persistentFile && persistent && page.transient?.kind !== "section") {
       const openState = plugin.getFileOpenMenuState(persistentFile);
+      const revealState = fileRevealMenuState(plugin.app,
+        readObsidianPresentationEnvironment(viewport.current?.ownerDocument.defaultView ?? undefined));
       addNativeSubmenu(menu, translate("graph.openMenu"), "external-link",
         /** Populate platform-supported destinations without replacing the owning context menu. */
         (openMenu) => {
@@ -4909,6 +4919,13 @@ export function PlexGraph({ viewDefinition = classicViewDefinition, viewSession,
             .setIcon("external-link")
             .onClick(/** Delegate window creation and unavailable-host feedback. */ () => runCapturedNodeAction("node.open.window", persistent)));
         }
+        const systemLabel = revealState.systemLabel;
+        if (systemLabel) openMenu.addItem(/** Use the platform's file-manager caption and the same captured node. */ item => item
+          .setTitle(translate(systemLabel)).setIcon("folder-open")
+          .onClick(/** Reveal the physical file through Obsidian's desktop action. */ () => runCapturedNodeAction("node.open.system", persistent)));
+        if (revealState.navigation) openMenu.addItem(/** Files owns sidebar expansion, focus and highlighting. */ item => item
+          .setTitle(translate("actions.node.open.navigation")).setIcon("folder-tree")
+          .onClick(/** Shared dispatch rechecks the enabled core plugin before revealing. */ () => runCapturedNodeAction("node.open.navigation", persistent)));
       });
       menu.addSeparator();
     }

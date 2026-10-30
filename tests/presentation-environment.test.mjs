@@ -71,6 +71,9 @@ process.on("exit", () => rmSync(excalidrawVersionCompiled.temp, { recursive: tru
 const externalUrlCompiled = compilePureModule("src/adapters/obsidian/externalUrl.ts");
 const externalUrl = externalUrlCompiled.exports;
 process.on("exit", () => rmSync(externalUrlCompiled.temp, { recursive: true, force: true }));
+const fileRevealCompiled = compilePureModule("src/adapters/obsidian/fileReveal.ts");
+const fileReveal = fileRevealCompiled.exports;
+process.on("exit", /** Retire this suite's compiled host boundary. */ () => rmSync(fileRevealCompiled.temp, { recursive: true, force: true }));
 const doubleTapCompiled = compilePureModule("src/ui/components/DoubleTapGesture.ts");
 const { DoubleTapGesture } = doubleTapCompiled.exports;
 process.on("exit", () => rmSync(doubleTapCompiled.temp, { recursive: true, force: true }));
@@ -460,17 +463,20 @@ test("persisted layout keys and node-open leaf modes remain stable with canonica
       touchDoubleTap: {current: {reset() {}}}, persistentPageFor: () => page,
       neighborhood: null, activePath: "Other.md", canExpandCentralSections: () => false,
       Menu: MenuDouble, actionNodeRef: nodeModule.exports.actionNodeRef, actionSurfaceId: "owning-surface", sceneNodeKeys: new Map(),
-      plugin: {getFileOpenMenuState: () => ({focusOpenTab: true, adjacentPane: true, popoutWindow: false}), isPinned: () => false,
+      plugin: {app: {}, getFileOpenMenuState: () => ({focusOpenTab: true, adjacentPane: true, popoutWindow: false}), isPinned: () => false,
         actionManager: {dispatch: request => {requests.push(request); return Promise.resolve({status: "completed"});}}, showKplexMenuAtPosition() {}},
       addNativeSubmenu: (menu, _title, _icon, populate) => populate(menu), translate: key => key,
+      fileRevealMenuState: () => ({systemLabel: "graph.openInFinder", navigation: true}), readObsidianPresentationEnvironment: () => ({}),
       viewport: {current: {ownerDocument: {}}}, hostLeaf: {},
     });
     showMenu({page, role: "child"}, 10, 20, "captured-occurrence");
     assert(items.has("graph.focusOpenTab")); assert(items.has("graph.openNewTab")); assert(items.has("graph.openAdjacentPane"));
     assert(!items.has("graph.openPopoutWindow"), "Unavailable popout destination remains absent");
+    assert(items.has("graph.openInFinder")); assert(items.has("actions.node.open.navigation"));
     page.path = "Changed.md"; page.file = {path: "Changed.md", extension: "md"};
     items.get("graph.openAdjacentPane")();
-    assert.deepEqual(requests, [{id: "node.open.split", source: "context-menu", surfaceId: "owning-surface", target: {kind: "explicit", node: captured, occurrenceId: "captured-occurrence"}}],
+    items.get("graph.openInFinder")(); items.get("actions.node.open.navigation")();
+    assert.deepEqual(requests, ["node.open.split", "node.open.system", "node.open.navigation"].map(id => ({id, source: "context-menu", surfaceId: "owning-surface", target: {kind: "explicit", node: captured, occurrenceId: "captured-occurrence"}})),
       "Choosing the native menu must retain launch-time file identity and occurrence through shared dispatch");
   } finally { rmSync(nodeModule.temp, {recursive: true, force: true}); }
   assert(plexSource.includes('if (destination === "split") return plugin.openFileInAdjacentPane(page.file, hostLeaf)'), "Shared split implementation must retain the exact owning native pane operation");
@@ -478,6 +484,38 @@ test("persisted layout keys and node-open leaf modes remain stable with canonica
   assert(plexSource.includes("openState.adjacentPane"), "adjacent-pane action must follow presentation availability");
   assert(plexSource.includes("openState.popoutWindow"), "pop-out action must follow presentation availability");
   assert(mainSource.includes("type !== KPLEX_VIEW_TYPE && type !== KPLEX_SIDEPANEL_VIEW_TYPE"), "Focus open tab excludes graph surfaces but includes actual file tabs such as Sidecars");
+});
+
+test("native file-location availability follows OS, mobile and live Files enablement", /** Check supported and absent host capabilities without opening native panes. */ () => {
+  const app = {showInFolder() {}, internalPlugins: {getEnabledPluginById: () => ({revealInFolder() {}})}};
+  for (const [keyConvention, systemLabel] of [["macos", "graph.openInFinder"], ["windows", "graph.openInExplorer"], ["unknown", "graph.showInSystemExplorer"]]) {
+    assert.deepEqual(fileReveal.fileRevealMenuState(app, {device: "desktop", keyConvention}), {systemLabel, navigation: true});
+  }
+  for (const device of ["phone", "tablet"]) assert.deepEqual(fileReveal.fileRevealMenuState(app, {device, keyConvention: "macos"}), {systemLabel: null, navigation: true});
+  app.internalPlugins.getEnabledPluginById = () => null;
+  assert.equal(fileReveal.fileRevealMenuState(app, {device: "desktop", keyConvention: "macos"}).navigation, false);
+  assert.deepEqual(fileReveal.fileRevealMenuState({}, {device: "desktop", keyConvention: "windows"}), {systemLabel: null, navigation: false});
+});
+
+test("file-location actions delegate exact targets with native receivers and reject retired capabilities/files", async () => {
+  const file = {path: "Attachments/Example image.png"}, calls = [];
+  let current = file, enabled = true;
+  const explorer = {async revealInFolder(value) {assert.equal(this, explorer); calls.push(["navigation", value]);}};
+  const app = {vault: {getFileByPath: () => current}, showInFolder(path) {assert.equal(this, app); calls.push(["system", path]);},
+    internalPlugins: {getEnabledPluginById(id) {assert.equal(id, "file-explorer"); return enabled ? explorer : null;}}};
+  const desktop = {device: "desktop", keyConvention: "macos"};
+  await fileReveal.revealFile(app, file, "system", desktop);
+  await fileReveal.revealFile(app, file, "navigation", desktop);
+  assert.deepEqual(calls, [["system", file.path], ["navigation", file]]);
+  enabled = false;
+  await fileReveal.revealFile(app, file, "navigation", desktop);
+  await fileReveal.revealFile(app, file, "system", {device: "tablet", keyConvention: "ios"});
+  current = {...file};
+  await fileReveal.revealFile(app, file, "system", desktop);
+  await fileReveal.revealFile(app, file, "navigation", desktop);
+  current = null;
+  await fileReveal.revealFile(app, file, "system", desktop);
+  assert.equal(calls.length, 2, "Disabled Files, mobile system reveal, replacement and deletion stay inert");
 });
 
 test("portable presentation code has no Obsidian or window dependency", () => {
