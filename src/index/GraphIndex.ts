@@ -1,5 +1,7 @@
 /**
  * Warm eager views can compile finite visible owners through the same local compiler at P1,
+ * Trusted public reads inspect finite work budgets before canonical composition, reuse existing
+ * role/evidence/search owners and expose passive coverage without source acquisition or demand.
  * independently of global contributor closure. Exact local certificates fence that read cover;
  * complete-neighborhood and write authority remain with the canonical source owners.
  * Each canvas leases its own selected owners; source observations re-admit every active recovery
@@ -128,6 +130,7 @@ import { ObsidianSourceAcquisition } from "../adapters/obsidian/sourceAcquisitio
 import { graphCompilerSettingsFromLegacy, graphNodeViewFromLegacy } from "../adapters/obsidian/graphContracts";
 import type { CompiledGraphNode, GraphCompilerRuntime, GraphCompilerSettings } from "../core/graph/compiler";
 import type { NodeId } from "../core/graph/model";
+import {PublicApiError,PUBLIC_API_LIMITS as publicLimits,type PublicCoverage,type PublicNode,type PublicPage,type PublicRelationship,type PublicEvidence,type PublicIndexStatus} from '../application/publicApiContracts';
 import { estimateReferenceRecordBytes, sourceRevision, type SourceEntityFact, type SourceEntityRef } from "../core/graph/source";
 import { RelationEvidenceStore, emptyRelation, applyOntologyPrecedence, applyEvidenceDecisionsToRelation } from "../core/graph/evidence";
 import { Platform, TFile, TFolder, normalizePath, type App, type CachedMetadata } from "obsidian";
@@ -3899,6 +3902,153 @@ export class GraphIndex {
     applyPreparedPresentation(prepared.facets, this.presentationStatuses);
     this.presentationSettings = acceptedSettings;
     this.presentationRevision += 1;
+  }
+
+  /** Public automation coverage never promotes source/search or local-view readiness to a
+   * whole-vault negative. All checks are existing scalar certificates and schedule no work. */
+  publicApiCoverage(path?:string):PublicCoverage {
+    if(this.diagnosticsClosed||this.preparationDeferred||this.persistentCachePurged)return{scope:'unknown',complete:false,pending:false};
+    const global=!this.sourceBackedSemantics&&this.fullSemanticPolicyRevision===this.semanticPolicyRevision
+      &&this.fullSemanticMaintenanceRevision===this.sourceAcquisition.getMaintenanceRevision()
+      &&this.fullSemanticSourceRevision===this.plugin.getIndexSourceRevision()&&this.pendingStructuralTasks===0;
+    if(path!==undefined){const scope=this.viewScopeCoverage(path);return{scope:global?'global':scope.coverage==='unavailable'?'unknown':scope.coverage,complete:scope.complete,pending:scope.pending};}
+    return{scope:global?'global':this.hasPhysicalBaseline()?'cached':'unknown',complete:global,pending:this.hasPendingSnapshotHydration()||this.hasActiveSemanticPreparation()};
+  }
+
+  /** Join existing passive coordinator facts with independent graph/search/source certificates.
+   * No file inventory is enumerated and no readiness wait or acquisition is started. */
+  publicApiStatus(facts:Readonly<{phase:string;upToDate:boolean;indexedFiles:number;totalFiles:number|null}>):PublicIndexStatus {
+    return{...facts,coverage:this.publicApiCoverage(),searchComplete:!this.preparationDeferred&&!this.hasPendingSearchVocabulary()&&!this.getSearchVocabularyFailure()
+      &&(this.fullSnapshotHydrated||this.sourceNodeVocabularyPublished),hydrating:this.hasPendingSnapshotHydration(),sourceReady:this.sourceAcquisition.hasSemanticDependencies(),mode:this.isOnDemandMode()?'on-demand':'eager'};
+  }
+
+  /** Bound in-memory discovery enumeration before copying/sorting; no discovery pass runs. */
+  publicApiDiscoveredFields(limit:number):PublicPage<{normalized:string;name:string;count:number}> {
+    const items:Array<{normalized:string;name:string;count:number}>=[];
+    for(const [normalized,field]of this.state.discoveredFields){if(items.length>=limit)break;items.push({normalized,...field});}
+    return{items,truncated:this.state.discoveredFields.size>items.length,scanned:items.length};
+  }
+
+  /** Inspect every retained owner capable of contributing to the canonical read before it
+   * composes incidence or inverse evidence. Dense operands fail explicitly rather than doing
+   * unbounded work and truncating afterward. No second semantic projection is constructed. */
+  private publicApiReadBudget(paths:readonly string[],cancelled:()=>boolean):void {
+    if(this.semanticScopes.size+this.hostPreviewScopes.size+this.onDemandHostScopes.size+this.onDemandCachedScopes.size+this.retainedLocalScopes.size>124)throw new PublicApiError('LIMIT_EXCEEDED','Too many retained read owners');
+    const states:Array<{pages:ReadonlyMap<string,GraphPage>;evidence:RelationEvidenceStore}>=[this.state,this.publishedUrlState];
+    for(const scope of this.semanticScopes.values())states.push({pages:scope.pagesByPath,evidence:scope.evidence});
+    for(const scope of this.hostPreviewScopes.values())states.push(scope);
+    for(const scope of this.onDemandHostScopes.values())states.push(scope);
+    for(const scope of this.onDemandCachedScopes.values())states.push(scope);
+    for(const scope of this.retainedLocalScopes.values())states.push(scope.state);
+    for(const path of paths){const recovery=this.visibleRecoveryScope(path);if(recovery)states.push(recovery);}
+    if(states.length>128)throw new PublicApiError('LIMIT_EXCEEDED','Too many retained read owners');
+    let remaining=publicLimits.scan as number;
+    const pending=[...paths],visited=new Set<string>();
+    while(pending.length){
+      const path=pending.pop();if(path===undefined||visited.has(path))continue;visited.add(path);
+      const stores=new Set<RelationEvidenceStore>(),pages=new Set<GraphPage>();
+      for(const state of states){
+        if(cancelled())throw new PublicApiError('CANCELLED','Request was cancelled');
+        if(--remaining<0)throw new PublicApiError('LIMIT_EXCEEDED','Canonical read exceeds its work budget');
+        const page=state.pages.get(path);
+        if(page&&!pages.has(page)){
+          pages.add(page);remaining-=page.neighbours.size;if(remaining<0)throw new PublicApiError('LIMIT_EXCEEDED','Canonical incidence exceeds its work budget');
+          for(const relation of page.neighbours.values())if(relation.target.url&&!visited.has(relation.target.path))pending.push(relation.target.path);
+        }
+        if(stores.has(state.evidence))continue;stores.add(state.evidence);
+        const count=state.evidence.inspectReadBudget(path,remaining);if(!count)throw new PublicApiError('LIMIT_EXCEEDED','Canonical evidence exceeds its work budget');
+        remaining-=count.pairs+count.declarations;if(remaining<0)throw new PublicApiError('LIMIT_EXCEEDED','Canonical evidence exceeds its work budget');
+      }
+    }
+    if(this.relationshipPairs.size>publicLimits.scan)throw new PublicApiError('LIMIT_EXCEEDED','Exact-pair overlay exceeds its work budget');
+    for(const pair of this.relationshipPairs.values()){
+      if(cancelled())throw new PublicApiError('CANCELLED','Request was cancelled');
+      if(--remaining<0)throw new PublicApiError('LIMIT_EXCEEDED','Exact-pair overlay exceeds its work budget');
+      for(const path of paths)if(pair.paths.includes(path)){
+        const count=pair.evidence.inspectReadBudget(path,remaining);if(!count)throw new PublicApiError('LIMIT_EXCEEDED','Exact-pair evidence exceeds its work budget');remaining-=count.pairs+count.declarations;
+      }
+    }
+    if(remaining<0)throw new PublicApiError('LIMIT_EXCEEDED','Canonical read exceeds its work budget');
+  }
+
+  /** Map only selected scalar metadata; raw note properties, bodies and native objects never
+   * enter API values. Oversized metadata is rejected before the response is copied. */
+  private publicApiNodeValue(page:GraphPage):PublicNode {
+    const view=graphNodeViewFromLegacy(page);
+    for(const values of [view.aliases,view.tags,view.styleTags])if(values.length>256||values.some(value=>value.length>publicLimits.text))throw new PublicApiError('LIMIT_EXCEEDED','Node metadata exceeds its budget');
+    for(const value of [view.id,view.name,view.path,view.url,view.noteType,view.primaryStyleTag])if(value&&value.length>publicLimits.text)throw new PublicApiError('LIMIT_EXCEEDED','Node text exceeds its budget');
+    return{...view,aliases:[...view.aliases],tags:[...view.tags],styleTags:[...view.styleTags]};
+  }
+
+  /** Exact semantic IDs use the canonical selector and never resolve arbitrary link spelling. */
+  publicApiNode(id:string):PublicNode|null {
+    this.publicApiReadBudget([id],()=>false);
+    const page=this.semanticPage(id);return page?.path===id?this.publicApiNodeValue(page):null;
+  }
+
+  /** Bounded canonical incidence uses the existing role classifier and pair-specific compiling
+   * policy, independent of display visibility, sorting, lenses or connector arrangements. */
+  publicApiNeighbors(id:string,role:Exclude<Role,'sibling'>|undefined,limit:number,cancelled:()=>boolean):PublicPage<PublicRelationship> {
+    this.publicApiReadBudget([id],cancelled);
+    const page=this.semanticPage(id);if(!page||page.path!==id)return{items:[],truncated:false,scanned:0};
+    const source=this.semanticRelationSource(page),items:PublicRelationship[]=[];let scanned=0,truncated=false;
+    const roles:readonly Exclude<Role,'sibling'>[]=role?[role]:['parent','child','left','right','previous','next'];
+    for(const relation of source.page.neighbours.values()){
+      if(cancelled())throw new PublicApiError('CANCELLED','Request was cancelled');scanned++;
+      if(relation.isHidden)continue;
+      for(const currentRole of roles){
+        const relationType=classifyRelation(relation,currentRole,this.relationshipInference(id,relation.target.path,source.settings.inferAllLinksAsFriends));if(relationType===null)continue;
+        if(items.length>=limit){truncated=true;break;}
+        const definition=currentRole==='parent'?relation.parentTypeDefinition:currentRole==='child'?relation.childTypeDefinition:currentRole==='left'?relation.leftFriendTypeDefinition:currentRole==='right'?relation.rightFriendTypeDefinition:currentRole==='previous'?relation.previousFriendTypeDefinition:relation.nextFriendTypeDefinition;
+        if(definition&&definition.length>publicLimits.text)throw new PublicApiError('LIMIT_EXCEEDED','Relationship definition exceeds its budget');
+        items.push({sourceId:id,targetId:relation.target.path,role:currentRole,relationType,direction:relation.direction??null,definition:definition??null});
+      }
+      if(truncated)break;
+    }
+    return{items,truncated,scanned};
+  }
+
+  /** Pair explanations share canonical precedence; raw values are deliberately absent even
+   * for explicit evidence requests. Output truncation never changes the resolver's decision. */
+  publicApiEvidence(sourceId:string,targetId:string,limit:number,cancelled:()=>boolean):PublicEvidence|null {
+    this.publicApiReadBudget([sourceId,targetId],cancelled);
+    const explanation=this.explainRelationship(sourceId,targetId);if(!explanation)return null;
+    return{sourceId,targetId,resolvedRoles:explanation.resolvedRoles.map(value=>({...value})),hidden:explanation.hidden,summary:explanation.summary,
+      truncated:explanation.decisions.length>limit,decisions:explanation.decisions.slice(0,limit).map(({evidence,active,suppressionReason})=>{
+        if(cancelled())throw new PublicApiError('CANCELLED','Request was cancelled');
+        for(const value of [evidence.id,evidence.sourcePath,evidence.targetPath,evidence.declaredByPath,evidence.declaredTargetPath,evidence.fieldName,evidence.definition])if(value&&value.length>publicLimits.text)throw new PublicApiError('LIMIT_EXCEEDED','Evidence text exceeds its budget');
+        return{id:evidence.id,sourceId:evidence.sourcePath,targetId:evidence.targetPath,role:evidence.role,relationType:evidence.relationType,direction:evidence.direction,sourceKind:evidence.sourceKind,declaredByPath:evidence.declaredByPath,declaredTargetPath:evidence.declaredTargetPath,declaredRole:evidence.declaredRole,fieldName:evidence.fieldName,definition:evidence.definition,line:evidence.line,start:evidence.start,end:evidence.end,active,suppressionReason};
+      })};
+  }
+
+  /** Search existing normalized catalogs lazily with the same ranking owner. The bounded
+   * scan includes unresolved, structural, attachment and URL vocabulary without UI filters;
+   * it creates no index, source read, broad merged array or complete-vocabulary assertion. */
+  publicApiSearch(query:string,limit:number,cancelled:()=>boolean):PublicPage<PublicNode> {
+    if(this.semanticScopes.size>128)throw new PublicApiError('LIMIT_EXCEEDED','Too many retained search owners');
+    const q=query.trim().toLowerCase(),seen=new Set<string>(),best:Array<{page:GraphPage;score:number}>=[];
+    let scanned=0,truncated=false,characters=262144;
+    /** Enumerate existing publication owners directly; duplicates count toward the scan budget. */
+    function* entries(index:GraphIndex):IterableIterator<SearchEntry>{
+      yield* index.urlSearchEntries.values();
+      for(const scope of index.semanticScopes.values())for(const page of scope.pagesByPath.values())yield{page,name:page.name,aliases:page.aliases,path:page.path};
+      yield* index.searchEntries;yield* index.physicalSearchEntries.values();
+    }
+    for(const entry of entries(this)){
+      if(cancelled())throw new PublicApiError('CANCELLED','Request was cancelled');
+      if(scanned++>=publicLimits.scan){truncated=true;break;}
+      const page=entry.page;if(seen.has(page.path))continue;
+      if(this.retiredUrlTargets.has(page.path)||this.retiredHostTagPaths.has(page.path)||page.file&&(page.file.path!==page.path||this.app.vault.getFileByPath(page.path)!==page.file))continue;
+      seen.add(page.path);
+      if(entry.aliases.length>256||entry.name.length>publicLimits.text||entry.path.length>publicLimits.text||entry.aliases.some(value=>value.length>publicLimits.text)){truncated=true;continue;}
+      characters-=entry.name.length+entry.path.length+entry.aliases.reduce((total,value)=>total+value.length,0);
+      if(characters<0){truncated=true;break;}
+      const score=q?searchEntryScore({...entry,name:entry.name.toLowerCase(),path:entry.path.toLowerCase(),aliases:entry.aliases.map(value=>value.toLowerCase())},q):0;if(score===null)continue;
+      let at=best.length;while(at>0&&score<best[at-1].score)at--;
+      if(at<limit){best.splice(at,0,{page,score});if(best.length>limit){best.pop();truncated=true;}}
+      else truncated=true;
+    }
+    return{items:best.map(({page})=>this.publicApiNodeValue(page)),truncated,scanned:Math.min(scanned,publicLimits.scan)};
   }
 
   get size(): number { return this.state.pages.size; }

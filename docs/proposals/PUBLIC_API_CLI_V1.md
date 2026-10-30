@@ -1,6 +1,6 @@
 # K-Plex public API and CLI v1 — implementation brief
 
-**Specification-only draft; no runtime feature code yet.** Start from K-Plex 0.3.1 `main@9e203ed`; refresh current main before coding, reread AGENTS.md, CONTRIBUTING.md, the internal Canvas View API and settings/index contracts. Related [#132](https://github.com/zsviczian/kplex/issues/132).
+**Draft implementation is present; complete repository verification and exact-build native acceptance remain pending.** This brief preserves the original scope and delivery gates. The implemented access convention, operation contracts, bounds and CLI usage are documented in the [public API reference](../PUBLIC_API.md) and [CLI guide](../CLI.md). Baseline scope began at K-Plex 0.3.1 `main@9e203ed`; the existing PR branch has since been refreshed and includes the ontology-description dependency. Related [#132](https://github.com/zsviczian/kplex/issues/132). Neither implementation nor focused test evidence authorizes merging.
 
 ## Why
 Make the semantic knowledge K-Plex *already* owns useful to trusted agents, scripts and other plugins: ontology meanings, reconciled graph relationships/evidence, and the **actual selected visual canvas**. Obsidian already handles Markdown CRUD; avoid duplicating it.

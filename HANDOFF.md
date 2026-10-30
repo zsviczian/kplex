@@ -19,17 +19,26 @@ Obsidian is the production host; preserve the established portable semantic, ide
 
 ---
 
-# PR239 accepted implementation; PR240 next
+# PR240 public API and Obsidian CLI v1
 
-State: main-agent validation complete for available Windows/portable lanes; both PRs remain draft/unmerged.
-Identity: existing branch 2026-10-30-ontology-descriptions, following f526c1548ce45e4cc8cbc69b63eea30bba819adf (main909343a incorporated). Final commit/push is main-agent-owned.
+State: implementing. Main validation agent to API/configuration development agents.
+Identity: EXISTING branch 2026-10-30-public-api-cli, refreshed main909343a and merged validated PR239 dependency6ce6b5b. PR239 remains draft/unmerged; maintainer explicitly authorized unattended progression to240. No new branches, commits/pushes by development agents, or PR merges.
 
-Implemented optional exact-physical-field descriptions with independent inverse wording, the existing atomic settings writer, all native/React ontology surfaces and eight catalogs. Pure core/contracts/ontologyReadModel is the API handoff. Description edits/receipts never change semantic policy or enter source refresh. Alias/prototype/caret/conflict/retry regressions included.
+Read live PR240 specification and AGENTS/CONTRIBUTING/ARCHITECTURE/INDEXING/CANVAS_VIEW_API/PORTABLE_PRESETS. C14 remains paused. Preserve core/index/settings/session ownership; no default indexing, hydration, note reads, allPages materialization, duplicate classifiers or source models.
 
-Node22.22.2: complete npm run verify PASS; architecture/core/official Obsidian ESLint/actual types/build PASS. Regression batches1698/425/357/855 all PASS. Exact-build native smoke PASS on Obsidian1.14.5. Native descriptions PASS (three writes, zero reads/parses/acquisitions/rebuilds/invalidations, semantic revision unchanged); narrow manager12 cases PASS; actual plugin reload retains both descriptions and physical YAML evidence. All cleanup PASS.
+Ownership:
+- api_recon: application publicApiContracts/PublicApi and GraphQL adapter; passive bounded GraphIndex/evidence reads; focused tests and npm test inventory (preserve root dependency install). Send finalized public port/types to root promptly.
+- config_api: PublicApiConfiguration using existing validators/exporters/planner/queued writer; focused tests and API/CLI docs. Coordinate types with API agent. Root owns main factory.
+- root: package graphql16.14.2 exact install, committed canvas registry/publisher/App/PlexGraph integration, main lifecycle/factory, native tests, complete verify, PR delivery. Do not edit root-owned files without coordination.
 
-Earlier harness inventory omission and browser pre-assertion startup timeout were retained and resolved by correction/full rerun without relaxed bounds. Broad native fixture initially had dependency-invalid derived cache; existing purge/reload regenerated98 source heads while preserving notes/settings/trust/workspace. All final native lanes passed afterward.
+Real GraphQL read-only schema, variables/introspection, lazy construction, executeSync coherent reads, caps on input/tokens/expanded fragments/depth/cost/pages/output/work and cancellation. Public envelopes report revisions/coverage/truncation and machine errors. Ontology available from loaded settings before index. Existing settings-owned read model from239. Global readiness must use current whole-graph certificates; local/search readiness cannot imply complete graph. Bound work before overlays/evidence expand; reuse existing search catalog with bounded scan and preserve UI defaults.
 
-Durable evidence and artifact hashes: docs/validation/ontology-descriptions-239-2026-10-30.md. Physical mobile/macOS/two-device Sync remain separate checks. No release or PR merge authorized.
+Canvas snapshots read only committed owner state, distinguish canonical node vs visual occurrence vs filters/viewport, semantic links vs decorative guides, no classifier/layout rerun. Captured navigation/requestSelection/preset contributions retain existing preflight and exact canvas. Omitted canvas with multiple surfaces is ambiguous.
 
-Next: main agent publishes existing PR239, then switches to existing 2026-10-30-public-api-cli, refreshes main and carries239 dependency without a PR merge, per explicit unsupervised progression. Reuse this header and overwrite this body for the API assignment.
+Configuration uses canonical package validator/exporter/import planner and existing atomic writer. Bounded expiring one-shot preview tokens and confirm:true, stale guards, disabled imported lenses, readback, durable saved/pending results. Dispose all host port closures plus tokens/registrations so old public handles cannot retain unloaded plugin/index.
+
+PR237/238 unmerged specification drafts as initially checked; recheck before delivery, otherwise advertise exports unavailable/follow-up without duplicates. No HTTP/MCP/listeners/telemetry/note CRUD. CLI eval directly calls public API, uses reliable argument arrays/JSON envelopes/deadlines/readback; no separate executable wrapper.
+
+Node22.22.2: C:/Users/viczi/AppData/Local/nvm/v22.22.2/node.exe. Prepend its directory to PATH for child Node commands. Native CLI requires escalation for local IPC, known Small vault C:/Obsidian/kplex-test-small, Obsidian1.14.5,117 files98Markdown. Native/cache fixture is now healthy after explicit derived-cache regeneration. All source/native/browser lanes serial; no parallel browser tests. Root runs fullverify/native exact build.
+
+PR239 full verify+native accepted Windows results and limitations: docs/validation/ontology-descriptions-239-2026-10-30.md. Physical mobile/macOS/two-deviceSync remain separate. Return uncommitted code and actual focused test results, never claim pending root checks passed. No source or test bound weakening. Every new module/function meaningful TSDoc, all UI copy localized across8 catalogs; developer API machine diagnostics stay English and never leak arbitrary note bodies.

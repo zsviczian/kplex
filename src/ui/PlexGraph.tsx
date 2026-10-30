@@ -131,6 +131,7 @@ import { SavedRelationshipPendingError } from "../adapters/obsidian/relationship
 import { captureSurfaceContinuation } from "./surfaceContinuation";
 import { ActionTargetPicker, type ActionPickerItem, type ActionPickerEvent } from "./ActionTargetPicker";
 import type { GraphActionPorts, SurfaceActionImplementations } from "./usePlexActions";
+import {readPublicCanvasScene, type PublicScenePublication} from './publicCanvasScene';
 import { hasClickModifier } from "./components/modifierClick";
 
 type Point = { x: number; y: number };
@@ -706,7 +707,7 @@ function EdgeLabel({label,midpoint,style,background,opacity}:{label:string|null;
 }
 
 /** Compose the deterministic Plex scene; native-follow layouts land immediately while explicit navigation retains motion and central Open uses a main tab. */
-export function PlexGraph({ viewDefinition = classicViewDefinition, viewSession, viewContributions, viewRevision = 0, plugin, index, settings: viewSettings, paintSettings, paintLenses, surface, hostLeaf, predicate, lenses, filterLayoutMode, predicateRevision, showCrossLinks, activePath, navigationOrigin = "user", onSemanticDemandAcquired, renderRevision, semanticRevision, findFocusRequest, footprintsControl, areaSettingsMode, onAreaSettingsModeChange, onApplyFindFilter, appliedFindFilterQuery, onClearFindFilter, onActivate, onWanderActivate, onOpen, onOpenInSidecar, onCentralNodeEditorChange, onCentralNodeModeChange, actionPorts, actionSurfaceId, displayState, fullscreenAvailable, sidecarOpen }: {
+export function PlexGraph({ viewDefinition = classicViewDefinition, viewSession, viewContributions, viewRevision = 0, plugin, index, settings: viewSettings, paintSettings, paintLenses, surface, hostLeaf, predicate, lenses, filterLayoutMode, predicateRevision, showCrossLinks, activePath, navigationOrigin = "user", onSemanticDemandAcquired, renderRevision, semanticRevision, findFocusRequest, footprintsControl, areaSettingsMode, onAreaSettingsModeChange, onApplyFindFilter, appliedFindFilterQuery, onClearFindFilter, onActivate, onWanderActivate, onOpen, onOpenInSidecar, onCentralNodeEditorChange, onCentralNodeModeChange, actionPorts, actionSurfaceId, displayState, fullscreenAvailable, sidecarOpen, publicScene, publicFrame }: {
   viewDefinition?: PlexViewDefinition;
   viewSession?: PlexViewSession;
   viewContributions?: CanvasViewContributionController;
@@ -746,6 +747,9 @@ export function PlexGraph({ viewDefinition = classicViewDefinition, viewSession,
   displayState: KplexDisplayModeState;
   fullscreenAvailable: boolean;
   sidecarOpen: boolean;
+  /** Only the public adapter consumes this lazy, post-commit scene capability. */
+  publicScene?: RefObject<PublicScenePublication|null>;
+  publicFrame?: Readonly<{source:number;configuration:number}>;
 }) {
   const translate = plugin.translator;
   const classic = plexViewContributionFor(viewDefinition);
@@ -1263,6 +1267,10 @@ export function PlexGraph({ viewDefinition = classicViewDefinition, viewSession,
   const cameraFrameWindow = useRef<Window | null>(null);
   const zoneScrollRefs = useRef<Partial<Record<ScrollZone, HTMLDivElement>>>({});
   const camera = useRef({ x: 0, y: 0, scale: 1 });
+  const committedCamera = useRef({...camera.current});
+  const cameraFlushRevision = useRef(0);
+  const cameraAtRender = {...camera.current}, cameraFlushAtRender = cameraFlushRevision.current;
+  const publishPublicScene = useRef<()=>void>(/** No API frame exists before the first committed scene. */ ()=>{});
   const cameraIntentPlaced = useRef(false);
   const previousCameraViewport = useRef<{width: number; height: number} | null>(null);
   const automaticFit = useRef<{ path: string; camera: FitCamera } | null>(null);
@@ -1673,6 +1681,8 @@ export function PlexGraph({ viewDefinition = classicViewDefinition, viewSession,
     const element = cameraElement.current;
     const current = camera.current;
     if (element) element.style.transform = `translate(${current.x}px, ${current.y}px) scale(${current.scale})`;
+    committedCamera.current={...current};cameraFlushRevision.current++;
+    publishPublicScene.current();
     cameraWritePending.current = false;
     syncCentralEditorOverlay();
     if (compassSync.current()) requestCameraFrame();
@@ -3024,6 +3034,41 @@ export function PlexGraph({ viewDefinition = classicViewDefinition, viewSession,
   const visibleEdges = visibleEdgeProjection.edges;
   const actionEdges = useMemo(/** Visible extra canonical links share the existing evidence/action owner; decorations remain excluded by each action gate. */ () =>
     [...scene.edges, ...visibleEdges.filter(edge => edge.isCrossLink && !scene.edges.some(existing => existing.id === edge.id))], [scene.edges, visibleEdges]);
+
+  useLayoutEffect(/** Publish only the committed scene; API reads never request a React render or recompute layout. */ ()=>{
+    const registry=plugin.publicCanvases;if(!publicScene||!registry)return;
+    if(cameraFlushRevision.current===cameraFlushAtRender)committedCamera.current={...cameraAtRender};
+    const current=viewSession?.capture()??(/** Compatibility hosts retain their existing mounted-document lifetime. */ ()=>true);
+    /** A single synchronous read maps existing render data and current passive coverage facts. */
+    const read=()=>{
+      const scope=index.viewScopeCoverage(sceneScope),revision=plugin.readPublicApiRevision();
+      const stale=semanticRevision!==revision.semantic||publicFrame?.source!==revision.source||publicFrame?.configuration!==revision.configuration;
+      const pending=Boolean(viewFailed||scene.failed||sceneTransitioning||pathChangedThisRender||scope.pending||stale);
+      const value=readPublicCanvasScene({scene,edges:actionEdges,rendered:renderedNodeMap,clusters:settings.graphDepth===2?expandedClusters:[],
+        area:areaForNode,included:nodeMatchesCurrentFilter,visible:visibleOccurrenceIds,scroll:zoneScrollTop,camera:committedCamera.current,viewport:viewportSize,
+        semanticRevision,sourceRevision:publicFrame?.source,configurationRevision:publicFrame?.configuration,pending,motion:sceneMotion.isRunning()||cameraWritePending.current,
+        coverage:{scope:scope.coverage==='unavailable'?'unknown':scope.coverage,complete:scope.complete&&!pending,pending},
+        selection:keyboardSelection,folds:scene.nodes.slice(0,2048).filter(/** Only explicit collapsed branches enter this occurrence list. */ node=>node.branch?.canExpand&&!node.branch.expanded)
+          .map(/** Preserve the exact rendered occurrence rather than a canonical-path alias. */ node=>occurrenceKey(node)),
+        filters:{layoutMode:filterLayoutMode,globalActive:globalFiltering,find:findQuery,areas:Object.fromEntries(Object.entries(zoneFilters)
+          .filter(/** Missing area filters are absent, not non-JSON undefined values. */ (entry):entry is [string,string]=>typeof entry[1]==='string'))},
+        decorationLabel:/** Authored labels remain literal; translated labels use the existing view-text owner. */ decoration=>
+          decoration.kind==='region'?decoration.label??canvasViewText({key:decoration.labelKey},translate):decoration.caption?canvasViewText(decoration.caption.label,translate):undefined});
+      const branches:Array<{occurrenceId:string;expanded:boolean}>=[],sections:string[]=[],groups:string[]=[];
+      let truncated=value.truncated,scanned=0;
+      for(const node of scene.nodes){if(++scanned>2048){truncated=true;break;}if(node.branch){const occurrenceId=occurrenceKey(node);if(occurrenceId.length>4096){truncated=true;continue;}branches.push({occurrenceId,expanded:Boolean(node.branch.expanded)});}}
+      scanned=0;for(const id of expandedSectionIds){if(++scanned>2048){truncated=true;break;}if(id.length>4096){truncated=true;continue;}sections.push(id);}
+      if(unfoldedGroups.center===sceneScope){scanned=0;for(const id of unfoldedGroups.keys){if(++scanned>2048){truncated=true;break;}if(id.length>4096){truncated=true;continue;}groups.push(id);}}
+      return {...value,truncated,foldState:{branches,sections:{expanded:sectionExpanded,expandedIds:sections},groups:{unfoldedIds:groups}}};
+    };
+    /** Imperative camera flushes advance the same scene coordinate after their DOM transform commits. */
+    const publish=()=>{if(current()&&viewport.current?.isConnected)publicScene.current={revision:registry.nextRevision(),read};};
+    publishPublicScene.current=publish;publish();
+    return /** Old camera/React generations cannot overwrite a migrated or replacement scene lease. */ ()=>{
+      if(publicScene.current?.read===read)publicScene.current=null;
+      if(publishPublicScene.current===publish)publishPublicScene.current=()=>{};
+    };
+  });
 
   useEffect(/** Scrolling/filtering/removal retires an occurrence; a later same-path row needs a new mouse entry. */ () => {
     if (crossLinkPeek && !visibleNodePaths.has(crossLinkPeek.path)) clearHoverIntent(true);

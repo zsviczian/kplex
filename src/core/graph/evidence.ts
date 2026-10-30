@@ -248,6 +248,19 @@ export class RelationEvidenceStore {
   }
 
   get declarationCount(): number { return this.declarationTotal; }
+
+  /** Inspect incident bucket sizes without copying declarations or constructing inverse views.
+   * Trusted bounded consumers use this before canonical pair/URL projections. Returning null
+   * refuses the read; it does not change evidence, ordering, indexing or stored data. */
+  inspectReadBudget(path:string,maximum:number):Readonly<{pairs:number;declarations:number}>|null {
+    let pairs=0,declarations=0;
+    for(const key of this.lazyPairKeysForPath(path)){
+      if(++pairs>maximum)return null;
+      declarations+=this.readPair(key)?.length??0;
+      if(declarations>maximum)return null;
+    }
+    return{pairs,declarations};
+  }
   get pairCount(): number { return this.pairTotal; }
   get depth(): number { return this.layerDepth; }
 

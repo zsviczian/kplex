@@ -307,6 +307,19 @@ disabled controls use observed elapsed time because their loaded-plugin quiet pr
 
 The detailed end-user lens guide lives in `docs/GRAPH_LENSES.md`.
 
+Trusted local automation is documented in the [public API reference](docs/PUBLIC_API.md) and
+[Obsidian CLI guide](docs/CLI.md). The API uses the existing indexed graph, committed canvas
+owners and [portable package validator/writer](docs/PORTABLE_PRESETS.md). It must not introduce
+default source acquisition or a second indexing/settings service. Draft implementation and
+validation status are recorded in those references and the associated PR; focused tests do not
+replace complete verification and exact-build native acceptance.
+
+Bundled third-party legal notices use esbuild's retained legal-comment blocks. The GraphQL.js
+adapter includes the installed package's complete MIT notice, and
+`tests/public-api-license.test.mjs` checks that production minification retains it. Keep this
+notice aligned with the installed dependency when updating GraphQL.js; do not remove it from
+generated release code.
+
 ## Before changing Obsidian integration
 
 Read the current Obsidian API/type declarations first.

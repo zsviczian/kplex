@@ -80,6 +80,50 @@ Same-scope selection and new type configuration do not acquire or rebuild source
 
 Optional section snapshots adapt the existing explicit `SectionExpansion` owner for one source revision. Ordinary shared node measurement/tree/fold rendering and validated physical source anchors retain canonical note/occurrence/evidence identities. `sectionSource` selects attention (Compass/compatibility) or the pinned layout root (Mind Map); unsupported Facets hides/refuses section controls. Central source editors exclude their own outline, while another bound editor retains its document and lifetime. Structural heading rows remain separate from canonical hierarchy branches. Non-Classic conformance and Mind Map integration have separate tests and exact-source native acceptance.
 
+## Trusted public API and CLI
+
+Draft PR #240 composes a versioned local automation API without resuming C15–C26. Its
+[reference](PUBLIC_API.md), [CLI guide](CLI.md) and [original brief](proposals/PUBLIC_API_CLI_V1.md)
+distinguish implemented contracts from acceptance; complete verification and exact-build native
+validation remain pending.
+
+`application/PublicApi` owns detached envelopes, bounded operation arguments, revision/coherence
+checks and read-only use cases. `publicApi/createPublicApi` composes existing plugin/index/native
+capabilities once settings are loaded, independently of graph admission. Configuration revisions
+observe a fixed inventory of immutable settings owners; they do not traverse the vault or copy
+the settings model. The pure ontology read projection from PR #239 supplies physical names,
+roles, inverse partners, authored descriptions and configured/discovered state before hydration.
+
+`adapters/obsidian/publicApiGraph` delegates to passive bounded `GraphIndex` readers over existing
+published node/search/relation/evidence owners. It owns no acquisition, scheduler, cache or
+classifier. Whole-graph certificates, local requested coverage, search vocabulary and cached
+previews remain distinct. `publicApiGraphql` lazily constructs the genuine GraphQL.js schema;
+synchronous resolvers consume the same application reads under token, depth, expanded-selection,
+work, variable and output budgets. Default and introspection resolvers share execution metering.
+There are no GraphQL mutations, subscriptions or network listeners. Its retained legal-comment
+block carries GraphQL.js's installed MIT notice into the bundled release.
+
+`application/PublicCanvasRegistry` leases existing native document-session identities; App owns
+fresh committed metadata/action callbacks, and PlexGraph publishes committed scene readers.
+`ui/publicCanvasScene` only projects supplied geometry/filter/viewport facts on explicit read;
+it never runs layout, relation classification, DOM measurement or source work. Snapshot
+semantic/source/configuration stamps identify the render frame independently of the envelope's
+current revisions. Stale/pending frames cannot certify complete coverage. Camera DOM-transform
+commits advance the same canvas coordinate; motion/paint remain separate observations. Canonical
+nodes, visual occurrences, filter inclusion, viewport intersection and decorative guides stay
+explicitly separate. Navigation/view/preset actions delegate to the captured existing native
+preflight/session/contribution owners and report accepted versus observed completion.
+
+`application/PublicApiConfiguration` wraps the canonical portable package validator, exporter,
+planner, installed-capacity preview and queued writer. It retains at most sixteen session-scoped,
+five-minute one-shot reviews, captures original remote/appearance owners including A→B→A changes,
+and requires explicit apply confirmation. Imported lenses remain disabled; no canvas selection or
+note write is granted. Readback or display-refresh failure after durable acceptance remains a
+saved receipt. Unload disposes configuration reviews and host ports, canvas registrations, service
+ports and lazy GraphQL schema before index teardown; old public handles cannot retain the retired
+plugin/index/native surfaces. Image/Markdown export remains dependent on the separate shared
+exporter PRs rather than a duplicate implementation.
+
 ## Action dispatch boundary
 
 The action-manager feature extends the accepted C14 boundaries without resuming structural C15–C26 work. `src/core/plex/actions.ts` owns finite stable IDs, immutable metadata and discriminated request/target/outcome values. `actionPreferences.ts` owns bounded workflow preferences, legacy binding migration and compiled chord/context matching. Neither module acquires host state or executable behavior from persisted data.

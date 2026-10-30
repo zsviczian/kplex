@@ -414,6 +414,14 @@ for (const file of [
   "src/lang/index.ts",
   "src/types.ts",
   "src/application/PlexFootprints.ts",
+  "src/application/PublicApi.ts",
+  "src/application/PublicApiConfiguration.ts",
+  "src/application/PublicCanvasRegistry.ts",
+  "src/application/publicApiContracts.ts",
+  "src/application/publicApiMarkdown.ts",
+  "src/adapters/obsidian/publicApiGraph.ts",
+  "src/adapters/obsidian/publicApiGraphql.ts",
+  "src/publicApi/createPublicApi.ts",
   "src/application/PlexViewSession.ts",
   "src/application/PlexEditorBindings.ts",
   "src/ui/plexViews/occurrenceEditors.ts",
@@ -678,7 +686,7 @@ compile("src/ui/viewProfile.ts", "src/ui/viewProfileUnderTest.ts");
 const obsidianModuleDir = join(temp, "node_modules/obsidian");
 // Native preset contributions now import shared React condition controls. Forward the real
 // installed dependencies from this owned emitted-module fixture; only Obsidian remains finite.
-for (const [name, entry] of [["react/index.js", "react"], ["react/jsx-runtime.js", "react/jsx-runtime"], ["react-dom/client.js", "react-dom/client"]]) {
+for (const [name, entry] of [["react/index.js", "react"], ["react/jsx-runtime.js", "react/jsx-runtime"], ["react-dom/client.js", "react-dom/client"], ["graphql/index.js", "graphql"]]) {
   const target = join(temp, "node_modules", name);mkdirSync(dirname(target), {recursive: true});
   writeFileSync(target, `module.exports = require(${JSON.stringify(require.resolve(entry))});\n`);
 }
