@@ -27,6 +27,7 @@
  * leases after scene admission and share exact ancestor filtering and catalog-backed branch actions.
  * Their first current local preparation may fit once; manual/restored cameras and live editors win.
  * File-location menu actions share captured action targets and delegate to guarded native APIs.
+ * Markdown export detaches only the filtered committed hierarchy; its modal owns no graph reader.
  */
 import {edgeViewportClip, edgeViewportEndpoints, revealRowScrollTop, editorToolbarInsets} from "./plexViews/areaVisibility";
 import {ontologyConfiguration} from "../core/contracts/ontologyConfiguration";
@@ -125,6 +126,8 @@ import { effectiveActionBindings } from "../core/plex/actionPreferences";
 import { formatActionBinding } from "./actionPresentation";
 import { readObsidianPresentationEnvironment } from "../adapters/obsidian/presentationEnvironment";
 import { fileRevealMenuState, revealFile } from "../adapters/obsidian/fileReveal";
+import {captureMindMapMarkdown} from "./export/captureMindMapMarkdown";
+import {MindMapMarkdownModal} from "./export/MindMapMarkdownModal";
 import { surfaceAction } from "./surfaceActionImplementation";
 import {translateActionText} from "./actionPresentation";
 import { SavedRelationshipPendingError } from "../adapters/obsidian/relationshipMetadataWrite";
@@ -2986,6 +2989,8 @@ export function PlexGraph({ viewDefinition = classicViewDefinition, viewSession,
   const visibleConnectSession = `${actionSurfaceId}:visible-connect`;
   const graphDialogs = useRef(new Set<{ close(): void }>());
   const graphDialogSerial = useRef(0);
+  const markdownExportPresentation = useRef({scene, matches: filterMatchedNodePaths, areas: zoneDisplayLayouts});
+  markdownExportPresentation.current = {scene, matches: filterMatchedNodePaths, areas: zoneDisplayLayouts};
   useEffect(/** Unmount/window migration invalidates visible-target sessions and closes owned pickers. */ () => () => {
     keyboardConnectRef.current = null;
     plugin.actionManager.closeSession(visibleConnectSession);
@@ -4288,6 +4293,33 @@ export function PlexGraph({ viewDefinition = classicViewDefinition, viewSession,
     graphDialogs.current.add(picker); picker.open();
     return { status: "opened", sessionId };
   };
+  /** Capture exactly this rendered hierarchy, including overflow rows, without another projection or graph read. */
+  const openMindMapMarkdown = (context: ActionContext): ActionOutcome => {
+    const root = viewport.current;
+    if (!root || viewDefinition.id !== "mindmap" || viewFailed || !scene.projection?.root) return {status: "unavailable", reasonKey: "actions.target-unavailable"};
+    const included = new Set(scene.nodes.filter(/** Match shared Find/selection admission; camera and scroll clipping never remove export rows. */ node => {
+      const zone = areaForNode(node);
+      return nodeMatchesCurrentFilter(node) && (!zone || !scene.zoneViewports[zone] || zoneDisplayLayouts[zone]?.localPositions.has(occurrenceKey(node)));
+    }).map(/** Occurrences, rather than canonical notes, own repeated placement. */ occurrenceKey));
+    const snapshot = captureMindMapMarkdown(plugin.app, scene, included, /** Local reflow coordinates omit only the user's transient scroll offset. */ node => {
+      const zone = areaForNode(node), panel = zone ? scene.zoneViewports[zone] : undefined;
+      const local = zone ? zoneDisplayLayouts[zone]?.localPositions.get(occurrenceKey(node)) : undefined;
+      return panel && local ? {x: panel.left + local.x, y: panel.top + local.y} : node;
+    });
+    const selected = context.target.kind === "node" ? context.target.occurrenceId : selection.readSelected()?.id;
+    const occurrence = scene.nodes.find(/** Translate the surface's keyboard key to its exact scene occurrence once. */ node => sceneNodeKeys.get(node) === selected || occurrenceKey(node) === selected);
+    const selectedId = occurrence ? occurrenceKey(occurrence) : undefined;
+    const captured = markdownExportPresentation.current;
+    const surfaceCurrent = captureSurfaceContinuation(() => viewport.current, () => plugin.actionManager.readSnapshot(actionSurfaceId), {checkInteraction: false});
+    const sessionId = `${actionSurfaceId}:markdown-export:${++graphDialogSerial.current}`;
+    const dialog = new MindMapMarkdownModal(plugin.app, {snapshot, sourceScope: root,
+      selected: selectedId && snapshot.nodes.some(/** A grouped/section row has no invented subtree export. */ node => node.id === selectedId) ? selectedId : undefined,
+      current: /** A changed filter, hierarchy, center, view or document cannot authorize stale output. */ () => surfaceCurrent()
+        && markdownExportPresentation.current.scene === captured.scene && markdownExportPresentation.current.matches === captured.matches && markdownExportPresentation.current.areas === captured.areas,
+      closed: /** Release the exact originating canvas's dialog and manager guard. */ () => {graphDialogs.current.delete(dialog);plugin.actionManager.closeSession(sessionId);},
+    });
+    graphDialogs.current.add(dialog);dialog.open();return {status: "opened", sessionId};
+  };
   /** Pick a specific current connection instead of guessing among multiple evidence-bearing neighbors. */
   const pickConnection = (context: ActionContext, id: "relationship.details" | "relationship.relink" | "relationship.unlink" | "relationship.hide"): ActionOutcome | Promise<ActionOutcome> => {
     if (context.target.kind === "edge") {
@@ -4702,6 +4734,8 @@ export function PlexGraph({ viewDefinition = classicViewDefinition, viewSession,
       return destination === "focus-tab" ? state.focusOpenTab : destination === "new-tab" || destination === "split" && state.adjacentPane || destination === "window" && state.popoutWindow;
     });
   }
+  graphImplementations["view.export.markdown"] = graphAction(openMindMapMarkdown,
+    /** Export availability reads only the committed local scene; it never prepares hierarchy scopes. */ () => viewDefinition.id === "mindmap" && !viewFailed && Boolean(scene.projection?.root));
   actionPorts.current = {
     implementations: viewFailed ? Object.fromEntries(Object.keys(graphImplementations).map(id => [id, id === "editor.collapse" || id === "view.root.selected" || id === "view.center-editor.toggle" && occurrenceEditorPolicy && boundEditorBinding ? graphImplementations[id as ActionId] : {
       availability: () => ({state: "disabled" as const, reasonKey: "actions.target-unavailable"}),
@@ -4925,6 +4959,9 @@ export function PlexGraph({ viewDefinition = classicViewDefinition, viewSession,
         .onClick(() => void plugin.actionManager.dispatch({id: "view.property-assignment.undo", source: "context-menu", surfaceId: actionSurfaceId})));
 
     if (viewDefinition.hierarchy && persistent) {
+      if (viewDefinition.id === "mindmap") menu.addItem(/** Central and branch menus share the published export dialog and whole-map default. */ item => item
+        .setTitle(translate("actions.view.export.markdown")).setIcon("file-output")
+        .onClick(/** The manager retains the clicked occurrence for the optional selected-branch scope. */ () => runCapturedNodeAction("view.export.markdown", persistent)));
       if (node.branch?.canExpand) menu.addItem(/** Branch disclosure is independent of native editor expansion. */ item => item
         .setTitle(translate(node.branch?.expanded ? "mindmap.collapseBranch" : "mindmap.expandBranch")).setIcon(node.branch?.expanded ? "minus" : "plus")
         .onClick(/** The manager rechecks the exact captured occurrence and native editor guard. */ () => runCapturedNodeAction("branch.toggle", persistent)));
