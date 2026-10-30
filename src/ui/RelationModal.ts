@@ -7,6 +7,7 @@ import type KplexPlugin from "../main";
 import type { GateRole, GateSide, GraphPage, LinkDirection, RelationshipRole } from "../types";
 
 import { captureRelatedEndpoint, refreshCapturedPage, type RelatedNoteCommit, type RelatedNoteInvocation } from "./NewRelatedNoteModal";
+import {ontologyDescription} from '../core/contracts/ontologyReadModel';
 import { AddToOntologyModal } from "./AddToOntologyModal";
 
 /** Creation supports all semantic roles without pretending previous/next are physical gates. */
@@ -281,7 +282,10 @@ export class RelationModal extends Modal {
       const ontologyAction = this.options.purpose === "ontology-add" || this.options.purpose === "ontology-specify";
       const preferred = createdField || (ontologyAction ? this.options.initialField?.trim() : "");
       if (preferred && !fields.some((field) => field.toLocaleLowerCase() === preferred.toLocaleLowerCase())) fields.unshift(preferred);
-      for (const field of fields) fieldSelect.createEl("option", { text: field, attr: { value: field } });
+      for (const field of fields) {
+        const description=ontologyDescription(this.plugin.settings.ontologyDescriptions,field);
+        fieldSelect.createEl("option", { text: description?`${field} — ${description.replace(/\s+/g," ").slice(0,120)}`:field, attr: { value: field, "aria-label":description?`${field}\n${description}`:field } });
+      }
       if (ontologyAction) fieldSelect.createEl("option", { text: this.plugin.translator("ontology.createField"), attr: { value: "" } });
       this.selectedField = preferred || this.plugin.defaultOntologyField(this.semanticRole);
       fieldSelect.value = this.selectedField;

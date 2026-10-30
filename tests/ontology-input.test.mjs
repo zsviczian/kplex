@@ -172,3 +172,9 @@ test('manual pair removal retains an implicit counterpart and two queued pair as
  check(results.every(result=>result.status==='rejected'),'An already paired field was stolen');
  await p.updateOntologyField('previous',['A'],['A/B'],p.receivedSettingsOwner('hierarchy'));check(sourceModules.ontologyConfiguration(p.settings).hierarchy.next.includes('B')&&!sourceModules.ontologyConfiguration(p.settings).pairs.size,'Manual unpair lost implicit counterpart');`),true);
 });
+
+
+/** Incoming wording uses the existing receipt owner while graph/source policy remains identical. */
+test('incoming descriptions notify vocabulary presentation without graph refresh and retire stale drafts',async()=>{
+ assert.equal(await scenario(`let notifications=0;p.index.notifyPresentation=()=>notifications++;const modal=new sourceModules.AddToOntologyModal(p,'Parent');modal.open();const textarea=modal.contentEl.querySelector('textarea[aria-label="'+p.translator('ontology.description')+'"]');type({input:textarea},'Unsaved wording');const signature=JSON.stringify(sourceModules.captureSettingsPolicy(p.settings));await receive({...copy(disk),ontologyDescriptions:{Parent:'Received description'}});check(p.settings.ontologyDescriptions.Parent==='Received description'&&notifications>0,'Incoming wording did not publish');check(p.work.invalidations===0&&p.work.semantic===0&&p.work.presentation===0&&JSON.stringify(sourceModules.captureSettingsPolicy(p.settings))===signature,'Incoming wording changed graph policy');check(textarea.value==='Unsaved wording','Receipt replaced dirty draft');modal.saveButton.buttonEl.click();await until(()=>!modal.busy,'Stale draft did not settle');check(modal.modalEl.isConnected&&modal.feedback.textContent===p.translator('settings.ontology.conflict')&&p.settings.ontologyDescriptions.Parent==='Received description','Stale remote owner overwrote receipt');modal.close();`),true);
+});

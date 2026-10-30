@@ -117,7 +117,7 @@ export class OntologySuggester extends EditorSuggest<string> {
 
   /** Filter configured field labels using the native trigger’s query, preserving role selection. */
   getSuggestions(context: EditorSuggestContext): string[] {
-    return ontologySelectionMatches(this.keys(),ontologyFieldViews(ontologyConfiguration(this.plugin.settings)),context.query);
+    return ontologySelectionMatches(this.keys(),ontologyFieldViews(ontologyConfiguration(this.plugin.settings),[],this.plugin.settings.ontologyDescriptions),context.query);
   }
 
   /** Render the native suggestion label through Obsidian’s owning-element creation helper. */
@@ -125,8 +125,10 @@ export class OntologySuggester extends EditorSuggest<string> {
     const bold = el.createEl("b");
     bold.textContent = suggestion;
     el.appendChild(bold);
-    const view=ontologyFieldViews(ontologyConfiguration(this.plugin.settings)).find(/** Annotation never changes the exact insertion value. */ field=>field.key===normalizeFieldName(suggestion));
-    if(view?.partner)el.createDiv({cls:'suggestion-note',text:ontologyFieldDetail(view,this.plugin.translator,Boolean(this.latestTriggerInfo?.query&&!suggestion.toLocaleLowerCase().includes(this.latestTriggerInfo.query.toLocaleLowerCase())))});
+    const view=ontologyFieldViews(ontologyConfiguration(this.plugin.settings),[],this.plugin.settings.ontologyDescriptions).find(/** Annotation never changes the exact insertion value. */ field=>field.key===normalizeFieldName(suggestion));
+    if(view?.partner)el.createDiv({cls:'suggestion-note',text:ontologyFieldDetail({...view,description:undefined},this.plugin.translator,Boolean(this.latestTriggerInfo?.query&&!suggestion.toLocaleLowerCase().includes(this.latestTriggerInfo.query.toLocaleLowerCase())))});
+    if(view?.description)el.createDiv({cls:'suggestion-note kplex-ontology-description',text:view.description,attr:{'aria-label':view.description}});
+    el.setAttribute('aria-label',[suggestion,view?ontologyFieldDetail(view,this.plugin.translator):''].filter(Boolean).join('\n'));
   }
 
   /** Replace only the captured trigger/query range, preserving inline prefixes and bold settings. */

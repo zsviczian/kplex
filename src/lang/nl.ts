@@ -7,6 +7,10 @@
 import { buildLocaleCatalog, type LocaleTranslationMap } from "./catalog";
 
 const dutchTranslations = {
+  "ontology.description": "Beschrijving",
+  "ontology.descriptionHelp": "Leg uit wanneer je dit veld gebruikt. Optioneel; maximaal {count} tekens.",
+  "ontology.partnerDescription": "Beschrijving van gekoppeld veld",
+  "ontology.partnerDescriptionHelp": "Beschrijf de gekoppelde eigenschap afzonderlijk.",
   "facets.resetStatus": "Standaardwaarden hersteld. Sla op om toe te passen of annuleer om te verwerpen.",
   "sharing.pasteHint": "Plak hier pakket-JSON of kies hieronder een bestand.",
   "sharing.formatHelp": "Hoe delen werkt",

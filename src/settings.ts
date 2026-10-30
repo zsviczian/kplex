@@ -32,6 +32,7 @@ import {STARTUP_INDEX_DEFAULTS, sanitizeStartupIndexPreferences, type IndexingMo
 import { readObsidianPresentationEnvironment } from "./adapters/obsidian/presentationEnvironment";
 import {OntologyManagerModal} from "./ui/OntologyManagerModal";
 import {ontologyFieldViews,type OntologyFilter} from "./ui/features/ontologyPresentation";
+import {normalizeOntologyDescriptions,type OntologyDescriptions} from "./core/contracts/ontologyReadModel";
 import {ontologyConfiguration, escapeLegacyOntology, escapeOntologyField, retainOntologyCounterparts, ONTOLOGY_GROUPS, ONTOLOGY_ROLE_GROUP} from "./core/contracts/ontologyConfiguration";
 import { formatShortcut } from "./core/plex/shortcutPresentation";
 import {AppearanceThemesManagerModal} from "./ui/AppearanceThemesModal";
@@ -231,6 +232,8 @@ export interface KplexSettings extends StartupIndexPreferences {
   hierarchy: Hierarchy;
   /** Versioned settings grammar; pre-syntax literal slashes/backslashes are escaped losslessly. */
   ontologyPairingVersion: 1;
+  /** Optional literal descriptions keyed by exact physical property name. */
+  ontologyDescriptions: OntologyDescriptions;
   inferAllLinksAsFriends: boolean;
   inverseInfer: boolean;
   /** Fallback native Date role; configured field ontology always takes precedence. */
@@ -401,6 +404,7 @@ const LEGACY_DEFAULT_SETTINGS: KplexSettings = {
   indexingThrottle: "responsive",
   hierarchy: LEGACY_HIERARCHY_DEFINITION,
   ontologyPairingVersion: 1,
+  ontologyDescriptions: {},
   inferAllLinksAsFriends: false,
   inverseInfer: false,
   datePropertyRelations: "parent",
@@ -713,6 +717,7 @@ export function migrateAndMergeSettings(raw: unknown): KplexSettings {
     datePropertyRelations: sanitizeDatePropertyRelations(old.datePropertyRelations),
     hierarchy,
     ontologyPairingVersion: 1,
+    ontologyDescriptions: normalizeOntologyDescriptions(old.ontologyDescriptions),
     baseNodeStyle: { ...defaults.baseNodeStyle, ...(old.baseNodeStyle ?? {}) },
     baseLinkStyle: { ...defaults.baseLinkStyle, ...(old.baseLinkStyle ?? {}) },
     centralNodeStyle: { ...defaults.centralNodeStyle, ...(old.centralNodeStyle ?? {}) },
