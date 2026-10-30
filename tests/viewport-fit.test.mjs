@@ -46,6 +46,7 @@ test('a cold rooted map fits its first prepared local cover once without claimin
 /** Supply an asymmetric displayed scene and real camera application/fit/layout owners. */
 function graphFixture() {
   const ctx={camera:{current:{x:0,y:0,scale:1}},automaticFit:{current:null},activePath:'Center.md',rooted:false,
+    committedCamera:{current:{x:0,y:0,scale:1}},cameraFlushRevision:{current:0},publishPublicScene:{current:()=>{}},
     cameraIntentPlaced:{current:false},
     previousCameraViewport:{current:null},boundEditorBinding:undefined,
     centralEditorOverlayElement:{current:null},cameraWritePending:{current:false},compassCenter:{current:null},compassSync:{current:()=>false},requestCameraFrame:()=>{},
@@ -61,6 +62,15 @@ function graphFixture() {
   ctx.render=()=>{ctx.sceneScope=ctx.rooted ? 'Root.md' : ctx.activePath;ctx.classic=true;ctx.areaForNode=callback('areaForNode',ctx);ctx.framingOccurrence=callback('framingOccurrence',ctx);ctx.applyCamera=callback('applyCamera',ctx);ctx.flushCameraTransform=callback('flushCameraTransform',ctx);ctx.fit=callback('fit',ctx);ctx.layout=callback('layout',ctx);};
   ctx.render();return ctx;
 }
+
+test('camera publication observes the written DOM transform and copied committed coordinates before later intent',()=>{
+ const ctx=graphFixture(),published=[];ctx.cameraElement.current={style:{transform:''}};
+ ctx.publishPublicScene.current=()=>published.push({transform:ctx.cameraElement.current.style.transform,camera:{...ctx.committedCamera.current},revision:ctx.cameraFlushRevision.current});
+ ctx.applyCamera({x:75,y:-20,scale:1.5});assert.equal(published.length,0);assert.deepEqual(ctx.committedCamera.current,{x:0,y:0,scale:1});
+ ctx.flushCameraTransform();assert.deepEqual(published,[{transform:'translate(75px, -20px) scale(1.5)',camera:{x:75,y:-20,scale:1.5},revision:1}]);
+ ctx.applyCamera({x:90,y:40,scale:2});assert.deepEqual(ctx.committedCamera.current,{x:75,y:-20,scale:1.5});assert.equal(published.length,1);
+ ctx.flushCameraTransform();assert.equal(published[1].revision,2);assert.equal(published[1].transform,'translate(90px, 40px) scale(2)');assert.equal(ctx.cameraWritePending.current,false);
+});
 
 test('a rooted automatic camera follows native startup viewport shrink without moving manual cameras or live editors',()=>{
  for(const allowAutozoom of [true,false])for(const owner of ['automatic','manual','editor']){

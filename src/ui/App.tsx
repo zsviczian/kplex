@@ -1285,6 +1285,12 @@ export function KplexApp({ plugin, surface, hostLeaf, translate, environment, on
         return {...scene,state:publicCanvasState(documentSession.plexView.state),preset:selected?{id:selected.id,label:canvasViewText(selected.label,translate)}:null,
           lenses,truncated,filters:{...scene.filters,quick:{field:plexFilter.field,operator:plexFilter.operator,value:plexFilter.value.slice(0,4096)}}};
       },
+      exportMarkdown:/** The exact committed Mind Map publication owns capture and the shared formatter. */ subtree=>{
+        const frame=publicScene.current;if(!frame||!current()||documentSession.plexView.definition!==plexViewDefinition
+          ||documentSession.plexView.getSnapshot()!==viewRevision||activePathRef.current!==activePath)
+          throw new PublicApiError('UNAVAILABLE','The committed canvas export is unavailable.');
+        return frame.exportMarkdown(subtree);
+      },
       navigate:/** Existing-file navigation joins the same save-before-reroot path as native File Explorer drops. */ async path=>{
         const file=plugin.app.vault.getFileByPath(path);
         if(!current()||!file)throw new PublicApiError('NOT_FOUND','The requested vault file is unavailable.');
@@ -1315,6 +1321,7 @@ export function KplexApp({ plugin, surface, hostLeaf, translate, environment, on
     const ports=()=>{const value=publicPorts.current;if(!value)throw new PublicApiError('API_UNAVAILABLE','Canvas metadata is unavailable.');return value;};
     const release=plugin.publicCanvases.register(documentSession,{
       current:()=>Boolean(publicPorts.current?.current()),summary:()=>ports().summary(),snapshot:()=>ports().snapshot(),
+      exportMarkdown:subtree=>{const exportMarkdown=ports().exportMarkdown;if(!exportMarkdown)throw new PublicApiError('UNSUPPORTED','Canvas Markdown export is unavailable.');return exportMarkdown(subtree);},
       navigate:path=>ports().navigate(path),selectView:id=>ports().selectView(id),selectPreset:id=>ports().selectPreset(id),
     });
     return /** Cleanup cannot remove a replacement mount's registration or preserve native closures. */ ()=>{release();publicPorts.current=null;publicScene.current=null;};

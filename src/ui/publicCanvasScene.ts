@@ -7,15 +7,26 @@ import type {PublicCanvasSnapshot, PublicCanvasOccurrence, PublicCanvasConnectio
 import {PublicApiError} from '../application/publicApiContracts';
 import {boundedViewState} from '../core/plex/views/state';
 import type {HostPlexScene} from './plexViews/scene';
+import type {MindMapMarkdownResult} from '../core/plex/export/mindMapMarkdown';
 import {edgeOccurrence, occurrenceKey, semanticSceneEdge} from './plexViews/scene';
 
 export type PublicCanvasScene=Pick<PublicCanvasSnapshot,'semanticRevision'|'sourceRevision'|'configurationRevision'|'scenePending'|'motionPending'|'occurrences'|
   'connections'|'decorations'|'areas'|'camera'|'viewport'|'bounds'|'coverage'|'truncated'|'folds'|'selection'|'filters'>;
-export type PublicScenePublication=Readonly<{revision:number;read:()=>PublicCanvasScene}>;
+export type PublicScenePublication=Readonly<{revision:number;read:()=>PublicCanvasScene;exportMarkdown:(subtree?:string)=>MindMapMarkdownResult}>;
 
 /** The existing session codec returns detached JSON or null within its depth/size limits.
  * Narrow that already-validated result for the public contract; no second state codec is added. */
 export function publicCanvasState(value:unknown):JsonValue|null {return boundedViewState(value) as JsonValue|null;}
+/** Translate the existing private keyboard reconciliation key to a returned occurrence identity.
+ * Legacy Compass keys encode a collision ordinal; public consumers must not parse that key. */
+export function publicCanvasSelection(selected:string|null,nodes:readonly PositionedNode[],keys:ReadonlyMap<PositionedNode,string>,
+  clusters:readonly Readonly<{children:readonly Readonly<{key:string}>[]}>[]):string|null {
+  if(!selected)return null;
+  let inspected=0;
+  for(const node of nodes){if(++inspected>2048)return null;if(keys.get(node)===selected||occurrenceKey(node)===selected)return occurrenceKey(node);}
+  for(const cluster of clusters){if(++inspected>4096)return null;for(const child of cluster.children){if(++inspected>4096)return null;if(child.key===selected)return child.key;}}
+  return null;
+}
 type Mini=Readonly<{key:string;relation:Neighbour;label:string;localX:number;localY:number;width:number;height:number}>;
 type Cluster=Readonly<{key:string;parent:PositionedNode;left:number;top:number;width:number;viewportHeight:number;
   contentHeight:number;scrollTop:number;children:readonly Mini[]}>;

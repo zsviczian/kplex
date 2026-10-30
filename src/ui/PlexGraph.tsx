@@ -127,6 +127,8 @@ import { formatActionBinding } from "./actionPresentation";
 import { readObsidianPresentationEnvironment } from "../adapters/obsidian/presentationEnvironment";
 import { fileRevealMenuState, revealFile } from "../adapters/obsidian/fileReveal";
 import {captureMindMapMarkdown} from "./export/captureMindMapMarkdown";
+import {exportMindMapMarkdown, MIND_MAP_MARKDOWN_LIMITS} from '../core/plex/export/mindMapMarkdown';
+import {PublicApiError} from '../application/publicApiContracts';
 import {MindMapMarkdownModal} from "./export/MindMapMarkdownModal";
 import { surfaceAction } from "./surfaceActionImplementation";
 import {translateActionText} from "./actionPresentation";
@@ -134,7 +136,7 @@ import { SavedRelationshipPendingError } from "../adapters/obsidian/relationship
 import { captureSurfaceContinuation } from "./surfaceContinuation";
 import { ActionTargetPicker, type ActionPickerItem, type ActionPickerEvent } from "./ActionTargetPicker";
 import type { GraphActionPorts, SurfaceActionImplementations } from "./usePlexActions";
-import {readPublicCanvasScene, type PublicScenePublication} from './publicCanvasScene';
+import {readPublicCanvasScene, publicCanvasSelection, type PublicScenePublication} from './publicCanvasScene';
 import { hasClickModifier } from "./components/modifierClick";
 
 type Point = { x: number; y: number };
@@ -3040,6 +3042,20 @@ export function PlexGraph({ viewDefinition = classicViewDefinition, viewSession,
   const actionEdges = useMemo(/** Visible extra canonical links share the existing evidence/action owner; decorations remain excluded by each action gate. */ () =>
     [...scene.edges, ...visibleEdges.filter(edge => edge.isCrossLink && !scene.edges.some(existing => existing.id === edge.id))], [scene.edges, visibleEdges]);
 
+  /** Native preview and public export share the merged exporter's exact filter/geometry capture.
+   * This detaches the existing scene only; neither caller classifies, lays out or reads notes. */
+  const captureCurrentMindMapMarkdown=()=>{
+    const included=new Set(scene.nodes.filter(/** Camera clipping does not remove materialized export rows. */ node=>{
+      const zone=areaForNode(node);
+      return nodeMatchesCurrentFilter(node)&&(!zone||!scene.zoneViewports[zone]||zoneDisplayLayouts[zone]?.localPositions.has(occurrenceKey(node)));
+    }).map(/** The shared exporter preserves repeated visual occurrences. */ occurrenceKey));
+    return captureMindMapMarkdown(plugin.app,scene,included,/** Unscrolled local coordinates preserve the shared visual ordering. */ node=>{
+      const zone=areaForNode(node),panel=zone?scene.zoneViewports[zone]:undefined;
+      const local=zone?zoneDisplayLayouts[zone]?.localPositions.get(occurrenceKey(node)):undefined;
+      return panel&&local?{x:panel.left+local.x,y:panel.top+local.y}:node;
+    });
+  };
+
   useLayoutEffect(/** Publish only the committed scene; API reads never request a React render or recompute layout. */ ()=>{
     const registry=plugin.publicCanvases;if(!publicScene||!registry)return;
     if(cameraFlushRevision.current===cameraFlushAtRender)committedCamera.current={...cameraAtRender};
@@ -3053,7 +3069,7 @@ export function PlexGraph({ viewDefinition = classicViewDefinition, viewSession,
         area:areaForNode,included:nodeMatchesCurrentFilter,visible:visibleOccurrenceIds,scroll:zoneScrollTop,camera:committedCamera.current,viewport:viewportSize,
         semanticRevision,sourceRevision:publicFrame?.source,configurationRevision:publicFrame?.configuration,pending,motion:sceneMotion.isRunning()||cameraWritePending.current,
         coverage:{scope:scope.coverage==='unavailable'?'unknown':scope.coverage,complete:scope.complete&&!pending,pending},
-        selection:keyboardSelection,folds:scene.nodes.slice(0,2048).filter(/** Only explicit collapsed branches enter this occurrence list. */ node=>node.branch?.canExpand&&!node.branch.expanded)
+        selection:publicCanvasSelection(keyboardSelection,scene.nodes,sceneNodeKeys,settings.graphDepth===2?expandedClusters:[]),folds:scene.nodes.slice(0,2048).filter(/** Only explicit collapsed branches enter this occurrence list. */ node=>node.branch?.canExpand&&!node.branch.expanded)
           .map(/** Preserve the exact rendered occurrence rather than a canonical-path alias. */ node=>occurrenceKey(node)),
         filters:{layoutMode:filterLayoutMode,globalActive:globalFiltering,find:findQuery,areas:Object.fromEntries(Object.entries(zoneFilters)
           .filter(/** Missing area filters are absent, not non-JSON undefined values. */ (entry):entry is [string,string]=>typeof entry[1]==='string'))},
@@ -3066,8 +3082,21 @@ export function PlexGraph({ viewDefinition = classicViewDefinition, viewSession,
       if(unfoldedGroups.center===sceneScope){scanned=0;for(const id of unfoldedGroups.keys){if(++scanned>2048){truncated=true;break;}if(id.length>4096){truncated=true;continue;}groups.push(id);}}
       return {...value,truncated,foldState:{branches,sections:{expanded:sectionExpanded,expandedIds:sections},groups:{unfoldedIds:groups}}};
     };
+    /** Public export reuses the merged formatter and bounds capture before copying authored text. */
+    const exportMarkdown=(subtree?:string)=>{
+      if(!current()||viewDefinition.id!=='mindmap'||viewFailed||!scene.projection?.root)throw new PublicApiError('UNSUPPORTED','This canvas has no Mind Map Markdown export.');
+      if(scene.nodes.length>MIND_MAP_MARKDOWN_LIMITS.nodes||scene.edges.length>MIND_MAP_MARKDOWN_LIMITS.links)
+        throw new PublicApiError('LIMIT_EXCEEDED','The committed Mind Map exceeds its export budget.');
+      let remaining=500_000;
+      for(const node of scene.nodes){remaining-=occurrenceKey(node).length+node.label.length+node.page.path.length+(node.branch?.parent?.length??0)+(node.typeDefinition?.length??0);if(remaining<0)throw new PublicApiError('LIMIT_EXCEEDED','Mind Map text exceeds its export budget.');}
+      for(const edge of scene.edges){remaining-=edgeOccurrence(edge,'source').length+edgeOccurrence(edge,'target').length+(edge.typeDefinition?.length??0);if(remaining<0)throw new PublicApiError('LIMIT_EXCEEDED','Mind Map links exceed their export budget.');}
+      const snapshot=captureCurrentMindMapMarkdown();
+      if(subtree!==undefined&&!snapshot.nodes.some(/** The shared capture, rather than a path guess, admits subtree identities. */ node=>node.id===subtree))
+        throw new PublicApiError('NOT_FOUND','The subtree occurrence is absent from this Mind Map export.');
+      return exportMindMapMarkdown(snapshot,subtree);
+    };
     /** Imperative camera flushes advance the same scene coordinate after their DOM transform commits. */
-    const publish=()=>{if(current()&&viewport.current?.isConnected)publicScene.current={revision:registry.nextRevision(),read};};
+    const publish=()=>{if(current()&&viewport.current?.isConnected)publicScene.current={revision:registry.nextRevision(),read,exportMarkdown};};
     publishPublicScene.current=publish;publish();
     return /** Old camera/React generations cannot overwrite a migrated or replacement scene lease. */ ()=>{
       if(publicScene.current?.read===read)publicScene.current=null;
@@ -4297,15 +4326,7 @@ export function PlexGraph({ viewDefinition = classicViewDefinition, viewSession,
   const openMindMapMarkdown = (context: ActionContext): ActionOutcome => {
     const root = viewport.current;
     if (!root || viewDefinition.id !== "mindmap" || viewFailed || !scene.projection?.root) return {status: "unavailable", reasonKey: "actions.target-unavailable"};
-    const included = new Set(scene.nodes.filter(/** Match shared Find/selection admission; camera and scroll clipping never remove export rows. */ node => {
-      const zone = areaForNode(node);
-      return nodeMatchesCurrentFilter(node) && (!zone || !scene.zoneViewports[zone] || zoneDisplayLayouts[zone]?.localPositions.has(occurrenceKey(node)));
-    }).map(/** Occurrences, rather than canonical notes, own repeated placement. */ occurrenceKey));
-    const snapshot = captureMindMapMarkdown(plugin.app, scene, included, /** Local reflow coordinates omit only the user's transient scroll offset. */ node => {
-      const zone = areaForNode(node), panel = zone ? scene.zoneViewports[zone] : undefined;
-      const local = zone ? zoneDisplayLayouts[zone]?.localPositions.get(occurrenceKey(node)) : undefined;
-      return panel && local ? {x: panel.left + local.x, y: panel.top + local.y} : node;
-    });
+    const snapshot = captureCurrentMindMapMarkdown();
     const selected = context.target.kind === "node" ? context.target.occurrenceId : selection.readSelected()?.id;
     const occurrence = scene.nodes.find(/** Translate the surface's keyboard key to its exact scene occurrence once. */ node => sceneNodeKeys.get(node) === selected || occurrenceKey(node) === selected);
     const selectedId = occurrence ? occurrenceKey(occurrence) : undefined;

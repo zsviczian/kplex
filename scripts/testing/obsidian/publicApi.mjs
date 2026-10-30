@@ -21,8 +21,9 @@ async function scenario(app,c){
   const observe=(owner,key,counter)=>{const original=owner[key];check(typeof original==='function','Missing measured owner '+key);owner[key]=function(...args){work[counter]++;return original.apply(this,args)};restores.push(()=>owner[key]=original);};
   /** Only structured successful public values enter subsequent acceptance steps. */
   const value=result=>{check(result?.ok,'Public failure: '+JSON.stringify(result));return result.value;};
+  const previousCanvasIds=new Set(value(api.canvases()).map(row=>row.id));
   /** Find the exact API identity from the native session's root, never from global focus. */
-  const canvasFor=path=>value(api.canvases()).find(row=>row.root===path);
+  const canvasFor=path=>value(api.canvases()).find(row=>!previousCanvasIds.has(row.id)&&row.root===path);
   /** A snapshot must be available and carry its exact root/attention independently of readiness. */
   const snapshot=(id,path)=>{const result=api.canvas({canvasId:id});return result.ok&&result.value.canvas.root===path&&result.value.canvas.attention===path?result.value:null;};
   try{
@@ -45,7 +46,13 @@ async function scenario(app,c){
     const nav=value(await api.navigate({canvasId:first.id,path:paths[2]}));check(['accepted','completed'].includes(nav.status),'Invalid action receipt');
     await until(()=>snapshot(first.id,paths[2]),'Targeted navigation did not commit');
     check(snapshot(second.id,paths[1]),'Navigation crossed canvases');
-    cases.push('two simultaneous canvases retain independent roots, views and targeted actions');
+    const root=a.view.contentEl.querySelector('.kplex-app');root.querySelector('.kplex-filter-trigger').click();
+    await until(()=>root.ownerDocument.querySelector('.kplex-filter-panel .kplex-quick-lens-row input'),'Native quick filter absent');
+    const filter=root.ownerDocument.querySelector('.kplex-filter-panel .kplex-quick-lens-row input'),owner=filter.ownerDocument.defaultView;
+    Object.getOwnPropertyDescriptor(owner.HTMLInputElement.prototype,'value').set.call(filter,'Kplex240 filter');filter.dispatchEvent(new owner.Event('input',{bubbles:true}));
+    await until(()=>snapshot(first.id,paths[2])?.filters.quick?.value==='Kplex240 filter','Captured quick filter did not commit');root.querySelector('.kplex-filter-trigger').click();
+    check(snapshot(second.id,paths[1])?.filters.quick?.value==='','Quick filter crossed canvases');
+    cases.push('two simultaneous canvases retain independent roots, views, filters and targeted actions');
     await until(()=>!p.index.hasActiveSemanticPreparation(),'Action source work did not settle');
     for(const [owner,key,counter]of [[app.vault,'read','reads'],[app.vault,'cachedRead','reads'],[p.index.sourceAcquisition,'parse','parses'],[p.index.sourceAcquisition,'acquire','acquisitions'],[p.index,'rebuild','rebuilds'],[p.index,'invalidateSemanticPolicy','semantic'],[p.index,'allPages','allPages']])observe(owner,key,counter);
     c.progress.phase='passive public reads';
@@ -57,6 +64,7 @@ async function scenario(app,c){
       check(scene.connections.every(edge=>edge.kind==='semantic'||edge.sourceNodeId===null&&edge.targetNodeId===null),'Structural edge invented canonical identity');
       value(api.node({id:paths[2]}));value(api.search({query:'',limit:10}));value(api.neighbors({id:paths[2],limit:10}));value(api.evidence({sourceId:paths[0],targetId:paths[1],limit:10}));
       value(api.context({canvasId:first.id}));value(api.ontologyGuide({format:'markdown'}));
+      const exported=value(api.exportMarkdown({canvasId:second.id}));check(exported.nodes>0&&typeof exported.markdown==='string'&&exported.canvasId===second.id,'Shared Mind Map exporter unavailable');
       const graph=value(api.query({query:'query Native($id:ID!,$canvas:ID!){ ontology{fields{name description partner}} node(id:$id){id kind} canvas(canvasId:$canvas){sourceRevision configurationRevision scenePending occurrences{id nodeId included inViewport}} }',variables:{id:paths[2],canvas:first.id}}));
       check(!graph.errors,'GraphQL failed: '+JSON.stringify(graph.errors));
       check(Array.isArray(ontology.fields)&&typeof status.coverage.complete==='boolean','Readiness DTO missing');
@@ -67,8 +75,15 @@ async function scenario(app,c){
     check(api.node({id:paths[2],isCancelled:()=>true}).error?.code==='CANCELLED','Cancellation ignored');
     const revision=api.status().revision;check(api.node({id:paths[2],expectedRevision:{...revision,source:revision.source-1}}).error?.code==='STALE_REVISION','Stale publication accepted');
     for(const key of Object.keys(work))check(work[key]===0,'Passive API caused '+key);
-    cases.push('repeated JSON, Markdown and actual GraphQL reads perform zero source/index work');
+    cases.push('repeated JSON, context Markdown, shared Mind Map export and actual GraphQL reads perform zero source/index work');
     cases.push('GraphQL introspection, mutation refusal, bounds, cancellation and revision fences');
+    const surface=[...p.actionSurfaceHosts].find(([,host])=>host.leaf===b)?.[0];check(surface,'Native export action surface absent');
+    const opened=await p.actionManager.dispatch({id:'view.export.markdown',source:'internal',surfaceId:surface});check(opened.status==='opened','Native shared exporter refused');
+    await until(()=>b.view.contentEl.ownerDocument.querySelector('.kplex-mindmap-markdown-export'),'Native Markdown preview absent');
+    const modal=b.view.contentEl.ownerDocument.querySelector('.kplex-mindmap-markdown-export');
+    check(modal.querySelector('textarea').value===value(api.exportMarkdown({canvasId:second.id})).markdown,'Public and native Markdown exporters differ');
+    const cancel=[...modal.querySelectorAll('button')].find(button=>button.textContent===p.translator('common.cancel'));check(cancel,'Native export close action absent');cancel.click();
+    for(const key of Object.keys(work))check(work[key]===0,'Shared Markdown export caused '+key);cases.push('public Markdown bytes equal the native shared export preview');
     const config=value(api.configuration.list());check(config.totals&&Array.isArray(config.presets),'Configuration inventory absent');
     const preset=config.presets.find(item=>item.available);
     if(preset){const exported=value(api.configuration.export({kind:'facets',id:preset.id,allowPrivate:true}));const validated=value(api.configuration.validate(exported));check(validated.status==='valid','Native exported package failed canonical validation');cases.push('configuration inventory and canonical package export/validation');}
@@ -83,10 +98,18 @@ async function scenario(app,c){
     cases.push('confirmed one-shot queued configuration import, disabled lens and durable readback');
     for(const restore of restores.splice(0).reverse())restore();
     const popout=app.workspace.getLeaf('window');hosts.push(popout);await popout.setViewState({type:'k-plex-react-view',active:true});await popout.view.waitUntilReady();p.notifyNavigation(paths[0],popout);
-    await until(()=>value(api.canvases()).some(row=>row.surface==='popout'&&row.root===paths[0]),'Popout public canvas absent');
-    const remote=value(api.canvases()).find(row=>row.surface==='popout'&&row.root===paths[0]);await until(()=>snapshot(remote.id,paths[0]),'Popout committed frame absent');
+    await until(()=>value(api.canvases()).some(row=>!previousCanvasIds.has(row.id)&&row.surface==='popout'&&row.root===paths[0]),'Popout public canvas absent');
+    const remote=value(api.canvases()).find(row=>!previousCanvasIds.has(row.id)&&row.surface==='popout'&&row.root===paths[0]);await until(()=>snapshot(remote.id,paths[0]),'Popout committed frame absent');
     value(await api.selectView({canvasId:remote.id,viewId:'mindmap'}));await until(()=>value(api.canvases()).find(row=>row.id===remote.id)?.viewId==='mindmap','Popout view did not commit');
     check(snapshot(second.id,paths[1]),'Popout action moved main canvas');cases.push('native popout snapshot and isolated view action');
+    value(await api.selectView({canvasId:remote.id,viewId:'wuxing'}));await until(()=>snapshot(remote.id,paths[0])?.canvas.viewId==='wuxing','Facets view did not commit');
+    const selectedPreset=snapshot(remote.id,paths[0]).preset?.id,nextPreset=config.presets.find(item=>item.available&&item.id!==selectedPreset);
+    check(nextPreset,'Independent configured preset unavailable');value(await api.selectPreset({canvasId:remote.id,presetId:nextPreset.id}));
+    await until(()=>snapshot(remote.id,paths[0])?.preset?.id===nextPreset.id,'Targeted preset did not commit');
+    check(snapshot(second.id,paths[1])?.canvas.viewId==='mindmap','Preset selection crossed canvases');cases.push('captured Facets preset selection and verified per-canvas readback');
+    const destination=a.parent;check(destination&&popout.parent,'Native migration parents absent');popout.parent.removeChild(popout);destination.insertChild(destination.children.length,popout);
+    await until(()=>value(api.canvases()).find(row=>row.id===remote.id)?.surface==='main'&&snapshot(remote.id,paths[0]),'Migrated canvas identity or frame was lost');
+    check(snapshot(remote.id,paths[0]).preset?.id===nextPreset.id,'Migration lost the native session preset');cases.push('popout-to-main migration preserves canvas identity and committed session state');
     return {cases,work,canvases:value(api.canvases()).length,coverage:value(api.coverage()),limitations:'Windows desktop native CLI. macOS and physical mobile remain separate environments; no paint/performance claim.'};
   }finally{
     const errors=[];

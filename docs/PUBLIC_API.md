@@ -9,7 +9,7 @@ if (!api) throw new Error("K-Plex API v1 is unavailable");
 const capabilities = api.capabilities();
 ```
 
-Implementation status: source implementation is present on draft PR #240. Focused API/configuration checks have run; complete repository verification and exact-build native acceptance remain pending. This reference describes implemented contracts, not release acceptance. The original [implementation brief](proposals/PUBLIC_API_CLI_V1.md) records scope and delivery gates.
+Implementation status: draft PR #240 passes complete repository verification and exact-build Windows native acceptance. The [validation record](validation/public-api-cli-240-2026-10-30.md) records results, hashes and remaining platform limits. The original [implementation brief](proposals/PUBLIC_API_CLI_V1.md) records scope and delivery gates. The PR remains draft and unmerged.
 
 `plugin.api.version` is `1`; `plugin.api.versions` lists supported versions. This protocol is independent of the internal [Canvas-view API](CANVAS_VIEW_API.md). The community-plugin registry is Obsidian's host access convention, not a portable dependency for K-Plex application code. Reacquire the API after plugin reload. Retained old handles return `API_UNAVAILABLE` and release their host capabilities.
 
@@ -90,6 +90,44 @@ Navigation requires an existing physical vault file already available in the fil
 
 Action receipts contain `status: "accepted" | "completed"`, the canvas ID and its observed revision. `accepted` means the existing owner accepted the request; asynchronous native save/navigation or React scene admission can still be pending. `completed` reports the requested metadata observed at return, not paint or animation completion. Immediate refusal and retirement return explicit failures. Reacquire `canvas()` and verify the desired attention/root/view/preset together with `scenePending` before treating the final visual transition as observed. Never infer a completed navigation from an accepted receipt alone.
 
+## Export a committed Mind Map as Markdown
+
+PR #237's shared Mind Map Markdown exporter is integrated through a read-only API operation:
+
+```js
+const exported = api.exportMarkdown({canvasId});
+// Or export one admitted visual branch, using its exact occurrence ID:
+const branch = api.exportMarkdown({canvasId, subtreeOccurrenceId: "RETURNED_OCCURRENCE_ID"});
+```
+
+The envelope's value contains the existing formatter's `markdown`, `title`, `nodes` and `warnings`,
+plus `canvasId` and `canvasRevision` identifying the captured canvas. A subtree ID is a visual
+occurrence ID from that canvas, not a canonical note path. Multiple canvases still require an
+explicit canvas ID. The operation requires a current committed Mind Map scene and uses the same
+capture and formatter as the native export dialog. It does not select a view or open a dialog.
+
+Export scope is the constructed map or selected constructed subtree. It preserves displayed
+order, current filters, collapsed branches and independent repeated occurrences; viewport
+clipping does not remove offscreen constructed rows. It never expands a branch, traverses the
+canonical graph again, reads note bodies, prepares sources or changes the canvas. No clipboard
+or file-save side effect is granted by the API: callers receive the exact Markdown bytes and
+choose what to do with them.
+
+Inspect `warnings` (`unresolved`, `adjusted`, `references`, `omitted`, `partial`, `collapsed`) before
+assuming a lossless or exhaustive export. Structural/unsupported outlines and syntax-sensitive
+targets may be omitted or converted with warnings. The common API output budget still applies,
+even though the standalone formatter allows a larger output. The [Mind Map export contract](proposals/MINDMAP_MARKDOWN_EXPORT.md)
+documents Builder compatibility, ordering, links and formatter limits. This integration's full
+repository and exact-build Windows native validation pass with the rest of draft PR #240.
+
+The outer envelope carries `revision.canvas`, and reports `truncated: true` when the formatter
+reports omitted or partial content. `requireComplete: true` requires current scope coverage and
+also rejects those omitted/partial results with `INDEX_INCOMPLETE`. Intentional collapsed branches
+retain their separate warning; strict mode does not expand them or turn a constructed-map export
+into a whole-vault export. A mismatched expected canvas coordinate or a changed export frame
+returns `STALE_REVISION`; a view without the shared Markdown export capability returns
+`UNSUPPORTED`. Version 1 exposes this as an explicit JavaScript read method, not a GraphQL field.
+
 ## Portable configuration
 
 Configuration methods use the same [portable package format, validator, privacy checks and import planner](PORTABLE_PRESETS.md) as the native Facets/lens UI. They do not edit `data.json` directly.
@@ -156,6 +194,10 @@ The transport is constructed lazily. Queries are bounded to 16,384 characters an
 
 Machine codes include `API_UNAVAILABLE`, `INVALID_ARGUMENT`, `NOT_FOUND`, `AMBIGUOUS_CANVAS`, `INDEX_INCOMPLETE`, `LIMIT_EXCEEDED`, `STALE_REVISION`, `CANCELLED`, `CONFIRMATION_REQUIRED`, `WRITE_FAILED`, `UNAVAILABLE` and `UNSUPPORTED`. Messages are developer diagnostics; code is the stable discriminator.
 
-Image export and Mind Map Markdown export remain explicit follow-ups to their independent shared exporter PRs (#237 and #238). Version 1 advertises those capabilities as unavailable until their services are integrated; it contains no duplicate capture or export engine. See [Obsidian CLI usage](CLI.md) for direct invocation and readback examples.
+Mind Map Markdown export reuses the shared service from merged PR #237 and is advertised as
+`exports.mindmapMarkdown: true`. Image export remains unavailable (`exports.image: false`) while
+its independent PR #238 is unmerged. Its future API integration must reuse that shared exporter;
+version 1 adds no duplicate capture or export engine. See [Obsidian CLI usage](CLI.md) for direct
+invocation and readback examples.
 
 GraphQL.js is bundled under its MIT license. Its full installed copyright and permission notice is retained in the generated JavaScript through the adapter's legal-comment block, alongside the bundler's existing third-party legal comments.

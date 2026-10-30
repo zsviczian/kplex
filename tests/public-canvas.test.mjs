@@ -13,7 +13,7 @@ const directory=mkdtempSync(join(tmpdir(),'kplex-public-canvas-'));
 process.once('exit',()=>rmSync(directory,{recursive:true,force:true}));
 const outfile=join(directory,'canvas.mjs');
 await build({stdin:{contents:`export * from './src/ui/publicCanvasScene';export * from './src/application/PublicCanvasRegistry';`,resolveDir:resolve('.')},outfile,bundle:true,format:'esm',platform:'node',target:'es2021'});
-const {readPublicCanvasScene,publicCanvasState,PublicCanvasRegistry}=await import(pathToFileURL(outfile).href);
+const {readPublicCanvasScene,publicCanvasState,publicCanvasSelection,PublicCanvasRegistry}=await import(pathToFileURL(outfile).href);
 
 /** A scalar page double deliberately has native/body traps which no projection may inspect. */
 function page(path,transient){return{path,...(transient?{transient}:{}),get file(){throw new Error('Native file access is forbidden');},get neighbours(){throw new Error('Graph traversal is forbidden');},get body(){throw new Error('Note body access is forbidden');}};}
@@ -23,6 +23,14 @@ function node(id,path=id,overrides={}){return{occurrenceId:id,page:page(path),la
 function frame(nodes=[node('A')],overrides={}){return{scene:{nodes,edges:[],zoneViewports:{},zoneAreas:{}},edges:[],rendered:new Map(),clusters:[],area:item=>item.areaId,included:item=>item.included!==false,visible:new Set(nodes.map(item=>item.occurrenceId)),scroll:{},camera:{x:0,y:0,scale:1},viewport:{width:100,height:100},coverage:{scope:'local',complete:true,pending:false},semanticRevision:7,sourceRevision:8,configurationRevision:9,pending:false,motion:false,selection:null,folds:[],filters:{layoutMode:'keep',globalActive:false,find:'',areas:{}},decorationLabel:item=>item.label,...overrides};}
 /** Existing semantic metadata belongs to the passed edge, never a reclassified graph pair. */
 function edge(id,source,target,overrides={}){return{id,sourceOccurrence:source,targetOccurrence:target,sourcePath:`path:${source}`,targetPath:`path:${target}`,role:'child',relationType:1,direction:1,typeDefinition:'Contains',...overrides};}
+
+test('private Compass keyboard keys resolve through their owner to public occurrences without parsing path-like strings',()=>{
+ const first=node('card','Notes/A.md'),second=node('other','Notes/B.md'),keys=new Map([[first,JSON.stringify(['Notes/A.md',0])],[second,'opaque keyboard key']]);
+ assert.equal(publicCanvasSelection(JSON.stringify(['Notes/A.md',0]),[first,second],keys,[]),'card');
+ assert.equal(publicCanvasSelection('opaque keyboard key',[first,second],keys,[]),'other');
+ assert.equal(publicCanvasSelection('mini',[],new Map(),[{children:[{key:'mini'}]}]),'mini');
+ assert.equal(publicCanvasSelection('retired',[first],keys,[]),null);
+});
 
 test('projection preserves occurrence identity, committed geometry, filters and viewport clipping independently',()=>{
  const a=node('occurrence-A','Notes/A.md',{areaId:'area'}),b=node('occurrence-B','Notes/A.md',{included:false}),c=node('offscreen','C.md',{x:300});
@@ -105,4 +113,14 @@ test('registry discovery bounds live and retired inventories, and disposal retir
  const retired=new PublicCanvasRegistry('retired');let visits=0;for(let i=0;i<1000;i++)retired.register({},registration({current:()=>{visits++;return false;}}).ports);assert.throws(()=>retired.list(),error=>error.code==='LIMIT_EXCEEDED');assert.equal(visits,256);
  const registry=new PublicCanvasRegistry('closed'),item=registration();registry.register({},item.ports);const retained=registry.port();registry.dispose();assert.throws(()=>retained.list(),error=>error.code==='API_UNAVAILABLE');assert.throws(()=>retained.snapshot('closed:1'),error=>error.code==='API_UNAVAILABLE');assert.equal(item.reads(),0);assert.deepEqual(item.actions,[]);
  registry.register({},registration().ports)();assert.equal(registry.slots.size,0);
+});
+
+test('Markdown registry delegates the exact subtree to the existing exporter and fences its committed revision',()=>{
+ const registry=new PublicCanvasRegistry('export'),owner={},calls=[],raw={markdown:'# Root\n- [[Child]]\n',title:'Root',nodes:2,warnings:{unresolved:0,adjusted:0,references:0,omitted:0,partial:0,collapsed:1}};
+ const source=registration({exportMarkdown:subtree=>{calls.push(subtree);return raw;}});registry.register(owner,source.ports);const id=registry.list()[0].id;
+ const result=registry.port().exportMarkdown(id,'occurrence:child');assert.equal(result.markdown,raw.markdown);assert.equal(result.canvasId,id);assert.equal(result.canvasRevision,1);assert.equal(result.warnings.collapsed,1);assert.deepEqual(calls,['occurrence:child']);assert.equal(source.reads(),0);
+ registry.register({},registration().ports);assert.throws(()=>registry.exportMarkdown('export:2'),error=>error.code==='UNSUPPORTED');
+ let revision=1;registry.register(owner,registration({summary:()=>({revision}),exportMarkdown:()=>{revision++;return raw;}}).ports);assert.throws(()=>registry.exportMarkdown(id),error=>error.code==='STALE_REVISION');
+ registry.register(owner,registration({exportMarkdown:()=>{registry.register(owner,source.ports);return raw;}}).ports);assert.throws(()=>registry.exportMarkdown(id),error=>error.code==='API_UNAVAILABLE');
+ registry.dispose();assert.throws(()=>registry.exportMarkdown(id),error=>error.code==='API_UNAVAILABLE');
 });

@@ -4,6 +4,7 @@
 import type {GraphNodeView} from '../core/graph/model';
 import type {OntologyReadField} from '../core/contracts/ontologyReadModel';
 import type {Role} from '../core/graph/relations';
+import type {MindMapMarkdownResult} from '../core/plex/export/mindMapMarkdown';
 import type {PublicApiConfiguration} from './PublicApiConfiguration';
 import type {PublicApi} from './PublicApi';
 
@@ -32,7 +33,8 @@ export type PublicCanvasConnection=Readonly<{id:string;kind:'semantic'|'structur
 export type PublicCanvasDecoration=Readonly<{id:string;kind:string;label?:string;bounds?:PublicRect;points?:readonly Readonly<{x:number;y:number}>[]}>;
 export type PublicCanvasSnapshot=Readonly<{canvas:PublicCanvasSummary;semanticRevision:number;sourceRevision:number;configurationRevision:number;scenePending:boolean;motionPending:boolean;state:JsonValue|null;preset:Readonly<{id:string;label:string}>|null;lenses:readonly Readonly<{id:string;name:string;mode:string;scope:string}>[];filters:Readonly<{layoutMode:string;globalActive:boolean;find:string;areas:Readonly<Record<string,string>>;quick?:Readonly<{field:string;operator:string;value:string}>}>;folds:readonly string[];foldState?:Readonly<{branches:readonly Readonly<{occurrenceId:string;expanded:boolean}>[];sections:Readonly<{expanded:boolean;expandedIds:readonly string[]}>;groups:Readonly<{unfoldedIds:readonly string[]}>}>;selection:string|null;occurrences:readonly PublicCanvasOccurrence[];connections:readonly PublicCanvasConnection[];decorations:readonly PublicCanvasDecoration[];areas:readonly Readonly<{id:string;bounds:PublicRect;viewport:PublicRect|null;scrollTop:number;contentHeight:number}>[];camera:Readonly<{x:number;y:number;scale:number}>;viewport:Readonly<{width:number;height:number}>;bounds:PublicRect|null;coverage:PublicCoverage;truncated:boolean}>;
 export type PublicActionReceipt=Readonly<{status:'completed'|'accepted';canvasId:string;revision:number}>;
-export type PublicCanvasPort=Readonly<{list:()=>readonly PublicCanvasSummary[];snapshot:(id:string)=>PublicCanvasSnapshot|null;navigate:(id:string,path:string)=>Promise<PublicActionReceipt>;selectView:(id:string,viewId:string)=>Promise<PublicActionReceipt>;selectPreset:(id:string,presetId:string)=>Promise<PublicActionReceipt>}>;
+export type PublicMarkdownExport=MindMapMarkdownResult&Readonly<{canvasId:string;canvasRevision:number}>;
+export type PublicCanvasPort=Readonly<{list:()=>readonly PublicCanvasSummary[];snapshot:(id:string)=>PublicCanvasSnapshot|null;exportMarkdown:(id:string,subtreeOccurrenceId?:string)=>PublicMarkdownExport;navigate:(id:string,path:string)=>Promise<PublicActionReceipt>;selectView:(id:string,viewId:string)=>Promise<PublicActionReceipt>;selectPreset:(id:string,presetId:string)=>Promise<PublicActionReceipt>}>;
 export type PublicGraphPort=Readonly<{node:(id:string)=>PublicNode|null;search:(query:string,limit:number,cancelled:()=>boolean)=>PublicPage<PublicNode>;neighbors:(id:string,role:Exclude<Role,'sibling'>|undefined,limit:number,cancelled:()=>boolean)=>PublicPage<PublicRelationship>;evidence:(sourceId:string,targetId:string,limit:number,cancelled:()=>boolean)=>PublicEvidence|null;coverage:(id?:string)=>PublicCoverage}>;
 export type PublicGraphqlRequest=PublicReadOptions&Readonly<{query:string;variables?:Readonly<Record<string,unknown>>;operationName?:string}>;
 export type PublicGraphqlExecution=Readonly<{data?:unknown;errors?:readonly Readonly<{message:string;path?:readonly (string|number)[];extensions?:Readonly<Record<string,unknown>>}>[]}>;

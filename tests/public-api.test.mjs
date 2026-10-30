@@ -142,3 +142,19 @@ test('Markdown authored content is enclosed in unbreakable single-line code span
  f.api.ports={...f.api.ports,ontology:options=>({...originalOntology(options),fields:[{key:'x',name:payload,role:'child',roles:['child'],partner:payload,description:payload,configured:true,discovered:false}]}),canvas:{...f.api.ports.canvas,snapshot:id=>({...originalCanvas(id),occurrences:[{id:payload,label:payload,nodeId:payload,kind:'node',role:'child',areaId:null,bounds:{x:0,y:0,width:1,height:1},included:true,inViewport:true}]})}};
  const guide=f.api.ontologyGuide({format:'markdown'}),context=f.api.context({canvasId:'one'});assert(guide.ok);assert(context.ok);assert(guide.value.includes(literal));assert(context.value.includes(literal));
 });
+
+test('Markdown API reuses the selected exporter with coverage, subtree, revision and warning envelopes',()=>{
+ const f=fixture(),raw={markdown:'# Existing root\n- [[Existing child]]\n',title:'Existing root',nodes:2,warnings:{unresolved:0,adjusted:0,references:0,omitted:0,partial:0,collapsed:1}},calls=[];
+ f.api.ports={...f.api.ports,canvas:{...f.api.ports.canvas,exportMarkdown:(canvasId,subtree)=>{calls.push([canvasId,subtree]);return{...raw,canvasId,canvasRevision:1};}}};
+ assert.equal(f.api.exportMarkdown().error.code,'AMBIGUOUS_CANVAS');assert.equal(calls.length,0);
+ const exported=f.api.exportMarkdown({canvasId:'two',subtreeOccurrenceId:'child'});assert(exported.ok);assert.equal(exported.value.markdown,raw.markdown);assert.equal(exported.value.canvasId,'two');assert.equal(exported.value.canvasRevision,1);assert.equal(exported.revision.canvas,1);assert.equal(exported.value.warnings.collapsed,1);assert.equal(exported.truncated,false);assert.deepEqual(calls,[['two','child']]);
+ exported.value.warnings.collapsed=100;assert.equal(raw.warnings.collapsed,1);
+ assert.equal(f.api.exportMarkdown({canvasId:'two',requireComplete:true}).error.code,'INDEX_INCOMPLETE');assert.equal(calls.length,1);
+ assert.equal(f.api.exportMarkdown({canvasId:'two',expectedRevision:{semantic:1,source:1,configuration:1,canvas:0}}).error.code,'STALE_REVISION');assert.equal(calls.length,1);
+ f.api.ports.canvas.exportMarkdown=(canvasId)=>({...raw,warnings:{...raw.warnings,partial:1},canvasId,canvasRevision:1});const partial=f.api.exportMarkdown({canvasId:'two'});assert(partial.ok);assert(partial.truncated);
+ f.setComplete(true);assert.equal(f.api.exportMarkdown({canvasId:'two',requireComplete:true}).error.code,'INDEX_INCOMPLETE');
+ f.api.ports.canvas.exportMarkdown=(canvasId)=>({...raw,canvasId,canvasRevision:2});assert.equal(f.api.exportMarkdown({canvasId:'two'}).error.code,'STALE_REVISION');
+ const capabilities=f.api.capabilities();assert(capabilities.ok);assert.equal(capabilities.value.exports.mindmapMarkdown,true);assert(capabilities.value.operations.includes('exportMarkdown'));
+ const graphql=f.api.query({query:'{capabilities{exports{mindmapMarkdown image}}}'});assert(graphql.ok);assert.equal(graphql.value.data.capabilities.exports.mindmapMarkdown,true);assert.equal(graphql.value.data.capabilities.exports.image,false);
+ f.api.dispose();assert.equal(f.api.exportMarkdown({canvasId:'two'}).error.code,'API_UNAVAILABLE');
+});

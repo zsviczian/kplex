@@ -2,7 +2,7 @@
 
 Obsidian CLI `eval` calls the [public K-Plex API](PUBLIC_API.md) inside the running application. Enable and register Obsidian's CLI using [Obsidian's official setup](https://help.obsidian.md/cli), keep the intended vault open, and address that vault explicitly. K-Plex does not register parameterized `obsidian kplex:*` commands or ship a separate executable wrapper.
 
-Source implementation is present on draft PR #240; complete repository and exact-build native acceptance remain pending. These invocation examples document the implemented protocol. They are not a claim that every platform or physical device has been validated.
+Draft PR #240 passes complete repository verification and exact-build Windows CLI acceptance. The [validation record](validation/public-api-cli-240-2026-10-30.md) records the results and remaining macOS, minimum-host and physical-device limits. The PR remains draft and unmerged.
 
 First verify the destination:
 
@@ -36,6 +36,29 @@ Use a returned canvas ID for subsequent calls:
 obsidian vault=kplex-test-small eval \
   'code=JSON.stringify(app.plugins.plugins["k-plex"].api.v1.canvas({canvasId:"RETURNED_ID"}))'
 ```
+
+For a current committed Mind Map, return its Markdown through the same shared exporter as the
+native dialog. This operation returns bytes and warnings without copying or saving a file:
+
+```sh
+obsidian vault=kplex-test-small eval \
+  'code=JSON.stringify(app.plugins.plugins["k-plex"].api.v1.exportMarkdown({canvasId:"RETURNED_ID"}))'
+
+obsidian vault=kplex-test-small eval \
+  'code=JSON.stringify(app.plugins.plugins["k-plex"].api.v1.exportMarkdown({canvasId:"RETURNED_ID",subtreeOccurrenceId:"RETURNED_OCCURRENCE_ID"}))'
+```
+
+Inspect `value.markdown`, `value.warnings`, `value.canvasId` and `value.canvasRevision`. An occurrence
+ID identifies one visual branch, including when the same note appears more than once. Offscreen
+constructed rows remain eligible; current filters and folds constrain scope. An API output limit
+can reject a large export. `capabilities()` advertises Mind Map Markdown through merged PR #237;
+image export remains unavailable pending independent PR #238.
+
+For strict export, pass `requireComplete:true` in the same options object. Incomplete indexed
+coverage or omitted/partial formatter content fails explicitly; intentional collapsed branches
+remain scoped out and are reported separately. The response's `revision.canvas` matches the
+captured canvas revision. A stale frame fails rather than exporting from a different canvas or
+silently rebuilding it.
 
 GraphQL variables are ordinary JSON data:
 

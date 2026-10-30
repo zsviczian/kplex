@@ -109,6 +109,23 @@ export class PublicApi {
     if(options.expectedRevision?.canvas!==undefined&&options.expectedRevision.canvas!==value.canvas.revision)throw new PublicApiError('STALE_REVISION','Requested canvas revision is stale');
     return [`# K-Plex canvas ${literal(value.canvas.id)}`,`View: ${literal(value.canvas.viewId)}`,`Attention: ${literal(value.canvas.attention)}`,`Root: ${literal(value.canvas.root)}`,`Coverage: ${value.coverage.scope}; complete=${value.coverage.complete}; truncated=${value.truncated}`,`Scene pending: ${value.scenePending}; motion pending: ${value.motionPending}`,'','## Materialized occurrences',...value.occurrences.map(item=>`- ${literal(item.id)}: ${literal(item.label)}; node=${literal(item.nodeId)}; included=${item.included}; inViewport=${item.inViewport}`),'','## Connections',...value.connections.map(item=>`- ${item.kind}: ${literal(item.sourceOccurrence)} → ${literal(item.targetOccurrence)} (${literal(item.role??'no semantic role')})`)].join('\n');
   },()=>snapshot().coverage);}
+  /** Serialize one committed Mind Map through the shared exporter from PR237. This read has
+   * no clipboard/save effect, never expands hidden branches and retains the exporter's warnings. */
+  exportMarkdown(options:PublicReadOptions&{canvasId?:string;subtreeOccurrenceId?:string}={}){
+    let frame:PublicCanvasSnapshot|undefined,id:string|undefined;
+    /** Coverage and the selected exporter share one explicit captured canvas/revision. */
+    const snapshot=():PublicCanvasSnapshot=>{id??=this.canvasId(options.canvasId);return frame??(frame=this.snapshot(id));};
+    const result=this.read(options,()=>{
+      const value=snapshot();
+      if(options.expectedRevision?.canvas!==undefined&&options.expectedRevision.canvas!==value.canvas.revision)throw new PublicApiError('STALE_REVISION','Requested canvas revision is stale');
+      const subtree=options.subtreeOccurrenceId===undefined?undefined:identity(options.subtreeOccurrenceId,'Subtree occurrence ID');
+      const exported=this.owner().canvas.exportMarkdown(value.canvas.id,subtree);
+      if(exported.canvasRevision!==value.canvas.revision)throw new PublicApiError('STALE_REVISION','The committed canvas changed during export');
+      if(options.requireComplete===true&&(exported.warnings.omitted>0||exported.warnings.partial>0))throw new PublicApiError('INDEX_INCOMPLETE','The Markdown export is partial');
+      return exported;
+    },()=>snapshot().coverage);
+    return result.ok?{...result,revision:{...result.revision,canvas:result.value.canvasRevision},truncated:result.value.warnings.omitted>0||result.value.warnings.partial>0}:result;
+  }
   /** Existing-note navigation delegates to the captured canvas's native persistence preflight. */
   navigate(options:{canvasId?:string;path:string}){return this.action(()=>this.owner().canvas.navigate(this.canvasId(options.canvasId),identity(options.path,'Note path')),{scope:'local',complete:false,pending:false});}
   /** Session selection retains the existing view/editor lifecycle and affects only this canvas. */
@@ -118,7 +135,7 @@ export class PublicApi {
   /** Execute genuine read-only GraphQL through the injected lazy transport and the same read model. */
   query(request:PublicGraphqlRequest){return this.read({...request,requireComplete:false},()=>this.owner().graphql(this,request),()=>this.owner().graph.coverage());}
   /** Finite discovery advertises actual available operations and explicit deferred exporters. */
-  capabilities(){return this.read({},()=>({version:1,readOnlyGraphql:true,operations:['status','coverage','ontology','ontologyGuide','node','search','neighbors','evidence','canvases','canvas','context','navigate','selectView','selectPreset','configuration','query'],exports:{image:false,mindmapMarkdown:false},limits}),{scope:'configuration',complete:true,pending:false});}
+  capabilities(){return this.read({},()=>({version:1,readOnlyGraphql:true,operations:['status','coverage','ontology','ontologyGuide','node','search','neighbors','evidence','canvases','canvas','context','exportMarkdown','navigate','selectView','selectPreset','configuration','query'],exports:{image:false,mindmapMarkdown:true},limits}),{scope:'configuration',complete:true,pending:false});}
   /** Release all host references. Previously retained methods remain callable with closed errors. */
   dispose():void{this.ports=null;}
   /** Fail closed without retaining the plugin through an unloaded service handle. */

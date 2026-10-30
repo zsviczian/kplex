@@ -84,8 +84,9 @@ Optional section snapshots adapt the existing explicit `SectionExpansion` owner 
 
 Draft PR #240 composes a versioned local automation API without resuming C15–C26. Its
 [reference](PUBLIC_API.md), [CLI guide](CLI.md) and [original brief](proposals/PUBLIC_API_CLI_V1.md)
-distinguish implemented contracts from acceptance; complete verification and exact-build native
-validation remain pending.
+distinguish implemented contracts from platform acceptance. Complete repository verification and
+exact-build Windows native validation pass; remaining environment limits are recorded in the
+[validation report](validation/public-api-cli-240-2026-10-30.md).
 
 `application/PublicApi` owns detached envelopes, bounded operation arguments, revision/coherence
 checks and read-only use cases. `publicApi/createPublicApi` composes existing plugin/index/native
@@ -121,8 +122,16 @@ and requires explicit apply confirmation. Imported lenses remain disabled; no ca
 note write is granted. Readback or display-refresh failure after durable acceptance remains a
 saved receipt. Unload disposes configuration reviews and host ports, canvas registrations, service
 ports and lazy GraphQL schema before index teardown; old public handles cannot retain the retired
-plugin/index/native surfaces. Image/Markdown export remains dependent on the separate shared
-exporter PRs rather than a duplicate implementation.
+plugin/index/native surfaces.
+
+Merged PR #237 supplies the shared `ui/export/captureMindMapMarkdown` and portable
+`core/plex/export/mindMapMarkdown` owners. Public `exportMarkdown` captures the exact committed
+Mind Map scene/filter lifetime and invokes those same services for whole-map or exact-occurrence
+subtree output. It returns formatter bytes/warnings with canvas identity/revision, without
+clipboard, save, source acquisition, branch expansion or a second layout/traversal engine. Current
+filters/folds constrain scope; offscreen constructed rows remain eligible. The public output cap
+still applies. Image export remains deferred until the independent shared exporter PR #238 merges;
+this API introduces no image capture engine. Final full/native acceptance for PR #240 remains pending.
 
 ## Action dispatch boundary
 
