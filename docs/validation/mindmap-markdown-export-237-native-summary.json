@@ -1,0 +1,145 @@
+{
+  "feature": "Mind Map Markdown export \u2014 PR #237",
+  "date": "2026-10-30",
+  "host": {
+    "node": "v22.22.2",
+    "obsidian": "1.15.0 (installer 1.14.0)",
+    "os": "macOS Darwin 23.5.0"
+  },
+  "artifacts": {
+    "main.js": "d001afb29c6e949731b6825f90f0ca3bad5168f6152f92d82d41621070345c7e",
+    "manifest.json": "2822c38463c03ace4f017453679572d462534ce2a9c9558fd7593f259b01bfa1",
+    "styles.css": "d7ed47e0720e607869e5cc40b94c32d9233272223d58d3e3b1bcb9c2dafa476e"
+  },
+  "source": {
+    "src/index/GraphBuilder.ts": "b4ff3bc6298c1d30c58aa15a47d2636b8e32a33f1ff4c225ce2848534567cab8",
+    "src/index/GraphIndex.ts": "ffa6d9214058a4c198d5d64981542b54087e168635885beac9a3f2c08a4fcd2c",
+    "src/core/graph/compiler.ts": "ee403bd86870137e7ea769dfb5c5c7cfa27e08ad768b1815bef47eab9732bd4f",
+    "src/core/plex/export/mindMapMarkdown.ts": "d7f0e76e5982c99a68cfa616bd8618c937c4df4945e2f80f92e1f099312b653b",
+    "src/ui/export/captureMindMapMarkdown.ts": "dfb9e44acba1b69675d6f70d1e7122f97596c421bc7f722995ac1cca57127eb3",
+    "src/ui/export/MindMapMarkdownModal.ts": "ca3eb1bb63aba131be904c49b87d683ac6a8a2b68419647bf2d7ed51477248e5",
+    "src/adapters/obsidian/markdownExportFile.ts": "9c7dcdb0b7a0f79ca939593073047286f84518040fdb38dacb86714701093303",
+    "src/ui/PlexGraph.tsx": "0bf325e8c81b5bc9b01b7b99304ca242e3ee6b2e2be3a24f87271e77ed34795e"
+  },
+  "focused": {
+    "status": "passed",
+    "tests": 78,
+    "additionalFinalCompatibilityRun": {
+      "tests": 7,
+      "status": "passed"
+    }
+  },
+  "nativeUI": {
+    "status": "passed",
+    "result": {
+      "cases": [
+        {
+          "id": "central-menu-preview-copy-zero-source-work",
+          "counts": {
+            "reads": 0,
+            "parses": 0,
+            "acquisitions": 0,
+            "rebuilds": 0,
+            "semanticRefreshes": 0
+          }
+        },
+        {
+          "id": "native-save-download-exact-bytes-zero-vault-work",
+          "counts": {
+            "reads": 0,
+            "parses": 0,
+            "acquisitions": 0,
+            "rebuilds": 0,
+            "semanticRefreshes": 0
+          },
+          "coordinatorChecks": 0,
+          "systemDestinationPicker": "Probe selected an owned temporary destination through the real DownloadItem; OS picker/overwrite UI was not automated"
+        },
+        {
+          "id": "native-collapsed-selected-subtree-preview"
+        },
+        {
+          "id": "native-filtered-hierarchy-preview"
+        },
+        {
+          "id": "native-command-palette-publication-and-execution"
+        },
+        {
+          "id": "independent-main-popout-root-and-owning-window-copy"
+        }
+      ],
+      "limitations": "Native DOM/menu callbacks and real clipboard/system download on this host; physical mobile input and full Mindmap Builder drawing rendering remain separate. The OS destination/overwrite UI and mobile share sheet are not automated."
+    },
+    "cleanup": "passed",
+    "driver": {
+      "transport": "beb7677649f8ae6ae390c0df25b4a025a48777b5fbfc5e36c25f7fe252b8a0d3",
+      "scenario": "77140035e939f7ab06995a2be2893dcff836f886b5bb266ec9e3b8a68522747c",
+      "definitions": "e32944719d3fdc2aa2685cbbfc2983e684e8090fbee6c493f2f1112f1e08c320"
+    }
+  },
+  "nativeBuilder": {
+    "status": "passed",
+    "result": {
+      "nativeBuilder": true,
+      "builderSources": {
+        "main.ts": "3a978f4596dd5b0b65c1990d087199a9a66546eb738d74f65120772cfaff6425",
+        "markdownImport.js": "307a5b7c1d91296c5ae8a831bd2d4133c1cfc88bd4154497aa5b2ac528aab6a1",
+        "markdownExport.js": "d713c3b0b42971b067eb26dbddecf4763071d3404b9578afb837d96d27703f30"
+      },
+      "parsedEntity": "Alpha&#58;&#58;Beta",
+      "branchArrows": 5,
+      "crossLinks": 3,
+      "renderedElements": 23,
+      "reexported": true,
+      "offlineHelpStub": true,
+      "limitation": "Only the unrelated Builder help/marketing renderer is replaced to keep this native test offline; actual parser, node creation, graph, layout, Excalidraw rendering and export run unmodified."
+    },
+    "cleanup": "passed",
+    "driver": {
+      "transport": "beb7677649f8ae6ae390c0df25b4a025a48777b5fbfc5e36c25f7fe252b8a0d3",
+      "scenario": "c6039a8d0f6dc88b3333cd365d8d77c00f08bc2d754fab0117c78874f6b6cabf",
+      "definitions": "5a8e083fa4c7f03f705865428a92653d16d7c091dfc66a9b62887c17b74c5570"
+    }
+  },
+  "fullVerification": {
+    "status": "passed",
+    "startedAt": "2026-10-30T21:26:30.988Z",
+    "completedAt": "2026-10-30T21:51:36.901Z",
+    "source": {
+      "revision": "da8831f8773d6965f00f0988071947ddc9222318",
+      "dirty": true,
+      "node": "v22.22.2",
+      "os": "darwin 23.5.0"
+    },
+    "runtimeCommit": "ecb9ba15e0a0e09f6283836135143d8c947c2af0",
+    "attribution": "Verification began with the implementation uncommitted and ran while that same implementation was committed. Runtime/source files were unchanged; final production artifact hashes match both focused native receipts.",
+    "suites": {
+      "architecture": 9,
+      "core": 130,
+      "main": 1702,
+      "browser": 419,
+      "sources": 357,
+      "indexedDB": 855
+    },
+    "allPassed": true,
+    "skipped": 0,
+    "nativeSmoke": [
+      {
+        "id": "open-kplex",
+        "status": "passed",
+        "assertions": [
+          "plugin command registered",
+          "rendered .kplex-app contains K-Plex",
+          "no captured JavaScript errors"
+        ],
+        "elapsedMs": 81
+      }
+    ]
+  },
+  "limitations": [
+    "Minimum Obsidian 1.13, Windows and physical mobile acceptance not run.",
+    "OS destination/overwrite UI and mobile share sheet are not automated. Native UI test selects an owned download destination synchronously in the main process.",
+    "Builder native test replaces unrelated help/marketing rendering to keep it offline. Actual parser, graph, node creation, layout, Excalidraw rendering and export are unmodified.",
+    "Builder displays metadata-sensitive escaped labels literally. The export preview warns; unsupported targets become text with an unresolved warning."
+  ]
+}
