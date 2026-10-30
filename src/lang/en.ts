@@ -3480,6 +3480,13 @@ export const englishCatalog = {
     context: "Plex graph controls, menus, relationship evidence, and accessibility copy.",
     params: [],
   },
+  "graph.openInFinder": { message: "Open in Finder", context: "Native node file-location action; system file manager is desktop-only and file navigation requires the Files core plugin.", params: [] },
+  "graph.openInExplorer": { message: "Open in Explorer", context: "Native node file-location action; system file manager is desktop-only and file navigation requires the Files core plugin.", params: [] },
+  "graph.showInSystemExplorer": { message: "Show in system explorer", context: "Native node file-location action; system file manager is desktop-only and file navigation requires the Files core plugin.", params: [] },
+  "actions.node.open.system": { message: "Open in system file manager", context: "Native node file-location action; system file manager is desktop-only and file navigation requires the Files core plugin.", params: [] },
+  "actions.node.open.system.description": { message: "Reveal the selected file or canvas center in the system file manager.", context: "Native node file-location action; system file manager is desktop-only and file navigation requires the Files core plugin.", params: [] },
+  "actions.node.open.navigation": { message: "Open in file navigation", context: "Native node file-location action; system file manager is desktop-only and file navigation requires the Files core plugin.", params: [] },
+  "actions.node.open.navigation.description": { message: "Reveal the selected file or canvas center in Obsidian’s Files pane.", context: "Native node file-location action; system file manager is desktop-only and file navigation requires the Files core plugin.", params: [] },
   "graph.openMenu": {
     message: "Open",
     context: "Parent submenu in a Plex node context menu for choosing where a file opens.",
