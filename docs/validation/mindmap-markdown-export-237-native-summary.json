@@ -102,7 +102,39 @@
     }
   },
   "fullVerification": {
-    "status": "running"
+    "status": "passed",
+    "startedAt": "2026-10-30T21:26:30.988Z",
+    "completedAt": "2026-10-30T21:51:36.901Z",
+    "source": {
+      "revision": "da8831f8773d6965f00f0988071947ddc9222318",
+      "dirty": true,
+      "node": "v22.22.2",
+      "os": "darwin 23.5.0"
+    },
+    "runtimeCommit": "ecb9ba15e0a0e09f6283836135143d8c947c2af0",
+    "attribution": "Verification began with the implementation uncommitted and ran while that same implementation was committed. Runtime/source files were unchanged; final production artifact hashes match both focused native receipts.",
+    "suites": {
+      "architecture": 9,
+      "core": 130,
+      "main": 1702,
+      "browser": 419,
+      "sources": 357,
+      "indexedDB": 855
+    },
+    "allPassed": true,
+    "skipped": 0,
+    "nativeSmoke": [
+      {
+        "id": "open-kplex",
+        "status": "passed",
+        "assertions": [
+          "plugin command registered",
+          "rendered .kplex-app contains K-Plex",
+          "no captured JavaScript errors"
+        ],
+        "elapsedMs": 81
+      }
+    ]
   },
   "limitations": [
     "Minimum Obsidian 1.13, Windows and physical mobile acceptance not run.",
