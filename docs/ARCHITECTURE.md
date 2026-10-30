@@ -38,6 +38,14 @@ Arrows mean **may import**, not call direction. A capability interface belongs i
 
 ## Internal Plex view policies
 
+Ontology descriptions remain settings-owned vocabulary metadata. The pure
+`core/contracts/ontologyReadModel` projects decoded assignments, exact physical
+names, reciprocal fields and optional descriptions together with caller-supplied
+discovery facts. It has no discovery/index/source capability. Description-only
+edits use the existing serialized ontology writer and presentation notification;
+they are deliberately absent from semantic signatures and graph settings policy,
+so wording never requests semantic preparation or source recovery.
+
 `core/plex/views/` contains host-free projection/layout definitions and the static
 registry. Classic's ordered neighbourhood/sibling policy and measured geometry
 have one implementation; retained host APIs delegate to it. `ui/plexViews/`

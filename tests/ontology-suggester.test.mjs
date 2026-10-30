@@ -167,3 +167,11 @@ test('pair-aware native suggestions retain independent physical fields, roles an
  let replacement;owner.context={editor:{replaceRange:(...args)=>replacement=args}};owner.selectSuggestion('supported by');assert.equal(replacement[0],'supported by:: ');
  info=invoke(owner,':::based');assert.deepEqual(owner.getSuggestions({...info}),['based on','quoted in']);
 });
+
+
+test('description migration preserves old ontology behavior and exact authored dictionary values',()=>{
+ const old=migrateAndMergeSettings({ontologyPairingVersion:1,hierarchy:structuredClone(defaults.hierarchy)}),loaded=migrateAndMergeSettings({...old,ontologyDescriptions:{Parent:'Meaning <b>is literal</b>.',Child:'Independent inverse.','empty':'   ',bad:42}});
+ assert.deepEqual(old.ontologyDescriptions,{});assert.equal(loaded.ontologyDescriptions.Parent,'Meaning <b>is literal</b>.');assert.equal(loaded.ontologyDescriptions.Child,'Independent inverse.');assert(!Object.hasOwn(loaded.ontologyDescriptions,'empty'));assert(!Object.hasOwn(loaded.ontologyDescriptions,'bad'));
+ assert.deepEqual(loaded.hierarchy,old.hierarchy);assert.deepEqual(classifySettingsChange(captureSettingsPolicy(old),captureSettingsPolicy(loaded)).changedKeys,[]);
+ assert.deepEqual(migrateAndMergeSettings(JSON.parse(JSON.stringify(loaded))).ontologyDescriptions,loaded.ontologyDescriptions);
+});

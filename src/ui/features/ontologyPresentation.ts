@@ -1,12 +1,13 @@
 /** Read-only ontology vocabulary projections shared by native managers and selection surfaces.
  * Rows collapse pairs; options preserve every physical field. Neither projection discovers or saves data. */
 import {normalizeFieldName} from '../../core/contracts/fieldName';
-import {ONTOLOGY_ROLE_GROUP, type OntologyConfiguration, type OntologyRole} from '../../core/contracts/ontologyConfiguration';
+import {type OntologyConfiguration, type OntologyRole} from '../../core/contracts/ontologyConfiguration';
 import type {Translator} from '../../lang';
+import {ontologyReadModel,type OntologyDescriptions,type DiscoveredOntologyField} from '../../core/contracts/ontologyReadModel';
+export type {DiscoveredOntologyField} from '../../core/contracts/ontologyReadModel';
 
 export type OntologyFilter='all'|OntologyRole|'unassigned';
-export type DiscoveredOntologyField=Readonly<{normalized:string;name:string;count:number}>;
-export type OntologyFieldView=Readonly<{key:string;name:string;role:OntologyRole|'unassigned';roles:readonly OntologyRole[];partner?:string;partnerRole?:OntologyRole;count?:number;documentCount?:number;countPartial?:boolean}>;
+export type OntologyFieldView=Readonly<{key:string;name:string;role:OntologyRole|'unassigned';roles:readonly OntologyRole[];partner?:string;partnerRole?:OntologyRole;description?:string;count?:number;documentCount?:number;countPartial?:boolean}>;
 export type OntologyManagerEntry=Readonly<{key:string;first:OntologyFieldView;second?:OntologyFieldView}>;
 export type OntologyDocumentCount=Readonly<{count?:number;partial:boolean}>;
 
@@ -35,19 +36,8 @@ export function ontologyRoleLabel(role:OntologyRole|'unassigned',t:Translator):s
 }
 
 /** Keep physical spelling, effective precedence and truthful legacy multiplicity without changing lists. */
-export function ontologyFieldViews(configuration:OntologyConfiguration,discovered:readonly DiscoveredOntologyField[]=[]):OntologyFieldView[] {
-  const fields=new Map<string,OntologyFieldView>();
-  for(const [role,group] of Object.entries(ONTOLOGY_ROLE_GROUP) as [OntologyRole,keyof typeof configuration.hierarchy][]){
-    for(const name of configuration.hierarchy[group]??[]){
-      const key=normalizeFieldName(name);if(!key)continue;
-      const prior=fields.get(key);
-      if(prior){if(!prior.roles.includes(role))fields.set(key,{...prior,roles:[...prior.roles,role]});continue;}
-      const pair=configuration.pairs.get(key);
-      fields.set(key,{key,name,role:configuration.roles.get(key)??role,roles:[role],partner:pair?.partner,partnerRole:pair?.partnerRole});
-    }
-  }
-  for(const field of discovered){const key=normalizeFieldName(field.name);if(key&&!fields.has(key))fields.set(key,{key,name:field.name,role:'unassigned',roles:[],count:field.count});}
-  return [...fields.values()];
+export function ontologyFieldViews(configuration:OntologyConfiguration,discovered:readonly DiscoveredOntologyField[]=[],descriptions:OntologyDescriptions={}):OntologyFieldView[] {
+  return ontologyReadModel(configuration,descriptions,discovered);
 }
 
 /** Compact detail annotates a selectable physical field; it never becomes the inserted property. */
@@ -57,7 +47,7 @@ export function ontologyFieldDetail(field:OntologyFieldView|undefined,t:Translat
   if(field.partner&&field.partnerRole)parts.push(t('ontology.manager.pairedWith',{field:field.partner,role:ontologyRoleLabel(field.partnerRole,t)}));
   if(partnerMatch)parts.push(t('ontology.manager.partnerMatch'));
   if(field.roles.length>1)parts.push(t('ontology.manager.multipleAssignments',{roles:field.roles.map(/** Show every retained assignment's role. */ role=>ontologyRoleLabel(role,t)).join(', ')}));
-  return parts.join(' · ');
+  return [parts.join(' · '),field.description].filter(Boolean).join('\n');
 }
 
 /** Extend an existing ranked matcher with partner-only candidates, retaining original physical values.

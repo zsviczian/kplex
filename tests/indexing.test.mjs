@@ -450,6 +450,7 @@ for (const file of [
   "src/core/plex/shortcutPresentation.ts",
   "src/core/contracts/fieldName.ts",
   "src/core/contracts/ontologyConfiguration.ts",
+  "src/core/contracts/ontologyReadModel.ts",
   "src/core/graph/model.ts",
   "src/core/parser/metadata.ts",
   "src/core/parser/referenceValues.ts",

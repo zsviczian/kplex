@@ -1365,6 +1365,16 @@ that drawing case. All generated files remain probe-owned and are removed.
 
 ### Unified ontology manager acceptance
 
+After exact-build staging, `npm run verify:obsidian:ontology-descriptions` uses the
+same explicit Small-vault variables to exercise independent field and inverse
+descriptions through the native editor and manager. It checks Cancel, edit and
+clear, exactly one write per accepted edit, unchanged semantic revision and zero
+Markdown reads, parses, source acquisitions, rebuilds or semantic invalidations.
+It restores settings, layout and configuration bytes without creating notes.
+`verify:obsidian:ontology-pair-reload` additionally checks that both authored
+descriptions survive plugin reload. Run native lanes serially; these checks do
+not establish physical mobile input, macOS or two-device Sync acceptance.
+
 `npm run verify:obsidian:ontology-manager` (also reached by `verify:obsidian:ontology-input`)
 uses the exact staged build and the three explicit Small-vault variables above. It opens actual
 Ontology Settings and the shared native manager/editor, checks role orientation and partner search,

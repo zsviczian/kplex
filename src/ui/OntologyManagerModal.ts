@@ -59,7 +59,7 @@ export class OntologyManagerModal extends Modal {
   }
 
   /** Read saved configuration plus the existing discovered vocabulary without querying any uses. */
-  private fields():OntologyFieldView[]{return ontologyFieldViews(ontologyConfiguration(this.plugin.settings),this.plugin.index?.unassignedOntologyFields()??[]);}
+  private fields():OntologyFieldView[]{return ontologyFieldViews(ontologyConfiguration(this.plugin.settings),this.plugin.index?.unassignedOntologyFields()??[],this.plugin.settings.ontologyDescriptions);}
 
   /** Retire stale completions on filter/search/editor changes or native close. */
   private cancelRefresh():void {this.refreshGeneration++;this.refreshing=false;if(this.refreshButton)this.refreshButton.disabled=false;}
@@ -102,7 +102,8 @@ export class OntologyManagerModal extends Modal {
       const row=this.manager.row(()=>this.edit(entry.first.name)),copy=row.createDiv({cls:'kplex-style-manager-copy'});
       for(const field of [entry.first,entry.second])if(field){
         copy.createDiv({cls:'kplex-style-manager-name',text:field.name});
-        copy.createDiv({cls:'kplex-style-manager-summary',text:ontologyFieldDetail({...field,partner:undefined,partnerRole:undefined},t)});
+        copy.createDiv({cls:'kplex-style-manager-summary',text:ontologyFieldDetail({...field,partner:undefined,partnerRole:undefined,description:undefined},t)});
+        if(field.description)copy.createDiv({cls:'kplex-ontology-description',text:field.description,attr:{'aria-label':field.description}});
         if(field.documentCount!==undefined)copy.createDiv({cls:'kplex-style-manager-summary',text:t(field.countPartial?'ontology.manager.documentsPartial':'ontology.manager.documents',{count:field.documentCount})});
         else if(field.count!==undefined)copy.createDiv({cls:'kplex-style-manager-summary',text:t(field.count===1?'settings.occurrenceOne':'settings.occurrenceMany',{count:field.count})});
       }

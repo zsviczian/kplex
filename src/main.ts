@@ -54,6 +54,7 @@ import {applyPortableImport, PortableSharingCapacityError, type PreparedImport, 
 import { appearanceColorReferences } from "./core/contracts/appearance";
 import { requireNamedColor } from "./core/plex/colorEditing";
 import * as appearanceThemes from "./core/plex/appearanceThemes";
+import {editOntologyDescriptions,type OntologyDescriptions} from './core/contracts/ontologyReadModel';
 import {ontologyConfiguration, assignOntologyField, applyOntologyEdit, ontologyEndpointState, editOntologyEntries, ONTOLOGY_GROUPS, type OntologyConfiguration, type OntologyConfigurationInput, type OntologyEdit} from './core/contracts/ontologyConfiguration';
 import type {StyleEditorModal} from "./ui/StyleEditorModal";
 import {NotificationModal} from "./ui/NotificationModal";
@@ -2200,27 +2201,32 @@ export default class KplexPlugin extends Plugin {
   /** Both manual configuration and pair-aware modal edits share one queued, validated writer.
    * Compare effective policy separately from pairing; caption-only saves never invalidate semantics.
    * Failed storage publishes neither raw configuration nor presentation. Accepted storage survives dismissal. */
-  private async updateOntologyConfiguration(edit:(source:KplexSettings)=>KplexSettings['hierarchy'],current:()=>boolean):Promise<StyleCommitResult> {
-    let persisted=false,changed=false,semantic=false;
+  private async updateOntologyConfiguration(edit:(source:KplexSettings)=>KplexSettings['hierarchy'],current:()=>boolean,describe?:(source:KplexSettings)=>OntologyDescriptions):Promise<StyleCommitResult> {
+    let persisted=false,changed=false,semantic=false,descriptionsOnly=false;
     try {await this.enqueueSettingsWrite(/** Prepare against latest accepted settings, including concurrent partner assignments. */ async()=>{
       if(this.unloading||!current()){const error=new Error(this.translator('settings.ontology.conflict'));error.name='SettingsConflictError';throw error;}
-      const source=this.settingsForWrite(),hierarchy=edit(source),next={...source,hierarchy};
+      const source=this.settingsForWrite(),hierarchy=edit(source),ontologyDescriptions=describe?.(source)??source.ontologyDescriptions,next={...source,hierarchy,ontologyDescriptions};
       ontologyConfiguration(next);
-      if(appearanceThemes.themeValuesEqual(source.hierarchy,hierarchy))return;
+      const hierarchyChanged=!appearanceThemes.themeValuesEqual(source.hierarchy,hierarchy),descriptionChanged=!appearanceThemes.themeValuesEqual(source.ontologyDescriptions,ontologyDescriptions);
+      if(!hierarchyChanged&&!descriptionChanged)return;
+      descriptionsOnly=!hierarchyChanged&&descriptionChanged;
       const before=captureSettingsPolicy(source),policy=captureSettingsPolicy(next),effects=classifySettingsChange(before,policy);
       await this.writeSettingsSnapshot(this.settingsSnapshotForPersistence(source.actionPreferencesFuture??source.actionPreferences,next));persisted=true;
       if(this.unloading)return;
       const groups=ONTOLOGY_GROUPS.filter(/** Publish this edit's finite role changes without dropping a later unrelated imperative draft. */ group=>!appearanceThemes.themeValuesEqual(source.hierarchy[group],hierarchy[group]));
-      if(groups.every(/** A pair is one atomic edit; a later draft on either affected role retains ownership. */ group=>appearanceThemes.themeValuesEqual(this.settings.hierarchy[group],source.hierarchy[group]))){
+      if(appearanceThemes.themeValuesEqual(this.settings.ontologyDescriptions,source.ontologyDescriptions)&&groups.every(/** A pair is one atomic edit; a later draft on either affected role retains ownership. */ group=>appearanceThemes.themeValuesEqual(this.settings.hierarchy[group],source.hierarchy[group]))){
         const live={...this.settings.hierarchy};for(const group of groups)live[group]=hierarchy[group];
-        ontologyConfiguration({...this.settings,hierarchy:live});this.settings.hierarchy=live;
+        ontologyConfiguration({...this.settings,hierarchy:live});this.settings.hierarchy=live;this.settings.ontologyDescriptions=ontologyDescriptions;
       }
       const values={...(this.savedSettingsPolicy??captureSettingsPolicy(this.settings)).values};
       for(const key of effects.changedKeys)values[key]=policy.values[key];this.savedSettingsPolicy={values};
-      semantic=effects.semanticInvalidation;changed=effects.render;
+      semantic=effects.semanticInvalidation;changed=effects.render||descriptionChanged;
       if(semantic)this.index?.invalidateSemanticPolicy();
     });}catch(error){if(!persisted)throw error instanceof Error?error:new Error(String(error));console.error('K-Plex saved ontology publication failed',error);return {refreshPending:true};}
-    if(this.unloading||!changed||!this.index)return {refreshPending:false};return this.refreshSavedSettings(semantic);
+    if(this.unloading||!changed||!this.index)return {refreshPending:false};
+    // Authored wording is vocabulary presentation only: do not enter graph/source refresh owners.
+    if(descriptionsOnly){try{this.index.notifyPresentation();return {refreshPending:false};}catch(error){console.error('K-Plex saved ontology description publication failed',error);return {refreshPending:true};}}
+    return this.refreshSavedSettings(semantic);
   }
 
   /** Serialize valid workflow preferences including overlaps; failed storage never installs a draft or touches indexing. */
@@ -5171,7 +5177,7 @@ export default class KplexPlugin extends Plugin {
         const error=new Error(this.translator('settings.ontology.conflict'));error.name='SettingsConflictError';throw error;
       }
       return applyOntologyEdit(source,submitted);
-    },current);
+    },current,/** Preserve all unchanged exact names, including an old partner when pairing changes. */ source=>editOntologyDescriptions(source.ontologyDescriptions,submitted.kind==='remove'?[{field:submitted.field,description:''}]:[{field:submitted.field,description:submitted.description},...(submitted.partner?[{field:submitted.partner,description:submitted.partnerDescription}]:[])]));
   }
 
   private fieldAtEditorCursor(editor: Editor): string | null {

@@ -77,7 +77,8 @@
     "verify:obsidian:ontology-startup-updates": "node scripts/testing/obsidian/ontologyStartupUpdates.mjs",
     "verify:obsidian:event-convergence": "node scripts/testing/obsidian/indexingEventConvergence.mjs",
     "verify:obsidian:stable-gates": "node scripts/testing/obsidian/stableGateCounts.mjs",
-    "verify:obsidian:wuxing": "node scripts/testing/obsidian/wuxing.mjs"
+    "verify:obsidian:wuxing": "node scripts/testing/obsidian/wuxing.mjs",
+    "verify:obsidian:ontology-descriptions": "node scripts/testing/obsidian/ontologyDescriptions.mjs"
   },
   "engines": {
     "node": ">=22.22.2 <23"
