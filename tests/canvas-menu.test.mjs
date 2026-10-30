@@ -21,9 +21,9 @@ const{createPlexContextMenu}=(await import(pathToFileURL(join(dir,'suite.cjs')))
 test('desktop canvas menu routes settings/display/playback/background and ends with support',/** Checked states belong to the caller and support is invoked synchronously. */()=>{
  const calls=[];const menu=createPlexContextMenu({translate:key=>key,zen:true,fullscreen:false,fullscreenAvailable:true,runAction:id=>calls.push(id),openSettings:()=>calls.push('settings'),chooseBackground:()=>calls.push('background'),reportBug:()=>calls.push('report')});
  const items=menu.items.filter(item=>!item.separator);
- assert.deepEqual(items.map(item=>item.title),['actions.view.wander.start','actions.canvasSettings','actions.canvasZen','actions.canvasFullscreen','actions.canvasBackground','support.reportTitle']);
- assert.equal(items[2].checked,true);assert.equal(items[3].checked,false);assert.equal(menu.items.at(-2).separator,true);
- items.forEach(item=>item.click());assert.deepEqual(calls,['view.wander.start','settings','view.zen.toggle','view.fullscreen.toggle','background','report']);
+ assert.deepEqual(items.map(item=>item.title),['actions.view.wander.start','actions.view.export.image','actions.canvasSettings','actions.canvasZen','actions.canvasFullscreen','actions.canvasBackground','support.reportTitle']);
+ assert.equal(items[3].checked,true);assert.equal(items[4].checked,false);assert.equal(menu.items.at(-2).separator,true);
+ items.forEach(item=>item.click());assert.deepEqual(calls,['view.wander.start','view.export.image','settings','view.zen.toggle','view.fullscreen.toggle','background','report']);
 });
 
 test('unavailable fullscreen is omitted without hiding other canvas actions',/** Mobile retains every supported operation and independent Zen state. */()=>{

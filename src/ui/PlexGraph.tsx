@@ -27,7 +27,7 @@
  * leases after scene admission and share exact ancestor filtering and catalog-backed branch actions.
  * Their first current local preparation may fit once; manual/restored cameras and live editors win.
  * File-location menu actions share captured action targets and delegate to guarded native APIs.
- * Markdown export detaches only the filtered committed hierarchy; its modal owns no graph reader.
+ * Markdown and PNG export detach only the committed presentation; their dialogs own no graph reader.
  */
 import {edgeViewportClip, edgeViewportEndpoints, revealRowScrollTop, editorToolbarInsets} from "./plexViews/areaVisibility";
 import {ontologyConfiguration} from "../core/contracts/ontologyConfiguration";
@@ -128,6 +128,7 @@ import { readObsidianPresentationEnvironment } from "../adapters/obsidian/presen
 import { fileRevealMenuState, revealFile } from "../adapters/obsidian/fileReveal";
 import {captureMindMapMarkdown} from "./export/captureMindMapMarkdown";
 import {MindMapMarkdownModal} from "./export/MindMapMarkdownModal";
+import {CanvasImageExportModal} from "./export/CanvasImageExportModal";
 import { surfaceAction } from "./surfaceActionImplementation";
 import {translateActionText} from "./actionPresentation";
 import { SavedRelationshipPendingError } from "../adapters/obsidian/relationshipMetadataWrite";
@@ -2981,6 +2982,8 @@ export function PlexGraph({ viewDefinition = classicViewDefinition, viewSession,
   const graphDialogSerial = useRef(0);
   const markdownExportPresentation = useRef({scene, matches: filterMatchedNodePaths, areas: zoneDisplayLayouts});
   markdownExportPresentation.current = {scene, matches: filterMatchedNodePaths, areas: zoneDisplayLayouts};
+  const imageExportPresentation = useRef({scene, matches: filterMatchedNodePaths, areas: zoneDisplayLayouts, paintSettings, paintLenses, showCrossLinks, zoneScrollTop, expandedScrollTop});
+  imageExportPresentation.current = {scene, matches: filterMatchedNodePaths, areas: zoneDisplayLayouts, paintSettings, paintLenses, showCrossLinks, zoneScrollTop, expandedScrollTop};
   useEffect(/** Unmount/window migration invalidates visible-target sessions and closes owned pickers. */ () => () => {
     keyboardConnectRef.current = null;
     plugin.actionManager.closeSession(visibleConnectSession);
@@ -4275,6 +4278,28 @@ export function PlexGraph({ viewDefinition = classicViewDefinition, viewSession,
     });
     graphDialogs.current.add(dialog);dialog.open();return {status: "opened", sessionId};
   };
+  /** Freeze this exact canvas for the reusable DOM snapshot/raster services, without another graph projection. */
+  const openCanvasImage = (): ActionOutcome => {
+    const root = viewport.current;
+    if (!root || viewFailed || !scene.nodes.length) return {status: "unavailable", reasonKey: "actions.target-unavailable"};
+    clearHoverIntent(true);
+    const captured = imageExportPresentation.current, transform = cameraElement.current?.style.transform;
+    const surfaceCurrent = captureSurfaceContinuation(() => viewport.current, () => plugin.actionManager.readSnapshot(actionSurfaceId), {checkInteraction: false});
+    const appearance = plugin.captureAppearanceOwner();
+    const sessionId = `${actionSurfaceId}:image-export:${++graphDialogSerial.current}`;
+    const dialog = new CanvasImageExportModal(plugin.app, {sourceScope: root, mobile: Platform.isMobile,
+      center: compassCenter.current?.element, name: scene.nodes.find(/** Use the committed framing label instead of the globally active note. */ node => node.role === "center")?.label ?? translate("export.image.filenameStem"),
+      current: /** Async capture cannot borrow a changed scene, paint, scroll, camera, document or native theme owner. */ () => {
+        const latest = imageExportPresentation.current;
+        return surfaceCurrent() && plugin.isAppearanceOwnerCurrent(appearance) && cameraElement.current?.style.transform === transform
+          && latest.scene === captured.scene && latest.matches === captured.matches && latest.areas === captured.areas
+          && latest.paintSettings === captured.paintSettings && latest.paintLenses === captured.paintLenses && latest.showCrossLinks === captured.showCrossLinks
+          && latest.zoneScrollTop === captured.zoneScrollTop && latest.expandedScrollTop === captured.expandedScrollTop;
+      },
+      closed: /** Release only the source canvas's dialog/session. */ () => {graphDialogs.current.delete(dialog);plugin.actionManager.closeSession(sessionId);},
+    });
+    graphDialogs.current.add(dialog);dialog.open();return {status: "opened", sessionId};
+  };
   /** Pick a specific current connection instead of guessing among multiple evidence-bearing neighbors. */
   const pickConnection = (context: ActionContext, id: "relationship.details" | "relationship.relink" | "relationship.unlink" | "relationship.hide"): ActionOutcome | Promise<ActionOutcome> => {
     if (context.target.kind === "edge") {
@@ -4689,6 +4714,8 @@ export function PlexGraph({ viewDefinition = classicViewDefinition, viewSession,
       return destination === "focus-tab" ? state.focusOpenTab : destination === "new-tab" || destination === "split" && state.adjacentPane || destination === "window" && state.popoutWindow;
     });
   }
+  graphImplementations["view.export.image"] = graphAction(openCanvasImage,
+    /** Export admission is local presentation state, never a source request. */ () => !viewFailed && scene.nodes.length > 0 && Boolean(viewport.current?.isConnected));
   graphImplementations["view.export.markdown"] = graphAction(openMindMapMarkdown,
     /** Export availability reads only the committed local scene; it never prepares hierarchy scopes. */ () => viewDefinition.id === "mindmap" && !viewFailed && Boolean(scene.projection?.root));
   actionPorts.current = {
@@ -5888,6 +5915,8 @@ export function PlexGraph({ viewDefinition = classicViewDefinition, viewSession,
     </LayoutControls>
 
     <div className="kplex-zoom-controls">
+      <button type="button" aria-label={translate("actions.view.export.image")} disabled={viewFailed || !scene.nodes.length}
+        onClick={/** Capture this canvas through the same action as its menu and palette. */ event => {event.stopPropagation();void plugin.actionManager.dispatch({id: "view.export.image", source: "toolbar", surfaceId: actionSurfaceId});}}><ObsidianIcon name="image" size={16} /></button>
       {viewDefinition.hierarchy && <>
         {activePath !== sceneScope && <button type="button" aria-label={translate("mindmap.useAttentionRoot")}
           onClick={/** External navigation keeps this map intact; only this explicit action adopts the current note as its new root. */ event => {

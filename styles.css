@@ -4120,3 +4120,7 @@ button.kplex-sidecar-unfold-plex:focus-visible,
 .kplex-number-value { min-width: 3em; text-align: end; font-variant-numeric: tabular-nums; color: var(--text-muted); }
 .kplex-number-setting .slider-value { display: none; }
 .kplex-literal-opacity .setting-item { padding: 0; border: 0; }
+
+/* Image export previews retain their encoded aspect ratio within the shared native modal. */
+.kplex-image-export-preview { display: block; width: 100%; height: auto; max-height: 50vh; object-fit: contain; border: 1px solid var(--background-modifier-border); border-radius: var(--radius-s); background: var(--background-secondary); }
+.kplex-image-export-preview:not([src]) { display: none; }

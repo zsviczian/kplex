@@ -151,12 +151,14 @@ test("Markdown export accepts the exact native menu occurrence as well as the co
   app.dispose();
 });
 
-test("catalog contains bounded variants, preserved IDs, the Markdown export publication default and session-only actions", () => {
+test("catalog contains bounded variants, preserved IDs, the Markdown and PNG export publication defaults and session-only actions", () => {
   assert.equal(new Set(api.ACTION_CATALOG.map(item => item.id)).size, api.ACTION_CATALOG.length);
   assert.equal(new Set(api.ACTION_CATALOG.flatMap(item => item.command ? [item.command.id] : [])).size, api.ACTION_CATALOG.filter(item => item.command).length);
-  assert.equal(api.ACTION_CATALOG.filter(item => item.command?.defaultPublished).length, 33);
+  assert.equal(api.ACTION_CATALOG.filter(item => item.command?.defaultPublished).length, 34);
   assert.equal(api.ACTION_BY_ID.get("view.export.markdown").command.id, "kplex-export-mindmap-markdown");
   assert.equal(api.ACTION_BY_ID.get("view.export.markdown").target, "selected-or-center");
+  assert.equal(api.ACTION_BY_ID.get("view.export.image").command.id, "kplex-export-canvas-png");
+  assert.equal(api.ACTION_BY_ID.get("view.export.image").target, "none");
   const support = api.ACTION_BY_ID.get("support.report-bug");
   assert.equal(support.command.id, "kplex-support-report-bug");
   assert.equal(support.target, "none");
@@ -335,8 +337,8 @@ test("public command diff preserves editor callbacks, omits global hotkeys and r
   const app = manager({implementations: {"index.rebuild": implementation(), "ontology.assign.parent": implementation()}});
   const publisher = api.createActionCommandPublisher({host: {addCommand: command => {added.push(command); return command;}, removeCommand: id => removed.push(id)}, manager: app, translate: key => key, makeRequest: id => ({id, source: "obsidian-command", ...(id.startsWith("ontology.") ? {target: {kind: "editor-field", editorInvocationId: "cursor"}} : {})}), releaseRequest: request => released.push(request.id)});
   const preferences = api.migrateActionPreferences(undefined).preferences;
-  publisher.sync(preferences); assert.equal(added.length, 33);
-  publisher.sync(preferences); assert.equal(added.length, 33);
+  publisher.sync(preferences); assert.equal(added.length, 34);
+  publisher.sync(preferences); assert.equal(added.length, 34);
   assert(added.every(command => command.hotkeys === undefined));
   const editor = added.find(command => command.id === "kplex-ontology-parent"); assert.equal(typeof editor.editorCheckCallback, "function"); assert.equal(editor.checkCallback, undefined);
   assert.equal(editor.editorCheckCallback(true, {}, {}), true); assert.deepEqual(released, ["ontology.assign.parent"]);
@@ -412,9 +414,9 @@ test("partial public registration failure reports actual state and stable-ID ret
   const app = manager();
   const publisher = api.createActionCommandPublisher({host: {addCommand: command => {counts.set(command.id, (counts.get(command.id) ?? 0) + 1); if (command.id === "kplex-actions" && fail) throw new Error("native failure"); return command;}, removeCommand: () => {}}, manager: app, translate: key => key, makeRequest: id => ({id, source: "obsidian-command"})});
   const preferences = api.migrateActionPreferences(undefined).preferences;
-  const first = publisher.sync(preferences); assert.equal(first.failures.length, 1); assert.equal(publisher.registeredIds().length, 32);
-  const actual = publisher.registeredIds(); actual.pop(); assert.equal(publisher.registeredIds().length, 32);
-  fail = false; assert.equal(publisher.sync(preferences).failures.length, 0); assert.equal(publisher.registeredIds().length, 33);
+  const first = publisher.sync(preferences); assert.equal(first.failures.length, 1); assert.equal(publisher.registeredIds().length, 33);
+  const actual = publisher.registeredIds(); actual.pop(); assert.equal(publisher.registeredIds().length, 33);
+  fail = false; assert.equal(publisher.sync(preferences).failures.length, 0); assert.equal(publisher.registeredIds().length, 34);
   assert.equal(counts.get("kplex-actions"), 2); assert.equal(counts.get("kplex-start"), 1);
   publisher.dispose(); app.dispose();
 });

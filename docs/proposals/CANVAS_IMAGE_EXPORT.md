@@ -1,23 +1,42 @@
-# Canvas image export — implementation brief
+# Canvas image export
 
-**Specification-only draft. No runtime feature code or tests yet.** Starting point: K-Plex 0.3.1, main at `9e203ed`. Before implementation refresh from current main, read AGENTS.md, CONTRIBUTING.md, actual view/renderer contracts, and relevant tests.
+PR #238 uses the existing branch, refreshed after merging #237 (`f99aa39`). Native feasibility preceded implementation; see the [investigation](../validation/canvas-image-export-238-feasibility-2026-10-30.md).
 
-## Outcome
-Add an **Export image** UI action to every K-Plex canvas (Compass, Mind Map, Facets) with **Copy PNG** and **Save PNG**. Aim to capture the entire **currently constructed scene**—including materialized off-viewport content—while respecting fold/filters. A *viewport screenshot* is a distinct secondary scope. Do not silently expand hidden branches or build the full graph.
+## User workflow
 
-## Implementation feasibility gate
-- Inspect actual mixed HTML/SVG rendering, transform/camera, connectors, labels, decorations, CSS/theme, fonts, images and multiple windows. Prove a native sample PNG of the rendered scene at different zoom levels **before** choosing a capture pipeline. Obsidian `dev:screenshot` alone captures the window, not the desired independent canvas.
-- Reuse committed scene/layout and existing renderer, avoiding a second layout/classification or indexing pass. Verify potential offscreen DOM/raster/SVG solutions on the actual supported Electron host; avoid unverified screenshot APIs.
-- If faithful whole-scene export cannot be delivered safely, document the blocker and offer explicitly named viewport PNG instead, with a follow-up plan; do not mislabel a cropped screenshot as full scene.
-- Include rendered edges/labels/decorations, safe crop padding, background/theme, sensible max pixel/count limits; errors should be actionable, non-freezing and cancellable. SVG export is optional only if faithful without duplicating rendering.
-- Target the specific owning canvas and document, including popouts; preserve camera, selection, editor, scroll and foreground tabs. No remote service, unrelated-window capture, note edits or settings mutation.
-- Make the exporter a reusable service for a future public API, but do not implement a public API or CLI in this PR.
+Compass, Mind Map and Facets offer **Export image** in the canvas toolbar, canvas context menu and command palette. The stable published command is `kplex-export-canvas-png`; the internal action is `view.export.image`.
 
-## Acceptance
-1. UI export works for all three views in light/dark themes; saving and clipboard actions work with supported host semantics.
-2. Test Compass, Mind Map, Facets at zoom 50%, 100%, 200%; offscreen scene bounds, folded and filtered content, labels, scroll/clip and simultaneous canvases/popouts.
-3. Image matches the current committed K-Plex presentation. No hidden note bodies or other tabs leak.
-4. Zero additional Markdown reads/parses, source acquisition, semantic indexing/rebuilds; bounded resource usage and disposed temporary DOM.
-5. Real build, Obsidian scanner, architecture/behavioral checks and native tests; report exactly what passed.
+The native dialog previews the prepared PNG and offers **Copy PNG** and **Save PNG**, a filename, 1×/2×/3× resolution and two explicit scopes:
 
-**Out of scope:** Mindmap Builder Markdown export (separate PR), new graph layout engine, automatic expansion, HTTP service, public API/CLI.
+- **Whole canvas** (default): existing painted scene bounds, including content outside the camera viewport, with crop padding.
+- **Current viewport**: the current canvas framing, excluding surrounding Obsidian controls.
+
+Both scopes preserve filters, collapsed branches, current styles, decoded thumbnails, SVG connectors/labels, Compass tint and Facets regions. Whole canvas retains internal scrolling areas' current clip and scroll position; hidden rows are not unrolled. The dialog warns when scrolling areas contain additional hidden content. Neither scope expands branches or constructs a different graph.
+
+Desktop save hands the prepared PNG to the native download destination flow. Mobile save uses file sharing only when the host advertises that capability; otherwise it is unavailable. Copy is similarly capability-detected. Success text distinguishes system handoff from a confirmed file write.
+
+## Rendering and ownership
+
+`captureCanvasImage` accepts the exact source element and lifetime guard, not a plugin, graph or source reader. It captures immutable strings/geometry from existing rendered HTML/SVG, resolves computed and pseudo-element styles, preserves internal scroll offsets and embeds available local fonts and decoded bitmap pixels. It yields between bounded batches. A source mutation, camera/scene/style change, migration, cancellation or disposal retires stale work.
+
+`renderCanvasPng` accepts that immutable snapshot and an owning document. Chromium rasterizes a self-contained SVG `foreignObject` into a detached canvas. This reuses the native HTML/SVG renderer rather than implementing another node renderer or layout engine. Scope/resolution changes reuse the captured data. The existing pure Compass polygon helper extends tint to full-scene bounds.
+
+`CanvasImageExportModal` owns preview resources, asynchronous generations and cancellation. The shared `ClipboardSession<Blob>` starts clipboard writing in the actual button gesture. `pngExport` owns document-scoped ClipboardItem, desktop download and optional mobile sharing. Portable allocation/filename policies live under `src/core/plex/export/`. These services can support a later public API; this PR adds no public API or CLI.
+
+The source canvas, camera, selection, scroll offsets, native editor and per-canvas session are never written by the export services. Concurrent canvases retain separate snapshots, modal lifetimes and actual documents/windows.
+
+## Resource and fidelity limits
+
+- Desktop raster: at most 8 million pixels and 8192 pixels per side; mobile: 4 million pixels. Resolution reduces to fit without substituting a viewport crop, with a visible warning.
+- Capture: at most 24,000 elements / 16 million serialized characters; mobile: 8,000 / 8 million. Capture and raster each have a 20-second deadline, cancellation and explicit cleanup. Bitmap copies are at most 1024 pixels per side. Font resources are limited to 24 faces, 3 MB per resource and 6 million serialized characters.
+- Capture yields after approximately 8 ms of traversal work; browser-native style, image decode and encoding calls cannot be preempted. Budgets reduce allocations but are not a guarantee of an exact process-memory ceiling.
+- No remote resource fetch is introduced. Only local `app:`, `blob:` or `data:` font resources are embedded. CSSOM-unavailable/programmatic fonts may fall back, with a warning. Opaque iframe/webview/media and unavailable/tainted/not-yet-decoded bitmap content are omitted, with a warning. Internal editor scroll content retains its current clip.
+- Arbitrary community-theme effects and custom CSS remain a fidelity risk. The service snapshots browser-resolved paint, not all possible browser document behavior. It exports PNG pixels, never hidden HTML or vault metadata.
+
+## Validation
+
+Run `npm run verify:obsidian:canvas-image` after exact-build staging in the explicitly selected disposable Small vault. The committed driver checks all three views, both themes, 50/100/200% zoom, native clipboard, exact preview-to-file bytes, menu/toolbar/palette, independent popout copy/save, cancellation and actual native editor preservation. It observes reads, parses, acquisitions, rebuilds and semantic refreshes, and restores its owned fixtures/settings/workspace/clipboard/observers.
+
+The real-browser suite exercises off-camera pixels, SVG paint, loaded bitmaps, clip/scroll, frozen snapshots, zoom invariance, omitted opaque content, external-font no-fetch, independent document ownership, cooperative traversal and allocation/cancellation limits. Pure tests cover raster policy, filenames, Blob clipboard state and native handoff capability/cleanup. Full repository and exact-build host verification remain required; final receipts belong under `docs/validation/`.
+
+Minimum-host, Windows/Linux native output, physical Android/iOS sharing and physical touch remain separate acceptance environments. macOS desktop evidence does not certify them.

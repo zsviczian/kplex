@@ -26,6 +26,9 @@ export function createPlexContextMenu(options: {
   menu.addItem(/** Start/resume the same view session as commands and local shortcuts. */ item => item
     .setTitle(translate("actions.view.wander.start")).setIcon("shuffle")
     .onClick(/** Keep the surface captured by the composing caller. */ () => runAction("view.wander.start")));
+  menu.addItem(/** Image export retains the composing canvas even after focus moves into its native dialog. */ item => item
+    .setTitle(translate("actions.view.export.image")).setIcon("image")
+    .onClick(/** The shared service/action also owns toolbar and command-palette exports. */ () => runAction("view.export.image")));
   menu.addSeparator();
   menu.addItem(/** Native settings owns its existing page and lifetime. */ item => item
     .setTitle(translate("actions.canvasSettings")).setIcon("settings").onClick(options.openSettings));

@@ -1,5 +1,5 @@
 /**
- * Gesture-safe, host-free clipboard state for one immutable text snapshot. The host injects the
+ * Gesture-safe, host-free clipboard state for one immutable snapshot. The host injects the
  * actual owning-window writer and native presentation listener. No timers, browser globals or
  * diagnostic gathering occur here; writes start synchronously and stale completions are retired.
  */
@@ -7,11 +7,11 @@ export type ClipboardState = "idle" | "copying" | "copied" | "failed";
 type CopyLease = { state: ClipboardState; retired: boolean; notify: ((state: ClipboardState) => void) | null };
 
 /** Own one snapshot's clipboard attempt and release native presentation references on dismissal. */
-export class ClipboardSession {
+export class ClipboardSession<T = string> {
   private readonly lease: CopyLease = { state: "idle", retired: false, notify: null };
 
   /** Capture exact displayed bytes and a narrow writer; constructing the session performs no I/O. */
-  constructor(readonly text: string, private write: ((text: string) => Promise<void>) | null) {}
+  constructor(readonly text: T, private write: ((text: T) => Promise<void>) | null) {}
 
   /** Return truthful immediate state without reading permissions or touching the clipboard. */
   get state(): ClipboardState { return this.lease.state; }
