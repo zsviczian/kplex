@@ -462,9 +462,13 @@ test('center watchdog refreshes late host relationships while global source auth
     const gate=new Promise(resolve=>unblock=resolve);index=new M.GraphIndex({app:f.app,settings,getIndexSourceRevision:()=>0},f.app);index.scheduleOrphanCleanup=()=>{};
     const reconcile=index.sourceAcquisition.reconcile.bind(index.sourceAcquisition);index.sourceAcquisition.reconcile=async(...args)=>{await gate;return reconcile(...args)};
     release=index.acquireSemanticDemand('A.md');ok((await deadline(index.restorePersistedSnapshot(['A.md']),'preview')).restored,'Saved preview');
+    // Restored native parents can precede the independent finite cached-body preview. Establish
+    // that real owner before capturing counts, so this test changes only the Parent endpoint.
+    await deadline(index.publishHostMetadataPreview('A.md'),'initial finite host/body cover');
     await deadline((async()=>{while(index.onDemandTasks.size)await Promise.all([...index.onDemandTasks.values()])})(),'initial center');
     const visible=index.getNeighborhood('A.md'),presented=[visible.parents.length,visible.children.length,visible.leftFriends.length,visible.rightFriends.length,visible.siblings.length];
     equal(visible.parents.map(node=>node.page.path),['B.md'],'Initial stationary view');
+    equal(visible.children.map(node=>node.page.path),['https://example.com/startup-evidence'],'Initial cached-body URL is already visible');
     // Model a late host cache observation whose normal foreground notification was missed.
     f.metadata.get('A.md').frontmatter.Parent='[[C]]';f.app.metadataCache.resolvedLinks['A.md']={'C.md':1};f.files.get('A.md').stat.mtime++;
     let builds=0;index.rebuild=async()=>{builds++;throw Error('Watchdog requested a full build')};
