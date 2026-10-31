@@ -6,16 +6,18 @@
 import type { Menu, MenuItem } from "obsidian";
 
 /** Add a native submenu, falling back to accessible flat actions on hosts without the private capability. */
-export function addNativeSubmenu(menu: Menu, title: string, icon: string, populate: (submenu: Menu) => void): void {
+export function addNativeSubmenu(menu: Menu, title: string, icon: string, populate: (submenu: Menu) => void, checked?: boolean): void {
   let supported = false;
   menu.addItem(/** Bind the host-owned submenu, or label the flat fallback group. */ (item: MenuItem) => {
     const native = item as MenuItem & { setSubmenu?: () => Menu };
     if (typeof native.setSubmenu !== "function") {
       item.setTitle(title).setIsLabel(true);
+      if (checked !== undefined) item.setChecked(checked);
       return;
     }
     supported = true;
     item.setTitle(title).setIcon(icon);
+    if (checked !== undefined) item.setChecked(checked);
     populate(native.setSubmenu());
   });
   if (!supported) populate(menu);

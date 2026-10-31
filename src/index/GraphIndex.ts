@@ -421,6 +421,7 @@ export type SnapshotHydrationDiagnostics = {
   firstFailure: SnapshotHydrationFailure | null;
 };
 
+/** Rank normalized text, jumping directly between matched code units in long paths/aliases. */
 function subsequenceScore(text: string, query: string): number | null {
   if (!query) return 0;
   if (text === query) return 0;
@@ -433,8 +434,9 @@ function subsequenceScore(text: string, query: string): number | null {
   let last = -1;
   let gapPenalty = 0;
   let boundaryBonus = 0;
-  for (let i = 0; i < text.length && qi < query.length; i += 1) {
-    if (text[i] !== query[qi]) continue;
+  while (qi < query.length) {
+    const i = text.indexOf(query[qi], last + 1);
+    if (i < 0) return null;
     if (first < 0) first = i;
     if (last >= 0) gapPenalty += Math.max(0, i - last - 1);
     if (i === 0 || /[\s_\-/.]/.test(text[i - 1])) boundaryBonus += 8;
@@ -445,13 +447,15 @@ function subsequenceScore(text: string, query: string): number | null {
   return 1000 + first * 5 + gapPenalty * 12 + Math.max(0, text.length - query.length) - boundaryBonus;
 }
 
+/** Preserve existing weights while skipping fields whose minimum score cannot improve the hit. */
 function searchEntryScore(entry: SearchEntry, query: string): number | null {
   let best = subsequenceScore(entry.name, query);
   for (const alias of entry.aliases) {
+    if (best !== null && best <= 8) break;
     const score = subsequenceScore(alias, query);
     if (score !== null && (best === null || score + 8 < best)) best = score + 8;
   }
-  const pathScore = subsequenceScore(entry.path, query);
+  const pathScore = best !== null && best <= 240 ? null : subsequenceScore(entry.path, query);
   if (pathScore !== null && (best === null || pathScore + 240 < best)) best = pathScore + 240;
   return best;
 }
@@ -9440,8 +9444,10 @@ export class GraphIndex {
       const score = tagQuery ? entry.page.isTag ? searchEntryScore(entry, q.slice(1)) : null : searchEntryScore(entry, q);
       if (score === null) continue;
       textualMatches.push(entry);
-      if (!eligible(entry.page)) continue;
       if (best.length >= max && score >= best[best.length - 1].score) continue;
+      // Native identity and URL support checks can compose graph reads. Only contenders for the
+      // bounded result list need that work; every textual match still belongs to the prefix cache.
+      if (!eligible(entry.page)) continue;
 
       let at = best.length;
       while (at > 0 && score < best[at - 1].score) at -= 1;

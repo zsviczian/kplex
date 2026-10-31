@@ -7,6 +7,7 @@
 import { buildLocaleCatalog, type LocaleTranslationMap } from "./catalog";
 
 const spanishTranslations = {
+  "view.menu": "Vista",
   "ontology.description": "Descripción",
   "ontology.descriptionHelp": "Explica cuándo usar este campo. Opcional; hasta {count} caracteres.",
   "ontology.partnerDescription": "Descripción del campo inverso",

@@ -7,6 +7,7 @@
 import { buildLocaleCatalog, type LocaleTranslationMap } from "./catalog";
 
 const dutchTranslations = {
+  "view.menu": "Weergave",
   "ontology.description": "Beschrijving",
   "ontology.descriptionHelp": "Leg uit wanneer je dit veld gebruikt. Optioneel; maximaal {count} tekens.",
   "ontology.partnerDescription": "Beschrijving van gekoppeld veld",

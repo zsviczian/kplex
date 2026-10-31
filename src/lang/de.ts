@@ -7,6 +7,7 @@
 import { buildLocaleCatalog, type LocaleTranslationMap } from "./catalog";
 
 const germanTranslations = {
+  "view.menu": "Ansicht",
   "ontology.description": "Beschreibung",
   "ontology.descriptionHelp": "Beschreibe, wann dieses Feld verwendet wird. Optional; bis zu {count} Zeichen.",
   "ontology.partnerDescription": "Beschreibung des Gegenfelds",

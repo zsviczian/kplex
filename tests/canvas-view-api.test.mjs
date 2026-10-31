@@ -87,6 +87,45 @@ function fixture(contribution=M.exampleSettingsContribution){
   return {session,controller,registry,effects,get stored(){return stored},setStored:value=>{stored=value},unmount:()=>{mounted=false}};
 }
 
+test('View menu discovers inactive plugin choices and checks only the current view/subview', async()=>{
+ const f=fixture();f.session.select('org.example.other');const before=f.effects.workspace;
+ const rows=f.controller.selectionMenus();
+ assert.equal(f.effects.workspace,before,'Reading inactive choices never selects or persists a view');
+ const plugin=rows.find(row=>row.id===definition.id),other=rows.find(row=>row.id==='org.example.other');
+ assert.equal(plugin.kind,'submenu');assert.equal(plugin.checked,false);assert.equal(other.kind,'action');assert.equal(other.checked,true);
+ assert.deepEqual(plugin.items.map(row=>[row.id,row.checked]),[['left',false],['right',false]]);
+ const choice=plugin.items[0].command;
+ assert.equal((await choice.run()).status,'completed');assert.equal(f.session.definition.id,definition.id);assert.equal(f.session.state.side,-1);
+ assert.equal((await choice.run()).status,'unavailable','A captured choice runs only once');
+ const selected=f.controller.selectionMenus().find(row=>row.id===definition.id);
+ assert.equal(selected.checked,true);assert.deepEqual(selected.items.map(row=>[row.id,row.checked]),[['left',true],['right',false]]);
+ assert.equal(f.effects.configuration,0,'Subview selection remains session-local');
+ f.controller.dispose();f.session.dispose();
+});
+
+test('View menu respects failed preflight, stale source/target configuration and retired canvases', async()=>{
+ const f=fixture();f.session.select('org.example.other');
+ const capture=()=>f.controller.selectionMenus().find(row=>row.id===definition.id).items[0].command;
+ let release=f.session.guardSelection(async()=>false);
+ assert.equal((await capture().run()).status,'unavailable');assert.equal(f.session.definition.id,'org.example.other');release();
+ const stale=capture();f.session.updateState({});assert.equal((await stale.run()).status,'unavailable');
+ const settings=capture();f.setStored(M.editViewConfiguration(definition,{},'spacing',120));assert.equal((await settings.run()).status,'unavailable');
+ const retired=capture();f.unmount();assert.equal((await retired.run()).status,'unavailable');
+ f.controller.dispose();f.session.dispose();
+});
+
+test('View menu automatically includes production Facets presets from an inactive session', async()=>{
+ const registry=M.builtInCanvasViewSettings,session=new M.PlexViewSession(registry.views,()=>{});
+ const controller=new M.CanvasViewContributionController(session,registry,{settings:()=>M.migrateAndMergeSettings({}).canvasViewSettings,mounted:()=>true,
+  beforePresentationChange(){},update:async()=>{throw Error('Unexpected global settings write')},openSettings:()=>false,failed:error=>{throw error}});
+ const rows=controller.selectionMenus();assert.deepEqual(rows.map(row=>row.id),['classic','mindmap','wuxing']);
+ const facets=rows[2];assert.equal(facets.kind,'submenu');assert.deepEqual(facets.items.map(row=>row.id),['wuxing','map-roles']);
+ const target=facets.items.find(row=>row.id!=='wuxing');assert(target);
+ assert.equal((await target.command.run()).status,'completed');assert.equal(session.definition.id,'wuxing');
+ assert.equal(controller.selectionMenus()[2].items.find(row=>row.id===target.id).checked,true);
+ controller.dispose();session.dispose();
+});
+
 test('versioned public registration rejects incompatible contracts and omitted capabilities remain unavailable',()=>{
   assert.equal(M.CANVAS_VIEW_API_VERSION,1);assert.deepEqual(definition.capabilities,{});
   for(const alter of [d=>({...d,version:2}),d=>({...d,icon:'bad icon'}),d=>({...d,capabilities:{editor:'yes'}}),

@@ -31,6 +31,24 @@ test('unavailable fullscreen is omitted without hiding other canvas actions',/**
  assert.equal(menu.items.some(item=>item.title==='actions.canvasFullscreen'),false);assert.equal(menu.items.find(item=>item.title==='actions.canvasZen').checked,false);assert.equal(menu.items.at(-1).title,'support.reportTitle');
 });
 
+test('View submenu renders current view and subview checks through native menus and the flat fallback',async()=>{
+ for(const native of [false,true]){
+  Menu.nativeSubmenus=native;
+  try{
+   let choices=0;
+   const menu=createPlexContextMenu({translate:key=>key,zen:false,fullscreen:false,fullscreenAvailable:false,runAction(){},openSettings(){},chooseBackground(){},reportBug(){},
+    views:[{id:'plain',kind:'action',label:{literal:'Plain view'},enabled:true,checked:false,command:{run:async()=>({status:'completed'})}},
+     {id:'plugin',kind:'submenu',label:{literal:'Plugin view'},checked:true,enabled:true,items:[
+      {id:'subview',kind:'action',label:{literal:'Subview'},enabled:true,checked:true,command:{run:async()=>{choices++;return{status:'completed'}}}},
+     ]}]});
+   const group=native?menu.items.find(row=>row.title==='view.menu').submenu.items:menu.items;
+   const parent=group.find(row=>row.title==='Plugin view');assert.equal(parent.checked,true);
+   const selected=(native?parent.submenu.items:group).find(row=>row.title==='Subview');assert.equal(selected.checked,true);
+   selected.click();await Promise.resolve();assert.equal(choices,1);assert.equal(menu.items.at(-1).title,'support.reportTitle');
+  }finally{Menu.nativeSubmenus=false;}
+ }
+});
+
 test('registered native submenu fallback preserves common items and checked/disabled contribution meaning',async()=>{
  const calls=[];const menu=createPlexContextMenu({translate:key=>key,zen:false,fullscreen:false,fullscreenAvailable:false,runAction(){},openSettings(){},chooseBackground(){},reportBug(){},
   contributions:[{kind:'submenu',id:'presets',label:{literal:'Presets'},enabled:true,items:[

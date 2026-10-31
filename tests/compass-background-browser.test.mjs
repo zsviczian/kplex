@@ -10,6 +10,8 @@ const graph=ts.createSourceFile('PlexGraph.tsx',readFileSync('src/ui/PlexGraph.t
 function callback(name){let value;const visit=node=>{if(ts.isVariableDeclaration(node)&&node.name.getText(graph)===name&&ts.isArrowFunction(node.initializer))value=node.initializer.getText(graph);ts.forEachChild(node,visit)};visit(graph);assert(value,name);return value}
 const built=await build({stdin:{resolveDir:process.cwd(),loader:'ts',contents:`
  import {ElementMotion} from './src/ui/components/ElementMotion';import {centerArrivalFrames} from './src/ui/components/centerArrival';
+ import {CameraMotion} from './src/ui/components/CameraMotion';
+ export {CameraMotion};
  import {compassPolygons} from './src/core/plex/compassBackground';const classic={tint:compassPolygons};import {COMPASS_DIRECTIONS} from './src/core/plex/colorPreferences';
  export function fixture(count=0){
   const root=document.createElement('div'),cameraNode=document.createElement('div'),svg=document.createElementNS('http://www.w3.org/2000/svg','svg'),node=document.createElement('div');
@@ -20,6 +22,7 @@ const built=await build({stdin:{resolveDir:process.cwd(),loader:'ts',contents:`
   const viewport={current:root},compassElement={current:svg},compassCenter={current:{element:node,owner:document,left:30,top:40,width:120,height:26}},
    compassPreferences={current:{compass:{enabled:true}}},compassOpacity={current:.07},compassSync={current:null},measuredViewport={current:{width:800,height:600}},camera={current:{x:200,y:150,scale:1}},
    cameraFrame={current:null},cameraFrameWindow={current:null},cameraWritePending={current:false},cameraElement={current:cameraNode},cameraIntentPlaced={current:false},automaticFit={current:null},activePath='Center',sceneMotion=new ElementMotion();
+  const cameraMotion={current:new CameraMotion()};
   let overlayWrites=0;const syncCentralEditorOverlay=()=>overlayWrites++;
   const requestCameraFrame=${callback('requestCameraFrame')};const syncCompass=${callback('syncCompass')};compassSync.current=syncCompass;
   const applyCamera=${callback('applyCamera')};const flushCameraTransform=${callback('flushCameraTransform')};
@@ -27,7 +30,7 @@ const built=await build({stdin:{resolveDir:process.cwd(),loader:'ts',contents:`
   return{root,svg,node,camera,cameraNode,compassCenter,compassPreferences,compassOpacity,measuredViewport,sceneMotion,cameraFrame,applyCamera,flushCameraTransform,sync:syncCompass,requestCameraFrame,
    arrival(){const current=node.getBoundingClientRect(),poses=[];const frames=centerArrivalFrames({left:current.left-90,top:current.top+40,width:current.width*1.3,height:current.height*.9},current,camera.current.scale,poses);return sceneMotion.play(node,frames,{duration:180,easing:'cubic-bezier(.2,.72,.22,1)'},poses)},
    overlayWrites:()=>overlayWrites,
-   dispose(){sceneMotion.cancelAll();if(cameraFrame.current!==null)(cameraFrameWindow.current??window).cancelAnimationFrame(cameraFrame.current);root.remove()}};
+   dispose(){cameraMotion.current.dispose();sceneMotion.cancelAll();if(cameraFrame.current!==null)(cameraFrameWindow.current??window).cancelAnimationFrame(cameraFrame.current);root.remove()}};
  }
 `},bundle:true,write:false,platform:'browser',format:'iife',globalName:'sourceModules'});
 /** Own one browser/profile and always dispose it independently of assertion outcomes. */
@@ -77,4 +80,23 @@ test('shared camera frame stops at settle, cancel, disable, hidden or zero viewp
  })()`);
  console.log(JSON.stringify({compassFrames:rows}));
  assert.equal(rows.length,2);for(const row of rows){assert(row.settledFrames>0&&row.settledFrames<50,JSON.stringify(rows));assert.equal(row.idleFrames,0);assert.equal(row.cameraOverlayWrites,1)}
+});
+
+/** Real owner documents and final computed styles prove lease lifetime, separate from GPU timing. */
+test('desktop camera compositing extends during input and releases at idle, owner replacement and disposal',async()=>{
+ const result=await scenario(`(async()=>{
+  const style=document.createElement('style');style.textContent=${JSON.stringify(readFileSync('styles.css','utf8'))};document.head.append(style);
+  const frame=document.createElement('iframe');document.body.append(frame);const other=frame.contentDocument;
+  const camera=document.createElement('div'),foreign=other.createElement('div');camera.className=foreign.className='kplex-camera';document.body.append(camera);other.body.append(foreign);
+  const owner=new sourceModules.CameraMotion(),wait=ms=>new Promise(resolve=>setTimeout(resolve,ms));
+  const idle=getComputedStyle(camera).willChange;
+  owner.touch(camera);const moving=getComputedStyle(camera).willChange;
+  await wait(100);owner.touch(camera);await wait(100);if(!camera.classList.contains('is-camera-moving'))throw Error('Lease expired during continued input');
+  await wait(100);const settled=getComputedStyle(camera).willChange;
+  owner.touch(camera);owner.touch(foreign);if(camera.classList.contains('is-camera-moving')||!foreign.classList.contains('is-camera-moving'))throw Error('Wrong document retained lease');
+  owner.dispose();if(foreign.classList.contains('is-camera-moving'))throw Error('Retired camera promoted');
+  owner.touch(camera);owner.dispose();await wait(180);if(camera.classList.contains('is-camera-moving'))throw Error('Late lease restored');
+  frame.remove();camera.remove();style.remove();return{idle,moving,settled};
+ })()`);
+ assert.deepEqual(result,{idle:'auto',moving:'transform',settled:'auto'});
 });
