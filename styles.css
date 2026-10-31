@@ -3366,6 +3366,25 @@ button.kplex-style-manager-row { height: fit-content; }
 .kplex-central-editor-overlay.is-maximized {
   box-shadow: 0 0 0 1px var(--background-modifier-border-hover), 0 12px 42px var(--background-modifier-box-shadow);
 }
+.kplex-central-editor-overlay.is-area-clipped {
+  background: transparent;
+  border-color: transparent;
+  box-shadow: none;
+  pointer-events: none;
+}
+.kplex-central-editor-overlay.is-area-clipped .kplex-central-editor-document,
+.kplex-central-editor-overlay.is-area-clipped .kplex-central-editor-toolbar { pointer-events: auto; }
+/* Only the document/frame follow the area aperture; native recovery controls stay outside it. */
+.kplex-central-editor-overlay.is-area-clipped::before {
+  content: "";
+  position: absolute;
+  inset: -1px;
+  border: 1px solid var(--background-modifier-border-hover);
+  border-radius: inherit;
+  background: var(--background-primary);
+  clip-path: var(--kplex-editor-frame-clip, none);
+  pointer-events: none;
+}
 .kplex-central-editor-placeholder {
   width: 100%;
   height: 100%;
@@ -3401,6 +3420,7 @@ button.kplex-style-manager-row { height: fit-content; }
   touch-action: pan-x pan-y;
 }
 .kplex-central-editor-content,
+.kplex-central-editor-document,
 .kplex-central-editor-leaf-host,
 .kplex-embedded-workspace-root {
   width: 100%;
@@ -3412,10 +3432,16 @@ button.kplex-style-manager-row { height: fit-content; }
   position: relative;
   overflow: visible;
   border-radius: inherit;
-  background: var(--background-primary);
   color: var(--text-normal);
   isolation: isolate;
   touch-action: pan-x pan-y;
+}
+.kplex-central-editor-document {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: var(--background-primary);
+  clip-path: var(--kplex-editor-body-clip, none);
 }
 .kplex-central-editor-content.is-edit-mode {
   cursor: default;
@@ -3429,7 +3455,7 @@ button.kplex-style-manager-row { height: fit-content; }
   background: var(--background-primary);
 }
 /* Only Markdown opts into camera scaling; canvas hosts and editor controls remain untransformed. */
-.kplex-central-editor-content.is-markdown-zoom-scaled > .kplex-central-editor-leaf-host {
+.kplex-central-editor-content.is-markdown-zoom-scaled > .kplex-central-editor-document > .kplex-central-editor-leaf-host {
   width: calc(100% / var(--kplex-editor-camera-scale, 1));
   height: calc(100% / var(--kplex-editor-camera-scale, 1));
   transform: scale(var(--kplex-editor-camera-scale, 1));
@@ -3445,6 +3471,7 @@ button.kplex-style-manager-row { height: fit-content; }
   border-radius: 0;
   box-shadow: none;
 }
+.kplex-central-editor-overlay.is-native-view-fullscreen .kplex-central-editor-document { clip-path: none; }
 .kplex-central-editor-overlay.is-native-view-fullscreen .kplex-central-editor-leaf-host,
 .kplex-central-editor-overlay.is-native-view-fullscreen .kplex-embedded-workspace-root {
   border-radius: 0;
@@ -3480,9 +3507,9 @@ button.kplex-style-manager-row { height: fit-content; }
 .kplex-central-editor-toolbar {
   position: absolute;
   z-index: 32;
-  top: -34px;
-  right: 1px;
-  left: 1px;
+  top: var(--kplex-editor-toolbar-top, -34px);
+  right: var(--kplex-editor-toolbar-right, 1px);
+  left: var(--kplex-editor-toolbar-left, 1px);
   display: flex;
   gap: 2px;
   align-items: center;
@@ -3503,22 +3530,6 @@ button.kplex-style-manager-row { height: fit-content; }
   font-weight: var(--font-semibold);
 }
 .kplex-central-editor-toolbar > button { flex-shrink: 0; }
-/* Area editors keep their native controls inside the visible viewport, including while
-   the tall document scrolls behind the shared area clip. Native content retains its own host. */
-.kplex-central-editor-overlay.is-area-clipped .kplex-central-editor-toolbar {
-  top: calc(var(--kplex-editor-area-top, 0px) + 4px);
-  left: calc(var(--kplex-editor-area-left, 0px) + 4px);
-  right: calc(var(--kplex-editor-area-right, 0px) + 4px);
-  max-width: calc(100% - var(--kplex-editor-area-left, 0px) - var(--kplex-editor-area-right, 0px) - 8px);
-  flex-wrap: wrap;
-}
-.kplex-central-editor-overlay.is-area-clipped .kplex-central-editor-leaf-host {
-  top: 36px;
-  height: calc(100% - 36px);
-}
-.kplex-central-editor-overlay.is-area-clipped .is-markdown-zoom-scaled > .kplex-central-editor-leaf-host {
-  height: calc((100% - 36px) / var(--kplex-editor-camera-scale, 1));
-}
 .kplex-central-editor-status {
   position: absolute;
   z-index: 31;

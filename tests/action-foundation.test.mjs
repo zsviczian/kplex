@@ -28,6 +28,8 @@ test('explicit center activation is a finite invocation intent, preserving place
   assert.equal(api.validActionArguments('node.activate',args),false);
  assert.equal(api.validActionArguments('node.open',{chooseFolder:true,preserveCenter:true}),true);
  assert.equal(api.validActionArguments('node.open',{intent:'destination'}),false);
+ for(const maximize of [true,false,undefined])assert.equal(api.validActionArguments('editor.expand',{maximize}),true);
+ for(const args of [{maximize:'yes'},{maximize:true,other:1},{file:'B.md'}])assert.equal(api.validActionArguments('editor.expand',args),false);
 });
 
 test("document-sync commands capture their originating surface and its center independently of shared history",async()=>{

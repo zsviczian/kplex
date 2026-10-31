@@ -1,6 +1,7 @@
 /**
  * Saved navigation remains visible before native tree/cache readiness. Provisional absence never
  * authorizes replacing the requested center with a different history entry or the vault root.
+ * Properties following leases one live graph-selected editor/root file, with a center fallback while loading.
  * Host-bound React shell for K-Plex navigation, startup guidance, File Explorer note drops, toolbar and Sidecar controls. It composes shared components and injected environment/localization capabilities; plugin methods own host effects. The native view owns session display modes; React projects Zen chrome and supplies exact camera-resize preparation without replacing its root. Search/Find scopes and hints use effective action bindings; each surface releases its own registrations on teardown.
  * Wander owns one cancellable per-view session over graph projection ports and the shared activation path;
  * explicit navigation origins and native input pause it without replacing history, editor or Zen owners.
@@ -731,11 +732,16 @@ export function KplexApp({ plugin, surface, hostLeaf, translate, environment, on
     ?? (waitingForDocument || waitingForStartupCenter ? undefined : plugin.index.get("folder:/"));
   const hasPage = Boolean(page);
   const propertiesCenterFile = useRef<TFile | null>(null);
+  const propertiesGraphFile = useRef<{file: TFile | null} | null>(null);
   const propertiesCenterLease = useRef<FilePropertiesCenterLease | null>(null);
   propertiesCenterFile.current = page?.file ?? null;
+  const updatePropertiesFile = useCallback(/** One mounted graph supplies its open editor or actual root; teardown restores the App fallback. */ (file: TFile | null | undefined) => {
+    propertiesGraphFile.current = file === undefined ? null : {file};
+    propertiesCenterLease.current?.refresh();
+  }, []);
   useEffect(/** The native Properties follower owns no graph demand and retires with this exact root/document. */ () => {
     const lease = registerFilePropertiesCenter(plugin.app, hostLeaf,
-      /** Read the rendered center's canonical file, including materialization and non-file centers. */ () => propertiesCenterFile.current,
+      /** The graph owns editor/root identity; loading surfaces retain the existing center fallback. */ () => propertiesGraphFile.current ? propertiesGraphFile.current.file : propertiesCenterFile.current,
       /** Background Plex roots must not replace the foreground surface's utility-pane identity. */ () => plugin.isKplexLeafVisible(hostLeaf));
     propertiesCenterLease.current = lease;
     return /** Release this root without cancelling a native disk operation already accepted by the host. */ () => {
@@ -1580,7 +1586,7 @@ export function KplexApp({ plugin, surface, hostLeaf, translate, environment, on
                   && documentSession.plexView.layoutRoot(nodeId(target.path)) !== target.path)) activate(target, true, true, "user", true);
               }} />}
           actionPorts={graphActionPorts} actionSurfaceId={actions.surfaceId} displayState={displayState} fullscreenAvailable={displayModes.fullscreenAvailable && environment.device === "desktop"}
-          semanticRevision={plugin.index.getSemanticRevision()} navigationOrigin={navigationOrigin} onSemanticDemandAcquired={acknowledgeDocumentDemandHandover} onActivate={/** Explicit destinations may reroot; occurrence attention and document synchronization retain their existing owners. */ (target, intent) => activate(target, true, true, "user", intent === "destination")} onWanderActivate={/** Explicit Wander origin survives asynchronous scene publications. */ target => activate(target, true, true, "wander")} onOpen={open} onOpenInSidecar={centerAndOpenSidecar} onCentralNodeEditorChange={setCentralNodeEditorEnabled} onCentralNodeModeChange={rememberCentralNodeMarkdownMode} areaSettingsMode={areaSettingsMode} onAreaSettingsModeChange={setAreaSettingsMode}
+          semanticRevision={plugin.index.getSemanticRevision()} navigationOrigin={navigationOrigin} onSemanticDemandAcquired={acknowledgeDocumentDemandHandover} onActivate={/** Explicit destinations may reroot; occurrence attention and document synchronization retain their existing owners. */ (target, intent) => activate(target, true, true, "user", intent === "destination")} onWanderActivate={/** Explicit Wander origin survives asynchronous scene publications. */ target => activate(target, true, true, "wander")} onOpen={open} onOpenInSidecar={centerAndOpenSidecar} onCentralNodeEditorChange={setCentralNodeEditorEnabled} onPropertiesFileChange={updatePropertiesFile} onCentralNodeModeChange={rememberCentralNodeMarkdownMode} areaSettingsMode={areaSettingsMode} onAreaSettingsModeChange={setAreaSettingsMode}
           onApplyFindFilter={applyFindFilter} appliedFindFilterQuery={findFilterOwner?.query ?? null} onClearFindFilter={clearFindFilter} />
           {wanderState.phase !== "stopped" && <WanderControls state={wanderState} translate={translate}
             stopIcon={<ObsidianIcon name="x" size={17} />} playbackIcon={<ObsidianIcon name={wanderState.phase === "paused" ? "play" : "pause"} size={17} />} paceIcon={<ObsidianIcon name="timer" size={11} />}

@@ -1329,9 +1329,10 @@ function attachmentRenameBrowserEntry() {
 import {occurrenceKey,edgeOccurrence,edgePhysicalOccurrence,semanticSceneEdge} from ${JSON.stringify(join(root,'src/ui/plexViews/scene.ts'))};
 import {classicViewDefinition,classicAreaDropRole,classicPorts} from ${JSON.stringify(join(root,'src/core/plex/views/classic/definition.ts'))};
 import * as classicLayout from ${JSON.stringify(join(root,'src/ui/layout.ts'))};
+import {classicEditorKey,classicEditorIdentity} from ${JSON.stringify(join(root,'src/ui/plexViews/classic/occurrenceEditor.ts'))};
 const viewDefinition=classicViewDefinition,viewFailed=false,viewLifetime=0,viewSession=undefined,badgeColorRevision=0;
 const classicFixturePolicy=(layout=classicLayout.buildScene)=>({policyKey:classicLayout.sceneLayoutPolicyKey,geometryKey:classicLayout.neighborhoodSceneKey,
-  layout,sections:classicLayout.buildSectionExpandedScene,bind:classicLayout.bindSceneNeighborhood,dropRole:classicAreaDropRole});
+  layout,sections:classicLayout.buildSectionExpandedScene,bind:classicLayout.bindSceneNeighborhood,dropRole:classicAreaDropRole,editorKey:classicEditorKey,editorIdentity:classicEditorIdentity});
 const classic=classicFixturePolicy();
 
 import {canDragNodeLink,startNodeLinkDrag,finishNodeLinkDrag} from ${JSON.stringify(join(root,"src/adapters/obsidian/nodeLinkDrag.ts"))};
@@ -1365,9 +1366,10 @@ let styleReads=0;const measuredStyle=()=>new Proxy({textColor:"#abcdef"},{ownKey
 settings.baseNodeStyle=measuredStyle();let paintSettings=settings;
 const graphLensNodeStyle = () => ({});
 const occurrenceEditorPolicy = false, editorSwitching = false;
-${uiDefinitions("src/ui/PlexGraph.tsx", ["CENTRAL_EDITOR_IMAGE_EXTENSIONS", "supportsCentralEditorFile", "supportsBoundEditor"])}
+${uiDefinitions("src/ui/PlexGraph.tsx", ["CENTRAL_EDITOR_IMAGE_EXTENSIONS", "CENTRAL_EDITOR_MEDIA_EXTENSIONS", "supportsCentralEditorFile", "supportsBoundEditor"])}
+const hasClickModifier=event=>event.altKey||event.ctrlKey||event.metaKey||event.shiftKey;
 const centralEditorCapable = true, finding = false, hover = null, crossLinkPeek = null, activeNodeFlair = null, findNodePaths = new Set(), keyboardSelection = null;
-const connectionStateFor = () => "normal", onCentralNodeEditorChange = () => {}, openCentralEditor = () => {}, centralEditorCanMaximize = true, gateKey = (path, gate) => path + ":" + gate;
+const connectionStateFor = () => "normal", onCentralNodeEditorChange = () => {}, centralEditorCanMaximize = true, gateKey = (path, gate) => path + ":" + gate;
 const persistentPageFor = (page) => page;
 const activePath = "Editor.md", centralEditorAvailable = true, sectionExpanded = false;
 // Match the production Classic section-source context used by the extracted renderer.
@@ -1396,7 +1398,7 @@ function Scene({ scene: sourceScene, expanded }) {
   const sectionExpansion = null, expandedScrollTop = useMemo(() => ({}), []);
   const visibleNodePaths = useMemo(() => new Set(scene.nodes.map((item) => item.page.path)), [scene.nodes]);
   const renderedNodeMap = useMemo(() => new Map(scene.nodes.map((item) => [item.page.path, { ...item }])), [scene.nodes]);
-  ${uiDefinitions("src/ui/PlexGraph.tsx", ["areaForNode", "isEditorOccurrence", "navigationNode", "isDraggedNode", "paintedNodeStyles", "sceneNodeKeys", "expandedClusters", "nativeDragRelationship", "beginNativeNodeDrag", "endNativeNodeDrag", "renderNode", "renderExpandedCluster"])}
+  ${uiDefinitions("src/ui/PlexGraph.tsx", ["areaForNode", "isEditorOccurrence", "navigationNode", "isDraggedNode", "paintedNodeStyles", "classicEditorCounts", "sceneNodeKeys", "expandedClusters", "nativeDragRelationship", "beginNativeNodeDrag", "endNativeNodeDrag", "renderNode", "renderExpandedCluster"])}
   const miniKeys = expandedClusters.flatMap((cluster) => cluster.children.map((child) => child.key));
   check(new Set(miniKeys).size === miniKeys.length, "expanded connector keys collide during rename");
   return <><div className="kplex-nodes">{scene.nodes.map((item) => renderNode(item, { ...item }))}</div><div>{expandedClusters.map(renderExpandedCluster)}</div></>;
@@ -1413,7 +1415,7 @@ try {
   const clusters = () => container.querySelectorAll(".kplex-expanded-cluster").length;
   render(initial, true);
   const firstStyleReads=styleReads;render(initial,true);render(initial,true);
-  check(styleReads===firstStyleReads,"Stable scene rerenders repeated style-dictionary work");
+  check(styleReads===firstStyleReads,"Stable scene rerenders repeated style-dictionary work: "+JSON.stringify({before:firstStyleReads,after:styleReads}));
   paintSettings={...settings,baseNodeStyle:measuredStyle()};render(initial,true);
   check(styleReads>firstStyleReads,"New paint settings failed to re-resolve colors");
   const recoloredReads=styleReads;render(initial,true);check(styleReads===recoloredReads,"New paint cache did not settle");

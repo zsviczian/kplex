@@ -9,10 +9,22 @@ const {exports:{PlexEditorBindings,classicEditorKey,actionNodeRef,resolveActionP
 const source=ts.createSourceFile('PlexGraph.tsx',readFileSync(new URL('../src/ui/PlexGraph.tsx',import.meta.url),'utf8'),ts.ScriptTarget.Latest,true,ts.ScriptKind.TSX);
 const appSource=ts.createSourceFile('App.tsx',readFileSync(new URL('../src/ui/App.tsx',import.meta.url),'utf8'),ts.ScriptTarget.Latest,true,ts.ScriptKind.TSX);
 /** Extract actual action/close code without initializing a synthetic native Obsidian editor. */
-function production(name,deps,module=source){let expression;const visit=node=>{if(ts.isVariableDeclaration(node)&&node.name.getText(module)===name){const value=node.initializer;expression=ts.isCallExpression(value)&&value.expression.getText(module)==='useCallback'?value.arguments[0].getText(module):value.getText(module)}ts.forEachChild(node,visit)};visit(module);assert(expression,name);
+function production(name,deps,module=source){let expression;const visit=node=>{if(ts.isFunctionDeclaration(node)&&node.name?.text===name)expression=node.getText(module);if(ts.isVariableDeclaration(node)&&node.name.getText(module)===name){const value=node.initializer;expression=ts.isCallExpression(value)&&value.expression.getText(module)==='useCallback'?value.arguments[0].getText(module):value.getText(module)}ts.forEachChild(node,visit)};visit(module);assert(expression,name);
  const compiled=ts.transpileModule('const selected='+expression,{compilerOptions:{target:ts.ScriptTarget.ES2021,module:ts.ModuleKind.None}}).outputText;
  return Function(...Object.keys(deps),compiled+';return selected')(...Object.values(deps));}
 const deferred=()=>{let resolve,reject;const promise=new Promise((a,b)=>{resolve=a;reject=b});return{promise,resolve,reject}};
+
+test('one native format policy serves root and occurrence admission without relaxing native file identity',()=>{
+ const supportsCentralEditorFile=production('supportsCentralEditorFile',{
+  CENTRAL_EDITOR_IMAGE_EXTENSIONS:production('CENTRAL_EDITOR_IMAGE_EXTENSIONS',{}),
+  CENTRAL_EDITOR_MEDIA_EXTENSIONS:production('CENTRAL_EDITOR_MEDIA_EXTENSIONS',{})});
+ const files=new Map(),supports=production('supportsBoundEditor',{supportsCentralEditorFile,plugin:{app:{vault:{getFileByPath:path=>files.get(path)}}}});
+ for(const [extension,expected]of [['md',true],['pdf',true],['canvas',true],['png',true],['webp',true],['mp4',true],['webm',true],['wav',true],['zip',false]]){
+  const file={path:'File.'+extension,extension},page={path:file.path,file};files.set(file.path,file);
+  assert.equal(supportsCentralEditorFile(page),expected);assert.equal(supports(page),expected);
+  files.set(file.path,{...file});assert.equal(supports(page),false,'A supported format cannot authorize a replaced native file');
+ }
+});
 /** All file, occurrence and lifetime facts are explicit. The production action owns admission. */
 function fixture(occurrence=true){
  const events=[],notices=[],gate=deferred(),oldFile={path:'A.md'},file={path:'B.md'},node={occurrenceId:'B',page:{path:'B.md',file}},state={current:true,node};
@@ -25,16 +37,16 @@ function fixture(occurrence=true){
  const deps={...shared,closeBoundEditor:production('closeBoundEditor',shared),editorExpansion:()=>state.node,
   editorExpansionCurrent:{current:()=>state.node},occurrenceEditorPolicy:occurrence,occurrenceEditorCapable:occurrence,classic:undefined,editorSwitch:{current:null},setEditorSwitching:value=>events.push('busy:'+value),
   activePath:'A.md',editorAttention:{current:'A.md'},centralEditorAvailable:true,centralEditorPage:{path:'A.md',file:oldFile},
-  onCentralNodeEditorChange:value=>events.push('enabled:'+value),onActivate:page=>{events.push('navigate:'+page.path);return true},
+  onCentralNodeEditorChange:value=>events.push('enabled:'+value),setCentralEditorMaximizedState:value=>events.push('maximized:'+value),onActivate:page=>{events.push('navigate:'+page.path);return true},
   actionNodeRef:page=>({identity:page.path,path:page.path,fileIdentity:page.file===file?'file-B':'changed-file'}),occurrenceKey:row=>row.occurrenceId,
   viewDefinition:{id:occurrence?'mindmap':'wuxing'},settings:{centerEmbedWidth:660,centerEmbedHeight:410,centralNodeMarkdownMode:'source'},nodeId:value=>value,viewport:{current:{isConnected:true}}};
  return{events,notices,gate,editors,old,oldFile,file,node,state,deps,action:production('editorExpandAction',deps)};
 }
 
 test('another occurrence waits for native save/close before admitting one replacement editor',async()=>{
- const f=fixture(),result=f.action.execute({});assert.equal(f.editors.bindings[0].id,f.old.id);assert.equal(f.editors.bindings[0].closing,true);
+ const f=fixture(),result=f.action.execute({request:{id:'editor.expand'}});assert.equal(f.editors.bindings[0].id,f.old.id);assert.equal(f.editors.bindings[0].closing,true);
  assert.deepEqual(f.events,['busy:true','binding-change','native-save']);assert.equal(f.action.availability({}).state,'disabled');
- assert.equal((await f.action.execute({})).status,'unavailable','Concurrent clicks cannot start another save/open');
+ assert.equal((await f.action.execute({request:{id:'editor.expand'}})).status,'unavailable','Concurrent clicks cannot start another save/open');
  f.gate.resolve();assert.equal((await result).status,'completed');const binding=f.editors.bindings[0];
  assert.equal(binding.target.nodeId,'B.md');assert.notEqual(binding.id,f.old.id);assert.equal(f.editors.bindings.length,1);
  assert(f.events.indexOf('native-close')<f.events.lastIndexOf('binding-change'));assert.deepEqual(f.notices,[]);
@@ -42,7 +54,7 @@ test('another occurrence waits for native save/close before admitting one replac
 
 test('Facets noncentral editor reuses binding save/close without attention navigation',async()=>{
  const f=fixture();f.deps.viewDefinition={id:'wuxing',editorHosting:'attention-and-occurrence'};
- const action=production('editorExpandAction',f.deps),pending=action.execute({});f.gate.resolve();
+ const action=production('editorExpandAction',f.deps),pending=action.execute({request:{id:'editor.expand'}});f.gate.resolve();
  assert.equal((await pending).status,'completed');assert.equal(f.editors.bindings[0].viewId,'wuxing');
  assert.equal(f.editors.bindings[0].occurrenceId,'B');assert.equal(f.editors.bindings[0].target.path,'B.md');
  assert(!f.events.some(event=>event.startsWith('navigate:')||event.startsWith('enabled:')));
@@ -50,25 +62,35 @@ test('Facets noncentral editor reuses binding save/close without attention navig
 
 test('Facets central editor retains existing attention-host activation after saving a bound neighbor',async()=>{
  const f=fixture();f.deps.viewDefinition={id:'wuxing',editorHosting:'attention-and-occurrence'};f.deps.activePath='B.md';f.deps.editorAttention.current='B.md';
- const action=production('editorExpandAction',f.deps),pending=action.execute({});f.gate.resolve();
+ const action=production('editorExpandAction',f.deps),pending=action.execute({request:{id:'editor.expand'}});f.gate.resolve();
  assert.equal((await pending).status,'completed');assert.equal(f.editors.bindings.length,0);
  assert(f.events.includes('navigate:B.md')&&f.events.includes('enabled:true'));
 });
 
-test('Facets corner buttons advertise supported noncentral Markdown bindings and retain central native representations',()=>{
- for(const [extension,central,expected]of [['md',false,true],['png',false,false],['png',true,true]]){
+test('Facets corner buttons advertise supported noncentral native bindings and retain central representations',()=>{
+ for(const [extension,central,expected]of [['md',false,true],['png',false,true],['mp4',false,true],['zip',false,false],['png',true,true]]){
   const page={path:central?'Focus':'Neighbor',file:{extension}},deps={classic:undefined,baseNode:{page,role:central?'center':'child'},editorTarget:page,hasCentralEditor:false,activePath:'Focus',
-   occurrenceEditorPolicy:false,viewDefinition:{editorHosting:'attention-and-occurrence',capabilities:{editor:true}},supportsBoundEditor:page=>page.file.extension==='md',supportsCentralEditorFile:()=>true,isEditorOccurrence:()=>central,urlEmbed:()=>null};
+   occurrenceEditorPolicy:false,viewDefinition:{editorHosting:'attention-and-occurrence',capabilities:{editor:true}},supportsBoundEditor:page=>['md','png','mp4'].includes(page.file.extension),supportsCentralEditorFile:()=>true,isEditorOccurrence:()=>central,urlEmbed:()=>null};
   assert.equal(production('canOpenCentralEditor',deps),expected,extension+':'+central);
  }
 });
 test('failed native save keeps the original buffer binding and refuses replacement',async()=>{
- const f=fixture(),result=f.action.execute({});f.gate.reject(Error('Disk failure'));assert.equal((await result).status,'failed');
+ const f=fixture(),result=f.action.execute({request:{id:'editor.expand'}});f.gate.reject(Error('Disk failure'));assert.equal((await result).status,'failed');
  assert.equal(f.editors.bindings[0].id,f.old.id);assert.equal(f.editors.bindings[0].closing,false);assert.deepEqual(f.notices,['actions.editor-save-failed']);
  assert(!f.events.includes('native-close'));assert.equal(f.deps.editorSwitch.current,null);
 });
+
+for(const occurrence of [false,true])test('shared editor action maximizes only after accepted '+(occurrence?'occurrence':'central')+' opening',async()=>{
+ for(const maximize of [false,true]){
+  const f=fixture(occurrence),pending=f.action.execute({request:{id:'editor.expand',args:{maximize}}});
+  assert(!f.events.some(event=>event.startsWith('maximized:')),'An outstanding native save cannot maximize another document');
+  f.gate.resolve();assert.equal((await pending).status,'completed');assert.equal(f.events.at(-2),'maximized:'+maximize);
+ }
+ const f=fixture(occurrence),pending=f.action.execute({request:{id:'editor.expand',args:{maximize:true}}});
+ f.gate.reject(Error('Save failed'));assert.equal((await pending).status,'failed');assert(!f.events.some(event=>event.startsWith('maximized:')));
+});
 for(const invalid of ['view','attention','hidden','incarnation'])test('save completion cannot reopen a retired '+invalid+' target',async()=>{
- const f=fixture(),result=f.action.execute({});
+ const f=fixture(),result=f.action.execute({request:{id:'editor.expand'}});
  if(invalid==='view')f.state.current=false;
  if(invalid==='attention')f.deps.editorAttention.current='C.md';
  if(invalid==='hidden')f.state.node=null;
@@ -77,20 +99,20 @@ for(const invalid of ['view','attention','hidden','incarnation'])test('save comp
 });
 test('same occurrence reuses the existing binding without saving or replacing its host',async()=>{
  const f=fixture();f.state.node={occurrenceId:'A',page:{path:'A.md',file:f.oldFile}};f.deps.actionNodeRef=page=>({identity:page.path,fileIdentity:'file-A'});
- f.action=production('editorExpandAction',f.deps);assert.equal((await f.action.execute({})).status,'completed');
+ f.action=production('editorExpandAction',f.deps);assert.equal((await f.action.execute({request:{id:'editor.expand'}})).status,'completed');
  assert.equal(f.editors.bindings[0].id,f.old.id);assert(!f.events.includes('native-save'));
 });
 test('attention-following views save the old document then use accepted navigation and the existing central editor',async()=>{
- const f=fixture(false),result=f.action.execute({});assert.deepEqual(f.events,['busy:true','native-save']);
+ const f=fixture(false),result=f.action.execute({request:{id:'editor.expand'}});assert.deepEqual(f.events,['busy:true','native-save']);
  f.gate.resolve();assert.equal((await result).status,'completed');assert.deepEqual(f.events,['busy:true','native-save','native-close','enabled:false','navigate:B.md','enabled:true','busy:false']);
  assert.equal(f.editors.bindings.length,0,'Attention views do not adopt independent occurrence bindings');
 });
 test('attention editor save failure retains its existing presentation and does not navigate',async()=>{
- const f=fixture(false),result=f.action.execute({});f.gate.reject(Error('Disk failure'));assert.equal((await result).status,'failed');
+ const f=fixture(false),result=f.action.execute({request:{id:'editor.expand'}});f.gate.reject(Error('Disk failure'));assert.equal((await result).status,'failed');
  assert(!f.events.some(event=>event.startsWith('navigate:')||event==='enabled:false'));assert.deepEqual(f.notices,['actions.editor-save-failed']);
 });
 test('newer attention wins over a slow prior editor-button request',async()=>{
- const f=fixture(false),result=f.action.execute({});f.deps.editorAttention.current='C.md';f.gate.resolve();assert.equal((await result).status,'cancelled');
+ const f=fixture(false),result=f.action.execute({request:{id:'editor.expand'}});f.deps.editorAttention.current='C.md';f.gate.resolve();assert.equal((await result).status,'cancelled');
  assert(!f.events.some(event=>event.startsWith('navigate:')||event==='enabled:false'));assert.equal(f.deps.editorSwitch.current,null);
 });
 
@@ -98,7 +120,7 @@ test('newer attention wins over a slow prior editor-button request',async()=>{
 function admissionFixture(){
  const file={path:'B.md',extension:'md'},page={path:'B.md',file},node={occurrenceId:'B',page:{...page}};
  const deps={viewDefinition:{capabilities:{editor:true}},viewSession:{},occurrenceEditorPolicy:false,occurrenceEditorCapable:false,classic:undefined,
-  graphActionPage:()=>page,scene:{nodes:[node],zoneViewports:{phase:{}}},occurrenceKey:node=>node.occurrenceId,
+  graphActionPage:()=>page,scene:{nodes:[node],zoneViewports:{phase:{}}},occurrenceKey:node=>node.occurrenceId,isEditorOccurrence:()=>false,urlEmbed:()=>null,
   supportsCentralEditorFile:page=>page.file.extension==='md',plugin:{app:{vault:{getFileByPath:()=>file}}},index:{isVisiblePage:()=>true},
   actionNodeRef:page=>({path:page.path}),nodeMatchesCurrentFilter:()=>true,areaForNode:()=> 'phase',zoneDisplayLayouts:{phase:{localPositions:new Map([['B',{}]])}}};
  const context={target:{kind:'node',occurrenceId:'B',node:{path:'B.md'}}};
@@ -107,6 +129,12 @@ function admissionFixture(){
 test('editor admission reacquires a newer metadata facade for the exact displayed native file',()=>{
  const f=admissionFixture(),admitted=f.read();assert(admitted);assert.equal(admitted.page,f.page);assert.equal(admitted.occurrenceId,'B');
  assert.notEqual(admitted,f.node);assert.notEqual(f.node.page,f.page,'Presentation snapshot is not mutated');
+});
+test('the shared action preserves legacy central URL editor admission without admitting arbitrary noncentral URLs',()=>{
+ const f=admissionFixture();delete f.page.file;delete f.node.page.file;f.page.url=f.node.page.url='https://example.com';
+ f.deps.supportsCentralEditorFile=()=>false;f.deps.isEditorOccurrence=()=>true;f.deps.urlEmbed=()=>({url:f.page.url});
+ assert(f.read(),'Existing central web guests retain their editor route');
+ f.deps.isEditorOccurrence=()=>false;assert.equal(f.read(),null);
 });
 test('metadata facade admission still refuses a replaced file, renamed occurrence or retired canonical target',()=>{
  for(const kind of ['file','path','physical-rename','canonical','native']){const f=admissionFixture();
@@ -131,7 +159,7 @@ test('metadata facade admission retains current visibility, filter and exact are
 
 test('Compass noncentral editor saves its legacy central host then binds in place without attention navigation',async()=>{
  const f=fixture(false);f.deps.classic={editorKey:classicEditorKey};f.deps.occurrenceEditorCapable=true;f.deps.viewDefinition={id:'classic'};f.node.role='child';
- f.action=production('editorExpandAction',f.deps);const pending=f.action.execute({});f.gate.resolve();assert.equal((await pending).status,'completed');
+ f.action=production('editorExpandAction',f.deps);const pending=f.action.execute({request:{id:'editor.expand'}});f.gate.resolve();assert.equal((await pending).status,'completed');
  const binding=f.editors.bindings[0];assert.equal(binding.viewId,'classic');assert.equal(binding.occurrenceId,classicEditorKey(f.node,'A.md'));assert.equal(binding.target.path,'B.md');
  assert(!f.events.some(event=>event.startsWith('navigate:')));assert(f.events.includes('enabled:false'));
 });

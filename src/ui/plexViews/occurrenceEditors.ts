@@ -1,4 +1,5 @@
-/** Exact displayed-occurrence/native-document admission. Geometry never substitutes attention or a duplicate. */
+/** Exact displayed-occurrence/native-document admission. Geometry never substitutes attention or a duplicate.
+ * The native host supplies file-format eligibility; this boundary retains canonical/native incarnation checks. */
 import type {PlexEditorBinding} from "../../application/PlexEditorBindings";
 import type {PlexProjection, PlexViewDefinition, PlexViewRead} from "../../core/plex/views/contracts";
 import type {GraphPage} from "../../types";
@@ -13,7 +14,7 @@ export type AdmittedOccurrenceEditor = Readonly<{binding: PlexEditorBinding; pag
 export function resolveOccurrenceEditorPage(binding: PlexEditorBinding, source: {get: (id: string) => GraphPage | undefined},
   supports: (page: GraphPage) => boolean): GraphPage | null {
   const page = source.get(binding.target.nodeId), reference = page && actionNodeRef(page);
-  return page && !page.transient && page.file && ["md", "pdf"].includes(page.file.extension.toLocaleLowerCase()) && reference?.kind === "file"
+  return page && !page.transient && page.file && reference?.kind === "file"
     && reference.identity === binding.target.nodeId && page.file.path === binding.target.path
     && reference.fileIdentity === binding.target.fileIdentity && supports(page) ? page : null;
 }

@@ -429,17 +429,26 @@ test("actual App effects lease rendered central identity and dispose the exact n
     ts.forEachChild(node, visit);
   };
   visit(source); assert.equal(effects.length, 2);
-  const f = fixture(), center = { current: f.a }, leaseRef = { current: null };
+  const f = fixture(), center = { current: f.a }, graphFile = {current: null}, leaseRef = { current: null };
   const plugin = { app: f.app, isKplexLeafVisible: () => true };
   /** Run the exact App callback against the actual adapter with bounded native collaborators. */
   const invoke = expression => {
     const text = ts.transpileModule(`const effect = ${expression}`, { compilerOptions: { target: ts.ScriptTarget.ES2021, module: ts.ModuleKind.None } }).outputText;
-    return Function("plugin", "hostLeaf", "propertiesCenterFile", "propertiesCenterLease", "registerFilePropertiesCenter", `${text};return effect();`)(plugin, f.host, center, leaseRef, registerFilePropertiesCenter);
+    return Function("plugin", "hostLeaf", "propertiesCenterFile", "propertiesGraphFile", "propertiesCenterLease", "registerFilePropertiesCenter", `${text};return effect();`)(plugin, f.host, center, graphFile, leaseRef, registerFilePropertiesCenter);
   };
   let release;
   try {
     release = invoke(effects[0]); await settle(); assert.equal(f.properties.view.modifyingFile, f.a);
     center.current = f.c; invoke(effects[1]); await settle(); assert.equal(f.properties.view.modifyingFile, f.c);
+    let update;
+    /** Keep the actual App-to-graph publication callback, including explicit empty-file ownership. */
+    const find = node => {if(ts.isVariableDeclaration(node)&&node.name.getText(source)==='updatePropertiesFile')update=node.initializer.arguments[0].getText(source);ts.forEachChild(node,find);};find(source);assert(update);
+    const text=ts.transpileModule('const update='+update,{compilerOptions:{target:ts.ScriptTarget.ES2021}}).outputText;
+    const publish=Function('propertiesGraphFile','propertiesCenterLease',text+';return update;')(graphFile,leaseRef);
+    publish(f.b);await settle();assert.equal(f.properties.view.modifyingFile,f.b,'Open editor takes precedence over central attention');
+    center.current=f.a;invoke(effects[1]);await settle();assert.equal(f.properties.view.modifyingFile,f.b,'A center refresh cannot retarget a live editor');
+    publish(null);await settle();assert.equal(f.properties.view.file,null,'A non-file rendered root does not inherit another note');
+    publish(undefined);await settle();assert.equal(f.properties.view.modifyingFile,f.a,'Graph teardown restores the loading/central fallback');
     release(); release = null; assert.equal(leaseRef.current, null);
     assert.equal([...f.handlers.values()].reduce((sum, entries) => sum + entries.size, 0), 0);
     assert.equal(f.state.fileEvents, 0); assert.equal(f.state.activeChanges, 0);

@@ -247,17 +247,16 @@ test('Sidecar framing waits for layout, uses the latest render and releases its 
   }
 });
 
-test('central-editor opening accepts every modifier through the existing expansion/camera owner and retains sidepanel restrictions',()=>{
-  for(const centralEditorCanMaximize of [false,true])for(let mask=0;mask<16;mask++) {
-    const camera={x:81,y:53,scale:1.7};let enabled=false;
-    const ctx={hasClickModifier,centralEditorCanMaximize,centralEditorMaximized:false,camera:{current:camera},
+test('shared maximization preserves camera ownership and sidepanel restrictions',()=>{
+  for(const centralEditorCanMaximize of [false,true]) {
+    const camera={x:81,y:53,scale:1.7};
+    const ctx={centralEditorCanMaximize,centralEditorMaximized:false,camera:{current:camera},
       preserveCameraOnNextLayout:{current:false},suppressAutoFitUntil:{current:0},centralEditorRestoreCamera:{current:null},restoreCentralEditorCamera:{current:false},
-      setCentralEditorMaximized(value){ctx.centralEditorMaximized=value;},onCentralNodeEditorChange(value){enabled=value;}};
-    ctx.setCentralEditorMaximizedState=callback('setCentralEditorMaximizedState',ctx);
-    callback('openCentralEditor',ctx)({altKey:!!(mask&1),ctrlKey:!!(mask&2),metaKey:!!(mask&4),shiftKey:!!(mask&8)});
-    assert.equal(enabled,true);assert.equal(ctx.centralEditorMaximized,centralEditorCanMaximize&&mask!==0);
-    if(ctx.centralEditorMaximized){assert.deepEqual(ctx.centralEditorRestoreCamera.current,camera);ctx.setCentralEditorMaximizedState=callback('setCentralEditorMaximizedState',ctx);ctx.setCentralEditorMaximizedState(false);assert.equal(ctx.restoreCentralEditorCamera.current,true);}
-    else assert.equal(ctx.centralEditorRestoreCamera.current,null,'Ordinary opening and unsupported expansion do not claim the camera');
+      setCentralEditorMaximized(value){ctx.centralEditorMaximized=value;}};
+    callback('setCentralEditorMaximizedState',ctx)(true);
+    assert.equal(ctx.centralEditorMaximized,centralEditorCanMaximize);
+    if(centralEditorCanMaximize){assert.deepEqual(ctx.centralEditorRestoreCamera.current,camera);callback('setCentralEditorMaximizedState',ctx)(false);assert.equal(ctx.restoreCentralEditorCamera.current,true);}
+    else assert.equal(ctx.centralEditorRestoreCamera.current,null);
   }
 });
 
@@ -270,12 +269,11 @@ test('the actual thought-corner control forwards modifier-bearing events while s
   /** Confirm the rendered graph connects the corner control to the tested opening owner. */
   const graphVisit=node=>{if(ts.isJsxAttribute(node)&&node.name.text==='cornerAction')corner=node.initializer.expression.whenTrue;ts.forEachChild(node,graphVisit);};graphVisit(source);assert(corner);
   const routing=ts.transpileModule(`const route=${corner.properties.find(p=>p.name.text==='onClick').initializer.getText(source)};`,{compilerOptions:{target:ts.ScriptTarget.ES2021}}).outputText;
-  for(const occurrenceEditorPolicy of [false,true])for(const central of [false,true])for(const classic of [undefined,{}]){
-    let forwarded,request;const baseNode={page:{path:'B.md'},occurrenceId:'B1'};
-    const route=Function('occurrenceEditorPolicy','isEditorOccurrence','openCentralEditor','runNodeAction','baseNode','occurrenceKey','classic','sceneNodeKeys','editorTarget',`${routing};return route;`)(occurrenceEditorPolicy,()=>central,event=>{forwarded=event},(...args)=>{request=args},baseNode,node=>node.occurrenceId,classic,new Map([[baseNode,'classic-key']]),baseNode.page);
-    const event={metaKey:true};route(event);
-    if(occurrenceEditorPolicy||!central){assert.deepEqual(request,['editor.expand',baseNode.page,classic?'classic-key':'B1']);assert.equal(forwarded,undefined)}
-    else{assert.equal(forwarded,event);assert.equal(request,undefined)}
+  for(const classic of [undefined,{}])for(let mask=0;mask<16;mask++){
+    let request;const baseNode={page:{path:'B.md'},occurrenceId:'B1'};
+    const route=Function('runNodeAction','baseNode','occurrenceKey','classic','sceneNodeKeys','editorTarget','hasClickModifier',`${routing};return route;`)((...args)=>{request=args},baseNode,node=>node.occurrenceId,classic,new Map([[baseNode,'classic-key']]),baseNode.page,hasClickModifier);
+    route({altKey:!!(mask&1),ctrlKey:!!(mask&2),metaKey:!!(mask&4),shiftKey:!!(mask&8)});
+    assert.deepEqual(request,['editor.expand',baseNode.page,classic?'classic-key':'B1',undefined,mask!==0],'Every view uses the same action and carries the complete modifier intent');
   }
   let actual;const handler=Function('cornerAction',`${output};return handler;`)({onClick:event=>{actual=event;}});
   for(let mask=0;mask<16;mask++){let prevented=false,stopped=false;const event={altKey:!!(mask&1),ctrlKey:!!(mask&2),metaKey:!!(mask&4),shiftKey:!!(mask&8),preventDefault(){prevented=true;},stopPropagation(){stopped=true;}};handler(event);assert.equal(actual,event);assert(prevented&&stopped);}
@@ -376,10 +374,31 @@ test('delayed fixed-area expansion reveal keeps exact identity and yields to use
 
 test('area-hosted editor toolbar intersects canvas and area without resizing or panning its native document',()=>{
  const canvas={width:800,height:600},editor={left:-150,top:-200,width:500,height:500},area={left:-100,top:-300,width:1000,height:900};
- assert.deepEqual(editorToolbarInsets(editor,canvas,area),{top:200,left:150,right:0});
- assert.deepEqual(editorToolbarInsets({...editor,left:600,top:50},canvas,area),{top:0,left:0,right:300});
- assert.deepEqual(editorToolbarInsets({left:100,top:100,width:500,height:400},canvas,{left:200,top:150,width:300,height:300}),{top:50,left:100,right:100});
+ assert.deepEqual(editorToolbarInsets(editor,canvas,area),{top:204,left:154,right:0});
+ assert.deepEqual(editorToolbarInsets({...editor,left:600,top:50},canvas,area),{top:-34,left:0,right:304});
+ assert.deepEqual(editorToolbarInsets({left:100,top:100,width:500,height:400},canvas,{left:200,top:150,width:300,height:300}),{top:16,left:100,right:100});
  assert.deepEqual(editor,{left:-150,top:-200,width:500,height:500});
+});
+
+test('shared toolbar stays above an unclipped body and reachable when tall area or root editors pass the viewport',()=>{
+ const canvas={width:800,height:500};
+ for(const area of [undefined,{left:20,top:80,width:760,height:800}])for(const top of [-900,-100,50,300,900])for(const toolbarHeight of [30,48]){
+  const editor={left:100,top,width:500,height:1200},before=JSON.stringify(editor),insets=editorToolbarInsets(editor,canvas,area,toolbarHeight);
+  assert(editor.top+insets.top>=4);assert(editor.top+insets.top+toolbarHeight<=canvas.height-4);
+  assert.equal(JSON.stringify(editor),before,'Chrome positioning cannot resize native editor geometry');
+ }
+ const editor={left:100,top:200,width:500,height:400};
+ assert.equal(editor.top+editorToolbarInsets(editor,canvas,undefined,30).top+30,196,'Ordinary body retains the existing external toolbar gap');
+ for(const left of [-1200,-100,100,780,1200]){
+  const node={left,top:-100,width:660,height:1000},chrome=editorToolbarInsets(node,canvas,undefined,34,180),width=node.width-chrome.left-chrome.right;
+  assert(width>=180,'A tiny/offscreen body intersection cannot collapse the recovery buttons');
+  assert(node.left+chrome.left>=4);assert(node.left+node.width-chrome.right<=canvas.width-4);
+ }
+ for(const top of [-900,900]){
+  const editor={left:100,top,width:600,height:1000},safe={...canvas,topInset:44,bottomInset:48},chrome=editorToolbarInsets(editor,safe,undefined,34,180);
+  assert(editor.top+chrome.top>=44,'Recovery toolbar clears Find/Footprints');
+  assert(editor.top+chrome.top+34<=canvas.height-48,'Recovery toolbar clears footer controls');
+ }
 });
 
 

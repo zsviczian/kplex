@@ -71,8 +71,8 @@ test('expanded native editor frames stay inside the canvas independently of came
  assert.deepEqual(M.editorOverlayFrame({x:0,y:0,width:600,height:400},{x:400,y:300,scale:.5},{width:800,height:600},false),{left:250,top:200,width:300,height:200});
 });
 
-test('PDF occurrence admission preserves canonical file identity and rejects replacements',()=>{
- const f=classicFixture(M),page=f.neighborhood.center;page.file.extension='pdf';
+for(const extension of ['pdf','png','mp4','webm'])test(extension+' occurrence admission delegates native eligibility and preserves exact file identity',()=>{
+ const f=classicFixture(M),page=f.neighborhood.center;page.file.extension=extension;
  const reference=M.actionNodeRef(page),binding={target:{nodeId:reference.identity,path:page.file.path,fileIdentity:reference.fileIdentity}};
  const source={get:()=>page};assert.equal(M.resolveOccurrenceEditorPage(binding,source,()=>true),page);
  assert.equal(M.resolveOccurrenceEditorPage(binding,source,()=>false),null);

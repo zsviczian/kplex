@@ -1,0 +1,195 @@
+{
+  "editor-node-followup": {
+    "name": "editor-node-followup",
+    "status": "passed",
+    "node": "v22.22.2",
+    "startedAt": "2026-10-31T20:43:12.692Z",
+    "maximumMs": 300000,
+    "driver": {
+      "transport": "beb7677649f8ae6ae390c0df25b4a025a48777b5fbfc5e36c25f7fe252b8a0d3",
+      "scenario": "bd5da3ce711e5b6d40ff64699c50f203c87b576544225c417b2ff762371b7896",
+      "definitions": "89b20f49befa26203580021bd2cf5286f92602abf5007b464e54b54e56becae9"
+    },
+    "artifacts": {
+      "main.js": "6fa65cb1701ff7d3c0d7b4fd454ff3e7b0ed6c7650176c7dc83e303fca488ca1",
+      "manifest.json": "2822c38463c03ace4f017453679572d462534ce2a9c9558fd7593f259b01bfa1",
+      "styles.css": "5d370e27b3c5c25bdbac19120a605ec9481f1de8be6b1e774823ef7bf08b32c6"
+    },
+    "source": {
+      "src/index/GraphBuilder.ts": "b4ff3bc6298c1d30c58aa15a47d2636b8e32a33f1ff4c225ce2848534567cab8",
+      "src/index/GraphIndex.ts": "ddd56515a902719a2c0c76a3aa758f4c7732f4412d9a15cabcada0b77a835ce6",
+      "src/core/graph/compiler.ts": "ee403bd86870137e7ea769dfb5c5c7cfa27e08ad768b1815bef47eab9732bd4f",
+      "src/ui/PlexGraph.tsx": "77755464500c415e5a1fba93470327bd3994e4bd2a86231d75f0bc986792362e",
+      "src/ui/CentralNodeEditor.tsx": "07362c102b321d946daee924cfc410f6713be0b6dd22dce4285b3a1879a1a2a6",
+      "src/ui/App.tsx": "3ba36dc672ddd9138d3cb3e9f1e9d9eddbb24ee2acab0b37497dad1cf1aa3505",
+      "src/ui/plexViews/areaVisibility.ts": "0e37bf6cec4605ec7757a1a93b68f2f12aca87d82a92936267e3e78e7b503c4c",
+      "src/ui/plexViews/occurrenceEditors.ts": "995f2aee68e714ead0733410419e66f7de84749925304ce60b9f265402033805",
+      "src/adapters/obsidian/filePropertiesCenter.ts": "6782931c25c38f6b0a0b9e09673d6defe8a270739f5fc7503c3df0fae6f0c453",
+      "src/core/plex/actions.ts": "553c022a9633c9d1ec0466af2596eeb8f11fb189dae11ece7354f7a518d09d51"
+    },
+    "limitations": "Controlled native method observations, not actual paint or physical-device acceptance.",
+    "obsidian": "1.15.0 (installer 1.14.0)",
+    "result": {
+      "cases": [
+        "classic: normal/modifier root opening",
+        "classic: native image and Properties fallback",
+        "classic: native video and Properties fallback",
+        "mindmap: normal/modifier root opening",
+        "mindmap: native image and Properties fallback",
+        "mindmap: native video and Properties fallback",
+        "mindmap: modifier png root",
+        "mindmap: modifier mp4 root",
+        "wuxing: normal/modifier root opening",
+        "wuxing: native image and Properties fallback",
+        "wuxing: native video and Properties fallback",
+        "mindmap parent: full/oversized chrome, stable native host, Properties",
+        "wuxing facet: full/oversized chrome, stable native host, Properties",
+        "native Markdown scale/fixed retains the same document through the clipped wrapper",
+        "mindmap child: full/oversized chrome, stable native host, Properties"
+      ],
+      "mediaDecoded": true,
+      "propertiesFollowed": true
+    },
+    "cleanup": "passed",
+    "completedAt": "2026-10-31T20:43:24.100Z"
+  },
+  "editor-area-growth": {
+    "name": "editor-area-growth",
+    "status": "passed",
+    "node": "v22.22.2",
+    "startedAt": "2026-10-31T20:49:52.822Z",
+    "maximumMs": 180000,
+    "driver": {
+      "transport": "beb7677649f8ae6ae390c0df25b4a025a48777b5fbfc5e36c25f7fe252b8a0d3",
+      "scenario": "ebd0a78e0d472e08d08564c1133e3ee5fb159282fc10d2e0aeaa78aefafb1629",
+      "definitions": "fa4e348160ad2fd1bfffc0de1528f5c2f6cf63d2195be04fda2de2dc3a06d48d"
+    },
+    "artifacts": {
+      "main.js": "6fa65cb1701ff7d3c0d7b4fd454ff3e7b0ed6c7650176c7dc83e303fca488ca1",
+      "manifest.json": "2822c38463c03ace4f017453679572d462534ce2a9c9558fd7593f259b01bfa1",
+      "styles.css": "5d370e27b3c5c25bdbac19120a605ec9481f1de8be6b1e774823ef7bf08b32c6"
+    },
+    "source": {
+      "src/index/GraphBuilder.ts": "b4ff3bc6298c1d30c58aa15a47d2636b8e32a33f1ff4c225ce2848534567cab8",
+      "src/index/GraphIndex.ts": "ddd56515a902719a2c0c76a3aa758f4c7732f4412d9a15cabcada0b77a835ce6",
+      "src/core/graph/compiler.ts": "ee403bd86870137e7ea769dfb5c5c7cfa27e08ad768b1815bef47eab9732bd4f",
+      "src/ui/PlexGraph.tsx": "77755464500c415e5a1fba93470327bd3994e4bd2a86231d75f0bc986792362e",
+      "src/ui/plexViews/prepareScene.ts": "03d5d7daa1053e7342109b372056b6fa41775fbdd3ce989ab7616261267d3dc6",
+      "src/core/plex/views/wuxing/definition.ts": "31cfc464bd4fe20c39b5c447792a562166fe1ad7cf86fd0618a8432d7059a85c",
+      "src/core/plex/views/classic/geometry.ts": "08174532e18bcde3205c6d9c7f3cd4385708deb2c6bfef0def3563631f3c7a18"
+    },
+    "limitations": "Controlled native method observations, not actual paint or physical-device acceptance.",
+    "obsidian": "1.15.0 (installer 1.14.0)",
+    "result": {
+      "cases": [
+        {
+          "id": "native-in-place-editor-area-growth-save-close",
+          "view": "wuxing",
+          "clip": "inset(0px)",
+          "width": 920,
+          "height": 700
+        },
+        {
+          "id": "native-in-place-editor-area-growth-save-close",
+          "view": "classic",
+          "clip": "inset(0px)",
+          "scrolledClip": "inset(17.70860927152313px 0px 0px 0px)",
+          "width": 920,
+          "height": 700
+        },
+        {
+          "id": "native-in-place-editor-area-growth-save-close",
+          "view": "mindmap",
+          "clip": "none",
+          "width": 920,
+          "height": 700
+        }
+      ],
+      "host": {
+        "electron": "43.3.0",
+        "chrome": "150.0.7871.212"
+      },
+      "fixtureNotesEditedOnly": true
+    },
+    "cleanup": "passed",
+    "completedAt": "2026-10-31T20:49:57.118Z"
+  },
+  "editor-mobile-navigation": {
+    "name": "editor-mobile-navigation",
+    "status": "passed",
+    "node": "v22.22.2",
+    "startedAt": "2026-10-31T20:40:56.335Z",
+    "maximumMs": 240000,
+    "driver": {
+      "transport": "beb7677649f8ae6ae390c0df25b4a025a48777b5fbfc5e36c25f7fe252b8a0d3",
+      "scenario": "fec8018233e71a190cfcb9673976c017595d40a526a3ba7795e13ce3bee7887c",
+      "definitions": "0d5293904c354ab5cac253783d8faf0dc85b48bbd47b79debddeea842d37bac3"
+    },
+    "artifacts": {
+      "main.js": "6fa65cb1701ff7d3c0d7b4fd454ff3e7b0ed6c7650176c7dc83e303fca488ca1",
+      "manifest.json": "2822c38463c03ace4f017453679572d462534ce2a9c9558fd7593f259b01bfa1",
+      "styles.css": "5d370e27b3c5c25bdbac19120a605ec9481f1de8be6b1e774823ef7bf08b32c6"
+    },
+    "source": {
+      "src/index/GraphBuilder.ts": "b4ff3bc6298c1d30c58aa15a47d2636b8e32a33f1ff4c225ce2848534567cab8",
+      "src/index/GraphIndex.ts": "ddd56515a902719a2c0c76a3aa758f4c7732f4412d9a15cabcada0b77a835ce6",
+      "src/core/graph/compiler.ts": "ee403bd86870137e7ea769dfb5c5c7cfa27e08ad768b1815bef47eab9732bd4f",
+      "src/ui/PlexGraph.tsx": "77755464500c415e5a1fba93470327bd3994e4bd2a86231d75f0bc986792362e",
+      "src/ui/CentralNodeEditor.tsx": "07362c102b321d946daee924cfc410f6713be0b6dd22dce4285b3a1879a1a2a6",
+      "src/ui/editorOverlayFrame.ts": "2daf332924e0fbbd5e7209b7e0f7fc82b155faec4c58ea61b5fd4233ebde8339",
+      "src/application/PlexViewSession.ts": "daa95147c44fa96dab0951581b038a7ecc99513e115938bfb708dd0bf580bec1",
+      "src/main.ts": "413b05edf09d9568fb8ffae827182d1fc41c70ed16920204f841a54bbf20225b"
+    },
+    "limitations": "Controlled native method observations, not actual paint or physical-device acceptance.",
+    "obsidian": "1.15.0 (installer 1.14.0)",
+    "result": {
+      "cases": [
+        "Mind Map root expands/restores/closes with title and the same native editor",
+        "classic: native PDF editor opens and closes",
+        "mindmap: native PDF editor opens and closes",
+        "Actual Excalidraw Mind Map root expands with title, stable native API and reachable close",
+        "Compass revisits restore section folds and exact camera",
+        "Rapid passive navigation with no document creates no tabs and retains focus",
+        "Popout root title, expanded recovery controls and close while expanded"
+      ],
+      "files": 80
+    },
+    "cleanup": "passed",
+    "completedAt": "2026-10-31T20:41:05.646Z"
+  },
+  "checks": {
+    "node": "v22.22.2",
+    "focusedTests": 302,
+    "coreTests": 132,
+    "architecture": "230 migrated roots / 422 reachable files / 0 violations",
+    "officialScanner": "passed, including final touched-source rescan",
+    "productionBuild": "passed",
+    "fullIndexing": "not rerun; unchanged owners, prior full ad9bf40 proof retained"
+  },
+  "historicalM0Attempt": {
+    "name": "occurrence-editors-219",
+    "status": "failed",
+    "error": "Error: Error: Capacity-one contract failed",
+    "cleanup": "passed",
+    "driver": {
+      "transport": "beb7677649f8ae6ae390c0df25b4a025a48777b5fbfc5e36c25f7fe252b8a0d3",
+      "scenario": "f834d4210ebc77fc7542aed0f67449c78969d9ce4e7a682e2a393b96b16bca72",
+      "definitions": "3e8acadf37b146f8ae36481ad5e97bb1a5be0300716bc74f0e3ac5ac60cad7fb"
+    },
+    "artifacts": {
+      "main.js": "6fa65cb1701ff7d3c0d7b4fd454ff3e7b0ed6c7650176c7dc83e303fca488ca1",
+      "manifest.json": "2822c38463c03ace4f017453679572d462534ce2a9c9558fd7593f259b01bfa1",
+      "styles.css": "5d370e27b3c5c25bdbac19120a605ec9481f1de8be6b1e774823ef7bf08b32c6"
+    },
+    "limit": "Stops at obsolete capacity-refusal assertion before clipping. Save-before-switch predates this follow-up; no acceptance claimed."
+  },
+  "cleanup": {
+    "filesBefore": 76,
+    "filesAfter": 76,
+    "ownedFiles": 0,
+    "ownedFolders": 0,
+    "controllerRemaining": false,
+    "capturedErrors": "none",
+    "personalVault": "read-only; no deployment or writes"
+  }
+}

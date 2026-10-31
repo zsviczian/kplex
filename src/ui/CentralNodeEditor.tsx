@@ -2,7 +2,8 @@
  * the small-node drawing-fit policy on opening and untouched reading-mode viewport resizing.
  * Per-note Markdown scaling affects only native Markdown content; controls, fullscreen and canvas
  * views retain untransformed native geometry and pointer coordinates. Toolbar controls use
- * referenced accessible names and the shell's single shared tooltip owner. */
+ * referenced accessible names and the shell's single shared tooltip owner. Only native document
+ * content inherits an area clip; toolbar changes notify the existing viewport geometry owner. */
 import { useEffect, useId, useLayoutEffect, useRef, useState } from "react";
 import { Notice, type TFile, type WorkspaceLeaf } from "obsidian";
 import type KplexPlugin from "../main";
@@ -33,6 +34,7 @@ export function CentralNodeEditor({
   activateHostLeafOnInteraction,
   onModeChange,
   onMaximizedChange,
+  onLayout,
   onCollapse,
   onOpenMenu,
   onNavigate,
@@ -49,6 +51,7 @@ export function CentralNodeEditor({
   activateHostLeafOnInteraction: boolean;
   onModeChange: (mode: EmbeddedMarkdownMode) => void;
   onMaximizedChange: (maximized: boolean) => void;
+  onLayout?: () => void;
   onCollapse: () => void;
   onOpenMenu: (button: HTMLButtonElement) => void;
   onNavigate: (file: TFile) => void;
@@ -60,6 +63,7 @@ export function CentralNodeEditor({
   const mountRef = useRef<HTMLDivElement>(null);
   const controllerRef = useRef<EmbeddedMarkdownLeafController | null>(null);
   const closeReadyRef = useRef(onCloseReady);
+  const layoutRef = useRef(onLayout);layoutRef.current = onLayout;
   closeReadyRef.current = onCloseReady;
   const fileRef = useRef(page.file);
   const defaultModeRef = useRef(defaultMode);
@@ -75,6 +79,9 @@ export function CentralNodeEditor({
   defaultModeRef.current = defaultMode;
   onNavigateRef.current = onNavigate;
   maximizedRef.current = maximized;
+  useLayoutEffect(/** Native representations expose different controls; remeasure only after their committed toolbar changes. */ () => {
+    layoutRef.current?.();
+  }, [documentView, excalidrawFile, status, maximized]);
 
   useLayoutEffect(/** Own a native file leaf only; URL guests have an independent view-scoped lifetime. */ () => {
     const mount = mountRef.current;
@@ -194,8 +201,12 @@ export function CentralNodeEditor({
       if (!(event.target as Element).closest(".kplex-central-editor-toolbar")) controllerRef.current?.activate();
     }}
   >
+    <div className="kplex-central-editor-document">
     {useWebFrame && webTarget ? <EmbeddedWebPage target={webTarget} label={page.name || page.url || page.path} />
       : <div ref={mountRef} className="kplex-central-editor-leaf-host" />}
+    {status === "loading" && <div className="kplex-central-editor-status" aria-live="polite">{translate("centralEditor.loading")}</div>}
+    {status === "error" && <div className="kplex-central-editor-status is-error" role="status">{translate("centralEditor.unavailable")}</div>}
+    </div>
     <div className="kplex-central-editor-toolbar" role="toolbar" aria-labelledby={toolbarLabelId}>
       <span className="kplex-central-editor-title">{plugin.index.titleFor(page)}</span>
       <span id={toolbarLabelId} className="kplex-accessible-name">{translate("centralEditor.toolbar")}</span>
@@ -230,7 +241,5 @@ export function CentralNodeEditor({
         onClick={/** Use the graph's existing node actions and host destinations in both editor sizes. */ (event) => onOpenMenu(event.currentTarget)}
       ><ObsidianIcon name="ellipsis-vertical" size={12} /></TooltipButton>
     </div>
-    {status === "loading" && <div className="kplex-central-editor-status" aria-live="polite">{translate("centralEditor.loading")}</div>}
-    {status === "error" && <div className="kplex-central-editor-status is-error" role="status">{translate("centralEditor.unavailable")}</div>}
   </div>;
 }
