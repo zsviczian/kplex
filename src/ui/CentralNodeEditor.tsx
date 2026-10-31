@@ -225,7 +225,7 @@ export function CentralNodeEditor({
         type="button"
         label={translate("app.useNormalCentralNode")}
         onClick={onCollapse}
-      ><ObsidianIcon name="x" size={12} /></TooltipButton>
+      ><ObsidianIcon name="rectangle-ellipsis" size={12} /></TooltipButton>
       <TooltipButton type="button" label={translate("graph.openMenu")}
         onClick={/** Use the graph's existing node actions and host destinations in both editor sizes. */ (event) => onOpenMenu(event.currentTarget)}
       ><ObsidianIcon name="ellipsis-vertical" size={12} /></TooltipButton>
