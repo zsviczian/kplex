@@ -21,20 +21,22 @@ const delay=ms=>new Promise(resolve=>setTimeout(resolve,ms));
 let enabled=true;
 try{
   assert.equal(resolve(cli('vault','info=path')),target.vault);report.obsidian=cli('version');
-  assert(evaluate('(()=>{if(window.kplex240OldApi)throw Error("Existing API lifetime probe");window.kplex240OldApi=app.plugins.plugins["k-plex"].api.v1;return JSON.stringify({available:window.kplex240OldApi.ontology().ok})})()').available);
+  assert(evaluate('(()=>{if(window.kplex240OldApi)throw Error("Existing API lifetime probe");window.kplex240Popout=app.workspace.getLeaf("window");window.kplex240OldApi=window.kplexApi.v1;return JSON.stringify({available:window.kplex240OldApi.ontology().ok&&window.kplex240Popout.getContainer().win.kplexApi===window.kplexApi})})()').available);
   cli('plugin:disable','id=k-plex');enabled=false;await delay(500);
-  const retired=evaluate('JSON.stringify({status:window.kplex240OldApi.status(),ontology:window.kplex240OldApi.ontology(),query:window.kplex240OldApi.query({query:"{status{phase}}"}),configuration:window.kplex240OldApi.configuration.list(),portsReleased:window.kplex240OldApi.ports===null})');
+  const retired=evaluate('JSON.stringify({status:window.kplex240OldApi.status(),ontology:window.kplex240OldApi.ontology(),query:window.kplex240OldApi.query({query:"{status{phase}}"}),configuration:window.kplex240OldApi.configuration.list(),globalRemoved:!Object.hasOwn(window,"kplexApi")&&!Object.hasOwn(window.kplex240Popout.getContainer().win,"kplexApi"),portsReleased:window.kplex240OldApi.ports===null})');
   for(const name of ['status','ontology','query','configuration'])assert.equal(retired[name].error?.code,'API_UNAVAILABLE',name);
-  assert(retired.portsReleased);report.cases.push('retained API and configuration handles reject after unload and release host ports');
+  assert(retired.globalRemoved);assert(retired.portsReleased);report.cases.push('retained API and configuration handles reject after unload and release host ports');
   cli('plugin:enable','id=k-plex');enabled=true;
   let restored;const deadline=Date.now()+30000;
-  do{await delay(100);restored=evaluate('JSON.stringify((()=>{const root=app.plugins.plugins["k-plex"]?.api;return {version:root?.version,fresh:root?.v1!==window.kplex240OldApi,ontology:root?.v1.ontology(),old:window.kplex240OldApi.status()}})())');}while(!restored.ontology?.ok&&Date.now()<deadline);
-  assert.equal(restored.version,1);assert(restored.fresh&&restored.ontology.ok);assert.equal(restored.old.error?.code,'API_UNAVAILABLE');
-  report.cases.push('reload publishes a fresh versioned API with ontology while old handles remain retired');report.status='passed';
+  do{await delay(100);restored=evaluate('JSON.stringify((()=>{const root=window.kplexApi;return {same:root===app.plugins.plugins["k-plex"]?.api&&root===window.kplex240Popout.getContainer().win.kplexApi,version:root?.version,fresh:root?.v1!==window.kplex240OldApi,ontology:root?.v1.ontology(),old:window.kplex240OldApi.status()}})())');}while(!restored.ontology?.ok&&Date.now()<deadline);
+  assert(restored.same);assert.equal(restored.version,1);assert(restored.fresh&&restored.ontology.ok);assert.equal(restored.old.error?.code,'API_UNAVAILABLE');
+  report.cases.push('reload publishes a fresh versioned API in main and an existing popout while old handles remain retired');
+  const closed=evaluate('(async()=>{const win=window.kplex240Popout.getContainer().win;window.kplex240Popout.detach();window.kplex240Popout=null;const deadline=Date.now()+2000;while(Object.hasOwn(win,"kplexApi")&&Date.now()<deadline)await new Promise(resolve=>window.setTimeout(resolve,50));return JSON.stringify({removed:!Object.hasOwn(win,"kplexApi"),mainAvailable:window.kplexApi.v1.ontology().ok})})()');
+  assert(closed.removed&&closed.mainAvailable);report.cases.push('closing a native popout removes its alias while the main API remains available');report.status='passed';
 }catch(error){report.error=String(error);process.exitCode=1;}
 finally{
   try{
-    evaluate('delete window.kplex240OldApi;JSON.stringify({clean:true})');
+    evaluate('window.kplex240Popout?.detach();delete window.kplex240Popout;delete window.kplex240OldApi;JSON.stringify({clean:true})');
     if(!enabled)cli('plugin:enable','id=k-plex');await delay(2000);
     assert(readFileSync(join(target.pluginDir,'data.json')).equals(originalData),'Settings bytes');
     assert(readFileSync(join(target.config,'community-plugins.json')).equals(originalEnabled),'Enablement bytes');report.cleanup='passed';

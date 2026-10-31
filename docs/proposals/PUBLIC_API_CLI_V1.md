@@ -13,7 +13,7 @@ in the current references above.
 Make the semantic knowledge K-Plex *already* owns useful to trusted agents, scripts and other plugins: ontology meanings, reconciled graph relationships/evidence, and the **actual selected visual canvas**. Obsidian already handles Markdown CRUD; avoid duplicating it.
 
 ## Proposed public capability v1
-A single versioned, typed, discoverable plugin API (illustratively `app.plugins.plugins["k-plex"].api.v1`; validate the actual access convention, lifecycle and installed host types). Distinct from the existing internal `CANVAS_VIEW_API_VERSION`. Describe capabilities and return structured revision, coverage, truncation and errors.
+A single versioned, typed, discoverable API at `window.kplexApi.v1`, shared across the main window and popouts with plugin-owned cleanup. Distinct from the existing internal `CANVAS_VIEW_API_VERSION`. Describe capabilities and return structured revision, coverage, truncation and errors.
 
 ### Read operations
 1. **Ontology** works from loaded settings even before graph hydration: configured physical field names, role/direction, inverse pairing, descriptions, explicit syntax guidance and configured-vs-discovered distinction. Reuse the separate ontology-description PR's internal projection when merged. Agent-readable JSON/Markdown guide; do not invent meaning for undocumented fields.

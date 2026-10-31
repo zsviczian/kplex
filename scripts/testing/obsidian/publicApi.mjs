@@ -8,7 +8,8 @@ import {join} from 'node:path';
 
 /** Exercise independent committed canvases and bounded graph/configuration reads in Obsidian. */
 async function scenario(app,c){
-  const p=app.plugins.plugins['k-plex'],api=p?.api?.v1;
+  const p=app.plugins.plugins['k-plex'],api=window.kplexApi?.v1;
+  if(window.kplexApi!==p?.api)throw Error('Global and plugin API roots differ');
   if(!api||app.vault.getFiles().length>=1000||app.setting.isOpen)throw Error('Loaded disposable Small vault required');
   const settings=structuredClone(p.settings),policy=p.savedSettingsPolicy,layout=app.workspace.getLayout(),restores=[],hosts=[],cases=[];
   const work={reads:0,parses:0,acquisitions:0,rebuilds:0,semantic:0,allPages:0};
@@ -97,7 +98,8 @@ async function scenario(app,c){
     for(const key of Object.keys(work))check(work[key]===0,'Disabled configuration import caused '+key);
     cases.push('confirmed one-shot queued configuration import, disabled lens and durable readback');
     for(const restore of restores.splice(0).reverse())restore();
-    const popout=app.workspace.getLeaf('window');hosts.push(popout);await popout.setViewState({type:'k-plex-react-view',active:true});await popout.view.waitUntilReady();p.notifyNavigation(paths[0],popout);
+    const popout=app.workspace.getLeaf('window');hosts.push(popout);await popout.setViewState({type:'k-plex-react-view',active:true});await popout.view.waitUntilReady();
+    check(popout.getContainer().win.kplexApi===window.kplexApi,'Popout global API root differs');p.notifyNavigation(paths[0],popout);
     await until(()=>value(api.canvases()).some(row=>!previousCanvasIds.has(row.id)&&row.surface==='popout'&&row.root===paths[0]),'Popout public canvas absent');
     const remote=value(api.canvases()).find(row=>!previousCanvasIds.has(row.id)&&row.surface==='popout'&&row.root===paths[0]);await until(()=>snapshot(remote.id,paths[0]),'Popout committed frame absent');
     value(await api.selectView({canvasId:remote.id,viewId:'mindmap'}));await until(()=>value(api.canvases()).find(row=>row.id===remote.id)?.viewId==='mindmap','Popout view did not commit');
@@ -128,5 +130,5 @@ if(process.env.KPLEX_TEST_VAULT_NAME!=='kplex-test-small')throw Error('Explicit 
 const target=validateTarget({vaultName:process.env.KPLEX_TEST_VAULT_NAME,vaultPath:process.env.KPLEX_TEST_VAULT_PATH,configDir:process.env.KPLEX_TEST_CONFIG_DIR});
 await runControlledProbe('public-api-240',scenario,'c.originalData='+JSON.stringify(readFileSync(join(target.pluginDir,'data.json'),'utf8'))+';',[
   'src/main.ts','src/application/PublicApi.ts','src/application/PublicApiConfiguration.ts','src/application/PublicCanvasRegistry.ts',
-  'src/adapters/obsidian/publicApiGraphql.ts','src/publicApi/createPublicApi.ts','src/ui/App.tsx','src/ui/PlexGraph.tsx','src/ui/publicCanvasScene.ts',
+  'src/adapters/obsidian/publicApiGraphql.ts','src/adapters/obsidian/publicApiWindow.ts','src/publicApi/createPublicApi.ts','src/ui/App.tsx','src/ui/PlexGraph.tsx','src/ui/publicCanvasScene.ts',
 ]);

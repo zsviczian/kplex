@@ -1,17 +1,18 @@
 # Public K-Plex API, version 1
 
-K-Plex exposes its existing ontology, indexed relationships and open canvases to trusted local scripts and plugins. The entry point is the loaded plugin instance:
+K-Plex exposes its existing ontology, indexed relationships and open canvases to trusted local scripts and plugins. The entry point is `window.kplexApi`:
 
 ```js
-const plugin = app.plugins.plugins["k-plex"];
-const api = plugin?.api?.v1;
+const api = window.kplexApi?.v1;
 if (!api) throw new Error("K-Plex API v1 is unavailable");
 const capabilities = api.capabilities();
 ```
 
-Implementation status: draft PR #240 passes complete repository verification and exact-build Windows native acceptance. The [validation record](validation/public-api-cli-240-2026-10-30.md) records results, hashes and remaining platform limits. The original [implementation brief](proposals/PUBLIC_API_CLI_V1.md) records scope and delivery gates. The PR remains draft and unmerged.
+Implementation status: draft PR #240 has earlier complete repository verification and subsequent focused Windows native acceptance. The [original validation record](validation/public-api-cli-240-2026-10-30.md) and [main refresh checkpoint](validation/public-api-cli-240-refresh-2026-10-31.md) distinguish tested revisions, results, hashes and remaining platform limits. The original [implementation brief](proposals/PUBLIC_API_CLI_V1.md) records scope and delivery gates. The PR remains draft and unmerged.
 
-`plugin.api.version` is `1`; `plugin.api.versions` lists supported versions. This protocol is independent of the internal [Canvas-view API](CANVAS_VIEW_API.md). The community-plugin registry is Obsidian's host access convention, not a portable dependency for K-Plex application code. Reacquire the API after plugin reload. Retained old handles return `API_UNAVAILABLE` and release their host capabilities.
+The [window entry-point checkpoint](validation/public-api-window-240-2026-10-31.md) records focused validation and native main/popout reload acceptance for `window.kplexApi`.
+
+`window.kplexApi.version` is `1`; `window.kplexApi.versions` lists supported versions. This protocol is independent of the internal [Canvas-view API](CANVAS_VIEW_API.md). The same frozen API root is available in the main window and existing or newly opened popouts. Closing a popout removes its alias; plugin unload removes all owned aliases. `app.plugins.plugins["k-plex"].api` remains an alias for existing callers. Reacquire the API after plugin reload. Retained old handles return `API_UNAVAILABLE` and release their host capabilities.
 
 The API runs locally inside Obsidian. It creates no HTTP server, MCP server or network listener. It is a trusted automation interface, not a sandbox: an Obsidian `eval` caller already has host privileges. Markdown creation and editing remain with Obsidian; this API supplies no note or relationship CRUD.
 
