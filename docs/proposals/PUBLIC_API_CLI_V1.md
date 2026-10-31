@@ -1,11 +1,11 @@
 # K-Plex public API and CLI v1 — implementation brief
 
-**Implemented on draft PR #240; complete repository verification and exact-build Windows native acceptance pass.** The [validation record](../validation/public-api-cli-240-2026-10-30.md) records results and remaining platform limits. This brief preserves the original scope and delivery gates. The implemented access convention, operation contracts, bounds and CLI usage are documented in the [public API reference](../PUBLIC_API.md) and [CLI guide](../CLI.md). Baseline scope began at K-Plex 0.3.1 `main@9e203ed`; the existing PR branch has since been refreshed and includes the ontology-description dependency. Related [#132](https://github.com/zsviczian/kplex/issues/132). The PR remains draft; merge requires maintainer authorization.
+**Implemented in PR #240; complete repository verification and exact-build Windows native acceptance pass.** The [validation record](../validation/public-api-cli-240-2026-10-30.md) records results and remaining platform limits. This brief preserves the original scope and delivery gates. The implemented access convention, operation contracts, bounds and CLI usage are documented in the [public API reference](../PUBLIC_API.md) and [CLI guide](../CLI.md). Baseline scope began at K-Plex 0.3.1 `main@9e203ed`; the existing PR branch has since been refreshed and includes the ontology-description dependency. Related [#132](https://github.com/zsviczian/kplex/issues/132).
 
-Exporter status: PR #237 has merged, and draft #240 integrates its existing committed-scene
+Exporter status: PR #237 has merged, and #240 integrates its existing committed-scene
 capture and Mind Map Markdown formatter through `api.v1.exportMarkdown`. This read-only operation
 returns Markdown, warnings and canvas identity/revision; it performs no clipboard or file-save
-action. Image export PR #238 remains unmerged and its API integration stays deferred. The gates
+action. The shared native image exporter is integrated through merged PR #239; image export through the public API remains deferred. The gates
 below remain the original specification; implemented details, acceptance and platform limits are tracked
 in the current references above.
 

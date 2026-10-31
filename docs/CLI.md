@@ -2,7 +2,7 @@
 
 Obsidian CLI `eval` calls the [public K-Plex API](PUBLIC_API.md) inside the running application. Enable and register Obsidian's CLI using [Obsidian's official setup](https://help.obsidian.md/cli), keep the intended vault open, and address that vault explicitly. K-Plex does not register parameterized `obsidian kplex:*` commands or ship a separate executable wrapper.
 
-Draft PR #240 passes complete repository verification and exact-build Windows CLI acceptance. The [validation record](validation/public-api-cli-240-2026-10-30.md) records the results and remaining macOS, minimum-host and physical-device limits. The PR remains draft and unmerged.
+The API introduced in PR #240 has complete repository verification and exact-build Windows CLI acceptance. The [validation record](validation/public-api-cli-240-2026-10-30.md) records the results and remaining macOS, minimum-host and physical-device limits.
 
 First verify the destination:
 

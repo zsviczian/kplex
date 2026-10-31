@@ -8,7 +8,7 @@ if (!api) throw new Error("K-Plex API v1 is unavailable");
 const capabilities = api.capabilities();
 ```
 
-Implementation status: draft PR #240 has earlier complete repository verification and subsequent focused Windows native acceptance. The [original validation record](validation/public-api-cli-240-2026-10-30.md) and [main refresh checkpoint](validation/public-api-cli-240-refresh-2026-10-31.md) distinguish tested revisions, results, hashes and remaining platform limits. The original [implementation brief](proposals/PUBLIC_API_CLI_V1.md) records scope and delivery gates. The PR remains draft and unmerged.
+The API introduced in PR #240 has earlier complete repository verification and subsequent focused Windows native acceptance. The [original validation record](validation/public-api-cli-240-2026-10-30.md) and [main refresh checkpoint](validation/public-api-cli-240-refresh-2026-10-31.md) distinguish tested revisions, results, hashes and remaining platform limits. The original [implementation brief](proposals/PUBLIC_API_CLI_V1.md) records scope and delivery gates.
 
 The [window entry-point checkpoint](validation/public-api-window-240-2026-10-31.md) records focused validation and native main/popout reload acceptance for `window.kplexApi`.
 
@@ -122,7 +122,7 @@ assuming a lossless or exhaustive export. Structural/unsupported outlines and sy
 targets may be omitted or converted with warnings. The common API output budget still applies,
 even though the standalone formatter allows a larger output. The [Mind Map export contract](proposals/MINDMAP_MARKDOWN_EXPORT.md)
 documents Builder compatibility, ordering, links and formatter limits. This integration's full
-repository and exact-build Windows native validation pass with the rest of draft PR #240.
+repository and exact-build Windows native validation pass with the rest of PR #240.
 
 The outer envelope carries `revision.canvas`, and reports `truncated: true` when the formatter
 reports omitted or partial content. `requireComplete: true` requires current scope coverage and

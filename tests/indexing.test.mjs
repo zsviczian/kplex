@@ -421,6 +421,7 @@ for (const file of [
   "src/application/publicApiMarkdown.ts",
   "src/adapters/obsidian/publicApiGraph.ts",
   "src/adapters/obsidian/publicApiGraphql.ts",
+  "src/adapters/obsidian/publicApiWindow.ts",
   "src/publicApi/createPublicApi.ts",
   "src/application/PlexViewSession.ts",
   "src/application/PlexEditorBindings.ts",

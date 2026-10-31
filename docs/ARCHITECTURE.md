@@ -82,7 +82,7 @@ Optional section snapshots adapt the existing explicit `SectionExpansion` owner 
 
 ## Trusted public API and CLI
 
-Draft PR #240 composes a versioned local automation API without resuming C15–C26. Its
+PR #240 composes a versioned local automation API without resuming C15–C26. Its
 [reference](PUBLIC_API.md), [CLI guide](CLI.md) and [original brief](proposals/PUBLIC_API_CLI_V1.md)
 distinguish implemented contracts from platform acceptance. Complete repository verification and
 exact-build Windows native validation pass; remaining environment limits are recorded in the
@@ -130,8 +130,9 @@ Mind Map scene/filter lifetime and invokes those same services for whole-map or 
 subtree output. It returns formatter bytes/warnings with canvas identity/revision, without
 clipboard, save, source acquisition, branch expansion or a second layout/traversal engine. Current
 filters/folds constrain scope; offscreen constructed rows remain eligible. The public output cap
-still applies. Image export remains deferred until the independent shared exporter PR #238 merges;
-this API introduces no image capture engine. Final full/native acceptance for PR #240 remains pending.
+still applies. The native image exporter is integrated through merged PR #239; public API image export remains deferred.
+This API introduces no image capture engine. Validation history and platform limits are recorded in the
+[API validation report](validation/public-api-window-240-2026-10-31.md).
 
 ## Action dispatch boundary
 
