@@ -1,11 +1,13 @@
-/** Actual focal-point fit math, graph camera/layout callbacks and native drawing fit lifetimes. */
+/** Actual focal-point fit math, graph camera/layout callbacks and native drawing fit lifetimes.
+ * Detached transform fixtures use the real camera-motion owner without a browser window;
+ * compositor leases and their disposal have separate real-Chromium coverage. */
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import {readFileSync} from 'node:fs';
 import ts from 'typescript';
 import {loadPortableModules} from './support/portableTypeScript.mjs';
-const {exports: {centeredViewportFit, sameFitCamera, EmbeddedDrawingFit, centerArrivalFrames, hasClickModifier, edgeViewportEndpoints, branchDisclosureReserve, edgeViewportClip, revealRowScrollTop, editorToolbarInsets}} = loadPortableModules([
-  'src/ui/components/viewportFit.ts', 'src/adapters/obsidian/EmbeddedDrawingFit.ts', 'src/ui/components/centerArrival.ts', 'src/ui/components/modifierClick.ts', 'src/ui/plexViews/areaVisibility.ts', 'src/ui/plexViews/branchDisclosure.ts']);
+const {exports: {centeredViewportFit, sameFitCamera, EmbeddedDrawingFit, centerArrivalFrames, hasClickModifier, edgeViewportEndpoints, branchDisclosureReserve, edgeViewportClip, revealRowScrollTop, editorToolbarInsets, CameraMotion}} = loadPortableModules([
+  'src/ui/components/viewportFit.ts', 'src/adapters/obsidian/EmbeddedDrawingFit.ts', 'src/ui/components/centerArrival.ts', 'src/ui/components/modifierClick.ts', 'src/ui/plexViews/areaVisibility.ts', 'src/ui/plexViews/branchDisclosure.ts', 'src/ui/components/CameraMotion.ts']);
 const source=ts.createSourceFile('graph.tsx',readFileSync('src/ui/PlexGraph.tsx','utf8'),ts.ScriptTarget.Latest,true,ts.ScriptKind.TSX);
 
 /** Run production callbacks with explicit finite composition dependencies, without a second policy. */
@@ -47,6 +49,7 @@ test('a cold rooted map fits its first prepared local cover once without claimin
 function graphFixture() {
   const ctx={camera:{current:{x:0,y:0,scale:1}},automaticFit:{current:null},activePath:'Center.md',rooted:false,
     committedCamera:{current:{x:0,y:0,scale:1}},cameraFlushRevision:{current:0},publishPublicScene:{current:()=>{}},
+    cameraMotion:{current:new CameraMotion()},
     cameraIntentPlaced:{current:false},
     previousCameraViewport:{current:null},boundEditorBinding:undefined,
     centralEditorOverlayElement:{current:null},cameraWritePending:{current:false},compassCenter:{current:null},compassSync:{current:()=>false},requestCameraFrame:()=>{},
@@ -64,7 +67,7 @@ function graphFixture() {
 }
 
 test('camera publication observes the written DOM transform and copied committed coordinates before later intent',()=>{
- const ctx=graphFixture(),published=[];ctx.cameraElement.current={style:{transform:''}};
+ const ctx=graphFixture(),published=[];ctx.cameraElement.current={style:{transform:''},ownerDocument:{defaultView:null}};
  ctx.publishPublicScene.current=()=>published.push({transform:ctx.cameraElement.current.style.transform,camera:{...ctx.committedCamera.current},revision:ctx.cameraFlushRevision.current});
  ctx.applyCamera({x:75,y:-20,scale:1.5});assert.equal(published.length,0);assert.deepEqual(ctx.committedCamera.current,{x:0,y:0,scale:1});
  ctx.flushCameraTransform();assert.deepEqual(published,[{transform:'translate(75px, -20px) scale(1.5)',camera:{x:75,y:-20,scale:1.5},revision:1}]);
