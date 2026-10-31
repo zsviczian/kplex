@@ -6,7 +6,7 @@ import {Setting, type App, type ButtonComponent, type EventRef, type ToggleCompo
 import {StyleEditorModal, appendIcon} from "../StyleEditorModal";
 import {numberSlider} from "../numberSlider";
 import {ClipboardSession} from "../../application/ClipboardSession";
-import {artifactFilename} from "../../core/plex/export/artifactFilename";
+import {suggestedArtifactFilename} from "../../core/plex/export/artifactFilename";
 import {pngClipboardWriter, canSavePng, savePng} from "../../adapters/obsidian/pngExport";
 import {captureCanvasImage, type CanvasImageSnapshot} from "./canvasImageSnapshot";
 import {renderCanvasPng, type CanvasPng, type CanvasImageScope} from "./canvasImage";
@@ -25,6 +25,7 @@ export class CanvasImageExportModal extends StyleEditorModal {
   private output: CanvasPng | null = null;
   private clipboard: ClipboardSession<Blob> | null = null;
   private preview: HTMLImageElement | null = null;
+  private previewContainer: HTMLElement | null = null;
   private previewUrl: string | null = null;
   private status: HTMLElement | null = null;
   private details: HTMLElement | null = null;
@@ -52,7 +53,7 @@ export class CanvasImageExportModal extends StyleEditorModal {
       if (this.snapshot) return;
       this.styleChanged = true;this.capture.abort();this.raster?.abort();this.fail(new CanvasImageError("retired"));
     });
-    this.setTitle(this.translate("export.image.title"));this.modalEl.addClass("kplex-canvas-image-export", "kplex-export-modal");
+    this.setTitle(this.translate("export.image.title"));this.modalEl.addClass("kplex-canvas-image-export");
     const {body, actions} = this.scrollableContent();body.createEl("p", {text: this.translate("export.image.help")});
     new Setting(body).setName(this.translate("export.image.scope")).addDropdown(/** Scope reuses the same immutable captured presentation. */ dropdown => dropdown
       .addOption("canvas", this.translate("export.image.canvas")).addOption("viewport", this.translate("export.image.viewport"))
@@ -67,13 +68,10 @@ export class CanvasImageExportModal extends StyleEditorModal {
       format: /** Keep the permanent output independent of delayed raster completion. */ value => `${value}×`,
       isCurrent: /** Retired sliders cannot restart image work. */ () => this.canEdit(),
       onChange: /** The shared latest-value owner coalesces pending numeric gestures. */ async value => {this.scale = value;await this.renderPreview();}});
-    this.preview = body.createEl("img", {cls: "kplex-image-export-preview", attr: {alt: this.translate("export.image.preview")}});
+    this.previewContainer = body.createDiv({cls: "markdown-rendered"}).createDiv({cls: "image-embed"});
     this.details = body.createDiv({cls: "setting-item-description"});this.warnings = body.createDiv({cls: "setting-item-description"});
     this.status = body.createDiv({attr: {role: "status", "aria-live": "polite"}});
-    new Setting(body).setName(this.translate("export.image.filename")).addText(/** Suggested filename only; the system owns its destination. */ text => {
-      const stem = this.options.name.replace(/[\\/:*?"<>|#[\]\r\n]/g, " ").trim().slice(0, 100) || this.translate("export.image.filenameStem");
-      this.filename = `${stem}.png`;text.inputEl.maxLength = 200;text.setValue(this.filename).onChange(/** No filesystem operation occurs while editing. */ value => {this.filename = value;if (this.output) this.status?.empty();});
-    });
+    this.filename = suggestedArtifactFilename(this.options.name || this.translate("export.image.filenameStem"), "png");
     new Setting(actions).setClass("kplex-modal-action-row")
       .addButton(/** Encoding completes before this button can acquire clipboard activation. */ button => {this.copyButton = button;button.setButtonText(this.translate("export.image.copy")).setDisabled(true).onClick(/** The writer starts in this trusted handler turn. */ () => this.copy());appendIcon(button.buttonEl, "copy");})
       .addButton(/** Save uses exactly the encoded preview, never another scene read. */ button => {this.saveButton = button;button.setButtonText(this.translate("export.image.save")).setCta().setDisabled(true).onClick(/** Explicit native handoff remains independently guarded. */ () => {void this.save();});appendIcon(button.buttonEl, "save");})
@@ -102,8 +100,9 @@ export class CanvasImageExportModal extends StyleEditorModal {
         current: /** A late raster cannot revive a newer crop or a migrated/changed source. */ () => generation === this.generation && this.current()});
       if (generation !== this.generation || !this.current()) return;
       this.releasePreview();this.output = result;
-      const owner = this.modalEl.ownerDocument.defaultView;if (!owner || !this.preview) return;
-      this.previewUrl = owner.URL.createObjectURL(result.blob);this.preview.src = this.previewUrl;this.preview.toggleClass("is-transparent", result.transparentBackground);
+      const owner = this.modalEl.ownerDocument.defaultView;if (!owner || !this.previewContainer) return;
+      this.preview ??= this.previewContainer.createEl("img", {attr: {alt: this.translate("export.image.preview")}});
+      this.previewUrl = owner.URL.createObjectURL(result.blob);this.preview.src = this.previewUrl;
       this.details?.setText(this.translate("export.image.dimensions", {width: result.width, height: result.height}));this.warnings?.empty();
       for (const key of ["scroll", "media", "fonts"] as const) if (this.snapshot.warnings[key]) this.warnings?.createEl("p", {text: this.translate(key === "scroll" ? "export.image.clip" : `export.image.${key}`)});
       if (result.reduced) this.warnings?.createEl("p", {text: this.translate("export.image.reduced")});
@@ -131,7 +130,7 @@ export class CanvasImageExportModal extends StyleEditorModal {
     if (!this.output || this.saving) return;this.clipboard?.dispose();
     this.clipboard = new ClipboardSession(this.output.blob, pngClipboardWriter(this.modalEl.ownerDocument));
     this.clipboard.listen(/** Closing or replacing the preview retires this exact payload's feedback. */ state => {
-      this.copyButton?.setDisabled(state === "copying");if (state === "copied" || state === "failed") this.status?.setText(this.translate(state === "copied" ? "export.image.copied" : "export.image.copyFailed"));
+      this.clipboardFeedback(state, this.copyButton, this.status, this.translate("export.image.copied"), this.translate("export.image.copyFailed"));
     });this.clipboard.copy();
   }
 
@@ -139,12 +138,11 @@ export class CanvasImageExportModal extends StyleEditorModal {
   private async save(): Promise<void> {
     if (!this.current()) {this.fail(new CanvasImageError("retired"));return;}
     if (!this.output || this.saving) return;
-    const filename = artifactFilename(this.filename, "png");if (!filename) {this.status?.setText(this.translate("export.image.invalidFilename"));return;}
     const controls = Array.from(this.contentEl.querySelectorAll<HTMLInputElement | HTMLSelectElement | HTMLButtonElement>("input, select, button"));
     const disabled = controls.map(/** Preserve pre-existing capability/clipboard exclusions. */ control => control.disabled);
     for (const control of controls) if (control.textContent !== this.translate("common.cancel")) control.disabled = true;
     this.saving = true;this.backgroundControl?.setDisabled(true);
-    try {await savePng(this.modalEl.ownerDocument, filename, this.output.blob, /** A retired source cannot start another system handoff. */ () => this.current());if (this.current()) this.status?.setText(this.translate("export.image.handedOff"));}
+    try {await savePng(this.modalEl.ownerDocument, this.filename, this.output.blob, /** A retired source cannot start another system handoff. */ () => this.current());if (this.current()) this.status?.setText(this.translate("export.image.handedOff"));}
     catch (error: unknown) {if (this.current() && !(typeof error === "object" && error !== null && "name" in error && error.name === "AbortError")) this.status?.setText(this.translate("export.image.saveFailed"));}
     finally {this.saving = false;if (this.current()) {this.backgroundControl?.setDisabled(false);controls.forEach(/** Detached controls cannot be revived by a share-sheet completion. */ (control, index) => {control.disabled = disabled[index];});}}
   }

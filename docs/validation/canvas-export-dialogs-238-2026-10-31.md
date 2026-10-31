@@ -1,5 +1,7 @@
 # Export dialog follow-up — PR #238
 
+The [shared native-controls follow-up](canvas-export-native-controls-238-2026-10-31.md) removes filename fields and export-specific CSS, and changes successful Copy to close with an Obsidian Notice. The evidence below describes the preceding UI.
+
 ## Changes
 
 Runtime checkpoint: `d8f6e8a379f6eb8bc488b8040bc35f0dd407968b`, on the existing `2026-10-30-canvas-image-export` branch.

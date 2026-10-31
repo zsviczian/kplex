@@ -4,11 +4,12 @@
  * handoff, and the existing native editor shell retires dialogs on window migration.
  * No source note, canvas state, index or settings writer is exposed to this shell.
  */
-import {Setting, type App, type ButtonComponent} from "obsidian";
+import {Setting, TextAreaComponent, type App, type ButtonComponent} from "obsidian";
 import {StyleEditorModal, appendIcon} from "../StyleEditorModal";
 import {ClipboardSession} from "../../application/ClipboardSession";
 import {exportMindMapMarkdown, type MindMapMarkdownResult, type MindMapMarkdownSnapshot} from "../../core/plex/export/mindMapMarkdown";
-import {markdownExportFilename, exportMarkdownFile, canExportMarkdownFile} from "../../adapters/obsidian/markdownExportFile";
+import {suggestedArtifactFilename} from "../../core/plex/export/artifactFilename";
+import {exportMarkdownFile, canExportMarkdownFile} from "../../adapters/obsidian/markdownExportFile";
 
 export type MindMapMarkdownModalOptions = Readonly<{
   snapshot: MindMapMarkdownSnapshot; selected?: string; sourceScope: HTMLElement;
@@ -34,7 +35,7 @@ export class MindMapMarkdownModal extends StyleEditorModal {
   onOpen(): void {
     this.beginEditor(this.options.sourceScope);
     this.setTitle(this.translate("export.markdown.title"));
-    this.modalEl.addClass("kplex-mindmap-markdown-export", "kplex-export-modal");
+    this.modalEl.addClass("kplex-mindmap-markdown-export");
     const {body, actions} = this.scrollableContent();
     const help = body.createEl("p"), marker = "\uFFFC";
     const [before, after] = this.translate("export.markdown.help", {builder: marker}).split(marker);
@@ -49,17 +50,12 @@ export class MindMapMarkdownModal extends StyleEditorModal {
         .addOption(selected, this.translate("export.markdown.branch"))
         .onChange(/** A different scope retires the previous immutable clipboard attempt. */ id => this.refresh(id)));
     this.warningList = body.createDiv({cls: "setting-item-description", attr: {role: "status"}});
-    this.preview = body.createEl("textarea", {cls: "kplex-package-source", attr: {rows: "10", spellcheck: "false", "aria-label": this.translate("export.markdown.preview")}});
+    this.preview = new TextAreaComponent(body).inputEl;this.preview.addClass("kplex-package-source");
+    this.preview.rows = 10;this.preview.spellcheck = false;this.preview.setAttribute("aria-label", this.translate("export.markdown.preview"));
     this.preview.readOnly = true;
     this.status = body.createDiv({attr: {role: "status", "aria-live": "polite"}});
-    new Setting(body).setName(this.translate("export.markdown.destination")).setDesc(this.translate("export.markdown.destinationHelp"))
-      .addText(/** The system save/share UI selects the destination; this field supplies its suggested filename. */ text => {
-        const rootLabel = this.options.snapshot.nodes.find(/** The captured root supplies only a suggested filename. */ node => node.id === this.options.snapshot.root)?.label ?? this.translate("view.mindmap");
-        const stem = rootLabel.replace(/[\\/:*?"<>|#[\]\r\n]/g, " ").trim().slice(0, 100) || this.translate("view.mindmap");
-        this.filename = `${stem} - ${this.translate("export.markdown.filename")}.md`;
-        text.inputEl.maxLength = 200;
-        text.setValue(this.filename).onChange(/** Editing a filename performs no native operation. */ value => {this.filename = value;this.clearStatus();});
-      });
+    const rootLabel = this.options.snapshot.nodes.find(/** Captured root labels suggest a name only to the native save dialog. */ node => node.id === this.options.snapshot.root)?.label ?? this.translate("view.mindmap");
+    this.filename = suggestedArtifactFilename(`${rootLabel} - ${this.translate("export.markdown.filename")}`, "md");
     new Setting(actions).setClass("kplex-modal-action-row")
       .addButton(/** Copy starts synchronously in the native button handler. */ button => {this.copyButton = button;button.setButtonText(this.translate("export.markdown.copy")).onClick(/** Retain owning-document clipboard activation. */ () => this.copy());appendIcon(button.buttonEl, "copy");})
       .addButton(/** Save uses the same exact bytes shown in the read-only preview. */ button => {this.saveButton = button;button.setButtonText(this.translate("export.markdown.save")).setCta().onClick(/** Explicit output persistence never navigates the canvas. */ () => {void this.save();});appendIcon(button.buttonEl, "save");})
@@ -84,7 +80,7 @@ export class MindMapMarkdownModal extends StyleEditorModal {
     }
   }
 
-  /** A changed filename or scope retires previous feedback. */
+  /** A changed scope retires previous feedback. */
   private clearStatus(): void {
     this.status?.empty();
   }
@@ -99,8 +95,7 @@ export class MindMapMarkdownModal extends StyleEditorModal {
     const owner = this.modalEl.ownerDocument.defaultView;
     this.clipboard = new ClipboardSession(this.result.markdown, owner?.navigator.clipboard?.writeText ? /** Native clipboard ownership follows this modal's window. */ text => owner.navigator.clipboard.writeText(text) : null);
     this.clipboard.listen(/** Closing retires this listener before a late clipboard promise settles. */ state => {
-      this.copyButton?.setDisabled(state === "copying");
-      if (state === "copied" || state === "failed") this.status?.setText(this.translate(state === "copied" ? "export.markdown.copied" : "export.markdown.copyFailed"));
+      this.clipboardFeedback(state, this.copyButton, this.status, this.translate("export.markdown.copied"), this.translate("export.markdown.copyFailed"));
     });
     this.clipboard.copy();
   }
@@ -108,14 +103,12 @@ export class MindMapMarkdownModal extends StyleEditorModal {
   /** Hand the exact preview bytes to Obsidian's native system save/share flow once per click. */
   private async save(): Promise<void> {
     if (!this.current() || !this.result || this.saving) {this.status?.setText(this.translate("export.markdown.stale"));return;}
-    const filename = markdownExportFilename(this.filename);
-    if (!filename) {this.status?.setText(this.translate("export.markdown.invalidPath"));return;}
     this.saving = true;
     const controls = Array.from(this.contentEl.querySelectorAll<HTMLInputElement | HTMLSelectElement | HTMLButtonElement>("input, select, button"));
     const disabled = controls.map(/** Restore pre-existing clipboard/validation state after handoff. */ control => control.disabled);
     for (const control of controls) control.disabled = true;
     try {
-      await exportMarkdownFile(this.app, filename, this.result.markdown, /** A retired capture cannot begin another native handoff. */ () => this.current());
+      await exportMarkdownFile(this.app, this.filename, this.result.markdown, /** A retired capture cannot begin another native handoff. */ () => this.current());
       if (this.current()) this.status?.setText(this.translate("export.markdown.saveHandedOff"));
     } catch {if (this.current()) this.status?.setText(this.translate("export.markdown.saveFailed"));}
     finally {

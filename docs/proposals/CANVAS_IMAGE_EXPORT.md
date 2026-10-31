@@ -6,14 +6,16 @@ PR #238 uses the existing branch, refreshed after merging #237 (`f99aa39`). Nati
 
 Compass, Mind Map and Facets offer **Export image** in the canvas toolbar, canvas context menu and command palette. The stable published command is `kplex-export-canvas-png`; the internal action is `view.export.image`.
 
-The native dialog previews the prepared PNG and offers **Copy PNG** and **Save PNG**, a filename, 1×/2×/3× resolution, **Transparent background**, and two explicit scopes:
+The native dialog previews the prepared PNG and offers **Copy PNG** and **Save PNG**, 1×/2×/3× resolution, **Transparent background**, and two explicit scopes:
 
 - **Whole canvas** (default): existing painted scene bounds, including content outside the camera viewport, with crop padding.
 - **Current viewport**: the current canvas framing, excluding surrounding Obsidian controls.
 
-Transparent output removes the canvas background and Compass tint while retaining node, connector and Facets region styling. Its preview shows a checkerboard; the saved/copied PNG contains alpha pixels.
+Transparent output removes the canvas background and Compass tint while retaining node, connector and Facets region styling. The saved/copied PNG contains alpha pixels.
 
 Both scopes preserve filters, collapsed branches, current styles, decoded thumbnails, SVG connectors/labels, Compass tint and Facets regions. Whole canvas retains internal scrolling areas' current clip and scroll position; hidden rows are not unrolled. The dialog warns when scrolling areas contain additional hidden content. Neither scope expands branches or constructs a different graph.
+
+Both export dialogs reuse `StyleEditorModal`, Obsidian `Setting` controls and the shared clipboard-success feedback handler. There are no export-specific layout or preview CSS rules. Markdown uses Obsidian `TextAreaComponent` with the existing shared source-preview style; PNG uses native `markdown-rendered` / `image-embed` markup. Successful copy closes the modal and displays an Obsidian `Notice`; failure leaves the modal open. Filenames are suggested only to the native save dialog, where the user can edit them.
 
 Desktop save hands the prepared PNG to the native download destination flow. Mobile save uses file sharing only when the host advertises that capability; otherwise it is unavailable. Copy is similarly capability-detected. Success text distinguishes system handoff from a confirmed file write.
 

@@ -48,6 +48,7 @@ test('an early native timeout retains limit ownership before the wall-clock dead
 
 test('PNG filenames are destination-independent and share Markdown safety without rewriting source paths',()=>{
  for(const name of ['../map','/map','map/a','map\\a','map:bad','map\nfile'])assert.equal(api.artifactFilename(name,'png'),null);
+ assert.equal(api.suggestedArtifactFilename('A/B: C\tD','png'),'A B  C D.png');assert.equal(api.suggestedArtifactFilename('','md'),'export.md');
  assert.equal(api.artifactFilename('Ideas','png'),'Ideas.png');assert.equal(api.artifactFilename('Ideas.PNG','png'),'Ideas.PNG');assert.equal(api.artifactFilename('Ideas','md'),'Ideas.md');
 });
 
