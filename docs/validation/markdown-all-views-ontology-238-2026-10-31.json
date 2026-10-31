@@ -1,0 +1,500 @@
+{
+  "scope": "PR238 all-view Markdown ontology and preview follow-up",
+  "finalNativeMarkdown": {
+    "name": "mindmap-markdown-export-237",
+    "status": "passed",
+    "node": "v22.22.2",
+    "obsidian": "1.15.0 (installer 1.14.0)",
+    "artifacts": {
+      "main.js": "48ea4e4b6a9f19163940b045240ae8a61ae47a73b4cba37b366bc9053c288bfe",
+      "manifest.json": "2822c38463c03ace4f017453679572d462534ce2a9c9558fd7593f259b01bfa1",
+      "styles.css": "283377bded131545f57adf5f4730a4697203bf2fca66d6f17eb066d9bf32d65a"
+    },
+    "source": {
+      "src/index/GraphBuilder.ts": "b4ff3bc6298c1d30c58aa15a47d2636b8e32a33f1ff4c225ce2848534567cab8",
+      "src/index/GraphIndex.ts": "ffa6d9214058a4c198d5d64981542b54087e168635885beac9a3f2c08a4fcd2c",
+      "src/core/graph/compiler.ts": "ee403bd86870137e7ea769dfb5c5c7cfa27e08ad768b1815bef47eab9732bd4f",
+      "src/core/plex/export/mindMapMarkdown.ts": "65ed38a87444340c5c9e09495c1c5d1179e5351680c56c94752a0336c3bc6403",
+      "src/ui/export/captureMindMapMarkdown.ts": "cee713d5aa6da08527b0bcdb0403ec4dda72e056167e0389f351420fc2c510db",
+      "src/ui/export/MindMapMarkdownModal.ts": "4ed103756248d45e7fee4e3e97625147e14d79af190ae7b62beb79804232c57f",
+      "src/adapters/obsidian/markdownExportFile.ts": "67eb968605a3962517ebe810473cf3dee205862c3594ee22f0939938f4e3ed50",
+      "src/ui/PlexGraph.tsx": "a431efac2dccf42bcfb248db8670bfff62b24936ca555e5edffd7465c736277d"
+    },
+    "result": {
+      "cases": [
+        {
+          "id": "central-menu-preview-copy-zero-source-work",
+          "counts": {
+            "reads": 0,
+            "parses": 0,
+            "acquisitions": 0,
+            "rebuilds": 0,
+            "semanticRefreshes": 0
+          }
+        },
+        {
+          "id": "native-save-download-exact-bytes-zero-vault-work",
+          "counts": {
+            "reads": 0,
+            "parses": 0,
+            "acquisitions": 0,
+            "rebuilds": 0,
+            "semanticRefreshes": 0
+          },
+          "coordinatorChecks": 0,
+          "systemDestinationPicker": "Probe selected an owned temporary destination through the real DownloadItem; OS picker/overwrite UI was not automated"
+        },
+        {
+          "id": "native-collapsed-selected-subtree-preview"
+        },
+        {
+          "id": "native-filtered-hierarchy-preview"
+        },
+        {
+          "id": "native-command-palette-publication-and-execution"
+        },
+        {
+          "id": "all-canvas-ontology-options-copy",
+          "view": "classic",
+          "counts": {
+            "reads": 0,
+            "parses": 0,
+            "acquisitions": 0,
+            "rebuilds": 0,
+            "semanticRefreshes": 0
+          },
+          "visible": "# [[R.md|R]]\n\n- [[B.md|B]] [[#^kp000001|*]] [[#^kp000002|*]]\n\n- [[A.md|A]] ^kp000001\n\n  - [[B.md|B]]\n\n- [[C.md|C]] ^kp000002\n\n  - [[B.md|B]]\n",
+          "all": "# [[R.md|R]]\n\n- child:: [[B.md|B]] (child:: [[#^kp000001|*]]) (child:: [[#^kp000002|*]])\n\n- child:: [[A.md|A]] ^kp000001\n\n  - child:: [[B.md|B]]\n\n- child:: [[C.md|C]] ^kp000002\n\n  - child:: [[B.md|B]]\n"
+        },
+        {
+          "id": "all-canvas-ontology-options-copy",
+          "view": "wuxing",
+          "counts": {
+            "reads": 0,
+            "parses": 0,
+            "acquisitions": 0,
+            "rebuilds": 0,
+            "semanticRefreshes": 0
+          },
+          "visible": "# [[R.md|R]]\n\n- [[B.md|B]] [[#^kp000001|*]] [[#^kp000002|*]]\n\n- [[A.md|A]] ^kp000001\n\n- [[C.md|C]] ^kp000002\n",
+          "all": "# [[R.md|R]]\n\n- child:: [[B.md|B]] (child:: [[#^kp000001|*]]) (child:: [[#^kp000002|*]])\n\n- child:: [[A.md|A]] ^kp000001\n\n- child:: [[C.md|C]] ^kp000002\n"
+        },
+        {
+          "id": "all-canvas-ontology-options-copy",
+          "view": "mindmap",
+          "counts": {
+            "reads": 0,
+            "parses": 0,
+            "acquisitions": 0,
+            "rebuilds": 0,
+            "semanticRefreshes": 0
+          },
+          "visible": "# [[R.md|R]] ^kp000001\n\n- [[A.md|A]] [[#^kp000002|*]]\n\n- [[B.md|B]] [[#^kp000001|*]] ^kp000002\n\n- [[C.md|C]]\n\n  - [[B.md|B]] [[#^kp000001|*]]\n",
+          "all": "# [[R.md|R]] ^kp000001\n\n- child:: [[A.md|A]] (child:: [[#^kp000002|*]])\n\n- child:: [[B.md|B]] (child:: [[#^kp000001|*]]) ^kp000002\n\n- child:: [[C.md|C]]\n\n  - child:: [[B.md|B]] (child:: [[#^kp000001|*]])\n"
+        },
+        {
+          "id": "independent-main-popout-root-and-owning-window-copy"
+        }
+      ],
+      "limitations": "Native DOM/menu callbacks and real clipboard/system download on this host; physical mobile input and full Mindmap Builder drawing rendering remain separate. The OS destination/overwrite UI and mobile share sheet are not automated."
+    },
+    "cleanup": "passed",
+    "completedAt": "2026-10-31T07:33:54.233Z"
+  },
+  "detailedNativePng": {
+    "name": "canvas-image-export-238",
+    "status": "passed",
+    "node": "v22.22.2",
+    "obsidian": "1.15.0 (installer 1.14.0)",
+    "artifacts": {
+      "main.js": "dc838ab62da418ee6c3d018d8edf8c8c816af2be2f1a371b3a6daf4f289eb6b3",
+      "manifest.json": "2822c38463c03ace4f017453679572d462534ce2a9c9558fd7593f259b01bfa1",
+      "styles.css": "283377bded131545f57adf5f4730a4697203bf2fca66d6f17eb066d9bf32d65a"
+    },
+    "source": {
+      "src/index/GraphBuilder.ts": "b4ff3bc6298c1d30c58aa15a47d2636b8e32a33f1ff4c225ce2848534567cab8",
+      "src/index/GraphIndex.ts": "ffa6d9214058a4c198d5d64981542b54087e168635885beac9a3f2c08a4fcd2c",
+      "src/core/graph/compiler.ts": "ee403bd86870137e7ea769dfb5c5c7cfa27e08ad768b1815bef47eab9732bd4f",
+      "src/ui/export/canvasImage.ts": "8121ca0d3f39d0119d960cff621216cc317e9dbb001ee5472fc2d00ba4d6d0c8",
+      "src/ui/export/canvasImageSnapshot.ts": "db417f8a7a8c7ba3f6d17c97de1f6508fa497464611fa79fc10644d53a7f39dc",
+      "src/ui/export/canvasImageStyles.ts": "51b0a222d1939389f157f660f59d6189168149db771d80f99b1586632093f2d7",
+      "src/ui/export/CanvasImageExportModal.ts": "63391378eb5d765c840d1d5487f08251cca50e10ef1f0a11a3364580b14b3b46",
+      "src/adapters/obsidian/pngExport.ts": "214640487e5b391b2162a349cf03d09dc02d801b3c7250f7a0f20c64c4ca0287"
+    },
+    "result": {
+      "smoke": false,
+      "cases": [
+        {
+          "id": "scope-round-trip-after-presentation-change",
+          "geometry": {
+            "filenameInputs": 0,
+            "dropdownInset": 8
+          }
+        },
+        {
+          "id": "scale-keeps-dialog-geometry",
+          "samples": 5,
+          "rect": {
+            "x": 268.5,
+            "y": 63.328125,
+            "width": 560,
+            "height": 748.3359375
+          }
+        },
+        {
+          "id": "UI-copy-native-save",
+          "view": "classic",
+          "theme": "dark",
+          "zoom": 0.5,
+          "transparent": false,
+          "width": 1756,
+          "height": 712,
+          "bytes": 182372,
+          "counts": {
+            "reads": 0,
+            "parses": 0,
+            "acquisitions": 0,
+            "rebuilds": 0,
+            "semanticRefreshes": 0
+          }
+        },
+        {
+          "id": "UI-copy-native-save",
+          "view": "classic",
+          "theme": "dark",
+          "zoom": 1,
+          "transparent": true,
+          "width": 1756,
+          "height": 712,
+          "bytes": 200655,
+          "counts": {
+            "reads": 0,
+            "parses": 0,
+            "acquisitions": 0,
+            "rebuilds": 0,
+            "semanticRefreshes": 0
+          }
+        },
+        {
+          "id": "UI-copy-native-save",
+          "view": "classic",
+          "theme": "dark",
+          "zoom": 2,
+          "transparent": false,
+          "width": 1756,
+          "height": 712,
+          "bytes": 182299,
+          "counts": {
+            "reads": 0,
+            "parses": 0,
+            "acquisitions": 0,
+            "rebuilds": 0,
+            "semanticRefreshes": 0
+          }
+        },
+        {
+          "id": "UI-copy-native-save",
+          "view": "classic",
+          "theme": "light",
+          "zoom": 0.5,
+          "transparent": true,
+          "width": 1756,
+          "height": 712,
+          "bytes": 137371,
+          "counts": {
+            "reads": 0,
+            "parses": 0,
+            "acquisitions": 0,
+            "rebuilds": 0,
+            "semanticRefreshes": 0
+          }
+        },
+        {
+          "id": "UI-copy-native-save",
+          "view": "classic",
+          "theme": "light",
+          "zoom": 1,
+          "transparent": false,
+          "width": 1756,
+          "height": 712,
+          "bytes": 186077,
+          "counts": {
+            "reads": 0,
+            "parses": 0,
+            "acquisitions": 0,
+            "rebuilds": 0,
+            "semanticRefreshes": 0
+          }
+        },
+        {
+          "id": "UI-copy-native-save",
+          "view": "classic",
+          "theme": "light",
+          "zoom": 2,
+          "transparent": true,
+          "width": 1756,
+          "height": 712,
+          "bytes": 137822,
+          "counts": {
+            "reads": 0,
+            "parses": 0,
+            "acquisitions": 0,
+            "rebuilds": 0,
+            "semanticRefreshes": 0
+          }
+        },
+        {
+          "id": "UI-copy-native-save",
+          "view": "mindmap",
+          "theme": "dark",
+          "zoom": 0.5,
+          "transparent": false,
+          "width": 1384,
+          "height": 1072,
+          "bytes": 154597,
+          "counts": {
+            "reads": 0,
+            "parses": 0,
+            "acquisitions": 0,
+            "rebuilds": 0,
+            "semanticRefreshes": 0
+          }
+        },
+        {
+          "id": "UI-copy-native-save",
+          "view": "mindmap",
+          "theme": "dark",
+          "zoom": 1,
+          "transparent": true,
+          "width": 1384,
+          "height": 1072,
+          "bytes": 262259,
+          "counts": {
+            "reads": 0,
+            "parses": 0,
+            "acquisitions": 0,
+            "rebuilds": 0,
+            "semanticRefreshes": 0
+          }
+        },
+        {
+          "id": "UI-copy-native-save",
+          "view": "mindmap",
+          "theme": "dark",
+          "zoom": 2,
+          "transparent": false,
+          "width": 1384,
+          "height": 1072,
+          "bytes": 154704,
+          "counts": {
+            "reads": 0,
+            "parses": 0,
+            "acquisitions": 0,
+            "rebuilds": 0,
+            "semanticRefreshes": 0
+          }
+        },
+        {
+          "id": "UI-copy-native-save",
+          "view": "mindmap",
+          "theme": "light",
+          "zoom": 0.5,
+          "transparent": true,
+          "width": 1384,
+          "height": 1072,
+          "bytes": 176641,
+          "counts": {
+            "reads": 0,
+            "parses": 0,
+            "acquisitions": 0,
+            "rebuilds": 0,
+            "semanticRefreshes": 0
+          }
+        },
+        {
+          "id": "UI-copy-native-save",
+          "view": "mindmap",
+          "theme": "light",
+          "zoom": 1,
+          "transparent": false,
+          "width": 1384,
+          "height": 1072,
+          "bytes": 172815,
+          "counts": {
+            "reads": 0,
+            "parses": 0,
+            "acquisitions": 0,
+            "rebuilds": 0,
+            "semanticRefreshes": 0
+          }
+        },
+        {
+          "id": "UI-copy-native-save",
+          "view": "mindmap",
+          "theme": "light",
+          "zoom": 2,
+          "transparent": true,
+          "width": 1384,
+          "height": 1072,
+          "bytes": 176501,
+          "counts": {
+            "reads": 0,
+            "parses": 0,
+            "acquisitions": 0,
+            "rebuilds": 0,
+            "semanticRefreshes": 0
+          }
+        },
+        {
+          "id": "UI-copy-native-save",
+          "view": "wuxing",
+          "theme": "dark",
+          "zoom": 0.5,
+          "transparent": false,
+          "width": 3166,
+          "height": 2526,
+          "bytes": 382421,
+          "counts": {
+            "reads": 0,
+            "parses": 0,
+            "acquisitions": 0,
+            "rebuilds": 0,
+            "semanticRefreshes": 0
+          }
+        },
+        {
+          "id": "UI-copy-native-save",
+          "view": "wuxing",
+          "theme": "dark",
+          "zoom": 1,
+          "transparent": true,
+          "width": 3166,
+          "height": 2526,
+          "bytes": 436780,
+          "counts": {
+            "reads": 0,
+            "parses": 0,
+            "acquisitions": 0,
+            "rebuilds": 0,
+            "semanticRefreshes": 0
+          }
+        },
+        {
+          "id": "UI-copy-native-save",
+          "view": "wuxing",
+          "theme": "dark",
+          "zoom": 2,
+          "transparent": false,
+          "width": 3166,
+          "height": 2526,
+          "bytes": 382522,
+          "counts": {
+            "reads": 0,
+            "parses": 0,
+            "acquisitions": 0,
+            "rebuilds": 0,
+            "semanticRefreshes": 0
+          }
+        },
+        {
+          "id": "UI-copy-native-save",
+          "view": "wuxing",
+          "theme": "light",
+          "zoom": 0.5,
+          "transparent": true,
+          "width": 3166,
+          "height": 2526,
+          "bytes": 408810,
+          "counts": {
+            "reads": 0,
+            "parses": 0,
+            "acquisitions": 0,
+            "rebuilds": 0,
+            "semanticRefreshes": 0
+          }
+        },
+        {
+          "id": "UI-copy-native-save",
+          "view": "wuxing",
+          "theme": "light",
+          "zoom": 1,
+          "transparent": false,
+          "width": 3166,
+          "height": 2526,
+          "bytes": 390087,
+          "counts": {
+            "reads": 0,
+            "parses": 0,
+            "acquisitions": 0,
+            "rebuilds": 0,
+            "semanticRefreshes": 0
+          }
+        },
+        {
+          "id": "UI-copy-native-save",
+          "view": "wuxing",
+          "theme": "light",
+          "zoom": 2,
+          "transparent": true,
+          "width": 3166,
+          "height": 2526,
+          "bytes": 409136,
+          "counts": {
+            "reads": 0,
+            "parses": 0,
+            "acquisitions": 0,
+            "rebuilds": 0,
+            "semanticRefreshes": 0
+          }
+        },
+        {
+          "id": "native-canvas-menu-toolbar-palette"
+        },
+        {
+          "id": "independent-popout-owning-window-copy-save"
+        },
+        {
+          "id": "cancel-preparation"
+        },
+        {
+          "id": "native-collapsed-branch-bounds",
+          "unfolded": {
+            "width": 1384,
+            "height": 1072
+          },
+          "folded": {
+            "width": 920,
+            "height": 1072
+          }
+        },
+        {
+          "id": "native-filter-crop-and-frozen-style"
+        },
+        {
+          "id": "unfinished-style-capture-rejected"
+        },
+        {
+          "id": "markdown-help-link-and-footer",
+          "geometry": {
+            "filenameInputs": 0,
+            "dropdownInset": 8
+          }
+        },
+        {
+          "id": "native-editor-text-selection-scroll-binding-preserved"
+        }
+      ],
+      "limitations": "Trusted desktop PNG clipboard/download and actual native controls on this host. OS destination/overwrite picker is bypassed by the owned main-process download handler. Physical mobile/share sheet and minimum-host acceptance remain separate."
+    },
+    "cleanup": "passed",
+    "completedAt": "2026-10-31T07:11:18.232Z"
+  },
+  "pngSourceStillMatches": true,
+  "finalPngRecheck": {
+    "status": "failed",
+    "error": "Error: Error: Native capture rejected: Export canvas as imagePreview the canvas captured when this dialog opened, then copy or save the PNG. Whole canvas includes content beyond the viewport.Export scopeWhole canvasCurrent viewportWhole canvasTransparent backgroundExport without the canvas background.Image scale22\u00d7This canvas changed. Close this dialog and export again.Copy PNGSave PNGCancel",
+    "cleanup": "passed",
+    "completedAt": "2026-10-31T07:48:02.805Z"
+  },
+  "limitations": "The final PNG recheck retired an unfinished capture. Detailed PNG matrix passed on unchanged PNG modules and stylesheet before the final Markdown-only corrections; it is not an exact-final-bundle PNG pass. No guard/deadline changes or full indexing run."
+}

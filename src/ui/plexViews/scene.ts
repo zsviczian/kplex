@@ -29,7 +29,7 @@ export type SceneAreaLayout = {nodes: PositionedNode[]; localPositions: Map<stri
 /** Stable private occurrence identity; legacy scenes keep their established unique-path map keys. */
 export function occurrenceKey(node: PositionedNode): string { return node.occurrenceId ?? node.page.path; }
 /** Canonical paths are never overloaded with a visual connector's occurrence endpoint. */
-export function edgeOccurrence(edge: PositionedEdge, endpoint: "source" | "target"): string {
+export function edgeOccurrence(edge: Pick<PositionedEdge, "sourceOccurrence" | "targetOccurrence" | "sourcePath" | "targetPath">, endpoint: "source" | "target"): string {
   return endpoint === "source" ? edge.sourceOccurrence ?? edge.sourcePath : edge.targetOccurrence ?? edge.targetPath;
 }
 /** Geometry/clipping may use a measured section row without changing canonical action identity. */

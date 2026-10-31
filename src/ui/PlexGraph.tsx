@@ -27,7 +27,7 @@
  * leases after scene admission and share exact ancestor filtering and catalog-backed branch actions.
  * Their first current local preparation may fit once; manual/restored cameras and live editors win.
  * File-location menu actions share captured action targets and delegate to guarded native APIs.
- * Markdown export detaches only the filtered committed hierarchy; its modal owns no graph reader.
+ * Markdown and PNG export detach only the committed presentation; their dialogs own no graph reader.
  */
 import {edgeViewportClip, edgeViewportEndpoints, revealRowScrollTop, editorToolbarInsets} from "./plexViews/areaVisibility";
 import {ontologyConfiguration} from "../core/contracts/ontologyConfiguration";
@@ -126,8 +126,11 @@ import { effectiveActionBindings } from "../core/plex/actionPreferences";
 import { formatActionBinding } from "./actionPresentation";
 import { readObsidianPresentationEnvironment } from "../adapters/obsidian/presentationEnvironment";
 import { fileRevealMenuState, revealFile } from "../adapters/obsidian/fileReveal";
+import {exportRelationshipOntology} from "../core/plex/relationshipOntology";
+import type {MarkdownOntology} from "../core/plex/export/mindMapMarkdown";
 import {captureMindMapMarkdown} from "./export/captureMindMapMarkdown";
 import {MindMapMarkdownModal} from "./export/MindMapMarkdownModal";
+import {CanvasImageExportModal} from "./export/CanvasImageExportModal";
 import { surfaceAction } from "./surfaceActionImplementation";
 import {translateActionText} from "./actionPresentation";
 import { SavedRelationshipPendingError } from "../adapters/obsidian/relationshipMetadataWrite";
@@ -709,7 +712,7 @@ function EdgeLabel({label,midpoint,style,background,opacity}:{label:string|null;
 }
 
 /** Compose the deterministic Plex scene; native-follow layouts land immediately while explicit navigation retains motion and central Open uses a main tab. */
-export function PlexGraph({ viewDefinition = classicViewDefinition, viewSession, viewContributions, viewRevision = 0, plugin, index, settings: viewSettings, paintSettings, paintLenses, surface, hostLeaf, predicate, lenses, filterLayoutMode, predicateRevision, showCrossLinks, activePath, navigationOrigin = "user", onSemanticDemandAcquired, renderRevision, semanticRevision, findFocusRequest, footprintsControl, areaSettingsMode, onAreaSettingsModeChange, onApplyFindFilter, appliedFindFilterQuery, onClearFindFilter, onActivate, onWanderActivate, onOpen, onOpenInSidecar, onCentralNodeEditorChange, onCentralNodeModeChange, actionPorts, actionSurfaceId, displayState, fullscreenAvailable, sidecarOpen }: {
+export function PlexGraph({ viewDefinition = classicViewDefinition, viewSession, viewContributions, viewRevision = 0, plugin, index, settings: viewSettings, paintSettings, paintLenses, surface, hostLeaf, predicate, lenses, filterLayoutMode, predicateRevision, showCrossLinks, activePath, navigationOrigin = "user", onSemanticDemandAcquired, renderRevision, semanticRevision, findFocusRequest, footprintsControl, onExportBreadcrumbs, hasBreadcrumbs, areaSettingsMode, onAreaSettingsModeChange, onApplyFindFilter, appliedFindFilterQuery, onClearFindFilter, onActivate, onWanderActivate, onOpen, onOpenInSidecar, onCentralNodeEditorChange, onCentralNodeModeChange, actionPorts, actionSurfaceId, displayState, fullscreenAvailable, sidecarOpen }: {
   viewDefinition?: PlexViewDefinition;
   viewSession?: PlexViewSession;
   viewContributions?: CanvasViewContributionController;
@@ -733,6 +736,8 @@ export function PlexGraph({ viewDefinition = classicViewDefinition, viewSession,
   semanticRevision: number;
   findFocusRequest: number;
   footprintsControl?: ReactNode;
+  onExportBreadcrumbs?: () => void;
+  hasBreadcrumbs?: () => boolean;
   areaSettingsMode: boolean;
   onAreaSettingsModeChange: (enabled: boolean) => void;
   onApplyFindFilter: (query: string) => void;
@@ -2979,8 +2984,10 @@ export function PlexGraph({ viewDefinition = classicViewDefinition, viewSession,
   const visibleConnectSession = `${actionSurfaceId}:visible-connect`;
   const graphDialogs = useRef(new Set<{ close(): void }>());
   const graphDialogSerial = useRef(0);
-  const markdownExportPresentation = useRef({scene, matches: filterMatchedNodePaths, areas: zoneDisplayLayouts});
-  markdownExportPresentation.current = {scene, matches: filterMatchedNodePaths, areas: zoneDisplayLayouts};
+  const markdownExportPresentation = useRef({scene, matches: filterMatchedNodePaths, areas: zoneDisplayLayouts, clusters: expandedClusters, paintSettings, paintLenses});
+  markdownExportPresentation.current = {scene, matches: filterMatchedNodePaths, areas: zoneDisplayLayouts, clusters: expandedClusters, paintSettings, paintLenses};
+  const imageExportPresentation = useRef({scene, matches: filterMatchedNodePaths, areas: zoneDisplayLayouts, paintSettings, paintLenses, showCrossLinks, zoneScrollTop, expandedScrollTop});
+  imageExportPresentation.current = {scene, matches: filterMatchedNodePaths, areas: zoneDisplayLayouts, paintSettings, paintLenses, showCrossLinks, zoneScrollTop, expandedScrollTop};
   useEffect(/** Unmount/window migration invalidates visible-target sessions and closes owned pickers. */ () => () => {
     keyboardConnectRef.current = null;
     plugin.actionManager.closeSession(visibleConnectSession);
@@ -4251,18 +4258,57 @@ export function PlexGraph({ viewDefinition = classicViewDefinition, viewSession,
   /** Capture exactly this rendered hierarchy, including overflow rows, without another projection or graph read. */
   const openMindMapMarkdown = (context: ActionContext): ActionOutcome => {
     const root = viewport.current;
-    if (!root || viewDefinition.id !== "mindmap" || viewFailed || !scene.projection?.root) return {status: "unavailable", reasonKey: "actions.target-unavailable"};
-    const included = new Set(scene.nodes.filter(/** Match shared Find/selection admission; camera and scroll clipping never remove export rows. */ node => {
+    if (!root || viewFailed || !scene.nodes.length) return {status: "unavailable", reasonKey: "actions.target-unavailable"};
+    const extraNodes: PositionedNode[] = [], extraEdges: PositionedEdge[] = [];
+    const extraPositions = new Map<string, {x: number; y: number}>(), extraPainted = new Map(expandedConnectors.map(connector => [connector.key, connector]));
+    for (const cluster of expandedClusters) for (const child of cluster.children) {
+      const position = {x: cluster.left + child.localX, y: cluster.top + child.localY};extraPositions.set(child.key, position);
+      extraNodes.push({...cluster.parent, ...child.relation, occurrenceId: child.key, areaId: undefined, label: child.label, style: child.style, ...position, width: child.width, height: child.height,
+        branch: {parent: occurrenceKey(cluster.parent), depth: 2, side: position.x < 0 ? -1 : 1, reference: false, expanded: true, canExpand: false, status: "ready"}});
+      const painted = extraPainted.get(child.key);
+      extraEdges.push({id: child.key, sourcePath: cluster.parent.page.path, targetPath: child.relation.page.path,
+        sourceOccurrence: occurrenceKey(cluster.parent), targetOccurrence: child.key, role: child.relation.role,
+        relationType: child.relation.relationType, typeDefinition: child.relation.typeDefinition, direction: child.relation.linkDirection,
+        style: painted?.style ?? {...paintSettings.baseLinkStyle, showLabel: false}, caption: painted?.caption});
+    }
+    const exportNodes = [...scene.nodes, ...extraNodes];
+    const included = new Set(scene.nodes.filter(/** Camera/scroll clipping does not remove constructed rows. */ node => {
       const zone = areaForNode(node);
       return nodeMatchesCurrentFilter(node) && (!zone || !scene.zoneViewports[zone] || zoneDisplayLayouts[zone]?.localPositions.has(occurrenceKey(node)));
-    }).map(/** Occurrences, rather than canonical notes, own repeated placement. */ occurrenceKey));
-    const snapshot = captureMindMapMarkdown(plugin.app, scene, included, /** Local reflow coordinates omit only the user's transient scroll offset. */ node => {
-      const zone = areaForNode(node), panel = zone ? scene.zoneViewports[zone] : undefined;
-      const local = zone ? zoneDisplayLayouts[zone]?.localPositions.get(occurrenceKey(node)) : undefined;
-      return panel && local ? {x: panel.left + local.x, y: panel.top + local.y} : node;
-    });
+    }).map(occurrenceKey));
+    for (const node of extraNodes) included.add(occurrenceKey(node));
+    const center = scene.projection?.root ?? scene.nodes.find(node => node.role === "center")?.occurrenceId ?? scene.nodes.find(node => node.role === "center")?.page.path;
+    if (center) included.add(center);
+    const painted = new Map(paintedEdges.map(edge => [edge.id, edge]));
+    const exportEdges = [...actionEdges.map(edge => painted.get(edge.id) ?? {...edge, style: {...edge.style, showLabel: false}}), ...extraEdges];
+    const visibleLabels = new Map<string, string[]>();
+    for (const edge of exportEdges) if ((!edge.kind || edge.kind === "semantic") && edge.style.showLabel) {
+      const label = relationLabel(edge.caption ?? edge.typeDefinition);if (!label) continue;
+      const key = JSON.stringify([edgeOccurrence(edge, "source"), edgeOccurrence(edge, "target")].sort()), list = visibleLabels.get(key) ?? [];
+      list.push(label);visibleLabels.set(key, list);
+    }
+    const ontologyCache = new Map<string, MarkdownOntology>();
+    const snapshot = captureMindMapMarkdown(plugin.app, {...scene, nodes: exportNodes, edges: [...scene.edges, ...extraEdges]}, included,
+      /** Reflow positions omit only transient scroll offsets. */ node => {
+        const extra = extraPositions.get(occurrenceKey(node));if (extra) return extra;
+        const zone = areaForNode(node), panel = zone ? scene.zoneViewports[zone] : undefined;
+        const local = zone ? zoneDisplayLayouts[zone]?.localPositions.get(occurrenceKey(node)) : undefined;
+        return panel && local ? {x: panel.left + local.x, y: panel.top + local.y} : node;
+      }, {edges: exportEdges, ontology: /** Reuse Connection details' active decisions and the rendered relationship's driving definition. */ (source, target, edge) => {
+        const key = JSON.stringify([occurrenceKey(source), occurrenceKey(target)]), cached = ontologyCache.get(key);if (cached) return cached;
+        const sourcePath = edge?.explanationSourcePath ?? edge?.sourcePath ?? source.page.transient?.sourcePath ?? source.page.path;
+        const targetPath = edge?.explanationTargetPath ?? edge?.targetPath ?? target.page.transient?.sourcePath ?? target.page.path;
+        const explanation = sectionExpansion?.explanations.get(sourcePath + "\u0000" + targetPath) ?? index.explainRelationship(sourcePath, targetPath);
+        const resolved = exportRelationshipOntology(explanation, edge ? edge.typeDefinition : target.typeDefinition);
+        const primary = connectionCaption(resolved.primary, true, sourcePath, targetPath, source.page, target.page);
+        const additional = resolved.additional.map(field => connectionCaption(field, true, sourcePath, targetPath, source.page, target.page) ?? field).filter(field => field !== primary);
+        const visible = visibleLabels.get(JSON.stringify([occurrenceKey(source), occurrenceKey(target)].sort())) ?? [];
+        const result: MarkdownOntology = {primary, additional, visiblePrimary: primary && visible.includes(primary) ? primary : undefined,
+          visibleAdditional: visible.filter(label => label !== primary)};
+        ontologyCache.set(key, result);return result;
+      }});
     const selected = context.target.kind === "node" ? context.target.occurrenceId : selection.readSelected()?.id;
-    const occurrence = scene.nodes.find(/** Translate the surface's keyboard key to its exact scene occurrence once. */ node => sceneNodeKeys.get(node) === selected || occurrenceKey(node) === selected);
+    const occurrence = exportNodes.find(/** Translate the surface's keyboard key to its exact scene occurrence once. */ node => sceneNodeKeys.get(node) === selected || occurrenceKey(node) === selected);
     const selectedId = occurrence ? occurrenceKey(occurrence) : undefined;
     const captured = markdownExportPresentation.current;
     const surfaceCurrent = captureSurfaceContinuation(() => viewport.current, () => plugin.actionManager.readSnapshot(actionSurfaceId), {checkInteraction: false});
@@ -4270,8 +4316,34 @@ export function PlexGraph({ viewDefinition = classicViewDefinition, viewSession,
     const dialog = new MindMapMarkdownModal(plugin.app, {snapshot, sourceScope: root,
       selected: selectedId && snapshot.nodes.some(/** A grouped/section row has no invented subtree export. */ node => node.id === selectedId) ? selectedId : undefined,
       current: /** A changed filter, hierarchy, center, view or document cannot authorize stale output. */ () => surfaceCurrent()
-        && markdownExportPresentation.current.scene === captured.scene && markdownExportPresentation.current.matches === captured.matches && markdownExportPresentation.current.areas === captured.areas,
+        && markdownExportPresentation.current.scene === captured.scene && markdownExportPresentation.current.matches === captured.matches && markdownExportPresentation.current.areas === captured.areas
+        && markdownExportPresentation.current.clusters === captured.clusters && markdownExportPresentation.current.paintSettings === captured.paintSettings && markdownExportPresentation.current.paintLenses === captured.paintLenses,
       closed: /** Release the exact originating canvas's dialog and manager guard. */ () => {graphDialogs.current.delete(dialog);plugin.actionManager.closeSession(sessionId);},
+    });
+    graphDialogs.current.add(dialog);dialog.open();return {status: "opened", sessionId};
+  };
+  /** Freeze this exact canvas for the reusable DOM snapshot/raster services, without another graph projection. */
+  const openCanvasImage = (context: ActionContext): ActionOutcome => {
+    const root = viewport.current;
+    if (!root || viewFailed || !scene.nodes.length) return {status: "unavailable", reasonKey: "actions.target-unavailable"};
+    clearHoverIntent(true);
+    const captured = imageExportPresentation.current, transform = cameraElement.current?.style.transform;
+    const surfaceCurrent = captureSurfaceContinuation(() => viewport.current, () => plugin.actionManager.readSnapshot(actionSurfaceId), {checkInteraction: false});
+    const appearance = plugin.captureAppearanceOwner(), document = root.ownerDocument;
+    const generation = context.generation;
+    const sessionId = `${actionSurfaceId}:image-export:${++graphDialogSerial.current}`;
+    const dialog = new CanvasImageExportModal(plugin.app, {sourceScope: root, mobile: Platform.isMobile,
+      center: compassCenter.current?.element, name: scene.nodes.find(/** Use the committed framing label instead of the globally active note. */ node => node.role === "center")?.label ?? translate("export.image.filenameStem"),
+      current: /** Prepared pixels belong to this mounted canvas/document, independently of later scene refreshes. */ () => Boolean(generation !== undefined && plugin.isActionSurfaceCurrent(actionSurfaceId, generation)
+        && viewport.current === root && root.isConnected && root.ownerDocument === document && document.defaultView && !document.defaultView.closed),
+      captureCurrent: /** Unfinished capture cannot mix a changed scene, paint, scroll, camera or native theme owner. */ () => {
+        const latest = imageExportPresentation.current;
+        return surfaceCurrent() && plugin.isAppearanceOwnerCurrent(appearance) && cameraElement.current?.style.transform === transform
+          && latest.scene === captured.scene && latest.matches === captured.matches && latest.areas === captured.areas
+          && latest.paintSettings === captured.paintSettings && latest.paintLenses === captured.paintLenses && latest.showCrossLinks === captured.showCrossLinks
+          && latest.zoneScrollTop === captured.zoneScrollTop && latest.expandedScrollTop === captured.expandedScrollTop;
+      },
+      closed: /** Release only the source canvas's dialog/session. */ () => {graphDialogs.current.delete(dialog);plugin.actionManager.closeSession(sessionId);},
     });
     graphDialogs.current.add(dialog);dialog.open();return {status: "opened", sessionId};
   };
@@ -4689,8 +4761,10 @@ export function PlexGraph({ viewDefinition = classicViewDefinition, viewSession,
       return destination === "focus-tab" ? state.focusOpenTab : destination === "new-tab" || destination === "split" && state.adjacentPane || destination === "window" && state.popoutWindow;
     });
   }
+  graphImplementations["view.export.image"] = graphAction(openCanvasImage,
+    /** Export admission is local presentation state, never a source request. */ () => !viewFailed && scene.nodes.length > 0 && Boolean(viewport.current?.isConnected));
   graphImplementations["view.export.markdown"] = graphAction(openMindMapMarkdown,
-    /** Export availability reads only the committed local scene; it never prepares hierarchy scopes. */ () => viewDefinition.id === "mindmap" && !viewFailed && Boolean(scene.projection?.root));
+    /** Export availability reads only the committed local scene; it never prepares hierarchy scopes. */ () => !viewFailed && scene.nodes.length > 0 && Boolean(viewport.current?.isConnected));
   actionPorts.current = {
     implementations: viewFailed ? Object.fromEntries(Object.keys(graphImplementations).map(id => [id, id === "editor.collapse" || id === "view.root.selected" || id === "view.center-editor.toggle" && occurrenceEditorPolicy && boundEditorBinding ? graphImplementations[id as ActionId] : {
       availability: () => ({state: "disabled" as const, reasonKey: "actions.target-unavailable"}),
@@ -4914,9 +4988,6 @@ export function PlexGraph({ viewDefinition = classicViewDefinition, viewSession,
         .onClick(() => void plugin.actionManager.dispatch({id: "view.property-assignment.undo", source: "context-menu", surfaceId: actionSurfaceId})));
 
     if (viewDefinition.hierarchy && persistent) {
-      if (viewDefinition.id === "mindmap") menu.addItem(/** Central and branch menus share the published export dialog and whole-map default. */ item => item
-        .setTitle(translate("actions.view.export.markdown")).setIcon("file-output")
-        .onClick(/** The manager retains the clicked occurrence for the optional selected-branch scope. */ () => runCapturedNodeAction("view.export.markdown", persistent)));
       if (node.branch?.canExpand) menu.addItem(/** Branch disclosure is independent of native editor expansion. */ item => item
         .setTitle(translate(node.branch?.expanded ? "mindmap.collapseBranch" : "mindmap.expandBranch")).setIcon(node.branch?.expanded ? "minus" : "plus")
         .onClick(/** The manager rechecks the exact captured occurrence and native editor guard. */ () => runCapturedNodeAction("branch.toggle", persistent)));
@@ -5614,6 +5685,7 @@ export function PlexGraph({ viewDefinition = classicViewDefinition, viewSession,
       if (target.closest("[data-kplex-path], .kplex-edge-hit, button, input, .kplex-central-editor-overlay") || Date.now() < suppressActivateUntil.current) return;
       const menu = createPlexContextMenu({ translate, zen: displayState.zen, fullscreen: displayState.fullscreen, fullscreenAvailable,
         contributions: viewContributions?.menus(),
+        exportBreadcrumbs: onExportBreadcrumbs, breadcrumbsAvailable: hasBreadcrumbs?.() ?? false,
         runAction: /** Reuse the exact view-scoped action owner for playback and display modes. */ id => { void plugin.actionManager.dispatch({ id, source: "context-menu", surfaceId: actionSurfaceId }); },
         openSettings: /** Preserve the guarded native settings bridge. */ () => plugin.openSettings(),
         chooseBackground: /** The view owns this picker and closes it on migration/unmount. */ () => {
@@ -5888,6 +5960,8 @@ export function PlexGraph({ viewDefinition = classicViewDefinition, viewSession,
     </LayoutControls>
 
     <div className="kplex-zoom-controls">
+      <button type="button" aria-label={translate("actions.view.export.image")} disabled={viewFailed || !scene.nodes.length}
+        onClick={/** Capture this canvas through the same action as its menu and palette. */ event => {event.stopPropagation();void plugin.actionManager.dispatch({id: "view.export.image", source: "toolbar", surfaceId: actionSurfaceId});}}><ObsidianIcon name="image" size={16} /></button>
       {viewDefinition.hierarchy && <>
         {activePath !== sceneScope && <button type="button" aria-label={translate("mindmap.useAttentionRoot")}
           onClick={/** External navigation keeps this map intact; only this explicit action adopts the current note as its new root. */ event => {

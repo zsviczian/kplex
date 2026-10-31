@@ -3968,9 +3968,13 @@ button.kplex-sidecar-unfold-plex:focus-visible,
 /* Explicit appearance drafts share one scrolling body; native Save/Cancel stay visible. */
 .modal.kplex-scroll-editor-modal { display: flex; flex-direction: column; max-height: 90vh; }
 .modal.kplex-scroll-editor-modal .modal-content { display: flex; flex-direction: column; min-height: 0; overflow: hidden; }
-.kplex-style-editor-body { flex: 1 1 auto; min-height: 0; overflow-y: auto; }
-.kplex-style-editor-actions { flex: 0 0 auto; background: var(--modal-background, var(--background-primary)); }
+.kplex-style-editor-body { flex: 1 1 auto; min-height: 0; overflow-y: auto; padding-inline-end: var(--size-4-2); padding-bottom: var(--size-4-3); }
+.kplex-style-editor-actions { flex: 0 0 auto; padding-top: var(--size-4-2); background: var(--modal-background, var(--background-primary)); }
 .kplex-style-editor-actions .setting-item { border-top: var(--border-width) solid var(--background-modifier-border); padding-bottom: 0; }
+/* Shared native modal controls leave room for scrollbars, chevrons and button icons. */
+.kplex-scroll-editor-modal .setting-item-control { min-width: 0; }
+.kplex-scroll-editor-modal .setting-item-control select { min-width: 0; max-width: 100%; padding-inline-end: var(--size-4-6); }
+.kplex-modal-action-row button { display: inline-flex; align-items: center; gap: var(--size-4-1); }
 .kplex-modal-action-row .setting-item-info { display: none; }
 .kplex-modal-action-row .setting-item-control { flex: 1; display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; }
 .modal button.kplex-icon-action { display: inline-flex; align-items: center; justify-content: center; flex: 0 0 auto; width: 36px; min-width: 36px; height: 36px; padding: 8px; font-size: 0; }

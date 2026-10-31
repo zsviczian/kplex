@@ -585,3 +585,16 @@ test("unchanged factory source creates nothing; an accepted Save completes durab
   if(window.notices.some(text=>text.includes('not saved')))throw Error('Durable success reported unsaved');tab.disposeActionSettings();return true;
  })()`),true);
 });
+
+test("shared native modal copy feedback closes on success, retains failures and ignores retired callbacks",async()=>{
+ assert.equal(await scenario(`(()=>{
+  const Shell=Object.getPrototypeOf(sourceModules.AppearanceThemesManagerModal);
+  class CopyModal extends Shell {onOpen(){this.beginEditor(scope);this.status=this.contentEl.createDiv();} publish(state){this.clipboardFeedback(state,{setDisabled:value=>this.disabled=value},this.status,'Copied','Failed');}}
+  const modal=new CopyModal({});modal.open();modal.publish('copying');
+  if(!modal.modalEl.isConnected||!modal.disabled)throw Error('Pending copy closed or remained enabled');
+  modal.publish('failed');if(!modal.modalEl.isConnected||modal.disabled||modal.status.textContent!=='Failed'||notices.length)throw Error('Failure lost retry or claimed success');
+  modal.publish('copied');if(modal.modalEl.isConnected||notices.join()!=='Copied')throw Error('Success did not close and notify');
+  modal.publish('copied');const canceled=new CopyModal({});canceled.open();canceled.close();canceled.publish('copied');
+  if(notices.length!==1)throw Error('Retired callback displayed a late notice');return true;
+ })()`),true);
+});

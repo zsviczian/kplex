@@ -5,6 +5,7 @@
  * fences own reads and child setup/confirmation UI through a narrow close capability;
  * saved writes remain plugin-owned.
  */
+import {activeOntologyFields} from "../core/plex/relationshipOntology";
 import { connectionActionAllowed } from "./structuralConnectionActions";
 import { Modal, Notice, setIcon, type WorkspaceLeaf } from "obsidian";
 import type KplexPlugin from "../main";
@@ -160,11 +161,7 @@ export class RelationshipExplanationModal extends Modal {
 
   /** Project active field names for additive ontology display without rewriting declaration provenance. */
   private currentOntologies(): string[] {
-    return [...new Set(this.explanation.decisions
-      .filter((decision) => decision.active)
-      .map((decision) => decision.evidence.fieldName ?? decision.evidence.definition ?? "")
-      .map((value) => value.trim())
-      .filter(Boolean))];
+    return activeOntologyFields(this.explanation);
   }
 
   /** Render the additive ontology action for the inspected pair with localized captions; existing sources remain preserved. */

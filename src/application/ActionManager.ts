@@ -179,7 +179,7 @@ export class ActionManager {
     else if (requested.kind === "editor-field") { const token = "editorInvocationId" in requested ? requested.editorInvocationId : command?.editorInvocationId; if (!token || typeof token !== "string") return "actions.editor-unavailable"; target = {kind: "editor-field", editorInvocationId: token}; }
     else if (requested.kind === "none") target = {kind: "none"};
     else if (["center", "selected", "selected-or-center"].includes(requested.kind)) {
-      const selected = snapshot?.selected, center = command && metadata.id !== "document.sync-from-center" ? command.sharedCenter : snapshot?.center;
+      const selected = snapshot?.selected, center = command && metadata.id !== "document.sync-from-center" && metadata.id !== "view.export.markdown" ? command.sharedCenter : snapshot?.center;
       const node = requested.kind === "selected" ? selected?.node : requested.kind === "selected-or-center" ? selected?.node ?? center : center;
       if (!node || !validNode(node)) return "actions.target-unavailable";
       target = {kind: "node", node: {...node}, ...(selected?.node === node ? {occurrenceId: selected.occurrenceId} : {})};
