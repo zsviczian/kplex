@@ -5,14 +5,15 @@ import {edgePhysicalOccurrence, type SceneViewport} from "./scene";
 /** One paint-only attachment; a continued endpoint is never a node, gate or relationship target. */
 export type ViewportEdgeEndpoint = Readonly<{point: Readonly<{x: number; y: number}>; port: GateSide; continued: boolean}>;
 
-/** Retain routes from a visible counterpart to an occluded scroll-area endpoint. The hidden
- * attachment clamps to its own aperture with a tangent toward the counterpart, avoiding curves
- * that end in empty space. Two hidden attachments have no visible context and paint nothing.
+/** Paint ordinary routes only while both cards intersect their scroll apertures. A caller may
+ * retain an explicitly identified tree ancestor as a boundary continuation for its visible child;
+ * hidden leaf rows never acquire routes merely because a visible hub connects to them.
+ * Two hidden cards have no visible context and paint nothing.
  * Existing explicit visible-endpoints policy may still suppress a route. Canonical endpoints,
  * directions and evidence never change; the caller only changes paint and hides clipped markers. */
 export function edgeViewportEndpoints(a: Readonly<{x: number; y: number}>, b: Readonly<{x: number; y: number}>,
   sourcePort: GateSide, targetPort: GateSide, sourceArea?: SceneViewport, targetArea?: SceneViewport,
-  cards?: Readonly<{source: Pick<PositionedNode, "x" | "y" | "width" | "height">; target: Pick<PositionedNode, "x" | "y" | "width" | "height">}>): Readonly<{source: ViewportEdgeEndpoint; target: ViewportEdgeEndpoint}> | null {
+  cards?: Readonly<{source: Pick<PositionedNode, "x" | "y" | "width" | "height">; target: Pick<PositionedNode, "x" | "y" | "width" | "height">; continueSource?: boolean; continueTarget?: boolean}>): Readonly<{source: ViewportEdgeEndpoint; target: ViewportEdgeEndpoint}> | null {
   /** Clip only scrollable apertures; fixed forests own complete measured geometry. */
   const endpoint = (point: Readonly<{x: number; y: number}>, port: GateSide, area?: SceneViewport): ViewportEdgeEndpoint => {
     if (!area || area.scrollable === false) return {point, port, continued: false};
@@ -23,9 +24,11 @@ export function edgeViewportEndpoints(a: Readonly<{x: number; y: number}>, b: Re
   const source = endpoint(a, sourcePort, sourceArea), target = endpoint(b, targetPort, targetArea);
   /** A card touching the aperture still supplies visible context when its protruding gate is clipped. */
   const visible = (end: ViewportEdgeEndpoint, area?: SceneViewport, card?: Pick<PositionedNode, "x" | "y" | "width" | "height">): boolean =>
-    !end.continued || Boolean(area && card && card.x + card.width / 2 > area.left && card.x - card.width / 2 < area.left + area.width
-      && card.y + card.height / 2 > area.top && card.y - card.height / 2 < area.top + area.height);
-  if (!visible(source, sourceArea, cards?.source) && !visible(target, targetArea, cards?.target) || source.continued && sourceArea?.edgeVisibility === "visible-endpoints"
+    !area || area.scrollable === false || (card ? card.x + card.width / 2 > area.left && card.x - card.width / 2 < area.left + area.width
+      && card.y + card.height / 2 > area.top && card.y - card.height / 2 < area.top + area.height : !end.continued);
+  const sourceVisible = visible(source, sourceArea, cards?.source), targetVisible = visible(target, targetArea, cards?.target);
+  if (!sourceVisible && !targetVisible || !sourceVisible && !cards?.continueSource || !targetVisible && !cards?.continueTarget
+    || source.continued && sourceArea?.edgeVisibility === "visible-endpoints"
     || target.continued && targetArea?.edgeVisibility === "visible-endpoints") return null;
   /** The continuation faces the visible counterpart, rather than inheriting a hidden gate's tangent. */
   const toward = (end: ViewportEdgeEndpoint, other: ViewportEdgeEndpoint): ViewportEdgeEndpoint => {

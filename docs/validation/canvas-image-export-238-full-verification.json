@@ -1,0 +1,66 @@
+{
+  "schemaVersion": 1,
+  "status": "passed",
+  "startedAt": "2026-10-31T00:21:34.025Z",
+  "source": {
+    "revision": "0f1013790ac95e11fc59e115a61e4ba79edb47a7",
+    "dirty": false,
+    "node": "v22.22.2",
+    "os": "darwin 23.5.0"
+  },
+  "target": {
+    "vaultName": "kplex-test-small",
+    "vaultPath": "/Users/zsviczian/Obsidian/kplex-test-small",
+    "configDir": "/Users/zsviczian/Obsidian/kplex-test-small/.obsidian"
+  },
+  "capabilities": {
+    "version": "1.15.0 (installer 1.14.0)",
+    "commands": [
+      "version",
+      "vault",
+      "plugin:disable",
+      "plugin:enable",
+      "commands",
+      "command",
+      "dev:dom",
+      "dev:errors"
+    ]
+  },
+  "artifacts": {
+    "sourceHashes": {
+      "main.js": "470cb303c547f1b5885fa456ddf2aee467165fe4b3fbe5debefa7b1bd0050ae4",
+      "manifest.json": "2822c38463c03ace4f017453679572d462534ce2a9c9558fd7593f259b01bfa1",
+      "styles.css": "eec3a61e8e140475d9ff7e062665508e04148960b51d0b862b824123bf2b103c"
+    },
+    "pluginVersion": "0.3.1",
+    "stagedHashes": {
+      "main.js": "470cb303c547f1b5885fa456ddf2aee467165fe4b3fbe5debefa7b1bd0050ae4",
+      "manifest.json": "2822c38463c03ace4f017453679572d462534ce2a9c9558fd7593f259b01bfa1",
+      "styles.css": "eec3a61e8e140475d9ff7e062665508e04148960b51d0b862b824123bf2b103c"
+    }
+  },
+  "scenarios": [
+    {
+      "id": "open-kplex",
+      "status": "passed",
+      "assertions": [
+        "plugin command registered",
+        "rendered .kplex-app contains K-Plex",
+        "no captured JavaScript errors"
+      ],
+      "elapsedMs": 103
+    }
+  ],
+  "completedAt": "2026-10-31T00:46:47.707Z",
+  "testTotals": {
+    "architecture": 9,
+    "core": 130,
+    "main": 1711,
+    "browser": 427,
+    "source": 357,
+    "indexedDB": 855,
+    "failures": 0,
+    "skips": 0
+  },
+  "attribution": "Full verification of the timeout-corrected runtime at clean commit 0f10137, including the deterministic early-timer regression. Native acceptance is refreshed against these exact staged artifacts."
+}

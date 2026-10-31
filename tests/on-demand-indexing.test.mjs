@@ -2112,7 +2112,12 @@ for (const mode of ['eager','on-demand']) test('native folder bounded selection 
     f.app.vault.getAbstractFileByPath=path=>f.files.get(path)??f.app.vault.getFolderByPath(path);
     delete index.sourceAcquisition.enableInventory;index.plugin.startupDiagnostics.processed=()=>{};
     ok(await index.rebuild(),'Complete native folder oracle');index.acknowledgeHostPresentation();const canonical=index.state.pages.get('folder:Notes');
-    release=index.acquireSemanticDemand('folder:Notes');await index.publishHostMetadataPreview('folder:Notes');const reads=f.reads.length;f.work.reset();
+    release=index.acquireSemanticDemand('folder:Notes');
+    // Native preview and initial semantic demand are separate owners. Sort-only assertions need
+    // a settled baseline; otherwise a late initial scope can replace the just-sorted native cover.
+    await settleDemand(index);await index.publishHostMetadataPreview('folder:Notes');
+    equal(index.onDemandTasks.size,0,'Initial semantic demand settled before sort-only controls');
+    const reads=f.reads.length;f.work.reset();
     for(const order of ['name-asc','name-desc','modified-asc','modified-desc','created-asc','created-desc','connections-asc','connections-desc']){
       settings.nodeSortOrder=order;await index.refreshPresentationSettings();
       const expected=index.relationView(canonical,{page:canonical,settings:index.fullSemanticSettings}).roles.child.slice(0,10).map(row=>row.page.path);

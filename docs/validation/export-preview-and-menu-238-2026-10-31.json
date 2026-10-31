@@ -1,0 +1,77 @@
+{
+  "name": "canvas-image-export-238",
+  "status": "passed",
+  "node": "v22.22.2",
+  "obsidian": "1.15.0 (installer 1.14.0)",
+  "artifacts": {
+    "main.js": "5be4828847ba47adc871fbba155d488a3fc33a96c131ea02b1a8070fd2fb6914",
+    "manifest.json": "2822c38463c03ace4f017453679572d462534ce2a9c9558fd7593f259b01bfa1",
+    "styles.css": "283377bded131545f57adf5f4730a4697203bf2fca66d6f17eb066d9bf32d65a"
+  },
+  "source": {
+    "src/index/GraphBuilder.ts": "b4ff3bc6298c1d30c58aa15a47d2636b8e32a33f1ff4c225ce2848534567cab8",
+    "src/index/GraphIndex.ts": "ffa6d9214058a4c198d5d64981542b54087e168635885beac9a3f2c08a4fcd2c",
+    "src/core/graph/compiler.ts": "ee403bd86870137e7ea769dfb5c5c7cfa27e08ad768b1815bef47eab9732bd4f",
+    "src/ui/export/canvasImage.ts": "8121ca0d3f39d0119d960cff621216cc317e9dbb001ee5472fc2d00ba4d6d0c8",
+    "src/ui/export/canvasImageSnapshot.ts": "db417f8a7a8c7ba3f6d17c97de1f6508fa497464611fa79fc10644d53a7f39dc",
+    "src/ui/export/canvasImageStyles.ts": "51b0a222d1939389f157f660f59d6189168149db771d80f99b1586632093f2d7",
+    "src/ui/export/CanvasImageExportModal.ts": "d26bfbf2cca4cdc6114b12dcd968868def0a53b076491b404afe005c6674ead6",
+    "src/adapters/obsidian/pngExport.ts": "214640487e5b391b2162a349cf03d09dc02d801b3c7250f7a0f20c64c4ca0287"
+  },
+  "result": {
+    "currentScene": true,
+    "cases": [
+      {
+        "id": "canvas-export-markdown-submenu"
+      },
+      {
+        "id": "canvas-export-breadcrumbs-native-clipboard",
+        "visits": 1
+      },
+      {
+        "id": "native-image-preview-aspect-ratio",
+        "width": 518,
+        "height": 140.8203125,
+        "naturalWidth": 1670,
+        "naturalHeight": 454
+      },
+      {
+        "id": "native-scale-stability-and-aspect-ratio",
+        "samples": [
+          {
+            "width": 560,
+            "height": 533.15625,
+            "y": 170.921875
+          },
+          {
+            "width": 560,
+            "height": 533.15625,
+            "y": 170.921875
+          },
+          {
+            "width": 560,
+            "height": 533.15625,
+            "y": 170.921875
+          },
+          {
+            "width": 560,
+            "height": 533.15625,
+            "y": 170.921875
+          },
+          {
+            "width": 560,
+            "height": 533.15625,
+            "y": 170.921875
+          }
+        ]
+      },
+      {
+        "id": "scope-round-trip-copy-close-notice-preserves-canvas"
+      }
+    ],
+    "limitations": "UI-only acceptance of a constructed disposable scene; native image copy is trusted. No new fixture, graph work or destination picker is requested."
+  },
+  "cleanup": "passed",
+  "startedAt": "2026-10-31T08:11:47.101Z",
+  "completedAt": "2026-10-31T08:11:50.823Z"
+}

@@ -1,0 +1,19 @@
+{
+  "schemaVersion": 1,
+  "status": "passed",
+  "command": "npm run test:sources:browser",
+  "node": "v22.22.2",
+  "sourceRevision": "02c4e611771f832cdabb4f08e5c8a7fd66cdf53f",
+  "testSourceHash": "557f11a2c1e7c5556c0f66b571994c28750f07ad80e3cf0c463e0175bdb66385",
+  "logHash": "de86fb5ad60c199a57d8ebd15e3ffbac2d2653895f4643d0463d80979e9b8d86",
+  "tests": {
+    "tests": 855,
+    "pass": 855,
+    "fail": 0,
+    "skipped": 0
+  },
+  "durationMs": 886221.375,
+  "verifiedAt": "2026-10-31T01:26:34.082733+00:00",
+  "runtimeArtifact": "470cb303c547f1b5885fa456ddf2aee467165fe4b3fbe5debefa7b1bd0050ae4",
+  "note": "Fixture-only readiness correction. All original ordering, retained candidate pool, source-read and inventory assertions remain intact. Production index/graph code is unchanged from main. Runtime and all native artifacts remain the fully verified 0f10137 build."
+}

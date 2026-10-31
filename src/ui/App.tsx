@@ -88,6 +88,8 @@ import type { FloatingLayerDismissReason } from "./components/FloatingLayer";
 import { PlexGraph } from "./PlexGraph";
 import {plexViewContributionFor} from "./plexViews/contributions";
 import { PlexFootprintsPanel } from "./PlexFootprintsPanel";
+import {footprintsMarkdownSession} from "./footprintsMarkdown";
+import type {ClipboardSession} from "../application/ClipboardSession";
 import { ObsidianIcon } from "./ObsidianIcon";
 import { VaultStatsModal } from "./VaultStatsModal";
 import { EMPTY_PLEX_FILTER, PlexFilter, type GraphFilterLayoutMode, type PlexFilterState, type PlexVisibilitySetting } from "./PlexFilter";
@@ -244,6 +246,19 @@ export function KplexApp({ plugin, surface, hostLeaf, translate, environment, on
   const displayState = useSyncExternalStore(displayModes.subscribe, displayModes.getSnapshot);
   const centerMode = useSyncExternalStore(centerPresentation.subscribe, centerPresentation.getSnapshot);
   const rootRef = useRef<HTMLDivElement>(null);
+  const breadcrumbsClipboard = useRef<ClipboardSession | null>(null);
+  useEffect(/** A retired canvas cannot emit clipboard feedback into its replacement. */ () => () => breadcrumbsClipboard.current?.dispose(), []);
+  /** Copy this native view's Footprints without opening the disclosure, navigating or acquiring sources. */
+  const exportBreadcrumbs = (): void => {
+    const source = rootRef.current;if (!source?.isConnected || !documentSession.footprints.length || breadcrumbsClipboard.current?.state === "copying") return;
+    breadcrumbsClipboard.current?.dispose();
+    const session = footprintsMarkdownSession(documentSession.footprints,
+      /** Cached identity/link formatting matches the Footprints disclosure. */ visit => nodeMarkdownLink(visit.node, resolveActionPage(plugin.index, visit.node)), source.ownerDocument);
+    breadcrumbsClipboard.current = session;
+    session.listen(/** Native success alone permits a copied Notice; retired sessions suppress late feedback. */ state => {
+      if (state === "copied" || state === "failed") new Notice(translate(state === "copied" ? "footprints.copied" : "footprints.copyFailed"));
+    });session.copy();
+  };
   const syncMenuButtonRef = useRef<HTMLButtonElement>(null);
   const sidecarMoveButtonRef = useRef<HTMLButtonElement>(null);
   const graphActionPorts = useRef<GraphActionPorts | null>(null);
@@ -1479,6 +1494,7 @@ export function KplexApp({ plugin, surface, hostLeaf, translate, environment, on
         <section className="kplex-graph-area" data-kplex-tooltip-boundary>
           {ViewLabels && <ViewLabels translate={translate} />}
           <PlexGraph viewDefinition={plexViewDefinition} viewSession={documentSession.plexView} viewContributions={viewContributions} viewRevision={viewRevision} sidecarOpen={sidecarOpen} plugin={plugin} index={plugin.index} settings={viewSettings} paintSettings={paintSettings} paintLenses={paintLenses} surface={profileSurface} hostLeaf={hostLeaf} predicate={plexFilterPredicate} lenses={compiledGraphLenses} filterLayoutMode={filterLayoutMode} predicateRevision={predicateRevision} showCrossLinks={plugin.settings.showCrossLinks} activePath={page.path} renderRevision={renderRevision} findFocusRequest={findFocusRequest}
+            onExportBreadcrumbs={exportBreadcrumbs} hasBreadcrumbs={/** Read the native trail only when composing the menu. */ () => documentSession.footprints.length > 0}
             footprintsControl={<PlexFootprintsPanel trail={documentSession.footprints} translate={translate}
               readRow={/** Resolve visible references only; unavailable nodes never trigger acquisition or creation. */ visit => {
                 const target = resolveActionPage(plugin.index, visit.node);

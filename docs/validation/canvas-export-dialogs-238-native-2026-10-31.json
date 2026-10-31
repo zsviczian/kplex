@@ -1,0 +1,387 @@
+{
+  "name": "canvas-image-export-238",
+  "status": "passed",
+  "node": "v22.22.2",
+  "startedAt": "2026-10-31T05:42:44.428Z",
+  "maximumMs": 600000,
+  "driver": {
+    "transport": "beb7677649f8ae6ae390c0df25b4a025a48777b5fbfc5e36c25f7fe252b8a0d3",
+    "scenario": "aa3c244cd4b05f3d853259b2e41be077f174099f33bd46a002d3028e8f50501c",
+    "definitions": "1d1ca3d00116b88710ee702cf88bfdd8550fe9490c36946452f2646371ee2568"
+  },
+  "artifacts": {
+    "main.js": "08010fadf53b00ca2383d08f0969102a6010366135de9fefdfe71981bdffd3ee",
+    "manifest.json": "2822c38463c03ace4f017453679572d462534ce2a9c9558fd7593f259b01bfa1",
+    "styles.css": "03e90f5b0efe526dcb7684d7978df39774cfe795e7d9cb3cad183d44f7e9196d"
+  },
+  "source": {
+    "src/index/GraphBuilder.ts": "b4ff3bc6298c1d30c58aa15a47d2636b8e32a33f1ff4c225ce2848534567cab8",
+    "src/index/GraphIndex.ts": "ffa6d9214058a4c198d5d64981542b54087e168635885beac9a3f2c08a4fcd2c",
+    "src/core/graph/compiler.ts": "ee403bd86870137e7ea769dfb5c5c7cfa27e08ad768b1815bef47eab9732bd4f",
+    "src/ui/export/canvasImage.ts": "8121ca0d3f39d0119d960cff621216cc317e9dbb001ee5472fc2d00ba4d6d0c8",
+    "src/ui/export/canvasImageSnapshot.ts": "db417f8a7a8c7ba3f6d17c97de1f6508fa497464611fa79fc10644d53a7f39dc",
+    "src/ui/export/canvasImageStyles.ts": "51b0a222d1939389f157f660f59d6189168149db771d80f99b1586632093f2d7",
+    "src/ui/export/CanvasImageExportModal.ts": "9ac2ff782dbfe36bcd1d55002a4281205ed4b45d592c9153b8bd478acd75b26f",
+    "src/adapters/obsidian/pngExport.ts": "214640487e5b391b2162a349cf03d09dc02d801b3c7250f7a0f20c64c4ca0287"
+  },
+  "limitations": "Controlled native method observations, not actual paint or physical-device acceptance.",
+  "obsidian": "1.15.0 (installer 1.14.0)",
+  "result": {
+    "smoke": false,
+    "cases": [
+      {
+        "id": "scope-round-trip-after-presentation-change",
+        "geometry": {
+          "filenameGap": 20,
+          "dropdownInset": 8
+        }
+      },
+      {
+        "id": "UI-copy-native-save",
+        "view": "classic",
+        "theme": "dark",
+        "zoom": 0.5,
+        "transparent": false,
+        "width": 1756,
+        "height": 712,
+        "bytes": 182372,
+        "counts": {
+          "reads": 0,
+          "parses": 0,
+          "acquisitions": 0,
+          "rebuilds": 0,
+          "semanticRefreshes": 0
+        }
+      },
+      {
+        "id": "UI-copy-native-save",
+        "view": "classic",
+        "theme": "dark",
+        "zoom": 1,
+        "transparent": true,
+        "width": 1756,
+        "height": 712,
+        "bytes": 200655,
+        "counts": {
+          "reads": 0,
+          "parses": 0,
+          "acquisitions": 0,
+          "rebuilds": 0,
+          "semanticRefreshes": 0
+        }
+      },
+      {
+        "id": "UI-copy-native-save",
+        "view": "classic",
+        "theme": "dark",
+        "zoom": 2,
+        "transparent": false,
+        "width": 1756,
+        "height": 712,
+        "bytes": 182299,
+        "counts": {
+          "reads": 0,
+          "parses": 0,
+          "acquisitions": 0,
+          "rebuilds": 0,
+          "semanticRefreshes": 0
+        }
+      },
+      {
+        "id": "UI-copy-native-save",
+        "view": "classic",
+        "theme": "light",
+        "zoom": 0.5,
+        "transparent": true,
+        "width": 1756,
+        "height": 712,
+        "bytes": 137371,
+        "counts": {
+          "reads": 0,
+          "parses": 0,
+          "acquisitions": 0,
+          "rebuilds": 0,
+          "semanticRefreshes": 0
+        }
+      },
+      {
+        "id": "UI-copy-native-save",
+        "view": "classic",
+        "theme": "light",
+        "zoom": 1,
+        "transparent": false,
+        "width": 1756,
+        "height": 712,
+        "bytes": 186077,
+        "counts": {
+          "reads": 0,
+          "parses": 0,
+          "acquisitions": 0,
+          "rebuilds": 0,
+          "semanticRefreshes": 0
+        }
+      },
+      {
+        "id": "UI-copy-native-save",
+        "view": "classic",
+        "theme": "light",
+        "zoom": 2,
+        "transparent": true,
+        "width": 1756,
+        "height": 712,
+        "bytes": 137822,
+        "counts": {
+          "reads": 0,
+          "parses": 0,
+          "acquisitions": 0,
+          "rebuilds": 0,
+          "semanticRefreshes": 0
+        }
+      },
+      {
+        "id": "UI-copy-native-save",
+        "view": "mindmap",
+        "theme": "dark",
+        "zoom": 0.5,
+        "transparent": false,
+        "width": 1384,
+        "height": 1072,
+        "bytes": 154597,
+        "counts": {
+          "reads": 0,
+          "parses": 0,
+          "acquisitions": 0,
+          "rebuilds": 0,
+          "semanticRefreshes": 0
+        }
+      },
+      {
+        "id": "UI-copy-native-save",
+        "view": "mindmap",
+        "theme": "dark",
+        "zoom": 1,
+        "transparent": true,
+        "width": 1384,
+        "height": 1072,
+        "bytes": 262259,
+        "counts": {
+          "reads": 0,
+          "parses": 0,
+          "acquisitions": 0,
+          "rebuilds": 0,
+          "semanticRefreshes": 0
+        }
+      },
+      {
+        "id": "UI-copy-native-save",
+        "view": "mindmap",
+        "theme": "dark",
+        "zoom": 2,
+        "transparent": false,
+        "width": 1384,
+        "height": 1072,
+        "bytes": 154704,
+        "counts": {
+          "reads": 0,
+          "parses": 0,
+          "acquisitions": 0,
+          "rebuilds": 0,
+          "semanticRefreshes": 0
+        }
+      },
+      {
+        "id": "UI-copy-native-save",
+        "view": "mindmap",
+        "theme": "light",
+        "zoom": 0.5,
+        "transparent": true,
+        "width": 1384,
+        "height": 1072,
+        "bytes": 176641,
+        "counts": {
+          "reads": 0,
+          "parses": 0,
+          "acquisitions": 0,
+          "rebuilds": 0,
+          "semanticRefreshes": 0
+        }
+      },
+      {
+        "id": "UI-copy-native-save",
+        "view": "mindmap",
+        "theme": "light",
+        "zoom": 1,
+        "transparent": false,
+        "width": 1384,
+        "height": 1072,
+        "bytes": 172815,
+        "counts": {
+          "reads": 0,
+          "parses": 0,
+          "acquisitions": 0,
+          "rebuilds": 0,
+          "semanticRefreshes": 0
+        }
+      },
+      {
+        "id": "UI-copy-native-save",
+        "view": "mindmap",
+        "theme": "light",
+        "zoom": 2,
+        "transparent": true,
+        "width": 1384,
+        "height": 1072,
+        "bytes": 176501,
+        "counts": {
+          "reads": 0,
+          "parses": 0,
+          "acquisitions": 0,
+          "rebuilds": 0,
+          "semanticRefreshes": 0
+        }
+      },
+      {
+        "id": "UI-copy-native-save",
+        "view": "wuxing",
+        "theme": "dark",
+        "zoom": 0.5,
+        "transparent": false,
+        "width": 3166,
+        "height": 2526,
+        "bytes": 382421,
+        "counts": {
+          "reads": 0,
+          "parses": 0,
+          "acquisitions": 0,
+          "rebuilds": 0,
+          "semanticRefreshes": 0
+        }
+      },
+      {
+        "id": "UI-copy-native-save",
+        "view": "wuxing",
+        "theme": "dark",
+        "zoom": 1,
+        "transparent": true,
+        "width": 3166,
+        "height": 2526,
+        "bytes": 436780,
+        "counts": {
+          "reads": 0,
+          "parses": 0,
+          "acquisitions": 0,
+          "rebuilds": 0,
+          "semanticRefreshes": 0
+        }
+      },
+      {
+        "id": "UI-copy-native-save",
+        "view": "wuxing",
+        "theme": "dark",
+        "zoom": 2,
+        "transparent": false,
+        "width": 3166,
+        "height": 2526,
+        "bytes": 382522,
+        "counts": {
+          "reads": 0,
+          "parses": 0,
+          "acquisitions": 0,
+          "rebuilds": 0,
+          "semanticRefreshes": 0
+        }
+      },
+      {
+        "id": "UI-copy-native-save",
+        "view": "wuxing",
+        "theme": "light",
+        "zoom": 0.5,
+        "transparent": true,
+        "width": 3166,
+        "height": 2526,
+        "bytes": 408810,
+        "counts": {
+          "reads": 0,
+          "parses": 0,
+          "acquisitions": 0,
+          "rebuilds": 0,
+          "semanticRefreshes": 0
+        }
+      },
+      {
+        "id": "UI-copy-native-save",
+        "view": "wuxing",
+        "theme": "light",
+        "zoom": 1,
+        "transparent": false,
+        "width": 3166,
+        "height": 2526,
+        "bytes": 390087,
+        "counts": {
+          "reads": 0,
+          "parses": 0,
+          "acquisitions": 0,
+          "rebuilds": 0,
+          "semanticRefreshes": 0
+        }
+      },
+      {
+        "id": "UI-copy-native-save",
+        "view": "wuxing",
+        "theme": "light",
+        "zoom": 2,
+        "transparent": true,
+        "width": 3166,
+        "height": 2526,
+        "bytes": 409136,
+        "counts": {
+          "reads": 0,
+          "parses": 0,
+          "acquisitions": 0,
+          "rebuilds": 0,
+          "semanticRefreshes": 0
+        }
+      },
+      {
+        "id": "native-canvas-menu-toolbar-palette"
+      },
+      {
+        "id": "independent-popout-owning-window-copy-save"
+      },
+      {
+        "id": "cancel-preparation"
+      },
+      {
+        "id": "native-collapsed-branch-bounds",
+        "unfolded": {
+          "width": 1384,
+          "height": 1072
+        },
+        "folded": {
+          "width": 920,
+          "height": 1072
+        }
+      },
+      {
+        "id": "native-filter-crop-invalid-filename-and-frozen-style"
+      },
+      {
+        "id": "unfinished-style-capture-rejected"
+      },
+      {
+        "id": "markdown-help-link-and-footer",
+        "geometry": {
+          "filenameGap": 20,
+          "dropdownInset": null
+        }
+      },
+      {
+        "id": "native-editor-text-selection-scroll-binding-preserved"
+      }
+    ],
+    "limitations": "Trusted desktop PNG clipboard/download and actual native controls on this host. OS destination/overwrite picker is bypassed by the owned main-process download handler. Physical mobile/share sheet and minimum-host acceptance remain separate."
+  },
+  "cleanup": "passed",
+  "completedAt": "2026-10-31T05:44:09.260Z",
+  "attribution": "Follow-up export dialog fixes at d8f6e8a; exact built artifacts, 27 native cases and cleanup passed. The full indexing run was intentionally interrupted at the maintainer\u2019s request in favor of focused validation; see the companion follow-up record."
+}

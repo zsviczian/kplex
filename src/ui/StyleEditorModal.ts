@@ -3,7 +3,8 @@
  * disk-before-publication owner, duplicate/Cancel exclusion and truthful saved-refresh-pending result.
  * Each content component owns its controls; explicit external retirement fences late UI callbacks.
  */
-import {Modal, Notice, getIcon, setTooltip} from "obsidian";
+import {Modal, Notice, getIcon, setTooltip, type ButtonComponent} from "obsidian";
+import type {ClipboardState} from "../application/ClipboardSession";
 import {createObsidianTranslator} from "../adapters/obsidian/localization";
 
 /** Storage succeeded; display refresh failure must never be presented as a destructive unsaved retry. */
@@ -95,6 +96,14 @@ export abstract class StyleEditorModal extends Modal {
   protected scrollableContent(): {body: HTMLElement; actions: HTMLElement} {
     this.modalEl.addClass("kplex-scroll-editor-modal");
     return {body: this.contentEl.createDiv({cls: "kplex-style-editor-body"}), actions: this.contentEl.createDiv({cls: "kplex-style-editor-actions"})};
+  }
+
+  /** Both export dialogs close only after a successful native write; failed copy stays available for retry. */
+  protected clipboardFeedback(state: ClipboardState, button: ButtonComponent | null, status: HTMLElement | null, copied: string, failed: string): void {
+    if (!this.canEdit() || !this.modalEl.isConnected) return;
+    button?.setDisabled(state === "copying");
+    if (state === "copied") {this.close();new Notice(copied);}
+    else if (state === "failed") status?.setText(failed);
   }
 
   /** Submit once, freeze the captured draft and block Cancel/Escape until its durable outcome is known. */
