@@ -4,6 +4,7 @@
  * Node and relationship menus retain their separate semantic owners.
  */
 import { Menu } from "obsidian";
+import {addNativeSubmenu} from "../adapters/obsidian/nativeSubmenu";
 import type { ActionId } from "../core/plex/actions";
 import type { Translator } from "../lang";
 import type {CapturedCanvasViewMenuItem} from "./plexViews/contributionContracts";
@@ -20,15 +21,26 @@ export function createPlexContextMenu(options: {
   chooseBackground: () => void;
   reportBug: () => void;
   contributions?: readonly CapturedCanvasViewMenuItem[];
+  exportBreadcrumbs?: () => void;
+  breadcrumbsAvailable?: boolean;
 }): Menu {
   const { translate, runAction } = options;
   const menu = new Menu();
   menu.addItem(/** Start/resume the same view session as commands and local shortcuts. */ item => item
     .setTitle(translate("actions.view.wander.start")).setIcon("shuffle")
     .onClick(/** Keep the surface captured by the composing caller. */ () => runAction("view.wander.start")));
-  menu.addItem(/** Image export retains the composing canvas even after focus moves into its native dialog. */ item => item
-    .setTitle(translate("actions.view.export.image")).setIcon("image")
-    .onClick(/** The shared service/action also owns toolbar and command-palette exports. */ () => runAction("view.export.image")));
+  addNativeSubmenu(menu, translate("export.menu"), "download", /** Native menus retain their owning canvas and user activation. */ submenu => {
+    submenu.addItem(/** Markdown uses the same captured scene service as the published command. */ item => item
+      .setTitle(translate("export.canvasMarkdown")).setIcon("file-output")
+      .onClick(/** Dispatch on the composing surface. */ () => runAction("view.export.markdown")));
+    submenu.addItem(/** Image output also retains the same toolbar/palette service. */ item => item
+      .setTitle(translate("export.canvasImage")).setIcon("image")
+      .onClick(/** Dispatch on the composing surface. */ () => runAction("view.export.image")));
+    submenu.addItem(/** The native view owns this trail; an empty trail cannot export. */ item => item
+      .setTitle(translate("export.breadcrumbsMarkdown")).setIcon("footprints")
+      .setDisabled(!options.breadcrumbsAvailable || !options.exportBreadcrumbs)
+      .onClick(/** Copy starts before yielding so the native menu gesture remains valid. */ () => {if (options.breadcrumbsAvailable) options.exportBreadcrumbs?.();}));
+  });
   menu.addSeparator();
   menu.addItem(/** Native settings owns its existing page and lifetime. */ item => item
     .setTitle(translate("actions.canvasSettings")).setIcon("settings").onClick(options.openSettings));

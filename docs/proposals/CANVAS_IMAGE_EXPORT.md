@@ -4,7 +4,7 @@ PR #238 uses the existing branch, refreshed after merging #237 (`f99aa39`). Nati
 
 ## User workflow
 
-Compass, Mind Map and Facets offer **Export image** in the canvas toolbar, canvas context menu and command palette. The stable published command is `kplex-export-canvas-png`; the internal action is `view.export.image`.
+Compass, Mind Map and Facets offer **Export image** in the canvas toolbar, **Export → Canvas to image** in the canvas context menu, and command palette. The same **Export** submenu offers **Canvas to MindMap Markdown** and **Breadcrumbs to Markdown**; breadcrumbs copy the current canvas’s Footprints trail in its existing newest-first order, preserving repeated visits. The stable published command is `kplex-export-canvas-png`; the internal action is `view.export.image`.
 
 The native dialog previews the prepared PNG and offers **Copy PNG** and **Save PNG**, 1×/2×/3× resolution, **Transparent background**, and two explicit scopes:
 
@@ -25,7 +25,7 @@ Desktop save hands the prepared PNG to the native download destination flow. Mob
 
 `renderCanvasPng` accepts that immutable snapshot and an owning document. Chromium rasterizes a self-contained SVG `foreignObject` into a detached canvas. This reuses the native HTML/SVG renderer rather than implementing another node renderer or layout engine. Scope/resolution/background changes reuse the captured data. The existing pure Compass polygon helper extends tint to full-scene bounds.
 
-`CanvasImageExportModal` owns preview resources, asynchronous generations and cancellation. Prepared images decode off-DOM before atomically replacing the old preview. Native logical width/height stay independent of PNG resolution, and rerasterization uses aria-busy rather than adding/removing a loading row, so scale changes preserve dialog geometry. The shared `ClipboardSession<Blob>` starts clipboard writing in the actual button gesture. `pngExport` owns document-scoped ClipboardItem, desktop download and optional mobile sharing. Portable allocation/filename policies live under `src/core/plex/export/`. These services can support a later public API; this PR adds no public API or CLI.
+`CanvasImageExportModal` owns preview resources, asynchronous generations and cancellation. Prepared images decode off-DOM before atomically replacing the old preview. Native logical width stays independent of PNG resolution; height follows the decoded image’s intrinsic aspect ratio when Obsidian constrains its width, and rerasterization uses aria-busy rather than adding/removing a loading row, so scale changes preserve dialog geometry. The shared `ClipboardSession<Blob>` starts clipboard writing in the actual button gesture. `pngExport` owns document-scoped ClipboardItem, desktop download and optional mobile sharing. Portable allocation/filename policies live under `src/core/plex/export/`. These services can support a later public API; this PR adds no public API or CLI.
 
 The source canvas, camera, selection, scroll offsets, native editor and per-canvas session are never written by the export services. Concurrent canvases retain separate snapshots, modal lifetimes and actual documents/windows.
 
@@ -44,3 +44,5 @@ Run `npm run verify:obsidian:canvas-image` after exact-build staging in the expl
 The real-browser suite exercises off-camera pixels, SVG paint, loaded bitmaps, clip/scroll, frozen snapshots, zoom invariance, omitted opaque content, external-font no-fetch, independent document ownership, cooperative traversal and allocation/cancellation limits. Pure tests cover raster policy, filenames, Blob clipboard state and native handoff capability/cleanup. Full repository and exact-build host verification remain required; final receipts belong under `docs/validation/`.
 
 Minimum-host, Windows/Linux native output, physical Android/iOS sharing and physical touch remain separate acceptance environments. macOS desktop evidence does not certify them.
+
+For isolated menu/preview changes, `KPLEX_IMAGE_CURRENT_SCENE_ONLY=true` runs the same driver against a rendered existing Small-vault canvas. It checks the native three-item Export submenu, Markdown/breadcrumb activation, real preview aspect ratio, scale geometry, scope round trips and trusted image Copy, without preparing new source fixtures. This focused mode does not replace the full matrix for rendering-service changes.

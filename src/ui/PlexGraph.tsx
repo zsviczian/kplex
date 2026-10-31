@@ -712,7 +712,7 @@ function EdgeLabel({label,midpoint,style,background,opacity}:{label:string|null;
 }
 
 /** Compose the deterministic Plex scene; native-follow layouts land immediately while explicit navigation retains motion and central Open uses a main tab. */
-export function PlexGraph({ viewDefinition = classicViewDefinition, viewSession, viewContributions, viewRevision = 0, plugin, index, settings: viewSettings, paintSettings, paintLenses, surface, hostLeaf, predicate, lenses, filterLayoutMode, predicateRevision, showCrossLinks, activePath, navigationOrigin = "user", onSemanticDemandAcquired, renderRevision, semanticRevision, findFocusRequest, footprintsControl, areaSettingsMode, onAreaSettingsModeChange, onApplyFindFilter, appliedFindFilterQuery, onClearFindFilter, onActivate, onWanderActivate, onOpen, onOpenInSidecar, onCentralNodeEditorChange, onCentralNodeModeChange, actionPorts, actionSurfaceId, displayState, fullscreenAvailable, sidecarOpen }: {
+export function PlexGraph({ viewDefinition = classicViewDefinition, viewSession, viewContributions, viewRevision = 0, plugin, index, settings: viewSettings, paintSettings, paintLenses, surface, hostLeaf, predicate, lenses, filterLayoutMode, predicateRevision, showCrossLinks, activePath, navigationOrigin = "user", onSemanticDemandAcquired, renderRevision, semanticRevision, findFocusRequest, footprintsControl, onExportBreadcrumbs, hasBreadcrumbs, areaSettingsMode, onAreaSettingsModeChange, onApplyFindFilter, appliedFindFilterQuery, onClearFindFilter, onActivate, onWanderActivate, onOpen, onOpenInSidecar, onCentralNodeEditorChange, onCentralNodeModeChange, actionPorts, actionSurfaceId, displayState, fullscreenAvailable, sidecarOpen }: {
   viewDefinition?: PlexViewDefinition;
   viewSession?: PlexViewSession;
   viewContributions?: CanvasViewContributionController;
@@ -736,6 +736,8 @@ export function PlexGraph({ viewDefinition = classicViewDefinition, viewSession,
   semanticRevision: number;
   findFocusRequest: number;
   footprintsControl?: ReactNode;
+  onExportBreadcrumbs?: () => void;
+  hasBreadcrumbs?: () => boolean;
   areaSettingsMode: boolean;
   onAreaSettingsModeChange: (enabled: boolean) => void;
   onApplyFindFilter: (query: string) => void;
@@ -4985,10 +4987,6 @@ export function PlexGraph({ viewDefinition = classicViewDefinition, viewSession,
       menu.addItem(item => item.setTitle(translate("actions.view.property-assignment.undo")).setIcon("undo-2")
         .onClick(() => void plugin.actionManager.dispatch({id: "view.property-assignment.undo", source: "context-menu", surfaceId: actionSurfaceId})));
 
-    if (persistent) menu.addItem(/** Central and branch menus share the published export dialog and whole-map default. */ item => item
-        .setTitle(translate("actions.view.export.markdown")).setIcon("file-output")
-        .onClick(/** The manager retains the clicked occurrence for the optional selected-branch scope. */ () => runCapturedNodeAction("view.export.markdown", persistent)));
-
     if (viewDefinition.hierarchy && persistent) {
       if (node.branch?.canExpand) menu.addItem(/** Branch disclosure is independent of native editor expansion. */ item => item
         .setTitle(translate(node.branch?.expanded ? "mindmap.collapseBranch" : "mindmap.expandBranch")).setIcon(node.branch?.expanded ? "minus" : "plus")
@@ -5687,6 +5685,7 @@ export function PlexGraph({ viewDefinition = classicViewDefinition, viewSession,
       if (target.closest("[data-kplex-path], .kplex-edge-hit, button, input, .kplex-central-editor-overlay") || Date.now() < suppressActivateUntil.current) return;
       const menu = createPlexContextMenu({ translate, zen: displayState.zen, fullscreen: displayState.fullscreen, fullscreenAvailable,
         contributions: viewContributions?.menus(),
+        exportBreadcrumbs: onExportBreadcrumbs, breadcrumbsAvailable: hasBreadcrumbs?.() ?? false,
         runAction: /** Reuse the exact view-scoped action owner for playback and display modes. */ id => { void plugin.actionManager.dispatch({ id, source: "context-menu", surfaceId: actionSurfaceId }); },
         openSettings: /** Preserve the guarded native settings bridge. */ () => plugin.openSettings(),
         chooseBackground: /** The view owns this picker and closes it on migration/unmount. */ () => {

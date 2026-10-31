@@ -102,7 +102,9 @@ export class CanvasImageExportModal extends StyleEditorModal {
       const owner = this.modalEl.ownerDocument.defaultView;if (!owner || !this.previewContainer) return;
       const fragment = this.modalEl.ownerDocument.adoptNode(createFragment()), next = fragment.createEl("img", {attr: {alt: this.translate("export.image.preview")}});
       const bounds = this.exportScope === "canvas" ? this.snapshot.bounds : this.snapshot.viewport;
-      next.width = Math.round(bounds.width);next.height = Math.round(bounds.height);
+      // Native embeds constrain width; an explicit height would survive that constraint and distort the image.
+      // Keep width stable across resolutions and let the decoded PNG supply its intrinsic aspect ratio.
+      next.width = Math.round(bounds.width);
       const url = owner.URL.createObjectURL(result.blob), lifetime = new ImageExportLifetime(owner, {signal: this.raster.signal,
         current: /** A decoded image cannot replace a newer slider result or a closed dialog. */ () => generation === this.generation && this.current()});
       let adopted = false;
