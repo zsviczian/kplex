@@ -153,3 +153,63 @@ test("current note policies retain known alias, configured-field and fallback ti
     }
   }
 });
+
+/** Search-only fixture: production ranking receives normalized vocabulary and exact native lookup ports. */
+function searchFixture(entries) {
+  const index = Object.create(GraphIndex.prototype);
+  const pages = new Map(entries.map(entry => [entry.page.path, entry.page]));
+  let lookups = 0;
+  Object.assign(index, {plugin: {settings: {pinnedNodes: []}}, searchEntryPointPaths: [], searchCandidateCache: new Map(),
+    retiredHostTagPaths: new Set(), effectiveSearchEntries: () => entries,
+    app: {vault: {getFileByPath: path => {lookups++; return pages.get(path)?.file ?? null;}}},
+    get: path => {lookups++; return pages.get(path);}, currentSearchFolder: () => true, isVisiblePage: () => true});
+  return {index, pages, lookups: () => lookups};
+}
+
+/** Independent reference retains the previous character scan and stable full-sort result ordering. */
+function referenceScore(text, query) {
+  if (!query || text === query) return 0;
+  if (text.startsWith(query)) return 20 + Math.min(80, text.length - query.length);
+  const at = text.indexOf(query);
+  if (at >= 0) return 120 + at * 4 + Math.min(120, text.length - query.length);
+  let cursor = 0, first = -1, previous = -1, gaps = 0, boundaries = 0;
+  for (let i = 0; i < text.length && cursor < query.length; i++) {
+    if (text[i] !== query[cursor]) continue;
+    if (first < 0) first = i;
+    if (previous >= 0) gaps += Math.max(0, i - previous - 1);
+    if (i === 0 || /[\s_\-/.]/.test(text[i - 1])) boundaries += 8;
+    previous = i;cursor++;
+  }
+  return cursor === query.length ? 1000 + first * 5 + gaps * 12 + Math.max(0, text.length - query.length) - boundaries : null;
+}
+
+test('100k search entries retain complete prefix candidates but bound native eligibility to winning hits', () => {
+  const entries = Array.from({length: 100_000}, (_, n) => {
+    const path = `Notes/Entry-${n}.md`, file = {path};
+    return {page: {path, file, name: 'Entry', aliases: []}, name: 'entry', aliases: [], path: path.toLowerCase()};
+  });
+  const f = searchFixture(entries), started = performance.now();
+  assert.equal(f.index.search('entry', 24, 'vault').length, 24);
+  assert.equal(f.lookups(), 24, 'Tied/worse matches never perform native lookups after the top 24 fill');
+  assert.equal(f.index.searchCandidateCache.get('vault:entry').length, 100_000, 'Prefix narrowing must not truncate the searchable vocabulary');
+  assert.deepEqual(f.index.search('entry-99999', 24, 'vault').map(page => page.path), ['Notes/Entry-99999.md']);
+  console.log(JSON.stringify({searchEntries: entries.length, queryPairMs: performance.now() - started, nativeLookups: f.lookups()}));
+});
+
+test('optimized fuzzy ranking preserves aliases, paths, UTF-16 matching, stale identities and stable ties', () => {
+  const names = ['Alpha', 'Alpha beta', 'beta Alpha', 'A long prefix path', 'A_B_C', 'Müller', '東京', '🧠Map', 'alpha.md'];
+  const entries = Array.from({length: 1200}, (_, n) => {
+    const name = names[n % names.length], path = `Archive/${n}/${name}.md`;
+    const aliases = n % 5 === 0 ? ['First alias', 'ABC', 'Alpha'] : [];
+    return {page: {path, file: {path}, name, aliases}, name: name.toLowerCase(), aliases: aliases.map(alias => alias.toLowerCase()), path: path.toLowerCase()};
+  });
+  const f = searchFixture(entries);for (let n = 0; n < 1200; n += 31) f.pages.delete(entries[n].page.path);
+  for (const query of ['a', 'al', 'alp', 'alpha', 'abc', 'f a', 'archiv', 'ar99', 'mü', '東京', '🧠m', '\ud83e', 'no match']) {
+    const expected = entries.map(entry => {
+      const scores = [[entry.name, 0], ...entry.aliases.map(alias => [alias, 8]), [entry.path, 240]]
+        .map(([text, weight]) => {const score = referenceScore(text, query);return score === null ? Infinity : score + weight;});
+      return {page: entry.page, score: Math.min(...scores)};
+    }).filter(row => Number.isFinite(row.score) && f.pages.has(row.page.path)).sort((a, b) => a.score - b.score).slice(0, 24).map(row => row.page.path);
+    assert.deepEqual(f.index.search(query, 24, 'vault').map(page => page.path), expected, query);
+  }
+});

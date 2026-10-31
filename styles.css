@@ -231,7 +231,7 @@ button.kplex-sidecar-unfold-plex:hover,
   box-shadow: var(--shadow-s);
   padding: 6px;
 }
-.kplex-search-result {
+.kplex-search-results .kplex-search-result {
   width: 100%;
   display: grid;
   grid-template-columns: minmax(0, .9fr) minmax(0, 1.1fr);
@@ -244,8 +244,13 @@ button.kplex-sidecar-unfold-plex:hover,
   border-radius: 6px;
   padding: 8px 10px;
   cursor: pointer;
+  height: auto;
+  box-shadow: none;
 }
-.kplex-search-result:hover { background: var(--background-modifier-hover); }
+.kplex-search-results .kplex-search-result:hover { background: var(--background-modifier-hover); }
+.kplex-search-results .kplex-search-result + .kplex-search-result {
+  border-top: 1px solid var(--background-modifier-border-faint);
+}
 .kplex-search-result.has-prefix {
   grid-template-columns: 16px minmax(0, .9fr) minmax(0, 1.1fr);
   gap: 10px;
@@ -296,6 +301,9 @@ button.kplex-sidecar-unfold-plex:hover,
 /* Let Chromium reraster labels at the current zoom. A permanent transform hint retains old-scale
    textures, so scrolling tiles and expanded outlines can stay soft after camera motion settles. */
 .kplex-camera { position: absolute; width: 0; height: 0; transform-origin: 0 0; }
+/* Promote only during desktop camera input. Idle releases this hint to restore sharp labels;
+   the existing coarse-pointer rule below avoids large GPU layers on mobile WebViews. */
+.kplex-camera.is-camera-moving { will-change: transform; }
 .kplex-links { position: absolute; left: -1600px; top: -1200px; overflow: visible; pointer-events: none; z-index: 4; }
 .kplex-nodes { position: absolute; left: 0; top: 0; z-index: 8; }
 .kplex-edge { transition: opacity .11s ease, filter .11s ease; }
@@ -1495,7 +1503,7 @@ button.kplex-sidecar-unfold-plex,
 }
 
 /* Keyboard search selection mirrors pointer hover and remains visible while arrowing. */
-.kplex-search-result.is-selected {
+.kplex-search-results .kplex-search-result.is-selected {
   color: var(--text-normal);
   background: var(--background-modifier-hover);
   box-shadow: inset 2px 0 0 var(--interactive-accent);
@@ -1759,7 +1767,7 @@ button.kplex-sidecar-unfold-plex,
    of simultaneous drop-shadow/position animations during a gesture. Camera motion itself is
    requestAnimationFrame-batched in PlexGraph. */
 @media (hover: none) and (pointer: coarse) {
-  .kplex-camera { will-change: auto; }
+  .kplex-camera.is-camera-moving { will-change: auto; }
   .kplex-edge-visible { filter: none; }
   .kplex-edge.is-highlighted .kplex-edge-visible { filter: none; }
 }

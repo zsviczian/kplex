@@ -1,6 +1,7 @@
 /** Per-canvas contribution dispatcher. The existing session owns selection/state; the existing
  * queued writer owns configuration. Captured callbacks cannot borrow another leaf or document. */
 import type {PlexViewSession} from "../../application/PlexViewSession";
+import type {PlexViewDefinition} from "../../core/plex/views/contracts";
 import {boundedViewState} from "../../core/plex/views/state";
 import {readViewConfiguration, readViewConfigurationAt, type ViewConfigurationAddress,
   type ViewConfigurationEdit, type ViewConfigurationExpected} from "../../core/plex/views/configuration";
@@ -28,6 +29,55 @@ export class CanvasViewContributionController {
     if (this.disposed || !this.ports.mounted() || this.registry.definition(this.session.definition.id) !== this.session.definition) return null;
     const configuration = readViewConfiguration(this.session.definition, this.ports.settings());
     return {viewId: this.session.definition.id, state: boundedViewState(this.session.state), configuration};
+  }
+  /** Project every registered view and its optional choices without selecting inactive views.
+   * One choice becomes the view's submenu; multiple choices keep their labelled groups. The
+   * contribution registry remains the only source of subviews, with no Facets-specific branch. */
+  selectionMenus(): readonly CapturedCanvasViewMenuItem[] {
+    if (!this.context()) return [];
+    return [...this.session.registry.available].sort(/** Keep the default view first, matching the shared selector. */ (a, b) =>
+      Number(b.id === this.session.registry.fallbackId) - Number(a.id === this.session.registry.fallbackId)).map(definition => {
+      const context: CanvasViewContributionContext = {viewId: definition.id,
+        state: boundedViewState(this.session.stateFor(definition.id)), configuration: readViewConfiguration(definition, this.ports.settings())};
+      const active = this.session.definition === definition;
+      const label = {key: definition.labelKey};
+      try {
+        const choices = this.registry.contribution(definition)?.choices?.(context) ?? [];
+        validateCanvasViewChoices(choices);
+        const groups = choices.filter(/** Hidden choices never become native actions. */ choice => choice.visible !== false).map(choice => ({
+          id: choice.id, kind: "submenu" as const, label: choice.label, enabled: choice.enabled !== false,
+          items: choice.options.filter(/** Preserve the same admitted options as the shared selector. */ option => option.visible !== false).map(option => ({
+            id: option.id, kind: "action" as const, label: option.label, enabled: choice.enabled !== false && option.enabled !== false,
+            checked: active && option.id === choice.selected, unavailableReason: option.unavailableReason,
+            command: this.captureSelection(definition, context, option.command),
+          })),
+        }));
+        if (groups.length) return {id: definition.id, kind: "submenu" as const, label, icon: definition.icon, checked: active, enabled: true,
+          items: groups.length === 1 && groups[0].enabled ? groups[0].items : groups};
+      } catch (error) {this.ports.failed(error);}
+      return {id: definition.id, kind: "action" as const, label, icon: definition.icon, checked: active, enabled: true,
+        command: this.captureSelection(definition, context)};
+    });
+  }
+
+  /** Capture exact source session/revision and target settings/state. Native editor preflight
+   * remains requestSelection-owned; a rejected or superseded transition never runs a subview command. */
+  private captureSelection(definition: PlexViewDefinition, context: CanvasViewContributionContext, request?: CanvasViewCommand): CapturedCanvasViewCommand {
+    const current = this.session.capture(), revision = this.session.getSnapshot(), expected = JSON.stringify(context);
+    const command = request ? copyCanvasViewCommand(request) : undefined;
+    let used = false;
+    /** Recheck inactive target configuration too: a menu may outlive an incoming settings change. */
+    const targetCurrent = (): boolean => this.registry.definition(definition.id) === definition && JSON.stringify({viewId: definition.id,
+      state: boundedViewState(this.session.stateFor(definition.id)), configuration: readViewConfiguration(definition, this.ports.settings())}) === expected;
+    return {run: async () => {
+      if (used || this.disposed || !this.ports.mounted() || !current() || this.session.getSnapshot() !== revision || !targetCurrent()) return {status: "unavailable"};
+      used = true;
+      try {
+        if (!await this.session.requestSelection(definition.id)) return {status: "unavailable"};
+        if (this.disposed || !this.ports.mounted() || this.session.definition !== definition || !targetCurrent()) return {status: "unavailable"};
+        return command ? await this.capture(command).run() : {status: "completed"};
+      } catch (error) {this.ports.failed(error);return {status: "failed"};}
+    }};
   }
   /** Capture exact session/definition/revision and configuration; a stale menu is inert. */
   capture(request: CanvasViewCommand): CapturedCanvasViewCommand {

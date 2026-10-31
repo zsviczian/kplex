@@ -128,7 +128,7 @@ export const findEnhancementCleanup = `(()=>{const c=window.__kplexUxRegression;
     await attempt("owned-fixtures",async()=>{const folder=app.vault.getFolderByPath(c.folder);if(folder&&c.owned.includes(c.folder))await app.vault.delete(folder,true);c.check(!app.vault.getFolderByPath(c.folder),"Owned Find fixture folder remains")});
     await attempt("original-settings-before-layout",async()=>{await c.p.settingsWriteQueue;c.p.settings=c.settings;await c.p.saveSettings(false,false);await c.p.settingsWriteQueue});
     await attempt("original-layout",async()=>{await app.workspace.changeLayout(c.originalLayout)});
-    await attempt("original-native-owners",()=>{const leaves=[];app.workspace.iterateAllLeaves(leaf=>leaves.push(leaf));const rebind=old=>old?leaves.find(leaf=>leaf.id===old.id)??null:null;
+    await attempt("original-native-owners",async()=>{const leaves=[];app.workspace.iterateAllLeaves(leaf=>leaves.push(leaf));const rebind=old=>old?leaves.find(leaf=>leaf.id===old.id)??null:null;
       await documentSessions(c.p).restore(c.originalOwners.documents);c.p.lastDocumentLeaf=rebind(c.originalOwners.last);c.p.recentLeafHistory=c.originalOwners.recent.map(rebind).filter(Boolean);c.p.sidecarLeaves.clear();
       for(const [host,leaf]of c.originalOwners.sidecars){const restoredHost=rebind(host),restoredLeaf=rebind(leaf);if(restoredHost&&restoredLeaf)c.p.sidecarLeaves.set(restoredHost,restoredLeaf)}});
     await attempt("original-settings-after-layout",async()=>{c.p.settings=c.settings;await c.p.saveSettings(false,false);await c.p.settingsWriteQueue;await c.p.index.refreshPresentationSettings();c.p.savedSettingsPolicy=c.originalPolicy;

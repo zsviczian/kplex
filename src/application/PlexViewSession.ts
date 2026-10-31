@@ -39,7 +39,13 @@ export class PlexViewSession {
   get definition(): PlexViewDefinition { return this.registry.resolve(this.requestedId); }
   /** Decode this definition's finite preference payload without sharing runtime/native objects. */
   get state(): unknown {
-    try { return this.definition.restoreState(this.states.get(this.definition.id) ?? this.definition.defaultState); }
+    return this.stateFor(this.definition.id);
+  }
+  /** Read a registered view's retained/default state without selecting it or acquiring its resources. */
+  stateFor(id: string): unknown {
+    if (!this.registry.has(id)) return null;
+    const definition = this.registry.resolve(id);
+    try { return definition.restoreState(this.states.get(id) ?? definition.defaultState); }
     catch { return null; }
   }
   /** Stable scalar snapshot supports React without retaining graph/native objects. */

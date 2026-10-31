@@ -49,6 +49,7 @@ import {startCenterWatchdog} from "./components/centerWatchdog";
 import { appearanceColorReferences, STYLE_SETTINGS_KEYS } from "../core/contracts/appearance";
 import { useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type ChangeEvent, type CSSProperties, type DragEvent, type MouseEvent, type PointerEvent, type RefObject, type ReactNode } from "react";
 import { createPlexContextMenu } from "./plexContextMenu";
+import { CameraMotion } from "./components/CameraMotion";
 import { ColorSourceModal } from "./ColorSourceModal";
 import { Keymap, Menu, Notice, Platform, type WorkspaceLeaf } from "obsidian";
 import { addNativeSubmenu } from "../adapters/obsidian/nativeSubmenu";
@@ -1268,6 +1269,7 @@ export function PlexGraph({ viewDefinition = classicViewDefinition, viewSession,
     };
   }, [plugin, index, hostLeaf, activePath, classic]);
   const cameraElement = useRef<HTMLDivElement | null>(null);
+  const cameraMotion = useRef(new CameraMotion());
   const centralEditorOverlayElement = useRef<HTMLDivElement | null>(null);
   const compassElement = useRef<SVGSVGElement | null>(null);
   const compassCenter = useRef<{element: HTMLElement | null; owner: Document; left: number; top: number; width: number; height: number} | null>(null);
@@ -1686,6 +1688,7 @@ export function PlexGraph({ viewDefinition = classicViewDefinition, viewSession,
     // content. Native embedded views are positioned separately above the camera so Excalidraw and
     // other host canvases continue receiving untransformed pointer coordinates at every Plex zoom.
     cameraWritePending.current = true;
+    if (!fitted && cameraElement.current) cameraMotion.current.touch(cameraElement.current);
     requestCameraFrame();
     return next;
   };
@@ -2419,6 +2422,7 @@ export function PlexGraph({ viewDefinition = classicViewDefinition, viewSession,
     sceneTransitionTimerWindow.current = null;
     if (cameraFrame.current !== null) (cameraFrameWindow.current ?? window).cancelAnimationFrame(cameraFrame.current);
     cameraFrameWindow.current = null;
+    cameraMotion.current.dispose();
     viewport.current?.classList.remove("is-touch-gesturing", "is-pinch-gesturing");
   }, [sceneMotion]);
 
@@ -5761,7 +5765,7 @@ export function PlexGraph({ viewDefinition = classicViewDefinition, viewSession,
       const target = event.target as Element;
       if (target.closest("[data-kplex-path], .kplex-edge-hit, button, input, .kplex-central-editor-overlay") || Date.now() < suppressActivateUntil.current) return;
       const menu = createPlexContextMenu({ translate, zen: displayState.zen, fullscreen: displayState.fullscreen, fullscreenAvailable,
-        contributions: viewContributions?.menus(),
+        contributions: viewContributions?.menus(), views: viewContributions?.selectionMenus(),
         exportBreadcrumbs: onExportBreadcrumbs, breadcrumbsAvailable: hasBreadcrumbs?.() ?? false,
         runAction: /** Reuse the exact view-scoped action owner for playback and display modes. */ id => { void plugin.actionManager.dispatch({ id, source: "context-menu", surfaceId: actionSurfaceId }); },
         openSettings: /** Preserve the guarded native settings bridge. */ () => plugin.openSettings(),
