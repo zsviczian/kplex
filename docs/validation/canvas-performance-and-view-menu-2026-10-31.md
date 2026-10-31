@@ -125,3 +125,30 @@ did not reveal the children. Each passed cleanup. Private reports remain under
    prerequisites are not a passing receipt.
 3. On a physical phone/tablet, confirm search touch targets, submenu activation and pinch behavior.
    The mobile compositor exclusion remains in place; desktop evidence cannot certify WebView input.
+
+## Follow-up: native Facets submenu correction
+
+The maintainer confirmed improved search/zoom and reported that Facets still appeared as a leaf
+in the OS menu. The earlier native callback-only test stopped before Obsidian's OS conversion
+and therefore missed this defect.
+
+Inspection of the installed Obsidian 1.15.0 `Menu.showAtPosition()` established the cause: any
+boolean `MenuItem.checked`, including false, becomes `type: "checkbox"` in the native template.
+Electron/macOS then treats Facets as a checkbox instead of presenting its submenu. The shared
+submenu adapter now keeps parent checked state null and prefixes the selected parent's label
+with a check. Leaf preset options retain normal native checkbox checkmarks. Flat fallback
+labels retain their existing behavior. This applies to all contributed submenu parents.
+
+Follow-up validation on Node 22.22.2:
+
+- `node --test --test-concurrency=1 tests/canvas-menu.test.mjs tests/canvas-view-api.test.mjs tests/presentation-environment.test.mjs` — 68 passed. The new native-template regression covers both selected/unselected parents, preserved leaf checks, and a negative control reproducing the original checkbox type collision.
+- `npm run build` — passed against installed Obsidian declarations.
+- `npm run lint:obsidian` — passed without findings; `git diff --check` passed.
+- The exact final build was staged in the verified Small vault (76 files), with `main.js` SHA-256 `47d783b741dec2163e654e71f3ba20f78ee1dfdbf8cdf11c3b5c2ce89e409043`; CSS and manifest hashes remain as above.
+- Actual Electron menu construction and registered callback checks passed in main and popout: the parent is a submenu, the selected label carries its check, and the selected preset remains a checked checkbox. Cleanup passed. Receipt: `/tmp/kplex-facets-native-types-final/canvas-menu-native-types.json`.
+- OS input on the final build expanded **View → Facets**, exposed **Wu Xing** and **Local map roles**, and selected **Local map roles**; the actual canvas heading changed accordingly. An earlier full OS right-click pass on the same correction also verified that reopening the selected **✓ Facets** still exposes its children. The test canvas/preset was restored to Compass/Wu Xing.
+
+This follow-up is isolated to menu presentation and adds no indexing, source, storage, CSS or
+settings changes. Full aggregate indexing suites were not repeated. Main-window OS submenu
+activation is now verified; OS interaction in a popout and physical touch remain separate from
+the passing main/popout callback/type checks. The other earlier failed probes remain recorded.

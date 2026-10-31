@@ -1,7 +1,9 @@
 /**
  * Native Obsidian submenu compatibility boundary. Obsidian 1.14.2 exposes
  * MenuItem.setSubmenu at runtime, although the installed 1.13 API declarations
- * omit it. The host owns hover, keyboard/touch navigation and menu cleanup.
+ * omit it. The host owns hover, keyboard/touch navigation and menu cleanup. Selected submenu
+ * parents use a label check: Obsidian converts boolean checked states to native checkboxes,
+ * which cannot also present submenu children on macOS.
  */
 import type { Menu, MenuItem } from "obsidian";
 
@@ -16,8 +18,10 @@ export function addNativeSubmenu(menu: Menu, title: string, icon: string, popula
       return;
     }
     supported = true;
-    item.setTitle(title).setIcon(icon);
-    if (checked !== undefined) item.setChecked(checked);
+    // Keep checked null for actual submenus. Even false becomes type: "checkbox" in Obsidian's
+    // native template and loses the child menu. Leaf actions retain normal native checkmarks.
+    item.setTitle(checked ? `✓ ${title}` : title).setIcon(icon);
+    if (checked !== undefined) item.setChecked(null);
     populate(native.setSubmenu());
   });
   if (!supported) populate(menu);
