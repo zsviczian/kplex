@@ -30,6 +30,14 @@ Updated production SHA-256: `main.js`
 `styles.css` `0765c64003bd864c0e50bc21900cda4faa3871b5342388b0f7ee96284d03a55e`.
 The manifest remains unchanged. Physical mobile touch validation remains separate.
 
+The exact build was redeployed to the authorized reference vault using verified sibling staging,
+atomic replacement and a private backup. Installed hashes matched, the existing K-Plex pane
+rendered, enablement bytes were unchanged and every existing preference/ontology value was
+preserved. Restoring the pane updated only its normal `lastActivePath` navigation pointer.
+Native Small-vault layout measured both editors at the full 514px available width, with title
+and help above. Drafts were cancelled. An initial animation-frame wait timed out in the background
+window; synchronous layout measurement then passed and closed the owned dialogs.
+
 ## Risk-based validation
 
 No indexing, storage, source-acquisition or graph-semantic owner changed from the accepted
