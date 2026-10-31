@@ -6750,3 +6750,8 @@ Maintainer-reported no-unsafe-call/no-unsafe-return at occurrenceEditor.ts35: re
 ### 2026-10-31 - Maintainer-scoped light cleanup
 
 Base main ec3c07d; repository-wide static/import/CSS/test inventory audit and critical semantic-path review. Remove two unreachable UI modules and 41 exclusive selectors, reuse ActionButton for three live actions, share finite predicate choices, retire two unused modal references and add 27 existing portable diagnostic cases to npm test. No indexing/hydration/compiler/cache/schema/API changes; C15-C26 remain paused. 190 focused cases pass on Node22.22.2; initial real build and official scanner pass. Full verification and exact-build native hydration/gate/live-update acceptance follow before PR delivery. Remaining manual risks: theme/popout control behavior, native lens/preset choices and physical touch. See docs/validation/code-quality-review-2026-10-31.md.
+
+
+### 2026-10-31 - Cleanup regression fixture correction
+
+First complete verification passed release/architecture9/core132/scanner and 1825 main cases, then stopped on one stale accepted-main scene assertion that still rejected PNG. Both test and production admission owner were unchanged from ec3c07d. Current native format policy already accepts PNG/MP4. Retain the rejection matrix with missing-native-file coverage and add explicit media acceptance/ZIP refusal/exact occurrence/canonical identity/unchanged attention contracts. All51 affected scene/editor cases pass; no production change, weakened guard or timeout adjustment. Full verification restarts; native checks remain pending.

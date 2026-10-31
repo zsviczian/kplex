@@ -14,6 +14,7 @@ The repository-wide audit inventoried 433 TypeScript/TSX files (103,358 lines), 
 - Share finite predicate choices between lens and preset editors. Keep center-relative path and indexed note-type suggestions with their existing callers. Declared roles still exclude derived siblings and include hidden relations.
 - Remove one write-only ontology control reference and avoid retaining an unused materialization-location constructor property. Constructor arguments and initialization behavior are preserved.
 - Register four previously omitted portable diagnostic suites in the normal test lane: storage comparison plans, owned IndexedDB filesystem inventory, offline checkpoint codec and consumer probe contracts (27 cases). Historical PR207 variant suites remain separate because they require exact old Git objects rather than the current production implementation.
+- Correct a stale scene-admission test inherited from accepted main: PNG is now supported by the native format owner. Preserve the rejection matrix with a missing-file case and add positive PNG/MP4 and negative ZIP scene contracts, including exact occurrence, canonical identity and unchanged attention.
 
 ## Findings retained deliberately
 
@@ -34,13 +35,16 @@ Required runtime: Node 22.22.2; actual installed Obsidian types are used by the 
 | Focused shared UI/Footprints/presentation/relationships/numeric architecture | 126 passed |
 | Predicate browser/rules/localization | 37 passed |
 | Newly registered diagnostic cases | 27 passed |
+| Editor/scene contracts after stale fixture correction | 51 passed |
 | Initial real production build | Passed; final build remains part of full verification |
 | Initial full official Obsidian scanner | Passed; final scan remains part of full verification |
-| Full `npm run verify` | Pending |
+| Full `npm run verify` | First run: 1,825 passed, one stale editor-format assertion failed; final rerun pending |
 | Exact-build native hydration, gate counts and live updates | Pending |
 | Final-head CI | Pending |
 
 New browser assertions cover pressed-state updates, native clipboard event ownership, exact finite-choice ordering, declared-versus-derived role vocabulary, caller-owned note types and return to free text. Existing indexing, durability, supersession, hydration, relation precedence and gate-count tests remain intact, with unchanged deadlines and assertions.
+
+The first full attempt stopped in the main lane before browser/source/IndexedDB lanes. Its failing test and editor-admission implementation were byte-identical to `main@ec3c07d`; the cleanup had not touched either. Current main's native format-policy test already explicitly accepts PNG/MP4 and rejects ZIP. The scene contract now follows that accepted ownership boundary while retaining missing/hidden/recreated/mismatched/native-refused rejection coverage. No timeout, production eligibility rule or regression assertion was relaxed to make this pass.
 
 Native validation uses only the existing disposable Small vault, explicit target/configuration checks, exact artifact hashes and existing serial drivers. Record actual results and restoration before delivery. No production vault deployment is authorized or performed.
 
