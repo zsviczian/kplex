@@ -4124,3 +4124,12 @@ button.kplex-sidecar-unfold-plex:focus-visible,
 /* Image export previews retain their encoded aspect ratio within the shared native modal. */
 .kplex-image-export-preview { display: block; width: 100%; height: auto; max-height: 50vh; object-fit: contain; border: 1px solid var(--background-modifier-border); border-radius: var(--radius-s); background: var(--background-secondary); }
 .kplex-image-export-preview:not([src]) { display: none; }
+
+/* Export controls stay clear of native scrollbars, focus rings and the fixed action footer. */
+.kplex-export-modal .kplex-style-editor-body { padding-inline-end: var(--size-4-2); padding-bottom: var(--size-4-3); }
+.kplex-export-modal .kplex-style-editor-actions { padding-top: var(--size-4-2); }
+.kplex-export-modal .setting-item-control { min-width: 0; }
+.kplex-export-modal .setting-item-control select { min-width: 0; max-width: 100%; padding-inline-end: var(--size-4-6); }
+.kplex-export-modal .setting-item-control input[type="text"] { min-width: 0; max-width: 100%; }
+.kplex-export-modal .kplex-style-editor-actions button { display: inline-flex; align-items: center; gap: var(--size-4-1); }
+.kplex-image-export-preview.is-transparent { background-image: linear-gradient(45deg, var(--background-modifier-border) 25%, transparent 25%, transparent 75%, var(--background-modifier-border) 75%), linear-gradient(45deg, var(--background-modifier-border) 25%, transparent 25%, transparent 75%, var(--background-modifier-border) 75%); background-size: 16px 16px; background-position: 0 0, 8px 8px; }

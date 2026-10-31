@@ -4279,17 +4279,20 @@ export function PlexGraph({ viewDefinition = classicViewDefinition, viewSession,
     graphDialogs.current.add(dialog);dialog.open();return {status: "opened", sessionId};
   };
   /** Freeze this exact canvas for the reusable DOM snapshot/raster services, without another graph projection. */
-  const openCanvasImage = (): ActionOutcome => {
+  const openCanvasImage = (context: ActionContext): ActionOutcome => {
     const root = viewport.current;
     if (!root || viewFailed || !scene.nodes.length) return {status: "unavailable", reasonKey: "actions.target-unavailable"};
     clearHoverIntent(true);
     const captured = imageExportPresentation.current, transform = cameraElement.current?.style.transform;
     const surfaceCurrent = captureSurfaceContinuation(() => viewport.current, () => plugin.actionManager.readSnapshot(actionSurfaceId), {checkInteraction: false});
-    const appearance = plugin.captureAppearanceOwner();
+    const appearance = plugin.captureAppearanceOwner(), document = root.ownerDocument;
+    const generation = context.generation;
     const sessionId = `${actionSurfaceId}:image-export:${++graphDialogSerial.current}`;
     const dialog = new CanvasImageExportModal(plugin.app, {sourceScope: root, mobile: Platform.isMobile,
       center: compassCenter.current?.element, name: scene.nodes.find(/** Use the committed framing label instead of the globally active note. */ node => node.role === "center")?.label ?? translate("export.image.filenameStem"),
-      current: /** Async capture cannot borrow a changed scene, paint, scroll, camera, document or native theme owner. */ () => {
+      current: /** Prepared pixels belong to this mounted canvas/document, independently of later scene refreshes. */ () => Boolean(generation !== undefined && plugin.isActionSurfaceCurrent(actionSurfaceId, generation)
+        && viewport.current === root && root.isConnected && root.ownerDocument === document && document.defaultView && !document.defaultView.closed),
+      captureCurrent: /** Unfinished capture cannot mix a changed scene, paint, scroll, camera or native theme owner. */ () => {
         const latest = imageExportPresentation.current;
         return surfaceCurrent() && plugin.isAppearanceOwnerCurrent(appearance) && cameraElement.current?.style.transform === transform
           && latest.scene === captured.scene && latest.matches === captured.matches && latest.areas === captured.areas

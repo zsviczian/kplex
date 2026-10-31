@@ -34,9 +34,14 @@ export class MindMapMarkdownModal extends StyleEditorModal {
   onOpen(): void {
     this.beginEditor(this.options.sourceScope);
     this.setTitle(this.translate("export.markdown.title"));
-    this.modalEl.addClass("kplex-mindmap-markdown-export");
+    this.modalEl.addClass("kplex-mindmap-markdown-export", "kplex-export-modal");
     const {body, actions} = this.scrollableContent();
-    body.createEl("p", {text: this.translate("export.markdown.help")});
+    const help = body.createEl("p"), marker = "\uFFFC";
+    const [before, after] = this.translate("export.markdown.help", {builder: marker}).split(marker);
+    help.createSpan({text: before});
+    help.createEl("a", {text: this.translate("export.markdown.builder"), cls: "external-link",
+      attr: {href: "https://community.sketch-your-mind.com/mindmap", target: "_blank", rel: "noopener noreferrer"}});
+    help.createSpan({text: after ?? ""});
     const selected = this.options.selected;
     if (selected && selected !== this.options.snapshot.root) new Setting(body).setName(this.translate("export.markdown.scope"))
       .addDropdown(/** Scope changes only project the frozen snapshot; they never expand a branch. */ dropdown => dropdown
@@ -55,7 +60,7 @@ export class MindMapMarkdownModal extends StyleEditorModal {
         text.inputEl.maxLength = 200;
         text.setValue(this.filename).onChange(/** Editing a filename performs no native operation. */ value => {this.filename = value;this.clearStatus();});
       });
-    new Setting(actions)
+    new Setting(actions).setClass("kplex-modal-action-row")
       .addButton(/** Copy starts synchronously in the native button handler. */ button => {this.copyButton = button;button.setButtonText(this.translate("export.markdown.copy")).onClick(/** Retain owning-document clipboard activation. */ () => this.copy());appendIcon(button.buttonEl, "copy");})
       .addButton(/** Save uses the same exact bytes shown in the read-only preview. */ button => {this.saveButton = button;button.setButtonText(this.translate("export.markdown.save")).setCta().onClick(/** Explicit output persistence never navigates the canvas. */ () => {void this.save();});appendIcon(button.buttonEl, "save");})
       .addButton(/** Dismissal releases the snapshot's clipboard completion owner. */ button => button.setButtonText(this.translate("common.cancel")).onClick(/** Existing migration/close cleanup remains the only retirement path. */ () => this.close()));

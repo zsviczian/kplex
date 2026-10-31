@@ -1,7 +1,8 @@
 /** Native PNG preview and output shell. Capture/raster services own rendering, ClipboardSession
  * owns gesture-safe copy, and native file handoff owns destination selection. No source/editor
- * or canvas state writer is exposed to this dialog. */
-import {Setting, type App, type ButtonComponent, type EventRef} from "obsidian";
+ * or canvas state writer is exposed to this dialog. Once capture completes, live scene/theme
+ * refreshes cannot invalidate the frozen preview; source/window teardown still retires output. */
+import {Setting, type App, type ButtonComponent, type EventRef, type ToggleComponent} from "obsidian";
 import {StyleEditorModal, appendIcon} from "../StyleEditorModal";
 import {numberSlider} from "../numberSlider";
 import {ClipboardSession} from "../../application/ClipboardSession";
@@ -13,7 +14,7 @@ import {CanvasImageError} from "./imageExportLifetime";
 
 export type CanvasImageExportOptions = Readonly<{
   sourceScope: HTMLElement; center?: HTMLElement | null; name: string; mobile: boolean;
-  current: () => boolean; closed: () => void;
+  current: () => boolean; captureCurrent: () => boolean; closed: () => void;
 }>;
 
 /** One canvas's captured pixels, explicit scope/limits and owning-window save/copy lifetime. */
@@ -30,10 +31,12 @@ export class CanvasImageExportModal extends StyleEditorModal {
   private warnings: HTMLElement | null = null;
   private copyButton: ButtonComponent | null = null;
   private saveButton: ButtonComponent | null = null;
+  private backgroundControl: ToggleComponent | null = null;
   private scaleControl: ReturnType<typeof numberSlider> | null = null;
   private generation = 0;
   private exportScope: CanvasImageScope = "canvas";
   private scale = 2;
+  private transparentBackground = false;
   private filename = "";
   private saving = false;
   private styleChanged = false;
@@ -45,14 +48,20 @@ export class CanvasImageExportModal extends StyleEditorModal {
   /** Mount native responsive controls before starting expensive preparation. */
   onOpen(): void {
     this.beginEditor(this.options.sourceScope);
-    this.cssSubscription = this.app.workspace.on("css-change", /** A changed stylesheet cannot authorize a mixed or outdated preview. */ () => {
+    this.cssSubscription = this.app.workspace.on("css-change", /** A changed stylesheet cannot authorize a mixed unfinished capture; completed pixels stay frozen. */ () => {
+      if (this.snapshot) return;
       this.styleChanged = true;this.capture.abort();this.raster?.abort();this.fail(new CanvasImageError("retired"));
     });
-    this.setTitle(this.translate("export.image.title"));this.modalEl.addClass("kplex-canvas-image-export");
+    this.setTitle(this.translate("export.image.title"));this.modalEl.addClass("kplex-canvas-image-export", "kplex-export-modal");
     const {body, actions} = this.scrollableContent();body.createEl("p", {text: this.translate("export.image.help")});
     new Setting(body).setName(this.translate("export.image.scope")).addDropdown(/** Scope reuses the same immutable captured presentation. */ dropdown => dropdown
       .addOption("canvas", this.translate("export.image.canvas")).addOption("viewport", this.translate("export.image.viewport"))
       .onChange(/** Changing crop never changes the live canvas. */ value => {this.exportScope = value === "viewport" ? "viewport" : "canvas";void this.renderPreview();}));
+    new Setting(body).setName(this.translate("export.image.transparent")).setDesc(this.translate("export.image.transparentHelp"))
+      .addToggle(/** Change background pixels on the frozen capture, without changing the canvas theme. */ toggle => {
+        this.backgroundControl = toggle;toggle.setValue(this.transparentBackground)
+          .onChange(/** Reuse the snapshot for opaque and transparent output alike. */ value => {this.transparentBackground = value;void this.renderPreview();});
+      });
     const label = this.translate("export.image.resolution");
     this.scaleControl = numberSlider(new Setting(body).setName(label), {label, value: this.scale, min: 1, max: 3, step: 1,
       format: /** Keep the permanent output independent of delayed raster completion. */ value => `${value}×`,
@@ -63,9 +72,9 @@ export class CanvasImageExportModal extends StyleEditorModal {
     this.status = body.createDiv({attr: {role: "status", "aria-live": "polite"}});
     new Setting(body).setName(this.translate("export.image.filename")).addText(/** Suggested filename only; the system owns its destination. */ text => {
       const stem = this.options.name.replace(/[\\/:*?"<>|#[\]\r\n]/g, " ").trim().slice(0, 100) || this.translate("export.image.filenameStem");
-      this.filename = `${stem}.png`;text.inputEl.maxLength = 200;text.setValue(this.filename).onChange(/** No filesystem operation occurs while editing. */ value => {this.filename = value;this.status?.empty();});
+      this.filename = `${stem}.png`;text.inputEl.maxLength = 200;text.setValue(this.filename).onChange(/** No filesystem operation occurs while editing. */ value => {this.filename = value;if (this.output) this.status?.empty();});
     });
-    new Setting(actions)
+    new Setting(actions).setClass("kplex-modal-action-row")
       .addButton(/** Encoding completes before this button can acquire clipboard activation. */ button => {this.copyButton = button;button.setButtonText(this.translate("export.image.copy")).setDisabled(true).onClick(/** The writer starts in this trusted handler turn. */ () => this.copy());appendIcon(button.buttonEl, "copy");})
       .addButton(/** Save uses exactly the encoded preview, never another scene read. */ button => {this.saveButton = button;button.setButtonText(this.translate("export.image.save")).setCta().setDisabled(true).onClick(/** Explicit native handoff remains independently guarded. */ () => {void this.save();});appendIcon(button.buttonEl, "save");})
       .addButton(/** Cancel retires capture/decode/clipboard work without touching the canvas. */ button => button.setButtonText(this.translate("common.cancel")).onClick(/** Native close/migration share the same cleanup. */ () => this.close()));
@@ -77,7 +86,7 @@ export class CanvasImageExportModal extends StyleEditorModal {
     try {
       this.snapshot = await captureCanvasImage(this.options.sourceScope, {center: this.options.center, signal: this.capture.signal,
         maximumElements: this.options.mobile ? 8000 : undefined, maximumCharacters: this.options.mobile ? 8_000_000 : undefined,
-        current: /** Source, modal, session and native window must all remain live. */ () => this.current()});
+        current: /** Source, modal, session and native window must all remain live. */ () => this.captureCurrent()});
       if (this.current()) await this.renderPreview();
     } catch (error) {this.fail(error);}
   }
@@ -88,13 +97,13 @@ export class CanvasImageExportModal extends StyleEditorModal {
     const generation = ++this.generation;this.raster?.abort();this.raster = new AbortController();this.clipboard?.dispose();this.clipboard = null;
     this.output = null;this.copyButton?.setDisabled(true);this.saveButton?.setDisabled(true);this.status?.setText(this.translate("export.image.loading"));
     try {
-      const result = await renderCanvasPng(this.modalEl.ownerDocument, this.snapshot, this.exportScope, {scale: this.scale,
+      const result = await renderCanvasPng(this.modalEl.ownerDocument, this.snapshot, this.exportScope, {scale: this.scale, transparentBackground: this.transparentBackground,
         maximumPixels: this.options.mobile ? 4_000_000 : undefined, signal: this.raster.signal,
         current: /** A late raster cannot revive a newer crop or a migrated/changed source. */ () => generation === this.generation && this.current()});
       if (generation !== this.generation || !this.current()) return;
       this.releasePreview();this.output = result;
       const owner = this.modalEl.ownerDocument.defaultView;if (!owner || !this.preview) return;
-      this.previewUrl = owner.URL.createObjectURL(result.blob);this.preview.src = this.previewUrl;
+      this.previewUrl = owner.URL.createObjectURL(result.blob);this.preview.src = this.previewUrl;this.preview.toggleClass("is-transparent", result.transparentBackground);
       this.details?.setText(this.translate("export.image.dimensions", {width: result.width, height: result.height}));this.warnings?.empty();
       for (const key of ["scroll", "media", "fonts"] as const) if (this.snapshot.warnings[key]) this.warnings?.createEl("p", {text: this.translate(key === "scroll" ? "export.image.clip" : `export.image.${key}`)});
       if (result.reduced) this.warnings?.createEl("p", {text: this.translate("export.image.reduced")});
@@ -112,7 +121,9 @@ export class CanvasImageExportModal extends StyleEditorModal {
     this.clipboard?.dispose();this.clipboard = null;this.status?.setText(this.translate(key));this.output = null;this.copyButton?.setDisabled(true);this.saveButton?.setDisabled(true);
   }
   /** Captured output can only be published while its native canvas/session remains the same. */
-  private current(): boolean {return this.canEdit() && this.modalEl.isConnected && !this.styleChanged && !this.capture.signal.aborted && this.options.current();}
+  private current(): boolean {return this.canEdit() && this.modalEl.isConnected && this.options.current();}
+  /** Scene and CSS changes retire an unfinished capture; prepared pixels remain independently reusable. */
+  private captureCurrent(): boolean {return this.current() && !this.styleChanged && !this.capture.signal.aborted && this.options.captureCurrent();}
 
   /** Native copy is synchronous to activation; the state machine owns late promise retirement. */
   private copy(): void {
@@ -132,10 +143,10 @@ export class CanvasImageExportModal extends StyleEditorModal {
     const controls = Array.from(this.contentEl.querySelectorAll<HTMLInputElement | HTMLSelectElement | HTMLButtonElement>("input, select, button"));
     const disabled = controls.map(/** Preserve pre-existing capability/clipboard exclusions. */ control => control.disabled);
     for (const control of controls) if (control.textContent !== this.translate("common.cancel")) control.disabled = true;
-    this.saving = true;
+    this.saving = true;this.backgroundControl?.setDisabled(true);
     try {await savePng(this.modalEl.ownerDocument, filename, this.output.blob, /** A retired source cannot start another system handoff. */ () => this.current());if (this.current()) this.status?.setText(this.translate("export.image.handedOff"));}
     catch (error: unknown) {if (this.current() && !(typeof error === "object" && error !== null && "name" in error && error.name === "AbortError")) this.status?.setText(this.translate("export.image.saveFailed"));}
-    finally {this.saving = false;if (this.current()) controls.forEach(/** Detached controls cannot be revived by a share-sheet completion. */ (control, index) => {control.disabled = disabled[index];});}
+    finally {this.saving = false;if (this.current()) {this.backgroundControl?.setDisabled(false);controls.forEach(/** Detached controls cannot be revived by a share-sheet completion. */ (control, index) => {control.disabled = disabled[index];});}}
   }
 
   /** Release object URLs before replacing/removing the actual owning-document image. */
