@@ -197,6 +197,7 @@ export function CentralNodeEditor({
     {useWebFrame && webTarget ? <EmbeddedWebPage target={webTarget} label={page.name || page.url || page.path} />
       : <div ref={mountRef} className="kplex-central-editor-leaf-host" />}
     <div className="kplex-central-editor-toolbar" role="toolbar" aria-labelledby={toolbarLabelId}>
+      <span className="kplex-central-editor-title">{plugin.index.titleFor(page)}</span>
       <span id={toolbarLabelId} className="kplex-accessible-name">{translate("centralEditor.toolbar")}</span>
       {excalidrawFile && documentView && <TooltipButton
         type="button"

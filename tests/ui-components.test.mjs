@@ -1611,9 +1611,10 @@ try{
  viewportElement.dispatchEvent(new PointerEvent("lostpointercapture",{bubbles:true,pointerId:10,pointerType:"mouse"}));
  check(resizeFinishes===1&&areaClears===1,"viewport-owned resize lost its capture completion");
  const container=document.body.appendChild(document.createElement("div")),root=createRoot(container),opened=[],page={path:"https://example.com",url:"https://example.com",name:"Example"};
- const props={plugin:{settings:{centralNodeMarkdownZoomModes:{}}},hostLeaf:{},page,defaultMode:"preview",allowMaximize:true,activateHostLeafOnInteraction:false,onModeChange(){},onMaximizedChange(){},onCollapse(){},onNavigate(){},translate:key=>key,onOpenMenu:button=>opened.push(button)};
+ const props={plugin:{settings:{centralNodeMarkdownZoomModes:{}},index:{titleFor:page=>page.name}},hostLeaf:{},page,defaultMode:"preview",allowMaximize:true,activateHostLeafOnInteraction:false,onModeChange(){},onMaximizedChange(){},onCollapse(){},onNavigate(){},translate:key=>key,onOpenMenu:button=>opened.push(button)};
  for(const maximized of [false,true]){
   flushSync(()=>root.render(React.createElement(CentralNodeEditor,{...props,maximized})));
+  check(container.querySelector(".kplex-central-editor-title").textContent==="Example","Editor title missing");
   const menu=[...container.querySelectorAll("button")].find(button=>document.getElementById(button.getAttribute("aria-labelledby"))?.textContent==="graph.openMenu");check(menu instanceof HTMLButtonElement&&menu.type==="button","editor menu button missing or nonsemantic");
   check(menu.lastElementChild.textContent==="ellipsis-vertical"&&!menu.hasAttribute("title")&&!menu.hasAttribute("aria-label"),"shared menu icon/accessibility changed");
   check(menu.parentElement.querySelector("button:last-child")===menu,"shared menu must be the final button in both editor sizes");

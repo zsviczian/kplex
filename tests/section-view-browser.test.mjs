@@ -202,3 +202,24 @@ test('switching to an unsupported view retires pending section source work and n
  check(work.body===1,'Retirement never starts another body operation');release();a.close();plugin.actionManager.dispose();check(events.size===0,'Pending source owner cleanup');style.remove();return true;
  })()`),true)}finally{await host.cleanup()}
 });
+
+
+for(const view of ['classic','mindmap'])test(view+': revisiting a note restores section folds and camera without retaining source bodies',async()=>{
+ const host=await chromiumHarness(output.outputFiles[0].text+';window.sourceModules=sourceModules;');
+ try{assert.equal(await host.evaluate(String.raw`(async()=>{${canvasSceneFixture}${actionSurface}
+ const file=pages.get('A.md').file,body='# Group\n## Child';file.stat.size=body.length;
+ plugin.app.vault.cachedRead=async requested=>{check(requested===file,'Only expanded note source requested');work.body++;return body};
+ index.evidenceFrom=()=>[];index.publishedInferAllLinksAsFriends=()=>false;
+ const a=await mount(M.builtInPlexViews.resolve('${view}')),release=register(a);
+ const sections=()=>[...a.container.querySelectorAll('.is-kplex-section')];
+ a.container.querySelector('[data-kplex-path="A.md"] .kplex-section-fold-handle:not(.is-branch-disclosure)').click();for(let n=0;n<5;n++)await wait();
+ check(sections().length===2,'Expanded source headings required');
+ sections()[0].querySelector('.kplex-section-fold-handle').click();await wait();check(sections().length===1,'One group folded');
+ await plugin.actionManager.dispatch({id:'view.zoom-out',source:'keyboard',surfaceId:a.props.actionSurfaceId});await wait();
+ const camera=a.container.querySelector('.kplex-camera').style.transform;
+ const go=async path=>{if('${view}'==='mindmap')check(a.session.setRoot(path),'Native root transition accepted');a.props.activePath=path;a.render();for(let n=0;n<5;n++)await wait()};
+ await go('B.md');check(sections().length===0,'Different note is initially closed');await go('A.md');
+ check(sections().length===1,'Revisited outline restores folded group');check(a.container.querySelector('.kplex-camera').style.transform===camera,'Revisited camera exactly restored');
+ check(work.body===2,'Only revisit of previously expanded source rereads its current body');check(work.scans===0,'No vault scan');
+ release();a.close();plugin.actionManager.dispose();style.remove();return true})()`),true)}finally{await host.cleanup()}
+});

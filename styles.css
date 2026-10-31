@@ -311,7 +311,7 @@ button.kplex-sidecar-unfold-plex:hover,
 .kplex-edge-hit { pointer-events: stroke; cursor: pointer; }
 .kplex-edge.is-hover-peek .kplex-edge-hit { pointer-events: none; }
 .kplex-edge.is-highlighted .kplex-edge-visible { filter: none; }
-.kplex-edge.is-dimmed { opacity: .16; }
+.kplex-edge.is-dimmed, .kplex-expanded-connector.is-dimmed { opacity: .16; }
 .kplex-edge-label { pointer-events: none; paint-order: stroke; stroke: var(--kplex-link-label-background, var(--background-primary)); stroke-width: 3px; stroke-linejoin: round; }
 
 .kplex-zone-label {
@@ -1686,14 +1686,14 @@ button.kplex-sidecar-unfold-plex,
    scenes visibly migrate between their actual old/new positions. CSS only handles connector
    appearance; duplicating positional CSS transitions here makes the FLIP transform fight layout. */
 @keyframes kplex-edge-arrive { from { opacity: 0; } to { opacity: 1; } }
-.kplex-edge,
-.kplex-expanded-edge {
+/* Arrival opacity belongs to an inner paint group. A finished fill-both animation on the
+   focus group would override is-dimmed forever, keeping relationship captions opaque. */
+.kplex-edge-paint {
   animation: kplex-edge-arrive max(120ms, calc(var(--kplex-motion-ms, 560ms) * .55)) ease-out both;
 }
-.kplex-plex.is-following-document .kplex-edge,
-.kplex-plex.is-following-document .kplex-expanded-edge { animation: none; }
+.kplex-plex.is-following-document .kplex-edge-paint { animation: none; }
 @media (prefers-reduced-motion: reduce) {
-  .kplex-edge, .kplex-expanded-edge { animation: none; }
+  .kplex-edge-paint { animation: none; }
 }
 
 .kplex-plex.is-section-expanded .kplex-thought.is-selected {
@@ -3482,18 +3482,32 @@ button.kplex-style-manager-row { height: fit-content; }
   z-index: 32;
   top: -34px;
   right: 1px;
+  left: 1px;
   display: flex;
   gap: 2px;
+  align-items: center;
   padding: 2px;
   border: 1px solid var(--kplex-line, var(--background-modifier-border));
   border-radius: 6px;
   background: var(--kplex-panel, var(--background-primary));
   box-shadow: var(--shadow-s);
 }
+.kplex-central-editor-title {
+  flex: 1 1 auto;
+  min-width: 0;
+  padding: 0 6px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--font-ui-small);
+  font-weight: var(--font-semibold);
+}
+.kplex-central-editor-toolbar > button { flex-shrink: 0; }
 /* Area editors keep their native controls inside the visible viewport, including while
    the tall document scrolls behind the shared area clip. Native content retains its own host. */
 .kplex-central-editor-overlay.is-area-clipped .kplex-central-editor-toolbar {
   top: calc(var(--kplex-editor-area-top, 0px) + 4px);
+  left: calc(var(--kplex-editor-area-left, 0px) + 4px);
   right: calc(var(--kplex-editor-area-right, 0px) + 4px);
   max-width: calc(100% - var(--kplex-editor-area-left, 0px) - var(--kplex-editor-area-right, 0px) - 8px);
   flex-wrap: wrap;

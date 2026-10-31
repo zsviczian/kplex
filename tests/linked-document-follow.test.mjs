@@ -949,3 +949,16 @@ for(const failure of ['save','retired','replaced-file'])test('Mind Map '+failure
  finish(failure!=='save');await Promise.resolve();await Promise.resolve();
  assert.equal(root,'A.md');assert.equal(f.state.renderPath,'A.md');assert.deepEqual(f.state.plugin.settings.navigationHistory,['A.md']);assert.deepEqual(completed,[null]);
 });
+
+
+test('passive recent-tab synchronization never creates a native destination when the canvas is alone',async()=>{
+ const {context,host,files}=fixture();
+ let creates=0,opens=0;
+ context.session.preferences.documentSyncMode='recent';
+ context.findRecentDocumentLeaf=()=>null;
+ context.app.workspace={createLeafBySplit(){creates++;throw Error('Passive native creation');}};
+ context.targetNoteLeaf=production('targetNoteLeaf');
+ context.syncSidecarToPage=async()=>{opens++;};
+ await Promise.all(Array.from({length:20},()=>context.syncPageToDocumentLeaf({file:files.get('B.md'),url:null},host)));
+ assert.equal(creates,0);assert.equal(opens,0);
+});

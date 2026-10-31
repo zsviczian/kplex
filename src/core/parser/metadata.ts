@@ -318,7 +318,14 @@ export function parseBodyMetadataCore(content: string): ParsedBodyMetadata {
       while (markdownCursor < visible.length) {
         const open = visible.indexOf("[", markdownCursor);
         if (open < 0) break;
-        const closeLabel = visible.indexOf("]", open + 1);
+        // Labels can contain escaped or balanced brackets. A first-`]` search mistakes
+        // `\[FR\]` for the end of the outer Markdown link.
+        let closeLabel = -1, depth = 1;
+        for (let cursor = open + 1; cursor < visible.length; cursor++) {
+          if (visible[cursor] === "\\") { cursor++; continue; }
+          if (visible[cursor] === "[") depth++;
+          else if (visible[cursor] === "]" && --depth === 0) { closeLabel = cursor; break; }
+        }
         if (closeLabel < 0) break;
         if (visible[closeLabel + 1] !== "(") {
           markdownCursor = closeLabel + 1;
@@ -344,7 +351,7 @@ export function parseBodyMetadataCore(content: string): ParsedBodyMetadata {
           let labelEnd = closeLabel;
           while (labelStart < labelEnd && isWhitespace(visible[labelStart])) labelStart += 1;
           while (labelEnd > labelStart && isWhitespace(visible[labelEnd - 1])) labelEnd -= 1;
-          const label = visible.slice(labelStart, labelEnd);
+          const label = visible.slice(labelStart, labelEnd).replace(/\\([\\[\]])/g, "$1");
           aliasByUrl.set(raw, label);
           if (label && label !== raw) {
             const aliases = urlAliases.get(raw) ?? new Set<string>();
@@ -755,7 +762,13 @@ export async function parseBodyMetadataCooperativeCore(
       while (markdownCursor < visible.length) {
         const open = await findString(visible, "[", markdownCursor);
         if (open < 0) break;
-        const closeLabel = await findString(visible, "]", open + 1);
+        let closeLabel = -1, depth = 1, checkpoint = open + 512;
+        for (let cursor = open + 1; cursor < visible.length; cursor++) {
+          if (cursor >= checkpoint) { await yieldToHost(false, "link-label-scan"); checkpoint = cursor + 512; }
+          if (visible[cursor] === "\\") { cursor++; continue; }
+          if (visible[cursor] === "[") depth++;
+          else if (visible[cursor] === "]" && --depth === 0) { closeLabel = cursor; break; }
+        }
         if (closeLabel < 0) break;
         if (visible[closeLabel + 1] !== "(") {
           markdownCursor = closeLabel + 1;
@@ -777,7 +790,7 @@ export async function parseBodyMetadataCooperativeCore(
         if (rawEnd - rawStart > schemeLength) {
           const [labelStart, labelEnd] = await trimBounds(visible, open + 1, closeLabel);
           const raw = visible.slice(rawStart, rawEnd);
-          const label = visible.slice(labelStart, labelEnd);
+          const label = visible.slice(labelStart, labelEnd).replace(/\\([\\[\]])/g, "$1");
           aliasByUrl.set(raw, label);
           if (label && label !== raw) {
             const aliases = urlAliases.get(raw) ?? new Set<string>();
