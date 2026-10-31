@@ -7,6 +7,7 @@
 import { buildLocaleCatalog, type LocaleTranslationMap } from "./catalog";
 
 const japaneseTranslations = {
+  "view.menu": "ビュー",
   "ontology.description": "説明",
   "ontology.descriptionHelp": "このフィールドの用途を説明します。任意、最大{count}文字。",
   "ontology.partnerDescription": "対となるフィールドの説明",

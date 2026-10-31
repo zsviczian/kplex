@@ -9,6 +9,7 @@
  * parameters remain unquoted regardless of their names. Locale catalogs inherit this classification.
  */
 export const englishCatalog = {
+  "view.menu": {message: "View", context: "Canvas context submenu listing registered views and their subviews.", params: []},
   "ontology.description": {"message":"Description","context":"Optional authored ontology field descriptions; each physical inverse endpoint has independent wording.","params":[]},
   "ontology.descriptionHelp": {"message":"Explain when to use this field. Optional; up to {count} characters.","context":"Optional authored ontology field descriptions; each physical inverse endpoint has independent wording.","params":["count"],"referenceParams":[]},
   "ontology.partnerDescription": {"message":"Paired field description","context":"Optional authored ontology field descriptions; each physical inverse endpoint has independent wording.","params":[]},

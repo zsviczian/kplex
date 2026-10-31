@@ -440,3 +440,10 @@ test("missing render and captured JavaScript errors fail with a written report",
     assert.match(report.error, /JavaScript errors/);
   });
 });
+
+/** Native cleanup must compile before it can own fixture/settings/workspace restoration. */
+test('Find setup, scenario and cleanup expressions compile with the actual native-session wrapper',async()=>{
+ const {Script}=await import('node:vm');
+ const {findEnhancementSetup,findEnhancementScenarios,findEnhancementCleanup}=await import('../scripts/testing/obsidian/uxFindEnhancements.mjs');
+ for(const code of [findEnhancementSetup,findEnhancementScenarios,findEnhancementCleanup])assert.doesNotThrow(()=>new Script(withNativeDocumentSessions(code)));
+});

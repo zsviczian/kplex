@@ -32,7 +32,7 @@ export type CapturedCanvasViewMenuItem = Readonly<{id: string} & (
   {kind: "separator"}
   | {kind: "action"; label: CanvasViewText; icon?: string; checked?: boolean; enabled: boolean;
     unavailableReason?: CanvasViewText; command: CapturedCanvasViewCommand}
-  | {kind: "submenu"; label: CanvasViewText; icon?: string; enabled: boolean; items: readonly CapturedCanvasViewMenuItem[]})>;
+  | {kind: "submenu"; label: CanvasViewText; icon?: string; enabled: boolean; checked?: boolean; items: readonly CapturedCanvasViewMenuItem[]})>;
 export type CapturedCanvasViewChoice = Readonly<{id: string; label: CanvasViewText; selected: string; enabled: boolean; settings?: CapturedCanvasViewCommand; help?: CapturedCanvasViewCommand;
   options: readonly Readonly<{id: string; label: CanvasViewText; enabled: boolean; unavailableReason?: CanvasViewText;
     command: CapturedCanvasViewCommand}>[]}>;

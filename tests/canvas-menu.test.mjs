@@ -31,6 +31,48 @@ test('unavailable fullscreen is omitted without hiding other canvas actions',/**
  assert.equal(menu.items.some(item=>item.title==='actions.canvasFullscreen'),false);assert.equal(menu.items.find(item=>item.title==='actions.canvasZen').checked,false);assert.equal(menu.items.at(-1).title,'support.reportTitle');
 });
 
+test('View submenu renders current view and subview checks through native menus and the flat fallback',async()=>{
+ for(const native of [false,true]){
+  Menu.nativeSubmenus=native;
+  try{
+   let choices=0;
+   const menu=createPlexContextMenu({translate:key=>key,zen:false,fullscreen:false,fullscreenAvailable:false,runAction(){},openSettings(){},chooseBackground(){},reportBug(){},
+    views:[{id:'plain',kind:'action',label:{literal:'Plain view'},enabled:true,checked:false,command:{run:async()=>({status:'completed'})}},
+     {id:'plugin',kind:'submenu',label:{literal:'Plugin view'},checked:true,enabled:true,items:[
+      {id:'subview',kind:'action',label:{literal:'Subview'},enabled:true,checked:true,command:{run:async()=>{choices++;return{status:'completed'}}}},
+     ]}]});
+   const group=native?menu.items.find(row=>row.title==='view.menu').submenu.items:menu.items;
+   const parent=group.find(row=>row.title===(native?'✓ Plugin view':'Plugin view'));assert.equal(parent.checked,native?null:true);
+   const selected=(native?parent.submenu.items:group).find(row=>row.title==='Subview');assert.equal(selected.checked,true);
+   selected.click();await Promise.resolve();assert.equal(choices,1);assert.equal(menu.items.at(-1).title,'support.reportTitle');
+  }finally{Menu.nativeSubmenus=false;}
+ }
+});
+
+/** Reproduce the installed Obsidian conversion before Electron builds the OS menu. Boolean
+ * checked values force checkbox type, overriding a parent item's otherwise valid submenu. */
+function nativeTemplate(menu){return menu.items.map(/** Retain only the fields relevant to host menu typing. */ item=>item.separator?{type:'separator'}:{
+ label:item.title,type:typeof item.checked==='boolean'?'checkbox':undefined,checked:item.checked,
+ ...(item.submenu?{submenu:nativeTemplate(item.submenu)}:{}),
+})}
+
+test('selected and unselected view parents survive native template conversion as submenus',()=>{
+ Menu.nativeSubmenus=true;
+ try{
+  for(const checked of [false,true]){
+   const menu=createPlexContextMenu({translate:key=>key,zen:false,fullscreen:false,fullscreenAvailable:false,runAction(){},openSettings(){},chooseBackground(){},reportBug(){},
+    views:[{id:'plugin',kind:'submenu',label:{literal:'Plugin view'},checked,enabled:true,items:[
+     {id:'preset',kind:'action',label:{literal:'Preset'},checked,enabled:true,command:{run:async()=>({status:'completed'})}},
+    ]}]});
+   const view=nativeTemplate(menu).find(row=>row.label==='view.menu').submenu[0];
+   assert.equal(view.label,checked?'✓ Plugin view':'Plugin view');assert.equal(view.type,undefined,'A submenu parent must never become a checkbox');
+   assert.equal(view.checked,null);assert.equal(view.submenu.length,1);assert.equal(view.submenu[0].type,'checkbox');assert.equal(view.submenu[0].checked,checked);
+  }
+  const broken=new Menu();broken.addItem(item=>{item.setTitle('Broken').setChecked(false);item.setSubmenu().addItem(child=>child.setTitle('Child'))});
+  assert.equal(nativeTemplate(broken)[0].type,'checkbox','Negative control reproduces the original native type collision');
+ }finally{Menu.nativeSubmenus=false;}
+});
+
 test('registered native submenu fallback preserves common items and checked/disabled contribution meaning',async()=>{
  const calls=[];const menu=createPlexContextMenu({translate:key=>key,zen:false,fullscreen:false,fullscreenAvailable:false,runAction(){},openSettings(){},chooseBackground(){},reportBug(){},
   contributions:[{kind:'submenu',id:'presets',label:{literal:'Presets'},enabled:true,items:[

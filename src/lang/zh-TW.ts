@@ -7,6 +7,7 @@
 import { buildLocaleCatalog, type LocaleTranslationMap } from "./catalog";
 
 const traditionalChineseTranslations = {
+  "view.menu": "檢視",
   "ontology.description": "說明",
   "ontology.descriptionHelp": "說明此欄位的使用時機。選填，最多 {count} 個字元。",
   "ontology.partnerDescription": "配對欄位說明",

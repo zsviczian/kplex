@@ -21,11 +21,14 @@ export function createPlexContextMenu(options: {
   chooseBackground: () => void;
   reportBug: () => void;
   contributions?: readonly CapturedCanvasViewMenuItem[];
+  views?: readonly CapturedCanvasViewMenuItem[];
   exportBreadcrumbs?: () => void;
   breadcrumbsAvailable?: boolean;
 }): Menu {
   const { translate, runAction } = options;
   const menu = new Menu();
+  if (options.views?.length) addNativeSubmenu(menu, translate("view.menu"), "panels-top-left",
+    /** The controller captures this canvas and all registered subview choices before opening. */ submenu => appendCanvasViewMenu(submenu, options.views ?? [], translate));
   menu.addItem(/** Start/resume the same view session as commands and local shortcuts. */ item => item
     .setTitle(translate("actions.view.wander.start")).setIcon("shuffle")
     .onClick(/** Keep the surface captured by the composing caller. */ () => runAction("view.wander.start")));
