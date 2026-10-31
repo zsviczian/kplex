@@ -1,10 +1,10 @@
 {
   "schemaVersion": 1,
   "status": "passed",
-  "startedAt": "2026-10-30T23:33:49.209Z",
+  "startedAt": "2026-10-31T00:21:34.025Z",
   "source": {
-    "revision": "c3ff86009aa97b3b24654c4a4ab916eaff0b8542",
-    "dirty": true,
+    "revision": "0f1013790ac95e11fc59e115a61e4ba79edb47a7",
+    "dirty": false,
     "node": "v22.22.2",
     "os": "darwin 23.5.0"
   },
@@ -28,13 +28,13 @@
   },
   "artifacts": {
     "sourceHashes": {
-      "main.js": "ed957a0949de941424527e0d2260913e7e4e58131c016035f5097688949f70af",
+      "main.js": "470cb303c547f1b5885fa456ddf2aee467165fe4b3fbe5debefa7b1bd0050ae4",
       "manifest.json": "2822c38463c03ace4f017453679572d462534ce2a9c9558fd7593f259b01bfa1",
       "styles.css": "eec3a61e8e140475d9ff7e062665508e04148960b51d0b862b824123bf2b103c"
     },
     "pluginVersion": "0.3.1",
     "stagedHashes": {
-      "main.js": "ed957a0949de941424527e0d2260913e7e4e58131c016035f5097688949f70af",
+      "main.js": "470cb303c547f1b5885fa456ddf2aee467165fe4b3fbe5debefa7b1bd0050ae4",
       "manifest.json": "2822c38463c03ace4f017453679572d462534ce2a9c9558fd7593f259b01bfa1",
       "styles.css": "eec3a61e8e140475d9ff7e062665508e04148960b51d0b862b824123bf2b103c"
     }
@@ -48,19 +48,19 @@
         "rendered .kplex-app contains K-Plex",
         "no captured JavaScript errors"
       ],
-      "elapsedMs": 57
+      "elapsedMs": 103
     }
   ],
-  "completedAt": "2026-10-30T23:58:49.845Z",
+  "completedAt": "2026-10-31T00:46:47.707Z",
   "testTotals": {
     "architecture": 9,
     "core": 130,
-    "main": 1710,
+    "main": 1711,
     "browser": 427,
     "source": 357,
     "indexedDB": 855,
     "failures": 0,
     "skips": 0
   },
-  "attribution": "Full verifier began from dirty c3ff860 while acceptance-only refinements were committed as 6b13883. Runtime files remained unchanged. Final artifacts equal the preceding 22-case native acceptance artifacts."
+  "attribution": "Full verification of the timeout-corrected runtime at clean commit 0f10137, including the deterministic early-timer regression. Native acceptance is refreshed against these exact staged artifacts."
 }

@@ -2,14 +2,14 @@
   "name": "canvas-image-export-238",
   "status": "passed",
   "node": "v22.22.2",
-  "startedAt": "2026-10-30T23:59:10.049Z",
+  "startedAt": "2026-10-31T00:47:36.354Z",
   "driver": {
     "transport": "beb7677649f8ae6ae390c0df25b4a025a48777b5fbfc5e36c25f7fe252b8a0d3",
     "scenario": "e9005da03b06da8c807628513f35a054268eda62996cb58eb7ecac86287feedb",
-    "definitions": "7ce7f5e272f6e88de830f3459e95824617aebc51022784b49908873e5dacb1ef"
+    "definitions": "4360dfa73b9c11ac31caf2b6a0bec6f4e2e29ef9a29ed6f18b72da7f989ab49b"
   },
   "artifacts": {
-    "main.js": "ed957a0949de941424527e0d2260913e7e4e58131c016035f5097688949f70af",
+    "main.js": "470cb303c547f1b5885fa456ddf2aee467165fe4b3fbe5debefa7b1bd0050ae4",
     "manifest.json": "2822c38463c03ace4f017453679572d462534ce2a9c9558fd7593f259b01bfa1",
     "styles.css": "eec3a61e8e140475d9ff7e062665508e04148960b51d0b862b824123bf2b103c"
   },
@@ -346,6 +346,90 @@
     "limitations": "Trusted desktop PNG clipboard/download and actual native controls on this host. OS destination/overwrite picker is bypassed by the owned main-process download handler. Physical mobile/share sheet and minimum-host acceptance remain separate."
   },
   "cleanup": "passed",
-  "completedAt": "2026-10-31T00:00:55.715Z",
-  "attribution": "Final 24-case UI acceptance on the exact artifact produced/staged by full npm run verify:obsidian. Runtime c3ff860; acceptance fixtures 6b13883. Configuration/enablement bytes and owned resource cleanup passed."
+  "completedAt": "2026-10-31T00:49:14.804Z",
+  "attribution": "Final 24-case acceptance of the timeout-corrected runtime 0f10137, on the exact fully verified/staged artifact. The deterministic early-timer regression and full repository checks pass separately.",
+  "additionalLayouts": [
+    {
+      "configuration": {
+        "arrangement": "balanced",
+        "horizontalSpacing": 40,
+        "verticalSpacing": 12,
+        "requestedPopoutWindow": [
+          540,
+          620
+        ]
+      },
+      "status": "passed",
+      "cleanup": "passed",
+      "driver": {
+        "transport": "beb7677649f8ae6ae390c0df25b4a025a48777b5fbfc5e36c25f7fe252b8a0d3",
+        "scenario": "c4ed684f2bf5e9696cb8505848ee75f880e74efa7033f69059f7b1b210eb1a67",
+        "definitions": "69afffff0837ad89b83df6cfe04bb0993651fd28dcb202436ed99ae8c1b69bd0"
+      },
+      "artifacts": {
+        "main.js": "470cb303c547f1b5885fa456ddf2aee467165fe4b3fbe5debefa7b1bd0050ae4",
+        "manifest.json": "2822c38463c03ace4f017453679572d462534ce2a9c9558fd7593f259b01bfa1",
+        "styles.css": "eec3a61e8e140475d9ff7e062665508e04148960b51d0b862b824123bf2b103c"
+      },
+      "cases": [
+        {
+          "id": "UI-copy-native-save",
+          "view": "mindmap",
+          "theme": "dark",
+          "zoom": 1,
+          "width": 1368,
+          "height": 376,
+          "bytes": 96578,
+          "counts": {
+            "reads": 0,
+            "parses": 0,
+            "acquisitions": 0,
+            "rebuilds": 0,
+            "semanticRefreshes": 0
+          }
+        }
+      ]
+    },
+    {
+      "configuration": {
+        "arrangement": "left",
+        "horizontalSpacing": 40,
+        "verticalSpacing": 12,
+        "requestedPopoutWindow": [
+          540,
+          620
+        ]
+      },
+      "status": "passed",
+      "cleanup": "passed",
+      "driver": {
+        "transport": "beb7677649f8ae6ae390c0df25b4a025a48777b5fbfc5e36c25f7fe252b8a0d3",
+        "scenario": "fbe5356ba8cb4d3962f66d2709d1b2b685982ec47e8cdbe5373e1ef0a59923cb",
+        "definitions": "8be74a17306fb37d22402195089e6cd25ec1c05259ef858d855441dd337126e1"
+      },
+      "artifacts": {
+        "main.js": "470cb303c547f1b5885fa456ddf2aee467165fe4b3fbe5debefa7b1bd0050ae4",
+        "manifest.json": "2822c38463c03ace4f017453679572d462534ce2a9c9558fd7593f259b01bfa1",
+        "styles.css": "eec3a61e8e140475d9ff7e062665508e04148960b51d0b862b824123bf2b103c"
+      },
+      "cases": [
+        {
+          "id": "UI-copy-native-save",
+          "view": "mindmap",
+          "theme": "dark",
+          "zoom": 1,
+          "width": 1064,
+          "height": 680,
+          "bytes": 115885,
+          "counts": {
+            "reads": 0,
+            "parses": 0,
+            "acquisitions": 0,
+            "rebuilds": 0,
+            "semanticRefreshes": 0
+          }
+        }
+      ]
+    }
+  ]
 }
