@@ -7,9 +7,11 @@
 import {Setting, TextAreaComponent, type App, type ButtonComponent} from "obsidian";
 import {StyleEditorModal, appendIcon} from "../StyleEditorModal";
 import {ClipboardSession} from "../../application/ClipboardSession";
-import {exportMindMapMarkdown, type MindMapMarkdownResult, type MindMapMarkdownSnapshot} from "../../core/plex/export/mindMapMarkdown";
+import {exportMindMapMarkdown, type MindMapMarkdownResult, type MindMapMarkdownSnapshot, type MarkdownOntologyMode} from "../../core/plex/export/mindMapMarkdown";
 import {suggestedArtifactFilename} from "../../core/plex/export/artifactFilename";
 import {exportMarkdownFile, canExportMarkdownFile} from "../../adapters/obsidian/markdownExportFile";
+
+let nextPreviewId = 0;
 
 export type MindMapMarkdownModalOptions = Readonly<{
   snapshot: MindMapMarkdownSnapshot; selected?: string; sourceScope: HTMLElement;
@@ -27,6 +29,8 @@ export class MindMapMarkdownModal extends StyleEditorModal {
   private saveButton: ButtonComponent | null = null;
   private filename = "";
   private saving = false;
+  private ontologyMode: MarkdownOntologyMode = "visible";
+  private selectedRoot = "";
 
   /** Capture only immutable export data and its exact canvas lifetime. */
   constructor(app: App, private readonly options: MindMapMarkdownModalOptions) {super(app);}
@@ -43,15 +47,22 @@ export class MindMapMarkdownModal extends StyleEditorModal {
     help.createEl("a", {text: this.translate("export.markdown.builder"), cls: "external-link",
       attr: {href: "https://community.sketch-your-mind.com/mindmap", target: "_blank", rel: "noopener noreferrer"}});
     help.createSpan({text: after ?? ""});
+    this.selectedRoot = this.options.snapshot.root;
     const selected = this.options.selected;
     if (selected && selected !== this.options.snapshot.root) new Setting(body).setName(this.translate("export.markdown.scope"))
       .addDropdown(/** Scope changes only project the frozen snapshot; they never expand a branch. */ dropdown => dropdown
         .addOption(this.options.snapshot.root, this.translate("export.markdown.whole"))
         .addOption(selected, this.translate("export.markdown.branch"))
         .onChange(/** A different scope retires the previous immutable clipboard attempt. */ id => this.refresh(id)));
+    new Setting(body).setName(this.translate("export.markdown.ontology")).setDesc(this.translate("export.markdown.ontologyHelp"))
+      .addDropdown(/** Labels are projected only from the frozen snapshot, never from another graph read. */ dropdown => dropdown
+        .addOption("none", this.translate("export.markdown.ontologyNone")).addOption("visible", this.translate("export.markdown.ontologyVisible"))
+        .addOption("all", this.translate("export.markdown.ontologyAll")).setValue(this.ontologyMode)
+        .onChange(/** Ontology changes retire any preceding clipboard attempt and preserve selected subtree. */ value => {this.ontologyMode = value === "all" ? "all" : value === "none" ? "none" : "visible";this.refresh(this.selectedRoot);}));
     this.warningList = body.createDiv({cls: "setting-item-description", attr: {role: "status"}});
+    const previewName = body.createSpan({cls: "kplex-accessible-name", text: this.translate("export.markdown.preview"), attr: {id: `kplex-markdown-preview-${++nextPreviewId}`}});
     this.preview = new TextAreaComponent(body).inputEl;this.preview.addClass("kplex-package-source");
-    this.preview.rows = 10;this.preview.spellcheck = false;this.preview.setAttribute("aria-label", this.translate("export.markdown.preview"));
+    this.preview.rows = 10;this.preview.spellcheck = false;this.preview.setAttribute("aria-labelledby", previewName.id);
     this.preview.readOnly = true;
     this.status = body.createDiv({attr: {role: "status", "aria-live": "polite"}});
     const rootLabel = this.options.snapshot.nodes.find(/** Captured root labels suggest a name only to the native save dialog. */ node => node.id === this.options.snapshot.root)?.label ?? this.translate("view.mindmap");
@@ -65,9 +76,9 @@ export class MindMapMarkdownModal extends StyleEditorModal {
 
   /** Reformat only the captured hierarchy and disclose all compatibility/coverage qualifications. */
   private refresh(root: string): void {
-    this.clipboard?.dispose();this.clipboard = null;this.clearStatus();this.warningList?.empty();
+    this.selectedRoot = root;this.clipboard?.dispose();this.clipboard = null;this.clearStatus();this.warningList?.empty();
     try {
-      this.result = exportMindMapMarkdown(this.options.snapshot, root);
+      this.result = exportMindMapMarkdown(this.options.snapshot, root, this.ontologyMode);
       if (this.preview) this.preview.value = this.result.markdown;
       for (const key of ["unresolved", "adjusted", "references", "omitted", "partial", "collapsed"] as const) {
         if (this.result.warnings[key]) this.warningList?.createEl("p", {text: this.translate(`export.markdown.warning.${key}`)});

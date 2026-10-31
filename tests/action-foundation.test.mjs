@@ -583,3 +583,12 @@ test("modified physical dead chords capture and resolve while accent typing, log
     assert.equal(api.captureActionBinding(event(modifier, {code: `${modifier}Left`, altKey: true}), "macos", "code"), null);
   }
 });
+
+
+test("Markdown export targets its canvas even when shared attention has no note",async()=>{
+ let captured;const app=manager({readCommandContext:()=>({sharedCenter:null,preferredSurfaceId:'canvas'})});
+ app.registerSurface({id:'canvas',generation:1,readSnapshot:()=>snapshot(),implementations:{'view.export.markdown':implementation(context=>{captured=context.target;return{status:'completed'}})}});
+ assert.equal(app.check({id:'view.export.markdown',source:'obsidian-command'}).state,'enabled');
+ assert.equal((await app.dispatch({id:'view.export.markdown',source:'obsidian-command'})).status,'completed');
+ assert.deepEqual(captured,{kind:'node',node:node('A')});app.dispose();
+});

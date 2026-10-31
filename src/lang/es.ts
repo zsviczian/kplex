@@ -1035,11 +1035,11 @@ const spanishTranslations = {
   "actions.node.open.navigation": "Abrir en la navegación de archivos",
   "actions.node.open.navigation.description": "Mostrar el archivo seleccionado o del centro del lienzo en el panel Archivos de Obsidian.",
   "actions.view.export.markdown": "Exportar mapa mental a Markdown",
-  "actions.view.export.markdown.description": "Exportar a Markdown la jerarquía construida del mapa mental de este lienzo.",
+  "actions.view.export.markdown.description": "Exportar los nodos construidos de este lienzo como Markdown para MindMap Builder.",
   "export.markdown.title": "Exportar mapa mental a Markdown",
-  "export.markdown.help": "Exporta la jerarquía capturada al abrir este diálogo. Se conservan las ramas contraídas, los filtros y el orden de los nodos. Cópiala o guárdala para Excalidraw {builder}.",
+  "export.markdown.help": "Exporta el lienzo capturado al abrir este diálogo como esquema para Excalidraw {builder}. Se conservan las ramas plegadas, los filtros y el orden de los nodos.",
   "export.markdown.scope": "Alcance de la exportación",
-  "export.markdown.whole": "Mapa mental completo",
+  "export.markdown.whole": "Mapa completo",
   "export.markdown.branch": "Rama seleccionada",
   "export.markdown.preview": "Vista previa de Markdown",
   "export.markdown.destination": "Nombre del archivo",
@@ -1727,6 +1727,11 @@ const spanishTranslations = {
   "export.image.failed": "Falló la captura de imagen. Intenta exportar de nuevo.",
   "export.image.limit": "Este lienzo supera los límites de exportación. Prueba con menos nodos construidos o una vista más pequeña.",
   "export.image.stale": "Este lienzo cambió. Cierra este diálogo y vuelve a exportar.",
+  "export.markdown.ontology": "Etiquetas de ontología",
+  "export.markdown.ontologyHelp": "Incluir etiquetas de relaciones sin cambiar la jerarquía exportada.",
+  "export.markdown.ontologyNone": "No incluir",
+  "export.markdown.ontologyVisible": "Solo ontología visible",
+  "export.markdown.ontologyAll": "Toda la ontología, incluida la oculta",
 } as const satisfies LocaleTranslationMap;
 
 export const spanishCatalog = buildLocaleCatalog(spanishTranslations);

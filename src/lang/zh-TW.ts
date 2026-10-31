@@ -1033,11 +1033,11 @@ const traditionalChineseTranslations = {
   "actions.node.open.navigation": "在檔案導覽中開啟",
   "actions.node.open.navigation.description": "在 Obsidian 的檔案窗格中顯示所選檔案或畫布中央的檔案。",
   "actions.view.export.markdown": "將心智圖匯出為 Markdown",
-  "actions.view.export.markdown.description": "將此畫布已建構的心智圖階層匯出為 Markdown。",
+  "actions.view.export.markdown.description": "將此畫布中已建構的節點匯出為 MindMap Builder Markdown。",
   "export.markdown.title": "將心智圖匯出為 Markdown",
-  "export.markdown.help": "匯出開啟此對話框時擷取的階層。保留摺疊分支、篩選條件及節點順序。可複製或儲存供 Excalidraw {builder} 使用。",
+  "export.markdown.help": "將開啟對話框時擷取的畫布匯出為 Excalidraw {builder} 的大綱。保留折疊、篩選和節點順序。",
   "export.markdown.scope": "匯出範圍",
-  "export.markdown.whole": "整張心智圖",
+  "export.markdown.whole": "整張圖",
   "export.markdown.branch": "所選分支",
   "export.markdown.preview": "Markdown 預覽",
   "export.markdown.destination": "檔案名稱",
@@ -1719,6 +1719,11 @@ const traditionalChineseTranslations = {
   "export.image.failed": "圖片擷取失敗，請重新匯出。",
   "export.image.limit": "此畫布超過匯出限制，請減少已建構的節點或縮小檢視。",
   "export.image.stale": "此畫布已變更，請關閉對話框後重新匯出。",
+  "export.markdown.ontology": "本體標籤",
+  "export.markdown.ontologyHelp": "包含關係標籤，而不變更匯出的階層。",
+  "export.markdown.ontologyNone": "不包含",
+  "export.markdown.ontologyVisible": "僅可見的本體",
+  "export.markdown.ontologyAll": "包含隱藏項目的所有本體",
 } as const satisfies LocaleTranslationMap;
 
 export const traditionalChineseCatalog = buildLocaleCatalog(traditionalChineseTranslations);

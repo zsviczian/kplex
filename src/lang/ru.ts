@@ -1036,11 +1036,11 @@ const russianTranslations = {
   "actions.node.open.navigation": "Открыть в навигации по файлам",
   "actions.node.open.navigation.description": "Показать выбранный файл или файл в центре холста на панели файлов Obsidian.",
   "actions.view.export.markdown": "Экспорт интеллект-карты в Markdown",
-  "actions.view.export.markdown.description": "Экспортировать построенную иерархию интеллект-карты этого холста в Markdown.",
+  "actions.view.export.markdown.description": "Экспортировать построенные узлы холста в Markdown для MindMap Builder.",
   "export.markdown.title": "Экспорт интеллект-карты в Markdown",
-  "export.markdown.help": "Экспортируется иерархия, зафиксированная при открытии диалога. Сохраняются свёрнутые ветви, фильтры и порядок узлов. Скопируйте или сохраните её для Excalidraw {builder}.",
+  "export.markdown.help": "Экспортируйте холст, зафиксированный при открытии окна, как структуру для Excalidraw {builder}. Свёрнутые ветви, фильтры и порядок узлов сохраняются.",
   "export.markdown.scope": "Область экспорта",
-  "export.markdown.whole": "Вся интеллект-карта",
+  "export.markdown.whole": "Вся карта",
   "export.markdown.branch": "Выбранная ветвь",
   "export.markdown.preview": "Предпросмотр Markdown",
   "export.markdown.destination": "Имя файла",
@@ -1731,6 +1731,11 @@ const russianTranslations = {
   "export.image.failed": "Не удалось захватить изображение. Повторите экспорт.",
   "export.image.limit": "Холст превышает ограничения экспорта. Попробуйте уменьшить число построенных узлов или размер представления.",
   "export.image.stale": "Холст изменился. Закройте это окно и повторите экспорт.",
+  "export.markdown.ontology": "Метки онтологии",
+  "export.markdown.ontologyHelp": "Добавлять метки связей без изменения экспортируемой иерархии.",
+  "export.markdown.ontologyNone": "Не включать",
+  "export.markdown.ontologyVisible": "Только видимая онтология",
+  "export.markdown.ontologyAll": "Вся онтология, включая скрытую",
 } as const satisfies LocaleTranslationMap;
 
 export const russianCatalog = buildLocaleCatalog(russianTranslations);

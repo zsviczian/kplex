@@ -4,13 +4,17 @@
  * this service never reads a graph, acquires sources, expands branches or mutates input.
  * Ancestor-cycle cards become Builder block-reference crosslinks rather than tree cycles.
  */
+export type MarkdownOntologyMode = "none" | "visible" | "all";
+export type MarkdownOntology = Readonly<{
+  primary?: string; additional: readonly string[]; visiblePrimary?: string; visibleAdditional: readonly string[];
+}>;
 export type MindMapMarkdownNode = Readonly<{
   id: string; parent?: string; identity?: string; text: string; label: string;
   x: number; y: number; side: -1 | 1; reference: boolean;
   expanded: boolean; canExpand: boolean; partial: boolean; unresolved?: boolean; adjusted?: boolean;
-  annotation?: string;
+  annotation?: string; ontology?: MarkdownOntology;
 }>;
-export type MindMapMarkdownEdge = Readonly<{source: string; target: string; label?: string}>;
+export type MindMapMarkdownEdge = Readonly<{source: string; target: string; label?: string; ontology?: MarkdownOntology}>;
 export type MindMapMarkdownSnapshot = Readonly<{
   root: string; nodes: readonly MindMapMarkdownNode[]; links: readonly MindMapMarkdownEdge[];
   omitted: number; limited: boolean;
@@ -19,7 +23,7 @@ export type MindMapMarkdownWarnings = Readonly<{
   unresolved: number; adjusted: number; references: number; omitted: number; partial: number; collapsed: number;
 }>;
 export type MindMapMarkdownResult = Readonly<{markdown: string; title: string; nodes: number; warnings: MindMapMarkdownWarnings}>;
-export const MIND_MAP_MARKDOWN_LIMITS = {nodes: 2048, links: 16_384, characters: 2_000_000} as const;
+export const MIND_MAP_MARKDOWN_LIMITS = {nodes: 2048, links: 16_384, characters: 2_000_000, ontologyLabels: 64} as const;
 
 /** Neutralize syntax consumed as Builder metadata while retaining ordinary Markdown text. */
 function inlineText(text: string): string {
@@ -28,8 +32,18 @@ function inlineText(text: string): string {
     .replace(/\[\[#\^/g, "[[&#35;^").trim();
 }
 
+/** Select captured labels without promoting a secondary ontology to driving status. */
+function selectedOntology(ontology: MarkdownOntology | undefined, fallback: string | undefined, mode: MarkdownOntologyMode): {primary?: string; additional: readonly string[]} {
+  if (mode === "none") return {additional: []};
+  if (!ontology) return {primary: fallback, additional: []};
+  const primary = mode === "visible" ? ontology.visiblePrimary : ontology.primary;
+  const additional = [...new Set(mode === "visible" ? ontology.visibleAdditional : ontology.additional)].filter(label => label && label !== primary);
+  if (additional.length > MIND_MAP_MARKDOWN_LIMITS.ontologyLabels) throw new Error("Too many ontology labels");
+  return {primary, additional};
+}
+
 /** Serialize the whole captured root or an admitted subtree; malformed/oversized input fails closed. */
-export function exportMindMapMarkdown(snapshot: MindMapMarkdownSnapshot, subtree = snapshot.root): MindMapMarkdownResult {
+export function exportMindMapMarkdown(snapshot: MindMapMarkdownSnapshot, subtree = snapshot.root, ontologyMode: MarkdownOntologyMode = "all"): MindMapMarkdownResult {
   if (snapshot.nodes.length > MIND_MAP_MARKDOWN_LIMITS.nodes || snapshot.links.length > MIND_MAP_MARKDOWN_LIMITS.links) throw new Error("Mind Map export exceeds its bound");
   const nodes = new Map(snapshot.nodes.map(node => [node.id, node]));
   if (nodes.size !== snapshot.nodes.length || !nodes.has(snapshot.root) || !nodes.has(subtree)) throw new Error("Invalid Mind Map export root");
@@ -58,7 +72,11 @@ export function exportMindMapMarkdown(snapshot: MindMapMarkdownSnapshot, subtree
         if (ancestor.id === subtree) break;
         ancestor = ancestor.parent ? nodes.get(ancestor.parent) : undefined;
       }
-      if (target && next.node.parent) {links.push({source: next.node.parent, target: target.id, label: next.node.annotation});warnings.references++;continue;}
+      if (target && next.node.parent) {
+        const labels = selectedOntology(next.node.ontology, next.node.annotation, ontologyMode), all = [labels.primary, ...labels.additional].filter(Boolean) as string[];
+        for (const label of all.length ? all : [undefined]) links.push({source: next.node.parent, target: target.id, label});
+        warnings.references++;continue;
+      }
     }
     included.add(next.node.id);ordered.push(next);
     if (next.node.unresolved) warnings.unresolved++;
@@ -69,7 +87,15 @@ export function exportMindMapMarkdown(snapshot: MindMapMarkdownSnapshot, subtree
       for (let i = rows.length - 1; i >= 0; i--) pending.push({node: rows[i], depth: next.depth + 1});
     }
   }
-  for (const edge of snapshot.links) if (included.has(edge.source) && included.has(edge.target)) links.push(edge);
+  for (const {node} of ordered) if (node.parent && included.has(node.parent)) {
+    const labels = selectedOntology(node.ontology, node.annotation, ontologyMode);
+    for (const label of labels.additional) links.push({source: node.parent, target: node.id, label});
+  }
+  for (const edge of snapshot.links) if (included.has(edge.source) && included.has(edge.target)) {
+    const labels = selectedOntology(edge.ontology, edge.label, ontologyMode), all = [labels.primary, ...labels.additional].filter(Boolean) as string[];
+    for (const label of all.length ? all : [undefined]) links.push({source: edge.source, target: edge.target, label});
+  }
+  if (links.length > MIND_MAP_MARKDOWN_LIMITS.links) throw new Error("Too many exported ontology connections");
   // Builder's one-line fast path does not reconstruct crosslinks. Never add a dummy
   // child merely to bypass it; retain the real root and disclose omitted self-links.
   if (ordered.length === 1 && links.length) {warnings.omitted += links.length;warnings.references = 0;links.length = 0;}
@@ -89,8 +115,9 @@ export function exportMindMapMarkdown(snapshot: MindMapMarkdownSnapshot, subtree
     const text = inlineText(node.text);
     if (!text) throw new Error("Empty Mind Map export text");
     if (node.adjusted || text !== node.text) warnings.adjusted++;
-    const annotation = depth > 0 && node.annotation ? inlineText(node.annotation) : "";
-    if (annotation && annotation !== node.annotation) warnings.adjusted++;
+    const primary = selectedOntology(node.ontology, node.annotation, ontologyMode).primary;
+    const annotation = depth > 0 && primary ? inlineText(primary) : "";
+    if (annotation && annotation !== primary) warnings.adjusted++;
     const suffix = `${outgoing.has(node.id) ? ` ${outgoing.get(node.id)!.join(" ")}` : ""}${references.has(node.id) ? ` ^${references.get(node.id)!}` : ""}`;
     // Builder's single-line fast path strips a list prefix but retains a heading marker.
     const prefix = depth === 0 && ordered.length > 1 ? "# " : `${"  ".repeat(Math.max(0, depth - 1))}- `;

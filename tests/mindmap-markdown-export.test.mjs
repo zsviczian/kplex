@@ -14,7 +14,7 @@ import {createHash} from 'node:crypto';
 const dir=mkdtempSync(join(tmpdir(),'kplex-markdown-export-'));
 process.on('exit',/** All generated compatibility artifacts are owned by this one suite. */()=>rmSync(dir,{recursive:true,force:true}));
 const require=createRequire(import.meta.url);
-await build({stdin:{resolveDir:process.cwd(),contents:`export * from './src/core/plex/export/mindMapMarkdown'; export * from './src/ui/export/captureMindMapMarkdown'; export * from './src/adapters/obsidian/markdownExportFile';`},bundle:true,platform:'node',format:'cjs',outfile:join(dir,'exports.cjs'),plugins:[{name:'native-path-only',setup(builder){builder.onResolve({filter:/^obsidian$/},()=>({path:'obsidian',namespace:'native'}));builder.onLoad({filter:/.*/,namespace:'native'},()=>({contents:'exports.normalizePath=value=>value;',loader:'js'}));}}]});
+await build({stdin:{resolveDir:process.cwd(),contents:`export * from './src/core/plex/export/mindMapMarkdown'; export * from './src/core/plex/export/markdownTree'; export * from './src/core/plex/relationshipOntology'; export * from './src/ui/export/captureMindMapMarkdown'; export * from './src/adapters/obsidian/markdownExportFile';`},bundle:true,platform:'node',format:'cjs',outfile:join(dir,'exports.cjs'),plugins:[{name:'native-path-only',setup(builder){builder.onResolve({filter:/^obsidian$/},()=>({path:'obsidian',namespace:'native'}));builder.onLoad({filter:/.*/,namespace:'native'},()=>({contents:'exports.normalizePath=value=>value;',loader:'js'}));}}]});
 const api=require(join(dir,'exports.cjs'));
 await build({entryPoints:['tests/fixtures/mindmap-builder/markdownImport.js'],bundle:true,platform:'node',format:'cjs',outfile:join(dir,'builder.cjs'),plugins:[{name:'unused-native-paste',setup(builder){builder.onResolve({filter:/branchClipboard|branchPaste/},args=>({path:args.path,namespace:'paste'}));builder.onLoad({filter:/.*/,namespace:'paste'},()=>({contents:'export const parseBranchClipboard=()=>null;export const createBranchPaste=()=>({pasteBranch(){},cancelBranchPaste(){},disposeBranchPaste(){},isBranchPasteBusy(){return false},watchPasteMetadata(){}});',loader:'js'}));}}]});
 const {createMarkdownImport}=require(join(dir,'builder.cjs'));
@@ -112,4 +112,65 @@ test('native artifact handoff validates filenames and performs no Vault note wri
  assert.equal(api.canExportMarkdownFile({vault:{adapter:{}}}),false);
  await assert.rejects(api.exportMarkdownFile({vault:{adapter:{}}},'Map.md','bytes',()=>true));
  assert.equal(calls.length,1);
+});
+
+
+test('ontology modes preserve driving labels and import additional fields as distinct crosslinks',async()=>{
+ const ontology={primary:'Drives',additional:['Related','Hidden'],visiblePrimary:'Drives',visibleAdditional:['Related']};
+ const input=snapshot([row('root'),row('child','root',{ontology})]);
+ for(const [mode,primary,extra]of [['none',null,[]],['visible','Drives',['Related']],['all','Drives',['Related','Hidden']]]){
+  const result=api.exportMindMapMarkdown(input,'root',mode),imported=await importBuilder(result.markdown);
+  assert.equal(imported.nodes.length,2);assert.equal(imported.nodes[1].ontology,primary);
+  assert.deepEqual(imported.arrows.map(edge=>edge.label),extra);assert(imported.arrows.every(edge=>edge.source==='node0'&&edge.target==='node1'));
+ }
+ const hidden=snapshot([row('root'),row('child','root',{ontology:{...ontology,visiblePrimary:undefined,visibleAdditional:['Related']}})]);
+ const visible=await importBuilder(api.exportMindMapMarkdown(hidden,'root','visible').markdown);
+ assert.equal(visible.nodes[1].ontology,null,'Hidden driving ontology must not be replaced by a secondary label');assert.equal(visible.arrows[0].label,'Related');
+ const subtree=await importBuilder(api.exportMindMapMarkdown(input,'child','all').markdown);assert.equal(subtree.nodes.length,1);assert.equal(subtree.arrows.length,0);
+ assert.equal(JSON.stringify(input),JSON.stringify(snapshot([row('root'),row('child','root',{ontology})])));
+});
+
+test('Connection details decisions choose the driving ontology independently of field ordering',()=>{
+ const decision=(field,active=true)=>({active,evidence:{fieldName:field,definition:field,sourceKind:'frontmatter-ontology'}});
+ const explanation={summary:'ontology-precedence',decisions:[decision('Alphabetically first'),decision('Overridden',false),decision('Z drives')]};
+ assert.deepEqual(api.exportRelationshipOntology(explanation,'Z drives'),{primary:'Z drives',additional:['Alphabetically first']});
+ assert.deepEqual(api.exportRelationshipOntology(explanation,'Z drives, Alphabetically first'),{primary:'Z drives, Alphabetically first',additional:[]});
+ assert.deepEqual(api.activeOntologyFields(explanation),['Alphabetically first','Z drives']);
+ const conflict={...explanation,summary:'conflicting-defined-roles'};
+ assert.deepEqual(api.exportRelationshipOntology(conflict),{primary:'Alphabetically first, Z drives',additional:[]});
+});
+
+test('canvas outlines preserve explicit hierarchy, span cycles, retain disconnected rows and reject malformed parents',()=>{
+ const nodes=[{id:'root'},{id:'deep',parent:'parent'},{id:'parent'},{id:'friend'},{id:'section',parent:'parent'}];
+ const parents=api.markdownTreeParents('root',nodes,[{source:'root',target:'friend'},{source:'friend',target:'root'}]);
+ assert.equal(parents.get('friend'),'root');assert.equal(parents.get('parent'),'root');assert.equal(parents.get('deep'),'parent');assert.equal(parents.get('section'),'parent');
+ assert.throws(()=>api.markdownTreeParents('root',[{id:'root'},{id:'a',parent:'b'},{id:'b',parent:'a'}],[]));
+});
+
+test('Compass and Facets scenes export constructed rows, derived sections and crosslinks without source capabilities',async()=>{
+ const files=new Map(['Root','A','B','Section'].map(name=>[name+'.md',{path:name+'.md'}]));
+ const app={vault:{getFileByPath:path=>files.get(path)},metadataCache:{fileToLinktext:file=>file.path}};
+ const node=(id,role='child')=>({page:{path:id+'.md',file:files.get(id+'.md')},role,label:id,x:0,y:id==='Root'?0:100});
+ const scene={nodes:[node('Root','center'),node('A'),node('B'),node('Section')],edges:[
+  {sourcePath:'Root.md',targetPath:'A.md',style:{showLabel:true},typeDefinition:'Drives'},
+  {sourcePath:'A.md',targetPath:'B.md',style:{showLabel:false},typeDefinition:'Hidden'},
+  {sourcePath:'B.md',targetPath:'Root.md',isCrossLink:true,style:{showLabel:true},typeDefinition:'Refers'}],
+  sectionTreeEdges:[{sourcePath:'A.md',targetPath:'Section.md'}]};
+ const result=api.captureMindMapMarkdown(app,scene,new Set(files.keys()));assert.equal(result.root,'Root.md');assert.equal(result.nodes.length,4);
+ assert.equal(result.nodes.find(node=>node.id==='Section.md').parent,'A.md');
+ const imported=await importBuilder(api.exportMindMapMarkdown(result,'Root.md','all').markdown);
+ assert.equal(imported.nodes.length,4);assert(imported.arrows.some(edge=>edge.label==='Refers'));
+ const hidden=api.exportMindMapMarkdown(result,'Root.md','visible').markdown;assert(!hidden.includes('Hidden::'));
+});
+
+
+test('an unlabelled non-tree connection never borrows the target’s driving parent ontology',async()=>{
+ const files=new Map(['Root','A','B'].map(name=>[name+'.md',{path:name+'.md'}]));
+ const app={vault:{getFileByPath:path=>files.get(path)},metadataCache:{fileToLinktext:file=>file.path}};
+ const nodes=[{page:{path:'Root.md',file:files.get('Root.md')},role:'center',label:'Root',x:0,y:0},
+  ...['A','B'].map(name=>({page:{path:name+'.md',file:files.get(name+'.md')},role:'child',label:name,typeDefinition:'Drives',x:100,y:name==='A'?0:100}))];
+ const edge=(source,target,typeDefinition,isCrossLink=false)=>({sourcePath:source+'.md',targetPath:target+'.md',typeDefinition,isCrossLink,style:{showLabel:true}});
+ const result=api.captureMindMapMarkdown(app,{nodes,edges:[edge('Root','A','Drives'),edge('Root','B','Drives'),edge('B','A',undefined,true)]},new Set(files.keys()));
+ assert.equal(result.links[0].ontology.primary,undefined);const imported=await importBuilder(api.exportMindMapMarkdown(result).markdown);
+ assert.equal(imported.nodes[1].ontology,'Drives');assert.equal(imported.arrows[0].label,null);
 });

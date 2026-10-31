@@ -10,7 +10,7 @@ import {suggestedArtifactFilename} from "../../core/plex/export/artifactFilename
 import {pngClipboardWriter, canSavePng, savePng} from "../../adapters/obsidian/pngExport";
 import {captureCanvasImage, type CanvasImageSnapshot} from "./canvasImageSnapshot";
 import {renderCanvasPng, type CanvasPng, type CanvasImageScope} from "./canvasImage";
-import {CanvasImageError} from "./imageExportLifetime";
+import {CanvasImageError, ImageExportLifetime} from "./imageExportLifetime";
 
 export type CanvasImageExportOptions = Readonly<{
   sourceScope: HTMLElement; center?: HTMLElement | null; name: string; mobile: boolean;
@@ -93,16 +93,26 @@ export class CanvasImageExportModal extends StyleEditorModal {
   private async renderPreview(): Promise<void> {
     if (!this.snapshot || !this.canEdit() || this.saving) return;
     const generation = ++this.generation;this.raster?.abort();this.raster = new AbortController();this.clipboard?.dispose();this.clipboard = null;
-    this.output = null;this.copyButton?.setDisabled(true);this.saveButton?.setDisabled(true);this.status?.setText(this.translate("export.image.loading"));
+    this.output = null;this.copyButton?.setDisabled(true);this.saveButton?.setDisabled(true);if (!this.preview) this.status?.setText(this.translate("export.image.loading"));this.modalEl.setAttribute("aria-busy", "true");
     try {
       const result = await renderCanvasPng(this.modalEl.ownerDocument, this.snapshot, this.exportScope, {scale: this.scale, transparentBackground: this.transparentBackground,
         maximumPixels: this.options.mobile ? 4_000_000 : undefined, signal: this.raster.signal,
         current: /** A late raster cannot revive a newer crop or a migrated/changed source. */ () => generation === this.generation && this.current()});
       if (generation !== this.generation || !this.current()) return;
-      this.releasePreview();this.output = result;
       const owner = this.modalEl.ownerDocument.defaultView;if (!owner || !this.previewContainer) return;
-      this.preview ??= this.previewContainer.createEl("img", {attr: {alt: this.translate("export.image.preview")}});
-      this.previewUrl = owner.URL.createObjectURL(result.blob);this.preview.src = this.previewUrl;
+      const fragment = this.modalEl.ownerDocument.adoptNode(createFragment()), next = fragment.createEl("img", {attr: {alt: this.translate("export.image.preview")}});
+      const bounds = this.exportScope === "canvas" ? this.snapshot.bounds : this.snapshot.viewport;
+      next.width = Math.round(bounds.width);next.height = Math.round(bounds.height);
+      const url = owner.URL.createObjectURL(result.blob), lifetime = new ImageExportLifetime(owner, {signal: this.raster.signal,
+        current: /** A decoded image cannot replace a newer slider result or a closed dialog. */ () => generation === this.generation && this.current()});
+      let adopted = false;
+      try {
+        next.src = url;await lifetime.wait(next.decode());lifetime.check();
+        const previous = this.preview, previousUrl = this.previewUrl;
+        if (previous) previous.replaceWith(next);else this.previewContainer.appendChild(next);
+        this.preview = next;this.previewUrl = url;this.output = result;adopted = true;
+        if (previousUrl) owner.URL.revokeObjectURL(previousUrl);
+      } finally {lifetime.dispose();if (!adopted) {next.removeAttribute("src");owner.URL.revokeObjectURL(url);}fragment.replaceChildren();}
       this.details?.setText(this.translate("export.image.dimensions", {width: result.width, height: result.height}));this.warnings?.empty();
       for (const key of ["scroll", "media", "fonts"] as const) if (this.snapshot.warnings[key]) this.warnings?.createEl("p", {text: this.translate(key === "scroll" ? "export.image.clip" : `export.image.${key}`)});
       if (result.reduced) this.warnings?.createEl("p", {text: this.translate("export.image.reduced")});
@@ -111,6 +121,7 @@ export class CanvasImageExportModal extends StyleEditorModal {
       if (!clipboard) this.warnings?.createEl("p", {text: this.translate("export.image.copyUnavailable")});
       if (!save) this.warnings?.createEl("p", {text: this.translate("export.image.saveUnavailable")});
     } catch (error) {if (generation === this.generation) this.fail(error);}
+    finally {if (generation === this.generation && this.current()) this.modalEl.setAttribute("aria-busy", "false");}
   }
 
   /** Keep failure reasons useful without exposing native resource paths or claiming success. */

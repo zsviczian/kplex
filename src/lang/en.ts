@@ -3488,11 +3488,11 @@ export const englishCatalog = {
   "actions.node.open.navigation": { message: "Open in file navigation", context: "Native node file-location action; system file manager is desktop-only and file navigation requires the Files core plugin.", params: [] },
   "actions.node.open.navigation.description": { message: "Reveal the selected file or canvas center in Obsidian’s Files pane.", context: "Native node file-location action; system file manager is desktop-only and file navigation requires the Files core plugin.", params: [] },
   "actions.view.export.markdown": {"message": "Mind Map Markdown export", "context": "Mind Map Markdown export dialog, scope, native file/clipboard action or compatibility qualification.", "params": []},
-  "actions.view.export.markdown.description": {"message": "Export this canvas’s constructed Mind Map hierarchy as Markdown.", "context": "Mind Map Markdown export dialog, scope, native file/clipboard action or compatibility qualification.", "params": []},
+  "actions.view.export.markdown.description": {"message": "Export this canvas’s constructed nodes as MindMap Builder Markdown.", "context": "Mind Map Markdown export dialog, scope, native file/clipboard action or compatibility qualification.", "params": []},
   "export.markdown.title": {"message": "Export Mind Map as Markdown", "context": "Mind Map Markdown export dialog, scope, native file/clipboard action or compatibility qualification.", "params": []},
-  "export.markdown.help": {"message": "Export the hierarchy captured when this dialog opened. Folds, filters and node order are preserved. Copy or save it for Excalidraw {builder}.", "context": "Mind Map Markdown export dialog, scope, native file/clipboard action or compatibility qualification.", "params": ["builder"], "referenceParams": []},
+  "export.markdown.help": {"message": "Export the canvas captured when this dialog opened as an outline for Excalidraw {builder}. Folds, filters and node order are preserved.", "context": "Mind Map Markdown export dialog, scope, native file/clipboard action or compatibility qualification.", "params": ["builder"], "referenceParams": []},
   "export.markdown.scope": {"message": "Export scope", "context": "Mind Map Markdown export dialog, scope, native file/clipboard action or compatibility qualification.", "params": []},
-  "export.markdown.whole": {"message": "Whole Mind Map", "context": "Mind Map Markdown export dialog, scope, native file/clipboard action or compatibility qualification.", "params": []},
+  "export.markdown.whole": {"message": "Whole map", "context": "Mind Map Markdown export dialog, scope, native file/clipboard action or compatibility qualification.", "params": []},
   "export.markdown.branch": {"message": "Selected branch", "context": "Mind Map Markdown export dialog, scope, native file/clipboard action or compatibility qualification.", "params": []},
   "export.markdown.preview": {"message": "Markdown preview", "context": "Mind Map Markdown export dialog, scope, native file/clipboard action or compatibility qualification.", "params": []},
   "export.markdown.destination": {"message": "Filename", "context": "Native Mind Map Markdown artifact save/share and compatibility feedback.", "params": []},
@@ -5684,6 +5684,11 @@ export const englishCatalog = {
   "export.image.failed": {"message": "Image capture failed. Try exporting again.", "context": "Canvas image export scope, native PNG output, preview or capture qualification.", "params": []},
   "export.image.limit": {"message": "This canvas exceeds image export limits. Try fewer constructed nodes or a smaller view.", "context": "Canvas image export scope, native PNG output, preview or capture qualification.", "params": []},
   "export.image.stale": {"message": "This canvas changed. Close this dialog and export again.", "context": "Canvas image export scope, native PNG output, preview or capture qualification.", "params": []},
+  "export.markdown.ontology": {"message": "Ontology labels", "context": "Markdown export ontology selection over a captured canvas; no extra nodes or graph reads.", "params": []},
+  "export.markdown.ontologyHelp": {"message": "Include relationship labels without changing the exported hierarchy.", "context": "Markdown export ontology selection over a captured canvas; no extra nodes or graph reads.", "params": []},
+  "export.markdown.ontologyNone": {"message": "Do not include", "context": "Markdown export ontology selection over a captured canvas; no extra nodes or graph reads.", "params": []},
+  "export.markdown.ontologyVisible": {"message": "Visible ontology only", "context": "Markdown export ontology selection over a captured canvas; no extra nodes or graph reads.", "params": []},
+  "export.markdown.ontologyAll": {"message": "All ontology, including hidden", "context": "Markdown export ontology selection over a captured canvas; no extra nodes or graph reads.", "params": []},
 } as const;
 
 export type EnglishCatalog = typeof englishCatalog;

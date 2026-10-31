@@ -1034,11 +1034,11 @@ const dutchTranslations = {
   "actions.node.open.navigation": "Openen in bestandsnavigatie",
   "actions.node.open.navigation.description": "Toon het geselecteerde bestand of het canvascentrum in het paneel Bestanden van Obsidian.",
   "actions.view.export.markdown": "Mindmap als Markdown exporteren",
-  "actions.view.export.markdown.description": "Exporteer de opgebouwde mindmaphiërarchie van dit canvas als Markdown.",
+  "actions.view.export.markdown.description": "Exporteer de opgebouwde knopen van dit canvas als Markdown voor MindMap Builder.",
   "export.markdown.title": "Mindmap als Markdown exporteren",
-  "export.markdown.help": "Exporteer de hiërarchie zoals vastgelegd bij het openen van dit venster. Ingeklapte takken, filters en knoopvolgorde blijven behouden. Kopieer of bewaar deze voor Excalidraw {builder}.",
+  "export.markdown.help": "Exporteer het bij openen vastgelegde canvas als overzicht voor Excalidraw {builder}. Ingeklapte takken, filters en knoopvolgorde blijven behouden.",
   "export.markdown.scope": "Exportbereik",
-  "export.markdown.whole": "Hele mindmap",
+  "export.markdown.whole": "Hele kaart",
   "export.markdown.branch": "Geselecteerde tak",
   "export.markdown.preview": "Markdown-voorbeeld",
   "export.markdown.destination": "Bestandsnaam",
@@ -1723,6 +1723,11 @@ const dutchTranslations = {
   "export.image.failed": "Afbeelding vastleggen is mislukt. Probeer opnieuw te exporteren.",
   "export.image.limit": "Dit canvas overschrijdt de exportlimieten. Probeer minder opgebouwde knooppunten of een kleinere weergave.",
   "export.image.stale": "Dit canvas is gewijzigd. Sluit dit venster en exporteer opnieuw.",
+  "export.markdown.ontology": "Ontologielabels",
+  "export.markdown.ontologyHelp": "Relatielabels opnemen zonder de geëxporteerde hiërarchie te wijzigen.",
+  "export.markdown.ontologyNone": "Niet opnemen",
+  "export.markdown.ontologyVisible": "Alleen zichtbare ontologie",
+  "export.markdown.ontologyAll": "Alle ontologie, inclusief verborgen",
 } as const satisfies LocaleTranslationMap;
 
 export const dutchCatalog = buildLocaleCatalog(dutchTranslations);

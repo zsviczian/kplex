@@ -1034,11 +1034,11 @@ const germanTranslations = {
   "actions.node.open.navigation": "In der Dateinavigation öffnen",
   "actions.node.open.navigation.description": "Die ausgewählte Datei oder die Canvas-Mitte im Dateien-Bereich von Obsidian anzeigen.",
   "actions.view.export.markdown": "Mind Map als Markdown exportieren",
-  "actions.view.export.markdown.description": "Die aufgebaute Mind-Map-Hierarchie dieses Canvas als Markdown exportieren.",
+  "actions.view.export.markdown.description": "Die aufgebauten Knoten dieses Canvas als Markdown für MindMap Builder exportieren.",
   "export.markdown.title": "Mind Map als Markdown exportieren",
-  "export.markdown.help": "Exportiere die beim Öffnen erfasste Hierarchie. Eingeklappte Zweige, Filter und Knotenreihenfolge bleiben erhalten. Kopiere oder speichere sie für Excalidraw {builder}.",
+  "export.markdown.help": "Exportieren Sie den beim Öffnen erfassten Canvas als Gliederung für Excalidraw {builder}. Eingeklappte Zweige, Filter und Knotenreihenfolge bleiben erhalten.",
   "export.markdown.scope": "Exportumfang",
-  "export.markdown.whole": "Gesamte Mind Map",
+  "export.markdown.whole": "Gesamte Karte",
   "export.markdown.branch": "Ausgewählter Zweig",
   "export.markdown.preview": "Markdown-Vorschau",
   "export.markdown.destination": "Dateiname",
@@ -1723,6 +1723,11 @@ const germanTranslations = {
   "export.image.failed": "Bilderfassung fehlgeschlagen. Versuchen Sie den Export erneut.",
   "export.image.limit": "Dieser Canvas überschreitet die Exportgrenzen. Verwenden Sie weniger aufgebaute Knoten oder eine kleinere Ansicht.",
   "export.image.stale": "Dieser Canvas hat sich geändert. Schließen Sie den Dialog und exportieren Sie erneut.",
+  "export.markdown.ontology": "Ontologiebezeichnungen",
+  "export.markdown.ontologyHelp": "Beziehungsbezeichnungen einbeziehen, ohne die exportierte Hierarchie zu ändern.",
+  "export.markdown.ontologyNone": "Nicht einbeziehen",
+  "export.markdown.ontologyVisible": "Nur sichtbare Ontologie",
+  "export.markdown.ontologyAll": "Alle Ontologien, auch ausgeblendete",
 } as const satisfies LocaleTranslationMap;
 
 export const germanCatalog = buildLocaleCatalog(germanTranslations);

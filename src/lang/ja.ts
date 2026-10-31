@@ -1033,11 +1033,11 @@ const japaneseTranslations = {
   "actions.node.open.navigation": "ファイルナビゲーションで開く",
   "actions.node.open.navigation.description": "選択したファイルまたはキャンバス中央のファイルを Obsidian のファイルペインで表示します。",
   "actions.view.export.markdown": "マインドマップを Markdown にエクスポート",
-  "actions.view.export.markdown.description": "このキャンバスに構築されたマインドマップ階層を Markdown にエクスポートします。",
+  "actions.view.export.markdown.description": "このキャンバスの構築済みノードを MindMap Builder 用の Markdown として書き出します。",
   "export.markdown.title": "マインドマップを Markdown にエクスポート",
-  "export.markdown.help": "このダイアログを開いた時点の階層をエクスポートします。折りたたみ、フィルター、ノード順序を保持します。Excalidraw {builder} 用にコピーまたは保存できます。",
+  "export.markdown.help": "ダイアログを開いた時点のキャンバスを、Excalidraw {builder} 用のアウトラインとして書き出します。折りたたみ、フィルター、ノードの順序は保持されます。",
   "export.markdown.scope": "エクスポート範囲",
-  "export.markdown.whole": "マインドマップ全体",
+  "export.markdown.whole": "マップ全体",
   "export.markdown.branch": "選択したブランチ",
   "export.markdown.preview": "Markdown プレビュー",
   "export.markdown.destination": "ファイル名",
@@ -1719,6 +1719,11 @@ const japaneseTranslations = {
   "export.image.failed": "画像の取得に失敗しました。もう一度エクスポートしてください。",
   "export.image.limit": "キャンバスがエクスポートの上限を超えています。構築するノードを減らすか、表示を小さくしてください。",
   "export.image.stale": "キャンバスが変更されました。このダイアログを閉じて再度エクスポートしてください。",
+  "export.markdown.ontology": "オントロジーラベル",
+  "export.markdown.ontologyHelp": "書き出す階層を変更せずに関係ラベルを含めます。",
+  "export.markdown.ontologyNone": "含めない",
+  "export.markdown.ontologyVisible": "表示中のオントロジーのみ",
+  "export.markdown.ontologyAll": "非表示を含むすべてのオントロジー",
 } as const satisfies LocaleTranslationMap;
 
 export const japaneseCatalog = buildLocaleCatalog(japaneseTranslations);

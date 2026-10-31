@@ -1035,11 +1035,11 @@ const frenchTranslations = {
   "actions.node.open.navigation": "Ouvrir dans la navigation des fichiers",
   "actions.node.open.navigation.description": "Afficher le fichier sélectionné ou au centre du canevas dans le volet Fichiers d’Obsidian.",
   "actions.view.export.markdown": "Exporter la carte mentale en Markdown",
-  "actions.view.export.markdown.description": "Exporter en Markdown la hiérarchie construite de la carte mentale de ce canevas.",
+  "actions.view.export.markdown.description": "Exporter les nœuds construits de ce canevas en Markdown pour MindMap Builder.",
   "export.markdown.title": "Exporter la carte mentale en Markdown",
-  "export.markdown.help": "Exportez la hiérarchie capturée à l’ouverture de cette boîte de dialogue. Les branches repliées, les filtres et l’ordre des nœuds sont conservés. Copiez ou enregistrez-la pour Excalidraw {builder}.",
+  "export.markdown.help": "Exportez le canevas capturé à l’ouverture sous forme de plan pour Excalidraw {builder}. Les branches repliées, les filtres et l’ordre des nœuds sont conservés.",
   "export.markdown.scope": "Portée de l’export",
-  "export.markdown.whole": "Carte mentale entière",
+  "export.markdown.whole": "Carte entière",
   "export.markdown.branch": "Branche sélectionnée",
   "export.markdown.preview": "Aperçu Markdown",
   "export.markdown.destination": "Nom du fichier",
@@ -1727,6 +1727,11 @@ const frenchTranslations = {
   "export.image.failed": "La capture a échoué. Réessayez l’export.",
   "export.image.limit": "Ce canevas dépasse les limites d’export. Essayez avec moins de nœuds construits ou une vue plus petite.",
   "export.image.stale": "Ce canevas a changé. Fermez cette boîte de dialogue et relancez l’export.",
+  "export.markdown.ontology": "Libellés d’ontologie",
+  "export.markdown.ontologyHelp": "Inclure les libellés des relations sans modifier la hiérarchie exportée.",
+  "export.markdown.ontologyNone": "Ne pas inclure",
+  "export.markdown.ontologyVisible": "Ontologie visible uniquement",
+  "export.markdown.ontologyAll": "Toute l’ontologie, y compris masquée",
 } as const satisfies LocaleTranslationMap;
 
 export const frenchCatalog = buildLocaleCatalog(frenchTranslations);
