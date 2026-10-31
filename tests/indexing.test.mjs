@@ -5178,7 +5178,8 @@ try {
           assert.equal(edge.direction, center === 0 ? LinkDirection.FROM : LinkDirection.TO);
           const rendered = Edge({ edge, nodes: new Map(scene.nodes.map(node => [node.page.path, node])), inverseArrowDirection,
             viewportForNode: () => undefined, connectorStyle: "straight", crossLinkOpacity: 1, highlighted: false, dimmed: false });
-          const visiblePath = rendered.children.find(child => child?.props?.className === "kplex-edge-visible");
+          const paint = rendered.children.find(child => child?.props?.className === "kplex-edge-paint");
+          const visiblePath = paint.children.find(child => child?.props?.className === "kplex-edge-visible");
           const expectedStart = center === 0 ? !inverseArrowDirection : inverseArrowDirection;
           assert.equal(visiblePath.props.markerStart, expectedStart ? "url(#kplex-arrow)" : undefined);
           assert.equal(visiblePath.props.markerEnd, expectedStart ? undefined : "url(#kplex-arrow)");

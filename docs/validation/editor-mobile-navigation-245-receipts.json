@@ -1,0 +1,97 @@
+{
+  "editor": {
+    "name": "editor-mobile-navigation",
+    "status": "passed",
+    "node": "v22.22.2",
+    "obsidian": "1.15.0 (installer 1.14.0)",
+    "startedAt": "2026-10-31T16:40:13.475Z",
+    "completedAt": "2026-10-31T16:40:22.741Z",
+    "artifacts": {
+      "main.js": "6164b64f45b21508f63a09c8e91f7d1f28a15244160afa6ef0ab2b889078e793",
+      "manifest.json": "2822c38463c03ace4f017453679572d462534ce2a9c9558fd7593f259b01bfa1",
+      "styles.css": "bfb163669ad5b5616cf292d675092ee88498a407a26fd42c963911ade4d64de8"
+    },
+    "source": {
+      "src/index/GraphBuilder.ts": "b4ff3bc6298c1d30c58aa15a47d2636b8e32a33f1ff4c225ce2848534567cab8",
+      "src/index/GraphIndex.ts": "3d8ce315151e9d6af359248f0db2565eb6b2be41f956fde739574cf2b83fabe1",
+      "src/core/graph/compiler.ts": "ee403bd86870137e7ea769dfb5c5c7cfa27e08ad768b1815bef47eab9732bd4f",
+      "src/ui/PlexGraph.tsx": "ee61b69fa4a0ba2b8653b3906d66150789fd662fdaa5d969be8a419425ae60e7",
+      "src/ui/CentralNodeEditor.tsx": "ba617f9196146fd135138197c1c36cba7fcfb547ef1d10502d8f63fe468f9ae8",
+      "src/ui/editorOverlayFrame.ts": "2daf332924e0fbbd5e7209b7e0f7fc82b155faec4c58ea61b5fd4233ebde8339",
+      "src/application/PlexViewSession.ts": "daa95147c44fa96dab0951581b038a7ecc99513e115938bfb708dd0bf580bec1",
+      "src/main.ts": "413b05edf09d9568fb8ffae827182d1fc41c70ed16920204f841a54bbf20225b"
+    },
+    "driver": {
+      "transport": "beb7677649f8ae6ae390c0df25b4a025a48777b5fbfc5e36c25f7fe252b8a0d3",
+      "scenario": "fec8018233e71a190cfcb9673976c017595d40a526a3ba7795e13ce3bee7887c",
+      "definitions": "0d5293904c354ab5cac253783d8faf0dc85b48bbd47b79debddeea842d37bac3"
+    },
+    "result": {
+      "cases": [
+        "Mind Map root expands/restores/closes with title and the same native editor",
+        "classic: native PDF editor opens and closes",
+        "mindmap: native PDF editor opens and closes",
+        "Actual Excalidraw Mind Map root expands with title, stable native API and reachable close",
+        "Compass revisits restore section folds and exact camera",
+        "Rapid passive navigation with no document creates no tabs and retains focus",
+        "Popout root title, expanded recovery controls and close while expanded"
+      ],
+      "files": 80
+    },
+    "cleanup": "passed",
+    "limitations": "Controlled native method observations, not actual paint or physical-device acceptance."
+  },
+  "rename": {
+    "name": "rename-mobile-viewport",
+    "status": "passed",
+    "node": "v22.22.2",
+    "obsidian": "1.15.0 (installer 1.14.0)",
+    "startedAt": "2026-10-31T16:41:29.048Z",
+    "completedAt": "2026-10-31T16:41:32.122Z",
+    "artifacts": {
+      "main.js": "6164b64f45b21508f63a09c8e91f7d1f28a15244160afa6ef0ab2b889078e793",
+      "manifest.json": "2822c38463c03ace4f017453679572d462534ce2a9c9558fd7593f259b01bfa1",
+      "styles.css": "bfb163669ad5b5616cf292d675092ee88498a407a26fd42c963911ade4d64de8"
+    },
+    "source": {
+      "src/index/GraphBuilder.ts": "b4ff3bc6298c1d30c58aa15a47d2636b8e32a33f1ff4c225ce2848534567cab8",
+      "src/index/GraphIndex.ts": "3d8ce315151e9d6af359248f0db2565eb6b2be41f956fde739574cf2b83fabe1",
+      "src/core/graph/compiler.ts": "ee403bd86870137e7ea769dfb5c5c7cfa27e08ad768b1815bef47eab9732bd4f",
+      "src/ui/RenameNoteModal.ts": "73a432e2fbe85ea7e3a3141053cccbab899d1dd7def247d7847f936bb3171e95",
+      "src/ui/mobileModalViewport.ts": "7ad80b5c4cc1afa305c75f855bec1977a9bb27aefaedf039a9be8f37e221d3a2"
+    },
+    "driver": {
+      "transport": "beb7677649f8ae6ae390c0df25b4a025a48777b5fbfc5e36c25f7fe252b8a0d3",
+      "scenario": "834aca7a7d44a6132ee2682b18104a0b2c6d01daa9298e0d9771ea9f0616c2a4",
+      "definitions": "f04f03db7127ab874bd9cbab76351efca768f9ee5961d0e5a6664ea047cb6963"
+    },
+    "result": {
+      "cases": [
+        {
+          "innerWidth": 900,
+          "phone": false,
+          "tablet": true,
+          "keyboardViewport": 300,
+          "controlsReachable": true
+        },
+        {
+          "innerWidth": 420,
+          "phone": true,
+          "tablet": false,
+          "keyboardViewport": 300,
+          "controlsReachable": true
+        }
+      ],
+      "limitation": "Desktop native mobile emulation with a controlled keyboard viewport; physical Android/Gboard acceptance remains separate."
+    },
+    "cleanup": "passed",
+    "limitations": "Controlled native method observations, not actual paint or physical-device acceptance."
+  },
+  "postRun": {
+    "disposableFiles": 76,
+    "mobile": false,
+    "probePresent": false,
+    "temporaryProfilerPresent": false,
+    "capturedJavaScriptErrors": 0
+  }
+}

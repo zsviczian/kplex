@@ -285,3 +285,24 @@ test('dense Compass clips hidden leaf routes and bounds navigation animation to 
  check(root.querySelectorAll('.kplex-zone-content .kplex-thought').length===300&&work.body===0&&work.scans===0,'Clipping changes paint, not source work or constructed rows');
  ui.close();plugin.actionManager.dispose();style.remove();return true})()`));}finally{await host.cleanup()}
 });
+
+test('Alt focus dims unrelated ordinary and descendant connector captions with their paths',async()=>{
+ const host=await chromiumHarness(output.outputFiles[0].text+';window.sourceModules=sourceModules;');
+ try{assert(await host.evaluate(`(async()=>{${canvasSceneFixture}
+ settings.graphDepth=2;settings.hoverHighlightRequiresAlt=true;settings.baseLinkStyle.showLabel=true;
+ for(const value of Object.values(settings.hierarchyLinkStyles))value.showLabel=true;
+ const d={...pages.get('C.md'),path:'D.md',name:'D.md',file:{...pages.get('C.md').file,path:'D.md'}};pages.set(d.path,d);
+ const original=index.neighbours;index.neighbours=(page,role)=>(page.path==='B.md'&&role==='child'?[{page:d,role:'child',relationType:1,linkDirection:1}]:original(page,role)).map(row=>({...row,typeDefinition:'Named relation'}));
+ index.getNeighborhood=path=>({center:pages.get(path),parents:index.neighbours(pages.get(path),'parent'),children:index.neighbours(pages.get(path),'child'),leftFriends:[],rightFriends:[],siblings:[]});
+ const a=await mount(M.builtInPlexViews.resolve('classic'));
+ check(a.container.querySelector('.kplex-expanded-connector .kplex-edge-label-wrap'),'Named descendant caption required');
+ a.container.querySelector('.kplex-thought[data-kplex-path="C.md"]').dispatchEvent(new PointerEvent('pointerover',{bubbles:true,pointerType:'mouse',altKey:true}));await wait();await wait();
+ const groups=[...a.container.querySelectorAll('.kplex-edge.is-dimmed,.kplex-expanded-connector.is-dimmed')];
+ check(groups.some(group=>group.classList.contains('kplex-edge')),'Ordinary unrelated connector dims');check(groups.some(group=>group.classList.contains('kplex-expanded-connector')),'Descendant unrelated connector dims');
+ for(let i=0;i<15&&groups.some(group=>Number(getComputedStyle(group).opacity)>=.2);i++)await wait();
+ for(const group of groups){check(Number(getComputedStyle(group).opacity)<.2,'Connector group opacity not applied '+group.getAttribute('class')+' '+getComputedStyle(group).opacity);check(group.querySelector('.kplex-edge-label-wrap'),'Its named caption belongs to the same dimmed SVG group')}
+ a.container.querySelector('.kplex-thought[data-kplex-path="C.md"]').dispatchEvent(new PointerEvent('pointerout',{bubbles:true,pointerType:'mouse',altKey:true}));
+ a.container.querySelector('.kplex-thought[data-kplex-path="B.md"]').dispatchEvent(new PointerEvent('pointerover',{bubbles:true,pointerType:'mouse',altKey:true}));await wait();
+ check(!a.container.querySelector('.kplex-expanded-connector.is-dimmed'),'A direct descendant relationship remains visible while its parent is focused');
+ a.close();plugin.actionManager.dispose();style.remove();return true})()`))}finally{await host.cleanup()}
+});

@@ -1411,7 +1411,7 @@ for (const { failure, oldParser, interruption, storageFailure } of [{ failure: f
                   equal(index.urlAliasFacetVersion,1,'Failed storage cannot certify complete aliases');
                 }else{
                   const owner=await value(db.transaction(M.SOURCE_LOCAL_OWNER_STORE).objectStore(M.SOURCE_LOCAL_OWNER_STORE).get('Remote.md'));
-                  equal((await f.repository.inspect('Remote.md')).head.bodyParserVersion,3,'Successful CAS records actual current URL grammar');
+                  equal((await f.repository.inspect('Remote.md')).head.bodyParserVersion,M.SOURCE_BODY_PARSER_VERSION,'Successful CAS records actual current URL grammar');
                   equal(await f.repository.ensureLocalDependencies('Remote.md',owner.order,owner.markdownOrder),'ready','Failed inactive reclaim cannot block selected owner');
                   equal(await f.repository.completeLocalDependencyInventory(),'ready','Primary closed-world counts survive inactive reclaim failure');
                   const lookup=await f.repository.lookupLocalDependencies([M.sourceLocalDependencyKey('node','https://help.obsidian.md')]);equal(lookup.outcome,'ready','Fresh dependency discovery works despite inactive reclaim');
@@ -1553,7 +1553,7 @@ for (const mode of ['navigation','supersession','policy','missing-metadata','cor
           index.prepareSemanticScope=async function(...args){if(args[0]===target)targetAttempts++;const task=prepare.apply(this,args);
             if(mode==='supersession'&&args[0]===target&&targetAttempts===2&&!layoutChanged){layoutChanged=true;settings.embedCentralNode=!settings.embedCentralNode;await this.refreshPresentationSettings();}return task;};
           repo.activate=async function(...args){
-            const head=args[1];if(head.bodyParserVersion===3&&owners.includes(head.sourceId)){
+            const head=args[1];if(head.bodyParserVersion===M.SOURCE_BODY_PARSER_VERSION&&owners.includes(head.sourceId)){
               if(!introduced){introduced=true;
                 if(mode!=='missing-metadata'&&mode!=='corrupt'){release();release=null;}settings.lastActivePath=target;
                 if(mode==='missing-metadata')f.metadata.delete(target);
@@ -1569,7 +1569,7 @@ for (const mode of ['navigation','supersession','policy','missing-metadata','cor
                 const role=mode==='policy'?'left':'child';ok(index.neighbours(index.get(target),role).some(item=>item.page.path==='https://help.obsidian.md'),'Current primary role is authoritative before alias maintenance continues');
               }
             }
-            const result=await activate.apply(this,args);if(result.outcome==='activated'&&head.bodyParserVersion===3&&owners.includes(head.sourceId))activated++;return result;
+            const result=await activate.apply(this,args);if(result.outcome==='activated'&&head.bodyParserVersion===M.SOURCE_BODY_PARSER_VERSION&&owners.includes(head.sourceId))activated++;return result;
           };
           release=index.acquireSemanticDemand('A.md');await index.restorePersistedSnapshot(['A.md']);ok((await index.waitForSnapshotHydration()).restored,'Full coherent cache restored');
           await wait(()=>introduced);

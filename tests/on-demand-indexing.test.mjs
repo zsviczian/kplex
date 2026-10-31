@@ -2148,6 +2148,26 @@ test('native folder connection order uses direct membership while a child folder
   }finally{releases.forEach(release=>release());o.close();}
 })()`));
 
+test('warm PDF center recovers selected Markdown ontology with native fresh attachment metadata',async()=>scenario(`(async()=>{
+ const o=await onDemandFixture('warm-attachment-metadata',{indexingMode:'eager'}),{f,index,settings}=o;const releases=[];
+ try{
+  delete index.sourceAcquisition.enableInventory;index.plugin.startupDiagnostics.processed=()=>{};
+  f.add('Manual.pdf','');f.add('B.md','Parent:: [[Manual.pdf]]');
+  const nativeCache=f.app.metadataCache.getFileCache.bind(f.app.metadataCache);
+  f.app.metadataCache.getFileCache=file=>file.extension==='md'?nativeCache(file):{};
+  f.app.metadataCache.resolvedLinks={'B.md':{'Manual.pdf':1}};
+  ok(await index.rebuild(),'Warm complete graph');index.acknowledgeHostPresentation();
+  releases.push(index.acquireSemanticDemand('Manual.pdf'),index.acquirePresentationDemand(['Manual.pdf','B.md'].map(path=>index.get(path)),['Manual.pdf']));
+  index.sourceAcquisition.pauseInventory();f.app.metadataCache.trigger('resolved');f.app.metadataCache.trigger('resolved');
+  settings.hierarchy.parents=[];settings.hierarchy.leftFriends=['Parent'];index.invalidateSemanticPolicy();
+  await index.refreshSemanticSettings();while(index.onDemandPreviewTasks.size)await Promise.all([...index.onDemandPreviewTasks.values()]);
+  equal(index.getNeighborhood('Manual.pdf').leftFriends.map(row=>row.page.path),['B.md'],'PDF native ownership does not reject current selected Markdown semantics');
+  ok(!index.sourceAcquisition.hasSemanticDependencies(),'Local recovery grants no global authority');
+  ok(!index.isSemanticWriteReady('Manual.pdf','B.md'),'Local recovery grants no pair write authority');
+  ok(!f.reads.includes('Manual.pdf'),'Binary body is never read');return true;
+ }finally{releases.reverse().forEach(release=>release());o.close();}
+})()`));
+
 for(const variant of ['unrelated-edit','unrelated-body-failure','unrelated-metadata-pending'])test('warm recovery isolates stationary canvases: '+variant,async()=>scenario(`(async()=>{
  const variant=${JSON.stringify(variant)},o=await onDemandFixture('review-second-'+variant,{indexingMode:'eager'}),{f,index,settings}=o;const releases=[];
  try{

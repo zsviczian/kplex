@@ -1,5 +1,5 @@
 /**
- * Follow the most recently active Plex's central file in existing, visible native File properties
+ * Follow the most recently active Plex's open editor file (otherwise its root/center) in visible native File properties
  * panes. This adapter uses the host's verified private FileView loader without opening documents,
  * emitting file-open, changing native selection/history or acquiring graph sources. Native loaders
  * are not cancellable: accepted loads are serialized and their completion repairs stale metadata
@@ -15,7 +15,7 @@ interface PropertiesView extends FileView {
   loadFile(file: TFile | null): Promise<unknown>;
 }
 
-/** One mounted React surface supplies its exact center without exposing the graph repository. */
+/** One mounted React surface supplies its live document/root without exposing the graph repository. */
 interface CenterRegistration {
   leaf: WorkspaceLeaf;
   document: Document;
@@ -32,7 +32,7 @@ interface DestinationWork {
   accepted: boolean;
 }
 
-/** Refresh after a changed central file; release when this exact React root retires or migrates. */
+/** Refresh after a changed editor/root file; release when this exact React root retires or migrates. */
 export interface FilePropertiesCenterLease {
   refresh(): void;
   dispose(): void;
@@ -115,7 +115,7 @@ class FilePropertiesFollower {
   /** Utility-pane focus retains the last Plex; another native content leaf returns authority to Obsidian. */
   private observeActive(leaf: WorkspaceLeaf | null): void {
     const previous = this.recent;
-    const registration = [...this.centers].find(/** Embedded native content retains its enclosing Plex's central identity. */ center =>
+    const registration = [...this.centers].find(/** Embedded content retains its enclosing Plex's Properties ownership. */ center =>
       center.leaf === leaf || Boolean(leaf && center.leaf.view.containerEl.contains(leaf.view.containerEl)));
     if (registration) this.recent = registration;
     else if (leaf?.view.getViewType() !== "file-properties") this.recent = null;

@@ -6,7 +6,8 @@ import {PlexEditorBindings, type SavedPlexEditorIntent} from "./PlexEditorBindin
 import {boundedViewState as savedState} from "../core/plex/views/state";
 
 export type PlexViewTransient = Readonly<{attention: NodeId; scope?: NodeId; camera: Readonly<{x: number; y: number; scale: number}>;
-  selected: string | null; unfolded: readonly string[]}>;
+  selected: string | null; unfolded: readonly string[];
+  sections?: Readonly<{expanded: boolean; unfolded: readonly string[]}>}>;
 
 export class PlexViewSession {
   /** Document/editor lifetime does not follow attention or definition-owned transient resources. */
@@ -137,22 +138,45 @@ export class PlexViewSession {
       || typeof height !== "number" || !Number.isFinite(height) || height <= 0 || height > 100_000) return null;
     return {viewId: this.definition.id, occurrenceId, mode, target: {nodeId: nodeId(identity), path}, dimensions: {width, height}};
   }
-  /** Keep bounded transient geometry/selection in this native incarnation, outside data.json/workspace serialization. */
+  /** Retain recent scopes in memory only: at most 64 entries and 64 Ki UTF-16 units, never note bodies or file objects. */
   retainTransient(id: string, value: PlexViewTransient): void {
     if (this.closed || !this.registry.has(id) || !Object.values(value.camera).every(Number.isFinite) || value.camera.scale <= 0
-      || value.camera.scale > 16 || Math.abs(value.camera.x) > 1e9 || Math.abs(value.camera.y) > 1e9) return;
-    if (this.transient.size >= 16 && !this.transient.has(id)) {
-      const oldest: unknown = this.transient.keys().next().value;
-      if (typeof oldest === "string") this.transient.delete(oldest);
+      || value.camera.scale > 16 || Math.abs(value.camera.x) > 1e9 || Math.abs(value.camera.y) > 1e9
+      || value.attention.length > 4096 || (value.scope?.length ?? 0) > 4096) return;
+    const entry = {attention: value.attention, ...(value.scope ? {scope: value.scope} : {}), camera: {...value.camera},
+      selected: value.selected?.slice(0, 4096) ?? null, unfolded: [] as string[],
+      ...(value.sections ? {sections: {expanded: value.sections.expanded, unfolded: [] as string[]}} : {})};
+    let remaining = 8192 - JSON.stringify(entry).length;
+    if (remaining < 0) return;
+    /** Bound encoded key bytes in one pass, without repeatedly serializing oversized fold lists. */
+    const boundedKeys = (keys: readonly string[]): string[] => {
+      const retained: string[] = [];
+      for (const key of keys.slice(0, 256)) {
+        if (typeof key !== "string" || key.length > 4096) continue;
+        const cost = JSON.stringify(key).length + 1;
+        if (cost > remaining) continue;
+        remaining -= cost; retained.push(key);
+      }
+      return retained;
+    };
+    entry.unfolded = boundedKeys(value.unfolded);
+    if (entry.sections && value.sections) entry.sections.unfolded = boundedKeys(value.sections.unfolded);
+    const key = JSON.stringify([id, value.scope ?? value.attention]);
+    this.transient.delete(key); this.transient.set(key, entry);
+    let size = 0;
+    for (const [scope, state] of this.transient) size += scope.length + JSON.stringify(state).length;
+    while (this.transient.size > 64 || size > 65536) {
+      const oldest = this.transient.entries().next();
+      if (oldest.done) break;
+      const [scope, state] = oldest.value;
+      size -= scope.length + JSON.stringify(state).length; this.transient.delete(scope);
     }
-    this.transient.set(id, {attention: value.attention, ...(value.scope ? {scope: value.scope} : {}), camera: {...value.camera}, selected: value.selected?.slice(0, 4096) ?? null,
-      unfolded: value.unfolded.slice(0, 256).filter(key => typeof key === "string" && key.length <= 4096)});
   }
-  /** A new attention scope permanently retires references to the previous root; no pages or native objects are retained. */
+  /** Revisit the current layout scope without reviving another view/root or serializing presentation history. */
   readTransient(id: string, attention: NodeId): PlexViewTransient | undefined {
-    const value = this.transient.get(id);
     const expected = this.registry.resolve(id).navigation === "rooted" ? this.roots.get(id) ?? attention : attention;
-    if (value && (value.scope ?? value.attention) !== expected) {this.transient.delete(id);return undefined;}
+    const key = JSON.stringify([id, expected]), value = this.transient.get(key);
+    if (value) {this.transient.delete(key); this.transient.set(key, value);}
     return value;
   }
   /** New views keep small area preferences in their own native-session namespace; Classic never writes here. */

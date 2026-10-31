@@ -891,14 +891,14 @@ export class GraphIndex {
         /** An unchanged native owner's metadata can arrive before notification; that alone may re-admit it. */
         const attemptsCurrent = (owners: NonNullable<NonNullable<typeof proof>["attemptedOwners"]>): boolean =>
           attemptOwnersCurrent(owners) && [...owners].every(/** Retain capability booleans, never metadata payloads. */
-            ([file, observed]) => Boolean(this.app.metadataCache.getFileCache(file)) === observed.metadataAvailable);
+            ([file, observed]) => (file.extension !== "md" || Boolean(this.app.metadataCache.getFileCache(file))) === observed.metadataAvailable);
         if (proof && (proof.attemptedSignature === signature && proof.attemptedOwners && attemptsCurrent(proof.attemptedOwners)
           || [...paths].every(/** Existing selected owners need no repeated body acquisition. */ path => proof.paths.has(path)))) return;
         const attemptedOwners = new Map<TFile, Readonly<{ path: string; revision: FileRevision; event: number; metadataAvailable: boolean }>>();
         for (const path of paths) {
           const file = this.app.vault.getFileByPath(path);
           if (file) attemptedOwners.set(file, { path, revision: captureFileRevision(file),
-            event: this.sourceAcquisition.getFileRevision(file), metadataAvailable: Boolean(this.app.metadataCache.getFileCache(file)) });
+            event: this.sourceAcquisition.getFileRevision(file), metadataAvailable: file.extension !== "md" || Boolean(this.app.metadataCache.getFileCache(file)) });
         }
         /** All asynchronous source/compile steps belong to these captured source, policy and view tokens. */
         const current = (): boolean => !this.diagnosticsClosed && !this.persistentCachePurged
@@ -917,15 +917,16 @@ export class GraphIndex {
         const bodies = new Map([...proof?.bodies ?? []].filter(/** Reuse exact successful inputs only while their certificate remains readable. */
           ([path]) => accepted.has(path)));
         const reads = new Map<string, Promise<ParsedBodyMetadata | null>>();
-        const metadata = new Map([...attemptedOwners].map(/** Close metadata identity across pre-acquisition and compilation. */
-          ([file]) => [file, this.app.metadataCache.getFileCache(file)] as const));
+        const metadata = new Map([...attemptedOwners].filter(([file]) => file.extension === "md")
+          .map(/** Only Markdown has stable metadata identity; binary owners retain their native/event/stat fences. */
+            ([file]) => [file, this.app.metadataCache.getFileCache(file)] as const));
         /** Validate one captured native/body/metadata owner in constant time between awaits. */
         const ownerCurrent = (file: TFile): boolean => {
           const observed = attemptedOwners.get(file);
           return current() && Boolean(observed && file.path === observed.path
             && this.app.vault.getFileByPath(observed.path) === file && fileRevisionMatches(file, observed.revision)
             && observed.event === this.sourceAcquisition.getFileRevision(file)
-            && metadata.get(file) === this.app.metadataCache.getFileCache(file));
+            && (file.extension !== "md" || metadata.get(file) === this.app.metadataCache.getFileCache(file)));
         };
         /** Deduplicate physical acquisition without serializing unrelated owners or retaining raw text. */
         const acquireBody = (file: TFile): Promise<ParsedBodyMetadata | null> => {

@@ -36,7 +36,7 @@ test("optional alias replacement rejects primary, dependency-count and final sel
           };
           if(mode==='superseded')r.activate=async function(...args){current=false;return activate.apply(this,args)};
           const result=await r.replace({sourceId:'A.md',physical:selected.head.physical,observation:selected.head.observation,expected:selected.expected,
-            bodyParserVersion:3,aliasUpgradeFrom:{head:selected.head,sequence:selected.sequence,saved:true},families:{...selected.head.families,
+            bodyParserVersion:M.SOURCE_BODY_PARSER_VERSION,aliasUpgradeFrom:{head:selected.head,sequence:selected.sequence,saved:true},families:{...selected.head.families,
               'body-urls':async emit=>{for(const record of records)if(!await emit({...record,...(mode==='primary'?{label:'Changed primary'}:{}),aliases:['First','Second']}))return false;return true;}}},()=>current);
           ok(result.outcome==='rejected'||result.outcome==='superseded'||mode==='superseded'&&result.outcome==='cancelled','Optional proof fails closed for '+mode);
           equal(await capture(),retainedBefore,'No selected head/owner/count/journal/state mutation on '+mode);

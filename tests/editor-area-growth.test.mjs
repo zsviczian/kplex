@@ -5,7 +5,7 @@ import test from 'node:test';
 import {plexViewModules,classicFixture,viewPage} from './support/plexViewFixture.mjs';
 const M=await plexViewModules(['src/ui/plexViews/prepareScene.ts','src/ui/plexViews/classic/occurrenceEditor.ts',
  'src/core/plex/views/wuxing/definition.ts','src/core/plex/views/facets/layout.ts','src/core/plex/views/facets/templates.ts','src/adapters/obsidian/actionNode.ts',
- 'src/ui/plexViews/areaVisibility.ts','src/application/PlexViewSession.ts','src/core/plex/views/registry.ts']);
+ 'src/ui/plexViews/areaVisibility.ts','src/ui/editorOverlayFrame.ts','src/ui/plexViews/occurrenceEditors.ts','src/application/PlexViewSession.ts','src/core/plex/views/registry.ts']);
 
 for(const role of ['parent','child','left','right','sibling'])test(`Compass ${role} area grows in both axes around an exact large editor and restores on close`,()=>{
  const f=classicFixture(M),settings={...f.settings,parentMaxHeight:140,childMaxHeight:160,friendMaxHeight:140,siblingMaxHeight:120},before=JSON.stringify(settings);
@@ -58,4 +58,23 @@ test('Facets saves occurrence intent without native authority and restores it th
  assert.equal(opened.status,'opened');const saved=JSON.parse(JSON.stringify(session.getState()));assert(!JSON.stringify(saved).includes('native-instance'));
  const restored=new M.PlexViewSession(registry,()=>{});restored.restore(saved);assert.equal(restored.definition.id,'wuxing');assert.equal(restored.editors.bindings.length,0);
  const intent=restored.readEditorIntent();assert.equal(intent.occurrenceId,'exact-phase-note');assert.deepEqual(intent.dimensions,{width:920,height:700});session.dispose();restored.dispose();
+});
+
+
+test('expanded native editor frames stay inside the canvas independently of camera and large node geometry',()=>{
+ const node={x:10000,y:-10000,width:1400,height:900};
+ for(const viewport of [{width:1200,height:900},{width:390,height:380}])for(const camera of [{x:-100000,y:12000,scale:3},{x:0,y:-1200,scale:.3}]){
+  const frame=M.editorOverlayFrame(node,camera,viewport,true);
+  assert(frame.left>=0&&frame.top>=34);assert(frame.left+frame.width<=viewport.width);assert(frame.top+frame.height<=viewport.height);
+  assert.deepEqual(frame,M.editorOverlayFrame({...node,x:-node.x,y:-node.y},{x:500,y:500,scale:2},viewport,true));
+ }
+ assert.deepEqual(M.editorOverlayFrame({x:0,y:0,width:600,height:400},{x:400,y:300,scale:.5},{width:800,height:600},false),{left:250,top:200,width:300,height:200});
+});
+
+for(const extension of ['pdf','png','mp4','webm'])test(extension+' occurrence admission delegates native eligibility and preserves exact file identity',()=>{
+ const f=classicFixture(M),page=f.neighborhood.center;page.file.extension=extension;
+ const reference=M.actionNodeRef(page),binding={target:{nodeId:reference.identity,path:page.file.path,fileIdentity:reference.fileIdentity}};
+ const source={get:()=>page};assert.equal(M.resolveOccurrenceEditorPage(binding,source,()=>true),page);
+ assert.equal(M.resolveOccurrenceEditorPage(binding,source,()=>false),null);
+ page.file={...page.file};assert.equal(M.resolveOccurrenceEditorPage(binding,source,()=>true),null);
 });

@@ -184,3 +184,18 @@ test("parser3 retains frozen parser2 primary grammar including all URL-bearing c
     assert.deepEqual(primary(await parser.parseBodyMetadataCooperativeCore(input, runtime)), item.expected, item.name);
   }
 });
+
+
+test("escaped and nested square brackets retain rendered external-link labels in worker and cooperative parsing",async()=>{
+ const url="https://github.com/mnaoumov/obsidian-advanced-note-composer/issues/307";
+ for(const [label,expected] of [[String.raw`\[FR\] #307`,"[FR] #307"],["[FR] #307","[FR] #307"],[String.raw`A \\ [B]`,String.raw`A \ [B]`]]){
+  const input=`[${label}](${url})`,sync=parser.parseBodyMetadataCore(input),cooperative=await parser.parseBodyMetadataCooperativeCore(input,noTimerRuntime());
+  assert.equal(sync.urls[0].label,expected);assert.deepEqual(cooperative,sync);
+ }
+});
+
+test("cooperative escaped label scans retain cancellation checkpoints",async()=>{
+ let scanned=false;
+ await assert.rejects(parser.parseBodyMetadataCooperativeCore('['+String.raw`\x`.repeat(200000)+'](https://example.com)',noTimerRuntime({shouldContinue:phase=>{if(phase==='link-label-scan'){scanned=true;return false;}return true;}})),/cancelled/);
+ assert.equal(scanned,true);
+});

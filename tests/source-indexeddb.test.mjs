@@ -203,9 +203,9 @@ test("real Chromium: parsed-body write-behind remains readable without granting 
           owner.queueBodyWrite('valid.md',8,body);window.clearTimeout(owner.bodyWriteTimer);owner.bodyWriteTimer=null;
           equal(await owner.getBody('valid.md',9),null,'Different native mtime misses');equal((await owner.getBodies([{path:'valid.md',mtime:9}])).size,0,'Batch mtime misses');
           equal(await owner.getBody('other.md',8),null,'Different path misses');
-          const record=owner.queuedBodyWrites.get('valid.md');record.parserVersion=2;
+          const record=owner.queuedBodyWrites.get('valid.md');record.parserVersion=3;
           equal(await owner.getBody('valid.md',8),null,'Historical queued parser version misses');equal((await owner.getBodies([{path:'valid.md',mtime:8}])).size,0,'Batch parser guard matches');
-          record.parserVersion=3;record.body={...body,urls:[{url:'https://example.com/invalid',aliases:[42]}]};
+          record.parserVersion=sourceModules.SOURCE_BODY_PARSER_VERSION;record.body={...body,urls:[{url:'https://example.com/invalid',aliases:[42]}]};
           equal(await owner.getBody('valid.md',8),null,'Malformed current queued URL aliases rejected');equal((await owner.getBodies([{path:'valid.md',mtime:8}])).size,0,'Batch body validator matches');
           record.body=body;record.path='wrong.md';equal(await owner.getBody('valid.md',8),null,'Queued payload path must match map key');record.path='valid.md';
           owner.close();equal(owner.queuedBodyWrites.size,0,'Close releases queued payloads');
@@ -339,7 +339,7 @@ test("real Chromium: version migration, atomic source heads, repair, failure rec
           tx.objectStore('snapshotChunks').put({generation:'legacy',kind:'pages',index:0,values:[]});
         });legacy.close();
         cache=await fresh('upgrade'); equal(await cache.getBody('legacy.md',1),null,'Lossy body-v2 ignored after grammar upgrade');
-        await edit(await cache.open(),['bodies'],tx=>tx.objectStore('bodies').put({path:'bad-alias.md',mtime:1,parserVersion:3,body:{...body,urls:[{url:'https://example.com',aliases:[42]}]}}));
+        await edit(await cache.open(),['bodies'],tx=>tx.objectStore('bodies').put({path:'bad-alias.md',mtime:1,parserVersion:sourceModules.SOURCE_BODY_PARSER_VERSION,body:{...body,urls:[{url:'https://example.com',aliases:[42]}]}}));
         equal(await cache.getBody('bad-alias.md',1),null,'Malformed current-version aliases are rejected');
         equal((await cache.getBodies([{path:'bad-alias.md',mtime:1}])).size,0,'Batch body reads use the same strict alias guard');
         const upgraded=await cache.open();const stored=await requestValue(upgraded.transaction('bodies').objectStore('bodies').get('legacy.md'));

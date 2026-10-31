@@ -49,7 +49,7 @@ function fixture(mode) {
     }
     clock = end; await settle();
   };
-  const record = { path: file.path, mtime: file.stat.mtime, size: file.stat.size, version: 3, parserVersion: 3, frontmatter: {}, urls: [], inlineFieldOccurrences: [] };
+  const record = { path: file.path, mtime: file.stat.mtime, size: file.stat.size, version: 3, parserVersion: M.SOURCE_BODY_PARSER_VERSION, frontmatter: {}, urls: [], inlineFieldOccurrences: [] };
   return { index, app, settings, M, file, record, settle, advance, timers, performance: window.performance, catalogReads: () => catalogReads };
 }
 

@@ -1,0 +1,48 @@
+{
+  "name": "attachment-gate-counts",
+  "status": "passed",
+  "node": "v22.22.2",
+  "startedAt": "2026-10-31T18:21:29.440Z",
+  "maximumMs": 180000,
+  "driver": {
+    "transport": "beb7677649f8ae6ae390c0df25b4a025a48777b5fbfc5e36c25f7fe252b8a0d3",
+    "scenario": "99a9fa2b9975435a78af1d40232628bc78609e271d088bd2937816596c272eba",
+    "definitions": "0d5293904c354ab5cac253783d8faf0dc85b48bbd47b79debddeea842d37bac3"
+  },
+  "artifacts": {
+    "main.js": "8555ece4faf61a639492e19c5ba8c166b629c0e18bab4ce327e26e9ee2790e3b",
+    "manifest.json": "2822c38463c03ace4f017453679572d462534ce2a9c9558fd7593f259b01bfa1",
+    "styles.css": "bfb163669ad5b5616cf292d675092ee88498a407a26fd42c963911ade4d64de8"
+  },
+  "source": {
+    "src/index/GraphBuilder.ts": "b4ff3bc6298c1d30c58aa15a47d2636b8e32a33f1ff4c225ce2848534567cab8",
+    "src/index/GraphIndex.ts": "ddd56515a902719a2c0c76a3aa758f4c7732f4412d9a15cabcada0b77a835ce6",
+    "src/core/graph/compiler.ts": "ee403bd86870137e7ea769dfb5c5c7cfa27e08ad768b1815bef47eab9732bd4f",
+    "src/index/HostMetadataPreview.ts": "4f6eb78d8d1deaf31842c83fd2854bf687f25a1eddbba7a36c2c73f428adb0be"
+  },
+  "limitations": "Controlled native method observations, not actual paint or physical-device acceptance.",
+  "obsidian": "1.15.0 (installer 1.14.0)",
+  "result": {
+    "cases": [
+      "PDF: three native count revalidations and visible numeric gate",
+      "Markdown with PDF/image: three native count revalidations and visible numeric gate"
+    ],
+    "nativeBacklinks": 18
+  },
+  "cleanup": "passed",
+  "completedAt": "2026-10-31T18:21:31.524Z",
+  "portableVerification": {
+    "command": "npm run verify",
+    "exitCode": 0,
+    "node": "v22.22.2",
+    "releaseArchitectureCoreScanner": "passed",
+    "main": 1798,
+    "browserUi": 445,
+    "sources": 357,
+    "browserIndexedDb": 856,
+    "defaultScaleOwners": 20015,
+    "productionBuild": "passed",
+    "logSha256": "d2ad6f54726c373ca0b99bbbd82f35b1545bf11bed81de88e36b9c31d3d96072",
+    "earlierAttempt": "Existing parser timer assertion measured 65.8 ms during a concurrent build; serial full rerun passed without changing limits."
+  }
+}

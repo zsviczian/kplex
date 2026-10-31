@@ -19,12 +19,12 @@ async function scenario(app,c){
  try{
   await until(()=>p.layoutReady&&!p.isStartupInitializing()&&!p.index.hasActiveSemanticPreparation(),'Startup did not settle');
   native.restore();native.setBounds({x:20,y:20,width:1800,height:1100});native.show();native.focus();native.webContents.focus();workspace.leftSplit.collapse();workspace.rightSplit.collapse();
-  createdFolder=await app.vault.createFolder(folder);const child=p.settings.hierarchy.children[0],names=['Focus','Neighbor',...Array.from({length:12},(_,i)=>'Peer-'+i)];
+  createdFolder=await app.vault.createFolder(folder);const child=p.settings.hierarchy.children[0],names=['Focus','Neighbor',...Array.from({length:20},(_,i)=>'Peer-'+i)];
   for(const name of names){const fm={status:name==='Focus'||name==='Neighbor'?'wood':'metal',...(name==='Focus'?{[child]:names.slice(1).map(name=>'[['+path(name)+']]')}:{})};
    const file=await app.vault.create(path(name),'---\n'+Object.entries(fm).map(([key,value])=>JSON.stringify(key)+': '+JSON.stringify(value)).join('\n')+'\n---\n# '+name+'\n\nOwned editor area fixture.\n');files.push(file);p.index.insertCreatedFile(file);releases.push(p.index.acquireSemanticDemand(file.path));}
   await until(()=>files.every(file=>app.metadataCache.getFileCache(file))&&!p.index.hasActiveSemanticPreparation(),'Fixture indexing did not settle');
   Object.assign(p.settings,{canvasViewSettings:{},embedCentralNode:false,autoOpenCentralDocument:false,followActiveFile:false,animationSpeed:0,allowAutozoom:false,
-   parentMaxHeight:140,childMaxHeight:160,friendMaxHeight:140,siblingMaxHeight:120,centerEmbedWidth:700,centerEmbedHeight:450,centralNodeMarkdownMode:'source',graphDepth:1,maxItemCount:30,renderSiblings:false});
+   parentMaxHeight:140,childMaxHeight:160,friendMaxHeight:140,siblingMaxHeight:120,centerEmbedWidth:700,centerEmbedHeight:450,centralNodeMarkdownMode:'source',graphDepth:1,maxItemCount:30,renderSiblings:false,nodeSortOrder:'name-asc'});
   await p.saveSettings(false,false);p.index.notifyPresentation();
   const anchors=[];workspace.iterateRootLeaves(leaf=>{if(leaf.view.containerEl.ownerDocument===document&&leaf.view.containerEl.getBoundingClientRect().width>0)anchors.push(leaf)});check(anchors[0],'Native main-window anchor absent');
   await workspace.revealLeaf(anchors[0]);workspace.setActiveLeaf(anchors[0],{focus:true});host=workspace.getLeaf('tab');await host.setViewState({type:'k-plex-react-view',active:true});await host.view.waitUntilReady();await workspace.revealLeaf(host);await p.setDocumentSyncMode(host,'off');p.notifyNavigation(path('Focus'),host);
@@ -50,18 +50,27 @@ async function scenario(app,c){
    const resized=await act('editor.resize',{bindingId:binding.id,width:920,height:700});check(resized.status==='completed','Shared editor resize refused');
    await until(()=>{const overlay=root().querySelector('.kplex-central-editor-overlay'),scale=Number(overlay?.style.getPropertyValue('--kplex-editor-camera-scale'))||1,rect=card().getBoundingClientRect();return session.editors.bindings[0]?.dimensions.width===920&&Math.abs(rect.width/scale-920)<1&&Math.abs(rect.height/scale-700)<1},'Editor dimensions did not publish');
    await act('view.fit');await new Promise(resolve=>window.setTimeout(resolve,180));
-   const overlay=root().querySelector('.kplex-central-editor-overlay'),clip=getComputedStyle(overlay).clipPath;
+   const overlay=root().querySelector('.kplex-central-editor-overlay'),clip=getComputedStyle(overlay.querySelector('.kplex-central-editor-document')).clipPath;
    check(clip==='none'||(clip.match(/-?\d+(?:\.\d+)?/g)??[]).every(value=>Number(value)<1),'Expanded editor is clipped by its containing area: '+clip);
    const scroll=card().closest('.kplex-zone-scroll');if(scroll)check(scroll.clientWidth>=920&&scroll.clientHeight>=700,'Scrollable area is smaller than its editor');
    check(root().querySelector('.kplex-central-editor-content .cm-content')===content&&leaf.view.file.path===path('Neighbor')&&editor.getValue().includes(marker)&&JSON.stringify(editor.getCursor())===cursor,'Resize/area growth replaced native content or caret');
+   let scrolledClip;
+   if(scroll&&scroll.scrollHeight-scroll.clientHeight>64){
+    const previous=scroll.scrollTop;scroll.scrollTop=Math.min(100,scroll.scrollHeight-scroll.clientHeight);scroll.dispatchEvent(new Event('scroll'));await new Promise(resolve=>window.setTimeout(resolve,100));
+    scrolledClip=overlay.style.getPropertyValue('--kplex-editor-body-clip');
+    check(scrolledClip.startsWith('inset(')&&Number.parseFloat(scrolledClip.slice(6))>0,'Actual area scroll did not clip the native body');
+    check(getComputedStyle(overlay).clipPath==='none'&&root().querySelector('.kplex-central-editor-content .cm-content')===content&&editor.getValue().includes(marker)&&JSON.stringify(editor.getCursor())===cursor,'Document clipping changed native input or clipped recovery chrome');
+    scroll.scrollTop=previous;scroll.dispatchEvent(new Event('scroll'));await new Promise(resolve=>window.setTimeout(resolve,80));
+   }
    check(host.view.documentSession.centerPath===beforeCenter,'Area growth changed graph attention');
    c.progress={cases,view,clip,dimensions:{width:session.editors.bindings[0].dimensions.width,height:session.editors.bindings[0].dimensions.height}};
    const box=root().querySelector('.kplex-plex').getBoundingClientRect();require('node:fs').writeFileSync(c.screenshotPrefix+'-'+view+'.png',(await native.webContents.capturePage({x:Math.ceil(box.x),y:Math.ceil(box.y),width:Math.floor(box.width),height:Math.floor(box.height)})).toPNG());
    const collapsed=await act('editor.collapse',{bindingId:binding.id});check(collapsed.status==='completed','Native editor save/close failed');
    await until(()=>!session.editors.bindings.length&&!root().querySelector('.kplex-central-editor-overlay'),'Editor did not retire');
    check((await app.vault.read(files.find(file=>file.path===path('Neighbor')))).includes(marker),'Dirty native content was not saved');
-   cases.push({id:'native-in-place-editor-area-growth-save-close',view,clip,width:920,height:700});
+   cases.push({id:'native-in-place-editor-area-growth-save-close',view,clip,scrolledClip,width:920,height:700});
   }
+  check(cases.some(item=>item.scrolledClip),'A real overflowing area must exercise native document clipping');
   return {cases,host:{electron:process.versions.electron,chrome:process.versions.chrome},fixtureNotesEditedOnly:true};
  }finally{
   if(host){const binding=host.view.documentSession?.plexView.editors.bindings[0];if(binding){const surface=[...p.actionSurfaceHosts].find(([,entry])=>entry.leaf===host)?.[0];await p.actionManager.dispatch({id:'editor.collapse',source:'internal',surfaceId:surface,args:{bindingId:binding.id}});}if(workspace.getLeafById(host.id)===host)host.detach();}

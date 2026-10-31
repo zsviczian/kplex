@@ -186,7 +186,7 @@ export function installDependencyCountReuseFixture() {
         detailed.eligibility.firstMismatchIndices[prefix] = (detailed.eligibility.firstMismatchIndices[prefix] ?? 0) + 1;
       }
     }
-    const result = await repository.replace({ sourceId, expected: old.expected, physical: { identity: sourceId, path: sourceId, mtime: revision + 1, size: revision + 100 }, observation: { epoch: "dependency-benchmark", revision, environment: "0".repeat(64) }, bodyParserVersion: 3,
+    const result = await repository.replace({ sourceId, expected: old.expected, physical: { identity: sourceId, path: sourceId, mtime: revision + 1, size: revision + 100 }, observation: { epoch: "dependency-benchmark", revision, environment: "0".repeat(64) }, bodyParserVersion: M.SOURCE_BODY_PARSER_VERSION,
       families: Object.fromEntries(M.SOURCE_FAMILIES.map(/** Produce each genuine source family through ordinary backpressured replacement. */family => [family, /** Stop immediately when the repository rejects an emitted fact. */async emit => { for (const fact of data[family]) if (!await emit(fact)) return false; return true; }])) });
     assert(result.outcome === "activated", `Ordinary replacement failed: ${result.outcome}/${result.reason}`);
     if (old.head) for (const previous of new Set([old.head.sourceRevision, ...Object.values(old.head.families).map(/** Include retained family revisions in end-to-end reclamation. */family => family.revision)]))

@@ -187,7 +187,7 @@ test('compatible legacy central editors, per-view heights and transient geometry
   a.select(legacy.id);assert.deepEqual(a.getAreaHeights(),{});a.select('test.situated');assert.deepEqual(a.getAreaHeights(),{groveHeight:170});
   const saved=JSON.parse(JSON.stringify(a.getState()));assert.equal(JSON.stringify(saved).includes('repeat-above'),false);
   const b=new M.PlexViewSession(registry,()=>{});b.restore(saved);assert.deepEqual(b.getAreaHeights(),{groveHeight:170});assert.equal(b.readTransient('test.situated','Focus.md'),undefined);
-  assert.equal(a.readTransient('test.situated','Other.md'),undefined);assert.equal(a.readTransient('test.situated','Focus.md'),undefined,'A root change permanently retires old transient state');
+  assert.equal(a.readTransient('test.situated','Other.md'),undefined);assert.equal(a.readTransient('test.situated','Focus.md').camera.x,40,'Revisiting a recent note restores its presentation');
   release();release();a.select('test.no-editor');assert.equal(a.definition.id,'test.no-editor');a.dispose();b.dispose();
 });
 
@@ -241,4 +241,16 @@ test('native picker focus return can advance interaction while view, document an
  snapshot={...snapshot,viewRevision:2};assert.equal(picker(),false,'Focus return never permits an outgoing view');
  snapshot={...snapshot,viewRevision:1,center:{identity:'Other',fileIdentity:'native'}};assert.equal(picker(),false);
  snapshot={...snapshot,center:{identity:'Focus',fileIdentity:'native'}};root={...root,ownerDocument:{}};assert.equal(picker(),false,'A replaced native document cannot deliver the captured choice');
+});
+
+
+test('recent presentation history has finite entry and byte budgets and remains session-only',()=>{
+ const session=new M.PlexViewSession(M.builtInPlexViews,()=>{}),camera={x:123,y:-456,scale:1.7};
+ for(let i=0;i<1000;i++)session.retainTransient('classic',{attention:'note'+i,camera,selected:null,unfolded:[],sections:{expanded:true,unfolded:['fold'+i]}});
+ assert.equal(session.readTransient('classic','note0'),undefined);assert.deepEqual(session.readTransient('classic','note999').sections,{expanded:true,unfolded:['fold999']});
+ const entries=session.transient;assert(entries.size<=64);assert([...entries].reduce((n,[k,v])=>n+k.length+JSON.stringify(v).length,0)<=65536);
+ const restored=new M.PlexViewSession(M.builtInPlexViews,()=>{});restored.restore(session.getState());assert.equal(restored.readTransient('classic','note999'),undefined);
+ const huge=Array.from({length:256},(_,i)=>String(i)+'x'.repeat(4090));
+ for(let i=0;i<100;i++)session.retainTransient('classic',{attention:'large'+i,camera,selected:null,unfolded:huge,sections:{expanded:true,unfolded:huge}});
+ assert([...entries].reduce((n,[k,v])=>n+k.length+JSON.stringify(v).length,0)<=65536);session.dispose();restored.dispose();
 });

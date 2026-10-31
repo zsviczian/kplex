@@ -3828,7 +3828,9 @@ export default class KplexPlugin extends Plugin {
   async syncPageToDocumentLeaf(page: GraphPage, hostLeaf: WorkspaceLeaf): Promise<void> {
     if (this.unloading || !this.documentSession(hostLeaf) || !this.syncKplexToLeafEnabled(hostLeaf) || !page.file && !page.url
       || page.file && this.app.vault.getFileByPath(page.file.path) !== page.file) return;
-    const leaf = this.targetNoteLeaf(hostLeaf, true);
+    // Passive following must never manufacture native tabs/splits or move focus. Explicit
+    // sync/open actions own creation; a recent-mode canvas with no document simply stays put.
+    const leaf = this.targetNoteLeaf(hostLeaf, false);
     if (!leaf || !this.leafIsAttached(leaf)) return;
     const session = this.documentSession(hostLeaf);
     if (session && !this.leafDisplaysPage(leaf, page)) session.lastDocumentLeaf = leaf;

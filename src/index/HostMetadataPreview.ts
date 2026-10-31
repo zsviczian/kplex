@@ -553,8 +553,10 @@ export class HostMetadataPreview {
       if (!(file instanceof TFile)) continue;
       capture(file);
       if (!(await compiler.seedEntityFact(entityFactForFile(file)))) return null;
-      const cache = this.app.metadataCache.getFileCache(file);
-      metadataCaptured.set(file, cache);
+      // Obsidian returns a new empty cache object for each non-Markdown lookup.
+      // Only Markdown has metadata identity; every file retains the native/stat fences above.
+      const cache = file.extension === "md" ? this.app.metadataCache.getFileCache(file) : null;
+      if (file.extension === "md") metadataCaptured.set(file, cache);
       const optionalOwner = options.requiredMetadataPaths && path !== centerPath && !options.requiredMetadataPaths.has(path);
       if (options.completeHostCover && file.extension === "md" && !cache) {
         if (optionalOwner) { omitted.add(path); continue; }
@@ -577,9 +579,9 @@ export class HostMetadataPreview {
       }
       if (metadataAllowed) {
         metadataTotal += estimated + tagBytes;
-        const body = await options.bodyForPath?.(path);
-        // A selected body can await disk/IndexedDB. Never combine it with superseded metadata.
-        if (!current() || cache !== this.app.metadataCache.getFileCache(file)) return null;
+        const body = file.extension === "md" ? await options.bodyForPath?.(path) : undefined;
+        // A selected Markdown body can await disk/IndexedDB. Its metadata identity must survive.
+        if (!current() || file.extension === "md" && cache !== this.app.metadataCache.getFileCache(file)) return null;
         const metadata = mergeFileMetadata(cache, body ?? { inlineFields: {}, inlineFieldOccurrences: [], urls: [] });
         const host = metadataHost;
         if (!(await consume(new ObsidianMetadataSourceCollector(host, collectorRuntime, file, metadata, metadataSettings, "metadata")))) return null;

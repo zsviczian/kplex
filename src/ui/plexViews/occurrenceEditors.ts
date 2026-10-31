@@ -1,11 +1,12 @@
-/** Exact displayed-occurrence/native-document admission. Geometry never substitutes attention or a duplicate. */
+/** Exact displayed-occurrence/native-document admission. Geometry never substitutes attention or a duplicate.
+ * The native host supplies file-format eligibility; this boundary retains canonical/native incarnation checks. */
 import type {PlexEditorBinding} from "../../application/PlexEditorBindings";
 import type {PlexProjection, PlexViewDefinition, PlexViewRead} from "../../core/plex/views/contracts";
 import type {GraphPage} from "../../types";
 import {actionNodeRef} from "../../adapters/obsidian/actionNode";
 
 export type OccurrenceEditorHost = Readonly<{bindings: readonly PlexEditorBinding[];
-  /** The native owner verifies current Vault identity and supported Markdown representation. */
+  /** The native owner verifies current Vault identity and supported native document representation. */
   supports: (page: GraphPage) => boolean}>;
 export type AdmittedOccurrenceEditor = Readonly<{binding: PlexEditorBinding; page: GraphPage}>;
 
@@ -13,7 +14,7 @@ export type AdmittedOccurrenceEditor = Readonly<{binding: PlexEditorBinding; pag
 export function resolveOccurrenceEditorPage(binding: PlexEditorBinding, source: {get: (id: string) => GraphPage | undefined},
   supports: (page: GraphPage) => boolean): GraphPage | null {
   const page = source.get(binding.target.nodeId), reference = page && actionNodeRef(page);
-  return page && !page.transient && page.file?.extension === "md" && reference?.kind === "file"
+  return page && !page.transient && page.file && reference?.kind === "file"
     && reference.identity === binding.target.nodeId && page.file.path === binding.target.path
     && reference.fileIdentity === binding.target.fileIdentity && supports(page) ? page : null;
 }
