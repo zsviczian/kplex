@@ -1,6 +1,7 @@
 /** Targeted actual shared canvas interaction checks. Native host facts are finite fixtures;
  * view projection/layout, action acceptance and semantic button/touch dispatch are production.
- * Pointer-specific disclosure assertions preserve a16px symbol and a44px coarse-pointer target. */
+ * Touch-capable disclosure assertions preserve a16px symbol and a44px hit target, including
+ * Windows hybrid devices whose fine pointer does not remove their independent touch capability. */
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import {chromiumHarness} from './support/browserTypeScript.mjs';
@@ -27,6 +28,10 @@ for(const coarse of [false,true])test(`shared node controls resist tablet button
    document.body.classList.add('is-mobile','is-tablet');
    const tablet=document.createElement('style');tablet.textContent='.is-tablet button:not(.clickable-icon){padding:4px 20px}';document.head.append(tablet);
    check(matchMedia('(pointer:coarse)').matches===${coarse},'Requested pointer lane is active');
+   // Windows can expose touch events with a fine pointer. Branch layout uses the independent
+   // host touch capability, while central section controls retain their CSS pointer policy.
+   const touchCapable=navigator.maxTouchPoints>0||'ontouchstart' in window;
+   check(!${coarse}||touchCapable,'Coarse-pointer fixture exposes touch capability');
    for(const view of ['classic','mindmap','wuxing']){
     const ui=await mount(M.builtInPlexViews.resolve(view));
     const buttons=[...ui.container.querySelectorAll('.kplex-thought-corner-action')];check(buttons.length>0,'Actual editor controls rendered');
@@ -40,8 +45,8 @@ for(const coarse of [false,true])test(`shared node controls resist tablet button
     }
     if(view==='mindmap'){
      const branch=ui.container.querySelector('.is-branch-disclosure'),box=branch.getBoundingClientRect(),symbol=branch.querySelector('.kplex-branch-disclosure-symbol').getBoundingClientRect();
-     const targetSize=${coarse}?44:16;
-     check(box.width===targetSize&&box.height===targetSize&&symbol.width===16&&symbol.height===16,'Branch preserves pointer-specific target and 16px visible symbol');
+     const targetSize=touchCapable?44:16;
+     check(box.width===targetSize&&box.height===targetSize&&symbol.width===16&&symbol.height===16,'Branch preserves pointer-specific target and 16px visible symbol: '+JSON.stringify({targetSize,box:{width:box.width,height:box.height},symbol:{width:symbol.width,height:symbol.height}}));
     }
     ui.close();
    }
