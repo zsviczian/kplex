@@ -10,6 +10,7 @@ export class ImageExportLifetime {
   readonly controller: AbortController;
   private readonly timer: number;
   private readonly deadline: number;
+  private timedOut = false;
   private readonly retire: () => void;
   /** Own a timeout and cancellation forwarding; no plugin or graph listener is acquired. */
   constructor(readonly owner: Window & Pick<typeof window, "AbortController" | "Blob" | "FileReader">, private readonly guard: ImageExportGuard, maximumMs = 20_000) {
@@ -17,12 +18,12 @@ export class ImageExportLifetime {
     this.deadline = Date.now() + maximumMs;
     this.retire = /** A closed native dialog retires pending fetch/decode continuations. */ () => this.controller.abort();
     guard.signal?.addEventListener("abort", this.retire, {once: true});
-    this.timer = owner.setTimeout(this.retire, maximumMs);
+    this.timer = owner.setTimeout(/** Native timers can fire before the wall clock reaches its rounded deadline; preserve timeout ownership. */ () => {this.timedOut = true;this.retire();}, maximumMs);
     if (guard.signal?.aborted) this.retire();
   }
   /** Reject a retired canvas, closed document or exhausted resource-time budget. */
   check(): void {
-    if (Date.now() >= this.deadline) throw new CanvasImageError("limit");
+    if (this.timedOut || Date.now() >= this.deadline) throw new CanvasImageError("limit");
     if (this.controller.signal.aborted || this.owner.closed || !this.guard.current()) throw new CanvasImageError("retired");
   }
   /** Retire promises promptly on cancel; handlers also consume late native failures. */
@@ -32,7 +33,7 @@ export class ImageExportLifetime {
     let abort: (() => void) | undefined;
     try {
       const result = await Promise.race([pending, new Promise<never>(/** Cancellation never leaves an unhandled decode/fetch promise. */ (_resolve, reject) => {
-        abort = /** Reject only normalized internal reasons. */ () => reject(new CanvasImageError(Date.now() >= this.deadline ? "limit" : "retired"));
+        abort = /** Reject only normalized internal reasons. */ () => reject(new CanvasImageError(this.timedOut || Date.now() >= this.deadline ? "limit" : "retired"));
         signal.addEventListener("abort", abort, {once: true});
         if (signal.aborted) abort();
       })]);

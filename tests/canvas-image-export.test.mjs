@@ -39,6 +39,13 @@ test('capture deadlines normalize stalled native work without leaving a live tim
  const window=owner(),lifetime=new api.ImageExportLifetime(window,{current:()=>true},15);await assert.rejects(lifetime.wait(new Promise(()=>{})),error=>error.reason==='limit');lifetime.dispose();assert.equal(window.timers.size,0);
 });
 
+test('an early native timeout retains limit ownership before the wall-clock deadline',async()=>{
+ const window=owner(),schedule=window.setTimeout;let expire;
+ window.setTimeout=(callback,delay)=>{expire=callback;return schedule(callback,delay)};
+ const lifetime=new api.ImageExportLifetime(window,{current:()=>true},10000),pending=lifetime.wait(new Promise(()=>{}));
+ expire();await assert.rejects(pending,error=>error.reason==='limit');assert.throws(()=>lifetime.check(),error=>error.reason==='limit');lifetime.dispose();assert.equal(window.timers.size,0);
+});
+
 test('PNG filenames are destination-independent and share Markdown safety without rewriting source paths',()=>{
  for(const name of ['../map','/map','map/a','map\\a','map:bad','map\nfile'])assert.equal(api.artifactFilename(name,'png'),null);
  assert.equal(api.artifactFilename('Ideas','png'),'Ideas.png');assert.equal(api.artifactFilename('Ideas.PNG','png'),'Ideas.PNG');assert.equal(api.artifactFilename('Ideas','md'),'Ideas.md');

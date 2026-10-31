@@ -23,6 +23,10 @@ Full `npm run verify:obsidian`: passed. Architecture 9, core 130, main 1,710, br
 
 The successful verifier ran from 23:33:49 to 23:58:49 UTC (25 minutes). It began from dirty `c3ff860`; the acceptance-only refinements were committed as `6b13883` during that run. Runtime files stayed unchanged. Final `main.js` SHA256 is `ed957a0949de941424527e0d2260913e7e4e58131c016035f5097688949f70af`, identical to the preceding native 22-case acceptance. The explicit `unknown` catch annotation is erased from the build. The final extended native probe passes all 24 cases against this fully verified/staged artifact. Only validation documentation changes afterward. Linux CI is tracked by [the runtime verification run](https://github.com/zsviczian/kplex/actions/runs/41145266054); its current status is reported on the PR.
 
+## Timeout ownership correction
+
+Runtime CI on `6b13883` passed, but the receipt-only follow-up run exposed an early native timer callback: after 14.8 ms of a 15 ms test timeout, wall-clock comparison classified the timeout as source retirement. Timeout callbacks now explicitly retain timeout ownership before aborting; both synchronous checks and rejected waits report the limit reason. A deterministic regression invokes the callback before the wall-clock deadline and verifies the exact limit reason and cleanup. All nine pure export checks and the real build pass without extending any deadline or weakening an assertion. Full verification and exact-build native acceptance are being refreshed for this correction; preceding receipts identify the earlier artifact.
+
 ## Development findings and corrections
 
 Visual native review found Compass polygon children had been cloned in reverse order; production traversal now preserves native DOM order, with a browser regression assertion. The first browser run also exposed two harness defects (CSS whitespace comparison and the wrong cleanup method); both were corrected, the exact owned Chromium/server processes and profile were retired, and the subsequent suite passes.
