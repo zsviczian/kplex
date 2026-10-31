@@ -1,6 +1,27 @@
 /** Actual native-shaped pairing controls and queued production saves in isolated Chromium documents. */
 import assert from 'node:assert/strict';import test from 'node:test';import {colorEditorScenario as scenario} from './support/colorEditorBrowser.mjs';
+import {readFileSync} from 'node:fs';
 const setup=`const p=await createAppearanceHost({ontologyPairingVersion:1,hierarchy:{parents:['Parent'],children:['Child'],leftFriends:['Friend','Ally'],rightFriends:['Challenger'],previous:['replies to','precedes'],next:['replied by','succeeds'],hidden:['Hidden'],exclusions:[]}}),t=p.translator,check=(value,message)=>{if(!value)throw Error(message)},open=field=>{const modal=new sourceModules.AddToOntologyModal(p,field);modal.open();return modal},button=(modal,key)=>[...modal.contentEl.querySelectorAll('button')].find(b=>b.textContent===t(key)),save=modal=>button(modal,'common.save').click(),partner=modal=>modal.contentEl.querySelector('input[aria-label="'+t('ontology.pairWith')+'"]'),role=modal=>modal.roleControl.selectEl;`;
+
+/** Production CSS must keep both labels above their editors across desktop and narrow dialogs. */
+test('both description editors span the modal content below their labels and help',async()=>{
+ const css=readFileSync('styles.css','utf8');
+ assert.equal(await scenario(`(async()=>{${setup}await p.assignFieldToOntology('replies to','previous','replied by');const modal=open('replies to');
+ const style=document.createElement('style');style.textContent=${JSON.stringify('.setting-item{display:flex;align-items:center}.setting-item-info{flex:1;margin-right:16px}.setting-item-control{display:flex;justify-content:flex-end}*{box-sizing:border-box}:root{--size-4-2:8px}'+css)};document.head.append(style);
+ const rows=[...modal.contentEl.querySelectorAll('.kplex-ontology-description-setting')];check(rows.length===2,'Both description rows must use the stacked layout');
+ for(const row of rows){const info=row.createDiv({cls:'setting-item-info'});info.append(row.querySelector('.setting-item-name'),row.querySelector('.setting-item-description'));row.prepend(info);}
+ for(const width of [660,290]){modal.contentEl.style.width=width+'px';for(const row of rows){const bounds=row.getBoundingClientRect(),area=row.querySelector('textarea').getBoundingClientRect(),name=row.querySelector('.setting-item-name').getBoundingClientRect(),help=row.querySelector('.setting-item-description').getBoundingClientRect();check(Math.abs(area.width-bounds.width)<1,'Editor does not fill the available width');check(name.bottom<=area.top&&help.bottom<=area.top,'Label/help is not above the editor');}}
+ modal.close();return true;})()`),true);
+});
+
+/** Factory wording covers physical defaults without becoming a fallback for saved or cleared data. */
+test('fresh ontology has editable descriptions while existing and cleared dictionaries stay untouched',async()=>{
+ assert.equal(await scenario(`(()=>{const check=(value,message)=>{if(!value)throw Error(message)},fresh=sourceModules.migrateAndMergeSettings({}),config=sourceModules.ontologyConfiguration(fresh),fields=Object.values(config.hierarchy).flat();
+ check(fields.length>40&&fields.every(field=>fresh.ontologyDescriptions[field]?.trim()&&fresh.ontologyDescriptions[field].length<=1000),'Factory field lacks a bounded description');check(!Object.keys(fresh.ontologyDescriptions).some(field=>field.includes('/')),'Pair declaration became a physical key');check(fresh.ontologyDescriptions.Parent!==fresh.ontologyDescriptions.Child&&fresh.ontologyDescriptions.Previous!==fresh.ontologyDescriptions.Next,'Inverse meaning was copied');
+ fresh.ontologyDescriptions.Parent='Custom wording';check(sourceModules.DEFAULT_SETTINGS.ontologyDescriptions.Parent!=='Custom wording','Fresh dictionaries share mutable defaults');
+ const existing=sourceModules.migrateAndMergeSettings({ontologyDescriptions:{Parent:'Authored wording',source:'My source meaning'}});check(Object.keys(existing.ontologyDescriptions).length===2&&existing.ontologyDescriptions.Parent==='Authored wording','Saved dictionary gained or lost wording');
+ check(Object.keys(sourceModules.migrateAndMergeSettings({ontologyDescriptions:{}}).ontologyDescriptions).length===0,'Cleared dictionary was repopulated');check(Object.keys(sourceModules.migrateAndMergeSettings({standardStyleDefaults:'native'}).ontologyDescriptions).length===0,'Older settings were silently populated');return true;})()`),true);
+});
 
 /** Exact native endpoints and rename resources are supplied by the host; real dialogs and the
  * production queued settings writer own vocabulary. Connection calls are observed separately. */

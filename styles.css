@@ -4058,6 +4058,10 @@ button.kplex-sidecar-unfold-plex:focus-visible,
 .kplex-facet-help-source { flex-direction: column; align-items: stretch; gap: 12px; }
 .kplex-facet-help-source .setting-item-info { margin-right: 0; }
 .kplex-facet-help-source .setting-item-control { width: 100%; }
+.kplex-ontology-description-setting { flex-direction: column; align-items: stretch; gap: var(--size-4-2); }
+.kplex-ontology-description-setting .setting-item-info { margin-right: 0; }
+.kplex-ontology-description-setting .setting-item-control { width: 100%; }
+.kplex-ontology-description-setting textarea { width: 100%; min-width: 0; resize: vertical; }
 .kplex-preset-help-preview { padding: 12px; }
 
 .kplex-view-region.is-water rect { fill: var(--color-blue); fill-opacity: 0.06; }

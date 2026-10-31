@@ -3,7 +3,32 @@
 The existing `2026-10-30-ontology-descriptions` branch now merges `main@a73545f`
 through `acafbab`. This includes the merged Markdown/PNG export work and clipped-row/dense-motion
 fix. The sole conflict was the package command list; both native command sets were retained.
-Ontology runtime implementation remains the previously validated #239 implementation.
+The follow-up below adds the requested description layout and factory wording to that baseline.
+
+## Description editor follow-up
+
+Both physical-field description rows now stack the native title/help above a full-width,
+vertically resizable textarea. Scoped CSS applies only to these two editor rows.
+Every factory ontology field, including aliases and excluded metadata fields, receives editable
+starter wording on a fresh installation. Inverse endpoints have independent descriptions.
+Existing settings dictionaries, missing historical dictionaries, and explicitly cleared wording
+retain their previous behavior; no migration fills or overwrites user vocabulary.
+
+Focused validation on Node 22.22.2:
+
+- Ontology configuration/presentation/input checks: 68 passed.
+- Pair/editor browser suite: 30 passed, including both widths at 660px and 290px, labels/help
+  above both editors, all factory physical names, inverse wording, detached defaults, saved
+  custom wording, explicit empty dictionaries and historical settings without descriptions.
+- The initial new defaults test referenced a non-exported test helper; corrected it to inspect
+  the production configuration projection and reran the complete 30-case editor suite.
+- Official Obsidian scanner and installed-type production build passed; `git diff --check` passed.
+- No indexing/source/schema/semantic owner changed. Expensive aggregate suites were omitted.
+
+Updated production SHA-256: `main.js`
+`bb9fd7b859ddd449d4cf6ff805d2f810b02618dfcdf4bbe9e2a862191f4fe1a5`,
+`styles.css` `0765c64003bd864c0e50bc21900cda4faa3871b5342388b0f7ee96284d03a55e`.
+The manifest remains unchanged. Physical mobile touch validation remains separate.
 
 ## Risk-based validation
 

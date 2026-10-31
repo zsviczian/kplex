@@ -1,5 +1,6 @@
 /** Native structured ontology editor. Drafts are local; complete field/pair intents enter the
- * established queue once, with raw endpoint conflict checks and durable-before-publication semantics. */
+ * established queue once, with raw endpoint conflict checks and durable-before-publication semantics.
+ * Description rows stack their labels above full-width literal text editors. */
 import {Modal,Notice,Setting,type ButtonComponent,type DropdownComponent,type TextComponent,type TextAreaComponent,type ToggleComponent} from 'obsidian';
 import type KplexPlugin from '../main';
 import {normalizeFieldName} from '../core/contracts/fieldName';
@@ -87,10 +88,11 @@ export class AddToOntologyModal extends Modal {
     if(this.fieldName)new Setting(this.contentEl).addButton(/** Inspect the selected physical name without submitting or replacing this draft. */ button=>button.setButtonText(t('ontology.usage.show')).onClick(/** Each child owns a cancellable read-only lookup. */ ()=>{
       const field=this.fieldName,dialog=new OntologyUsageModal(this.plugin,field,()=>this.usageDialogs.delete(dialog),/** Pass the captured physical field, without changing the editor draft. */ result=>{if(this.opened)this.onUsage?.(field,result);});this.usageDialogs.add(dialog);dialog.open();
     }));
-    new Setting(this.contentEl).setName(t('ontology.description')).setDesc(t('ontology.descriptionHelp',{count:ONTOLOGY_DESCRIPTION_LIMIT})).addTextArea(/** The description belongs to this exact physical name and stays local until Save. */ text=>{
+    const descriptionRow=new Setting(this.contentEl).setName(t('ontology.description')).setDesc(t('ontology.descriptionHelp',{count:ONTOLOGY_DESCRIPTION_LIMIT})).addTextArea(/** The description belongs to this exact physical name and stays local until Save. */ text=>{
       this.descriptionControl=text;text.setValue(this.description(this.fieldName));text.inputEl.maxLength=ONTOLOGY_DESCRIPTION_LIMIT;text.inputEl.setAttribute('aria-label',t('ontology.description'));text.inputEl.rows=3;
       text.onChange(/** Authored text is literal, including line breaks; no Markdown rendering occurs. */ value=>{this.descriptionDrafts.set(this.canonicalName(this.fieldName),value);this.refresh();});
     });
+    descriptionRow.settingEl.addClass('kplex-ontology-description-setting');
     new Setting(this.contentEl).setName(t('ontology.relationshipRole')).addDropdown(/** Pair role changes derive the reciprocal only in this local candidate. */ dropdown=>{
       this.roleControl=dropdown;
       for(const role of ['parent','child','left','right','previous','next','hidden','excluded'] as const)dropdown.addOption(role,ontologyRoleLabel(role,t));
@@ -106,6 +108,7 @@ export class AddToOntologyModal extends Modal {
       this.partnerDescriptionControl=text;text.setValue(this.description(this.partner));text.inputEl.maxLength=ONTOLOGY_DESCRIPTION_LIMIT;text.inputEl.setAttribute('aria-label',t('ontology.partnerDescription'));text.inputEl.rows=3;
       text.onChange(/** Keep drafts keyed by exact partner so choosing another field cannot overwrite it. */ value=>{this.descriptionDrafts.set(this.canonicalName(this.partner),value);this.refresh();});
     });
+    this.partnerDescriptionRow.settingEl.addClass('kplex-ontology-description-setting');
     this.createPartnerRow=new Setting(this.contentEl).setName(t('ontology.manager.createPartner')).setDesc(t('ontology.manager.createPartnerHelp')).addToggle(/** Creating a second new physical field is an explicit draft choice. */ toggle=>{this.createPartnerControl=toggle;toggle.setValue(false).onChange(/** Revalidate the whole two-name candidate. */ value=>{this.createPartner=value;this.refresh();});});
     this.preview=this.contentEl.createEl('p',{cls:'setting-item-description kplex-ontology-preview',attr:{role:'status'}});
     this.resolutionRow=new Setting(this.contentEl).addButton(/** Clear the partner explicitly, preserving its old role on Save. */ button=>button.setButtonText(t('ontology.clearPair')).onClick(/** No write happens until Save. */ ()=>{this.partner='';this.createPartner=false;this.partnerControl?.setValue('');this.refresh();}));
