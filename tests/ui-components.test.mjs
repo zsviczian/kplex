@@ -37,6 +37,7 @@ try {
   document.body.append(form);
 
   let activations = 0;
+  let actionTarget = null;
   let submissions = 0;
   form.addEventListener("submit", (event) => {
     submissions += 1;
@@ -46,8 +47,9 @@ try {
   const root = createRoot(container);
   flushSync(() => root.render(React.createElement(ActionButton, {
     label: "Navigate back",
+    "aria-pressed": true,
     icon: React.createElement("span", { "data-testid": "action-icon" }, "←"),
-    onClick: () => { activations += 1; },
+    onClick: (event) => { activations += 1; actionTarget = event.currentTarget; },
   })));
 
   let button = container.querySelector("button");
@@ -56,22 +58,26 @@ try {
   check(button.getAttribute("aria-label") === "Navigate back", "accessible label was not rendered");
   check(button.classList.contains("kplex-icon-button"), "canonical K-Plex button CSS hook is missing");
   check(button.classList.contains("kplex-action-button"), "action token hook missing");
+  check(button.getAttribute("aria-pressed") === "true", "toggle state must reach the native button");
   check(!button.hasAttribute("title"), "ActionButton must not add a second/title tooltip");
   check(button.querySelector('[data-testid="action-icon"]')?.textContent === "←", "icon slot did not render");
 
   button.click();
   check(activations === 1, "enabled click must fire exactly once");
+  check(actionTarget === button, "clipboard actions must receive their owning native button");
   check(submissions === 0, "type=button must prevent accidental form submission");
 
   flushSync(() => root.render(React.createElement(ActionButton, {
     label: "Navigate back",
     icon: React.createElement("span", { "data-testid": "action-icon" }, "←"),
     disabled: true,
+    "aria-pressed": false,
     onClick: () => { activations += 1; },
   })));
 
   button = container.querySelector("button");
   check(button.disabled === true, "disabled prop did not reach the native button");
+  check(button.getAttribute("aria-pressed") === "false", "toggle state must update without retaining a stale value");
   button.click();
   check(activations === 1, "disabled click must not activate");
   check(submissions === 0, "disabled action must not submit the form");

@@ -298,6 +298,7 @@ IDs C00–C26 replace the draft's numbering; E00 and L00/L01 are inserted enviro
 
 | ID | Deliverable | Prerequisites | Lanes | Agent fit | Status / evidence |
 | --- | --- | --- | --- | --- | --- |
+| Cleanup-2026-10-31 | Maintainer-scoped code quality review; retired UI/CSS, shared controls/choices and diagnostic test registration | Main 5ea0eda | U/X/I | Host | Implemented; 190 focused cases pass; full/native validation pending. C15-C26 remain paused. See docs/validation/code-quality-review-2026-10-31.md. |
 | PR218 | Canvas/Compass settings and session-owned Views and lenses selector | Accepted PR215 | H/U/L/X | Host | Done - merged9987810 after clean-head full/native24 and CI467; Small restored. C15-C26 remain paused. |
 | PR219-M0 | Opt-in occurrence editor and rooted-session prerequisite | Accepted PR218 | H/U/L/X | Host | Native occurrence/unchanged attention-host proof implemented; latest shared area/drop/cross-link native56 and read-only production proof pass; final full/CI pending. Capacity one; Wu Xing independent. |
 | C00 | Baseline, conflicts, invariant inventory | — | G/I/P/U/X/M | Host | Review — Node 22 `verify`, inventory, exact-build CLI render/error smoke and maintainer's qualitative v1 graph inspection; v2 large-file fixture verified, but its runtime completion, representative interaction and cold/warm performance remain pending (see baseline doc) |
@@ -6744,3 +6745,8 @@ Accepted main ccb7189; scoped CSS reset on existing ThoughtNode controls defeats
 ### 2026-10-27 - Scanner-safe Compass endpoint fallback
 
 Maintainer-reported no-unsafe-call/no-unsafe-return at occurrenceEditor.ts35: replace rows.at(-1) with rows[rows.length-1], retaining role/last-match/empty-array behavior without ES2022 library declaration. No cast/suppression/target changes.37 affected editor tests, actual build/types/full scanner PASS Node22.22.2. Final exact Help reload20:05:27.963Z retains center/liveRoot/view/preset/camera, immediate29cards29visible; no note edits. iOS physical acceptance remains pending for PR227. Risk check: existing duplicate-role endpoint and dirty-editor switching tests pass; no extra native platform claim.
+
+
+### 2026-10-31 - Maintainer-scoped light cleanup
+
+Base main 5ea0eda; repository-wide static/import/CSS/test inventory audit and critical semantic-path review. Remove two unreachable UI modules and 41 exclusive selectors, reuse ActionButton for three live actions, share finite predicate choices, retire two unused modal references and add 27 existing portable diagnostic cases to npm test. No indexing/hydration/compiler/cache/schema/API changes; C15-C26 remain paused. 190 focused cases pass on Node22.22.2; initial real build and official scanner pass. Full verification and exact-build native hydration/gate/live-update acceptance follow before PR delivery. Remaining manual risks: theme/popout control behavior, native lens/preset choices and physical touch. See docs/validation/code-quality-review-2026-10-31.md.

@@ -26,7 +26,6 @@ export class AddToOntologyModal extends Modal {
   private newField=false;
   private readonly descriptionDrafts=new Map<string,string>();
   private readonly physicalNames=new Map<string,string>();
-  private descriptionControl:TextAreaComponent|null=null;
   private partnerDescriptionControl:TextAreaComponent|null=null;
   private partnerDescriptionRow:Setting|null=null;
   private opening:OntologyConfigurationInput|null=null;
@@ -89,7 +88,7 @@ export class AddToOntologyModal extends Modal {
       const field=this.fieldName,dialog=new OntologyUsageModal(this.plugin,field,()=>this.usageDialogs.delete(dialog),/** Pass the captured physical field, without changing the editor draft. */ result=>{if(this.opened)this.onUsage?.(field,result);});this.usageDialogs.add(dialog);dialog.open();
     }));
     const descriptionRow=new Setting(this.contentEl).setName(t('ontology.description')).setDesc(t('ontology.descriptionHelp',{count:ONTOLOGY_DESCRIPTION_LIMIT})).addTextArea(/** The description belongs to this exact physical name and stays local until Save. */ text=>{
-      this.descriptionControl=text;text.setValue(this.description(this.fieldName));text.inputEl.maxLength=ONTOLOGY_DESCRIPTION_LIMIT;text.inputEl.setAttribute('aria-label',t('ontology.description'));text.inputEl.rows=3;
+      text.setValue(this.description(this.fieldName));text.inputEl.maxLength=ONTOLOGY_DESCRIPTION_LIMIT;text.inputEl.setAttribute('aria-label',t('ontology.description'));text.inputEl.rows=3;
       text.onChange(/** Authored text is literal, including line breaks; no Markdown rendering occurs. */ value=>{this.descriptionDrafts.set(this.canonicalName(this.fieldName),value);this.refresh();});
     });
     descriptionRow.settingEl.addClass('kplex-ontology-description-setting');

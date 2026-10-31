@@ -31,6 +31,22 @@ export function localizeChoices(specs: readonly ChoiceSpec[], translate: Transla
   return specs.map(({ value, labelKey }) => ({ value, label: translate(labelKey) }));
 }
 
+/** Share finite predicate values across lens and preset editors; free-text suggestions remain caller-owned. */
+export function finiteValueChoices(field: GraphLensSimpleField, translate: Translator): Choice[] | null {
+  switch (field) {
+    case "edge.role": return localizeChoices(ROLE_CHOICE_SPECS, translate);
+    case "edge.kind": return localizeChoices(EDGE_KIND_SPECS, translate);
+    case "edge.direction": return localizeChoices(DIRECTION_SPECS, translate);
+    case "evidence.sourceKind": return localizeChoices(EVIDENCE_SOURCE_SPECS, translate);
+    case "evidence.active": return localizeChoices(BOOLEAN_SPECS, translate);
+    case "evidence.declaredRole": return [
+      ...localizeChoices(ROLE_CHOICE_SPECS.filter(/** Sibling is derived, never declared by a source. */ row => row.value !== "sibling"), translate),
+      {value: "hidden", label: translate("role.hidden")},
+    ];
+    default: return null;
+  }
+}
+
 /** Build localized selector choices appropriate to the lens scope without changing selector paths. */
 export function fieldOptions(translate: Translator): Record<GraphLensScope, Array<{ value: GraphLensSimpleField; label: string; title?: string }>> {
   return {

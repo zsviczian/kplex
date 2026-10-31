@@ -9,7 +9,8 @@ test('rule Code preserves strict equality and typing focus; shared Simple rows e
  assert.equal(await colorEditorScenario(`(async()=>{
  const M=sourceModules,t=M.createTranslator('en'),check=(value,message)=>{if(!value)throw Error(message)},updates=[];
  const host=document.createElement('div');host.className='kplex-app';document.body.append(host);const root=M.createRoot(host);
- M.flushSync(()=>root.render(M.React.createElement(M.PredicateRuleEditor,{initial:'note.phase == "Wood"',onChange:value=>updates.push(value),translate:t})));
+ M.flushSync(()=>root.render(M.React.createElement(M.PredicateRuleEditor,{initial:'note.phase == "Wood"',onChange:value=>updates.push(value),translate:t,
+  suggestions:{properties:[],tags:[],folders:[],noteTypes:['Project','Person']}})));
  const button=label=>[...host.querySelectorAll('button')].find(row=>row.textContent.trim()===label),type=(control,value)=>{
   Object.getOwnPropertyDescriptor(control.tagName==='TEXTAREA'?HTMLTextAreaElement.prototype:HTMLInputElement.prototype,'value').set.call(control,value);
   M.flushSync(()=>control.dispatchEvent(new Event('input',{bubbles:true})));
@@ -25,6 +26,19 @@ test('rule Code preserves strict equality and typing focus; shared Simple rows e
  const select=host.querySelector('.kplex-lens-condition-field');M.flushSync(()=>{select.value='edge.role';select.dispatchEvent(new Event('change',{bubbles:true}))});
  const roles=host.querySelector('.kplex-lens-condition-value');check(roles.tagName==='SELECT'&&[...roles.options].some(row=>row.value==='child'),'Same canonical relationship choices');
  M.flushSync(()=>{roles.value='child';roles.dispatchEvent(new Event('change',{bubbles:true}))});check(updates.at(-1)==='edge.role.equals("child")','Native rule editor does not invent a predicate language');
+ for(const [field,expected] of [
+  ['edge.role',['parent','child','left','right','previous','next','sibling']],
+  ['edge.kind',['defined','inferred']],['edge.direction',['from','to','both']],
+  ['evidence.sourceKind',['frontmatter-ontology','inline-ontology','obsidian-link','unresolved-link','date-property','body-url','property-url','file-tree','tag-tree','url-origin']],
+  ['evidence.active',['true','false']],['evidence.declaredRole',['parent','child','left','right','previous','next','hidden']],
+  ['node.noteType',['Project','Person']],
+ ]){
+  M.flushSync(()=>{select.value=field;select.dispatchEvent(new Event('change',{bubbles:true}))});
+  const values=host.querySelector('.kplex-lens-condition-value');
+  check(values.tagName==='SELECT'&&JSON.stringify([...values.options].map(option=>option.value))===JSON.stringify(['',...expected]),'Exact ordered choices for '+field);
+ }
+ M.flushSync(()=>{select.value='node.label';select.dispatchEvent(new Event('change',{bubbles:true}))});
+ check(host.querySelector('.kplex-lens-condition-value').tagName==='INPUT','Free-text fields retain text entry after a finite choice');
  M.flushSync(()=>root.unmount());host.remove();return true;
  })()`),true);
 });

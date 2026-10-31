@@ -6,7 +6,7 @@ import {buildGraphLensSimpleExpression, defaultGraphLensSimpleModel, tryParseLos
 import {tryParseGraphPredicateExpression} from "../../core/plex/predicateParser";
 import {PredicateConditions} from "./PredicateConditions";
 import {PredicateExpressionField} from "./PredicateExpressionField";
-import {fieldOptions, simpleValidation, localizeChoices, ROLE_CHOICE_SPECS, EDGE_KIND_SPECS, DIRECTION_SPECS, EVIDENCE_SOURCE_SPECS, BOOLEAN_SPECS} from "./conditionChoices";
+import {fieldOptions, simpleValidation, finiteValueChoices} from "./conditionChoices";
 import {graphLensValidationMessage} from "./predicateMessages";
 import {ObsidianIcon} from "../ObsidianIcon";
 
@@ -18,15 +18,9 @@ export function PredicateRuleEditor({initial, onChange, translate, suggestions}:
   const [simple, setSimple] = useState(parsed), [expression, setExpression] = useState(initial), [mode, setMode] = useState<"simple" | "code">(parsed ? "simple" : "code");
   const [conversionError, setConversionError] = useState(false), id = useId();
   const fields = fieldOptions(translate), options = [...fields.node, ...fields.edge, ...fields.evidence];
-  const valueChoices = (condition: GraphLensSimpleCondition) => {
-    if (condition.field === "edge.role") return localizeChoices(ROLE_CHOICE_SPECS, translate);
-    if (condition.field === "edge.kind") return localizeChoices(EDGE_KIND_SPECS, translate);
-    if (condition.field === "edge.direction") return localizeChoices(DIRECTION_SPECS, translate);
-    if (condition.field === "evidence.sourceKind") return localizeChoices(EVIDENCE_SOURCE_SPECS, translate);
-    if (condition.field === "evidence.active") return localizeChoices(BOOLEAN_SPECS, translate);
-    if (condition.field === "evidence.declaredRole") return [...localizeChoices(ROLE_CHOICE_SPECS.filter(row => row.value !== "sibling"), translate), {value: "hidden", label: translate("role.hidden")}];
-    return condition.field === "node.noteType" ? suggestions?.noteTypes.map(value => ({value, label: value})) ?? null : null;
-  };
+  /** Reuse canonical finite values while keeping this detached editor's note-type suggestions local. */
+  const valueChoices = (condition: GraphLensSimpleCondition) => finiteValueChoices(condition.field, translate)
+    ?? (condition.field === "node.noteType" ? suggestions?.noteTypes.map(value => ({value, label: value})) ?? null : null);
   const issue = expression.trim() ? tryParseGraphPredicateExpression(expression).error : undefined;
   const error = conversionError ? translate("filter.advancedCannotSimple") : mode === "simple" && simple ? simpleValidation(simple, translate)
     : issue ? graphLensValidationMessage({code: "parse", issue}, translate) : null;
