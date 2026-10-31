@@ -589,7 +589,7 @@ function filterNeighborhoodForLenses(
   };
 }
 
-/** Paint canonical connectors through shared scroll continuations. Hidden gates lose their
+/** Paint admitted visible connectors and explicit tree-ancestor continuations. Hidden gates lose their
  * note arrowheads/captions; read-only boundary marks never become node or edit targets. */
 function Edge({
   edge,
@@ -630,7 +630,10 @@ function Edge({
   const a = gatePoint(source, gates.source);
   const b = gatePoint(target, gates.target);
   const sourceArea = viewportForNode(source), targetArea = viewportForNode(target);
-  const endpoints = edgeViewportEndpoints(a, b, gates.source, gates.target, sourceArea, targetArea, {source, target});
+  const endpoints = edgeViewportEndpoints(a, b, gates.source, gates.target, sourceArea, targetArea, {source, target,
+    // Only the constructed tree proves ancestor context; arrow direction and ontology roles do not.
+    continueSource: target.branch?.parent === edgePhysicalOccurrence(edge, "source"),
+    continueTarget: source.branch?.parent === edgePhysicalOccurrence(edge, "target")});
   if (!endpoints) return null;
   // Internal routes stay inside their own area. Cross-area routes connect bounded continuation
   // anchors freely; the canvas clips them, without cutting a curve at an unrelated union box.
@@ -1909,7 +1912,7 @@ export function PlexGraph({ viewDefinition = classicViewDefinition, viewSession,
 
     const speed = Math.max(0, Math.min(2, settings.animationSpeed));
     const reduceMotion = root.ownerDocument.defaultView?.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches ?? false;
-    if (speed > 0 && navigationOrigin !== "follow" && !reduceMotion && !displayResizeLayout.current && !areaResizeDrag.current && !nodeDrag && !connectDrag && Date.now() >= suppressLayoutMotionUntil.current) {
+    if (!root.ownerDocument.hidden && speed > 0 && navigationOrigin !== "follow" && !reduceMotion && !displayResizeLayout.current && !areaResizeDrag.current && !nodeDrag && !connectDrag && Date.now() >= suppressLayoutMotionUntil.current) {
       // At 1x, shared thoughts migrate for ~520ms so their old→new position is legible without
       // making navigation feel delayed. Intentional centers use the shared curved landing,
       // while genuinely new thoughts enter over ~390ms. The slider is a speed multiplier.
@@ -1919,6 +1922,12 @@ export function PlexGraph({ viewDefinition = classicViewDefinition, viewSession,
         const path = element.dataset.kplexPath;
         if (!path) return;
         const measured = element.getBoundingClientRect();
+        // Do not promote clipped rows into animation layers spanning the entire overflow list.
+        // Their final DOM geometry remains available to scrolling, selection and export.
+        const aperture = element.closest?.<HTMLElement>(".kplex-zone-scroll, .kplex-expanded-scroll")?.getBoundingClientRect();
+        const left = Math.max(rootRect.left, aperture?.left ?? rootRect.left), right = Math.min(rootRect.right, aperture?.right ?? rootRect.right);
+        const top = Math.max(rootRect.top, aperture?.top ?? rootRect.top), bottom = Math.min(rootRect.bottom, aperture?.bottom ?? rootRect.bottom);
+        if (measured.right <= left || measured.left >= right || measured.bottom <= top || measured.top >= bottom) return;
         const current = { left: measured.left, top: measured.top, width: measured.width, height: measured.height };
         const isIncoming = element.classList.contains("kplex-role-center") && pathChangedThisRender && incomingCenter.current?.identity === path;
         const previous = isIncoming ? incomingCenter.current?.rect : previousNodeRects.current.get(path);

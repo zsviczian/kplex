@@ -406,16 +406,16 @@ test('disabled autozoom placement ownership never recenters attention views for 
 });
 
 
-test('scroll-area continuation anchors keep visible counterparts connected without hidden-note markers or invented endpoints',()=>{
+test('scroll areas hide ordinary clipped rows and retain only explicit ancestors without hidden-note markers',()=>{
  const area={key:'friends',left:100,top:100,width:200,height:200},outside=Object.freeze({x:500,y:200});
  for(const [hidden,expected] of [[{x:200,y:-500},{x:200,y:100}],[{x:200,y:900},{x:200,y:300}],[{x:0,y:200},{x:100,y:200}],[{x:700,y:200},{x:300,y:200}]]){
-  const original=Object.freeze(hidden),result=edgeViewportEndpoints(outside,original,'left','right',undefined,area);
+  const original=Object.freeze(hidden),cards={source:{...outside,width:40,height:20},target:{...hidden,width:40,height:20},continueTarget:true};assert.equal(edgeViewportEndpoints(outside,original,'left','right',undefined,area),null,'An ordinary hidden row has no route');const result=edgeViewportEndpoints(outside,original,'left','right',undefined,area,cards);
   assert(result);assert.deepEqual(result.source,{point:outside,port:'left',continued:false});assert.deepEqual(result.target.point,expected);assert.equal(result.target.continued,true);assert.deepEqual(original,hidden,'Only paint changes');
  }
  const visible={x:200,y:150};assert.equal(edgeViewportEndpoints({x:200,y:0},{x:200,y:500},'bottom','top',area,area),null,'Two hidden endpoints have no visible counterpart');
  assert.equal(edgeViewportEndpoints(outside,{x:200,y:500},'left','right',undefined,{...area,edgeVisibility:'visible-endpoints'}),null,'Explicit suppression remains an optional policy');
  assert.equal(edgeViewportEndpoints(outside,{x:200,y:500},'left','right',undefined,{...area,scrollable:false}).target.continued,false,'Growing fixed forests retain their actual gates');
- const internal=edgeViewportEndpoints(visible,{x:200,y:500},'bottom','top',area,area);assert(internal);assert.equal(internal.target.port,'top','Continuation tangent faces its visible counterpart');
+ assert.equal(edgeViewportEndpoints(visible,{x:200,y:500},'bottom','top',area,area),null,'Hidden leaves do not acquire a continuation');const internal=edgeViewportEndpoints(visible,{x:200,y:500},'bottom','top',area,area,{source:{...visible,width:40,height:20},target:{x:200,y:500,width:40,height:20},continueTarget:true});assert(internal);assert.equal(internal.target.port,'top','Continuation tangent faces its visible counterpart');
 });
 
 test('hierarchy control clearance is uniform regardless of status, reference or fold availability',()=>{
@@ -427,7 +427,21 @@ test('hierarchy control clearance is uniform regardless of status, reference or 
 
 test('partially visible card keeps routes when its protruding gate is clipped',()=>{
  const area={key:'branch',left:0,top:0,width:200,height:100},source={x:50,y:90,width:80,height:20},target={x:50,y:400,width:80,height:20};
- const result=edgeViewportEndpoints({x:50,y:105},{x:50,y:390},'bottom','top',area,area,{source,target});
+ const result=edgeViewportEndpoints({x:50,y:105},{x:50,y:390},'bottom','top',area,area,{source,target,continueTarget:true});
  assert(result&&result.source.continued&&result.target.continued,'The visible card retains a canonical route even when both gates need boundary paint');
  assert.equal(edgeViewportEndpoints({x:50,y:205},{x:50,y:390},'bottom','top',area,area,{source:{...source,y:200},target}),null,'Fully hidden cards have no visible context');
+});
+
+/** Exercise the actual layout callback: clipped rows and hidden documents must not acquire animation layers. */
+test('layout motion is bounded by the canvas and each native scroll aperture',()=>{
+ for(const hidden of [false,true]){
+  const ctx=graphFixture(),plays=[],bounds={left:0,top:0,right:800,bottom:600,width:800,height:600},aperture={left:0,top:200,right:600,bottom:400};
+  const positions=[{top:220,left:20},{top:390,left:20},{top:410,left:20},{top:100,left:20},{top:220,left:700},{top:700,left:20}];
+  const elements=positions.map((position,i)=>{const classes=['kplex-role-child'];classes.contains=value=>classes.includes(value);return{dataset:{kplexPath:'Row'+i},classList:classes,
+   getBoundingClientRect:()=>({...position,right:position.left+100,bottom:position.top+30,width:100,height:30}),closest:()=>({getBoundingClientRect:()=>aperture})}});
+  Object.assign(ctx,{areaResizeDrag:{current:null},nodeDrag:null,connectDrag:null,suppressLayoutMotionUntil:{current:0}});ctx.settings.animationSpeed=1;
+  ctx.sceneMotion={cancelAll(){},play(element){plays.push(element.dataset.kplexPath)}};ctx.viewport.current.ownerDocument.hidden=hidden;
+  ctx.viewport.current.getBoundingClientRect=()=>bounds;ctx.viewport.current.querySelectorAll=()=>elements;ctx.render();ctx.layout();
+  assert.deepEqual(plays,hidden?[]:['Row0','Row1']);assert.equal(ctx.previousNodeRects.current.size,positions.length,'All constructed geometry remains available without animation');
+ }
 });
