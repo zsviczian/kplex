@@ -2,6 +2,8 @@
 
 ## Implementation
 
+The [export-dialog follow-up](canvas-export-dialogs-238-2026-10-31.md) supersedes the prepared-output CSS-retirement rule below and adds transparency, spacing and linked MindMap Builder help. The original receipts remain historical evidence for the earlier artifact.
+
 The toolbar, canvas context menu and stable published command `kplex-export-canvas-png` open the same PNG preview for Compass, Mind Map and Facets. Copy and native save use the prepared image. Scope and resolution changes reuse immutable captured presentation, preserving camera, navigation, selection, scroll, editor and per-canvas sessions. All eight locales include the new copy.
 
 The [implementation contract](../proposals/CANVAS_IMAGE_EXPORT.md) records service ownership and limits. The [native feasibility gate](canvas-image-export-238-feasibility-2026-10-30.md) preceded implementation: actual Chromium HTML/SVG rasterization succeeded at different views/themes/zooms, including off-camera content, fonts and a real bitmap. No second graph projection, indexing pass, layout engine, node renderer or public API was introduced.
