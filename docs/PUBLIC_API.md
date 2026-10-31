@@ -94,6 +94,9 @@ Action receipts contain `status: "accepted" | "completed"`, the canvas ID and it
 
 PR #237's shared Mind Map Markdown exporter is integrated through a read-only API operation:
 
+The API uses the native preview's **Visible ontology only** default, including the shared
+capture changes merged in #238. It does not include hidden ontology labels by default.
+
 ```js
 const exported = api.exportMarkdown({canvasId});
 // Or export one admitted visual branch, using its exact occurrence ID:

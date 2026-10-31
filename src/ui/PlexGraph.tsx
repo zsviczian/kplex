@@ -3138,7 +3138,8 @@ export function PlexGraph({ viewDefinition = classicViewDefinition, viewSession,
       if(unfoldedGroups.center===sceneScope){scanned=0;for(const id of unfoldedGroups.keys){if(++scanned>2048){truncated=true;break;}if(id.length>4096){truncated=true;continue;}groups.push(id);}}
       return {...value,truncated,foldState:{branches,sections:{expanded:sectionExpanded,expandedIds:sections},groups:{unfoldedIds:groups}}};
     };
-    /** Public export reuses the merged formatter and bounds capture before copying authored text. */
+    /** Public export uses the native preview's visible-ontology default and bounds capture
+     * before copying authored text; the formatter's standalone default includes hidden labels. */
     const exportMarkdown=(subtree?:string)=>{
       if(!current()||viewDefinition.id!=='mindmap'||viewFailed||!scene.projection?.root)throw new PublicApiError('UNSUPPORTED','This canvas has no Mind Map Markdown export.');
       if(scene.nodes.length>MIND_MAP_MARKDOWN_LIMITS.nodes||scene.edges.length>MIND_MAP_MARKDOWN_LIMITS.links)
@@ -3149,7 +3150,7 @@ export function PlexGraph({ viewDefinition = classicViewDefinition, viewSession,
       const {snapshot}=captureCurrentMindMapMarkdown();
       if(subtree!==undefined&&!snapshot.nodes.some(/** The shared capture, rather than a path guess, admits subtree identities. */ node=>node.id===subtree))
         throw new PublicApiError('NOT_FOUND','The subtree occurrence is absent from this Mind Map export.');
-      return exportMindMapMarkdown(snapshot,subtree);
+      return exportMindMapMarkdown(snapshot,subtree,"visible");
     };
     /** Imperative camera flushes advance the same scene coordinate after their DOM transform commits. */
     const publish=()=>{if(current()&&viewport.current?.isConnected)publicScene.current={revision:registry.nextRevision(),read,exportMarkdown};};
