@@ -36,6 +36,7 @@ export function styleSettingsHostSource(root) {
     import {facetLibrary} from './src/core/plex/views/facets/configuration';
     import {applyPortableImport,PortableSharingCapacityError} from './src/core/plex/sharing/transfer';
     import {configurationJson} from './src/core/plex/views/configurationValues';
+    import {editOntologyDescriptions} from './src/core/contracts/ontologyReadModel';
     import {ontologyConfiguration,assignOntologyField,applyOntologyEdit,ontologyEndpointState,editOntologyEntries,ONTOLOGY_GROUPS} from './src/core/contracts/ontologyConfiguration';
     export * from './src/core/contracts/ontologyConfiguration';
     export {OntologyUsageModal} from './src/ui/OntologyUsageModal';

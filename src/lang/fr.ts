@@ -7,6 +7,10 @@
 import { buildLocaleCatalog, type LocaleTranslationMap } from "./catalog";
 
 const frenchTranslations = {
+  "ontology.description": "Description",
+  "ontology.descriptionHelp": "Expliquez quand utiliser ce champ. Facultatif ; {count} caractères maximum.",
+  "ontology.partnerDescription": "Description du champ inverse",
+  "ontology.partnerDescriptionHelp": "Décrivez la propriété associée séparément.",
   "facets.resetStatus": "Valeurs par défaut rétablies. Enregistrez pour appliquer ou annulez pour abandonner.",
   "sharing.pasteHint": "Collez le JSON du paquet ici ou choisissez un fichier ci-dessous.",
   "sharing.formatHelp": "Comprendre le partage",

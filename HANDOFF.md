@@ -19,12 +19,17 @@ Obsidian is the production host; preserve the established portable semantic, ide
 
 ---
 
-# iOS shared node controls
+# PR239 accepted implementation; PR240 next
 
-Baseline accepted main ccb7189b5ad8722625ad9d1b669d1c8568be52bb; branch 2026-10-27-ios-node-controls. CSS-only product change: scoped shared ThoughtNode control reset overrides Obsidian tablet button padding, removes native appearance and bounds editor icon to 16px. Section 10/14px glyphs and Mind Map 16px symbol/44px hit area preserved. No API/action/layout/index changes.
+State: main-agent validation complete for available Windows/portable lanes; both PRs remain draft/unmerged.
+Identity: existing branch 2026-10-30-ontology-descriptions, following f526c1548ce45e4cc8cbc69b63eea30bba819adf (main909343a incorporated). Final commit/push is main-agent-owned.
 
-Before-fix browser reproduction: actual Compass editor button 42x16 under shipped-equivalent tablet rule. After-fix fine/coarse checks across all three views pass. Node22.22.2: 30/30 affected browser checks; actual build/types, official scanner and architecture9 pass, zero violations. Full regression deferred under maintainer instruction. Physical iOS/WKWebView unavailable, acceptance pending: square section glyph, compact editor background, single activation and independent gate/note taps.
+Implemented optional exact-physical-field descriptions with independent inverse wording, the existing atomic settings writer, all native/React ontology surfaces and eight catalogs. Pure core/contracts/ontologyReadModel is the API handoff. Description edits/receipts never change semantic policy or enter source refresh. Alias/prototype/caret/conflict/retry regressions included.
 
-Exact Help deployment/reload 2026-10-27T20:02:35.132Z preserved leaf/center/liveRoot/Compass/preset/37cards/33visible/camera. User data/workspace/shortcut deletions excluded; no note edits or production access. Details and hashes: docs/validation/ios-node-controls-2026-10-27.md. Publish draft PR, keep open/unmerged; no version bump/release.
+Node22.22.2: complete npm run verify PASS; architecture/core/official Obsidian ESLint/actual types/build PASS. Regression batches1698/425/357/855 all PASS. Exact-build native smoke PASS on Obsidian1.14.5. Native descriptions PASS (three writes, zero reads/parses/acquisitions/rebuilds/invalidations, semantic revision unchanged); narrow manager12 cases PASS; actual plugin reload retains both descriptions and physical YAML evidence. All cleanup PASS.
 
-Scanner follow-up requested by maintainer: occurrenceEditor.ts35 replaces ES2022 Array.at(-1) with ES2021 indexed fallback, preserving behavior and avoiding unsafe error-type calls/returns.37 affected editor tests PASS; real build/types and full scanner PASS Node22.22.2. Final Help reload20:05:27.963Z retains leaf/center/liveRoot/view/preset/camera, immediate cards29/29visible (previous37/33), no equal-count claim. Runtime main hash2a45f29402df6960425d9442872d13ef24faae66ada3a0438b05b5a65450362d. PR227 draft/open.
+Earlier harness inventory omission and browser pre-assertion startup timeout were retained and resolved by correction/full rerun without relaxed bounds. Broad native fixture initially had dependency-invalid derived cache; existing purge/reload regenerated98 source heads while preserving notes/settings/trust/workspace. All final native lanes passed afterward.
+
+Durable evidence and artifact hashes: docs/validation/ontology-descriptions-239-2026-10-30.md. Physical mobile/macOS/two-device Sync remain separate checks. No release or PR merge authorized.
+
+Next: main agent publishes existing PR239, then switches to existing 2026-10-30-public-api-cli, refreshes main and carries239 dependency without a PR merge, per explicit unsupervised progression. Reuse this header and overwrite this body for the API assignment.

@@ -27,11 +27,14 @@
  * appearance themes and semantic indexing; omitted preferences preserve split placement.
  * Ontology text uses bounded local drafts, native row cleanup and the existing atomic field writer;
  * typing/composition never publishes transient hierarchy values or queues per-character graph work.
+ * Fresh installations receive editable English descriptions for their English factory vocabulary;
+ * saved dictionaries, including explicit clears, never inherit replacement wording on reload.
  */
 import {STARTUP_INDEX_DEFAULTS, sanitizeStartupIndexPreferences, type IndexingMode, type StartupIndexPreferences} from './core/plex/startupIndexPreferences';
 import { readObsidianPresentationEnvironment } from "./adapters/obsidian/presentationEnvironment";
 import {OntologyManagerModal} from "./ui/OntologyManagerModal";
 import {ontologyFieldViews,type OntologyFilter} from "./ui/features/ontologyPresentation";
+import {normalizeOntologyDescriptions,type OntologyDescriptions} from "./core/contracts/ontologyReadModel";
 import {ontologyConfiguration, escapeLegacyOntology, escapeOntologyField, retainOntologyCounterparts, ONTOLOGY_GROUPS, ONTOLOGY_ROLE_GROUP} from "./core/contracts/ontologyConfiguration";
 import { formatShortcut } from "./core/plex/shortcutPresentation";
 import {AppearanceThemesManagerModal} from "./ui/AppearanceThemesModal";
@@ -150,6 +153,35 @@ export const DEFAULT_HIERARCHY_DEFINITION: Hierarchy = {
   previous: ["Previous/Next", "Prev", "West/East", "w/e", "Before/After"],
 };
 
+/** Editable factory vocabulary, keyed by exact physical field names rather than pair declarations.
+ * Alias fields share meaning; reciprocal endpoints describe the link from this note's perspective.
+ * This is starter content, not translated UI or a fallback for missing saved descriptions. */
+export const DEFAULT_ONTOLOGY_DESCRIPTIONS: OntologyDescriptions = Object.fromEntries<string>(([
+    [['Parent', 'Parents', 'up', 'u', 'North'], 'Broader topics, containing concepts, or parent notes that this note belongs to.'],
+    [['Child', 'Children', 'down', 'd', 'South'], 'Narrower topics, component ideas, or child notes contained within this note.'],
+    [['origin'], 'The starting point or earlier idea from which this note developed.'],
+    [['inception'], 'Notes describing how this idea began or first took shape.'],
+    [['source'], 'Source material that this note draws on or uses as evidence.'],
+    [['parent domain'], 'The broader subject area or domain that contains this note.'],
+    [['leads to'], 'Outcomes, consequences, or next developments that follow from this note.'],
+    [['contributes to'], 'Ideas, goals, or results that this note helps bring about.'],
+    [['nurtures'], 'Ideas or projects that this note helps grow or develop.'],
+    [['Friend', 'Friends'], 'Related notes that complement this note without a parent-child relationship.'],
+    [['Jump', 'Jumps', 'j'], 'Useful connections to explore from this note across topics or contexts.'],
+    [['similar'], 'Notes with comparable ideas, patterns, or characteristics.'],
+    [['supports'], 'Ideas or claims that this note provides evidence or reasoning for.'],
+    [['alternatives'], 'Other approaches or options to consider alongside this note.'],
+    [['advantages', 'pros'], 'Benefits or arguments in favor of this note or its subject.'],
+    [['Challenger'], 'Notes that challenge this note with objections, counterexamples, or competing explanations.'],
+    [['opposes'], 'Ideas or positions that this note argues against or conflicts with.'],
+    [['disadvantages', 'cons'], 'Drawbacks, costs, or arguments against this note or its subject.'],
+    [['missing'], 'Gaps, unanswered questions, or absent pieces needed to complete this idea.'],
+    [['Previous', 'Prev', 'West', 'w', 'Before'], 'Notes that come before this note in a sequence, process, or timeline.'],
+    [['Next', 'n', 'East', 'e', 'After'], 'Notes that come after this note in a sequence, process, or timeline.'],
+    [['hidden'], 'Linked notes to keep out of the visible Plex while retaining their relationship.'],
+    [LEGACY_HIERARCHY_DEFINITION.exclusions, 'Plugin configuration metadata; links in this property do not create K-Plex relationships.'],
+  ] satisfies [string[], string][]).flatMap(/** Every alias receives its own editable physical-name entry. */ ([fields, description]) => fields.map(/** Pair syntax is never used as a description key. */ field => [field, description] as const)));
+
 export type KplexViewSurface = "leaf" | "sidepanel" | "popout";
 export type KplexDeviceClass = "desktop" | "tablet" | "mobile";
 export type MouseInteractionMode = "smart" | "legacy" | "middle-only";
@@ -231,6 +263,8 @@ export interface KplexSettings extends StartupIndexPreferences {
   hierarchy: Hierarchy;
   /** Versioned settings grammar; pre-syntax literal slashes/backslashes are escaped losslessly. */
   ontologyPairingVersion: 1;
+  /** Optional literal descriptions keyed by exact physical property name. */
+  ontologyDescriptions: OntologyDescriptions;
   inferAllLinksAsFriends: boolean;
   inverseInfer: boolean;
   /** Fallback native Date role; configured field ontology always takes precedence. */
@@ -401,6 +435,7 @@ const LEGACY_DEFAULT_SETTINGS: KplexSettings = {
   indexingThrottle: "responsive",
   hierarchy: LEGACY_HIERARCHY_DEFINITION,
   ontologyPairingVersion: 1,
+  ontologyDescriptions: {},
   inferAllLinksAsFriends: false,
   inverseInfer: false,
   datePropertyRelations: "parent",
@@ -521,6 +556,7 @@ const LEGACY_DEFAULT_SETTINGS: KplexSettings = {
 export const DEFAULT_SETTINGS: KplexSettings = (() => {
   const settings = structuredClone(LEGACY_DEFAULT_SETTINGS);
   settings.hierarchy = structuredClone(DEFAULT_HIERARCHY_DEFINITION);
+  settings.ontologyDescriptions = structuredClone(DEFAULT_ONTOLOGY_DESCRIPTIONS);
   adoptStandardThemeColors(settings);
   return settings;
 })();
@@ -713,6 +749,7 @@ export function migrateAndMergeSettings(raw: unknown): KplexSettings {
     datePropertyRelations: sanitizeDatePropertyRelations(old.datePropertyRelations),
     hierarchy,
     ontologyPairingVersion: 1,
+    ontologyDescriptions: normalizeOntologyDescriptions(freshInstall ? DEFAULT_ONTOLOGY_DESCRIPTIONS : old.ontologyDescriptions),
     baseNodeStyle: { ...defaults.baseNodeStyle, ...(old.baseNodeStyle ?? {}) },
     baseLinkStyle: { ...defaults.baseLinkStyle, ...(old.baseLinkStyle ?? {}) },
     centralNodeStyle: { ...defaults.centralNodeStyle, ...(old.centralNodeStyle ?? {}) },

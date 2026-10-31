@@ -123,7 +123,7 @@ function RelatedNoteComposer({
   }, [plugin, origin.path]);
 
   const ontologyFields = ontologySelectionFields(roleFilter === "all" ? plugin.allOntologyFields() : plugin.ontologyFieldsForRole(role));
-  const ontologyViews=ontologyFieldViews(ontologyConfiguration(plugin.settings));
+  const ontologyViews=ontologyFieldViews(ontologyConfiguration(plugin.settings),[],plugin.settings.ontologyDescriptions);
   const ontologyByKey=new Map(ontologyViews.map(/** Current annotations remain separate from physical selection values. */ field=>[field.key,field]));
   const ontologyResults = useMemo(
     /** Explicit disclosure shows every role-appropriate field; typing retains fuzzy ranking. */
@@ -378,6 +378,7 @@ function RelatedNoteComposer({
     icon: "tags",
     disabled: busy || Boolean(savedPending) || Boolean(partialFile),
     className: "kplex-add-related-ontology-search",
+    resultsClassName: "kplex-ontology-results",
     openResultsOnFocus: false,
     floating: true,
     floatingMode: "viewport",

@@ -4058,6 +4058,10 @@ button.kplex-sidecar-unfold-plex:focus-visible,
 .kplex-facet-help-source { flex-direction: column; align-items: stretch; gap: 12px; }
 .kplex-facet-help-source .setting-item-info { margin-right: 0; }
 .kplex-facet-help-source .setting-item-control { width: 100%; }
+.kplex-ontology-description-setting { flex-direction: column; align-items: stretch; gap: var(--size-4-2); }
+.kplex-ontology-description-setting .setting-item-info { margin-right: 0; }
+.kplex-ontology-description-setting .setting-item-control { width: 100%; }
+.kplex-ontology-description-setting textarea { width: 100%; min-width: 0; resize: vertical; }
 .kplex-preset-help-preview { padding: 12px; }
 
 .kplex-view-region.is-water rect { fill: var(--color-blue); fill-opacity: 0.06; }
@@ -4124,3 +4128,23 @@ button.kplex-sidecar-unfold-plex:focus-visible,
 .kplex-number-value { min-width: 3em; text-align: end; font-variant-numeric: tabular-nums; color: var(--text-muted); }
 .kplex-number-setting .slider-value { display: none; }
 .kplex-literal-opacity .setting-item { padding: 0; border: 0; }
+
+/* Authored ontology text stays concise visually; full literal text remains in accessible names. */
+.kplex-ontology-description {
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text-muted);
+  font-size: var(--font-ui-smaller);
+}
+.kplex-ontology-results .kplex-search-result { display: grid; gap: 2px; }
+.kplex-ontology-results .kplex-search-result small {
+  display: block;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: pre;
+  text-align: left;
+}

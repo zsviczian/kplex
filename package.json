@@ -80,7 +80,8 @@
     "verify:obsidian:wuxing": "node scripts/testing/obsidian/wuxing.mjs",
     "verify:obsidian:mindmap-builder": "node scripts/testing/obsidian/mindMapBuilderRoundtrip.mjs",
     "verify:obsidian:canvas-image": "node scripts/testing/obsidian/canvasImageExport.mjs",
-    "verify:obsidian:mindmap-markdown": "node scripts/testing/obsidian/mindMapMarkdownExport.mjs"
+    "verify:obsidian:mindmap-markdown": "node scripts/testing/obsidian/mindMapMarkdownExport.mjs",
+    "verify:obsidian:ontology-descriptions": "node scripts/testing/obsidian/ontologyDescriptions.mjs"
   },
   "engines": {
     "node": ">=22.22.2 <23"

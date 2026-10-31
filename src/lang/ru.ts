@@ -7,6 +7,10 @@
 import { buildLocaleCatalog, type LocaleTranslationMap } from "./catalog";
 
 const russianTranslations = {
+  "ontology.description": "Описание",
+  "ontology.descriptionHelp": "Объясните, когда использовать это поле. Необязательно; до {count} символов.",
+  "ontology.partnerDescription": "Описание парного поля",
+  "ontology.partnerDescriptionHelp": "Опишите парное свойство отдельно.",
   "facets.resetStatus": "Значения восстановлены. Сохраните для применения или отмените для отказа.",
   "sharing.pasteHint": "Вставьте JSON пакета сюда или выберите файл ниже.",
   "sharing.formatHelp": "Как работает обмен",

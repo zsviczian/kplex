@@ -11,7 +11,7 @@ export const ONTOLOGY_ROLE_GROUP: Readonly<Record<OntologyRole,OntologyGroup>> =
 export const ONTOLOGY_RECIPROCAL: Readonly<Partial<Record<OntologyRole,OntologyRole>>> = {parent:'child',child:'parent',left:'left',right:'right',previous:'next',next:'previous'};
 export type OntologyPair = Readonly<{field:string;partner:string;role:OntologyRole;partnerRole:OntologyRole}>;
 export type OntologyConfiguration = Readonly<{hierarchy:OntologyHierarchy;pairs:ReadonlyMap<string,OntologyPair>;roles:ReadonlyMap<string,OntologyRole>}>;
-export type OntologyConfigurationInput = Readonly<{hierarchy:OntologyHierarchy;ontologyPairingVersion?:number}>;
+export type OntologyConfigurationInput = Readonly<{hierarchy:OntologyHierarchy;ontologyPairingVersion?:number;ontologyDescriptions?:Readonly<Record<string,string>>}>;
 export type OntologyIssue = 'malformed'|'self'|'duplicate'|'role'|'unsupported';
 /** Callers translate one finite issue code; private property names never become diagnostics. */
 export class OntologyConfigurationError extends Error {
@@ -147,13 +147,13 @@ export function assignOntologyField(input:OntologyConfigurationInput, field:stri
 }
 
 /** Finite editor intents; pair changes are prepared together before the single durable host write. */
-export type OntologyEdit = Readonly<{kind:'assign';field:string;role:OntologyRole;partner:string|null;createPartner?:boolean;movePair?:boolean}> | Readonly<{kind:'remove';field:string}>;
+export type OntologyEdit = Readonly<{kind:'assign';field:string;role:OntologyRole;partner:string|null;createPartner?:boolean;movePair?:boolean;description?:string;partnerDescription?:string}> | Readonly<{kind:'remove';field:string}>;
 
 /** Capture only an endpoint's raw assignments and pair declaration for optimistic concurrency.
  * Unrelated local edits remain mergeable; changed spelling, multiplicity or declaration side conflicts. */
 export function ontologyEndpointState(input:OntologyConfigurationInput, field:string):readonly unknown[] {
   const key=normalizeFieldName(field),configuration=ontologyConfiguration(input);
-  return [configuration.roles.get(key),configuration.pairs.get(key),...ONTOLOGY_GROUPS.map(/** Retain exact affected declarations without depending on unrelated list positions. */ group=>[group,input.hierarchy[group].filter(/** A pair's implicit endpoint owns its original declaration too. */ entry=>(input.ontologyPairingVersion===1?entryParts(entry):[entry]).some(/** Use established identity, never presentation spelling. */ name=>normalizeFieldName(name)===key))])];
+  return [configuration.roles.get(key),configuration.pairs.get(key),input.ontologyDescriptions&&Object.prototype.hasOwnProperty.call(input.ontologyDescriptions,field)?input.ontologyDescriptions[field]:undefined,...ONTOLOGY_GROUPS.map(/** Retain exact affected declarations without depending on unrelated list positions. */ group=>[group,input.hierarchy[group].filter(/** A pair's implicit endpoint owns its original declaration too. */ entry=>(input.ontologyPairingVersion===1?entryParts(entry):[entry]).some(/** Use established identity, never presentation spelling. */ name=>normalizeFieldName(name)===key))])];
 }
 
 /** Apply a complete editor candidate without touching source properties or unrelated raw entries.
