@@ -1739,18 +1739,18 @@ button.kplex-sidecar-unfold-plex,
   .kplex-view-host .kplex-layout-controls { max-width: calc(100% - 70px); }
 }
 
-/* A navigation render gets the transition class on the first frame, before the
-   activePath effect runs, so shared keyed thoughts can glide from their old
-   coordinates rather than jumping and only then becoming animated. */
+/* Fade the bounded canvas, not the zero-sized camera whose overflow can span thousands of
+   scroll rows. Keeping the opacity layer inside the canvas clip avoids oversized stale scroll
+   textures during navigation/window exposure. Individual visible thoughts retain their motion. */
 @keyframes kplex-scene-arrive {
   0% { opacity: .82; }
   100% { opacity: 1; }
 }
-.kplex-plex.is-scene-transitioning .kplex-camera {
+.kplex-plex.is-scene-transitioning {
   animation: kplex-scene-arrive max(120ms, calc(var(--kplex-motion-ms, 560ms) * .72)) ease-out both;
 }
 @media (prefers-reduced-motion: reduce) {
-  .kplex-plex.is-scene-transitioning .kplex-camera { animation: none; }
+  .kplex-plex.is-scene-transitioning { animation: none; }
 }
 
 /* Touch/mobile rendering stability --------------------------------------

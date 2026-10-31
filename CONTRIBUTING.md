@@ -1514,3 +1514,7 @@ For the focused native HTML source-identity/actual additive Save/occurrence-edit
 ### Numeric settings controls
 
 Numeric preferences use sliders with an always-visible value. Native Settings use `src/ui/numberSlider.ts`; React controls use `LayoutSlider`; optional overrides use the existing `styleNumberSlider` inheritance wrapper. Keep bounds, units, explicit reset and draft/save ownership. Numeric text inputs and private slider implementations fail the source audit in `npm run check:architecture`. See `AGENTS.md` for the standing UI rule.
+
+### Focused scroll visibility validation
+
+For connector clipping or navigation-paint changes, stage the exact build in the existing disposable Small vault, then run `node scripts/testing/obsidian/scrollVisibility229.mjs` with the three explicit test-vault variables and a fresh `KPLEX_HOST_REPORT_DIR`. It owns a small structural folder and checks native route identity, bounded animations and card pixels, restoring configuration/workspace and removing all fixtures. If the renderer remains occluded, `KPLEX_229_OCCLUDED_DIAGNOSTIC=true` temporarily disables and restores that window’s original background-throttling flag for functional pixel diagnosis only; do not treat that lane as foreground or performance acceptance. See the [#229 validation record](docs/validation/scroll-visibility-229-2026-10-31.md).
