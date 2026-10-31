@@ -2,7 +2,7 @@
 
 ## Scope and baseline
 
-Maintainer-requested light cleanup on `cleanup/code-quality-review-2026-10-31`, starting at `main@5ea0eda86be9036705db97e20119ddf7376cb60a`. C15–C26 remain paused. No release, merge, persistence migration or second graph owner is introduced.
+Maintainer-requested light cleanup on `cleanup/code-quality-review-2026-10-31`, starting at `main@ec3c07dbc68fbfa68eb36e65f84dada83514256c`. C15–C26 remain paused. No release, merge, persistence migration or second graph owner is introduced.
 
 The repository-wide audit inventoried 433 TypeScript/TSX files (103,358 lines), checked imports/references, TypeScript unused declarations, exact duplicate function bodies, CSS class producers and the package test inventory. Targeted semantic review traced compiler/resolver ownership, synchronous file publication, on-demand generation fences, snapshot restoration and gate-count presentation. This is a static review plus regression validation, not a claim that every path or platform has been exhaustively exercised.
 
