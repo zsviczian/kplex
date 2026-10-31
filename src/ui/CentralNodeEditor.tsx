@@ -197,6 +197,7 @@ export function CentralNodeEditor({
     {useWebFrame && webTarget ? <EmbeddedWebPage target={webTarget} label={page.name || page.url || page.path} />
       : <div ref={mountRef} className="kplex-central-editor-leaf-host" />}
     <div className="kplex-central-editor-toolbar" role="toolbar" aria-labelledby={toolbarLabelId}>
+      <span className="kplex-central-editor-title">{plugin.index.titleFor(page)}</span>
       <span id={toolbarLabelId} className="kplex-accessible-name">{translate("centralEditor.toolbar")}</span>
       {excalidrawFile && documentView && <TooltipButton
         type="button"
@@ -224,7 +225,7 @@ export function CentralNodeEditor({
         type="button"
         label={translate("app.useNormalCentralNode")}
         onClick={onCollapse}
-      ><ObsidianIcon name="rectangle-ellipsis" size={12} /></TooltipButton>
+      ><ObsidianIcon name="x" size={12} /></TooltipButton>
       <TooltipButton type="button" label={translate("graph.openMenu")}
         onClick={/** Use the graph's existing node actions and host destinations in both editor sizes. */ (event) => onOpenMenu(event.currentTarget)}
       ><ObsidianIcon name="ellipsis-vertical" size={12} /></TooltipButton>

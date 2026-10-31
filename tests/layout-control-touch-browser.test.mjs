@@ -136,7 +136,7 @@ test("phone and narrow panes expose readable captions for every layout rail and 
         assert(caption.font>=10,"compressed labels need readable type"); assert(caption.inBounds, "scrolled captions remain inside the bounded panel");
       }
     }
-    const motion = await host.evaluate(`(()=>{const edge=document.createElement('div');edge.className='kplex-edge';fixture.pane.append(edge);fixture.pane.classList.add('is-following-document');const followed=getComputedStyle(edge).animationName;fixture.pane.classList.remove('is-following-document');const deliberate=getComputedStyle(edge).animationName;edge.remove();return{followed,deliberate}})()`);
+    const motion = await host.evaluate(`(()=>{const edge=document.createElement('div');edge.className='kplex-edge-paint';fixture.pane.append(edge);fixture.pane.classList.add('is-following-document');const followed=getComputedStyle(edge).animationName;fixture.pane.classList.remove('is-following-document');const deliberate=getComputedStyle(edge).animationName;edge.remove();return{followed,deliberate}})()`);
     assert.equal(motion.followed,"none"); assert.equal(motion.deliberate,"kplex-edge-arrive");
   } finally { try { await host.evaluate("fixture?.dispose()"); } finally { await host.cleanup(); } }
 });

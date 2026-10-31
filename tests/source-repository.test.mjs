@@ -334,10 +334,13 @@ test("primary source grammar compatibility admits exact parser2 candidates and r
     assert.equal(source.sourceHeadReason({ ...raw, state: "tombstone", bodyParserVersion: 99 }), "format-version");
     assert.equal(source.sourceHeadReason({ ...raw, sequence: 0 }), "invalid-head");
     assert.equal(source.sourceHeadReason({ ...raw, observation: { ...raw.observation, environment: "bad" } }), "invalid-head");
+    assert.equal(source.sourceHeadReason({...raw, bodyParserVersion:3}), "ready", "URL-free parser3 input is unchanged");
+    assert.equal(source.sourceHeadReason({...raw, bodyParserVersion:3,state:"tombstone"}), "tombstone", "Durable retirement identity survives label migration");
     const urls = raw.families["body-urls"];
     await f.repository.replace(await f.input("bearing", metadata("[First](https://help.obsidian.md)")));
     const bearing = { ...(await f.repository.inspect("bearing")).head, sequence: 1, bodyParserVersion: 2 };
     assert.equal(source.sourceHeadReason(bearing), "ready", "Known primary URL grammar is compatible independently of aliases");
+    assert.equal(source.sourceHeadReason({...bearing,bodyParserVersion:3}), "format-version", "Parser3 URL labels must be reacquired rather than certified as fixed");
     for (const families of [{ ...raw.families, "body-urls": { ...urls, digest: "bad" } }, { ...raw.families, "body-urls": undefined }, {}]) {
       assert.equal(source.sourceHeadReason({ ...raw, families }), "invalid-head");
     }

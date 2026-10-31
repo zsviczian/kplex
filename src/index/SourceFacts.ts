@@ -3,8 +3,8 @@
  * boundary borrows the canonical parser's occurrence/reference grammar; it does not classify
  * relationships, resolve paths, retain arbitrary frontmatter, or own IndexedDB/lifecycle effects.
  * Inline inputs and reference explanation payloads share one framed value, not one copy per target.
- * Known parser2 primary heads require repository family authentication; parser3 alias completeness
- * is a separate capability. Known parser2 tombstones preserve retirement identity only, while
+ * Known legacy primary heads require repository family authentication; current label completeness
+ * is a separate capability. Known legacy tombstones preserve retirement identity only, while
  * unknown versions remain invalid and no compatibility path rewrites a persisted head.
  */
 import { normalizeFieldName, type ExtractedLinkReference, type ParsedBodyMetadata, type ParsedFileMetadata } from "../core/parser/metadata";
@@ -14,7 +14,7 @@ import { MAX_REFERENCE_PAYLOAD_CHARS, type SourceLocation, type SourceTargetRef 
 /** Independent versions: none is a graph snapshot schema or a semantic/settings policy revision. */
 export const SOURCE_FACT_FORMAT_VERSION = 1;
 export const SOURCE_FACT_COMPILER_VERSION = 1;
-export const SOURCE_BODY_PARSER_VERSION = 3;
+export const SOURCE_BODY_PARSER_VERSION = 4;
 export const SOURCE_RESOLUTION_VERSION = 1;
 export const SOURCE_CHUNK_TARGET_BYTES = 256 * 1024;
 export const SOURCE_MAX_RECORD_BYTES = 4 * 1024 * 1024;
@@ -208,14 +208,15 @@ export function validFamilyManifest(value: unknown): value is SourceFamilyManife
     && sourceCount(value.bytes) && sourceCount(value.postings) && digest(value.digest) && digest(value.postingDigest);
 }
 /**
- * Parser3 adds optional search labels without changing parser2 primary URLs or inline grammar.
- * Known complete parser2 heads remain semantic candidates, never complete-alias certificates;
- * repository pins authenticate their actual URL family before any primary-fact reuse.
+ * Parser4 fixes escaped/nested link labels. Parser3 URL owners require canonical reacquisition;
+ * URL-free parser3 heads and parser2 primary candidates retain their authenticated grammar.
+ * Repository pins authenticate the URL family before any legacy primary-fact reuse.
  */
 export function legacyPrimaryGrammarCandidate(value: SourceManifest): boolean {
-  return value.bodyParserVersion === 2 && value.state === "complete";
+  return value.state === "complete" && (value.bodyParserVersion === 2
+    || value.bodyParserVersion === 3 && value.families["body-urls"]?.records === 0);
 }
-/** Distinguish complete sources, the exact parser2 primary-grammar candidate, tombstones and format changes. */
+/** Distinguish complete sources, known compatible primary-grammar candidates, tombstones and format changes. */
 export function sourceHeadReason(value: unknown): SourceReason {
   if (value === undefined || value === null) return "missing";
   if (!sourceObject(value) || !keys(value, ["sourceId", "sourceRevision", "formatVersion", "compilerVersion", "bodyParserVersion", "resolutionVersion",
@@ -226,8 +227,8 @@ export function sourceHeadReason(value: unknown): SourceReason {
     || value.resolutionVersion !== SOURCE_RESOLUTION_VERSION) return "format-version";
   if (!Object.entries(value.families).every(([key, entry]) => sourceFamily(key) && validFamilyManifest(entry))) return "invalid-head";
   if (value.state === "complete" && SOURCE_FAMILIES.some((family) => !Object.prototype.hasOwnProperty.call(value.families, family))) return "invalid-head";
-  // A known retired parser2 marker preserves deletion/CAS identity but grants no semantic facts.
-  const legacyRetirement = value.bodyParserVersion === 2 && value.state === "tombstone";
+  // A known retired parser marker preserves deletion/CAS identity but grants no semantic facts.
+  const legacyRetirement = (value.bodyParserVersion === 2 || value.bodyParserVersion === 3) && value.state === "tombstone";
   if (value.bodyParserVersion !== SOURCE_BODY_PARSER_VERSION && !legacyRetirement
     && !legacyPrimaryGrammarCandidate(value as unknown as SourceHead)) return "format-version";
   return value.state === "tombstone" ? "tombstone" : "ready";

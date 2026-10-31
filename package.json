@@ -83,7 +83,9 @@
     "verify:obsidian:mindmap-markdown": "node scripts/testing/obsidian/mindMapMarkdownExport.mjs",
     "verify:obsidian:ontology-descriptions": "node scripts/testing/obsidian/ontologyDescriptions.mjs",
     "verify:obsidian:public-api": "node scripts/testing/obsidian/publicApi.mjs",
-    "verify:obsidian:public-api-lifetime": "node scripts/testing/obsidian/publicApiLifetime.mjs"
+    "verify:obsidian:public-api-lifetime": "node scripts/testing/obsidian/publicApiLifetime.mjs",
+    "verify:obsidian:editor-mobile-navigation": "node scripts/testing/obsidian/editorMobileNavigation.mjs",
+    "verify:obsidian:rename-mobile-viewport": "node scripts/testing/obsidian/renameMobileViewport.mjs"
   },
   "engines": {
     "node": ">=22.22.2 <23"

@@ -29,6 +29,7 @@
  * File-location menu actions share captured action targets and delegate to guarded native APIs.
  * Markdown and PNG export detach only the committed presentation; their dialogs own no graph reader.
  */
+import {editorOverlayFrame} from "./editorOverlayFrame";
 import {edgeViewportClip, edgeViewportEndpoints, revealRowScrollTop, editorToolbarInsets} from "./plexViews/areaVisibility";
 import {ontologyConfiguration} from "../core/contracts/ontologyConfiguration";
 import {hasDirectionalCaption,directionalRelationCaption} from "../core/plex/directionalRelationCaption";
@@ -216,6 +217,7 @@ const CENTRAL_EDITOR_IMAGE_EXTENSIONS = new Set(["png", "jpg", "jpeg", "gif", "w
 function supportsCentralEditorFile(page: GraphPage | undefined): boolean {
   const extension = page?.file?.extension.toLocaleLowerCase();
   return extension === "md"
+    || extension === "pdf"
     || extension === "canvas"
     || extension === "excalidraw"
     || Boolean(extension && CENTRAL_EDITOR_IMAGE_EXTENSIONS.has(extension));
@@ -657,36 +659,38 @@ function Edge({
   const resolvedCrossLinkOpacity = edge.isCrossLink && !highlighted ? crossLinkOpacity : undefined;
 
   const content = <g className={`kplex-edge${edge.isCrossLink ? " is-cross-link" : ""}${passive ? " is-hover-peek" : ""}${highlighted ? " is-highlighted" : ""}${dimmed ? " is-dimmed" : ""}`}>
-    <path
-      className="kplex-edge-visible"
-      opacity={resolvedCrossLinkOpacity}
-      d={geometry.d}
-      fill="none"
-      stroke={stroke}
-      strokeWidth={strokeWidth}
-      strokeDasharray={dash}
-      markerEnd={markerEnd}
-      markerStart={markerStart}
-      vectorEffect="non-scaling-stroke"
-    />
-    <path
-      className="kplex-edge-hit"
-      data-kplex-edge-id={edge.id}
-      d={geometry.d}
-      fill="none"
-      stroke="transparent"
-      strokeWidth={Math.max(14, baseWidth + 12)}
-      vectorEffect="non-scaling-stroke"
-      onPointerEnter={onHover}
-      onPointerMove={onMove}
-      onPointerLeave={onLeave}
-      onContextMenu={onContextMenu}
-    />
-    {(["source", "target"] as const).map(/** Read-only continuation marks never become a gate/drop/action target. */ end => endpoints[end].continued ? <circle key={end}
-      data-kplex-edge-continuation={end} className="kplex-edge-continuation" aria-hidden="true" pointerEvents="none"
-      cx={endpoints[end].point.x} cy={endpoints[end].point.y} r={3.5} fill={labelBackground} stroke={stroke}
-      strokeWidth={1.5} vectorEffect="non-scaling-stroke" opacity={resolvedCrossLinkOpacity} /> : null)}
-    <EdgeLabel label={label} midpoint={geometry.midpoint} style={style} background={labelBackground} opacity={resolvedCrossLinkOpacity} />
+    <g className="kplex-edge-paint">
+      <path
+        className="kplex-edge-visible"
+        opacity={resolvedCrossLinkOpacity}
+        d={geometry.d}
+        fill="none"
+        stroke={stroke}
+        strokeWidth={strokeWidth}
+        strokeDasharray={dash}
+        markerEnd={markerEnd}
+        markerStart={markerStart}
+        vectorEffect="non-scaling-stroke"
+      />
+      <path
+        className="kplex-edge-hit"
+        data-kplex-edge-id={edge.id}
+        d={geometry.d}
+        fill="none"
+        stroke="transparent"
+        strokeWidth={Math.max(14, baseWidth + 12)}
+        vectorEffect="non-scaling-stroke"
+        onPointerEnter={onHover}
+        onPointerMove={onMove}
+        onPointerLeave={onLeave}
+        onContextMenu={onContextMenu}
+      />
+      {(["source", "target"] as const).map(/** Read-only continuation marks never become a gate/drop/action target. */ end => endpoints[end].continued ? <circle key={end}
+        data-kplex-edge-continuation={end} className="kplex-edge-continuation" aria-hidden="true" pointerEvents="none"
+        cx={endpoints[end].point.x} cy={endpoints[end].point.y} r={3.5} fill={labelBackground} stroke={stroke}
+        strokeWidth={1.5} vectorEffect="non-scaling-stroke" opacity={resolvedCrossLinkOpacity} /> : null)}
+      <EdgeLabel label={label} midpoint={geometry.midpoint} style={style} background={labelBackground} opacity={resolvedCrossLinkOpacity} />
+    </g>
   </g>;
   return clip ? <svg x={clip.left} y={clip.top} width={clip.width} height={clip.height}
     viewBox={`${clip.left} ${clip.top} ${clip.width} ${clip.height}`} overflow="hidden">{content}</svg> : content;
@@ -788,7 +792,7 @@ export function PlexGraph({ viewDefinition = classicViewDefinition, viewSession,
   const retainedBoundEditor = useRef<{id: string; page: GraphPage; node: PositionedNode} | null>(null);
   const automaticEditorClose = useRef<string | null>(null);
   /** Native eligibility is current-file identity, independent of attention or layout geometry. */
-  const supportsBoundEditor = (page: GraphPage): boolean => Boolean(page.file && page.file.extension === "md" && !page.transient
+  const supportsBoundEditor = (page: GraphPage): boolean => Boolean(page.file && ["md", "pdf"].includes(page.file.extension.toLocaleLowerCase()) && !page.transient
     && plugin.app.vault.getFileByPath(page.file.path) === page.file);
   const boundEditorPage = boundEditorBinding ? resolveOccurrenceEditorPage(boundEditorBinding, index, supportsBoundEditor) : null;
   const boundEditorConcealed = Boolean(boundEditorBinding && (!boundEditorPage || !index.isVisiblePage(boundEditorPage)));
@@ -884,7 +888,7 @@ export function PlexGraph({ viewDefinition = classicViewDefinition, viewSession,
   useLayoutEffect(/** Retain only the actual bound document through ordinary attention changes. */ () =>
     boundEditorBinding ? index.acquireSemanticDemand(boundEditorBinding.target.nodeId) : undefined,
     [index, boundEditorBinding?.id]);
-  const centralEditorCanMaximize = !occurrenceEditorPolicy && surface !== "sidepanel";
+  const centralEditorCanMaximize = surface !== "sidepanel";
   const [centralEditorMaximized, setCentralEditorMaximized] = useState(false);
   const centralEditorAvailabilityRef = useRef(centralEditorAvailable);
   const centralEditorSizeKeyRef = useRef("");
@@ -1507,13 +1511,16 @@ export function PlexGraph({ viewDefinition = classicViewDefinition, viewSession,
       : current);
   };
 
-  useEffect(/** Reset outline state for a changed center or animation preference, retaining it when only navigation origin changes. */ () => {
+  useEffect(/** Restore only this current view/scope’s bounded outline preference; source data is reacquired by its existing owner. */ () => {
     transitionPath.current = sceneScope;
-    setSectionExpanded(false);
+    const restored = viewSession?.definition === viewDefinition && viewDefinition.capabilities.sections
+      ? viewSession.readTransient(viewDefinition.id, nodeId(activePath))?.sections : undefined;
+    sectionRequestedDocument.current = restored?.expanded ? sectionDocument : null;
+    setSectionExpanded(restored?.expanded ?? false);
     setSectionExpansion(null);
-    setExpandedSectionIds(new Set());
-    sectionFoldCenter.current = null;
-  }, [sceneScope, settings.animationSpeed]);
+    setExpandedSectionIds(new Set(restored?.unfolded ?? []));
+    sectionFoldCenter.current = restored?.expanded ? sectionDocument : null;
+  }, [sceneScope, viewLifetime]);
 
   useEffect(/** Passive follow has no transition timer or arrival delay; deliberate navigation keeps its temporary transition. */ () => {
     const viewWindow = viewport.current?.ownerDocument.defaultView ?? window;
@@ -1601,12 +1608,10 @@ export function PlexGraph({ viewDefinition = classicViewDefinition, viewSession,
     if (!overlay || !node || !page) return;
     if (overlay.classList.contains("is-native-view-fullscreen")) return;
     const current = camera.current;
-    const width = Math.max(1, node.width * current.scale);
-    const height = Math.max(1, node.height * current.scale);
-    overlay.style.left = `${current.x + (node.x - node.width / 2) * current.scale}px`;
-    overlay.style.top = `${current.y + (node.y - node.height / 2) * current.scale}px`;
-    overlay.style.width = `${width}px`;
-    overlay.style.height = `${height}px`;
+    const frame = editorOverlayFrame(node, current,
+      {width: viewport.current?.clientWidth ?? node.width, height: viewport.current?.clientHeight ?? node.height}, overlay.classList.contains("is-maximized"));
+    const {width, height} = frame;
+    for (const [key, value] of Object.entries(frame)) overlay.style.setProperty(key, `${value}px`);
     overlay.style.setProperty("--kplex-editor-camera-scale", String(current.scale));
     if (clip) {
       const left = node.x - node.width / 2, top = node.y - node.height / 2;
@@ -2504,11 +2509,11 @@ export function PlexGraph({ viewDefinition = classicViewDefinition, viewSession,
   const displayedEditorNode = occurrenceEditorPolicy && centralEditorNode
     ? renderedNodeMap.get(occurrenceKey(centralEditorNode)) ?? centralEditorNode : centralEditorNode;
   const editorArea = displayedEditorNode ? areaForNode(displayedEditorNode) : null;
-  const editorClip = occurrenceEditorPolicy && editorArea ? scene.zoneViewports[editorArea] : undefined;
+  const editorClip = !centralEditorMaximized && occurrenceEditorPolicy && editorArea ? scene.zoneViewports[editorArea] : undefined;
   centralEditorGeometry.current = {node: displayedEditorNode, page: centralEditorPage, clip: editorClip};
   useLayoutEffect(/** Scroll/resize update the same native host, including its actual area clipping. */ () => {
     syncCentralEditorOverlay();
-  }, [displayedEditorNode?.x, displayedEditorNode?.y, displayedEditorNode?.width, displayedEditorNode?.height, editorClip]);
+  }, [displayedEditorNode?.x, displayedEditorNode?.y, displayedEditorNode?.width, displayedEditorNode?.height, editorClip, centralEditorMaximized, viewportSize.width, viewportSize.height]);
 
   useEffect(() => {
     const pending = pendingNodeFlair;
@@ -2818,8 +2823,8 @@ export function PlexGraph({ viewDefinition = classicViewDefinition, viewSession,
   }, [plugin, hostLeaf, index, presentationDemandPages, presentationDemandCenters, viewSession, viewLifetime]);
 
   const expandedConnectors = useMemo(() => {
-    if (settings.graphDepth !== 2) return [] as Array<{ key:string;d:string;stroke:string;width:number;dash?:string;markerStart?:string;markerEnd?:string;definition?:string;caption?:string;midpoint:Point;style:PositionedEdge['style'] }>;
-    const connectors: Array<{ key:string;d:string;stroke:string;width:number;dash?:string;markerStart?:string;markerEnd?:string;definition?:string;caption?:string;midpoint:Point;style:PositionedEdge['style'] }> = [];
+    if (settings.graphDepth !== 2) return [] as Array<{ key:string;sourcePath:string;targetPath:string;d:string;stroke:string;width:number;dash?:string;markerStart?:string;markerEnd?:string;definition?:string;caption?:string;midpoint:Point;style:PositionedEdge['style'] }>;
+    const connectors: Array<{ key:string;sourcePath:string;targetPath:string;d:string;stroke:string;width:number;dash?:string;markerStart?:string;markerEnd?:string;definition?:string;caption?:string;midpoint:Point;style:PositionedEdge['style'] }> = [];
     for (const cluster of expandedClusters) {
       const source = gatePoint(cluster.parent, "bottom");
       for (const child of cluster.children) {
@@ -2839,7 +2844,7 @@ export function PlexGraph({ viewDefinition = classicViewDefinition, viewSession,
         const style = { ...baseStyle, ...lensStyle };
         const reverse = child.relation.linkDirection === (settings.inverseArrowDirection ? LinkDirection.TO : LinkDirection.FROM);
         connectors.push({
-          key: child.key,
+          key: child.key, sourcePath: cluster.parent.page.path, targetPath: child.relation.page.path,
           definition: child.relation.typeDefinition,
           caption: connectionCaption(child.relation.typeDefinition,style.showLabel,cluster.parent.page.path,child.relation.page.path,cluster.parent.page,child.relation.page),
           midpoint: geometry.midpoint, style,
@@ -2999,8 +3004,8 @@ export function PlexGraph({ viewDefinition = classicViewDefinition, viewSession,
     if (wanderMotion.current) { sceneMotion.cancelAll(); incomingCenter.current = null; wanderMotion.current = false; }
   };
   const keyboardSelection = selection.selectedId;
-  const outgoingViewState = useRef({selected: selection.readSelected, groups: unfoldedGroups});
-  outgoingViewState.current = {selected: selection.readSelected, groups: unfoldedGroups};
+  const outgoingViewState = useRef({selected: selection.readSelected, groups: unfoldedGroups, sectionExpanded, expandedSectionIds});
+  outgoingViewState.current = {selected: selection.readSelected, groups: unfoldedGroups, sectionExpanded, expandedSectionIds};
   const [keyboardConnect, setKeyboardConnect] = useState<NodeRef | null>(null);
   const keyboardConnectRef = useRef<NodeRef | null>(null);
   const typeSelection = usePlexTypeSelection({ activePath, scopeKey: JSON.stringify([viewDefinition.id, viewLifetime, sceneScope]), nodes: keyboardNodes, selection,
@@ -3212,6 +3217,16 @@ export function PlexGraph({ viewDefinition = classicViewDefinition, viewSession,
     }
     return { edgeIds, nodePaths, gates };
   }, [hover, visibleEdges]);
+
+  /** Descendant strips expose bottom-to-top connectors outside the primary edge inventory.
+   * Keep direct node/gate neighbors visible without treating a two-hop neighbor as focused. */
+  const expandedConnectorDimmed = (connector: {sourcePath: string; targetPath: string}): boolean => {
+    if (finding || !hover) return false;
+    if (hover.kind === "node") return hover.path !== connector.sourcePath && hover.path !== connector.targetPath;
+    if (hover.kind === "gate") return !(hover.path === connector.sourcePath && hover.gate === "bottom"
+      || hover.path === connector.targetPath && hover.gate === "top");
+    return true;
+  };
 
   const connectBlockedPaths = useMemo(() => {
     if (!connectDrag) return new Set<string>();
@@ -4906,7 +4921,7 @@ export function PlexGraph({ viewDefinition = classicViewDefinition, viewSession,
     if (!viewSession) return;
     const restored = viewSession.readTransient(viewDefinition.id, nodeId(activePath));
     if (restored) {
-      preserveCameraOnNextLayout.current = true; applyCamera(restored.camera);
+      preserveCameraOnNextLayout.current = true; suppressAutoFitUntil.current = Date.now() + 2500; applyCamera(restored.camera);
       setUnfoldedGroups({center: sceneScope, keys: new Set(restored.unfolded)});
       if (restored.selected) selection.select(restored.selected);
     } else selection.select(null);
@@ -4915,9 +4930,10 @@ export function PlexGraph({ viewDefinition = classicViewDefinition, viewSession,
       const resize = areaResizeDrag.current;
       areaResizeDrag.current = null;
       if (resize?.changed) persistAreaSize(resize.zone, resize.axis);
-      viewSession.retainTransient(viewDefinition.id, {attention: nodeId(recoveryCenter.current), scope: nodeId(sceneScope), camera: camera.current,
+      viewSession.retainTransient(viewDefinition.id, {attention: nodeId(recoveryCenter.current), scope: nodeId(sceneScope), camera: centralEditorRestoreCamera.current ?? camera.current,
         selected: outgoingViewState.current.selected()?.id ?? null,
-        unfolded: outgoingViewState.current.groups.center === sceneScope ? [...outgoingViewState.current.groups.keys] : []});
+        unfolded: outgoingViewState.current.groups.center === sceneScope ? [...outgoingViewState.current.groups.keys] : [],
+        sections: {expanded: outgoingViewState.current.sectionExpanded, unfolded: [...outgoingViewState.current.expandedSectionIds]}});
       optimisticCommitToken.current++;
       setOptimisticRelink(null); setRelationshipUpdating(false);
       setSectionExpanded(false); setSectionExpansion(null); setExpandedSectionIds(new Set());
@@ -5893,7 +5909,7 @@ export function PlexGraph({ viewDefinition = classicViewDefinition, viewSession,
             showEdgeContextMenuAt(edge, event.clientX, event.clientY);
           }}
         />)}
-        {expandedConnectors.map((connector) => <g key={`expanded-edge:${connector.key}`} className="kplex-expanded-connector"><path
+        {expandedConnectors.map((connector) => <g key={`expanded-edge:${connector.key}`} className={`kplex-expanded-connector${expandedConnectorDimmed(connector) ? " is-dimmed" : ""}`}><g className="kplex-edge-paint"><path
           className="kplex-expanded-edge"
           d={connector.d}
           fill="none"
@@ -5903,7 +5919,7 @@ export function PlexGraph({ viewDefinition = classicViewDefinition, viewSession,
           markerStart={connector.markerStart}
           markerEnd={connector.markerEnd}
           vectorEffect="non-scaling-stroke"
-        /><EdgeLabel label={connector.style.showLabel?relationLabel(connector.caption??connector.definition):null} midpoint={connector.midpoint} style={connector.style} background={NATIVE_LINK_LABEL_FILL} /></g>)}
+        /><EdgeLabel label={connector.style.showLabel?relationLabel(connector.caption??connector.definition):null} midpoint={connector.midpoint} style={connector.style} background={NATIVE_LINK_LABEL_FILL} /></g></g>)}
         {dragPath && <path className="kplex-drag-connector" d={dragPath} fill="none" vectorEffect="non-scaling-stroke" />}
       </svg>
 
@@ -5947,10 +5963,7 @@ export function PlexGraph({ viewDefinition = classicViewDefinition, viewSession,
       inert={boundEditorConcealed || undefined}
       className={`kplex-central-editor-overlay${centralEditorMaximized ? " is-maximized" : ""}${editorClip ? " is-area-clipped" : ""}`}
       style={{
-        left: camera.current.x + (displayedEditorNode.x - displayedEditorNode.width / 2) * camera.current.scale,
-        top: camera.current.y + (displayedEditorNode.y - displayedEditorNode.height / 2) * camera.current.scale,
-        width: Math.max(1, displayedEditorNode.width * camera.current.scale),
-        height: Math.max(1, displayedEditorNode.height * camera.current.scale),
+        ...editorOverlayFrame(displayedEditorNode, camera.current, viewportSize, centralEditorMaximized),
         visibility: boundEditorConcealed ? "hidden" : undefined,
         "--kplex-editor-camera-scale": camera.current.scale,
       } as CSSProperties}
