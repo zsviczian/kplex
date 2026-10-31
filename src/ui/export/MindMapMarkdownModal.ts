@@ -4,11 +4,14 @@
  * handoff, and the existing native editor shell retires dialogs on window migration.
  * No source note, canvas state, index or settings writer is exposed to this shell.
  */
-import {Setting, type App, type ButtonComponent} from "obsidian";
+import {Setting, TextAreaComponent, type App, type ButtonComponent} from "obsidian";
 import {StyleEditorModal, appendIcon} from "../StyleEditorModal";
 import {ClipboardSession} from "../../application/ClipboardSession";
-import {exportMindMapMarkdown, type MindMapMarkdownResult, type MindMapMarkdownSnapshot} from "../../core/plex/export/mindMapMarkdown";
-import {markdownExportFilename, exportMarkdownFile, canExportMarkdownFile} from "../../adapters/obsidian/markdownExportFile";
+import {exportMindMapMarkdown, type MindMapMarkdownResult, type MindMapMarkdownSnapshot, type MarkdownOntologyMode} from "../../core/plex/export/mindMapMarkdown";
+import {suggestedArtifactFilename} from "../../core/plex/export/artifactFilename";
+import {exportMarkdownFile, canExportMarkdownFile} from "../../adapters/obsidian/markdownExportFile";
+
+let nextPreviewId = 0;
 
 export type MindMapMarkdownModalOptions = Readonly<{
   snapshot: MindMapMarkdownSnapshot; selected?: string; sourceScope: HTMLElement;
@@ -26,6 +29,8 @@ export class MindMapMarkdownModal extends StyleEditorModal {
   private saveButton: ButtonComponent | null = null;
   private filename = "";
   private saving = false;
+  private ontologyMode: MarkdownOntologyMode = "visible";
+  private selectedRoot = "";
 
   /** Capture only immutable export data and its exact canvas lifetime. */
   constructor(app: App, private readonly options: MindMapMarkdownModalOptions) {super(app);}
@@ -36,26 +41,33 @@ export class MindMapMarkdownModal extends StyleEditorModal {
     this.setTitle(this.translate("export.markdown.title"));
     this.modalEl.addClass("kplex-mindmap-markdown-export");
     const {body, actions} = this.scrollableContent();
-    body.createEl("p", {text: this.translate("export.markdown.help")});
+    const help = body.createEl("p"), marker = "\uFFFC";
+    const [before, after] = this.translate("export.markdown.help", {builder: marker}).split(marker);
+    help.createSpan({text: before});
+    help.createEl("a", {text: this.translate("export.markdown.builder"), cls: "external-link",
+      attr: {href: "https://community.sketch-your-mind.com/mindmap", target: "_blank", rel: "noopener noreferrer"}});
+    help.createSpan({text: after ?? ""});
+    this.selectedRoot = this.options.snapshot.root;
     const selected = this.options.selected;
     if (selected && selected !== this.options.snapshot.root) new Setting(body).setName(this.translate("export.markdown.scope"))
       .addDropdown(/** Scope changes only project the frozen snapshot; they never expand a branch. */ dropdown => dropdown
         .addOption(this.options.snapshot.root, this.translate("export.markdown.whole"))
         .addOption(selected, this.translate("export.markdown.branch"))
         .onChange(/** A different scope retires the previous immutable clipboard attempt. */ id => this.refresh(id)));
+    new Setting(body).setName(this.translate("export.markdown.ontology")).setDesc(this.translate("export.markdown.ontologyHelp"))
+      .addDropdown(/** Labels are projected only from the frozen snapshot, never from another graph read. */ dropdown => dropdown
+        .addOption("none", this.translate("export.markdown.ontologyNone")).addOption("visible", this.translate("export.markdown.ontologyVisible"))
+        .addOption("all", this.translate("export.markdown.ontologyAll")).setValue(this.ontologyMode)
+        .onChange(/** Ontology changes retire any preceding clipboard attempt and preserve selected subtree. */ value => {this.ontologyMode = value === "all" ? "all" : value === "none" ? "none" : "visible";this.refresh(this.selectedRoot);}));
     this.warningList = body.createDiv({cls: "setting-item-description", attr: {role: "status"}});
-    this.preview = body.createEl("textarea", {cls: "kplex-package-source", attr: {rows: "10", spellcheck: "false", "aria-label": this.translate("export.markdown.preview")}});
+    const previewName = body.createSpan({cls: "kplex-accessible-name", text: this.translate("export.markdown.preview"), attr: {id: `kplex-markdown-preview-${++nextPreviewId}`}});
+    this.preview = new TextAreaComponent(body).inputEl;this.preview.addClass("kplex-package-source");
+    this.preview.rows = 10;this.preview.spellcheck = false;this.preview.setAttribute("aria-labelledby", previewName.id);
     this.preview.readOnly = true;
     this.status = body.createDiv({attr: {role: "status", "aria-live": "polite"}});
-    new Setting(body).setName(this.translate("export.markdown.destination")).setDesc(this.translate("export.markdown.destinationHelp"))
-      .addText(/** The system save/share UI selects the destination; this field supplies its suggested filename. */ text => {
-        const rootLabel = this.options.snapshot.nodes.find(/** The captured root supplies only a suggested filename. */ node => node.id === this.options.snapshot.root)?.label ?? this.translate("view.mindmap");
-        const stem = rootLabel.replace(/[\\/:*?"<>|#[\]\r\n]/g, " ").trim().slice(0, 100) || this.translate("view.mindmap");
-        this.filename = `${stem} - ${this.translate("export.markdown.filename")}.md`;
-        text.inputEl.maxLength = 200;
-        text.setValue(this.filename).onChange(/** Editing a filename performs no native operation. */ value => {this.filename = value;this.clearStatus();});
-      });
-    new Setting(actions)
+    const rootLabel = this.options.snapshot.nodes.find(/** Captured root labels suggest a name only to the native save dialog. */ node => node.id === this.options.snapshot.root)?.label ?? this.translate("view.mindmap");
+    this.filename = suggestedArtifactFilename(`${rootLabel} - ${this.translate("export.markdown.filename")}`, "md");
+    new Setting(actions).setClass("kplex-modal-action-row")
       .addButton(/** Copy starts synchronously in the native button handler. */ button => {this.copyButton = button;button.setButtonText(this.translate("export.markdown.copy")).onClick(/** Retain owning-document clipboard activation. */ () => this.copy());appendIcon(button.buttonEl, "copy");})
       .addButton(/** Save uses the same exact bytes shown in the read-only preview. */ button => {this.saveButton = button;button.setButtonText(this.translate("export.markdown.save")).setCta().onClick(/** Explicit output persistence never navigates the canvas. */ () => {void this.save();});appendIcon(button.buttonEl, "save");})
       .addButton(/** Dismissal releases the snapshot's clipboard completion owner. */ button => button.setButtonText(this.translate("common.cancel")).onClick(/** Existing migration/close cleanup remains the only retirement path. */ () => this.close()));
@@ -64,9 +76,9 @@ export class MindMapMarkdownModal extends StyleEditorModal {
 
   /** Reformat only the captured hierarchy and disclose all compatibility/coverage qualifications. */
   private refresh(root: string): void {
-    this.clipboard?.dispose();this.clipboard = null;this.clearStatus();this.warningList?.empty();
+    this.selectedRoot = root;this.clipboard?.dispose();this.clipboard = null;this.clearStatus();this.warningList?.empty();
     try {
-      this.result = exportMindMapMarkdown(this.options.snapshot, root);
+      this.result = exportMindMapMarkdown(this.options.snapshot, root, this.ontologyMode);
       if (this.preview) this.preview.value = this.result.markdown;
       for (const key of ["unresolved", "adjusted", "references", "omitted", "partial", "collapsed"] as const) {
         if (this.result.warnings[key]) this.warningList?.createEl("p", {text: this.translate(`export.markdown.warning.${key}`)});
@@ -79,7 +91,7 @@ export class MindMapMarkdownModal extends StyleEditorModal {
     }
   }
 
-  /** A changed filename or scope retires previous feedback. */
+  /** A changed scope retires previous feedback. */
   private clearStatus(): void {
     this.status?.empty();
   }
@@ -94,8 +106,7 @@ export class MindMapMarkdownModal extends StyleEditorModal {
     const owner = this.modalEl.ownerDocument.defaultView;
     this.clipboard = new ClipboardSession(this.result.markdown, owner?.navigator.clipboard?.writeText ? /** Native clipboard ownership follows this modal's window. */ text => owner.navigator.clipboard.writeText(text) : null);
     this.clipboard.listen(/** Closing retires this listener before a late clipboard promise settles. */ state => {
-      this.copyButton?.setDisabled(state === "copying");
-      if (state === "copied" || state === "failed") this.status?.setText(this.translate(state === "copied" ? "export.markdown.copied" : "export.markdown.copyFailed"));
+      this.clipboardFeedback(state, this.copyButton, this.status, this.translate("export.markdown.copied"), this.translate("export.markdown.copyFailed"));
     });
     this.clipboard.copy();
   }
@@ -103,14 +114,12 @@ export class MindMapMarkdownModal extends StyleEditorModal {
   /** Hand the exact preview bytes to Obsidian's native system save/share flow once per click. */
   private async save(): Promise<void> {
     if (!this.current() || !this.result || this.saving) {this.status?.setText(this.translate("export.markdown.stale"));return;}
-    const filename = markdownExportFilename(this.filename);
-    if (!filename) {this.status?.setText(this.translate("export.markdown.invalidPath"));return;}
     this.saving = true;
     const controls = Array.from(this.contentEl.querySelectorAll<HTMLInputElement | HTMLSelectElement | HTMLButtonElement>("input, select, button"));
     const disabled = controls.map(/** Restore pre-existing clipboard/validation state after handoff. */ control => control.disabled);
     for (const control of controls) control.disabled = true;
     try {
-      await exportMarkdownFile(this.app, filename, this.result.markdown, /** A retired capture cannot begin another native handoff. */ () => this.current());
+      await exportMarkdownFile(this.app, this.filename, this.result.markdown, /** A retired capture cannot begin another native handoff. */ () => this.current());
       if (this.current()) this.status?.setText(this.translate("export.markdown.saveHandedOff"));
     } catch {if (this.current()) this.status?.setText(this.translate("export.markdown.saveFailed"));}
     finally {

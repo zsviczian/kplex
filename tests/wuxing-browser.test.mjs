@@ -124,11 +124,10 @@ test('combined diagnostics uses shared measured status chips and a captured canv
  const scroll=a.container.querySelector('.'+CSS.escape('kplex-zone-'+combined)+' .kplex-zone-scroll');
  const edgeIds=()=>[...a.container.querySelectorAll('.kplex-edge-hit')].map(el=>el.dataset.kplexEdgeId);
  const canonicalRows=()=>JSON.stringify([...pages].map(([path,page])=>[path,index.neighbours(page,'child').map(row=>[row.page.path,row.role,row.relationType,row.typeDefinition])]));
- const continuationIds=()=>[...a.container.querySelectorAll('[data-kplex-edge-continuation]')].map(el=>el.closest('.kplex-edge').querySelector('.kplex-edge-hit').dataset.kplexEdgeId);
- const canonical=canonicalRows(),topEdges=edgeIds(),topContinuations=continuationIds();check(topEdges.length===26&&topContinuations.length>0,'Every visible counterpart retains its connector, using boundary continuations for hidden cards');
+ const canonical=canonicalRows(),topEdges=edgeIds();check(topEdges.length>0&&topEdges.length<26,'Only intersecting diagnostic rows retain their connectors');
  for(const mark of a.container.querySelectorAll('[data-kplex-edge-continuation]')){const group=mark.closest('.kplex-edge');check(!group.querySelector('.kplex-edge-visible').getAttribute('marker-end')&&!group.querySelector('text'),'Continuation has no hidden-note arrowhead or detached caption');check(mark.getAttribute('pointer-events')==='none'&&!mark.dataset.kplexKeyboardId,'Continuation is not a gate or action target');}
  scroll.scrollTop=scroll.scrollHeight-scroll.clientHeight;scroll.dispatchEvent(new Event('scroll'));await wait();
- const bottomEdges=edgeIds();check(JSON.stringify(bottomEdges)===JSON.stringify(topEdges)&&JSON.stringify(continuationIds())!==JSON.stringify(topContinuations),'Scrolling restores actual gates and moves continuation markers without dropping canonical routes');
+ const bottomEdges=edgeIds();check(bottomEdges.length>0&&bottomEdges.length<26&&JSON.stringify(bottomEdges)!==JSON.stringify(topEdges),'Scrolling swaps painted routes to the newly visible rows without hidden-row clutter');
  check(canonicalRows()===canonical,'Scroll paint never changes canonical graph state');
  scroll.scrollTop=0;scroll.dispatchEvent(new Event('scroll'));await wait();
  check(JSON.stringify(edgeIds())===JSON.stringify(topEdges),'Returning to the top restores exact connector identities');

@@ -5,11 +5,12 @@
  */
 import { useCallback, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import type { PlexFootprints, FootprintVisit } from "../application/PlexFootprints";
-import {ClipboardSession, type ClipboardState} from "../application/ClipboardSession";
+import type {ClipboardSession, ClipboardState} from "../application/ClipboardSession";
 import type { Translator } from "../lang";
 import { FloatingLayer } from "./components/FloatingLayer";
 import { collectionRange } from "./components/collectionWindow";
 import { ObsidianIcon } from "./ObsidianIcon";
+import {footprintsMarkdownSession} from "./footprintsMarkdown";
 
 const ROW_HEIGHT = 40;
 const WINDOW_SIZE = 40;
@@ -45,14 +46,8 @@ export function PlexFootprintsPanel({trail, translate, readRow, formatLink, navi
   /** Snapshot every visit only on explicit copy; invoke the owning writer before any await. */
   const copyMarkdown = (button: HTMLButtonElement): void => {
     if (clipboard.current?.state === "copying") return;
-    const lines: string[] = [];
-    for (let ordinal = trail.length - 1; ordinal >= 0; ordinal--) {
-      const visit = trail.at(ordinal);if (visit) lines.push(`- ${formatLink(visit)}`);
-    }
-    const owner = button.ownerDocument.defaultView;
     clipboard.current?.dispose();
-    const session = new ClipboardSession(lines.join("\n"), owner?.navigator.clipboard?.writeText
-      ? text => owner.navigator.clipboard.writeText(text) : null);
+    const session = footprintsMarkdownSession(trail, formatLink, button.ownerDocument);
     clipboard.current = session;session.listen(setCopyState);session.copy();
   };
   // A prepend shifts display positions, but older readers keep the same visit and focus anchor.

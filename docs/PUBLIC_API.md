@@ -195,8 +195,8 @@ The transport is constructed lazily. Queries are bounded to 16,384 characters an
 Machine codes include `API_UNAVAILABLE`, `INVALID_ARGUMENT`, `NOT_FOUND`, `AMBIGUOUS_CANVAS`, `INDEX_INCOMPLETE`, `LIMIT_EXCEEDED`, `STALE_REVISION`, `CANCELLED`, `CONFIRMATION_REQUIRED`, `WRITE_FAILED`, `UNAVAILABLE` and `UNSUPPORTED`. Messages are developer diagnostics; code is the stable discriminator.
 
 Mind Map Markdown export reuses the shared service from merged PR #237 and is advertised as
-`exports.mindmapMarkdown: true`. Image export remains unavailable (`exports.image: false`) while
-its independent PR #238 is unmerged. Its future API integration must reuse that shared exporter;
+`exports.mindmapMarkdown: true`. PR #238's native PNG export is now merged, but image export
+through this API remains unavailable (`exports.image: false`). Future API integration must reuse that shared exporter;
 version 1 adds no duplicate capture or export engine. See [Obsidian CLI usage](CLI.md) for direct
 invocation and readback examples.
 

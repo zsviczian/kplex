@@ -154,13 +154,13 @@ test('optional bounded hierarchy viewport retains connectors, clips paint and re
  const scroll=panel(),b=card('B.md').getBoundingClientRect(),v=scroll.getBoundingClientRect();
  check(scroll.scrollHeight>scroll.clientHeight&&b.top>=v.top-1&&b.bottom<=v.bottom+1,'Expansion must reveal its exact parent after measured reflow');
  const count=()=>ui.container.querySelectorAll('.kplex-edge-hit').length,before=count(),attention=ui.props.activePath,root=ui.session.layoutRoot(attention);
- check(before>=children.length,'All admitted canonical routes exist before clipping');
+ check(before>0&&before<children.length,'Clipped leaf rows do not paint routes even while their parent is visible');
  scroll.scrollTop=0;scroll.dispatchEvent(new Event('scroll',{bubbles:true}));await wait();ui.render();await wait();
  check(card('B.md').getBoundingClientRect().top>scroll.getBoundingClientRect().bottom,'Expanded parent is genuinely outside the area aperture');
  /** Each actually visible child must retain its exact canonical route to the hidden source. */
  const visibleRoutes=()=>{const v=scroll.getBoundingClientRect(),visible=[...scroll.querySelectorAll('.kplex-thought')].filter(el=>{const r=el.getBoundingClientRect();return r.right>v.left&&r.left<v.right&&r.bottom>v.top&&r.top<v.bottom});
  check(visible.length>0,'At least one counterpart is physically visible');for(const el of visible){const id=el.dataset.kplexKeyboardId,path=[...ui.container.querySelectorAll('.kplex-edge-hit')].find(path=>path.dataset.kplexEdgeId===id);check(path,'Visible counterpart must keep its exact connector '+id);}return visible;};
- const visibleRows=visibleRoutes();check(count()>0&&count()<before,'Only routes with both counterparts hidden retire; visible children remain connected');
+ const visibleRows=visibleRoutes();check(count()>0&&count()<children.length,'Visible children retain ancestry routes without hidden-leaf clutter');
  const clipped=[...ui.container.querySelectorAll('.kplex-edge-hit')].filter(path=>path.closest('svg')!==ui.container.querySelector('.kplex-links'));
  check(clipped.length>=visibleRows.length,'Every visible child route uses the shared area aperture');
  check(clipped.some(path=>path.closest('.kplex-edge').querySelector('[data-kplex-edge-continuation="source"]')),'Hidden source has a read-only boundary continuation instead of disappearing');
@@ -227,16 +227,19 @@ test('cycle references and expandable siblings share row spacing and card-edge s
 });
 
 
-test('Compass keeps visible center links to offscreen friends at their scroll boundary',async()=>{
+test('Compass hides center links to clipped friends and restores them as rows scroll into view',async()=>{
  const host=await chromiumHarness(output.outputFiles[0].text+';window.sourceModules=sourceModules;');
  try{assert(await host.evaluate(`(async()=>{${canvasSceneFixture}
  const friends=Array.from({length:30},(_,i)=>'Friend '+i+'.md');for(const path of friends){const base=pages.get('B.md');pages.set(path,{...base,path,name:path,file:{...base.file,path}})}
  index.neighbours=(page,role)=>(page.path==='A.md'&&role==='left'?friends:[]).map(path=>({page:pages.get(path),role,relationType:1,typeDefinition:'Related',linkDirection:1}));
  index.getNeighborhood=path=>({center:pages.get(path),parents:[],children:[],leftFriends:index.neighbours(pages.get(path),'left'),rightFriends:[],siblings:[]});
  settings.friendMaxHeight=160;const ui=await mount(M.builtInPlexViews.resolve('classic')),scroll=[...ui.container.querySelectorAll('.kplex-zone-scroll')].find(el=>el.scrollHeight>el.clientHeight+5);check(scroll,'Bounded Compass friends fixture');
- const ids=()=>[...ui.container.querySelectorAll('.kplex-edge-hit')].map(el=>el.dataset.kplexEdgeId).sort(),before=ids();check(before.length===friends.length,'All actual center relationships remain painted');
- for(const position of [0,scroll.scrollHeight,0]){scroll.scrollTop=position;scroll.dispatchEvent(new Event('scroll'));await wait();check(JSON.stringify(ids())===JSON.stringify(before),'Scrolling cannot remove the visible center?s links');
- const aperture=scroll.getBoundingClientRect(),marks=[...ui.container.querySelectorAll('[data-kplex-edge-continuation]')];check(marks.length>0,'Hidden friends retain boundary marks');for(const mark of marks){const r=mark.getBoundingClientRect(),x=(r.left+r.right)/2,y=(r.top+r.bottom)/2;check(x>=aperture.left-2&&x<=aperture.right+2&&y>=aperture.top-2&&y<=aperture.bottom+2,'No continuation floats outside its own area');check(Math.min(Math.abs(y-aperture.top),Math.abs(y-aperture.bottom),Math.abs(x-aperture.left),Math.abs(x-aperture.right))<2,'Continuation ends at an actual area boundary');}}
+ const ids=()=>[...ui.container.querySelectorAll('.kplex-edge-hit')].map(el=>el.dataset.kplexEdgeId).sort(),before=ids();check(before.length>0&&before.length<friends.length,'Clipped friends have no painted center route');
+ for(const position of [0,scroll.scrollHeight,0]){scroll.scrollTop=position;scroll.dispatchEvent(new Event('scroll'));await wait();
+  const aperture=scroll.getBoundingClientRect(),visible=[...scroll.querySelectorAll('.kplex-thought')].filter(el=>{const r=el.getBoundingClientRect();return r.right>aperture.left&&r.left<aperture.right&&r.bottom>aperture.top&&r.top<aperture.bottom});
+  const expected=visible.map(el=>'left:'+el.dataset.kplexPath+':'+friends.indexOf(el.dataset.kplexPath)).sort();check(JSON.stringify(ids())===JSON.stringify(expected),'Only intersecting friend rows retain exact canonical route identities');
+  if(position===0)check(JSON.stringify(ids())===JSON.stringify(before),'Returning restores the same route identities');
+  for(const mark of ui.container.querySelectorAll('[data-kplex-edge-continuation]')){const r=mark.getBoundingClientRect(),x=(r.left+r.right)/2,y=(r.top+r.bottom)/2;check(x>=aperture.left-2&&x<=aperture.right+2&&y>=aperture.top-2&&y<=aperture.bottom+2,'Partially visible card gates remain bounded by the area');}}
  check(ui.props.activePath==='A.md'&&work.body===0&&work.scans===0,'Compass routing is presentation-only');ui.close();style.remove();return true;})()`));}finally{await host.cleanup()}
 });
 
@@ -252,4 +255,28 @@ for(const [view,field]of [['mindmap','verticalDensity'],['mindmap','horizontalDe
  assert(await host.evaluate(`(()=>{const f=sliderPending;f.latest=Number(f.input.value);if(f.writes.length!==1||f.latest<=f.writes[0].edit.value)throw Error('Intermediate inputs queued or thumb lagged '+JSON.stringify({writes:f.writes,latest:f.latest,focus:document.activeElement?.getAttribute('aria-label'),input:f.input.value}));if(f.input.closest('label').querySelector('output').textContent!==f.latest.toFixed(2))throw Error('Latest draft output');return true})()`));
  assert(await host.evaluate(`(async()=>{const f=sliderPending;f.releases.shift()();await new Promise(r=>setTimeout(r,100));if(f.writes.length!==2||f.writes[1].edit.value!==f.latest||Number(f.input.value)!==f.latest)throw Error('Older completion replayed intermediate positions');f.releases.shift()();await new Promise(r=>setTimeout(r,180));if(f.writes.length!==2||Number(f.input.value)!==f.latest||document.activeElement!==f.input)throw Error('Final value/focus/backlog');if(f.ui.props.activePath!=='A.md'||f.ui.container.querySelector('[data-kplex-path="A.md"]')!==f.center||f.ui.container.querySelector('.kplex-camera').style.transform!==f.camera)throw Error('Layout retargeted note/camera');if(f.work.body!==f.before.body||f.work.scans!==f.before.scans||f.work.acquisitions!==f.before.acquisitions)throw Error('Slider acquired source work');return true})()`));
  }finally{await host.evaluate('window.sliderPending?.close();delete window.sliderPending;');await host.cleanup()}
+});
+
+/** A dense hub must paint only routes to intersecting scroll rows, while its full constructed
+ * scene remains available to Find, scrolling and Markdown export. Visible motion stays bounded. */
+test('dense Compass clips hidden leaf routes and bounds navigation animation to painted rows',async()=>{
+ const host=await chromiumHarness(output.outputFiles[0].text+';window.sourceModules=sourceModules;');
+ try{assert(await host.evaluate(`(async()=>{${canvasSceneFixture}
+ const children=Array.from({length:300},(_,i)=>'Synthetic '+String(i).padStart(3,'0')+'.md');
+ for(const path of children)pages.set(path,{...pages.get('C.md'),path,name:path,file:{...pages.get('C.md').file,path}});
+ Object.assign(settings,{childMaxHeight:140,maxItemCount:300,showCrossLinks:false,animationSpeed:.25});
+ index.neighbours=(page,role)=>(page.path==='A.md'&&role==='child'?children:[]).map(path=>({page:pages.get(path),role,relationType:1,linkDirection:1}));
+ index.getNeighborhood=path=>({center:pages.get(path),parents:[],children:index.neighbours(pages.get(path),'child'),leftFriends:[],rightFriends:[],siblings:[]});
+ const ui=await mount(M.builtInPlexViews.resolve('classic')),root=ui.container.querySelector('.kplex-plex'),camera=root.querySelector('.kplex-camera'),scroll=root.querySelector('.kplex-zone-scroll');
+ const cards=[...scroll.querySelectorAll('.kplex-thought')];check(cards.length===300,'Full constructed content is retained');
+ const verify=()=>{const r=scroll.getBoundingClientRect(),visible=cards.filter(card=>{const b=card.getBoundingClientRect();return b.right>r.left&&b.left<r.right&&b.bottom>r.top&&b.top<r.bottom}),expected=visible.map(card=>'child:'+card.dataset.kplexPath+':'+children.indexOf(card.dataset.kplexPath)).sort(),actual=[...root.querySelectorAll('.kplex-edge-hit')].map(edge=>edge.dataset.kplexEdgeId).sort();
+ check(JSON.stringify(actual)===JSON.stringify(expected),'Only physically intersecting leaf rows receive routes: '+actual.length+' versus '+expected.length);check(actual.length>0&&actual.length<300,'Dense scene does not paint every admitted route');return visible};
+ // Finish individual arrival effects before comparing their final measured positions with canonical gate paint.
+ check(!camera.getAnimations().some(animation=>animation.effect?.target===camera),'Unbounded camera has no opacity animation');
+ const moving=cards.filter(card=>card.getAnimations().length);check(moving.length<cards.length/4,'Clipped cards do not acquire animation layers');
+ check(getComputedStyle(root).animationName==='kplex-scene-arrive','Scene fade belongs to the bounded canvas');
+ for(const animation of root.getAnimations({subtree:true}))animation.finish();await wait();verify();
+ for(const value of[(scroll.scrollHeight-scroll.clientHeight)/2,scroll.scrollHeight,0]){scroll.scrollTop=value;scroll.dispatchEvent(new Event('scroll',{bubbles:true}));await wait();verify();}
+ check(root.querySelectorAll('.kplex-zone-content .kplex-thought').length===300&&work.body===0&&work.scans===0,'Clipping changes paint, not source work or constructed rows');
+ ui.close();plugin.actionManager.dispose();style.remove();return true})()`));}finally{await host.cleanup()}
 });

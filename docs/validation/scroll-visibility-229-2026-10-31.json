@@ -1,0 +1,84 @@
+{
+  "name": "scroll-visibility-229",
+  "status": "passed",
+  "node": "v22.22.2",
+  "obsidian": "1.15.0 (installer 1.14.0)",
+  "artifacts": {
+    "main.js": "688868979942343498a55f58260203b4af7139586b31df2ff9bb4108465a24ad",
+    "manifest.json": "2822c38463c03ace4f017453679572d462534ce2a9c9558fd7593f259b01bfa1",
+    "styles.css": "e51ed87e25a5abac4ad8883c9543d8c2b43d4698401b98920919178fa8da8dcd"
+  },
+  "source": {
+    "src/index/GraphBuilder.ts": "b4ff3bc6298c1d30c58aa15a47d2636b8e32a33f1ff4c225ce2848534567cab8",
+    "src/index/GraphIndex.ts": "ffa6d9214058a4c198d5d64981542b54087e168635885beac9a3f2c08a4fcd2c",
+    "src/core/graph/compiler.ts": "ee403bd86870137e7ea769dfb5c5c7cfa27e08ad768b1815bef47eab9732bd4f",
+    "src/ui/PlexGraph.tsx": "daca6c3b934d509f9900f80f201cd984cbf7f1b5ac9549f15a06f54720de7883",
+    "src/ui/plexViews/areaVisibility.ts": "0a84e1c94c787c88f6773f46b0fe681f3142a9ba1a6dc61fe2eaa85d3164c0d1"
+  },
+  "result": {
+    "cases": [
+      {
+        "id": "bounded-native-scene-and-row-animation",
+        "constructed": 60,
+        "moving": 10
+      },
+      {
+        "id": "native-scroll-route-identity",
+        "visibleCounts": [
+          10,
+          10,
+          10,
+          10
+        ]
+      },
+      {
+        "id": "native-card-pixels",
+        "samples": [
+          {
+            "expected": [
+              255,
+              0,
+              255
+            ],
+            "actual": [
+              255,
+              0,
+              255
+            ]
+          },
+          {
+            "expected": [
+              255,
+              0,
+              255
+            ],
+            "actual": [
+              255,
+              0,
+              255
+            ]
+          },
+          {
+            "expected": [
+              255,
+              0,
+              255
+            ],
+            "actual": [
+              255,
+              0,
+              255
+            ]
+          }
+        ],
+        "hidden": false,
+        "occludedDiagnostic": true,
+        "previousBackgroundThrottling": true
+      }
+    ],
+    "limitations": "Synthetic native fixture. Occluded diagnostic temporarily disables and restores background throttling for functional pixels only; no foreground/performance claim. Original stale frame was repaired by window exposure; exact original trigger and other platforms remain separate."
+  },
+  "cleanup": "passed",
+  "startedAt": "2026-10-31T09:39:40.132Z",
+  "completedAt": "2026-10-31T09:39:43.450Z"
+}

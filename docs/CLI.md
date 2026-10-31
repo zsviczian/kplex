@@ -52,7 +52,8 @@ Inspect `value.markdown`, `value.warnings`, `value.canvasId` and `value.canvasRe
 ID identifies one visual branch, including when the same note appears more than once. Offscreen
 constructed rows remain eligible; current filters and folds constrain scope. An API output limit
 can reject a large export. `capabilities()` advertises Mind Map Markdown through merged PR #237;
-image export remains unavailable pending independent PR #238.
+image export through the API remains unavailable. Merged PR #238 supplies native PNG controls;
+this version does not expose those controls through the API.
 
 For strict export, pass `requireComplete:true` in the same options object. Incomplete indexed
 coverage or omitted/partial formatter content fails explicitly; intentional collapsed branches

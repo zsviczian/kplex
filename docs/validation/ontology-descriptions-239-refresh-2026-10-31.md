@@ -1,0 +1,101 @@
+# Ontology descriptions: refreshed test deployment, 31 October 2026
+
+The existing `2026-10-30-ontology-descriptions` branch now merges `main@a73545f`
+through `acafbab`. This includes the merged Markdown/PNG export work and clipped-row/dense-motion
+fix. The sole conflict was the package command list; both native command sets were retained.
+The follow-up below adds the requested description layout and factory wording to that baseline.
+
+## Description editor follow-up
+
+Both physical-field description rows now stack the native title/help above a full-width,
+vertically resizable textarea. Scoped CSS applies only to these two editor rows.
+Every factory ontology field, including aliases and excluded metadata fields, receives editable
+starter wording on a fresh installation. Inverse endpoints have independent descriptions.
+Existing settings dictionaries, missing historical dictionaries, and explicitly cleared wording
+retain their previous behavior; no migration fills or overwrites user vocabulary.
+
+Focused validation on Node 22.22.2:
+
+- Ontology configuration/presentation/input checks: 68 passed.
+- Pair/editor browser suite: 30 passed, including both widths at 660px and 290px, labels/help
+  above both editors, all factory physical names, inverse wording, detached defaults, saved
+  custom wording, explicit empty dictionaries and historical settings without descriptions.
+- The initial new defaults test referenced a non-exported test helper; corrected it to inspect
+  the production configuration projection and reran the complete 30-case editor suite.
+- Official Obsidian scanner and installed-type production build passed; `git diff --check` passed.
+- No indexing/source/schema/semantic owner changed. Expensive aggregate suites were omitted.
+
+Updated production SHA-256: `main.js`
+`bb9fd7b859ddd449d4cf6ff805d2f810b02618dfcdf4bbe9e2a862191f4fe1a5`,
+`styles.css` `0765c64003bd864c0e50bc21900cda4faa3871b5342388b0f7ee96284d03a55e`.
+The manifest remains unchanged. Physical mobile touch validation remains separate.
+
+The exact build was redeployed to the authorized reference vault using verified sibling staging,
+atomic replacement and a private backup. Installed hashes matched, the existing K-Plex pane
+rendered, enablement bytes were unchanged and every existing preference/ontology value was
+preserved. Restoring the pane updated only its normal `lastActivePath` navigation pointer.
+Native Small-vault layout measured both editors at the full 514px available width, with title
+and help above. Drafts were cancelled. An initial animation-frame wait timed out in the background
+window; synchronous layout measurement then passed and closed the owned dialogs.
+
+## Risk-based validation
+
+No indexing, storage, source-acquisition or graph-semantic owner changed from the accepted
+ontology implementation. In accordance with the current AGENTS.md risk assessment, the aggregate
+run was stopped before indexing tests and replaced with focused checks. This refresh is **not**
+reported as another full-suite pass. Prior full acceptance remains recorded in
+[the original validation report](ontology-descriptions-239-2026-10-30.md).
+
+- Node 22.22.2, Windows, Obsidian 1.14.5 / installer 1.14.5.
+- Architecture/numeric checks (9) and core checks (130) passed before the aggregate was stopped.
+- Official Obsidian scanner and actual installed-type production build passed.
+- 187 focused tests passed, zero failures/skips: ontology configuration, presentation, usage,
+  suggesters, directional captions, localization, actual editor/pair browser controls, shared
+  Markdown export, PNG export and PNG browser ownership.
+- Exact-build native description probe passed: independent paired descriptions, Cancel, Save,
+  manager display and clearing. Three accepted edits produced three writes; reads, parses,
+  acquisitions, rebuilds and semantic invalidations were zero; semantic revision stayed unchanged.
+- Actual plugin-reload probe passed with both descriptions, inverse captions and physical YAML
+  evidence preserved. Disposable-vault configuration/workspace/fixture cleanup passed.
+
+The first native description interval overlapped a queued startup rebuild. Aggregate diagnostics
+identified `startup:initial-index` / `startup:partial-restore-incomplete` work. After ready/clean
+startup was confirmed, the unchanged probe passed with zero rebuilds. No assertion or deadline
+was relaxed, and no production change was needed.
+
+## Authorized reference-vault deployment
+
+The maintainer explicitly requested personal-vault deployment. Existing artifacts, plugin data,
+enablement and workspace metadata were backed up privately outside the vault. Complete sibling
+files were staged and hash-verified while the plugin was loaded, then atomically renamed over
+changed artifacts during a short volatile disable/enable. The unchanged manifest was skipped.
+Only K-Plex's pane was restored; unrelated note/drawing panes were not recreated.
+
+The loaded instance exposes description settings and the description-aware writer. Its existing
+pane rendered successfully. Final deployment preserves plugin settings and enablement bytes
+exactly. The maintenance verifier first needed the public `WorkspaceLeaf.loadIfDeferred()`
+operation, then correctly classified the pane's normal `lastActivePath` update separately from
+preferences. Those unsuccessful attempts restored the previous artifacts; no preferences or
+ontology values were lost. The final attempt passed every preservation check.
+
+| Deployed artifact | SHA-256 |
+| --- | --- |
+| `main.js` | `2271b3a54994d72434ea25031a6e5e4da44dfabe5a5907ad5c36fe3eb0c68794` |
+| `styles.css` | `10376221de8c8a4f6ea10dc1a6e5e5beb0485fca39adf43b90352a139287b401` |
+| `manifest.json` | `2822c38463c03ace4f017453679572d462534ce2a9c9558fd7593f259b01bfa1` |
+
+Private receipts: `kplex-pr239-refresh-20261031-native-r2`,
+`kplex-pr239-refresh-20261031-reload` and the deployment backup under the user's temporary
+directory. No private settings, pane contents or workspace metadata are committed here.
+
+## Prioritized manual acceptance
+
+1. Edit distinct descriptions for an existing inverse pair; save, reopen and reload K-Plex.
+   Both values must persist independently with names, roles and relationships unchanged.
+2. Cancel an edit, then clear one description using keyboard-accessible controls. Cancel must
+   preserve the saved value; clearing one side must preserve its partner.
+3. Check descriptions in inline-property completion and relationship pickers, including a popout.
+   Wording and pair names must remain readable; description-only saves must not restart indexing
+   after the index is ready. Physical mobile and actual two-device Sync remain separate checks.
+
+PR #239 remains draft and unmerged. Test #240 afterward against the same accepted main baseline.

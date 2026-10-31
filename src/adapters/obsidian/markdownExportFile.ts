@@ -5,15 +5,13 @@
  * Desktop completion means handoff, not a claim that the user completed the save.
  */
 import type {App} from "obsidian";
+import {artifactFilename} from "../../core/plex/export/artifactFilename";
 
 type NativeTextExportAdapter = App["vault"]["adapter"] & {exportTextFile?: (text: string, filename: string) => Promise<void>};
 
 /** Accept a filename only; the native system UI owns destination selection and overwrite confirmation. */
 export function markdownExportFilename(raw: string): string | null {
-  const value = raw.trim();
-  if (!value || value.length > 200 || value === "." || value === ".." || /[\\/:*?"<>|#[\]]/.test(value)
-    || Array.from(value).some(/** Reject native control characters without a regex control range. */ char => char.charCodeAt(0) < 32)) return null;
-  return /\.md$/i.test(value) ? value : `${value}.md`;
+  return artifactFilename(raw, "md");
 }
 
 /** Feature-detect the reviewed host capability instead of inventing a platform filesystem fallback. */
