@@ -3,6 +3,7 @@
  * records bounded badge/scene DOM mutations during real Vault or native-editor saves, then checks
  * genuine link edits. Diagnostic attribution is opt-in and bounded. The shared driver verifies the
  * selected disposable vault and exact installed artifact, and checks exact configuration cleanup.
+ * Retire owned editor/canvas demand and restore prior navigation before deleting fixture documents.
  */
 import { readFileSync } from 'node:fs';
 import { join, relative } from 'node:path';
@@ -153,12 +154,20 @@ async function scenario(app, c) {
     /** Continue independent restoration after any functional or cleanup failure. */
     const clean = async work => { try { await work(); } catch (error) { failures.push(String(error)); } };
     observer?.disconnect(); for (const release of releases.reverse()) release();
+    await clean(/** A live native editor may still own its fixture's save/metadata lifecycle. */ async () => {
+      if (leaf && p.sidecarLeaves.has(leaf)) await p.closeSidecar(leaf, false);
+    });
+    await clean(() => leaf?.detach());
+    await clean(/** Deleted fixture paths cannot remain the active requested semantic scope during cleanup. */ () => {
+      const originalPath = JSON.parse(c.originalData).lastActivePath;
+      if (originalPath) p.notifyNavigation(originalPath);
+      else p.settings.lastActivePath = null;
+    });
     for (const file of owned.reverse()) await clean(async () => {
       check(app.vault.getFileByPath(file.path) === file && file.path.startsWith(prefix), 'Owned note identity changed');
       await app.vault.delete(file);
     });
     await clean(() => until(settled, 'Cleanup indexing not settled'));
-    await clean(() => leaf?.detach());
     await clean(() => app.plugins.disablePlugin('k-plex'));
     await clean(() => app.workspace.changeLayout(layout));
     await clean(() => app.vault.adapter.write(c.configRelative + '/plugins/k-plex/data.json', c.originalData));

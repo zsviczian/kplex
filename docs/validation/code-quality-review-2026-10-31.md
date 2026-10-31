@@ -15,13 +15,14 @@ The repository-wide audit inventoried 433 TypeScript/TSX files (103,358 lines), 
 - Remove one write-only ontology control reference and avoid retaining an unused materialization-location constructor property. Constructor arguments and initialization behavior are preserved.
 - Register four previously omitted portable diagnostic suites in the normal test lane: storage comparison plans, owned IndexedDB filesystem inventory, offline checkpoint codec and consumer probe contracts (27 cases). Historical PR207 variant suites remain separate because they require exact old Git objects rather than the current production implementation.
 - Correct a stale scene-admission test inherited from accepted main: PNG is now supported by the native format owner. Preserve the rejection matrix with a missing-file case and add positive PNG/MP4 and negative ZIP scene contracts, including exact occurrence, canonical identity and unchanged attention.
+- Correct native gate-probe cleanup: close its owned Sidecar, release its canvas demand and restore prior navigation before deleting fixture documents. Three portable contracts exercise the actual finalizer, including close failure and an originally empty navigation pointer. Production readiness predicates and native deadlines remain unchanged.
 
 ## Findings retained deliberately
 
 | Finding | Assessment |
 | --- | --- |
 | Large `GraphIndex`, plugin composition root and view modules | Maintenance risk remains, but extracting coordinators or retiring facades would resume the paused structural refactor. No broad extraction in this cleanup. |
-| Apparently unused indexing helpers/fields | `semanticSourceSignature`, `rebuildQueued`, `restoredVaultSignature`, old snapshot helpers and the requested-order reader have characterization, compatibility or native diagnostic consumers. Unused-local output alone is insufficient removal evidence. |
+| Apparently unused indexing helpers/fields | Several are read by characterization or native diagnostics (`semanticSourceSignature`, `rebuildQueued`, `restoredVaultSignature`, requested-order reader). The unused private legacy snapshot reader and its helper family need a scoped cache-format retirement review. Unused-local output alone is insufficient removal evidence. |
 | Similar source-reference/host-identity helpers | Small exact duplicates occur across current and retained source collectors. Consolidation would cross semantic/compatibility boundaries for little benefit; preserve existing owners. |
 | Dynamic CSS role names | Literal class searches miss generated role/surface names. Preserve those selectors. No wholesale CSS deduplication or theme/cascade rewrite. |
 | Algorithmic and semantic concerns | No confirmed semantic bug or non-polynomial algorithm was identified in the traced critical paths. Large-vault work and retained legacy implementations warrant separate measured investigation; no speculative indexing change is made. |
@@ -37,10 +38,12 @@ Required runtime: Node 22.22.2; actual installed Obsidian types are used by the 
 | Newly registered diagnostic cases | 27 passed |
 | Editor/scene contracts after stale fixture correction | 51 passed |
 | Ontology modal browser contracts after private-field lookup removal | 30 passed |
-| Initial real production build | Passed; final build remains part of full verification |
-| Initial full official Obsidian scanner | Passed; final scan remains part of full verification |
-| Full `npm run verify` | Attempt 1: 1,825 main passed, stale media assertion failed. Attempt 2: all 1,827 main passed; 451 browser passed, private-control test lookup failed. Final uninterrupted rerun pending. |
-| Exact-build native hydration, gate counts and live updates | Pending |
+| Native cleanup/event harness contracts | 11 passed, including three added finalizer cases |
+| Real production build and official Obsidian scanner | Passed in final uninterrupted verification |
+| Full `npm run verify` at production checkpoint `d79f0f7` | Passed: release, architecture 9, core 132, main 1,827, browser 452, sources 357, real IndexedDB 856, production build |
+| Native hydration | Passed: 739 pages / 2,111 declarations, ordered oracle parity, zero added body reads/parses, cancellation and late-publication rejection; cleanup passed |
+| Native editor save/gate continuity | Passed: three prose saves, zero badge/scene mutations, real link remove/add publication; cleanup passed |
+| Native filtered gates and foreground live updates | Pending |
 | Final-head CI | Pending |
 
 New browser assertions cover pressed-state updates, native clipboard event ownership, exact finite-choice ordering, declared-versus-derived role vocabulary, caller-owned note types and return to free text. Existing indexing, durability, supersession, hydration, relation precedence and gate-count tests remain intact, with unchanged deadlines and assertions.
@@ -48,6 +51,8 @@ New browser assertions cover pressed-state updates, native clipboard event owner
 The first full attempt stopped in the main lane before browser/source/IndexedDB lanes. Its failing test and editor-admission implementation were byte-identical to `main@ec3c07d`; the cleanup had not touched either. Current main's native format-policy test already explicitly accepts PNG/MP4 and rejects ZIP. The scene contract now follows that accepted ownership boundary while retaining missing/hidden/recreated/mismatched/native-refused rejection coverage. The obsolete media expectation changed; no production guard or test deadline changed.
 
 The second attempt exposed a missed test consumer of the removed write-only `descriptionControl` field. The caret test now queries both mounted textareas by their existing accessible labels instead of retaining an unused production field solely for inspection. Every focus/caret, partner-switch, independent-draft and saved-output assertion is unchanged; all 30 ontology modal browser cases pass. Production behavior was not adjusted for this correction.
+
+Native preflight first rejected a relative configuration path, then a reloaded session with no visible canvas/readiness. Neither is counted as acceptance. A retained, normally opened Small session supplied the required readiness. Two gate-probe attempts passed functional assertions but failed cleanup: closing its native editor alone left semantic demand/navigation pointing at retired fixture documents. Passive inspection showed no active source work but pending semantic preparation. Releasing owned UI and restoring prior navigation before deletion fixed that test-resource ordering; the final native run and independent restoration passed with unchanged assertions/deadlines. The harness-only follow-up happened after full verification; its 11 focused contracts pass and final PR CI covers the complete tree.
 
 Native validation uses only the existing disposable Small vault, explicit target/configuration checks, exact artifact hashes and existing serial drivers. Record actual results and restoration before delivery. No production vault deployment is authorized or performed.
 
