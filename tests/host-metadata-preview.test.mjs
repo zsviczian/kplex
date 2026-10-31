@@ -43,7 +43,7 @@ function fixture(options = {}) {
   cache.get(centerPath).frontmatter = Object.fromEntries(["Parent", "Child", "Left", "Right", "Previous", "Next", "Hidden"].map(name => [name, `[[${name}]]`]));
   cache.get(centerPath).tags = [{ tag: "#project/nested" }];
   const app = { vault: { getRoot: () => root, getFolderByPath: path => path === folder.path ? folder : path === root.path ? root : null,
-    getFileByPath: path => files.get(path) ?? null, read: () => { throw new Error("body reads forbidden"); }, cachedRead: () => { throw new Error("body reads forbidden"); } }, metadataCache: { resolvedLinks, unresolvedLinks: {}, getFileCache: file => cache.get(file.path) ?? null, getFirstLinkpathDest: path => files.get(path) ?? files.get(`Notes/${path}`) ?? files.get(`Notes/${path}.md`) ?? null } };
+    getFileByPath: path => files.get(path) ?? null, read: () => { throw new Error("body reads forbidden"); }, cachedRead: () => { throw new Error("body reads forbidden"); } }, metadataCache: { resolvedLinks, unresolvedLinks: {}, getFileCache: file => file.extension === "md" ? cache.get(file.path) ?? null : {}, getFirstLinkpathDest: path => files.get(path) ?? files.get(`Notes/${path}`) ?? files.get(`Notes/${path}.md`) ?? null } };
   let yields = 0;
   const preview = new HostMetadataPreview(app, () => options.settings ?? settings, { now: () => 0, yield: async () => { yields++; await options.onYield?.(); }, isCurrent: () => options.isCurrent?.() ?? true, sliceBudgetMs: 7, resolverBatchSize: 96 });
   return { preview, app, files, cache, centerPath, yields: () => yields };
@@ -1103,5 +1103,91 @@ test('native candidate overscan rejects a visible limit decrease while a chunk i
   try {
     assert.equal(await f.preview.build('folder:Notes', {folderCandidateLimit: 101}), null);
     assert(changed, 'A real cooperative chunk observes the setting change');
+  } finally {f.preview.dispose();}
+});
+
+
+/** Mirror Obsidian’s fresh empty non-Markdown cache objects without reading binary bodies. */
+function attachmentFixture(extension = 'pdf') {
+  const f = fixture(), folder = f.files.get(f.centerPath).parent;
+  const attachment = new TFile('Notes/Manual.' + extension, folder);f.files.set(attachment.path, attachment);
+  const owners = Array.from({length:18},(_,i)=>{
+    const file = new TFile('Notes/Reader-' + i + '.md',folder);f.files.set(file.path,file);
+    f.cache.set(file.path,{frontmatter:{},tags:[],embeds:i===0?[{link:attachment.name}]:[]});
+    f.app.metadataCache.resolvedLinks[file.path] = {[attachment.path]:i===0?2:1};return file;
+  });
+  return {...f,attachment,owners};
+}
+
+for (const extension of ['pdf','png']) for (const completeHostCover of [false,true]) test('native fresh attachment metadata preserves inbound links ('+extension+', complete '+completeHostCover+')',async()=>{
+  const f = attachmentFixture(extension), bodyRequests=[];
+  try {
+    assert.notEqual(f.app.metadataCache.getFileCache(f.attachment),f.app.metadataCache.getFileCache(f.attachment),'Fixture reproduces Obsidian’s unstable attachment cache identity');
+    const result=await f.preview.build(f.attachment.path,{completeHostCover,bodyForPath:async path=>{
+      assert.notEqual(path,f.attachment.path,'Binary attachments never request Markdown parsing');bodyRequests.push(path);return undefined;
+    }});
+    assert(result,'Attachment preview publishes before global source authority');
+    const page=result.state.pages.get(f.attachment.path);assert.equal(page.file,f.attachment);
+    assert.deepEqual([...page.neighbours.keys()].filter(path=>path.endsWith('.md')).sort(),f.owners.map(file=>file.path).sort());
+    for(const owner of f.owners)assert.equal(classifyRelation(page.neighbours.get(owner.path),'parent',false),2,'Inbound body/embed link uses canonical parent inference');
+    assert.equal(bodyRequests.length,18,'Only Markdown contributors enter the optional body provider');
+  } finally {f.preview.dispose();}
+});
+
+for (const completeHostCover of [false,true]) test('Markdown centers retain relations to fresh-cache PDF and image attachments (complete '+completeHostCover+')',async()=>{
+  const f=attachmentFixture(),center=f.owners[0],image=new TFile('Notes/Image.png',f.attachment.parent),bodyRequests=[];
+  f.files.set(image.path,image);
+  f.app.metadataCache.resolvedLinks[center.path][image.path]=1;
+  try {
+    const result=await f.preview.build(center.path,{completeHostCover,bodyForPath:async path=>{bodyRequests.push(path);return undefined;}});
+    assert(result,'Markdown preview survives attachment metadata lookups');
+    const page=result.state.pages.get(center.path);
+    for(const file of [f.attachment,image]){
+      assert.equal(page.neighbours.get(file.path)?.target.file,file);
+      assert.equal(classifyRelation(page.neighbours.get(file.path),'child',false),2);
+      assert(!bodyRequests.includes(file.path),'No binary body reaches the Markdown provider');
+    }
+  } finally {f.preview.dispose();}
+});
+
+/** Exercise the real numerical publisher and repeat its revalidation, not merely the adapter. */
+for(const indexingMode of ['eager','on-demand']) for(const centerKind of ['attachment','markdown']) test('numeric gates survive attachment metadata revalidation ('+indexingMode+', '+centerKind+')',async()=>{
+  const f=attachmentFixture(),previousWindow=globalThis.window,centerPath=centerKind==='attachment'?f.attachment.path:f.owners[0].path;
+  globalThis.window={performance,setTimeout,clearTimeout,setInterval,clearInterval};
+  Object.assign(f.app.vault,{getName:()=> 'attachment-count-regression',getFiles:()=>[...f.files.values()]});
+  f.app.saveLocalStorage=()=>{};
+  const index=new GraphIndex({app:f.app,settings:{...settings,indexingMode,lastActivePath:centerPath,pinnedNodes:[],excludeFilepaths:[],
+    nameFields:'aliases',renderAlias:false,showInferredNodes:true,showAttachments:true,showPageNodes:true,showFolderNodes:false,showTagNodes:false,showVirtualNodes:true},getIndexSourceRevision:()=>0},f.app);
+  const forbidden=()=>{throw Error('Count-only work must not read bodies, sources or rebuild');};
+  index.indexedDb.open=index.sourceAcquisition.acquire=index.sourceAcquisition.flush=index.rebuild=forbidden;
+  try {
+    for(let pass=0;pass<3;pass++){
+      const scope=await index.publishOnDemandHostScope(centerPath,()=>true);
+      assert(scope,'Shared local count scope publishes');
+      const gates=index.gateStats(scope.pages.get(centerPath));
+      assert.equal(gates[centerKind==='attachment'?'top':'bottom'].visibleCount,centerKind==='attachment'?18:1);
+      for(const gate of Object.values(gates))assert.notEqual(gate.countUnavailable,true);
+      assert.equal(index.onDemandUnavailableCounts.has(centerPath),false);
+      assert.equal(index.isSemanticWriteReady(centerPath,centerKind==='attachment'?f.owners[0].path:f.attachment.path),false,'Numerical recovery grants no edit authority');
+      // An observed native event retires proof; the same contributors must recertify normally.
+      index.hostPreview.refreshSource(f.owners[0].path);
+    }
+  } finally {index.destroy();f.preview.dispose();globalThis.window=previousWindow;}
+});
+
+for (const mutation of ['stat','replacement','rename','delete','markdown-metadata']) test('attachment covers retain native and Markdown freshness fences ('+mutation+')',async()=>{
+  const f=attachmentFixture();let changed=false;
+  try {
+    const result=await f.preview.build(f.attachment.path,{completeHostCover:true,bodyForPath:async path=>{
+      if(path!==f.owners[1].path)return undefined;
+      await Promise.resolve();changed=true;
+      if(mutation==='stat')f.attachment.stat.mtime++;
+      if(mutation==='replacement')f.files.set(f.attachment.path,new TFile(f.attachment.path,f.attachment.parent));
+      if(mutation==='rename'){f.files.delete(f.attachment.path);f.attachment.path='Notes/Renamed.pdf';f.files.set(f.attachment.path,f.attachment);}
+      if(mutation==='delete')f.files.delete(f.attachment.path);
+      if(mutation==='markdown-metadata')f.cache.set(f.owners[0].path,{frontmatter:{Hidden:'[[Manual.pdf]]'},tags:[]});
+      return undefined;
+    }});
+    assert(changed,'Mutation overlaps a real later Markdown await');assert.equal(result,null,'Retired file or real Markdown metadata cannot publish');
   } finally {f.preview.dispose();}
 });
