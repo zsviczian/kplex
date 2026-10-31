@@ -1,6 +1,7 @@
 /** Publish the trusted public API in Obsidian's main and popout windows. One plugin-owned
  * service is shared across windows; this adapter owns only aliases and workspace listeners.
- * Cleanup removes only aliases still owned by this registration and releases window references. */
+ * Main-window publication does not depend on restored workspace containers. Leaf enumeration
+ * waits for layout readiness; cleanup fences that queued callback and releases window references. */
 import type {EventRef, Workspace} from 'obsidian';
 import type {KplexPublicApi} from '../../publicApi/createPublicApi';
 
@@ -11,9 +12,10 @@ declare global {
   }
 }
 
-/** Install aliases for existing windows and future popouts without acquiring graph/source work.
- * The caller disposes this registration before retiring its API service. */
-export function publishPublicApiWindows(workspace:Workspace,api:KplexPublicApi,registerEvent:(event:EventRef)=>void):()=>void {
+/** Install aliases without acquiring graph/source work, including before Obsidian restores its layout.
+ * The caller supplies the application window and disposes this registration before retiring its API.
+ * Existing popouts are enumerated only after layout; newly opened windows use workspace events. */
+export function publishPublicApiWindows(workspace:Workspace,api:KplexPublicApi,registerEvent:(event:EventRef)=>void,mainWindow:Window=window):()=>void {
   const windows=new Map<Window,PropertyDescriptor|undefined>();
   const events:EventRef[]=[];
   let disposed=false;
@@ -44,8 +46,11 @@ export function publishPublicApiWindows(workspace:Workspace,api:KplexPublicApi,r
     events.push(workspace.on('window-open',/** Publish before consumers use a newly opened popout. */ (_container,viewWindow)=>publish(viewWindow)));
     events.push(workspace.on('window-close',/** A closed popout must not be retained by the plugin. */ (_container,viewWindow)=>release(viewWindow)));
     for(const event of events)registerEvent(event);
-    publish(workspace.rootSplit.win);
-    workspace.iterateAllLeaves(/** Include popouts already open when this plugin is enabled. */ leaf=>publish(leaf.getContainer().win));
+    publish(mainWindow);
+    workspace.onLayoutReady(/** Startup may have no root split; enumerate restored containers only when ready. */ ()=>{
+      if(disposed)return;
+      workspace.iterateAllLeaves(/** Include popouts already open when this plugin is enabled. */ leaf=>publish(leaf.getContainer().win));
+    });
     return dispose;
   }catch(error){dispose();throw error;}
 }

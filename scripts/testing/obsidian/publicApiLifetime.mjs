@@ -1,4 +1,4 @@
-/** Official-CLI API retirement/reload acceptance in the explicit disposable Small vault.
+/** Official-CLI renderer startup and API retirement/reload acceptance in disposable Small.
  * Captures only API handles and scalar observations; no note content or configuration is edited. */
 import assert from 'node:assert/strict';
 import {readFileSync,writeFileSync,mkdirSync} from 'node:fs';
@@ -21,12 +21,21 @@ const delay=ms=>new Promise(resolve=>setTimeout(resolve,ms));
 let enabled=true;
 try{
   assert.equal(resolve(cli('vault','info=path')),target.vault);report.obsidian=cli('version');
+  cli('reload');
+  let startup;const startupDeadline=Date.now()+30000;
+  do{
+    await delay(100);
+    try{startup=evaluate('JSON.stringify({layoutReady:app.workspace.layoutReady,loaded:!!app.plugins.plugins["k-plex"],version:window.kplexApi?.version,ontology:window.kplexApi?.v1.ontology().ok})');}
+    catch(error){startup={error:String(error)};}
+  }while(!(startup.layoutReady&&startup.loaded&&startup.ontology)&&Date.now()<startupDeadline);
+  assert(startup.layoutReady&&startup.loaded&&startup.ontology,JSON.stringify(startup));assert.equal(startup.version,1);
+  report.cases.push('native vault renderer reload starts the plugin and publishes the API through workspace restoration');
   assert(evaluate('(()=>{if(window.kplex240OldApi)throw Error("Existing API lifetime probe");window.kplex240Popout=app.workspace.getLeaf("window");window.kplex240OldApi=window.kplexApi.v1;return JSON.stringify({available:window.kplex240OldApi.ontology().ok&&window.kplex240Popout.getContainer().win.kplexApi===window.kplexApi})})()').available);
-  cli('plugin:disable','id=k-plex');enabled=false;await delay(500);
+  evaluate('(async()=>{await app.plugins.disablePlugin("k-plex");return JSON.stringify({disabled:!app.plugins.plugins["k-plex"]})})()');enabled=false;await delay(500);
   const retired=evaluate('JSON.stringify({status:window.kplex240OldApi.status(),ontology:window.kplex240OldApi.ontology(),query:window.kplex240OldApi.query({query:"{status{phase}}"}),configuration:window.kplex240OldApi.configuration.list(),globalRemoved:!Object.hasOwn(window,"kplexApi")&&!Object.hasOwn(window.kplex240Popout.getContainer().win,"kplexApi"),portsReleased:window.kplex240OldApi.ports===null})');
   for(const name of ['status','ontology','query','configuration'])assert.equal(retired[name].error?.code,'API_UNAVAILABLE',name);
   assert(retired.globalRemoved);assert(retired.portsReleased);report.cases.push('retained API and configuration handles reject after unload and release host ports');
-  cli('plugin:enable','id=k-plex');enabled=true;
+  evaluate('(async()=>{await app.plugins.enablePlugin("k-plex");return JSON.stringify({enabled:!!app.plugins.plugins["k-plex"]})})()');enabled=true;
   let restored;const deadline=Date.now()+30000;
   do{await delay(100);restored=evaluate('JSON.stringify((()=>{const root=window.kplexApi;return {same:root===app.plugins.plugins["k-plex"]?.api&&root===window.kplex240Popout.getContainer().win.kplexApi,version:root?.version,fresh:root?.v1!==window.kplex240OldApi,ontology:root?.v1.ontology(),old:window.kplex240OldApi.status()}})())');}while(!restored.ontology?.ok&&Date.now()<deadline);
   assert(restored.same);assert.equal(restored.version,1);assert(restored.fresh&&restored.ontology.ok);assert.equal(restored.old.error?.code,'API_UNAVAILABLE');
@@ -37,7 +46,7 @@ try{
 finally{
   try{
     evaluate('window.kplex240Popout?.detach();delete window.kplex240Popout;delete window.kplex240OldApi;JSON.stringify({clean:true})');
-    if(!enabled)cli('plugin:enable','id=k-plex');await delay(2000);
+    if(!enabled)evaluate('(async()=>{await app.plugins.enablePlugin("k-plex");return JSON.stringify({enabled:!!app.plugins.plugins["k-plex"]})})()');await delay(2000);
     assert(readFileSync(join(target.pluginDir,'data.json')).equals(originalData),'Settings bytes');
     assert(readFileSync(join(target.config,'community-plugins.json')).equals(originalEnabled),'Enablement bytes');report.cleanup='passed';
   }catch(error){report.cleanupError=String(error);report.status='failed';process.exitCode=1;}

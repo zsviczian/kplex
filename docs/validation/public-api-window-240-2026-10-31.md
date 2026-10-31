@@ -59,3 +59,51 @@ repeat enable with a popout already open, close it, reload, then migrate a canva
 macOS and minimum Obsidian 1.13. On physical mobile, check main-window availability
 and plugin disable/re-enable. No touch UI, paint or performance claim is made.
 PR #240 remains draft and unmerged.
+
+## Startup regression correction
+
+The initial checkpoint above covered enabling the plugin after layout readiness. The
+reported `Cannot read properties of null (reading 'win')` exposed a missing startup
+case: Obsidian can leave `workspace.rootSplit` null during plugin `onload`, despite
+its installed declaration being non-nullable. Two new tests reproduced that exact
+failure before the fix.
+
+The adapter now publishes directly to the application window and waits for
+`workspace.onLayoutReady` before traversing existing leaves. Window-open/close
+listeners remain registered immediately. The queued readiness callback checks
+disposal, so unloading before workspace restoration cannot republish retired aliases.
+No index, source, storage or semantic owner changed.
+
+Validation after the correction, Node 22.22.2 / Windows / Obsidian 1.14.5:
+
+- **47 focused API tests passed**, including pre-layout null-root startup and unload
+  before the queued layout callback.
+- Production build, official Obsidian scanner and architecture checks passed
+  (**9 architecture/numeric tests**, zero violations).
+- **4 native lifecycle cases passed**, now including a full Small-vault renderer
+  reload through workspace restoration, followed by temporary plugin unload/reload,
+  existing-popout publication and native popout-close cleanup.
+- All **9 native API scenarios passed** again, with all six passive source/index
+  work counters zero. Native settings and enablement cleanup passed byte-for-byte.
+- The first renderer-reload run passed all four behavior cases but failed the saved
+  enablement cleanup assertion: CLI disable/enable removed K-Plex from the saved
+  plugin list. The original list was restored exactly. The probe now uses the existing
+  temporary plugin lifecycle methods, preserving that list; the rerun passed cleanup.
+
+Corrected `main.js` SHA-256:
+`541e9ed8a75b8a015d27ae2398077fd49ada2d7b7027fdcfe8fc785af9a101f9`.
+Styles and manifest hashes above are unchanged. The corrected build was installed
+only in Small. Private reports under `%TEMP%`:
+
+- `kplex-pr240-global-api-startup-fix-20261031/public-api-lifetime-240.json`
+  preserves the initial cleanup failure.
+- `kplex-pr240-global-api-startup-fix-r2-20261031/public-api-lifetime-240.json`
+  records the passing startup/lifecycle/cleanup rerun.
+- `kplex-pr240-global-api-startup-native-20261031/public-api-240.json`
+  records the passing API scenarios.
+
+Aggregate indexing suites were intentionally omitted because this correction only
+changes alias publication timing. This is actual renderer-startup evidence, not a
+whole-process/operating-system cold-start or physical mobile result. Repeat startup
+with saved popouts on macOS and minimum Obsidian 1.13; on physical mobile, verify
+initial API availability and disable/re-enable cleanup.
