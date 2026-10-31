@@ -130,6 +130,8 @@ import { fileRevealMenuState, revealFile } from "../adapters/obsidian/fileReveal
 import {exportRelationshipOntology} from "../core/plex/relationshipOntology";
 import type {MarkdownOntology} from "../core/plex/export/mindMapMarkdown";
 import {captureMindMapMarkdown} from "./export/captureMindMapMarkdown";
+import {exportMindMapMarkdown, MIND_MAP_MARKDOWN_LIMITS} from '../core/plex/export/mindMapMarkdown';
+import {PublicApiError} from '../application/publicApiContracts';
 import {MindMapMarkdownModal} from "./export/MindMapMarkdownModal";
 import {CanvasImageExportModal} from "./export/CanvasImageExportModal";
 import { surfaceAction } from "./surfaceActionImplementation";
@@ -138,6 +140,7 @@ import { SavedRelationshipPendingError } from "../adapters/obsidian/relationship
 import { captureSurfaceContinuation } from "./surfaceContinuation";
 import { ActionTargetPicker, type ActionPickerItem, type ActionPickerEvent } from "./ActionTargetPicker";
 import type { GraphActionPorts, SurfaceActionImplementations } from "./usePlexActions";
+import {readPublicCanvasScene, publicCanvasSelection, type PublicScenePublication} from './publicCanvasScene';
 import { hasClickModifier } from "./components/modifierClick";
 
 type Point = { x: number; y: number };
@@ -716,7 +719,7 @@ function EdgeLabel({label,midpoint,style,background,opacity}:{label:string|null;
 }
 
 /** Compose the deterministic Plex scene; native-follow layouts land immediately while explicit navigation retains motion and central Open uses a main tab. */
-export function PlexGraph({ viewDefinition = classicViewDefinition, viewSession, viewContributions, viewRevision = 0, plugin, index, settings: viewSettings, paintSettings, paintLenses, surface, hostLeaf, predicate, lenses, filterLayoutMode, predicateRevision, showCrossLinks, activePath, navigationOrigin = "user", onSemanticDemandAcquired, renderRevision, semanticRevision, findFocusRequest, footprintsControl, onExportBreadcrumbs, hasBreadcrumbs, areaSettingsMode, onAreaSettingsModeChange, onApplyFindFilter, appliedFindFilterQuery, onClearFindFilter, onActivate, onWanderActivate, onOpen, onOpenInSidecar, onCentralNodeEditorChange, onCentralNodeModeChange, actionPorts, actionSurfaceId, displayState, fullscreenAvailable, sidecarOpen }: {
+export function PlexGraph({ viewDefinition = classicViewDefinition, viewSession, viewContributions, viewRevision = 0, plugin, index, settings: viewSettings, paintSettings, paintLenses, surface, hostLeaf, predicate, lenses, filterLayoutMode, predicateRevision, showCrossLinks, activePath, navigationOrigin = "user", onSemanticDemandAcquired, renderRevision, semanticRevision, findFocusRequest, footprintsControl, onExportBreadcrumbs, hasBreadcrumbs, areaSettingsMode, onAreaSettingsModeChange, onApplyFindFilter, appliedFindFilterQuery, onClearFindFilter, onActivate, onWanderActivate, onOpen, onOpenInSidecar, onCentralNodeEditorChange, onCentralNodeModeChange, actionPorts, actionSurfaceId, displayState, fullscreenAvailable, sidecarOpen, publicScene, publicFrame }: {
   viewDefinition?: PlexViewDefinition;
   viewSession?: PlexViewSession;
   viewContributions?: CanvasViewContributionController;
@@ -758,6 +761,9 @@ export function PlexGraph({ viewDefinition = classicViewDefinition, viewSession,
   displayState: KplexDisplayModeState;
   fullscreenAvailable: boolean;
   sidecarOpen: boolean;
+  /** Only the public adapter consumes this lazy, post-commit scene capability. */
+  publicScene?: RefObject<PublicScenePublication|null>;
+  publicFrame?: Readonly<{source:number;configuration:number}>;
 }) {
   const translate = plugin.translator;
   const classic = plexViewContributionFor(viewDefinition);
@@ -1276,6 +1282,10 @@ export function PlexGraph({ viewDefinition = classicViewDefinition, viewSession,
   const cameraFrameWindow = useRef<Window | null>(null);
   const zoneScrollRefs = useRef<Partial<Record<ScrollZone, HTMLDivElement>>>({});
   const camera = useRef({ x: 0, y: 0, scale: 1 });
+  const committedCamera = useRef({...camera.current});
+  const cameraFlushRevision = useRef(0);
+  const cameraAtRender = {...camera.current}, cameraFlushAtRender = cameraFlushRevision.current;
+  const publishPublicScene = useRef<()=>void>(/** No API frame exists before the first committed scene. */ ()=>{});
   const cameraIntentPlaced = useRef(false);
   const previousCameraViewport = useRef<{width: number; height: number} | null>(null);
   const automaticFit = useRef<{ path: string; camera: FitCamera } | null>(null);
@@ -1687,6 +1697,8 @@ export function PlexGraph({ viewDefinition = classicViewDefinition, viewSession,
     const element = cameraElement.current;
     const current = camera.current;
     if (element) element.style.transform = `translate(${current.x}px, ${current.y}px) scale(${current.scale})`;
+    committedCamera.current={...current};cameraFlushRevision.current++;
+    publishPublicScene.current();
     cameraWritePending.current = false;
     syncCentralEditorOverlay();
     if (compassSync.current()) requestCameraFrame();
@@ -3050,6 +3062,109 @@ export function PlexGraph({ viewDefinition = classicViewDefinition, viewSession,
   const actionEdges = useMemo(/** Visible extra canonical links share the existing evidence/action owner; decorations remain excluded by each action gate. */ () =>
     [...scene.edges, ...visibleEdges.filter(edge => edge.isCrossLink && !scene.edges.some(existing => existing.id === edge.id))], [scene.edges, visibleEdges]);
 
+  /** Native preview and public export share the merged exporter's exact filter/geometry capture.
+   * This detaches the existing scene only; neither caller classifies, lays out or reads notes. */
+  const captureCurrentMindMapMarkdown=()=>{
+    const extraNodes: PositionedNode[] = [], extraEdges: PositionedEdge[] = [];
+    const extraPositions = new Map<string, {x: number; y: number}>(), extraPainted = new Map(expandedConnectors.map(connector => [connector.key, connector]));
+    for (const cluster of expandedClusters) for (const child of cluster.children) {
+      const position = {x: cluster.left + child.localX, y: cluster.top + child.localY};extraPositions.set(child.key, position);
+      extraNodes.push({...cluster.parent, ...child.relation, occurrenceId: child.key, areaId: undefined, label: child.label, style: child.style, ...position, width: child.width, height: child.height,
+        branch: {parent: occurrenceKey(cluster.parent), depth: 2, side: position.x < 0 ? -1 : 1, reference: false, expanded: true, canExpand: false, status: "ready"}});
+      const painted = extraPainted.get(child.key);
+      extraEdges.push({id: child.key, sourcePath: cluster.parent.page.path, targetPath: child.relation.page.path,
+        sourceOccurrence: occurrenceKey(cluster.parent), targetOccurrence: child.key, role: child.relation.role,
+        relationType: child.relation.relationType, typeDefinition: child.relation.typeDefinition, direction: child.relation.linkDirection,
+        style: painted?.style ?? {...paintSettings.baseLinkStyle, showLabel: false}, caption: painted?.caption});
+    }
+    const exportNodes = [...scene.nodes, ...extraNodes];
+    const included = new Set(scene.nodes.filter(/** Camera/scroll clipping does not remove constructed rows. */ node => {
+      const zone = areaForNode(node);
+      return nodeMatchesCurrentFilter(node) && (!zone || !scene.zoneViewports[zone] || zoneDisplayLayouts[zone]?.localPositions.has(occurrenceKey(node)));
+    }).map(occurrenceKey));
+    for (const node of extraNodes) included.add(occurrenceKey(node));
+    const center = scene.projection?.root ?? scene.nodes.find(node => node.role === "center")?.occurrenceId ?? scene.nodes.find(node => node.role === "center")?.page.path;
+    if (center) included.add(center);
+    const painted = new Map(paintedEdges.map(edge => [edge.id, edge]));
+    const exportEdges = [...actionEdges.map(edge => painted.get(edge.id) ?? {...edge, style: {...edge.style, showLabel: false}}), ...extraEdges];
+    const visibleLabels = new Map<string, string[]>();
+    for (const edge of exportEdges) if ((!edge.kind || edge.kind === "semantic") && edge.style.showLabel) {
+      const label = relationLabel(edge.caption ?? edge.typeDefinition);if (!label) continue;
+      const key = JSON.stringify([edgeOccurrence(edge, "source"), edgeOccurrence(edge, "target")].sort()), list = visibleLabels.get(key) ?? [];
+      list.push(label);visibleLabels.set(key, list);
+    }
+    const ontologyCache = new Map<string, MarkdownOntology>();
+    const snapshot = captureMindMapMarkdown(plugin.app, {...scene, nodes: exportNodes, edges: [...scene.edges, ...extraEdges]}, included,
+      /** Reflow positions omit only transient scroll offsets. */ node => {
+        const extra = extraPositions.get(occurrenceKey(node));if (extra) return extra;
+        const zone = areaForNode(node), panel = zone ? scene.zoneViewports[zone] : undefined;
+        const local = zone ? zoneDisplayLayouts[zone]?.localPositions.get(occurrenceKey(node)) : undefined;
+        return panel && local ? {x: panel.left + local.x, y: panel.top + local.y} : node;
+      }, {edges: exportEdges, ontology: /** Reuse Connection details' active decisions and the rendered relationship's driving definition. */ (source, target, edge) => {
+        const key = JSON.stringify([occurrenceKey(source), occurrenceKey(target)]), cached = ontologyCache.get(key);if (cached) return cached;
+        const sourcePath = edge?.explanationSourcePath ?? edge?.sourcePath ?? source.page.transient?.sourcePath ?? source.page.path;
+        const targetPath = edge?.explanationTargetPath ?? edge?.targetPath ?? target.page.transient?.sourcePath ?? target.page.path;
+        const explanation = sectionExpansion?.explanations.get(sourcePath + "\u0000" + targetPath) ?? index.explainRelationship(sourcePath, targetPath);
+        const resolved = exportRelationshipOntology(explanation, edge ? edge.typeDefinition : target.typeDefinition);
+        const primary = connectionCaption(resolved.primary, true, sourcePath, targetPath, source.page, target.page);
+        const additional = resolved.additional.map(field => connectionCaption(field, true, sourcePath, targetPath, source.page, target.page) ?? field).filter(field => field !== primary);
+        const visible = visibleLabels.get(JSON.stringify([occurrenceKey(source), occurrenceKey(target)].sort())) ?? [];
+        const result: MarkdownOntology = {primary, additional, visiblePrimary: primary && visible.includes(primary) ? primary : undefined,
+          visibleAdditional: visible.filter(label => label !== primary)};
+        ontologyCache.set(key, result);return result;
+      }});
+    return {snapshot, exportNodes};
+  };
+
+  useLayoutEffect(/** Publish only the committed scene; API reads never request a React render or recompute layout. */ ()=>{
+    const registry=plugin.publicCanvases;if(!publicScene||!registry)return;
+    if(cameraFlushRevision.current===cameraFlushAtRender)committedCamera.current={...cameraAtRender};
+    const current=viewSession?.capture()??(/** Compatibility hosts retain their existing mounted-document lifetime. */ ()=>true);
+    /** A single synchronous read maps existing render data and current passive coverage facts. */
+    const read=()=>{
+      const scope=index.viewScopeCoverage(sceneScope),revision=plugin.readPublicApiRevision();
+      const stale=semanticRevision!==revision.semantic||publicFrame?.source!==revision.source||publicFrame?.configuration!==revision.configuration;
+      const pending=Boolean(viewFailed||scene.failed||sceneTransitioning||pathChangedThisRender||scope.pending||stale);
+      const value=readPublicCanvasScene({scene,edges:actionEdges,rendered:renderedNodeMap,clusters:settings.graphDepth===2?expandedClusters:[],
+        area:areaForNode,included:nodeMatchesCurrentFilter,visible:visibleOccurrenceIds,scroll:zoneScrollTop,camera:committedCamera.current,viewport:viewportSize,
+        semanticRevision,sourceRevision:publicFrame?.source,configurationRevision:publicFrame?.configuration,pending,motion:sceneMotion.isRunning()||cameraWritePending.current,
+        coverage:{scope:scope.coverage==='unavailable'?'unknown':scope.coverage,complete:scope.complete&&!pending,pending},
+        selection:publicCanvasSelection(keyboardSelection,scene.nodes,sceneNodeKeys,settings.graphDepth===2?expandedClusters:[]),folds:scene.nodes.slice(0,2048).filter(/** Only explicit collapsed branches enter this occurrence list. */ node=>node.branch?.canExpand&&!node.branch.expanded)
+          .map(/** Preserve the exact rendered occurrence rather than a canonical-path alias. */ node=>occurrenceKey(node)),
+        filters:{layoutMode:filterLayoutMode,globalActive:globalFiltering,find:findQuery,areas:Object.fromEntries(Object.entries(zoneFilters)
+          .filter(/** Missing area filters are absent, not non-JSON undefined values. */ (entry):entry is [string,string]=>typeof entry[1]==='string'))},
+        decorationLabel:/** Authored labels remain literal; translated labels use the existing view-text owner. */ decoration=>
+          decoration.kind==='region'?decoration.label??canvasViewText({key:decoration.labelKey},translate):decoration.caption?canvasViewText(decoration.caption.label,translate):undefined});
+      const branches:Array<{occurrenceId:string;expanded:boolean}>=[],sections:string[]=[],groups:string[]=[];
+      let truncated=value.truncated,scanned=0;
+      for(const node of scene.nodes){if(++scanned>2048){truncated=true;break;}if(node.branch){const occurrenceId=occurrenceKey(node);if(occurrenceId.length>4096){truncated=true;continue;}branches.push({occurrenceId,expanded:Boolean(node.branch.expanded)});}}
+      scanned=0;for(const id of expandedSectionIds){if(++scanned>2048){truncated=true;break;}if(id.length>4096){truncated=true;continue;}sections.push(id);}
+      if(unfoldedGroups.center===sceneScope){scanned=0;for(const id of unfoldedGroups.keys){if(++scanned>2048){truncated=true;break;}if(id.length>4096){truncated=true;continue;}groups.push(id);}}
+      return {...value,truncated,foldState:{branches,sections:{expanded:sectionExpanded,expandedIds:sections},groups:{unfoldedIds:groups}}};
+    };
+    /** Public export uses the native preview's visible-ontology default and bounds capture
+     * before copying authored text; the formatter's standalone default includes hidden labels. */
+    const exportMarkdown=(subtree?:string)=>{
+      if(!current()||viewDefinition.id!=='mindmap'||viewFailed||!scene.projection?.root)throw new PublicApiError('UNSUPPORTED','This canvas has no Mind Map Markdown export.');
+      if(scene.nodes.length>MIND_MAP_MARKDOWN_LIMITS.nodes||scene.edges.length>MIND_MAP_MARKDOWN_LIMITS.links)
+        throw new PublicApiError('LIMIT_EXCEEDED','The committed Mind Map exceeds its export budget.');
+      let remaining=500_000;
+      for(const node of scene.nodes){remaining-=occurrenceKey(node).length+node.label.length+node.page.path.length+(node.branch?.parent?.length??0)+(node.typeDefinition?.length??0);if(remaining<0)throw new PublicApiError('LIMIT_EXCEEDED','Mind Map text exceeds its export budget.');}
+      for(const edge of scene.edges){remaining-=edgeOccurrence(edge,'source').length+edgeOccurrence(edge,'target').length+(edge.typeDefinition?.length??0);if(remaining<0)throw new PublicApiError('LIMIT_EXCEEDED','Mind Map links exceed their export budget.');}
+      const {snapshot}=captureCurrentMindMapMarkdown();
+      if(subtree!==undefined&&!snapshot.nodes.some(/** The shared capture, rather than a path guess, admits subtree identities. */ node=>node.id===subtree))
+        throw new PublicApiError('NOT_FOUND','The subtree occurrence is absent from this Mind Map export.');
+      return exportMindMapMarkdown(snapshot,subtree,"visible");
+    };
+    /** Imperative camera flushes advance the same scene coordinate after their DOM transform commits. */
+    const publish=()=>{if(current()&&viewport.current?.isConnected)publicScene.current={revision:registry.nextRevision(),read,exportMarkdown};};
+    publishPublicScene.current=publish;publish();
+    return /** Old camera/React generations cannot overwrite a migrated or replacement scene lease. */ ()=>{
+      if(publicScene.current?.read===read)publicScene.current=null;
+      if(publishPublicScene.current===publish)publishPublicScene.current=()=>{};
+    };
+  });
+
   useEffect(/** Scrolling/filtering/removal retires an occurrence; a later same-path row needs a new mouse entry. */ () => {
     if (crossLinkPeek && !visibleNodePaths.has(crossLinkPeek.path)) clearHoverIntent(true);
   }, [crossLinkPeek, visibleNodePaths]);
@@ -4272,54 +4387,7 @@ export function PlexGraph({ viewDefinition = classicViewDefinition, viewSession,
   const openMindMapMarkdown = (context: ActionContext): ActionOutcome => {
     const root = viewport.current;
     if (!root || viewFailed || !scene.nodes.length) return {status: "unavailable", reasonKey: "actions.target-unavailable"};
-    const extraNodes: PositionedNode[] = [], extraEdges: PositionedEdge[] = [];
-    const extraPositions = new Map<string, {x: number; y: number}>(), extraPainted = new Map(expandedConnectors.map(connector => [connector.key, connector]));
-    for (const cluster of expandedClusters) for (const child of cluster.children) {
-      const position = {x: cluster.left + child.localX, y: cluster.top + child.localY};extraPositions.set(child.key, position);
-      extraNodes.push({...cluster.parent, ...child.relation, occurrenceId: child.key, areaId: undefined, label: child.label, style: child.style, ...position, width: child.width, height: child.height,
-        branch: {parent: occurrenceKey(cluster.parent), depth: 2, side: position.x < 0 ? -1 : 1, reference: false, expanded: true, canExpand: false, status: "ready"}});
-      const painted = extraPainted.get(child.key);
-      extraEdges.push({id: child.key, sourcePath: cluster.parent.page.path, targetPath: child.relation.page.path,
-        sourceOccurrence: occurrenceKey(cluster.parent), targetOccurrence: child.key, role: child.relation.role,
-        relationType: child.relation.relationType, typeDefinition: child.relation.typeDefinition, direction: child.relation.linkDirection,
-        style: painted?.style ?? {...paintSettings.baseLinkStyle, showLabel: false}, caption: painted?.caption});
-    }
-    const exportNodes = [...scene.nodes, ...extraNodes];
-    const included = new Set(scene.nodes.filter(/** Camera/scroll clipping does not remove constructed rows. */ node => {
-      const zone = areaForNode(node);
-      return nodeMatchesCurrentFilter(node) && (!zone || !scene.zoneViewports[zone] || zoneDisplayLayouts[zone]?.localPositions.has(occurrenceKey(node)));
-    }).map(occurrenceKey));
-    for (const node of extraNodes) included.add(occurrenceKey(node));
-    const center = scene.projection?.root ?? scene.nodes.find(node => node.role === "center")?.occurrenceId ?? scene.nodes.find(node => node.role === "center")?.page.path;
-    if (center) included.add(center);
-    const painted = new Map(paintedEdges.map(edge => [edge.id, edge]));
-    const exportEdges = [...actionEdges.map(edge => painted.get(edge.id) ?? {...edge, style: {...edge.style, showLabel: false}}), ...extraEdges];
-    const visibleLabels = new Map<string, string[]>();
-    for (const edge of exportEdges) if ((!edge.kind || edge.kind === "semantic") && edge.style.showLabel) {
-      const label = relationLabel(edge.caption ?? edge.typeDefinition);if (!label) continue;
-      const key = JSON.stringify([edgeOccurrence(edge, "source"), edgeOccurrence(edge, "target")].sort()), list = visibleLabels.get(key) ?? [];
-      list.push(label);visibleLabels.set(key, list);
-    }
-    const ontologyCache = new Map<string, MarkdownOntology>();
-    const snapshot = captureMindMapMarkdown(plugin.app, {...scene, nodes: exportNodes, edges: [...scene.edges, ...extraEdges]}, included,
-      /** Reflow positions omit only transient scroll offsets. */ node => {
-        const extra = extraPositions.get(occurrenceKey(node));if (extra) return extra;
-        const zone = areaForNode(node), panel = zone ? scene.zoneViewports[zone] : undefined;
-        const local = zone ? zoneDisplayLayouts[zone]?.localPositions.get(occurrenceKey(node)) : undefined;
-        return panel && local ? {x: panel.left + local.x, y: panel.top + local.y} : node;
-      }, {edges: exportEdges, ontology: /** Reuse Connection details' active decisions and the rendered relationship's driving definition. */ (source, target, edge) => {
-        const key = JSON.stringify([occurrenceKey(source), occurrenceKey(target)]), cached = ontologyCache.get(key);if (cached) return cached;
-        const sourcePath = edge?.explanationSourcePath ?? edge?.sourcePath ?? source.page.transient?.sourcePath ?? source.page.path;
-        const targetPath = edge?.explanationTargetPath ?? edge?.targetPath ?? target.page.transient?.sourcePath ?? target.page.path;
-        const explanation = sectionExpansion?.explanations.get(sourcePath + "\u0000" + targetPath) ?? index.explainRelationship(sourcePath, targetPath);
-        const resolved = exportRelationshipOntology(explanation, edge ? edge.typeDefinition : target.typeDefinition);
-        const primary = connectionCaption(resolved.primary, true, sourcePath, targetPath, source.page, target.page);
-        const additional = resolved.additional.map(field => connectionCaption(field, true, sourcePath, targetPath, source.page, target.page) ?? field).filter(field => field !== primary);
-        const visible = visibleLabels.get(JSON.stringify([occurrenceKey(source), occurrenceKey(target)].sort())) ?? [];
-        const result: MarkdownOntology = {primary, additional, visiblePrimary: primary && visible.includes(primary) ? primary : undefined,
-          visibleAdditional: visible.filter(label => label !== primary)};
-        ontologyCache.set(key, result);return result;
-      }});
+    const {snapshot, exportNodes} = captureCurrentMindMapMarkdown();
     const selected = context.target.kind === "node" ? context.target.occurrenceId : selection.readSelected()?.id;
     const occurrence = exportNodes.find(/** Translate the surface's keyboard key to its exact scene occurrence once. */ node => sceneNodeKeys.get(node) === selected || occurrenceKey(node) === selected);
     const selectedId = occurrence ? occurrenceKey(occurrence) : undefined;

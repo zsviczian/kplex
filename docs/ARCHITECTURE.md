@@ -80,6 +80,60 @@ Same-scope selection and new type configuration do not acquire or rebuild source
 
 Optional section snapshots adapt the existing explicit `SectionExpansion` owner for one source revision. Ordinary shared node measurement/tree/fold rendering and validated physical source anchors retain canonical note/occurrence/evidence identities. `sectionSource` selects attention (Compass/compatibility) or the pinned layout root (Mind Map); unsupported Facets hides/refuses section controls. Central source editors exclude their own outline, while another bound editor retains its document and lifetime. Structural heading rows remain separate from canonical hierarchy branches. Non-Classic conformance and Mind Map integration have separate tests and exact-source native acceptance.
 
+## Trusted public API and CLI
+
+PR #240 composes a versioned local automation API without resuming C15–C26. Its
+[reference](PUBLIC_API.md), [CLI guide](CLI.md) and [original brief](proposals/PUBLIC_API_CLI_V1.md)
+distinguish implemented contracts from platform acceptance. Complete repository verification and
+exact-build Windows native validation pass; remaining environment limits are recorded in the
+[validation report](validation/public-api-cli-240-2026-10-30.md).
+
+`application/PublicApi` owns detached envelopes, bounded operation arguments, revision/coherence
+checks and read-only use cases. `publicApi/createPublicApi` composes existing plugin/index/native
+capabilities once settings are loaded, independently of graph admission. Configuration revisions
+observe a fixed inventory of immutable settings owners; they do not traverse the vault or copy
+the settings model. The pure ontology read projection from PR #239 supplies physical names,
+roles, inverse partners, authored descriptions and configured/discovered state before hydration.
+
+`adapters/obsidian/publicApiGraph` delegates to passive bounded `GraphIndex` readers over existing
+published node/search/relation/evidence owners. It owns no acquisition, scheduler, cache or
+classifier. Whole-graph certificates, local requested coverage, search vocabulary and cached
+previews remain distinct. `publicApiGraphql` lazily constructs the genuine GraphQL.js schema;
+synchronous resolvers consume the same application reads under token, depth, expanded-selection,
+work, variable and output budgets. Default and introspection resolvers share execution metering.
+There are no GraphQL mutations, subscriptions or network listeners. Its retained legal-comment
+block carries GraphQL.js's installed MIT notice into the bundled release.
+
+`application/PublicCanvasRegistry` leases existing native document-session identities; App owns
+fresh committed metadata/action callbacks, and PlexGraph publishes committed scene readers.
+`ui/publicCanvasScene` only projects supplied geometry/filter/viewport facts on explicit read;
+it never runs layout, relation classification, DOM measurement or source work. Snapshot
+semantic/source/configuration stamps identify the render frame independently of the envelope's
+current revisions. Stale/pending frames cannot certify complete coverage. Camera DOM-transform
+commits advance the same canvas coordinate; motion/paint remain separate observations. Canonical
+nodes, visual occurrences, filter inclusion, viewport intersection and decorative guides stay
+explicitly separate. Navigation/view/preset actions delegate to the captured existing native
+preflight/session/contribution owners and report accepted versus observed completion.
+
+`application/PublicApiConfiguration` wraps the canonical portable package validator, exporter,
+planner, installed-capacity preview and queued writer. It retains at most sixteen session-scoped,
+five-minute one-shot reviews, captures original remote/appearance owners including A→B→A changes,
+and requires explicit apply confirmation. Imported lenses remain disabled; no canvas selection or
+note write is granted. Readback or display-refresh failure after durable acceptance remains a
+saved receipt. Unload disposes configuration reviews and host ports, canvas registrations, service
+ports and lazy GraphQL schema before index teardown; old public handles cannot retain the retired
+plugin/index/native surfaces.
+
+Merged PR #237 supplies the shared `ui/export/captureMindMapMarkdown` and portable
+`core/plex/export/mindMapMarkdown` owners. Public `exportMarkdown` captures the exact committed
+Mind Map scene/filter lifetime and invokes those same services for whole-map or exact-occurrence
+subtree output. It returns formatter bytes/warnings with canvas identity/revision, without
+clipboard, save, source acquisition, branch expansion or a second layout/traversal engine. Current
+filters/folds constrain scope; offscreen constructed rows remain eligible. The public output cap
+still applies. The native image exporter is integrated through merged PR #239; public API image export remains deferred.
+This API introduces no image capture engine. Validation history and platform limits are recorded in the
+[API validation report](validation/public-api-window-240-2026-10-31.md).
+
 ## Action dispatch boundary
 
 The action-manager feature extends the accepted C14 boundaries without resuming structural C15–C26 work. `src/core/plex/actions.ts` owns finite stable IDs, immutable metadata and discriminated request/target/outcome values. `actionPreferences.ts` owns bounded workflow preferences, legacy binding migration and compiled chord/context matching. Neither module acquires host state or executable behavior from persisted data.

@@ -22,6 +22,7 @@ const built=await build({stdin:{resolveDir:process.cwd(),loader:'ts',contents:`
   const viewport={current:root},compassElement={current:svg},compassCenter={current:{element:node,owner:document,left:30,top:40,width:120,height:26}},
    compassPreferences={current:{compass:{enabled:true}}},compassOpacity={current:.07},compassSync={current:null},measuredViewport={current:{width:800,height:600}},camera={current:{x:200,y:150,scale:1}},
    cameraFrame={current:null},cameraFrameWindow={current:null},cameraWritePending={current:false},cameraElement={current:cameraNode},cameraIntentPlaced={current:false},automaticFit={current:null},activePath='Center',sceneMotion=new ElementMotion();
+  const committedCamera={current:{...camera.current}},cameraFlushRevision={current:0},publishPublicScene={current:()=>{}};
   const cameraMotion={current:new CameraMotion()};
   let overlayWrites=0;const syncCentralEditorOverlay=()=>overlayWrites++;
   const requestCameraFrame=${callback('requestCameraFrame')};const syncCompass=${callback('syncCompass')};compassSync.current=syncCompass;

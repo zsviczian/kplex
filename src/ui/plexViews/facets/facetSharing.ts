@@ -11,7 +11,7 @@ import {canvasViewText} from "../labels";
 import {effectiveFacetHelp} from "./help";
 
 /** Export only the supplied definition and explicitly selected lens dependencies; live activation is absent. */
-export function facetPortablePackage(id: string, preset: FacetPreset, sharing: PortableSharingContext, translate: Translator,
+export function facetPortablePackage(id: string, preset: FacetPreset, sharing: Pick<PortableSharingContext, "read">, translate: Translator,
   selected: readonly string[] = [], allowPrivate = false) {
   const state = sharing.read();
   return exportFacetPackage(id, preset, {name: canvasViewText(facetPresetLabel(preset), translate),

@@ -1,0 +1,119 @@
+{
+  "full": {
+    "status": "passed",
+    "startedAt": "2026-10-30T22:44:48.237Z",
+    "completedAt": "2026-10-30T23:14:43.440Z",
+    "source": {
+      "revision": "618c5f4f3c548da0914997ead4d151b8dd5c04df",
+      "dirty": true,
+      "node": "v22.22.2",
+      "os": "win32 10.0.26200"
+    },
+    "host": "1.14.5 (installer 1.14.5)",
+    "counts": {
+      "architecture": 9,
+      "core": 130,
+      "main": 1749,
+      "browser": 425,
+      "sources": 357,
+      "indexeddb": 855
+    },
+    "artifacts": {
+      "sourceHashes": {
+        "main.js": "6af8a99a0587b903b1608f71a7593bb300caf76a4bc9ee4c6a7c4d0343a1fce3",
+        "manifest.json": "2822c38463c03ace4f017453679572d462534ce2a9c9558fd7593f259b01bfa1",
+        "styles.css": "79bcd8ec38fdc0dd629f2cf52416094a97b958e8d558fa8c8ac1eef5869758ca"
+      },
+      "pluginVersion": "0.3.1",
+      "stagedHashes": {
+        "main.js": "6af8a99a0587b903b1608f71a7593bb300caf76a4bc9ee4c6a7c4d0343a1fce3",
+        "manifest.json": "2822c38463c03ace4f017453679572d462534ce2a9c9558fd7593f259b01bfa1",
+        "styles.css": "79bcd8ec38fdc0dd629f2cf52416094a97b958e8d558fa8c8ac1eef5869758ca"
+      }
+    },
+    "scenarios": [
+      {
+        "id": "open-kplex",
+        "status": "passed",
+        "assertions": [
+          "plugin command registered",
+          "rendered .kplex-app contains K-Plex",
+          "no captured JavaScript errors"
+        ],
+        "elapsedMs": 319
+      }
+    ]
+  },
+  "native": {
+    "status": "passed",
+    "node": "v22.22.2",
+    "host": "1.14.5 (installer 1.14.5)",
+    "startedAt": "2026-10-30T23:15:02.441Z",
+    "completedAt": "2026-10-30T23:15:07.233Z",
+    "artifacts": {
+      "main.js": "6af8a99a0587b903b1608f71a7593bb300caf76a4bc9ee4c6a7c4d0343a1fce3",
+      "manifest.json": "2822c38463c03ace4f017453679572d462534ce2a9c9558fd7593f259b01bfa1",
+      "styles.css": "79bcd8ec38fdc0dd629f2cf52416094a97b958e8d558fa8c8ac1eef5869758ca"
+    },
+    "source": {
+      "src/index/GraphBuilder.ts": "b4ff3bc6298c1d30c58aa15a47d2636b8e32a33f1ff4c225ce2848534567cab8",
+      "src/index/GraphIndex.ts": "811dab4c435982a08f523c5605639822174cccaf70757a85a4e1184dcc97ca4f",
+      "src/core/graph/compiler.ts": "ee403bd86870137e7ea769dfb5c5c7cfa27e08ad768b1815bef47eab9732bd4f",
+      "src/main.ts": "7941a5ee6664f54719c3e945eb4a4507ee3a2f04bd706bf7be818d7f5f31eec4",
+      "src/application/PublicApi.ts": "8edc331a0f9689bc6a326a785dd7ebb9e62298ad3ebff28333fba67e03f77598",
+      "src/application/PublicApiConfiguration.ts": "5a660029fd2b9fa56102b81e01cfd9f1c05999a850200e5c30caeadb02369926",
+      "src/application/PublicCanvasRegistry.ts": "6c22dcafe8f4718f670ceb72f79b6b3dd15f6a42caf283797696cb713d3939ff",
+      "src/adapters/obsidian/publicApiGraphql.ts": "557233a0b2c2420eaf00f5ba3ac8403289397af4c36ce5688bec27a05fdd36ee",
+      "src/publicApi/createPublicApi.ts": "3b547b3c85f151c61b1b0d7d04681aa9e7c64db7d83364844cde9c527aa7160d",
+      "src/ui/App.tsx": "25d4f66e2468528adeee14c9d3c5aab887bc0edcebdbdc79edcf67793e217046",
+      "src/ui/PlexGraph.tsx": "7e8ba1a57c62e09b2b503c8b98ba2fae6912b6f7596b6211d892de98e13a0b3b",
+      "src/ui/publicCanvasScene.ts": "1000b16b45e1d94bc8591249b89debc4c89add25781746e5109ea82dc18eac7e"
+    },
+    "driver": {
+      "transport": "beb7677649f8ae6ae390c0df25b4a025a48777b5fbfc5e36c25f7fe252b8a0d3",
+      "scenario": "348e570311febe6f0a220e7bcfe38ce2e8abd8a5c622ac9d8b23dfdcbd707ae5",
+      "definitions": "6512016750db8041d6edf72c89eb2a3308618549043ac69a90286b463b7ac8ab"
+    },
+    "result": {
+      "cases": [
+        "two simultaneous canvases retain independent roots, views, filters and targeted actions",
+        "repeated JSON, context Markdown, shared Mind Map export and actual GraphQL reads perform zero source/index work",
+        "GraphQL introspection, mutation refusal, bounds, cancellation and revision fences",
+        "public Markdown bytes equal the native shared export preview",
+        "configuration inventory and canonical package export/validation",
+        "confirmed one-shot queued configuration import, disabled lens and durable readback",
+        "native popout snapshot and isolated view action",
+        "captured Facets preset selection and verified per-canvas readback",
+        "popout-to-main migration preserves canvas identity and committed session state"
+      ],
+      "work": {
+        "reads": 0,
+        "parses": 0,
+        "acquisitions": 0,
+        "rebuilds": 0,
+        "semantic": 0,
+        "allPages": 0
+      },
+      "canvases": 4,
+      "coverage": {
+        "scope": "cached",
+        "complete": false,
+        "pending": true
+      },
+      "limitations": "Windows desktop native CLI. macOS and physical mobile remain separate environments; no paint/performance claim."
+    },
+    "cleanup": "passed"
+  },
+  "lifetime": {
+    "status": "passed",
+    "node": "v22.22.2",
+    "startedAt": "2026-10-30T23:15:07.304Z",
+    "cases": [
+      "retained API and configuration handles reject after unload and release host ports",
+      "reload publishes a fresh versioned API with ontology while old handles remain retired"
+    ],
+    "obsidian": "1.14.5 (installer 1.14.5)",
+    "cleanup": "passed",
+    "completedAt": "2026-10-30T23:15:10.689Z"
+  }
+}

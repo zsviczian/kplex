@@ -55,6 +55,9 @@ import { appearanceColorReferences } from "./core/contracts/appearance";
 import { requireNamedColor } from "./core/plex/colorEditing";
 import * as appearanceThemes from "./core/plex/appearanceThemes";
 import {editOntologyDescriptions,type OntologyDescriptions} from './core/contracts/ontologyReadModel';
+import {createPublicApi, type KplexPublicApi, type PublicApiOwner} from './publicApi/createPublicApi';
+import {publishPublicApiWindows} from './adapters/obsidian/publicApiWindow';
+import type {PublicCanvasRegistry} from './application/PublicCanvasRegistry';
 import {ontologyConfiguration, assignOntologyField, applyOntologyEdit, ontologyEndpointState, editOntologyEntries, ONTOLOGY_GROUPS, type OntologyConfiguration, type OntologyConfigurationInput, type OntologyEdit} from './core/contracts/ontologyConfiguration';
 import type {StyleEditorModal} from "./ui/StyleEditorModal";
 import {NotificationModal} from "./ui/NotificationModal";
@@ -190,6 +193,16 @@ type StyleCommitOptions = Readonly<{themeAction?: appearanceThemes.AppearanceThe
   persistExistingChanges?: boolean}>;
 
 export default class KplexPlugin extends Plugin {
+  /** Versioned trusted automation surface; settings-based reads precede graph hydration. */
+  api:KplexPublicApi|null=null;
+  /** Public discovery leases contain callbacks only; native sessions retain actual canvas state. */
+  publicCanvases!:PublicCanvasRegistry;
+  private publicApiOwner:PublicApiOwner|null=null;
+  private disposePublicApiWindows:(()=>void)|null=null;
+  /** Committed render adapters stamp their frame without retaining settings or acquiring graph facts. */
+  readPublicApiRevision():import('./application/publicApiContracts').PublicApiRevision {
+    return this.publicApiOwner?.revisions()??{semantic:0,source:0,configuration:0};
+  }
   /** Finite native Settings composition; tests may construct an independent registry, never register production extensions dynamically. */
   readonly viewSettingsRegistry = builtInCanvasViewSettings;
   settings: KplexSettings = DEFAULT_SETTINGS;
@@ -390,6 +403,10 @@ export default class KplexPlugin extends Plugin {
 
     this.startupDiagnostics.mark("settings-loaded");
     this.index = new GraphIndex(this, this.app, true, this.startupIndexPolicy.mode);
+    this.publicApiOwner=createPublicApi(this,()=>!this.unloading,()=>this.getIndexDiagnosticsStatus());
+    this.publicCanvases=this.publicApiOwner.canvases;this.api=this.publicApiOwner.api;
+    this.disposePublicApiWindows=publishPublicApiWindows(this.app.workspace,this.api,
+      /** Obsidian also owns listener cleanup if initialization fails later. */ event=>this.registerEvent(event));
     this.installPreRestoreChangeFence();
     this.index.primeSavedNavigation([this.settings.lastActivePath, ...this.settings.navigationHistory.slice(-14), ...this.settings.pinnedNodes]);
     this.registerMarkdownZoomPreferenceListeners();
@@ -607,6 +624,8 @@ export default class KplexPlugin extends Plugin {
     for (const resolve of this.layoutReadyWaiters) resolve();
     this.layoutReadyWaiters.clear();
     this.unloading = true;
+    this.disposePublicApiWindows?.();this.disposePublicApiWindows=null;
+    this.publicApiOwner?.dispose();this.publicApiOwner=null;
     this.initialSourceRecovery = null;
     this.savedSettingsRefresh?.close();
     this.settingsReconciliation?.dispose();

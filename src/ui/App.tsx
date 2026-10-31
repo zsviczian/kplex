@@ -36,6 +36,7 @@ import {
   useEffect,
   useId,
   useMemo,
+  useLayoutEffect,
   useRef,
   useState,
   useSyncExternalStore,
@@ -47,6 +48,9 @@ import {
 import { FileView, View, Menu, Notice, type TFile, type WorkspaceLeaf } from "obsidian";
 import {nodeId} from "../core/graph/model";
 import type KplexPlugin from "../main";
+import type {PublicCanvasRegistration} from '../application/PublicCanvasRegistry';
+import {PublicApiError} from '../application/publicApiContracts';
+import {publicCanvasState, type PublicScenePublication} from './publicCanvasScene';
 import type { GraphPage } from "../types";
 import type { PresentationEnvironment } from "../core/contracts/presentationEnvironment";
 import { isGraphTabCommandAvailable } from "../core/plex/viewPresentation";
@@ -241,6 +245,7 @@ export function KplexApp({ plugin, surface, hostLeaf, translate, environment, on
 }) {
   const canvasNameId = useId();
   const viewRevision = useSyncExternalStore(documentSession.plexView.subscribe, documentSession.plexView.getSnapshot);
+  const publicFrame=plugin.readPublicApiRevision?.()??{semantic:0,source:0,configuration:0};
   const plexViewDefinition = documentSession.plexView.definition;
   const ViewLabels = plexViewContributionFor(plexViewDefinition)?.Labels;
   const displayState = useSyncExternalStore(displayModes.subscribe, displayModes.getSnapshot);
@@ -262,6 +267,9 @@ export function KplexApp({ plugin, surface, hostLeaf, translate, environment, on
   const syncMenuButtonRef = useRef<HTMLButtonElement>(null);
   const sidecarMoveButtonRef = useRef<HTMLButtonElement>(null);
   const graphActionPorts = useRef<GraphActionPorts | null>(null);
+  const publicScene = useRef<PublicScenePublication|null>(null);
+  const publicPorts = useRef<PublicCanvasRegistration|null>(null);
+  const publicMetadataRevision = useRef(0);
   const pendingEditorNavigation = useRef<{run: () => GraphPage | null} | null>(null);
   const viewContributions = useMemo(/** Own exactly this native canvas; focus never redirects a contributed request. */ () =>
     new CanvasViewContributionController(documentSession.plexView, plugin.viewSettingsRegistry, {
@@ -1269,6 +1277,71 @@ export function KplexApp({ plugin, surface, hostLeaf, translate, environment, on
   const runAction = (id: ActionId): void => actions.dispatch({ id, source: "toolbar" });
   const supportButton = <ToolButton icon="bug" title={translate("support.reportTitle")} onClick={/** Invoke the owning clipboard writer directly before any action-dispatch await, including partial startup. */ event => plugin.reportBug(event.currentTarget, actions.surfaceId)} />;
 
+  useLayoutEffect(/** Publish callbacks only after this App's metadata commits; reads never follow another leaf's focus. */ ()=>{
+    const registry=plugin.publicCanvases;if(!registry)return;
+    publicMetadataRevision.current=registry.nextRevision();
+    const committedDocument=rootRef.current?.ownerDocument,committedRoot=documentSession.plexView.layoutRoot(nodeId(activePath));
+    /** Native document incarnation and DOM ownership jointly fence asynchronous public actions. */
+    const current=()=>!documentSession.disposed&&Boolean(rootRef.current?.isConnected)&&rootRef.current?.ownerDocument===committedDocument;
+    publicPorts.current={current,
+      summary:/** Camera-only commits and ordinary session changes share one monotonic API coordinate. */ ()=>({
+        viewId:plexViewDefinition.id,attention:activePath,root:committedRoot,
+        surface:rootRef.current?.ownerDocument!==window.document?'popout':surface==='sidepanel'?'sidebar':'main',
+        visible:plugin.isKplexLeafVisible(hostLeaf),revision:Math.max(publicMetadataRevision.current,publicScene.current?.revision??0)}),
+      snapshot:/** Existing session/configuration owners supply inert, bounded metadata beside the committed scene. */ ()=>{
+        const frame=publicScene.current;if(!frame||!current()||documentSession.plexView.definition!==plexViewDefinition
+          ||documentSession.plexView.getSnapshot()!==viewRevision||activePathRef.current!==activePath)return null;
+        const scene=frame.read(),choices=viewContributions.choices(),choice=choices.find(/** Current contributed choice retains its stable preset identity. */ item=>Boolean(item.selected));
+        const selected=choice?.options.find(/** Only the actually selected option becomes preset metadata. */ option=>option.id===choice.selected);
+        const lenses:import('../application/publicApiContracts').PublicCanvasSnapshot['lenses'][number][]=[];
+        let truncated=scene.truncated,scanned=0;
+        for(const lens of graphLenses){if(++scanned>8192||lenses.length===128){truncated=true;break;}if(lens.enabled){if(lens.name.length>4096)truncated=true;lenses.push({id:lens.id,name:lens.name.slice(0,4096),mode:lens.mode,scope:lens.scope});}}
+        if(plexFilter.value.length>4096)truncated=true;
+        return {...scene,state:publicCanvasState(documentSession.plexView.state),preset:selected?{id:selected.id,label:canvasViewText(selected.label,translate)}:null,
+          lenses,truncated,filters:{...scene.filters,quick:{field:plexFilter.field,operator:plexFilter.operator,value:plexFilter.value.slice(0,4096)}}};
+      },
+      exportMarkdown:/** The exact committed Mind Map publication owns capture and the shared formatter. */ subtree=>{
+        const frame=publicScene.current;if(!frame||!current()||documentSession.plexView.definition!==plexViewDefinition
+          ||documentSession.plexView.getSnapshot()!==viewRevision||activePathRef.current!==activePath)
+          throw new PublicApiError('UNAVAILABLE','The committed canvas export is unavailable.');
+        return frame.exportMarkdown(subtree);
+      },
+      navigate:/** Existing-file navigation joins the same save-before-reroot path as native File Explorer drops. */ async path=>{
+        const file=plugin.app.vault.getFileByPath(path);
+        if(!current()||!file)throw new PublicApiError('NOT_FOUND','The requested vault file is unavailable.');
+        const target=plugin.index.getVaultSearchPage(path);
+        if(!target||target.file!==file)throw new PublicApiError('UNAVAILABLE','The existing file is not available in the filename catalog.');
+        if(!activate(target,true,true,'user',true))throw new PublicApiError('UNAVAILABLE','The captured canvas refused navigation.');
+        const observed=publicPorts.current?.summary();return observed?.attention===path&&observed.root===path?'completed':'accepted';
+      },
+      selectView:/** The selected native session retains editor persistence, latest-request and retirement guards. */ async id=>{
+        if(!current()||!documentSession.plexView.registry.has(id))throw new PublicApiError('INVALID_ARGUMENT','Unknown canvas view.');
+        if(!await documentSession.plexView.requestSelection(id)||!current())throw new PublicApiError('UNAVAILABLE','The captured canvas refused the view change.');
+        return publicPorts.current?.summary().viewId===id?'completed':'accepted';
+      },
+      selectPreset:/** A fresh contributed command preserves preset validation and this exact canvas's state owner. */ async id=>{
+        if(!current())throw new PublicApiError('API_UNAVAILABLE','The canvas has retired.');
+        const options=viewContributions.choices().flatMap(/** Contributions already enforce finite group/option bounds. */ choice=>choice.options)
+          .filter(/** No guessed view ID, settings edit or global active preset is used. */ option=>option.id===id&&option.enabled);
+        if(options.length!==1)throw new PublicApiError('INVALID_ARGUMENT','The preset is unavailable or ambiguous in this canvas.');
+        const result=await options[0].command.run();
+        if(result.status!=='completed'||!current())throw new PublicApiError('UNAVAILABLE','The captured canvas refused the preset change.');
+        return publicPorts.current?.snapshot()?.preset?.id===id?'completed':'accepted';
+      },
+    };
+  });
+  useLayoutEffect(/** Register one lifetime, with fresh committed delegates; rerenders must not retire an accepted async action. */ ()=>{
+    if(!plugin.publicCanvases)return;
+    /** Retired or not-yet-committed metadata has no public native capability. */
+    const ports=()=>{const value=publicPorts.current;if(!value)throw new PublicApiError('API_UNAVAILABLE','Canvas metadata is unavailable.');return value;};
+    const release=plugin.publicCanvases.register(documentSession,{
+      current:()=>Boolean(publicPorts.current?.current()),summary:()=>ports().summary(),snapshot:()=>ports().snapshot(),
+      exportMarkdown:subtree=>{const exportMarkdown=ports().exportMarkdown;if(!exportMarkdown)throw new PublicApiError('UNSUPPORTED','Canvas Markdown export is unavailable.');return exportMarkdown(subtree);},
+      navigate:path=>ports().navigate(path),selectView:id=>ports().selectView(id),selectPreset:id=>ports().selectPreset(id),
+    });
+    return /** Cleanup cannot remove a replacement mount's registration or preserve native closures. */ ()=>{release();publicPorts.current=null;publicScene.current=null;};
+  },[plugin,documentSession]);
+
   // History belongs to loaded settings, not semantic readiness. Preserve every saved slot on
   // both loading and graph surfaces; unresolved targets stay inert until their owner publishes.
   const historyBar = <footer className="kplex-history-bar">
@@ -1493,7 +1566,7 @@ export function KplexApp({ plugin, surface, hostLeaf, translate, environment, on
       <main className="kplex-workspace">
         <section className="kplex-graph-area" data-kplex-tooltip-boundary>
           {ViewLabels && <ViewLabels translate={translate} />}
-          <PlexGraph viewDefinition={plexViewDefinition} viewSession={documentSession.plexView} viewContributions={viewContributions} viewRevision={viewRevision} sidecarOpen={sidecarOpen} plugin={plugin} index={plugin.index} settings={viewSettings} paintSettings={paintSettings} paintLenses={paintLenses} surface={profileSurface} hostLeaf={hostLeaf} predicate={plexFilterPredicate} lenses={compiledGraphLenses} filterLayoutMode={filterLayoutMode} predicateRevision={predicateRevision} showCrossLinks={plugin.settings.showCrossLinks} activePath={page.path} renderRevision={renderRevision} findFocusRequest={findFocusRequest}
+          <PlexGraph publicFrame={publicFrame} publicScene={plugin.publicCanvases?publicScene:undefined} viewDefinition={plexViewDefinition} viewSession={documentSession.plexView} viewContributions={viewContributions} viewRevision={viewRevision} sidecarOpen={sidecarOpen} plugin={plugin} index={plugin.index} settings={viewSettings} paintSettings={paintSettings} paintLenses={paintLenses} surface={profileSurface} hostLeaf={hostLeaf} predicate={plexFilterPredicate} lenses={compiledGraphLenses} filterLayoutMode={filterLayoutMode} predicateRevision={predicateRevision} showCrossLinks={plugin.settings.showCrossLinks} activePath={page.path} renderRevision={renderRevision} findFocusRequest={findFocusRequest}
             onExportBreadcrumbs={exportBreadcrumbs} hasBreadcrumbs={/** Read the native trail only when composing the menu. */ () => documentSession.footprints.length > 0}
             footprintsControl={<PlexFootprintsPanel trail={documentSession.footprints} translate={translate}
               readRow={/** Resolve visible references only; unavailable nodes never trigger acquisition or creation. */ visit => {

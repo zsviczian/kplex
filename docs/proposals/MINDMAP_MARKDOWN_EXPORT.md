@@ -13,7 +13,8 @@ Save hands the suggested filename and preview bytes to Obsidian's native export 
 ## Ownership and format
 
 - `captureMindMapMarkdown.ts` detaches the existing scene's admitted occurrences, including already constructed Compass descendant strips and section rows, cached native links, and unscrolled visual positions. Camera clipping never removes constructed rows. Non-tree canvases are rooted at the center: explicit branch/section parents win, other connections form a deterministic outline, and non-tree links remain crosslinks. Disconnected rendered components attach as outline entries without an invented ontology label. Current filters and collapsed branches do constrain scope.
-- `core/plex/export/mindMapMarkdown.ts` is a bounded, host-free formatter. Whole-map and selected-subtree calls use the same immutable snapshot. The internal service is reusable by a future public API; this change exposes no API or CLI.
+- `core/plex/export/mindMapMarkdown.ts` is a bounded, host-free formatter. Whole-map and selected-subtree calls use the same immutable snapshot. PR #237 introduced this service without an API or CLI. Draft PR #240 reuses it through [the public `exportMarkdown` operation](../PUBLIC_API.md#export-a-committed-mind-map-as-markdown); that integration's full repository and exact-build Windows native acceptance pass, as recorded in its [validation report](../validation/public-api-cli-240-2026-10-30.md).
+
 - `MindMapMarkdownModal` owns preview, gesture-safe owning-window clipboard, native save handoff, and truthful warnings. Existing dialog/session cleanup retires it on view migration or disposal. Changed scene/filter/view lifetime blocks stale publication.
 - No note, relationship, camera, selection, editor binding, saved preference, or other canvas is changed by export.
 
@@ -33,4 +34,6 @@ Formatting rejects malformed occurrence cycles, depth over 32, more than 2,048 c
 
 See [the all-view and ontology follow-up](../validation/markdown-all-views-ontology-238-2026-10-31.md) and [the original validation record](../validation/mindmap-markdown-export-237-2026-10-30.md). The compatibility suite imports real output through the unmodified, pinned upstream importer. Native acceptance additionally runs the actual Builder runtime in the enabled Excalidraw companion, inspecting drawing elements and re-exporting Markdown. Only its unrelated help renderer is replaced to prevent network embeds.
 
-Image export is tracked separately in PR #238. Importing Markdown into K-Plex, graph-wide export, source editing, and public API work remain out of scope.
+Image export is tracked separately in PR #238. Importing Markdown into K-Plex, graph-wide export
+and source editing remain out of scope. The separate draft public API work reuses this formatter
+rather than expanding PR #237's export scope.
