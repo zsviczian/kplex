@@ -6755,3 +6755,8 @@ Base main ec3c07d; repository-wide static/import/CSS/test inventory audit and cr
 ### 2026-10-31 - Cleanup regression fixture correction
 
 First complete verification passed release/architecture9/core132/scanner and 1825 main cases, then stopped on one stale accepted-main scene assertion that still rejected PNG. Both test and production admission owner were unchanged from ec3c07d. Current native format policy already accepts PNG/MP4. Retain the rejection matrix with missing-native-file coverage and add explicit media acceptance/ZIP refusal/exact occurrence/canonical identity/unchanged attention contracts. All51 affected scene/editor cases pass; no production change, weakened guard or timeout adjustment. Full verification restarts; native checks remain pending.
+
+
+### 2026-10-31 - Cleanup browser test ownership correction
+
+Second aggregate attempt passed all1827 main cases and451 browser cases; one caret test read the retired write-only private descriptionControl field. Use the existing accessible textarea labels in that test, preserving every caret/focus/partner/draft/save assertion. All30 ontology modal cases pass. No production change or timeout/assertion relaxation. Restart the uninterrupted aggregate run, then exact-build native hydration/gates/live updates. Raw failed attempts remain private; durable context is in the cleanup validation report.

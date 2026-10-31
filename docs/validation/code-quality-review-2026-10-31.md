@@ -36,15 +36,18 @@ Required runtime: Node 22.22.2; actual installed Obsidian types are used by the 
 | Predicate browser/rules/localization | 37 passed |
 | Newly registered diagnostic cases | 27 passed |
 | Editor/scene contracts after stale fixture correction | 51 passed |
+| Ontology modal browser contracts after private-field lookup removal | 30 passed |
 | Initial real production build | Passed; final build remains part of full verification |
 | Initial full official Obsidian scanner | Passed; final scan remains part of full verification |
-| Full `npm run verify` | First run: 1,825 passed, one stale editor-format assertion failed; final rerun pending |
+| Full `npm run verify` | Attempt 1: 1,825 main passed, stale media assertion failed. Attempt 2: all 1,827 main passed; 451 browser passed, private-control test lookup failed. Final uninterrupted rerun pending. |
 | Exact-build native hydration, gate counts and live updates | Pending |
 | Final-head CI | Pending |
 
 New browser assertions cover pressed-state updates, native clipboard event ownership, exact finite-choice ordering, declared-versus-derived role vocabulary, caller-owned note types and return to free text. Existing indexing, durability, supersession, hydration, relation precedence and gate-count tests remain intact, with unchanged deadlines and assertions.
 
-The first full attempt stopped in the main lane before browser/source/IndexedDB lanes. Its failing test and editor-admission implementation were byte-identical to `main@ec3c07d`; the cleanup had not touched either. Current main's native format-policy test already explicitly accepts PNG/MP4 and rejects ZIP. The scene contract now follows that accepted ownership boundary while retaining missing/hidden/recreated/mismatched/native-refused rejection coverage. No timeout, production eligibility rule or regression assertion was relaxed to make this pass.
+The first full attempt stopped in the main lane before browser/source/IndexedDB lanes. Its failing test and editor-admission implementation were byte-identical to `main@ec3c07d`; the cleanup had not touched either. Current main's native format-policy test already explicitly accepts PNG/MP4 and rejects ZIP. The scene contract now follows that accepted ownership boundary while retaining missing/hidden/recreated/mismatched/native-refused rejection coverage. The obsolete media expectation changed; no production guard or test deadline changed.
+
+The second attempt exposed a missed test consumer of the removed write-only `descriptionControl` field. The caret test now queries both mounted textareas by their existing accessible labels instead of retaining an unused production field solely for inspection. Every focus/caret, partner-switch, independent-draft and saved-output assertion is unchanged; all 30 ontology modal browser cases pass. Production behavior was not adjusted for this correction.
 
 Native validation uses only the existing disposable Small vault, explicit target/configuration checks, exact artifact hashes and existing serial drivers. Record actual results and restoration before delivery. No production vault deployment is authorized or performed.
 
