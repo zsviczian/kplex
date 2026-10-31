@@ -2,11 +2,11 @@
   "name": "canvas-image-export-238",
   "status": "passed",
   "node": "v22.22.2",
-  "startedAt": "2026-10-30T23:26:40.682Z",
+  "startedAt": "2026-10-30T23:59:10.049Z",
   "driver": {
     "transport": "beb7677649f8ae6ae390c0df25b4a025a48777b5fbfc5e36c25f7fe252b8a0d3",
-    "scenario": "f3b0db39be41cc2207988399e1fa395df36269656301db96b269aa04304bcc18",
-    "definitions": "cebcd649022b28103358b52ecf04ec9931043497a105b9d0fdad971d38e1cd02"
+    "scenario": "e9005da03b06da8c807628513f35a054268eda62996cb58eb7ecac86287feedb",
+    "definitions": "7ce7f5e272f6e88de830f3459e95824617aebc51022784b49908873e5dacb1ef"
   },
   "artifacts": {
     "main.js": "ed957a0949de941424527e0d2260913e7e4e58131c016035f5097688949f70af",
@@ -20,7 +20,7 @@
     "src/ui/export/canvasImage.ts": "c34a8346d7fde247b5ab621de6c6b0598ac6a66a43807452f17255aed3325dcc",
     "src/ui/export/canvasImageSnapshot.ts": "db417f8a7a8c7ba3f6d17c97de1f6508fa497464611fa79fc10644d53a7f39dc",
     "src/ui/export/canvasImageStyles.ts": "51b0a222d1939389f157f660f59d6189168149db771d80f99b1586632093f2d7",
-    "src/ui/export/CanvasImageExportModal.ts": "052ea9e4a1e734bdf47b3907c2e7fc2776f4ffaf600ca2a5167e4f7cf944e8ef",
+    "src/ui/export/CanvasImageExportModal.ts": "61bc095e0ae79f700af0724c20a9f2057d7278fc26b7bb206015c7a430fc9308",
     "src/adapters/obsidian/pngExport.ts": "214640487e5b391b2162a349cf03d09dc02d801b3c7250f7a0f20c64c4ca0287"
   },
   "limitations": "Controlled native method observations, not actual paint or physical-device acceptance.",
@@ -326,12 +326,26 @@
         "id": "cancel-preparation"
       },
       {
+        "id": "native-collapsed-branch-bounds",
+        "unfolded": {
+          "width": 1384,
+          "height": 1072
+        },
+        "folded": {
+          "width": 920,
+          "height": 1072
+        }
+      },
+      {
+        "id": "native-filter-crop-invalid-filename-and-style-retirement"
+      },
+      {
         "id": "native-editor-text-selection-scroll-binding-preserved"
       }
     ],
     "limitations": "Trusted desktop PNG clipboard/download and actual native controls on this host. OS destination/overwrite picker is bypassed by the owned main-process download handler. Physical mobile/share sheet and minimum-host acceptance remain separate."
   },
   "cleanup": "passed",
-  "completedAt": "2026-10-30T23:28:26.239Z",
-  "note": "Native 22-case implementation acceptance before an erased catch-variable TypeScript annotation. A final extended probe after full verification is recorded separately."
+  "completedAt": "2026-10-31T00:00:55.715Z",
+  "attribution": "Final 24-case UI acceptance on the exact artifact produced/staged by full npm run verify:obsidian. Runtime c3ff860; acceptance fixtures 6b13883. Configuration/enablement bytes and owned resource cleanup passed."
 }

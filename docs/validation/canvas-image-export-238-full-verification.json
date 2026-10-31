@@ -1,0 +1,66 @@
+{
+  "schemaVersion": 1,
+  "status": "passed",
+  "startedAt": "2026-10-30T23:33:49.209Z",
+  "source": {
+    "revision": "c3ff86009aa97b3b24654c4a4ab916eaff0b8542",
+    "dirty": true,
+    "node": "v22.22.2",
+    "os": "darwin 23.5.0"
+  },
+  "target": {
+    "vaultName": "kplex-test-small",
+    "vaultPath": "/Users/zsviczian/Obsidian/kplex-test-small",
+    "configDir": "/Users/zsviczian/Obsidian/kplex-test-small/.obsidian"
+  },
+  "capabilities": {
+    "version": "1.15.0 (installer 1.14.0)",
+    "commands": [
+      "version",
+      "vault",
+      "plugin:disable",
+      "plugin:enable",
+      "commands",
+      "command",
+      "dev:dom",
+      "dev:errors"
+    ]
+  },
+  "artifacts": {
+    "sourceHashes": {
+      "main.js": "ed957a0949de941424527e0d2260913e7e4e58131c016035f5097688949f70af",
+      "manifest.json": "2822c38463c03ace4f017453679572d462534ce2a9c9558fd7593f259b01bfa1",
+      "styles.css": "eec3a61e8e140475d9ff7e062665508e04148960b51d0b862b824123bf2b103c"
+    },
+    "pluginVersion": "0.3.1",
+    "stagedHashes": {
+      "main.js": "ed957a0949de941424527e0d2260913e7e4e58131c016035f5097688949f70af",
+      "manifest.json": "2822c38463c03ace4f017453679572d462534ce2a9c9558fd7593f259b01bfa1",
+      "styles.css": "eec3a61e8e140475d9ff7e062665508e04148960b51d0b862b824123bf2b103c"
+    }
+  },
+  "scenarios": [
+    {
+      "id": "open-kplex",
+      "status": "passed",
+      "assertions": [
+        "plugin command registered",
+        "rendered .kplex-app contains K-Plex",
+        "no captured JavaScript errors"
+      ],
+      "elapsedMs": 57
+    }
+  ],
+  "completedAt": "2026-10-30T23:58:49.845Z",
+  "testTotals": {
+    "architecture": 9,
+    "core": 130,
+    "main": 1710,
+    "browser": 427,
+    "source": 357,
+    "indexedDB": 855,
+    "failures": 0,
+    "skips": 0
+  },
+  "attribution": "Full verifier began from dirty c3ff860 while acceptance-only refinements were committed as 6b13883. Runtime files remained unchanged. Final artifacts equal the preceding 22-case native acceptance artifacts."
+}
