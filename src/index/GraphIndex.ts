@@ -1573,6 +1573,7 @@ export class GraphIndex {
     const changes = this.sourceAcquisition.pendingGraphSources();
     if (!changes || changes.size || this.diagnosticsClosed || this.persistentCachePurged || this.building
       || this.pendingStructuralTasks || this.isOnDemandMode() || this.sourceBackedSemantics
+      || !this.fullSnapshotHydrated || this.onDemandPartialState
       || this.fullSemanticPolicyRevision !== this.semanticPolicyRevision
       || this.fullSemanticSourceRevision !== this.plugin.getIndexSourceRevision()
       || !this.sourceAcquisition.hasSemanticDependencies()
@@ -1593,6 +1594,7 @@ export class GraphIndex {
     const changes = this.sourceAcquisition.pendingGraphSources();
     if (this.eagerGraphMaintenanceTask || !changes?.size || this.diagnosticsClosed || this.persistentCachePurged
       || this.building || this.pendingStructuralTasks || this.isOnDemandMode() || this.sourceBackedSemantics
+      || !this.fullSnapshotHydrated || this.onDemandPartialState
       || this.fullSemanticPolicyRevision !== this.semanticPolicyRevision || !this.sourceAcquisition.hasSemanticDependencies()
       || !this.sourceAcquisition.isInventoryEnabled()) return;
     const observed = this.sourceAcquisition.beginGraphPublication();
@@ -1600,11 +1602,13 @@ export class GraphIndex {
     const task = this.withForegroundPriority(async () => {
       while (!this.diagnosticsClosed && !this.persistentCachePurged && !this.building
         && !this.pendingStructuralTasks && !this.sourceBackedSemantics
+        && this.fullSnapshotHydrated && !this.onDemandPartialState
         && this.fullSemanticPolicyRevision === this.semanticPolicyRevision && this.sourceAcquisition.hasSemanticDependencies()
         && this.sourceAcquisition.isInventoryEnabled()) {
         await this.workScheduler.checkpoint(INDEX_WORK_PRIORITY.background);
         if (this.building || this.diagnosticsClosed || this.persistentCachePurged || this.pendingStructuralTasks
           || this.sourceBackedSemantics || this.fullSemanticPolicyRevision !== this.semanticPolicyRevision
+          || !this.fullSnapshotHydrated || this.onDemandPartialState
           || !this.sourceAcquisition.hasSemanticDependencies() || !this.sourceAcquisition.isInventoryEnabled()) return;
         const next = this.sourceAcquisition.pendingGraphSources()?.entries().next();
         if (!next || next.done) break;
@@ -5316,7 +5320,6 @@ export class GraphIndex {
     this.publicationRevision += 1;
     this.snapshotPublicationCause = "snapshot";
     if (authoritativeSemantics && !this.sourceBackedSemantics) {
-      this.sourceAcquisition.beginGraphPublication();
       this.localHandoverCompletions += this.retainedLocalScopes.size;
       this.retainedLocalScopes.clear(); this.onDemandHostScopes.clear(); this.onDemandCachedScopes.clear();
       this.fullSemanticSettings = graphCompilerSettingsFromLegacy(this.plugin.settings);
@@ -5742,6 +5745,7 @@ export class GraphIndex {
         expectedPublicationRevision = this.publicationRevision;
       }
       this.fullSnapshotHydrated = !isCheckpoint;
+      if (!isCheckpoint && authoritativeFresh && !this.sourceBackedSemantics) this.sourceAcquisition.beginGraphPublication();
       if (!isCheckpoint && authoritativeFresh && !this.pendingUrlAliasUpgrade) {
         // Requested scopes own bounded semantics, not complete global URL-label incidence. The
         // authenticated complete snapshot certifies those facets for this exact unchanged vault.

@@ -26,11 +26,12 @@ Additional executable cases cover:
 - A current-node request completing ahead of the queued global catch-up task.
 - Demand retirement preserving its backlog without publishing a false complete graph.
 - Source closure under a changed semantic policy refusing to certify the older policy.
+- Partial/checkpoint baselines retaining their existing recovery owner; catch-up is admitted only for a fully hydrated complete eager graph.
 - An event arriving after a full candidate was prepared but before it published; the event cannot inherit the candidate's complete marker.
 
 The races exposed an older hot-body selection problem: source maintenance could already hold a newer parser token while GraphBuilder selected an equal-mtime older hot body. The token guard fixes that failure. An earlier overly broad journal recorded source-storage rewrites even with no maintenance change; narrowing it retained the existing optimistic-created-file contract without weakening its assertions. The two isolated no-op source doubles now explicitly declare their absent graph-journal capability; the API fixture supplies an empty journal. No oracle, assertion, timeout or production readiness guard was disabled.
 
-Focused Node **22.22.2** checks passed for the new event/race cases, complete-graph navigation and affected no-op publication. The required final uninterrupted `npm run verify` is in progress; `%TEMP%/kplex-eager-final-verify.log` and its exit receipt are the actual aggregate evidence. Earlier aggregate attempts were stopped as final cancellation fences were completed, not counted as passing final verification.
+Focused Node **22.22.2** checks passed for the new event/race cases, complete-graph navigation and affected no-op publication. The required final uninterrupted `npm run verify` is in progress; `%TEMP%/kplex-eager-complete-verify.log` and its exit receipt are the actual aggregate evidence. Earlier aggregate attempts were stopped as cancellation and partial-checkpoint fences were completed, not counted as passing final verification. The first committed candidate passed the main/UI/source groups before its remaining scale run was retired for the partial-checkpoint follow-up.
 
 ## Native acceptance
 

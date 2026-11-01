@@ -541,7 +541,7 @@ test("eager event reconciliation retains complete graph navigation after modify 
   } finally {await browser.cleanup();}
 });
 
-for (const scenario of ['newer-equal-stat-edit','delayed-metadata','foreground-priority','retired-demand','new-policy','event-during-full-build']) test(`eager graph backlog preserves ${scenario}`, async () => {
+for (const scenario of ['newer-equal-stat-edit','delayed-metadata','foreground-priority','retired-demand','new-policy','partial-baseline','event-during-full-build']) test(`eager graph backlog preserves ${scenario}`, async () => {
   const browser = await chromiumHarness(bundle);
   try {
     assert.equal(await browser.evaluate(contributorBrowserInitialize), true);
@@ -582,6 +582,9 @@ for (const scenario of ['newer-equal-stat-edit','delayed-metadata','foreground-p
           ok(index.neighbours(index.get(a.path),'child').some(n=>n.page.path==='C.md'),'Delayed duplicate native events preserve canvas result');
         }else if(${JSON.stringify(scenario)}==='new-policy'){
           index.invalidateSemanticPolicy();await settle();ok(!index.hasCurrentFullSemanticGraph(),'Source closure cannot certify an old semantic policy');ok(f.acquisition.pendingGraphSources().has(a.path),'Old-policy graph work remains unacknowledged');return true;
+        }else if(${JSON.stringify(scenario)}==='partial-baseline'){
+          index.fullSnapshotHydrated=false;index.onDemandPartialState=true;await settle();
+          ok(!index.hasCurrentFullSemanticGraph(),'Source closure cannot promote partial checkpoint incidence');ok(f.acquisition.pendingGraphSources().has(a.path),'Partial baseline keeps its existing recovery owner');ok(!index.eagerGraphMaintenanceTask,'Eager catch-up never replaces partial-graph recovery');return true;
         }else if(${JSON.stringify(scenario)}==='event-during-full-build'){
           await settle();
         }else{
