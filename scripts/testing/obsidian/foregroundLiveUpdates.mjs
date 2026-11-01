@@ -16,6 +16,8 @@ export async function runLiveUpdatesForeground({ cli, evaluate, wait, report, va
         cli('plugin:disable', 'id=k-plex');
         evaluate(`(async()=>{const c=window.__kplexForegroundLiveUpdates;await app.vault.createFolder(c.folder);c.anchor=await app.vault.create(c.folder+'/Anchor.md','Anchor fixture\\n');c.unrelated=await app.vault.create(c.folder+'/Unrelated.md','[Synthetic URL](https://example.com/kplex-live-unrelated)\\n');await c.until(()=>app.metadataCache.getFileCache(c.unrelated),'Unrelated metadata missing');await c.wait(200);return JSON.stringify({created:true})})()`);
         cli('plugin:enable', 'id=k-plex');
+        // A reload can retire the original canvas. Reopen normal visible demand before waiting for P3.
+        cli('command', 'id=k-plex:kplex-start');
         const holdDeadline = Date.now() + 90000;
         while (!evaluate('JSON.stringify({held:window.__kplexForegroundLiveUpdates.held})').held) {
             if (Date.now() > holdDeadline) throw Error('Real unrelated P3 hold not reached');

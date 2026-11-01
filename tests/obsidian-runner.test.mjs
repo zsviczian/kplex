@@ -10,6 +10,7 @@ import { join } from "node:path";
 import test from "node:test";
 import { runInNewContext } from "node:vm";
 import { runObsidianVerification, validateTarget } from "../scripts/testing/obsidian/runner.mjs";
+import { runLiveUpdatesForeground } from "../scripts/testing/obsidian/foregroundLiveUpdates.mjs";
 import { createWaitTimingProbe } from "../scripts/testing/obsidian/waitTiming.mjs";
 import { npmInvocation, obsidianCliExecutable, spawnNativeSync } from "../scripts/testing/obsidian/processTools.mjs";
 import { browserExecutable } from "./support/browserExecutable.mjs";
@@ -446,4 +447,42 @@ test('Find setup, scenario and cleanup expressions compile with the actual nativ
  const {Script}=await import('node:vm');
  const {findEnhancementSetup,findEnhancementScenarios,findEnhancementCleanup}=await import('../scripts/testing/obsidian/uxFindEnhancements.mjs');
  for(const code of [findEnhancementSetup,findEnhancementScenarios,findEnhancementCleanup])assert.doesNotThrow(()=>new Script(withNativeDocumentSessions(code)));
+});
+
+/** Model orchestration only: real body acquisition and UI acceptance remain native assertions. */
+function liveRestartFixture(failStart = false) {
+  const events = [], report = {};let evaluations = 0, visibleDemand = false;
+  const run = () => runLiveUpdatesForeground({report, vaultName: 'kplex-test-small', wait: async () => {},
+    /** Opening normal demand after enablement is required before the real P3 hold can start. */
+    cli(command, argument) {
+      if (command === 'command') {
+        assert.equal(argument, 'id=k-plex:kplex-start');assert.equal(events.at(-1), 'plugin:enable');
+        events.push('open-demand');if (failStart) throw Error('start command failed');visibleDemand = true;
+      } else {assert.equal(argument, 'id=k-plex');events.push(command);}
+    },
+    /** Preserve native cleanup completion independently of a failed startup command. */
+    evaluate(code) {
+      if (code.includes('cleanupStarted:true')) {events.push('cleanup-start');return {cleanupStarted: true};}
+      if (code.includes('cleaned:window.__kplexForegroundLiveUpdates')) return {cleaned: {folderRemoved: true, filesRestored: true, cachedReadRestored: true}};
+      if (code.includes('delete window.__kplexForegroundLiveUpdates')) {events.push('controller-removed');return {removed: true};}
+      const step = evaluations++;
+      if (step < 3) return {};
+      if (step === 3) {assert(visibleDemand, 'A reloaded closed canvas cannot supply P3 demand');return {held: true};}
+      if (step === 4) return {started: true};
+      if (step === 5) return {done: true, value: {accepted: true}};
+      throw Error('Unexpected foreground orchestration');
+    }});
+  return {run, report, events};
+}
+
+test('foreground restart reopens the registered K-Plex command before awaiting unrelated body work', async () => {
+  const f = liveRestartFixture();assert.deepEqual(await f.run(), {accepted: true});
+  assert.deepEqual(f.events.slice(0, 3), ['plugin:disable', 'plugin:enable', 'open-demand']);
+  assert.equal(f.events.at(-1), 'controller-removed');
+});
+
+test('failed foreground startup still retires the controller and restores owned resources', async () => {
+  const f = liveRestartFixture(true);await assert.rejects(f.run(), /start command failed/);
+  assert.match(f.report.liveUpdatesError, /start command failed/);assert.equal(f.report.cleanup.cachedReadRestored, true);
+  assert(f.events.includes('cleanup-start'));assert.equal(f.events.at(-1), 'controller-removed');
 });

@@ -44,7 +44,7 @@ export class MaterializeGhostModal extends Modal {
   constructor(
     app: App,
     private readonly noteName: string,
-    private readonly locations: readonly GhostMaterializationLocation[],
+    locations: readonly GhostMaterializationLocation[],
     private readonly excalidrawAvailable: boolean,
     private readonly defaultKind: GhostMaterializationKind,
     private readonly onCreate: (kind: GhostMaterializationKind, folderPath: string, retainedFile?: TFile, current?: () => boolean, templatePath?: string) => Promise<boolean>,

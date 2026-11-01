@@ -98,19 +98,36 @@ test('bound occurrence dimensions reach shared layout independently of attention
 });
 
 test('bound editor admission rejects missing, hidden, recreated or mismatched targets instead of retargeting attention',()=>{
- for(const failure of ['missing-occurrence','wrong-document','wrong-native-file','wrong-view','unsupported','native-rejected','authoritative-hidden','too-many','legacy-policy']){
+ for(const failure of ['missing-occurrence','wrong-document','wrong-native-file','wrong-view','missing-native-file','native-rejected','authoritative-hidden','too-many','legacy-policy']){
   const f=fixture(),page=f.source.get('Repeated.md'),reference=M.actionNodeRef(page),definition={...M.probeViewDefinition,editorHosting:'occurrence'};
   const binding={id:'binding',viewId:definition.id,occurrenceId:'repeat-above',target:{nodeId:reference.identity,path:page.file.path,fileIdentity:reference.fileIdentity},dimensions:{width:660,height:370},mode:'source',closing:false};
   if(failure==='missing-occurrence')binding.occurrenceId='missing';
   if(failure==='wrong-document')binding.target.nodeId='Focus.md';
   if(failure==='wrong-native-file')page.file={...page.file};
   if(failure==='wrong-view')binding.viewId='other.view';
-  if(failure==='unsupported')page.file.extension='png';
+  if(failure==='missing-native-file')page.file=null;
   if(failure==='authoritative-hidden')f.source.isVisiblePage=()=>false;
   if(failure==='legacy-policy')delete definition.editorHosting;
   const result=M.prepareViewScene(definition,f.read,f.source,'Focus.md',null,f.settings,()=>true,undefined,()=>true,undefined,
    {bindings:failure==='too-many'?[binding,{...binding,id:'second',occurrenceId:'repeat-below'}]:[binding],supports:()=>failure!=='native-rejected'});
   assert.equal(result.failure,true,failure);assert.deepEqual(result.scene.nodes,[],failure);assert.equal(result.scene.boundEditors,undefined,failure);
+ }
+});
+
+test('bound editor scene delegates media eligibility to the native owner while preserving the exact occurrence',()=>{
+ for(const [extension,supported] of [['png',true],['mp4',true],['zip',false]]){
+  const f=fixture(),page=f.source.get('Repeated.md');page.file.extension=extension;
+  const reference=M.actionNodeRef(page),definition={...M.probeViewDefinition,editorHosting:'occurrence'};
+  const binding={id:'native-media',viewId:definition.id,occurrenceId:'repeat-above',target:{nodeId:reference.identity,path:page.file.path,fileIdentity:reference.fileIdentity},dimensions:{width:660,height:370},mode:'source',closing:false};
+  let checkedPage;
+  const result=M.prepareViewScene(definition,f.read,f.source,'Focus.md',null,f.settings,()=>true,undefined,()=>true,undefined,
+   {bindings:[binding],supports:current=>{checkedPage=current;return supported}});
+  assert.equal(checkedPage,page,'The native owner receives the exact canonical page');assert.equal(result.failure,!supported,extension);
+  if(supported){
+   assert.equal(result.scene.boundEditors[0].page,page);assert.equal(result.scene.boundEditors[0].binding.occurrenceId,'repeat-above');
+   assert.equal(result.projection.attention,'Focus.md','Media admission cannot retarget attention');
+   assert.notEqual(result.scene.nodes.find(row=>row.occurrenceId==='repeat-below').width,660,'Same-note copies remain independent');
+  }else{assert.deepEqual(result.scene.nodes,[]);assert.equal(result.scene.boundEditors,undefined);}
  }
 });
 

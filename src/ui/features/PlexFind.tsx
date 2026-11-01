@@ -1,5 +1,6 @@
 /** Current-Plex Find field: caller-owned matching/reveal and optional reversible filter actions; local focus/disclosure and display/path mode, no host or semantic access. */
 import { useEffect, useRef, useState, type ReactNode } from "react";
+import { ActionButton } from "../components/ActionButton";
 
 /** Match a literal case-insensitive term against caller-selected displayed values. */
 export function matchesFindText(query: string, values: readonly string[]): boolean {
@@ -71,9 +72,8 @@ export function PlexFind({ query, onChange, onNext, focusRequest, visible = true
         }} />
       <button type="button" className="kplex-icon-button" aria-label={pathLabel} aria-pressed={includePath}
         onClick={/** Extend only this Find session; Vault search and its vocabulary remain independent. */ () => onIncludePathChange(!includePath)}>{pathIcon}</button>
-      {onApplyFilter && filterLabel && <button type="button" className="kplex-icon-button kplex-action-button"
-        aria-label={filterLabel} aria-pressed={filterActive} disabled={!query.trim() && !filterActive}
-        onClick={activateFilter}>{filterIcon}</button>}
+      {onApplyFilter && filterLabel && <ActionButton label={filterLabel} icon={filterIcon}
+        aria-pressed={filterActive} disabled={!query.trim() && !filterActive} onClick={activateFilter} />}
       <span className="kplex-find-count" role="status" aria-live="polite">{matchLabel}</span>
       <button type="button" className="kplex-icon-button" aria-label={closeLabel} onClick={close}>{closeIcon}</button>
     </>}

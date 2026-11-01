@@ -298,6 +298,7 @@ IDs C00–C26 replace the draft's numbering; E00 and L00/L01 are inserted enviro
 
 | ID | Deliverable | Prerequisites | Lanes | Agent fit | Status / evidence |
 | --- | --- | --- | --- | --- | --- |
+| Cleanup-2026-10-31 | Light cleanup and regression coverage review | Main ec3c07d | U/X/I | Host | Complete locally: full verify at d79f0f7, five added native-harness contracts, four exact-artifact native drivers and original Small state restored. PR/maintainer verification remains separate. C15-C26 paused. See docs/validation/code-quality-review-2026-10-31.md. |
 | PR218 | Canvas/Compass settings and session-owned Views and lenses selector | Accepted PR215 | H/U/L/X | Host | Done - merged9987810 after clean-head full/native24 and CI467; Small restored. C15-C26 remain paused. |
 | PR219-M0 | Opt-in occurrence editor and rooted-session prerequisite | Accepted PR218 | H/U/L/X | Host | Native occurrence/unchanged attention-host proof implemented; latest shared area/drop/cross-link native56 and read-only production proof pass; final full/CI pending. Capacity one; Wu Xing independent. |
 | C00 | Baseline, conflicts, invariant inventory | — | G/I/P/U/X/M | Host | Review — Node 22 `verify`, inventory, exact-build CLI render/error smoke and maintainer's qualitative v1 graph inspection; v2 large-file fixture verified, but its runtime completion, representative interaction and cold/warm performance remain pending (see baseline doc) |
@@ -6744,3 +6745,28 @@ Accepted main ccb7189; scoped CSS reset on existing ThoughtNode controls defeats
 ### 2026-10-27 - Scanner-safe Compass endpoint fallback
 
 Maintainer-reported no-unsafe-call/no-unsafe-return at occurrenceEditor.ts35: replace rows.at(-1) with rows[rows.length-1], retaining role/last-match/empty-array behavior without ES2022 library declaration. No cast/suppression/target changes.37 affected editor tests, actual build/types/full scanner PASS Node22.22.2. Final exact Help reload20:05:27.963Z retains center/liveRoot/view/preset/camera, immediate29cards29visible; no note edits. iOS physical acceptance remains pending for PR227. Risk check: existing duplicate-role endpoint and dirty-editor switching tests pass; no extra native platform claim.
+
+
+### 2026-10-31 - Maintainer-scoped light cleanup
+
+Base main ec3c07d; repository-wide static/import/CSS/test inventory audit and critical semantic-path review. Remove two unreachable UI modules and 41 exclusive selectors, reuse ActionButton for three live actions, share finite predicate choices, retire two unused modal references and add 27 existing portable diagnostic cases to npm test. No indexing/hydration/compiler/cache/schema/API changes; C15-C26 remain paused. 190 focused cases pass on Node22.22.2; initial real build and official scanner pass. Full verification and exact-build native hydration/gate/live-update acceptance follow before PR delivery. Remaining manual risks: theme/popout control behavior, native lens/preset choices and physical touch. See docs/validation/code-quality-review-2026-10-31.md.
+
+
+### 2026-10-31 - Cleanup regression fixture correction
+
+First complete verification passed release/architecture9/core132/scanner and 1825 main cases, then stopped on one stale accepted-main scene assertion that still rejected PNG. Both test and production admission owner were unchanged from ec3c07d. Current native format policy already accepts PNG/MP4. Retain the rejection matrix with missing-native-file coverage and add explicit media acceptance/ZIP refusal/exact occurrence/canonical identity/unchanged attention contracts. All51 affected scene/editor cases pass; no production change, weakened guard or timeout adjustment. Full verification restarts; native checks remain pending.
+
+
+### 2026-10-31 - Cleanup browser test ownership correction
+
+Second aggregate attempt passed all1827 main cases and451 browser cases; one caret test read the retired write-only private descriptionControl field. Use the existing accessible textarea labels in that test, preserving every caret/focus/partner/draft/save assertion. All30 ontology modal cases pass. No production change or timeout/assertion relaxation. Restart the uninterrupted aggregate run, then exact-build native hydration/gates/live updates. Raw failed attempts remain private; durable context is in the cleanup validation report.
+
+
+### 2026-10-31 - Cleanup full verification and native finalizer checkpoint
+
+Clean production checkpoint d79f0f7 passed uninterrupted Node22.22.2 npm run verify: release, architecture9/core132/scanner/main1827/browser452/source357/real IndexedDB856 and real production build. Default20015-owner exact metadata/evidence/gates/degrees/no-extra-IO/cancellation proof passed. Windows Obsidian1.14.5 exact artifact hydration passed739pages/2111declarations, ordered oracle, zero body reads/parses and late-generation rejection. Native gate functional phases passed but two cleanup attempts retained fixture editor/canvas/navigation ownership; keep their failures. Retire owned Sidecar/canvas and restore original navigation before deleting notes; keep strict readiness/deadlines.11 portable finalizer/event harness cases pass, including3 new contracts. Native3 prose saves now pass zero badge/scene mutations and real link remove/add plus complete cleanup. Only scripts/tests/package registration changed after the fully verified production checkpoint. Filtered-gate/live-update acceptance, final restoration and PR CI remain pending. C15-C26 stay paused.
+
+
+### 2026-10-31 - Cleanup native acceptance and delivery record
+
+All four exact-artifact Windows Obsidian1.14.5 drivers pass: hydration739pages/2111declarations with ordered parity/zero body IO/late-generation rejection; native3 prose saves with zero badge/scene mutations and real link remove/add; six filtered gate/presentation cases; actual On-demand/background/Responsive live creation/search/local semantics/recent sync/composer selection while unrelated P3 body remains held, then genuine drain with no broad build/inventory/snapshot work. Preserve two failed gate cleanup attempts and foreground profile/hold preflights in the report. Foreground restart now reopens the registered start command, not a canonical readiness shortcut; two additional orchestration cases pass.44 runner/finalizer follow-up cases pass. Overall Small restored to Eager/117files/zero K-Plex canvases with exact settings/workspace/enabled bytes, all controllers retired and no fixture files. One old15:46 SettingsConflictError retained; no newer native error observed. Production src/styles/manifest/build/lockfile remain equal to fully verified d79f0f7; later changes only test tooling/registration/records. Curated hashes/evidence in docs/validation/code-quality-review-2026-10-31.json. Open draft PR and wait for maintainer verification; do not merge/release. Physical touch/macOS/minimum-host/native popout remain separate review checks.
