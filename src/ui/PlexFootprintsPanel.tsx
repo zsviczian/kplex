@@ -8,6 +8,7 @@ import type { PlexFootprints, FootprintVisit } from "../application/PlexFootprin
 import type {ClipboardSession, ClipboardState} from "../application/ClipboardSession";
 import type { Translator } from "../lang";
 import { FloatingLayer } from "./components/FloatingLayer";
+import { ActionButton } from "./components/ActionButton";
 import { collectionRange } from "./components/collectionWindow";
 import { ObsidianIcon } from "./ObsidianIcon";
 import {footprintsMarkdownSession} from "./footprintsMarkdown";
@@ -100,10 +101,10 @@ export function PlexFootprintsPanel({trail, translate, readRow, formatLink, navi
         onWheel={/** Retain list wheel scrolling independently from the Plex camera. */ event => event.stopPropagation()}
         onTouchMove={/** Native scrolling stays in this single bounded region. */ event => event.stopPropagation()}>
         <div className="kplex-footprints-heading"><strong>{translate("footprints.title")}</strong><span>{translate("footprints.count", {count: trail.length})}</span>
-          <button type="button" className="kplex-icon-button kplex-action-button" aria-label={translate("footprints.copyMarkdown")} disabled={!trail.length || copyState === "copying"}
-            onClick={/** Copy the whole displayed trail order, including repeated visits outside the rendered window. */ event => copyMarkdown(event.currentTarget)}><ObsidianIcon name={copyState === "copied" ? "check" : "copy"} size={16} /></button>
-          <button type="button" className="kplex-icon-button kplex-action-button" aria-label={translate("footprints.startHere")} disabled={trail.length < 2}
-            onClick={/** Reset only this owner; global history, center and other trails are unchanged. */ () => {following.current = true;trail.startHere();}}><ObsidianIcon name="map-pin" size={16} /></button></div>
+          <ActionButton label={translate("footprints.copyMarkdown")} icon={<ObsidianIcon name={copyState === "copied" ? "check" : "copy"} size={16} />} disabled={!trail.length || copyState === "copying"}
+            onClick={/** Copy the whole displayed trail order, including repeated visits outside the rendered window. */ event => copyMarkdown(event.currentTarget)} />
+          <ActionButton label={translate("footprints.startHere")} icon={<ObsidianIcon name="map-pin" size={16} />} disabled={trail.length < 2}
+            onClick={/** Reset only this owner; global history, center and other trails are unchanged. */ () => {following.current = true;trail.startHere();}} /></div>
         {copyState !== "idle" && <div role="status" className={`kplex-footprints-empty${copyState === "failed" ? " mod-warning" : ""}`}>{translate(copyState === "copied" ? "footprints.copied" : copyState === "failed" ? "footprints.copyFailed" : "footprints.copying")}</div>}
         {!trail.length && <div className="kplex-footprints-empty">{translate("footprints.empty")}</div>}
         <div ref={list} className="kplex-footprints-list" role="list"

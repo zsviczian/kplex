@@ -1,0 +1,225 @@
+{
+  "scope": "Maintainer-requested light cleanup; disposable Small only",
+  "baseline": "ec3c07dbc68fbfa68eb36e65f84dada83514256c",
+  "productionCheckpoint": "d79f0f79d187329b82417727d60264da8dff2841",
+  "productionSourcesUnchangedAfterFullVerification": true,
+  "node": "22.22.2",
+  "host": "1.14.5 (installer 1.14.5)",
+  "platform": "Windows",
+  "artifacts": {
+    "main.js": "b3c2af0329a4fe7c5718b086a6fec6e9d71e9514ce793f1adfe7122b106d88f9",
+    "manifest.json": "2822c38463c03ace4f017453679572d462534ce2a9c9558fd7593f259b01bfa1",
+    "styles.css": "9fab2c4947e637f910cfe3823c76534efc0c7b55005dda1b43700e56bcc056dd"
+  },
+  "fullVerification": {
+    "status": "passed",
+    "architecture": 9,
+    "core": 132,
+    "main": 1827,
+    "browser": 452,
+    "sources": 357,
+    "indexedDb": 856,
+    "releaseScannerAndProductionBuild": "passed",
+    "largeOwnerPublication": {
+      "status": "passed",
+      "owners": 20015,
+      "published": 1,
+      "cancellationYields": 2,
+      "scope": "Exact requested-center metadata/evidence/gates/degrees and zero-extra-IO contract; no global-root completeness claim"
+    }
+  },
+  "harnessFollowups": {
+    "stableFinalizerCases": 3,
+    "foregroundRestartCases": 2,
+    "latestRunnerContractCommandCases": 44,
+    "status": "passed",
+    "productionCodeChanged": false
+  },
+  "native": {
+    "hydration": {
+      "status": "passed",
+      "pages": 739,
+      "declarations": 2111,
+      "operations": {
+        "reads": 0,
+        "parses": 0
+      },
+      "cancelledWhileStorageHeld": true,
+      "latePublicationRejected": true,
+      "cleanup": "passed"
+    },
+    "stableGates": {
+      "status": "passed",
+      "nativeEditor": true,
+      "proseSaves": 3,
+      "domMutations": 0,
+      "realLinkChanges": "passed",
+      "scenarioCleanup": {
+        "passed": true,
+        "failures": []
+      },
+      "outerCleanup": "passed"
+    },
+    "filteredGates": {
+      "status": "passed",
+      "scenarios": [
+        {
+          "id": "B-filtered-keep-cross-true",
+          "status": "passed"
+        },
+        {
+          "id": "B-filtered-keep-cross-false",
+          "status": "passed"
+        },
+        {
+          "id": "B-filtered-reflow-cross-true",
+          "status": "passed"
+        },
+        {
+          "id": "B-filtered-reflow-cross-false",
+          "status": "passed"
+        },
+        {
+          "id": "B-clear-filter",
+          "status": "passed"
+        },
+        {
+          "id": "B-presentation-only",
+          "status": "passed"
+        }
+      ],
+      "cleanup": {
+        "errors": [],
+        "existingFixtureChecks": [],
+        "existingFixtureFilesIntact": null,
+        "filesRemaining": [],
+        "folderRemaining": false,
+        "leafDetached": true,
+        "settingsBytesRestored": true
+      }
+    },
+    "liveUpdates": {
+      "status": "passed",
+      "variant": "after-existing-workspace-guard; original early case remains separate",
+      "events": [
+        "real-p3-body-held",
+        "find-request",
+        "find-result",
+        "find-center",
+        "workspace-guard-settled-before-actions",
+        "native-create-request",
+        "native-file-created",
+        "native-metadata-ready",
+        "composer-native-created",
+        "composer-query-observed",
+        "composer-selected-before-release",
+        "native-create-request",
+        "native-file-created",
+        "native-metadata-ready",
+        "find-request",
+        "find-result",
+        "find-center",
+        "local-semantics-ready",
+        "foreground-available-before-release",
+        "native-create-request",
+        "native-file-created",
+        "native-metadata-ready",
+        "recent-sync-request",
+        "recent-sync-before-release",
+        "find-request",
+        "find-result",
+        "find-center",
+        "genuine-drain"
+      ],
+      "composer": "selected",
+      "broadWork": {
+        "inventoryRuns": 0,
+        "fullBuildCalls": 0,
+        "nodeCatalogCalls": 0,
+        "snapshotWrites": 0,
+        "checkpointWrites": 0
+      },
+      "drain": {
+        "coordinator": false,
+        "graph": false,
+        "url": false,
+        "snapshot": false,
+        "source": false,
+        "repository": false,
+        "cache": false,
+        "scheduler": false,
+        "observations": false
+      },
+      "finalCenterCurrent": true,
+      "cleanup": {
+        "errors": [],
+        "folderRemoved": true,
+        "filesRestored": true,
+        "cachedReadRestored": true
+      },
+      "configurationRestored": true
+    }
+  },
+  "restoration": {
+    "filesBefore": 117,
+    "filesAfter": 117,
+    "loaded": true,
+    "renderedCanvases": 0,
+    "configurationBytes": {
+      "workspace.json": {
+        "unchanged": true,
+        "sha256": "81e11b0989ece6627a540644c0cd374d9495f89d734e5626a0aa2be9e8110b9b"
+      },
+      "community-plugins.json": {
+        "unchanged": true,
+        "sha256": "4ac827989c179ea6dba2e5a878462085dc86e40328300b1b018fb91d466cbc35"
+      },
+      "plugins/k-plex/data.json": {
+        "unchanged": true,
+        "sha256": "116e9d909fc251a24867444460d8a187e6c98040bcac2a63cdbabb28d966932e"
+      }
+    },
+    "controllersRetired": true,
+    "fixtureFilesRemaining": 0,
+    "originalModeRestored": "eager",
+    "devErrors": "One retained SettingsConflictError at 15:46:43 predates this validation; no newer entry observed."
+  },
+  "retainedFailures": [
+    {
+      "stage": "full attempt 1",
+      "reason": "Stale accepted-main PNG rejection fixture",
+      "resolution": "Native-owned format acceptance and missing-file negative coverage; production unchanged"
+    },
+    {
+      "stage": "full attempt 2",
+      "reason": "Caret test read retired private UI field",
+      "resolution": "Query existing accessible textarea; all functional assertions retained"
+    },
+    {
+      "stage": "native preflight",
+      "reason": "Relative config path and closed-session readiness refused",
+      "resolution": "Absolute target and normally opened retained test session"
+    },
+    {
+      "stage": "native gate cleanup, two attempts",
+      "reason": "Fixture editor/canvas/navigation outlived retired documents",
+      "resolution": "Close owned Sidecar, release canvas and restore prior navigation before deletion; unchanged deadline and readiness predicate"
+    },
+    {
+      "stage": "native foreground preflight",
+      "reason": "Eager profile refused",
+      "resolution": "Temporary actual On demand/background/Responsive profile, restored afterward"
+    },
+    {
+      "stage": "native foreground hold",
+      "reason": "Plugin restart did not reacquire visible demand",
+      "resolution": "Reopen registered K-Plex start command; actual unrelated body hold then passed"
+    }
+  ],
+  "limitations": [
+    "Functional Windows/native and Chromium evidence; no paint or comparative performance claim",
+    "Physical mobile, macOS, minimum-host and native popout acceptance remain separate",
+    "Live-update native acceptance uses the existing workspace-ready variant; original early-workspace case remains separate"
+  ],
+  "recordedAt": "2026-10-31T22:58:23.194Z"
+}

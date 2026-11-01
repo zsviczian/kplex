@@ -155,7 +155,6 @@
 }
 
 .kplex-topbar button,
-.kplex-content-actions button,
 .kplex-find button,
 button.kplex-footprints-trigger,
 button.kplex-layout-toggle,
@@ -179,7 +178,6 @@ button.kplex-sidecar-unfold-plex,
 }
 
 .kplex-topbar button:hover,
-.kplex-content-actions button:hover,
 .kplex-find button:hover,
 button.kplex-footprints-trigger:hover,
 button.kplex-layout-toggle:hover,
@@ -500,36 +498,6 @@ button.kplex-sidecar-unfold-plex,
 .kplex-central-editor-toolbar button,
 .kplex-find button { width: 30px; padding: 0; }
 
-.kplex-content-pane {
-  width: var(--kplex-content-width);
-  max-width: 760px;
-  min-width: 290px;
-  min-height: 0;
-  display: flex;
-  flex-direction: column;
-  background: var(--background-secondary);
-  border-left: 1px solid var(--kplex-line, var(--background-modifier-border));
-  box-shadow: var(--shadow-s);
-  z-index: 24;
-}
-.kplex-content-header { padding: 18px 22px 14px; border-bottom: 1px solid var(--kplex-line, var(--background-modifier-border)); }
-.kplex-content-kicker { font-size: 9px; letter-spacing: .16em; color: var(--text-accent); font-weight: 700; margin-bottom: 6px; }
-.kplex-content-header h2 { margin: 0 0 4px; font-size: 22px; color: var(--kplex-text, var(--text-normal)); }
-.kplex-content-path { color: var(--kplex-muted, var(--text-muted)); font-size: 11px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.kplex-content-actions { display: flex; gap: 6px; margin-top: 12px; }
-.kplex-content-scroll { min-height: 0; overflow: auto; padding: 18px 22px 32px; }
-.kplex-markdown { color: var(--text-normal); }
-.kplex-markdown h1:first-child { margin-top: 0; }
-.kplex-loading { color: var(--kplex-muted, var(--text-muted)); padding: 8px 0; }
-.kplex-special-content { padding: 28px 16px; text-align: center; border: 1px solid var(--kplex-line, var(--background-modifier-border)); border-radius: 10px; background: var(--background-modifier-hover); }
-.kplex-special-icon { font-size: 34px; margin-bottom: 10px; }
-.kplex-mapped-links { margin-top: 28px; padding-top: 16px; border-top: 1px solid var(--kplex-line, var(--background-modifier-border)); }
-.kplex-mapped-links h3 { margin: 0 0 10px; font-size: 12px; text-transform: uppercase; letter-spacing: .09em; color: var(--kplex-muted, var(--text-muted)); }
-.kplex-mapped-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 6px; }
-.kplex-mapped-list button { display: flex; justify-content: space-between; gap: 10px; color: var(--kplex-text, var(--text-normal)); background: var(--background-modifier-hover); border: 1px solid var(--kplex-line, var(--background-modifier-border)); border-radius: 6px; padding: 7px 8px; cursor: pointer; text-align: left; }
-.kplex-mapped-list button:hover { background: var(--background-modifier-hover); }
-.kplex-mapped-list small { color: var(--kplex-muted, var(--text-muted)); text-transform: uppercase; font-size: 8px; letter-spacing: .08em; }
-
 .kplex-history-bar {
   z-index: 30;
   display: flex;
@@ -598,7 +566,6 @@ button.kplex-sidecar-unfold-plex,
   }
 }
 
-
 /* K-Plex Lucide icons */
 .kplex-icon { display: inline-flex; align-items: center; justify-content: center; line-height: 0; flex: 0 0 auto; }
 .kplex-icon svg { display: block; stroke: currentColor; }
@@ -640,23 +607,7 @@ button.kplex-sidecar-unfold-plex,
   stroke-dasharray: 5 4;
   filter: none;
 }
-.kplex-relation-popover {
-  position: absolute;
-  z-index: 80;
-  width: 372px;
-  max-width: calc(100% - 16px);
-  padding: 10px;
-  color: var(--text-normal);
-  background: var(--background-primary);
-  border: 1px solid var(--background-modifier-border, var(--background-modifier-border));
-  border-radius: 10px;
-  box-shadow: var(--shadow-s);
-  user-select: text;
-  cursor: default;
-}
-.kplex-relation-popover-title { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 9px; }
-.kplex-relation-popover-title strong { font-size: 13px; }
-.kplex-popover-icon,
+
 .kplex-relation-actions button {
   display: inline-flex;
   align-items: center;
@@ -684,7 +635,7 @@ button.kplex-sidecar-unfold-plex,
 .kplex-relation-results small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .kplex-relation-results small { color: var(--text-muted); text-align: right; }
 .kplex-relation-empty { padding: 10px 8px; color: var(--text-muted); font-size: 11px; }
-.kplex-relation-popover select { width: 100%; }
+
 .kplex-relation-hint { margin-top: 8px; padding: 7px 8px; color: var(--text-muted); background: var(--background-secondary); border-radius: 6px; font-size: 10px; line-height: 1.35; }
 .kplex-relation-summary { display: flex; align-items: center; gap: 8px; min-width: 0; padding: 8px; border-radius: 7px; background: var(--background-secondary); }
 .kplex-relation-summary > span:last-child { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -1066,80 +1017,15 @@ button.kplex-sidecar-unfold-plex,
   background: var(--background-secondary);
   backdrop-filter: blur(2px);
 }
-.kplex-mini-slider {
-  display: grid;
-  grid-template-rows: 15px 11px;
-  justify-items: center;
-  width: 104px;
-  color: var(--text-muted);
-  font-size: 8px;
-  line-height: 1;
-  letter-spacing: .02em;
-  cursor: default;
-}
-.kplex-mini-slider input[type="range"] {
-  width: 100px;
-  height: 13px;
-  margin: 0;
-  padding: 0;
-  cursor: ew-resize;
-}
-.kplex-mini-slider span {
-  align-self: end;
-  user-select: none;
-}
 
 @media (max-width: 760px) {
   .kplex-layout-controls { left: 8px; bottom: 12px; gap: 6px; padding: 4px; }
-  .kplex-mini-slider { width: 82px; }
-  .kplex-mini-slider input[type="range"] { width: 78px; }
+
 }
 
 /* Compactness is visual density only: keep the tight node interior padding at every setting. */
 .kplex-thought { padding: 3px 8px; }
 .kplex-role-center { padding: 7px 11px; }
-
-/* Small, unobtrusive graph-layout sliders. */
-.kplex-mini-slider input[type="range"] {
-  -webkit-appearance: none;
-  appearance: none;
-  width: 100px;
-  height: 10px;
-  margin: 0;
-  padding: 0;
-  background: transparent;
-  cursor: ew-resize;
-}
-.kplex-mini-slider input[type="range"]::-webkit-slider-runnable-track {
-  height: 2px;
-  border-radius: 999px;
-  background: var(--background-modifier-border);
-}
-.kplex-mini-slider input[type="range"]::-webkit-slider-thumb {
-  -webkit-appearance: none;
-  appearance: none;
-  width: 9px;
-  height: 9px;
-  margin-top: -3.5px;
-  border: 1px solid var(--background-modifier-border);
-  border-radius: 50%;
-  background: var(--interactive-accent);
-  box-shadow: 0 0 0 1px var(--background-modifier-border);
-}
-.kplex-mini-slider input[type="range"]::-moz-range-track {
-  height: 2px;
-  border: 0;
-  border-radius: 999px;
-  background: var(--background-modifier-border);
-}
-.kplex-mini-slider input[type="range"]::-moz-range-thumb {
-  width: 9px;
-  height: 9px;
-  border: 1px solid var(--background-modifier-border);
-  border-radius: 50%;
-  background: var(--interactive-accent);
-  box-shadow: 0 0 0 1px var(--background-modifier-border);
-}
 
 /* Expanded view: each first-level thought can expose a lightweight, scrollable 3x2 child strip. */
 .kplex-expanded-cluster {
@@ -1225,68 +1111,6 @@ button.kplex-sidecar-unfold-plex,
   border-radius: 7px;
   background: var(--background-secondary);
   box-shadow: var(--shadow-s);
-}
-.kplex-mini-slider {
-  grid-template-rows: 12px 10px;
-  width: 94px;
-  gap: 2px;
-  font-size: 7px;
-  letter-spacing: .08em;
-  text-transform: uppercase;
-  color: var(--text-muted);
-}
-.kplex-plex .kplex-layout-controls .kplex-mini-slider input[type="range"] {
-  -webkit-appearance: none;
-  appearance: none;
-  width: 90px;
-  height: 10px;
-  min-height: 10px;
-  margin: 0;
-  padding: 0;
-  border: 0;
-  border-radius: 0;
-  background: transparent;
-  box-shadow: none;
-  outline: none;
-  cursor: ew-resize;
-}
-.kplex-plex .kplex-layout-controls .kplex-mini-slider input[type="range"]::-webkit-slider-runnable-track {
-  -webkit-appearance: none;
-  height: 1px;
-  border: 0;
-  border-radius: 999px;
-  background: var(--background-modifier-border);
-  box-shadow: none;
-}
-.kplex-plex .kplex-layout-controls .kplex-mini-slider input[type="range"]::-webkit-slider-thumb {
-  -webkit-appearance: none;
-  appearance: none;
-  width: 7px;
-  height: 7px;
-  min-width: 7px;
-  min-height: 7px;
-  margin-top: -3px;
-  padding: 0;
-  border: 1px solid var(--background-primary);
-  border-radius: 50%;
-  background: var(--interactive-accent);
-  box-shadow: 0 0 0 1px var(--background-modifier-border);
-}
-.kplex-plex .kplex-layout-controls .kplex-mini-slider input[type="range"]::-moz-range-track {
-  height: 1px;
-  border: 0;
-  border-radius: 999px;
-  background: var(--background-modifier-border);
-  box-shadow: none;
-}
-.kplex-plex .kplex-layout-controls .kplex-mini-slider input[type="range"]::-moz-range-thumb {
-  width: 7px;
-  height: 7px;
-  padding: 0;
-  border: 1px solid var(--background-primary);
-  border-radius: 50%;
-  background: var(--interactive-accent);
-  box-shadow: 0 0 0 1px var(--background-modifier-border);
 }
 
 /* Performance/UI pass: tighter thought chrome and professional micro controls. */
@@ -1772,7 +1596,6 @@ button.kplex-sidecar-unfold-plex,
   .kplex-edge.is-highlighted .kplex-edge-visible { filter: none; }
 }
 
-
 /* Direct manipulation is intentionally visually cheaper than an idle Plex. In particular, iOS
    WebViews can reload under memory pressure when a large transformed graph, drop shadows and
    hundreds of CSS animations are all rasterized while pinching. The gesture classes are toggled
@@ -1793,7 +1616,6 @@ button.kplex-sidecar-unfold-plex,
 .kplex-plex.is-pinch-gesturing .kplex-section-tree-edge {
   filter: none;
 }
-
 
 /* iOS WebKit is particularly prone to process reloads when a large SVG relationship layer and
    hundreds of shadowed HTML nodes are continuously rescaled together. During the *active* pinch
@@ -2948,7 +2770,6 @@ body.kplex-filter-panel-open .tooltip { z-index: 100300; }
 }
 
 /* The companion control remains on the remembered side even when the native sidecar is closed. */
-
 
 /* Searchable managers keep large style/ontology collections compact and native-looking. */
 .modal.kplex-style-manager-modal {

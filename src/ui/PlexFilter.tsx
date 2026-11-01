@@ -32,7 +32,7 @@ import { FloatingLayer, type FloatingLayerPositioning } from "./components/Float
 import type { Translator } from "../lang";
 import {graphLensValidationMessage} from "./predicates/predicateMessages";
 import {PredicateConditions} from "./predicates/PredicateConditions";
-import {ROLE_CHOICE_SPECS, EDGE_KIND_SPECS, DIRECTION_SPECS, EVIDENCE_SOURCE_SPECS, BOOLEAN_SPECS, localizeChoices, fieldOptions, defaultOperator, simpleValidation, type Choice} from "./predicates/conditionChoices";
+import {ROLE_CHOICE_SPECS, localizeChoices, finiteValueChoices, fieldOptions, defaultOperator, simpleValidation, type Choice} from "./predicates/conditionChoices";
 
 export type { PlexFilterState } from "../lens/SimplePlexFilter";
 export { EMPTY_PLEX_FILTER } from "../lens/SimplePlexFilter";
@@ -205,11 +205,6 @@ export function PlexFilter({
   viewContributions?: CanvasViewContributionController;
 }) {
   const roleChoices = localizeChoices(ROLE_CHOICE_SPECS, translate);
-  const evidenceRoleChoices = [...roleChoices.filter((choice) => choice.value !== "sibling"), { value: "hidden", label: translate("role.hidden") }];
-  const edgeKindChoices = localizeChoices(EDGE_KIND_SPECS, translate);
-  const directionChoices = localizeChoices(DIRECTION_SPECS, translate);
-  const evidenceSourceChoices = localizeChoices(EVIDENCE_SOURCE_SPECS, translate);
-  const booleanChoices = localizeChoices(BOOLEAN_SPECS, translate);
   const localizedFieldOptions = fieldOptions(translate);
   const idPrefix = useId().replaceAll(":", "");
   const tagListId = `kplex-filter-tags-${idPrefix}`;
@@ -435,13 +430,11 @@ export function PlexFilter({
     submitLenses(existing ? lenses.map(lens => lens.id === next.id ? next : lens) : [...lenses, next], baseline, () => {setDraft(null); setDraftError(null);}, draft.appearanceOwner);
   };
 
+  /** Canonical finite values are shared; center-relative paths and indexed suggestions belong to this lens. */
   const valueChoices = (condition: GraphLensSimpleCondition): Choice[] | null => {
     if (condition.field === "edge.role") return roleChoices;
-    if (condition.field === "edge.kind") return edgeKindChoices;
-    if (condition.field === "edge.direction") return directionChoices;
-    if (condition.field === "evidence.sourceKind") return evidenceSourceChoices;
-    if (condition.field === "evidence.active") return booleanChoices;
-    if (condition.field === "evidence.declaredRole") return evidenceRoleChoices;
+    const finite = finiteValueChoices(condition.field, translate);
+    if (finite) return finite;
     if (condition.field === "node.noteType") return suggestions.noteTypes.map((item) => ({ value: item, label: item }));
     if (["edge.sourcePath", "edge.targetPath", "evidence.declaredByPath", "evidence.declaredTargetPath"].includes(condition.field)) {
       return [{ value: "$this", label: translate("filter.currentCenterNote") }, ...suggestions.relatedPaths.map((item) => ({ value: item, label: item }))];
