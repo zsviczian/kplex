@@ -555,6 +555,7 @@ for (const file of [
   "src/adapters/obsidian/drawingTemplates.ts",
   "src/adapters/obsidian/nativeSubmenu.ts",
   "src/core/plex/startupIndexPreferences.ts",
+  "src/core/plex/createdNoteDestination.ts",
   "src/index/fieldParser.ts",
   "src/index/MetadataParser.ts",
   "src/index/RelationEvidence.ts",
@@ -3957,7 +3958,7 @@ try {
     } finally { index.get = originalGet; }
     index.dematerializeFile(preparedOnlyFile.path);
   }
-  assert(index.applyRelationshipEdit("Note A.md", immediateFile.path, "child", "Children"));
+  assert(index.applyRelationshipEdit("Note A.md", immediateFile.path, "child", "Children"), JSON.stringify({policy:index.fullSemanticPolicyRevision,currentPolicy:index.semanticPolicyRevision,maintenance:index.fullSemanticMaintenanceRevision,currentMaintenance:index.sourceAcquisition.getMaintenanceRevision(),pending:[...(index.sourceAcquisition.pendingGraphSources()??[])],sourceBacked:index.sourceBackedSemantics,source:index.fullSemanticSourceRevision,currentSource:plugin.getIndexSourceRevision()}));
   expectRole("Note A.md", "child", immediateFile.path, RelationType.DEFINED);
 
   // Placeholder creation is optimistic too: no TFile is required until the user materializes the

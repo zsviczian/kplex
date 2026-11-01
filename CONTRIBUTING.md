@@ -1591,3 +1591,17 @@ must not create files. The maintained creation-navigation probe now includes spa
 unresolved-link cases; run only the affected lane for a scoped menu fix, not an indexing aggregate.
 See [the focused menu-target record](docs/validation/file-menu-targets-2026-11-01.md) for the reproduced
 failure, exact-build native evidence and the maintainer's explicit no-full-regression instruction.
+
+
+### Eager graph maintenance acceptance
+
+For the focused eager-maintenance regression, stage the verified build in the existing disposable
+Small vault, then run `npm run verify:obsidian:action-workflows` with
+`KPLEX_ACTION_WORKFLOW_SCENARIO=eager-navigation`, the three explicit test-vault variables and a
+fresh `KPLEX_HOST_REPORT_DIR` outside the vault. Small must already use the eager strategy.
+The lane creates owned calendar/hub fixtures, establishes one full baseline, then verifies native
+create/modify/delete and canvas relationship updates regain global coverage without another full
+build. Subsequent real canvas-card clicks must perform zero source reads, parses or family replay.
+It retains the action-workflow driver's full settings/layout/inventory restoration and artifact
+hash checks. Serialize staging, scenarios and cleanup under the shared application-user-data lock.
+Programmatic native clicks and DOM publication timing do not establish physical input or paint.

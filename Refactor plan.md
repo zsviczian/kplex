@@ -330,6 +330,7 @@ IDs C00–C26 replace the draft's numbering; E00 and L00/L01 are inserted enviro
 | C14 | Incremental compiler and commit contract | C13 | G/I/H | Scoped | Done — C14a/C14b accepted; device P1 passed, P2 accepted with physical overlap not reproduced; refactor paused |
 | C14a | Shared portable per-source semantic patch preparation | C13 | G/I/H | Scoped | Done — shared preparation, strict/native oracle and cancellation accepted |
 | C14b | Coherent publication and host integration acceptance | C14a | G/I/H/P | Host | Done — strict/native checks passed; maintainer accepted device results with P2 overlap limitation; refactor paused |
+| M2026-11-01 | Eager source-to-graph maintenance handoff and reference actions | C14b | G/I/H | Scoped | Implementation complete; final aggregate/native validation pending; C15-C26 remain paused. See docs/validation/eager-navigation-fix-2026-11-01.md |
 | C15 | Index demand/revision coordinator | C14 | I/P | Scoped | Pending |
 | C16 | Snapshot/cache orchestration behind storage ports | C15 | P/I/H | Scoped | Pending |
 | C17 | Search extraction | C09, C14 | G/I/H | Strong | Pending |
@@ -4971,7 +4972,7 @@ CRCs/per-file hashes; HANDOFF excluded. MANIFEST
 Originals/prior backups retained; no raw publication. Exact-head remote CI is
 running when recorded, not claimed green. PR remains draft.
 
-### 2026-10-18 PR177 � shared completion and context layout follow-up
+### 2026-10-18 PR177 � shared completion and context layout follow-up
 
 One CreationCompletionSelect now owns the actual caption/dropdown in both creation
 shells. It shows the resolved outcome, keeps explicit choices local, and uses common
@@ -5009,7 +5010,7 @@ Originals and prior backups retained; nothing raw published. Remote0ab6091 CI is
 in progress when recorded; previous41fd2f8 CI passed. A docs-only evidence pin
 changes no validated runtime. Keep PR177 draft.
 
-### 2026-10-18 PR180 � stationary Markdown saves
+### 2026-10-18 PR180 � stationary Markdown saves
 
 Merged accepted PR177 to main4396768; integrated main into the existing180 branch
 without rewriting history (1160cb2). Native Sidecar/central-editor autosaves
@@ -6770,3 +6771,8 @@ Clean production checkpoint d79f0f7 passed uninterrupted Node22.22.2 npm run ver
 ### 2026-10-31 - Cleanup native acceptance and delivery record
 
 All four exact-artifact Windows Obsidian1.14.5 drivers pass: hydration739pages/2111declarations with ordered parity/zero body IO/late-generation rejection; native3 prose saves with zero badge/scene mutations and real link remove/add; six filtered gate/presentation cases; actual On-demand/background/Responsive live creation/search/local semantics/recent sync/composer selection while unrelated P3 body remains held, then genuine drain with no broad build/inventory/snapshot work. Preserve two failed gate cleanup attempts and foreground profile/hold preflights in the report. Foreground restart now reopens the registered start command, not a canonical readiness shortcut; two additional orchestration cases pass.44 runner/finalizer follow-up cases pass. Overall Small restored to Eager/117files/zero K-Plex canvases with exact settings/workspace/enabled bytes, all controllers retired and no fixture files. One old15:46 SettingsConflictError retained; no newer native error observed. Production src/styles/manifest/build/lockfile remain equal to fully verified d79f0f7; later changes only test tooling/registration/records. Curated hashes/evidence in docs/validation/code-quality-review-2026-10-31.json. Open draft PR and wait for maintainer verification; do not merge/release. Physical touch/macOS/minimum-host/native popout remain separate review checks.
+
+
+### 2026-11-01 - Eager maintenance and reference-action implementation
+
+Maintainer authorized a new branch and PR carrying the existing incoming-property unlink and body-linked placeholder explanation fixes. Branch fix/eager-navigation-and-reference-actions, base b64c88a3. Add a source-owned coalesced graph-publication journal, exact native/source/metadata commit receipts, background catch-up through the existing per-file compiler, complete-graph renewal only after both source and host closure, and current parser-token selection for equal-stat hot bodies. New real IndexedDB/full-oracle regressions cover modify/create/delete/rename, delayed duplicate metadata, newer equal-stat edits during staging, foreground priority, retired demand, changed policy and an event during full publication. Focused cases pass on Node22.22.2; final full verification and exact-build Small native lanes remain in progress. No schema/settings defaults/ontology classifier/second scheduler or C15-C26 extraction. Highest-risk review: source-to-graph acknowledgement after delayed events, live canvas writes during backlog work and cancellation on closing demand. Windows native evidence does not replace macOS/physical-mobile acceptance. Details in docs/validation/eager-navigation-fix-2026-11-01.md.

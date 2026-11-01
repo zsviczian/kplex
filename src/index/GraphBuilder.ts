@@ -3,6 +3,7 @@
  * structure, cached link maps and Markdown semantics into a private snapshot. Complete parser output
  * is shared with source/URL consumers using exact observation tokens on existing
  * hot and batched body records. Parser reuse never grants neutral-source durability or clears dirty state.
+ * Current parser tokens supersede equal-mtime hot bodies; graph receipts fence the final source commit.
  * Cold startup can publish a structure/link baseline and then reuse the same atomic per-file patch boundary to add
  * Markdown semantics progressively without exposing half-committed source state. Node-only recovery
  * streams current durable source facts through the same compiler without retaining relationships.
@@ -32,7 +33,7 @@ import type { ParsedBodyMetadata, ParsedFileMetadata } from "../core/parser/meta
 import { mergeFileMetadata } from "./fieldParser";
 import { sourceFingerprint, sourceFingerprintCooperative, type SourceFingerprintInputs } from "./SourceFingerprint";
 import { MetadataParseCancelledError, type MetadataParser } from "./MetadataParser";
-import type { ObsidianSourceAcquisition } from "../adapters/obsidian/sourceAcquisition";
+import type { ObsidianSourceAcquisition, SourceGraphPublication } from "../adapters/obsidian/sourceAcquisition";
 import type { BodyCacheRequest, BodyCacheWrite, KplexIndexedDbCache } from "./IndexedDbCache";
 import type { EvidenceProvenance, EvidenceSourceKind, RelationEvidenceStore } from "./RelationEvidence";
 import { resolveEvidencePair } from "./RelationResolver";
@@ -93,6 +94,8 @@ export type PatchFileCommit = Readonly<{
   semanticChanged: boolean;
   /** Exact source fingerprint matched; unlike node-only repairs, no compiled incidence changed. */
   unchangedSource?: boolean;
+  /** A later equal-stat edit or metadata observation cannot be acknowledged by this commit. */
+  sourcePublication?: SourceGraphPublication;
 }>;
 
 export type PatchFilePublisher = (commit: PatchFileCommit, publishPreparedState: () => void) => void;
@@ -1380,8 +1383,8 @@ export class GraphBuilder {
         const revision = revisions.get(file)!;
         const hot = this.fieldCache.get(revision.path);
         const inputToken = this.sourceAcquisition?.getBodyCacheRequest(file)?.inputToken;
-        return hot?.mtime !== revision.mtime || this.sourceAcquisition?.needsBodyRead(file)
-          && (inputToken === undefined || hot.inputToken !== inputToken);
+        return hot?.mtime !== revision.mtime || (inputToken !== undefined
+          ? hot?.inputToken !== inputToken : this.sourceAcquisition?.needsBodyRead(file));
       });
       const durable = new Map<string, ParsedBodyMetadata>();
       const durableTokens = new Map<string, string>();
@@ -1534,6 +1537,7 @@ export class GraphBuilder {
       const revision = this.captureFileRevision(file);
       const sourcePath = revision.path;
       const fileTouchedPagePaths = new Set<string>();
+      let sourcePublication: SourceGraphPublication | undefined;
       this.patchTouchedPagePaths = fileTouchedPagePaths;
       const publishFileCommit = (semanticChanged: boolean, publishPreparedState: () => void): void => {
         fileTouchedPagePaths.add(sourcePath);
@@ -1542,6 +1546,7 @@ export class GraphBuilder {
           touchedPagePaths: new Set(fileTouchedPagePaths),
           semanticChanged,
           ...(!semanticChanged ? { unchangedSource: true } : {}),
+          ...(sourcePublication ? { sourcePublication } : {}),
         };
         for (const path of fileTouchedPagePaths) touchedPagePaths.add(path);
         if (!options.publishFileCommit) {
@@ -1574,12 +1579,13 @@ export class GraphBuilder {
       let bodyToken: string | undefined;
       const cacheRequest = this.sourceAcquisition?.getBodyCacheRequest(file);
       const freshBodyRequired = this.sourceAcquisition?.needsBodyRead(file) === true;
-      if (previousEntry && previousEntry.mtime === revision.mtime && (!freshBodyRequired
-        || cacheRequest?.inputToken !== undefined && previousEntry.inputToken === cacheRequest.inputToken)) {
+      if (previousEntry && previousEntry.mtime === revision.mtime && (cacheRequest?.inputToken !== undefined
+        ? previousEntry.inputToken === cacheRequest.inputToken : !freshBodyRequired)) {
         body = previousEntry.body;
         bodyToken = previousEntry.inputToken;
       } else if (!freshBodyRequired && (useDurableCache || this.sourceAcquisition)) {
         body = await this.sourceAcquisition?.readBody(file, this.isCurrent, true) ?? null;
+        if (body) bodyToken = cacheRequest?.inputToken;
         if (!body && useDurableCache) body = await this.bodyCache.getBody(sourcePath, revision.mtime);
         if (!this.isCurrent() || !this.fileRevisionMatches(file, revision)) {
           return { ok: false, cancelled: true, rebuildRequired: false, touchedPagePaths, semanticChanges, semanticNoops };
@@ -1623,6 +1629,7 @@ export class GraphBuilder {
         return { ok: false, cancelled: true, rebuildRequired: false, touchedPagePaths, semanticChanges, semanticNoops };
       }
       const retiredEndpoints = options.sourceNodeBaseline ? this.sourceAcquisition?.nodeImpactEndpoints(sourcePath) : undefined;
+      sourcePublication = this.sourceAcquisition?.captureGraphSource(file);
       if (retiredEndpoints === null) return { ok: false, cancelled: true, rebuildRequired: false, touchedPagePaths, semanticChanges, semanticNoops };
       const signature = await this.semanticSourceSignatureCooperative(file, body);
       if (!signature || !this.isCurrent() || !this.fileRevisionMatches(file, revision)) {
@@ -1650,7 +1657,7 @@ export class GraphBuilder {
         if (!this.isCurrent() || !this.fileRevisionMatches(file, revision)) {
           return { ok: false, cancelled: true, rebuildRequired: false, touchedPagePaths, semanticChanges, semanticNoops };
         }
-        if (!(await this.yieldToHost(true)) || !this.fileRevisionMatches(file, revision)) {
+        if (!(await this.yieldToHost(true)) || !this.fileRevisionMatches(file, revision) || sourcePublication?.isCurrent() === false) {
           return { ok: false, cancelled: true, rebuildRequired: false, touchedPagePaths, semanticChanges, semanticNoops };
         }
         publishFileCommit(false, /** Publish metadata/cache together without an adjacency write. */ () => {
@@ -1752,7 +1759,7 @@ export class GraphBuilder {
       // Start the atomic publication section at a fresh event-loop slice. The graph/search commit
       // itself must remain synchronous for consistency, so do not let earlier staged work consume
       // part of the same responsiveness budget.
-      if (!(await this.yieldToHost(true)) || !this.fileRevisionMatches(file, revision)) {
+      if (!(await this.yieldToHost(true)) || !this.fileRevisionMatches(file, revision) || sourcePublication?.isCurrent() === false) {
         return { ok: false, cancelled: true, rebuildRequired: false, touchedPagePaths, semanticChanges, semanticNoops };
       }
       publishFileCommit(topologyChanged, () => {

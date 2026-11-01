@@ -70,6 +70,79 @@ test("connection source actions deduplicate declaration tuples and retain indepe
  }finally{await browser.cleanup();}
 });
 
+/** An incoming-only preview must acquire the exact pair before declaring its other-note property uneditable. */
+test('incoming property unlink prepares the pair and offers the declaring note from either center',async()=>{
+ const browser=await chromiumHarness(bundle);
+ try{
+  assert.equal(await browser.evaluate(setup),true);
+  assert.equal(await browser.evaluate(`(async()=>{
+   for(const reverse of [false,true]){
+    const f=makeDetails(),hold=defer(),reads=[],canonical=f.explanation;
+    const sourcePath=reverse?'Target.md':'Owner.md',targetPath=reverse?'Owner.md':'Target.md';
+    const declaration={...f.child,sourcePath,targetPath,role:reverse?'parent':'child',direction:reverse?2:1};
+    const full={...canonical,sourcePath,targetPath,decisions:[{evidence:declaration,active:true}]};
+    f.explanation=reverse?{...full,decisions:[{evidence:{...declaration,id:'preview',sourceKind:'obsidian-link',relationType:2},active:true}]}:full;
+    f.ready=!reverse;f.plugin.index.prepareRelationshipPair=async(source,target)=>{reads.push([source,target]);await hold.promise;f.explanation=full;f.ready=true;return true};
+    f.modal=new sourceModules.RelationshipExplanationModal(f.plugin,f.explanation,{role:reverse?'parent':'child'});f.modal.open();await tick();
+    if(reverse)ok(!f.modal.modalEl.querySelector('[data-kplex-remove-field]'),'Preview must not invent an editable declaration');
+    hold.release();await tick();
+    const remove=f.modal.modalEl.querySelector('[data-kplex-remove-field="Children"]');ok(remove,'Declared property missing from the opposite center');
+    ok(reverse?reads.length===1&&reads[0][0]===sourcePath&&reads[0][1]===targetPath:reads.length===0,'Prepare only the incomplete pair once in its current orientation');
+    remove.click();let confirmation=document.querySelector('.kplex-remove-relationship-source-modal');
+    ok(confirmation.textContent.includes('Owner.md')&&confirmation.textContent.includes('Target.md'),'Confirmation must name the real owning note and link target');
+    confirmation.querySelector('button').click();await tick();ok(f.calls.length===0,'Cancel must preserve both notes');
+    remove.click();confirmation=document.querySelector('.kplex-remove-relationship-source-modal');confirmation.querySelector('button.mod-warning').click();await tick();
+    ok(f.calls.length===1&&f.calls[0][0].declaredByPath==='Owner.md'&&f.calls[0][1].storagePath==='Owner.md'&&f.calls[0][1].targetPath==='Target.md','Both centers must authorize the same exact physical property');
+    f.modal.close();ok(f.listeners.size===0,'Source preparation must retain ordinary modal cleanup');
+   }
+   return true;
+  })()`),true);
+ }finally{await browser.cleanup();}
+});
+
+/** The retained-placeholder explanation lists exact Markdown notes and hands manual editing to native navigation. */
+test('remaining placeholder dialog explains body links and opens the selected source location',async()=>{
+ const browser=await chromiumHarness(bundle);
+ try{
+  assert.equal(await browser.evaluate(setup),true);
+  assert.equal(await browser.evaluate(`(async()=>{
+   const opened=[],reference={path:'Notes/Source.md',line:7,label:'body',sourceKind:'unresolved-link'};
+   const modal=new sourceModules.RemainingNodeReferencesModal({},'Missing note',[reference],item=>opened.push(item));modal.open();
+   ok(modal.modalEl.textContent.includes('Missing note')&&modal.modalEl.textContent.includes('Notes/Source.md'),'Name the retained placeholder and its source note');
+   const open=[...modal.modalEl.querySelectorAll('button')].find(button=>button.textContent==='Open');ok(open,'Offer native manual editing');open.click();await tick();
+   ok(opened.length===1&&opened[0].path==='Notes/Source.md'&&opened[0].line===7,'Open the exact note and Markdown line');modal.close();return true;
+  })()`),true);
+ }finally{await browser.cleanup();}
+});
+
+/** Exact-pair discovery cannot revive closed dialogs or dismiss a newer generation's confirmation. */
+test('late incoming source preparation preserves newer confirmation and ready or structural pairs stay passive',async()=>{
+ const browser=await chromiumHarness(bundle);
+ try{
+  assert.equal(await browser.evaluate(setup),true);
+  assert.equal(await browser.evaluate(`(async()=>{
+   const f=makeDetails(),hold=defer();let preparations=0;
+   f.ready=false;f.plugin.index.prepareRelationshipPair=async()=>{preparations++;await hold.promise;return true};
+   f.modal.open();await tick();f.modal.close();
+   f.ready=true;f.modal.open();await tick();f.modal.modalEl.querySelector('[data-kplex-remove-field="Children"]').click();
+   const confirmation=document.querySelector('.kplex-remove-relationship-source-modal');hold.release();await tick();
+   ok(preparations===1&&confirmation.isConnected,'Old preparation cannot dismiss a newer confirmation or repeat a ready pair read');
+   f.modal.close();ok(!confirmation.isConnected&&f.listeners.size===0&&f.calls.length===0,'Close retires confirmation and discovery without writing');
+   const concurrent=makeDetails(),pending=defer();concurrent.ready=false;
+   concurrent.plugin.index.prepareRelationshipPair=async()=>{await pending.promise;return true};
+   concurrent.modal.open();await tick();concurrent.modal.modalEl.querySelector('[data-kplex-remove-field="Children"]').click();
+   const active=document.querySelector('.kplex-remove-relationship-source-modal');pending.release();await tick();
+   ok(active.isConnected&&concurrent.calls.length===0,'Pair discovery cannot interrupt an active source confirmation');concurrent.modal.close();
+   for(const kind of ['isTag','isFolder']){
+    const structural=makeDetails();structural.ready=false;structural.plugin.index.get('Owner.md')[kind]=true;
+    structural.plugin.index.prepareRelationshipPair=()=>{throw new Error('Structural inspection must not request ontology preparation')};
+    structural.modal.open();await tick();structural.modal.close();ok(structural.listeners.size===0,'Structural inspection releases its subscription');
+   }
+   return true;
+  })()`),true);
+ }finally{await browser.cleanup();}
+});
+
 /** Rendered native Cancel/Confirm, serialized clicks and refreshed feedback use the production session. */
 test("rendered source removal confirms exact property scope, cancels without writes and refreshes canonical visibility", async () => {
  const browser=await chromiumHarness(bundle);

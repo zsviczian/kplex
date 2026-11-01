@@ -653,6 +653,13 @@ function createdMetadataFixture({ extension = "md", displayField = "aliases", in
     writeRelationship: async () => { assert(pairCaptured); events.push("write-relation"); },
     publishSavedRelationship: async () => events.push("publish-relation"),
   };
+  // Materialization now defaults to Return. Opening-order cases below explicitly select Tab
+  // and retain the real shared completion owner rather than assuming an implicit document open.
+  context.finishNewRelatedNode = productionFunction("src/main.ts", "finishNewRelatedNode", {});
+  context.openCreatedNote = async (created, hostLeaf, destination, current) => {
+    assert.equal(destination, "tab"); assert(current());
+    await context.openInDocumentLeaf(created.file, hostLeaf);
+  };
   for (const method of ["newRelatedNoteFolder", "validateNoteFolderPath", "mutateCreatedNodeMetadata", "writeCreatedNodeDisplayName", "writeCreatedNodeAlias", "createNewRelatedFileForOrigin", "linkNewRelatedFile", "appendRelationshipReference"])
     context[method] = productionFunction("src/main.ts", method, { writeRelationshipMetadata, normalizeFieldName: actualNormalizeFieldName,
       normalizePath: value => value,
@@ -729,7 +736,7 @@ for (const consumer of ["folder", "ghost"]) test(`${consumer} creation also awai
       f.context.index.materializeFile = (oldPath, file) => { f.events.push(["materialize", oldPath, file.path]); return true; };
       f.context.openInDocumentLeaf = async file => f.events.push(["open", file.path]);
       const materialize = productionFunction("src/main.ts", "materializeGhostPage", {});
-      operation = materialize.call(f.context, { path: "Ghost", name: "Ghost display" }, "Created", "markdown", "").then(value => { finished = true; return value; });
+      operation = materialize.call(f.context, { path: "Ghost", name: "Ghost display" }, "Created", "markdown", "", undefined, undefined, {}, () => true, false, undefined, undefined, "tab").then(value => { finished = true; return value; });
     }
     await nextCreatedStep(); assert.equal(finished, false); assert.deepEqual(f.events, ["native-write"]);
     f.observe(); const result = await operation; assert(result); f.clean();
@@ -755,7 +762,7 @@ for (const central of [true, false]) test(`ghost promotion remaps saved navigati
     f.context.notifyNavigation = (path,owner) => {assert.equal(owner,host); assert.equal(path, f.file.path); assert.equal(f.context.settings.lastActivePath, path); f.events.push("navigated"); };
     f.context.saveSettings = async (...args) => { assert.deepEqual(args, [false, false]); f.events.push("saved"); };
     f.context.openInDocumentLeaf = async file => { assert.equal(file, f.file); f.events.push("opened"); };
-    operation = productionFunction("src/main.ts", "materializeGhostPage", {}).call(f.context, ghost, "Created", "markdown", "",undefined,undefined,{},()=>true,false,host);
+    operation = productionFunction("src/main.ts", "materializeGhostPage", {}).call(f.context, ghost, "Created", "markdown", "",undefined,undefined,{},()=>true,false,host,undefined,"tab");
     await nextCreatedStep(); f.observe(); assert.equal(await operation, true);
     assert.deepEqual(f.events, ["native-write", "cache-body-observed", "materialized", "remapped", ...(central ? ["navigated"] : []), "saved", "opened"]);
     assert.equal(f.context.settings.lastActivePath, central ? f.file.path : "Other.md");

@@ -7,6 +7,7 @@
  * references have a different lifetime from host target resolution. This adapter uses the existing
  * parser/Date collector/host resolver, never semantic settings or custom path guessing. It owns its
  * event fence independently of graph no-op suppression, plus a single cooperative inventory task.
+ * Complete eager graphs consume its coalesced affected-owner journal through exact publication receipts.
  * Its read-only cached semantic capability supplies missing host facts without changing live routing.
  * Requested semantic preparation uses the source-local dependency derivative. Historical SI4a
  * selected-source/catalog construction adapters live only in test fixtures. Host events retain the
@@ -94,6 +95,8 @@ type Capture = { physical: SourcePhysical; revision: number; hostRevision: numbe
 type BodyInputReceipt = { inputToken: string; parserVersion: number; physical: SourcePhysical; revision: number; retired: boolean };
 /** Caller completion accepts one full parse; later optional persistence retains only native validity. */
 export type SourceBodyInput = BodyCacheStamp & { accept(): boolean };
+/** One graph commit may acknowledge only the exact native/source observation it compiled. */
+export type SourceGraphPublication = Readonly<{ sourcePath: string; sequence: number; isCurrent: () => boolean }>;
 /** One short native create wave; never a retained folder catalog or durable source certificate. */
 type EmptyFolderCreateWave = {
   folder: TFolder; path: string; parent: TFolder; parentPath: string; openedAt: number; lastCauseAt: number;
@@ -188,6 +191,10 @@ export class ObsidianSourceAcquisition {
   private inventoryScopeRevision = 0;
   /** Monotonic host-maintenance fence consumed by demanded semantic publication. */
   private maintenanceRevision = 0;
+  /** Enabled by a complete eager build; coalesces graph work independently of source persistence. */
+  private graphChanges: Map<string, number> | null = null;
+  private graphChangeSequence = 0;
+  private graphMaintenanceRevision = 0;
   /** One restart comparison discovers offline target/alias/path drift without rereading unchanged bodies. */
   private restartInventoryChecked = false;
   /** Derived legacy URL owner incidence, independent of primary semantic authority/readiness. */
@@ -349,6 +356,8 @@ export class ObsidianSourceAcquisition {
       this.markContributorHostChange(effectiveKind, false, "unknown", effectiveKind === "source"
         && file?.extension === "md" && this.app.vault.getFileByPath(file.path) === file);
       if (file) {
+        this.noteGraphSourceChange(file.path);
+        if (oldPath) this.noteGraphSourceChange(oldPath);
         const state = this.state(file);
         state.revision += 1; state.dirty = true; state.bodyDirty ||= bodyChanged || created;
         if (created) { state.identity = this.repository.createIdentity(); state.created = true; }
@@ -586,6 +595,7 @@ export class ObsidianSourceAcquisition {
   /** Cancel every continuation and release event/timer ownership; unload does not await persistence. */
   close(): void {
     this.closed = true; this.inventoryRevision += 1; this.inventoryScopeRevision += 1;
+    this.graphChanges?.clear(); this.graphChanges = null;
     this.knownFanoutTasks.clear();
     this.nodeImpacts.clear(); this.nodeImpactBytes = 0;
     this.pendingUrlAliasSources.clear(); this.urlAliasInventoryComplete = false;
@@ -669,6 +679,7 @@ export class ObsidianSourceAcquisition {
         const state = this.state(file);
         if (!state.resolutionDirty) {
           state.resolutionDirty = true; state.revision += 1; this.repository.cancelSource(sourceId);
+          this.noteGraphSourceChange(sourceId);
         }
         this.pendingKnownFiles.add(file);
         if (++marked % SOURCE_MAX_BATCH_RECORDS === 0) {
@@ -1290,6 +1301,49 @@ export class ObsidianSourceAcquisition {
 
   /** Whether settings-only semantic preparation has a closed current source-local dependency inventory. */
   hasSemanticDependencies(): boolean { return this.localDependenciesReady && !this.closed; }
+  /** Graph catch-up shares the existing visible-demand lifetime of source inventory. */
+  isInventoryEnabled(): boolean { return this.enabled && !this.closed; }
+
+  /** Capture before a full build; later events survive its eventual baseline acknowledgement. */
+  beginGraphPublication(): number {
+    if (!this.graphChanges) {
+      this.graphChanges = new Map();
+      this.graphMaintenanceRevision = this.maintenanceRevision;
+    }
+    return this.graphChangeSequence;
+  }
+
+  /** Existing source discovery owns this coalesced set; graph consumers never enumerate the vault. */
+  pendingGraphSources(): ReadonlyMap<string, number> | null { return this.graphChanges; }
+
+  /** A full graph covers its captured prefix, never events observed while it was being built. */
+  acknowledgeGraphPublication(sequence: number, maintenanceRevision: number): void {
+    for (const [path, observed] of this.graphChanges ?? []) if (observed <= sequence) this.graphChanges!.delete(path);
+    this.graphMaintenanceRevision = maintenanceRevision;
+  }
+
+  /** Preserve the exact metadata object, native incarnation and source generation across staging. */
+  captureGraphSource(file: TFile): SourceGraphPublication {
+    const capture = this.capture(file), metadata = this.app.metadataCache.getFileCache(file);
+    return { sourcePath: file.path, sequence: this.graphChangeSequence,
+      isCurrent: () => this.current(capture, () => true) && this.app.metadataCache.getFileCache(file) === metadata };
+  }
+
+  /** Completing an older observation cannot remove a later edit to the same source. */
+  acknowledgeGraphSource(receipt: SourceGraphPublication): void {
+    const pending = this.graphChanges?.get(receipt.sourcePath);
+    if (pending !== undefined && pending <= receipt.sequence && receipt.isCurrent()) this.graphChanges!.delete(receipt.sourcePath);
+  }
+
+  /** Deleted owners are acknowledged only after the graph removes their declarations. */
+  acknowledgeGraphDeletion(path: string, sequence: number): void {
+    if (this.graphChanges?.get(path) === sequence && this.app.vault.getFileByPath(path) === null) this.graphChanges.delete(path);
+  }
+
+  /** One entry per affected owner, including resolution dependents discovered after the event. */
+  private noteGraphSourceChange(path: string): void {
+    if (this.graphChanges && path.toLowerCase().endsWith(".md")) this.graphChanges.set(path, ++this.graphChangeSequence);
+  }
 
   /** Queue the exact damaged replay owner without reopening or invalidating unrelated durable heads. */
   private requestReplayRepair(result: Readonly<{ outcome: string; reason?: SourceReason; sourceId?: string }>): void {
@@ -1302,6 +1356,7 @@ export class ObsidianSourceAcquisition {
     state.dirty = true; state.resolutionDirty = true; state.revision += 1;
     this.replayRepairRevisions.set(file, state.revision);
     this.maintenanceRevision += 1; this.localDependenciesReady = false;
+    this.noteGraphSourceChange(file.path);
     this.pendingKnownFiles.add(file);
     this.requestInventory();
   }
@@ -1956,6 +2011,9 @@ export class ObsidianSourceAcquisition {
       }
       if (!observationCurrent()) return { current: false, saved: false, reason: result.reason };
       if ((result.outcome === "activated" || result.outcome === "unsaved") && result.live) {
+        // Existing heads may change through resolver/environment repair without metadata:changed.
+        // Missing initial heads are already represented by the full build's actual host inputs.
+        if (head && !optionalAliasesOnly && this.maintenanceRevision !== this.graphMaintenanceRevision) this.noteGraphSourceChange(file.path);
         capture.state.observation = optionalAliasesOnly && head ? { ...head.observation } : { epoch: this.epoch, revision: capture.hostRevision, environment };
         capture.state.dirty = false; capture.state.bodyDirty = false; capture.state.resolutionDirty = false; capture.state.created = false;
         if (intrinsic && !upgradeUrls) this.counters.resolutionRefreshes += 1; else this.counters.repaired += 1;

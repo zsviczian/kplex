@@ -3,6 +3,8 @@
  * cannot select and persist an unrelated history entry while the requested center is loading.
  * Obsidian plugin lifecycle and host orchestration for indexing, navigation and vault mutations. Portable owners determine semantics; this host boundary supplies effects, cleanup and localized product feedback. Native metadata events request finite visible presentation repair independently of semantic readiness. Passive document synchronization preserves the current representation of exact matching native destinations; explicit opening and source inspection retain their separate navigation contracts. Support reporting projects retained facts without starting index work; this lifetime owns its bounded recorder and native report dialogs. Per-note Markdown zoom preferences follow Vault rename/delete events independently of index readiness.
  * Remote node image consent publishes synchronously before persistence and never requests semantics.
+ * Deletion retains canonical/native endpoint identity across refreshed display facades and explains
+ * surviving placeholder references through the existing native source-navigation dialog.
  * Style-manager drafts commit on the settings disk queue before live publication; style-only
  * completion refreshes cached presentation without clearing or reacquiring semantic scopes.
  * Durable/live publication releases editors through one bounded optional-refresh completion lease;
@@ -6092,13 +6094,18 @@ export default class KplexPlugin extends Plugin {
     return [...references.values()].sort((a, b) => a.line - b.line);
   }
 
+  /** Collect known declaring notes from target incidence and displayed exact pairs, without a vault scan. */
   private referencingMarkdownFiles(target: GraphPage): TFile[] {
     const paths = new Set<string>();
+    /** Pair-local publications may know a source before the target owns a complete incoming scope. */
+    const addSource = (evidence: RelationEvidence): void => {
+      if (evidence.declaredTargetPath === target.path && evidence.declaredByPath !== target.path) paths.add(evidence.declaredByPath);
+    };
     for (const relation of this.index.evidenceFrom(target.path)) {
-      for (const evidence of relation.evidence) {
-        if (evidence.declaredTargetPath !== target.path || evidence.declaredByPath === target.path) continue;
-        paths.add(evidence.declaredByPath);
-      }
+      for (const evidence of relation.evidence) addSource(evidence);
+    }
+    for (const path of target.neighbours.keys()) {
+      for (const evidence of this.index.evidenceBetween(path, target.path)) addSource(evidence);
     }
     const files: TFile[] = [];
     for (const path of paths) {
@@ -6499,9 +6506,32 @@ export default class KplexPlugin extends Plugin {
     const capturedFile = target.file;
     const captured = actionNodeRef(target);
     const canonicalTarget = this.index.pages.get(target.path);
-    const preview = await this.captureDeleteNodePreview(target);
-    if (this.unloading || resolveActionPage(this.index,captured) !== target || target.path !== captured.path || target.file !== capturedFile
-      || capturedFile && this.app.vault.getFileByPath(captured.path) !== capturedFile) return {status:"unavailable",reasonKey:"actions.target-unavailable"};
+    /** Read facades may refresh during preview; only a changed canonical/native endpoint retires consent. */
+    const currentBeforeTrash = (): boolean => {
+      const current = resolveActionPage(this.index, captured);
+      return !this.unloading && current?.path === captured.path && current.file === capturedFile
+        && target.path === captured.path && target.file === capturedFile
+        && (!canonicalTarget || this.index.pages.get(captured.path) === canonicalTarget)
+        && this.app.vault.getFileByPath(captured.path) === capturedFile;
+    };
+    let preview: DeleteNodePreview;
+    try {
+      preview = await this.captureDeleteNodePreview(target);
+    } catch {
+      if (!this.unloading && !capturedFile && currentBeforeTrash()) {
+        const references = this.referencingMarkdownFiles(target).map(/** Source coordinates remain useful when a bounded preview cannot read the note body. */ file => ({path:file.path,line:0,label:this.translator("delete.cleanup.reviewSource"),sourceKind:"obsidian-link" as const}));
+        new RemainingNodeReferencesModal(this.app,target.name,references,
+          /** Failed inspection grants manual navigation only, never an automatic link rewrite. */ reference => this.openRelationshipEvidenceLocation(reference,hostLeaf),
+          [this.translator("delete.cleanup.inspectFailed",{path:target.path})]).open();
+      } else if (!this.unloading) {
+        new Notice(this.translator("delete.cleanup.inspectFailed",{path:target.path}));
+      }
+      return {status:"unavailable",reasonKey:"actions.target-unavailable"};
+    }
+    if (!currentBeforeTrash()) {
+      new Notice(this.translator("addRelated.endpointChanged"));
+      return {status:"unavailable",reasonKey:"actions.target-unavailable"};
+    }
     if (!(await this.confirmDeleteNode(target,preview,hostLeaf))) return { status: "cancelled" };
     // Another settings window cannot silently change the automatic cleanup policy after its
     // scope was captured. Reopening deletion prepares fresh defaults before granting trash/write consent.
@@ -6509,8 +6539,7 @@ export default class KplexPlugin extends Plugin {
       new Notice(this.translator("delete.cleanup.settingsChanged"));
       return { status: "cancelled" };
     }
-    if (this.unloading || resolveActionPage(this.index, captured) !== target || target.path !== captured.path || target.file !== capturedFile
-      || capturedFile && this.app.vault.getFileByPath(capturedFile.path) !== capturedFile) {
+    if (!currentBeforeTrash()) {
       new Notice(this.translator("addRelated.endpointChanged"));
       return { status: "unavailable", reasonKey: "actions.target-unavailable" };
     }
@@ -6542,25 +6571,45 @@ export default class KplexPlugin extends Plugin {
 
     const ghost = this.index.get(path);
     if (!ghost) return { status: "committed", affected: [captured] };
-    /** Pair publication may replace read facades, but cleanup cannot adopt another canonical/native endpoint. */
-    const currentTarget = (): boolean => Boolean(canonicalTarget) && this.index.pages.get(path) === canonicalTarget
-      && canonicalTarget!.file === null && this.index.get(path)?.file === null && this.app.vault.getFileByPath(path) === null;
-    const { remaining, issues } = await this.removePropertyReferencesToNode(ghost,preview,currentTarget);
-
-    if (remaining.length || issues.length) {
-      new RemainingNodeReferencesModal(
-        this.app,
-        ghost.name,
-        remaining,
-        (reference) => this.openRelationshipEvidenceLocation({ path: reference.path, line: reference.line }, hostLeaf),
-        issues,
-      ).open();
+    if (ghost.file) {
+      new Notice(this.translator("addRelated.endpointChanged"));
       return { status: "committed", affected: [captured] };
     }
+    /** Pair publication may replace read facades, but cleanup cannot adopt another canonical/native endpoint. */
+    const currentTarget = (): boolean => (!canonicalTarget || this.index.pages.get(path) === canonicalTarget)
+      && (!canonicalTarget || canonicalTarget.file === null) && this.index.get(path)?.file === null && this.app.vault.getFileByPath(path) === null;
+    const { remaining, issues } = await this.removePropertyReferencesToNode(ghost,preview,currentTarget);
 
-    // Remaining references are handled above. Once they are gone, remove the dematerialized graph
-    // endpoint when nothing else still references it; focus/history have already moved away.
-    await this.index.removeVirtualPageIfUnreferencedFromSources(path);
+    if (!remaining.length && !issues.length) {
+      const removed = await this.index.removeVirtualPageIfUnreferencedFromSources(path);
+      const retained = this.index.get(path);
+      if (removed || !retained) return { status: "committed", affected: [captured] };
+      if (retained.file) {
+        new Notice(this.translator("addRelated.endpointChanged"));
+        return { status: "committed", affected: [captured] };
+      }
+      // Current source authority can retain a placeholder that the initial partial preview did
+      // not explain. Reinspect without granting new cleanup consent; all new sources are manual.
+      try {
+        const latest = await this.captureDeleteNodePreview(retained);
+        for (const source of latest.sources) {
+          remaining.push(...source.bodyReferences.map(/** Restore native document positions from the captured body-relative preview. */ reference => ({...reference,line:Math.max(0,source.bodyStart+reference.line)})));
+          remaining.push(...source.properties.map(/** Newly discovered properties were never approved for automatic removal. */ property => ({path:source.path,line:property.line,label:property.field,fieldName:property.field,sourceKind:"frontmatter-ontology" as const})));
+        }
+      } catch {
+        issues.push(this.translator("delete.cleanup.inspectFailed",{path}));
+        remaining.push(...this.referencingMarkdownFiles(retained).map(/** Unreadable sources still offer manual native navigation without guessed line positions. */ file => ({path:file.path,line:0,label:this.translator("delete.cleanup.reviewSource"),sourceKind:"obsidian-link" as const})));
+      }
+      if (!remaining.length && !issues.length) issues.push(this.translator("delete.cleanup.inspectFailed",{path}));
+    }
+
+    new RemainingNodeReferencesModal(
+      this.app,
+      ghost.name,
+      remaining,
+      (reference) => this.openRelationshipEvidenceLocation({ path: reference.path, line: reference.line }, hostLeaf),
+      issues,
+    ).open();
     return { status: "committed", affected: [captured] };
   }
 
