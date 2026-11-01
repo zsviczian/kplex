@@ -97,3 +97,20 @@ The maintainer-authorized draft PR is [#249](https://github.com/zsviczian/kplex/
 Its Help-authoring reference is ready for the separate Help agent. Native
 Excalidraw acceptance is still being repaired and rerun; the companion changes
 and EA Scripts remain uncommitted, and no merge/release readiness is claimed.
+
+## Startup placeholder follow-up
+
+The separately reported early-placeholder navigation freeze is fixed at
+`97a10b1`. Both regressions failed before the change; affected checks pass
+135/135 and the production build passes. Strict native acceptance holds global
+publication at zero pages and verifies the placeholder's own preview, source
+connection, toolbar, pins and loading-history recovery. Original Small settings
+and enablement bytes are restored. The verified main.js was deployed under the
+maintainer's artifact-only production authorization; after manually reloading,
+the maintainer confirmed both workflows work. See the
+[focused validation record](placeholder-startup-navigation-2026-11-01.md) and
+its sanitized native receipt. Complete K-Plex verification is being rerun.
+
+All 40 formerly blocked Excalidraw device profiles now pass their targeted native
+rerun. Full Excalidraw acceptance remains pending after a separate text-tool
+fixture timing correction; the original 187/5/40 result is historical.

@@ -19,39 +19,47 @@ Obsidian is the production host; preserve the established portable semantic, ide
 
 ---
 
-# Creation and navigation batch
+# Creation/navigation batch and startup placeholder fix
 
-K-Plex implementation and current-main integration are pushed on
-`codex/kplex-creation-navigation`; source checkpoint `9ff6db6`, draft
+K-Plex source checkpoint `97a10b1` is pushed on
+`codex/kplex-creation-navigation`, draft
 [PR #249](https://github.com/zsviczian/kplex/pull/249). The maintainer explicitly
-authorized this publication so a separate agent can update K-Plex Help. This
-agent must not touch kplex-help. Merge, release and automatic refactoring remain
-unauthorized. Excalidraw and EA Scripts changes remain local and uncommitted.
+authorized Git/PR publication for the separate Help agent. Do not touch
+kplex-help. Merge/release and structural refactoring remain unauthorized.
+Excalidraw and EA Scripts changes remain local and uncommitted; Excalidraw source
+preserves merged PR #3028.
 
-Implemented #217/#208/#224, canonical coding standards, public drawing-template
-integration and the companion Mindmap Builder view-mode visibility change. See
-[the Help-authoring reference](docs/help-authoring/creation-navigation-features.md)
-for exact proposed workflows, labels, defaults and the Excalidraw 2.29.1+ gate.
+Implemented #217/#208/#224, canonical coding standards, optional trackpad
+navigation and the shared drawing-template dropdown with its Excalidraw 2.29.1+
+gate. The companion changes add public creation APIs; Mindmap Builder hides its
+floating toolbar in Excalidraw view mode. Start with
+`docs/help-authoring/creation-navigation-features.md` and the batch validation
+record. Actual positive template acceptance requires the released version gate;
+physical mobile input remains separate acceptance.
 
-See [the validation record](docs/validation/creation-navigation-2026-11-01.md)
-for exact revisions, native artifact identities, historical failures and limits.
-Current-main integration fixes the previously reproduced occurrence-editor
-baseline case; the affected integration set passes 143/143, production build and
-lint pass. Complete verify passes architecture 9, core 132, main 1841, browser 452,
-source 357, and 855/856 source-browser cases including 20,015 owners. The remaining
-case misses its unchanged 50 ms scheduling bound at 59.4 ms during concurrent
-native/build work; its isolated rerun passes 1/1. This does not turn full verify
-green. Do not weaken the bound or claim that concurrent load is a proven cause.
+The new startup-placeholder failure is fixed at `97a10b1`. Both regressions fail
+before the fix; affected checks pass 135/135; production build passes. Strict
+native Small acceptance holds global state at zero pages and startup readiness
+false while checking the placeholder's own preview, connected source, toolbar,
+pins and loading-history recovery. Settings/enablement bytes and owned cleanup
+pass. See `docs/validation/placeholder-startup-navigation-2026-11-01.md` and its
+sanitized native receipt.
 
-The equipped agent is still repairing/retesting Excalidraw CLI infrastructure and
-all 40 native device profiles. The original five failed paths now pass focused
-and repeated desktop runs; complete native acceptance remains pending. Positive
-K-Plex template acceptance on a 2.29.1+ companion and physical mobile input are
-also pending. Companion source starts after merged Excalidraw PR #3028 and
-preserves that work. EA Scripts typecheck failures match its clean base; native
-floating-toolbar visibility and the public creation APIs have focused receipts.
+The exact verified K-Plex main.js was deployed under explicit artifact-only
+production authorization. Existing CSS and manifest already matched. The
+maintainer manually reloaded K-Plex and confirmed both history navigation and
+clicking the placeholder work. No production notes, settings, cache, navigation or
+runtime reload were changed by this agent. Excalidraw was untouched there.
 
-Help agent: document proposed, unreleased behavior in the separate Help repository
-under its own instructions. Implementation reviewer: retain the exact test limits,
-complete companion/device gates, and obtain any additional publication authority
-before changing the companion Git histories or proposing merge/release.
+Complete K-Plex verification is running: architecture 9, core 132, main 1843,
+browser 453 and source 357 pass; source/browser scale cases remain pending. The
+historical full-run 59.4 ms/50 ms scheduling miss and unchanged isolated pass are
+preserved in the batch record; no bound was weakened. Current main 2aaf6d3 (#248)
+was integrated at 9ff6db6 and resolves the earlier occurrence-editor baseline
+failure.
+
+All 40 previously blocked Excalidraw device profiles pass their targeted rerun;
+the original five failed paths pass focused/repeated native runs. A later text-
+tool fixture timing correction still needs complete native acceptance. App-wide
+native work is held while production is open. Do not restart the shared app,
+emulate devices or deploy companion builds into production to bypass that limit.

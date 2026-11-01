@@ -61,9 +61,37 @@ that unrelated/retired file identities and pending follow cannot be retained.
 is running; architecture **9/9**, core **132/132**, lint and main **1,843/1,843**
 have passed. This checkpoint does not claim completed full verification.
 
-A disposable Small-vault native check exercised actual metadata, React nodes,
-toolbar/pins, preview ownership and history recovery, preserving settings and
-community-plugin configuration bytes. A stricter startup fixture is still being
-validated because a navigation/setup helper can complete global indexing. The
-first native interaction pass alone is not evidence of the precise startup race.
-No production plugin reload or deployment has been performed at this checkpoint.
+## Exact-build native acceptance and production confirmation
+
+The strict macOS/Obsidian **1.15.0** Small-vault run passes. It constructs a
+separate disposable index after warm setup and holds its existing P1 scheduler
+lease so background global publication cannot mask startup. Real native metadata,
+bounded preview compilation, React rendering and action dispatch remain active.
+At placeholder acceptance, global graph pages are **0**, the placeholder is absent
+from global state, and startup readiness is **false**. Its own host preview,
+connected source note, toolbar and pins are present. Available history then
+recovers an intentionally loading surface. The placeholder remains uncreated.
+
+[The sanitized native receipt](placeholder-startup-2026-11-01.native.json) records
+exact artifact hashes. All owned fixture files, views, scheduler leases and the
+disposable index were retired. Original settings and community-plugin enablement
+bytes were verified unchanged. This uses programmatic native clicks and a
+synthetic scheduling hold; it does not establish physical mobile acceptance.
+
+Earlier fixture attempts were rejected because their helpers allowed canonical
+global publication. A setup request also exceeded its tooling deadline; its
+settled cleanup was confirmed before its owned Node result collector was retired.
+Obsidian was never force-closed. Those attempts are not counted as acceptance.
+
+The same verified K-Plex `main.js` was subsequently copied to the maintainer's
+production plugin folder under explicit artifact-only authorization. Existing
+CSS and manifest already matched, so they required no write. The original three
+artifacts were backed up outside the vault. No production note, setting or cache
+was changed, and the agent did not reload the plugin or application. Excalidraw
+was untouched. After manually reloading K-Plex, the maintainer confirmed:
+**“Both work correctly”** (history navigation and clicking the placeholder).
+
+Source checkpoint: `97a10b15a010d0add16f65c8d03ab76cbc90d723`. Verified runtime:
+`main.js` SHA-256
+`d10ee1c54c285978f91a5719268ddf409f6b262b791097dbb8d5db24f2f695ca`.
+The complete portable verification is still running; its final result is pending.
