@@ -114,3 +114,10 @@ its sanitized native receipt. Complete K-Plex verification is being rerun.
 All 40 formerly blocked Excalidraw device profiles now pass their targeted native
 rerun. Full Excalidraw acceptance remains pending after a separate text-tool
 fixture timing correction; the original 187/5/40 result is historical.
+
+Final K-Plex `npm run verify` after the placeholder fix passes **3,650/3,650**:
+architecture 9, core 132, main 1843, browser 453, source 357 and source/browser 856.
+ESLint and final production build pass. Both the unchanged URL-alias scheduling
+bound and the 20,015-owner case pass in this complete run. The historical timing
+miss remains recorded above; no assertion or bound was changed. The final build's
+main.js SHA-256 is unchanged from the strict native/production-tested artifact.

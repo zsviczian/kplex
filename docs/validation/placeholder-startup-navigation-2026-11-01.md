@@ -57,9 +57,12 @@ or graph implementation. It also checks unavailable/transient targets, occurrenc
 ownership and refused rooted/editor admission. The startup selection case checks
 that unrelated/retired file identities and pending follow cannot be retained.
 
-`npm run build` passes against the real repository types. Complete `npm run verify`
-is running; architecture **9/9**, core **132/132**, lint and main **1,843/1,843**
-have passed. This checkpoint does not claim completed full verification.
+`npm run build` passes against the real repository types. Complete `npm run verify` passes: architecture **9/9**, core **132/132**, main
+**1,843/1,843**, browser **453/453**, source **357/357**, source/browser
+**856/856**, ESLint and the final production build. This is **3,650 passing
+checks, zero failures**. The unchanged scheduling-bound check and the 20,015-owner
+case pass. No assertion or time limit was weakened. The final build hash matches
+the artifact exercised natively and confirmed in production.
 
 ## Exact-build native acceptance and production confirmation
 
@@ -94,4 +97,5 @@ was untouched. After manually reloading K-Plex, the maintainer confirmed:
 Source checkpoint: `97a10b15a010d0add16f65c8d03ab76cbc90d723`. Verified runtime:
 `main.js` SHA-256
 `d10ee1c54c285978f91a5719268ddf409f6b262b791097dbb8d5db24f2f695ca`.
-The complete portable verification is still running; its final result is pending.
+The complete portable verification passed after this source checkpoint; subsequent
+commits only record acceptance and testing guidance.

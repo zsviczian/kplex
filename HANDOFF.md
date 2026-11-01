@@ -51,12 +51,13 @@ maintainer manually reloaded K-Plex and confirmed both history navigation and
 clicking the placeholder work. No production notes, settings, cache, navigation or
 runtime reload were changed by this agent. Excalidraw was untouched there.
 
-Complete K-Plex verification is running: architecture 9, core 132, main 1843,
-browser 453 and source 357 pass; source/browser scale cases remain pending. The
-historical full-run 59.4 ms/50 ms scheduling miss and unchanged isolated pass are
-preserved in the batch record; no bound was weakened. Current main 2aaf6d3 (#248)
-was integrated at 9ff6db6 and resolves the earlier occurrence-editor baseline
-failure.
+Complete K-Plex `npm run verify` passes **3,650/3,650**: architecture 9, core 132,
+main 1843, browser 453, source 357 and source/browser 856, plus ESLint and the final
+production build. The unchanged scheduling check and 20,015-owner case both pass;
+no bounds were weakened. Final main.js hash matches native/production acceptance.
+Current main 2aaf6d3 (#248) was integrated at 9ff6db6 and resolves the earlier
+occurrence-editor baseline failure. Historical timing evidence remains in the
+batch record.
 
 All 40 previously blocked Excalidraw device profiles pass their targeted rerun;
 the original five failed paths pass focused/repeated native runs. A later text-
