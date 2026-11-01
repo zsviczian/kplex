@@ -7140,6 +7140,7 @@ export class GraphIndex {
         this.publicationRevision += 1;
         this.snapshotPublicationCause = "progressive-build";
         this.semanticFingerprints = nextFingerprints;
+        builder.acknowledgePublishedSources();
         this.fullSnapshotHydrated = false;
         this.fullSnapshotFresh = false;
         this.previewSnapshotPublished = false;
@@ -7371,6 +7372,7 @@ export class GraphIndex {
         this.fullSemanticMaintenanceRevision = graphMaintenance;
         // Preserve events that arrived during the build as unacknowledged host observations.
         this.fullSemanticSourceRevision = sourceRevision;
+        builder.acknowledgePublishedSources();
         this.sourceAcquisition.acknowledgeGraphPublication(graphPublication, graphMaintenance);
         const retainLocalChanges = Boolean(this.sourceAcquisition.pendingGraphSources()?.size)
           || sourceRevision !== this.plugin.getIndexSourceRevision();

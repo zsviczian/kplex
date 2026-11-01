@@ -286,6 +286,7 @@ function publishGraphPage(target: GraphPage, staged: GraphPage): void {
 export class GraphBuilder {
   private sliceStartedAt = perfNow();
   private patchTouchedPagePaths: Set<string> | null = null;
+  private readonly sourcePublications = new Map<string, SourceGraphPublication>();
   private readonly semanticFrontmatterFields: Set<string>;
   private readonly semanticInlineFields: Set<string>;
   private readonly metadataSourceHost: ObsidianMetadataSourceHost;
@@ -315,6 +316,16 @@ export class GraphBuilder {
     this.semanticInlineFields = new Set([
       plugin.settings.noteTypeField, plugin.settings.primaryTagField,
     ].map(normalizeFieldName).filter(Boolean));
+  }
+
+  /** Acknowledge only sources actually compiled into the graph the caller just published.
+   * Initial source repairs observed during a full build are covered by its later exact input;
+   * newer native/cache observations retain their journal entry through the receipt guard.
+   * Call only after the owning private graph becomes live; failed/cancelled builders discard it.
+   */
+  acknowledgePublishedSources(): void {
+    for (const receipt of this.sourcePublications.values()) this.sourceAcquisition?.acknowledgeGraphSource(receipt);
+    this.sourcePublications.clear();
   }
 
   /** Borrow cached metadata and finite host summaries; do not mirror the complete frontmatter. */
@@ -1481,6 +1492,7 @@ export class GraphBuilder {
         // activation per file here would put storage latency on every settings rebuild.
         const acquisition = acquireSources ? await this.sourceAcquisition?.acquire(file, entry.body, this.isCurrent, true) : undefined;
         if (acquisition?.current === false || !this.isCurrent() || !this.fileRevisionMatches(file, revision)) return false;
+        const sourcePublication = this.sourceAcquisition?.captureGraphSource(file);
         const meta = mergeFileMetadata(this.app.metadataCache.getFileCache(file), entry.body);
         const signature = await this.semanticSourceSignatureCooperative(file, entry.body);
         if (!signature || !this.isCurrent() || !this.fileRevisionMatches(file, revision)) return false;
@@ -1488,6 +1500,7 @@ export class GraphBuilder {
         this.semanticFingerprints.set(revision.path, signature);
         if (!(await this.collectMetadataSources(compiler, file, meta))) return false;
         if (!(await this.yieldToHost())) return false;
+        if (sourcePublication) this.sourcePublications.set(file.path, sourcePublication);
         onProgress?.(++processed, files.length);
       }
     }
@@ -1555,6 +1568,7 @@ export class GraphBuilder {
         for (const path of fileTouchedPagePaths) touchedPagePaths.add(path);
         if (!options.publishFileCommit) {
           publishPreparedState();
+          if (sourcePublication) this.sourcePublications.set(sourcePath, sourcePublication);
           return;
         }
         let published = false;

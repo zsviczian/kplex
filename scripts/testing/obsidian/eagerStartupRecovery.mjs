@@ -28,7 +28,8 @@ async function scenario(app,c) {
     await until(()=>p.initialIndexComplete&&!p.index.building&&p.index.sourceAcquisition.hasSemanticDependencies()
       &&p.index.publicApiCoverage().scope==='global'&&!p.index.publicApiCoverage().pending,'Initial eager graph did not complete');
     // Wait for the production persistence owner, rather than creating the test's own full baseline.
-    await until(()=>p.index.activeSnapshotGeneration&&p.index.snapshotPersistTimer===null,'Complete snapshot was not persisted');
+    await until(()=>p.index.activeSnapshotGeneration&&p.index.snapshotPersistTimer===null
+      &&(!p.index.getSemanticPreparationDiagnostics().fullBuilds||p.startupDiagnostics.snapshot().sessionWork.completeSnapshotSaves>0),'Complete snapshot was not persisted');
     await p.settingsWriteQueue;await app.plugins.disablePlugin('k-plex');disabled=true;
     cacheName='k-plex-index-v1-'+[...new TextEncoder().encode(app.vault.getName())].map(v=>v.toString(16).padStart(2,'0')).join('').slice(0,96);
     db=await open(cacheName);

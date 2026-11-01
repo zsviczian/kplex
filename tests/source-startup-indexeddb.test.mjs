@@ -502,6 +502,23 @@ test('finite alias preparation rejects supersession, cyclic values and the exist
   }finally{await browser.cleanup();}
 });
 
+/** A host callback observed during receipt validation must remain in the graph backlog. */
+test('eager graph acknowledgement preserves a reentrant newer native observation',async()=>{
+  const browser=await chromiumHarness(bundle);
+  try{
+    assert.equal(await browser.evaluate(contributorBrowserInitialize),true);
+    assert.equal(await browser.evaluate(`(async()=>{
+      const f=await fixture('eager-reentrant-receipt');try{
+        const file=f.add('A.md','');f.acquisition.start();f.acquisition.beginGraphPublication();f.app.vault.trigger('modify',file);
+        const receipt=f.acquisition.captureGraphSource(file),current=receipt.isCurrent;
+        f.acquisition.acknowledgeGraphSource({...receipt,isCurrent:()=>{const accepted=current();f.app.vault.trigger('modify',file);return accepted;}});
+        ok(f.acquisition.pendingGraphSources().get(file.path)>receipt.sequence,'Validation cannot erase the newer same-source token');
+        ok(!f.acquisition.states.get(file).graphInputCurrent(),'Reentrant native event also retires the compiled-input receipt');return true;
+      }finally{f.close();}
+    })()`),true);
+  }finally{await browser.cleanup();}
+});
+
 test("eager event reconciliation retains complete graph navigation after modify create and delete", async () => {
   const browser = await chromiumHarness(bundle);
   try {

@@ -88,7 +88,7 @@ import { entityFactForFile, entityFactForFolder, ObsidianStructuralPatchSourceCo
 import { hostLinkRecord } from "./hostLinkSourceCollector";
 import { resolveObsidianReferenceTarget } from "./ontologySourceCollector";
 
-type FileObservation = { identity: string | null; observation?: SourceObservation; validatedHostRevision?: number; revision: number; dirty: boolean; bodyDirty: boolean; resolutionDirty: boolean; path: string; oldPath?: string; created: boolean; impact: Promise<void> | null };
+type FileObservation = { identity: string | null; observation?: SourceObservation; validatedHostRevision?: number; revision: number; dirty: boolean; bodyDirty: boolean; resolutionDirty: boolean; path: string; oldPath?: string; created: boolean; impact: Promise<void> | null; graphInputCurrent?: () => boolean };
 type SourceCoordinates = Readonly<{ order: number; markdownOrder: number }>;
 type Capture = { physical: SourcePhysical; revision: number; hostRevision: number; state: FileObservation; file: TFile };
 /** A tiny weak native receipt names an accepted optional cache record; it retains no parser body. */
@@ -96,7 +96,7 @@ type BodyInputReceipt = { inputToken: string; parserVersion: number; physical: S
 /** Caller completion accepts one full parse; later optional persistence retains only native validity. */
 export type SourceBodyInput = BodyCacheStamp & { accept(): boolean };
 /** One graph commit may acknowledge only the exact native/source observation it compiled. */
-export type SourceGraphPublication = Readonly<{ sourcePath: string; sequence: number; isCurrent: () => boolean }>;
+export type SourceGraphPublication = Readonly<{ sourcePath: string; sequence: number; isCurrent: () => boolean; rememberNativeInput: () => void }>;
 /** One short native create wave; never a retained folder catalog or durable source certificate. */
 type EmptyFolderCreateWave = {
   folder: TFolder; path: string; parent: TFolder; parentPath: string; openedAt: number; lastCauseAt: number;
@@ -679,7 +679,7 @@ export class ObsidianSourceAcquisition {
         const state = this.state(file);
         if (!state.resolutionDirty) {
           state.resolutionDirty = true; state.revision += 1; this.repository.cancelSource(sourceId);
-          this.noteGraphSourceChange(sourceId);
+          if (!state.graphInputCurrent?.()) this.noteGraphSourceChange(sourceId);
         }
         this.pendingKnownFiles.add(file);
         if (++marked % SOURCE_MAX_BATCH_RECORDS === 0) {
@@ -1328,14 +1328,26 @@ export class ObsidianSourceAcquisition {
   /** Preserve the exact metadata object, native incarnation and source generation across staging. */
   captureGraphSource(file: TFile): SourceGraphPublication {
     const capture = this.capture(file), metadata = this.app.metadataCache.getFileCache(file);
+    const observation = this.contributorObservation, environment = metadata ? this.environment(metadata) : null;
+    /** Storage-only resolution refreshes may advance the source revision after compilation. Native
+     * edits/topology, replacement, cache changes and environment drift still retire this input. */
+    const nativeCurrent = (): boolean => !this.closed && observation === this.contributorObservation
+      && capture.hostRevision === this.hostRevision && this.app.vault.getFileByPath(capture.physical.path) === file
+      && file.path === capture.physical.path && file.stat.mtime === capture.physical.mtime
+      && file.stat.size === capture.physical.size && file.stat.ctime === capture.physical.ctime
+      && this.app.metadataCache.getFileCache(file) === metadata && (metadata ? this.environment(metadata) : null) === environment;
     return { sourcePath: file.path, sequence: this.graphChangeSequence,
-      isCurrent: () => this.current(capture, () => true) && this.app.metadataCache.getFileCache(file) === metadata };
+      isCurrent: () => this.current(capture, () => true) && this.app.metadataCache.getFileCache(file) === metadata,
+      /** Install only after graph publication; failed private compilation establishes no coverage. */
+      rememberNativeInput: () => { if (nativeCurrent()) capture.state.graphInputCurrent = nativeCurrent; } };
   }
 
   /** Completing an older observation cannot remove a later edit to the same source. */
   acknowledgeGraphSource(receipt: SourceGraphPublication): void {
+    receipt.rememberNativeInput();
     const pending = this.graphChanges?.get(receipt.sourcePath);
-    if (pending !== undefined && pending <= receipt.sequence && receipt.isCurrent()) this.graphChanges!.delete(receipt.sourcePath);
+    if (pending !== undefined && pending <= receipt.sequence && receipt.isCurrent()
+      && this.graphChanges?.get(receipt.sourcePath) === pending) this.graphChanges.delete(receipt.sourcePath);
   }
 
   /** Deleted owners are acknowledged only after the graph removes their declarations. */
@@ -2016,7 +2028,8 @@ export class ObsidianSourceAcquisition {
       if ((result.outcome === "activated" || result.outcome === "unsaved") && result.live) {
         // Existing heads may change through resolver/environment repair without metadata:changed.
         // Missing initial heads are already represented by the full build's actual host inputs.
-        if (head && !optionalAliasesOnly && this.maintenanceRevision !== this.graphMaintenanceRevision) this.noteGraphSourceChange(file.path);
+        if (head && !optionalAliasesOnly && this.maintenanceRevision !== this.graphMaintenanceRevision
+          && !capture.state.graphInputCurrent?.()) this.noteGraphSourceChange(file.path);
         capture.state.observation = optionalAliasesOnly && head ? { ...head.observation } : { epoch: this.epoch, revision: capture.hostRevision, environment };
         capture.state.dirty = false; capture.state.bodyDirty = false; capture.state.resolutionDirty = false; capture.state.created = false;
         if (intrinsic && !upgradeUrls) this.counters.resolutionRefreshes += 1; else this.counters.repaired += 1;
