@@ -614,7 +614,8 @@ test("ordinary navigation requests still activate after local identity remapping
   const f=appFollowFixture(),requested=[];
   const request=production("navigationRequest",{plugin:f.state.plugin,activate:(...args)=>requested.push(args)},"src/ui/App.tsx");
   request("B.md");request("missing.md");
-  assert.deepEqual(requested,[[f.pages.get("B.md"),true]]);
+  assert.deepEqual(requested,[[f.pages.get("B.md"),true,true,"user",false]]);
+  request("B.md",undefined,true);assert.deepEqual(requested.at(-1),[f.pages.get("B.md"),true,true,"user",true]);
 });
 
 test("native URL follow retains hidden/unpublished intent, fences owner changes and accepts exactly once",()=>{

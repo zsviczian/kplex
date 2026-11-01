@@ -466,7 +466,7 @@ test("persisted layout keys and node-open leaf modes remain stable with canonica
       plugin: {app: {}, getFileOpenMenuState: () => ({focusOpenTab: true, adjacentPane: true, popoutWindow: false}), isPinned: () => false,
         actionManager: {dispatch: request => {requests.push(request); return Promise.resolve({status: "completed"});}}, showKplexMenuAtPosition() {}},
       addNativeSubmenu: (menu, _title, _icon, populate) => populate(menu), translate: key => key,
-      fileRevealMenuState: () => ({systemLabel: "graph.openInFinder", navigation: true}), readObsidianPresentationEnvironment: () => ({}),
+      nativeRevealTarget: fileReveal.nativeRevealTarget, fileRevealMenuState: () => ({systemLabel: "graph.openInFinder", navigation: true}), readObsidianPresentationEnvironment: () => ({}),
       viewport: {current: {ownerDocument: {}}}, hostLeaf: {},
     });
     showMenu({page, role: "child"}, 10, 20, "captured-occurrence");
@@ -764,4 +764,43 @@ test("an earlier presentation batch remains fenced while a later cache batch is 
     assert.equal(checkpoints, 2); assert.equal(result, null);
     assert(pages.every(page => page.noteType === "Card"), "All staged facets remain private on cross-batch cancellation");
   });
+});
+
+/** Folder reveals share the native file path, including exact incarnation and device fences. */
+test('folder-location actions reveal exact native folders and refuse replaced or deleted targets',async()=>{
+ const folder={path:'Projects',children:[]},rootFolder={path:'/',children:[]},calls=[];
+ let current=folder,enabled=true;
+ const explorer={async revealInFolder(value){assert.equal(this,explorer);calls.push(['navigation',value])}};
+ const app={vault:{getFileByPath:()=>null,getFolderByPath:path=>path===folder.path?current:null,getRoot:()=>rootFolder},
+  showInFolder(path){assert.equal(this,app);calls.push(['system',path])},internalPlugins:{getEnabledPluginById:()=>enabled?explorer:null}};
+ const desktop={device:'desktop',keyConvention:'macos'};
+ await fileReveal.revealFile(app,folder,'system',desktop);await fileReveal.revealFile(app,folder,'navigation',desktop);
+ await fileReveal.revealFile(app,rootFolder,'navigation',desktop);
+ assert.deepEqual(calls,[['system','Projects'],['navigation',folder],['navigation',rootFolder]]);
+ current={...folder};await fileReveal.revealFile(app,folder,'system',desktop);
+ current=null;await fileReveal.revealFile(app,folder,'navigation',desktop);
+ current=folder;enabled=false;await fileReveal.revealFile(app,folder,'navigation',desktop);
+ await fileReveal.revealFile(app,folder,'system',{device:'tablet',keyConvention:'ios'});
+ assert.equal(calls.length,3);
+});
+
+/** A folder menu must expose only native location destinations and retain the launched folder. */
+test('actual folder context menu offers Files/Finder and refuses a same-path replacement',()=>{
+ const items=new Map(),requests=[],folder={path:'Projects',children:[]};let live=folder;
+ const page={path:'folder:Projects',name:'Projects',file:null,isFolder:true,isTag:false,url:null};
+ class MenuDouble{addItem(build){const item={setTitle(value){this.title=value;return this},setIcon(){return this},onClick(run){items.set(this.title,run);return this}};build(item);return this}addSeparator(){return this}}
+ const show=productionArrow('src/ui/PlexGraph.tsx','showNodeContextMenuAt',{
+  viewDefinition:{capabilities:{}},touchDoubleTap:{current:{reset(){}}},persistentPageFor:()=>page,neighborhood:null,activePath:'Other.md',
+  Menu:MenuDouble,actionNodeRef:value=>({identity:value.path,path:value.path,kind:'folder'}),actionSurfaceId:'own',sceneNodeKeys:new Map(),
+  plugin:{app:{vault:{getFolderByPath:path=>path==='Projects'?live:null}},getFileOpenMenuState:assert.fail,isPinned:()=>false,
+   actionManager:{dispatch:request=>{requests.push(request);return Promise.resolve({status:'completed'})}},showKplexMenuAtPosition(){}},
+  addNativeSubmenu:(menu,_title,_icon,populate)=>populate(menu),translate:key=>key,nativeRevealTarget:fileReveal.nativeRevealTarget,
+  fileRevealMenuState:()=>({systemLabel:'graph.openInFinder',navigation:true}),readObsidianPresentationEnvironment:()=>({}),viewport:{current:{ownerDocument:{}}},hostLeaf:{},
+ });
+ show({page,role:'child'},10,20,'folder-occurrence');
+ assert(items.has('graph.openInFinder'));assert(items.has('actions.node.open.navigation'));
+ assert(!items.has('graph.openNewTab'));assert(!items.has('graph.openAdjacentPane'));
+ items.get('actions.node.open.navigation')();assert.equal(requests[0].id,'node.open.navigation');
+ assert.equal(requests[0].target.node.identity,'folder:Projects');
+ live={...folder};items.get('graph.openInFinder')();assert.equal(requests.length,1,'A new native folder cannot inherit the earlier menu action');
 });

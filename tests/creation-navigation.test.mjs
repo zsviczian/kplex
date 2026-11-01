@@ -144,3 +144,122 @@ test("a rejected drawing write destroys its private workbench and retains the la
   await assert.rejects(create.call(owner, "New", "excalidraw", "", undefined, "NewTemplate.md"), /write rejected/);
   assert.equal(owner.settings.lastDrawingTemplatePath, "Existing.md"); assert.equal(destroyed, 1); assert.equal(owner.managedCreatedPaths.size, 0);
 });
+
+const creationDestinations=moduleAt('src/core/plex/createdNoteDestination.ts');
+/** Destination preferences survive unavailable contexts without being rewritten by rendering. */
+test('new-file destinations migrate the old toggle and filter only unsupported native targets',()=>{
+ const {CREATION_AFTER_SAVING_ACTIONS,sanitizeCreationAfterSaving,creationAfterSavingActions,effectiveCreatedNoteDestination}=creationDestinations;
+ assert.deepEqual(creationAfterSavingActions({desktop:true,sidepanel:false,another:true,editable:true}),CREATION_AFTER_SAVING_ACTIONS);
+ assert.deepEqual(creationAfterSavingActions({desktop:false,sidepanel:true,another:false,editable:true}),['return','follow','editor','editor-maximized','tab']);
+ assert.equal(sanitizeCreationAfterSaving(undefined,true),'sidecar');assert.equal(sanitizeCreationAfterSaving(undefined,false),'return');
+ assert.equal(sanitizeCreationAfterSaving('editor-maximized',true),'editor-maximized');
+ assert.equal(sanitizeCreationAfterSaving('run-script'),'return');
+ assert.equal(effectiveCreatedNoteDestination('sidecar',{desktop:true,sidepanel:true}),'tab');
+ assert.equal(effectiveCreatedNoteDestination('window',{desktop:false,sidepanel:false}),'tab');
+});
+
+/** Rendering a fallback must never replace the remembered preference or trigger settings work. */
+test('creation opening control persists a user selection once and never persists context fallbacks',()=>{
+ const control=method('src/main.ts','createdNoteCompletionControl',creationDestinations),saved=[];
+ const p={settings:{newNodeAfterSaving:'sidecar',editNewNodeAfterCreate:true,future:{kept:true}},createdNoteContext:()=>({sidepanel:true,desktop:false}),saveSettings:async(...args)=>saved.push(args)};
+ const rendered=control.call(p);assert.equal(rendered.value,'tab');assert.equal(p.settings.newNodeAfterSaving,'sidecar');assert.equal(saved.length,0);
+ rendered.onChange('sidecar');assert.equal(saved.length,0,'Unsupported choices cannot enter the writer');
+ rendered.onChange('editor-maximized');rendered.onChange('editor-maximized');
+ assert.equal(saved.length,1);assert.deepEqual(saved[0],[false,false]);assert.deepEqual(p.settings.future,{kept:true});
+});
+
+/** Native group placement uses the captured Plex parent, independent of the most recent unrelated tab. */
+test('new-file tabs use the Plex group or the most recent main group from the sidepanel',async()=>{
+ const open=method('src/main.ts','openCreatedNoteInTab',{KPLEX_SIDEPANEL_VIEW_TYPE:'sidepanel'});
+ const file={},plexParent={},mainParent={},otherParent={},root={},calls=[];
+ const plex={parent:plexParent,view:{getViewType:()=> 'plex'}},main={parent:mainParent},sidepanel={parent:otherParent,view:{getViewType:()=> 'sidepanel'}};
+ const leaf={openFile:async(...args)=>calls.push(['open',...args])};
+ const p={app:{workspace:{rootSplit:root,getMostRecentLeaf:given=>{assert.equal(given,root);return main},iterateAllLeaves:run=>[plex,{parent:plexParent},main,{parent:otherParent}].forEach(run),createLeafInParent:(parent,index)=>{calls.push(['create',parent,index]);return leaf},revealLeaf:async given=>{assert.equal(given,leaf)}}}};
+ await open.call(p,file,plex);assert.deepEqual(calls[0],['create',plexParent,2]);assert.equal(p.lastDocumentLeaf,leaf);
+ calls.length=0;await open.call(p,file,sidepanel);assert.deepEqual(calls[0],['create',mainParent,1]);
+ assert.deepEqual(calls[1],['open',file,{active:true}]);
+});
+
+/** Narrow native doubles keep execution/identity observable without starting Obsidian or an index. */
+function createdOpeningFixture(){
+ const file={path:'New.md'},page={path:file.path,file},document={},host={view:{containerEl:{ownerDocument:document}}},session={centerPath:'Origin.md'},calls=[];
+ const p={settings:{},unloading:false,host,session,calls,file,page,liveFile:file,
+  app:{vault:{getFileByPath:()=>p.liveFile}},documentSession:leaf=>leaf===host?session:null,
+  createdNoteContext:()=>({desktop:true,sidepanel:false}),index:{get:()=>page,insertCreatedFile:()=>assert.fail('Unexpected admission')},
+  openCreatedNoteInTab:async(...args)=>calls.push(['tab',...args]),openFileInPopout:async(...args)=>calls.push(['window',...args]),
+  openSidecar:async(...args)=>calls.push(['sidecar',...args]),focusAssociatedEditor:leaf=>calls.push(['focus',leaf]),
+  notifyNavigation:(path,leaf,reroot)=>{assert.equal(leaf,host);session.centerPath=path;calls.push(['navigate',path,reroot])},
+  actionSurfaceHosts:new Map([['unrelated',{leaf:{}}],['own',{leaf:host}]]),
+  actionManager:{readSnapshot:()=>({centerOccurrence:{node:{identity:file.path,path:file.path,kind:'file'},occurrenceId:'new-center'}}),prepare:request=>{calls.push(['prepare',request]);return calls.filter(x=>x[0]==='prepare').length===1?{state:'rejected'}:{state:'accepted',run:async()=>calls.push(['run'])}}},
+  waitForCreatedEditor:async()=>calls.push(['wait'])};return p;
+}
+const openCreated=method('src/main.ts','openCreatedNote',{...creationDestinations,actionNodeRef:page=>({identity:page.path,path:page.path,kind:'file'}),Notice:class{constructor(){assert.fail('Unexpected opening timeout')}}});
+for(const destination of ['none','sidecar','tab','window','editor','editor-maximized'])test('created file routes exactly once to '+destination,async()=>{
+ const p=createdOpeningFixture();await openCreated.call(p,p.page,p.host,destination);
+ if(destination==='none')assert.deepEqual(p.calls,[]);
+ else if(destination==='editor'||destination==='editor-maximized'){
+  assert.deepEqual(p.calls.map(x=>x[0]),['navigate','prepare','wait','prepare','run']);
+  for(const [,request]of p.calls.filter(x=>x[0]==='prepare')){assert.equal(request.surfaceId,'own');assert.equal(request.target.occurrenceId,'new-center');assert.equal(request.args.maximize,destination==='editor-maximized');}
+  assert.equal(p.calls[0][2],true,'An editor destination explicitly admits the created note as a root');
+ }else assert.deepEqual(p.calls.map(x=>x[0]),destination==='sidecar'?['sidecar','focus']:[destination]);
+});
+for(const change of ['file-replaced','view-replaced','window-migrated','navigated-away','dismissed','unloaded'])test('pending creation editor refuses '+change,async()=>{
+ const p=createdOpeningFixture();let valid=true;
+ p.waitForCreatedEditor=async()=>{p.calls.push(['wait']);
+  if(change==='file-replaced')p.liveFile={...p.file};if(change==='view-replaced')p.host.view={containerEl:{ownerDocument:{}}};
+  if(change==='window-migrated')p.host.view.containerEl.ownerDocument={};if(change==='navigated-away')p.session.centerPath='Other.md';
+  if(change==='dismissed')valid=false;if(change==='unloaded')p.unloading=true;};
+ await openCreated.call(p,p.page,p.host,'editor',()=>valid);
+ assert(!p.calls.some(x=>x[0]==='run'),'A later owner cannot inherit editor opening');
+ assert.equal(p.calls.filter(x=>x[0]==='prepare').length,1);
+});
+
+/** A materialization dialog does not navigate or attempt to create the same placeholder twice. */
+test('placeholder completion omits Create another and Follow node without replacing a remembered Follow preference',()=>{
+ const control=method('src/main.ts','createdNoteCompletionControl',creationDestinations),writes=[];
+ const p={settings:{newNodeAfterSaving:'follow'},createdNoteContext:()=>({desktop:true,sidepanel:false}),saveSettings:async()=>writes.push(true)};
+ const value=control.call(p,undefined,{another:false,follow:false});
+ assert.deepEqual(value.choices,['return','sidecar','editor','editor-maximized','tab','window']);assert.equal(value.value,'return');
+ assert.equal(p.settings.newNodeAfterSaving,'follow');assert.equal(writes.length,0);
+ value.onChange('follow');value.onChange('another');assert.equal(writes.length,0);
+ value.onChange('return');assert.equal(p.settings.newNodeAfterSaving,'return');assert.equal(writes.length,1);
+});
+
+/** The editor route must wait for the displayed file, rather than editing a stale center/selection. */
+test('new-file editor waits for an exact displayed center occurrence before preparing an action', async () => {
+  const p = createdOpeningFixture();
+  let reads = 0;
+  p.actionManager.readSnapshot = () => ({centerOccurrence: ++reads === 1
+    ? {node: {identity: 'Old.md', path: 'Old.md'}, occurrenceId: 'old'}
+    : {node: {identity: p.file.path, path: p.file.path}, occurrenceId: 'new'}});
+  await openCreated.call(p, p.page, p.host, 'editor');
+  assert.equal(p.calls[1][0], 'wait');
+  assert(p.calls.filter(row => row[0] === 'prepare').every(([, request]) => request.target.occurrenceId === 'new'));
+  assert.equal(p.calls.filter(row => row[0] === 'run').length, 1);
+});
+
+/** Compile the real graph snapshot port; no DOM query or inferred node ID grants editor authority. */
+function displayedCenterReader(dependencies) {
+  const path = 'src/ui/PlexGraph.tsx';
+  const source = ts.createSourceFile(path, readFileSync(new URL(`../${path}`, import.meta.url), 'utf8'), ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
+  let initializer;
+  /** Locate only the production port property. */
+  function visit(node) {
+    if (ts.isPropertyAssignment(node) && node.name.getText(source) === 'readCenterOccurrence') initializer = node.initializer.getText(source);
+    ts.forEachChild(node, visit);
+  }
+  visit(source); assert(initializer);
+  const output = ts.transpileModule(`const read = ${initializer};`, {compilerOptions: {target: ts.ScriptTarget.ES2022}}).outputText;
+  return Function(...Object.keys(dependencies), `${output}; return read;`)(...Object.values(dependencies));
+}
+
+test('new-file displayed-center port refuses pending, repeated and unrelated occurrences', () => {
+  const page = {path: 'New.md'}, node = {page}, deps = {pathChangedThisRender: false, viewFailed: false, sceneTransitioning: false,
+    scene: {nodes: [node]}, activePath: page.path, classic: {}, sceneNodeKeys: new Map([[node, 'center-exact']]),
+    occurrenceKey: () => 'portable-exact', actionNodeRef: value => ({identity: value.path, path: value.path})};
+  assert.equal(displayedCenterReader(deps)().occurrenceId, 'center-exact');
+  assert.equal(displayedCenterReader({...deps, classic: null})().occurrenceId, 'portable-exact');
+  for (const key of ['pathChangedThisRender', 'viewFailed', 'sceneTransitioning']) assert.equal(displayedCenterReader({...deps, [key]: true})(), null);
+  assert.equal(displayedCenterReader({...deps, activePath: 'Old.md'})(), null);
+  assert.equal(displayedCenterReader({...deps, scene: {nodes: [node, node]}})(), null);
+});

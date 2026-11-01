@@ -29,9 +29,11 @@
  * typing/composition never publishes transient hierarchy values or queues per-character graph work.
  * Fresh installations receive editable English descriptions for their English factory vocabulary;
  * saved dictionaries, including explicit clears, never inherit replacement wording on reload.
+ * One remembered after-saving action replaces the new-note editing toggle, retaining its migration and unrelated future preferences.
  */
 import {STARTUP_INDEX_DEFAULTS, sanitizeStartupIndexPreferences, type IndexingMode, type StartupIndexPreferences} from './core/plex/startupIndexPreferences';
 import { readObsidianPresentationEnvironment } from "./adapters/obsidian/presentationEnvironment";
+import {sanitizeCreationAfterSaving, type CreationAfterSavingAction} from "./core/plex/createdNoteDestination";
 import {OntologyManagerModal} from "./ui/OntologyManagerModal";
 import {ontologyFieldViews,type OntologyFilter} from "./ui/features/ontologyPresentation";
 import {normalizeOntologyDescriptions,type OntologyDescriptions} from "./core/contracts/ontologyReadModel";
@@ -409,6 +411,8 @@ export interface KplexSettings extends StartupIndexPreferences {
   allowRemoteNodeImages: boolean;
   /** Remember the Create Note dialog toggle between invocations. */
   editNewNodeAfterCreate: boolean;
+  /** Shared new-file destination; the old toggle is retained solely for migration compatibility. */
+  newNodeAfterSaving: CreationAfterSavingAction;
   /** Remember which create button Ctrl/Cmd+Enter should invoke next time. */
   newNodeDefaultType: NewNodeType;
   /** Null uses the first configured template; empty explicitly selects a blank drawing. */
@@ -550,6 +554,7 @@ const LEGACY_DEFAULT_SETTINGS: KplexSettings = {
   attachmentImageDisplay: "thumbnail-label",
   allowRemoteNodeImages: false,
   editNewNodeAfterCreate: false,
+  newNodeAfterSaving: "return",
   newNodeDefaultType: "markdown",
   lastDrawingTemplatePath: null,
   startupIndexInfoBubbleSeen: false,
@@ -835,6 +840,7 @@ export function migrateAndMergeSettings(raw: unknown): KplexSettings {
     attachmentImageDisplay: old.attachmentImageDisplay === "label" || old.attachmentImageDisplay === "image" ? old.attachmentImageDisplay : "thumbnail-label",
     allowRemoteNodeImages: old.allowRemoteNodeImages === true,
     editNewNodeAfterCreate: Boolean(old.editNewNodeAfterCreate),
+    newNodeAfterSaving: sanitizeCreationAfterSaving(old.newNodeAfterSaving, old.editNewNodeAfterCreate === true),
     trackpadNavigation: old.trackpadNavigation === true,
     lastDrawingTemplatePath: typeof old.lastDrawingTemplatePath === "string" ? old.lastDrawingTemplatePath : null,
     newNodeDefaultType: old.newNodeDefaultType === "excalidraw" ? "excalidraw" : "markdown",

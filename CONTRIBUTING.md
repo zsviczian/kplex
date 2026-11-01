@@ -762,7 +762,7 @@ Verify:
 - folder/tag targets are disabled
 - Markdown origin writes YAML on origin
 - non-Markdown origin requires Markdown target and writes inverse relation on target
-- creating a physical child saves its additive property even while structural/index refresh makes semantic pair readiness unavailable; test drawing-to-drawing creation with **Open for editing** enabled
+- creating a physical child saves its additive property even while structural/index refresh makes semantic pair readiness unavailable; test drawing-to-drawing creation with **After saving → Edit in sidecar** selected
 - preserve existing properties and template metadata, make retry idempotent, and reject native file replacement/rename before mutation; a saved property may await graph reconciliation without blocking creation completion
 - confirm/cancel icons use `getIcon()`
 
@@ -1547,3 +1547,36 @@ sentinel across actual plugin reload. The scenario restores settings, workspace 
 The existing Excalidraw companion supplies its public native Menu constructor; positive template
 creation additionally requires the new companion build. Native programmatic wheel events do not
 establish physical trackpad or mobile touch acceptance.
+
+
+For changes limited to creation completion/reveal routing, run the affected checks rather than an
+indexing aggregate. A focused command covering the current change is:
+
+```bash
+node --test --test-concurrency=1 --test-name-pattern='new-file|creation opening control|created file routes|pending creation|placeholder completion|materialization|relocation|retarget|folder-location|actual folder context|saved new-file|unified completion|folder creation|composer' tests/creation-navigation.test.mjs tests/related-note-composer.test.mjs tests/presentation-environment.test.mjs tests/excalibrain-migration.test.mjs tests/action-surface-ui.test.mjs tests/ui-components.test.mjs
+node --test tests/localization.test.mjs
+```
+
+Also lint the touched modules, build the actual plugin, and check portable types/import boundaries
+when those contracts change. Do not substitute `npm test`, `verify` or `verify:obsidian` for these
+focused checks: they include unrelated expensive indexing suites. The maintainer explicitly requested
+focused validation for the after-saving enhancement; its [record](docs/validation/creation-after-saving-2026-11-01.md)
+separates this evidence from the prior full-suite acceptance.
+
+In the exact-build disposable Small vault, exercise each supported destination and inspect the actual
+native file/leaf identity, tab parent and editor maximize state. From the sidepanel, verify that Sidecar
+is omitted and new tabs use the most recent main workspace group. In the real dialogs, check one
+After saving control, Create another clearing/retaining the composer, Return creating without editing,
+and placeholder omission of Create another/Follow node. Create `[[folder/folder/note title]]` references
+in body, embeds and properties; change the creation folder, then verify the new file and rewritten
+references (including aliases/subpaths), with no old physical file. Check persisted explicit choices
+and non-persisted context fallbacks. Folder reveal coverage must include the real native folder/root,
+Files-disabled/mobile filtering, and deletion/replacement while a menu is open.
+
+If native setup stalls, inspect the selected disposable window's visibility and actual pending state.
+Foreground that exact window. For functional diagnostics only, preserve and temporarily disable its
+background-throttling flag when supported, restoring it in independent cleanup; this is not performance
+evidence. Keep one shared application-user-data lock across deployment/scenarios/cleanup, serialize CLI
+calls, retain acknowledged mutation receipts and retry only pure state reads. Restore settings,
+workspace and throttling and remove owned fixtures even after an assertion fails. Never restart or
+force-close a shared Obsidian application to work around a test collector.

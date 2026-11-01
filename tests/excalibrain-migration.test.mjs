@@ -1381,3 +1381,14 @@ test("trackpad and remembered drawing templates survive settings loading without
   const invalid = migrateAndMergeSettings({trackpadNavigation: "true", lastDrawingTemplatePath: 42});
   assert.equal(invalid.trackpadNavigation, false); assert.equal(invalid.lastDrawingTemplatePath, null);
 });
+
+/** Persisted opening preferences migrate once and preserve unrelated future settings. */
+test('new-file destination migration keeps legacy editing intent and saved unsupported-device preferences',()=>{
+ assert.equal(migrateAndMergeSettings({editNewNodeAfterCreate:true}).newNodeAfterSaving,'sidecar');
+ assert.equal(migrateAndMergeSettings({editNewNodeAfterCreate:false}).newNodeAfterSaving,'return');
+ for(const destination of ['return','another','follow','sidecar','tab','editor','editor-maximized','window']){
+  const value=migrateAndMergeSettings({newNodeAfterSaving:destination,editNewNodeAfterCreate:true,futureWorkflow:{retained:true}});
+  assert.equal(value.newNodeAfterSaving,destination);assert.deepEqual(value.futureWorkflow,{retained:true});
+  assert.equal(migrateAndMergeSettings(JSON.parse(JSON.stringify(value))).newNodeAfterSaving,destination);
+ }
+});

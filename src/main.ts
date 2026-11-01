@@ -40,6 +40,7 @@
  * identity/path/stat/event proof; dormant semantic edits and destructive changes retain reconciliation.
  * Ontology text drafts persist one guarded field through the existing settings queue before live
  * semantic publication; slow refresh remains outside the disk queue and cannot replay failed saves.
+ * New-file after-saving choices reuse surface-owned editor actions and exact native tab/Sidecar destinations; bounded readiness waits settle on unload.
  */
 import { registerFileMenus, type FilePlexTarget } from "./adapters/obsidian/fileMenu";
 import { drawingAutomation, drawingTemplateOptions } from "./adapters/obsidian/drawingTemplates";
@@ -125,6 +126,8 @@ import { ACTION_BY_ID, ACTION_RELATION_ROLES, type ActionId, type ActionOutcome,
 import { compileActionBindings, migrateActionPreferences, sanitizeActionPreferences, type ActionPreferencesV1 } from "./core/plex/actionPreferences";
 import { createActionCommandPublisher, type ActionCommandPublisher } from "./adapters/obsidian/actionCommands";
 import { actionNodeRef, resolveActionPage } from "./adapters/obsidian/actionNode";
+import {creationAfterSavingActions, effectiveCreationAfterSaving, effectiveCreatedNoteDestination, sanitizeCreationAfterSaving, type CreationAfterSavingAction, type CreatedNoteContext, type CreatedNoteDestination} from "./core/plex/createdNoteDestination";
+import type {CreatedNoteCompletionControl} from "./ui/features/CreationCompletionSelect";
 import { translateActionText } from "./ui/actionPresentation";
 import { ActionTargetPicker } from "./ui/ActionTargetPicker";
 import { PlexFoldSession, plexFoldIdentity, type PlexFoldCandidate } from "./ui/PlexFoldSession";
@@ -271,6 +274,7 @@ export default class KplexPlugin extends Plugin {
   private explicitIndexPreparationRequested = false;
   private indexSearchPrimed = false;
   private readonly layoutReadyWaiters = new Set<() => void>();
+  private readonly createdEditorWaits = new Map<number, () => void>();
   private metadataStabilized = false;
   private metadataStabilityPromise: Promise<number> | null = null;
   private readonly indexBacklogReasons = new Set<string>();
@@ -306,7 +310,7 @@ export default class KplexPlugin extends Plugin {
   /** Incarnation metadata only; existing Sidecar and fold maps remain the sole owner inventories. */
   private readonly plexFoldRevisions = new WeakMap<WorkspaceLeaf, number>();
   private readonly sidecarListeners = new Set<() => void>();
-  private readonly navigationListeners = new Set<(path: string, hostLeaf?: WorkspaceLeaf) => void>();
+  private readonly navigationListeners = new Set<(path: string, hostLeaf?: WorkspaceLeaf, reroot?: boolean) => void>();
   private readonly searchFocusListeners = new Map<WorkspaceLeaf, () => void>();
   private readonly nodeFlairListeners = new Set<(path: string) => void>();
   private readonly indexStatusListeners = new Set<() => void>();
@@ -627,6 +631,8 @@ export default class KplexPlugin extends Plugin {
     for (const resolve of this.layoutReadyWaiters) resolve();
     this.layoutReadyWaiters.clear();
     this.unloading = true;
+    for (const [timer, resolve] of this.createdEditorWaits) {window.clearTimeout(timer); resolve();}
+    this.createdEditorWaits.clear();
     this.disposePublicApiWindows?.();this.disposePublicApiWindows=null;
     this.publicApiOwner?.dispose();this.publicApiOwner=null;
     this.initialSourceRecovery = null;
@@ -3852,15 +3858,15 @@ export default class KplexPlugin extends Plugin {
     return leaf.getViewState().type === "empty";
   }
 
-  subscribeNavigation(listener: (path: string, hostLeaf?: WorkspaceLeaf) => void): () => void {
+  subscribeNavigation(listener: (path: string, hostLeaf?: WorkspaceLeaf, reroot?: boolean) => void): () => void {
     this.navigationListeners.add(listener);
     return () => this.navigationListeners.delete(listener);
   }
 
   /** Notify existing navigation consumers while retaining only a path-free request boundary. */
-  private notifyNavigation(path: string, hostLeaf?: WorkspaceLeaf): void {
+  private notifyNavigation(path: string, hostLeaf?: WorkspaceLeaf, reroot = false): void {
     this.supportEvents.record("navigation-request", { category: "navigation" });
-    for (const listener of this.navigationListeners) listener(path, hostLeaf);
+    for (const listener of this.navigationListeners) listener(path, hostLeaf, reroot);
   }
 
   /**
@@ -7406,14 +7412,116 @@ export default class KplexPlugin extends Plugin {
     });
   }
 
+  /** Capture device/surface availability without modifying the remembered destination. */
+  private createdNoteContext(hostLeaf?: WorkspaceLeaf): CreatedNoteContext {
+    return {sidepanel: hostLeaf?.view.getViewType() === KPLEX_SIDEPANEL_VIEW_TYPE,
+      desktop: readObsidianPresentationEnvironment(hostLeaf?.view.containerEl.ownerDocument.defaultView ?? undefined).device === "desktop"};
+  }
+
+  /** Supply one shared After saving preference without persisting dialog/context fallbacks. */
+  createdNoteCompletionControl(hostLeaf?: WorkspaceLeaf, options: Readonly<{another?: boolean; editable?: boolean; follow?: boolean}> = {}): CreatedNoteCompletionControl {
+    const context = {...this.createdNoteContext(hostLeaf), another: options.another !== false, editable: options.editable !== false,
+      follow: options.follow !== false}, choices = creationAfterSavingActions(context);
+    const preference = sanitizeCreationAfterSaving(this.settings.newNodeAfterSaving, this.settings.editNewNodeAfterCreate);
+    return {choices, value: effectiveCreationAfterSaving(preference, context),
+      onChange: /** Persist an actual offered selection through the serialized settings writer. */ value => {
+        if (this.unloading || !choices.includes(value) || this.settings.newNodeAfterSaving === value) return;
+        this.settings.newNodeAfterSaving = value;
+        void this.saveSettings(false, false);
+      }};
+  }
+
+  /** Open a new native tab in the invoking Plex group, or the most recent main group for a sidebar. */
+  private async openCreatedNoteInTab(file: TFile, hostLeaf?: WorkspaceLeaf): Promise<void> {
+    const workspace = this.app.workspace;
+    const anchor = hostLeaf && hostLeaf.view.getViewType() !== KPLEX_SIDEPANEL_VIEW_TYPE
+      ? hostLeaf : workspace.getMostRecentLeaf(workspace.rootSplit);
+    let leaf: WorkspaceLeaf;
+    if (anchor) {
+      let count = 0;
+      workspace.iterateAllLeaves(/** Count native siblings without inspecting or activating their views. */ candidate => {if (candidate.parent === anchor.parent) count++;});
+      leaf = workspace.createLeafInParent(anchor.parent, count);
+    } else leaf = workspace.getLeaf("tab");
+    this.lastDocumentLeaf = leaf;
+    await leaf.openFile(file, {active: true});
+    await workspace.revealLeaf(leaf);
+  }
+
+  /** Yield only while an explicit editor request waits for its committed scene; unload settles every wait. */
+  private waitForCreatedEditor(): Promise<void> {
+    return new Promise(/** Retain one bounded main-window timer until it fires or plugin unloads. */ resolve => {
+      const timer = window.setTimeout(/** Completed waits release their owning plugin reference. */ () => {this.createdEditorWaits.delete(timer); resolve();}, 50);
+      this.createdEditorWaits.set(timer, resolve);
+    });
+  }
+
+  /** Open a saved file using the exact invocation; editor readiness probes never replay an accepted action. */
+  async openCreatedNote(page: GraphPage, hostLeaf: WorkspaceLeaf | undefined, destination: CreatedNoteDestination,
+    stillValid: () => boolean = () => true): Promise<void> {
+    const file = page.file;
+    const hostView = hostLeaf?.view;
+    const ownerDocument = hostView?.containerEl.ownerDocument;
+    let editorCenter: KplexDocumentSession | null = null, arrived = false;
+    const initialCenter = hostLeaf ? this.documentSession(hostLeaf)?.centerPath : null;
+    /** Replacements, migrations and deliberate later navigation never inherit the creation operation. */
+    const current = (): boolean => {
+      if (this.unloading || !stillValid() || !file || this.app.vault.getFileByPath(file.path) !== file
+        || hostLeaf && (hostLeaf.view !== hostView || hostLeaf.view.containerEl.ownerDocument !== ownerDocument || this.documentSession(hostLeaf) === null)) return false;
+      if (!editorCenter) return true;
+      if (editorCenter.centerPath === file.path) {arrived = true; return true;}
+      return !arrived && editorCenter.centerPath === initialCenter;
+    };
+    if (!current() || !file) return;
+    const target = effectiveCreatedNoteDestination(destination, this.createdNoteContext(hostLeaf));
+    if (target === "none") return;
+    if (target === "tab") return this.openCreatedNoteInTab(file, hostLeaf);
+    if (target === "window") return this.openFileInPopout(file);
+    if (target === "sidecar") {
+      if (hostLeaf) await this.openSidecar(hostLeaf, page);
+      else await this.openCreatedNoteInTab(file);
+      if (current() && hostLeaf) this.focusAssociatedEditor(hostLeaf);
+      return;
+    }
+    if (!hostLeaf) return;
+    // A durable new file is available independently of semantic relationship reconciliation.
+    if (this.index.get(file.path)?.file !== file) this.index.insertCreatedFile(file);
+    editorCenter = this.documentSession(hostLeaf);
+    this.notifyNavigation(file.path, hostLeaf, true);
+    const deadline = Date.now() + 10_000;
+    while (current()) {
+      const owner = [...this.actionSurfaceHosts].find(/** Never borrow another canvas's editor capability. */ ([, value]) => value.leaf === hostLeaf);
+      const displayed = owner ? this.actionManager.readSnapshot(owner[0])?.centerOccurrence : null;
+      const reference = actionNodeRef({...page, path: file.path, file});
+      if (owner && displayed?.node.path === file.path && displayed.node.identity === reference.identity && displayed.node.fileIdentity === reference.fileIdentity) {
+        const request = this.actionManager.prepare({id: "editor.expand", source: "internal", surfaceId: owner[0],
+          target: {kind: "explicit", node: reference, occurrenceId: displayed.occurrenceId}, args: {maximize: target === "editor-maximized"}});
+        if (request.state === "accepted") {
+          const outcome = await request.run();
+          if (current() && outcome.status === "unavailable") new Notice(translateActionText(this.translator, outcome.reasonKey));
+          return;
+        }
+      }
+      if (Date.now() >= deadline) {new Notice(this.translator("actions.target-unavailable")); return;}
+      await this.waitForCreatedEditor();
+    }
+  }
+
   /** Apply explicit creation navigation only while its originating invocation remains current. */
   async finishNewRelatedNode(
     page: GraphPage,
     hostLeaf: WorkspaceLeaf | undefined,
-    openForEditing: boolean,
+    openForEditing: boolean | CreationAfterSavingAction,
     stillValid: () => boolean = () => true,
   ): Promise<void> {
     if (this.unloading || !stillValid()) return;
+    if (typeof openForEditing !== "boolean") {
+      const action = openForEditing;
+      if (action === "return" || action === "another") return;
+      if (hostLeaf && (action === "follow" || action === "sidecar")) this.notifyNavigation(page.path, hostLeaf, true);
+      if (action === "follow" || !page.file) return;
+      await this.openCreatedNote(page, hostLeaf, action, stillValid);
+      return;
+    }
     if (hostLeaf) this.notifyNavigation(page.path, hostLeaf);
     if (!openForEditing || !page.file) return;
     const host = hostLeaf && this.documentSession(hostLeaf) && hostLeaf.view.getViewType() !== KPLEX_SIDEPANEL_VIEW_TYPE ? hostLeaf : null;
@@ -7470,6 +7578,7 @@ export default class KplexPlugin extends Plugin {
     preserveCenter = false,
     hostLeaf?: WorkspaceLeaf,
     templatePath?: string,
+    afterSaving: CreationAfterSavingAction = "return",
   ): Promise<boolean> {
     const retainedPlan = retainedFile ? continuation.relocation : undefined;
     const oldPath = retainedPlan?.oldPath ?? page.path;
@@ -7511,9 +7620,9 @@ export default class KplexPlugin extends Plugin {
       // center to unrelated surfaces; each mounted App follows its own canonical identity remap.
       if (!preserveCenter && wasCenter && current() && hostLeaf) this.notifyNavigation(file.path, hostLeaf);
       if (navigationChanged) await this.saveSettings(false, false);
-      // Opening a document can trigger follow-active-note synchronization. In-place creation
-      // promotes the endpoint and its saved references without issuing that navigation request.
-      if (current() && !preserveCenter) await this.openInDocumentLeaf(file, hostLeaf);
+      // Return promotes the endpoint and saved references without opening a document.
+      // Explicit after-saving choices own any subsequent native opening or editor navigation.
+      if (current() && afterSaving !== "return" && afterSaving !== "another") await this.finishNewRelatedNode({...page, path: file.path, file}, hostLeaf, afterSaving, current);
       return true;
     } catch (error) { throw error instanceof PartialRelatedFileError ? error : new PartialRelatedFileError(file, error); }
   }
@@ -7546,11 +7655,6 @@ export default class KplexPlugin extends Plugin {
       ? "excalidraw"
       : "markdown";
 
-    if (!chooseFolder && locations.length === 1 && !excalidrawAvailable) {
-      await this.materializeGhostPage(page, validation.stem, "markdown", locations[0].folderPath, rawLeafName, undefined, {}, ownerCurrent, preserveCenter, hostLeaf);
-      return;
-    }
-
     const continuation: { relocation?: PlaceholderRelocation } = {};
     new MaterializeGhostModal(
       this.app,
@@ -7558,10 +7662,11 @@ export default class KplexPlugin extends Plugin {
       locations,
       excalidrawAvailable,
       defaultKind,
-      (kind, folderPath, retainedFile, current, templatePath) => this.materializeGhostPage(page, validation.stem, kind, folderPath, rawLeafName, retainedFile, continuation,
-        /** Combine the modal's submit lease with this exact native owner. */ () => (!current || current()) && ownerCurrent(), preserveCenter, hostLeaf, templatePath),
+      (kind, folderPath, retainedFile, current, templatePath, afterSaving) => this.materializeGhostPage(page, validation.stem, kind, folderPath, rawLeafName, retainedFile, continuation,
+        /** Combine the modal's submit lease with this exact native owner. */ () => (!current || current()) && ownerCurrent(), preserveCenter, hostLeaf, templatePath, afterSaving),
       chooseFolder,
       this.drawingTemplateOptions(),
+      this.createdNoteCompletionControl(hostLeaf, {another: false, follow: false}),
     ).open();
   }
 

@@ -1,0 +1,47 @@
+{
+  "startedAt": "2026-11-01T13:21:12.609Z",
+  "node": "v22.22.2",
+  "status": "passed",
+  "artifacts": {
+    "main.js": "270b73f5a626d1bf52e683f637d07283d738b538eb962c2f12748d7e9df454a6",
+    "styles.css": "034f038f2d6146d977e1138b4c46ba21ac20c80801bf3d6297bcf960442667b7",
+    "manifest.json": "2822c38463c03ace4f017453679572d462534ce2a9c9558fd7593f259b01bfa1"
+  },
+  "result": {
+    "cases": [
+      "opening-tab",
+      "opening-editor",
+      "opening-editor-maximized",
+      "opening-sidecar",
+      "opening-window",
+      "sidepanel-options-and-main-group",
+      "single-after-saving-control-create-another-return",
+      "placeholder-return-and-explicit-reference-retarget"
+    ],
+    "referenceRetarget": {
+      "oldWasUncreated": true,
+      "newFile": true,
+      "body": true,
+      "aliasAndHeading": true,
+      "property": true
+    },
+    "limits": "Native programmatic dialog/input and real document routing; desktop host, not physical mobile touch."
+  },
+  "cleanup": "passed",
+  "transport": [],
+  "completedAt": "2026-11-01T13:21:21.386Z",
+  "scenarioSha256": "be11775e8368b2b1c9f8e588954173dbc14877daaef7fbf88e6a513798c2baf1",
+  "source": {
+    "src/main.ts": "22130f48a1b0cc7a4695978406f3c9d9443fee07932c72e766db55137c2ae35d",
+    "src/application/ActionManager.ts": "bf355d5b983e105e684119b7d1165dfc9a0391e21f1f822aca66322aad10cb04",
+    "src/ui/usePlexActions.ts": "b404d5d80a56ba8999fd8ed77d60214ad7a22b402e7f11d80542076d443eeeff",
+    "src/ui/PlexGraph.tsx": "1e76a5b38f2bdd86b5191f2a855e63a9ded66fbb301e4dc56f58c07ecdd07dae",
+    "src/ui/NewRelatedNoteModal.ts": "6db8205126476e3cb520be6cb77bcfd655ccc103f6b0408a0635aa7822275d41",
+    "src/ui/MaterializeGhostModal.ts": "c88d2d33e9aa5b2dac885d228e7fbf8d76021124f4a179f48404629ccc133e99",
+    "src/ui/CreateFolderNoteModal.ts": "a2eb5106cee4a80d2d728058651a902b5ac0582e84bd098a1c6de054f6f513b9",
+    "src/core/plex/createdNoteDestination.ts": "cdeceb935d2ebabd0dc15498da1509445627e7e6d3d627bf88b4d1399a5edb04",
+    "src/ui/features/CreationCompletionSelect.tsx": "ceebd8b8c5f770dc1b0fcb06cefb09a7bba9866b15ea7bd5d5773eecc9778679",
+    "src/adapters/obsidian/fileReveal.ts": "5e5c7136322c692d987b6e274fedd5ccf9c4c6a406d07a237ae722e50f10b399",
+    "src/adapters/obsidian/placeholderRelocation.ts": "1e2ede0995af141be86c0f4df92b8c38fc449ad786f008870e94a85863696fb2"
+  }
+}

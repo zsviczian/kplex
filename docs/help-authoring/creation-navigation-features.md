@@ -28,6 +28,33 @@ The last selection is remembered after a drawing is successfully created and is 
 
 Useful help example: configure two templates in Excalidraw, create a related drawing with one, then open the folder-child dialog to demonstrate the remembered selection. Capture only after acceptance with the actual 2.29.1+ companion; a 2.29.0 test build intentionally does not expose the control.
 
+## Choose what happens after creating a file
+
+The related-note composer and folder-child dialog use one remembered **After saving** list:
+
+- **Return** — create the file and return without opening it for editing.
+- **Create another** — create it, clear the name and keep the dialog open with the same origin and useful choices.
+- **Follow node** — center the new node without opening an editor.
+- **Edit in sidecar** — center the node and open its file in the adjacent Sidecar, respecting Sidecar placement and editor settings.
+- **Edit in editor view** — center the node and open the K-Plex editor.
+- **Edit in editor view maximized** — center the node and maximize the K-Plex editor.
+- **Open in new tab** — open the file in the invoking K-Plex tab group.
+- **Open in popout window** — open the file in a separate desktop window.
+
+The placeholder's **Create** dialog uses the same control but omits **Create another** and **Follow node**. **Return** creates its actual file without editing it. **Edit in sidecar** is unavailable from K-Plex in a sidepanel; **Open in new tab** there uses the most recently used main workspace tab group. Popouts appear only on desktop. Non-file relationship targets do not offer editor destinations.
+
+An explicit selection is remembered across these dialogs and restarts. Opening a dialog never saves its context fallback: a remembered Create another or Follow node appears as Return in the placeholder dialog; a remembered unsupported Sidecar/popout falls back to a new tab. The former enabled Open for editing preference migrates to Edit in sidecar; disabled migrates to Return. Existing explicit submit shortcuts remain invocation overrides and do not replace the preference.
+
+### Changing a placeholder's folder
+
+For a path-qualified placeholder such as `[[folder/folder/note title]]`, choosing a different creation folder explicitly retargets its Markdown references to the actual new file. K-Plex updates approved body links, embeds, Markdown links and property links, preserving aliases and heading/block suffixes. This does not depend on Obsidian's automatic rename setting: the old file never existed.
+
+Ambiguous references or concurrent source changes stop the operation with recovery feedback. If a file was already created, retry continues that file and the accepted relocation plan; it does not create another copy or overwrite later edits to already completed source files.
+
+### Reveal native folders
+
+A real folder node's **Open** submenu now offers the same **Obsidian Files** and platform-specific **Finder / System Explorer** locations as file nodes. The Files core plugin must be enabled for its entry; the system destination is desktop-only. Synthetic folders do not acquire a native location. Renamed, deleted or replaced folder identities cannot inherit an already open menu's reveal action.
+
 ## Navigate with a trackpad
 
 Enable **Settings → K-Plex → Plex behavior → Navigation & interaction → Trackpad navigation**. It is off by default.

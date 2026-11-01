@@ -167,6 +167,7 @@ async function bundle() {
     import {focusEmbeddedMarkdown,focusEmbeddedMarkdownView,registerEmbeddedMarkdownFocusTarget} from './src/adapters/obsidian/embeddedMarkdownFocus';
     export {focusEmbeddedMarkdown,focusEmbeddedMarkdownView,registerEmbeddedMarkdownFocusTarget};
     export {CreateFolderNoteModal} from './src/ui/CreateFolderNoteModal';
+    export {creationAfterSavingActions,effectiveCreationAfterSaving,sanitizeCreationAfterSaving} from './src/core/plex/createdNoteDestination';
     ${productionAppFocusActions()}
     ${productionToolbarMenus()}
     ${productionEmbeddedActivation()}
@@ -421,7 +422,8 @@ test("folder creation retains original native folder, continuation and post-clos
       const root=document.createElement('div'),invoker=document.createElement('button');root.append(invoker);document.body.append(root);invoker.focus();
       const folder={path:'Folder'},vaultRoot={path:'/'},page={path:'Created.md',file:{path:'Created.md'}},renameListeners=new Set();let currentFolder=folder,writes=0,closed=0,follow=0,edit=0,current=true,release;
       let pending=new Promise(r=>release=r),writtenPath;
-      const plugin={app:{vault:{getRoot:()=>vaultRoot,getFolderByPath:()=>currentFolder,on:(_name,callback)=>{renameListeners.add(callback);return callback},offref:callback=>renameListeners.delete(callback)}},translator:(key,params)=>key==='folderNote.help'?'Create inside '+params.folder:key,settings:{editNewNodeAfterCreate:false,newNodeDefaultType:'markdown',lastActivePath:'A'},drawingTemplateOptions:()=>null,isExcalidrawAvailable:()=>false,saveSettings:async()=>{},
+      let preferenceWrites=0;
+      const plugin={createdNoteCompletionControl(_host,options={}){const M=window.sourceModules,context={desktop:true,sidepanel:false,another:options.another!==false,editable:options.editable!==false,follow:options.follow!==false};return{choices:M.creationAfterSavingActions(context),value:M.effectiveCreationAfterSaving(M.sanitizeCreationAfterSaving(this.settings.newNodeAfterSaving,this.settings.editNewNodeAfterCreate),context),onChange:value=>{this.settings.newNodeAfterSaving=value;preferenceWrites++}}},app:{vault:{getRoot:()=>vaultRoot,getFolderByPath:()=>currentFolder,on:(_name,callback)=>{renameListeners.add(callback);return callback},offref:callback=>renameListeners.delete(callback)}},translator:(key,params)=>key==='folderNote.help'?'Create inside '+params.folder:key,settings:{editNewNodeAfterCreate:false,newNodeDefaultType:'markdown',lastActivePath:'A'},drawingTemplateOptions:()=>null,isExcalidrawAvailable:()=>false,saveSettings:async()=>{},
         validateRelatedNoteName:name=>({valid:Boolean(name),existing:false,stem:name}),rememberNewNodeDefaultType:async()=>{},
         createNewNodeInFolder:async(target,name,kind,native)=>{writes++;writtenPath=target.path;if(native!==folder)throw Error('lost native folder');await pending;return page},
         finishNewRelatedNode:async(target,host,editing,stillValid)=>{if(stillValid()){follow++;if(editing)edit++}}};
@@ -429,14 +431,13 @@ test("folder creation retains original native folder, continuation and post-clos
         {current:()=>current,onClosed:()=>closed++,focusGraph:()=>root.focus()});flushSync(()=>modal.open());return modal};
       let modal=makeModal();await new Promise(r=>setTimeout(r,0));
       const choices=()=>modal.contentEl.querySelector('select[data-kplex-control="creation-completion"]');
-      const sharedChoice=choices()?.value==='return'&&![...choices().options].some(option=>option.value==='configured')&&modal.continuation==='configured';
+      const sharedChoice=choices()?.value==='return'&&![...choices().options].some(option=>option.value==='configured')&&modal.continuation==='return';
       const select=async value=>{const control=choices();flushSync(()=>{control.value=value;control.dispatchEvent(new Event('change',{bubbles:true}))});await new Promise(r=>setTimeout(r,0))};
-      await select('follow');const explicitChoice=modal.continuation==='follow'&&!plugin.settings.editNewNodeAfterCreate;
-      await select('edit');const editingChoice=modal.contentEl.querySelector('input[type="checkbox"]').checked&&!plugin.settings.editNewNodeAfterCreate;
-      const toggle=modal.contentEl.querySelector('input[type="checkbox"]');flushSync(()=>{toggle.checked=false;toggle.dispatchEvent(new Event('change',{bubbles:true}))});await new Promise(r=>setTimeout(r,0));
-      const toggleSynchronized=choices().value==='return'&&modal.continuation==='configured';
-      plugin.settings.editNewNodeAfterCreate=true;flushSync(()=>modal.renderCompletionControls());await new Promise(r=>setTimeout(r,0));
-      const configuredEdit=choices().value==='edit';plugin.settings.editNewNodeAfterCreate=false;
+      await select('follow');const explicitChoice=modal.continuation==='follow'&&plugin.settings.newNodeAfterSaving==='follow';
+      await select('editor-maximized');const editingChoice=choices().value==='editor-maximized'&&plugin.settings.newNodeAfterSaving==='editor-maximized';
+      const singleControl=modal.contentEl.querySelectorAll('select').length===1&&!modal.contentEl.querySelector('input[type="checkbox"]');
+      const beforeWrites=preferenceWrites;flushSync(()=>modal.renderCompletionControls());await new Promise(r=>setTimeout(r,0));
+      const renderingDidNotSave=preferenceWrites===beforeWrites;
       modal.noteName='First';folder.path='Renamed';for(const callback of renameListeners)callback(folder,'Folder');
       const displayedOrigin=modal.contentEl.querySelector('p').textContent==='Create inside Renamed';
       let task;flushSync(()=>{task=modal.create('markdown','another')});await modal.create('markdown','another');const busyChoice=choices().disabled;const singleflight=writes===1;release();await task;
@@ -454,9 +455,9 @@ test("folder creation retains original native folder, continuation and post-clos
       let liveRoot=root,snapshot={mounted:true,center:{identity:'A',fileIdentity:'one'},interactionRevision:1};
       const guard=captureSurfaceContinuation(()=>liveRoot,()=>snapshot);const initiallyValid=guard();snapshot={...snapshot,interactionRevision:2};const interactionRetired=!guard();
       const newer=captureSurfaceContinuation(()=>liveRoot,()=>snapshot);liveRoot=document.createElement('div');const remountRetired=!newer();
-      const renameCleanup=renameListeners.size===0,choiceCleanup=modal.completionRoot===null;root.remove();return{sharedChoice,explicitChoice,editingChoice,toggleSynchronized,configuredEdit,busyChoice,choiceCleanup,displayedOrigin,renameCleanup,singleflight,another,returned,replacement,noLateFocus,outsideNotificationFence,navigationFence,initiallyValid,interactionRetired,remountRetired};
+      const renameCleanup=renameListeners.size===0,choiceCleanup=modal.completionRoot===null;root.remove();return{sharedChoice,explicitChoice,editingChoice,singleControl,renderingDidNotSave,busyChoice,choiceCleanup,displayedOrigin,renameCleanup,singleflight,another,returned,replacement,noLateFocus,outsideNotificationFence,navigationFence,initiallyValid,interactionRetired,remountRetired};
     })()`);
-    assert.deepEqual(result, { sharedChoice:true,explicitChoice:true,editingChoice:true,toggleSynchronized:true,configuredEdit:true,busyChoice:true,choiceCleanup:true,displayedOrigin:true,renameCleanup:true,singleflight:true,another:true,returned:true,replacement:true,noLateFocus:true,outsideNotificationFence:true,navigationFence:true,initiallyValid:true,interactionRetired:true,remountRetired:true });
+    assert.deepEqual(result, { sharedChoice:true,explicitChoice:true,editingChoice:true,singleControl:true,renderingDidNotSave:true,busyChoice:true,choiceCleanup:true,displayedOrigin:true,renameCleanup:true,singleflight:true,another:true,returned:true,replacement:true,noLateFocus:true,outsideNotificationFence:true,navigationFence:true,initiallyValid:true,interactionRetired:true,remountRetired:true });
   } finally { await browser.cleanup(); }
 });
 

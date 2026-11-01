@@ -19,55 +19,35 @@ Obsidian is the production host; preserve the established portable semantic, ide
 
 ---
 
-# Creation/navigation batch and startup placeholder fix
+# Creation outcomes follow-up
 
-K-Plex source checkpoint `97a10b1` is pushed on
-`codex/kplex-creation-navigation`, draft
-[PR #249](https://github.com/zsviczian/kplex/pull/249). The maintainer explicitly
-authorized Git/PR publication for the separate Help agent. Do not touch
-kplex-help. Merge/release and structural refactoring remain unauthorized.
-Excalidraw and EA Scripts changes remain local and uncommitted; Excalidraw source
-preserves merged PR #3028.
+Current branch: `codex/kplex-creation-navigation`, draft [PR #249](https://github.com/zsviczian/kplex/pull/249).
+The maintainer authorized commit/push and PR updates for the separate Help agent. Do not touch
+kplex-help, merge or release. Companion Excalidraw/EA Scripts work remains local/uncommitted;
+Excalidraw retains merged PR #3028.
 
-Implemented #217/#208/#224, canonical coding standards, optional trackpad
-navigation and the shared drawing-template dropdown with its Excalidraw 2.29.1+
-gate. The companion changes add public creation APIs; Mindmap Builder hides its
-floating toolbar in Excalidraw view mode. Start with
-`docs/help-authoring/creation-navigation-features.md` and the batch validation
-record. Actual positive template acceptance requires the released version gate;
-physical mobile input remains separate acceptance.
+This follow-up replaces the editing toggle with one remembered After saving list in related-note,
+folder-child and placeholder creation. Placeholder options omit Create another/Follow node;
+Sidecar is excluded in a sidepanel and popouts on mobile. Native tabs honor the invoking group
+or most recent main group. The exact displayed-center snapshot port lets new-file editor actions
+retain strict occurrence/native identity checks. Folders now share file-node reveal delegates and
+captured native replacement guards. Existing explicit placeholder relocation is proven for the
+maintainer's nested path, including body/embed/property links and aliases/subpaths.
 
-The new startup-placeholder failure is fixed at `97a10b1`. Both regressions fail
-before the fix; affected checks pass 135/135; production build passes. Strict
-native Small acceptance holds global state at zero pages and startup readiness
-false while checking the placeholder's own preview, connected source, toolbar,
-pins and loading-history recovery. Settings/enablement bytes and owned cleanup
-pass. See `docs/validation/placeholder-startup-navigation-2026-11-01.md` and its
-sanitized native receipt.
+The maintainer explicitly requested focused checks only. Current evidence: 45/45 affected tests,
+25/25 localization, eight exact-build macOS native cases, touched lint, portable type compilation,
+import boundaries and production build pass. No full regression was run for this follow-up.
+See `docs/validation/creation-after-saving-2026-11-01.md` and its sanitized native receipt.
+The separate Help agent should start with `docs/help-authoring/creation-navigation-features.md`.
+No production deployment or vault modification was performed for this follow-up.
 
-The exact verified K-Plex main.js was deployed under explicit artifact-only
-production authorization. Existing CSS and manifest already matched. The
-maintainer manually reloaded K-Plex and confirmed both history navigation and
-clicking the placeholder work. No production notes, settings, cache, navigation or
-runtime reload were changed by this agent. Excalidraw was untouched there.
+Historical prior checkpoint `92b7508`: complete K-Plex verify 3650/3650 and the startup-placeholder
+fix at `97a10b1` were accepted. That older main.js was deployed under artifact-only authorization;
+the maintainer confirmed placeholder clicks/history work. Those full-suite results do not apply
+to this later runtime source checkpoint. Companion Excalidraw acceptance reached 600/600 fast and
+357/357 native, including all 40 device profiles, with zero failed/blocked/missing cases.
 
-Complete K-Plex `npm run verify` passes **3,650/3,650**: architecture 9, core 132,
-main 1843, browser 453, source 357 and source/browser 856, plus ESLint and the final
-production build. The unchanged scheduling check and 20,015-owner case both pass;
-no bounds were weakened. Final main.js hash matches native/production acceptance.
-Current main 2aaf6d3 (#248) was integrated at 9ff6db6 and resolves the earlier
-occurrence-editor baseline failure. Historical timing evidence remains in the
-batch record.
-
-Complete Excalidraw native regression now passes **357/357**, with zero failed,
-blocked or missing cases; all 40 device profiles and 126 device-lane cases pass.
-Fast checks pass 600/600. Native/device cleanup and declared-baseline restoration
-pass. Final report: `native-b329000b-8a0d-4b2a-b244-4245ae9c01c8`; sanitized evidence
-is in the plugin's `docs/testing-evidence/native-recovery-2026-11-01.native.json`.
-The maintainer closed other vaults before the full run. The original five failure
-paths and the later text-tool readiness case all pass without relaxing assertions.
-
-Remaining release/platform limits: actual Excalidraw 2.29.1+ template-dropdown
-acceptance, published fork dependency handoff, Windows and physical mobile touch.
-Companion Excalidraw/EA Scripts changes remain uncommitted; no release/merge is
-authorized. K-Plex Help remains untouched by this agent.
+Remaining release/platform limits: actual Excalidraw 2.29.1+ template-dropdown acceptance,
+published fork dependency handoff, Windows and physical mobile touch. The current additional
+maintainer request concerns Excalidraw New File dialog width, folder dropdown activation and
+standard mobile-modal keyboard clearance; finish it using focused validation.

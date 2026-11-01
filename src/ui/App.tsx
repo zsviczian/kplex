@@ -684,10 +684,10 @@ export function KplexApp({ plugin, surface, hostLeaf, translate, environment, on
   useEffect(/** Native ownership changes retire pending follow before an unrelated index event can complete it. */ () => plugin.subscribeSidecar(() => {
     activatePendingDocumentFollow();activatePendingDocumentUrl();setSidecarRevision(value => value + 1);
   }), [plugin, activatePendingDocumentFollow, activatePendingDocumentUrl]);
-  useEffect(() => plugin.subscribeNavigation((path, owner) => {
+  useEffect(() => plugin.subscribeNavigation((path, owner, reroot = false) => {
     if (owner && owner !== hostLeaf) return;
     const target = plugin.index.get(path);
-    if (target) activate(target, true);
+    if (target) activate(target, true, true, "user", reroot);
   }), [plugin, activate]);
   useEffect(
     () => plugin.subscribeSearchFocus(hostLeaf, () => setSearchFocusRequest((value) => value + 1)),
