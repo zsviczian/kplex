@@ -21,12 +21,37 @@ Obsidian is the production host; preserve the established portable semantic, ide
 
 # Creation and navigation batch
 
-State: the maintainer explicitly authorized the current K-Plex checkpoint commit, push and draft PR so a separate agent can update K-Plex Help. Companion Excalidraw and EA Scripts changes remain uncommitted. Do not touch kplex-help in this work. Broad/native acceptance retains the documented remaining gates; merge, release and automatic refactor continuation are not authorized.
+K-Plex implementation and current-main integration are pushed on
+`codex/kplex-creation-navigation`; source checkpoint `9ff6db6`, draft
+[PR #249](https://github.com/zsviczian/kplex/pull/249). The maintainer explicitly
+authorized this publication so a separate agent can update K-Plex Help. This
+agent must not touch kplex-help. Merge, release and automatic refactoring remain
+unauthorized. Excalidraw and EA Scripts changes remain local and uncommitted.
 
-Branches: K-Plex `codex/kplex-creation-navigation` at base `ec3c07d`; plugin `codex/kplex-integration-followup` at merged-#3028 base `ebb7916b`; EA Scripts `codex/kplex-creation-navigation` at current-main base `08ea7b5`.
+Implemented #217/#208/#224, canonical coding standards, public drawing-template
+integration and the companion Mindmap Builder view-mode visibility change. See
+[the Help-authoring reference](docs/help-authoring/creation-navigation-features.md)
+for exact proposed workflows, labels, defaults and the Excalidraw 2.29.1+ gate.
 
-Implemented the approved #217/#208/#224 batch, shared coding standards, public drawing template/path APIs and Mindmap Builder floating-toolbar visibility. The final native Small-vault test passes menu/camera/tab/split/popout and real reload/unknown-key preservation, with exact artifact/config/workspace restoration. Generated Mindmap Builder retains the shipped Mermaid behavior.
+See [the validation record](docs/validation/creation-navigation-2026-11-01.md)
+for exact revisions, native artifact identities, historical failures and limits.
+Current-main integration fixes the previously reproduced occurrence-editor
+baseline case; the affected integration set passes 143/143, production build and
+lint pass. Complete verify passes architecture 9, core 132, main 1841, browser 452,
+source 357, and 855/856 source-browser cases including 20,015 owners. The remaining
+case misses its unchanged 50 ms scheduling bound at 59.4 ms during concurrent
+native/build work; its isolated rerun passes 1/1. This does not turn full verify
+green. Do not weaken the bound or claim that concurrent load is a proven cause.
 
-See [the validation record](docs/validation/creation-navigation-2026-11-01.md) and its sanitized native receipt for exact source/artifact identities, commands, actual results, prior failed samples and limitations. K-Plex's existing occurrence-editor test failure is independently reproduced on the clean base; Excalidraw fast checks pass 569/569 with the isolated matching fork; its full native attempt has 187 passed, 5 failed and 40 blocked cases plus separately successful guarded recovery and final-build creation checks; EA Scripts' declaration failures exactly match its clean base. Native Mindmap mode toggling and the final public-API/new-file destination probe pass. Positive gated K-Plex template acceptance on 2.29.1+, complete Excalidraw native/device acceptance, the published dependency handoff and physical input remain pending.
+The equipped agent is still repairing/retesting Excalidraw CLI infrastructure and
+all 40 native device profiles. The original five failed paths now pass focused
+and repeated desktop runs; complete native acceptance remains pending. Positive
+K-Plex template acceptance on a 2.29.1+ companion and physical mobile input are
+also pending. Companion source starts after merged Excalidraw PR #3028 and
+preserves that work. EA Scripts typecheck failures match its clean base; native
+floating-toolbar visibility and the public creation APIs have focused receipts.
 
-Help agent: use [the feature reference](docs/help-authoring/creation-navigation-features.md) and the draft PR to document the proposed behavior in the separate Help repository under its own instructions. Keep Excalidraw 2.29.1+ and unreleased status explicit. Implementation reviewer: complete the documented companion/device gates and review integration with newer main before proposing merge. Do not weaken assertions or substitute partial tests for full acceptance.
+Help agent: document proposed, unreleased behavior in the separate Help repository
+under its own instructions. Implementation reviewer: retain the exact test limits,
+complete companion/device gates, and obtain any additional publication authority
+before changing the companion Git histories or proposing merge/release.

@@ -10,7 +10,7 @@ The maintainer authorized a K-Plex checkpoint commit, branch push and draft PR o
 | Excalidraw plugin | `codex/kplex-integration-followup` | `ebb7916b9b17008033f685c509b61875001341bf` |
 | EA Scripts | `codex/kplex-creation-navigation` | `08ea7b50e52f84876e4a9cd0e4273599be621ba3` |
 
-The Excalidraw branch starts after merged PR #3028. Its timer/lifecycle work is preserved.
+The Excalidraw branch starts after merged [Excalidraw PR #3028](https://github.com/zsviczian/obsidian-excalidraw-plugin/pull/3028). Its timer/lifecycle work is preserved.
 EA Scripts was initially at `a7a627b`; the branch was fast-forwarded to current main before
 regenerating Mindmap Builder, preserving already-shipped Mermaid import/export.
 
@@ -73,3 +73,27 @@ The Excalidraw native recovery is still in progress. Fresh locked dependency ins
 The initial checkpoint started at `ec3c07d`. Newer main `2aaf6d3` (PR #248) is now integrated, preserving its cleanup and occurrence-editor fixes. The only manual conflict was the npm test command: both new test entries are retained. The six-file integration set, including the previously failing occurrence-editor contracts, passes **143/143**. Historical base failures above remain as evidence of the original checkpoint; they are not claimed to persist after this integration.
 
 Publication recheck: production build, architecture/numeric controls (9 checks, zero violations), core checks (132/132), and the affected five-file test set (120/120) pass. The initial sandboxed browser tests could not bind localhost (`EPERM`); the identical authorized rerun passed all 120. A type-only React import removes the shared template control’s lint warning. The broader confirmed baseline occurrence-editor failure remains recorded above.
+
+## Complete verification after current-main integration
+
+`npm run verify` completed its available test phases on source checkpoint
+`9ff6db6` using Node 22.22.2: architecture/numeric checks **9/9**, core **132/132**,
+main tests **1,841/1,841**, browser tests **452/452**, source contracts **357/357**,
+and source/browser **855 passed, 1 failed**. The 20,015-owner cached-publication
+case passed. The failed case was `dense active URL alias preparation remains
+cooperative and cancels privately`: it measured **59.4 ms** against the unchanged
+**50 ms** bound while native/build work also ran. This is a failed full verify,
+not a green acceptance result; its final build stage was not reached. The explicit
+post-integration production build and ESLint checks had already passed.
+
+The identical timing case passes in an isolated rerun with the same assertion:
+`node --test --test-name-pattern='dense active URL alias preparation remains cooperative and cancels privately' tests/on-demand-indexing.test.mjs`
+(**1/1 passed**, no skipped cases). Its test and URL-index implementation are
+unchanged by this feature batch. Concurrent load is a possible explanation, not
+an established cause; the full-run failure remains recorded. No limit, assertion
+or test selection in the maintained full command was weakened.
+
+The maintainer-authorized draft PR is [#249](https://github.com/zsviczian/kplex/pull/249).
+Its Help-authoring reference is ready for the separate Help agent. Native
+Excalidraw acceptance is still being repaired and rerun; the companion changes
+and EA Scripts remain uncommitted, and no merge/release readiness is claimed.
