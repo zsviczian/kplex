@@ -502,6 +502,24 @@ test('finite alias preparation rejects supersession, cyclic values and the exist
   }finally{await browser.cleanup();}
 });
 
+/** Storage repair may accept fresh lexical input before its delayed native notification. */
+test('eager published native input retires when a newer completed parser token is selected',async()=>{
+  const browser=await chromiumHarness(bundle);
+  try{
+    assert.equal(await browser.evaluate(contributorBrowserInitialize),true);
+    assert.equal(await browser.evaluate(`(async()=>{
+      const f=await fixture('eager-parser-input-receipt');try{
+        const file=f.add('A.md','');f.acquisition.start();f.acquisition.beginGraphPublication();
+        ok(f.acquisition.captureBodyInput(file,()=>true).accept(),'First complete current parser input');
+        f.acquisition.acknowledgeGraphSource(f.acquisition.captureGraphSource(file));
+        ok(f.acquisition.states.get(file).graphInputCurrent(),'Published native input is covered');
+        ok(f.acquisition.captureBodyInput(file,()=>true).accept(),'A later complete parser input can be selected without native stat drift');
+        ok(!f.acquisition.states.get(file).graphInputCurrent(),'Older graph cannot cover a newer parser selection');return true;
+      }finally{f.close();}
+    })()`),true);
+  }finally{await browser.cleanup();}
+});
+
 /** A host callback observed during receipt validation must remain in the graph backlog. */
 test('eager graph acknowledgement preserves a reentrant newer native observation',async()=>{
   const browser=await chromiumHarness(bundle);

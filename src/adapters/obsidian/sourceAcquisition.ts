@@ -1329,15 +1329,19 @@ export class ObsidianSourceAcquisition {
   captureGraphSource(file: TFile): SourceGraphPublication {
     const capture = this.capture(file), metadata = this.app.metadataCache.getFileCache(file);
     const observation = this.contributorObservation, environment = metadata ? this.environment(metadata) : null;
+    const input = this.bodyInputs.get(file), inputEpoch = this.bodyInputEpochs.get(file) ?? 0;
+    /** A repair can select newer lexical input before a native notification or stat change. */
+    const inputCurrent = (): boolean => this.bodyInputs.get(file) === input && !input?.retired
+      && (this.bodyInputEpochs.get(file) ?? 0) === inputEpoch;
     /** Storage-only resolution refreshes may advance the source revision after compilation. Native
      * edits/topology, replacement, cache changes and environment drift still retire this input. */
-    const nativeCurrent = (): boolean => !this.closed && observation === this.contributorObservation
+    const nativeCurrent = (): boolean => !this.closed && inputCurrent() && observation === this.contributorObservation
       && capture.hostRevision === this.hostRevision && this.app.vault.getFileByPath(capture.physical.path) === file
       && file.path === capture.physical.path && file.stat.mtime === capture.physical.mtime
       && file.stat.size === capture.physical.size && file.stat.ctime === capture.physical.ctime
       && this.app.metadataCache.getFileCache(file) === metadata && (metadata ? this.environment(metadata) : null) === environment;
     return { sourcePath: file.path, sequence: this.graphChangeSequence,
-      isCurrent: () => this.current(capture, () => true) && this.app.metadataCache.getFileCache(file) === metadata,
+      isCurrent: () => inputCurrent() && this.current(capture, () => true) && this.app.metadataCache.getFileCache(file) === metadata,
       /** Install only after graph publication; failed private compilation establishes no coverage. */
       rememberNativeInput: () => { if (nativeCurrent()) capture.state.graphInputCurrent = nativeCurrent; } };
   }
