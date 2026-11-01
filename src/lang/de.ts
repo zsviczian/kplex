@@ -13,7 +13,7 @@ const germanTranslations = {
   "settings.trackpad.help": "Scrollen zum Verschieben; zum Zoomen zwei Finger zusammenziehen oder mit Zusatztaste scrollen. Ausschalten für Zoom durch normales Scrollen.",
   "fileMenu.reuse": "Öffnen",
   "fileMenu.tab": "In neuem Tab öffnen",
-  "fileMenu.split": "Rechts öffnen",
+  "fileMenu.split": "In neuer Tab-Gruppe öffnen",
   "fileMenu.window": "In neuem Fenster öffnen",
   "fileMenu.sidepanel": "In Seitenleiste öffnen",
   "view.menu": "Ansicht",

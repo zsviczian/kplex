@@ -15,7 +15,7 @@ export const englishCatalog = {
   "settings.trackpad.help": {"message": "Scroll to pan; pinch or modified scroll to zoom. Turn off to zoom with ordinary scrolling.", "context": "File creation, native file menus and wheel navigation preferences.", "params": []},
   "fileMenu.reuse": {"message": "Open", "context": "File creation, native file menus and wheel navigation preferences.", "params": []},
   "fileMenu.tab": {"message": "Open in new tab", "context": "File creation, native file menus and wheel navigation preferences.", "params": []},
-  "fileMenu.split": {"message": "Open to the right", "context": "File creation, native file menus and wheel navigation preferences.", "params": []},
+  "fileMenu.split": {"message": "Open in new tab group", "context": "File creation, native file menus and wheel navigation preferences.", "params": []},
   "fileMenu.window": {"message": "Open in new window", "context": "File creation, native file menus and wheel navigation preferences.", "params": []},
   "fileMenu.sidepanel": {"message": "Open in side panel", "context": "File creation, native file menus and wheel navigation preferences.", "params": []},
   "view.menu": {message: "View", context: "Canvas context submenu listing registered views and their subviews.", params: []},

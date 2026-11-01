@@ -13,7 +13,7 @@ const traditionalChineseTranslations = {
   "settings.trackpad.help": "捲動以平移；捏合或按住修飾鍵捲動以縮放。關閉後使用一般捲動縮放。",
   "fileMenu.reuse": "開啟",
   "fileMenu.tab": "在新分頁開啟",
-  "fileMenu.split": "在右側開啟",
+  "fileMenu.split": "在新分頁群組中開啟",
   "fileMenu.window": "在新視窗開啟",
   "fileMenu.sidepanel": "在側邊面板開啟",
   "view.menu": "檢視",

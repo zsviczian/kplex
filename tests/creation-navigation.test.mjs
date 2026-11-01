@@ -94,7 +94,7 @@ test("native file-menu actions capture the clicked file and offer only supported
   actions.length = 0; listener({}, {}); assert.equal(actions.length, 0);
 });
 
-test("explicit new-tab/right/window actions allocate the requested native surface and focus the captured file", async () => {
+test("explicit new-tab/tab-group/window actions allocate the requested native surface and focus the captured file", async () => {
   const open = method("src/main.ts", "openFileInKplex", {KplexView: class {}, KplexSidepanelView: class {}, readObsidianPresentationEnvironment: () => ({device: "desktop"}), KPLEX_VIEW_TYPE: "plex", KPLEX_SIDEPANEL_VIEW_TYPE: "sidebar"});
   for (const [target, type] of [["tab", "tab"], ["split", "split"], ["window", "window"]]) {
     const file = {path: "A.md"}, calls = [], leaf = {setViewState: async state => calls.push(state)};
@@ -262,4 +262,91 @@ test('new-file displayed-center port refuses pending, repeated and unrelated occ
   for (const key of ['pathChangedThisRender', 'viewFailed', 'sceneTransitioning']) assert.equal(displayedCenterReader({...deps, [key]: true})(), null);
   assert.equal(displayedCenterReader({...deps, activePath: 'Old.md'})(), null);
   assert.equal(displayedCenterReader({...deps, scene: {nodes: [node, node]}})(), null);
+});
+
+/** A selected native file can precede lazy graph publication; explicit navigation must still win. */
+test('file-menu focus uses native availability without awaiting whole-index readiness and reroots the exact surface', async () => {
+  const focus = method('src/main.ts', 'focusInKplex');
+  const file = {path: 'Selected.md'}, page = {path: file.path, file}, session = {}, host = {}, calls = [];
+  const p = {app: {vault: {getFileByPath: path => path === file.path ? file : null}, workspace: {revealLeaf: async leaf => calls.push(['reveal', leaf])}},
+    index: {get: () => undefined, getVaultSearchPage: path => path === file.path ? page : undefined},
+    documentSession: leaf => leaf === host ? session : null,
+    ensureIndexReady: async () => calls.push(['global-readiness']), notifyNavigation: (...args) => calls.push(['navigate', ...args])};
+  await focus.call(p, file.path, host);
+  assert.deepEqual(calls, [['reveal', host], ['navigate', file.path, host, true]]);
+});
+
+/** A chosen file may be replaced while its leaf is being revealed; never navigate its replacement. */
+test('file-menu focus rejects native replacement during reveal', async () => {
+  const focus = method('src/main.ts', 'focusInKplex');
+  const file = {path: 'Selected.md'}, host = {}, session = {}; let current = file, navigated = false;
+  const p = {app: {vault: {getFileByPath: () => current}, workspace: {revealLeaf: async () => {current = {...file};}}},
+    index: {get: () => ({path: file.path, file}), getVaultSearchPage: () => ({path: file.path, file})},
+    documentSession: () => session, ensureIndexReady: async () => {}, notifyNavigation: () => {navigated = true;}};
+  await focus.call(p, file.path, host); assert.equal(navigated, false);
+});
+
+
+/** The actual native menu method emits file-menu only for resolved links. */
+function missingLinkMenuFixture() {
+  class File {constructor(path) {this.path = path;}}
+  const source = new File('Source.md'), clicked = new File('Clicked.md'), files = new Map([[source.path, source], [clicked.path, clicked]]);
+  const opened = [], disposers = [], calls = [], handlers = new Map();
+  const workspace = {on: (name, handler) => {handlers.set(name, handler); return handler;},
+    handleLinkContextMenu(menu, path, sourcePath, leaf) {assert.equal(this, workspace); calls.push([path, sourcePath, leaf]); if (files.has(path)) handlers.get('file-menu')(menu, files.get(path)); return true;}};
+  const original = workspace.handleLinkContextMenu;
+  const {registerFileMenus} = moduleAt('src/adapters/obsidian/fileMenu.ts', {obsidian: {TFile: File, normalizePath: value => value, parseLinktext: value => ({path: value.split('#')[0]})},
+    './presentationEnvironment': {readObsidianPresentationEnvironment: () => ({device: 'desktop'})},
+    './nativeSubmenu': {addNativeSubmenu: (menu, _title, _icon, populate) => {menu.groups++; populate(menu);}}});
+  const plugin = {app: {workspace, vault: {getFileByPath: path => files.get(path) ?? null}, metadataCache: {getFirstLinkpathDest: path => files.get(path) ?? null}},
+    translator: key => key, registerEvent() {}, register: dispose => disposers.push(dispose), openFileInKplex: async (...args) => opened.push(args)};
+  registerFileMenus(plugin);
+  /** Collect the same leaf callbacks exposed to the native submenu. */
+  const menu = () => ({groups: 0, actions: [], addItem(configure) {const item = {setTitle(value) {this.title = value; return this;}, setIcon() {return this;}, onClick(run) {this.run = run; return this;}}; configure(item); this.actions.push(item); return this;}});
+  return {source, clicked, workspace, original, files, opened, disposers, calls, handlers, menu};
+}
+
+test('unresolved link menus capture the native link instead of the workspace file and never create it', async () => {
+  const f = missingLinkMenuFixture(), menu = f.menu();
+  assert.equal(f.workspace.handleLinkContextMenu(menu, 'Folder/Missing#Heading', f.source.path), true);
+  assert.equal(menu.groups, 1); assert.equal(menu.actions.length, 5);
+  await menu.actions.find(item => item.title === 'fileMenu.tab').run();
+  assert.equal(f.opened[0][0].path, 'Folder/Missing'); assert.equal(f.opened[0][0].source, f.source); assert.equal(f.opened[0][1], 'tab');
+  assert.equal(f.files.has('Folder/Missing'), false);
+});
+
+test('resolved link hook does not duplicate file-menu and a placeholder materialized before clicking uses its native file', async () => {
+  const f = missingLinkMenuFixture(), resolved = f.menu(); f.workspace.handleLinkContextMenu(resolved, f.clicked.path, f.source.path);
+  assert.equal(resolved.groups, 1); await resolved.actions[0].run(); assert.equal(f.opened[0][0], f.clicked);
+  const missing = f.menu(); f.workspace.handleLinkContextMenu(missing, 'Later', f.source.path); f.files.set('Later', f.clicked);
+  await missing.actions[0].run(); assert.equal(f.opened[1][0], f.clicked);
+});
+
+test('unresolved link menu rejects retired sources, empty anchors and external schemes', async () => {
+  const f = missingLinkMenuFixture(), menu = f.menu(); f.workspace.handleLinkContextMenu(menu, 'Missing', f.source.path);
+  f.files.set(f.source.path, {path: f.source.path}); await menu.actions[0].run(); assert.equal(f.opened.length, 0);
+  for (const value of ['#Heading', 'https://example.com', 'obsidian://open']) {
+    const rejected = f.menu(); f.workspace.handleLinkContextMenu(rejected, value, f.source.path); assert.equal(rejected.groups, 0);
+  }
+});
+
+test('unresolved native hook cleanup restores its own method and leaves later wrappers as inert passthroughs', () => {
+  const f = missingLinkMenuFixture(); f.disposers[0](); assert.equal(f.workspace.handleLinkContextMenu, f.original);
+  const g = missingLinkMenuFixture(), retained = g.workspace.handleLinkContextMenu;
+  const later = (...args) => retained.apply(g.workspace, args); g.workspace.handleLinkContextMenu = later;
+  g.disposers[0](); assert.equal(g.workspace.handleLinkContextMenu, later);
+  const menu = g.menu(); later(menu, 'Missing', g.source.path); assert.equal(menu.groups, 0); assert.equal(g.calls.length, 1);
+});
+
+
+/** Native menu selection supplies availability even before the search catalog itself is hydrated. */
+test('file-menu availability facade admits only an explicitly supplied current native file and publishes nothing', () => {
+  const read = method('src/index/GraphIndex.ts', 'getVaultSearchPage');
+  const file = {path: 'Selected.md'}, page = {path: file.path, file}; let current = file, facades = 0;
+  const index = {get: () => undefined, currentPhysicalSearchPage: () => undefined, app: {vault: {getFileByPath: () => current}},
+    hostFileSearchPage: value => {assert.equal(value, file); facades++; return page;}};
+  assert.equal(read.call(index, file.path), undefined, 'Ordinary search retains catalog-only behavior');
+  assert.equal(read.call(index, file.path, file), page); assert.equal(facades, 1);
+  current = {...file}; assert.equal(read.call(index, file.path, file), undefined); assert.equal(facades, 1);
+  assert.equal(read.call(index, 'Other.md', file), undefined); assert.equal(facades, 1);
 });

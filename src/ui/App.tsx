@@ -424,7 +424,8 @@ export function KplexApp({ plugin, surface, hostLeaf, translate, environment, on
       if (origin === "follow" || target.file && plugin.app.vault.getFileByPath(target.file.path) !== target.file) return false;
       const ports = graphActionPorts.current, prepare = ports?.prepareEditorTransition;if (!prepare) return false;
       const current = documentSession.plexView.capture(), reference = actionNodeRef(target);
-      const run = (): GraphPage | null => {const page = resolveActionPage(plugin.index, reference);
+      const run = (): GraphPage | null => {const page = resolveActionPage({get: /** Native explicit navigation may outpace catalog hydration even after the outgoing editor saves. */ identity =>
+        plugin.index.get(identity) ?? (reroot ? plugin.index.getVaultSearchPage(identity, plugin.app.vault.getFileByPath(identity) ?? undefined) : undefined)}, reference);
         return current() && page && activate(page, record, syncDocuments, origin, reroot) ? page : null;};
       if (pendingEditorNavigation.current) {pendingEditorNavigation.current.run = run;return true;}
       const pending = {run};pendingEditorNavigation.current = pending;
@@ -686,7 +687,7 @@ export function KplexApp({ plugin, surface, hostLeaf, translate, environment, on
   }), [plugin, activatePendingDocumentFollow, activatePendingDocumentUrl]);
   useEffect(() => plugin.subscribeNavigation((path, owner, reroot = false) => {
     if (owner && owner !== hostLeaf) return;
-    const target = plugin.index.get(path);
+    const target = plugin.index.get(path) ?? (reroot ? plugin.index.getVaultSearchPage(path, plugin.app.vault.getFileByPath(path) ?? undefined) : undefined);
     if (target) activate(target, true, true, "user", reroot);
   }), [plugin, activate]);
   useEffect(

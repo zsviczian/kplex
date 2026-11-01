@@ -42,7 +42,7 @@
  * semantic publication; slow refresh remains outside the disk queue and cannot replay failed saves.
  * New-file after-saving choices reuse surface-owned editor actions and exact native tab/Sidecar destinations; bounded readiness waits settle on unload.
  */
-import { registerFileMenus, type FilePlexTarget } from "./adapters/obsidian/fileMenu";
+import { registerFileMenus, type FilePlexNode, type FilePlexTarget } from "./adapters/obsidian/fileMenu";
 import { drawingAutomation, drawingTemplateOptions } from "./adapters/obsidian/drawingTemplates";
 import {viewLabel} from "./ui/plexViews/labels";
 import {startupIndexPolicy} from './core/plex/startupIndexPreferences';
@@ -4928,9 +4928,17 @@ export default class KplexPlugin extends Plugin {
   }
 
 
-  /** Open a captured file in one explicitly chosen Plex surface without replacing ordinary document tabs. */
-  async openFileInKplex(file: TFile, target: FilePlexTarget): Promise<void> {
-    if (this.unloading || this.app.vault.getFileByPath(file.path) !== file) return;
+  /** Open a captured native file or unresolved link without waiting for complete graph publication. */
+  async openFileInKplex(file: FilePlexNode, target: FilePlexTarget): Promise<void> {
+    const path = file.path, native = "source" in file ? null : file;
+    const source = "source" in file ? file.source : null, sourcePath = source?.path;
+    /** A retired native/source identity or a newly resolved placeholder cannot inherit this request. */
+    const current = (): boolean => !this.unloading && (native
+      ? native.path === path && this.app.vault.getFileByPath(path) === native
+      : Boolean(source && source.path === sourcePath && this.app.vault.getFileByPath(sourcePath ?? "") === source
+        && !this.app.metadataCache.getFirstLinkpathDest(path, sourcePath ?? "")));
+    if (!current()) return;
+    if (!native && !this.index.get(path)) this.index.insertVirtualPage(path);
     const workspace = this.app.workspace;
     const environment = readObsidianPresentationEnvironment();
     let leaf: WorkspaceLeaf | undefined;
@@ -4946,14 +4954,14 @@ export default class KplexPlugin extends Plugin {
         this.rememberDocumentLeaf(workspace.getMostRecentLeaf());
         leaf = target === "window" && environment.device === "desktop" ? workspace.getLeaf("window")
           : target === "split" ? workspace.getLeaf("split", "vertical") : workspace.getLeaf("tab");
-        await leaf.setViewState({type: KPLEX_VIEW_TYPE, active: true});
+        await leaf.setViewState({type: KPLEX_VIEW_TYPE, state: {plexSession: {version: 1, centerPath: path}}, active: true});
       }
     }
     const view = leaf?.view;
     // The native shell opens before React subscribes to navigation. Retain the requested file
     // until this exact incarnation's consumers are mounted, including warm split/popout creation.
     if (view instanceof KplexView || view instanceof KplexSidepanelView) await view.waitUntilReady();
-    if (leaf && leaf.view === view && !this.unloading && this.app.vault.getFileByPath(file.path) === file) await this.focusInKplex(file.path, leaf);
+    if (leaf && leaf.view === view && current()) await this.focusInKplex(path, leaf);
   }
 
   async activateView(): Promise<void> {
@@ -5049,17 +5057,17 @@ export default class KplexPlugin extends Plugin {
     await this.focusInKplex(file.path,leaves.find(/** Prefer exact recent native ownership when several Plexes exist. */ leaf=>leaf===recent)??leaves[0]);
   }
 
+  /** Reveal an explicit destination using native availability; selected scopes prepare after acceptance. */
   async focusInKplex(path: string, hostLeaf?: WorkspaceLeaf): Promise<void> {
     if (!hostLeaf) {
       if (this.app.workspace.getLeavesOfType(KPLEX_VIEW_TYPE).length + this.app.workspace.getLeavesOfType(KPLEX_SIDEPANEL_VIEW_TYPE).length > 1) return;
       await this.activateView();hostLeaf = this.app.workspace.getLeavesOfType(KPLEX_VIEW_TYPE)[0] ?? this.app.workspace.getLeavesOfType(KPLEX_SIDEPANEL_VIEW_TYPE)[0];
     }
     const session = this.documentSession(hostLeaf), file = this.app.vault.getFileByPath(path);
-    if (!hostLeaf || !session || !file) return;
-    await this.ensureIndexReady("focus-active-note");
-    if (this.documentSession(hostLeaf) !== session || this.app.vault.getFileByPath(file.path) !== file || !this.index.get(file.path)) return;
+    const page = file ? this.index.getVaultSearchPage(path, file) : this.index.get(path);
+    if (!hostLeaf || !session || !page || file && page.file !== file) return;
     await this.app.workspace.revealLeaf(hostLeaf);
-    if (this.documentSession(hostLeaf) === session && this.app.vault.getFileByPath(file.path) === file) this.notifyNavigation(file.path, hostLeaf);
+    if (!this.unloading && this.documentSession(hostLeaf) === session && this.app.vault.getFileByPath(path) === file) this.notifyNavigation(path, hostLeaf, true);
   }
 
   /** Explicitly open and reveal a native document, superseding passive work on that exact leaf. */

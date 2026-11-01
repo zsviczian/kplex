@@ -13,7 +13,7 @@ const japaneseTranslations = {
   "settings.trackpad.help": "スクロールで移動し、ピンチまたは修飾キーを押しながらのスクロールでズームします。オフにすると通常のスクロールでズームします。",
   "fileMenu.reuse": "開く",
   "fileMenu.tab": "新しいタブで開く",
-  "fileMenu.split": "右側に開く",
+  "fileMenu.split": "新しいタブグループで開く",
   "fileMenu.window": "新しいウィンドウで開く",
   "fileMenu.sidepanel": "サイドパネルで開く",
   "view.menu": "ビュー",

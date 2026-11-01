@@ -1580,3 +1580,14 @@ evidence. Keep one shared application-user-data lock across deployment/scenarios
 calls, retain acknowledged mutation receipts and retry only pure state reads. Restore settings,
 workspace and throttling and remove owned fixtures even after an assertion fails. Never restart or
 force-close a shared Obsidian application to work around a test collector.
+
+
+For native file-menu target changes, cover an unrelated active Markdown document, each destination
+(Open/reuse, new tab, new tab group, sidepanel and popout), and an explicit file absent from the live
+graph and filename catalog. The selected native file must become the rendered center without waiting
+for global readiness. Check existing editor save/refusal before rerooting and native replacement
+across awaits. Unresolved links must use the same K-Plex submenu in editor/reading context menus and
+must not create files. The maintained creation-navigation probe now includes sparse-target and
+unresolved-link cases; run only the affected lane for a scoped menu fix, not an indexing aggregate.
+See [the focused menu-target record](docs/validation/file-menu-targets-2026-11-01.md) for the reproduced
+failure, exact-build native evidence and the maintainer's explicit no-full-regression instruction.

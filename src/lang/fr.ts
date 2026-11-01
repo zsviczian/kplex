@@ -13,7 +13,7 @@ const frenchTranslations = {
   "settings.trackpad.help": "Faites défiler pour déplacer ; pincez ou utilisez une touche de modification pour zoomer. Désactivez pour zoomer par défilement simple.",
   "fileMenu.reuse": "Ouvrir",
   "fileMenu.tab": "Ouvrir dans un nouvel onglet",
-  "fileMenu.split": "Ouvrir à droite",
+  "fileMenu.split": "Ouvrir dans un nouveau groupe d’onglets",
   "fileMenu.window": "Ouvrir dans une nouvelle fenêtre",
   "fileMenu.sidepanel": "Ouvrir dans le panneau latéral",
   "view.menu": "Vue",

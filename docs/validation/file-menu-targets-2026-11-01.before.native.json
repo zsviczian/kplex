@@ -1,0 +1,21 @@
+{
+  "startedAt": "2026-11-01T13:57:50.682Z",
+  "node": "v22.22.2",
+  "status": "reproduced",
+  "artifacts": {
+    "main.js": "270b73f5a626d1bf52e683f637d07283d738b538eb962c2f12748d7e9df454a6",
+    "styles.css": "034f038f2d6146d977e1138b4c46ba21ac20c80801bf3d6297bcf960442667b7",
+    "manifest.json": "2822c38463c03ace4f017453679572d462534ce2a9c9558fd7593f259b01bfa1"
+  },
+  "result": {
+    "expected": "Menu-target-1793541471060/Selected.md",
+    "first": "Menu-target-1793541471060/Workspace.md",
+    "settled": "Menu-target-1793541471060/Workspace.md",
+    "indexedBefore": true,
+    "correct": false,
+    "syncMode": "recent"
+  },
+  "cleanup": "passed",
+  "transport": [],
+  "completedAt": "2026-11-01T13:57:53.996Z"
+}

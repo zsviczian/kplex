@@ -19,35 +19,37 @@ Obsidian is the production host; preserve the established portable semantic, ide
 
 ---
 
-# Creation outcomes follow-up
+# Menu targets and CSS compatibility follow-up
 
-Current branch: `codex/kplex-creation-navigation`, draft [PR #249](https://github.com/zsviczian/kplex/pull/249).
-The maintainer authorized commit/push and PR updates for the separate Help agent. Do not touch
-kplex-help, merge or release. Companion Excalidraw/EA Scripts work remains local/uncommitted;
-Excalidraw retains merged PR #3028.
+Branch: `codex/kplex-creation-navigation`, draft [PR #249](https://github.com/zsviczian/kplex/pull/249).
+The maintainer authorized Git/PR publication for the separate Help agent. Do not edit kplex-help,
+merge K-Plex or release it without further authorization.
 
-This follow-up replaces the editing toggle with one remembered After saving list in related-note,
-folder-child and placeholder creation. Placeholder options omit Create another/Follow node;
-Sidecar is excluded in a sidepanel and popouts on mobile. Native tabs honor the invoking group
-or most recent main group. The exact displayed-center snapshot port lets new-file editor actions
-retain strict occurrence/native identity checks. Folders now share file-node reveal delegates and
-captured native replacement guards. Existing explicit placeholder relocation is proven for the
-maintainer's nested path, including body/embed/property links and aliases/subpaths.
+The latest menu fix keeps the selected native file across startup/lazy graph and catalog gaps.
+Explicit native availability grants only a detached facade; ordinary search remains catalog-only.
+Explicit opens reroot the chosen view, retaining old-editor save/refusal and native identity guards.
+Open reuses/reveals a Plex, new tab group creates a separate group, and unresolved links now have
+the same submenu through a guarded native link-menu hook. No placeholder file is created.
 
-The maintainer explicitly requested focused checks only. Current evidence: 45/45 affected tests,
-25/25 localization, eight exact-build macOS native cases, touched lint, portable type compilation,
-import boundaries and production build pass. No full regression was run for this follow-up.
-See `docs/validation/creation-after-saving-2026-11-01.md` and its sanitized native receipt.
-The separate Help agent should start with `docs/help-authoring/creation-navigation-features.md`.
-No production deployment or vault modification was performed for this follow-up.
+Final menu evidence: 33 creation/menu checks, 11 editor-navigation checks, 25 localization checks,
+10 native destinations, targeted lint and build pass. Native checks verify actual rendered targets,
+recent sync, an unrelated active note, partial publication, group separation, popout and sidepanel
+ownership. The original failure is preserved in the before-fix receipt. See
+`docs/validation/file-menu-targets-2026-11-01.md` and the updated Help-author reference.
+The maintainer explicitly requested no full regression cycle; none was run.
 
-Historical prior checkpoint `92b7508`: complete K-Plex verify 3650/3650 and the startup-placeholder
-fix at `97a10b1` were accepted. That older main.js was deployed under artifact-only authorization;
-the maintainer confirmed placeholder clicks/history work. Those full-suite results do not apply
-to this later runtime source checkpoint. Companion Excalidraw acceptance reached 600/600 fast and
-357/357 native, including all 40 device profiles, with zero failed/blocked/missing cases.
+Additional requested K-Plex CSS fix replaces three clip-path declarations with equivalent legacy
+rectangular clipping. Eighteen area/geometry checks and a real browser hit-test pass; clipping does
+not cover recovery controls and native fullscreen releases it. See
+`docs/validation/editor-clipping-css-2026-11-01.md`. Source/build is ready for installation;
+production was untouched during this follow-up.
 
-Remaining release/platform limits: actual Excalidraw 2.29.1+ template-dropdown acceptance,
-published fork dependency handoff, Windows and physical mobile touch. The current additional
-maintainer request concerns Excalidraw New File dialog width, folder dropdown activation and
-standard mobile-modal keyboard clearance; finish it using focused validation.
+Companion work is merged: EA Scripts #6 into main, Excalidraw #3029 into master. Excalidraw's
+separately requested two !important fixes were committed directly on master at 763f6ae3 and pushed;
+seven focused fullscreen tests and CSS parsing/minification passed. No new branch or full suite.
+
+Earlier accepted K-Plex work includes remembered After saving destinations, reference relocation,
+folder reveal and startup placeholder/history recovery. Earlier complete verification at 92b7508
+passed 3650 checks; that result is historical, not a claim for this later source. Physical mobile
+and Windows remain separate platform acceptance. Excalidraw's earlier full recovery record remains
+in its repository; no full regression was rerun for the subsequent dialog or CSS refinements.

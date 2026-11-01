@@ -988,3 +988,24 @@ test('loading App dispatches exact saved destinations without a graph action own
   assert.equal(fallback.execute(context).status,'unavailable');assert.equal(calls.length,count,'Graph occurrences retain their original owner');
  }finally{manager.dispose()}
 });
+
+for (const outcome of ['saved', 'save-failed', 'replaced-file']) test('explicit unindexed menu target waits for editor '+outcome+' before root publication', async () => {
+  const f = appFollowFixture(), page = f.pages.get('B.md'); f.pages.delete(page.path);
+  let finish, inserts = 0, root = 'A.md';
+  const view = {editors: {bindings: [{id: 'old-editor'}]}, definition: {navigation: 'rooted'}, capture: () => () => true,
+    layoutRoot: () => root, setRoot: id => {root = id; return true;}};
+  f.state.documentSession.plexView = view;
+  f.state.graphActionPorts.current = {prepareEditorTransition: () => new Promise(resolve => {finish = resolve;})};
+  f.state.plugin.index.getVaultSearchPage = (_path, file) => file === page.file ? page : undefined;
+  f.state.plugin.index.insertCreatedFile = file => {assert.equal(file, page.file); inserts++; f.pages.set(page.path, page); return page;};
+  let activate;
+  const deps = {...f.dependencies, pendingEditorNavigation: {current: null},
+    resolveActionPage: (read, reference) => read.get(reference.identity) ?? null, activate: (...args) => activate(...args)};
+  activate = production('activate', deps, 'src/ui/App.tsx');
+  assert.equal(activate(page, true, true, 'user', true), true); assert.equal(inserts, 0); assert.equal(root, 'A.md');
+  if (outcome === 'replaced-file') f.files.set(page.path, {...page.file});
+  view.editors.bindings = []; finish(outcome !== 'save-failed'); await Promise.resolve(); await Promise.resolve();
+  assert.equal(inserts, outcome === 'saved' ? 1 : 0);
+  assert.equal(f.state.renderPath, outcome === 'saved' ? page.path : 'A.md');
+  assert.equal(root, outcome === 'saved' ? page.path : 'A.md');
+});

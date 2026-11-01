@@ -18,7 +18,7 @@ async function scenario(app,c) {
   try {
     await sessions.off();Object.assign(p.settings,{trackpadNavigation:true,embedCentralNode:false,animationSpeed:0,allowAutozoom:false,documentSyncMode:'off',sidecarOpen:false});
     directory=await app.vault.createFolder(folder);
-    for(const name of ['First','Second']){const file=await app.vault.create(folder+'/'+name+'.md','');files.push(file);p.index.insertCreatedFile(file);}
+    for(const name of ['First','Second']){const file=await app.vault.create(folder+'/'+name+'.md','[['+folder+'/Missing#Heading|Alias]]');files.push(file);p.index.insertCreatedFile(file);}
     const Menu=window.ExcalidrawAutomate?.obsidian?.Menu;
     check(Menu,'Native menu constructor requires the existing Excalidraw companion');
     for(const source of ['file-explorer-context-menu','tab-header','link-context-menu']) {
@@ -29,13 +29,23 @@ async function scenario(app,c) {
       if(source==='file-explorer-context-menu'){
         const before=new Set(workspace.getLeavesOfType('k-plex-react-view'));
         const item=parent.submenu.items.find(item=>item.titleEl?.textContent===p.translator('fileMenu.tab'));
-        await item.callback(new owner.MouseEvent('click'));
+        // Reproduce an explicit native target that precedes canonical/catalog publication.
+        const originalGet=p.index.get;
+        p.index.get=function(path,...args){return path===files[0].path?undefined:originalGet.call(this,path,...args)};
+        try{await item.callback(new owner.MouseEvent('click'));}finally{p.index.get=originalGet;}
         const host=workspace.getLeavesOfType('k-plex-react-view').find(leaf=>!before.has(leaf));
         check(host,'Menu did not allocate a new native tab');hosts.push(host);
         await until(()=>host.view.documentSession?.centerPath===files[0].path,'Menu did not center clicked file');
       }
       menu.hide();
     }
+    const missingMenu=new Menu();workspace.handleLinkContextMenu(missingMenu,folder+'/Missing#Heading',files[1].path);
+    const missingParent=missingMenu.items.find(item=>item.titleEl?.textContent===p.translator('view.displayName'));
+    check(missingParent?.submenu,'Unresolved link submenu absent');
+    await missingParent.submenu.items.find(item=>item.titleEl?.textContent===p.translator('fileMenu.reuse')).callback(new owner.MouseEvent('click'));
+    await until(()=>workspace.getLeavesOfType('k-plex-react-view').some(leaf=>leaf.view.documentSession.centerPath===folder+'/Missing'),'Unresolved menu did not follow its placeholder');
+    check(!app.vault.getFileByPath(folder+'/Missing.md'),'Opening a placeholder created a file');missingMenu.hide();
+    await p.focusInKplex(files[0].path,hosts[0]);
     const first=hosts[0];await until(()=>first.tabHeaderInnerTitleEl?.textContent===files[0].basename,'Native tab caption did not follow center');
     check(first.view.getIcon()==='brain-circuit','Native K-Plex icon lost');cases.push('file-tab-link-menus-and-caption');c.progress={phase:'camera',cases:[...cases]};
     const scope=first.view.contentEl.querySelector('.kplex-plex');await until(()=>scope?.querySelector('.kplex-camera'),'Canvas absent');

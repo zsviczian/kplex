@@ -9417,13 +9417,15 @@ export class GraphIndex {
     return file && file.path === path && this.app.vault.getFileByPath(path) === file ? page : undefined;
   }
 
-  /** Resolve a filename-only F4 hit without claiming that its relationship scope has been prepared. */
-  getVaultSearchPage(path: string): GraphPage | undefined {
+  /** Resolve filename availability without claiming relationship readiness. An explicit native target
+   * may precede catalog hydration; its exact current identity permits a detached facade, never publication. */
+  getVaultSearchPage(path: string, explicitFile?: TFile): GraphPage | undefined {
     const canonical = this.get(path);
     if (canonical?.isFolder && !this.currentSearchFolder(canonical)) return undefined;
     if (canonical) return canonical.file && (canonical.path !== canonical.file.path
       || this.app.vault.getFileByPath(canonical.path) !== canonical.file) ? undefined : canonical;
-    return this.currentPhysicalSearchPage(path);
+    return this.currentPhysicalSearchPage(path) ?? (explicitFile?.path === path
+      && this.app.vault.getFileByPath(path) === explicitFile ? this.hostFileSearchPage(explicitFile) : undefined);
   }
 
   /** Native file availability contains no incidence, metadata acquisition or semantic authority. */

@@ -13,7 +13,7 @@ const spanishTranslations = {
   "settings.trackpad.help": "Desplaza para mover; pellizca o desplaza con una tecla modificadora para ampliar. Desactiva para ampliar con el desplazamiento normal.",
   "fileMenu.reuse": "Abrir",
   "fileMenu.tab": "Abrir en una pestaña nueva",
-  "fileMenu.split": "Abrir a la derecha",
+  "fileMenu.split": "Abrir en un nuevo grupo de pestañas",
   "fileMenu.window": "Abrir en una ventana nueva",
   "fileMenu.sidepanel": "Abrir en el panel lateral",
   "view.menu": "Vista",

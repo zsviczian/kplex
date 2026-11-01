@@ -4,23 +4,23 @@ This is the proposed behavior on `codex/kplex-creation-navigation`, addressing [
 
 ## Open files in K-Plex
 
-Right-click an existing file in Obsidian's file explorer, its tab, or a resolved file link. The **K-Plex** submenu offers these destinations:
+Right-click a file in Obsidian's file explorer, its tab, or an internal link (including an unresolved placeholder link in the editor or reading view). The **K-Plex** submenu offers these destinations:
 
 | Destination | Desktop | Tablet | Phone |
 | --- | --- | --- | --- |
 | Open | Yes | Yes | No |
 | Open in new tab | Yes | Yes | No |
-| Open to the right | Yes | Yes | No |
+| Open in new tab group | Yes | Yes | No |
 | Open in side panel | Yes | Yes | Yes |
 | Open in new window | Yes | No | No |
 
-The requested file becomes the center of that K-Plex view. This applies to existing files, including attachments and drawings; folders and unresolved links do not acquire this submenu. Ordinary K-Plex tabs show the centered file's basename alongside the K-Plex brain-circuit icon. Independent tabs, splits and windows retain their own centers.
+The requested file becomes the center of that K-Plex view. This applies to existing files, including attachments and drawings; folders do not acquire this submenu. An unresolved link opens its placeholder node without creating a note; the selected target is retained even before its graph scope is ready. Open reuses an existing K-Plex view when available. Open in new tab group creates a separate native group. Ordinary K-Plex tabs show the centered file's basename alongside the K-Plex brain-circuit icon. Independent tabs, splits and windows retain their own centers.
 
 Useful help example: open a note's link in a second K-Plex tab while retaining the original view. Capture the actual submenu and resulting tab caption on an accepted build.
 
 ## Choose an Excalidraw drawing template
 
-**Excalidraw is optional. The new dropdown requires an enabled Excalidraw plugin version 2.29.1 or newer**, checked through its public automation API. The required companion changes are currently local in `obsidian-excalidraw-plugin` on `codex/kplex-integration-followup`; they are not supplied by this K-Plex branch. Older companion versions keep the existing drawing-creation behavior and do not show this dropdown.
+**Excalidraw is optional. The new dropdown requires an enabled Excalidraw plugin version 2.29.1 or newer**, checked through its public automation API. The companion changes were merged in [Excalidraw PR #3029](https://github.com/zsviczian/obsidian-excalidraw-plugin/pull/3029); they are not supplied by this K-Plex branch. Older companion versions keep the existing drawing-creation behavior and do not show this dropdown.
 
 When creating an Excalidraw drawing, **Drawing template** appears in the related-note composer, folder-child creation dialog and unresolved-node creation dialog. Options come from Excalidraw's configured template file or folder. **Blank drawing** explicitly creates without a template. Folder entries display relative paths so similarly named templates in different subfolders remain distinguishable.
 
