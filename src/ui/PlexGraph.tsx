@@ -33,7 +33,7 @@
  * File and folder Open menus share native reveal capabilities; captured folder incarnations cannot transfer to a same-path replacement.
  */
 import { wheelCamera } from "./components/wheelCamera";
-import {editorOverlayFrame} from "./editorOverlayFrame";
+import {editorOverlayClip, editorOverlayFrame} from "./editorOverlayFrame";
 import {edgeViewportClip, edgeViewportEndpoints, revealRowScrollTop, editorToolbarInsets} from "./plexViews/areaVisibility";
 import {ontologyConfiguration} from "../core/contracts/ontologyConfiguration";
 import {hasDirectionalCaption,directionalRelationCaption} from "../core/plex/directionalRelationCaption";
@@ -1645,10 +1645,10 @@ export function PlexGraph({ viewDefinition = classicViewDefinition, viewSession,
     overlay.style.setProperty("--kplex-editor-camera-scale", String(current.scale));
     for (const side of ["top", "right", "left"] as const) overlay.style.setProperty(`--kplex-editor-toolbar-${side}`, `${toolbar[side]}px`);
     if (area) {
-      /** Each clip is relative to its own frame; native content and outer chrome retain the same aperture. */
-      const insetClip = (box: typeof body): string => `inset(${Math.max(0, area.top - box.top)}px ${Math.max(0, box.left + box.width - area.left - area.width)}px ${Math.max(0, box.top + box.height - area.top - area.height)}px ${Math.max(0, area.left - box.left)}px)`;
-      overlay.style.setProperty("--kplex-editor-frame-clip", insetClip(frame));
-      overlay.style.setProperty("--kplex-editor-body-clip", insetClip(body));
+      // Positioned document/frame elements share the area aperture through legacy rect clipping;
+      // the separate recovery toolbar remains outside the clip on older Obsidian WebViews.
+      overlay.style.setProperty("--kplex-editor-frame-clip", editorOverlayClip(frame, area));
+      overlay.style.setProperty("--kplex-editor-body-clip", editorOverlayClip(body, area));
     } else {
       overlay.style.removeProperty("--kplex-editor-frame-clip");
       overlay.style.removeProperty("--kplex-editor-body-clip");

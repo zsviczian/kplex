@@ -78,3 +78,36 @@ for(const extension of ['pdf','png','mp4','webm'])test(extension+' occurrence ad
  assert.equal(M.resolveOccurrenceEditorPage(binding,source,()=>false),null);
  page.file={...page.file};assert.equal(M.resolveOccurrenceEditorPage(binding,source,()=>true),null);
 });
+
+
+/** Preserve the same rectangular aperture without the partially supported CSS clip-path feature. */
+test('native editor clipping preserves full, cropped and empty rectangular apertures', () => {
+  const box = {left: 10, top: 20, width: 100, height: 80};
+  assert.equal(M.editorOverlayClip(box, box), 'rect(0px, 100px, 80px, 0px)');
+  assert.equal(M.editorOverlayClip(box, {left: 40, top: 30, width: 50, height: 40}), 'rect(10px, 80px, 50px, 30px)');
+  assert.equal(M.editorOverlayClip(box, {left: -20, top: -20, width: 20, height: 20}), 'rect(0px, -10px, -20px, 0px)');
+  assert.equal(M.editorOverlayClip(box, {left: 200, top: 200, width: 20, height: 20}), 'rect(180px, 100px, 80px, 190px)');
+});
+
+/** Real CSS hit testing protects native document clipping and the independent recovery toolbar. */
+test('legacy editor aperture clips document input while recovery controls remain reachable', async () => {
+  const {readFileSync} = await import('node:fs');
+  const {browserBundle, chromiumHarness} = await import('./support/browserTypeScript.mjs');
+  const browser = await chromiumHarness(await browserBundle(['src/ui/editorOverlayFrame.ts']));
+  try {
+    const css = readFileSync(new URL('../styles.css', import.meta.url), 'utf8');
+    assert(!/clip-path\s*:/.test(css));
+    const result = await browser.evaluate(`(() => {
+      const style = document.createElement('style'); style.textContent = ${JSON.stringify(css)}; document.head.append(style);
+      document.body.innerHTML = '<div id="frame" class="kplex-central-editor-overlay is-area-clipped" style="left:20px;top:30px;width:240px;height:180px;padding:0;border:0"><div class="kplex-central-editor-content"><div id="document" class="kplex-central-editor-document"><button id="outside" style="position:absolute;left:0;top:0;width:30px;height:30px">Outside</button><button id="inside" style="position:absolute;left:80px;top:60px;width:40px;height:30px">Inside</button></div><div class="kplex-central-editor-toolbar" style="left:0;top:-25px;right:auto;width:60px;height:20px"><button id="recover">Close</button></div></div></div>';
+      const frame = document.getElementById('frame'), native = document.getElementById('document');
+      const clip = sourceModules.editorOverlayClip({left:20,top:30,width:240,height:180},{left:70,top:70,width:100,height:80});
+      frame.style.setProperty('--kplex-editor-body-clip',clip); frame.style.setProperty('--kplex-editor-frame-clip',clip);
+      const hit = id => {const el=document.getElementById(id),r=el.getBoundingClientRect();return document.elementFromPoint(r.left+r.width/2,r.top+r.height/2)===el};
+      const clipped = getComputedStyle(native).clip!=='auto', inside=hit('inside'), outside=hit('outside'), recovery=hit('recover');
+      frame.classList.add('is-native-view-fullscreen'); const released=getComputedStyle(native).clip==='auto';
+      return {clipped,inside,outside,recovery,released};
+    })()`);
+    assert.deepEqual(result, {clipped:true,inside:true,outside:false,recovery:true,released:true});
+  } finally {await browser.cleanup();}
+});

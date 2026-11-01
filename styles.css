@@ -3176,7 +3176,7 @@ button.kplex-style-manager-row { height: fit-content; }
   border: 1px solid var(--background-modifier-border-hover);
   border-radius: inherit;
   background: var(--background-primary);
-  clip-path: var(--kplex-editor-frame-clip, none);
+  clip: var(--kplex-editor-frame-clip, auto);
   pointer-events: none;
 }
 .kplex-central-editor-placeholder {
@@ -3235,7 +3235,7 @@ button.kplex-style-manager-row { height: fit-content; }
   inset: 0;
   border-radius: inherit;
   background: var(--background-primary);
-  clip-path: var(--kplex-editor-body-clip, none);
+  clip: var(--kplex-editor-body-clip, auto);
 }
 .kplex-central-editor-content.is-edit-mode {
   cursor: default;
@@ -3265,7 +3265,7 @@ button.kplex-style-manager-row { height: fit-content; }
   border-radius: 0;
   box-shadow: none;
 }
-.kplex-central-editor-overlay.is-native-view-fullscreen .kplex-central-editor-document { clip-path: none; }
+.kplex-central-editor-overlay.is-native-view-fullscreen .kplex-central-editor-document { clip: auto; }
 .kplex-central-editor-overlay.is-native-view-fullscreen .kplex-central-editor-leaf-host,
 .kplex-central-editor-overlay.is-native-view-fullscreen .kplex-embedded-workspace-root {
   border-radius: 0;
