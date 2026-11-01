@@ -379,11 +379,11 @@ for (const outcome of ["fresh", "stale", "failed", "sources", "sources-pending"]
     assert.equal(context.rebuildTask, null); assert.equal(context.initialIndexComplete, false);
     releaseHydration(); await task;
     const expected = outcome === "fresh" ? [] : outcome === "stale" ? ["full"]
-      : outcome === "failed" ? ["progressive"] : ["adopt"];
+      : outcome === "failed" ? ["progressive"] : outcome === "sources" ? ["adopt", "progressive"] : ["adopt"];
     assert.deepEqual(events, ["metadata", "hydrate", ...expected]);
     assert.equal(context.initialIndexComplete, outcome !== "sources-pending");
     assert.equal(context.indexDirty, outcome === "sources-pending");
-    if (outcome.startsWith("sources")) assert.equal(hydrated, false, "Source adoption cannot claim full graph hydration");
+    if (outcome.startsWith("sources")) assert.equal(hydrated, outcome === "sources", "Only completed eager relationships can claim full graph hydration");
     if (outcome === "sources-pending") {
       assert.equal(context.initialIndexTask, null, "Failed adoption must release startup for a later real attempt");
       assert(context.indexBacklogReasons.has("startup:partial-restore-incomplete"));

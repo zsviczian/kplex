@@ -37,7 +37,7 @@ for (const damage of ['missing', 'chunks']) test(`eager coordinator completes ${
             [...initial.state.pages.values()].map(page=>M.persistedPageFromGraphPage(page)),[...initial.state.evidence.declarations()].map(item=>M.persistedDeclarationFromEvidence(item))),'Complete snapshot saved');
           const db=await f.cache.open();await edit(db,['snapshotChunks'],tx=>tx.objectStore('snapshotChunks').clear());
         }
-        initial.destroy();initial=null;f.acquisition.close();
+        initial.destroy();initial=null;f.acquisition.close();const readsBefore=f.reads.length;
         const p=new M.StartupSourceCoordinator();Object.assign(p,{app:f.app,settings,layoutReady:true,indexPreparationAdmitted:true,
           notifyIndexStatus(){},hasVisibleKplexSurface:()=>false,refreshBookmarkedEntryPoints:async()=>{},startupGraphSeedPaths:()=>['A.md']});
         index=new M.GraphIndex(p,f.app);p.index=index;index.scheduleOrphanCleanup=()=>{};
@@ -67,6 +67,7 @@ for (const damage of ['missing', 'chunks']) test(`eager coordinator completes ${
         equal(index.getSourceAcquisitionCounters(),counts,'Navigation adds no source work');
         equal(index.getSemanticPreparationDiagnostics().requested,diagnostics.requested,'Unvisited navigation adds no local semantic request');
         equal(counts.vaultReads,0,'Recovery never rereads unchanged Markdown');equal(counts.parses,0,'Recovery never reparses unchanged Markdown');
+        equal(f.reads.slice(readsBefore),[],'No native body reads hidden outside the source counters');
         return true;
       }finally{unlock?.();restore?.();release?.();oracle?.destroy();initial?.destroy();index?.destroy();f.close();}
     })()`), true);

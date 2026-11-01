@@ -330,7 +330,7 @@ IDs C00–C26 replace the draft's numbering; E00 and L00/L01 are inserted enviro
 | C14 | Incremental compiler and commit contract | C13 | G/I/H | Scoped | Done — C14a/C14b accepted; device P1 passed, P2 accepted with physical overlap not reproduced; refactor paused |
 | C14a | Shared portable per-source semantic patch preparation | C13 | G/I/H | Scoped | Done — shared preparation, strict/native oracle and cancellation accepted |
 | C14b | Coherent publication and host integration acceptance | C14a | G/I/H/P | Host | Done — strict/native checks passed; maintainer accepted device results with P2 overlap limitation; refactor paused |
-| M2026-11-01 | Eager source-to-graph maintenance handoff and reference actions | C14b | G/I/H | Scoped | Implementation complete; final aggregate/native validation pending; C15-C26 remain paused. See docs/validation/eager-navigation-fix-2026-11-01.md |
+| M2026-11-01 | Eager source-to-graph maintenance, startup recovery and reference actions | C14b | G/I/H | Scoped | Implementation and deployed-test recovery follow-up complete; final aggregate/native validation pending; C15-C26 remain paused. See docs/validation/eager-navigation-fix-2026-11-01.md |
 | C15 | Index demand/revision coordinator | C14 | I/P | Scoped | Pending |
 | C16 | Snapshot/cache orchestration behind storage ports | C15 | P/I/H | Scoped | Pending |
 | C17 | Search extraction | C09, C14 | G/I/H | Strong | Pending |
