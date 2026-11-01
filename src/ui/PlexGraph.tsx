@@ -31,6 +31,7 @@
  * File-location menu actions share captured action targets and delegate to guarded native APIs.
  * Markdown and PNG export detach only the committed presentation; their dialogs own no graph reader.
  */
+import { wheelCamera } from "./components/wheelCamera";
 import {editorOverlayFrame} from "./editorOverlayFrame";
 import {edgeViewportClip, edgeViewportEndpoints, revealRowScrollTop, editorToolbarInsets} from "./plexViews/areaVisibility";
 import {ontologyConfiguration} from "../core/contracts/ontologyConfiguration";
@@ -2369,8 +2370,7 @@ export function PlexGraph({ viewDefinition = classicViewDefinition, viewSession,
     if (!el) return;
     const wheel = (e: WheelEvent) => {
       const target = e.target as Element | null;
-      // Native wheel scrolling is retained only inside bounded thought lists. Everywhere else
-      // the wheel zooms, regardless of whether the wheel/middle button is currently pressed.
+      // Editors and bounded lists keep native scrolling; the canvas uses the selected navigation mode.
       if (target?.closest?.(".kplex-central-editor-content, .modal-container")) return;
       if (!e.ctrlKey && !e.metaKey && target?.closest?.(".kplex-zone-scroll, .kplex-expanded-scroll")) return;
       e.preventDefault();
@@ -2378,12 +2378,9 @@ export function PlexGraph({ viewDefinition = classicViewDefinition, viewSession,
       const rect = el.getBoundingClientRect();
       const px = e.clientX - rect.left;
       const py = e.clientY - rect.top;
-      const factor = Math.exp(-e.deltaY * 0.0015);
       applyCamera((c) => {
-        const nextScale = Math.max(0.3, Math.min(Platform.isIosApp ? IOS_MAX_ZOOM : MAX_ZOOM, c.scale * factor));
-        const worldX = (px - c.x) / c.scale;
-        const worldY = (py - c.y) / c.scale;
-        const next = { scale: nextScale, x: px - worldX * nextScale, y: py - worldY * nextScale };
+        const next = wheelCamera(c, e, {x: px, y: py}, settings.trackpadNavigation,
+          Platform.isIosApp ? IOS_MAX_ZOOM : MAX_ZOOM, rect.height);
         // If the middle/left/right pan gesture is also active, reset its anchor to the newly
         // zoomed camera so the next pointermove cannot snap back to the pre-zoom position.
         const drag = panDrag.current;
@@ -2398,7 +2395,7 @@ export function PlexGraph({ viewDefinition = classicViewDefinition, viewSession,
     };
     el.addEventListener("wheel", wheel, { passive: false });
     return () => el.removeEventListener("wheel", wheel);
-  }, [centralEditorMaximized]);
+  }, [centralEditorMaximized, settings.trackpadNavigation]);
 
   useEffect(() => {
     const el = viewport.current;

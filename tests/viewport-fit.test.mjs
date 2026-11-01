@@ -6,12 +6,13 @@ import test from 'node:test';
 import {readFileSync} from 'node:fs';
 import ts from 'typescript';
 import {loadPortableModules} from './support/portableTypeScript.mjs';
-const {exports: {centeredViewportFit, sameFitCamera, EmbeddedDrawingFit, centerArrivalFrames, hasClickModifier, edgeViewportEndpoints, branchDisclosureReserve, edgeViewportClip, revealRowScrollTop, editorToolbarInsets, CameraMotion}} = loadPortableModules([
-  'src/ui/components/viewportFit.ts', 'src/adapters/obsidian/EmbeddedDrawingFit.ts', 'src/ui/components/centerArrival.ts', 'src/ui/components/modifierClick.ts', 'src/ui/plexViews/areaVisibility.ts', 'src/ui/plexViews/branchDisclosure.ts', 'src/ui/components/CameraMotion.ts']);
+const {exports: {centeredViewportFit, sameFitCamera, EmbeddedDrawingFit, centerArrivalFrames, hasClickModifier, edgeViewportEndpoints, branchDisclosureReserve, edgeViewportClip, revealRowScrollTop, editorToolbarInsets, CameraMotion, wheelCamera}} = loadPortableModules([
+  'src/ui/components/wheelCamera.ts', 'src/ui/components/viewportFit.ts', 'src/adapters/obsidian/EmbeddedDrawingFit.ts', 'src/ui/components/centerArrival.ts', 'src/ui/components/modifierClick.ts', 'src/ui/plexViews/areaVisibility.ts', 'src/ui/plexViews/branchDisclosure.ts', 'src/ui/components/CameraMotion.ts']);
 const source=ts.createSourceFile('graph.tsx',readFileSync('src/ui/PlexGraph.tsx','utf8'),ts.ScriptTarget.Latest,true,ts.ScriptKind.TSX);
 
 /** Run production callbacks with explicit finite composition dependencies, without a second policy. */
 function callback(name, dependencies) {
+  dependencies = {wheelCamera, ...dependencies};
   let selected;
   /** Select the actual declaration or layout callback, preserving its complete body. */
   const visit=node=>{

@@ -9,7 +9,7 @@ import test from "node:test";
 
 /** Compile the actual callback or method with injected capabilities, keeping production control flow intact. */
 function production(name, dependencies = {}, path = "src/ui/NewRelatedNoteModal.ts") {
-  dependencies = { folderValidation: { error: null }, folderPath: "", ...dependencies };
+  dependencies = { templateChoices: null, templatePath: "", folderValidation: { error: null }, folderPath: "", ...dependencies };
   const source = ts.createSourceFile(path, readFileSync(new URL(`../${path}`, import.meta.url), "utf8"), ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
   let expression;
   /** Find one named production callback without evaluating the native Obsidian shell. */
@@ -305,7 +305,7 @@ test("creation forwards an explicit folder and alias once through the establishe
       createNewRelatedFileForOrigin: async (...args) => { writes.push(args); return created.file; },
       rememberNewNodeDefaultType: async () => {}, linkNewRelatedFile: async () => ({ state: "saved-pending", page: created }) } };
   await production("createNew", dependencies)("markdown");
-  assert.deepEqual(writes, [[origin, "Next", "markdown", "A readable name", "Projects"]]);
+  assert.deepEqual(writes, [[origin, "Next", "markdown", "A readable name", "Projects", undefined]]);
 });
 
 /** A malformed destination cannot acquire single-flight write ownership, remember ontology or touch storage. */
@@ -382,7 +382,7 @@ test("explicit folder choice opens the reused picker with the calculated placeho
   const create = production("createGhostNote", { MaterializeGhostModal: class {
     constructor(...args) { this.args = args; } open() { opened.push(this.args); }
   } }, "src/main.ts");
-  const context = { app: {}, settings: {}, documentSession:()=>null, validateRelatedNoteName: () => ({ stem: "Next", valid: true, existing: null }),
+  const context = { drawingTemplateOptions: () => null, app: {}, settings: {}, documentSession:()=>null, validateRelatedNoteName: () => ({ stem: "Next", valid: true, existing: null }),
     ghostCreationLocations: () => [{ folderPath: "Projects", label: "Projects" }], isExcalidrawAvailable: () => false,
     materializeGhostPage: async (...args) => materialized.push(args) };
   await create.call(context, ghost, false);
@@ -470,7 +470,7 @@ test("native materialization focuses the shared folder field without changing qu
     createRoot: () => ({ render: element => { rendered = element; } }),
     createElement: (type, props) => ({ type, props }), MaterializationFolderInput() {},
   }, "src/ui/MaterializeGhostModal.ts");
-  const context = { defaultKind: "markdown", excalidrawAvailable: false, selectedFolderPath: "Projects", noteName: "Next", focusFolder: true,
+  const context = { renderTemplate() {}, defaultKind: "markdown", excalidrawAvailable: false, selectedFolderPath: "Projects", noteName: "Next", focusFolder: true,
     titleEl: { setText() {} }, contentEl: { createEl() {} }, translate: key => key,
     locations: [{ folderPath: "Projects", label: "Projects" }], app: { vault: { getAllFolders: () => [] } },
     buttons: [], nativeHandlers: [], scope: { register: () => ({}) }, partialFile: null, partialKind: null, creating: false,

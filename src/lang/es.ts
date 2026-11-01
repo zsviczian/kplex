@@ -7,6 +7,15 @@
 import { buildLocaleCatalog, type LocaleTranslationMap } from "./catalog";
 
 const spanishTranslations = {
+  "drawing.template": "Plantilla de dibujo",
+  "drawing.blank": "Dibujo en blanco",
+  "settings.trackpad": "Navegación con panel táctil",
+  "settings.trackpad.help": "Desplaza para mover; pellizca o desplaza con una tecla modificadora para ampliar. Desactiva para ampliar con el desplazamiento normal.",
+  "fileMenu.reuse": "Abrir",
+  "fileMenu.tab": "Abrir en una pestaña nueva",
+  "fileMenu.split": "Abrir a la derecha",
+  "fileMenu.window": "Abrir en una ventana nueva",
+  "fileMenu.sidepanel": "Abrir en el panel lateral",
   "view.menu": "Vista",
   "ontology.description": "Descripción",
   "ontology.descriptionHelp": "Explica cuándo usar este campo. Opcional; hasta {count} caracteres.",

@@ -7,6 +7,15 @@
 import { buildLocaleCatalog, type LocaleTranslationMap } from "./catalog";
 
 const frenchTranslations = {
+  "drawing.template": "Modèle de dessin",
+  "drawing.blank": "Dessin vierge",
+  "settings.trackpad": "Navigation au pavé tactile",
+  "settings.trackpad.help": "Faites défiler pour déplacer ; pincez ou utilisez une touche de modification pour zoomer. Désactivez pour zoomer par défilement simple.",
+  "fileMenu.reuse": "Ouvrir",
+  "fileMenu.tab": "Ouvrir dans un nouvel onglet",
+  "fileMenu.split": "Ouvrir à droite",
+  "fileMenu.window": "Ouvrir dans une nouvelle fenêtre",
+  "fileMenu.sidepanel": "Ouvrir dans le panneau latéral",
   "view.menu": "Vue",
   "ontology.description": "Description",
   "ontology.descriptionHelp": "Expliquez quand utiliser ce champ. Facultatif ; {count} caractères maximum.",

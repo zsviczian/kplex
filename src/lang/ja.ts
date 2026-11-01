@@ -7,6 +7,15 @@
 import { buildLocaleCatalog, type LocaleTranslationMap } from "./catalog";
 
 const japaneseTranslations = {
+  "drawing.template": "描画テンプレート",
+  "drawing.blank": "空の描画",
+  "settings.trackpad": "トラックパッド操作",
+  "settings.trackpad.help": "スクロールで移動し、ピンチまたは修飾キーを押しながらのスクロールでズームします。オフにすると通常のスクロールでズームします。",
+  "fileMenu.reuse": "開く",
+  "fileMenu.tab": "新しいタブで開く",
+  "fileMenu.split": "右側に開く",
+  "fileMenu.window": "新しいウィンドウで開く",
+  "fileMenu.sidepanel": "サイドパネルで開く",
   "view.menu": "ビュー",
   "ontology.description": "説明",
   "ontology.descriptionHelp": "このフィールドの用途を説明します。任意、最大{count}文字。",

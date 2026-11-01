@@ -7,6 +7,15 @@
 import { buildLocaleCatalog, type LocaleTranslationMap } from "./catalog";
 
 const germanTranslations = {
+  "drawing.template": "Zeichnungsvorlage",
+  "drawing.blank": "Leere Zeichnung",
+  "settings.trackpad": "Trackpad-Navigation",
+  "settings.trackpad.help": "Scrollen zum Verschieben; zum Zoomen zwei Finger zusammenziehen oder mit Zusatztaste scrollen. Ausschalten für Zoom durch normales Scrollen.",
+  "fileMenu.reuse": "Öffnen",
+  "fileMenu.tab": "In neuem Tab öffnen",
+  "fileMenu.split": "Rechts öffnen",
+  "fileMenu.window": "In neuem Fenster öffnen",
+  "fileMenu.sidepanel": "In Seitenleiste öffnen",
   "view.menu": "Ansicht",
   "ontology.description": "Beschreibung",
   "ontology.descriptionHelp": "Beschreibe, wann dieses Feld verwendet wird. Optional; bis zu {count} Zeichen.",

@@ -4181,3 +4181,16 @@ button.kplex-sidecar-unfold-plex:focus-visible,
   white-space: pre;
   text-align: left;
 }
+
+.kplex-drawing-template {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--size-4-2);
+  margin-block: var(--size-4-2);
+}
+
+.kplex-drawing-template select {
+  min-width: 0;
+  max-width: 70%;
+}

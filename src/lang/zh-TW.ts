@@ -7,6 +7,15 @@
 import { buildLocaleCatalog, type LocaleTranslationMap } from "./catalog";
 
 const traditionalChineseTranslations = {
+  "drawing.template": "繪圖範本",
+  "drawing.blank": "空白繪圖",
+  "settings.trackpad": "觸控板導覽",
+  "settings.trackpad.help": "捲動以平移；捏合或按住修飾鍵捲動以縮放。關閉後使用一般捲動縮放。",
+  "fileMenu.reuse": "開啟",
+  "fileMenu.tab": "在新分頁開啟",
+  "fileMenu.split": "在右側開啟",
+  "fileMenu.window": "在新視窗開啟",
+  "fileMenu.sidepanel": "在側邊面板開啟",
   "view.menu": "檢視",
   "ontology.description": "說明",
   "ontology.descriptionHelp": "說明此欄位的使用時機。選填，最多 {count} 個字元。",

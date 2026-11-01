@@ -4,6 +4,10 @@ Thanks for helping improve K-Plex.
 
 K-Plex is a deterministic spatial knowledge graph for Obsidian, not a generic force-directed network. Contributions should preserve its semantic layout, legacy data-migration guarantees and large-vault responsiveness.
 
+## Coding requirements
+
+Read [CODING_STANDARDS.md](CODING_STANDARDS.md) before implementing or reviewing changes. It is the canonical source for timer/window ownership, API discipline, cleanup, scanner compatibility, copy/localization, naming, documentation and validation. Add cross-cutting requirements there; keep contributor workflows and native acceptance commands here. See [AGENTS.md](AGENTS.md) for architecture and subsystem constraints.
+
 ## Setup
 
 Use Node.js **22.22.2** for acceptance checks. If your environment cannot provide it or install dependencies, record the limitation and return runnable checks for the validation agent; results from another runtime do not replace the required lane.
@@ -338,17 +342,7 @@ generated release code.
 
 ## Before changing Obsidian integration
 
-Read the current Obsidian API/type declarations first.
-
-Do not assume an API exists because it sounds plausible. In particular, use public typed helpers such as `getFileCache()` / `getAllTags()` rather than inventing metadata methods.
-
-UI conventions:
-
-- use Obsidian `Modal` for centered modal workflows
-- use Obsidian's declarative settings API for settings pages
-- use Lucide icons through `getIcon()` for plugin UI icons
-- prefer typed workspace APIs for leaves/windows/pop-outs
-- treat Moment as an Obsidian host global: production `src/` code must not runtime-import `moment` or call `import { moment } from "obsidian"`; use `window.moment` through narrow local typing, and install a test double on `window` in Node tests
+Follow [coding standards](CODING_STANDARDS.md#obsidian-api-discipline).
 
 ## Design principles
 
@@ -381,16 +375,7 @@ Missing host/device checks remain pending; a skip is not a pass. Any maintainer-
 
 ### Localization and environment rules
 
-Every new or changed plugin-owned user-facing string must use the English catalog and typed translator: labels, commands, help, menus, placeholders, tooltips, ARIA names, notifications and visible errors. Update all supported catalogs in the same change: English, German, French, Spanish, Dutch, Japanese, Traditional Chinese and Russian. Preserve stable keys/IDs, parameter names, plural forms and user-authored vault content. Console diagnostics stay English. Existing English-fallback allowances do not authorize untranslated new work; English-only delivery requires explicit maintainer approval. The L01 presentation-sink gate runs in `npm test`; review dynamic labels and interpolation values in addition to its AST checks. See [localization](docs/LOCALIZATION.md).
-
-For an interpolated English entry, declare `referenceParams` with the names of literal note,
-path, property, tag, alias or other content references; use `[]` for counts, shortcuts and
-descriptive labels. The shared formatter adds one pair of double quotes and normalizes existing
-template-owned quote wrappers across locales. Pass raw values, including a tag's `#` prefix,
-and do not prequote caller data. When one consumer mixes a property name with a source-kind
-label, use separate catalog keys so the source metadata can distinguish them.
-
-Use `PresentationEnvironment` rather than new direct Platform/global checks in portable code. Desktop/tablet/phone, OS/key convention, hardware keyboard, pointer/touch and host-action availability are independent facts; unknown keyboard presence does not mean absent. Format catalog shortcut parameters from the actual available binding (Command/Option on macOS, Control/Alt on Windows where applicable), omit unknown/unavailable hints and preserve touch instructions. Desktop emulation tests layout/routing; physical touch, keyboard delivery and platform lifecycle still need their own evidence.
+Follow [coding standards](CODING_STANDARDS.md#localization-readiness).
 
 ### Relationship semantics are spatial semantics
 
@@ -504,9 +489,7 @@ Reuse the previous query's matching candidate set for longer query prefixes when
 
 ### Debug logging
 
-Do not leave temporary indexing/performance instrumentation enabled in production.
-
-If you need to profile a regression, gate detailed string-only logs behind a development/debug flag and remove/disable them before merging.
+Follow [coding standards](CODING_STANDARDS.md#code-scanner-hygiene).
 
 ## Current Compass layout requirements
 
@@ -803,11 +786,7 @@ For bounded numeric settings, prefer a slider plus current-value display over an
 
 ## Naming and copy
 
-Use **K-Plex** in user-facing strings, `Kplex` for named types/components, and `kplex` for runtime CSS/SVG/command namespaces. Update selector producers, DOM queries, browser/host tests and current documentation together. Retain legacy identifiers only at documented data-migration boundaries; never rename saved user content or fabricate new terminology in historical validation evidence. The namespace regression gate is `tests/terminology.test.mjs`; it rejects legacy CSS and command aliases. `tests/index-diagnostics-contract.test.mjs` checks the report-facing GraphIndex methods and reproduces the two TS2339 errors when those declarations are removed. This focused type test does not replace the full build.
-
-Use **node** rather than **thought** in new user-facing UI/copy. "ExcaliBrain" should appear only when discussing legacy compatibility/migration.
-
-Use **Curved**, not **Bézier**, in settings text.
+Follow [coding standards](CODING_STANDARDS.md#naming).
 
 ## Manual regression test matrix
 
@@ -1551,3 +1530,20 @@ Numeric preferences use sliders with an always-visible value. Native Settings us
 ### Focused scroll visibility validation
 
 For connector clipping or navigation-paint changes, stage the exact build in the existing disposable Small vault, then run `node scripts/testing/obsidian/scrollVisibility229.mjs` with the three explicit test-vault variables and a fresh `KPLEX_HOST_REPORT_DIR`. It owns a small structural folder and checks native route identity, bounded animations and card pixels, restoring configuration/workspace and removing all fixtures. If the renderer remains occluded, `KPLEX_229_OCCLUDED_DIAGNOSTIC=true` temporarily disables and restores that window’s original background-throttling flag for functional pixel diagnosis only; do not treat that lane as foreground or performance acceptance. See the [#229 validation record](docs/validation/scroll-visibility-229-2026-10-31.md).
+
+### File creation and navigation acceptance
+
+`node --test tests/creation-navigation.test.mjs tests/related-note-composer.test.mjs tests/viewport-fit.test.mjs`
+checks version-gated drawing templates, destination forwarding, creation recovery and camera behavior.
+The shared template control is used by related-note creation, folder-child creation and placeholder
+materialization. Excalidraw 2.29.1 is required for the public template/path boundary; older companions
+retain their existing creation path. Template selection is remembered after a drawing is created.
+
+After exact-build staging in the existing disposable Small vault, run
+`npm run verify:obsidian:creation-navigation` with the three explicit test-vault variables and a fresh
+`KPLEX_HOST_REPORT_DIR`. It checks real file/tab/link menus, native tab captions, independent tab/split/
+popout destinations, wheel pan and modified zoom, and non-default preferences plus an unknown-key
+sentinel across actual plugin reload. The scenario restores settings, workspace and owned fixtures.
+The existing Excalidraw companion supplies its public native Menu constructor; positive template
+creation additionally requires the new companion build. Native programmatic wheel events do not
+establish physical trackpad or mobile touch acceptance.

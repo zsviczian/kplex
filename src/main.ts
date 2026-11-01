@@ -41,6 +41,8 @@
  * Ontology text drafts persist one guarded field through the existing settings queue before live
  * semantic publication; slow refresh remains outside the disk queue and cannot replay failed saves.
  */
+import { registerFileMenus, type FilePlexTarget } from "./adapters/obsidian/fileMenu";
+import { drawingAutomation, drawingTemplateOptions } from "./adapters/obsidian/drawingTemplates";
 import {viewLabel} from "./ui/plexViews/labels";
 import {startupIndexPolicy} from './core/plex/startupIndexPreferences';
 import { tagMembershipPair } from "./ui/structuralConnectionActions";
@@ -537,6 +539,7 @@ export default class KplexPlugin extends Plugin {
         this.layoutReadyWaiters.clear();
         this.startupDiagnostics.mark("layout-ready");
         this.registerOntologyContextMenu();
+        registerFileMenus(this);
         this.prepareIndexIfRequested();
 
         // Re-associate a persisted sidecar before normal recent-tab synchronization is allowed to
@@ -4919,6 +4922,34 @@ export default class KplexPlugin extends Plugin {
   }
 
 
+  /** Open a captured file in one explicitly chosen Plex surface without replacing ordinary document tabs. */
+  async openFileInKplex(file: TFile, target: FilePlexTarget): Promise<void> {
+    if (this.unloading || this.app.vault.getFileByPath(file.path) !== file) return;
+    const workspace = this.app.workspace;
+    const environment = readObsidianPresentationEnvironment();
+    let leaf: WorkspaceLeaf | undefined;
+    if (environment.device === "phone" || target === "sidepanel") {
+      await this.activateSidepanel();
+      leaf = workspace.getLeavesOfType(KPLEX_SIDEPANEL_VIEW_TYPE)[0];
+    } else {
+      if (target === "reuse") {
+        const leaves = workspace.getLeavesOfType(KPLEX_VIEW_TYPE);
+        leaf = leaves.find(candidate => candidate === workspace.getMostRecentLeaf()) ?? leaves[0];
+      }
+      if (!leaf) {
+        this.rememberDocumentLeaf(workspace.getMostRecentLeaf());
+        leaf = target === "window" && environment.device === "desktop" ? workspace.getLeaf("window")
+          : target === "split" ? workspace.getLeaf("split", "vertical") : workspace.getLeaf("tab");
+        await leaf.setViewState({type: KPLEX_VIEW_TYPE, active: true});
+      }
+    }
+    const view = leaf?.view;
+    // The native shell opens before React subscribes to navigation. Retain the requested file
+    // until this exact incarnation's consumers are mounted, including warm split/popout creation.
+    if (view instanceof KplexView || view instanceof KplexSidepanelView) await view.waitUntilReady();
+    if (leaf && leaf.view === view && !this.unloading && this.app.vault.getFileByPath(file.path) === file) await this.focusInKplex(file.path, leaf);
+  }
+
   async activateView(): Promise<void> {
     // Phones intentionally route the generic/open-ribbon action to the sidepanel. Tablets retain
     // the normal graph tab because there is enough screen real-estate to make that useful.
@@ -5970,6 +6001,11 @@ export default class KplexPlugin extends Plugin {
       typeof manager?.plugins?.["obsidian-excalidraw-plugin"]?.createDrawing === "function";
   }
 
+  /** Capture available public companion templates once when a creation dialog opens. */
+  drawingTemplateOptions(): ReturnType<typeof drawingTemplateOptions> {
+    return drawingTemplateOptions(this.settings.lastDrawingTemplatePath);
+  }
+
   async rememberNewNodeDefaultType(kind: "markdown" | "excalidraw"): Promise<void> {
     if (this.settings.newNodeDefaultType === kind) return;
     this.settings.newNodeDefaultType = kind;
@@ -6895,7 +6931,7 @@ export default class KplexPlugin extends Plugin {
   }
 
   /** Create the requested physical note in its target folder and localize user-visible errors without changing vault path semantics. */
-  private async createNewFileInFolder(leafName: string, kind: GhostMaterializationKind, configuredFolder: string, parentCurrent?: () => boolean): Promise<TFile | null> {
+  private async createNewFileInFolder(leafName: string, kind: GhostMaterializationKind, configuredFolder: string, parentCurrent?: () => boolean, templatePath?: string): Promise<TFile | null> {
     const normalizedFolder = configuredFolder ? normalizePath(configuredFolder) : "";
     if (parentCurrent && !parentCurrent()) throw new Error(this.translator("addRelated.endpointChanged"));
     await this.ensureFolderPath(normalizedFolder);
@@ -6916,6 +6952,36 @@ export default class KplexPlugin extends Plugin {
       ? ["excalidraw.md", "excalidraw"].map((extension) => normalizePath(normalizedFolder ? `${normalizedFolder}/${leafName}.${extension}` : `${leafName}.${extension}`))
       : [];
     for (const path of alternateExcalidrawPaths) this.managedCreatedPaths.set(path, Date.now() + MANAGED_CREATED_PATH_TTL_MS);
+
+    const drawingBridge = kind === "excalidraw" ? drawingAutomation() : null;
+    if (drawingBridge) {
+      const bridge = drawingBridge;
+      const ea = bridge.getAPI!();
+      try {
+        const templateFile = templatePath ? this.app.vault.getFileByPath(templatePath) : null;
+        if (templatePath && !templateFile) throw new Error(this.translator("addRelated.endpointChanged"));
+        const exactPath = bridge.getDrawingFilePath!(leafName, normalizedFolder);
+        const createdPath = await ea.create!({exactPath, templatePath: templatePath || undefined, silent: true,
+          validateBeforeCreate: () => {
+            if (this.unloading || parentCurrent && !parentCurrent()
+              || templatePath && this.app.vault.getFileByPath(templatePath) !== templateFile) throw new Error(this.translator("addRelated.endpointChanged"));
+          }});
+        const file = this.app.vault.getFileByPath(createdPath);
+        if (!file) throw new Error(this.translator("error.excalidrawCreatedFileMissing"));
+        this.managedCreatedPaths.set(file.path, Date.now() + MANAGED_CREATED_PATH_TTL_MS);
+        this.rememberManagedCreatedFile(file);
+        if (templatePath !== undefined) {
+          this.settings.lastDrawingTemplatePath = templatePath;
+          try { await this.saveSettings(false, false); }
+          catch (error) { throw new PartialRelatedFileError(file, error); }
+        }
+        return file;
+      } catch (error) {
+        this.managedCreatedPaths.delete(destination);
+        for (const path of alternateExcalidrawPaths) this.managedCreatedPaths.delete(path);
+        throw error;
+      } finally { ea.destroy?.(); }
+    }
 
     if (kind === "excalidraw") {
       type RuntimePlugin = Plugin & {
@@ -6992,7 +7058,7 @@ export default class KplexPlugin extends Plugin {
   }
 
   /** Create a child with exact destination collision checks and existing optimistic/index reconciliation. */
-  async createNewNodeInFolder(folder: GraphPage, rawName: string, kind: GhostMaterializationKind, capturedFolder?: TFolder): Promise<GraphPage | null> {
+  async createNewNodeInFolder(folder: GraphPage, rawName: string, kind: GhostMaterializationKind, capturedFolder?: TFolder, templatePath?: string): Promise<GraphPage | null> {
     return this.index.withForegroundPriority(async () => {
       if (!folder.isFolder) return null;
       const folderPath = folder.path === "folder:/"
@@ -7015,7 +7081,7 @@ export default class KplexPlugin extends Plugin {
       const current = (): boolean => !this.unloading && (!capturedFolder ||
         (capturedFolder === this.app.vault.getRoot() ? this.app.vault.getRoot() : this.app.vault.getFolderByPath(capturedFolder.path)) === capturedFolder);
       if (!current()) throw new Error(this.translator("addRelated.endpointChanged"));
-      const file = await this.createNewFileInFolder(validation.stem, kind, currentFolderPath === "/" ? "" : currentFolderPath, current);
+      const file = await this.createNewFileInFolder(validation.stem, kind, currentFolderPath === "/" ? "" : currentFolderPath, current, templatePath);
       if (!file) return null;
       const displayName = await this.writeCreatedNodeDisplayName(file, rawName);
       const displayField = this.configuredDisplayNameField();
@@ -7159,7 +7225,7 @@ export default class KplexPlugin extends Plugin {
   }
 
   /** Create a related file for the selected origin while preserving folder/name validation and localized product feedback. */
-  async createNewRelatedFileForOrigin(origin: GraphPage, rawName: string, kind: GhostMaterializationKind, rawAlias = "", selectedFolder?: string): Promise<TFile | null> {
+  async createNewRelatedFileForOrigin(origin: GraphPage, rawName: string, kind: GhostMaterializationKind, rawAlias = "", selectedFolder?: string, templatePath?: string): Promise<TFile | null> {
     return this.index.withForegroundPriority(async () => {
       const destination = this.validateNoteFolderPath(selectedFolder ?? this.newRelatedNoteFolder(origin, rawName, kind));
       if (destination.error) throw new Error(destination.error);
@@ -7173,7 +7239,7 @@ export default class KplexPlugin extends Plugin {
         return null;
       }
 
-      const file = await this.createNewFileInFolder(validation.stem, kind, destination.folderPath);
+      const file = await this.createNewFileInFolder(validation.stem, kind, destination.folderPath, undefined, templatePath);
       if (!file) return null;
       try {
         const displayName = await this.writeCreatedNodeDisplayName(file, rawName);
@@ -7403,6 +7469,7 @@ export default class KplexPlugin extends Plugin {
     current: () => boolean = () => true,
     preserveCenter = false,
     hostLeaf?: WorkspaceLeaf,
+    templatePath?: string,
   ): Promise<boolean> {
     const retainedPlan = retainedFile ? continuation.relocation : undefined;
     const oldPath = retainedPlan?.oldPath ?? page.path;
@@ -7427,7 +7494,7 @@ export default class KplexPlugin extends Plugin {
       this.translator("ghost.relocationUnsupported"));
     if (this.unloading || retainedFile && this.app.vault.getFileByPath(retainedFile.path) !== retainedFile) throw new Error(changed);
     if (retainedFile && (retainedFile.parent?.path === "/" ? "" : retainedFile.parent?.path) !== destination.folderPath) throw new Error(changed);
-    const file = retainedFile ?? await this.createNewFileInFolder(stem, kind, destination.folderPath);
+    const file = retainedFile ?? await this.createNewFileInFolder(stem, kind, destination.folderPath, undefined, templatePath);
     if (!file) return false;
     try {
       if ((file.parent?.path === "/" ? "" : file.parent?.path) !== destination.folderPath) throw new Error(changed);
@@ -7491,9 +7558,10 @@ export default class KplexPlugin extends Plugin {
       locations,
       excalidrawAvailable,
       defaultKind,
-      (kind, folderPath, retainedFile, current) => this.materializeGhostPage(page, validation.stem, kind, folderPath, rawLeafName, retainedFile, continuation,
-        /** Combine the modal's submit lease with this exact native owner. */ () => (!current || current()) && ownerCurrent(), preserveCenter, hostLeaf),
+      (kind, folderPath, retainedFile, current, templatePath) => this.materializeGhostPage(page, validation.stem, kind, folderPath, rawLeafName, retainedFile, continuation,
+        /** Combine the modal's submit lease with this exact native owner. */ () => (!current || current()) && ownerCurrent(), preserveCenter, hostLeaf, templatePath),
       chooseFolder,
+      this.drawingTemplateOptions(),
     ).open();
   }
 

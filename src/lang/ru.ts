@@ -7,6 +7,15 @@
 import { buildLocaleCatalog, type LocaleTranslationMap } from "./catalog";
 
 const russianTranslations = {
+  "drawing.template": "Шаблон рисунка",
+  "drawing.blank": "Пустой рисунок",
+  "settings.trackpad": "Навигация трекпадом",
+  "settings.trackpad.help": "Прокрутка перемещает холст; жест щипка или прокрутка с клавишей-модификатором меняет масштаб. Выключите для масштабирования обычной прокруткой.",
+  "fileMenu.reuse": "Открыть",
+  "fileMenu.tab": "Открыть в новой вкладке",
+  "fileMenu.split": "Открыть справа",
+  "fileMenu.window": "Открыть в новом окне",
+  "fileMenu.sidepanel": "Открыть на боковой панели",
   "view.menu": "Вид",
   "ontology.description": "Описание",
   "ontology.descriptionHelp": "Объясните, когда использовать это поле. Необязательно; до {count} символов.",

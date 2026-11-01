@@ -7,6 +7,15 @@
 import { buildLocaleCatalog, type LocaleTranslationMap } from "./catalog";
 
 const dutchTranslations = {
+  "drawing.template": "Tekensjabloon",
+  "drawing.blank": "Lege tekening",
+  "settings.trackpad": "Trackpadnavigatie",
+  "settings.trackpad.help": "Scroll om te verschuiven; knijp of scroll met een wijzigingstoets om te zoomen. Schakel uit om met gewoon scrollen te zoomen.",
+  "fileMenu.reuse": "Openen",
+  "fileMenu.tab": "Openen in nieuw tabblad",
+  "fileMenu.split": "Rechts openen",
+  "fileMenu.window": "Openen in nieuw venster",
+  "fileMenu.sidepanel": "Openen in zijpaneel",
   "view.menu": "Weergave",
   "ontology.description": "Beschrijving",
   "ontology.descriptionHelp": "Leg uit wanneer je dit veld gebruikt. Optioneel; maximaal {count} tekens.",

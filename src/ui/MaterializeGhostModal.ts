@@ -1,6 +1,7 @@
 /**
  * Native Obsidian dialog for materializing a placeholder as a real Markdown note. The plugin owns vault changes; this shell owns localized controls, validation feedback and close cleanup.
  */
+import { DrawingTemplateSelect, type DrawingTemplateChoices } from "./features/DrawingTemplateSelect";
 import { SavedRelationshipPendingError } from "../adapters/obsidian/relationshipMetadataWrite";
 import { Modal, Notice, Setting, type App, type ButtonComponent, type Scope, type TFile } from "obsidian";
 import { createElement, useState } from "react";
@@ -26,6 +27,8 @@ export type GhostMaterializationLocation = {
 export class MaterializeGhostModal extends Modal {
   private readonly translate = createObsidianTranslator();
   private selectedFolderPath: string;
+  private templatePath: string | undefined;
+  private templateRoot: Root | null = null;
   private creating = false;
   private opened = false;
   private generation = 0;
@@ -44,11 +47,13 @@ export class MaterializeGhostModal extends Modal {
     private readonly locations: readonly GhostMaterializationLocation[],
     private readonly excalidrawAvailable: boolean,
     private readonly defaultKind: GhostMaterializationKind,
-    private readonly onCreate: (kind: GhostMaterializationKind, folderPath: string, retainedFile?: TFile, current?: () => boolean) => Promise<boolean>,
+    private readonly onCreate: (kind: GhostMaterializationKind, folderPath: string, retainedFile?: TFile, current?: () => boolean, templatePath?: string) => Promise<boolean>,
     private readonly focusFolder = false,
+    private readonly templateChoices?: DrawingTemplateChoices | null,
   ) {
     super(app);
     this.selectedFolderPath = locations[0]?.folderPath ?? "";
+    this.templatePath = templateChoices?.selected;
   }
 
   /** Submit the validated creation request to the plugin and show localized failure feedback; the modal retains its existing busy/close lifecycle. */
@@ -60,7 +65,7 @@ export class MaterializeGhostModal extends Modal {
     this.creating = true;
     this.refreshControls();
     try {
-      if (await this.onCreate(kind, this.selectedFolderPath, this.partialFile ?? undefined, current) && current()) this.close();
+      if (await this.onCreate(kind, this.selectedFolderPath, this.partialFile ?? undefined, current, this.templatePath) && current()) this.close();
     } catch (error) {
       if (!current()) return;
       if (error instanceof PartialRelatedFileError) {
@@ -79,6 +84,7 @@ export class MaterializeGhostModal extends Modal {
 
   /** Lock the exact partial file's destination/type; retry continues the accepted write rather than creating again. */
   private refreshControls(): void {
+    this.renderTemplate();
     for (const { button, kind } of this.buttons) button.setDisabled(this.creating || this.partialKind !== null && kind !== this.partialKind);
     this.folderRoot?.render(createElement(MaterializationFolderInput, {
       value: this.selectedFolderPath, folders: this.folderPaths, translate: this.translate, autoFocus: this.focusFolder,
@@ -87,6 +93,16 @@ export class MaterializeGhostModal extends Modal {
       onChange: /** A busy or accepted partial operation retains its exact destination. */ value => {
         if (!this.creating && !this.partialFile) this.selectedFolderPath = value;
       },
+    }));
+  }
+
+  /** Keep template choice local and lock it once a file is accepted. */
+  private renderTemplate(): void {
+    if (!this.templateChoices) return;
+    this.templateRoot?.render(createElement(DrawingTemplateSelect, {
+      choices: this.templateChoices, value: this.templatePath ?? "", translate: this.translate,
+      disabled: this.creating || this.partialFile !== null,
+      onChange: path => { this.templatePath = path; this.renderTemplate(); },
     }));
   }
 
@@ -108,6 +124,10 @@ export class MaterializeGhostModal extends Modal {
     this.folderPaths = this.app.vault.getAllFolders(true).map(/** Include root without exposing note contents. */ folder => folder.path === "/" ? "/" : folder.path);
     this.refreshControls();
 
+    if (this.templateChoices) {
+      this.templateRoot = createRoot(this.contentEl.createDiv());
+      this.renderTemplate();
+    }
     const actionSetting = new Setting(this.contentEl);
     actionSetting.addButton((button) => {
       this.buttons.push({ button, kind: "markdown" });
@@ -155,6 +175,7 @@ export class MaterializeGhostModal extends Modal {
   onClose(): void {
     this.opened = false;
     this.generation++;
+    this.templateRoot?.unmount(); this.templateRoot = null;
     this.folderRoot?.unmount(); this.folderRoot = null;
     for (const handler of this.nativeHandlers) this.scope.unregister(handler);
     this.nativeHandlers.length = 0; this.buttons.length = 0;

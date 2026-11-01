@@ -2,6 +2,7 @@
  * Native Obsidian dialog for creating a real note in a physical folder. The plugin owns vault
  * changes; this shell owns controls, validation, the shared completion selector's root and cleanup.
  */
+import { DrawingTemplateSelect } from "./features/DrawingTemplateSelect";
 import { graphFolder } from "../adapters/obsidian/graphFolder";
 import { SavedRelationshipPendingError } from "../adapters/obsidian/relationshipMetadataWrite";
 import { Modal, Notice, Setting, type ButtonComponent, type TFolder, type ToggleComponent, type WorkspaceLeaf } from "obsidian";
@@ -16,6 +17,9 @@ import { CreationCompletionSelect, creationCompletionValue } from "./features/Cr
 
 export class CreateFolderNoteModal extends Modal {
   private noteName = "";
+  private templateRoot: Root | null = null;
+  private templatePath: string | undefined;
+  private renderTemplate: (() => void) | null = null;
   private creating = false;
   private opened = false;
   private completing = false;
@@ -88,6 +92,7 @@ export class CreateFolderNoteModal extends Modal {
     const enabled = this.canComplete() && this.opened && !this.creating && !this.pending && validation.valid && !validation.existing;
     for (const button of this.createButtons) button.setDisabled(!enabled);
     this.renderCompletionControls();
+    this.renderTemplate?.();
   }
 
   /** Keep the native editing toggle and shared outcome control consistent without saving local choices. */
@@ -132,7 +137,7 @@ export class CreateFolderNoteModal extends Modal {
     this.refreshButtons();
     try {
       const folderPath = folder.path === "/" || folder.path === "" ? "folder:/" : `folder:${folder.path}`;
-      const page = await this.plugin.createNewNodeInFolder({ ...this.folder, path: folderPath }, this.noteName, kind, folder);
+      const page = await this.plugin.createNewNodeInFolder({ ...this.folder, path: folderPath }, this.noteName, kind, folder, this.templatePath);
       if (!page) return;
       await this.plugin.rememberNewNodeDefaultType(kind);
       if (!this.canComplete()) return;
@@ -235,6 +240,17 @@ export class CreateFolderNoteModal extends Modal {
     const completion = this.contentEl.createDiv({cls: "kplex-creation-completion-row"});
     this.completionRoot = createRoot(completion);
 
+    const choices = this.plugin.drawingTemplateOptions();
+    if (choices) {
+      this.templatePath = choices.selected;
+      this.templateRoot = createRoot(this.contentEl.createDiv());
+      this.renderTemplate = (): void => this.templateRoot?.render(createElement(DrawingTemplateSelect, {
+        choices, value: this.templatePath ?? "", translate: this.plugin.translator,
+        disabled: this.creating || this.pending,
+        onChange: path => { this.templatePath = path; this.renderTemplate?.(); },
+      }));
+      this.renderTemplate();
+    }
     const actions = new Setting(this.contentEl);
     actions.addButton((button) => {
       this.createButtons.push(button);
@@ -284,6 +300,7 @@ export class CreateFolderNoteModal extends Modal {
     if (!this.completing) this.restoreInvoker();
     this.opened = false;
     if (!this.completing) this.invalidated = true;
+    this.templateRoot?.unmount(); this.templateRoot = null; this.renderTemplate = null;
     this.completionRoot?.unmount(); this.completionRoot = null; this.editToggle = null;
     this.contentEl.empty();
     this.nameInput = null; this.folderDescription = null; this.createButtons.length = 0;

@@ -1,0 +1,50 @@
+{
+  "name": "creation-navigation",
+  "status": "passed",
+  "node": "v22.22.2",
+  "startedAt": "2026-11-01T06:46:06.862Z",
+  "maximumMs": 180000,
+  "driver": {
+    "transport": "beb7677649f8ae6ae390c0df25b4a025a48777b5fbfc5e36c25f7fe252b8a0d3",
+    "scenario": "07e46d8a47147897cda3ff27bcfc96f2a0d492c201d0fbac944a71104fb42ae2",
+    "definitions": "978d98ce7eeda9fa147e281b50ac40f35a33cd8c3a1da34b5d7a8f584e01b4af"
+  },
+  "artifacts": {
+    "main.js": "28c5fcb922ad980f7bbe97350061ad76923c6827c07237734c566d51d62f48ff",
+    "manifest.json": "2822c38463c03ace4f017453679572d462534ce2a9c9558fd7593f259b01bfa1",
+    "styles.css": "b6bdf7d60405346c8eb0022a7a008c0938012ad21e5174d6427917edb67ab73e"
+  },
+  "source": {
+    "src/index/GraphBuilder.ts": "b4ff3bc6298c1d30c58aa15a47d2636b8e32a33f1ff4c225ce2848534567cab8",
+    "src/index/GraphIndex.ts": "ddd56515a902719a2c0c76a3aa758f4c7732f4412d9a15cabcada0b77a835ce6",
+    "src/core/graph/compiler.ts": "ee403bd86870137e7ea769dfb5c5c7cfa27e08ad768b1815bef47eab9732bd4f",
+    "src/adapters/obsidian/fileMenu.ts": "e52be751f79b94ed10010d46f0a8ed5c4ca13c6e0cb62a18c2c441691e0167d1",
+    "src/adapters/obsidian/drawingTemplates.ts": "9408660ee75e8ec4998181dca44dd445b38eb7d6a2ac541d8ebd7e2f0f113daf",
+    "src/ui/KplexView.tsx": "2660d2598d8eeca08b69c608339542963cbb1f6f3796fc030c6ed4785cd93ae5",
+    "src/ui/components/wheelCamera.ts": "50865d966aca0b56784d918bc8ad8522572217fc77a7c0bd22bf01fcf6b8cc53",
+    "src/settings.ts": "e6db4ef1da18bbc3ed68ecaa69bcbf3c1241484ea40ce86a372351aa542a1000"
+  },
+  "limitations": "Controlled native method observations, not actual paint or physical-device acceptance.",
+  "obsidian": "1.15.0 (installer 1.14.0)",
+  "progress": {
+    "phase": "cleanup",
+    "cases": [
+      "file-tab-link-menus-and-caption",
+      "native-trackpad-pan-and-modifier-zoom",
+      "independent-tab-split-and-popout",
+      "real-plugin-reload-and-unknown-key-preservation"
+    ]
+  },
+  "result": {
+    "cases": [
+      "file-tab-link-menus-and-caption",
+      "native-trackpad-pan-and-modifier-zoom",
+      "independent-tab-split-and-popout",
+      "real-plugin-reload-and-unknown-key-preservation"
+    ],
+    "companionVersion": "older-than-2.29.1",
+    "limitations": "Programmatic native menu/wheel input; physical trackpad and mobile remain separate. Positive template creation requires a 2.29.1 companion."
+  },
+  "cleanup": "passed",
+  "completedAt": "2026-11-01T06:46:18.043Z"
+}

@@ -1363,3 +1363,21 @@ test("native declarative hover controls expose both local preferences and persis
 });
 
 test('partial legacy ontology import preserves an implicit former counterpart and escapes foreign slash fields',()=>{const current=migrateAndMergeSettings({ontologyPairingVersion:1,hierarchy:{previous:['replies to/replied by'],next:[]}});const partial=importExcaliBrainGraphSettings({hierarchy:{previous:['literal/a']}},current);assert(partial.hierarchy.next.includes('replied by'));assert.deepEqual(partial.hierarchy.previous,['literal\\/a']);const replaced=importExcaliBrainGraphSettings({hierarchy:{previous:['literal/a'],next:['Explicit next']}},current);assert.deepEqual(replaced.hierarchy.next,['Explicit next']);assert(!replaced.hierarchy.next.includes('replied by'));});
+
+
+test("trackpad and remembered drawing templates survive settings loading without semantic invalidation", () => {
+  const settings = migrateAndMergeSettings({...defaults, trackpadNavigation: true, lastDrawingTemplatePath: "Templates/Chosen.md", futureCreationPreference: {retained: true}});
+  assert.equal(settings.trackpadNavigation, true);
+  assert.equal(settings.lastDrawingTemplatePath, "Templates/Chosen.md");
+  assert.deepEqual(settings.futureCreationPreference, {retained: true});
+  const restored = migrateAndMergeSettings(JSON.parse(JSON.stringify(settings)));
+  assert.equal(restored.lastDrawingTemplatePath, "Templates/Chosen.md");
+  assert.deepEqual(restored.futureCreationPreference, {retained: true});
+  const effects = classifySettingsChange(captureSettingsPolicy(defaults), captureSettingsPolicy(settings));
+  assert.equal(effects.semanticInvalidation, false);
+  assert.equal(effects.render, true);
+  assert.deepEqual(effects.changedKeys, ["trackpadNavigation"]);
+  assert.equal(encodeIndexSettingsSignature(settings), encodeIndexSettingsSignature(defaults));
+  const invalid = migrateAndMergeSettings({trackpadNavigation: "true", lastDrawingTemplatePath: 42});
+  assert.equal(invalid.trackpadNavigation, false); assert.equal(invalid.lastDrawingTemplatePath, null);
+});

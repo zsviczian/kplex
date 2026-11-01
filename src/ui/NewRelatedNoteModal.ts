@@ -1,6 +1,7 @@
 /**
  * Native Obsidian shell and shared React composer for related-note creation. The plugin owns mutations; the modal owns focus, suggestions, failure-only recovery and cleanup, and consumes localized copy. Recovery retains the exact durable file and displays the failure reason without enabling fresh creation.
  */
+import { DrawingTemplateSelect } from "./features/DrawingTemplateSelect";
 import { SavedRelationshipPendingError } from "../adapters/obsidian/relationshipMetadataWrite";
 import { Modal, Notice, type TFile, type Scope, type WorkspaceLeaf } from "obsidian";
 import { createElement, useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -99,6 +100,8 @@ function RelatedNoteComposer({
   const [partialFailure, setPartialFailure] = useState<string | null>(null);
   const [editAfterCreate, setEditAfterCreate] = useState(() => plugin.settings.editNewNodeAfterCreate);
   const excalidrawAvailable = plugin.isExcalidrawAvailable();
+  const [templateChoices] = useState(() => plugin.drawingTemplateOptions());
+  const [templatePath, setTemplatePath] = useState(() => templateChoices?.selected ?? "");
   const [defaultCreateType, setDefaultCreateType] = useState<"markdown" | "excalidraw">(() =>
     plugin.settings.newNodeDefaultType === "excalidraw" && excalidrawAvailable ? "excalidraw" : "markdown",
   );
@@ -248,7 +251,7 @@ function RelatedNoteComposer({
       const field = await prepareField();
       if (!field || !session.isSessionOpen()) return;
       const currentOrigin = refreshCapturedPage(plugin, origin);
-      if (!file) file = await plugin.createNewRelatedFileForOrigin(currentOrigin, query, kind, alias, folderPath);
+      if (!file) file = await plugin.createNewRelatedFileForOrigin(currentOrigin, query, kind, alias, folderPath, templateChoices ? templatePath : undefined);
       if (!file) return;
       if (!session.isSessionOpen()) return;
       if (plugin.app.vault.getFileByPath(file.path) !== file) throw new Error(plugin.translator("addRelated.endpointChanged"));
@@ -583,6 +586,10 @@ function RelatedNoteComposer({
     controlRow,
     composeRow,
     folderRow,
+    templateChoices && !selectedTarget && !webUrl ? createElement(DrawingTemplateSelect, {
+      choices: templateChoices, value: templatePath, translate: plugin.translator, onChange: setTemplatePath,
+      disabled: busy || Boolean(savedPending) || Boolean(partialFile),
+    }) : null,
     status,
     recovery,
     footer,

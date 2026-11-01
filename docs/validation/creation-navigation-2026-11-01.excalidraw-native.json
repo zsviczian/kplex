@@ -1,0 +1,85 @@
+{
+  "status": "failed",
+  "profile": "regression",
+  "counts": {
+    "passed": 187,
+    "failed": 5,
+    "blocked": 40
+  },
+  "source": {
+    "pluginRevision": "ebb7916b9b17008033f685c509b61875001341bf",
+    "pluginDirty": true,
+    "forkRevision": "80df3c48f215d71e0f703874cc05eb2c8fca834d",
+    "forkDirty": false,
+    "buildMode": "workspace-frozen",
+    "requestedProfile": "regression",
+    "node": "v22.22.2",
+    "platform": "darwin"
+  },
+  "reportDirectory": ".test-work/reports/native-e5a115df-75d7-490e-a1cd-32db91e98ff2",
+  "scenarios": [
+    {
+      "id": "scenario:0",
+      "status": "failed",
+      "reason": "/Applications/Obsidian.app/Contents/MacOS/obsidian-cli: spawnSync /Applications/Obsidian.app/Contents/MacOS/obsidian-cli ETIMEDOUT"
+    },
+    {
+      "id": "runExtrasServicesScenario",
+      "status": "failed",
+      "reason": "Error: plugin gateway did not obtain Mermaid"
+    },
+    {
+      "id": "runWorkflowFixesScenario",
+      "status": "failed",
+      "reason": "Error: file-explorer new drawing action missing"
+    },
+    {
+      "id": "feature-scenarios",
+      "status": "failed",
+      "reason": "Native task cleanup failed: Error: Geometry popout did not close; Native task cleanup failed: Error: Geometry popout did not close; legacy controller: __excalidrawImageGeometry"
+    }
+  ],
+  "cleanup": "failed",
+  "recovery": {
+    "status": "recovered",
+    "taskSettled": true,
+    "printRoots": 0,
+    "registeredPopouts": 0,
+    "detachedGeometryLeaf": true,
+    "gatewayRestored": true,
+    "fixtureRemoved": "__excalidraw_cli_smoke_c61a4f6a-2d59-4845-9e44-969e00fa2328_case6.excalidraw.md",
+    "staleWindowClosedProperty": false
+  },
+  "notes": [
+    "Full native acceptance did not pass; device matrix was blocked after the parent cleanup failure.",
+    "Recovery separately verified settled work, no print roots, no registered popouts and a restored gateway before retiring the exact owned controller and fixture.",
+    "Final autocomplete metadata correction and focused creation probe are separate later checkpoints."
+  ],
+  "failedCases": [
+    {
+      "testId": "native:behavior:popout:command-palette-selection-cancel",
+      "status": "failed",
+      "reason": "Error: Concurrent host requests are not supported\n    at c.requestHost (eval at <anonymous> (app://obsidian.md/app.js:279:488), <anonymous>:36:26)\n    at input (eval at <anonymous> (app://obsidian.md/app.js:279:488), <anonymous>:345:7)\n    at key (eval at <anonymous> (app://obsidian.md/app.js:279:488), <anonymous>:352:13)\n    at eval (eval at <anonymous> (app://obsidian.md/app.js:279:488), <anonymous>:2487:17)\n    at async c.case (eval at <anonymous> (app://obsidian.md/app.js:279:488), <anonymous>:46:24)\n    at async c.case (eval at <anonymous> (app://obsidian.md/app.js:279:488), <anonymous>:90:14)\n    at async exerciseInteractionBehavior (eval at <anonymous> (app://obsidian.md/app.js:279:488), <anonymous>:2204:5)\n    at async id (eval at <anonymous> (app://obsidian.md/app.js:279:488), <anonymous>:2201:7)\n    at async eval (eval at <anonymous> (app://obsidian.md/app.js:279:488), <anonymous>:64:18)"
+    },
+    {
+      "testId": "native:behavior:popout:toolbar-context-shortcuts",
+      "status": "failed",
+      "reason": "Error: Concurrent host requests are not supported\n    at c.requestHost (eval at <anonymous> (app://obsidian.md/app.js:279:488), <anonymous>:36:26)\n    at input (eval at <anonymous> (app://obsidian.md/app.js:279:488), <anonymous>:345:7)\n    at key (eval at <anonymous> (app://obsidian.md/app.js:279:488), <anonymous>:352:13)\n    at eval (eval at <anonymous> (app://obsidian.md/app.js:279:488), <anonymous>:2487:17)\n    at async c.case (eval at <anonymous> (app://obsidian.md/app.js:279:488), <anonymous>:46:24)\n    at async c.case (eval at <anonymous> (app://obsidian.md/app.js:279:488), <anonymous>:90:14)\n    at async exerciseInteractionBehavior (eval at <anonymous> (app://obsidian.md/app.js:279:488), <anonymous>:2204:5)\n    at async id (eval at <anonymous> (app://obsidian.md/app.js:279:488), <anonymous>:2201:7)\n    at async eval (eval at <anonymous> (app://obsidian.md/app.js:279:488), <anonymous>:64:18)"
+    },
+    {
+      "testId": "native:extras-mermaid-gateway",
+      "status": "failed",
+      "reason": "Error: plugin gateway did not obtain Mermaid\n    at check (eval at <anonymous> (app://obsidian.md/app.js:279:488), <anonymous>:88:23)\n    at eval (eval at <anonymous> (app://obsidian.md/app.js:279:488), <anonymous>:147:7)\n    at async c.case (eval at <anonymous> (app://obsidian.md/app.js:279:488), <anonymous>:46:24)\n    at async exerciseExtras (eval at <anonymous> (app://obsidian.md/app.js:279:488), <anonymous>:142:3)\n    at async eval (eval at <anonymous> (app://obsidian.md/app.js:279:488), <anonymous>:64:18)"
+    },
+    {
+      "testId": "runWorkflowFixesScenario",
+      "status": "failed",
+      "reason": "Error: file-explorer new drawing action missing\n    at check (eval at <anonymous> (app://obsidian.md/app.js:279:488), <anonymous>:87:57)\n    at probeWorkflows (eval at <anonymous> (app://obsidian.md/app.js:279:488), <anonymous>:262:7)\n    at async eval (eval at <anonymous> (app://obsidian.md/app.js:279:488), <anonymous>:64:18)"
+    },
+    {
+      "testId": "feature-scenarios",
+      "status": "failed",
+      "reason": "Native task cleanup failed: Error: Geometry popout did not close; Native task cleanup failed: Error: Geometry popout did not close; legacy controller: __excalidrawImageGeometry"
+    }
+  ]
+}

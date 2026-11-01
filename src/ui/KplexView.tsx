@@ -31,7 +31,10 @@ abstract class BaseKplexView extends ItemView {
   constructor(leaf: WorkspaceLeaf, protected plugin: KplexPlugin) {
     super(leaf);
     this.scope = new Scope(this.app.scope);
-    this.documentSession = new KplexDocumentSession(plugin.settings, nativeLeafId(this.app.workspace, leaf), () => this.app.workspace.requestSaveLayout());
+    this.documentSession = new KplexDocumentSession(plugin.settings, nativeLeafId(this.app.workspace, leaf), () => {
+      this.app.workspace.requestSaveLayout();
+      this.refreshTitle();
+    });
     this.centerPresentation = new KplexCenterPresentation(this.plugin.settings, () => {this.app.workspace.requestSaveLayout();});
   }
 
@@ -44,10 +47,21 @@ abstract class BaseKplexView extends ItemView {
     this.documentSession.restore(state && typeof state === "object" && "plexSession" in state ? state.plexSession : undefined);
     await super.setState(state, result);
     this.plugin.onKplexViewStateRestored(this.leaf, this.documentSession);
+    this.refreshTitle();
   }
 
   /** Return the localized native-view title without changing the view registration ID. */
-  getDisplayText(): string { return this.plugin.translator("view.displayName"); }
+  getDisplayText(): string {
+    const path = this.documentSession?.centerPath;
+    const file = path ? this.app.vault.getFileByPath(path) : null;
+    return file?.basename ?? (path ? this.plugin.index?.get(path)?.name : null) ?? this.plugin.translator("view.displayName");
+  }
+
+  /** Obsidian 1.15's native updateHeader refreshes tab captions and accessible names together. */
+  private refreshTitle(): void {
+    const leaf = this.leaf as WorkspaceLeaf & {updateHeader?: () => void};
+    leaf?.updateHeader?.();
+  }
   /** Return the host Lucide icon ID used for the native K-Plex tab. */
   getIcon(): string { return "brain-circuit"; }
   /** Identify the owning surface so profile and environment policy stay outside the renderer. */
@@ -106,11 +120,12 @@ abstract class BaseKplexView extends ItemView {
     const activeRef = this.app.workspace.on("active-leaf-change", /** A different native pane exits fullscreen; embedded content in this view retains its owner. */ leaf => {
       if (leaf !== this.leaf && (!leaf || !this.contentEl.contains(leaf.view.containerEl))) this.displayModes?.exitFullscreen(false);
     });
+    const renameRef = this.app.vault.on("rename", /** A same-file rename changes the native caption without resetting the camera. */ () => this.refreshTitle());
     const layoutRef = this.app.workspace.on("layout-change", /** Native layout destruction must never leave an orphaned fullscreen host. */ () => {
       if (!this.containerEl.isConnected) this.displayModes?.exitFullscreen(false);
     });
     this.displayModes.ownCleanup(/** Remove exact workspace subscriptions on either view close or plugin unload. */ () => {
-      workspace.offref(activeRef); workspace.offref(layoutRef);
+      workspace.offref(activeRef); workspace.offref(layoutRef); this.app.vault.offref(renameRef);
     });
     if (typeof this.containerEl.onWindowMigrated === "function") {
       this.windowMigrationCleanup = this.containerEl.onWindowMigrated(/** Unmount in the source realm before restoring an overlay host into its adopted native parent. */ () => {
