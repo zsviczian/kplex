@@ -1191,3 +1191,30 @@ for (const mutation of ['stat','replacement','rename','delete','markdown-metadat
     assert(changed,'Mutation overlaps a real later Markdown await');assert.equal(result,null,'Retired file or real Markdown metadata cannot publish');
   } finally {f.preview.dispose();}
 });
+
+/** Switching to an unresolved neighbour must not wait for global source authority. */
+test('bounded placeholder preview survives release of its original native center',async()=>{
+ const f=fixture(),originalWindow=globalThis.window;
+ globalThis.window={performance,setTimeout,clearTimeout,setInterval,clearInterval};
+ const placeholder='Notes/Unwritten';
+ f.app.vault.getName=()=> 'placeholder-handover';
+ f.app.metadataCache.unresolvedLinks[f.centerPath]={[placeholder]:1};
+ f.cache.get(f.centerPath).frontmatter.Left='[['+placeholder+']]';
+ const plugin={settings:{...settings,excludeFilepaths:[],showVirtualNodes:true},getIndexSourceRevision:()=>0};
+ const index=new GraphIndex(plugin,f.app);
+ index.startSemanticDemand=()=>{};
+ try{
+  const releaseOld=index.acquireSemanticDemand(f.centerPath);
+  await index.publishHostMetadataPreview(f.centerPath);
+  assert(index.get(placeholder),'The early neighbour is visible');
+  const releaseNew=index.acquireSemanticDemand(placeholder);releaseOld();
+  await index.publishHostMetadataPreview(placeholder);
+  const page=index.get(placeholder);
+  assert(page,'The new placeholder owns a readable preview before global indexing');
+  assert.equal(page.file,null);
+  assert(page.neighbours.has(f.centerPath),'Its existing contributor remains connected');
+  assert.equal(index.state.pages.size,0,'A provisional preview does not publish global authority');
+  assert.equal(await f.preview.build('Unknown'),null,'An arbitrary missing identity is not fabricated');
+  releaseNew();assert.equal(index.get(placeholder),undefined,'Releasing the last owner retires the preview');
+ }finally{index.destroy();f.preview.dispose();globalThis.window=originalWindow}
+});

@@ -1,0 +1,33 @@
+{
+  "startedAt": "2026-11-01T14:14:09.627Z",
+  "node": "v22.22.2",
+  "status": "passed",
+  "artifacts": {
+    "main.js": "e194d681680bba78006ad3b9dac7c57c80014034306a62e4ef97344f45f355dd",
+    "styles.css": "034f038f2d6146d977e1138b4c46ba21ac20c80801bf3d6297bcf960442667b7",
+    "manifest.json": "2822c38463c03ace4f017453679572d462534ce2a9c9558fd7593f259b01bfa1"
+  },
+  "result": {
+    "cases": [
+      "sparse-file-tab",
+      "sparse-file-reuse",
+      "sparse-file-split",
+      "sparse-file-sidepanel",
+      "sparse-file-window",
+      "placeholder-tab",
+      "placeholder-reuse",
+      "placeholder-split",
+      "placeholder-sidepanel",
+      "placeholder-window"
+    ],
+    "unrelatedWorkspaceFile": true,
+    "sparseSelectedFile": true,
+    "recentDocumentSync": true,
+    "placeholderFileCreated": false,
+    "tabGroupSeparation": true,
+    "limits": "Actual native Menu callbacks and native link-menu construction, programmatic invocation; no physical OS click/mobile claim."
+  },
+  "cleanup": "passed",
+  "transport": [],
+  "completedAt": "2026-11-01T14:14:13.790Z"
+}

@@ -9,6 +9,15 @@
  * parameters remain unquoted regardless of their names. Locale catalogs inherit this classification.
  */
 export const englishCatalog = {
+  "drawing.template": {"message": "Drawing template", "context": "File creation, native file menus and wheel navigation preferences.", "params": []},
+  "drawing.blank": {"message": "Blank drawing", "context": "File creation, native file menus and wheel navigation preferences.", "params": []},
+  "settings.trackpad": {"message": "Trackpad navigation", "context": "File creation, native file menus and wheel navigation preferences.", "params": []},
+  "settings.trackpad.help": {"message": "Scroll to pan; pinch or modified scroll to zoom. Turn off to zoom with ordinary scrolling.", "context": "File creation, native file menus and wheel navigation preferences.", "params": []},
+  "fileMenu.reuse": {"message": "Open", "context": "File creation, native file menus and wheel navigation preferences.", "params": []},
+  "fileMenu.tab": {"message": "Open in new tab", "context": "File creation, native file menus and wheel navigation preferences.", "params": []},
+  "fileMenu.split": {"message": "Open in new tab group", "context": "File creation, native file menus and wheel navigation preferences.", "params": []},
+  "fileMenu.window": {"message": "Open in new window", "context": "File creation, native file menus and wheel navigation preferences.", "params": []},
+  "fileMenu.sidepanel": {"message": "Open in side panel", "context": "File creation, native file menus and wheel navigation preferences.", "params": []},
   "view.menu": {message: "View", context: "Canvas context submenu listing registered views and their subviews.", params: []},
   "ontology.description": {"message":"Description","context":"Optional authored ontology field descriptions; each physical inverse endpoint has independent wording.","params":[]},
   "ontology.descriptionHelp": {"message":"Explain when to use this field. Optional; up to {count} characters.","context":"Optional authored ontology field descriptions; each physical inverse endpoint has independent wording.","params":["count"],"referenceParams":[]},
@@ -1336,6 +1345,14 @@ export const englishCatalog = {
     context: "Legacy K-Plex user-facing copy migrated during the full English catalog pass.",
     params: [],
   },
+  "creation.afterSaving.return": { message: "Return", context: "Unified after-saving choice for note creation.", params: [], referenceParams: [] },
+  "creation.afterSaving.another": { message: "Create another", context: "Unified after-saving choice for note creation.", params: [], referenceParams: [] },
+  "creation.afterSaving.follow": { message: "Follow node", context: "Unified after-saving choice for note creation.", params: [], referenceParams: [] },
+  "creation.afterSaving.sidecar": { message: "Edit in sidecar", context: "Unified after-saving choice for note creation.", params: [], referenceParams: [] },
+  "creation.afterSaving.editor": { message: "Edit in editor view", context: "Unified after-saving choice for note creation.", params: [], referenceParams: [] },
+  "creation.afterSaving.editor-maximized": { message: "Edit in editor view maximized", context: "Unified after-saving choice for note creation.", params: [], referenceParams: [] },
+  "creation.afterSaving.tab": { message: "Open in new tab", context: "Unified after-saving choice for note creation.", params: [], referenceParams: [] },
+  "creation.afterSaving.window": { message: "Open in popout window", context: "Unified after-saving choice for note creation.", params: [], referenceParams: [] },
   "folderNote.openForEditing": {
     message: "Open for editing",
     context: "Legacy K-Plex user-facing copy migrated during the full English catalog pass.",

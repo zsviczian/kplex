@@ -1,0 +1,27 @@
+{
+  "status": "passed",
+  "limits": "Programmatic native DOM and public API checks; no physical input or paint claim.",
+  "result": {
+    "cases": [
+      "live-template-setting-and-contained-inventory",
+      "live-extension-settings-and-vault-root",
+      "template-applied-and-exact-path-collision-refused",
+      "native-new-file-folder-and-name-controls"
+    ],
+    "version": "2.29.0",
+    "minimumVersionGate": false
+  },
+  "cleanup": "passed",
+  "artifacts": {
+    "main.js": "735ca166f6195f691f3924c5caa39c8d68ccb6e14ebc6e6d3314dcbec06e0309",
+    "manifest.json": "4880b885c50643ef848d31cea829776ca2e96747353aee334d71e875f79d31c0",
+    "styles.css": "4f71f6598b45de2e1ae94c20b7a190397a8b1150cd78b29e10fdf4638b6e6c7d"
+  },
+  "source": {
+    "source": "ebb7916b9b17008033f685c509b61875001341bf",
+    "diffHash": "02a045f97e100d02e75f446e079ba8cb9c0fbbc473e50223659663519885e9e5"
+  },
+  "forkRevision": "80df3c48f215d71e0f703874cc05eb2c8fca834d",
+  "extrasRevision": "e37c06f",
+  "dependencyHandoff": "Unpublished local artifacts; exact dependency and manifests unchanged."
+}

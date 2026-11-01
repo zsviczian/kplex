@@ -1123,7 +1123,8 @@ import { createRoot } from "react-dom/client";
 import { FuzzySuggester } from ${JSON.stringify(join(root, "src/ui/components/FuzzySuggester.tsx"))};
 import { SavedRelationshipPendingError } from ${JSON.stringify(join(root, "src/adapters/obsidian/relationshipMetadataWrite.ts"))};
 import { PartialRelatedFileError } from ${JSON.stringify(join(root, "src/adapters/obsidian/relatedFileOutcome.ts"))};
-import { CreationCompletionSelect, creationCompletionValue } from ${JSON.stringify(join(root, "src/ui/features/CreationCompletionSelect.tsx"))};
+import { CreationCompletionSelect } from ${JSON.stringify(join(root, "src/ui/features/CreationCompletionSelect.tsx"))};
+import {resolveCreationAfterSaving,creationAfterSavingActions,effectiveCreationAfterSaving,sanitizeCreationAfterSaving} from ${JSON.stringify(join(root,"src/core/plex/createdNoteDestination.ts"))};
 import {ontologyConfiguration} from ${JSON.stringify(join(root,"src/core/contracts/ontologyConfiguration.ts"))};
 import {normalizeFieldName} from ${JSON.stringify(join(root,"src/core/contracts/fieldName.ts"))};
 import {ontologyFieldViews,ontologyFieldDetail,ontologyFuzzyMatches,ontologySelectionFields} from ${JSON.stringify(join(root,"src/ui/features/ontologyPresentation.ts"))};
@@ -1150,7 +1151,9 @@ ${production}
    app: { vault: { on: () => ({}), offref: () => {}, getFileByPath: path => [origin, target].find(page => page.path === path)?.file,
     getAllFolders: includeRoot => { check(includeRoot === true, "folder inventory must include the vault root"); folderEnumerations++; return [{ path: "/" }, { path: "Projects" }, { path: "Projects/Ideas" }]; } } },
    settings: { editNewNodeAfterCreate: false, newNodeDefaultType: "markdown",ontologyPairingVersion:1,hierarchy:{hidden:[],parents:["parent"],children:["children","review","example"],leftFriends:[],rightFriends:[],previous:[],next:[],exclusions:[]} },
-   translator: (key) => key, isExcalidrawAvailable: () => false, defaultOntologyField: () => "children",
+   createdNoteCompletionControl(_host,options={}){const context={desktop:true,sidepanel:false,another:options.another!==false,editable:options.editable!==false,follow:options.follow!==false};return{choices:creationAfterSavingActions(context),value:effectiveCreationAfterSaving(sanitizeCreationAfterSaving(this.settings.newNodeAfterSaving,this.settings.editNewNodeAfterCreate),context),onChange:value=>{this.settings.newNodeAfterSaving=value}}},
+   finishNewRelatedNode:async()=>{},
+   translator: (key) => key, drawingTemplateOptions: () => null, isExcalidrawAvailable: () => false, defaultOntologyField: () => "children",
    ontologyFieldsForRole: () => ["children", "review", "example"],
    allOntologyFields: () => ["children", "review", "example", "parent"],
    ontologyRoleForField: field => field === "parent" ? "parent" : ["children", "review", "example"].includes(field) ? "child" : null,
@@ -1217,7 +1220,7 @@ ${production}
   plugin.saveSettings = async () => {};
   flushSync(() => root.render(createElement(RelatedNoteComposer, { key: "all-directions", plugin, origin, session, initialRole: "child", fixedTarget: target })));
   const changeSelect = (selector, value) => flushSync(() => { const element=host.querySelector(selector); element.value=value; element.dispatchEvent(new Event("change", {bubbles:true})); });
-  check(host.querySelector('.kplex-add-related-completion select').value === "return", "configured existing-note action must show Return");
+  check(host.querySelector('.kplex-add-related-completion select').value === "sidecar", "configured action must retain the migrated Sidecar preference");
   check(![...host.querySelector('.kplex-add-related-completion select').options].some(option=>option.value==="configured"), "ambiguous configured choice remains visible");
   const direction=host.querySelector('.kplex-add-related-role-select');
   check(direction.parentElement===host.querySelector('.kplex-add-related-ontology-search').parentElement, "direction is not beside the ontology field");
@@ -1231,9 +1234,12 @@ ${production}
   flushSync(() => host.querySelector('.kplex-add-related-link-button').click()); await new Promise(resolve=>setTimeout(resolve,0));
   check(intents.length===1 && intents[0][1]==='parent' && intents[0][3]==='parent', "All reclassified a known ontology field");
   flushSync(() => root.render(createElement(RelatedNoteComposer, { key: "effective-default", plugin, origin, session, initialRole: "child" })));
-  check(host.querySelector('.kplex-add-related-completion select').value==='edit', "configured create action must show Edit note");
+  check(host.querySelector('.kplex-add-related-completion select').value==='sidecar', "configured create action must retain Sidecar");
   const footer=host.querySelector('.kplex-add-related-footer');
-  check(footer.contains(host.querySelector('.kplex-create-edit-toggle')) && footer===host.querySelector('.kplex-add-related-form').lastElementChild, "completion controls are not together at the bottom");
+  check(footer.querySelectorAll('select').length===1&&!footer.querySelector('input[type=checkbox]')&&footer===host.querySelector('.kplex-add-related-form').lastElementChild, "After saving must be one control at the bottom");
+  check([...footer.querySelector('select').options].map(option=>option.value).join(',')==='return,another,follow,sidecar,editor,editor-maximized,tab,window',"Unified choices were omitted or reordered");
+  changeSelect('.kplex-add-related-completion select','editor-maximized');
+  check(plugin.settings.newNodeAfterSaving==='editor-maximized',"Explicit completion preference was not remembered");
   plugin.settings.editNewNodeAfterCreate=false; session.continuation='return';
   // Hold an actual drawing submission after durability: ordinary progress must never offer recovery.
   const style = document.createElement("style"); style.textContent = ${JSON.stringify(readFileSync(join(root, "styles.css"), "utf8"))}; document.head.append(style);

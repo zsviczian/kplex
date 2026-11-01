@@ -79,3 +79,35 @@ require them to stay unchanged. A ready graph label alone does not establish sou
 The accepted fallback covers requested neighborhoods and complete body-only virtual/URL search vocabulary through the existing canonical compiler’s node projection. [Final SI5 acceptance](validation/settings-independent-indexing-si5-acceptance-2026-10-04.md) records current automated/native coverage, maintainer-reported physical iPad/Android passes and numerical measurement limits. The [historical SI5 report](validation/settings-independent-indexing-si5-progress-2026-10-03.md) retains earlier source-adoption, watchdog/SIGTRAP and CLI failures alongside subsequent successful exact-build restarts; a crash signal alone does not establish an out-of-memory cause. Synthetic dense-hub/high-node redesign and further cold optimization remain outside accepted SI5 scope.
 
 Run restart/fault drivers serially. Defer asynchronous native probe work until after returning the CLI's initial response, then poll the completion token; long work must remain cancellable when that exact probe/controller is retired. Keep visible K-Plex demand during fixture maintenance. A source-backed partial baseline correctly refuses to persist complete acceleration: a disposable small-fixture setup may seed it explicitly, but never count that build as a zero-build restart result or add it to the production startup path.
+
+## Provisional-center navigation regressions
+
+A startup-race fixture must prove that global indexing did not silently make the
+target available. Initialize the ordinary test instance before swapping in a
+separate disposable index; a still-running cache restore can otherwise publish
+through the plugin's current index reference. Capture and restore the original
+index, view/layout state and settings independently of scenario success.
+
+For a bounded host-preview test, hold the disposable index's existing P1
+scheduler lease while allowing P1 previews to run. Assert that startup readiness
+is false and the target is absent from global state at the decisive click; a
+zero-page global state is stronger evidence. Release the lease during owned
+cleanup and destroy the disposable index. Do not change production scheduling.
+Avoid `focusInKplex()` inside the measured startup transition: it intentionally
+calls `ensureIndexReady()`. Use the normal already-mounted surface's navigation
+notification after fixture setup, then exercise the actual node/history control.
+
+Check the connected note, toolbar, pins, exact accepted center, preview ownership
+and recovery through available history. Also assert that selecting a placeholder
+did not create a file. Record synthetic scheduling and programmatic input limits.
+The [2026-11-01 placeholder record](validation/placeholder-startup-navigation-2026-11-01.md)
+contains before/after regression and exact-build native evidence.
+
+A lost CLI response does not authorize replaying an operation. Preserve the
+controller, inspect its completion and cleanup receipt, and retire only the
+confirmed-settled owned collector. Pure task-state reads can be retried directly;
+keep acknowledgements for operations that can change state. Never force-close
+Obsidian to recover a collector while another vault is open. For explicitly
+read-only production investigations, make only observational probes. Artifact
+copying requires its own authorization; reloading/navigation can persist state
+and is not implied by artifact-only authorization.

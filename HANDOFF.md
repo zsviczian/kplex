@@ -19,18 +19,37 @@ Obsidian is the production host; preserve the established portable semantic, ide
 
 ---
 
-# PR240 public API and Obsidian CLI v1
+# Menu targets and CSS compatibility follow-up
 
-State: accepted/inactive for implementation and Windows validation. Main validation agent to maintainer for review and merge authorization. No automatic refactor continuation.
+Branch: `codex/kplex-creation-navigation`, draft [PR #249](https://github.com/zsviczian/kplex/pull/249).
+The maintainer authorized Git/PR publication for the separate Help agent. Do not edit kplex-help,
+merge K-Plex or release it without further authorization.
 
-Identity: EXISTING branch 2026-10-30-public-api-cli. PR239 was implemented, fully validated and pushed as 6ce6b5b; it remains draft/unmerged. PR240 includes that dependency and latest main f99aa39 (merged PR237), via 618c5f4. Development agents returned uncommitted work; root reviewed, corrected and delivered it on the same branch. No PR was merged by this task.
+The latest menu fix keeps the selected native file across startup/lazy graph and catalog gaps.
+Explicit native availability grants only a detached facade; ordinary search remains catalog-only.
+Explicit opens reroot the chosen view, retaining old-editor save/refusal and native identity guards.
+Open reuses/reveals a Plex, new tab group creates a separate group, and unresolved links now have
+the same submenu through a guarded native link-menu hook. No placeholder file is created.
 
-Outcome: versioned trusted API, early ontology/descriptions/inverse discovery, bounded canonical graph/evidence/search reads, actual read-only GraphQL, truthful coverage, committed per-canvas snapshots/context, targeted native actions, and canonical configuration preview/confirmed queued import/readback. Public Markdown export reuses merged #237's exact scene capture/formatter; image #238 remains unavailable. Official Obsidian CLI eval calls the same API. No additional indexing pass, default source read/hydration, duplicate settings writer, classifier, listener or remote service. C14 remains paused.
+Final menu evidence: 33 creation/menu checks, 11 editor-navigation checks, 25 localization checks,
+10 native destinations, targeted lint and build pass. Native checks verify actual rendered targets,
+recent sync, an unrelated active note, partial publication, group separation, popout and sidepanel
+ownership. The original failure is preserved in the before-fix receipt. See
+`docs/validation/file-menu-targets-2026-11-01.md` and the updated Help-author reference.
+The maintainer explicitly requested no full regression cycle; none was run.
 
-Independent review covered lifecycle/owning-document and session leases, immutable settings ownership and ABA guards, revision coherence, canonical-vs-occurrence identity, bounded work/output, literal authored text, privacy, existing components, meaningful documentation and scanner/layer direction. Review fixes include pure keyboard-key to public-occurrence translation, group/decorative authority, finite scene/variable metadata, and complete callback-fixture dependencies. No existing assertion or timing/work bound was weakened.
+Additional requested K-Plex CSS fix replaces three clip-path declarations with equivalent legacy
+rectangular clipping. Eighteen area/geometry checks and a real browser hit-test pass; clipping does
+not cover recovery controls and native fullscreen releases it. See
+`docs/validation/editor-clipping-css-2026-11-01.md`. Source/build is ready for installation;
+production was untouched during this follow-up.
 
-Validation: Node 22.22.2, Windows 10.0.26200, Obsidian 1.14.5/installer 1.14.5, disposable Small vault only. Fullverify: architecture 9/core 130/main 1,749/browser 425/sources 357/IndexedDB 855, no skips; actual installed types, scanner, production build and exact-build native smoke pass. The existing 20,015-owner cached-publication regression passes exact metadata/evidence/gates/degrees, cancellation and zero IO. Final native API and reload probes pass on the same artifact: independent main/popout roots/views/filters/actions, Facets preset readback, stable canvas migration identity, Markdown bytes equal native preview, confirmed disabled-lens import with readback, zero passive reads/parses/acquisitions/rebuilds/semantic invalidations/allPages, old handles retired and host ports released. Configuration/enablement bytes and baseline layout restored.
+Companion work is merged: EA Scripts #6 into main, Excalidraw #3029 into master. Excalidraw's
+separately requested two !important fixes were committed directly on master at 763f6ae3 and pushed;
+seven focused fullscreen tests and CSS parsing/minification passed. No new branch or full suite.
 
-Durable records: docs/validation/ontology-descriptions-239-2026-10-30.md; docs/validation/public-api-cli-240-2026-10-30.md; docs/validation/public-api-cli-240-summary.json. API/CLI usage and architecture ownership are documented. Runtime was frozen during the successful full run; later changes are validation documentation and native-driver robustness only.
-
-Remaining: macOS window lifecycle, Obsidian 1.13 minimum-host acceptance, physical mobile input and actual two-device Sync. Highest-probability manual checks: editor-save refusal during targeted navigation, macOS popout teardown/migration, physical mobile controls under incomplete indexing. No paint or comparative startup-performance claim. Keep both PRs draft/unmerged until the maintainer authorizes the next repository action. No implementation work remains pending in this handoff.
+Earlier accepted K-Plex work includes remembered After saving destinations, reference relocation,
+folder reveal and startup placeholder/history recovery. Earlier complete verification at 92b7508
+passed 3650 checks; that result is historical, not a claim for this later source. Physical mobile
+and Windows remain separate platform acceptance. Excalidraw's earlier full recovery record remains
+in its repository; no full regression was rerun for the subsequent dialog or CSS refinements.

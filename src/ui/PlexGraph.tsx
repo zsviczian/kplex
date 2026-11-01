@@ -30,8 +30,10 @@
  * Their first current local preparation may fit once; manual/restored cameras and live editors win.
  * File-location menu actions share captured action targets and delegate to guarded native APIs.
  * Markdown and PNG export detach only the committed presentation; their dialogs own no graph reader.
+ * File and folder Open menus share native reveal capabilities; captured folder incarnations cannot transfer to a same-path replacement.
  */
-import {editorOverlayFrame} from "./editorOverlayFrame";
+import { wheelCamera } from "./components/wheelCamera";
+import {editorOverlayClip, editorOverlayFrame} from "./editorOverlayFrame";
 import {edgeViewportClip, edgeViewportEndpoints, revealRowScrollTop, editorToolbarInsets} from "./plexViews/areaVisibility";
 import {ontologyConfiguration} from "../core/contracts/ontologyConfiguration";
 import {hasDirectionalCaption,directionalRelationCaption} from "../core/plex/directionalRelationCaption";
@@ -129,7 +131,7 @@ import { acceptPlexKeyEvent } from "./actionKeyboardOwnership";
 import { effectiveActionBindings } from "../core/plex/actionPreferences";
 import { formatActionBinding } from "./actionPresentation";
 import { readObsidianPresentationEnvironment } from "../adapters/obsidian/presentationEnvironment";
-import { fileRevealMenuState, revealFile } from "../adapters/obsidian/fileReveal";
+import { fileRevealMenuState, nativeRevealTarget, revealFile } from "../adapters/obsidian/fileReveal";
 import {exportRelationshipOntology} from "../core/plex/relationshipOntology";
 import type {MarkdownOntology} from "../core/plex/export/mindMapMarkdown";
 import {captureMindMapMarkdown} from "./export/captureMindMapMarkdown";
@@ -1643,10 +1645,10 @@ export function PlexGraph({ viewDefinition = classicViewDefinition, viewSession,
     overlay.style.setProperty("--kplex-editor-camera-scale", String(current.scale));
     for (const side of ["top", "right", "left"] as const) overlay.style.setProperty(`--kplex-editor-toolbar-${side}`, `${toolbar[side]}px`);
     if (area) {
-      /** Each clip is relative to its own frame; native content and outer chrome retain the same aperture. */
-      const insetClip = (box: typeof body): string => `inset(${Math.max(0, area.top - box.top)}px ${Math.max(0, box.left + box.width - area.left - area.width)}px ${Math.max(0, box.top + box.height - area.top - area.height)}px ${Math.max(0, area.left - box.left)}px)`;
-      overlay.style.setProperty("--kplex-editor-frame-clip", insetClip(frame));
-      overlay.style.setProperty("--kplex-editor-body-clip", insetClip(body));
+      // Positioned document/frame elements share the area aperture through legacy rect clipping;
+      // the separate recovery toolbar remains outside the clip on older Obsidian WebViews.
+      overlay.style.setProperty("--kplex-editor-frame-clip", editorOverlayClip(frame, area));
+      overlay.style.setProperty("--kplex-editor-body-clip", editorOverlayClip(body, area));
     } else {
       overlay.style.removeProperty("--kplex-editor-frame-clip");
       overlay.style.removeProperty("--kplex-editor-body-clip");
@@ -2369,8 +2371,7 @@ export function PlexGraph({ viewDefinition = classicViewDefinition, viewSession,
     if (!el) return;
     const wheel = (e: WheelEvent) => {
       const target = e.target as Element | null;
-      // Native wheel scrolling is retained only inside bounded thought lists. Everywhere else
-      // the wheel zooms, regardless of whether the wheel/middle button is currently pressed.
+      // Editors and bounded lists keep native scrolling; the canvas uses the selected navigation mode.
       if (target?.closest?.(".kplex-central-editor-content, .modal-container")) return;
       if (!e.ctrlKey && !e.metaKey && target?.closest?.(".kplex-zone-scroll, .kplex-expanded-scroll")) return;
       e.preventDefault();
@@ -2378,12 +2379,9 @@ export function PlexGraph({ viewDefinition = classicViewDefinition, viewSession,
       const rect = el.getBoundingClientRect();
       const px = e.clientX - rect.left;
       const py = e.clientY - rect.top;
-      const factor = Math.exp(-e.deltaY * 0.0015);
       applyCamera((c) => {
-        const nextScale = Math.max(0.3, Math.min(Platform.isIosApp ? IOS_MAX_ZOOM : MAX_ZOOM, c.scale * factor));
-        const worldX = (px - c.x) / c.scale;
-        const worldY = (py - c.y) / c.scale;
-        const next = { scale: nextScale, x: px - worldX * nextScale, y: py - worldY * nextScale };
+        const next = wheelCamera(c, e, {x: px, y: py}, settings.trackpadNavigation,
+          Platform.isIosApp ? IOS_MAX_ZOOM : MAX_ZOOM, rect.height);
         // If the middle/left/right pan gesture is also active, reset its anchor to the newly
         // zoomed camera so the next pointermove cannot snap back to the pre-zoom position.
         const drag = panDrag.current;
@@ -2398,7 +2396,7 @@ export function PlexGraph({ viewDefinition = classicViewDefinition, viewSession,
     };
     el.addEventListener("wheel", wheel, { passive: false });
     return () => el.removeEventListener("wheel", wheel);
-  }, [centralEditorMaximized]);
+  }, [centralEditorMaximized, settings.trackpadNavigation]);
 
   useEffect(() => {
     const el = viewport.current;
@@ -4865,9 +4863,13 @@ export function PlexGraph({ viewDefinition = classicViewDefinition, viewSession,
       const page = graphActionPage(context); if (!page) return;
       if (destination === "browser" && page.url) return plugin.openUrlInBrowser(page.url, viewport.current?.ownerDocument);
       if (destination === "web-viewer" && page.url) return plugin.openUrlInWebViewer(page.url);
+      if (destination === "system" || destination === "navigation") {
+        const target = nativeRevealTarget(plugin.app, page);
+        if (target) return revealFile(plugin.app, target, destination,
+          readObsidianPresentationEnvironment(viewport.current?.ownerDocument.defaultView ?? undefined));
+        return;
+      }
       if (!page.file) return;
-      if (destination === "system" || destination === "navigation") return revealFile(plugin.app, page.file, destination,
-        readObsidianPresentationEnvironment(viewport.current?.ownerDocument.defaultView ?? undefined));
       if (destination === "focus-tab") return plugin.focusOpenFileTab(page.file);
       if (destination === "new-tab") return plugin.openFileInNewTab(page.file);
       if (destination === "split") return plugin.openFileInAdjacentPane(page.file, hostLeaf);
@@ -4876,11 +4878,12 @@ export function PlexGraph({ viewDefinition = classicViewDefinition, viewSession,
       const page = graphActionPage(context);
       if (destination === "browser") return Boolean(page?.url);
       if (destination === "web-viewer") return Boolean(page?.url) && plugin.canOpenUrlInWebViewer();
-      if (!page?.file) return false;
       if (destination === "system" || destination === "navigation") {
+        if (!page || !nativeRevealTarget(plugin.app, page)) return false;
         const reveal = fileRevealMenuState(plugin.app, readObsidianPresentationEnvironment(viewport.current?.ownerDocument.defaultView ?? undefined));
         return destination === "system" ? reveal.systemLabel !== null : reveal.navigation;
       }
+      if (!page?.file) return false;
       const state = plugin.getFileOpenMenuState(page.file);
       return destination === "focus-tab" ? state.focusOpenTab : destination === "new-tab" || destination === "split" && state.adjacentPane || destination === "window" && state.popoutWindow;
     });
@@ -4913,6 +4916,13 @@ export function PlexGraph({ viewDefinition = classicViewDefinition, viewSession,
     },
     clearSelection: /** Pointer graph gestures retire typing and highlighting without affecting native controls. */ () => { typeSelection.clear(); selection.select(null); },
     normalMode: !viewFailed && !areaSettingsMode && !connectDrag && !nodeDrag && !resizingArea && !relationshipUpdating,
+    readCenterOccurrence: /** Creation may edit only the unique current attention occurrence; rooted/repeated/transitioning scenes cannot guess. */ () => {
+      if (pathChangedThisRender || viewFailed || sceneTransitioning) return null;
+      const candidates = scene.nodes.filter(/** Exclude neighbors and historical rooted occurrences. */ node => node.page.path === activePath);
+      if (candidates.length !== 1) return null;
+      const node = candidates[0], occurrenceId = classic ? sceneNodeKeys.get(node) : occurrenceKey(node);
+      return occurrenceId ? {node: actionNodeRef(node.page), occurrenceId} : null;
+    },
     readSelected: /** Validate exact selected occurrence against this render before exposing its semantic reference. */ () => {
       const selected = selection.readSelected(); if (!selected) return null;
       const page = scene.nodes.find(node => sceneNodeKeys.get(node) === selected.id)?.page ?? index.get(selected.path);
@@ -5096,10 +5106,14 @@ export function PlexGraph({ viewDefinition = classicViewDefinition, viewSession,
     menu.addSeparator();
     const capturedPage = actionNodeRef(page);
     const capturedPersistent = persistent ? actionNodeRef(persistent) : null;
+    const capturedNativeTarget = persistent ? nativeRevealTarget(plugin.app, persistent) : null;
+    const capturedFolderPath = persistent?.isFolder ? capturedNativeTarget?.path : null;
     /** Preserve menu-launch native identity even when a canonical graph page mutates while open. */
     const runCapturedNodeAction = (id: ActionId, target: GraphPage): void => {
       const reference = target === page ? capturedPage : capturedPersistent;
       if (!reference) return;
+      if (capturedFolderPath && (id === "node.open.system" || id === "node.open.navigation")
+        && nativeRevealTarget(plugin.app, {file: null, isFolder: true, path: `folder:${capturedFolderPath}`}) !== capturedNativeTarget) return;
       void plugin.actionManager.dispatch({ id, source: "context-menu", surfaceId: actionSurfaceId,
         target: { kind: "explicit", node: reference, occurrenceId: occurrenceId ?? sceneNodeKeys.get(node) } });
     };
@@ -5123,10 +5137,12 @@ export function PlexGraph({ viewDefinition = classicViewDefinition, viewSession,
     }
 
     const persistentFile = persistent?.file;
-    if (persistentFile && persistent && page.transient?.kind !== "section") {
-      const openState = plugin.getFileOpenMenuState(persistentFile);
-      const revealState = fileRevealMenuState(plugin.app,
-        readObsidianPresentationEnvironment(viewport.current?.ownerDocument.defaultView ?? undefined));
+    const revealState = fileRevealMenuState(plugin.app,
+      readObsidianPresentationEnvironment(viewport.current?.ownerDocument.defaultView ?? undefined));
+    if (persistent && capturedNativeTarget && page.transient?.kind !== "section"
+      && (persistentFile || revealState.systemLabel || revealState.navigation)) {
+      const openState = persistentFile ? plugin.getFileOpenMenuState(persistentFile)
+        : {focusOpenTab: false, adjacentPane: false, popoutWindow: false};
       addNativeSubmenu(menu, translate("graph.openMenu"), "external-link",
         /** Populate platform-supported destinations without replacing the owning context menu. */
         (openMenu) => {
@@ -5136,7 +5152,7 @@ export function PlexGraph({ viewDefinition = classicViewDefinition, viewSession,
             .setIcon("scan-eye")
             .onClick(/** Reveal the selected file through native workspace focus. */ () => runCapturedNodeAction("node.open.focus-tab", persistent)));
         }
-        openMenu.addItem(/** Configure an independent file tab on every form factor. */ (item) => item
+        if (persistentFile) openMenu.addItem(/** Configure an independent file tab on every form factor. */ (item) => item
           .setTitle(translate("graph.openNewTab"))
           .setIcon("file-plus-2")
           .onClick(/** Create a tab through the host instead of changing the graph center. */ () => runCapturedNodeAction("node.open.new-tab", persistent)));

@@ -1,6 +1,6 @@
 /**
  * Host-bound surface registration and focused-region keyboard delivery. App and graph provide
- * fresh implementation/snapshot ports; one dispatcher accepts native events before asynchronous
+ * fresh implementation/snapshot ports, including exact displayed-center occurrence identity; one dispatcher accepts native events before asynchronous
  * work and serves both the focus-leased Obsidian Scope and root-local DOM fallback. Migration,
  * Wander Escape has session priority; accepted user actions pause through a caller-owned capability.
  * Unmount and preference changes release precisely their own leases, listeners and registrations.
@@ -39,6 +39,8 @@ export interface GraphActionPorts {
   clearWander?: () => void;
   navigateWander?: (destination: WanderDestination) => boolean;
   readEditorBindingId?: () => string | undefined;
+  /** Expose only a unique displayed attention occurrence; a pending/ambiguous scene grants none. */
+  readCenterOccurrence?: () => {node: NodeRef; occurrenceId: string} | null;
   readSelected: () => { node: NodeRef; occurrenceId: string } | null;
   normalMode: boolean;
   clearSelection?: () => void;
@@ -73,6 +75,7 @@ export function usePlexActions(options: {
       mounted: Boolean(root?.isConnected), visible: latest.plugin.isKplexLeafVisible(latest.hostLeaf),
       windowId: latest.plugin.actionWindowId(root?.ownerDocument.defaultView),
       center: latest.center ? actionNodeRef(latest.center) : null,
+      centerOccurrence: latest.graph.current?.readCenterOccurrence?.() ?? null,
       selected: latest.graph.current?.readSelected() ?? null,
       focusRegion: root ? plexFocusRegion(root, root.ownerDocument.activeElement) : "external",
       commandFocusRegion: commandFocusRegion.current,

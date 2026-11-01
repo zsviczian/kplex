@@ -1,0 +1,38 @@
+{
+  "startedAt": "2026-11-01T11:40:50.204Z",
+  "node": "v22.22.2",
+  "status": "passed",
+  "artifacts": {
+    "main.js": "d10ee1c54c285978f91a5719268ddf409f6b262b791097dbb8d5db24f2f695ca",
+    "styles.css": "189381dcf15b3e90bb950b97f243ce6e364874d403c2ec7750b3e652ea2f5f8f",
+    "manifest.json": "2822c38463c03ace4f017453679572d462534ce2a9c9558fd7593f259b01bfa1"
+  },
+  "result": {
+    "earlyPlaceholder": {
+      "placeholderInGlobalState": false,
+      "startupReady": false,
+      "center": true,
+      "toolbar": true,
+      "pins": true,
+      "contributor": true,
+      "ownPreview": true,
+      "globalPages": 0
+    },
+    "loadingHistoryRecovered": true,
+    "placeholderRemainsUncreated": true,
+    "limitations": "Synthetic global-readiness hold, native metadata/React/action/preview owners; programmatic click, not physical pointer acceptance"
+  },
+  "cleanup": "passed",
+  "transport": [],
+  "completedAt": "2026-11-01T11:41:00.667Z",
+  "sourceCheckpoint": "97a10b15a010d0add16f65c8d03ab76cbc90d723",
+  "host": {
+    "platform": "macOS",
+    "obsidian": "1.15.0"
+  },
+  "maintainerProductionConfirmation": "Both history navigation and clicking the placeholder work after manual K-Plex reload.",
+  "fixture": {
+    "backgroundHold": "Existing GraphIndex P1 scheduler lease blocks global background publication",
+    "driverSha256": "c421227de4bb4429b831c4baba8fc115fd8fc95ff9d4cf0d7310d66c4ee4b596"
+  }
+}

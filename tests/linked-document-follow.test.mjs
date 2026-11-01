@@ -10,6 +10,8 @@ import ts from "typescript";
 import {build} from "esbuild";
 const sessionBuild = await build({entryPoints:["src/ui/KplexDocumentSession.ts"],bundle:true,write:false,platform:"node",format:"esm"});
 const {KplexDocumentSession} = await import('data:text/javascript;base64,' + Buffer.from(sessionBuild.outputFiles[0].text).toString('base64'));
+const actionBuild=await build({entryPoints:['src/application/ActionManager.ts'],bundle:true,write:false,platform:'node',format:'esm'});
+const {ActionManager}=await import('data:text/javascript;base64,'+Buffer.from(actionBuild.outputFiles[0].text).toString('base64'));
 const actionNodeRef = page => ({identity:page.path,path:page.path,kind:page.file?"file":"ghost"});
 import {loadPortableModules} from "./support/portableTypeScript.mjs";
 const {exports: {DoubleTapGesture}} = loadPortableModules(["src/ui/components/DoubleTapGesture.ts"]);
@@ -612,7 +614,8 @@ test("ordinary navigation requests still activate after local identity remapping
   const f=appFollowFixture(),requested=[];
   const request=production("navigationRequest",{plugin:f.state.plugin,activate:(...args)=>requested.push(args)},"src/ui/App.tsx");
   request("B.md");request("missing.md");
-  assert.deepEqual(requested,[[f.pages.get("B.md"),true]]);
+  assert.deepEqual(requested,[[f.pages.get("B.md"),true,true,"user",false]]);
+  request("B.md",undefined,true);assert.deepEqual(requested.at(-1),[f.pages.get("B.md"),true,true,"user",true]);
 });
 
 test("native URL follow retains hidden/unpublished intent, fences owner changes and accepts exactly once",()=>{
@@ -961,4 +964,48 @@ test('passive recent-tab synchronization never creates a native destination when
  context.syncSidecarToPage=async()=>{opens++;};
  await Promise.all(Array.from({length:20},()=>context.syncPageToDocumentLeaf({file:files.get('B.md'),url:null},host)));
  assert.equal(creates,0);assert.equal(opens,0);
+});
+
+/** History must remain usable even if no graph or center is currently available. */
+test('loading App dispatches exact saved destinations without a graph action owner',async()=>{
+ const target={path:'Previous.md',file:{path:'Previous.md'}},calls=[];
+ let current=target,accepted=true;
+ const fallback=production('savedDestinationAction',{actionPage:()=>current,activate:(...args)=>{calls.push(args);return accepted}},'src/ui/App.tsx');
+ const manager=new ActionManager({readCommandContext:()=>({sharedCenter:null})});
+ manager.registerSurface({id:'loading',generation:1,readSnapshot:()=>({mounted:true,visible:true,center:null,selected:null,focusRegion:'toolbar',interactionRevision:0}),implementations:{'node.activate':fallback}});
+ const request={id:'node.activate',source:'toolbar',surfaceId:'loading',target:{kind:'explicit',node:actionNodeRef(target)}};
+ try{
+  assert.equal((await manager.dispatch(request)).status,'completed');
+  assert.deepEqual(calls,[[target,true,true,'user',true]],'Recovery reuses native/editor/root admission');
+  accepted=false;assert.equal((await manager.dispatch(request)).status,'unavailable');
+  const count=calls.length;current=null;
+  assert.equal((await manager.dispatch(request)).status,'unavailable');assert.equal(calls.length,count,'Missing targets never navigate');
+  current={...target,transient:{kind:'group'}};
+  assert.equal((await manager.dispatch(request)).status,'unavailable');assert.equal(calls.length,count);
+  current=target;
+  const context={request,target:{kind:'node',node:request.target.node,occurrenceId:'graph-occurrence'}};
+  assert.equal(fallback.availability(context).state,'disabled');
+  assert.equal(fallback.execute(context).status,'unavailable');assert.equal(calls.length,count,'Graph occurrences retain their original owner');
+ }finally{manager.dispose()}
+});
+
+for (const outcome of ['saved', 'save-failed', 'replaced-file']) test('explicit unindexed menu target waits for editor '+outcome+' before root publication', async () => {
+  const f = appFollowFixture(), page = f.pages.get('B.md'); f.pages.delete(page.path);
+  let finish, inserts = 0, root = 'A.md';
+  const view = {editors: {bindings: [{id: 'old-editor'}]}, definition: {navigation: 'rooted'}, capture: () => () => true,
+    layoutRoot: () => root, setRoot: id => {root = id; return true;}};
+  f.state.documentSession.plexView = view;
+  f.state.graphActionPorts.current = {prepareEditorTransition: () => new Promise(resolve => {finish = resolve;})};
+  f.state.plugin.index.getVaultSearchPage = (_path, file) => file === page.file ? page : undefined;
+  f.state.plugin.index.insertCreatedFile = file => {assert.equal(file, page.file); inserts++; f.pages.set(page.path, page); return page;};
+  let activate;
+  const deps = {...f.dependencies, pendingEditorNavigation: {current: null},
+    resolveActionPage: (read, reference) => read.get(reference.identity) ?? null, activate: (...args) => activate(...args)};
+  activate = production('activate', deps, 'src/ui/App.tsx');
+  assert.equal(activate(page, true, true, 'user', true), true); assert.equal(inserts, 0); assert.equal(root, 'A.md');
+  if (outcome === 'replaced-file') f.files.set(page.path, {...page.file});
+  view.editors.bindings = []; finish(outcome !== 'save-failed'); await Promise.resolve(); await Promise.resolve();
+  assert.equal(inserts, outcome === 'saved' ? 1 : 0);
+  assert.equal(f.state.renderPath, outcome === 'saved' ? page.path : 'A.md');
+  assert.equal(root, outcome === 'saved' ? page.path : 'A.md');
 });

@@ -22,7 +22,7 @@ const VIEW_KEYS = [
   "backgroundColor", "connectorStyle", "graphDepth", "groupRelations", "compactingFactor", "horizontalCompactingFactor", "compactView", "maxItemCount",
   "minLinkLength", "inverseArrowDirection", "showNeighborCount", "wrapNodeLabels", "baseFontSize", "siblingRelativeSize", "crossLinkOpacity",
   "applyPowerFilter", "parentColumns", "childColumns", "friendMaxHeight", "siblingMaxHeight", "parentMaxHeight",
-  "childMaxHeight", "animationSpeed", "layoutProfiles", "typographyProfiles", "canvasViewSettings", "allowAutozoom", "embedCentralNode", "centerEmbedWidth", "centerEmbedHeight",
+  "childMaxHeight", "animationSpeed", "layoutProfiles", "typographyProfiles", "canvasViewSettings", "allowAutozoom", "trackpadNavigation", "newNodeAfterSaving", "embedCentralNode", "centerEmbedWidth", "centerEmbedHeight",
 ] as const;
 export const SETTING_DIAGNOSTIC_KEYS = [
   ...HIERARCHY_ROLES.map((role) => `hierarchy.${role}` as const), ...SEMANTIC_KEYS, "ontologyPairs",

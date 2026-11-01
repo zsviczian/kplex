@@ -1972,6 +1972,8 @@ button.kplex-sidecar-unfold-plex,
 }
 .kplex-creation-completion-row {
   display: flex;
+  flex-wrap: wrap;
+  gap: var(--size-4-2);
   justify-content: flex-end;
   min-width: 0;
   padding: var(--size-4-3) 0;
@@ -1999,17 +2001,6 @@ button.kplex-sidecar-unfold-plex,
 .kplex-add-related-control-row .kplex-add-related-role-select {
   height: 38px;
   max-width: 100%;
-}
-.kplex-add-related-footer .kplex-create-edit-toggle {
-  background: transparent;
-  border: 0;
-  padding: 0;
-  color: var(--text-muted);
-  font-size: var(--font-ui-small);
-}
-.kplex-add-related-footer .kplex-create-edit-copy strong {
-  font-weight: normal;
-  color: var(--text-muted);
 }
 .kplex-add-related-compose-row {
   display: grid;
@@ -2664,24 +2655,6 @@ body.kplex-filter-panel-open .tooltip { z-index: 100300; }
   }
 }
 
-/* New-note creation uses the host's native checkbox-container styling so the preference looks and
-   behaves like an Obsidian toggle instead of introducing a second switch visual language. */
-.kplex-create-edit-toggle {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-  min-height: 38px;
-  padding: 4px 8px 4px 10px;
-  border: 1px solid var(--background-modifier-border);
-  border-radius: var(--radius-s);
-  background: var(--background-secondary);
-  cursor: pointer;
-  white-space: nowrap;
-}
-.kplex-create-edit-copy { display: flex; align-items: center; min-width: 0; }
-.kplex-create-edit-toggle .checkbox-container { flex: 0 0 auto; }
-
 /* Connection details is optimized for skimming provenance occurrences and hands actual editing
    off to the native Markdown source view. */
 .kplex-edge-properties-modal { width: min(860px, calc(100vw - 36px)); max-width: min(860px, calc(100vw - 36px)); }
@@ -3203,7 +3176,7 @@ button.kplex-style-manager-row { height: fit-content; }
   border: 1px solid var(--background-modifier-border-hover);
   border-radius: inherit;
   background: var(--background-primary);
-  clip-path: var(--kplex-editor-frame-clip, none);
+  clip: var(--kplex-editor-frame-clip, auto);
   pointer-events: none;
 }
 .kplex-central-editor-placeholder {
@@ -3262,7 +3235,7 @@ button.kplex-style-manager-row { height: fit-content; }
   inset: 0;
   border-radius: inherit;
   background: var(--background-primary);
-  clip-path: var(--kplex-editor-body-clip, none);
+  clip: var(--kplex-editor-body-clip, auto);
 }
 .kplex-central-editor-content.is-edit-mode {
   cursor: default;
@@ -3292,7 +3265,7 @@ button.kplex-style-manager-row { height: fit-content; }
   border-radius: 0;
   box-shadow: none;
 }
-.kplex-central-editor-overlay.is-native-view-fullscreen .kplex-central-editor-document { clip-path: none; }
+.kplex-central-editor-overlay.is-native-view-fullscreen .kplex-central-editor-document { clip: auto; }
 .kplex-central-editor-overlay.is-native-view-fullscreen .kplex-central-editor-leaf-host,
 .kplex-central-editor-overlay.is-native-view-fullscreen .kplex-embedded-workspace-root {
   border-radius: 0;
@@ -4001,4 +3974,17 @@ button.kplex-sidecar-unfold-plex:focus-visible,
   text-overflow: ellipsis;
   white-space: pre;
   text-align: left;
+}
+
+.kplex-drawing-template {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--size-4-2);
+  margin-block: var(--size-4-2);
+}
+
+.kplex-drawing-template select {
+  min-width: 0;
+  max-width: 70%;
 }

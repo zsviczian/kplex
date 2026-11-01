@@ -29,9 +29,11 @@
  * typing/composition never publishes transient hierarchy values or queues per-character graph work.
  * Fresh installations receive editable English descriptions for their English factory vocabulary;
  * saved dictionaries, including explicit clears, never inherit replacement wording on reload.
+ * One remembered after-saving action replaces the new-note editing toggle, retaining its migration and unrelated future preferences.
  */
 import {STARTUP_INDEX_DEFAULTS, sanitizeStartupIndexPreferences, type IndexingMode, type StartupIndexPreferences} from './core/plex/startupIndexPreferences';
 import { readObsidianPresentationEnvironment } from "./adapters/obsidian/presentationEnvironment";
+import {sanitizeCreationAfterSaving, type CreationAfterSavingAction} from "./core/plex/createdNoteDestination";
 import {OntologyManagerModal} from "./ui/OntologyManagerModal";
 import {ontologyFieldViews,type OntologyFilter} from "./ui/features/ontologyPresentation";
 import {normalizeOntologyDescriptions,type OntologyDescriptions} from "./core/contracts/ontologyReadModel";
@@ -337,6 +339,8 @@ export interface KplexSettings extends StartupIndexPreferences {
   ontologySuggesterMidSentenceTrigger: string;
   boldFields: boolean;
   allowAutozoom: boolean;
+  /** Canvas-style trackpad navigation; false preserves wheel zoom. */
+  trackpadNavigation: boolean;
   allowAutofocuOnSearch: boolean;
   defaultAlwaysOnTop: boolean;
   embedCentralNode: boolean;
@@ -407,8 +411,12 @@ export interface KplexSettings extends StartupIndexPreferences {
   allowRemoteNodeImages: boolean;
   /** Remember the Create Note dialog toggle between invocations. */
   editNewNodeAfterCreate: boolean;
+  /** Shared new-file destination; the old toggle is retained solely for migration compatibility. */
+  newNodeAfterSaving: CreationAfterSavingAction;
   /** Remember which create button Ctrl/Cmd+Enter should invoke next time. */
   newNodeDefaultType: NewNodeType;
+  /** Null uses the first configured template; empty explicitly selects a blank drawing. */
+  lastDrawingTemplatePath: string | null;
   /** Whether the one-time startup indexing guidance bubble has already been shown. */
   startupIndexInfoBubbleSeen: boolean;
   /** Whether K-Plex has already shown the first-use delete confirmation/preferences prompt. */
@@ -496,6 +504,7 @@ const LEGACY_DEFAULT_SETTINGS: KplexSettings = {
   ontologySuggesterMidSentenceTrigger: "(",
   boldFields: false,
   allowAutozoom: false,
+  trackpadNavigation: false,
   allowAutofocuOnSearch: true,
   defaultAlwaysOnTop: false,
   embedCentralNode: false,
@@ -545,7 +554,9 @@ const LEGACY_DEFAULT_SETTINGS: KplexSettings = {
   attachmentImageDisplay: "thumbnail-label",
   allowRemoteNodeImages: false,
   editNewNodeAfterCreate: false,
+  newNodeAfterSaving: "return",
   newNodeDefaultType: "markdown",
+  lastDrawingTemplatePath: null,
   startupIndexInfoBubbleSeen: false,
   deletePromptInitialized: false,
   confirmFileDelete: true,
@@ -829,6 +840,9 @@ export function migrateAndMergeSettings(raw: unknown): KplexSettings {
     attachmentImageDisplay: old.attachmentImageDisplay === "label" || old.attachmentImageDisplay === "image" ? old.attachmentImageDisplay : "thumbnail-label",
     allowRemoteNodeImages: old.allowRemoteNodeImages === true,
     editNewNodeAfterCreate: Boolean(old.editNewNodeAfterCreate),
+    newNodeAfterSaving: sanitizeCreationAfterSaving(old.newNodeAfterSaving, old.editNewNodeAfterCreate === true),
+    trackpadNavigation: old.trackpadNavigation === true,
+    lastDrawingTemplatePath: typeof old.lastDrawingTemplatePath === "string" ? old.lastDrawingTemplatePath : null,
     newNodeDefaultType: old.newNodeDefaultType === "excalidraw" ? "excalidraw" : "markdown",
     startupIndexInfoBubbleSeen: Boolean(old.startupIndexInfoBubbleSeen),
     deletePromptInitialized: Boolean(old.deletePromptInitialized),
@@ -2406,6 +2420,7 @@ export class KplexSettingTab extends PluginSettingTab {
               { name: translate("settings.gateTooltip.name"), desc: translate("settings.gateTooltip.help", {key: hoverModifier}), control: {type: "toggle", key: "gateTooltipRequiresAlt"} },
               { name: translate("settings.areaOutline.name"), desc: translate("settings.areaOutline.help", {key: hoverModifier}), control: {type: "toggle", key: "areaOutlineRequiresAlt"} },
               { name: translate("settings.ui.animation.speed"), desc: translate("settings.ui.speed.multiplier.0.off.0.5.slow.1.normal.1.5.fast.2.very"), control: { type: "slider", key: "animationSpeed", min: 0, max: 2, step: 0.1 } },
+              { name: translate("settings.trackpad"), desc: translate("settings.trackpad.help"), control: {type: "toggle", key: "trackpadNavigation"} },
               { name: translate("settings.ui.auto.fit.on.navigation"), control: { type: "toggle", key: "allowAutozoom" } },
               { name: translate("settings.ui.open.k.plex.in.a.pop.out.window"), desc: translate("settings.ui.when.k.plex.is.opened.and.no.k.plex.view.already.exists"), control: { type: "toggle", key: "startInPopout" } },
               { name: translate("settings.ui.confirm.before.deleting.files"), desc: translate("settings.ui.ask.before.a.node.context.menu.action.deletes.a.note.usi"), control: { type: "toggle", key: "confirmFileDelete" } },

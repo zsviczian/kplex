@@ -1,6 +1,7 @@
 /**
  * Native Obsidian shell and shared React composer for related-note creation. The plugin owns mutations; the modal owns focus, suggestions, failure-only recovery and cleanup, and consumes localized copy. Recovery retains the exact durable file and displays the failure reason without enabling fresh creation.
  */
+import { DrawingTemplateSelect } from "./features/DrawingTemplateSelect";
 import { SavedRelationshipPendingError } from "../adapters/obsidian/relationshipMetadataWrite";
 import { Modal, Notice, type TFile, type Scope, type WorkspaceLeaf } from "obsidian";
 import { createElement, useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -18,7 +19,8 @@ import { ObsidianIcon } from "./ObsidianIcon";
 import { fitMobileModalToViewport } from "./mobileModalViewport";
 import { PartialRelatedFileError } from "../adapters/obsidian/relatedFileOutcome";
 import type { CompletionIntent } from "../core/plex/actions";
-import { CreationCompletionSelect, creationCompletionValue } from "./features/CreationCompletionSelect";
+import {resolveCreationAfterSaving, type CreationAfterSavingAction} from "../core/plex/createdNoteDestination";
+import { CreationCompletionSelect } from "./features/CreationCompletionSelect";
 
 /**
  * Confirmed saved relationship state; a pending publication remains a committed vault write.
@@ -93,12 +95,13 @@ function RelatedNoteComposer({
   const [browseOntology, setBrowseOntology] = useState(false);
   const [busy, setBusy] = useState(false);
   const busyRef = useRef(false);
-  const [continuation, setContinuation] = useState<CompletionIntent>(session.continuation);
+  const [continuation, setContinuation] = useState<CreationAfterSavingAction>(() => resolveCreationAfterSaving(session.continuation, plugin.createdNoteCompletionControl(hostLeaf).value));
   const [savedPending, setSavedPending] = useState<GraphPage | null>(null);
   const [partialFile, setPartialFile] = useState<TFile | null>(null);
   const [partialFailure, setPartialFailure] = useState<string | null>(null);
-  const [editAfterCreate, setEditAfterCreate] = useState(() => plugin.settings.editNewNodeAfterCreate);
   const excalidrawAvailable = plugin.isExcalidrawAvailable();
+  const [templateChoices] = useState(() => plugin.drawingTemplateOptions());
+  const [templatePath, setTemplatePath] = useState(() => templateChoices?.selected ?? "");
   const [defaultCreateType, setDefaultCreateType] = useState<"markdown" | "excalidraw">(() =>
     plugin.settings.newNodeDefaultType === "excalidraw" && excalidrawAvailable ? "excalidraw" : "markdown",
   );
@@ -168,25 +171,23 @@ function RelatedNoteComposer({
     return plugin.rememberRelationshipOntology(role, field);
   };
 
-  /** Complete a durable save for the current invocation; new-file writes can finish while graph reconciliation is pending. */
-  const complete = async (page: GraphPage, intent: CompletionIntent, createdFile: boolean, state: RelatedNoteCommit["state"] = "saved-published"): Promise<void> => {
-    onCommitted?.({ state, page });
+  /** Complete a durable save using one remembered outcome; non-files cannot inherit editor actions. */
+  const complete = async (page: GraphPage, intent: CompletionIntent | CreationAfterSavingAction, _createdFile: boolean, state: RelatedNoteCommit["state"] = "saved-published"): Promise<void> => {
+    onCommitted?.({state, page});
     if (!session.canComplete()) return;
     plugin.requestNodeFlair(page.path);
-    if (intent === "another") {
+    let action = resolveCreationAfterSaving(intent, continuation);
+    if (!page.file && action !== "return" && action !== "another" && action !== "follow") action = "return";
+    if (action === "another") {
       setSelectedTarget(null); setQuery(""); setAlias(""); setNoteTyped(false); setAliasFocused(false);
       setPartialFile(null); setPartialFailure(null); setOntologyTyped(false); setBrowseOntology(false);
-      session.focusName();
-      return;
+      session.focusName(); return;
     }
-    const edit = intent === "edit" || (intent === "configured" && createdFile && editAfterCreate);
-    session.closeForCompletion(intent);
+    session.closeForCompletion(action);
     try {
-      if (intent === "follow" || edit) {
-        await plugin.finishNewRelatedNode(page, hostLeaf, edit, /** Fence delayed editor work after deliberate navigation or migration. */ () => session.canComplete());
-        if (!edit && session.canComplete()) session.focusGraph();
-      }
-    } finally { session.finishCompletion(); }
+      if (action !== "return") await plugin.finishNewRelatedNode(page, hostLeaf, action, /** Delayed opening retains the original completion owner. */ () => session.canComplete());
+      if (action === "follow" && session.canComplete()) session.focusGraph();
+    } finally {session.finishCompletion();}
   };
 
   /** Acquire synchronously, before React can rerender, and suppress duplicate requests while saved publication is pending. */
@@ -224,7 +225,7 @@ function RelatedNoteComposer({
   };
 
   /** Link the captured note, with validity checked after remembered ontology awaits. */
-  const linkExisting = async (intent: CompletionIntent = continuation) => {
+  const linkExisting = async (intent: CompletionIntent | CreationAfterSavingAction = continuation) => {
     const target = selectedTarget;
     if (!target || !beginWrite()) return;
     try {
@@ -241,14 +242,14 @@ function RelatedNoteComposer({
   };
 
   /** Create once; retained partial files are linked explicitly on recovery instead of created again. */
-  const createNew = async (kind: "markdown" | "excalidraw", intent: CompletionIntent = continuation) => {
+  const createNew = async (kind: "markdown" | "excalidraw", intent: CompletionIntent | CreationAfterSavingAction = continuation) => {
     if (selectedTarget || webUrl || folderValidation.error || (!partialFile && (!nameValidation.valid || nameValidation.existing)) || !beginWrite()) return;
     let file: TFile | null = partialFile;
     try {
       const field = await prepareField();
       if (!field || !session.isSessionOpen()) return;
       const currentOrigin = refreshCapturedPage(plugin, origin);
-      if (!file) file = await plugin.createNewRelatedFileForOrigin(currentOrigin, query, kind, alias, folderPath);
+      if (!file) file = await plugin.createNewRelatedFileForOrigin(currentOrigin, query, kind, alias, folderPath, templateChoices ? templatePath : undefined);
       if (!file) return;
       if (!session.isSessionOpen()) return;
       if (plugin.app.vault.getFileByPath(file.path) !== file) throw new Error(plugin.translator("addRelated.endpointChanged"));
@@ -261,7 +262,7 @@ function RelatedNoteComposer({
   };
 
   /** Save an unresolved target through the existing writer without materializing a file. */
-  const createPlaceholder = async (intent: CompletionIntent = continuation) => {
+  const createPlaceholder = async (intent: CompletionIntent | CreationAfterSavingAction = continuation) => {
     if (selectedTarget || webUrl || folderValidation.error || !nameValidation.valid || nameValidation.existing || !beginWrite()) return;
     try {
       const field = await prepareField();
@@ -273,7 +274,7 @@ function RelatedNoteComposer({
   };
 
   /** Save a URL target while keeping its non-editable completion policy explicit. */
-  const createWebLink = async (intent: CompletionIntent = continuation) => {
+  const createWebLink = async (intent: CompletionIntent | CreationAfterSavingAction = continuation) => {
     if (selectedTarget || !webUrl || origin.file?.extension !== "md" || !beginWrite()) return;
     try {
       const field = await prepareField();
@@ -477,34 +478,13 @@ function RelatedNoteComposer({
           ),
   );
 
-  const completionValue = creationCompletionValue(continuation, !selectedTarget && !webUrl && editAfterCreate);
-  const editToggle = !selectedTarget && !webUrl ? createElement(
-    "label",
-    { className: "kplex-create-edit-toggle" },
-    createElement("span", { className: "kplex-create-edit-copy" }, createElement("strong", null, plugin.translator("addRelated.openForEditing"))),
-    createElement(
-      "span",
-      { className: `checkbox-container${completionValue === "edit" ? " is-enabled" : ""}` },
-      createElement("input", {
-        type: "checkbox",
-        checked: completionValue === "edit",
-        disabled: busy || Boolean(savedPending) || Boolean(partialFile),
-        "aria-label": plugin.translator("addRelated.openNewForEditing"),
-        onChange: (event: { currentTarget: HTMLInputElement }) => {
-          const enabled = event.currentTarget.checked;
-          setEditAfterCreate(enabled);
-          setContinuation("configured");
-          plugin.settings.editNewNodeAfterCreate = enabled;
-          void plugin.saveSettings(false, false);
-        },
-      }),
-    ),
-  ) : null;
-
-  const completionSelect = createElement(CreationCompletionSelect, {
-      translate: plugin.translator, intent: continuation, editAfterCreate: !selectedTarget && !webUrl && editAfterCreate,
-      canEdit: Boolean(selectedTarget?.file || !webUrl), disabled: busy || Boolean(savedPending),
-      onChange: setContinuation,
+  const completion = plugin.createdNoteCompletionControl(hostLeaf, {editable: Boolean(selectedTarget?.file || !selectedTarget && !webUrl)});
+  const completionSelect = createElement(CreationCompletionSelect, {...completion,
+    translate: plugin.translator, value: completion.choices.includes(continuation) ? continuation : "return",
+    disabled: busy || Boolean(savedPending) || Boolean(partialFile),
+    onChange: /** One explicit selection updates both this invocation and the shared preference. */ value => {
+      setContinuation(value); completion.onChange(value);
+    },
   });
   const recovery = savedPending ? createElement("div", { className: "kplex-add-related-recovery", role: "status" },
     createElement("div", null, plugin.translator("addRelated.savedPending")),
@@ -539,7 +519,7 @@ function RelatedNoteComposer({
     },
   }, ...roleChoices.map(([value, key]) => createElement("option", { key: value, value }, plugin.translator(key))));
   const controlRow = createElement("div", { className: "kplex-add-related-control-row" }, roleSelect, ontologySearch);
-  const footer = createElement("div", { className: "kplex-add-related-footer" }, completionSelect, editToggle);
+  const footer = createElement("div", { className: "kplex-add-related-footer" }, completionSelect);
   const composeRow = createElement("div", { className: "kplex-add-related-compose-row" }, nameEditor, actionArea);
   const folderRow = !selectedTarget && !webUrl ? createElement("div", { className: "kplex-create-folder-row" },
     createElement("span", { className: "kplex-create-folder-caption" }, plugin.translator("folderPicker.label")),
@@ -583,6 +563,10 @@ function RelatedNoteComposer({
     controlRow,
     composeRow,
     folderRow,
+    templateChoices && !selectedTarget && !webUrl ? createElement(DrawingTemplateSelect, {
+      choices: templateChoices, value: templatePath, translate: plugin.translator, onChange: setTemplatePath,
+      disabled: busy || Boolean(savedPending) || Boolean(partialFile),
+    }) : null,
     status,
     recovery,
     footer,
@@ -684,7 +668,7 @@ export class NewRelatedNoteModal extends Modal {
   }
 
   /** Preserve completion permission across intentional close, while return restores a still-valid invoker. */
-  closeForCompletion(intent: CompletionIntent): void {
+  closeForCompletion(intent: CompletionIntent | CreationAfterSavingAction): void {
     if (!this.canComplete()) return;
     this.completing = true; this.closingForCompletion = true; this.ignoreInvokerFocus = true;
     try { this.close(); } finally { this.closingForCompletion = false; }

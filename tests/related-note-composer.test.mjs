@@ -9,7 +9,8 @@ import test from "node:test";
 
 /** Compile the actual callback or method with injected capabilities, keeping production control flow intact. */
 function production(name, dependencies = {}, path = "src/ui/NewRelatedNoteModal.ts") {
-  dependencies = { folderValidation: { error: null }, folderPath: "", ...dependencies };
+  if (path !== "src/core/plex/createdNoteDestination.ts") dependencies = {resolveCreationAfterSaving, continuation: "return", ...dependencies};
+  dependencies = { templateChoices: null, templatePath: "", folderValidation: { error: null }, folderPath: "", ...dependencies };
   const source = ts.createSourceFile(path, readFileSync(new URL(`../${path}`, import.meta.url), "utf8"), ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
   let expression;
   /** Find one named production callback without evaluating the native Obsidian shell. */
@@ -26,6 +27,8 @@ function production(name, dependencies = {}, path = "src/ui/NewRelatedNoteModal.
   const output = ts.transpileModule(`const selected = ${expression};`, { compilerOptions: { target: ts.ScriptTarget.ES2021, module: ts.ModuleKind.None } }).outputText;
   return Function(...Object.keys(dependencies), `${output}; return selected;`)(...Object.values(dependencies));
 }
+
+const resolveCreationAfterSaving = production("resolveCreationAfterSaving", {}, "src/core/plex/createdNoteDestination.ts");
 
 /** Return a physical page whose file identity can survive a rename but not replacement. */
 function page(path) { return { path, file: { path, extension: "md" }, neighbours: new Map() }; }
@@ -55,13 +58,11 @@ test("relationship note provider uses bounded physical catalog ranking without g
   assert.equal(calls.length, 1);
 });
 
-test("configured completion displays the actual outcome without changing saved compatibility intent", () => {
-  const creationCompletionValue = production("creationCompletionValue", {}, "src/ui/features/CreationCompletionSelect.tsx");
-  for (const [continuation, selectedTarget, webUrl, editAfterCreate, expected] of [
-    ["configured", null, null, false, "return"], ["configured", null, null, true, "edit"],
-    ["configured", page("Target.md"), null, true, "return"], ["configured", null, "https://example.com", true, "return"],
-    ["another", null, null, true, "another"], ["follow", null, null, false, "follow"],
-  ]) assert.equal(production("completionValue", { creationCompletionValue, continuation, selectedTarget, webUrl, editAfterCreate }), expected);
+test("unified completion resolves remembered and explicit command intents without changing them", () => {
+  for (const [intent,preference,expected] of [["configured","return","return"],["configured","sidecar","sidecar"],
+    ["edit","return","editor"],["edit","tab","tab"],["another","editor","another"],["follow","return","follow"]]) {
+    assert.equal(resolveCreationAfterSaving(intent,preference),expected);
+  }
 });
 
 test("native Modal isOpen boolean cannot shadow composer readiness for button or Scope submit", async () => {
@@ -285,12 +286,12 @@ test("partial recovery retains the failure reason as well as file identity", () 
 });
 
 /** A newly created file is ready to edit after persistence even while its graph reconciliation remains pending. */
-test("saved new-file relationship still completes Open for editing while indexing is pending", async () => {
+test("saved new-file relationship still completes its selected Sidecar action while indexing is pending", async () => {
   const created = page("Child.md"), outcomes = [], edits = [];
-  await production("complete", { onCommitted: outcome => outcomes.push(outcome), editAfterCreate: true,
+  await production("complete", { onCommitted: outcome => outcomes.push(outcome), continuation: "sidecar",
     session: { canComplete: () => true, closeForCompletion: intent => edits.push(intent), finishCompletion() {}, focusGraph: assert.fail },
     plugin: { requestNodeFlair() {}, finishNewRelatedNode: async (...args) => edits.push(args.slice(0, 3)) }, hostLeaf: "owning-leaf" })(created, "configured", true, "saved-pending");
-  assert.deepEqual(outcomes, [{ state: "saved-pending", page: created }]); assert.deepEqual(edits, ["configured", [created, "owning-leaf", true]]);
+  assert.deepEqual(outcomes, [{ state: "saved-pending", page: created }]); assert.deepEqual(edits, ["sidecar", [created, "owning-leaf", "sidecar"]]);
 });
 
 /** Folder selection shares the existing single-flight write rather than adding another creation route. */
@@ -305,7 +306,7 @@ test("creation forwards an explicit folder and alias once through the establishe
       createNewRelatedFileForOrigin: async (...args) => { writes.push(args); return created.file; },
       rememberNewNodeDefaultType: async () => {}, linkNewRelatedFile: async () => ({ state: "saved-pending", page: created }) } };
   await production("createNew", dependencies)("markdown");
-  assert.deepEqual(writes, [[origin, "Next", "markdown", "A readable name", "Projects"]]);
+  assert.deepEqual(writes, [[origin, "Next", "markdown", "A readable name", "Projects", undefined]]);
 });
 
 /** A malformed destination cannot acquire single-flight write ownership, remember ontology or touch storage. */
@@ -382,28 +383,30 @@ test("explicit folder choice opens the reused picker with the calculated placeho
   const create = production("createGhostNote", { MaterializeGhostModal: class {
     constructor(...args) { this.args = args; } open() { opened.push(this.args); }
   } }, "src/main.ts");
-  const context = { app: {}, settings: {}, documentSession:()=>null, validateRelatedNoteName: () => ({ stem: "Next", valid: true, existing: null }),
+  const context = { createdNoteCompletionControl: () => ({value:"return",choices:["return","tab"],onChange(){}}), drawingTemplateOptions: () => null, app: {}, settings: {}, documentSession:()=>null, validateRelatedNoteName: () => ({ stem: "Next", valid: true, existing: null }),
     ghostCreationLocations: () => [{ folderPath: "Projects", label: "Projects" }], isExcalidrawAvailable: () => false,
     materializeGhostPage: async (...args) => materialized.push(args) };
   await create.call(context, ghost, false);
-  assert.equal(materialized.length, 1); assert.equal(opened.length, 0);
+  assert.equal(materialized.length, 0); assert.equal(opened.length, 1);
+  assert.equal(opened[0][6],false);
+  assert(!opened[0][8].choices.includes("another"));
   await create.call(context, ghost, true);
-  assert.equal(materialized.length, 1); assert.equal(opened.length, 1);
+  assert.equal(materialized.length, 0); assert.equal(opened.length, 2);
   assert.equal(opened[0][2][0].folderPath, "Projects");
-  assert.equal(opened[0][6],true,"Explicit modifier opening focuses the folder field");
-  await opened[0][5]("markdown", "Other");
+  assert.equal(opened[1][6],true,"Explicit modifier opening focuses the folder field");
+  await opened[1][5]("markdown", "Other");
   assert.equal(materialized.at(-1)[3], "Other");
   await create.call(context, ghost, true, true);
-  await opened[1][5]("markdown", "Projects");
+  await opened[2][5]("markdown", "Projects");
   assert.equal(materialized.at(-1)[8], true, "The accepted modal must retain its opening in-place creation intent");
   context.isExcalidrawAvailable=()=>true;await create.call(context,ghost,false);
-  assert.equal(opened[2][6],false,"Ordinary drawing-choice opening must retain quick default submission");
+  assert.equal(opened[3][6],false,"Ordinary drawing-choice opening must retain quick default submission");
 });
 
 /** In-place creation promotes the endpoint without opening a document that could move a synchronized center. */
-test("in-place materialization preserves the center while retaining ordinary document opening", async () => {
+test("materialization Return preserves the center while explicit tab opening remains available", async () => {
   const materialize = production("materializeGhostPage", {}, "src/main.ts");
-  for (const wasCenter of [false, true]) for (const preserveCenter of [false, true]) for (const scoped of [false,true]) {
+  for (const action of ["return", "tab"]) for (const wasCenter of [false, true]) for (const preserveCenter of [false, true]) for (const scoped of [false,true]) {
     const file = {path: "Next.md", parent: {path: "/"}}, opened = [], promoted = [], navigated = [];
     const host=scoped?{view:{}}:undefined;
     const context = { settings: {lastActivePath: wasCenter ? "Next" : "Origin.md"}, unloading: false,
@@ -413,10 +416,10 @@ test("in-place materialization preserves the center while retaining ordinary doc
       index: {materializeFile: (...args) => {promoted.push(args); return true;}},
       remapNavigationPaths: () => {if (wasCenter) context.settings.lastActivePath = file.path; return wasCenter;},
       documentSession:()=>({centerPath:wasCenter?"Next":"Origin.md"}),
-      saveSettings: async () => {}, notifyNavigation: (path,owner) => navigated.push({path,owner}), openInDocumentLeaf: async value => opened.push(value),
+      saveSettings: async () => {}, notifyNavigation: (path,owner) => navigated.push({path,owner}), finishNewRelatedNode: async (target,owner,chosen,current) => {assert.equal(chosen,"tab");if(current())opened.push(target.file);},
     };
-    assert.equal(await materialize.call(context, {path: "Next", name: "Next"}, "Next", "markdown", "", "Next", undefined, {}, () => true, preserveCenter,host), true);
-    assert.deepEqual(promoted, [["Next", file]]); assert.deepEqual(opened, preserveCenter ? [] : [file]);
+    assert.equal(await materialize.call(context, {path: "Next", name: "Next"}, "Next", "markdown", "", "Next", undefined, {}, () => true, preserveCenter,host,undefined,action), true);
+    assert.deepEqual(promoted, [["Next", file]]); assert.deepEqual(opened, action === "return" ? [] : [file]);
     assert.deepEqual(navigated, scoped && !preserveCenter && wasCenter ? [{path:file.path,owner:host}] : [], "Materialization never broadcasts another Plex's saved center");
     assert.equal(context.settings.lastActivePath, wasCenter ? file.path : "Origin.md");
   }
@@ -470,7 +473,7 @@ test("native materialization focuses the shared folder field without changing qu
     createRoot: () => ({ render: element => { rendered = element; } }),
     createElement: (type, props) => ({ type, props }), MaterializationFolderInput() {},
   }, "src/ui/MaterializeGhostModal.ts");
-  const context = { defaultKind: "markdown", excalidrawAvailable: false, selectedFolderPath: "Projects", noteName: "Next", focusFolder: true,
+  const context = { renderTemplate() {}, renderCompletion() {}, defaultKind: "markdown", excalidrawAvailable: false, selectedFolderPath: "Projects", noteName: "Next", focusFolder: true,
     titleEl: { setText() {} }, contentEl: { createEl() {} }, translate: key => key,
     locations: [{ folderPath: "Projects", label: "Projects" }], app: { vault: { getAllFolders: () => [] } },
     buttons: [], nativeHandlers: [], scope: { register: () => ({}) }, partialFile: null, partialKind: null, creating: false,
@@ -634,11 +637,11 @@ test("complete retarget followed by metadata or navigation failure retries the s
       createNewFileInFolder:async()=>{creates++;f.files.set(f.created.path,f.created);return f.created;},
       writeCreatedNodeDisplayName:async()=>{if(stage==="metadata"&&attempt++===0)throw Error("Later metadata failure");},
       rememberNewNodeDefaultType:async()=>{},index:{materializeFile:(oldPath,file)=>{oldPaths.push(oldPath);page.path=file.path;page.file=file;return true;}},
-      remapNavigationPaths:()=>false,openInDocumentLeaf:async()=>{if(stage==="navigation"&&attempt++===0)throw Error("Later navigation failure");}};
-    await assert.rejects(materialize.call(context,page,"Next","markdown","Other","Next",undefined,continuation),error=>error instanceof PartialRelatedFileError&&error.file===f.created);
+      remapNavigationPaths:()=>false,finishNewRelatedNode:async(_page,_host,action)=>{assert.equal(action,"tab");if(stage==="navigation"&&attempt++===0)throw Error("Later navigation failure");}};
+    await assert.rejects(materialize.call(context,page,"Next","markdown","Other","Next",undefined,continuation,()=>true,false,undefined,undefined,"tab"),error=>error instanceof PartialRelatedFileError&&error.file===f.created);
     assert.equal(continuation.relocation.completed.size,1);assert.equal(continuation.relocation.target.file,f.created);
     context.referencingMarkdownFiles=assert.fail;
-    assert.equal(await materialize.call(context,page,"Next","markdown","Other","Next",f.created,continuation),true);
+    assert.equal(await materialize.call(context,page,"Next","markdown","Other","Next",f.created,continuation,()=>true,false,undefined,undefined,"tab"),true);
     assert.equal(creates,1);assert.equal(writes,1);assert(oldPaths.every(path=>path==="Projects/Next"));
   }
 });
@@ -868,4 +871,25 @@ test('native additive-only invocation survives the shared existing-target compos
  const origin=page('R.md'),target=page('B.md'),calls=[],commits=[];
  const link=production('linkExisting',{origin,selectedTarget:target,role:'parent',continuation:'another',session:{additiveOnly:true,isSessionOpen:()=>true,setWriting(){}},beginWrite:()=>true,prepareField:async()=> 'parents',refreshCapturedPage:(_plugin,page)=>page,busyRef:{current:true},setBusy(){},reportFailure:assert.fail,complete:async(...args)=>commits.push(args),plugin:{createRelationToPage:async(...args)=>{calls.push(args);return{state:'saved-published',page:target}}}});
  await link();assert.deepEqual(calls,[[origin,'parent',target,'parents',undefined,true]]);assert.deepEqual(commits,[[target,'another',false]]);
+});
+
+/** Changing the destination of a pathful placeholder explicitly patches every approved native source. */
+test('folder/folder/note title relocation rewrites body, embed, Markdown and property links without renaming a file',async()=>{
+ const old='folder/folder/note title',target='Elsewhere/note title.md',owners=literalOwners();
+ const wiki='[['+old+']]',heading='[['+old+'#Heading|Readable]]',property='[['+old+'|Alias]]',markdown='[Markdown](folder/folder/note%20title)',embed='!'+wiki;
+ const aText='---\nParent: "'+property+'"\n---\n'+wiki+'\n'+heading+'\n'+markdown+'\n'+embed+'\n`'+wiki+'`\n',bText='[['+old+'|Second]]\n';
+ const a={path:'A.md',extension:'md',stat:{mtime:1,size:aText.length}},b={path:'B.md',extension:'md',stat:{mtime:1,size:bText.length}},created={path:target};
+ const files=new Map([[a.path,a],[b.path,b],[target,created]]),texts=new Map([[a.path,aText],[b.path,bText]]),caches=new Map(),writes=[];
+ /** Supply the exact source ranges that Obsidian's metadata cache authorizes. */
+ const reference=(text,original,link)=>{const start=text.indexOf(original);return{original,link,position:{start:{offset:start},end:{offset:start+original.length}}}};
+ caches.set(a,{links:[reference(aText,wiki,old),reference(aText,heading,old+'#Heading'),reference(aText,markdown,old)],
+  embeds:[reference(aText,embed,old)],frontmatterLinks:[{original:property,link:old,key:'Parent'}],frontmatterPosition:{start:{offset:0},end:{offset:aText.indexOf('\n---',3)+4}}});
+ caches.set(b,{links:[reference(bText,bText.trim(),old)]});
+ const app={metadataCache:{unresolvedLinks:{'A.md':{[old]:4},'B.md':{[old]:1}},getFileCache:file=>caches.get(file),getFirstLinkpathDest:path=>files.get(path)??null},
+  vault:{getFileByPath:path=>files.get(path)??null,cachedRead:async file=>texts.get(file.path),process:async(file,update)=>{const next=update(texts.get(file.path));texts.set(file.path,next);file.stat.mtime++;file.stat.size=next.length;writes.push(file.path)}}};
+ const plan=await owners.capture(app,old,[],'changed');assert.equal(plan.sources.length,2,'Native unresolved links find sources even without semantic index provenance');
+ await owners.apply(app,plan,created,()=>true,'changed');
+ const expected=aText.replaceAll(old,target).replace('`[['+target+']]`','`'+wiki+'`').replace('folder/folder/note%20title','Elsewhere/note%20title.md');
+ assert.equal(texts.get('A.md'),expected);assert.equal(texts.get('B.md'),'[['+target+'|Second]]\n');
+ assert.deepEqual(writes,['A.md','B.md']);assert.equal(files.has(old),false);assert.equal(created.path,target);
 });

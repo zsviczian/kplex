@@ -24,7 +24,7 @@ export const localPreferenceKeys = [
   "embedCentralNode", "centralNodeMarkdownMode", "centralNodeMarkdownZoomModes", "centerEmbedWidth", "centerEmbedHeight",
   "startInPopout", "sidecarOpen", "sidecarPosition", "sidecarLastFilePath", "sidecarLastUrl",
   "mouseInteractionMode", "toolbarExpanded", "kplexInitialized", "startupIndexInfoBubbleSeen",
-  "deletePromptInitialized", "confirmFileDelete", "removeOntologyLinksOnDelete", "editNewNodeAfterCreate", "newNodeDefaultType",
+  "deletePromptInitialized", "confirmFileDelete", "removeOntologyLinksOnDelete", "editNewNodeAfterCreate", "newNodeAfterSaving", "newNodeDefaultType",
 ];
 
 /** Verify complete restored appearance/ontology, including its library, in both live and durable native data. This independent oracle follows the captured settings' style keys; it never defines a persistence schema. */
