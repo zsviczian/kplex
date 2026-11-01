@@ -121,3 +121,11 @@ ESLint and final production build pass. Both the unchanged URL-alias scheduling
 bound and the 20,015-owner case pass in this complete run. The historical timing
 miss remains recorded above; no assertion or bound was changed. The final build's
 main.js SHA-256 is unchanged from the strict native/production-tested artifact.
+
+Final companion acceptance is now complete: Excalidraw **600/600 fast** and
+**357/357 native**, zero failed/blocked/missing, including all 40 device profiles.
+Native/device cleanup and baseline restoration pass in
+`native-b329000b-8a0d-4b2a-b244-4245ae9c01c8`. Its sanitized exact-artifact receipt
+and recovery instructions remain local in the plugin repository. Production
+Excalidraw was untouched. Actual 2.29.1+ template-dropdown acceptance, the published
+fork dependency handoff, Windows and physical mobile touch remain separate limits.

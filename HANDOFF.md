@@ -59,8 +59,15 @@ Current main 2aaf6d3 (#248) was integrated at 9ff6db6 and resolves the earlier
 occurrence-editor baseline failure. Historical timing evidence remains in the
 batch record.
 
-All 40 previously blocked Excalidraw device profiles pass their targeted rerun;
-the original five failed paths pass focused/repeated native runs. A later text-
-tool fixture timing correction still needs complete native acceptance. App-wide
-native work is held while production is open. Do not restart the shared app,
-emulate devices or deploy companion builds into production to bypass that limit.
+Complete Excalidraw native regression now passes **357/357**, with zero failed,
+blocked or missing cases; all 40 device profiles and 126 device-lane cases pass.
+Fast checks pass 600/600. Native/device cleanup and declared-baseline restoration
+pass. Final report: `native-b329000b-8a0d-4b2a-b244-4245ae9c01c8`; sanitized evidence
+is in the plugin's `docs/testing-evidence/native-recovery-2026-11-01.native.json`.
+The maintainer closed other vaults before the full run. The original five failure
+paths and the later text-tool readiness case all pass without relaxing assertions.
+
+Remaining release/platform limits: actual Excalidraw 2.29.1+ template-dropdown
+acceptance, published fork dependency handoff, Windows and physical mobile touch.
+Companion Excalidraw/EA Scripts changes remain uncommitted; no release/merge is
+authorized. K-Plex Help remains untouched by this agent.
