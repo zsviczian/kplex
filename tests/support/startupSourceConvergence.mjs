@@ -16,13 +16,15 @@ function fixture({KplexPlugin,GraphIndex,app,settings,mode='eager'}) {
   p.startupIndexPolicy = { device: 'desktop', beforeView: true, mode };
   p.notifyIndexStatus = /** Observe readiness independently of native product UI. */ () => {};
   p.hasVisibleKplexSurface = /** Closed startup remains authorized only by captured policy. */ () => false;
+  p.startupGraphSeedPaths = /** No native workspace participates in this coordinator-only fixture. */ () => [];
   const i = new GraphIndex(p, app, true, mode); p.index = i;
   // The restore owner has already handed a source-backed baseline to the real coordinator.
   i.sourceBackedStartup = true;
   i.retryDemandedSemanticScopes = /** Controlled scope gates below isolate the notification owner. */ () => {};
   i.retrySourceNodeImpacts = /** Avoid unrelated presentation work in coordinator-only cases. */ () => {};
   i.retryUrlAliasUpgrade = /** Keep optional alias maintenance in its own regression inventory. */ () => {};
-  const state = {authority:false, attempts:0, rebuilds:0, maintenance:0};
+  const state = {authority:false, attempts:0, rebuilds:0, completeGraphs:0, maintenance:0};
+  i.rebuildProgressively = /** Count eager completion separately from an unrelated fallback rebuild. */ async () => { state.completeGraphs++; return true; };
   i.sourceAcquisition.hasSemanticDependencies = /** Supply an explicit prerequisite without granting completion. */ () => state.authority;
   i.adoptStartupSources = /** Count actual coordinator attempts against the controlled prerequisite. */ async () => { state.attempts++; return state.authority; };
   i.sourceAcquisition.getMaintenanceRevision = /** Controlled meaningful host revision. */ () => state.maintenance;
@@ -50,6 +52,7 @@ export async function runStartupSourceConvergence({ KplexPlugin, GraphIndex, app
       'Recovered source authority must automatically resume the stranded startup coordinator');
     assert.equal(state.attempts, 2, 'Recovery has one coalesced adoption owner');
     assert.equal(state.rebuilds, 0, 'Recovery does not force a full rebuild');
+    assert.equal(state.completeGraphs, 1, 'Eager recovery completes relationships before startup readiness');
     assert.equal(p.indexDirty, false, 'Only successful adoption retires the startup backlog');
     for (let n = 0; n < 20; n++) i.sourceAcquisition.inventoryReady();
     await settle();

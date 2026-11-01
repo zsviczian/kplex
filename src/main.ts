@@ -1264,12 +1264,22 @@ export default class KplexPlugin extends Plugin {
     this.index.cancelPendingPersistence();
   }
 
-  /** Complete the initial source owner; an unsuccessful adoption reports incomplete coverage until a later attempt succeeds. */
+  /** Close source recovery before declaring eager startup complete.
+   * Vocabulary adoption preserves a usable scene but does not provide global relationships. Eager
+   * recovery completes them with the existing foreground-preemptible progressive builder; events
+   * arriving during that pass remain in the normal patch backlog. On-demand keeps local semantics.
+   */
   private async adoptInitialSourceIndex(): Promise<void> {
     this.initialSourceIndexIncomplete = false;
     const index = this.index;
     let adopted: boolean;
-    try { adopted = await index.adoptStartupSources(); }
+    try {
+      adopted = await index.adoptStartupSources();
+      if (adopted && !this.unloading && this.index === index && !index.isOnDemandMode()
+        && index.hasSourceBackedStartup()) {
+        adopted = await index.rebuildProgressively(this.startupGraphSeedPaths());
+      }
+    }
     catch (error) {
       if (!this.unloading && this.index === index) { this.initialSourceIndexIncomplete = true; this.notifyIndexStatus(); }
       throw error;
@@ -1463,8 +1473,8 @@ export default class KplexPlugin extends Plugin {
         this.indexBacklogReasons.add("startup:partial-restore-incomplete");
       }
 
-      // Missing graph acceleration is recoverable source progress, not a reason to rebuild all
-      // semantics. Source inventory owns offline/sync repair; requested scopes own current views.
+      // Source recovery first preserves current views and vocabulary. Eager startup must also
+      // complete global relationships before its coordinator can report the initial index ready.
       if (this.index.hasSourceBackedStartup()) {
         await this.adoptInitialSourceIndex();
         return;

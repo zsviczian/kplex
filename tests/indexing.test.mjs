@@ -1962,24 +1962,27 @@ for (const { visible, unloading, complete, dirty, expected } of [
   assert.deepEqual([...startup.dirtyMarkdownPaths], ["Note A.md"], "A newer source edit must remain queued");
 }
 
-// Source progress is a startup authority independently of optional full-graph hydration.
-for (const adopted of [true, false]) {
+// Eager source recovery owns progressive graph completion; vocabulary alone cannot finish startup.
+for (const [adopted, completed] of [[true, true], [true, false], [false, false]]) {
   const startup = new KplexPlugin();
-  let fullBuilds = 0;
+  let fullBuilds = 0, progressiveBuilds = 0;
   startup.index = { isOnDemandMode: () => false,
     size: 1, hasPendingSnapshotHydration: () => false, hasPhysicalBaseline: () => true,
     hasSourceBackedStartup: () => true, adoptStartupSources: async () => adopted,
+    rebuildProgressively: async () => { progressiveBuilds++; return completed; },
     isFullSnapshotHydrated: () => false,
   };
   startup.app = app; startup.layoutReady = true; startup.indexPreparationAdmitted = true; startup.indexDirty = true;
   startup.indexBacklogReasons.add("startup:no-snapshot");
   startup.notifyIndexStatus = () => {};
+  startup.startupGraphSeedPaths = () => [];
   startup.hasVisibleKplexSurface = () => false;
   startup.performRebuild = async () => { fullBuilds++; };
   await startup.ensureInitialIndex();
-  assert.equal(fullBuilds, 0, "Source-backed startup does not route missing graph cache to a full build");
-  assert.equal(startup.initialIndexComplete, adopted, "Unavailable/incomplete source adoption remains explicit");
-  assert.equal(startup.indexDirty, !adopted, "Only completed source adoption retires the startup backlog");
+  assert.equal(fullBuilds, 0, "Source-backed startup retains its own coordinator instead of an unrelated fallback");
+  assert.equal(progressiveBuilds, adopted ? 1 : 0, "Only recovered sources admit eager relationship completion");
+  assert.equal(startup.initialIndexComplete, completed, "Unavailable/incomplete graph recovery remains explicit");
+  assert.equal(startup.indexDirty, !completed, "Only completed eager graph recovery retires the startup backlog");
 }
 
 function expectRole(sourcePath, role, targetPath, type) {

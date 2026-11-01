@@ -37,10 +37,13 @@ for (const owner of ['presentation', 'legacy-display', 'semantic']) {
       inferAllLinksAsFriends: false, inverseInfer: false, showFullTagName: false };
     const p = new M.StartupSourceCoordinator(); Object.assign(p, { app, settings, layoutReady: true, indexPreparationAdmitted: true,
       /** Status observation cannot create a retry. */ notifyIndexStatus() {},
+      /** Empty policy-only fixture has no native seed. */ startupGraphSeedPaths: () => [],
       /** The captured before-view policy owns this closed eager startup. */ hasVisibleKplexSurface: () => false });
     const i = new M.GraphIndex(p, app, true, 'eager'); p.index = i; i.preparationDeferred = false; i.sourceBackedStartup = true;
     i.sourceAcquisition.hasSemanticDependencies = /** Isolate an already-recovered source prerequisite. */ () => true;
     i.retryUrlAliasUpgrade = /** Optional alias maintenance is not a notification substitute. */ () => {};
+    let completeGraphs = 0;
+    i.rebuildProgressively = /** Isolate the completion capability from this storage-free notification case. */ async () => { completeGraphs++; return true; };
     let release, attempts = 0;
     const hold = new Promise(/** Hold only the original initial adopter. */ done => { release = done; });
     i.adoptStartupSources = /** Model the superseded result without manually calling a second adoption. */ async () => { if (++attempts === 1) { await hold; return false; } return true; };
@@ -52,6 +55,7 @@ for (const owner of ['presentation', 'legacy-display', 'semantic']) {
       release(); await initial; await settle();
       assert.equal(p.initialIndexComplete, true, 'A current settings publication must not strand its superseded startup');
       assert.equal(attempts, 2, 'One genuine publication produces one coalesced continuation');
+      assert.equal(completeGraphs, 1, 'Successful eager recovery also completes global relationships');
       assert.equal(i.getSourceAcquisitionCounters().vaultReads, 0); assert.equal(i.getSourceAcquisitionCounters().parses, 0);
     } finally { release(); i.destroy(); }
   });

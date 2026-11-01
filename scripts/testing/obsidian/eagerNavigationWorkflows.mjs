@@ -17,7 +17,8 @@ export async function runEagerNavigationWorkflows(h) {
   const passive=()=>{
     const source=p.index.sourceAcquisition.getActivityState();
     return !p.index.building&&!p.rebuildTask&&p.rebuildTimer===null&&!p.indexDirty
-      &&!source.sourceActive&&!source.knownImpactTasks&&!source.pendingKnown&&!p.index.eagerGraphMaintenanceTask;
+      &&!source.sourceActive&&!source.knownImpactTasks&&!source.pendingKnown&&!p.index.eagerGraphMaintenanceTask
+      &&!p.index.getUrlIndexProgress().active&&Object.values(p.index.getWorkPriorityDiagnostics().active).every(value=>value===0);
   };
   const globallyReady=()=>{
     c.eagerNavigation.status={source:p.index.sourceAcquisition.getActivityState(),sourceReady:p.index.sourceAcquisition.hasSemanticDependencies(),
@@ -44,9 +45,9 @@ export async function runEagerNavigationWorkflows(h) {
   for(let i=0;i<24;i++)targets.push(await create(`Hub-member-${i}`));
   await create("Hub",metadata([calendar[3].path,...targets.map(file=>file.path)]));
   const mutation=await create("Mutation-source"),canvasSource=await create("Canvas-source"),canvasTarget=await create("Canvas-target");
-  // Establish a complete eager baseline once. Subsequent event assertions forbid another full build.
-  await until(()=>passive(),"Fixture creation backlog did not settle",90000);
-  check(await p.index.rebuild(),"Complete eager fixture build refused");await settle();
+  // Natural eager startup/event processing must establish the baseline. A harness-triggered full
+  // rebuild would conceal the node-only startup recovery that caused the production regression.
+  await settle();
   const fullBuilds=p.index.getSemanticPreparationDiagnostics().fullBuilds;
 
   await scenario("eager-native-event-backlog-and-unvisited-calendar-navigation",async()=>{

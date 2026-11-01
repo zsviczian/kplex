@@ -1599,7 +1599,15 @@ For the focused eager-maintenance regression, stage the verified build in the ex
 Small vault, then run `npm run verify:obsidian:action-workflows` with
 `KPLEX_ACTION_WORKFLOW_SCENARIO=eager-navigation`, the three explicit test-vault variables and a
 fresh `KPLEX_HOST_REPORT_DIR` outside the vault. Small must already use the eager strategy.
-The lane creates owned calendar/hub fixtures, establishes one full baseline, then verifies native
+First run `node scripts/testing/obsidian/eagerStartupRecovery.mjs` with the same explicit Small
+variables and its own report directory. It backs up derived snapshot stores/pointers, removes one
+real active page chunk while K-Plex is disabled and reloads the plugin. Normal eager startup must
+recover a complete global relationship graph without rereading or reparsing unchanged Markdown.
+Six subsequent destinations must need no local preparation or source-family replay. The lane
+restores the original cache, configuration and workspace; it never calls a builder to establish
+readiness. This is a plugin reload, not a full application restart.
+
+The action lane creates owned calendar/hub fixtures, awaits natural global readiness, then verifies native
 create/modify/delete and canvas relationship updates regain global coverage without another full
 build. Subsequent real canvas-card clicks must perform zero source reads, parses or family replay.
 It retains the action-workflow driver's full settings/layout/inventory restoration and artifact
