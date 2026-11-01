@@ -7336,8 +7336,10 @@ export class GraphIndex {
           /** Count actual completed source compilation, with the existing throttled status owner. */
           onProgress: (processed, total) => {
             if (!current()) return;
-            this.fullBuildProgress = {processed, total, stage: processed < total ? "notes" : "relationships"};
-            this.plugin.notifyStartupProgress?.();
+            const stage = processed < total ? "notes" : "relationships";
+            const stageChanged = this.fullBuildProgress?.stage !== stage;
+            this.fullBuildProgress = {processed, total, stage};
+            this.plugin.notifyStartupProgress?.(stageChanged);
           } });
         if (!next || !current()) {
           return false;

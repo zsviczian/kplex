@@ -40,6 +40,7 @@ for (const damage of ['missing', 'chunks', 'warm', 'warm-equal-stat']) test(`eag
         initial.destroy();initial=null;f.acquisition.close();const readsBefore=f.reads.length;
         const p=new M.StartupSourceCoordinator();Object.assign(p,{app:f.app,settings,layoutReady:true,indexPreparationAdmitted:true,
           notifyIndexStatus(){},hasVisibleKplexSurface:()=>false,refreshBookmarkedEntryPoints:async()=>{},startupGraphSeedPaths:()=>['A.md']});
+        const progressStages=new Set();p.notifyIndexStatus=()=>{const progress=p.index?.getBuildProgress();if(progress)progressStages.add(progress.stage);};
         p.startupDiagnostics=new M.StartupDiagnostics();p.startupDiagnostics.begin(false);
         index=new M.GraphIndex(p,f.app);p.index=index;index.scheduleOrphanCleanup=()=>{};
         if(${JSON.stringify(damage)}==='warm-equal-stat'){
@@ -85,6 +86,7 @@ for (const damage of ['missing', 'chunks', 'warm', 'warm-equal-stat']) test(`eag
         equal(p.startupDiagnostics.snapshot().sessionWork.sourceInventoryPasses,inventoryPasses,'Cached graph compilation must not force another source inventory');
         ok(!index.sourceAcquisition.requested,'Completed source authority is retained instead of queued for a redundant rescan');
         equal(p.startupDiagnostics.snapshot().sessionWork.nodeCatalogStarts,0,'Eager graph completion must not repeat a whole-vault node-only pass');
+        for(const stage of ['notes','relationships','presentation'])ok(progressStages.has(stage),'Actual phase transition must wake status listeners immediately: '+stage);
         ok(!index.hasSourceBackedStartup(),'Recovered graph no longer depends on per-center reconstruction');
         equal(index.publicApiCoverage(),{scope:'global',complete:true,pending:false},'Actual global read coverage');
         oracle=await fullCenterIndex(M,f,await hostOracle(f,[...f.files.keys()],semantic,view,true),semantic,view);
