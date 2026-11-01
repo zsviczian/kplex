@@ -1101,6 +1101,23 @@ const indexingStatusContext = {
     return "Status: updating index";
   },
 };
+// Source recovery runs its progressive builder without the ordinary rebuildTask wrapper.
+// Its real published note count must still be visible as indexing progress, including percentage.
+{
+  const context={...indexingStatusContext,rebuildTask:null,cachedMarkdownFileCount:5,
+    index:{...indexingStatusContext.index,isBuilding:()=>true},
+    translator:(key,params)=>key==='index.startupSemantics'?'Applying relationships'
+      :key==='index.startupNotesProgress'?`${params.activity}: ${params.processed} / ${params.total} (${params.percent}%)`:key};
+  const status=KplexPlugin.prototype.getIndexStatus.call(context);
+  assert.equal(status.phase,'indexing','An active recovery builder cannot hide behind generic preparation');
+  assert.equal(status.label,'Applying relationships: 3 / 5 (60%)','Recovery shows actual completed notes and percentage');
+  context.index.indexedMarkdownFileCount=()=>4;
+  assert.equal(KplexPlugin.prototype.getIndexStatus.call(context).label,'Applying relationships: 4 / 5 (80%)','Published build progress advances');
+  context.index.getBuildProgress=()=>({processed:5,total:5,stage:'relationships'});
+  assert.equal(KplexPlugin.prototype.getIndexStatus.call(context).label,'index.startupResolution','Completed note inputs expose the next relationship phase');
+  context.index.getBuildProgress=()=>({processed:5,total:5,stage:'presentation'});
+  assert.equal(KplexPlugin.prototype.getIndexStatus.call(context).label,'index.startupSearch','Final presentation/search work cannot look stuck at 100% notes');
+}
 // Local readiness must not certify every physical note as semantically indexed.
 {
   const context = { ...indexingStatusContext, initialIndexComplete: true, indexDirty: false,
@@ -1962,14 +1979,14 @@ for (const { visible, unloading, complete, dirty, expected } of [
   assert.deepEqual([...startup.dirtyMarkdownPaths], ["Note A.md"], "A newer source edit must remain queued");
 }
 
-// Eager source recovery owns progressive graph completion; vocabulary alone cannot finish startup.
+// Eager source recovery owns batched graph completion; vocabulary alone cannot finish startup.
 for (const [adopted, completed] of [[true, true], [true, false], [false, false]]) {
   const startup = new KplexPlugin();
   let fullBuilds = 0, progressiveBuilds = 0;
   startup.index = { isOnDemandMode: () => false,
     size: 1, hasPendingSnapshotHydration: () => false, hasPhysicalBaseline: () => true,
     hasSourceBackedStartup: () => true, adoptStartupSources: async () => adopted,
-    rebuildProgressively: async () => { progressiveBuilds++; return completed; },
+    rebuild: async () => { progressiveBuilds++; return completed; },
     isFullSnapshotHydrated: () => false,
   };
   startup.app = app; startup.layoutReady = true; startup.indexPreparationAdmitted = true; startup.indexDirty = true;

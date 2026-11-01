@@ -1425,15 +1425,18 @@ or stored facts are altered by this fault injection.
 
 After full verification/exact-build staging in `kplex-test-small`, run
 `npm run verify:obsidian:startup-source-recovery` with the three explicit test-vault variables
-and a fresh `KPLEX_HOST_REPORT_DIR`. Back up the exact Small database before fault injection.
-The bounded probe reopens initial coordinator flags on an already settled source-backed eager
-native index, withholds metadata for one owned note, and lets real reconciliation fail. Restoring
-the genuine native metadata and delivering its existing changed event must complete adoption
-automatically, retain the published scene and leave no unsaved mask or new full build. The probe
-forwards original promises, caps retained attempt outcomes, restores method descriptors, deletes
-its note and reloads the plugin with original settings bytes. This controlled recovery lane does
-not establish fresh-process route selection, physical interaction or CPU improvement; use the
-separate guarded application-startup study for those startup observations.
+and a fresh `KPLEX_HOST_REPORT_DIR` outside the vault. The command now runs
+`eagerStartupRecovery.mjs`: it backs up derived snapshot stores/pointers on disk, removes one
+actual saved page chunk with the plugin disabled and observes ordinary eager startup after reload.
+Startup must complete global relationships without a harness-triggered build or unchanged-note
+body reads/parses; later destinations must perform zero local requests/source-family replay.
+Cache, configuration and workspace restore independently of the result. This plugin-reload lane
+does not establish a fresh application process, physical input, CPU or paint performance.
+
+The historical `startupSourceRecovery.mjs` controlled metadata-withholding probe required a
+settled source-backed eager index. That is no longer normal eager completion, so it is not the
+default command. Automatic metadata and storage-failure recovery remain covered with the actual
+startup coordinator and real Chromium IndexedDB in `startup-source-convergence-indexeddb.test.mjs`.
 
 ### Startup admission
 

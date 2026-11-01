@@ -1266,7 +1266,7 @@ export default class KplexPlugin extends Plugin {
 
   /** Close source recovery before declaring eager startup complete.
    * Vocabulary adoption preserves a usable scene but does not provide global relationships. Eager
-   * recovery completes them with the existing foreground-preemptible progressive builder; events
+   * recovery completes them with the existing foreground-preemptible batched full compiler; events
    * arriving during that pass remain in the normal patch backlog. On-demand keeps local semantics.
    */
   private async adoptInitialSourceIndex(): Promise<void> {
@@ -1274,10 +1274,10 @@ export default class KplexPlugin extends Plugin {
     const index = this.index;
     let adopted: boolean;
     try {
-      adopted = await index.adoptStartupSources();
+      adopted = await index.adoptStartupSources({deferVocabulary: !index.isOnDemandMode()});
       if (adopted && !this.unloading && this.index === index && !index.isOnDemandMode()
         && index.hasSourceBackedStartup()) {
-        adopted = await index.rebuildProgressively(this.startupGraphSeedPaths());
+        adopted = await index.rebuild({retainSourceInventory: true});
       }
     }
     catch (error) {
@@ -1392,7 +1392,7 @@ export default class KplexPlugin extends Plugin {
       this.supportEvents.record("cache-restore-start", { category: "cache" });
       let restored: Awaited<ReturnType<GraphIndex["restorePersistedSnapshot"]>>;
       try {
-        this.snapshotRestoreTask ??= this.index.restorePersistedSnapshot(startupSeedPaths);
+        this.snapshotRestoreTask ??= this.index.restorePersistedSnapshot(startupSeedPaths, {deferEagerVocabulary: true});
         restored = await this.snapshotRestoreTask;
       } catch (error) {
         this.supportEvents.record("cache-restore-failure", { category: "cache", outcome: "failed", durationMs: perfNow() - restoreStarted });
@@ -4028,16 +4028,17 @@ export default class KplexPlugin extends Plugin {
       && !semanticIncomplete
       && !this.index.hasPendingSearchVocabulary();
     if (upToDate && recordReadiness) this.startupDiagnostics?.finish();
+    const compiledFiles = this.index.getBuildProgress?.()?.processed ?? this.index.indexedMarkdownFileCount();
     const indexedFiles = totalFiles === null
-      ? this.index.indexedMarkdownFileCount()
-      : upToDate && !this.index.isOnDemandMode() ? totalFiles : Math.min(totalFiles, this.index.indexedMarkdownFileCount());
+      ? compiledFiles
+      : upToDate && !this.index.isOnDemandMode() ? totalFiles : Math.min(totalFiles, compiledFiles);
     const phase = upToDate
       ? "ready"
       : loadingCache
         ? "loading-cache"
         : this.index.isCheckpointSaving()
           ? "saving-cache"
-        : !this.initialIndexComplete && this.rebuildTask !== null
+        : !this.initialIndexComplete && (this.rebuildTask !== null || this.index.isBuilding?.())
           ? "indexing"
           : semanticIncomplete && this.rebuildTask === null && this.rebuildTimer === null && (startupIncomplete || !this.indexDirty)
             ? "incomplete"
@@ -4073,6 +4074,7 @@ export default class KplexPlugin extends Plugin {
     const searchFailure = phase === "incomplete" && !failure ? this.index.getSearchVocabularyFailure?.() : null;
     const aliasProgress = phase === "updating" ? this.index.getUrlAliasUpgradeProgress?.() : null;
     const urlProgress = this.index.getUrlIndexProgress();
+    const buildProgress = phase === "indexing" ? this.index.getBuildProgress?.() : null;
     const label = phase === "deferred" ? this.translator("indexing.deferred") : urlProgress.active
       ? urlProgress.total === 0
         ? urlProgress.restored > 0
@@ -4102,7 +4104,13 @@ export default class KplexPlugin extends Plugin {
           : phase === "checking-cache"
             ? this.translator("index.statusCheckingCache")
             : phase === "indexing"
-              ? this.translator("index.statusIndexingProgress", { indexed: indexedFiles, total: totalFiles })
+              ? buildProgress?.stage === "relationships" ? this.translator("index.startupResolution")
+                : buildProgress?.stage === "presentation" ? this.translator("index.startupSearch")
+                : this.index.isBuilding?.()
+                ? this.translator("index.startupNotesProgress", {activity: this.translator("index.startupSemantics"),
+                  processed: indexedFiles.toLocaleString(), total: totalFiles.toLocaleString(),
+                  percent: totalFiles > 0 ? Math.floor(indexedFiles * 100 / totalFiles) : 0})
+                : this.translator("index.statusIndexingProgress", { indexed: indexedFiles, total: totalFiles })
               : phase === "saving-cache"
                 ? this.translator("index.statusSavingCache")
               : this.translator("index.statusUpdating");

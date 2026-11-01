@@ -1309,6 +1309,9 @@ export class ObsidianSourceAcquisition {
     if (!this.graphChanges) {
       this.graphChanges = new Map();
       this.graphMaintenanceRevision = this.maintenanceRevision;
+      // A warm graph may be admitted after a same-stat native edit was already observed. Carry
+      // those coalesced owners forward; a cache signature cannot cover their newer input.
+      for (const file of this.pendingKnownFiles) this.noteGraphSourceChange(file.path);
     }
     return this.graphChangeSequence;
   }

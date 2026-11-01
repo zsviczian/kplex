@@ -541,7 +541,7 @@ test("eager event reconciliation retains complete graph navigation after modify 
   } finally {await browser.cleanup();}
 });
 
-for (const scenario of ['newer-equal-stat-edit','delayed-metadata','foreground-priority','retired-demand','new-policy','partial-baseline','event-during-full-build']) test(`eager graph backlog preserves ${scenario}`, async () => {
+for (const scenario of ['newer-equal-stat-edit','newer-token-full-build','delayed-metadata','foreground-priority','retired-demand','new-policy','partial-baseline','event-during-full-build']) test(`eager graph backlog preserves ${scenario}`, async () => {
   const browser = await chromiumHarness(bundle);
   try {
     assert.equal(await browser.evaluate(contributorBrowserInitialize), true);
@@ -561,7 +561,11 @@ for (const scenario of ['newer-equal-stat-edit','delayed-metadata','foreground-p
           let entered;const reached=new Promise(resolve=>entered=resolve),held=new Promise(resolve=>unlock=resolve);
           const original=index.preparePresentationPublication;index.preparePresentationPublication=async function(...args){const result=await original.apply(this,args);entered();await held;return result};restore=()=>index.preparePresentationPublication=original;
           const rebuilding=index.rebuild();await reached;f.texts.set(a.path,'Child:: [[C.md]]');f.app.vault.trigger('modify',a);
+          release=index.acquireSemanticDemand(a.path);await index.ensureVisibleSemanticRecovery(a.path);
+          ok(index.neighbours(index.get(a.path),'child').some(n=>n.page.path==='C.md'),'Current-node edit prepares ahead of held private full publication');
           unlock();ok(await rebuilding,'Captured full candidate publishes');restore();restore=null;beforeBuilds++;
+          ok(index.neighbours(index.get(a.path),'child').some(n=>n.page.path==='C.md'),'Saved current local view survives an older full candidate publication');
+          release();release=null;
           ok(!index.hasCurrentFullSemanticGraph(),'Event during build cannot inherit a newer complete marker');ok(f.acquisition.pendingGraphSources().has(a.path),'Post-capture event retained');
         }
         if(${JSON.stringify(scenario)}!=='event-during-full-build'){f.texts.set(a.path,'Child:: [[C.md]]');f.app.vault.trigger('modify',a);}
@@ -575,6 +579,11 @@ for (const scenario of ['newer-equal-stat-edit','delayed-metadata','foreground-p
           const newer=f.acquisition.pendingGraphSources().get(a.path);unlock();const result=await older;
           equal(result.outcome,'cancelled','Old equal-stat preparation cannot publish');equal(f.acquisition.pendingGraphSources().get(a.path),newer,'Newer event remains queued');restore();restore=null;
           ok(index.neighbours(index.get(a.path),'child').some(n=>n.page.path==='B.md'),'Cancelled stage leaves old canonical graph intact');await settle();
+        }else if(${JSON.stringify(scenario)}==='newer-token-full-build'){
+          ok(await f.acquisition.flush(),'New equal-stat input accepted before full compilation');
+          ok(!f.acquisition.needsBodyRead(a),'Acquisition already cleared the body dirty flag');
+          ok(await index.rebuild(),'Batched full compiler reuses the current completed input');beforeBuilds++;await settle();
+          ok(index.neighbours(index.get(a.path),'child').some(n=>n.page.path==='C.md'),'Full compiler cannot choose an older hot body after acquisition');
         }else if(${JSON.stringify(scenario)}==='delayed-metadata'){
           const result=await index.patchMarkdownPaths([a.path]);equal(result.outcome,'patched','Canvas publication completes before metadata:changed');
           ok(index.neighbours(index.get(a.path),'child').some(n=>n.page.path==='C.md'),'Immediate canvas result is canonical');await settle();

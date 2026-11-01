@@ -43,7 +43,7 @@ for (const owner of ['presentation', 'legacy-display', 'semantic']) {
     i.sourceAcquisition.hasSemanticDependencies = /** Isolate an already-recovered source prerequisite. */ () => true;
     i.retryUrlAliasUpgrade = /** Optional alias maintenance is not a notification substitute. */ () => {};
     let completeGraphs = 0;
-    i.rebuildProgressively = /** Isolate the completion capability from this storage-free notification case. */ async () => { completeGraphs++; return true; };
+    i.rebuild = /** Isolate the completion capability from this storage-free notification case. */ async () => { completeGraphs++; return true; };
     let release, attempts = 0;
     const hold = new Promise(/** Hold only the original initial adopter. */ done => { release = done; });
     i.adoptStartupSources = /** Model the superseded result without manually calling a second adoption. */ async () => { if (++attempts === 1) { await hold; return false; } return true; };

@@ -379,7 +379,7 @@ for (const outcome of ["fresh", "stale", "failed", "sources", "sources-pending"]
     assert.equal(context.rebuildTask, null); assert.equal(context.initialIndexComplete, false);
     releaseHydration(); await task;
     const expected = outcome === "fresh" ? [] : outcome === "stale" ? ["full"]
-      : outcome === "failed" ? ["progressive"] : outcome === "sources" ? ["adopt", "progressive"] : ["adopt"];
+      : outcome === "failed" ? ["progressive"] : outcome === "sources" ? ["adopt", "full"] : ["adopt"];
     assert.deepEqual(events, ["metadata", "hydrate", ...expected]);
     assert.equal(context.initialIndexComplete, outcome !== "sources-pending");
     assert.equal(context.indexDirty, outcome === "sources-pending");

@@ -48,21 +48,50 @@ async function scenario(app,c) {
       app.vault[name]=function(file,...args){if(file.extension==='md')nativeBodyReads++;return original.call(this,file,...args);};
       restoreReaders.push(()=>{if(descriptor)Object.defineProperty(app.vault,name,descriptor);else delete app.vault[name];});
     }
-    const started=performance.now();await app.plugins.enablePlugin('k-plex');disabled=false;p=app.plugins.plugins['k-plex'];
-    await until(()=>p.initialIndexComplete&&!p.index.building&&p.index.sourceAcquisition.hasSemanticDependencies()
-      &&p.index.publicApiCoverage().scope==='global'&&!p.index.publicApiCoverage().pending,'Damaged-cache eager startup never completed global relationships');
+    const started=performance.now(),progressSamples=[];await app.plugins.enablePlugin('k-plex');disabled=false;p=app.plugins.plugins['k-plex'];
+    await until(()=>{
+      const status=p.getIndexStatus();
+      const progress=p.index.getBuildProgress();
+      if(p.index.isBuilding()&&progressSamples.length<12&&(progressSamples.at(-1)?.indexed!==status.indexedFiles||progressSamples.at(-1)?.stage!==progress?.stage)){
+        check(status.phase==='indexing','Active recovery build was hidden behind generic preparation');
+        check(progress?.stage==='relationships'?status.label===p.translator('index.startupResolution')
+          :progress?.stage==='presentation'?status.label===p.translator('index.startupSearch'):status.label.includes('%'),'Active build did not expose its note progress or actual finishing stage');
+        progressSamples.push({indexed:status.indexedFiles,total:status.totalFiles,label:status.label,stage:progress?.stage});
+      }
+      return p.initialIndexComplete&&!p.index.building&&p.index.sourceAcquisition.hasSemanticDependencies()
+        &&p.index.publicApiCoverage().scope==='global'&&!p.index.publicApiCoverage().pending;
+    },'Damaged-cache eager startup never completed global relationships');
     const hydration=p.index.getSnapshotHydrationDiagnostics(),source=p.index.getSourceAcquisitionCounters(),semantic=p.index.getSemanticPreparationDiagnostics();
     check(hydration.firstFailure?.reason==='missing-chunk','Test did not enter actual missing-chunk recovery');
     check(p.index.isFullSnapshotHydrated()&&!p.index.hasSourceBackedStartup(),'Vocabulary-only recovery cannot pass');
     check(semantic.fullBuilds===1,'Eager recovery must compile global relationships once');
+    check(p.startupDiagnostics.snapshot().sessionWork.nodeCatalogStarts===0,'Eager startup repeated a node-only pass before graph compilation');
     check(source.vaultReads===0&&source.parses===0,'Unchanged durable sources must not be reread/reparsed');
     check(nativeBodyReads===0,'Native Markdown reads occurred outside the source counters');
     const paths=app.vault.getMarkdownFiles().slice(-6).map(file=>file.path),before={...semantic};
     for(const path of paths){const release=p.index.acquireSemanticDemand(path);try{await p.index.ensureSemanticScope(path);check(p.index.viewScopeCoverage(path).complete,'Recovered destination incomplete');}finally{release();}}
     const after=p.index.getSemanticPreparationDiagnostics();
     check(after.requested===before.requested&&after.dependencyVisits===before.dependencyVisits,'Post-recovery destinations replayed source families');
-    return {elapsedMs:performance.now()-started,hydration:{route:hydration.route,failure:hydration.firstFailure.reason},coverage:p.index.publicApiCoverage(),
-      fullBuilds:semantic.fullBuilds,sourceReads:source.vaultReads,nativeBodyReads,parses:source.parses,navigation:{destinations:paths.length,requests:after.requested-before.requested,familyVisits:after.dependencyVisits-before.dependencyVisits}};
+    const cold={elapsedMs:performance.now()-started,hydration:{route:hydration.route,failure:hydration.firstFailure.reason},coverage:p.index.publicApiCoverage(),
+      fullBuilds:semantic.fullBuilds,nodeCatalogStarts:p.startupDiagnostics.snapshot().sessionWork.nodeCatalogStarts,progressSamples,
+      sourceReads:source.vaultReads,nativeBodyReads,parses:source.parses,navigation:{destinations:paths.length,requests:after.requested-before.requested,familyVisits:after.dependencyVisits-before.dependencyVisits}};
+    c.progress={phase:'waiting-for-recovered-snapshot',cold};
+    await until(()=>p.index.activeSnapshotGeneration&&p.index.activeSnapshotGeneration!==active.generation&&p.index.snapshotPersistTimer===null,'Recovered complete graph was not saved for warm reload');
+    await app.plugins.disablePlugin('k-plex');disabled=true;
+    const warmStarted=performance.now();await app.plugins.enablePlugin('k-plex');disabled=false;p=app.plugins.plugins['k-plex'];
+    c.progress={phase:'warm-reload',cold};
+    await until(()=>p.initialIndexComplete&&!p.index.isBuilding()&&p.index.sourceAcquisition.hasSemanticDependencies()
+      &&p.index.publicApiCoverage().scope==='global'&&!p.index.publicApiCoverage().pending,'Saved complete graph did not regain warm global coverage');
+    const warmSemantic=p.index.getSemanticPreparationDiagnostics(),warmSource=p.index.getSourceAcquisitionCounters(),warmHydration=p.index.getSnapshotHydrationDiagnostics();
+    check(warmHydration.route==='full-snapshot','Warm reload did not use complete saved acceleration');
+    check(warmSemantic.fullBuilds===0&&p.startupDiagnostics.snapshot().sessionWork.nodeCatalogStarts===0,'Warm reload repeated whole-vault compilation');
+    check(warmSource.vaultReads===0&&warmSource.parses===0&&nativeBodyReads===0,'Warm reload read or parsed unchanged Markdown');
+    for(const path of paths){const release=p.index.acquireSemanticDemand(path);try{await p.index.ensureSemanticScope(path);}finally{release();}}
+    const warmAfter=p.index.getSemanticPreparationDiagnostics();
+    check(warmAfter.requested===warmSemantic.requested&&warmAfter.dependencyVisits===warmSemantic.dependencyVisits,'Warm destinations reconstructed neighborhoods');
+    return {cold,warm:{elapsedMs:performance.now()-warmStarted,route:warmHydration.route,coverage:p.index.publicApiCoverage(),
+      fullBuilds:warmSemantic.fullBuilds,nodeCatalogStarts:0,sourceReads:warmSource.vaultReads,parses:warmSource.parses,
+      destinations:paths.length,requests:warmAfter.requested-warmSemantic.requested,familyVisits:warmAfter.dependencyVisits-warmSemantic.dependencyVisits}};
   } finally {
     c.progress={...c.progress,phase:'restoration'};
     for(const restore of restoreReaders.reverse())restore();

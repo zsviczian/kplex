@@ -24,7 +24,7 @@ function fixture({KplexPlugin,GraphIndex,app,settings,mode='eager'}) {
   i.retrySourceNodeImpacts = /** Avoid unrelated presentation work in coordinator-only cases. */ () => {};
   i.retryUrlAliasUpgrade = /** Keep optional alias maintenance in its own regression inventory. */ () => {};
   const state = {authority:false, attempts:0, rebuilds:0, completeGraphs:0, maintenance:0};
-  i.rebuildProgressively = /** Count eager completion separately from an unrelated fallback rebuild. */ async () => { state.completeGraphs++; return true; };
+  i.rebuild = /** Count eager completion separately from an unrelated fallback coordinator. */ async () => { state.completeGraphs++; return true; };
   i.sourceAcquisition.hasSemanticDependencies = /** Supply an explicit prerequisite without granting completion. */ () => state.authority;
   i.adoptStartupSources = /** Count actual coordinator attempts against the controlled prerequisite. */ async () => { state.attempts++; return state.authority; };
   i.sourceAcquisition.getMaintenanceRevision = /** Controlled meaningful host revision. */ () => state.maintenance;

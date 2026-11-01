@@ -15,7 +15,7 @@ const bundle = await contributorBrowserBundle(['src/main.ts', 'src/index/GraphIn
   'src/index/IndexSnapshot.ts', 'src/core/graph/compiler.ts', 'src/adapters/obsidian/metadataSourceCollector.ts',
   'src/adapters/obsidian/ontologySourceCollector.ts', 'src/adapters/obsidian/startupDiagnostics.ts'], {'src/main.ts': startupSourceCoordinatorSource()});
 
-for (const damage of ['missing', 'chunks']) test(`eager coordinator completes ${damage} graph recovery before declaring startup ready`, async () => {
+for (const damage of ['missing', 'chunks', 'warm', 'warm-equal-stat']) test(`eager coordinator completes ${damage} graph recovery before declaring startup ready`, async () => {
   const browser = await chromiumHarness(bundle);
   try {
     assert.equal(await browser.evaluate(contributorBrowserInitialize), true);
@@ -32,32 +32,59 @@ for (const damage of ['missing', 'chunks']) test(`eager coordinator completes ${
         const semantic={hierarchy:{hidden:[],parents:[],children:[],leftFriends:['Friends'],rightFriends:[],previous:[],next:[]},inferAllLinksAsFriends:false,inverseInfer:false,showFullTagName:true,tagStyleList:[],maxLabelLength:30};
         const view=centerGateSettings({showFolderNodes:false}),settings={indexingMode:'eager',...semantic,...view,lastActivePath:'A.md',pinnedNodes:[]};
         initial=await fullCenterIndex(M,f,await hostOracle(f,[...f.files.keys()],semantic,view,true),semantic,view);
-        if(${JSON.stringify(damage)}==='chunks'){
+        if(${JSON.stringify(damage)}!=='missing'){
           ok(await f.cache.writeSnapshot({createdAt:Date.now(),urlAliasVersion:2,vaultSignature:M.computeVaultSignature(f.app),settingsSignature:M.computeIndexSettingsSignature(settings),discoveredFields:[]},
             [...initial.state.pages.values()].map(page=>M.persistedPageFromGraphPage(page)),[...initial.state.evidence.declarations()].map(item=>M.persistedDeclarationFromEvidence(item))),'Complete snapshot saved');
-          const db=await f.cache.open();await edit(db,['snapshotChunks'],tx=>tx.objectStore('snapshotChunks').clear());
+          if(${JSON.stringify(damage)}==='chunks'){const db=await f.cache.open();await edit(db,['snapshotChunks'],tx=>tx.objectStore('snapshotChunks').clear());}
         }
         initial.destroy();initial=null;f.acquisition.close();const readsBefore=f.reads.length;
         const p=new M.StartupSourceCoordinator();Object.assign(p,{app:f.app,settings,layoutReady:true,indexPreparationAdmitted:true,
           notifyIndexStatus(){},hasVisibleKplexSurface:()=>false,refreshBookmarkedEntryPoints:async()=>{},startupGraphSeedPaths:()=>['A.md']});
+        p.startupDiagnostics=new M.StartupDiagnostics();p.startupDiagnostics.begin(false);
         index=new M.GraphIndex(p,f.app);p.index=index;index.scheduleOrphanCleanup=()=>{};
-        release=index.acquireSemanticDemand('A.md');ok((await index.restorePersistedSnapshot(['A.md'])).restored,'Physical recovery navigable');
-        await index.waitForSnapshotHydration();ok(index.hasSourceBackedStartup(),'Recovery initially source-backed');
+        if(${JSON.stringify(damage)}==='warm-equal-stat'){
+          index.sourceAcquisition.start();f.texts.set('Unvisited.md','Friends:: [[B]]');f.app.vault.trigger('modify',f.files.get('Unvisited.md'));
+        }
+        release=index.acquireSemanticDemand('A.md');ok((await index.restorePersistedSnapshot(['A.md'],{deferEagerVocabulary:true})).restored,'Physical recovery navigable');
+        await index.waitForSnapshotHydration();
+        if(${JSON.stringify(damage)}.startsWith('warm')){
+          p.indexDirty=false; // The production restore classifier has no intervening host edits here.
+          await p.finishStartupIndexPreparation();ok(await index.flushSourceRepository(),'Warm source validation closes');
+          index.acknowledgeHostPresentation();index.retryEagerGraphMaintenance();while(index.eagerGraphMaintenanceTask)await index.eagerGraphMaintenanceTask;
+          equal(index.getSemanticPreparationDiagnostics().fullBuilds,0,'Warm hydration must not rebuild relationships');
+          equal(index.publicApiCoverage(),{scope:'global',complete:true,pending:false},'Warm complete graph regains global read coverage');
+          const before=index.getSemanticPreparationDiagnostics(),counts=index.getSourceAcquisitionCounters();
+          const demand=index.acquireSemanticDemand('Unvisited.md');try{await index.ensureSemanticScope('Unvisited.md');}finally{demand();}
+          equal(index.getSemanticPreparationDiagnostics().requested,before.requested,'Warm unvisited destination needs no reconstruction');
+          equal(index.getSemanticPreparationDiagnostics().dependencyVisits,before.dependencyVisits,'Warm destination needs no source replay');
+          equal(index.getSourceAcquisitionCounters(),counts,'Warm navigation adds no acquisition work');
+          equal(p.startupDiagnostics.snapshot().sessionWork.nodeCatalogStarts,0,'Warm hydration never replays a node-only catalog');
+          oracle=await fullCenterIndex(M,f,await hostOracle(f,[...f.files.keys()],semantic,view,true),semantic,view);
+          oracle.fullSnapshotHydrated=true; // This distinct oracle was actually compiled from every native source above.
+          for(const path of f.files.keys())equal(currentNeighborhoodView(index,path),currentNeighborhoodView(oracle,path),'Warm unchanged/newer-source oracle parity: '+path);
+          if(${JSON.stringify(damage)}==='warm-equal-stat')ok(index.get('Unvisited.md').neighbours.get('B.md')?.isLeftFriend,'Observed same-stat edit predating journal admission cannot inherit saved graph authority');
+          return true;
+        }
+        ok(index.hasSourceBackedStartup(),'Recovery initially source-backed');
         let entered;const reached=new Promise(done=>entered=done),held=new Promise(done=>unlock=done);
-        const patch=M.GraphBuilder.prototype.patchMarkdownFiles;
-        M.GraphBuilder.prototype.patchMarkdownFiles=async function(state,files,options){if(options?.beforeFile){entered();await held;}return patch.call(this,state,files,options);};
-        restore=()=>M.GraphBuilder.prototype.patchMarkdownFiles=patch;
+        const build=M.GraphBuilder.prototype.build;
+        M.GraphBuilder.prototype.build=async function(options){const result=await build.call(this,options);entered();await held;return result;};
+        restore=()=>M.GraphBuilder.prototype.build=build;
         const adoption=p.finishStartupIndexPreparation();
-        // Bound the observation of the real progressive P4 entry: the old coordinator returned
+        // Bound the observation of the real private P4 compiler: the old coordinator returned
         // immediately after vocabulary adoption, so this is also the failing-before assertion.
         const enteredBuild=await Promise.race([reached.then(()=>true),adoption.then(()=>false)]);
         ok(enteredBuild,'Eager startup must schedule complete relationships, not stop at node vocabulary');
+        const inventoryPasses=p.startupDiagnostics.snapshot().sessionWork.sourceInventoryPasses;
         equal(p.initialIndexComplete,false,'Incomplete graph cannot declare startup ready');
         const before=index.getSourceAcquisitionCounters(),foreground=index.acquireSemanticDemand('Unvisited.md');
         try{await index.ensureSemanticScope('Unvisited.md');ok(index.get('Unvisited.md').neighbours.get('Ghost')?.isLeftFriend,'Unvisited current-node request completes before held P4 ingestion');}finally{foreground();}
         equal(index.getSourceAcquisitionCounters().vaultReads,before.vaultReads,'Foreground uses durable source facts');
         unlock();await adoption;restore();restore=null;
         ok(p.initialIndexComplete,'Eager startup completes');ok(index.isFullSnapshotHydrated(),'Complete graph published');
+        equal(p.startupDiagnostics.snapshot().sessionWork.sourceInventoryPasses,inventoryPasses,'Cached graph compilation must not force another source inventory');
+        ok(!index.sourceAcquisition.requested,'Completed source authority is retained instead of queued for a redundant rescan');
+        equal(p.startupDiagnostics.snapshot().sessionWork.nodeCatalogStarts,0,'Eager graph completion must not repeat a whole-vault node-only pass');
         ok(!index.hasSourceBackedStartup(),'Recovered graph no longer depends on per-center reconstruction');
         equal(index.publicApiCoverage(),{scope:'global',complete:true,pending:false},'Actual global read coverage');
         oracle=await fullCenterIndex(M,f,await hostOracle(f,[...f.files.keys()],semantic,view,true),semantic,view);

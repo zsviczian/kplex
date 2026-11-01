@@ -78,8 +78,14 @@ export async function runEagerNavigationWorkflows(h) {
     c.eagerNavigation.phase="canvas-mutation";
     await center(canvasSource.path);focus(c.host);
     const writing=p.createRelationToPage(p.index.get(canvasSource.path),"child",p.index.get(canvasTarget.path),field);
-    c.acceptedWrites.add(writing);let outcome;
-    try {outcome=await writing;} finally {c.acceptedWrites.delete(writing);}
+    c.acceptedWrites.add(writing);let outcome,pendingNotice=false;
+    try {outcome=await writing;} catch(error) {
+      // This service's typed durable-pending receipt is an accepted write, never a retry grant.
+      // Class names are minified in the native artifact; exact message plus its owned boolean
+      // identifies the existing receipt. Native property/canonical readback below is still required.
+      if(error?.message!==p.translator("relation.savedUpdatePending")||typeof error.noticeReported!=="boolean")throw error;
+      outcome={state:"saved-pending"};pendingNotice=error.noticeReported;
+    } finally {c.acceptedWrites.delete(writing);}
     check(outcome.state==="saved-published"||outcome.state==="saved-pending","Canvas relationship did not save");
     check(JSON.stringify(app.metadataCache.getFileCache(canvasSource)?.frontmatter?.[field]??[]).includes(canvasTarget.basename),"Canvas mutation is absent from native metadata");
     await settle();
@@ -87,7 +93,7 @@ export async function runEagerNavigationWorkflows(h) {
     const before={...p.index.getSemanticPreparationDiagnostics(),source:sourceCounters()},started=performance.now();
     await center(calendar[3].path);addCapture("after-canvas-mutation",before,started);
     check(p.index.getSemanticPreparationDiagnostics().fullBuilds===fullBuilds,"Canvas catch-up started a full rebuild");
-    return {state:outcome.state,capture:captures.at(-1),globalCoverage:p.index.publicApiCoverage()};
+    return {state:outcome.state,pendingNotice,capture:captures.at(-1),globalCoverage:p.index.publicApiCoverage()};
   });
   c.eagerNavigation.phase="complete";
   return {scenarios:c.scenarios};

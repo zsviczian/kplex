@@ -723,13 +723,13 @@ export class GraphBuilder {
    * @returns A fully collected state only when every source family remains current through binding;
    * otherwise `null` so the coordinator can retain the previous published graph.
    */
-  async build(options: Readonly<{ acquireSources?: boolean }> = {}): Promise<GraphState | null> {
+  async build(options: Readonly<{ acquireSources?: boolean; onProgress?: (processed: number, total: number) => void }> = {}): Promise<GraphState | null> {
     this.plugin.startupDiagnostics?.recordWork("fullBuildStarts");
     const compiler = this.createFullCompiler();
     const structuralRead = await this.collectStructuralSources(compiler);
     if (!structuralRead) return null;
     if (!(await this.collectHostLinkSources(compiler))) return null;
-    if (!(await this.collectMarkdownSources(compiler, options.acquireSources !== false))) return null;
+    if (!(await this.collectMarkdownSources(compiler, options.acquireSources !== false, options.onProgress))) return null;
     if (!(await this.finalizeStructuralSources(compiler, structuralRead))) return null;
 
     const compiled = await compiler.finish();
@@ -1326,8 +1326,11 @@ export class GraphBuilder {
   }
 
   /** Acquire bounded body batches, stream neutral facts and hash cooperatively under source/file fences. */
-  private async collectMarkdownSources(compiler: NormalizedGraphCompiler, acquireSources: boolean): Promise<boolean> {
+  private async collectMarkdownSources(compiler: NormalizedGraphCompiler, acquireSources: boolean,
+    onProgress?: (processed: number, total: number) => void): Promise<boolean> {
     const files = this.app.vault.getMarkdownFiles();
+    let processed = 0;
+    onProgress?.(processed, files.length);
     const alive = new Set(files.map((file) => file.path));
     for (const cachedPath of this.fieldCache.keys()) {
       if (alive.has(cachedPath)) continue;
@@ -1464,8 +1467,8 @@ export class GraphBuilder {
         if (!this.fileRevisionMatches(file, revision)) return false;
         let entry = this.fieldCache.get(revision.path);
         const inputToken = this.sourceAcquisition?.getBodyCacheRequest(file)?.inputToken;
-        if (!entry || entry.mtime !== revision.mtime || this.sourceAcquisition?.needsBodyRead(file)
-          && (inputToken === undefined || entry.inputToken !== inputToken)) {
+        if (!entry || entry.mtime !== revision.mtime || (inputToken !== undefined
+          ? entry.inputToken !== inputToken : this.sourceAcquisition?.needsBodyRead(file))) {
           const body = durable.get(revision.path) ?? fresh.get(revision.path)?.body;
           if (!body) return false;
           entry = { mtime: revision.mtime, body,
@@ -1485,6 +1488,7 @@ export class GraphBuilder {
         this.semanticFingerprints.set(revision.path, signature);
         if (!(await this.collectMetadataSources(compiler, file, meta))) return false;
         if (!(await this.yieldToHost())) return false;
+        onProgress?.(++processed, files.length);
       }
     }
     if (!(await flushWrites())) return false;

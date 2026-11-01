@@ -277,7 +277,7 @@ acceleration, and a physical fallback never becomes complete semantic authority 
 Source heads own acquisition progress; legacy graph checkpoint reads remain, while their production
 progress writer is retired. A source-backed global node projection restores body-only virtual/URL
 search and finite suggestions after cache loss. Eager initial startup then completes relationships
-through the existing progressive builder before reporting completion; on-demand retains local
+through the existing batched full compiler before reporting completion; on-demand retains local
 semantics. A coalesced source-owner publication journal feeds existing background per-file graph
 commits after a complete eager baseline exists. Exact source/native/metadata receipts acknowledge
 only captured observations; source and host backlog closure are both required to renew global
