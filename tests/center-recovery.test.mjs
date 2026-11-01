@@ -47,10 +47,24 @@ export async function startupHistory(){
   flushSync(()=>root.render(<Surface/>));const before=element.querySelectorAll('[data-kplex-history-path]').length,disabled=element.querySelectorAll('button:disabled').length;
   element.querySelector('button').click();
   for(const path of paths)pages.set(path,{path,name:path});flushSync(()=>root.render(<Surface/>));element.querySelector('button').click();
-  const exactPage=undefined,waitingForDocument=false,fallbackPath=null,waitingForStartupCenter=${startupWaiting};
+  const exactPage=undefined,waitingForDocument=false,fallbackPath=null,waitingForStartupCenter=${startupWaiting},activePageRef={current:null},pendingDocumentFollowRef={current:null};
   pages.set('folder:/',{path:'folder:/'});const page=${startupPage};
   return {before,disabled,after:element.querySelectorAll('[data-kplex-history-path]').length,clicks,expected:activePath,temporaryCenter:page?.path??null};
  }finally{flushSync(()=>root.unmount());element.remove()}
+}
+/** Preserve the accepted unresolved center while its borrowed preview changes ownership. */
+export function earlyPlaceholderGap(){
+ const activePath='Notes/Unwritten',accepted={path:activePath,isVirtual:true},activePageRef={current:accepted},pendingDocumentFollowRef={current:null};
+ let ready=false;
+ const plugin={index:{get:()=>undefined},app:{vault:{getFileByPath:()=>null}},isNavigationFallbackReady:()=>ready};
+ const exactPage=undefined,waitingForDocument=false,fallbackPath=null;
+ /** Evaluate the exact production selection after the prior center releases its scope. */
+ const read=()=>{const waitingForStartupCenter=${startupWaiting};return ${startupPage}};
+ const during=read();ready=true;const after=read();
+ activePageRef.current={path:'Notes/Other',isVirtual:true};ready=false;const unrelated=read();
+ activePageRef.current={path:activePath,file:{path:activePath}};const retiredFile=read();
+ activePageRef.current=accepted;pendingDocumentFollowRef.current={path:'Pending.md'};const pendingFollow=read();
+ return {during:during?.path??null,after:after?.path??null,unrelated:unrelated?.path??null,retiredFile:retiredFile?.path??null,pendingFollow:pendingFollow?.path??null};
 }
 /** Exercise the actual mounted view effect across a pending check and native hide/reveal. */
 export async function recoveryAfterReveal(mode='pending'){
@@ -145,4 +159,10 @@ test('center diagnostic accepts only bounded aggregate vectors and refuses gette
   for(const bad of [{...value,after:[0,-1,0,0,0]},{...value,before:[0,NaN,0,0,0]},{...value,presented:Array(6).fill(0)},{...value,coverageAfter:'private'}])if(sourceModules.sanitizeCenterRecoveryDiagnostic(bad))throw Error('Malformed receipt admitted');
   Object.defineProperty(value,'after',{get(){throw Error('Accessor invoked')}});if(sourceModules.sanitizeCenterRecoveryDiagnostic(value))throw Error('Getter admitted');return true;
  })()`),true)}finally{await browser.cleanup()}
+});
+
+test('accepted placeholder keeps its mounted graph through the startup preview handover',async()=>{
+ const browser=await chromiumHarness(bundle.outputFiles[0].text);try{
+  assert.deepEqual(await browser.evaluate('sourceModules.earlyPlaceholderGap()'),{during:'Notes/Unwritten',after:null,unrelated:null,retiredFile:null,pendingFollow:null});
+ }finally{await browser.cleanup()}
 });

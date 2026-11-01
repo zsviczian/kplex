@@ -18,6 +18,8 @@
  * current native files and captured Plex links share drop navigation without source acquisition.
  * Native-view sessions retain independent centers/pending native follow and memory-only Footprints
  * across React/window remounts. Saved history and pins continue through the shared settings writer.
+ * Accepted centers remain mounted across provisional startup preview handovers; saved destinations
+ * retain an App-owned recovery action even when no graph can yet render.
  * Saved chips project the shared node style resolver; the History list owns mouse grab scrolling
  * independently of node activation, native touch scrolling and canvas gestures.
  */
@@ -728,6 +730,11 @@ export function KplexApp({ plugin, surface, hostLeaf, translate, environment, on
   // center and loading state rather than displaying a different node and persisting it.
   const waitingForStartupCenter = !exactPage && !plugin.isNavigationFallbackReady();
   const page = exactPage
+    // The outgoing graph can own this accepted endpoint's only provisional preview. Keep its
+    // replacement mounted until its own demand publishes; never retain another center or a retired file.
+    ?? (waitingForStartupCenter && !pendingDocumentFollowRef.current && activePageRef.current?.path === activePath
+      && (!activePageRef.current.file || plugin.app.vault.getFileByPath(activePath) === activePageRef.current.file)
+      ? activePageRef.current : undefined)
     ?? (fallbackPath ? plugin.index.get(fallbackPath) : undefined)
     ?? (waitingForDocument || waitingForStartupCenter ? undefined : plugin.index.get("folder:/"));
   const hasPage = Boolean(page);
@@ -1098,6 +1105,20 @@ export function KplexApp({ plugin, surface, hostLeaf, translate, environment, on
   /** Resolve exactly the accepted node; pin/history actions never choose another row after filtering. */
   const actionPage = (context: ActionContext): GraphPage | null => context.target.kind === "node"
     ? resolveActionPage(plugin.index, context.target.node) : null;
+  /** Saved destinations can recover a loading surface; graph occurrences retain their graph owner. */
+  const savedDestinationAction: NonNullable<SurfaceActionImplementations["node.activate"]> = {
+    availability: /** Recheck the exact saved identity without admitting an unavailable or transient row. */ context => {
+      const target = actionPage(context);
+      return context.request.target?.kind === "explicit" && context.target.kind === "node" && !context.target.occurrenceId
+        && target && !target.transient ? {state: "enabled"} : {state: "disabled", reasonKey: "actions.target-unavailable"};
+    },
+    execute: /** Preserve native identity, editor and rooted-navigation guards through the existing owner. */ context => {
+      const target = actionPage(context);
+      if (context.request.target?.kind !== "explicit" || context.target.kind !== "node" || context.target.occurrenceId || !target || target.transient)
+        return {status: "unavailable", reasonKey: "actions.target-unavailable"};
+      return activate(target, true, true, "user", true) ? {status: "completed"} : {status: "unavailable", reasonKey: "actions.target-unavailable"};
+    },
+  };
   /** Open a finite pins/history list without materializing missing files or compressing saved slots. */
   const openSavedPicker = (kind: "pins" | "history"): ActionOutcome => {
     const paths = [...(kind === "pins" ? plugin.settings.pinnedNodes : plugin.settings.navigationHistory)];
@@ -1165,6 +1186,7 @@ export function KplexApp({ plugin, surface, hostLeaf, translate, environment, on
     trigger.focus();
   };
   const appImplementations: SurfaceActionImplementations = {
+    "node.activate": savedDestinationAction,
     "actions.open": uiAction(/** Show actions for this surface's captured context. */ () => openLocalActions(false)),
     "keyboard.help": uiAction(/** Help derives from the effective catalog/preferences. */ () => openLocalActions(true)),
     "graph.focus": uiAction(/** Explicit focus never follows an unrelated native editor file. */ () => rootRef.current?.focus({ preventScroll: true })),

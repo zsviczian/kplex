@@ -15,6 +15,8 @@
  * covers reuse caller-owned ordering in bounded candidate windows before retaining their cap.
  * Callers may request a bounded sibling candidate pool independently of the visible folder rows.
  * Count-only callers carry their owning scope cancellation through every compiler checkpoint.
+ * Observed unresolved endpoints can own the same bounded provisional cover as native centers;
+ * their presence never grants closed-world absence or complete count authority.
  * Optional partial recovery omits unavailable owners and every incident pair, retaining strict
  * behavior for ordinary count covers. Metadata identities close together before publication.
  * A known virtual endpoint needs no physical metadata; its incoming owners still prove local numeric gates.
@@ -433,7 +435,9 @@ export class HostMetadataPreview {
     }
     await this.initializeBacklinks();
     const center = this.app.vault.getFileByPath(centerPath);
-    if (!(center instanceof TFile) && !options.completeHostCover) return null;
+    // An unresolved endpoint already observed in host links can become the center before
+    // global authority is ready. Its bounded preview uses the same current contributor owners.
+    if (!(center instanceof TFile) && !options.completeHostCover && !this.unresolvedIncoming.has(centerPath)) return null;
     const revision = this.revision;
     const captured = new Map<TFile, Readonly<{ path: string; mtime: number; size: number }>>();
     const metadataCaptured = new Map<TFile, ReturnType<App["metadataCache"]["getFileCache"]>>();
@@ -527,7 +531,8 @@ export class HostMetadataPreview {
       sources.add(path);
       if (sources.size > MAX_PREVIEW_RECORDS) { options.onUnavailable?.(); return null; }
     }
-    if (options.completeHostCover) for (const path of this.unresolvedIncoming.get(centerPath) ?? []) {
+    for (const path of this.unresolvedIncoming.get(centerPath) ?? []) {
+      if (!options.completeHostCover && sources.size >= MAX_PREVIEW_SOURCES) break;
       sources.add(path);
       if (sources.size > MAX_PREVIEW_RECORDS) { options.onUnavailable?.(); return null; }
     }
@@ -604,7 +609,7 @@ export class HostMetadataPreview {
       }
       if (metadataAllowed) for (const target in this.app.metadataCache.unresolvedLinks?.[path] ?? {}) {
         if (++inspectedTargets > MAX_PREVIEW_TARGETS && !options.completeHostCover) break;
-        if (path !== centerPath && (!options.completeHostCover || target !== centerPath)) continue;
+        if (path !== centerPath && target !== centerPath) continue;
         unresolved[target] = this.app.metadataCache.unresolvedLinks?.[path][target];
       }
       if (!(await consume(new ObsidianHostLinkSourceCollector({ vault: this.app.vault,

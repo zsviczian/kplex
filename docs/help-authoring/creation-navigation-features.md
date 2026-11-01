@@ -38,4 +38,9 @@ Useful help example: enable the setting, pan across a wide neighborhood with two
 
 ## Evidence and remaining acceptance
 
-See [the validation record](../validation/creation-navigation-2026-11-01.md) and its native receipts for exact revisions and artifact identities. Native macOS checks cover file menus, tab captions, separate destinations, wheel behavior and actual settings reload. Positive template acceptance on the required companion and the remaining device matrix are pending. Desktop emulation does not establish physical mobile input behavior. Do not describe the draft as a published release or imply every platform is accepted.
+See [the validation record](../validation/creation-navigation-2026-11-01.md) and its native receipts for exact revisions and artifact identities. Native macOS checks cover file menus, tab captions, separate destinations, wheel behavior and actual settings reload. Positive template acceptance on the required companion and full Excalidraw native acceptance are pending; all 40 device profiles have now passed their targeted native rerun. Desktop emulation does not establish physical mobile input behavior. Do not describe the draft as a published release or imply every platform is accepted.
+
+A startup navigation follow-up keeps an accepted placeholder visible while its
+own preview becomes available and allows available history entries to recover a
+loading canvas. It creates no placeholder note and adds no setting. See the
+[implementation and validation record](../validation/placeholder-startup-navigation-2026-11-01.md).
