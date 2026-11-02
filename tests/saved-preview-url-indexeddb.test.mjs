@@ -15,7 +15,7 @@ test('saved preview does not join shared URL cache replay',async t=>{
   const browser=await chromiumHarness(bundle);
   try{
     assert(await browser.evaluate(contributorBrowserInitialize));assert(await browser.evaluate(initializeSavedPreviewUrl));
-    await t.test('an early foreground interruption yields retry to held URL replay while preview and visible work remain usable',/** Exercise a genuine shared URL task and both fresh-attempt publication fences. */ async()=>{
+    await t.test('an early foreground interruption retries ahead of held URL replay while preview and visible work remain usable',/** Exercise a genuine shared URL task and both fresh-attempt publication fences. */ async()=>{
       assert(await browser.evaluate(`(/** Hold real completed storage work without changing scheduler admission. */ async()=>{
         const q=await savedPreviewUrlFixture('preview-fresh-attempt-url','eager','page',true),i=q.index,open=i.indexedDb.open;
         let enter,release,held=false;
@@ -27,7 +27,8 @@ test('saved preview does not join shared URL cache replay',async t=>{
           equal((await savedPreviewDeadline(i.patchMarkdownPaths(['Hub.md'],{useDurableCache:true}),'First current file')).outcome,'patched','Ordinary file publication');
           release();ok((await savedPreviewDeadline(restore,'Independent saved preview')).restored,'Saved preview remains available');
           await new Promise(/** Allow the rejected candidate to reach its existing P4 checkpoint. */ resolve=>setTimeout(resolve,30));
-          equal(i.getSnapshotHydrationDiagnostics().attempts,1,'Fresh attempt yields to the live URL owner');
+          equal(i.getSnapshotHydrationDiagnostics().attempts,2,'One fresh Eager graph attempt starts ahead of optional URL I/O');
+          equal(i.getUrlIndexProgress().complete,false,'Graph retry cannot certify the still-held URL inventory');
           equal((await savedPreviewDeadline(i.withForegroundPriority(/** Run actual source work at its existing visible-change priority. */ ()=>i.patchMarkdownPaths(['Hub.md'],{useDurableCache:true,forceRecompile:true}),2),'Foreground during P4 retry')).outcome,'patched','Visible source work never joins URL/retry work');
           equal(i.restoreUrlIndex(),shared,'Shared URL task is not replaced by graph retry');
           q.release();ok(await savedPreviewDeadline(discovery,'URL convergence'),'Healthy URL owner completes');
@@ -143,18 +144,22 @@ test('saved preview does not join shared URL cache replay',async t=>{
       }
       await t.test(`${mode}: rapid preview supersession keeps shared URL replay and rejects late graph work`,async()=>{
         assert(await browser.evaluate(`(async()=>{
-          const q=await savedPreviewUrlFixture('preview-superseded-${mode}','${mode}'),i=q.index;let release;
+          const q=await savedPreviewUrlFixture('preview-superseded-${mode}','${mode}'),i=q.index;let release,releaseForeground,foreground;
           const pages=i.indexedDb.getPages,gate=new Promise(resolve=>release=resolve);let entered,held=false;const entry=new Promise(resolve=>entered=resolve);
           try{
             const discovery=i.startBackgroundUrlIndex();await savedPreviewDeadline(q.entered,'URL hold');const shared=i.restoreUrlIndex();
             i.indexedDb.getPages=async function(...args){const value=await pages.apply(this,args);if(!held){held=true;entered();await gate;}return value;};
             const old=i.restorePersistedSnapshot(['Hub.md']);await savedPreviewDeadline(entry,'Old preview pages');
+            // Hold genuine higher-priority local work. Eager URL inventory no longer freezes a
+            // healthy latest full candidate; this isolates rejection of the obsolete preview.
+            const local=new Promise(/** Own this foreground request independently of both readers. */ resolve=>releaseForeground=resolve);
+            foreground=i.withForegroundPriority(/** Keep P4 private while the obsolete preview is released. */ ()=>local,1);
             const latest=i.restorePersistedSnapshot([q.target]);equal((await savedPreviewDeadline(old,'Superseded public wait')).restored,false,'Old public wait retired');
             ok((await savedPreviewDeadline(latest,'Newest URL-center preview')).restored,'Newest cached URL center');equal(i.restoreUrlIndex(),shared,'URL owner remains shared');
             const state=i.state,revision=i.publicationRevision;release();await new Promise(resolve=>setTimeout(resolve,20));
             equal(i.state===state,true,'Late preview cannot replace current state');equal(i.publicationRevision,revision,'Late preview cannot publish');
-            q.release();ok(await savedPreviewDeadline(discovery,'URL continuation'),'Healthy shared URL work continues');return true;
-          }finally{release();i.indexedDb.getPages=pages;q.close();}
+            releaseForeground();await foreground;q.release();ok(await savedPreviewDeadline(discovery,'URL continuation'),'Healthy shared URL work continues');return true;
+          }finally{releaseForeground?.();if(foreground)await foreground;release();i.indexedDb.getPages=pages;q.close();}
         })()`));
       });
       for(const retirement of ['destroy','purge'])for(const phase of ['catalog','preview']){
