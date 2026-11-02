@@ -15,7 +15,7 @@ test('saved preview does not join shared URL cache replay',async t=>{
   const browser=await chromiumHarness(bundle);
   try{
     assert(await browser.evaluate(contributorBrowserInitialize));assert(await browser.evaluate(initializeSavedPreviewUrl));
-    await t.test('an early foreground interruption retries ahead of held URL replay while preview and visible work remain usable',/** Exercise a genuine shared URL task and both fresh-attempt publication fences. */ async()=>{
+    await t.test('early foreground publications retry ahead of held URL replay while preview and visible work remain usable',/** Exercise a genuine shared URL task and both fresh-attempt publication fences. */ async()=>{
       assert(await browser.evaluate(`(/** Hold real completed storage work without changing scheduler admission. */ async()=>{
         const q=await savedPreviewUrlFixture('preview-fresh-attempt-url','eager','page',true),i=q.index,open=i.indexedDb.open;
         let enter,release,held=false;
@@ -25,13 +25,12 @@ test('saved preview does not join shared URL cache replay',async t=>{
           const discovery=i.startBackgroundUrlIndex();await savedPreviewDeadline(q.entered,'Real URL reader');const shared=i.restoreUrlIndex();
           const restore=i.restorePersistedSnapshot(['Hub.md']);await savedPreviewDeadline(entered,'First graph candidate');q.releaseSources();
           equal((await savedPreviewDeadline(i.patchMarkdownPaths(['Hub.md'],{useDurableCache:true}),'First current file')).outcome,'patched','Ordinary file publication');
+          equal((await savedPreviewDeadline(i.withForegroundPriority(/** Run actual source work at its existing visible-change priority. */ ()=>i.patchMarkdownPaths(['Hub.md'],{useDurableCache:true,forceRecompile:true}),2),'Foreground during held P4 candidate')).outcome,'patched','Visible source work never joins URL/retry work');
           release();ok((await savedPreviewDeadline(restore,'Independent saved preview')).restored,'Saved preview remains available');
-          await new Promise(/** Allow the rejected candidate to reach its existing P4 checkpoint. */ resolve=>setTimeout(resolve,30));
-          equal(i.getSnapshotHydrationDiagnostics().attempts,2,'One fresh Eager graph attempt starts ahead of optional URL I/O');
           equal(i.getUrlIndexProgress().complete,false,'Graph retry cannot certify the still-held URL inventory');
-          equal((await savedPreviewDeadline(i.withForegroundPriority(/** Run actual source work at its existing visible-change priority. */ ()=>i.patchMarkdownPaths(['Hub.md'],{useDurableCache:true,forceRecompile:true}),2),'Foreground during P4 retry')).outcome,'patched','Visible source work never joins URL/retry work');
           equal(i.restoreUrlIndex(),shared,'Shared URL task is not replaced by graph retry');
           ok((await savedPreviewDeadline(i.waitForSnapshotHydration(),'Fresh graph attempt',8000)).restored,'Fresh graph candidate completes');
+          equal(i.getSnapshotHydrationDiagnostics().attempts,2,'One fresh Eager graph attempt starts ahead of optional URL I/O');
           equal(i.fullSnapshotHydrated,true,'Saved complete graph retained');equal(i.getSnapshotHydrationDiagnostics().attempts,2,'Only one fresh candidate');
           equal(i.getUrlIndexProgress().complete,false,'Fresh primary graph completes while optional URL replay is still held');
           q.release();ok(await savedPreviewDeadline(discovery,'URL convergence'),'Healthy URL owner completes');
