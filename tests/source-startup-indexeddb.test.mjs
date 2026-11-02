@@ -10,6 +10,49 @@ import { createStartupResourceProbe } from "../scripts/testing/obsidian/startupR
 const bundle = await contributorBrowserBundle(["src/index/GraphIndex.ts", "src/index/GraphBuilder.ts", "src/index/IndexSnapshot.ts",
   "src/core/graph/compiler.ts", "src/adapters/obsidian/metadataSourceCollector.ts", "src/adapters/obsidian/ontologySourceCollector.ts"]);
 
+for(const overlap of ['writing','published-after-selection','cancelled-writer','failed-writer']) test(`orphan cleanup preserves a snapshot ${overlap}`, async()=>{
+  const browser=await chromiumHarness(bundle);
+  try{
+    assert.equal(await browser.evaluate(contributorBrowserInitialize),true);
+    assert.equal(await browser.evaluate(`(async()=>{
+      const f=await fixture('snapshot-orphan-${overlap}'),cache=f.cache,overlap=${JSON.stringify(overlap)};
+      let release,writing,restoreTransaction;
+      try{
+        const page={path:'A.md',filePath:'A.md',name:'Original',url:null,isFolder:false,isTag:false,mtime:1,aliases:[],tags:[],noteType:null,primaryStyleTag:null,styleTags:[],maxLabelLength:30};
+        const meta={createdAt:1,vaultSignature:'native-fixture',settingsSignature:'semantic-fixture',discoveredFields:[]};
+        ok(await cache.writeSnapshot(meta,[page],[]),'Seed a complete active generation');const old=await cache.readSnapshotMeta();
+        let entered,paused=false;const reached=new Promise(done=>entered=done),hold=new Promise(done=>release=done);
+        cache.backgroundCheckpoint=async()=>{if(!paused){paused=true;entered();await hold;}};
+        let current=true;
+        writing=cache.writeSnapshot({...meta,createdAt:2},[{...page,name:'Current'}],[],()=>current);await reached;
+        if(overlap==='cancelled-writer'||overlap==='failed-writer'){
+          if(overlap==='cancelled-writer')current=false;
+          else{
+            const transaction=cache.openTransaction;
+            cache.openTransaction=function(...args){if(args[1]==='meta'&&args[2]==='readwrite')throw new DOMException('Owned write failure','QuotaExceededError');return transaction.apply(this,args);};
+            restoreTransaction=()=>cache.openTransaction=transaction;
+          }
+          release();equal(await writing,false,'Unpublished writer retires without activating');restoreTransaction?.();
+          await cache.cleanupOrphanGenerations(old.generation);
+          const db=await cache.open(),request=db.transaction('snapshotChunks').objectStore('snapshotChunks').getAllKeys();
+          const keys=await new Promise((resolve,reject)=>{request.onsuccess=()=>resolve(request.result);request.onerror=()=>reject(request.error);});
+          ok(keys.length&&keys.every(key=>key[0]===old.generation),'Ended writers release their generation for normal reclamation');return true;
+        }
+        if(overlap==='published-after-selection'){
+          const catalog=cache.readSnapshotCatalog;
+          cache.readSnapshotCatalog=async function(...args){const selected=await catalog.apply(this,args);release();ok(await writing,'Writer publishes after cleanup selects its old catalog');return selected;};
+        }
+        await cache.cleanupOrphanGenerations(old.generation);
+        release();ok(await writing,'A complete current snapshot activates');
+        const restored=await cache.readSnapshotMeta(),pages=[];
+        ok(restored.generation!==old.generation,'New generation was actually selected');
+        ok(await cache.iterateSnapshotPages(restored,page=>pages.push(page)),'Maintenance cannot remove the accepted generation pages');
+        equal(pages.map(page=>page.name),['Current'],'Restored current snapshot retains all written rows');return true;
+      }finally{release?.();restoreTransaction?.();if(writing)await writing.catch(()=>{});f.close();}
+    })()`),true);
+  }finally{await browser.cleanup();}
+});
+
 for (const fault of ['none','legacy-url-free','stale-header','missing-header','invalid-header','open-counts','new-native-event','closed-demand']) test(`warm maintenance baseline retains its native and dependency guards: ${fault}`, async () => {
   const browser=await chromiumHarness(bundle);
   try {

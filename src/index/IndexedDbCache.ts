@@ -1,8 +1,11 @@
 /**
  * Vault-local IndexedDB storage for neutral source facts, parsed bodies and graph snapshots.
  * Complete and partial checkpoint metadata point to independent chunk generations only after
- * their writes finish; callers own semantic validity, disposable URL-facet versions and plugin-lifetime cancellation. Retired
- * contributor pins may use one cleanup-only existing-database connection after normal-handle
+ * their writes finish; callers own semantic validity, disposable URL-facet versions and plugin-lifetime cancellation.
+ * Snapshot writers retain their staged generation through activation. Orphan deletion rechecks
+ * active/checkpoint roots in its own delete transaction, so overlapping maintenance cannot tear
+ * either a still-writing candidate or a newly published generation.
+ * Retired contributor pins may use one cleanup-only existing-database connection after normal-handle
  * failure; cleanup never resets write backoff or acquires source/publication authority. Attributed
  * source cancellation/domain rollback AbortErrors preserve the healthy shared connection; genuine
  * storage faults still close the handle and enter the existing bounded recovery backoff. A caller
@@ -360,6 +363,8 @@ export class KplexIndexedDbCache {
   private newerDatabase = false;
   private maintenanceReads = new Set<IDBTransaction>();
   private purgePromise: Promise<boolean> | null = null;
+  /** Disposable snapshot generations remain reachable to maintenance until their writer settles. */
+  private readonly snapshotWriters = new Set<string>();
 
   /** Read retained body-write state only; queued includes the current batch until its ordinary commit. */
   getActivityState(): Readonly<{queuedBodies: number; writerActive: boolean}> {
@@ -907,6 +912,7 @@ export class KplexIndexedDbCache {
     const db = await this.open();
     if (!db) { onFailure?.("storage-unavailable"); return false; }
     const generation = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+    this.snapshotWriters.add(generation);
     const batchSize = Platform.isIosApp ? 120 : Platform.isMobile ? 240 : 700;
     const pageChunkSize = Platform.isIosApp ? 256 : Platform.isMobile ? 384 : 512;
     const evidenceChunkSize = Platform.isIosApp ? 512 : Platform.isMobile ? 768 : 1024;
@@ -1031,6 +1037,8 @@ export class KplexIndexedDbCache {
     } catch (error) {
       onFailure?.(error instanceof DOMException && error.name === "QuotaExceededError" ? "quota-exceeded" : "write-error");
       return false;
+    } finally {
+      this.snapshotWriters.delete(generation);
     }
   }
 
@@ -1055,26 +1063,38 @@ export class KplexIndexedDbCache {
     return IDBKeyRange.bound([generation, ""], [generation, "\uffff"]);
   }
 
+  /** Recheck publication roots under the same transaction as each delete. A catalog selected
+   * before an awaited maintenance checkpoint cannot authorize deleting a now-active generation. */
   private async deleteGeneration(generation: string, isCurrent: () => boolean): Promise<void> {
-    if (!isCurrent()) return;
+    if (!isCurrent() || this.snapshotWriters.has(generation)) return;
     const db = await this.open();
     if (!db || !isCurrent()) return;
-    // Maintenance is deliberately sequential. Launching three large delete transactions at once
-    // competes with live body-cache/index work and makes cancellation less responsive.
+    // Root protection shares META_STORE with source writers. Bound each delete transaction and
+    // yield outside it so cache reclamation cannot retain that store behind a new foreground edit.
     for (const storeName of [PAGE_STORE, EVIDENCE_STORE, SNAPSHOT_CHUNK_STORE]) {
-      if (!isCurrent()) return;
-      try {
-        const tx = this.openTransaction(db, storeName, "readwrite");
-        const store = tx.objectStore(storeName);
-        const ranges = this.generationRange(storeName, generation);
-        for (const range of Array.isArray(ranges) ? ranges : [ranges]) store.delete(range);
-        await transactionDone(tx);
-      } catch { /* cache cleanup only */ }
+      const ranges = this.generationRange(storeName, generation);
+      for (const range of Array.isArray(ranges) ? ranges : [ranges]) {
+        while (isCurrent() && !this.snapshotWriters.has(generation)) {
+          await this.backgroundCheckpoint?.();
+          if (!isCurrent() || this.snapshotWriters.has(generation)) return;
+          try {
+            const tx = this.openTransaction(db, [META_STORE, storeName], "readwrite");
+            const done = transactionDone(tx), meta = tx.objectStore(META_STORE);
+            const roots = await Promise.all([requestUnknownResult(meta.get("active")), requestUnknownResult(meta.get("checkpoint"))]);
+            const protectedRoot = roots.some((value, index) => value !== undefined
+              && (!isIndexedDbSnapshotMeta(value) || value.key !== (index === 0 ? "active" : "checkpoint") || value.generation === generation));
+            if (protectedRoot || !isCurrent() || this.snapshotWriters.has(generation)) { await done; return; }
+            const store = tx.objectStore(storeName), keys = await requestResult(store.getAllKeys(range, 256));
+            for (const key of keys) store.delete(key);
+            await done;
+            if (keys.length < 256) break;
+          } catch { return; /* Disposable cleanup retries on a later quiet period. */ }
+        }
+      }
     }
   }
 
-  /** Remove unreachable chunks while retaining both the complete and partial active generations. */
-  /** Sweep unreachable generations at transaction-free background priority boundaries. */
+  /** Sweep unreachable chunks at background boundaries, retaining active/checkpoint roots and writers. */
   async cleanupOrphanGenerations(activeGeneration: string, isCurrent: () => boolean = () => true): Promise<void> {
     await this.backgroundCheckpoint?.();
     if (!isCurrent()) return;
@@ -1102,7 +1122,7 @@ export class KplexIndexedDbCache {
       if (!catalog.available || catalog.invalidActive || catalog.invalidCheckpoint) return;
       const { active, checkpoint } = catalog;
       const stale = generations.filter((generation) => generation !== activeGeneration &&
-        generation !== active?.generation && generation !== checkpoint?.generation);
+        generation !== active?.generation && generation !== checkpoint?.generation && !this.snapshotWriters.has(generation));
       for (const generation of stale) {
         await this.backgroundCheckpoint?.();
         if (!isCurrent()) return;
