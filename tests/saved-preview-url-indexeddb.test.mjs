@@ -31,9 +31,10 @@ test('saved preview does not join shared URL cache replay',async t=>{
           equal(i.getUrlIndexProgress().complete,false,'Graph retry cannot certify the still-held URL inventory');
           equal((await savedPreviewDeadline(i.withForegroundPriority(/** Run actual source work at its existing visible-change priority. */ ()=>i.patchMarkdownPaths(['Hub.md'],{useDurableCache:true,forceRecompile:true}),2),'Foreground during P4 retry')).outcome,'patched','Visible source work never joins URL/retry work');
           equal(i.restoreUrlIndex(),shared,'Shared URL task is not replaced by graph retry');
-          q.release();ok(await savedPreviewDeadline(discovery,'URL convergence'),'Healthy URL owner completes');
           ok((await savedPreviewDeadline(i.waitForSnapshotHydration(),'Fresh graph attempt',8000)).restored,'Fresh graph candidate completes');
           equal(i.fullSnapshotHydrated,true,'Saved complete graph retained');equal(i.getSnapshotHydrationDiagnostics().attempts,2,'Only one fresh candidate');
+          equal(i.getUrlIndexProgress().complete,false,'Fresh primary graph completes while optional URL replay is still held');
+          q.release();ok(await savedPreviewDeadline(discovery,'URL convergence'),'Healthy URL owner completes');
           equal(i.get(q.target).aliases,['Saved body URL'],'URL vocabulary survives');
           equal(q.f.reads.length,0,'No duplicate body acquisition');equal(q.f.parses.length,0,'No duplicate parse');return true;
         }finally{release();i.indexedDb.open=open;q.close();}
