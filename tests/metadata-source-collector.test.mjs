@@ -4,6 +4,7 @@ import { mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "nod
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { loadPortableModules } from "./support/portableTypeScript.mjs";
 
 const require = createRequire(import.meta.url);
 const ts = require("typescript");
@@ -81,6 +82,8 @@ function makeMetadata(overrides = {}) {
 
 const { ObsidianReferenceSourceCollector } = require(join(temp, "src/adapters/obsidian/ontologySourceCollector.js"));
 const { ReferenceSourcePolicyRead, ReferencePolicySelector } = require(join(temp, "src/core/graph/sourcePolicy.js"));
+const compilerModules = loadPortableModules(["src/core/graph/compiler.ts"]);
+const { NormalizedGraphCompiler } = compilerModules.exports;
 async function selectedImages(host, runtime, file, meta, settings) {
   const records = await collect(new ObsidianReferenceSourceCollector({
     metadataCache: { getFirstLinkpathDest: (path, source) => host.resolveLinkpath(path, source) },
@@ -294,6 +297,43 @@ try {
     assert.equal(malformed.origin, undefined, "malformed body URLs retain their raw node without invented origin input");
 
     assert.equal(relationRecords.some(r => r.kind === "presentation-link"), false);
+    const linked = new TFile("https://linked.example/page");
+    const { host: linkHost } = makeHost([source, linked], { resolutions: { "https://linked.example/page": linked } });
+    const labeledRecords = await collect(new ObsidianReferenceSourceCollector(
+      { metadataCache: { getFirstLinkpathDest: path => linkHost.resolveLinkpath(path, source.path) }, resolvedLinkCount: () => 0 }, runtime, source,
+      makeMetadata({ frontmatter: { source: "[Readable label](https://linked.example/page)" } }),
+    ));
+    const selectedLabels = [];
+    const labelPolicy = new ReferenceSourcePolicyRead(new ReferencePolicySelector({ ...settings,
+      hierarchy: { hidden: [], parents: ["source"], children: [], leftFriends: [], rightFriends: [], previous: [], next: [] },
+    }));
+    for (const record of labeledRecords) {
+      const accepted = labelPolicy.accept(record);
+      assert.equal(accepted.accepted, true);
+      if (accepted.record) selectedLabels.push(accepted.record);
+    }
+    assert(labelPolicy.canComplete());
+    const labelRevision = labeledRecords.find(r => r.kind === "reference-value").sourceRevision;
+    const labelCompiler = new NormalizedGraphCompiler({
+      hierarchy: { hidden: [], parents: ["source"], children: [], leftFriends: [], rightFriends: [], previous: [], next: [] },
+      inferAllLinksAsFriends: false, inverseInfer: false, showFullTagName: true, noteTypeField: "Type", primaryTagField: "Tag",
+      tagStyleList: [], maxLabelLength: 30,
+    }, {
+      now: () => 0, yield: async () => {}, isCurrent: () => true, sliceBudgetMs: 10, resolverBatchSize: 400,
+    });
+    const labelBoundary = { generation: "frontmatter-label:generation", snapshotRevision: "frontmatter-label:snapshot" };
+    const labelRead = labelCompiler.beginRead(labelBoundary);
+    const graphRecords = [
+      { kind: "entity", source: labeledRecords[0].source, sourceRevision: labelRevision,
+        entity: labeledRecords[0].source, name: "Source", url: null },
+      ...selectedLabels,
+    ];
+    assert.equal(await labelCompiler.acceptBatch(labelRead, {
+      boundary: labelBoundary, sequence: 0, final: true, records: graphRecords,
+    }), true);
+    assert.equal(labelCompiler.completeRead(labelRead, labelBoundary), true);
+    assert.equal((await labelCompiler.finish()).node(linked.path).name, "Readable label",
+      "the frontmatter-to-graph pipeline must preserve Markdown labels for Plex display");
     const presentation = await selectedImages(host, runtime, source, meta, settings);
     assert.equal(presentation.length, 2, "duplicate targets inside one property value deduplicate, while separate frontmatter/inline occurrences retain multiplicity");
     assert(presentation.every((r) => r.target.entity.semanticPath === image.path));

@@ -16,6 +16,8 @@ export type ExtractedLinkReference = Readonly<{
   /** Heading/block subpath when the literal internal target carries one. */
   subpath?: string;
   external: boolean;
+  /** Visible Markdown link text, when the source uses an explicit label. */
+  label?: string;
 }>;
 
 export type ExternalUrlReference = {
@@ -925,9 +927,10 @@ export function* iterateLinkReferencesFromValue(value: unknown): IterableIterato
     if (!rawTarget) continue;
     // Preserve the legacy external Markdown target exactly, including surrounding spaces.
     // Internal targets are trimmed later by host resolution.
+    const label = match[0].slice(1, match[0].indexOf("]("));
     yield /^https?:\/\//i.test(rawTarget)
-      ? { rawTarget, external: true }
-      : { ...splitInternalSubpath(rawTarget), external: false };
+      ? { rawTarget, external: true, ...(label ? { label } : {}) }
+      : { ...splitInternalSubpath(rawTarget), external: false, ...(label ? { label } : {}) };
   }
   while ((match = urlRe.exec(value)) !== null) {
     const rawTarget = match[0].replace(/[.,;:!?]+$/, "");

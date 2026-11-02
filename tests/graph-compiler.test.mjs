@@ -18,7 +18,9 @@ import { applyDefaultDateRoleFixture } from "./support/dateRoleFixture.mjs";
 import { probeUrlAliasMembership } from "./support/urlAliasMembershipProbe.mjs";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
-const loaded = loadPortableModules(['src/core/graph/compiler.ts', 'src/core/graph/model.ts', 'src/core/graph/source.ts', 'src/core/graph/relations.ts', 'src/core/graph/evidence.ts']);
+const baseCompilerSource = process.env.KPLEX_BASE_COMPILER_SOURCE;
+const loaded = loadPortableModules(['src/core/graph/compiler.ts', 'src/core/graph/model.ts', 'src/core/graph/source.ts', 'src/core/graph/relations.ts', 'src/core/graph/evidence.ts'], {},
+  baseCompilerSource ? { 'src/core/graph/compiler.ts': readFileSync(baseCompilerSource, 'utf8') } : {});
 const { directory: temp, entryPath: corePath, exports: core } = loaded;
 
 const settings = {
@@ -158,6 +160,7 @@ test("normalized compiler retains explicit arrow ownership across reciprocal hea
     assert.equal([...compilation.declarations()].filter(item => item.fieldName === "Implements").length, 1);
   }
 });
+
 const optional = (key, value) => value === undefined ? {} : { [key]: value };
 
 function cleanRelation(relation) {
