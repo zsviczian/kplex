@@ -12,9 +12,9 @@ export const INDEX_WORK_PRIORITY = {
   currentNode: 1,
   /** Visible neighbors, gates and presentation completion. */
   visibleNeighborhood: 2,
-  /** Independent web-link owner inventory and compact cache restore. */
+  /** Bounded web-link owner preparation and independent local-mode inventory. */
   urlInventory: 3,
-  /** Whole-graph hydration/indexing, source vocabulary and disposable-cache maintenance. */
+  /** Whole-graph hydration/indexing, Eager URL inventory, source vocabulary and cache maintenance. */
   background: 4,
 } as const;
 export type IndexWorkPriority = typeof INDEX_WORK_PRIORITY[keyof typeof INDEX_WORK_PRIORITY];

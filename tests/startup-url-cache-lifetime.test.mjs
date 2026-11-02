@@ -248,8 +248,9 @@ for (const mode of ['eager', 'on-demand']) {
     await f.settle(); assert(entered);
     assert.equal(f.catalogReads(), 1, 'Graph catalog starts independently of held URL replay');
     if (held !== 'page') assert.equal(i.urlPendingPublications, 1);
-    if (held === 'compiler') assert.equal(i.getWorkPriorityDiagnostics().active[3], 2, 'Cache compiler and discovery own separate leases');
-    await f.advance(89999); assert.equal(settled, mode === 'on-demand', 'Finite no-cache preview does not join URL inventory; Eager recovery retains its own task');
+    if (held === 'compiler') assert.deepEqual(Array.from(i.getWorkPriorityDiagnostics().active),mode==='eager'?[0,0,0,1,1]:[0,0,0,2,0], 'Cache compiler and discovery retain separate leases; Eager discovery shares the graph background lane');
+    await f.advance(89999); assert.equal(settled, true, 'Finite no-cache classification bypasses held independent URL work in both modes');
+    assert.equal(i.getIndexDiagnostics().filter(d => d.reason === 'url-cache-stalled').length,0,'Earlier graph classification cannot abandon healthy URL work before its unchanged inactivity deadline');
     await f.advance(1); assert.equal(settled, true);
     assert.equal((await restore).restored, false); assert.equal(f.catalogReads(), 1);
     assert.equal(i.hasPendingSnapshotHydration(), false);

@@ -72,7 +72,13 @@ const initialize=`(()=>{
       if(options.physicalBootstrap)index.enableGlobalSourceInventoryIfConfigured();
     }
     else ok(await index.rebuild(),'Real complete Eager graph');
+    const initialPublication=index.generation;
     ok(await index.sourceAcquisition.flush(),'Actual initial source authority');
+    if(!options.physicalBootstrap&&options.mode!=='on-demand'){
+      equal(index.generation,initialPublication,'Storage-only startup dependency closure does not recompile published native inputs');
+      equal(index.sourceAcquisition.pendingGraphSources()?.size,0,'No redundant graph backlog after actual initial source closure');
+      ok(!index.eagerGraphMaintenanceTask,'Startup closure starts no redundant per-note graph maintenance');
+    }
     if(options.sourceBacked){
       // Retain genuine durable source heads, then take the actual cache-absent restart route.
       index.cancelPendingPersistence();index.destroy();index=makeIndex();

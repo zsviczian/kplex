@@ -1,0 +1,624 @@
+{
+    "runtimeCommit":  "b2647dfe65cddde653dba293903e814069add0b0",
+    "branch":  "fix/eager-navigation-and-reference-actions",
+    "base":  "b64c88a3a11712c23fa75a2ad440adcc9f329c7a",
+    "pullRequest":  "https://github.com/zsviczian/kplex/pull/257",
+    "completedAt":  "2026-11-02T08:32:37.242Z",
+    "node":  "22.22.2",
+    "obsidian":  "1.14.5",
+    "platform":  "Windows",
+    "artifacts":  {
+                      "main.js":  "b4cc705a77286c195df78891edf4e78b9f6471e215743c97d05b55ba507fdae1",
+                      "styles.css":  "8e7a4ed3c8b6d8941e020d3766c030d7ed072830a4c408e5eb91815f03437e2a",
+                      "manifest.json":  "5de7cf4abc1d611e4edd9a27a12473f38af3843bbb8c9fa590a22d029e49a2e3"
+                  },
+    "sourceFiles":  {
+                        "src/adapters/obsidian/sourceAcquisition.ts":  "1adc487dd9d137de464980ec44653abdd0c34f1857535cfbb70442a8670de76d",
+                        "src/index/ForegroundWorkScheduler.ts":  "c78d2259dfe24e778ba97deb1a52272c0e938577388f6e04b5416320e013a6e2",
+                        "src/index/GraphBuilder.ts":  "830b65ec8df75595a89379240f6160f2986ac172cda504f1c89e9e27c4c5132b",
+                        "src/index/GraphIndex.ts":  "c38bef0572f0131fab1cc49f8f37516719a5c639b89c89f3602e204f5c907490",
+                        "src/index/IndexedDbCache.ts":  "14c28834979f9794438c79bb7c8f1a30080bba5bfc0119ec1659a44f8f871576",
+                        "src/main.ts":  "a33b385bf9701f818155c497425e534f78a4594ba52e2817bc45a2e052b8c2da",
+                        "src/ui/RelationshipExplanationModal.ts":  "260361158c683d934ec9b713e52b0cfe8b5f32822a1c6629fd4d3099328aa1af",
+                        "tests/action-host-integration.test.mjs":  "b6a34c2c6e4d2759d0cc5f99fc00661c41ba5a9c9456b3f39a7cab9985c92689",
+                        "tests/graph-compiler.test.mjs":  "f40d7c0fdc53fb8445e34aad0d74296acfdbfa965b25f41da266270f3ac368ce",
+                        "tests/indexing.test.mjs":  "650c55659738117f81cb4a819b4694745e5d114082c3b843682719d33ed2416d",
+                        "tests/noop-patch-publication.test.mjs":  "45eec10bf063f7ddb07384de8102f297e505e7ece9c420333337b805535e9c49",
+                        "tests/public-api.test.mjs":  "1cfc772adfe07e543079fe46725c3b5dc97b89db07194e6d998015001f8778ee",
+                        "tests/relationship-actions.test.mjs":  "bc0a8004a1daf9b00426def85ee12269ac2d696a7c092dd5c39e2d2e84546c3a",
+                        "tests/relationship-source-removal.test.mjs":  "43c3d4df9107db72a98dea14797a6d40c0e52e1d4c2609b3b00d9ca41b9057fe",
+                        "tests/saved-preview-url-indexeddb.test.mjs":  "4682b8d66d01c57104be7bf2d28b6c3480b53bea3970011e3a543401dc2301b0",
+                        "tests/source-folder-wave.test.mjs":  "100302641d1689a5a52931ba823aeb2c923d73b177edeef9d14418f6ead5a628",
+                        "tests/source-startup-indexeddb.test.mjs":  "444955b3a64afdb5e7ad305a9dd3bf95106666ea3ce18781943eca19fb2fb1e5",
+                        "tests/startup-settings-convergence.test.mjs":  "80e3cc24c232627f0d1f8bbd2d74090f60a118bacdbae86ba21c22a70e33a130",
+                        "tests/startup-source-convergence-indexeddb.test.mjs":  "9853869647c5b974defa27cdfb0e44a036d238bfc41f8da651c8bdc27c393909",
+                        "tests/startup-source-ownership.test.mjs":  "c8fa85fbf20eb296cf35ec0b84f8c7f5a2d50885b8a929d618d464d0d02a0487",
+                        "tests/startup-url-cache-lifetime.test.mjs":  "56c154415c9fd285487cec8cd4e377f9c8d2f7c047822a801336adb49bc0978e",
+                        "tests/support/startupAdmission.mjs":  "9e80a078f2117506e125017fcfae3201952b51269e843039988dc3cf2fe47deb",
+                        "tests/support/startupSourceConvergence.mjs":  "2abe6c06562a0386866c63688255341cdf1db537ccac3c6e869173ecd64ef841",
+                        "tests/support/startupSourceCoordinator.mjs":  "adfa7ca77b6950a73af42b479b5491769e283764189747f17e4923bc8cf498d4"
+                    },
+    "verification":  {
+                         "status":  "passed",
+                         "architecture":  9,
+                         "core":  132,
+                         "main":  1884,
+                         "browser":  455,
+                         "source":  357,
+                         "realIndexedDb":  886,
+                         "scanner":  "passed",
+                         "productionBuild":  "passed",
+                         "logSha256":  "560a068d21aad1657c702fd1c25b17864eae4fd9b75aeeb7dd0b5b2a474e6759",
+                         "largePublication":  {
+                                                  "owners":  20015,
+                                                  "ownerChecks":  8187369,
+                                                  "elapsedMs":  151591.09999990463,
+                                                  "peakHeap":  440927567,
+                                                  "replayPeak":  405146310,
+                                                  "combinedPeak":  685201826,
+                                                  "reservation":  {
+                                                                      "owners":  248586300,
+                                                                      "structure":  3278,
+                                                                      "compilation":  131382170,
+                                                                      "transient":  25174562,
+                                                                      "peakBytes":  405146310
+                                                                  },
+                                                  "rootComplete":  false,
+                                                  "canonicalPasses":  {
+                                                                          "direct":  1,
+                                                                          "optional":  0
+                                                                      },
+                                                  "published":  1,
+                                                  "cancellationYields":  2
+                                              },
+                         "ci":  {
+                                    "commit":  "b2647dfe65cddde653dba293903e814069add0b0",
+                                    "run":  649,
+                                    "url":  "https://github.com/zsviczian/kplex/actions/runs/41411259807",
+                                    "status":  "passed",
+                                    "conclusion":  "success",
+                                    "verifiedAt":  "2026-11-02T09:02:16.7012076Z"
+                                },
+                         "sourceFreeze":  {
+                                              "status":  "matched",
+                                              "files":  24,
+                                              "checkedAt":  "2026-11-02T08:53:53.336Z"
+                                          }
+                     },
+    "native":  {
+                   "heldAudit":  {
+                                     "status":  "passed",
+                                     "result":  {
+                                                    "auditHeldDuringBothEdits":  true,
+                                                    "coverage":  {
+                                                                     "scope":  "global",
+                                                                     "complete":  true,
+                                                                     "pending":  false
+                                                                 },
+                                                    "navigationMs":  27.700000047683716,
+                                                    "fullBuilds":  0,
+                                                    "reads":  0,
+                                                    "parses":  0,
+                                                    "requests":  0,
+                                                    "familyVisits":  0,
+                                                    "samples":  [
+                                                                    {
+                                                                        "phase":  "updating",
+                                                                        "label":  "Discovering web links — 98 / 98 notes"
+                                                                    },
+                                                                    {
+                                                                        "phase":  "updating",
+                                                                        "label":  "Validating note metadata — 0 / 98 notes (0%)"
+                                                                    },
+                                                                    {
+                                                                        "phase":  "ready",
+                                                                        "label":  "Status: index ready"
+                                                                    },
+                                                                    {
+                                                                        "phase":  "updating",
+                                                                        "label":  "Discovering web links — 98 / 98 notes"
+                                                                    },
+                                                                    {
+                                                                        "phase":  "updating",
+                                                                        "label":  "Validating note metadata — 0 / 98 notes (0%)"
+                                                                    },
+                                                                    {
+                                                                        "phase":  "ready",
+                                                                        "label":  "Status: index ready"
+                                                                    }
+                                                                ],
+                                                    "auditDrained":  true,
+                                                    "sourceBodyRestored":  true
+                                                },
+                                     "cleanup":  "passed"
+                                 },
+                   "recovery":  {
+                                    "status":  "passed",
+                                    "result":  {
+                                                   "environment":  {
+                                                                       "focused":  true,
+                                                                       "hidden":  false,
+                                                                       "backgroundThrottling":  true
+                                                                   },
+                                                   "cold":  {
+                                                                "elapsedMs":  5555.5,
+                                                                "hydration":  {
+                                                                                  "route":  "source-recovery",
+                                                                                  "failure":  "missing-chunk"
+                                                                              },
+                                                                "coverage":  {
+                                                                                 "scope":  "global",
+                                                                                 "complete":  true,
+                                                                                 "pending":  false
+                                                                             },
+                                                                "fullBuilds":  1,
+                                                                "nodeCatalogStarts":  0,
+                                                                "progressSamples":  [
+                                                                                        {
+                                                                                            "indexed":  0,
+                                                                                            "total":  98,
+                                                                                            "label":  "Applying current ontology \u0026 settings — 0 / 98 notes (0%)",
+                                                                                            "stage":  "notes"
+                                                                                        },
+                                                                                        {
+                                                                                            "indexed":  32,
+                                                                                            "total":  98,
+                                                                                            "label":  "Applying current ontology \u0026 settings — 32 / 98 notes (32%)",
+                                                                                            "stage":  "notes"
+                                                                                        },
+                                                                                        {
+                                                                                            "indexed":  73,
+                                                                                            "total":  98,
+                                                                                            "label":  "Applying current ontology \u0026 settings — 73 / 98 notes (74%)",
+                                                                                            "stage":  "notes"
+                                                                                        },
+                                                                                        {
+                                                                                            "indexed":  98,
+                                                                                            "total":  98,
+                                                                                            "label":  "Finalizing link resolution",
+                                                                                            "stage":  "relationships"
+                                                                                        },
+                                                                                        {
+                                                                                            "indexed":  98,
+                                                                                            "total":  98,
+                                                                                            "label":  "Preparing search",
+                                                                                            "stage":  "presentation"
+                                                                                        }
+                                                                                    ],
+                                                                "sourceReads":  0,
+                                                                "nativeBodyReads":  0,
+                                                                "parses":  0,
+                                                                "navigation":  {
+                                                                                   "destinations":  6,
+                                                                                   "requests":  0,
+                                                                                   "familyVisits":  0
+                                                                               }
+                                                            },
+                                                   "warm":  {
+                                                                "elapsedMs":  5558.299999952316,
+                                                                "route":  "full-snapshot",
+                                                                "coverage":  {
+                                                                                 "scope":  "global",
+                                                                                 "complete":  true,
+                                                                                 "pending":  false
+                                                                             },
+                                                                "fullBuilds":  0,
+                                                                "nodeCatalogStarts":  0,
+                                                                "sourceReads":  0,
+                                                                "parses":  0,
+                                                                "destinations":  6,
+                                                                "requests":  0,
+                                                                "familyVisits":  0
+                                                            }
+                                               },
+                                    "cleanup":  "passed"
+                                },
+                   "eager":  {
+                                 "status":  "passed",
+                                 "scenarios":  [
+                                                   {
+                                                       "id":  "eager-native-event-backlog-and-unvisited-calendar-navigation",
+                                                       "status":  "passed",
+                                                       "elapsedMs":  12328.399999856949
+                                                   },
+                                                   {
+                                                       "id":  "eager-canvas-mutation-reconciles-later-native-events",
+                                                       "status":  "passed",
+                                                       "elapsedMs":  883.1000001430511
+                                                   }
+                                               ],
+                                 "cleanup":  {
+                                                 "remainingOwned":  0,
+                                                 "remainingDialogs":  0,
+                                                 "inventoryRestored":  true,
+                                                 "controllerRemoved":  true
+                                             },
+                                 "configurationRestored":  true
+                             },
+                   "references":  {
+                                      "status":  "passed",
+                                      "scenarios":  [
+                                                        {
+                                                            "id":  "reference-unlink-either-center",
+                                                            "status":  "passed",
+                                                            "elapsedMs":  2603.899999856949
+                                                        },
+                                                        {
+                                                            "id":  "body-linked-placeholder-delete-explains-and-opens-source",
+                                                            "status":  "passed",
+                                                            "elapsedMs":  638.6000001430511
+                                                        }
+                                                    ],
+                                      "cleanup":  {
+                                                      "remainingOwned":  0,
+                                                      "remainingDialogs":  0,
+                                                      "inventoryRestored":  true,
+                                                      "controllerRemoved":  true
+                                                  },
+                                      "configurationRestored":  true
+                                  }
+               },
+    "interruptedProduction":  {
+                                  "status":  "failed",
+                                  "reason":  "Concurrent work-note edits changed the protected inventory during the stale-baseline audit",
+                                  "cleanup":  {
+                                                  "restored":  true,
+                                                  "notesUnchanged":  false,
+                                                  "enabled":  true,
+                                                  "enablementSetUnchanged":  true,
+                                                  "controllerRemoved":  false,
+                                                  "enablementBytesUnchanged":  true
+                                              },
+                                  "independentRecovery":  {
+                                                              "controllerRemoved":  true,
+                                                              "externalEditsPreserved":  true,
+                                                              "notesRestored":  false
+                                                          }
+                              },
+    "production":  {
+                       "status":  "passed",
+                       "installed":  true,
+                       "artifacts":  {
+                                         "main.js":  "b4cc705a77286c195df78891edf4e78b9f6471e215743c97d05b55ba507fdae1",
+                                         "styles.css":  "8e7a4ed3c8b6d8941e020d3766c030d7ed072830a4c408e5eb91815f03437e2a"
+                                     },
+                       "cold":  {
+                                    "readyMs":  45582.799999952316,
+                                    "route":  "full-snapshot",
+                                    "pages":  110485,
+                                    "evidence":  282051,
+                                    "sourceReady":  false,
+                                    "warmMaintenanceAvailable":  true,
+                                    "auditActive":  true,
+                                    "fullBuilds":  0,
+                                    "nodeCatalogStarts":  0,
+                                    "reads":  0,
+                                    "parses":  0,
+                                    "hops":  [
+                                                 {
+                                                     "hop":  1,
+                                                     "elapsedMs":  84.5,
+                                                     "requests":  0,
+                                                     "familyVisits":  0,
+                                                     "reads":  0,
+                                                     "parses":  0,
+                                                     "hidden":  false,
+                                                     "focused":  true,
+                                                     "backgroundThrottling":  true
+                                                 },
+                                                 {
+                                                     "hop":  2,
+                                                     "elapsedMs":  86.09999990463257,
+                                                     "requests":  0,
+                                                     "familyVisits":  0,
+                                                     "reads":  0,
+                                                     "parses":  0,
+                                                     "hidden":  false,
+                                                     "focused":  true,
+                                                     "backgroundThrottling":  true
+                                                 },
+                                                 {
+                                                     "hop":  3,
+                                                     "elapsedMs":  88.79999995231628,
+                                                     "requests":  0,
+                                                     "familyVisits":  0,
+                                                     "reads":  0,
+                                                     "parses":  0,
+                                                     "hidden":  false,
+                                                     "focused":  true,
+                                                     "backgroundThrottling":  true
+                                                 },
+                                                 {
+                                                     "hop":  4,
+                                                     "elapsedMs":  106,
+                                                     "requests":  0,
+                                                     "familyVisits":  0,
+                                                     "reads":  0,
+                                                     "parses":  0,
+                                                     "hidden":  false,
+                                                     "focused":  true,
+                                                     "backgroundThrottling":  true
+                                                 },
+                                                 {
+                                                     "hop":  5,
+                                                     "elapsedMs":  100.90000009536743,
+                                                     "requests":  0,
+                                                     "familyVisits":  0,
+                                                     "reads":  0,
+                                                     "parses":  0,
+                                                     "hidden":  false,
+                                                     "focused":  true,
+                                                     "backgroundThrottling":  true
+                                                 },
+                                                 {
+                                                     "hop":  6,
+                                                     "elapsedMs":  65.30000019073486,
+                                                     "requests":  0,
+                                                     "familyVisits":  0,
+                                                     "reads":  0,
+                                                     "parses":  0,
+                                                     "hidden":  false,
+                                                     "focused":  true,
+                                                     "backgroundThrottling":  true
+                                                 }
+                                             ]
+                                },
+                       "warm":  {
+                                    "readyMs":  54585.799999952316,
+                                    "route":  "full-snapshot",
+                                    "pages":  110485,
+                                    "evidence":  282051,
+                                    "sourceReady":  false,
+                                    "warmMaintenanceAvailable":  true,
+                                    "auditActive":  true,
+                                    "fullBuilds":  0,
+                                    "nodeCatalogStarts":  0,
+                                    "reads":  0,
+                                    "parses":  0,
+                                    "hops":  [
+                                                 {
+                                                     "hop":  1,
+                                                     "elapsedMs":  98.20000004768372,
+                                                     "requests":  0,
+                                                     "familyVisits":  0,
+                                                     "reads":  0,
+                                                     "parses":  0,
+                                                     "hidden":  false,
+                                                     "focused":  true,
+                                                     "backgroundThrottling":  true
+                                                 },
+                                                 {
+                                                     "hop":  2,
+                                                     "elapsedMs":  56.40000009536743,
+                                                     "requests":  0,
+                                                     "familyVisits":  0,
+                                                     "reads":  0,
+                                                     "parses":  0,
+                                                     "hidden":  false,
+                                                     "focused":  true,
+                                                     "backgroundThrottling":  true
+                                                 },
+                                                 {
+                                                     "hop":  3,
+                                                     "elapsedMs":  153.70000004768372,
+                                                     "requests":  0,
+                                                     "familyVisits":  0,
+                                                     "reads":  0,
+                                                     "parses":  0,
+                                                     "hidden":  false,
+                                                     "focused":  true,
+                                                     "backgroundThrottling":  true
+                                                 },
+                                                 {
+                                                     "hop":  4,
+                                                     "elapsedMs":  129.20000004768372,
+                                                     "requests":  0,
+                                                     "familyVisits":  0,
+                                                     "reads":  0,
+                                                     "parses":  0,
+                                                     "hidden":  false,
+                                                     "focused":  true,
+                                                     "backgroundThrottling":  true
+                                                 },
+                                                 {
+                                                     "hop":  5,
+                                                     "elapsedMs":  53.799999952316284,
+                                                     "requests":  0,
+                                                     "familyVisits":  0,
+                                                     "reads":  0,
+                                                     "parses":  0,
+                                                     "hidden":  false,
+                                                     "focused":  true,
+                                                     "backgroundThrottling":  true
+                                                 },
+                                                 {
+                                                     "hop":  6,
+                                                     "elapsedMs":  74.90000009536743,
+                                                     "requests":  0,
+                                                     "familyVisits":  0,
+                                                     "reads":  0,
+                                                     "parses":  0,
+                                                     "hidden":  false,
+                                                     "focused":  true,
+                                                     "backgroundThrottling":  true
+                                                 }
+                                             ]
+                                },
+                       "progress":  [
+                                        {
+                                            "lane":  "native-view",
+                                            "phase":  "loading-cache",
+                                            "hydrationPhase":  "metadata",
+                                            "indexed":  0,
+                                            "total":  11820,
+                                            "label":  "Reading cached index metadata",
+                                            "shownAfter":  "Loading the requested canvas preview"
+                                        },
+                                        {
+                                            "lane":  "one-off-recovery",
+                                            "phase":  "loading-cache",
+                                            "hydrationPhase":  "preview",
+                                            "indexed":  0,
+                                            "total":  11820,
+                                            "label":  "Loading the requested canvas preview",
+                                            "shownAfter":  "Loading the requested canvas preview"
+                                        },
+                                        {
+                                            "lane":  "one-off-recovery",
+                                            "phase":  "loading-cache",
+                                            "hydrationPhase":  "pages",
+                                            "indexed":  0,
+                                            "total":  11820,
+                                            "label":  "Loading cached nodes",
+                                            "shownAfter":  "Loading cached nodes"
+                                        },
+                                        {
+                                            "lane":  "one-off-recovery",
+                                            "phase":  "loading-cache",
+                                            "hydrationPhase":  "relations",
+                                            "indexed":  0,
+                                            "total":  11820,
+                                            "label":  "Loading cached relationships",
+                                            "shownAfter":  "Loading cached relationships"
+                                        },
+                                        {
+                                            "lane":  "one-off-recovery",
+                                            "phase":  "loading-cache",
+                                            "hydrationPhase":  "preview-search",
+                                            "indexed":  0,
+                                            "total":  11820,
+                                            "label":  "Preparing search",
+                                            "shownAfter":  "Preparing search"
+                                        },
+                                        {
+                                            "lane":  "one-off-recovery",
+                                            "phase":  "loading-cache",
+                                            "hydrationPhase":  "evidence",
+                                            "indexed":  0,
+                                            "total":  11820,
+                                            "label":  "Loading relationship evidence",
+                                            "shownAfter":  "Loading relationship evidence"
+                                        },
+                                        {
+                                            "lane":  "one-off-recovery",
+                                            "phase":  "ready",
+                                            "hydrationPhase":  "complete",
+                                            "indexed":  11820,
+                                            "total":  11820,
+                                            "label":  "Preparing web link index",
+                                            "shownAfter":  "Status: index ready"
+                                        },
+                                        {
+                                            "lane":  "warm-native-view",
+                                            "phase":  "preparing",
+                                            "hydrationPhase":  "idle",
+                                            "indexed":  0,
+                                            "total":  11820,
+                                            "label":  "Status: preparing index",
+                                            "shownAfter":  "Status: preparing index"
+                                        },
+                                        {
+                                            "lane":  "warm-hydration",
+                                            "phase":  "loading-cache",
+                                            "hydrationPhase":  "metadata",
+                                            "indexed":  0,
+                                            "total":  11820,
+                                            "label":  "Reading cached index metadata",
+                                            "shownAfter":  "Loading the requested canvas preview"
+                                        },
+                                        {
+                                            "lane":  "warm-hydration",
+                                            "phase":  "loading-cache",
+                                            "hydrationPhase":  "preview-search",
+                                            "indexed":  0,
+                                            "total":  11820,
+                                            "label":  "Preparing search",
+                                            "shownAfter":  "Loading cached nodes"
+                                        },
+                                        {
+                                            "lane":  "warm-hydration",
+                                            "phase":  "loading-cache",
+                                            "hydrationPhase":  "pages",
+                                            "indexed":  0,
+                                            "total":  11820,
+                                            "label":  "Loading cached nodes",
+                                            "shownAfter":  "Loading cached nodes"
+                                        },
+                                        {
+                                            "lane":  "warm-hydration",
+                                            "phase":  "loading-cache",
+                                            "hydrationPhase":  "relations",
+                                            "indexed":  0,
+                                            "total":  11820,
+                                            "label":  "Loading cached relationships",
+                                            "shownAfter":  "Loading cached relationships"
+                                        },
+                                        {
+                                            "lane":  "warm-hydration",
+                                            "phase":  "loading-cache",
+                                            "hydrationPhase":  "preview-search",
+                                            "indexed":  0,
+                                            "total":  11820,
+                                            "label":  "Preparing search",
+                                            "shownAfter":  "Preparing search"
+                                        },
+                                        {
+                                            "lane":  "warm-hydration",
+                                            "phase":  "loading-cache",
+                                            "hydrationPhase":  "evidence",
+                                            "indexed":  0,
+                                            "total":  11820,
+                                            "label":  "Loading relationship evidence",
+                                            "shownAfter":  "Loading relationship evidence"
+                                        },
+                                        {
+                                            "lane":  "warm-hydration",
+                                            "phase":  "ready",
+                                            "hydrationPhase":  "complete",
+                                            "indexed":  11820,
+                                            "total":  11820,
+                                            "label":  "Preparing web link index",
+                                            "shownAfter":  "Status: index ready"
+                                        }
+                                    ],
+                       "screenshotCount":  4,
+                       "cleanup":  {
+                                       "restored":  true,
+                                       "notesUnchanged":  true,
+                                       "enabled":  true,
+                                       "enablementSetUnchanged":  true,
+                                       "controllerRemoved":  true,
+                                       "enablementBytesUnchanged":  true
+                                   },
+                       "baselinePreparation":  {
+                                                   "elapsedMs":  79,
+                                                   "ready":  true,
+                                                   "method":  "Normally saved current graph after the retained interrupted recovery and published Rebuild command"
+                                               },
+                       "visualReview":  {
+                                            "status":  "passed",
+                                            "privateScreenshots":  4,
+                                            "observed":  [
+                                                             "Preparing search",
+                                                             "Loading cached nodes",
+                                                             "Loading cached web links with changing counts"
+                                                         ],
+                                            "privateImagesPublished":  false
+                                        }
+                   },
+    "iterationHistory":  [
+                             "Held-audit regression failed before the priority fix.",
+                             "Two real IndexedDB writer/cleanup overlaps lost accepted pages before generation protection.",
+                             "Initial native new-note fixture failed to obtain a normally persisted baseline; its first cleanup failed, followed by independent recovery. Later cleanup steps are independent and backed up on disk.",
+                             "First production follow-up candidate encountered an already missing page chunk without fault injection and failed a warm-only assertion after cold repair; strict restoration passed.",
+                             "A closed-source startup fallback still selected progressive per-file publication after graph recovery failed before source-backed startup installation. Actual coordinator/real-IDB regression fails before and passes after the batched fallback change.",
+                             "Two late-hydration mocks omitted the new inventory query; explicit no-authority fixture capabilities were added, preserving behavior assertions and deadlines.",
+                             "CI645 and646 retained: the positive retry test released optional work too early and also allowed an uncontrolled second publication after the one permitted fresh attempt had started. Both publications are now inside the explicit first hold, with existing second-attempt rejection tests retained;77 focused cases and the final full run pass."
+                         ],
+    "limitations":  [
+                        "Programmatic native canvas-card clicks and DOM-publication timings do not establish physical pointer or paint latency.",
+                        "Plugin reload is tested; whole-application restart is not.",
+                        "Windows Obsidian 1.14.5; macOS, popout, physical mobile/touch and screen-reader acceptance remain separate.",
+                        "Deterministic cleanup overlap uses real Chromium IndexedDB; native lanes cover normal damaged-cache recovery and healthy warm reopen."
+                    ]
+}

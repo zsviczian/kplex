@@ -7,21 +7,21 @@ export async function runStartupAdmission({KplexPlugin,GraphIndex,app,settings,T
   const settle=async()=>{for(let n=0;n<12;n++)await Promise.resolve()};
   const gate=()=>{let resolve;const promise=new Promise(done=>resolve=done);return {promise,resolve}};
   for(const mode of ['eager','on-demand'])for(const warm of [false,true])for(const device of ['desktop','tablet','mobile'])for(const enabled of [false,true])for(const urlIndexingMode of ["on-demand","background"]){
-    const p=new KplexPlugin(),counts={catalog:0,restore:0,initial:0,urls:0,admit:0},hold=gate();
+    const p=new KplexPlugin(),counts={catalog:0,restore:0,initial:0,urls:0,admit:0},hold=gate();let urlsStarted=false;
     p.layoutReady=true;p.startupIndexPolicy={device,beforeView:enabled,mode};
-    p.index={admitPreparation(){counts.admit++},async startBackgroundUrlIndex(){counts.urls++},
+    p.index={isOnDemandMode:()=>mode==='on-demand',admitPreparation(){counts.admit++},async startBackgroundUrlIndex(){if(!urlsStarted){urlsStarted=true;counts.urls++;}return true;},
       async primePhysicalSearchCatalog(){counts.catalog++;await hold.promise},
       async restorePersistedSnapshot(){counts.restore++;return {restored:warm,fresh:warm}},
       getRestoreInventorySourceRevision:()=>0,withForegroundPriority:work=>work(),publishHostMetadataPreview:async()=>{}};
     p.settings={...settings,indexingMode:mode,urlIndexingMode,lastActivePath:'A.md',navigationHistory:['A.md'],pinnedNodes:['B.md']};
     p.startupGraphSeedPaths=()=>['A.md'];p.refreshBookmarkedEntryPoints=async()=>{};
-    p.registerReactiveIndexListeners=()=>{};p.ensureInitialIndex=async()=>{counts.initial++};
+    p.registerReactiveIndexListeners=()=>{};p.ensureInitialIndex=async()=>{counts.initial++;p.initialIndexComplete=true;if(mode==='eager')void p.index.startBackgroundUrlIndex();};
     p.notifyIndexStatus=()=>{};p.performRebuild=async()=>{};p.restorePersistedSidecar=async()=>{};
     p.hasVisibleKplexSurface=()=>false;
     p.index.cancelRebuild=()=>{};p.index.cancelPendingPersistence=()=>{};
     p.prepareIndexIfRequested();
     await settle();
-    assert.deepEqual(counts,enabled?{catalog:1,restore:0,initial:0,urls:1,admit:1}:{catalog:0,restore:0,initial:0,urls:0,admit:0});
+    assert.deepEqual(counts,enabled?{catalog:1,restore:0,initial:0,urls:mode==='on-demand'?1:0,admit:1}:{catalog:0,restore:0,initial:0,urls:0,admit:0});
     const first=p.onKplexViewOpened(),second=p.onKplexViewOpened();
     await settle();assert.equal(counts.catalog,1,'Concurrent views join one admitted session');
     assert.equal(counts.restore,0,'Held search owner cannot be silently bypassed');
@@ -33,7 +33,7 @@ export async function runStartupAdmission({KplexPlugin,GraphIndex,app,settings,T
   // A pending owner can reenter through notifications; admission must already have its task.
   {
     const p=new KplexPlugin();let catalogs=0,notifies=0;
-    p.layoutReady=true;p.index={admitPreparation(){},async startBackgroundUrlIndex(){},async primePhysicalSearchCatalog(){catalogs++},
+    p.layoutReady=true;p.index={isOnDemandMode:()=>true,admitPreparation(){},async startBackgroundUrlIndex(){},async primePhysicalSearchCatalog(){catalogs++},
       async restorePersistedSnapshot(){return {restored:false,fresh:false}},getRestoreInventorySourceRevision:()=>0};
     p.startupGraphSeedPaths=()=>[];p.registerReactiveIndexListeners=()=>{};p.ensureInitialIndex=async()=>{};
     p.hasVisibleKplexSurface=()=>false;p.notifyIndexStatus=()=>{if(!notifies++)void p.startIndexPreparation()};
@@ -51,7 +51,7 @@ export async function runStartupAdmission({KplexPlugin,GraphIndex,app,settings,T
   {
     const p=new KplexPlugin();p.layoutReady=true;let starts=0,builds=0;
     p.startIndexPreparation=async()=>{starts++;p.indexPreparationAdmitted=true};p.performRebuild=async()=>{builds++};
-    p.index={isOnDemandMode:()=>false,isFullSnapshotHydrated:()=>true};p.notifyIndexStatus=()=>{};
+    p.index={isOnDemandMode:()=>false,isFullSnapshotHydrated:()=>true,startBackgroundUrlIndex:async()=>true};p.notifyIndexStatus=()=>{};
     await p.rebuildIndex(false,false,'interval');assert.equal(starts,0);
     await p.rebuildIndex(true,true,'ontology-discovery');assert.equal(starts,1);assert.equal(builds,1);cases++;
   }
@@ -71,7 +71,7 @@ export async function runStartupAdmission({KplexPlugin,GraphIndex,app,settings,T
   // Successful search work survives a failed restore; only a later genuine request retries storage.
   {
     const p=new KplexPlugin();p.layoutReady=true;let catalogs=0,restores=0;
-    p.index={admitPreparation(){},async startBackgroundUrlIndex(){},async primePhysicalSearchCatalog(){catalogs++},
+    p.index={isOnDemandMode:()=>true,admitPreparation(){},async startBackgroundUrlIndex(){},async primePhysicalSearchCatalog(){catalogs++},
       async restorePersistedSnapshot(){if(!restores++)throw Error('Storage unavailable');return {restored:false,fresh:false}},getRestoreInventorySourceRevision:()=>0};
     p.startupGraphSeedPaths=()=>[];p.registerReactiveIndexListeners=()=>{};p.ensureInitialIndex=async()=>{};
     p.hasVisibleKplexSurface=()=>false;p.notifyIndexStatus=()=>{};
@@ -82,7 +82,7 @@ export async function runStartupAdmission({KplexPlugin,GraphIndex,app,settings,T
   // Unload fences both not-yet-started admission and a late held catalog completion.
   for(const held of [false,true]){
     const p=new KplexPlugin(),hold=gate();let catalogs=0,restores=0;
-    p.layoutReady=true;p.index={admitPreparation(){},async startBackgroundUrlIndex(){},async primePhysicalSearchCatalog(){catalogs++;if(held)await hold.promise},
+    p.layoutReady=true;p.index={isOnDemandMode:()=>true,admitPreparation(){},async startBackgroundUrlIndex(){},async primePhysicalSearchCatalog(){catalogs++;if(held)await hold.promise},
       async restorePersistedSnapshot(){restores++;return {restored:false,fresh:false}}};
     p.notifyIndexStatus=()=>{};
     const pending=p.startIndexPreparation();if(held)await settle();p.unloading=true;hold.resolve();await pending;

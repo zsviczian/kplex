@@ -12,13 +12,16 @@ import { fileURLToPath } from "node:url";
 import { Script } from "node:vm";
 import { validateTarget } from "./runner.mjs";
 import { runFolderCreationWorkflows, verifyFolderCreationRestart } from "./folderCreationWorkflows.mjs";
+import { runEagerNavigationWorkflows } from "./eagerNavigationWorkflows.mjs";
 
 const root = resolve(fileURLToPath(new URL("../../..", import.meta.url)));
 const vaultName = process.env.KPLEX_TEST_VAULT_NAME;
 const selectedScenario = process.env.KPLEX_ACTION_WORKFLOW_SCENARIO;
-if (selectedScenario && selectedScenario !== "folder-creation") throw new Error("Unknown action workflow scenario");
-const folderCreationOnly = selectedScenario === "folder-creation";
-if (folderCreationOnly && vaultName !== "kplex-test-small") throw new Error("Folder creation acceptance requires kplex-test-small");
+if (selectedScenario && !["folder-creation", "eager-navigation"].includes(selectedScenario)) throw new Error("Unknown action workflow scenario");
+const eagerNavigationOnly = selectedScenario === "eager-navigation";
+// Both focused lanes retain the existing full fixture/configuration restoration owner.
+const folderCreationOnly = selectedScenario === "folder-creation" || eagerNavigationOnly;
+if (folderCreationOnly && vaultName !== "kplex-test-small") throw new Error("Focused action acceptance requires kplex-test-small");
 const target = validateTarget({ vaultName, vaultPath: process.env.KPLEX_TEST_VAULT_PATH, configDir: process.env.KPLEX_TEST_CONFIG_DIR });
 const reportDir = process.env.KPLEX_HOST_REPORT_DIR;
 if (!reportDir) throw new Error("Set KPLEX_HOST_REPORT_DIR explicitly");
@@ -40,11 +43,12 @@ if (folderCreationOnly) {
   }
   mkdirSync(join(reportDir, "private"));
   for (const [index, item] of configuration.entries()) if (item.bytes) writeFileSync(join(reportDir, "private", `configuration-${index}.bin`), item.bytes);
-  for (const name of ["actionWorkflows.mjs", "folderCreationWorkflows.mjs"]) writeFileSync(join(reportDir, name), readFileSync(new URL(name, import.meta.url)));
+  for (const name of ["actionWorkflows.mjs", "folderCreationWorkflows.mjs", "eagerNavigationWorkflows.mjs"]) writeFileSync(join(reportDir, name), readFileSync(new URL(name, import.meta.url)));
 }
 if (!configuration[0].bytes || !configuration[1].bytes) throw new Error("Initialized disposable plugin settings and enablement are required");
 const report = { status: "running", startedAt: new Date().toISOString(), node: process.version, target: vaultName, artifacts: {},
   limitations: ["Desktop Electron UI and trusted renderer keyboard input; no physical keyboard/IME/touch or screen-reader acceptance", "H26 is conditional on an installed enabled Excalidraw companion", "Existing-target semantic writes are asserted through native metadata and exact source files; no whole-vault semantic oracle is inferred"] };
+if (eagerNavigationOnly) report.limitations = ["Programmatic native canvas clicks and existing canvas-mutation owner; no physical pointer/drag, mobile, macOS or screen-reader acceptance", "DOM publication timing is not a screen-paint guarantee", "Exact source/evidence parity is established separately by the real IndexedDB full-oracle regressions"];
 let installed = false;
 report.scenario = selectedScenario ?? "all";
 let ownedController = false;
@@ -552,15 +556,16 @@ try {
     if (report.artifacts[name] !== hash(join(target.pluginDir, name))) throw new Error(`Installed ${name} differs from the exact staged build`);
     if (folderCreationOnly) writeFileSync(join(reportDir, "private", name), readFileSync(join(root, "dist", name)));
   }
-  cli("dev:errors", "clear"); installed = true; const started = evaluate(`(${nativeWorkflowProbe.toString()})(${JSON.stringify(runToken)},${folderCreationOnly ? runFolderCreationWorkflows.toString() : "null"})`); ownedController = true; report.fixtureFolder = started.fixtureFolder;
+  cli("dev:errors", "clear"); installed = true; const focusedProbe = eagerNavigationOnly ? runEagerNavigationWorkflows : runFolderCreationWorkflows;
+  const started = evaluate(`(${nativeWorkflowProbe.toString()})(${JSON.stringify(runToken)},${folderCreationOnly ? focusedProbe.toString() : "null"})`); ownedController = true; report.fixtureFolder = started.fixtureFolder;
   const deadline = Date.now() + 600000;
   while (true) {
-    await wait(500); const state = readProgress("JSON.stringify({done:window.__kplexActionWorkflows?.done,error:window.__kplexActionWorkflows?.error,value:window.__kplexActionWorkflows?.value,scenarios:window.__kplexActionWorkflows?.scenarios,folderCreation:window.__kplexActionWorkflows?.folderCreation,sidebarReadiness:window.__kplexActionWorkflows?.sidebarReadiness,pickerBefore:window.__kplexActionWorkflows?.pickerBefore,pickerSelection:window.__kplexActionWorkflows?.pickerSelection,paletteAvailability:window.__kplexActionWorkflows?.paletteAvailability,folderOriginProof:window.__kplexActionWorkflows?.folderOriginProof,folderSaveReadiness:window.__kplexActionWorkflows?.folderSaveReadiness,contextReadiness:window.__kplexActionWorkflows?.contextReadiness,overflowReveal:window.__kplexActionWorkflows?.overflowReveal,companionTransitions:window.__kplexActionWorkflows?.companionTransitions})", deadline);
+    await wait(500); const state = readProgress("JSON.stringify({done:window.__kplexActionWorkflows?.done,error:window.__kplexActionWorkflows?.error,value:window.__kplexActionWorkflows?.value,scenarios:window.__kplexActionWorkflows?.scenarios,folderCreation:window.__kplexActionWorkflows?.folderCreation,eagerNavigation:window.__kplexActionWorkflows?.eagerNavigation,sidebarReadiness:window.__kplexActionWorkflows?.sidebarReadiness,pickerBefore:window.__kplexActionWorkflows?.pickerBefore,pickerSelection:window.__kplexActionWorkflows?.pickerSelection,paletteAvailability:window.__kplexActionWorkflows?.paletteAvailability,folderOriginProof:window.__kplexActionWorkflows?.folderOriginProof,folderSaveReadiness:window.__kplexActionWorkflows?.folderSaveReadiness,contextReadiness:window.__kplexActionWorkflows?.contextReadiness,overflowReveal:window.__kplexActionWorkflows?.overflowReveal,companionTransitions:window.__kplexActionWorkflows?.companionTransitions})", deadline);
     report.progress = state; writeFileSync(join(reportDir, "report.json"), JSON.stringify(report, null, 2));
     if (state.done) { if (state.error) throw new Error(state.error); report.result = state.value; break; }
     if (Date.now() > deadline) throw new Error("Native workflow acceptance deadline");
   }
-  if (folderCreationOnly) {
+  if (folderCreationOnly && !eagerNavigationOnly) {
     cli("plugin:disable", "id=k-plex"); cli("plugin:enable", "id=k-plex");
     evaluate(`(()=>{const c=window.__kplexActionWorkflows;if(!c||c.runToken!==${JSON.stringify(runToken)})throw Error('Owned restart controller missing');c.restartTask=(${verifyFolderCreationRestart.toString()})(${JSON.stringify(report.result.restartExpectation)}).then(value=>{c.restartResult=value;c.restartDone=true},error=>{c.restartError=String(error);c.restartDone=true});return JSON.stringify({started:true})})()`);
     const end=Date.now()+100000;

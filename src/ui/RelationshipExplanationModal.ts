@@ -3,7 +3,8 @@
  * formats stable reason codes and offers additive ontology, source navigation and confirmed selected
  * frontmatter removal and additive Hidden declarations that preserve original links. Generation
  * fences own reads and child setup/confirmation UI through a narrow close capability;
- * saved writes remain plugin-owned.
+ * saved writes remain plugin-owned. Incomplete previews acquire only the inspected pair before
+ * exposing its canonical property sources, including declarations owned by the opposite endpoint.
  */
 import {activeOntologyFields} from "../core/plex/relationshipOntology";
 import { connectionActionAllowed } from "./structuralConnectionActions";
@@ -404,6 +405,26 @@ export class RelationshipExplanationModal extends Modal {
     this.closed = false;
     this.releaseIndex = this.plugin.index.subscribe(/** Only a saved-pending operation needs publication-driven refresh. */ () => this.refreshPendingRemoval());
     this.refreshDetails();
+    void this.prepareEditablePair(this.loadGeneration);
+  }
+
+  /**
+   * Resolve an incoming preview through the existing exact-pair owner. A filename/backlink preview
+   * may show the connection without its other note's ontology; centering that note must not be
+   * required to discover its editable property. Ready pairs and structural membership need no work.
+   * Closing or replacing this dialog generation retires the result without refreshing stale UI.
+   */
+  private async prepareEditablePair(generation: number): Promise<void> {
+    const { sourcePath, targetPath } = this.explanation;
+    const source = this.plugin.index.get(sourcePath), target = this.plugin.index.get(targetPath);
+    if (!source || !target || source.isFolder || target.isFolder || source.isTag || target.isTag
+      || this.plugin.index.isSemanticWriteReady(sourcePath, targetPath)) return;
+    try {
+      const prepared = await this.plugin.index.prepareRelationshipPair(sourcePath, targetPath);
+      if (prepared && this.isCurrent(generation) && this.operation === "idle") this.refreshDetails();
+    } catch {
+      if (this.isCurrent(generation) && this.operation === "idle") this.refreshDetails(this.plugin.translator("explain.sourceLoadFailed"));
+    }
   }
 
   /** Build one mounted generation; asynchronous source reads retain its explanation snapshot. */

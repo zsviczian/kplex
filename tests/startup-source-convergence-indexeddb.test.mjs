@@ -8,12 +8,214 @@ import test from 'node:test';
 import {contributorBrowserBundle, contributorBrowserInitialize} from './support/contributorBrowserFixture.mjs';
 import {chromiumHarness} from './support/browserTypeScript.mjs';
 import {hostOracle, collect} from './support/cachedSourceFixture.mjs';
-import {fullCenterIndex, centerGateSettings} from './support/requestedCenterGateFixture.mjs';
+import {fullCenterIndex, currentNeighborhoodView, centerGateSettings} from './support/requestedCenterGateFixture.mjs';
 import {startupSourceCoordinatorSource} from './support/startupSourceCoordinator.mjs';
 
 const bundle = await contributorBrowserBundle(['src/main.ts', 'src/index/GraphIndex.ts', 'src/index/GraphBuilder.ts',
   'src/index/IndexSnapshot.ts', 'src/core/graph/compiler.ts', 'src/adapters/obsidian/metadataSourceCollector.ts',
   'src/adapters/obsidian/ontologySourceCollector.ts', 'src/adapters/obsidian/startupDiagnostics.ts'], {'src/main.ts': startupSourceCoordinatorSource()});
+
+test('warm placeholder edits publish before the initial source audit finishes', async () => {
+  const browser = await chromiumHarness(bundle);
+  try {
+    assert.equal(await browser.evaluate(contributorBrowserInitialize), true);
+    assert.equal(await browser.evaluate(`(async()=>{
+      const assert=Object.assign((v,m)=>ok(v,m),{equal}),M=sourceModules,f=await fixture('warm-edit-during-source-audit');
+      const collect=${collect.toString()},hostOracle=${hostOracle.toString()},fullCenterIndex=${fullCenterIndex.toString()},currentNeighborhoodView=${currentNeighborhoodView.toString()},centerGateSettings=${centerGateSettings.toString()};
+      let initial,index,oracle,release,unlock,admission,releaseUrls;
+      const until=async(predicate,message)=>{const end=Date.now()+2000;while(!predicate()){ok(Date.now()<end,message);await new Promise(done=>setTimeout(done,10));}};
+      try {
+        f.text=f.texts;f.app.vault.getName=()=> 'warm-edit-during-source-audit';
+        f.app.vault.getAbstractFileByPath=path=>f.files.get(path)??(path==='/'||path===''?f.app.vault.getRoot():null);
+        f.add('Audit.md','');f.add('A.md','Friends:: [[B]]');f.add('B.md','');
+        await f.acquire();ok(await f.acquisition.reconcile(),'Seed complete durable source dependencies');
+        const semantic={hierarchy:{hidden:[],parents:[],children:['Children'],leftFriends:['Friends'],rightFriends:[],previous:[],next:[]},inferAllLinksAsFriends:false,inverseInfer:false,showFullTagName:true,tagStyleList:[],maxLabelLength:30};
+        const view=centerGateSettings({showFolderNodes:false}),settings={indexingMode:'eager',...semantic,...view,lastActivePath:'A.md',pinnedNodes:[]};
+        initial=await fullCenterIndex(M,f,await hostOracle(f,[...f.files.keys()],semantic,view,true),semantic,view);
+        ok(await f.cache.writeSnapshot({createdAt:Date.now(),urlAliasVersion:2,vaultSignature:M.computeVaultSignature(f.app),settingsSignature:M.computeIndexSettingsSignature(settings),discoveredFields:[]},
+          [...initial.state.pages.values()].map(page=>M.persistedPageFromGraphPage(page)),[...initial.state.evidence.declarations()].map(item=>M.persistedDeclarationFromEvidence(item))),'Save genuine complete graph');
+        initial.destroy();initial=null;f.acquisition.close();
+        const p=new M.StartupSourceCoordinator();Object.assign(p,{app:f.app,settings,layoutReady:true,
+          startupIndexPolicy:{device:'desktop',beforeView:true,mode:'eager'},supportEvents:{record(){}},notifyIndexStatus(){},
+          hasVisibleKplexSurface:()=>false,refreshBookmarkedEntryPoints:async()=>{},startupGraphSeedPaths:()=>['A.md'],registerReactiveIndexListeners(){},
+          performRebuild:async()=>{throw Error('Warm edits must not rebuild');}});
+        p.startupDiagnostics=new M.StartupDiagnostics();p.startupDiagnostics.begin(false);
+        index=new M.GraphIndex(p,f.app);p.index=index;index.scheduleOrphanCleanup=()=>{};
+        let entered;const reached=new Promise(done=>entered=done),held=new Promise(done=>unlock=done);
+        const source=index.sourceAcquisition,inspect=source.repository.inspectWithLocalDependencies;
+        source.repository.inspectWithLocalDependencies=async function(...args){if(args[0]==='Audit.md'){entered();await held;}return inspect.apply(this,args);};
+        const urlsHeld=new Promise(done=>releaseUrls=done),readUrls=index.indexedDb.readUrlOwners;
+        index.indexedDb.readUrlOwners=async function(...args){await urlsHeld;return readUrls.apply(this,args);};
+        release=index.acquireSemanticDemand('A.md');admission=p.startIndexPreparation();await admission;await reached;
+        ok(p.initialIndexComplete&&index.isFullSnapshotHydrated(),'Warm graph is ready while the actual source audit is held');
+        ok(source.inventory&&!source.hasSemanticDependencies(),'The initial source audit has not granted global source authority');
+        ok(source.canPrepareWarmMaintenance(),'The real warm snapshot admits a physically authenticated dependency baseline');
+        const work=p.startupDiagnostics.snapshot().sessionWork,reads=f.reads.length;
+        const a=f.files.get('A.md');f.texts.set(a.path,'Friends:: [[B]]\\nChildren:: [[Ghost]]');a.stat.mtime++;f.app.vault.trigger('modify',a);
+        try{await until(()=>index.get(a.path)?.neighbours.has('Ghost'),'Placeholder creation must publish before the unrelated source audit resumes');}
+        catch(error){throw Error(error.message+' '+JSON.stringify({warm:source.canPrepareWarmMaintenance(),ready:source.hasSemanticDependencies(),revision:source.warmMaintenanceRevision,maintenance:source.maintenanceRevision,
+          authority:source.localDependencyAuthorityReady,known:source.pendingKnownFiles.size,keys:source.pendingResolutionKeys.size,task:!!index.eagerGraphMaintenanceTask,
+          diagnostics:index.getIndexDiagnostics(),source:source.getDiagnostics(),scheduler:index.getWorkPriorityDiagnostics()}));}
+        equal(index.publicApiCoverage(),{scope:'global',complete:true,pending:false},'Known edit restores complete graph coverage while the audit remains held');
+        ok(source.inventory,'Urgent work did not finish or replace the held audit');
+        equal(source.localDependenciesReady,false,'Urgent repair does not mark the broad audit complete');
+        equal(source.localDependencyAuthorityReady,false,'Warm repair does not replace broad audit authority');
+        f.texts.set(a.path,'Friends:: [[B]]');a.stat.mtime++;f.app.vault.trigger('modify',a);
+        await until(()=>!index.get(a.path)?.neighbours.has('Ghost')&&index.publicApiCoverage().complete,'Placeholder deletion must publish before the audit resumes');
+        const counts=index.getSourceAcquisitionCounters(),requests=index.getSemanticPreparationDiagnostics().requested;
+        const other=index.acquireSemanticDemand('B.md');try{await index.ensureSemanticScope('B.md');}finally{other();}
+        equal(index.getSourceAcquisitionCounters(),counts,'Later navigation adds no acquisition work');
+        equal(index.getSemanticPreparationDiagnostics().requested,requests,'Later navigation does not reconstruct a neighborhood');
+        equal(index.getSemanticPreparationDiagnostics().fullBuilds,0,'Urgent changes never rebuild the graph');
+        equal(p.startupDiagnostics.snapshot().sessionWork.nodeCatalogStarts,work.nodeCatalogStarts,'No duplicate node catalog');
+        equal(f.reads.slice(reads).filter(path=>path!=='A.md'),[],'Urgent work never reads an unrelated note body');
+        unlock();releaseUrls();await source.flush();
+        await until(()=>index.publicApiCoverage().complete&&!index.eagerGraphMaintenanceTask,'Normal source audit drains after urgent publication');
+        oracle=await fullCenterIndex(M,f,await hostOracle(f,[...f.files.keys()],semantic,view,true),semantic,view);
+        for(const path of f.files.keys())equal(currentNeighborhoodView(index,path),currentNeighborhoodView(oracle,path),'Final full-compiler parity: '+path);
+        return true;
+      }finally{unlock?.();releaseUrls?.();release?.();index?.destroy();initial?.destroy();oracle?.destroy();if(admission)await admission.catch(()=>{});f.close();}
+    })()`), true);
+  } finally {await browser.cleanup();}
+});
+
+test('eager warm graph admission completes before held optional URL replay',async()=>{
+  const browser=await chromiumHarness(bundle);
+  try{
+    assert.equal(await browser.evaluate(contributorBrowserInitialize),true);
+    assert.equal(await browser.evaluate(`(async()=>{
+      const assert=Object.assign((v,m)=>ok(v,m),{equal}),M=sourceModules,f=await fixture('eager-url-startup-priority');
+      const collect=${collect.toString()},hostOracle=${hostOracle.toString()},fullCenterIndex=${fullCenterIndex.toString()},centerGateSettings=${centerGateSettings.toString()};
+      let initial,index,release,unlock,admission;
+      try{
+        f.text=f.texts;f.app.vault.getName=()=> 'eager-url-startup-priority';
+        f.app.vault.getAbstractFileByPath=path=>f.files.get(path)??(path==='/'||path===''?f.app.vault.getRoot():null);
+        f.add('A.md','Friends:: [[B]]');f.add('B.md','');f.add('C.md','');await f.acquire();ok(await f.acquisition.reconcile(),'Current durable source facts');
+        const semantic={hierarchy:{hidden:[],parents:[],children:[],leftFriends:['Friends'],rightFriends:[],previous:[],next:[]},inferAllLinksAsFriends:false,inverseInfer:false,showFullTagName:true,tagStyleList:[],maxLabelLength:30};
+        const view=centerGateSettings({showFolderNodes:false}),settings={indexingMode:'eager',...semantic,...view,lastActivePath:'A.md',pinnedNodes:[]};
+        initial=await fullCenterIndex(M,f,await hostOracle(f,[...f.files.keys()],semantic,view,true),semantic,view);
+        ok(await f.cache.writeSnapshot({createdAt:Date.now(),urlAliasVersion:2,vaultSignature:M.computeVaultSignature(f.app),settingsSignature:M.computeIndexSettingsSignature(settings),discoveredFields:[]},
+          [...initial.state.pages.values()].map(page=>M.persistedPageFromGraphPage(page)),[...initial.state.evidence.declarations()].map(item=>M.persistedDeclarationFromEvidence(item))),'Genuine complete warm graph');
+        initial.destroy();initial=null;f.acquisition.close();
+        const phaseFacts=[],p=new M.StartupSourceCoordinator();Object.assign(p,{app:f.app,settings,layoutReady:true,
+          startupIndexPolicy:{device:'desktop',beforeView:true,mode:'eager'},supportEvents:{record(){}},
+          /** Keep ordinary record notifications throttled; every real phase must still reach UI listeners. */
+          notifyIndexStatus(){const phase=p.startupDiagnostics.progress('hydration')?.phase;if(phase)phaseFacts.push([phase,index.getSnapshotHydrationDiagnostics().phase]);p.lastStartupProgressNotification=performance.now()+10000;},
+          hasVisibleKplexSurface:()=>false,refreshBookmarkedEntryPoints:async()=>{},
+          startupGraphSeedPaths:()=>['A.md'],registerReactiveIndexListeners(){},performRebuild:async()=>{throw Error('Healthy warm graph cannot rebuild');}});
+        p.startupDiagnostics=new M.StartupDiagnostics();p.startupDiagnostics.begin(false);
+        index=new M.GraphIndex(p,f.app);p.index=index;index.scheduleOrphanCleanup=()=>{};
+        let urlStarted=false;const held=new Promise(done=>unlock=done),read=index.indexedDb.readUrlOwners;
+        index.indexedDb.readUrlOwners=async function(...args){urlStarted=true;await held;return read.apply(this,args);};
+        release=index.acquireSemanticDemand('A.md');admission=p.startIndexPreparation();
+        const completed=await Promise.race([admission.then(()=>true),new Promise(done=>setTimeout(()=>done(false),2000))]);
+        ok(completed,'Actual startup must finish healthy graph hydration before optional URL replay can hold P3');
+        ok(p.initialIndexComplete&&index.isFullSnapshotHydrated(),'Complete graph is naturally ready');
+        for(const phase of ['preview','pages','relations','preview-search','evidence','promote'])ok(phaseFacts.some(row=>row[0]===phase),'Actual hydration phase must bypass per-record throttling: '+phase);
+        ok(phaseFacts.every(row=>row[0]===row[1]),'Listeners observe complete current phase facts, never the previous diagnostic phase');
+        equal(index.publicApiCoverage(),{scope:'global',complete:true,pending:false},'Global navigation does not wait for URL owner replay');
+        equal(index.getSemanticPreparationDiagnostics().fullBuilds,0,'Warm admission does not fall back to a build');
+        ok(urlStarted,'Optional URL work still starts after initial graph completion');
+        equal(index.getWorkPriorityDiagnostics().active[1],0,'No current-node lease is retained while joining optional work');
+        const a=f.files.get('A.md');f.texts.set(a.path,'Friends:: [[C]]');a.stat.mtime++;f.app.vault.trigger('modify',a);
+        const settled=await Promise.race([index.sourceAcquisition.flush().then(()=>true),new Promise(done=>setTimeout(()=>done(false),2000))]);
+        ok(settled,'Known source maintenance must finish while optional URL replay remains held');
+        index.retryEagerGraphMaintenance();while(index.eagerGraphMaintenanceTask)await index.eagerGraphMaintenanceTask;
+        ok(index.get(a.path).neighbours.get('C.md')?.isLeftFriend,'Native edit publishes through normal graph catch-up ahead of optional URL work');
+        equal(index.publicApiCoverage(),{scope:'global',complete:true,pending:false},'Native edit regains global coverage before held optional work completes');
+        return true;
+      }finally{unlock?.();release?.();if(index){index.plugin.unloading=true;index.destroy();}if(admission)await admission.catch(()=>{});initial?.destroy();f.close();}
+    })()`),true);
+  }finally{await browser.cleanup();}
+});
+
+for (const damage of ['missing', 'chunks', 'warm', 'warm-equal-stat']) test(`eager coordinator completes ${damage} graph recovery before declaring startup ready`, async () => {
+  const browser = await chromiumHarness(bundle);
+  try {
+    assert.equal(await browser.evaluate(contributorBrowserInitialize), true);
+    assert.equal(await browser.evaluate(`(async()=>{
+      const assert=Object.assign((v,m)=>ok(v,m),{equal}),M=sourceModules,f=await fixture('eager-startup-${damage}');
+      const collect=${collect.toString()},hostOracle=${hostOracle.toString()},fullCenterIndex=${fullCenterIndex.toString()};
+      const currentNeighborhoodView=${currentNeighborhoodView.toString()},centerGateSettings=${centerGateSettings.toString()};
+      let initial,index,oracle,release,unlock,restore;
+      try {
+        f.text=f.texts;f.app.vault.getName=()=> 'eager-startup-${damage}';
+        f.app.vault.getAbstractFileByPath=path=>f.files.get(path)??(path==='/'||path===''?f.app.vault.getRoot():null);
+        f.add('A.md','Friends:: [[B]]');f.add('B.md','');f.add('Unvisited.md','Friends:: [[Ghost]]');
+        await f.acquire();ok(await f.acquisition.reconcile(),'Durable source authority');
+        const semantic={hierarchy:{hidden:[],parents:[],children:[],leftFriends:['Friends'],rightFriends:[],previous:[],next:[]},inferAllLinksAsFriends:false,inverseInfer:false,showFullTagName:true,tagStyleList:[],maxLabelLength:30};
+        const view=centerGateSettings({showFolderNodes:false}),settings={indexingMode:'eager',...semantic,...view,lastActivePath:'A.md',pinnedNodes:[]};
+        initial=await fullCenterIndex(M,f,await hostOracle(f,[...f.files.keys()],semantic,view,true),semantic,view);
+        if(${JSON.stringify(damage)}!=='missing'){
+          ok(await f.cache.writeSnapshot({createdAt:Date.now(),urlAliasVersion:2,vaultSignature:M.computeVaultSignature(f.app),settingsSignature:M.computeIndexSettingsSignature(settings),discoveredFields:[]},
+            [...initial.state.pages.values()].map(page=>M.persistedPageFromGraphPage(page)),[...initial.state.evidence.declarations()].map(item=>M.persistedDeclarationFromEvidence(item))),'Complete snapshot saved');
+          if(${JSON.stringify(damage)}==='chunks'){const db=await f.cache.open();await edit(db,['snapshotChunks'],tx=>tx.objectStore('snapshotChunks').clear());}
+        }
+        initial.destroy();initial=null;f.acquisition.close();const readsBefore=f.reads.length;
+        const p=new M.StartupSourceCoordinator();Object.assign(p,{app:f.app,settings,layoutReady:true,indexPreparationAdmitted:true,
+          notifyIndexStatus(){},hasVisibleKplexSurface:()=>false,refreshBookmarkedEntryPoints:async()=>{},startupGraphSeedPaths:()=>['A.md']});
+        const progressStages=new Set();p.notifyIndexStatus=()=>{const progress=p.index?.getBuildProgress();if(progress)progressStages.add(progress.stage);};
+        p.startupDiagnostics=new M.StartupDiagnostics();p.startupDiagnostics.begin(false);
+        index=new M.GraphIndex(p,f.app);p.index=index;index.scheduleOrphanCleanup=()=>{};
+        if(${JSON.stringify(damage)}==='warm-equal-stat'){
+          index.sourceAcquisition.start();f.texts.set('Unvisited.md','Friends:: [[B]]');f.app.vault.trigger('modify',f.files.get('Unvisited.md'));
+        }
+        release=index.acquireSemanticDemand('A.md');ok((await index.restorePersistedSnapshot(['A.md'],{deferEagerVocabulary:true})).restored,'Physical recovery navigable');
+        await index.waitForSnapshotHydration();
+        if(${JSON.stringify(damage)}.startsWith('warm')){
+          p.indexDirty=false; // The production restore classifier has no intervening host edits here.
+          await p.finishStartupIndexPreparation();ok(await index.flushSourceRepository(),'Warm source validation closes');
+          index.acknowledgeHostPresentation();index.retryEagerGraphMaintenance();while(index.eagerGraphMaintenanceTask)await index.eagerGraphMaintenanceTask;
+          equal(index.getSemanticPreparationDiagnostics().fullBuilds,0,'Warm hydration must not rebuild relationships');
+          equal(index.publicApiCoverage(),{scope:'global',complete:true,pending:false},'Warm complete graph regains global read coverage');
+          const before=index.getSemanticPreparationDiagnostics(),counts=index.getSourceAcquisitionCounters();
+          const demand=index.acquireSemanticDemand('Unvisited.md');try{await index.ensureSemanticScope('Unvisited.md');}finally{demand();}
+          equal(index.getSemanticPreparationDiagnostics().requested,before.requested,'Warm unvisited destination needs no reconstruction');
+          equal(index.getSemanticPreparationDiagnostics().dependencyVisits,before.dependencyVisits,'Warm destination needs no source replay');
+          equal(index.getSourceAcquisitionCounters(),counts,'Warm navigation adds no acquisition work');
+          equal(p.startupDiagnostics.snapshot().sessionWork.nodeCatalogStarts,0,'Warm hydration never replays a node-only catalog');
+          oracle=await fullCenterIndex(M,f,await hostOracle(f,[...f.files.keys()],semantic,view,true),semantic,view);
+          oracle.fullSnapshotHydrated=true; // This distinct oracle was actually compiled from every native source above.
+          for(const path of f.files.keys())equal(currentNeighborhoodView(index,path),currentNeighborhoodView(oracle,path),'Warm unchanged/newer-source oracle parity: '+path);
+          if(${JSON.stringify(damage)}==='warm-equal-stat')ok(index.get('Unvisited.md').neighbours.get('B.md')?.isLeftFriend,'Observed same-stat edit predating journal admission cannot inherit saved graph authority');
+          return true;
+        }
+        ok(index.hasSourceBackedStartup(),'Recovery initially source-backed');
+        let entered;const reached=new Promise(done=>entered=done),held=new Promise(done=>unlock=done);
+        const build=M.GraphBuilder.prototype.build;
+        M.GraphBuilder.prototype.build=async function(options){const result=await build.call(this,options);entered();await held;return result;};
+        restore=()=>M.GraphBuilder.prototype.build=build;
+        const adoption=p.finishStartupIndexPreparation();
+        // Bound the observation of the real private P4 compiler: the old coordinator returned
+        // immediately after vocabulary adoption, so this is also the failing-before assertion.
+        const enteredBuild=await Promise.race([reached.then(()=>true),adoption.then(()=>false)]);
+        ok(enteredBuild,'Eager startup must schedule complete relationships, not stop at node vocabulary');
+        const inventoryPasses=p.startupDiagnostics.snapshot().sessionWork.sourceInventoryPasses;
+        equal(p.initialIndexComplete,false,'Incomplete graph cannot declare startup ready');
+        const before=index.getSourceAcquisitionCounters(),foreground=index.acquireSemanticDemand('Unvisited.md');
+        try{await index.ensureSemanticScope('Unvisited.md');ok(index.get('Unvisited.md').neighbours.get('Ghost')?.isLeftFriend,'Unvisited current-node request completes before held P4 ingestion');}finally{foreground();}
+        equal(index.getSourceAcquisitionCounters().vaultReads,before.vaultReads,'Foreground uses durable source facts');
+        unlock();await adoption;restore();restore=null;
+        ok(p.initialIndexComplete,'Eager startup completes');ok(index.isFullSnapshotHydrated(),'Complete graph published');
+        equal(p.startupDiagnostics.snapshot().sessionWork.sourceInventoryPasses,inventoryPasses,'Cached graph compilation must not force another source inventory');
+        ok(!index.sourceAcquisition.requested,'Completed source authority is retained instead of queued for a redundant rescan');
+        equal(p.startupDiagnostics.snapshot().sessionWork.nodeCatalogStarts,0,'Eager graph completion must not repeat a whole-vault node-only pass');
+        for(const stage of ['notes','relationships','presentation'])ok(progressStages.has(stage),'Actual phase transition must wake status listeners immediately: '+stage);
+        ok(!index.hasSourceBackedStartup(),'Recovered graph no longer depends on per-center reconstruction');
+        equal(index.publicApiCoverage(),{scope:'global',complete:true,pending:false},'Actual global read coverage');
+        oracle=await fullCenterIndex(M,f,await hostOracle(f,[...f.files.keys()],semantic,view,true),semantic,view);
+        for(const path of f.files.keys())equal(currentNeighborhoodView(index,path),currentNeighborhoodView(oracle,path),'Recovered full graph/provenance/gate parity: '+path);
+        const counts=index.getSourceAcquisitionCounters(),diagnostics=index.getSemanticPreparationDiagnostics();
+        const second=index.acquireSemanticDemand('B.md');try{await index.ensureSemanticScope('B.md');}finally{second();}
+        equal(index.getSourceAcquisitionCounters(),counts,'Navigation adds no source work');
+        equal(index.getSemanticPreparationDiagnostics().requested,diagnostics.requested,'Unvisited navigation adds no local semantic request');
+        equal(counts.vaultReads,0,'Recovery never rereads unchanged Markdown');equal(counts.parses,0,'Recovery never reparses unchanged Markdown');
+        equal(f.reads.slice(readsBefore),[],'No native body reads hidden outside the source counters');
+        return true;
+      }finally{unlock?.();restore?.();release?.();oracle?.destroy();initial?.destroy();index?.destroy();f.close();}
+    })()`), true);
+  } finally {await browser.cleanup();}
+});
 
 test('source closure publishes terminal progress inside the per-note throttle window without demanded scopes', /** A real inventory release must notify even when semantic recovery has nothing to publish. */ async () => {
   const browser = await chromiumHarness(bundle);
@@ -66,7 +268,7 @@ for (const fault of ['metadata', 'evicted-unsaved']) test(`real ${fault} recover
           [...initial.state.pages.values()].map(page=>M.persistedPageFromGraphPage(page)),[...initial.state.evidence.declarations()].map(item=>M.persistedDeclarationFromEvidence(item))),'Seed genuine complete warm acceleration');
         initial.destroy();initial=null;f.acquisition.close();
         const p=new M.StartupSourceCoordinator();Object.assign(p,{app:f.app,settings,layoutReady:true,indexPreparationAdmitted:true,
-          notifyIndexStatus(){},hasVisibleKplexSurface:()=>false,refreshBookmarkedEntryPoints:async()=>{},
+          notifyIndexStatus(){},hasVisibleKplexSurface:()=>false,refreshBookmarkedEntryPoints:async()=>{},startupGraphSeedPaths:()=>['A.md'],
           performRebuild:async()=>{throw Error('Recovery cannot force a full build');}});
         index=new M.GraphIndex(p,f.app);p.index=index;index.scheduleOrphanCleanup=()=>{};
         const readyInventory=[],ready=index.sourceAcquisition.inventoryReady;
@@ -110,11 +312,44 @@ for (const fault of ['metadata', 'evicted-unsaved']) test(`real ${fault} recover
         await until(()=>p.initialIndexComplete,'Recovered owners did not automatically resume initial adoption');
         equal(attempts,2,'Genuine recovery coalesces to one second attempt');
         ok(readyInventory.length>0&&readyInventory.every(active=>!active),'Recovery notification follows inventory owner release');
-        equal(index.getSemanticPreparationDiagnostics().fullBuilds,0,'No forced graph rebuild');
+        equal(index.getSemanticPreparationDiagnostics().fullBuilds,1,'Recovered eager startup completes the global graph once');
+        await until(()=>!index.publicApiCoverage().pending,'Recovered graph/event publication did not settle');
+        equal(index.publicApiCoverage(),{scope:'global',complete:true,pending:false},'Recovery cannot finish with cached-only coverage');
+        equal(index.getSourceAcquisitionCounters().vaultReads,fault==='evicted-unsaved'?1:0,'Only the genuinely edited owner needs native input');
         equal(repository.unsaved.size,0,'Only actual durable source recovery clears the mask');
         ok(index.get('A.md').neighbours.get('B.md')?.isLeftFriend,'Recovered canonical relation survives');
         return true;
       } finally {restoreTransaction?.();resume?.();release?.();initial?.destroy();index?.destroy();f.close();}
     })()`), true);
   } finally { await browser.cleanup(); }
+});
+
+test('closed source inventory chooses batched startup after graph recovery falls through',async()=>{
+ const browser=await chromiumHarness(bundle);
+ try{
+  assert.equal(await browser.evaluate(contributorBrowserInitialize),true);
+  assert.equal(await browser.evaluate(`(async()=>{
+   const M=sourceModules,f=await fixture('closed-source-startup-fallback'),view=(${centerGateSettings.toString()})();let index;
+   try{
+    f.app.vault.getName=()=> 'closed-source-startup-fallback';
+    f.app.vault.getAbstractFileByPath=path=>f.files.get(path)??(path==='/'||path===''?f.app.vault.getRoot():null);
+    f.add('A.md','Friends:: [[B]]');f.add('B.md','');await f.acquire();ok(await f.acquisition.reconcile(),'Real source projection closes');f.acquisition.close();
+    const settings={...view,indexingMode:'eager',hierarchy:{hidden:[],parents:[],children:[],leftFriends:['Friends'],rightFriends:[],previous:[],next:[],exclusions:[]},inferAllLinksAsFriends:false,inverseInfer:false,showFullTagName:false,tagStyleList:[],baseNodeStyle:{maxLabelLength:30},lastActivePath:'A.md',pinnedNodes:[]};
+    const p=new M.StartupSourceCoordinator();Object.assign(p,{app:f.app,settings,layoutReady:true,indexDirty:true,rebuildTimer:null,
+      startupDiagnostics:{recordWork(){},mark(){},progress(){return null;}},notifyIndexStatus(){},hasVisibleKplexSurface:()=>true,
+      refreshBookmarkedEntryPoints:async()=>{},startupGraphSeedPaths:()=>['A.md'],pruneMissingDirtyMarkdownPaths(){},scheduleRebuild(){}});
+    p.startupDiagnostics=new M.StartupDiagnostics();p.startupDiagnostics.begin(false);index=new M.GraphIndex(p,f.app);p.index=index;index.scheduleOrphanCleanup=()=>{};index.sourceAcquisition.enableInventory();ok(await index.sourceAcquisition.reconcile(),'Restart source inventory actually closes');
+    equal(index.hasSourceBackedStartup(),false,'Graph recovery did not install its special source-backed startup state');
+    ok(index.hasReusableSourceInventory(),'Closed sources retain their independent authority');
+    let progressive=0,batched=0,options;const full=index.rebuild,partial=index.rebuildProgressively;
+    index.rebuild=function(value){batched++;options=value;return full.call(this,value);};
+    index.rebuildProgressively=function(...args){progressive++;return partial.apply(this,args);};
+    await p.performRebuild(false,false,'startup:initial-index',true);
+    equal(progressive,0,'Closed source fallback must not repeat per-file progressive graph publication');
+    equal(batched,1,'One actual existing batched compiler');equal(options,{retainSourceInventory:true},'Keep closed inventory and normal event receipts');
+    ok(p.initialIndexComplete&&index.isFullSnapshotHydrated(),'Actual complete graph finishes startup');
+    ok(index.sourceAcquisition.hasSemanticDependencies(),'Source authority survives the batched rebuild');return true;
+   }finally{index?.destroy();f.close();}
+  })()`),true);
+ }finally{await browser.cleanup();}
 });

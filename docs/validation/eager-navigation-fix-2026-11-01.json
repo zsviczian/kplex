@@ -1,0 +1,655 @@
+{
+  "runtimeCommit": "bf4f974ca600c38fbda0bb1af6f889472922cc7b",
+  "branch": "fix/eager-navigation-and-reference-actions",
+  "base": "b64c88a3a11712c23fa75a2ad440adcc9f329c7a",
+  "pullRequest": "https://github.com/zsviczian/kplex/pull/257",
+  "node": "22.22.2",
+  "obsidian": "1.14.5",
+  "platform": "Windows",
+  "completedAt": "2026-11-02T01:59:19.589Z",
+  "artifacts": {
+    "main.js": "197ddef9f915a79f0b431dd7cb4a78884c9fda207fe7f3760c209d71699d79c0",
+    "styles.css": "8e7a4ed3c8b6d8941e020d3766c030d7ed072830a4c408e5eb91815f03437e2a",
+    "manifest.json": "5de7cf4abc1d611e4edd9a27a12473f38af3843bbb8c9fa590a22d029e49a2e3"
+  },
+  "sourceFiles": {
+    "src/adapters/obsidian/sourceAcquisition.ts": "2ee70fb63fd5bf3b7007934c4590357c37c5438dc635f51b4fda540508fb44cb",
+    "src/index/ForegroundWorkScheduler.ts": "c78d2259dfe24e778ba97deb1a52272c0e938577388f6e04b5416320e013a6e2",
+    "src/index/GraphBuilder.ts": "830b65ec8df75595a89379240f6160f2986ac172cda504f1c89e9e27c4c5132b",
+    "src/index/GraphIndex.ts": "dc6eac4888cc80a7030d84e1b2ac01532cef264f9fb4821e5544293d412cf5d7",
+    "src/main.ts": "4f564caf25497e1da00647898f409265b5496b83555de1b2216fc7d075770ee7",
+    "src/ui/RelationshipExplanationModal.ts": "260361158c683d934ec9b713e52b0cfe8b5f32822a1c6629fd4d3099328aa1af",
+    "tests/action-host-integration.test.mjs": "b6a34c2c6e4d2759d0cc5f99fc00661c41ba5a9c9456b3f39a7cab9985c92689",
+    "tests/graph-compiler.test.mjs": "f40d7c0fdc53fb8445e34aad0d74296acfdbfa965b25f41da266270f3ac368ce",
+    "tests/indexing.test.mjs": "650c55659738117f81cb4a819b4694745e5d114082c3b843682719d33ed2416d",
+    "tests/noop-patch-publication.test.mjs": "45eec10bf063f7ddb07384de8102f297e505e7ece9c420333337b805535e9c49",
+    "tests/public-api.test.mjs": "1cfc772adfe07e543079fe46725c3b5dc97b89db07194e6d998015001f8778ee",
+    "tests/relationship-actions.test.mjs": "13005dc30306011ae902392b4e7f5fa0d95feee1241dc7b67e9341c68d2116ca",
+    "tests/relationship-source-removal.test.mjs": "43c3d4df9107db72a98dea14797a6d40c0e52e1d4c2609b3b00d9ca41b9057fe",
+    "tests/saved-preview-url-indexeddb.test.mjs": "9316a0acb8e6551f0857585371c1bbe14f25f9c225178ae22f27553f7ac03052",
+    "tests/source-folder-wave.test.mjs": "100302641d1689a5a52931ba823aeb2c923d73b177edeef9d14418f6ead5a628",
+    "tests/source-startup-indexeddb.test.mjs": "70939b0c693e821bf1b39608a2259f7f16cd0151e32dcd499042c2ac2692eca8",
+    "tests/startup-settings-convergence.test.mjs": "80e3cc24c232627f0d1f8bbd2d74090f60a118bacdbae86ba21c22a70e33a130",
+    "tests/startup-source-convergence-indexeddb.test.mjs": "f97c1b0b7117ea51a8958253ce303a9be855180d09455e9da947c0d3d00e71bf",
+    "tests/startup-source-ownership.test.mjs": "4071c5d80ce35158c7f89f665817a31202527cb1b63e538a5048689d06a54567",
+    "tests/startup-url-cache-lifetime.test.mjs": "56c154415c9fd285487cec8cd4e377f9c8d2f7c047822a801336adb49bc0978e",
+    "tests/support/startupAdmission.mjs": "9e80a078f2117506e125017fcfae3201952b51269e843039988dc3cf2fe47deb",
+    "tests/support/startupSourceConvergence.mjs": "2abe6c06562a0386866c63688255341cdf1db537ccac3c6e869173ecd64ef841",
+    "tests/support/startupSourceCoordinator.mjs": "4ac8852a9cce35cd09d0fa9140ae4e27fae32c7eef971d5505f896e1dd39b196"
+  },
+  "automated": {
+    "command": "npm run verify",
+    "exitCode": 0,
+    "architecture": 9,
+    "core": 132,
+    "main": 1883,
+    "browser": 455,
+    "sources": 357,
+    "realIndexedDB": 872,
+    "officialScanner": "passed",
+    "productionBuild": "passed",
+    "ci": {
+      "result": "success",
+      "runtimeCommit": "bf4f974ca600c38fbda0bb1af6f889472922cc7b",
+      "url": "https://github.com/zsviczian/kplex/actions/runs/41372130808"
+    },
+    "largeFixture": {
+      "owners": 20015,
+      "ownerChecks": 8187369,
+      "elapsedMs": 153584.90000009537,
+      "peakHeap": 464363536,
+      "replayPeak": 405146310,
+      "combinedPeak": 685201826,
+      "reservation": {
+        "owners": 248586300,
+        "structure": 3278,
+        "compilation": 131382170,
+        "transient": 25174562,
+        "peakBytes": 405146310
+      },
+      "rootComplete": false,
+      "canonicalPasses": {
+        "direct": 1,
+        "optional": 0
+      },
+      "published": 1,
+      "cancellationYields": 2
+    }
+  },
+  "small": {
+    "markdownFiles": 98,
+    "recovery": {
+      "environment": {
+        "focused": true,
+        "hidden": false,
+        "backgroundThrottling": true
+      },
+      "cold": {
+        "elapsedMs": 7377.200000047684,
+        "hydration": {
+          "route": "source-recovery",
+          "failure": "missing-chunk"
+        },
+        "coverage": {
+          "scope": "global",
+          "complete": true,
+          "pending": false
+        },
+        "fullBuilds": 1,
+        "nodeCatalogStarts": 0,
+        "progressSamples": [
+          {
+            "indexed": 0,
+            "total": 98,
+            "label": "Applying current ontology & settings — 0 / 98 notes (0%)",
+            "stage": "notes"
+          },
+          {
+            "indexed": 27,
+            "total": 98,
+            "label": "Applying current ontology & settings — 27 / 98 notes (27%)",
+            "stage": "notes"
+          },
+          {
+            "indexed": 60,
+            "total": 98,
+            "label": "Applying current ontology & settings — 60 / 98 notes (61%)",
+            "stage": "notes"
+          },
+          {
+            "indexed": 89,
+            "total": 98,
+            "label": "Applying current ontology & settings — 89 / 98 notes (90%)",
+            "stage": "notes"
+          },
+          {
+            "indexed": 98,
+            "total": 98,
+            "label": "Finalizing link resolution",
+            "stage": "relationships"
+          },
+          {
+            "indexed": 98,
+            "total": 98,
+            "label": "Preparing search",
+            "stage": "presentation"
+          }
+        ],
+        "sourceReads": 0,
+        "nativeBodyReads": 0,
+        "parses": 0,
+        "navigation": {
+          "destinations": 6,
+          "requests": 0,
+          "familyVisits": 0
+        }
+      },
+      "warm": {
+        "elapsedMs": 7589.700000047684,
+        "route": "full-snapshot",
+        "coverage": {
+          "scope": "global",
+          "complete": true,
+          "pending": false
+        },
+        "fullBuilds": 0,
+        "nodeCatalogStarts": 0,
+        "sourceReads": 0,
+        "parses": 0,
+        "destinations": 6,
+        "requests": 0,
+        "familyVisits": 0
+      }
+    },
+    "cleanup": "passed",
+    "eventAndCalendarScenarios": [
+      {
+        "id": "eager-native-event-backlog-and-unvisited-calendar-navigation",
+        "status": "passed",
+        "elapsedMs": 10425.7,
+        "globalCoverage": {
+          "scope": "global",
+          "complete": true,
+          "pending": false
+        },
+        "fullBuilds": 0,
+        "captures": [
+          {
+            "label": "calendar-5",
+            "elapsedMs": 34.60000014305115,
+            "sourceReads": 0,
+            "parses": 0,
+            "familyVisits": 0
+          },
+          {
+            "label": "calendar-4",
+            "elapsedMs": 27.399999856948853,
+            "sourceReads": 0,
+            "parses": 0,
+            "familyVisits": 0
+          },
+          {
+            "label": "calendar-3",
+            "elapsedMs": 28.800000190734863,
+            "sourceReads": 0,
+            "parses": 0,
+            "familyVisits": 0
+          },
+          {
+            "label": "calendar-2",
+            "elapsedMs": 27,
+            "sourceReads": 0,
+            "parses": 0,
+            "familyVisits": 0
+          },
+          {
+            "label": "calendar-1",
+            "elapsedMs": 27.300000190734863,
+            "sourceReads": 0,
+            "parses": 0,
+            "familyVisits": 0
+          },
+          {
+            "label": "calendar-0",
+            "elapsedMs": 27.299999952316284,
+            "sourceReads": 0,
+            "parses": 0,
+            "familyVisits": 0
+          }
+        ],
+        "createModifyDelete": true
+      },
+      {
+        "id": "eager-canvas-mutation-reconciles-later-native-events",
+        "status": "passed",
+        "elapsedMs": 889.9,
+        "globalCoverage": {
+          "scope": "global",
+          "complete": true,
+          "pending": false
+        },
+        "captures": [
+          {
+            "label": "after-canvas-mutation",
+            "elapsedMs": 28.59999990463257,
+            "sourceReads": 0,
+            "parses": 0,
+            "familyVisits": 0
+          }
+        ],
+        "state": "saved-published"
+      }
+    ],
+    "eventsCleanup": {
+      "remainingOwned": 0,
+      "remainingDialogs": 0,
+      "inventoryRestored": true,
+      "controllerRemoved": true
+    },
+    "eventsConfigurationRestored": true,
+    "referenceScenarios": [
+      {
+        "id": "reference-unlink-either-center",
+        "status": "passed"
+      },
+      {
+        "id": "body-linked-placeholder-delete-explains-and-opens-source",
+        "status": "passed"
+      }
+    ],
+    "referencesCleanup": {
+      "remainingOwned": 0,
+      "remainingDialogs": 0,
+      "inventoryRestored": true,
+      "controllerRemoved": true
+    },
+    "referencesConfigurationRestored": true
+  },
+  "production": {
+    "deployment": [
+      "main.js",
+      "styles.css"
+    ],
+    "firstRestore": {
+      "readyMs": 46448.5,
+      "route": "full-snapshot",
+      "pages": 110484,
+      "relations": 110484,
+      "evidence": 282046,
+      "fullBuilds": 0,
+      "nodeCatalogStarts": 0,
+      "sourceReads": 0,
+      "parses": 0,
+      "sourceValidationCompleteAtGraphReadiness": false,
+      "hops": [
+        {
+          "hop": 1,
+          "elapsedMs": 121.70000004768372,
+          "requests": 0,
+          "familyVisits": 0,
+          "reads": 0,
+          "parses": 0,
+          "hidden": false,
+          "focused": true,
+          "backgroundThrottling": true
+        },
+        {
+          "hop": 2,
+          "elapsedMs": 80.5,
+          "requests": 0,
+          "familyVisits": 0,
+          "reads": 0,
+          "parses": 0,
+          "hidden": false,
+          "focused": true,
+          "backgroundThrottling": true
+        },
+        {
+          "hop": 3,
+          "elapsedMs": 113,
+          "requests": 0,
+          "familyVisits": 0,
+          "reads": 0,
+          "parses": 0,
+          "hidden": false,
+          "focused": true,
+          "backgroundThrottling": true
+        },
+        {
+          "hop": 4,
+          "elapsedMs": 100,
+          "requests": 0,
+          "familyVisits": 0,
+          "reads": 0,
+          "parses": 0,
+          "hidden": false,
+          "focused": true,
+          "backgroundThrottling": true
+        },
+        {
+          "hop": 5,
+          "elapsedMs": 69.79999995231628,
+          "requests": 0,
+          "familyVisits": 0,
+          "reads": 0,
+          "parses": 0,
+          "hidden": false,
+          "focused": true,
+          "backgroundThrottling": true
+        },
+        {
+          "hop": 6,
+          "elapsedMs": 76,
+          "requests": 0,
+          "familyVisits": 0,
+          "reads": 0,
+          "parses": 0,
+          "hidden": false,
+          "focused": true,
+          "backgroundThrottling": true
+        }
+      ]
+    },
+    "warmRestore": {
+      "readyMs": 55415.8,
+      "route": "full-snapshot",
+      "pages": 110484,
+      "relations": 110484,
+      "evidence": 282046,
+      "fullBuilds": 0,
+      "nodeCatalogStarts": 0,
+      "sourceReads": 0,
+      "parses": 0,
+      "sourceValidationCompleteAtGraphReadiness": false,
+      "hops": [
+        {
+          "hop": 1,
+          "elapsedMs": 100.70000004768372,
+          "requests": 0,
+          "familyVisits": 0,
+          "reads": 0,
+          "parses": 0,
+          "hidden": false,
+          "focused": true,
+          "backgroundThrottling": true
+        },
+        {
+          "hop": 2,
+          "elapsedMs": 62.5,
+          "requests": 0,
+          "familyVisits": 0,
+          "reads": 0,
+          "parses": 0,
+          "hidden": false,
+          "focused": true,
+          "backgroundThrottling": true
+        },
+        {
+          "hop": 3,
+          "elapsedMs": 81.5,
+          "requests": 0,
+          "familyVisits": 0,
+          "reads": 0,
+          "parses": 0,
+          "hidden": false,
+          "focused": true,
+          "backgroundThrottling": true
+        },
+        {
+          "hop": 4,
+          "elapsedMs": 107,
+          "requests": 0,
+          "familyVisits": 0,
+          "reads": 0,
+          "parses": 0,
+          "hidden": false,
+          "focused": true,
+          "backgroundThrottling": true
+        },
+        {
+          "hop": 5,
+          "elapsedMs": 81.79999995231628,
+          "requests": 0,
+          "familyVisits": 0,
+          "reads": 0,
+          "parses": 0,
+          "hidden": false,
+          "focused": true,
+          "backgroundThrottling": true
+        },
+        {
+          "hop": 6,
+          "elapsedMs": 85.09999990463257,
+          "requests": 0,
+          "familyVisits": 0,
+          "reads": 0,
+          "parses": 0,
+          "hidden": false,
+          "focused": true,
+          "backgroundThrottling": true
+        }
+      ]
+    },
+    "navigation": {
+      "count": 12,
+      "minMs": 62.5,
+      "medianMs": 83.4,
+      "maxMs": 121.7,
+      "allZeroSourceWork": true
+    },
+    "progress": [
+      {
+        "lane": "native-view",
+        "phase": "preparing",
+        "hydrationPhase": "idle",
+        "label": "Status: preparing index",
+        "shownAfter": "Status: preparing index"
+      },
+      {
+        "lane": "one-off-recovery",
+        "phase": "loading-cache",
+        "hydrationPhase": "metadata",
+        "label": "Reading cached index metadata",
+        "shownAfter": "Loading the requested canvas preview"
+      },
+      {
+        "lane": "one-off-recovery",
+        "phase": "loading-cache",
+        "hydrationPhase": "preview",
+        "label": "Loading the requested canvas preview",
+        "shownAfter": "Loading cached nodes"
+      },
+      {
+        "lane": "one-off-recovery",
+        "phase": "loading-cache",
+        "hydrationPhase": "pages",
+        "label": "Loading cached nodes",
+        "shownAfter": "Loading cached nodes"
+      },
+      {
+        "lane": "one-off-recovery",
+        "phase": "loading-cache",
+        "hydrationPhase": "relations",
+        "label": "Loading cached relationships",
+        "shownAfter": "Loading cached relationships — 256 records loaded"
+      },
+      {
+        "lane": "one-off-recovery",
+        "phase": "loading-cache",
+        "hydrationPhase": "preview-search",
+        "label": "Preparing search",
+        "shownAfter": "Preparing search"
+      },
+      {
+        "lane": "one-off-recovery",
+        "phase": "loading-cache",
+        "hydrationPhase": "evidence",
+        "label": "Loading relationship evidence",
+        "shownAfter": "Loading relationship evidence"
+      },
+      {
+        "lane": "one-off-recovery",
+        "phase": "ready",
+        "hydrationPhase": "complete",
+        "label": "Preparing web link index",
+        "shownAfter": "Status: index ready"
+      },
+      {
+        "lane": "warm-native-view",
+        "phase": "preparing",
+        "hydrationPhase": "idle",
+        "label": "Status: preparing index",
+        "shownAfter": "Status: preparing index"
+      },
+      {
+        "lane": "warm-hydration",
+        "phase": "loading-cache",
+        "hydrationPhase": "preview",
+        "label": "Loading the requested canvas preview",
+        "shownAfter": "Loading the requested canvas preview"
+      },
+      {
+        "lane": "warm-hydration",
+        "phase": "loading-cache",
+        "hydrationPhase": "pages",
+        "label": "Loading cached nodes",
+        "shownAfter": "Loading cached nodes"
+      },
+      {
+        "lane": "warm-hydration",
+        "phase": "loading-cache",
+        "hydrationPhase": "relations",
+        "label": "Loading cached relationships",
+        "shownAfter": "Loading cached relationships — 256 records loaded"
+      },
+      {
+        "lane": "warm-hydration",
+        "phase": "loading-cache",
+        "hydrationPhase": "preview-search",
+        "label": "Preparing search",
+        "shownAfter": "Preparing search"
+      },
+      {
+        "lane": "warm-hydration",
+        "phase": "loading-cache",
+        "hydrationPhase": "evidence",
+        "label": "Loading relationship evidence",
+        "shownAfter": "Loading relationship evidence"
+      },
+      {
+        "lane": "warm-hydration",
+        "phase": "ready",
+        "hydrationPhase": "complete",
+        "label": "Preparing web link index",
+        "shownAfter": "Status: index ready"
+      }
+    ],
+    "searchScreenshotsVisuallyReviewed": true,
+    "cleanup": {
+      "restored": true,
+      "notesUnchanged": true,
+      "enabled": true,
+      "enablementSetUnchanged": true,
+      "controllerRemoved": true,
+      "enablementBytesUnchanged": true
+    },
+    "postRestoreObservation": {
+      "at": "2026-11-02T02:03:56.949Z",
+      "enabled": true,
+      "sourceReady": false,
+      "global": {
+        "scope": "global",
+        "complete": true,
+        "pending": false
+      },
+      "journalSize": 0,
+      "graphTask": false,
+      "semantic": {
+        "policyRevision": 1,
+        "requested": 0,
+        "prepared": 0,
+        "published": 0,
+        "cancelled": 0,
+        "pending": 0,
+        "dependencyVisits": 0,
+        "fullBuilds": 0,
+        "lastReason": null
+      },
+      "status": {
+        "upToDate": true,
+        "phase": "ready",
+        "indexedFiles": 11819,
+        "totalFiles": 11819,
+        "label": "Status: index ready"
+      },
+      "hydration": {
+        "run": 1,
+        "phase": "complete",
+        "lastActivePhase": "promote",
+        "startedAt": 1793584701329,
+        "phaseStartedAt": 1793584754669,
+        "lastProgressAt": 1793584754666,
+        "pages": 110484,
+        "relations": 110484,
+        "evidence": 282046,
+        "outcome": "complete",
+        "attempts": 1,
+        "route": "full-snapshot",
+        "firstFailure": null
+      }
+    }
+  },
+  "limits": [
+    "Native programmatic card clicks and DOM publication time do not establish physical input or paint latency.",
+    "Windows plugin reloads are not whole-application restart, macOS, physical mobile, popout or screen-reader acceptance.",
+    "The production graph was restored from a healthy full snapshot; damaged-cache faults were injected only in the disposable Small vault.",
+    "Neutral-source validation and independent web-link preparation may continue after complete graph readiness.",
+    "Private screenshots, note paths, titles and vault locations are excluded from this record."
+  ],
+  "precedingRuntimeAfterSourceClosure": {
+    "runtimeCommit": "dea1161be61b452694051083d16f63ca7c59dcc3",
+    "at": "2026-11-02T01:45:34.612Z",
+    "enabled": true,
+    "sourceReady": true,
+    "global": {
+      "scope": "global",
+      "complete": true,
+      "pending": false
+    },
+    "journalSize": 0,
+    "graphTask": false,
+    "semantic": {
+      "policyRevision": 1,
+      "requested": 0,
+      "prepared": 0,
+      "published": 0,
+      "cancelled": 0,
+      "pending": 0,
+      "dependencyVisits": 0,
+      "fullBuilds": 0,
+      "lastReason": null
+    },
+    "status": {
+      "upToDate": true,
+      "phase": "ready",
+      "indexedFiles": 11819,
+      "totalFiles": 11819,
+      "label": "Status: index ready"
+    },
+    "hydration": {
+      "run": 1,
+      "phase": "complete",
+      "lastActivePhase": "promote",
+      "startedAt": 1793581836167,
+      "phaseStartedAt": 1793581888812,
+      "lastProgressAt": 1793581888809,
+      "pages": 110484,
+      "relations": 110484,
+      "evidence": 282046,
+      "outcome": "complete",
+      "attempts": 1,
+      "route": "full-snapshot",
+      "firstFailure": null
+    }
+  }
+}
