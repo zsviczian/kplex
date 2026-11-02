@@ -1,4 +1,6 @@
 /**
+ * Eager startup admits optional URL replay only after primary graph completion, so its higher
+ * per-owner preparation cannot starve saved-graph hydration or initial source compilation.
  * Saved native centers/history are primed before asynchronous startup. Partial graph absence
  * cannot select and persist an unrelated history entry while the requested center is loading.
  * Obsidian plugin lifecycle and host orchestration for indexing, navigation and vault mutations. Portable owners determine semantics; this host boundary supplies effects, cleanup and localized product feedback. Native metadata events request finite visible presentation repair independently of semantic readiness. Passive document synchronization preserves the current representation of exact matching native destinations; explicit opening and source inspection retain their separate navigation contracts. Support reporting projects retained facts without starting index work; this lifetime owns its bounded recorder and native report dialogs. Per-note Markdown zoom preferences follow Vault rename/delete events independently of index readiness.
@@ -1375,7 +1377,9 @@ export default class KplexPlugin extends Plugin {
     const task = Promise.resolve().then(async () => {
       if (this.unloading) return;
       this.index.admitPreparation();
-      void this.index.startBackgroundUrlIndex();
+      // Independent URL inventory must not hold P3 ahead of an Eager graph's P4 hydration.
+      // Local mode keeps its existing independent discovery while requested neighborhoods prepare.
+      if (this.index.isOnDemandMode()) void this.index.startBackgroundUrlIndex();
       if (!this.indexSearchPrimed) {
         await this.index.primePhysicalSearchCatalog();
         if (this.unloading) return;
@@ -1392,7 +1396,7 @@ export default class KplexPlugin extends Plugin {
       this.supportEvents.record("cache-restore-start", { category: "cache" });
       let restored: Awaited<ReturnType<GraphIndex["restorePersistedSnapshot"]>>;
       try {
-        this.snapshotRestoreTask ??= this.index.restorePersistedSnapshot(startupSeedPaths, {deferEagerVocabulary: true});
+        this.snapshotRestoreTask ??= this.index.restorePersistedSnapshot(startupSeedPaths, {deferEagerVocabulary: true, deferEagerUrlRestore: true});
         restored = await this.snapshotRestoreTask;
       } catch (error) {
         this.supportEvents.record("cache-restore-failure", { category: "cache", outcome: "failed", durationMs: perfNow() - restoreStarted });
@@ -1545,6 +1549,7 @@ export default class KplexPlugin extends Plugin {
       // Keep the resolved promise only after a complete initial index. If iOS work was cancelled
       // because the last K-Plex view closed, reopening must be able to resume the durable prewarm.
       if (!this.initialIndexComplete) this.initialIndexTask = null;
+      else if (!this.unloading && !this.index.isOnDemandMode()) void this.index.startBackgroundUrlIndex();
     });
     return this.initialIndexTask;
   }
@@ -1571,6 +1576,7 @@ export default class KplexPlugin extends Plugin {
     await this.performRebuild(showNotice, force, reason, false);
     if (firstExplicit && !this.unloading) {
       this.initialIndexComplete = this.index.isOnDemandMode() ? this.index.hasLocalBaseline() : this.index.isFullSnapshotHydrated();
+      if (this.initialIndexComplete) void this.index.startBackgroundUrlIndex();
       this.notifyIndexStatus();
     }
   }

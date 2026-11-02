@@ -15,7 +15,7 @@ export function startupSourceCoordinatorSource() {
   const module = ts.createSourceFile('main.ts', source, ts.ScriptTarget.Latest, true);
   const declaration = module.statements.find(/** Select the plugin class, not nested declarations. */ node => ts.isClassDeclaration(node) && node.name?.text === 'KplexPlugin');
   assert(declaration, 'Actual plugin class exists');
-  const required = new Set(['adoptInitialSourceIndex', 'finishStartupIndexPreparation', 'ensureInitialIndex', 'getIndexSourceRevision', 'installPreRestoreChangeFence', 'notifyStartupProgress']);
+  const required = new Set(['adoptInitialSourceIndex', 'finishStartupIndexPreparation', 'ensureInitialIndex', 'getIndexSourceRevision', 'installPreRestoreChangeFence', 'notifyStartupProgress', 'startIndexPreparation', 'classifyPreRestoreChanges']);
   const fields = new Set(['layoutReady', 'startupIndexPolicy', 'indexPreparationTask', 'indexPreparationAdmitted',
     'explicitIndexPreparationRequested', 'indexViewOpened', 'openKplexViews', 'indexDirty', 'indexDirtyRevision',
     'indexBacklogReasons', 'dirtyMarkdownPaths', 'preRestoreUncoveredChanges', 'unloading',
@@ -32,5 +32,5 @@ export function startupSourceCoordinatorSource() {
     return text.startsWith('this.registerEvent(this.app.vault.on(');
   });
   assert.equal(urlListeners.length, 4, 'Keep the independent native URL listener inventory explicit');
-  return `import {Platform,TFile,TFolder} from 'obsidian';\nexport class StartupSourceCoordinator {\n${members.map(/** Preserve exact member implementation and initializers. */ member => member.getText(module)).join('\n')}\n/** Install the exact production onload statements without its unrelated UI shell. */\ninstallInitialUrlListeners(){${urlListeners.map(/** Keep native callback policy unchanged. */ statement => statement.getText(module)).join('\n')}}\n}`;
+  return `import {Platform,TFile,TFolder} from 'obsidian';\nimport {perfNow} from './util/perf';\nexport class StartupSourceCoordinator {\n${members.map(/** Preserve exact member implementation and initializers. */ member => member.getText(module)).join('\n')}\n/** Install the exact production onload statements without its unrelated UI shell. */\ninstallInitialUrlListeners(){${urlListeners.map(/** Keep native callback policy unchanged. */ statement => statement.getText(module)).join('\n')}}\n}`;
 }

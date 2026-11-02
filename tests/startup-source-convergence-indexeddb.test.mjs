@@ -15,6 +15,52 @@ const bundle = await contributorBrowserBundle(['src/main.ts', 'src/index/GraphIn
   'src/index/IndexSnapshot.ts', 'src/core/graph/compiler.ts', 'src/adapters/obsidian/metadataSourceCollector.ts',
   'src/adapters/obsidian/ontologySourceCollector.ts', 'src/adapters/obsidian/startupDiagnostics.ts'], {'src/main.ts': startupSourceCoordinatorSource()});
 
+test('eager warm graph admission completes before held optional URL replay',async()=>{
+  const browser=await chromiumHarness(bundle);
+  try{
+    assert.equal(await browser.evaluate(contributorBrowserInitialize),true);
+    assert.equal(await browser.evaluate(`(async()=>{
+      const assert=Object.assign((v,m)=>ok(v,m),{equal}),M=sourceModules,f=await fixture('eager-url-startup-priority');
+      const collect=${collect.toString()},hostOracle=${hostOracle.toString()},fullCenterIndex=${fullCenterIndex.toString()},centerGateSettings=${centerGateSettings.toString()};
+      let initial,index,release,unlock,admission;
+      try{
+        f.text=f.texts;f.app.vault.getName=()=> 'eager-url-startup-priority';
+        f.app.vault.getAbstractFileByPath=path=>f.files.get(path)??(path==='/'||path===''?f.app.vault.getRoot():null);
+        f.add('A.md','Friends:: [[B]]');f.add('B.md','');f.add('C.md','');await f.acquire();ok(await f.acquisition.reconcile(),'Current durable source facts');
+        const semantic={hierarchy:{hidden:[],parents:[],children:[],leftFriends:['Friends'],rightFriends:[],previous:[],next:[]},inferAllLinksAsFriends:false,inverseInfer:false,showFullTagName:true,tagStyleList:[],maxLabelLength:30};
+        const view=centerGateSettings({showFolderNodes:false}),settings={indexingMode:'eager',...semantic,...view,lastActivePath:'A.md',pinnedNodes:[]};
+        initial=await fullCenterIndex(M,f,await hostOracle(f,[...f.files.keys()],semantic,view,true),semantic,view);
+        ok(await f.cache.writeSnapshot({createdAt:Date.now(),urlAliasVersion:2,vaultSignature:M.computeVaultSignature(f.app),settingsSignature:M.computeIndexSettingsSignature(settings),discoveredFields:[]},
+          [...initial.state.pages.values()].map(page=>M.persistedPageFromGraphPage(page)),[...initial.state.evidence.declarations()].map(item=>M.persistedDeclarationFromEvidence(item))),'Genuine complete warm graph');
+        initial.destroy();initial=null;f.acquisition.close();
+        const p=new M.StartupSourceCoordinator();Object.assign(p,{app:f.app,settings,layoutReady:true,
+          startupIndexPolicy:{device:'desktop',beforeView:true,mode:'eager'},supportEvents:{record(){}},
+          notifyIndexStatus(){},hasVisibleKplexSurface:()=>false,refreshBookmarkedEntryPoints:async()=>{},
+          startupGraphSeedPaths:()=>['A.md'],registerReactiveIndexListeners(){},performRebuild:async()=>{throw Error('Healthy warm graph cannot rebuild');}});
+        p.startupDiagnostics=new M.StartupDiagnostics();p.startupDiagnostics.begin(false);
+        index=new M.GraphIndex(p,f.app);p.index=index;index.scheduleOrphanCleanup=()=>{};
+        let urlStarted=false;const held=new Promise(done=>unlock=done),read=index.indexedDb.readUrlOwners;
+        index.indexedDb.readUrlOwners=async function(...args){urlStarted=true;await held;return read.apply(this,args);};
+        release=index.acquireSemanticDemand('A.md');admission=p.startIndexPreparation();
+        const completed=await Promise.race([admission.then(()=>true),new Promise(done=>setTimeout(()=>done(false),2000))]);
+        ok(completed,'Actual startup must finish healthy graph hydration before optional URL replay can hold P3');
+        ok(p.initialIndexComplete&&index.isFullSnapshotHydrated(),'Complete graph is naturally ready');
+        equal(index.publicApiCoverage(),{scope:'global',complete:true,pending:false},'Global navigation does not wait for URL owner replay');
+        equal(index.getSemanticPreparationDiagnostics().fullBuilds,0,'Warm admission does not fall back to a build');
+        ok(urlStarted,'Optional URL work still starts after initial graph completion');
+        equal(index.getWorkPriorityDiagnostics().active[1],0,'No current-node lease is retained while joining optional work');
+        const a=f.files.get('A.md');f.texts.set(a.path,'Friends:: [[C]]');a.stat.mtime++;f.app.vault.trigger('modify',a);
+        const settled=await Promise.race([index.sourceAcquisition.flush().then(()=>true),new Promise(done=>setTimeout(()=>done(false),2000))]);
+        ok(settled,'Known source maintenance must finish while optional URL replay remains held');
+        index.retryEagerGraphMaintenance();while(index.eagerGraphMaintenanceTask)await index.eagerGraphMaintenanceTask;
+        ok(index.get(a.path).neighbours.get('C.md')?.isLeftFriend,'Native edit publishes through normal graph catch-up ahead of optional URL work');
+        equal(index.publicApiCoverage(),{scope:'global',complete:true,pending:false},'Native edit regains global coverage before held optional work completes');
+        return true;
+      }finally{unlock?.();release?.();if(index){index.plugin.unloading=true;index.destroy();}if(admission)await admission.catch(()=>{});initial?.destroy();f.close();}
+    })()`),true);
+  }finally{await browser.cleanup();}
+});
+
 for (const damage of ['missing', 'chunks', 'warm', 'warm-equal-stat']) test(`eager coordinator completes ${damage} graph recovery before declaring startup ready`, async () => {
   const browser = await chromiumHarness(bundle);
   try {

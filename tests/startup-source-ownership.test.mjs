@@ -23,12 +23,13 @@ const interval = onload.body.statements.find(/** Preserve the exact interval pol
   && statement.expression.getText(module) === 'this.settings.indexUpdateInterval > 0');
 assert(interval, 'Actual legacy interval registration exists');
 const base = startupSourceCoordinatorSource().replace("import {Platform,TFile,TFolder} from 'obsidian';", '')
+  .replace("import {perfNow} from './util/perf';", '')
   .replace('export class StartupSourceCoordinator', 'class StartupSourceCoordinator');
 const position = base.lastIndexOf('}');
 const body = base.slice(0, position) + methods.map(/** Retain production method bodies unchanged. */ member => member.getText(module)).join('\n')
   + '\n/** Test-owned wrapper installs the actual onload timer statement. */\ninstallInitialRebuildInterval(){' + interval.getText(module) + '}\n}';
 const js = ts.transpileModule(body, { compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.None } }).outputText;
-const load = new Function('Platform', 'TFile', 'TFolder', 'Notice', 'window', js + '\nreturn StartupSourceCoordinator;');
+const load = new Function('Platform', 'TFile', 'TFolder', 'Notice', 'window', 'perfNow', js + '\nreturn StartupSourceCoordinator;');
 
 /** Native notice presentation is outside this coordinator ownership fixture. */
 class Notice { /** Accept the real command's notification without emulating UI. */ constructor() {} }
@@ -48,7 +49,7 @@ function fixture({ reasons = ['startup:stale-snapshot'], dirty = [], sourceBacke
     /** Capture registration without changing its requested production interval. */ setInterval(work, delay) { callback = work; period = delay; return 1; },
     /** The production no-op retirement clears the test-owned scheduled marker only. */ clearTimeout() {},
   };
-  const Coordinator = load({ isIosApp: false }, HostFile, HostFolder, Notice, timers), p = new Coordinator();
+  const Coordinator = load({ isIosApp: false }, HostFile, HostFolder, Notice, timers, () => 0), p = new Coordinator();
   const counts = { full: 0, local: 0 }, initial = new Promise(/** Hold source adoption independently of automatic graph rebuild. */ done => { release = done; });
   p.app = { vault: { /** Retain the genuine named dirty source. */ getFileByPath: path => path === 'A.md' ? { path, extension: 'md' } : null } };
   p.settings = { indexUpdateInterval: 120000 }; p.layoutReady = true; p.indexPreparationAdmitted = true;
@@ -66,6 +67,7 @@ function fixture({ reasons = ['startup:stale-snapshot'], dirty = [], sourceBacke
     /** The cache hydration owner has settled; source adoption is still held. */ hasPendingSnapshotHydration: () => false,
     /** Only source-backed initial work has the distinct ownership contract. */ hasSourceBackedStartup: () => sourceBacked,
     /** Keep mode-specific refresh separate from eager adoption. */ isOnDemandMode: () => onDemand,
+    /** Independent URL discovery is outside this controlled ownership fixture. */ startBackgroundUrlIndex: async () => true,
     /** The coherent physical baseline remains navigable. */ hasPhysicalBaseline: () => true,
     /** This test observes ordinary full-builder admission, not progressive compilation. */ isFullSnapshotHydrated: () => true,
     /** Count admission only; a false result here is not evidence of a real incomplete build. */ rebuild: async () => { counts.full++; return published; },

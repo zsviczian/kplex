@@ -51,6 +51,8 @@
  * diagnostic publication labels never relax the underlying lifetime or source predicates.
  * A zero-page foreground interruption may admit one new candidate after P4 admission, bounded
  * structural/file publication accounting and saved semantic proofs; the old candidate stays rejected.
+ * Eager startup admits independent URL replay after the primary graph and shares its long-lived
+ * inventory lease with P4 source maintenance. Local-mode URL discovery retains its existing lane.
  * Saved previews start independently of shared URL replay; each restore retains its own watchdog
  * and priority ownership, while public supersession never retires healthy shared URL acquisition.
  * This owner coordinates snapshot restoration/persistence, search and
@@ -4907,13 +4909,16 @@ export class GraphIndex {
     }
   }
 
-  /** Always scan missing/modified owners with bounded parallel native reads and the canonical parser. */
+  /** Scan missing/modified owners with bounded reads and the canonical parser. Eager compilation
+   * owns primary URL relationships; its independent inventory shares P4 so it cannot starve
+   * source-event maintenance. Local mode retains P3 discovery; requested URL owners still use P2. */
   startBackgroundUrlIndex(): Promise<boolean> {
     if (this.preparationDeferred) return Promise.resolve(false);
     if (this.persistentCachePurged || this.diagnosticsClosed) return Promise.resolve(false);
     if (this.urlBackgroundTask) return this.urlBackgroundTask;
     this.urlDiscoveryRunning = true;
-    const task = this.workScheduler.run(INDEX_WORK_PRIORITY.urlInventory, async () => {
+    const priority = this.isOnDemandMode() ? INDEX_WORK_PRIORITY.urlInventory : INDEX_WORK_PRIORITY.background;
+    const task = this.workScheduler.run(priority, async () => {
       await this.restoreUrlIndex();
       if (this.diagnosticsClosed || this.persistentCachePurged) return false;
       const files = this.app.vault.getMarkdownFiles();
@@ -4925,7 +4930,7 @@ export class GraphIndex {
       let cachedBodies = new Map<string, ParsedBodyMetadata>();
       let cachedRevisions = new Map<TFile, FileRevision>();
       while (offset < files.length && !this.diagnosticsClosed && !this.persistentCachePurged) {
-        await this.workScheduler.checkpoint(INDEX_WORK_PRIORITY.urlInventory);
+        await this.workScheduler.checkpoint(priority);
         if (offset >= bodyCacheEnd) {
           const batch = files.slice(offset, offset + (Platform.isMobile ? 64 : 256));
           bodyCacheEnd = offset + batch.length;
@@ -6727,11 +6732,12 @@ export class GraphIndex {
    * Start shared URL replay independently of bounded saved-graph preview. A requested preview must
    * not join the lower-priority inventory it can pause. Supersession retires only the public graph
    * wait; URL and graph owners keep their separate watchdogs, cancellation and late-result fences.
-   * An eager coordinator completing the graph may defer a node-only recovery pass; the default
-   * retains complete vocabulary for standalone recovery consumers. On-demand ignores that option.
+   * An eager coordinator may defer node-only recovery and independent URL replay until its primary
+   * graph completes. This prevents URL startup leases from starving full hydration. Defaults retain
+   * independent replay/vocabulary for standalone consumers; local mode ignores the Eager options.
    */
   async restorePersistedSnapshot(seedPaths: readonly string[] = [],
-    options: Readonly<{deferEagerVocabulary?: boolean}> = {}): Promise<{ restored: boolean; fresh: boolean; createdAt: number | null; partial?: boolean }> {
+    options: Readonly<{deferEagerVocabulary?: boolean; deferEagerUrlRestore?: boolean}> = {}): Promise<{ restored: boolean; fresh: boolean; createdAt: number | null; partial?: boolean }> {
     if (this.preparationDeferred) return {restored: false, fresh: false, createdAt: null};
     this.cancelSnapshotRestoreWait?.();
     const request = ++this.snapshotRestoreRequest;
@@ -6742,7 +6748,7 @@ export class GraphIndex {
     this.cancelSnapshotRestoreWait = cancel;
     // readUrlOwners handles ordinary cache failures. Retain explicit rejection handling for this
     // detached optional owner without converting URL availability into graph/source authority.
-    void this.restoreUrlIndex().catch(() => {
+    if (this.isOnDemandMode() || !options.deferEagerUrlRestore) void this.restoreUrlIndex().catch(() => {
       if (!this.diagnosticsClosed && !this.persistentCachePurged) this.urlCacheAvailable = false;
     });
     let arbitration: typeof this.eagerPreviewArbitration = null;

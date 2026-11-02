@@ -1905,6 +1905,8 @@ for (const { inventoryRevision, fresh, remainsDirty } of [
 ]) {
   const startup = new KplexPlugin();
   startup.index = { isOnDemandMode: () => false,
+    /** Optional URL discovery is outside this captured-inventory coordinator fixture. */
+    startBackgroundUrlIndex: async () => true,
     getRestoreInventorySourceRevision: () => inventoryRevision,
     hasPendingSnapshotHydration: () => false,
     size: 1,
@@ -1982,8 +1984,10 @@ for (const { visible, unloading, complete, dirty, expected } of [
 // Eager source recovery owns batched graph completion; vocabulary alone cannot finish startup.
 for (const [adopted, completed] of [[true, true], [true, false], [false, false]]) {
   const startup = new KplexPlugin();
-  let fullBuilds = 0, progressiveBuilds = 0;
+  let fullBuilds = 0, progressiveBuilds = 0, optionalUrlStarts = 0;
   startup.index = { isOnDemandMode: () => false,
+    /** Count optional admission separately from primary source/graph completion. */
+    startBackgroundUrlIndex: async () => { optionalUrlStarts++; return true; },
     size: 1, hasPendingSnapshotHydration: () => false, hasPhysicalBaseline: () => true,
     hasSourceBackedStartup: () => true, adoptStartupSources: async () => adopted,
     rebuild: async () => { progressiveBuilds++; return completed; },
@@ -1999,6 +2003,7 @@ for (const [adopted, completed] of [[true, true], [true, false], [false, false]]
   assert.equal(fullBuilds, 0, "Source-backed startup retains its own coordinator instead of an unrelated fallback");
   assert.equal(progressiveBuilds, adopted ? 1 : 0, "Only recovered sources admit eager relationship completion");
   assert.equal(startup.initialIndexComplete, completed, "Unavailable/incomplete graph recovery remains explicit");
+  assert.equal(optionalUrlStarts, Number(completed), "Only completed primary Eager graph recovery admits independent URL inventory");
   assert.equal(startup.indexDirty, !completed, "Only completed eager graph recovery retires the startup backlog");
 }
 

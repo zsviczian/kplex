@@ -20,13 +20,23 @@ async function scenario(app,c) {
   const open=name=>new Promise((resolve,reject)=>{const r=indexedDB.open(name);r.onsuccess=()=>resolve(r.result);r.onerror=()=>reject(r.error);});
   check(app.vault.getName()==='kplex-test-small'&&app.vault.adapter.getBasePath()===c.vaultPath,'Wrong disposable vault');
   const originalLayout=app.workspace.getLayout(),stores=['snapshotChunks','pages','evidence'];
+  const remote=require('@electron/remote'),nativeWindow=remote.getCurrentWindow();
+  /** Keep the selected disposable window foregrounded with its normal throttling policy. */
+  const focus=()=>{remote.app.show?.();remote.app.focus({steal:true});nativeWindow.show();nativeWindow.moveTop();nativeWindow.focus();};
   let cacheName,backup,pointers,db,disabled=false;
   const restoreReaders=[];let nativeBodyReads=0;
   c.progress={phase:'baseline'};
   try {
     let p=app.plugins.plugins['k-plex'];check(p&&!p.index.isOnDemandMode(),'Eager Small required');
-    await until(()=>p.initialIndexComplete&&!p.index.building&&p.index.sourceAcquisition.hasSemanticDependencies()
-      &&p.index.publicApiCoverage().scope==='global'&&!p.index.publicApiCoverage().pending,'Initial eager graph did not complete');
+    focus();
+    if(!app.workspace.getLeavesOfType('k-plex-react-view').length)app.commands.executeCommandById('k-plex:kplex-start');
+    await until(()=>{
+      c.progress={phase:'baseline',status:p.getIndexStatus(),sourceProgress:p.startupDiagnostics.progress('source'),sourceReady:p.index.sourceAcquisition.hasSemanticDependencies()};
+      return p.initialIndexComplete&&!p.index.building&&p.index.sourceAcquisition.hasSemanticDependencies()
+        &&p.index.publicApiCoverage().scope==='global'&&!p.index.publicApiCoverage().pending;
+    },'Initial eager graph did not complete');
+    c.environment={focused:nativeWindow.isFocused(),hidden:document.hidden,backgroundThrottling:nativeWindow.webContents.getBackgroundThrottling()};
+
     // Wait for the production persistence owner, rather than creating the test's own full baseline.
     await until(()=>p.index.activeSnapshotGeneration&&p.index.snapshotPersistTimer===null
       &&(!p.index.getSemanticPreparationDiagnostics().fullBuilds||p.startupDiagnostics.snapshot().sessionWork.completeSnapshotSaves>0),'Complete snapshot was not persisted');
@@ -49,7 +59,7 @@ async function scenario(app,c) {
       app.vault[name]=function(file,...args){if(file.extension==='md')nativeBodyReads++;return original.call(this,file,...args);};
       restoreReaders.push(()=>{if(descriptor)Object.defineProperty(app.vault,name,descriptor);else delete app.vault[name];});
     }
-    const started=performance.now(),progressSamples=[];await app.plugins.enablePlugin('k-plex');disabled=false;p=app.plugins.plugins['k-plex'];
+    const started=performance.now(),progressSamples=[];await app.plugins.enablePlugin('k-plex');disabled=false;p=app.plugins.plugins['k-plex'];focus();
     await until(()=>{
       const status=p.getIndexStatus();
       const progress=p.index.getBuildProgress();
@@ -79,7 +89,7 @@ async function scenario(app,c) {
     c.progress={phase:'waiting-for-recovered-snapshot',cold};
     await until(()=>p.index.activeSnapshotGeneration&&p.index.activeSnapshotGeneration!==active.generation&&p.index.snapshotPersistTimer===null,'Recovered complete graph was not saved for warm reload');
     await app.plugins.disablePlugin('k-plex');disabled=true;
-    const warmStarted=performance.now();await app.plugins.enablePlugin('k-plex');disabled=false;p=app.plugins.plugins['k-plex'];
+    const warmStarted=performance.now();await app.plugins.enablePlugin('k-plex');disabled=false;p=app.plugins.plugins['k-plex'];focus();
     c.progress={phase:'warm-reload',cold};
     await until(()=>p.initialIndexComplete&&!p.index.isBuilding()&&p.index.sourceAcquisition.hasSemanticDependencies()
       &&p.index.publicApiCoverage().scope==='global'&&!p.index.publicApiCoverage().pending,'Saved complete graph did not regain warm global coverage');
@@ -90,7 +100,7 @@ async function scenario(app,c) {
     for(const path of paths){const release=p.index.acquireSemanticDemand(path);try{await p.index.ensureSemanticScope(path);}finally{release();}}
     const warmAfter=p.index.getSemanticPreparationDiagnostics();
     check(warmAfter.requested===warmSemantic.requested&&warmAfter.dependencyVisits===warmSemantic.dependencyVisits,'Warm destinations reconstructed neighborhoods');
-    return {cold,warm:{elapsedMs:performance.now()-warmStarted,route:warmHydration.route,coverage:p.index.publicApiCoverage(),
+    return {environment:c.environment,cold,warm:{elapsedMs:performance.now()-warmStarted,route:warmHydration.route,coverage:p.index.publicApiCoverage(),
       fullBuilds:warmSemantic.fullBuilds,nodeCatalogStarts:0,sourceReads:warmSource.vaultReads,parses:warmSource.parses,
       destinations:paths.length,requests:warmAfter.requested-warmSemantic.requested,familyVisits:warmAfter.dependencyVisits-warmSemantic.dependencyVisits}};
   } finally {
@@ -110,6 +120,7 @@ async function scenario(app,c) {
     await app.workspace.changeLayout(originalLayout);
     await app.plugins.plugins['k-plex'].settingsWriteQueue;
     await app.vault.adapter.write(c.configRelative+'/plugins/k-plex/data.json',c.originalData);
+    await app.vault.adapter.write(c.configRelative+'/community-plugins.json',c.originalEnabled);
     c.progress={phase:'restored',cacheRestored:!!backup};
   }
 }
@@ -120,5 +131,5 @@ const reportDir=resolve(process.env.KPLEX_HOST_REPORT_DIR??'');
 const reportFromVault=relative(target.vault,reportDir);
 if(!process.env.KPLEX_HOST_REPORT_DIR||!reportFromVault.startsWith('..')&&!reportFromVault.includes(':'))throw Error('Report and cache backup must be outside the disposable vault');
 await runControlledProbe('eager-startup-recovery',scenario,
-  'c.vaultPath='+JSON.stringify(target.vault)+';c.backupPath='+JSON.stringify(join(reportDir,'derived-snapshot-backup.json'))+';c.configRelative='+JSON.stringify(relative(target.vault,target.config).replaceAll('\\','/'))+';c.originalData='+JSON.stringify(readFileSync(join(target.pluginDir,'data.json'),'utf8'))+';',
+  'c.vaultPath='+JSON.stringify(target.vault)+';c.backupPath='+JSON.stringify(join(reportDir,'derived-snapshot-backup.json'))+';c.configRelative='+JSON.stringify(relative(target.vault,target.config).replaceAll('\\','/'))+';c.originalData='+JSON.stringify(readFileSync(join(target.pluginDir,'data.json'),'utf8'))+';c.originalEnabled='+JSON.stringify(readFileSync(join(target.config,'community-plugins.json'),'utf8'))+';',
   ['src/main.ts','src/adapters/obsidian/sourceAcquisition.ts'],{maximumMs:360000});
