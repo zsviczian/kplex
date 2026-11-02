@@ -352,7 +352,7 @@ for (const outcome of ["fresh", "stale", "failed", "sources", "sources-pending"]
         /** Primary pending/failure cannot prematurely admit the optional inventory. */
         startBackgroundUrlIndex: async () => {assert.equal(context.initialIndexComplete,true);optionalUrlStarts++;return true;},
         size: 0, hasPendingStructuralMaintenance: () => false, hasPendingSnapshotHydration: () => hydrating,
-        hasSourceBackedStartup: () => sourceBacked, isFullSnapshotHydrated: () => hydrated,
+        hasSourceBackedStartup: () => sourceBacked, isFullSnapshotHydrated: () => hydrated, hasReusableSourceInventory: () => false,
         hasPhysicalBaseline: () => hydrated || sourceBacked, hasRestoredCheckpoint: () => false,
         hasIncrementalRestorePatch: () => false,
         waitForSnapshotHydration: async () => {
