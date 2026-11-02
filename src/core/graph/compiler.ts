@@ -499,7 +499,7 @@ export class NormalizedGraphCompiler {
    */
   private consumeReference(record: SelectedReferenceCandidate): boolean {
     const source = this.ensureNode(record.source, this.fallbackName(record.source));
-    const target = this.ensureNode(record.target.entity, this.fallbackName(record.target.entity, record.target.rawTarget));
+    const target = this.ensureNode(record.target.entity, record.label ?? this.fallbackName(record.target.entity, record.target.rawTarget));
     if (!source || !target) return false;
     const value = record.value;
     for (const assignment of record.selection.assignments) {

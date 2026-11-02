@@ -192,7 +192,7 @@ export class ObsidianReferenceSourceCollector {
     const header: ReferenceValueFact = { ...identity, kind: "reference-value", source: this.source, sourceRevision: this.revision,
       valueId: referenceValueId(JSON.stringify([identity.surface, identity.origin, identity.fieldName, identity.ordinal])) };
     const seen = new Set<NodeId>();
-    let pending: Readonly<{ target: SourceTargetRef; origin?: SourceTargetRef; hostOccurrenceCount: number }> | undefined;
+      let pending: Readonly<{ target: SourceTargetRef; origin?: SourceTargetRef; hostOccurrenceCount: number; label?: string }> | undefined;
     let ordinal = 0;
     for (const reference of iterateReferenceScanSteps(value)) {
       if (!(await touch())) return false;
@@ -217,7 +217,8 @@ export class ObsidianReferenceSourceCollector {
         valueId: header.valueId, ordinal: ordinal++, final: false, ...pending }))) return false;
       const origin = webUrlOriginTarget(target);
       pending = { target, ...(origin ? { origin } : {}),
-        hostOccurrenceCount: this.host.resolvedLinkCount(this.capturedFile.path, target.entity.semanticPath ?? "") };
+        hostOccurrenceCount: this.host.resolvedLinkCount(this.capturedFile.path, target.entity.semanticPath ?? ""),
+        ...(reference.label ? { label: reference.label } : {}) };
     }
     if (pending && !(await emit({ kind: "reference-candidate", source: this.source, sourceRevision: this.revision,
       valueId: header.valueId, ordinal, final: true, ...pending }))) return false;
