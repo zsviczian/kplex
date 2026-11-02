@@ -1598,6 +1598,16 @@ failure, exact-build native evidence and the maintainer's explicit no-full-regre
 
 ### Eager graph maintenance acceptance
 
+For the edit-after-warm-restore window, run `node scripts/testing/obsidian/eagerWarmMaintenance.mjs`
+with the same explicit Small variables and a fresh report directory below. It backs up one existing
+disposable note and configuration/layout to the private report directory, reloads a genuine saved
+graph and holds the actual initial metadata comparison. Native property edits must create and remove
+a placeholder before that hold releases, with global coverage and source-free subsequent navigation.
+The original audit must then resume and drain. Cleanup restores the note bytes/native stat options,
+configuration/enablement bytes, layout and reader wrapper independently of test success. It never
+restamps readiness or invokes a builder to establish the saved baseline. See the
+[warm-audit priority record](docs/validation/warm-audit-maintenance-2026-11-02.md).
+
 For the focused eager-maintenance regression, stage the verified build in the existing disposable
 Small vault, then run `npm run verify:obsidian:action-workflows` with
 `KPLEX_ACTION_WORKFLOW_SCENARIO=eager-navigation`, the three explicit test-vault variables and a
