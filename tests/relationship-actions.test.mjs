@@ -416,6 +416,29 @@ test("settled semantic failure exposes incomplete status while real active work 
   assert.deepEqual(await facts.call(context, 2), { upToDate: false, phase: "updating", indexedFiles: 2, totalFiles: 2 });
 });
 
+/** An active source audit retains measured counts instead of looking like a settled failure. */
+test("a pending relationship update exposes an active source audit and its measured progress", async () => {
+  let sourceActive=true, processed=27;
+  const context={initialIndexComplete:true,indexDirty:false,rebuildTask:null,rebuildTimer:null,cachedMarkdownFileCount:11819,
+    translator:(key,params)=>JSON.stringify({key,params}),
+    startupDiagnostics:{progress:()=>({phase:"host-metadata-comparison",pass:1,processed,total:11819})},
+    index:{isOnDemandMode:()=>false,hasPendingSnapshotHydration:()=>false,hasPendingSemanticPreparation:()=>true,
+      hasActiveSemanticPreparation:()=>false,hasActiveSourcePreparation:()=>sourceActive,hasPendingSearchVocabulary:()=>false,
+      isCheckpointSaving:()=>false,indexedMarkdownFileCount:()=>11819,getSemanticPreparationFailure:()=>null,
+      getSearchVocabularyFailure:()=>null,getUrlAliasUpgradeProgress:()=>null,getSnapshotHydrationDiagnostics:()=>null,
+      getUrlIndexProgress:()=>({active:false,failed:false,processed:11819,total:11819})}};
+  const compute=productionFunction("src/main.ts","computeIndexStatusFacts",{}),status=productionFunction("src/main.ts","getIndexStatus",{});
+  let facts=await compute.call(context,11819);context.computeIndexStatusFacts=()=>facts;
+  assert.equal(facts.phase,"updating");assert.equal(facts.upToDate,false);
+  let label=JSON.parse((await status.call(context)).label);
+  assert.equal(label.key,"index.startupNotesProgress");assert.equal(label.params.processed,"27");assert.equal(label.params.total,"11,819");assert.equal(label.params.percent,0);
+  processed=11818;label=JSON.parse((await status.call(context)).label);
+  assert.equal(label.params.processed,"11,818");assert.equal(label.params.percent,99);
+  sourceActive=false;facts=await compute.call(context,11819);
+  assert.equal(facts.phase,"incomplete");assert.equal(facts.upToDate,false);
+  assert.equal(JSON.parse((await status.call(context)).label).key,"index.statusRelationshipIncomplete");
+});
+
 /** Alias maintenance reports search work/failure without masquerading as relationship loading or readiness. */
 test("optional alias progress and failure use distinct status copy while relationship failures retain priority", async () => {
   let phase="updating", progress={phase:"repair",processed:2,total:5}, searchFailure=null, relationshipFailure=null;

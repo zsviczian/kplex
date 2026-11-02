@@ -10,6 +10,42 @@ import { createStartupResourceProbe } from "../scripts/testing/obsidian/startupR
 const bundle = await contributorBrowserBundle(["src/index/GraphIndex.ts", "src/index/GraphBuilder.ts", "src/index/IndexSnapshot.ts",
   "src/core/graph/compiler.ts", "src/adapters/obsidian/metadataSourceCollector.ts", "src/adapters/obsidian/ontologySourceCollector.ts"]);
 
+for (const fault of ['none','legacy-url-free','stale-header','missing-header','invalid-header','open-counts','new-native-event','closed-demand']) test(`warm maintenance baseline retains its native and dependency guards: ${fault}`, async () => {
+  const browser=await chromiumHarness(bundle);
+  try {
+    assert.equal(await browser.evaluate(contributorBrowserInitialize),true);
+    assert.equal(await browser.evaluate(`(async()=>{
+      const M=sourceModules,f=await fixture('warm-maintenance-guard-${fault}'),fault=${JSON.stringify(fault)};
+      try{
+        const a=f.add('A.md','Friends:: [[B]]');f.add('B.md','');await f.acquire();ok(await f.acquisition.reconcile(),'Seed genuine closed source projection');
+        const source=f.acquisition,repository=f.repository,headPage=repository.headPage,counts=repository.lookupLocalDependencyCounts;
+        source.enableInventory();
+        const before={reads:f.reads.length,parses:f.parses.length};let calls=0,current=true;
+        if(fault==='legacy-url-free'){
+          const db=await f.cache.open(),tx=db.transaction('sourceHeads','readwrite'),store=tx.objectStore('sourceHeads');
+          const done=new Promise((resolve,reject)=>{tx.oncomplete=resolve;tx.onerror=()=>reject(tx.error);tx.onabort=()=>reject(tx.error);});
+          const request=store.get('A.md');request.onsuccess=()=>{store.put({...request.result,bodyParserVersion:3});};await done;
+        }
+        if(fault==='stale-header')a.stat.mtime++;
+        if(fault==='missing-header')repository.headPage=async function(...args){const page=await headPage.apply(this,args);return {...page,heads:page.heads.filter(head=>head.physical.path!=='A.md')};};
+        if(fault==='invalid-header')repository.headPage=async function(...args){const page=await headPage.apply(this,args);return {...page,invalid:1};};
+        if(fault==='open-counts')repository.lookupLocalDependencyCounts=async()=>({outcome:'pending',reason:'dependency-pending'});
+        if(fault==='new-native-event'||fault==='closed-demand')repository.headPage=async function(...args){const page=await headPage.apply(this,args);if(calls++===0){if(fault==='new-native-event')f.app.vault.trigger('modify',a);else current=false;}return page;};
+        const result=await source.admitWarmMaintenance(f.files,()=>current);
+        const accepted=fault==='none'||fault==='legacy-url-free';
+        equal(result,accepted,'Only physically current, supported, closed, same-lifetime sources admit warm maintenance');
+        equal(source.canPrepareWarmMaintenance(),accepted,'Rejected baseline never installs a capability');
+        equal({reads:f.reads.length,parses:f.parses.length},before,'Header admission never reads or parses Markdown');
+        if(accepted){
+          f.app.metadataCache.trigger('resolved');
+          equal(source.canPrepareWarmMaintenance(),false,'An unattributed resolver close retires warm authority');
+        }
+        repository.headPage=headPage;repository.lookupLocalDependencyCounts=counts;return true;
+      }finally{f.close();}
+    })()`),true);
+  }finally{await browser.cleanup();}
+});
+
 /** A fresh current-session full parse is distinct from a path/mtime cache predating a missing head. */
 test("a full build without native create events shares its complete parse across missing-head source reconciliation", async () => {
   const browser = await chromiumHarness(bundle);

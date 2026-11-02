@@ -53,6 +53,8 @@
  * structural/file publication accounting and saved semantic proofs; the old candidate stays rejected.
  * Eager startup admits independent URL replay after the primary graph and shares its long-lived
  * inventory lease with P4 source maintenance. Local-mode URL discovery retains its existing lane.
+ * Fresh warm source headers admit urgent local maintenance ahead of the independent metadata audit;
+ * exact source receipts and existing per-file publication retain graph completeness and event fences.
  * Saved previews start independently of shared URL replay; each restore retains its own watchdog
  * and priority ownership, while public supersession never retires healthy shared URL acquisition.
  * This owner coordinates snapshot restoration/persistence, search and
@@ -803,6 +805,7 @@ export class GraphIndex {
         if (this.snapshotHydrationDiagnostics.phase === "source-authority") {
           this.touchSnapshotHydrationProgress(this.snapshotHydrationRun);
         }
+        this.retryEagerGraphMaintenance();
         this.plugin.notifyStartupProgress?.();
       }, plugin.startupDiagnostics, () => this.workScheduler.checkpoint(INDEX_WORK_PRIORITY.background),
       work => this.workScheduler.run(INDEX_WORK_PRIORITY.background, work),
@@ -1591,24 +1594,36 @@ export class GraphIndex {
     return true;
   }
 
-  /** Drain only proven affected owners behind canvas mutations and requested-center discovery. */
+  /** Drain proven affected owners. Warm edits borrow the requested lane ahead of the first audit;
+   * ordinary catch-up stays background and all work yields to canvas mutations. */
   private retryEagerGraphMaintenance(): void {
     if (this.acknowledgeEagerGraphMaintenance()) this.emitPresentation();
     const changes = this.sourceAcquisition.pendingGraphSources();
     if (this.eagerGraphMaintenanceTask || !changes?.size || this.diagnosticsClosed || this.persistentCachePurged
       || this.building || this.pendingStructuralTasks || this.isOnDemandMode() || this.sourceBackedSemantics
       || !this.fullSnapshotHydrated || this.onDemandPartialState
-      || this.fullSemanticPolicyRevision !== this.semanticPolicyRevision || !this.sourceAcquisition.hasSemanticDependencies()
+      || this.fullSemanticPolicyRevision !== this.semanticPolicyRevision
+      || !this.sourceAcquisition.hasSemanticDependencies() && !this.sourceAcquisition.canPrepareWarmMaintenance()
       || !this.sourceAcquisition.isInventoryEnabled()) return;
     const observed = this.sourceAcquisition.beginGraphPublication();
     const source = this.plugin.getIndexSourceRevision(), maintenance = this.sourceAcquisition.getMaintenanceRevision();
+    const urgent = !this.sourceAcquisition.hasSemanticDependencies() && this.sourceAcquisition.canPrepareWarmMaintenance();
+    const priority = urgent ? INDEX_WORK_PRIORITY.currentNode : INDEX_WORK_PRIORITY.background;
     const task = this.withForegroundPriority(async () => {
+      if (urgent) {
+        await this.workScheduler.checkpoint(priority);
+        const policy = this.semanticPolicyRevision;
+        const prepared = await this.sourceAcquisition.prepareWarmMaintenance(() => !this.diagnosticsClosed
+          && !this.persistentCachePurged && !this.building && !this.pendingStructuralTasks
+          && policy === this.semanticPolicyRevision && !this.isOnDemandMode(), () => this.workScheduler.checkpoint(priority));
+        if (!prepared) return;
+      }
       while (!this.diagnosticsClosed && !this.persistentCachePurged && !this.building
         && !this.pendingStructuralTasks && !this.sourceBackedSemantics
         && this.fullSnapshotHydrated && !this.onDemandPartialState
         && this.fullSemanticPolicyRevision === this.semanticPolicyRevision && this.sourceAcquisition.hasSemanticDependencies()
         && this.sourceAcquisition.isInventoryEnabled()) {
-        await this.workScheduler.checkpoint(INDEX_WORK_PRIORITY.background);
+        await this.workScheduler.checkpoint(priority);
         if (this.building || this.diagnosticsClosed || this.persistentCachePurged || this.pendingStructuralTasks
           || this.sourceBackedSemantics || this.fullSemanticPolicyRevision !== this.semanticPolicyRevision
           || !this.fullSnapshotHydrated || this.onDemandPartialState
@@ -1622,12 +1637,12 @@ export class GraphIndex {
           continue;
         }
         if (!this.state.pages.get(path)?.file) this.insertCreatedFile(file);
-        const result = await this.patchMarkdownPaths([path], {useDurableCache: true, priority: INDEX_WORK_PRIORITY.background,
+        const result = await this.patchMarkdownPaths([path], {useDurableCache: true, priority,
           isCurrent: () => this.sourceAcquisition.isInventoryEnabled()});
         if (result.outcome !== "patched") return;
       }
       if (this.acknowledgeEagerGraphMaintenance()) this.emitPresentation();
-    }, INDEX_WORK_PRIORITY.background).catch(() => {
+    }, priority).catch(() => {
       this.recordIndexDiagnostic("reconcile", "source-graph-maintenance-pending");
     }).finally(() => {
       if (this.eagerGraphMaintenanceTask !== task) return;
@@ -1639,6 +1654,7 @@ export class GraphIndex {
         || observed !== this.sourceAcquisition.beginGraphPublication())) this.retryEagerGraphMaintenance();
     });
     this.eagerGraphMaintenanceTask = task;
+    if (urgent) this.plugin.notifyStartupProgress?.(true);
   }
 
   /** Refresh only dirty demanded folders after an atomic host batch, coalescing later batches
@@ -2647,6 +2663,9 @@ export class GraphIndex {
 
   /** Active work is distinct from demand that already ended with an unavailable or bounded outcome. */
   hasActiveSemanticPreparation(): boolean { return this.hasOnDemandWork() || this.pendingStructuralTasks > 0 || this.semanticPreparationTasks.size > 0 || Boolean(this.eagerGraphMaintenanceTask); }
+
+  /** Distinguish an actively validating source audit from a settled unavailable relationship scope. */
+  hasActiveSourcePreparation(): boolean { return this.sourceAcquisition.getActivityState().sourceActive > 0; }
 
   /** Read existing requested-scope certificates without acquisition, parsing, retry or global completeness claims.
    * Current local presentation is usable but cannot prove absent children. Native/view demand owners prepare it separately. */
@@ -5746,6 +5765,15 @@ export class GraphIndex {
       if (!currentSemantics) this.retainCachedStartupPresentation(next);
       const authoritativeFresh = currentSemantics && fresh && !structuralMismatch && missingFileBindings.size === 0;
       const reuseEagerGraph = !isCheckpoint && authoritativeFresh && eagerGraphMaintenanceRevision !== undefined;
+      if (reuseEagerGraph && !this.isOnDemandMode()) {
+        // A short, paged header proof enables urgent source repair without treating the slower
+        // metadata audit as complete. Failure leaves normal source reconciliation in charge.
+        await this.sourceAcquisition.admitWarmMaintenance(inventory.filesByPath, () => isCurrent() && semanticCurrent());
+        if (!isCurrent() || !physicalCurrent()) {
+          this.sourceAcquisition.retireWarmMaintenance();
+          return { restored: false, fresh: false, createdAt: meta.createdAt };
+        }
+      }
       // The earlier page-only publication contains the same immutable page records. Evidence hydration does
       // not alter searchable page metadata, so avoid allocating/sorting the 100k+ search index a
       // second time when promoting the fully hydrated state.

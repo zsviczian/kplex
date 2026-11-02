@@ -15,6 +15,70 @@ const bundle = await contributorBrowserBundle(['src/main.ts', 'src/index/GraphIn
   'src/index/IndexSnapshot.ts', 'src/core/graph/compiler.ts', 'src/adapters/obsidian/metadataSourceCollector.ts',
   'src/adapters/obsidian/ontologySourceCollector.ts', 'src/adapters/obsidian/startupDiagnostics.ts'], {'src/main.ts': startupSourceCoordinatorSource()});
 
+test('warm placeholder edits publish before the initial source audit finishes', async () => {
+  const browser = await chromiumHarness(bundle);
+  try {
+    assert.equal(await browser.evaluate(contributorBrowserInitialize), true);
+    assert.equal(await browser.evaluate(`(async()=>{
+      const assert=Object.assign((v,m)=>ok(v,m),{equal}),M=sourceModules,f=await fixture('warm-edit-during-source-audit');
+      const collect=${collect.toString()},hostOracle=${hostOracle.toString()},fullCenterIndex=${fullCenterIndex.toString()},currentNeighborhoodView=${currentNeighborhoodView.toString()},centerGateSettings=${centerGateSettings.toString()};
+      let initial,index,oracle,release,unlock,admission,releaseUrls;
+      const until=async(predicate,message)=>{const end=Date.now()+2000;while(!predicate()){ok(Date.now()<end,message);await new Promise(done=>setTimeout(done,10));}};
+      try {
+        f.text=f.texts;f.app.vault.getName=()=> 'warm-edit-during-source-audit';
+        f.app.vault.getAbstractFileByPath=path=>f.files.get(path)??(path==='/'||path===''?f.app.vault.getRoot():null);
+        f.add('Audit.md','');f.add('A.md','Friends:: [[B]]');f.add('B.md','');
+        await f.acquire();ok(await f.acquisition.reconcile(),'Seed complete durable source dependencies');
+        const semantic={hierarchy:{hidden:[],parents:[],children:['Children'],leftFriends:['Friends'],rightFriends:[],previous:[],next:[]},inferAllLinksAsFriends:false,inverseInfer:false,showFullTagName:true,tagStyleList:[],maxLabelLength:30};
+        const view=centerGateSettings({showFolderNodes:false}),settings={indexingMode:'eager',...semantic,...view,lastActivePath:'A.md',pinnedNodes:[]};
+        initial=await fullCenterIndex(M,f,await hostOracle(f,[...f.files.keys()],semantic,view,true),semantic,view);
+        ok(await f.cache.writeSnapshot({createdAt:Date.now(),urlAliasVersion:2,vaultSignature:M.computeVaultSignature(f.app),settingsSignature:M.computeIndexSettingsSignature(settings),discoveredFields:[]},
+          [...initial.state.pages.values()].map(page=>M.persistedPageFromGraphPage(page)),[...initial.state.evidence.declarations()].map(item=>M.persistedDeclarationFromEvidence(item))),'Save genuine complete graph');
+        initial.destroy();initial=null;f.acquisition.close();
+        const p=new M.StartupSourceCoordinator();Object.assign(p,{app:f.app,settings,layoutReady:true,
+          startupIndexPolicy:{device:'desktop',beforeView:true,mode:'eager'},supportEvents:{record(){}},notifyIndexStatus(){},
+          hasVisibleKplexSurface:()=>false,refreshBookmarkedEntryPoints:async()=>{},startupGraphSeedPaths:()=>['A.md'],registerReactiveIndexListeners(){},
+          performRebuild:async()=>{throw Error('Warm edits must not rebuild');}});
+        p.startupDiagnostics=new M.StartupDiagnostics();p.startupDiagnostics.begin(false);
+        index=new M.GraphIndex(p,f.app);p.index=index;index.scheduleOrphanCleanup=()=>{};
+        let entered;const reached=new Promise(done=>entered=done),held=new Promise(done=>unlock=done);
+        const source=index.sourceAcquisition,inspect=source.repository.inspectWithLocalDependencies;
+        source.repository.inspectWithLocalDependencies=async function(...args){if(args[0]==='Audit.md'){entered();await held;}return inspect.apply(this,args);};
+        const urlsHeld=new Promise(done=>releaseUrls=done),readUrls=index.indexedDb.readUrlOwners;
+        index.indexedDb.readUrlOwners=async function(...args){await urlsHeld;return readUrls.apply(this,args);};
+        release=index.acquireSemanticDemand('A.md');admission=p.startIndexPreparation();await admission;await reached;
+        ok(p.initialIndexComplete&&index.isFullSnapshotHydrated(),'Warm graph is ready while the actual source audit is held');
+        ok(source.inventory&&!source.hasSemanticDependencies(),'The initial source audit has not granted global source authority');
+        ok(source.canPrepareWarmMaintenance(),'The real warm snapshot admits a physically authenticated dependency baseline');
+        const work=p.startupDiagnostics.snapshot().sessionWork,reads=f.reads.length;
+        const a=f.files.get('A.md');f.texts.set(a.path,'Friends:: [[B]]\\nChildren:: [[Ghost]]');a.stat.mtime++;f.app.vault.trigger('modify',a);
+        try{await until(()=>index.get(a.path)?.neighbours.has('Ghost'),'Placeholder creation must publish before the unrelated source audit resumes');}
+        catch(error){throw Error(error.message+' '+JSON.stringify({warm:source.canPrepareWarmMaintenance(),ready:source.hasSemanticDependencies(),revision:source.warmMaintenanceRevision,maintenance:source.maintenanceRevision,
+          authority:source.localDependencyAuthorityReady,known:source.pendingKnownFiles.size,keys:source.pendingResolutionKeys.size,task:!!index.eagerGraphMaintenanceTask,
+          diagnostics:index.getIndexDiagnostics(),source:source.getDiagnostics(),scheduler:index.getWorkPriorityDiagnostics()}));}
+        equal(index.publicApiCoverage(),{scope:'global',complete:true,pending:false},'Known edit restores complete graph coverage while the audit remains held');
+        ok(source.inventory,'Urgent work did not finish or replace the held audit');
+        equal(source.localDependenciesReady,false,'Urgent repair does not mark the broad audit complete');
+        equal(source.localDependencyAuthorityReady,false,'Warm repair does not replace broad audit authority');
+        f.texts.set(a.path,'Friends:: [[B]]');a.stat.mtime++;f.app.vault.trigger('modify',a);
+        await until(()=>!index.get(a.path)?.neighbours.has('Ghost')&&index.publicApiCoverage().complete,'Placeholder deletion must publish before the audit resumes');
+        const counts=index.getSourceAcquisitionCounters(),requests=index.getSemanticPreparationDiagnostics().requested;
+        const other=index.acquireSemanticDemand('B.md');try{await index.ensureSemanticScope('B.md');}finally{other();}
+        equal(index.getSourceAcquisitionCounters(),counts,'Later navigation adds no acquisition work');
+        equal(index.getSemanticPreparationDiagnostics().requested,requests,'Later navigation does not reconstruct a neighborhood');
+        equal(index.getSemanticPreparationDiagnostics().fullBuilds,0,'Urgent changes never rebuild the graph');
+        equal(p.startupDiagnostics.snapshot().sessionWork.nodeCatalogStarts,work.nodeCatalogStarts,'No duplicate node catalog');
+        equal(f.reads.slice(reads).filter(path=>path!=='A.md'),[],'Urgent work never reads an unrelated note body');
+        unlock();releaseUrls();await source.flush();
+        await until(()=>index.publicApiCoverage().complete&&!index.eagerGraphMaintenanceTask,'Normal source audit drains after urgent publication');
+        oracle=await fullCenterIndex(M,f,await hostOracle(f,[...f.files.keys()],semantic,view,true),semantic,view);
+        for(const path of f.files.keys())equal(currentNeighborhoodView(index,path),currentNeighborhoodView(oracle,path),'Final full-compiler parity: '+path);
+        return true;
+      }finally{unlock?.();releaseUrls?.();release?.();index?.destroy();initial?.destroy();oracle?.destroy();if(admission)await admission.catch(()=>{});f.close();}
+    })()`), true);
+  } finally {await browser.cleanup();}
+});
+
 test('eager warm graph admission completes before held optional URL replay',async()=>{
   const browser=await chromiumHarness(bundle);
   try{

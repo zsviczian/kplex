@@ -1,6 +1,8 @@
 /**
  * Eager startup admits optional URL replay only after primary graph completion, so its higher
  * per-owner preparation cannot starve saved-graph hydration or initial source compilation.
+ * Pending relationship repair shows an active source audit's measured progress; a settled
+ * unavailable scope retains the existing incomplete state instead of hiding ongoing validation.
  * Saved native centers/history are primed before asynchronous startup. Partial graph absence
  * cannot select and persist an unrelated history entry while the requested center is loading.
  * Obsidian plugin lifecycle and host orchestration for indexing, navigation and vault mutations. Portable owners determine semantics; this host boundary supplies effects, cleanup and localized product feedback. Native metadata events request finite visible presentation repair independently of semantic readiness. Passive document synchronization preserves the current representation of exact matching native destinations; explicit opening and source inspection retain their separate navigation contracts. Support reporting projects retained facts without starting index work; this lifetime owns its bounded recorder and native report dialogs. Per-note Markdown zoom preferences follow Vault rename/delete events independently of index readiness.
@@ -4023,7 +4025,7 @@ export default class KplexPlugin extends Plugin {
     const loadingCache = this.index.hasPendingSnapshotHydration();
     const semanticPreparing = this.index.hasPendingSemanticPreparation();
     const startupIncomplete = !this.initialIndexComplete && this.initialSourceIndexIncomplete;
-    const semanticIncomplete = semanticPreparing && !this.index.hasActiveSemanticPreparation?.()
+    const semanticIncomplete = semanticPreparing && !this.index.hasActiveSemanticPreparation?.() && !this.index.hasActiveSourcePreparation?.()
       || Boolean(this.index.getSearchVocabularyFailure?.()) || Boolean(this.index.hasUnavailableLocalCounts?.()) || startupIncomplete;
     const upToDate = (this.initialIndexComplete || this.index.isOnDemandMode() && this.index.hasLocalBaseline())
       && !this.indexDirty
@@ -4121,7 +4123,8 @@ export default class KplexPlugin extends Plugin {
                 ? this.translator("index.statusSavingCache")
               : this.translator("index.statusUpdating");
     const hydration = this.index.getSnapshotHydrationDiagnostics?.();
-    const sourceProgress = phase === "preparing" && !this.index.isOnDemandMode() && !urlProgress.active && !urlProgress.failed
+    const sourceProgress = (phase === "preparing" || phase === "updating" && this.index.hasActiveSourcePreparation?.())
+      && !this.index.isOnDemandMode() && !urlProgress.active && !urlProgress.failed
       ? this.startupDiagnostics?.progress("source") : null;
     const progress = phase === "loading-cache" && hydration?.phase === "source-authority"
       ? this.startupDiagnostics?.progress("source") : phase === "loading-cache" ? this.startupDiagnostics?.progress("hydration")
