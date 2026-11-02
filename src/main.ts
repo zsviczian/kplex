@@ -1746,7 +1746,10 @@ export default class KplexPlugin extends Plugin {
       }
       if (showNotice) new Notice(this.translator("notice.rebuildingIndex"), 1200);
       const rebuiltIndex = this.index;
-      const progressiveStartup = allowClosed && !showNotice && !force && !this.initialIndexComplete && !this.index.isFullSnapshotHydrated();
+      const reuseStartupSources = allowClosed && !showNotice && !force && !this.initialIndexComplete
+        && this.index.hasReusableSourceInventory();
+      const progressiveStartup = allowClosed && !showNotice && !force && !this.initialIndexComplete
+        && !this.index.isFullSnapshotHydrated() && !reuseStartupSources;
       this.index.noteBuildDecision(progressiveStartup ? "cold-progressive" : "full-rebuild",
         [...this.indexBacklogReasons].sort().join("|") || reason);
       const published = progressiveStartup
@@ -1755,7 +1758,7 @@ export default class KplexPlugin extends Plugin {
           // neighborhood has been published so first paint is no longer blocked by vault prewarm.
           prewarmBodyCache: Platform.isIosApp && this.app.vault.getMarkdownFiles().length > 5000,
         })
-        : await rebuiltIndex.rebuild();
+        : await rebuiltIndex.rebuild(reuseStartupSources ? {retainSourceInventory: true} : undefined);
       if (this.unloading || this.index !== rebuiltIndex) return;
       if (!published) {
         this.indexDirty = true;

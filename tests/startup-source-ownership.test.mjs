@@ -69,7 +69,7 @@ function fixture({ reasons = ['startup:stale-snapshot'], dirty = [], sourceBacke
     /** Keep mode-specific refresh separate from eager adoption. */ isOnDemandMode: () => onDemand,
     /** Independent URL discovery is outside this controlled ownership fixture. */ startBackgroundUrlIndex: async () => true,
     /** The coherent physical baseline remains navigable. */ hasPhysicalBaseline: () => true,
-    /** This test observes ordinary full-builder admission, not progressive compilation. */ isFullSnapshotHydrated: () => true,
+    /** This test observes ordinary full-builder admission, not progressive compilation. */ isFullSnapshotHydrated: () => true, hasReusableSourceInventory: () => false,
     /** Count admission only; a false result here is not evidence of a real incomplete build. */ rebuild: async () => { counts.full++; return published; },
     /** Preserve the on-demand branch's own local refresh. */ refreshOnDemandGraph: async () => { counts.local++; return false; },
     /** Decision formatting is outside this admission test. */ noteBuildDecision() {},

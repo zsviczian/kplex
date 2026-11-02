@@ -2303,6 +2303,12 @@ export class GraphIndex {
   hasPhysicalBaseline(): boolean { return this.fullSnapshotHydrated || this.sourceBackedStartup; }
   /** Source-backed startup completion belongs to source adoption, not graph-cache hydration. */
   hasSourceBackedStartup(): boolean { return this.sourceBackedStartup; }
+
+  /** A closed source inventory can feed the batched compiler even when graph restore failed
+   * before installing source-backed startup. An active audit still owns its normal cold path. */
+  hasReusableSourceInventory(): boolean {
+    return this.sourceAcquisition.hasSemanticDependencies() && !this.hasActiveSourcePreparation();
+  }
   /**
    * Notify the startup coordinator only after current source authority and requested semantics
    * recover. Source notifications arrive after inventory ownership is released; scope notifications

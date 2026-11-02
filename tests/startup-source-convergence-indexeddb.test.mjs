@@ -323,3 +323,33 @@ for (const fault of ['metadata', 'evicted-unsaved']) test(`real ${fault} recover
     })()`), true);
   } finally { await browser.cleanup(); }
 });
+
+test('closed source inventory chooses batched startup after graph recovery falls through',async()=>{
+ const browser=await chromiumHarness(bundle);
+ try{
+  assert.equal(await browser.evaluate(contributorBrowserInitialize),true);
+  assert.equal(await browser.evaluate(`(async()=>{
+   const M=sourceModules,f=await fixture('closed-source-startup-fallback'),view=(${centerGateSettings.toString()})();let index;
+   try{
+    f.app.vault.getName=()=> 'closed-source-startup-fallback';
+    f.app.vault.getAbstractFileByPath=path=>f.files.get(path)??(path==='/'||path===''?f.app.vault.getRoot():null);
+    f.add('A.md','Friends:: [[B]]');f.add('B.md','');await f.acquire();ok(await f.acquisition.reconcile(),'Real source projection closes');f.acquisition.close();
+    const settings={...view,indexingMode:'eager',hierarchy:{hidden:[],parents:[],children:[],leftFriends:['Friends'],rightFriends:[],previous:[],next:[],exclusions:[]},inferAllLinksAsFriends:false,inverseInfer:false,showFullTagName:false,tagStyleList:[],baseNodeStyle:{maxLabelLength:30},lastActivePath:'A.md',pinnedNodes:[]};
+    const p=new M.StartupSourceCoordinator();Object.assign(p,{app:f.app,settings,layoutReady:true,indexDirty:true,rebuildTimer:null,
+      startupDiagnostics:{recordWork(){},mark(){},progress(){return null;}},notifyIndexStatus(){},hasVisibleKplexSurface:()=>true,
+      refreshBookmarkedEntryPoints:async()=>{},startupGraphSeedPaths:()=>['A.md'],pruneMissingDirtyMarkdownPaths(){},scheduleRebuild(){}});
+    p.startupDiagnostics=new M.StartupDiagnostics();p.startupDiagnostics.begin(false);index=new M.GraphIndex(p,f.app);p.index=index;index.scheduleOrphanCleanup=()=>{};index.sourceAcquisition.enableInventory();ok(await index.sourceAcquisition.reconcile(),'Restart source inventory actually closes');
+    equal(index.hasSourceBackedStartup(),false,'Graph recovery did not install its special source-backed startup state');
+    ok(index.hasReusableSourceInventory(),'Closed sources retain their independent authority');
+    let progressive=0,batched=0,options;const full=index.rebuild,partial=index.rebuildProgressively;
+    index.rebuild=function(value){batched++;options=value;return full.call(this,value);};
+    index.rebuildProgressively=function(...args){progressive++;return partial.apply(this,args);};
+    await p.performRebuild(false,false,'startup:initial-index',true);
+    equal(progressive,0,'Closed source fallback must not repeat per-file progressive graph publication');
+    equal(batched,1,'One actual existing batched compiler');equal(options,{retainSourceInventory:true},'Keep closed inventory and normal event receipts');
+    ok(p.initialIndexComplete&&index.isFullSnapshotHydrated(),'Actual complete graph finishes startup');
+    ok(index.sourceAcquisition.hasSemanticDependencies(),'Source authority survives the batched rebuild');return true;
+   }finally{index?.destroy();f.close();}
+  })()`),true);
+ }finally{await browser.cleanup();}
+});
