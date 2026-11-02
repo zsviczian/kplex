@@ -1,4 +1,7 @@
 /**
+ * Captured section opens retain exact native request identities. Explicit node copies use the
+ * revocable host clipboard owner; section-scoped bulk visibility uses the existing settings queue.
+ * Related-note completion keeps link and creation preferences independent through that same writer.
  * Eager startup admits optional URL replay only after primary graph completion, so its higher
  * per-owner preparation cannot starve saved-graph hydration or initial source compilation.
  * Pending relationship repair shows an active source audit's measured progress; a settled
@@ -122,6 +125,8 @@ import { createSupportReport } from "./application/supportReport";
 import type { IndexingActivityCapture } from "./application/IndexingActivity";
 import { SessionEventRecorder } from "./application/SessionEventRecorder";
 import { SupportClipboardSession } from "./application/supportClipboard";
+import {NodeLinkClipboard} from "./adapters/obsidian/nodeLinkClipboard";
+import {contentVisibilityPatch, type ContentVisibilityKey, type ContentVisibilityScope} from "./core/plex/contentVisibility";
 import { SupportReportModal } from "./adapters/obsidian/SupportReportModal";
 import { readSupportCustomizations } from "./adapters/obsidian/supportEnvironment";
 import { PartialRelatedFileError } from "./adapters/obsidian/relatedFileOutcome";
@@ -204,6 +209,8 @@ type StyleCommitOptions = Readonly<{themeAction?: appearanceThemes.AppearanceThe
   persistExistingChanges?: boolean}>;
 
 export default class KplexPlugin extends Plugin {
+  /** Clipboard receipts live only as long as this native plugin instance. */
+  nodeLinkClipboard?: NodeLinkClipboard;
   /** Versioned trusted automation surface; settings-based reads precede graph hydration. */
   api:KplexPublicApi|null=null;
   /** Public discovery leases contain callbacks only; native sessions retain actual canvas state. */
@@ -391,6 +398,8 @@ export default class KplexPlugin extends Plugin {
     this.supportEvents.record("plugin-start");
     this.startupDiagnostics.begin((window as Window & { kplexStartupDiagnosticsEnabled?: boolean }).kplexStartupDiagnosticsEnabled === true);
     this.translator = createObsidianTranslator();
+    this.nodeLinkClipboard = new NodeLinkClipboard(this.app, /** Feedback belongs to this plugin's active catalog. */ key => {new Notice(this.translator(key));});
+    this.registerEvent(this.app.workspace.on("editor-paste", /** The native receiver supplies destination context, including embedded and popout editors. */ (event, editor, info) => this.nodeLinkClipboard?.paste(event, editor, info)));
     const ownData: unknown = await this.loadData();
     const hasOwnData = ownData !== null && ownData !== undefined;
     const ownRecord = ownData && typeof ownData === "object" ? ownData as Record<string, unknown> : null;
@@ -637,6 +646,7 @@ export default class KplexPlugin extends Plugin {
     for (const resolve of this.layoutReadyWaiters) resolve();
     this.layoutReadyWaiters.clear();
     this.unloading = true;
+    this.nodeLinkClipboard?.dispose();this.nodeLinkClipboard = undefined;
     for (const [timer, resolve] of this.createdEditorWaits) {window.clearTimeout(timer); resolve();}
     this.createdEditorWaits.clear();
     this.disposePublicApiWindows?.();this.disposePublicApiWindows=null;
@@ -2784,6 +2794,32 @@ export default class KplexPlugin extends Plugin {
   }
 
   /**
+   * Commit one explicit section-wide visibility choice through the existing disk queue. Rebase on
+   * current settings, publish only after persistence and retain later imperative edits. Visibility
+   * reads already consume live settings; the render-only notification cannot prepare native covers.
+   */
+  async setContentVisibility(scope: ContentVisibilityScope, enabled: boolean): Promise<boolean> {
+    let changed = false;
+    await this.enqueueSettingsWrite(/** Merge the finite patch without replacing unrelated or unknown settings. */ async () => {
+      if (this.unloading) return;
+      const source = this.settingsForWrite(), patch = contentVisibilityPatch(source, scope, enabled);
+      const keys = Object.keys(patch) as ContentVisibilityKey[];
+      if (!keys.length) return;
+      const opening = new Map(keys.map(/** Retain later imperative changes to the same live controls. */ key => [key, this.settings[key]]));
+      const next = {...source, ...patch};
+      await this.writeSettingsSnapshot(this.settingsSnapshotForPersistence(source.actionPreferencesFuture ?? source.actionPreferences, next));
+      if (this.unloading) return;
+      for (const key of keys) if (this.settings[key] === opening.get(key)) this.settings[key] = enabled;
+      const policy = captureSettingsPolicy(next), previous = this.savedSettingsPolicy ?? policy;
+      const values = {...previous.values};
+      for (const key of keys) values[key] = policy.values[key];
+      this.savedSettingsPolicy = {values}; changed = true;
+    });
+    if (changed && !this.unloading) this.index.notifyPresentation();
+    return changed;
+  }
+
+  /**
    * Persist all caller mutations through the canonical immutable settings projection. The legacy
    * boolean is a call-site compatibility facade only: managers/imports cannot bypass classification.
    * Capture before awaiting storage so overlapping saves cannot lose a semantic invalidation.
@@ -4918,10 +4954,13 @@ export default class KplexPlugin extends Plugin {
     // Publish the completion lease before invoking native code, including synchronous host echoes.
     let completeNative!: () => void;
     const nativeCompletion = new Promise<void>(/** Resolve on success or failure so a rejected predecessor cannot poison newer navigation. */ resolve => { completeNative = resolve; });
-    const previousNativeFile = previous?.leaf === leaf && previous.pending ? previous.nativeFile : null;
+    // Activation can expose the destination's existing file before openFile publishes its target.
+    // Retain both that identity and an older in-flight target, without suppressing unrelated user navigation.
+    const pendingNativeFile = previous?.leaf === leaf && previous.pending ? previous.nativeFile : null;
+    const previousNativeFile = this.fileForLeaf(leaf) ?? pendingNativeFile;
     const previousNativeUrl = previous?.pending ? previous.nativeUrl : this.webViewerUrlForLeaf(leaf);
     const request = { leaf, file, filePath, url: page.url, pending: true, nativeCompletion,
-      nativeFile: previousNativeFile, previousNativeFile, nativeUrl: previousNativeUrl, previousNativeUrl };
+      nativeFile: pendingNativeFile ?? previousNativeFile, previousNativeFile, nativeUrl: previousNativeUrl, previousNativeUrl };
     this.passiveSidecarSyncRequests.set(hostLeaf, request);
     this.nativeDocumentRequests.set(leaf, request);
     /** Only this exact live destination and canonical file incarnation may finish passive work. */
@@ -4940,7 +4979,7 @@ export default class KplexPlugin extends Plugin {
       // A -> B -> A can return to the opening file after retiring A's original mode work.
       // Finish that owned initial representation without reopening; unrelated same-file
       // observations continue to preserve the user's representation.
-      if (!intent && this.leafDisplaysPage(leaf, page) && (managed !== leaf || !file || previousNativeFile !== file)) return;
+      if (!intent && this.leafDisplaysPage(leaf, page) && (managed !== leaf || !file || pendingNativeFile !== file)) return;
       request.nativeFile = file;
       request.nativeUrl = page.url;
       if (managed === leaf || page.url || intent?.sourceMode !== undefined) await this.openPageInSidecarLeaf(leaf, page, stillCurrent, hostLeaf, intent);
@@ -5112,14 +5151,14 @@ export default class KplexPlugin extends Plugin {
     await this.syncSidecarToPage(hostLeaf, {file, url: null}, leaf, {active: true});
   }
 
-  /** Open a section's native source subpath without letting an older passive mode request win. */
+  /** Open a captured section's exact native source/anchor; queued work retains file-incarnation guards. */
   async openSection(page: GraphPage, hostLeaf?: WorkspaceLeaf): Promise<void> {
     const session = this.documentSession(hostLeaf); if (!session) return ;
     const sourcePath = page.transient?.sourcePath;
     const subpath = page.transient?.subpath;
     if (!sourcePath || !subpath) return;
-    const file = this.app.vault.getAbstractFileByPath(sourcePath);
-    if (!(file instanceof TFile)) return;
+    const file = this.app.vault.getFileByPath(sourcePath);
+    if (!file || page.file && page.file !== file) return;
     this.validateLinkedDocumentLeaf(hostLeaf);
     const leaf = session.linkedDocumentLeaf ?? this.findRecentDocumentLeaf(hostLeaf) ?? this.app.workspace.getLeaf("split");
     session.lastDocumentLeaf = leaf;
@@ -7505,15 +7544,16 @@ export default class KplexPlugin extends Plugin {
       desktop: readObsidianPresentationEnvironment(hostLeaf?.view.containerEl.ownerDocument.defaultView ?? undefined).device === "desktop"};
   }
 
-  /** Supply one shared After saving preference without persisting dialog/context fallbacks. */
-  createdNoteCompletionControl(hostLeaf?: WorkspaceLeaf, options: Readonly<{another?: boolean; editable?: boolean; follow?: boolean}> = {}): CreatedNoteCompletionControl {
+  /** Supply the operation's After saving preference without persisting dialog/context fallbacks. */
+  createdNoteCompletionControl(hostLeaf?: WorkspaceLeaf, options: Readonly<{another?: boolean; editable?: boolean; follow?: boolean; operation?: "create" | "link"}> = {}): CreatedNoteCompletionControl {
     const context = {...this.createdNoteContext(hostLeaf), another: options.another !== false, editable: options.editable !== false,
       follow: options.follow !== false}, choices = creationAfterSavingActions(context);
-    const preference = sanitizeCreationAfterSaving(this.settings.newNodeAfterSaving, this.settings.editNewNodeAfterCreate);
+    const key = options.operation === "link" ? "linkAfterSaving" : "newNodeAfterSaving";
+    const preference = sanitizeCreationAfterSaving(this.settings[key] ?? this.settings.newNodeAfterSaving, this.settings.editNewNodeAfterCreate);
     return {choices, value: effectiveCreationAfterSaving(preference, context),
       onChange: /** Persist an actual offered selection through the serialized settings writer. */ value => {
-        if (this.unloading || !choices.includes(value) || this.settings.newNodeAfterSaving === value) return;
-        this.settings.newNodeAfterSaving = value;
+        if (this.unloading || !choices.includes(value) || this.settings[key] === value) return;
+        this.settings[key] = value;
         void this.saveSettings(false, false);
       }};
   }

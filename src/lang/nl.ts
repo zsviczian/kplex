@@ -7,6 +7,13 @@
 import { buildLocaleCatalog, type LocaleTranslationMap } from "./catalog";
 
 const dutchTranslations = {
+  "copyLink.failed": "De knooppuntlink kon niet worden gekopieerd. Probeer het opnieuw.",
+  "copyLink.fallback": "Een link met het volledige kluispad is gekopieerd. Dit klembord kan links niet aanpassen aan de doelnotitie.",
+  "copyLink.targetUnavailable": "Het gekopieerde knooppunt is niet meer beschikbaar. Kopieer het opnieuw.",
+  "visibility.enableAll": "Alles inschakelen",
+  "visibility.saveFailed": "De zichtbaarheid kon niet worden opgeslagen. De vorige instellingen blijven behouden.",
+  "visibility.disableAll": "Alles uitschakelen",
+  "actions.node.copy-link.description": "Kopieer het geselecteerde knooppunt of het midden van het canvas. Plakken in een Obsidian-notitie volgt de linkvoorkeuren; andere bestemmingen krijgen een volledig pad.",
   "drawing.template": "Tekensjabloon",
   "drawing.blank": "Lege tekening",
   "settings.trackpad": "Trackpadnavigatie",

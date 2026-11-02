@@ -1252,6 +1252,10 @@ export function PlexGraph({ viewDefinition = classicViewDefinition, viewSession,
     };
   }, [plugin, index, visualPageByPath, settings.thumbnailProperty, settings.nodeImageProperty, settings.attachmentImageDisplay, settings.allowRemoteNodeImages]);
   const viewport = useRef<HTMLDivElement | null>(null);
+  const clipboardOwner = useMemo(/** A successor view in the same DOM must not inherit outgoing cleanup. */ () => ({}), [viewLifetime]);
+  useEffect(/** A retired/migrated canvas releases clipboard captures without invalidating another canvas's copy. */ () => {
+    return () => {plugin.nodeLinkClipboard?.retireOwner(clipboardOwner);};
+  }, [plugin, clipboardOwner]);
   useEffect(/** Check the initial stationary center, with no timer reset on ordinary graph progress. */ () => {
     if (!classic || initialCenterChecked.current) return;
     const element = viewport.current, owner = element?.ownerDocument, view = owner?.defaultView;
@@ -4278,6 +4282,9 @@ export function PlexGraph({ viewDefinition = classicViewDefinition, viewSession,
     if (target.node.kind === "section") {
       const page = occurrence?.page;
       if (page?.transient?.kind !== "section" || target.node.fileIdentity !== undefined && actionNodeRef(page).fileIdentity !== target.node.fileIdentity) return null;
+      const source = sectionExpansion?.sourceRevision;
+      if (source && (source.file.path !== source.path || source.file.stat.mtime !== source.mtime || source.file.stat.size !== source.size
+        || plugin.app.vault.getFileByPath(source.path) !== source.file || plugin.app.metadataCache.getFileCache(source.file) !== source.cache)) return null;
       return !page.file || plugin.app.vault.getFileByPath(page.file.path) === page.file ? page : null;
     }
     return resolveActionPage(index, target.node);
@@ -4727,11 +4734,11 @@ export function PlexGraph({ viewDefinition = classicViewDefinition, viewSession,
       }
       if (page) return onOpen(page);
       return;
-    }, /** Central files and explicit placeholder-folder prompts remain usable without a Sidecar destination. */ context => {
+    }, /** Captured sections, central files and explicit folder prompts remain usable without a Sidecar destination. */ context => {
       const page = graphActionPage(context);
       const folderPrompt = context.request.id === "node.open" && context.request.args?.chooseFolder
         && page && !page.file && !page.url && !page.isFolder && !page.isTag && !page.transient;
-      return Boolean(page) && (surface !== "sidepanel" || Boolean(page?.file && page.path === activePath) || Boolean(folderPrompt));
+      return Boolean(page) && (surface !== "sidepanel" || page?.transient?.kind === "section" || Boolean(page?.file && page.path === activePath) || Boolean(folderPrompt));
     }),
     "node.edit": graphAction(/** Explicit editing opens this accepted file through existing host policy. */ context => {
       const page = graphActionPage(context); if (page?.file) return onOpen(page);
@@ -4752,10 +4759,16 @@ export function PlexGraph({ viewDefinition = classicViewDefinition, viewSession,
     }, context => {
       const page = graphActionPage(context); return Boolean(page && !page.transient && !page.isFolder && !page.isTag && !page.url && (!page.file || page.file.extension === "md"));
     }),
-    "node.copy-link": graphAction(/** Copy a link locally through the owning document's clipboard capability. */ context => {
+    "node.copy-link": graphAction(/** Start the native clipboard write in this gesture; destination formatting belongs to paste. */ context => {
       const page = graphActionPage(context); if (!page) return;
-      return viewport.current?.ownerDocument.defaultView?.navigator.clipboard.writeText(page.url ?? `[[${page.file?.path ?? page.path}]]`);
-    }, context => Boolean(graphActionPage(context)) && typeof viewport.current?.ownerDocument.defaultView?.navigator.clipboard?.writeText === "function"),
+      const root = viewport.current; if (!root) return;
+      const document = root.ownerDocument;
+      return plugin.nodeLinkClipboard?.copy(page, document, /** Graph navigation does not retire a copy, but teardown or migration does. */ () =>
+        viewport.current === root && root.isConnected && root.ownerDocument === document && (!viewSession || viewSession.getLifetime() === viewLifetime), clipboardOwner);
+    }, /** Only current supported targets and a real clipboard writer can expose Copy. */ context => {
+      const page = graphActionPage(context), document = viewport.current?.ownerDocument;
+      return Boolean(page && document && plugin.nodeLinkClipboard?.canCopy(page, document));
+    }),
     "node.context-menu": graphAction(/** Anchor keyboard menus to the exact selected occurrence, retaining native Escape/click-outside behavior. */ context => {
       const page = graphActionPage(context); if (!page) return;
       const occurrence = context.target.kind === "node" ? context.target.occurrenceId : undefined;
@@ -5105,11 +5118,13 @@ export function PlexGraph({ viewDefinition = classicViewDefinition, viewSession,
       .onClick(/** All native entry points dispatch the same surface-owned action. */ () => void plugin.actionManager.dispatch({ id: "view.wander.start", source: "context-menu", surfaceId: actionSurfaceId })));
     menu.addSeparator();
     const capturedPage = actionNodeRef(page);
+    const menuCurrent = captureSurfaceContinuation(() => viewport.current, () => plugin.actionManager.readSnapshot(actionSurfaceId), {checkInteraction: false});
     const capturedPersistent = persistent ? actionNodeRef(persistent) : null;
     const capturedNativeTarget = persistent ? nativeRevealTarget(plugin.app, persistent) : null;
     const capturedFolderPath = persistent?.isFolder ? capturedNativeTarget?.path : null;
     /** Preserve menu-launch native identity even when a canonical graph page mutates while open. */
     const runCapturedNodeAction = (id: ActionId, target: GraphPage): void => {
+      if ((id === "node.copy-link" || id === "node.open" && page.transient?.kind === "section") && !menuCurrent()) return;
       const reference = target === page ? capturedPage : capturedPersistent;
       if (!reference) return;
       if (capturedFolderPath && (id === "node.open.system" || id === "node.open.navigation")
@@ -5117,6 +5132,10 @@ export function PlexGraph({ viewDefinition = classicViewDefinition, viewSession,
       void plugin.actionManager.dispatch({ id, source: "context-menu", surfaceId: actionSurfaceId,
         target: { kind: "explicit", node: reference, occurrenceId: occurrenceId ?? sceneNodeKeys.get(node) } });
     };
+
+    if (plugin.nodeLinkClipboard?.canCopy(page, viewport.current?.ownerDocument ?? document))
+      menu.addItem(/** Reuse the existing action's label, target and activation contract. */ item => item.setTitle(translate("actions.node.copy-link")).setIcon("copy")
+        .onClick(/** Retain the opening occurrence rather than a later active note. */ () => runCapturedNodeAction("node.copy-link", page)));
 
     if (persistent && typeof plugin.canAssignCanvasProperty === "function"
       && scene.propertyAssignments?.some(assignment => plugin.canAssignCanvasProperty(persistent, assignment)))
@@ -5256,7 +5275,7 @@ export function PlexGraph({ viewDefinition = classicViewDefinition, viewSession,
       menu.addItem((item) => item
         .setTitle(translate("graph.openSection"))
         .setIcon("heading")
-        .onClick(() => void plugin.openSection(page, hostLeaf)));
+        .onClick(() => runCapturedNodeAction("node.open", page)));
       if (section?.childIds.length) {
         menu.addSeparator();
         for (const [id, label, icon] of [

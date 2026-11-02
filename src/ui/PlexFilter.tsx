@@ -2,9 +2,11 @@
  * Host-bound Plex filter and Graph Lens editor. Shared predicates own matching; this surface localizes
  * choices and validation. FloatingLayer owns portaling, dismissal and header drag in the owning document.
  * Portalled controls opt into the shell's shared delayed hover hints without browser title duplicates.
+ * Explicit bulk visibility shares the host's one durable write without changing quick filters or lenses.
  */
 import {PredicateExpressionField} from "./predicates/PredicateExpressionField";
 import {LayoutSlider} from "./components/LayoutSlider";
+import {ContentVisibilityActions} from "./features/ContentVisibilityActions";
 import type {AppearanceOwner} from "../core/plex/appearanceThemes";
 import type {SemanticColorPair} from "../core/plex/colorPreferences";
 import { useEffect, useId, useMemo, useRef, useState, type CSSProperties } from "react";
@@ -173,6 +175,7 @@ export function PlexFilter({
   onShowSiblingsChange,
   visibility,
   onVisibilityChange,
+  onVisibilitySet,
   sortOrder,
   onSortOrderChange,
   translate,
@@ -197,6 +200,7 @@ export function PlexFilter({
   onShowSiblingsChange: (show: boolean) => void;
   visibility: Record<PlexVisibilitySetting, boolean>;
   onVisibilityChange: (key: PlexVisibilitySetting) => void;
+  onVisibilitySet: (enabled: boolean) => Promise<void>;
   sortOrder: NodeSortOrder;
   onSortOrderChange: (order: NodeSortOrder) => void;
   translate: Translator;
@@ -481,6 +485,8 @@ export function PlexFilter({
 
     <section className="kplex-filter-section">
       <div className="kplex-filter-section-heading">{translate("filter.visibility")}</div>
+      <ContentVisibilityActions values={{...visibility, showCrossLinks: value.showCrossLinks, renderSiblings: showSiblings}}
+        scope="lenses" onSet={onVisibilitySet} translate={translate} />
       <div className="kplex-filter-visibility-grid">
         {[
           ["showPageNodes", translate("filter.visibilityMarkdown"), translate("filter.visibilityMarkdownHelp")],

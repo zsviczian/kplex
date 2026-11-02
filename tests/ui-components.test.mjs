@@ -1151,7 +1151,7 @@ ${production}
    app: { vault: { on: () => ({}), offref: () => {}, getFileByPath: path => [origin, target].find(page => page.path === path)?.file,
     getAllFolders: includeRoot => { check(includeRoot === true, "folder inventory must include the vault root"); folderEnumerations++; return [{ path: "/" }, { path: "Projects" }, { path: "Projects/Ideas" }]; } } },
    settings: { editNewNodeAfterCreate: false, newNodeDefaultType: "markdown",ontologyPairingVersion:1,hierarchy:{hidden:[],parents:["parent"],children:["children","review","example"],leftFriends:[],rightFriends:[],previous:[],next:[],exclusions:[]} },
-   createdNoteCompletionControl(_host,options={}){const context={desktop:true,sidepanel:false,another:options.another!==false,editable:options.editable!==false,follow:options.follow!==false};return{choices:creationAfterSavingActions(context),value:effectiveCreationAfterSaving(sanitizeCreationAfterSaving(this.settings.newNodeAfterSaving,this.settings.editNewNodeAfterCreate),context),onChange:value=>{this.settings.newNodeAfterSaving=value}}},
+   createdNoteCompletionControl(_host,options={}){const context={desktop:true,sidepanel:false,another:options.another!==false,editable:options.editable!==false,follow:options.follow!==false},key=options.operation==='link'?'linkAfterSaving':'newNodeAfterSaving';return{choices:creationAfterSavingActions(context),value:effectiveCreationAfterSaving(sanitizeCreationAfterSaving(this.settings[key]??this.settings.newNodeAfterSaving,this.settings.editNewNodeAfterCreate),context),onChange:value=>{this.settings[key]=value}}},
    finishNewRelatedNode:async()=>{},
    translator: (key) => key, drawingTemplateOptions: () => null, isExcalidrawAvailable: () => false, defaultOntologyField: () => "children",
    ontologyFieldsForRole: () => ["children", "review", "example"],
@@ -1240,6 +1240,24 @@ ${production}
   check([...footer.querySelector('select').options].map(option=>option.value).join(',')==='return,another,follow,sidecar,editor,editor-maximized,tab,window',"Unified choices were omitted or reordered");
   changeSelect('.kplex-add-related-completion select','editor-maximized');
   check(plugin.settings.newNodeAfterSaving==='editor-maximized',"Explicit completion preference was not remembered");
+  // Switching operation must restore its own choice within this dialog and after a fresh mount.
+  const completionValue=()=>host.querySelector('.kplex-add-related-completion select').value;
+  const enter=value=>flushSync(()=>type(host.querySelector('.kplex-add-related-note-search input'),value));
+  const chooseTarget=()=>{const field=host.querySelector('.kplex-add-related-note-search input');flushSync(()=>field.focus());enter('Target');const row=document.body.querySelector('.kplex-fuzzy-floating-results button');check(row,'Target result absent');flushSync(()=>row.click());};
+  chooseTarget();changeSelect('.kplex-add-related-completion select','return');
+  check(plugin.settings.linkAfterSaving==='return'&&plugin.settings.newNodeAfterSaving==='editor-maximized','Link selection overwrote creation');
+  enter('New note');check(completionValue()==='editor-maximized','Clearing an existing target lost creation choice');
+  enter('https://example.org/');check(completionValue()==='return','Web links did not use the link preference');
+  changeSelect('.kplex-add-related-completion select','follow');enter('New note');
+  check(completionValue()==='editor-maximized'&&plugin.settings.linkAfterSaving==='follow','Web-link selection changed creation choice');
+  chooseTarget();check(completionValue()==='follow','Existing notes did not share the link preference');
+  changeSelect('.kplex-add-related-completion select','another');
+  flushSync(()=>host.querySelector('.kplex-add-related-link-button').click());await new Promise(resolve=>setTimeout(resolve,0));flushSync(()=>{});
+  check(host.querySelector('.kplex-add-related-note-search input').value===''&&completionValue()==='editor-maximized','Link another did not return to the creation preference');
+  flushSync(()=>root.render(createElement(RelatedNoteComposer,{key:'reopened-link',plugin,origin,session,initialRole:'child',fixedTarget:target})));
+  check(completionValue()==='another','Reopening a selected existing note lost its saved link choice');
+  flushSync(()=>root.render(createElement(RelatedNoteComposer,{key:'reopened-create',plugin,origin,session,initialRole:'child'})));
+  check(completionValue()==='editor-maximized','Reopening creation lost its separate saved choice');
   plugin.settings.editNewNodeAfterCreate=false; session.continuation='return';
   // Hold an actual drawing submission after durability: ordinary progress must never offer recovery.
   const style = document.createElement("style"); style.textContent = ${JSON.stringify(readFileSync(join(root, "styles.css"), "utf8"))}; document.head.append(style);

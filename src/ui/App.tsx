@@ -1552,6 +1552,9 @@ export function KplexApp({ plugin, surface, hostLeaf, translate, environment, on
               showURLNodes: plugin.settings.showURLNodes,
             }}
             onVisibilityChange={(key) => void toggleToolbarSetting(key)}
+            onVisibilitySet={/** Submit all invoking-section flags together without changing this canvas's temporary filters. */ async enabled => {
+              await plugin.setContentVisibility("lenses", enabled);
+            }}
             sortOrder={plugin.settings.nodeSortOrder}
             onSortOrderChange={(order) => void setNodeSortOrder(order)}
             translate={translate}

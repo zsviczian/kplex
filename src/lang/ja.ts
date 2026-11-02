@@ -7,6 +7,13 @@
 import { buildLocaleCatalog, type LocaleTranslationMap } from "./catalog";
 
 const japaneseTranslations = {
+  "copyLink.failed": "ノードのリンクをコピーできませんでした。もう一度お試しください。",
+  "copyLink.fallback": "保管庫内の完全なパスを含むリンクをコピーしました。このクリップボードでは貼り付け先のノートに合わせてリンクを調整できません。",
+  "copyLink.targetUnavailable": "コピーしたノードは利用できなくなりました。もう一度コピーしてください。",
+  "visibility.enableAll": "すべて有効にする",
+  "visibility.saveFailed": "表示設定を保存できませんでした。以前の設定が保持されます。",
+  "visibility.disableAll": "すべて無効にする",
+  "actions.node.copy-link.description": "選択したノードまたはキャンバスの中心をコピーします。Obsidianのノートへの貼り付けにはリンク設定が適用され、それ以外の貼り付け先には完全なパスが使われます。",
   "drawing.template": "描画テンプレート",
   "drawing.blank": "空の描画",
   "settings.trackpad": "トラックパッド操作",

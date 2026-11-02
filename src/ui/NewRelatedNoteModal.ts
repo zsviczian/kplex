@@ -1,5 +1,5 @@
 /**
- * Native Obsidian shell and shared React composer for related-note creation. The plugin owns mutations; the modal owns focus, suggestions, failure-only recovery and cleanup, and consumes localized copy. Recovery retains the exact durable file and displays the failure reason without enabling fresh creation.
+ * Native Obsidian shell and shared React composer for related-note creation. The plugin owns mutations and separate link/create completion preferences; the modal owns operation-local choices, focus, suggestions, failure-only recovery and cleanup, and consumes localized copy. Recovery retains the exact durable file and displays the failure reason without enabling fresh creation.
  */
 import { DrawingTemplateSelect } from "./features/DrawingTemplateSelect";
 import { SavedRelationshipPendingError } from "../adapters/obsidian/relationshipMetadataWrite";
@@ -95,7 +95,10 @@ function RelatedNoteComposer({
   const [browseOntology, setBrowseOntology] = useState(false);
   const [busy, setBusy] = useState(false);
   const busyRef = useRef(false);
-  const [continuation, setContinuation] = useState<CreationAfterSavingAction>(() => resolveCreationAfterSaving(session.continuation, plugin.createdNoteCompletionControl(hostLeaf).value));
+  const [createContinuation, setCreateContinuation] = useState<CreationAfterSavingAction>(/** Explicit invocation intents remain local to each operation. */ () =>
+    resolveCreationAfterSaving(session.continuation, plugin.createdNoteCompletionControl(hostLeaf).value));
+  const [linkContinuation, setLinkContinuation] = useState<CreationAfterSavingAction>(/** Linking starts from its own persisted preference. */ () =>
+    resolveCreationAfterSaving(session.continuation, plugin.createdNoteCompletionControl(hostLeaf, {operation: "link"}).value));
   const [savedPending, setSavedPending] = useState<GraphPage | null>(null);
   const [partialFile, setPartialFile] = useState<TFile | null>(null);
   const [partialFailure, setPartialFailure] = useState<string | null>(null);
@@ -148,6 +151,8 @@ function RelatedNoteComposer({
       return null;
     }
   }, [query]);
+  const linking = Boolean(selectedTarget || webUrl);
+  const continuation = linking ? linkContinuation : createContinuation;
   const nameValidation = useMemo(() => plugin.validateRelatedNoteName(query, folderValidation.folderPath), [plugin, query, folderValidation.folderPath]);
 
   useEffect(() => {
@@ -478,12 +483,13 @@ function RelatedNoteComposer({
           ),
   );
 
-  const completion = plugin.createdNoteCompletionControl(hostLeaf, {editable: Boolean(selectedTarget?.file || !selectedTarget && !webUrl)});
+  const completion = plugin.createdNoteCompletionControl(hostLeaf, {operation: linking ? "link" : "create", editable: Boolean(selectedTarget?.file || !selectedTarget && !webUrl)});
   const completionSelect = createElement(CreationCompletionSelect, {...completion,
     translate: plugin.translator, value: completion.choices.includes(continuation) ? continuation : "return",
     disabled: busy || Boolean(savedPending) || Boolean(partialFile),
-    onChange: /** One explicit selection updates both this invocation and the shared preference. */ value => {
-      setContinuation(value); completion.onChange(value);
+    onChange: /** Changing operation restores its separate selection without overwriting the other preference. */ value => {
+      if (linking) setLinkContinuation(value); else setCreateContinuation(value);
+      completion.onChange(value);
     },
   });
   const recovery = savedPending ? createElement("div", { className: "kplex-add-related-recovery", role: "status" },

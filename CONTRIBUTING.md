@@ -1556,7 +1556,7 @@ For changes limited to creation completion/reveal routing, run the affected chec
 indexing aggregate. A focused command covering the current change is:
 
 ```bash
-node --test --test-concurrency=1 --test-name-pattern='new-file|creation opening control|created file routes|pending creation|placeholder completion|materialization|relocation|retarget|folder-location|actual folder context|saved new-file|unified completion|folder creation|composer' tests/creation-navigation.test.mjs tests/related-note-composer.test.mjs tests/presentation-environment.test.mjs tests/excalibrain-migration.test.mjs tests/action-surface-ui.test.mjs tests/ui-components.test.mjs
+node --test --test-concurrency=1 --test-name-pattern='new-file|creation opening control|created file routes|pending creation|placeholder completion|materialization|relocation|retarget|folder-location|actual folder context|saved new-file|unified completion|folder creation|composer|linking and creation|link completion' tests/creation-navigation.test.mjs tests/related-note-composer.test.mjs tests/presentation-environment.test.mjs tests/excalibrain-migration.test.mjs tests/action-surface-ui.test.mjs tests/ui-components.test.mjs
 node --test tests/localization.test.mjs
 ```
 
@@ -1575,6 +1575,14 @@ in body, embeds and properties; change the creation folder, then verify the new 
 references (including aliases/subpaths), with no old physical file. Check persisted explicit choices
 and non-persisted context fallbacks. Folder reveal coverage must include the real native folder/root,
 Files-disabled/mobile filtering, and deletion/replacement while a menu is open.
+
+Creation and linking remember independent After saving choices. The existing creation key remains
+stable; the former shared choice seeds the new link preference on upgrade. Check selecting/clearing
+an existing note, entering a web link, Create another returning to creation, and reopening each form.
+The focused native lane is `KPLEX_BATCH_261_LANE=completion node scripts/testing/obsidian/navigationCopyVisibility.mjs`
+after exact-build staging with the three explicit test-vault variables, a fresh report directory and
+the shared host lock. It checks the actual dialogs, independent disk values, unknown-key preservation
+and reopening both forms after a real plugin reload; it restores its own settings and fixtures.
 
 If native setup stalls, inspect the selected disposable window's visibility and actual pending state.
 Foreground that exact window. For functional diagnostics only, preserve and temporarily disable its

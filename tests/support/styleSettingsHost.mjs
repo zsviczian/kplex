@@ -10,7 +10,7 @@ import ts from "typescript";
 /** Preserve original method bodies, including queue/await fences, while callers supply explicit host facts. */
 export function styleSettingsHostSource(root) {
   const source = ts.createSourceFile("main.ts", readFileSync(new URL("src/main.ts", root), "utf8"), ts.ScriptTarget.Latest, true);
-  const names = new Set(["updateStyleSettings", "saveSettings", "enqueueSettingsWrite", "settingsSnapshotForPersistence", "persistSettingsSnapshot", "setGraphLenses", "readPortableSharingState", "previewPortableSharing", "importPortableSharing",
+  const names = new Set(["setContentVisibility", "updateStyleSettings", "saveSettings", "enqueueSettingsWrite", "settingsSnapshotForPersistence", "persistSettingsSnapshot", "setGraphLenses", "readPortableSharingState", "previewPortableSharing", "importPortableSharing",
     "captureAppearanceOwner", "isAppearanceOwnerCurrent", "subscribeAppearanceThemes", "bindAppearanceEditor", "appearanceThemeNames", "updateAppearanceThemes", "showAppearanceMigrationNotification",
     "createAppearanceTheme", "resetAppearanceThemeColors", "importLegacyAppearance", "settingsForWrite", "writeSettingsSnapshot", "updateOntologyField", "updateOntologyConfiguration", "editOntologyConfiguration", "assignFieldToOntology", "ontologyFieldsForRole", "ontologyRoleForField", "inverseOntologyField", "inverseRelationshipRole", "defaultOntologyField", "refreshSavedSettings",
     "initializeSettingsReconciliation", "onExternalSettingsChange", "queueExternalSettingsAdoption", "reportExternalSettingsFailure", "installExternalSettings", "updateActionPreferences", "receivedSettingsOwner", "receivedSettingsRevision", "updateCanvasViewSetting", "readCanvasViewConfiguration", "updateCanvasViewConfiguration", "resetCanvasViewConfiguration", "migrateCanvasViewConfiguration", "commitCanvasViewConfiguration"]);
@@ -24,6 +24,7 @@ export function styleSettingsHostSource(root) {
   return `export {TextSettingDraft} from "./src/ui/components/textSettingDraft";
     export {OntologyFieldControl} from "./src/ui/OntologyFieldControl";
     import {SavedSettingsRefresh} from "./src/adapters/obsidian/savedSettingsRefresh";
+    import {contentVisibilityPatch} from "./src/core/plex/contentVisibility";
     import * as appearanceThemes from "./src/core/plex/appearanceThemes";
     import {DEFAULT_SETTINGS,importExcaliBrainGraphSettings,migrateAndMergeSettings} from "./src/settings";
     import {SettingsReconciliation} from "./src/adapters/obsidian/settingsReconciliation";

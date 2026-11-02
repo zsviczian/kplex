@@ -7,6 +7,13 @@
 import { buildLocaleCatalog, type LocaleTranslationMap } from "./catalog";
 
 const frenchTranslations = {
+  "copyLink.failed": "Impossible de copier le lien du nœud. Réessayez.",
+  "copyLink.fallback": "Un lien avec le chemin complet du coffre a été copié. Ce presse-papiers ne peut pas adapter les liens à la note de destination.",
+  "copyLink.targetUnavailable": "Le nœud copié n’est plus disponible. Copiez-le à nouveau.",
+  "visibility.enableAll": "Tout activer",
+  "visibility.saveFailed": "Impossible d’enregistrer la visibilité. Les paramètres précédents sont conservés.",
+  "visibility.disableAll": "Tout désactiver",
+  "actions.node.copy-link.description": "Copier le nœud sélectionné ou le centre du canevas. Le collage dans une note Obsidian suit ses préférences de liens ; les autres destinations reçoivent un chemin complet.",
   "drawing.template": "Modèle de dessin",
   "drawing.blank": "Dessin vierge",
   "settings.trackpad": "Navigation au pavé tactile",
