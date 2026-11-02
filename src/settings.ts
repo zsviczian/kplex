@@ -14,6 +14,7 @@
  * keyboard bindings are additive workflow preferences; recorder controls own only transient capture.
  * Sparse per-note Markdown zoom overrides are durable local workflow data, independent of graph imports.
  * Cross-link visibility is shared persisted presentation state for the filter panel and Plex settings.
+ * Bulk visibility retains each section's boolean inventory and one durable render-only writer.
  * Remote node imagery requires explicit local opt-in; absent or malformed persisted consent stays off.
  * Style editors publish only durable queued drafts, exclude duplicate operations and distinguish
  * storage failure from saved changes whose presentation/manager refresh still needs recovery.
@@ -29,10 +30,11 @@
  * typing/composition never publishes transient hierarchy values or queues per-character graph work.
  * Fresh installations receive editable English descriptions for their English factory vocabulary;
  * saved dictionaries, including explicit clears, never inherit replacement wording on reload.
- * One remembered after-saving action replaces the new-note editing toggle, retaining its migration and unrelated future preferences.
+ * Creation and linking remember separate after-saving actions, retaining the former shared choice on upgrade.
  */
 import {STARTUP_INDEX_DEFAULTS, sanitizeStartupIndexPreferences, type IndexingMode, type StartupIndexPreferences} from './core/plex/startupIndexPreferences';
 import { readObsidianPresentationEnvironment } from "./adapters/obsidian/presentationEnvironment";
+import {contentVisibilityPatch} from "./core/plex/contentVisibility";
 import {sanitizeCreationAfterSaving, type CreationAfterSavingAction} from "./core/plex/createdNoteDestination";
 import {OntologyManagerModal} from "./ui/OntologyManagerModal";
 import {ontologyFieldViews,type OntologyFilter} from "./ui/features/ontologyPresentation";
@@ -411,8 +413,10 @@ export interface KplexSettings extends StartupIndexPreferences {
   allowRemoteNodeImages: boolean;
   /** Remember the Create Note dialog toggle between invocations. */
   editNewNodeAfterCreate: boolean;
-  /** Shared new-file destination; the old toggle is retained solely for migration compatibility. */
+  /** Note-creation destination; the old toggle is retained solely for migration compatibility. */
   newNodeAfterSaving: CreationAfterSavingAction;
+  /** Existing-note/web-link completion is remembered independently from creation. */
+  linkAfterSaving: CreationAfterSavingAction;
   /** Remember which create button Ctrl/Cmd+Enter should invoke next time. */
   newNodeDefaultType: NewNodeType;
   /** Null uses the first configured template; empty explicitly selects a blank drawing. */
@@ -555,6 +559,7 @@ const LEGACY_DEFAULT_SETTINGS: KplexSettings = {
   allowRemoteNodeImages: false,
   editNewNodeAfterCreate: false,
   newNodeAfterSaving: "return",
+  linkAfterSaving: "return",
   newNodeDefaultType: "markdown",
   lastDrawingTemplatePath: null,
   startupIndexInfoBubbleSeen: false,
@@ -841,6 +846,7 @@ export function migrateAndMergeSettings(raw: unknown): KplexSettings {
     allowRemoteNodeImages: old.allowRemoteNodeImages === true,
     editNewNodeAfterCreate: Boolean(old.editNewNodeAfterCreate),
     newNodeAfterSaving: sanitizeCreationAfterSaving(old.newNodeAfterSaving, old.editNewNodeAfterCreate === true),
+    linkAfterSaving: sanitizeCreationAfterSaving(old.linkAfterSaving ?? old.newNodeAfterSaving, old.editNewNodeAfterCreate === true),
     trackpadNavigation: old.trackpadNavigation === true,
     lastDrawingTemplatePath: typeof old.lastDrawingTemplatePath === "string" ? old.lastDrawingTemplatePath : null,
     newNodeDefaultType: old.newNodeDefaultType === "excalidraw" ? "excalidraw" : "markdown",
@@ -2374,6 +2380,33 @@ export class KplexSettingTab extends PluginSettingTab {
     return `${(bytes / 1024 ** unit).toFixed(unit === 0 ? 0 : 1)} ${units[unit]}`;
   }
 
+  /** Mount section-wide native actions with one queued write and truthful failure recovery. */
+  private mountContentVisibility(setting: Setting): () => void {
+    const plugin = this.kplexPlugin;
+    let active = true, pending = false;
+    const buttons: {enabled: boolean; refresh: () => void}[] = [];
+    /** Keep no-op actions disabled after local or incoming presentation updates. */
+    const refresh = (): void => {for (const button of buttons) button.refresh();};
+    for (const enabled of [true, false]) setting.addButton(/** Native buttons keep focus, keyboard and theme behavior. */ button => {
+      const label = plugin.translator(enabled ? "visibility.enableAll" : "visibility.disableAll");
+      button.setButtonText(label);button.buttonEl.setAttribute("aria-label", label);
+      buttons.push({enabled, refresh: /** Read current settings, never the opening mixed-state snapshot. */ () => {
+        button.setDisabled(pending || !Object.keys(contentVisibilityPatch(plugin.settings, "settings", enabled)).length);
+      }});
+      button.onClick(/** Native Settings may adopt a constructed row into its popout before activation. */ async event => {
+        const document = button.buttonEl.ownerDocument;
+        if (!active || pending || !setting.settingEl.isConnected || setting.settingEl.ownerDocument !== document
+          || event.view && event.view.document !== document) return;
+        pending = true;refresh();
+        try {await plugin.setContentVisibility("settings", enabled);if (active && setting.settingEl.ownerDocument === document) this.update();}
+        catch (error) {console.error("K-Plex visibility settings were not saved", error);if (active) new Notice(plugin.translator("visibility.saveFailed"));}
+        finally {pending = false;if (active) refresh();}
+      });
+    });
+    const unsubscribe = plugin.index.subscribePresentation(refresh);refresh();
+    return /** Retire removed controls while allowing an already accepted disk write to settle. */ () => {active = false;unsubscribe();};
+  }
+
   /** Build localized native settings and subpages, including shared persisted Plex visibility controls. */
   getSettingDefinitions(): SettingDefinitionItem<DeclarativeSettingKey>[] {
     const translate = createObsidianTranslator();
@@ -2452,6 +2485,7 @@ export class KplexSettingTab extends PluginSettingTab {
             type: "group",
             heading: translate("settings.ui.content.visibility"),
             items: [
+              {name: translate("filter.visibility"), render: /** Searchable native row, mounted only on the displayed section. */ setting => this.mountContentVisibility(setting)},
               { name: translate("settings.ui.maximum.nodes.per.zone"), desc: translate("view.sharedLimitHelp"), control: { type: "slider", key: "maxItemCount", min: 10, max: 300, step: 10 } },
               { name: translate("filter.showCrossLinks"), desc: translate("filter.crossLinksHelp"), control: { type: "toggle", key: "showCrossLinks" } },
               { name: translate("settings.ui.show.inferred.relationships"), control: { type: "toggle", key: "showInferredNodes" } },

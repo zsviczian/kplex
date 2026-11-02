@@ -7,6 +7,13 @@
 import { buildLocaleCatalog, type LocaleTranslationMap } from "./catalog";
 
 const germanTranslations = {
+  "copyLink.failed": "Der Knotenlink konnte nicht kopiert werden. Versuche es erneut.",
+  "copyLink.fallback": "Ein Link mit vollständigem Tresorpfad wurde kopiert. Diese Zwischenablage kann Links nicht an die Zielnotiz anpassen.",
+  "copyLink.targetUnavailable": "Der kopierte Knoten ist nicht mehr verfügbar. Kopiere ihn erneut.",
+  "visibility.enableAll": "Alle aktivieren",
+  "visibility.saveFailed": "Die Sichtbarkeit konnte nicht gespeichert werden. Die bisherigen Einstellungen bleiben erhalten.",
+  "visibility.disableAll": "Alle deaktivieren",
+  "actions.node.copy-link.description": "Ausgewählten Knoten oder Canvas-Mitte kopieren. Beim Einfügen in eine Obsidian-Notiz gelten deren Linkeinstellungen; andere Ziele erhalten einen vollständigen Pfad.",
   "drawing.template": "Zeichnungsvorlage",
   "drawing.blank": "Leere Zeichnung",
   "settings.trackpad": "Trackpad-Navigation",

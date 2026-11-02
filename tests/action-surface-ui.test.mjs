@@ -121,6 +121,7 @@ test("App menus capture native identity before canonical pages mutate, while fol
 
 /** Compile the graph's actual target reacquisition callback rather than approximating section validity. */
 function productionGraphTarget(dependencies) {
+  dependencies = {sectionExpansion: null, ...dependencies};
   const filename = "src/ui/PlexGraph.tsx";
   const source = ts.createSourceFile(filename, readFileSync(new URL(`../${filename}`, import.meta.url), "utf8"), ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
   let expression;
@@ -129,6 +130,15 @@ function productionGraphTarget(dependencies) {
   const code = ts.transpileModule(`const resolve=${expression};`, { compilerOptions: { target: ts.ScriptTarget.ES2021 } }).outputText;
   return Function(...Object.keys(dependencies), `${code}\nreturn resolve;`)(...Object.values(dependencies));
 }
+
+test("section actions reject a stale heading source revision without opening or reacquiring it",()=>{
+  const file={path:"A.md",stat:{mtime:1,size:20}},cache={},page={path:"section:A:Second",file,transient:{kind:"section"}},node={page};let currentCache=cache;
+  const resolve=productionGraphTarget({scene:{nodes:[node]},sceneNodeKeys:new Map([[node,"second"]]),index:{},
+    sectionExpansion:{sourceRevision:{file,path:file.path,mtime:1,size:20,cache}},plugin:{app:{vault:{getFileByPath:()=>file},metadataCache:{getFileCache:()=>currentCache}}},
+    actionNodeRef:()=>({fileIdentity:"original"}),resolveActionPage:()=>assert.fail("No source acquisition for transient actions")});
+  const context={target:{kind:"node",node:{identity:page.path,kind:"section",fileIdentity:"original"},occurrenceId:"second"}};
+  assert.equal(resolve(context),page);file.stat.mtime=2;assert.equal(resolve(context),null);file.stat.mtime=1;currentCache={};assert.equal(resolve(context),null);
+});
 
 test("section actions require the captured occurrence and original native source-file incarnation", () => {
   const original = { path: "A.md" }, replacement = { path: "A.md" }, page = { path: "kplex-section:A.md:H1", file: original, transient: { kind: "section" } }, node = { page };

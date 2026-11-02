@@ -7,6 +7,13 @@
 import { buildLocaleCatalog, type LocaleTranslationMap } from "./catalog";
 
 const russianTranslations = {
+  "copyLink.failed": "Не удалось скопировать ссылку на узел. Попробуйте ещё раз.",
+  "copyLink.fallback": "Скопирована ссылка с полным путём в хранилище. Этот буфер обмена не может адаптировать ссылки к заметке назначения.",
+  "copyLink.targetUnavailable": "Скопированный узел больше недоступен. Скопируйте его снова.",
+  "visibility.enableAll": "Включить всё",
+  "visibility.saveFailed": "Не удалось сохранить параметры видимости. Предыдущие настройки сохранены.",
+  "visibility.disableAll": "Отключить всё",
+  "actions.node.copy-link.description": "Копировать выбранный узел или центр холста. При вставке в заметку Obsidian используются настройки ссылок; в других местах — полный путь.",
   "drawing.template": "Шаблон рисунка",
   "drawing.blank": "Пустой рисунок",
   "settings.trackpad": "Навигация трекпадом",

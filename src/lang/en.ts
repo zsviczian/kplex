@@ -9,6 +9,12 @@
  * parameters remain unquoted regardless of their names. Locale catalogs inherit this classification.
  */
 export const englishCatalog = {
+  "visibility.saveFailed": {message: "Could not save visibility. The previous settings are kept.", context: "A section-wide visibility write failed before publication.", params: [], referenceParams: []},
+  "copyLink.failed": {"message": "Could not copy the node link. Try again.", "context": "Explicit node clipboard feedback and section-scoped content visibility actions.", "params": [], "referenceParams": []},
+  "copyLink.fallback": {"message": "Copied a full vault-path link. This clipboard cannot adapt links to the note you paste into.", "context": "Explicit node clipboard feedback and section-scoped content visibility actions.", "params": [], "referenceParams": []},
+  "copyLink.targetUnavailable": {"message": "The copied node is no longer available. Copy it again.", "context": "Explicit node clipboard feedback and section-scoped content visibility actions.", "params": [], "referenceParams": []},
+  "visibility.enableAll": {"message": "Enable all", "context": "Explicit node clipboard feedback and section-scoped content visibility actions.", "params": [], "referenceParams": []},
+  "visibility.disableAll": {"message": "Disable all", "context": "Explicit node clipboard feedback and section-scoped content visibility actions.", "params": [], "referenceParams": []},
   "drawing.template": {"message": "Drawing template", "context": "File creation, native file menus and wheel navigation preferences.", "params": []},
   "drawing.blank": {"message": "Blank drawing", "context": "File creation, native file menus and wheel navigation preferences.", "params": []},
   "settings.trackpad": {"message": "Trackpad navigation", "context": "File creation, native file menus and wheel navigation preferences.", "params": []},
@@ -649,7 +655,7 @@ export const englishCatalog = {
   "actions.node.context-menu": { message: "Node context menu", context: "Action catalog label or target guidance.", params: [] },
   "actions.node.context-menu.description": { message: "Show the available operations for the selected node or canvas center.", context: "Action catalog label or target guidance.", params: [] },
   "actions.node.copy-link": { message: "Copy node link", context: "Action catalog label or target guidance.", params: [] },
-  "actions.node.copy-link.description": { message: "Copy a wiki link or web address for the selected node or canvas center.", context: "Action catalog label or target guidance.", params: [] },
+  "actions.node.copy-link.description": {"message": "Copy the selected node or canvas center. Pasting into an Obsidian note uses its link preferences; other destinations receive a full-path link.", "context": "Explicit node clipboard feedback and section-scoped content visibility actions.", "params": [], "referenceParams": []},
   "actions.node.note-type": { message: "Set note type", context: "Action catalog label or target guidance.", params: [] },
   "actions.node.note-type.description": { message: "Choose the type property for the selected Markdown note or canvas center.", context: "Action catalog label or target guidance.", params: [] },
   "actions.node.delete": { message: "Delete selected node", context: "Action catalog label or target guidance.", params: [] },

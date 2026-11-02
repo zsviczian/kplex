@@ -403,6 +403,58 @@ test("a rejected native predecessor releases the newest queued Sidecar target", 
   assert.equal(state.modes.length, 1); assert.equal(state.context.writes, 1);
 });
 
+test("first explicit section open suppresses the destination's old-file activation echo", async () => {
+  const state = fixture(), pause = deferred();
+  state.context.startupInitializing = false;
+  state.context.syncLeafToKplexEnabled = () => true;
+  state.leaf.publishAfterAwait = true; state.leaf.pause = pause.promise;
+  const opening = state.context.syncSidecarToPage(state.host, state.page, state.leaf, {active: true, subpath: "#Second"});
+  const followsOldFile = production("shouldFollowDocumentFile").call(state.context, state.other.file, state.host, state.leaf);
+  let echoed;
+  if (followsOldFile) echoed = state.context.syncSidecarToPage(state.host, state.other);
+  pause.resolve(); await Promise.all([opening, echoed]);
+  assert.equal(state.leaf.file, state.page.file, "Activating B must not supersede the requested A#Second");
+  assert.equal(state.opens.at(-1).options.eState.subpath, "#Second");
+  assert.equal(followsOldFile, false);
+});
+
+test("rapid section headings serialize to the latest anchor and preserve later deliberate native navigation", async () => {
+  const state = fixture(), pause = deferred(), manual = {path: "Manual.md"}; state.files.set(manual.path, manual);
+  state.context.startupInitializing = false; state.context.syncLeafToKplexEnabled = () => true;
+  state.leaf.publishAfterAwait = true; state.leaf.pause = pause.promise;
+  const first = state.context.syncSidecarToPage(state.host, state.page, state.leaf, {active: true, subpath: "#First"});
+  const second = state.context.syncSidecarToPage(state.host, state.page, state.leaf, {active: true, subpath: "#Second"});
+  state.leaf.file = manual;
+  assert.equal(production("shouldFollowDocumentFile").call(state.context, manual, state.host, state.leaf), true);
+  pause.resolve(); await Promise.all([first, second]);
+  assert.equal(state.leaf.file, state.page.file);
+  assert.equal(state.opens.at(-1).options.eState.subpath, "#Second");
+  state.leaf.file = manual; state.context.retirePassiveSidecarRequestsForLeaf(state.leaf);
+  assert.equal(production("shouldFollowDocumentFile").call(state.context, manual, state.host, state.leaf), true);
+});
+
+test("a queued section captures both the current destination file and the preceding pending target", async () => {
+  const state=fixture(),pause=deferred(),nextFile={path:"C.md"};state.files.set(nextFile.path,nextFile);
+  state.context.startupInitializing=false;state.context.syncLeafToKplexEnabled=()=>true;
+  state.leaf.publishAfterAwait=true;state.leaf.pause=pause.promise;
+  const first=state.context.syncSidecarToPage(state.host,state.page);
+  const next=state.context.syncSidecarToPage(state.host,{file:nextFile},state.leaf,{active:true,subpath:"#Second"});
+  const follows=production("shouldFollowDocumentFile");
+  const oldFile=follows.call(state.context,state.other.file,state.host,state.leaf);
+  state.leaf.file=state.page.file;
+  const pendingFile=follows.call(state.context,state.page.file,state.host,state.leaf);
+  pause.resolve();await Promise.all([first,next]);
+  assert.equal(oldFile,false,"Current B activation is still an old-file echo while A is opening");
+  assert.equal(pendingFile,false,"The preceding A publication cannot supersede C#Second");
+  assert.equal(state.leaf.file,nextFile);assert.equal(state.opens.at(-1).options.eState.subpath,"#Second");
+});
+
+test("section source replacement cannot inherit an old captured occurrence", async () => {
+  const state = fixture(); state.files.set("A.md", {path: "A.md"});
+  await production("openSection").call(state.context, {file: state.page.file, transient: {kind: "section", sourcePath: "A.md", subpath: "#Second"}}, state.host);
+  assert.equal(state.opens.length, 0);
+});
+
 test("a superseded Sidecar file-open echo cannot become a new center intent", /** Suppress only the exact known native operation; unrelated manual files and explicit retirement still remain eligible. */ async () => {
   const state = fixture(), pause = deferred(), manual = {path: "Manual.md"}; state.files.set(manual.path, manual);
   state.context.startupInitializing = false;
@@ -818,6 +870,7 @@ test("stationary central double taps open in the main tab on a sidepanel and con
   assert(touchDependencies.suppressNativeDoubleClickUntil.current > Date.now()); assert(touchDependencies.suppressSyntheticClickUntil.current > Date.now());
   const noncentral = {path: "B.md", file: {path: "B.md"}}, ghost = {path: "Missing"};
   assert.equal(available({page: noncentral,request:{id:"node.open"}}), false); assert.equal(available({page: ghost,request:{id:"node.open"}}), false);
+  assert.equal(available({page: {path: "section:A:Second", transient: {kind: "section"}}, request: {id: "node.open"}}), true);
   open({page: ghost,request:{id:"node.open"}, target: {kind: "node"}}); open({page: noncentral,request:{id:"node.open"}, target: {kind: "node"}});
   assert.deepEqual(opened.slice(1), [["ghost", ghost], ["sidecar", noncentral]]);
   const modifier={page:ghost,request:{id:"node.open",args:{chooseFolder:true}},target:{kind:"node"}};

@@ -786,14 +786,16 @@ test('folder-location actions reveal exact native folders and refuse replaced or
 
 /** A folder menu must expose only native location destinations and retain the launched folder. */
 test('actual folder context menu offers Files/Finder and refuses a same-path replacement',()=>{
+ const continuation=compilePureModule('src/ui/surfaceContinuation.ts');
+ process.on('exit',()=>rmSync(continuation.temp,{recursive:true,force:true}));
  const items=new Map(),requests=[],folder={path:'Projects',children:[]};let live=folder;
  const page={path:'folder:Projects',name:'Projects',file:null,isFolder:true,isTag:false,url:null};
  class MenuDouble{addItem(build){const item={setTitle(value){this.title=value;return this},setIcon(){return this},onClick(run){items.set(this.title,run);return this}};build(item);return this}addSeparator(){return this}}
  const show=productionArrow('src/ui/PlexGraph.tsx','showNodeContextMenuAt',{
   viewDefinition:{capabilities:{}},touchDoubleTap:{current:{reset(){}}},persistentPageFor:()=>page,neighborhood:null,activePath:'Other.md',
-  Menu:MenuDouble,actionNodeRef:value=>({identity:value.path,path:value.path,kind:'folder'}),actionSurfaceId:'own',sceneNodeKeys:new Map(),
+  Menu:MenuDouble,captureSurfaceContinuation:continuation.exports.captureSurfaceContinuation,actionNodeRef:value=>({identity:value.path,path:value.path,kind:'folder'}),actionSurfaceId:'own',sceneNodeKeys:new Map(),
   plugin:{app:{vault:{getFolderByPath:path=>path==='Projects'?live:null}},getFileOpenMenuState:assert.fail,isPinned:()=>false,
-   actionManager:{dispatch:request=>{requests.push(request);return Promise.resolve({status:'completed'})}},showKplexMenuAtPosition(){}},
+   actionManager:{readSnapshot:()=>({mounted:true}),dispatch:request=>{requests.push(request);return Promise.resolve({status:'completed'})}},showKplexMenuAtPosition(){}},
   addNativeSubmenu:(menu,_title,_icon,populate)=>populate(menu),translate:key=>key,nativeRevealTarget:fileReveal.nativeRevealTarget,
   fileRevealMenuState:()=>({systemLabel:'graph.openInFinder',navigation:true}),readObsidianPresentationEnvironment:()=>({}),viewport:{current:{ownerDocument:{}}},hostLeaf:{},
  });

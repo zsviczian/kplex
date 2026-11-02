@@ -168,6 +168,18 @@ test('creation opening control persists a user selection once and never persists
  assert.equal(saved.length,1);assert.deepEqual(saved[0],[false,false]);assert.deepEqual(p.settings.future,{kept:true});
 });
 
+/** Each operation writes only its own choice; unavailable local destinations never rewrite saved intent. */
+test('linking and creation retain independent after-saving preferences and local fallbacks',()=>{
+ const control=method('src/main.ts','createdNoteCompletionControl',creationDestinations),writes=[];
+ const p={settings:{newNodeAfterSaving:'follow',linkAfterSaving:'return',future:{keep:true}},createdNoteContext:()=>({desktop:true,sidepanel:false}),saveSettings:async()=>writes.push(true)};
+ const linking=control.call(p,undefined,{operation:'link'});
+ assert.equal(linking.value,'return');linking.onChange('tab');assert.equal(p.settings.linkAfterSaving,'tab');assert.equal(p.settings.newNodeAfterSaving,'follow');
+ const creating=control.call(p);assert.equal(creating.value,'follow');creating.onChange('another');assert.equal(p.settings.newNodeAfterSaving,'another');assert.equal(p.settings.linkAfterSaving,'tab');
+ p.createdNoteContext=()=>({desktop:false,sidepanel:true});p.settings.linkAfterSaving='sidecar';
+ assert.equal(control.call(p,undefined,{operation:'link'}).value,'tab');assert.equal(p.settings.linkAfterSaving,'sidecar');
+ assert.equal(writes.length,2);assert.deepEqual(p.settings.future,{keep:true});
+});
+
 /** Native group placement uses the captured Plex parent, independent of the most recent unrelated tab. */
 test('new-file tabs use the Plex group or the most recent main group from the sidepanel',async()=>{
  const open=method('src/main.ts','openCreatedNoteInTab',{KPLEX_SIDEPANEL_VIEW_TYPE:'sidepanel'});

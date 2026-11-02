@@ -7,6 +7,13 @@
 import { buildLocaleCatalog, type LocaleTranslationMap } from "./catalog";
 
 const traditionalChineseTranslations = {
+  "copyLink.failed": "無法複製節點連結，請再試一次。",
+  "copyLink.fallback": "已複製含儲存庫完整路徑的連結。此剪貼簿無法依貼上目標筆記調整連結。",
+  "copyLink.targetUnavailable": "複製的節點已無法使用，請重新複製。",
+  "visibility.enableAll": "全部啟用",
+  "visibility.saveFailed": "無法儲存顯示設定，先前的設定已保留。",
+  "visibility.disableAll": "全部停用",
+  "actions.node.copy-link.description": "複製選取的節點或畫布中心。貼入 Obsidian 筆記時會使用其連結偏好設定；其他目標會收到完整路徑連結。",
   "drawing.template": "繪圖範本",
   "drawing.blank": "空白繪圖",
   "settings.trackpad": "觸控板導覽",

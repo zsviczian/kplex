@@ -518,13 +518,13 @@ test("manual graph import preserves local UI, navigation, editor, command and sc
     documentSyncMode: "pinned", indexUpdateInterval: 120000, embedCentralNode: true,
     centralNodeMarkdownMode: "preview", sidecarOpen: true, sidecarPosition: "left", startInPopout: true,
     toolbarExpanded: true, confirmFileDelete: false, allowOntologySuggester: false,
-    ontologySuggesterTrigger: "local::", nodeTitleScript: "local value", newNodeDefaultType: "excalidraw",
+    ontologySuggesterTrigger: "local::", nodeTitleScript: "local value", newNodeDefaultType: "excalidraw",newNodeAfterSaving:"another",linkAfterSaving:"tab",
   });
   const legacy = { ...structuredClone(fixture),
     kplexInitialized: false, lastActivePath: "Legacy.md", pinnedNodes: ["Legacy pin.md"],
     documentSyncMode: "recent", sidecarOpen: false, sidecarPosition: "right", startInPopout: false,
     toolbarExpanded: false, centralNodeMarkdownMode: "source", confirmFileDelete: true,
-    nodeTitleScript: "foreign value", newNodeDefaultType: "markdown",
+    nodeTitleScript: "foreign value", newNodeDefaultType: "markdown",newNodeAfterSaving:"follow",linkAfterSaving:"window",
     hotkeys: { "excalibrain-start": "Mod+G" }, commandAliases: ["excalibrain-start"],
     css: ".excalibrain-app {}", unrelatedPreference: "must not import",
   };
@@ -1389,6 +1389,17 @@ test('new-file destination migration keeps legacy editing intent and saved unsup
  for(const destination of ['return','another','follow','sidecar','tab','editor','editor-maximized','window']){
   const value=migrateAndMergeSettings({newNodeAfterSaving:destination,editNewNodeAfterCreate:true,futureWorkflow:{retained:true}});
   assert.equal(value.newNodeAfterSaving,destination);assert.deepEqual(value.futureWorkflow,{retained:true});
+  assert.equal(value.linkAfterSaving,destination,'Existing shared preference seeds linking');
   assert.equal(migrateAndMergeSettings(JSON.parse(JSON.stringify(value))).newNodeAfterSaving,destination);
  }
+});
+
+/** The former shared preference seeds linking once, then both choices survive reload independently. */
+test('link completion migration keeps independent choices through reload and rejects invalid values',()=>{
+ const migrated=migrateAndMergeSettings({newNodeAfterSaving:'another',linkAfterSaving:'tab',futureWorkflow:{keep:true}});
+ assert.equal(migrated.newNodeAfterSaving,'another');assert.equal(migrated.linkAfterSaving,'tab');
+ const reopened=migrateAndMergeSettings(JSON.parse(JSON.stringify(migrated)));
+ assert.equal(reopened.newNodeAfterSaving,'another');assert.equal(reopened.linkAfterSaving,'tab');assert.deepEqual(reopened.futureWorkflow,{keep:true});
+ assert.equal(migrateAndMergeSettings({editNewNodeAfterCreate:true}).linkAfterSaving,'sidecar');
+ assert.equal(migrateAndMergeSettings({linkAfterSaving:'run-script'}).linkAfterSaving,'return');
 });

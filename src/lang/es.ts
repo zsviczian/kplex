@@ -7,6 +7,13 @@
 import { buildLocaleCatalog, type LocaleTranslationMap } from "./catalog";
 
 const spanishTranslations = {
+  "copyLink.failed": "No se pudo copiar el enlace del nodo. Inténtalo de nuevo.",
+  "copyLink.fallback": "Se ha copiado un enlace con la ruta completa de la bóveda. Este portapapeles no puede adaptar los enlaces a la nota de destino.",
+  "copyLink.targetUnavailable": "El nodo copiado ya no está disponible. Vuelve a copiarlo.",
+  "visibility.enableAll": "Activar todo",
+  "visibility.saveFailed": "No se pudo guardar la visibilidad. Se mantienen los ajustes anteriores.",
+  "visibility.disableAll": "Desactivar todo",
+  "actions.node.copy-link.description": "Copia el nodo seleccionado o el centro del lienzo. Al pegar en una nota de Obsidian se usan sus preferencias de enlaces; otros destinos reciben una ruta completa.",
   "drawing.template": "Plantilla de dibujo",
   "drawing.blank": "Dibujo en blanco",
   "settings.trackpad": "Navegación con panel táctil",

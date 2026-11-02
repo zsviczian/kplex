@@ -30,7 +30,7 @@ Useful help example: configure two templates in Excalidraw, create a related dra
 
 ## Choose what happens after creating a file
 
-The related-note composer and folder-child dialog use one remembered **After saving** list:
+The related-note composer and folder-child dialog use the same **After saving** list. K-Plex remembers separate selections for creating notes and linking existing notes or web links:
 
 - **Return** — create the file and return without opening it for editing.
 - **Create another** — create it, clear the name and keep the dialog open with the same origin and useful choices.
