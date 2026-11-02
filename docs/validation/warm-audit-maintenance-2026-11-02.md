@@ -1,5 +1,19 @@
 # Local edits during the first warm source audit
 
+## Final acceptance
+
+Validated source and test checkpoint `b2647dfe65cddde653dba293903e814069add0b0` on Node 22.22.2 and Windows Obsidian 1.14.5. Full `npm run verify` passes architecture 9, core 132, main 1,884, browser 455, source 357 and real IndexedDB 886, official scanner, installed Obsidian types and production build. The corrected finite-retry case is present and passes in the final full log. The unchanged 20,015-owner fixture passes cached publication 151,591.1 ms, peak heap 440,927,567 bytes / combined 685,201,826, one direct canonical pass and two cancellation yields.
+
+Exact `main.js` SHA-256 `b4cc705a77286c195df78891edf4e78b9f6471e215743c97d05b55ba507fdae1`; styles remain `8e7a4ed3c8b6d8941e020d3766c030d7ed072830a4c408e5eb91815f03437e2a` and manifest 0.4.0 remains `5de7cf4abc1d611e4edd9a27a12473f38af3843bbb8c9fa590a22d029e49a2e3`. Only authorized main/styles were deployed to production; its manifest was preserved.
+
+All four exact-build Small native lanes pass with strict restoration: held initial audit during both placeholder edits, 27.7 ms subsequent navigation with zero semantic requests/family visits/reads/parses and no full build; damaged-cache recovery 5,555.5 ms / healthy warm reopen 5,558.3 ms; native create/modify/delete/calendar/canvas updates; incoming unlink from both centered endpoints and body-linked placeholder source navigation. The source audit resumes and drains after the deliberate hold.
+
+Production starts from a genuinely current normally saved baseline (79 ms preparation check), after the earlier interrupted recovery and normal published Rebuild command. Two healthy complete graph restores take 45,582.8 ms and 54,585.8 ms; neither starts a full build, node catalog, body read or parse. All 12 actual parent-card clicks from the requested calendar start publish the new center in 53.8–153.7 ms with zero semantic requests, family replay, reads or parses. In both restores the broad audit is still active and its semantic-ready flag remains false, while the authenticated warm-maintenance capability is available. This validates early repair admission without manufacturing audit completion.
+
+The final production run passes protected note-inventory equality, original navigation/settings restoration, enabled plugin IDs/exact enablement bytes and controller removal. The shared host lock is released. Four private progress screenshots were visually reviewed; actual labels show search preparation, cached-node loading and changing cached-web-link counts. Stable search labels also pass the DOM assertion. No private screenshot or production note path/content is published. Curated hashes, counters and cleanup receipts are in [the validation JSON](warm-audit-maintenance-2026-11-02.json).
+
+CI 649 passes full verification on Ubuntu for this source and test checkpoint; earlier CI failures and test corrections are retained below. This final documentation commit follows the verified runtime without rebuilding it. Programmatic Windows DOM-publication timing is not physical-pointer or paint latency. Plugin reload is covered; whole-application restart, macOS, popout, screen-reader and physical-mobile/touch acceptance remain separate. No additional covered Windows native sequence is required unless source changes or a new failure appears.
+
 ## Reproduction and scope
 
 Follow-up to [PR #257](https://github.com/zsviczian/kplex/pull/257), starting at `d80ca54` / deployed runtime `bf4f974`. A read-only production observation confirmed a complete graph restored in 17,472 ms while the source audit continued. A placeholder edit left one declaring note in the graph journal, four requested scopes unavailable with `dependency-pending`, no active semantic producer and an active P4 source task. The source audit took 410,639 ms. It then drained the journal and restored global readiness without a full graph build. No production restart, note edit or probe instrumentation was used for that investigation.
@@ -14,7 +28,7 @@ The remaining bug was an admission gate: local contributor discovery and eager g
 - An active audit now shows its actual note count and percentage while relationship repair is pending. A settled unavailable scope retains the existing incomplete status. Existing translated strings are reused.
 - No second scheduler, source classifier, persisted store/schema, settings default or public automation signature was added. C15-C26 remain paused.
 
-## Regression and acceptance
+## Regression and iteration history
 
 The real-IndexedDB coordinator test holds the actual initial metadata comparison open after a genuine complete snapshot loads. Before the fix, placeholder creation failed to publish before that hold was released. With the fix, creation and removal publish under the hold, global graph coverage returns, later navigation performs no source work, and the original audit resumes to full-compiler parity. Both broad readiness flags remain false during urgent repair.
 
