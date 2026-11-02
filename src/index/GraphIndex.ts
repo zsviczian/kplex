@@ -35,8 +35,9 @@
  * source/write authority thereafter follows the canonical semantic signature independently of styles.
  * Explicit ontology-use lists query existing neutral-source postings without acquisition or new indices.
  * Startup admission defers catalog/cache/source work without discarding live demand or native edit fences.
- * Published graph repository for K-Plex. Eager sessions retain global source adoption; on-demand
- * sessions publish a body-free host baseline, then canonicalize bounded direct owners without global
+ * Published graph repository for K-Plex. Complete eager maintenance drains source-owned changes
+ * before renewing global graph authority. On-demand sessions publish a body-free host baseline,
+ * then canonicalize bounded direct owners without global
  * inventory. Host-only count covers separate available local numbers from semantic/write authority;
  * their demand lifetimes retire obsolete navigation work. Fresh finite cached incidence accelerates
  * reads, partial graphs never certify complete snapshots, and compact URL discovery is independent and always active in both strategies.
@@ -50,6 +51,8 @@
  * diagnostic publication labels never relax the underlying lifetime or source predicates.
  * A zero-page foreground interruption may admit one new candidate after P4 admission, bounded
  * structural/file publication accounting and saved semantic proofs; the old candidate stays rejected.
+ * Eager startup admits independent URL replay after the primary graph and shares its long-lived
+ * inventory lease with P4 source maintenance. Local-mode URL discovery retains its existing lane.
  * Saved previews start independently of shared URL replay; each restore retains its own watchdog
  * and priority ownership, while public supersession never retires healthy shared URL acquisition.
  * This owner coordinates snapshot restoration/persistence, search and
@@ -596,6 +599,8 @@ export class GraphIndex {
   private fullSemanticPolicyRevision = 0;
   private fullSemanticMaintenanceRevision = 0;
   private fullSemanticSourceRevision = 0;
+  /** Source persistence and graph publication acknowledge the same coalesced owner journal. */
+  private eagerGraphMaintenanceTask: Promise<void> | null = null;
   private fullSemanticSettings: GraphCompilerSettings;
   private semanticDemandRevision = new Map<string, number>();
   private semanticDemandCounts = new Map<string, number>();
@@ -653,6 +658,7 @@ export class GraphIndex {
   private semanticFingerprints = new Map<string, string>();
   private generation = 0;
   private building = false;
+  private fullBuildProgress: {processed: number; total: number; stage: "notes" | "relationships" | "presentation"} | null = null;
   private checkpointSaving = false;
   private rebuildQueued = false;
   private searchEntries: SearchEntry[] = [];
@@ -783,6 +789,7 @@ export class GraphIndex {
       /** Source closure wakes a deferred restore and retries only current visible semantic demand. */
       () => {
         this.startupSourceAuthorityWaiter?.check();
+        this.retryEagerGraphMaintenance();
         this.retryDemandedSemanticScopes();
         this.retrySourceNodeImpacts();
         this.retryUrlAliasUpgrade();
@@ -832,9 +839,8 @@ export class GraphIndex {
   private startSemanticDemand(path: string): void {
     if (this.preparationDeferred) return;
     void this.withForegroundPriority(() => this.publishHostMetadataPreview(path), 1);
-    const maintenanceRevision = this.sourceAcquisition.getMaintenanceRevision();
     if (this.usesLocalForeground()) void this.ensureOnDemandCenter(path);
-    else if (this.fullSemanticPolicyRevision !== this.semanticPolicyRevision || this.fullSemanticMaintenanceRevision !== maintenanceRevision) void this.ensureSemanticScope(path);
+    else if (!this.hasCurrentFullSemanticGraph()) void this.ensureSemanticScope(path);
     void this.ensureVisibleSemanticRecovery(path);
   }
 
@@ -1556,10 +1562,83 @@ export class GraphIndex {
       this.hostPreviewRequests.set(path, (this.hostPreviewRequests.get(path) ?? 0) + 1);
     }
     void this.refreshDemandedFolderPresentation();
-    if (this.fullSemanticSourceRevision === revision && !tagsChanged) return;
+    const sameRevision = this.fullSemanticSourceRevision === revision;
     this.fullSemanticSourceRevision = revision;
+    const acknowledged = this.acknowledgeEagerGraphMaintenance();
+    this.retryEagerGraphMaintenance();
+    if (sameRevision && !tagsChanged && !acknowledged) return;
     this.relationViewCache = new WeakMap<GraphPage, CachedRelationView>();
     this.emitPresentation();
+  }
+
+  /** A closed source inventory alone cannot certify graph work still pending in its owner journal. */
+  private acknowledgeEagerGraphMaintenance(): boolean {
+    const changes = this.sourceAcquisition.pendingGraphSources();
+    if (!changes || changes.size || this.diagnosticsClosed || this.persistentCachePurged || this.building
+      || this.pendingStructuralTasks || this.isOnDemandMode() || this.sourceBackedSemantics
+      || !this.fullSnapshotHydrated || this.onDemandPartialState
+      || this.fullSemanticPolicyRevision !== this.semanticPolicyRevision
+      || this.fullSemanticSourceRevision !== this.plugin.getIndexSourceRevision()
+      || !this.sourceAcquisition.hasSemanticDependencies()
+      || this.fullSemanticMaintenanceRevision === this.sourceAcquisition.getMaintenanceRevision()) return false;
+    this.fullSemanticMaintenanceRevision = this.sourceAcquisition.getMaintenanceRevision();
+    this.sourceAcquisition.acknowledgeGraphPublication(this.sourceAcquisition.beginGraphPublication(), this.fullSemanticMaintenanceRevision);
+    // Retire captured local producers before restoring complete in-memory reads and exact counts.
+    this.publicationRevision += 1;
+    this.semanticScopes.clear(); this.releasedSemanticScopePaths.clear();
+    this.relationViewCache = new WeakMap(); this.titleCache.clear();
+    this.retirePublishedRelationshipPairs(); this.invalidateSearchCatalog();
+    return true;
+  }
+
+  /** Drain only proven affected owners behind canvas mutations and requested-center discovery. */
+  private retryEagerGraphMaintenance(): void {
+    if (this.acknowledgeEagerGraphMaintenance()) this.emitPresentation();
+    const changes = this.sourceAcquisition.pendingGraphSources();
+    if (this.eagerGraphMaintenanceTask || !changes?.size || this.diagnosticsClosed || this.persistentCachePurged
+      || this.building || this.pendingStructuralTasks || this.isOnDemandMode() || this.sourceBackedSemantics
+      || !this.fullSnapshotHydrated || this.onDemandPartialState
+      || this.fullSemanticPolicyRevision !== this.semanticPolicyRevision || !this.sourceAcquisition.hasSemanticDependencies()
+      || !this.sourceAcquisition.isInventoryEnabled()) return;
+    const observed = this.sourceAcquisition.beginGraphPublication();
+    const source = this.plugin.getIndexSourceRevision(), maintenance = this.sourceAcquisition.getMaintenanceRevision();
+    const task = this.withForegroundPriority(async () => {
+      while (!this.diagnosticsClosed && !this.persistentCachePurged && !this.building
+        && !this.pendingStructuralTasks && !this.sourceBackedSemantics
+        && this.fullSnapshotHydrated && !this.onDemandPartialState
+        && this.fullSemanticPolicyRevision === this.semanticPolicyRevision && this.sourceAcquisition.hasSemanticDependencies()
+        && this.sourceAcquisition.isInventoryEnabled()) {
+        await this.workScheduler.checkpoint(INDEX_WORK_PRIORITY.background);
+        if (this.building || this.diagnosticsClosed || this.persistentCachePurged || this.pendingStructuralTasks
+          || this.sourceBackedSemantics || this.fullSemanticPolicyRevision !== this.semanticPolicyRevision
+          || !this.fullSnapshotHydrated || this.onDemandPartialState
+          || !this.sourceAcquisition.hasSemanticDependencies() || !this.sourceAcquisition.isInventoryEnabled()) return;
+        const next = this.sourceAcquisition.pendingGraphSources()?.entries().next();
+        if (!next || next.done) break;
+        const [path, sequence] = next.value, file = this.app.vault.getFileByPath(path);
+        if (!file) {
+          this.dematerializeFile(path);
+          this.sourceAcquisition.acknowledgeGraphDeletion(path, sequence);
+          continue;
+        }
+        if (!this.state.pages.get(path)?.file) this.insertCreatedFile(file);
+        const result = await this.patchMarkdownPaths([path], {useDurableCache: true, priority: INDEX_WORK_PRIORITY.background,
+          isCurrent: () => this.sourceAcquisition.isInventoryEnabled()});
+        if (result.outcome !== "patched") return;
+      }
+      if (this.acknowledgeEagerGraphMaintenance()) this.emitPresentation();
+    }, INDEX_WORK_PRIORITY.background).catch(() => {
+      this.recordIndexDiagnostic("reconcile", "source-graph-maintenance-pending");
+    }).finally(() => {
+      if (this.eagerGraphMaintenanceTask !== task) return;
+      this.eagerGraphMaintenanceTask = null;
+      if (!this.diagnosticsClosed) this.emitPresentation();
+      // Retry changed observations only; unchanged unavailable input never starts a polling loop.
+      if (!this.diagnosticsClosed && (source !== this.plugin.getIndexSourceRevision()
+        || maintenance !== this.sourceAcquisition.getMaintenanceRevision()
+        || observed !== this.sourceAcquisition.beginGraphPublication())) this.retryEagerGraphMaintenance();
+    });
+    this.eagerGraphMaintenanceTask = task;
   }
 
   /** Refresh only dirty demanded folders after an atomic host batch, coalescing later batches
@@ -1910,13 +1989,20 @@ export class GraphIndex {
   }
 
   /** A current complete center always outranks an incomplete host presentation. */
+  private hasCurrentFullSemanticGraph(): boolean {
+    return !this.sourceBackedSemantics && !this.pendingStructuralTasks
+      && this.fullSemanticPolicyRevision === this.semanticPolicyRevision
+      && this.fullSemanticMaintenanceRevision === this.sourceAcquisition.getMaintenanceRevision()
+      && this.fullSemanticSourceRevision === this.plugin.getIndexSourceRevision()
+      && !this.sourceAcquisition.pendingGraphSources()?.size;
+  }
+
+  /** A source-pending complete graph cannot substitute for a current requested center. */
   private hasCurrentCanonicalCenter(path: string): boolean {
     const source = this.plugin.getIndexSourceRevision();
     if (this.navigableSnapshotSourceRevision === source && !this.retiredSnapshotPaths.has(path)
-      && this.state.pages.has(path)) return true;
-    if (!this.sourceBackedSemantics && this.fullSemanticPolicyRevision === this.semanticPolicyRevision
-      && this.fullSemanticMaintenanceRevision === this.sourceAcquisition.getMaintenanceRevision()
-      && this.fullSemanticSourceRevision === source && this.state.pages.has(path)) return true;
+      && !this.sourceAcquisition.pendingGraphSources()?.size && this.state.pages.has(path)) return true;
+    if (this.hasCurrentFullSemanticGraph() && this.state.pages.has(path)) return true;
     const scope = this.semanticScopes.get(path);
     return Boolean(scope && scope.policyRevision === this.semanticPolicyRevision
       && scope.maintenanceRevision === this.sourceAcquisition.getMaintenanceRevision()
@@ -2113,7 +2199,8 @@ export class GraphIndex {
   }
 
   /** Recover requested semantics from neutral progress when the optional graph cache is absent. */
-  private async restoreSourceBackedBaseline(isCurrent: () => boolean, run: number, preview?: () => void): Promise<boolean> {
+  private async restoreSourceBackedBaseline(isCurrent: () => boolean, run: number, preview?: () => void,
+    deferEagerVocabulary = false): Promise<boolean> {
     const physicalFoldersRevision = this.hostStructuralRevision;
     const releaseWork = this.workScheduler.begin(INDEX_WORK_PRIORITY.background);
     try {
@@ -2148,8 +2235,12 @@ export class GraphIndex {
       this.setSnapshotHydrationPhase(run, "requested-semantics");
       await this.refreshSemanticSettings();
       if (!current()) return false;
-      this.setSnapshotHydrationPhase(run, "node-vocabulary");
-      if (!(await this.adoptStartupSources()) || !current()) return false;
+      // The eager coordinator compiles relationships and node facets together. A node-only pass
+      // here would replay the entire vault immediately before that same work.
+      if (!deferEagerVocabulary || this.isOnDemandMode()) {
+        this.setSnapshotHydrationPhase(run, "node-vocabulary");
+        if (!(await this.adoptStartupSources()) || !current()) return false;
+      }
       this.finishSnapshotHydrationDiagnostics(run, "complete");
       return true;
 
@@ -2229,8 +2320,10 @@ export class GraphIndex {
    * A policy/source/maintenance interruption retains the earlier coherent baseline and returns false
    * to the existing startup coordinator; no partial vocabulary claims readiness. Display-only changes
    * remain live: final presentation preparation captures them without abandoning source adoption.
+   * A coordinator completing the global graph may defer vocabulary so facets and relationships
+   * compile together once; source closure and requested semantics remain prerequisites.
    */
-  async adoptStartupSources(): Promise<boolean> {
+  async adoptStartupSources(options: Readonly<{deferVocabulary?: boolean}> = {}): Promise<boolean> {
     const releaseWork = this.workScheduler.begin(INDEX_WORK_PRIORITY.background);
     try {
       if (!this.sourceBackedStartup || this.diagnosticsClosed) return false;
@@ -2239,6 +2332,7 @@ export class GraphIndex {
       if (!(await this.sourceAcquisition.flush()) || this.diagnosticsClosed) return false;
       await this.refreshSemanticSettings();
       if (!this.sourceAcquisition.hasSemanticDependencies() || this.hasPendingSemanticPreparation()) return false;
+      if (options.deferVocabulary && !this.isOnDemandMode()) return true;
       // A fully decoded trusted cache already supplies complete vocabulary. Source maintenance and
       // demanded scopes update it incrementally; replaying every owner would discard its incidence.
       if (this.sourceNodeVocabularyPublished) return true;
@@ -2532,9 +2626,10 @@ export class GraphIndex {
     if (this.usesLocalForeground()) return this.onDemandBaselineTask !== null || this.onDemandTasks.size > 0 || this.onDemandPreviewTasks.size > 0
       || this.onDemandGateTasks.size > 0 || this.onDemandBuildWaiters.size > 0;
     if (this.pendingStructuralTasks > 0) return true;
+    if (this.eagerGraphMaintenanceTask || !this.sourceBackedSemantics
+      && this.fullSemanticPolicyRevision === this.semanticPolicyRevision && this.sourceAcquisition.pendingGraphSources()?.size) return true;
     const maintenanceRevision = this.sourceAcquisition.getMaintenanceRevision();
-    if (this.fullSemanticPolicyRevision === this.semanticPolicyRevision
-      && this.fullSemanticMaintenanceRevision === maintenanceRevision) return false;
+    if (this.hasCurrentFullSemanticGraph()) return false;
     if (this.semanticPreparationTasks.size > 0) return true;
     const coverageSignature = this.semanticCoverageSignature();
     for (const [path, count] of this.semanticDemandCounts) {
@@ -2551,7 +2646,7 @@ export class GraphIndex {
   }
 
   /** Active work is distinct from demand that already ended with an unavailable or bounded outcome. */
-  hasActiveSemanticPreparation(): boolean { return this.hasOnDemandWork() || this.pendingStructuralTasks > 0 || this.semanticPreparationTasks.size > 0; }
+  hasActiveSemanticPreparation(): boolean { return this.hasOnDemandWork() || this.pendingStructuralTasks > 0 || this.semanticPreparationTasks.size > 0 || Boolean(this.eagerGraphMaintenanceTask); }
 
   /** Read existing requested-scope certificates without acquisition, parsing, retry or global completeness claims.
    * Current local presentation is usable but cannot prove absent children. Native/view demand owners prepare it separately. */
@@ -2808,8 +2903,7 @@ export class GraphIndex {
       await Promise.all([...this.semanticDemandCounts.keys()].map(path => this.ensureOnDemandCenter(path)));
       return;
     }
-    if (this.fullSemanticPolicyRevision === this.semanticPolicyRevision
-      && this.fullSemanticMaintenanceRevision === this.sourceAcquisition.getMaintenanceRevision()) return;
+    if (this.hasCurrentFullSemanticGraph()) return;
     const paths = new Set<string>();
     for (const [path, count] of this.semanticDemandCounts) if (count > 0) paths.add(path);
     if (this.plugin.settings.lastActivePath) paths.add(this.plugin.settings.lastActivePath);
@@ -3257,8 +3351,7 @@ export class GraphIndex {
     if (this.pendingStructuralTasks > 0) return Promise.resolve();
     // A complete current publication already owns aliases, outgoing relationships and search.
     // Do not replace it with a narrower source projection on navigation or a stale task's retry.
-    if (this.fullSemanticPolicyRevision === this.semanticPolicyRevision
-      && this.fullSemanticMaintenanceRevision === this.sourceAcquisition.getMaintenanceRevision()) return Promise.resolve();
+    if (this.hasCurrentFullSemanticGraph()) return Promise.resolve();
     const policyRevision = this.semanticPolicyRevision;
     const demandRevision = this.semanticDemandRevision.get(centerPath) ?? 0;
     const maintenanceRevision = this.sourceAcquisition.getMaintenanceRevision();
@@ -3371,6 +3464,12 @@ export class GraphIndex {
       if (canonical?.url) return canonical;
       const url = this.publishedUrlState.pages.get(path);
       if (url && this.urlPageHasCurrentSupport(path)) return url;
+    }
+    // Once complete eager authority is current, a sparse endpoint borrowed by another center
+    // cannot shadow its canonical incidence. Local scopes remain the fallback during backlog work.
+    if (!this.isOnDemandMode() && this.fullSnapshotHydrated && !this.onDemandPartialState && this.hasCurrentFullSemanticGraph()) {
+      const page = this.state.pages.get(path);
+      if (page) return page;
     }
     const maintenanceRevision = this.sourceAcquisition.getMaintenanceRevision();
     const currentSourceRevision = this.plugin.getIndexSourceRevision();
@@ -3913,9 +4012,7 @@ export class GraphIndex {
    * whole-vault negative. All checks are existing scalar certificates and schedule no work. */
   publicApiCoverage(path?:string):PublicCoverage {
     if(this.diagnosticsClosed||this.preparationDeferred||this.persistentCachePurged)return{scope:'unknown',complete:false,pending:false};
-    const global=!this.sourceBackedSemantics&&this.fullSemanticPolicyRevision===this.semanticPolicyRevision
-      &&this.fullSemanticMaintenanceRevision===this.sourceAcquisition.getMaintenanceRevision()
-      &&this.fullSemanticSourceRevision===this.plugin.getIndexSourceRevision()&&this.pendingStructuralTasks===0;
+    const global=this.hasCurrentFullSemanticGraph();
     if(path!==undefined){const scope=this.viewScopeCoverage(path);return{scope:global?'global':scope.coverage==='unavailable'?'unknown':scope.coverage,complete:scope.complete,pending:scope.pending};}
     return{scope:global?'global':this.hasPhysicalBaseline()?'cached':'unknown',complete:global,pending:this.hasPendingSnapshotHydration()||this.hasActiveSemanticPreparation()};
   }
@@ -4059,6 +4156,12 @@ export class GraphIndex {
   get size(): number { return this.state.pages.size; }
   /** Markdown sources represented by the currently published semantic index. */
   indexedMarkdownFileCount(): number { return this.semanticFingerprints.size; }
+  /** Actual compiler ownership, including source recovery outside the host rebuild-task wrapper. */
+  isBuilding(): boolean { return this.building; }
+  /** Actual validated full-compiler inputs; staged work is never a completed graph certificate. */
+  getBuildProgress(): Readonly<{processed: number; total: number; stage: "notes" | "relationships" | "presentation"}> | null {
+    return this.fullBuildProgress ? {...this.fullBuildProgress} : null;
+  }
   /** The progressive builder pauses source ingestion while a checkpoint is made durable. */
   isCheckpointSaving(): boolean { return this.checkpointSaving; }
   /**
@@ -4806,13 +4909,16 @@ export class GraphIndex {
     }
   }
 
-  /** Always scan missing/modified owners with bounded parallel native reads and the canonical parser. */
+  /** Scan missing/modified owners with bounded reads and the canonical parser. Eager compilation
+   * owns primary URL relationships; its independent inventory shares P4 so it cannot starve
+   * source-event maintenance. Local mode retains P3 discovery; requested URL owners still use P2. */
   startBackgroundUrlIndex(): Promise<boolean> {
     if (this.preparationDeferred) return Promise.resolve(false);
     if (this.persistentCachePurged || this.diagnosticsClosed) return Promise.resolve(false);
     if (this.urlBackgroundTask) return this.urlBackgroundTask;
     this.urlDiscoveryRunning = true;
-    const task = this.workScheduler.run(INDEX_WORK_PRIORITY.urlInventory, async () => {
+    const priority = this.isOnDemandMode() ? INDEX_WORK_PRIORITY.urlInventory : INDEX_WORK_PRIORITY.background;
+    const task = this.workScheduler.run(priority, async () => {
       await this.restoreUrlIndex();
       if (this.diagnosticsClosed || this.persistentCachePurged) return false;
       const files = this.app.vault.getMarkdownFiles();
@@ -4824,7 +4930,7 @@ export class GraphIndex {
       let cachedBodies = new Map<string, ParsedBodyMetadata>();
       let cachedRevisions = new Map<TFile, FileRevision>();
       while (offset < files.length && !this.diagnosticsClosed && !this.persistentCachePurged) {
-        await this.workScheduler.checkpoint(INDEX_WORK_PRIORITY.urlInventory);
+        await this.workScheduler.checkpoint(priority);
         if (offset >= bodyCacheEnd) {
           const batch = files.slice(offset, offset + (Platform.isMobile ? 64 : 256));
           bodyCacheEnd = offset + batch.length;
@@ -5220,6 +5326,7 @@ export class GraphIndex {
     authoritativeSemantics = true,
     preserveSnapshotPresentation = false,
     physicalFoldersRevision?: number,
+    semanticMaintenanceRevision?: number,
   ): void {
     // Node-only source catalogs and new generations do not inherit the replaced snapshot's
     // complete incidence proof. Only its fenced evidence promotion preserves that presentation.
@@ -5244,7 +5351,7 @@ export class GraphIndex {
       this.retainedLocalScopes.clear(); this.onDemandHostScopes.clear(); this.onDemandCachedScopes.clear();
       this.fullSemanticSettings = graphCompilerSettingsFromLegacy(this.plugin.settings);
       this.fullSemanticPolicyRevision = this.semanticPolicyRevision;
-      this.fullSemanticMaintenanceRevision = this.sourceAcquisition.getMaintenanceRevision();
+      this.fullSemanticMaintenanceRevision = semanticMaintenanceRevision ?? this.sourceAcquisition.getMaintenanceRevision();
       this.fullSemanticSourceRevision = this.plugin.getIndexSourceRevision();
       this.semanticScopes.clear();
       this.releasedSemanticScopePaths.clear();
@@ -5413,6 +5520,7 @@ export class GraphIndex {
     parentRecordCurrent: (operation?: SnapshotReadOperation) => boolean = parentCurrent,
     foregroundProof?: ReadonlyMap<string, string>,
     physicalFoldersRevision?: number,
+    eagerGraphMaintenanceRevision?: number,
   ): Promise<{ restored: boolean; fresh: boolean; createdAt: number | null; interruptedBeforePages?: boolean }> {
     const releaseWork = retainRestoreWork?.(INDEX_WORK_PRIORITY.background) ?? this.workScheduler.begin(INDEX_WORK_PRIORITY.background);
     try {
@@ -5637,6 +5745,7 @@ export class GraphIndex {
       const currentSemantics = semanticCurrent();
       if (!currentSemantics) this.retainCachedStartupPresentation(next);
       const authoritativeFresh = currentSemantics && fresh && !structuralMismatch && missingFileBindings.size === 0;
+      const reuseEagerGraph = !isCheckpoint && authoritativeFresh && eagerGraphMaintenanceRevision !== undefined;
       // The earlier page-only publication contains the same immutable page records. Evidence hydration does
       // not alter searchable page metadata, so avoid allocating/sorting the 100k+ search index a
       // second time when promoting the fully hydrated state.
@@ -5645,6 +5754,13 @@ export class GraphIndex {
       // hydration releases its task, preserving the old facet marker until authenticated completion.
       this.setSnapshotHydrationPhase(run, "promote");
       if (!isCurrent()) return { restored: false, fresh: false, createdAt: meta.createdAt };
+      if (reuseEagerGraph) {
+        // Complete decoded evidence, current policy and unchanged native inputs cover the saved
+        // graph. The source journal was enabled before inventory; changed owners remain pending
+        // and must commit through normal maintenance before global current coverage is renewed.
+        this.sourceBackedSemantics = false;
+        this.sourceBackedStartup = false;
+      }
       if (relationsHydrated) {
         if (classifySettingsChange(captureSettingsPolicy(this.presentationSettings), captureSettingsPolicy(this.plugin.settings)).render) {
           try {await this.refreshPresentationSettings();} catch (error) {
@@ -5654,17 +5770,20 @@ export class GraphIndex {
           }
           if (!isCurrent()) return { restored: false, fresh: false, createdAt: meta.createdAt };
         }
-        this.publishRestoredState(next, null, true, currentSemantics, true, physicalFoldersRevision);
+        this.publishRestoredState(next, null, true, currentSemantics, true, physicalFoldersRevision,
+          reuseEagerGraph ? eagerGraphMaintenanceRevision : undefined);
         expectedPublicationRevision = this.publicationRevision;
       } else {
         this.setSnapshotHydrationPhase(run, "authoritative-search");
         const prepared = await this.preparePresentationPublication(next, isCurrent, () => this.touchSnapshotHydrationProgress(run), false, false, true, INDEX_WORK_PRIORITY.background, retainRestoreWork);
         if (!prepared || !isCurrent() || !prepared.facets.isCurrent()) return { restored: false, fresh: false, createdAt: meta.createdAt };
         this.acceptPresentation(prepared);
-        this.publishRestoredState(next, prepared.search, false, currentSemantics, true, physicalFoldersRevision);
+        this.publishRestoredState(next, prepared.search, false, currentSemantics, true, physicalFoldersRevision,
+          reuseEagerGraph ? eagerGraphMaintenanceRevision : undefined);
         expectedPublicationRevision = this.publicationRevision;
       }
       this.fullSnapshotHydrated = !isCheckpoint;
+      if (!isCheckpoint && authoritativeFresh && !this.sourceBackedSemantics) this.sourceAcquisition.beginGraphPublication();
       if (!isCheckpoint && authoritativeFresh && !this.pendingUrlAliasUpgrade) {
         // Requested scopes own bounded semantics, not complete global URL-label incidence. The
         // authenticated complete snapshot certifies those facets for this exact unchanged vault.
@@ -5728,7 +5847,7 @@ export class GraphIndex {
    * new attempt: one body-free baseline plus bounded file commits whose fingerprints must match.
    * Checkpoints, unaccounted publishers and missing proof keep the existing conservative fallback.
    */
-  private async restoreIndexedDbSnapshot(seedPaths: readonly string[] = []): Promise<{ restored: boolean; fresh: boolean; createdAt: number | null; partial?: boolean }> {
+  private async restoreIndexedDbSnapshot(seedPaths: readonly string[] = [], deferEagerVocabulary = false): Promise<{ restored: boolean; fresh: boolean; createdAt: number | null; partial?: boolean }> {
     this.cancelSnapshotHydration?.();
     const run = ++this.snapshotHydrationRun;
     const semanticPolicy = computeIndexSettingsSignature(this.plugin.settings);
@@ -5842,6 +5961,9 @@ export class GraphIndex {
         const trustedWarmSnapshot = Boolean(active && active.key === "active" && active.schema >= 3
           && active.vaultSignature === inventory.signature && compatibility.get(active)?.reason === "compatible"
           && !compatibility.get(active)?.retiredFilepath);
+        const eagerGraphMaintenanceRevision = deferEagerVocabulary && trustedWarmSnapshot
+          ? this.sourceAcquisition.getMaintenanceRevision() : undefined;
+        if (eagerGraphMaintenanceRevision !== undefined) this.sourceAcquisition.beginGraphPublication();
         if (!trustedWarmSnapshot) {
           // Cold/stale source inventory is optional background work. Release local startup demand
           // before joining it, rather than keeping a P1 owner waiting on its own P4 checkpoint.
@@ -5864,7 +5986,7 @@ export class GraphIndex {
             catalog.invalidActive || catalog.invalidCheckpoint ? "invalid-snapshot-metadata" :
               decision ? decision.reason : "no-complete-snapshot", { changedKeys: [...(decision?.changedKeys ?? [])] });
           if (persistedSources && await this.restoreSourceBackedBaseline(isCurrent, run,
-            () => reportPreview({ restored: true, fresh: true, createdAt, partial: true }))) {
+            () => reportPreview({ restored: true, fresh: true, createdAt, partial: true }), deferEagerVocabulary)) {
             return { restored: true, fresh: true, createdAt };
           }
           return { restored: false, fresh: false, createdAt };
@@ -5963,7 +6085,7 @@ export class GraphIndex {
           try {
             result = await this.restoreFullIndexedDbSnapshot(meta, fresh, run, inventory, candidateCurrent, upgradePaths,
               onNavigable, candidateSemanticsCurrent, trustedWarmSnapshot ? physicalCurrent : undefined, retainRestoreWork, candidateRecordCurrent,
-              undefined, physicalFoldersRevision);
+              undefined, physicalFoldersRevision, eagerGraphMaintenanceRevision);
             if (result.interruptedBeforePages && foregroundWindow && isCurrent()) {
               // Retire the old candidate first. The existing P4 checkpoint drains higher-priority
               // work; it is not a new queue or a retry loop. All later awaits keep their own guards.
@@ -5982,7 +6104,8 @@ export class GraphIndex {
                   // rejects it normally; no third attempt or large discarded graph is retained.
                   this.snapshotForegroundWindow = null;
                   result = await this.restoreFullIndexedDbSnapshot(meta, fresh, run, inventory, candidateCurrent, upgradePaths,
-                    onNavigable, candidateSemanticsCurrent, physicalCurrent, retainRestoreWork, candidateRecordCurrent, proof, physicalFoldersRevision);
+                    onNavigable, candidateSemanticsCurrent, physicalCurrent, retainRestoreWork, candidateRecordCurrent, proof, physicalFoldersRevision,
+                    eagerGraphMaintenanceRevision);
                 }
               }
             }
@@ -5996,7 +6119,7 @@ export class GraphIndex {
           if (trustedWarmSnapshot) persistedSources = await this.startPersistedSourceInventory();
         }
         if (persistedSources && await this.restoreSourceBackedBaseline(isCurrent, run,
-            () => reportPreview({ restored: true, fresh: true, createdAt, partial: true }))) {
+            () => reportPreview({ restored: true, fresh: true, createdAt, partial: true }), deferEagerVocabulary)) {
           return { restored: true, fresh: true, createdAt };
         }
         return { restored: false, fresh: false, createdAt };
@@ -6019,7 +6142,7 @@ export class GraphIndex {
       // acquire the existing recovery owner now rather than treating skipped inventory as absence.
       if (!persistedSources) persistedSources = await this.startPersistedSourceInventory();
       if (persistedSources && await this.restoreSourceBackedBaseline(isCurrent, run,
-          () => reportPreview({ restored: true, fresh: true, createdAt, partial: true }))) {
+          () => reportPreview({ restored: true, fresh: true, createdAt, partial: true }), deferEagerVocabulary)) {
         return { restored: true, fresh: true, createdAt };
       }
       this.finishSnapshotHydrationDiagnostics(run, "failed");
@@ -6087,16 +6210,18 @@ export class GraphIndex {
       this.snapshotHydrationDiagnostics.outcome === "running";
   }
 
-  /** Observe actual phase transitions; neither timing nor UI progress changes authority or scheduling. */
+  /** Publish complete phase facts before notifying synchronous listeners. Phase changes bypass
+   * per-record throttling so a long search/resolution stage cannot retain the previous UI label.
+   * No diagnostic writes follow notification: a reentrant cancellation owns its newer outcome. */
   private setSnapshotHydrationPhase(run: number, phase: SnapshotHydrationPhase): void {
     if (!this.isSnapshotHydrationRunning(run)) return;
     const now = Date.now();
     this.plugin.startupDiagnostics?.phase("hydration", phase);
-    this.plugin.notifyStartupProgress?.();
     this.snapshotHydrationDiagnostics.phase = phase;
     this.snapshotHydrationDiagnostics.lastActivePhase = phase;
     this.snapshotHydrationDiagnostics.phaseStartedAt = now;
     this.snapshotHydrationDiagnostics.lastProgressAt = now;
+    this.plugin.notifyStartupProgress?.(true);
   }
 
   private touchSnapshotHydrationProgress(run: number): void {
@@ -6287,6 +6412,7 @@ export class GraphIndex {
       && Boolean(oldSource?.file && this.app.vault.getFileByPath(commit.sourcePath) === oldSource.file
         && this.snapshotFileRevisions.has(oldSource));
     publishPreparedState();
+    if (commit.sourcePublication) this.sourceAcquisition.acknowledgeGraphSource(commit.sourcePublication);
     const committedBody = this.fieldCache.get(commit.sourcePath);
     if (committedBody?.semanticSignature && (commit.semanticChanged || commit.unchangedSource)) {
       committedBody.semanticPolicyRevision = this.semanticPolicyRevision;
@@ -6482,7 +6608,7 @@ export class GraphIndex {
   /** Incrementally replace declarations owned by already-indexed Markdown files.
    * Used for normal metadataCache.changed events so editing one note does not rebuild a large vault. */
   async patchMarkdownPaths(paths: readonly string[], options: Readonly<{
-    useDurableCache?: boolean; forceRecompile?: boolean; isCurrent?: () => boolean;
+    useDurableCache?: boolean; forceRecompile?: boolean; isCurrent?: () => boolean; priority?: IndexWorkPriority;
   }> = {}): Promise<PatchMarkdownPathsResult> {
     if (this.persistentCachePurged || options.isCurrent?.() === false) return { outcome: "cancelled", count: 0, pendingPaths: [...paths] };
     if (!paths.length) return { outcome: "patched", count: 0 };
@@ -6491,7 +6617,7 @@ export class GraphIndex {
     this.deferOrphanCleanup();
     const files: TFile[] = [];
     for (const path of [...new Set(paths)]) {
-      const file = this.app.vault.getAbstractFileByPath(path);
+      const file = this.app.vault.getFileByPath(path);
       if (!(file instanceof TFile) || file.extension !== "md" || !this.get(path)) {
         return { outcome: "needs-rebuild", count: 0 };
       }
@@ -6508,7 +6634,7 @@ export class GraphIndex {
       const builder = new GraphBuilder(
         this.plugin, this.app, this.fieldCache, this.metadataParser, this.indexedDb,
         () => run === this.generation && !this.persistentCachePurged && options.isCurrent?.() !== false,
-        this.semanticFingerprints, this.sourceAcquisition, () => this.workScheduler.checkpoint(2),
+        this.semanticFingerprints, this.sourceAcquisition, () => this.workScheduler.checkpoint(options.priority ?? INDEX_WORK_PRIORITY.visibleNeighborhood),
       );
       const result = await builder.patchMarkdownFiles(this.state, files, {
         useDurableCache: options.useDurableCache === true,
@@ -6537,6 +6663,7 @@ export class GraphIndex {
       this.building = false;
       this.retryBuildBlockedOnDemandCenters();
       this.retrySourceNodeImpacts();
+      this.retryEagerGraphMaintenance();
     }
   }
 
@@ -6607,8 +6734,12 @@ export class GraphIndex {
    * Start shared URL replay independently of bounded saved-graph preview. A requested preview must
    * not join the lower-priority inventory it can pause. Supersession retires only the public graph
    * wait; URL and graph owners keep their separate watchdogs, cancellation and late-result fences.
+   * An eager coordinator may defer node-only recovery and independent URL replay until its primary
+   * graph completes. This prevents URL startup leases from starving full hydration. Defaults retain
+   * independent replay/vocabulary for standalone consumers; local mode ignores the Eager options.
    */
-  async restorePersistedSnapshot(seedPaths: readonly string[] = []): Promise<{ restored: boolean; fresh: boolean; createdAt: number | null; partial?: boolean }> {
+  async restorePersistedSnapshot(seedPaths: readonly string[] = [],
+    options: Readonly<{deferEagerVocabulary?: boolean; deferEagerUrlRestore?: boolean}> = {}): Promise<{ restored: boolean; fresh: boolean; createdAt: number | null; partial?: boolean }> {
     if (this.preparationDeferred) return {restored: false, fresh: false, createdAt: null};
     this.cancelSnapshotRestoreWait?.();
     const request = ++this.snapshotRestoreRequest;
@@ -6619,7 +6750,7 @@ export class GraphIndex {
     this.cancelSnapshotRestoreWait = cancel;
     // readUrlOwners handles ordinary cache failures. Retain explicit rejection handling for this
     // detached optional owner without converting URL availability into graph/source authority.
-    void this.restoreUrlIndex().catch(() => {
+    if (this.isOnDemandMode() || !options.deferEagerUrlRestore) void this.restoreUrlIndex().catch(() => {
       if (!this.diagnosticsClosed && !this.persistentCachePurged) this.urlCacheAvailable = false;
     });
     let arbitration: typeof this.eagerPreviewArbitration = null;
@@ -6636,7 +6767,8 @@ export class GraphIndex {
       this.eagerPreviewArbitration = arbitration;
     }
     try {
-      const restoring = this.isOnDemandMode() ? this.restoreOnDemandPreview(seedPaths) : this.restoreIndexedDbSnapshot(seedPaths);
+      const restoring = this.isOnDemandMode() ? this.restoreOnDemandPreview(seedPaths)
+        : this.restoreIndexedDbSnapshot(seedPaths, options.deferEagerVocabulary === true);
       // Targeted preview/no-cache classification releases local demand independently of the full
       // page/evidence/source task. Public cancellation never retires healthy shared URL replay.
       const indexed = await Promise.race([restoring, cancelled]);
@@ -6910,6 +7042,8 @@ export class GraphIndex {
     // file zero. GraphBuilder still fences each source by its exact TFile/stat revision; a source
     // changed during its own read cancels safely, while unrelated events leave committed work intact.
     const isCurrent = (): boolean => run === this.generation && !this.diagnosticsClosed;
+    const graphPublication = this.sourceAcquisition.beginGraphPublication();
+    const graphMaintenance = this.sourceAcquisition.getMaintenanceRevision();
     const activity = this.beginIndexActivity("full-build", "unknown");
     let activityOutcome: ActivityOutcome = "incomplete";
     let workPriority: IndexWorkPriority = INDEX_WORK_PRIORITY.background;
@@ -7014,6 +7148,7 @@ export class GraphIndex {
         this.publicationRevision += 1;
         this.snapshotPublicationCause = "progressive-build";
         this.semanticFingerprints = nextFingerprints;
+        builder.acknowledgePublishedSources();
         this.fullSnapshotHydrated = false;
         this.fullSnapshotFresh = false;
         this.previewSnapshotPublished = false;
@@ -7125,10 +7260,11 @@ export class GraphIndex {
       this.sourceBackedStartup = false;
       this.retireCoveredPhysicalSearchEntries();
       this.fullSemanticPolicyRevision = this.semanticPolicyRevision;
-      this.fullSemanticMaintenanceRevision = this.sourceAcquisition.getMaintenanceRevision();
+      this.fullSemanticMaintenanceRevision = graphMaintenance;
       // Only the captured observation is certified. Events arriving during ingestion remain in
       // the coordinator's patch backlog; they cannot inherit a newer complete read certificate.
       this.fullSemanticSourceRevision = sourceRevision;
+      this.sourceAcquisition.acknowledgeGraphPublication(graphPublication, graphMaintenance);
       this.semanticScopes.clear();
       this.releasedSemanticScopePaths.clear();
       this.retirePublishedRelationshipPairs();
@@ -7157,12 +7293,13 @@ export class GraphIndex {
       this.building = false;
       this.rebuildQueued = false;
       this.retryBuildBlockedOnDemandCenters();
+      this.retryEagerGraphMaintenance();
     }
   }
 
   /** Build a complete graph privately, then atomically publish it with its captured source epoch.
    * Later host events retain provisional read cover until the coordinator drains their patch backlog. */
-  async rebuild(): Promise<boolean> {
+  async rebuild(options: Readonly<{retainSourceInventory?: boolean}> = {}): Promise<boolean> {
     const releaseWork = this.workScheduler.begin(INDEX_WORK_PRIORITY.background);
     try {
       if (this.building) {
@@ -7178,10 +7315,16 @@ export class GraphIndex {
         fullBuilds: this.semanticPreparationDiagnostics.fullBuilds + 1 };
       const run = ++this.generation;
       const semanticPolicy = computeIndexSettingsSignature(this.plugin.settings);
+      const graphPublication = this.sourceAcquisition.beginGraphPublication();
+      const graphMaintenance = this.sourceAcquisition.getMaintenanceRevision();
       const sourceRevision = this.plugin.getIndexSourceRevision();
       const physicalFoldersRevision = this.hostStructuralRevision;
       const current = (): boolean => run === this.generation && !this.diagnosticsClosed;
-      const resumeInventory = this.sourceAcquisition.pauseInventory();
+      // Source-backed recovery already closed its inventory. Keep that authority and its event
+      // backlog live instead of invalidating it and forcing another vault-wide validation pass.
+      // Other rebuild callers retain the existing storage-bandwidth pause and resume behavior.
+      const resumeInventory = options.retainSourceInventory && this.sourceAcquisition.hasSemanticDependencies()
+        && !this.sourceAcquisition.getActivityState().sourceActive ? null : this.sourceAcquisition.pauseInventory();
       const activity = this.beginIndexActivity("full-build", "unknown");
       let activityOutcome: ActivityOutcome = "incomplete";
       try {
@@ -7198,11 +7341,21 @@ export class GraphIndex {
           this.sourceAcquisition,
           () => this.workScheduler.checkpoint(INDEX_WORK_PRIORITY.background),
         );
-        const next = await builder.build({ acquireSources: false });
+        const next = await builder.build({ acquireSources: false,
+          /** Count actual completed source compilation, with the existing throttled status owner. */
+          onProgress: (processed, total) => {
+            if (!current()) return;
+            const stage = processed < total ? "notes" : "relationships";
+            const stageChanged = this.fullBuildProgress?.stage !== stage;
+            this.fullBuildProgress = {processed, total, stage};
+            this.plugin.notifyStartupProgress?.(stageChanged);
+          } });
         if (!next || !current()) {
           return false;
         }
 
+        if (this.fullBuildProgress) this.fullBuildProgress.stage = "presentation";
+        this.plugin.notifyStartupProgress?.(true);
         const prepared = await this.preparePresentationPublication(next, current, undefined, false, false, true);
         if (!prepared || !current() || !prepared.facets.isCurrent() ||
           semanticPolicy !== computeIndexSettingsSignature(this.plugin.settings)) return false;
@@ -7224,18 +7377,28 @@ export class GraphIndex {
         this.sourceBackedStartup = false;
         this.retireCoveredPhysicalSearchEntries();
         this.fullSemanticPolicyRevision = this.semanticPolicyRevision;
-        this.fullSemanticMaintenanceRevision = this.sourceAcquisition.getMaintenanceRevision();
+        this.fullSemanticMaintenanceRevision = graphMaintenance;
         // Preserve events that arrived during the build as unacknowledged host observations.
         this.fullSemanticSourceRevision = sourceRevision;
-        this.semanticScopes.clear();
-        this.releasedSemanticScopePaths.clear();
-        this.retirePublishedRelationshipPairs();
+        builder.acknowledgePublishedSources();
+        this.sourceAcquisition.acknowledgeGraphPublication(graphPublication, graphMaintenance);
+        const retainLocalChanges = Boolean(this.sourceAcquisition.pendingGraphSources()?.size)
+          || sourceRevision !== this.plugin.getIndexSourceRevision();
+        // A current-node edit may finish while this private candidate is being compiled. Its
+        // newer local view remains readable until journal catch-up publishes that observation.
+        if (!retainLocalChanges) {
+          this.semanticScopes.clear();
+          this.releasedSemanticScopePaths.clear();
+          this.retirePublishedRelationshipPairs();
+        }
         this.semanticFingerprints = nextFingerprints;
         this.fullSnapshotHydrated = true;
         this.enableGlobalSourceInventoryIfConfigured();
         this.fullSnapshotFresh = true;
-        this.localHandoverCompletions += this.retainedLocalScopes.size;
-        this.retainedLocalScopes.clear(); this.onDemandHostScopes.clear(); this.onDemandCachedScopes.clear();
+        if (!retainLocalChanges) {
+          this.localHandoverCompletions += this.retainedLocalScopes.size;
+          this.retainedLocalScopes.clear(); this.onDemandHostScopes.clear(); this.onDemandCachedScopes.clear();
+        }
         if (!this.isOnDemandMode()) this.onDemandPartialState = false;
         this.previewSnapshotPublished = false;
         this.titleCache.clear();
@@ -7250,10 +7413,12 @@ export class GraphIndex {
       } catch (error) { activityOutcome = "failed"; throw error;
       } finally {
         this.endIndexActivity(activity, activityOutcome === "incomplete" && !current() ? "cancelled" : activityOutcome);
-        this.sourceAcquisition.resumeInventory(resumeInventory);
+        if (resumeInventory !== null) this.sourceAcquisition.resumeInventory(resumeInventory);
+        this.fullBuildProgress = null;
         this.building = false;
         this.rebuildQueued = false;
         this.retryBuildBlockedOnDemandCenters();
+        this.retryEagerGraphMaintenance();
       }
 
 } finally { releaseWork(); }
@@ -7557,8 +7722,7 @@ export class GraphIndex {
       && pair.current() && pair.sourceRevision === this.plugin.getIndexSourceRevision()
       ) return true;
     const maintenanceRevision = this.sourceAcquisition.getMaintenanceRevision();
-    if (this.fullSemanticPolicyRevision === this.semanticPolicyRevision
-      && this.fullSemanticMaintenanceRevision === maintenanceRevision) return true;
+    if (this.hasCurrentFullSemanticGraph()) return true;
     const scope = this.semanticScopeForPair(sourcePath, targetPath, true);
     return Boolean(scope && scope.maintenanceRevision === maintenanceRevision
       && scope.sourceRevision === this.plugin.getIndexSourceRevision() && this.sourceAcquisition.hasSemanticDependencies());
@@ -9500,8 +9664,7 @@ export class GraphIndex {
     const entries = includePhysicalFiles ? this.completePhysicalSearchEntries()
       : [...this.searchEntries.filter(entry => !this.urlSearchEntries.has(entry.page.path) && !this.retiredUrlTargets.has(entry.page.path)), ...this.urlSearchEntries.values()];
     const maintenanceRevision = this.sourceAcquisition.getMaintenanceRevision();
-    if (this.fullSemanticPolicyRevision === this.semanticPolicyRevision
-      && this.fullSemanticMaintenanceRevision === maintenanceRevision) return entries;
+    if (this.hasCurrentFullSemanticGraph()) return entries;
     const overrides = new Map<string, GraphPage>();
     const suppressed = new Set<string>();
     // While newer policy or host maintenance is pending, retain the last complete publication for

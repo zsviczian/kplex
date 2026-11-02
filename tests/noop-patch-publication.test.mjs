@@ -62,6 +62,7 @@ test('a prose edit still reads, parses, acquires and atomically publishes its ne
     getBodyCacheRequest: /** This partial acquisition double offers no optional parser input. */ () => null,
     captureBodyInput: /** Exercise parsing without certifying a reusable input. */ () => undefined,
     getFileRevision: /** Keep this source current throughout its successful publication. */ () => 1,
+    captureGraphSource: /** This partial double owns no eager publication journal. */ () => undefined,
     acquire: async /** Observe current neutral-source acquisition before fingerprint admission. */ () => { acquired++; return { current: true }; } };
   const result = await f.builder.patchMarkdownFiles(f.state, [f.file], {
     publishFileCommit: /** The new mtime/cache must become visible together, exactly once. */ (commit, publish) => {
@@ -85,6 +86,7 @@ test('retirement, rename, delete and equal-stat replacement during no-op prepara
       getBodyCacheRequest: /** This fixture tests semantic lifetime, not parser-input reuse. */ () => null,
       captureBodyInput: /** Leave optional parser-input certification unavailable. */ () => undefined,
       getFileRevision: /** Same-stat host events still retire the captured revision. */ () => epoch,
+      captureGraphSource: /** The existing native generation checks own this isolated fixture. */ () => undefined,
       acquire: async /** A valid acquisition cannot override later event/identity retirement. */ () => ({ current: true }) };
     f.builder.applyFieldNameSourceFacts = async /** Change captured lifetime only after real field staging. */ function (...args) {
       const result = await original.apply(this, args);

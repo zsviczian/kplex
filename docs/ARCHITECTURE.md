@@ -275,8 +275,14 @@ inputs; `NeutralSourceRepository` owns immutable bounded facts, selected heads a
 GraphIndex compiles requested scopes from those facts. Complete graph snapshots are optional
 acceleration, and a physical fallback never becomes complete semantic authority by implication.
 Source heads own acquisition progress; legacy graph checkpoint reads remain, while their production
-progress writer is retired. A source-backed global node projection now restores body-only virtual/URL
-search and finite suggestions after cache loss; SI5 acceptance remains open.
+progress writer is retired. A source-backed global node projection restores body-only virtual/URL
+search and finite suggestions after cache loss. Eager initial startup then completes relationships
+through the existing batched full compiler before reporting completion; on-demand retains local
+semantics. A coalesced source-owner publication journal feeds existing background per-file graph
+commits after a complete eager baseline exists. Exact source/native/metadata receipts acknowledge
+only captured observations; source and host backlog closure are both required to renew global
+coverage. Current-node requests and canvas writes retain their higher scheduler priorities. See
+the [eager recovery validation](validation/eager-navigation-fix-2026-11-01.md) for evidence and limits.
 
 An unscoped resolver event still closes source readiness and requires cooperative reconciliation.
 Current canonical resolution output can be compared with an exact selected family using deterministic

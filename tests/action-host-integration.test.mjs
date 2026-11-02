@@ -614,6 +614,56 @@ test("delete preview aggregate budget refuses two individually admissible source
   assert.equal(f.files.get(f.nativeTarget.path),f.nativeTarget);assert.equal(f.target.file,f.nativeTarget);assert.equal(f.patches.length,0);
 });
 
+/** Pair-local provenance supplements a partial incoming inventory without broad source discovery. */
+test('placeholder reference discovery includes incoming evidence from a displayed neighbor pair',()=>{
+ const f=deleteFixture({});f.dematerialize();f.target.neighbours=new Map([[f.source.path,{target:{path:f.source.path,file:f.source}}]]);
+ f.context.index.evidenceFrom=()=>[];
+ f.context.index.evidenceBetween=(source,target)=>source===f.source.path&&target===f.target.path?[{declaredByPath:f.source.path,declaredTargetPath:f.target.path}]:[];
+ const files=method('referencingMarkdownFiles').call(f.context,f.target);
+ assert.deepEqual(files,[f.source],'A partial target-wide incidence list must not hide a known incoming pair source');
+});
+
+/** A source-authority refusal always explains retention; newly discovered links receive manual-edit actions only. */
+test('unreadable placeholder preview offers known source notes without deletion or metadata writes',async()=>{
+ const f=deleteFixture({});f.dematerialize();const target=f.target,index=f.context.index;let report;
+ index.pages=new Map([[target.path,target]]);index.get=()=>target;
+ f.context.captureDeleteNodePreview=async()=>{throw Error('preview too large')};
+ f.context.confirmDeleteNode=()=>assert.fail('An incomplete source preview cannot authorize deletion');
+ f.context.saveSettings=()=>assert.fail('Failed inspection must not change navigation preferences');
+ const before=f.body(),run=method('deleteNode',{...contracts,Notice:class{},RemainingNodeReferencesModal:class{constructor(...args){report={args}}open(){report.visible=true}}});
+ const outcome=await run.call(f.context,target);
+ assert.equal(outcome.status,'unavailable');assert(report?.visible,'Explain the failed source inspection');
+ assert.equal(report.args[2][0].path,f.source.path);assert(report.args[4].length);assert.equal(f.body(),before);assert.deepEqual(f.patches,[]);
+});
+
+/** A source-authority refusal always explains retention; newly discovered links receive manual-edit actions only. */
+for(const discovered of [false,true])test('retained placeholder explains '+(discovered?'late body references':'incomplete source discovery'),async()=>{
+ const f=deleteFixture({});f.dematerialize();const canonical=f.target,index=f.context.index;let reports,captures=0;
+ index.pages=new Map([[canonical.path,canonical]]);index.get=()=>canonical;index.removeVirtualPageIfUnreferencedFromSources=async()=>false;
+ const capture=f.context.captureDeleteNodePreview;f.context.captureDeleteNodePreview=async target=>{captures++;return captures===1||!discovered?{sources:[],hiddenFields:[],hiddenField:''}:capture(target)};
+ Object.assign(f.context.settings,{pinnedNodes:[],navigationHistory:[]});Object.assign(f.context,{confirmDeleteNode:async()=>true,removeFromNavigationHistory(){},saveSettings:async()=>{}});
+ const before=f.body(),run=method('deleteNode',{...contracts,Notice:class{},RemainingNodeReferencesModal:class{constructor(...args){reports={args}}open(){reports.visible=true}}});
+ const result=await run.call(f.context,canonical);assert.equal(result.status,'committed');assert(reports?.visible,'A retained placeholder must never produce a silent successful action');
+ if(discovered)assert(reports.args[2].some(reference=>reference.path===f.source.path),'Offer the known note for manual source editing');
+ else assert(reports.args[4].length,'Incomplete discovery must explain why no source list is available');
+ assert.equal(captures,2);assert.deepEqual(f.patches,[]);assert.equal(f.body(),before);assert.deepEqual(f.frontmatter,{});
+});
+
+/** Body-only placeholder deletion reviews source notes even when a read refresh replaces its display facade. */
+test('delete placeholder opens surviving body links after preview refresh without editing note text',async()=>{
+ const f=deleteFixture({});f.dematerialize();const canonical=f.target,index=f.context.index,host={view:{}};
+ let facade={...canonical},confirmations=0,report;index.pages=new Map([[canonical.path,canonical]]);index.get=()=>facade;
+ index.removeVirtualPageIfUnreferencedFromSources=()=>assert.fail('Body-linked placeholder must remain for manual source editing');
+ const capture=f.context.captureDeleteNodePreview;f.context.captureDeleteNodePreview=async target=>{const preview=await capture(target);facade={...canonical};return preview};
+ Object.assign(f.context.settings,{pinnedNodes:[],navigationHistory:[]});Object.assign(f.context,{confirmDeleteNode:async()=>{confirmations++;return true},removeFromNavigationHistory(){},saveSettings:async()=>{},openRelationshipEvidenceLocation:(...args)=>{report.opened=args}});
+ const before=f.body(),run=method('deleteNode',{...contracts,Notice:class{},RemainingNodeReferencesModal:class{constructor(...args){report={args}}open(){report.visible=true}}});
+ const result=await run.call(f.context,facade,host);
+ assert.equal(result.status,'committed');assert.equal(confirmations,1);assert(report?.visible,'The blocked deletion must open its explanation');
+ assert(report.args[2].some(reference=>reference.path===f.source.path&&reference.sourceKind==='obsidian-link'));
+ await report.args[3](report.args[2][0]);assert.equal(report.opened[1],host,'Manual source editing retains the originating native pane');
+ assert.equal(f.body(),before);assert.deepEqual(f.frontmatter,{});assert.equal(facade.file,null);
+});
+
 /** Exact pair publication replaces a read facade without replacing the approved canonical endpoint. */
 for(const replaceCanonical of [false,true])test('delete cleanup '+(replaceCanonical?'rejects a replaced canonical ghost':'survives refreshed ghost pair facades'),async()=>{
  const f=deleteFixture({Children:'[[B]]',arbitrary:'[[B]]'}),index=f.context.index,canonical=f.target;

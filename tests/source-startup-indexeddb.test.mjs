@@ -502,6 +502,156 @@ test('finite alias preparation rejects supersession, cyclic values and the exist
   }finally{await browser.cleanup();}
 });
 
+/** Storage repair may accept fresh lexical input before its delayed native notification. */
+test('eager published native input retires when a newer completed parser token is selected',async()=>{
+  const browser=await chromiumHarness(bundle);
+  try{
+    assert.equal(await browser.evaluate(contributorBrowserInitialize),true);
+    assert.equal(await browser.evaluate(`(async()=>{
+      const f=await fixture('eager-parser-input-receipt');try{
+        const file=f.add('A.md','');f.acquisition.start();f.acquisition.beginGraphPublication();
+        ok(f.acquisition.captureBodyInput(file,()=>true).accept(),'First complete current parser input');
+        f.acquisition.acknowledgeGraphSource(f.acquisition.captureGraphSource(file));
+        ok(f.acquisition.states.get(file).graphInputCurrent(),'Published native input is covered');
+        ok(f.acquisition.captureBodyInput(file,()=>true).accept(),'A later complete parser input can be selected without native stat drift');
+        ok(!f.acquisition.states.get(file).graphInputCurrent(),'Older graph cannot cover a newer parser selection');return true;
+      }finally{f.close();}
+    })()`),true);
+  }finally{await browser.cleanup();}
+});
+
+/** A host callback observed during receipt validation must remain in the graph backlog. */
+test('eager graph acknowledgement preserves a reentrant newer native observation',async()=>{
+  const browser=await chromiumHarness(bundle);
+  try{
+    assert.equal(await browser.evaluate(contributorBrowserInitialize),true);
+    assert.equal(await browser.evaluate(`(async()=>{
+      const f=await fixture('eager-reentrant-receipt');try{
+        const file=f.add('A.md','');f.acquisition.start();f.acquisition.beginGraphPublication();f.app.vault.trigger('modify',file);
+        const receipt=f.acquisition.captureGraphSource(file),current=receipt.isCurrent;
+        f.acquisition.acknowledgeGraphSource({...receipt,isCurrent:()=>{const accepted=current();f.app.vault.trigger('modify',file);return accepted;}});
+        ok(f.acquisition.pendingGraphSources().get(file.path)>receipt.sequence,'Validation cannot erase the newer same-source token');
+        ok(!f.acquisition.states.get(file).graphInputCurrent(),'Reentrant native event also retires the compiled-input receipt');return true;
+      }finally{f.close();}
+    })()`),true);
+  }finally{await browser.cleanup();}
+});
+
+test("eager event reconciliation retains complete graph navigation after modify create and delete", async () => {
+  const browser = await chromiumHarness(bundle);
+  try {
+    assert.equal(await browser.evaluate(contributorBrowserInitialize), true);
+    assert.equal(await browser.evaluate(`(async()=>{
+      const assert=Object.assign((v,m)=>ok(v,m),{equal}),M=sourceModules,f=await fixture('eager-incremental-navigation');
+      const collect=${collect.toString()},hostOracle=${hostOracle.toString()},fullCenterIndex=${fullCenterIndex.toString()},currentNeighborhoodView=${currentNeighborhoodView.toString()},centerGateSettings=${centerGateSettings.toString()};
+      let index,oracle,release;
+      try {
+        f.text=f.texts;const a=f.add('A.md','Child:: [[B.md]]'),b=f.add('B.md','',{aliases:['Shared']});f.add('D.md','',{aliases:['Shared']});
+        f.add('Unvisited.md','Child:: [[D.md]]');await f.acquire();ok(await f.acquisition.reconcile(),'Initial source closure');
+        const semantic={hierarchy:{hidden:[],parents:[],children:['Child'],leftFriends:[],rightFriends:[],previous:[],next:[]},inferAllLinksAsFriends:false,inverseInfer:false,showFullTagName:true,tagStyleList:[],maxLabelLength:30};
+        const view=centerGateSettings({renderSiblings:false});
+        index=await fullCenterIndex(M,f,await hostOracle(f,[...f.files.keys()],semantic,view,true),semantic,view);
+        index.sourceAcquisition.close();index.sourceAcquisition=f.acquisition;ok(await index.rebuild(),'Real complete eager build');
+        f.acquisition.inventoryReady=()=>index.retryEagerGraphMaintenance?.();
+        const settle=async()=>{ok(await f.acquisition.flush(),'Native source changes reconcile');index.acknowledgeHostPresentation();index.retryEagerGraphMaintenance?.();
+          while(index.eagerGraphMaintenanceTask)await index.eagerGraphMaintenanceTask;
+          index.acknowledgeHostPresentation();equal(index.fullSemanticMaintenanceRevision,f.acquisition.getMaintenanceRevision(),'Settled source changes retain complete eager authority '+JSON.stringify({pending:[...(f.acquisition.pendingGraphSources?.()??[])],diagnostics:index.getIndexDiagnostics(),sourceBacked:index.sourceBackedSemantics,building:index.building,source:index.fullSemanticSourceRevision,host:index.plugin.getIndexSourceRevision()}));};
+        const compare=async()=>{oracle=await fullCenterIndex(M,f,await hostOracle(f,[...f.files.keys()],semantic,view,true),semantic,view);
+          for(const path of f.files.keys())equal(currentNeighborhoodView(index,path),currentNeighborhoodView(oracle,path),'Incremental/full neighborhood parity: '+path);
+          oracle.destroy();oracle=null;};
+        f.texts.set(a.path,'Child:: [[D.md]]');a.stat.mtime++;a.stat.size++;f.app.vault.trigger('modify',a);f.app.metadataCache.trigger('changed',a);
+        await settle();await compare();
+        const created=f.add('Created.md','Child:: [[A.md]]');f.app.vault.trigger('create',created);f.app.metadataCache.trigger('changed',created);
+        await settle();await compare();
+        f.files.delete(b.path);f.metadata.delete(b.path);f.app.vault.trigger('delete',b);await settle();await compare();
+        const renamed=f.files.get('D.md'),oldPath=renamed.path,cache=f.metadata.get(oldPath),text=f.texts.get(oldPath);
+        f.files.delete(oldPath);f.metadata.delete(oldPath);f.texts.delete(oldPath);Object.assign(renamed,{path:'Renamed.md',name:'Renamed.md',basename:'Renamed'});
+        f.files.set(renamed.path,renamed);f.metadata.set(renamed.path,cache);f.texts.set(renamed.path,text);f.app.vault.trigger('rename',renamed,oldPath);await settle();await compare();
+        const before=index.getSemanticPreparationDiagnostics(),counters=f.acquisition.getCounters();f.work.reset();
+        for(const path of ['Unvisited.md','Renamed.md','Created.md']){index.plugin.settings.lastActivePath=path;release=index.acquireSemanticDemand(path);await index.ensureSemanticScope(path);ok(index.viewScopeCoverage(path).complete,'Unvisited center has complete cached coverage');release();release=null;}
+        equal(index.getSemanticPreparationDiagnostics().requested,before.requested,'No local reconstruction after settled eager updates');
+        equal(f.acquisition.getCounters(),counters,'Navigation reads/parses no source');equal(f.work.visits,[],'Navigation replays no source families');return true;
+      }finally{release?.();oracle?.destroy();index?.destroy();f.close()}
+    })()`), true);
+  } finally {await browser.cleanup();}
+});
+
+for (const scenario of ['newer-equal-stat-edit','newer-token-full-build','delayed-metadata','foreground-priority','retired-demand','new-policy','partial-baseline','event-during-full-build']) test(`eager graph backlog preserves ${scenario}`, async () => {
+  const browser = await chromiumHarness(bundle);
+  try {
+    assert.equal(await browser.evaluate(contributorBrowserInitialize), true);
+    assert.equal(await browser.evaluate(`(async()=>{
+      const assert=Object.assign((v,m)=>ok(v,m),{equal}),M=sourceModules,f=await fixture('eager-backlog-${scenario}');
+      const collect=${collect.toString()},hostOracle=${hostOracle.toString()},fullCenterIndex=${fullCenterIndex.toString()},currentNeighborhoodView=${currentNeighborhoodView.toString()},centerGateSettings=${centerGateSettings.toString()};
+      let index,oracle,release,unlock,restore;
+      try {
+        f.text=f.texts;const a=f.add('A.md','Child:: [[B.md]]');f.add('B.md');f.add('C.md');f.add('Unvisited.md','Child:: [[A.md]]');
+        await f.acquire();ok(await f.acquisition.reconcile(),'Initial sources');
+        const semantic={hierarchy:{hidden:[],parents:[],children:['Child'],leftFriends:[],rightFriends:[],previous:[],next:[]},inferAllLinksAsFriends:false,inverseInfer:false,showFullTagName:true,tagStyleList:[],maxLabelLength:30};
+        const view=centerGateSettings({renderSiblings:false});index=await fullCenterIndex(M,f,await hostOracle(f,[...f.files.keys()],semantic,view,true),semantic,view);
+        index.sourceAcquisition.close();index.sourceAcquisition=f.acquisition;ok(await index.rebuild(),'Complete eager graph');f.acquisition.inventoryReady=()=>index.retryEagerGraphMaintenance();
+        const settle=async()=>{ok(await f.acquisition.flush(),'Source authority closes');index.acknowledgeHostPresentation();index.retryEagerGraphMaintenance();while(index.eagerGraphMaintenanceTask)await index.eagerGraphMaintenanceTask;index.acknowledgeHostPresentation();};
+        let beforeBuilds=index.getSemanticPreparationDiagnostics().fullBuilds;
+        if(${JSON.stringify(scenario)}==='event-during-full-build'){
+          let entered;const reached=new Promise(resolve=>entered=resolve),held=new Promise(resolve=>unlock=resolve);
+          const original=index.preparePresentationPublication;index.preparePresentationPublication=async function(...args){const result=await original.apply(this,args);entered();await held;return result};restore=()=>index.preparePresentationPublication=original;
+          const rebuilding=index.rebuild();await reached;f.texts.set(a.path,'Child:: [[C.md]]');f.app.vault.trigger('modify',a);
+          release=index.acquireSemanticDemand(a.path);await index.ensureVisibleSemanticRecovery(a.path);
+          ok(index.neighbours(index.get(a.path),'child').some(n=>n.page.path==='C.md'),'Current-node edit prepares ahead of held private full publication');
+          unlock();ok(await rebuilding,'Captured full candidate publishes');restore();restore=null;beforeBuilds++;
+          ok(index.neighbours(index.get(a.path),'child').some(n=>n.page.path==='C.md'),'Saved current local view survives an older full candidate publication');
+          release();release=null;
+          ok(!index.hasCurrentFullSemanticGraph(),'Event during build cannot inherit a newer complete marker');ok(f.acquisition.pendingGraphSources().has(a.path),'Post-capture event retained');
+        }
+        if(${JSON.stringify(scenario)}!=='event-during-full-build'){f.texts.set(a.path,'Child:: [[C.md]]');f.app.vault.trigger('modify',a);}
+        if(${JSON.stringify(scenario)}==='newer-equal-stat-edit'){
+          let entered;const reached=new Promise(resolve=>entered=resolve),held=new Promise(resolve=>unlock=resolve);
+          const original=M.GraphBuilder.prototype.semanticSourceSignatureCooperative;let waiting=true;
+          M.GraphBuilder.prototype.semanticSourceSignatureCooperative=async function(...args){if(waiting&&args[0]===a){waiting=false;entered();await held;}return original.apply(this,args)};
+          restore=()=>M.GraphBuilder.prototype.semanticSourceSignatureCooperative=original;
+          const older=index.patchMarkdownPaths([a.path]);await reached;
+          f.texts.set(a.path,'Child:: [[Unvisited.md]]');f.metadata.set(a.path,{frontmatter:{},links:[]});f.app.vault.trigger('modify',a);f.app.metadataCache.trigger('changed',a);
+          const newer=f.acquisition.pendingGraphSources().get(a.path);unlock();const result=await older;
+          equal(result.outcome,'cancelled','Old equal-stat preparation cannot publish');equal(f.acquisition.pendingGraphSources().get(a.path),newer,'Newer event remains queued');restore();restore=null;
+          ok(index.neighbours(index.get(a.path),'child').some(n=>n.page.path==='B.md'),'Cancelled stage leaves old canonical graph intact');await settle();
+        }else if(${JSON.stringify(scenario)}==='newer-token-full-build'){
+          ok(await f.acquisition.flush(),'New equal-stat input accepted before full compilation');
+          ok(!f.acquisition.needsBodyRead(a),'Acquisition already cleared the body dirty flag');
+          ok(await index.rebuild(),'Batched full compiler reuses the current completed input');beforeBuilds++;await settle();
+          ok(index.neighbours(index.get(a.path),'child').some(n=>n.page.path==='C.md'),'Full compiler cannot choose an older hot body after acquisition');
+        }else if(${JSON.stringify(scenario)}==='delayed-metadata'){
+          const result=await index.patchMarkdownPaths([a.path]);equal(result.outcome,'patched','Canvas publication completes before metadata:changed');
+          ok(index.neighbours(index.get(a.path),'child').some(n=>n.page.path==='C.md'),'Immediate canvas result is canonical');await settle();
+          f.app.metadataCache.trigger('changed',a);f.app.metadataCache.trigger('changed',a);await settle();
+          ok(index.neighbours(index.get(a.path),'child').some(n=>n.page.path==='C.md'),'Delayed duplicate native events preserve canvas result');
+        }else if(${JSON.stringify(scenario)}==='new-policy'){
+          index.invalidateSemanticPolicy();await settle();ok(!index.hasCurrentFullSemanticGraph(),'Source closure cannot certify an old semantic policy');ok(f.acquisition.pendingGraphSources().has(a.path),'Old-policy graph work remains unacknowledged');return true;
+        }else if(${JSON.stringify(scenario)}==='partial-baseline'){
+          index.fullSnapshotHydrated=false;index.onDemandPartialState=true;await settle();
+          ok(!index.hasCurrentFullSemanticGraph(),'Source closure cannot promote partial checkpoint incidence');ok(f.acquisition.pendingGraphSources().has(a.path),'Partial baseline keeps its existing recovery owner');ok(!index.eagerGraphMaintenanceTask,'Eager catch-up never replaces partial-graph recovery');return true;
+        }else if(${JSON.stringify(scenario)}==='event-during-full-build'){
+          await settle();
+        }else{
+          release=index.workScheduler.begin(1);ok(await f.acquisition.flush(),'Known source reconciliation finishes independently');index.retryEagerGraphMaintenance();
+          const task=index.eagerGraphMaintenanceTask;ok(task,'Graph backlog owns a task');let finished=false;task.then(()=>finished=true);
+          await new Promise(resolve=>window.setTimeout(resolve,20));ok(!finished,'Background graph work yields to current-node lane');
+          if(${JSON.stringify(scenario)}==='retired-demand'){
+            const wasEnabled=f.acquisition.pauseInventory();release();release=null;await task;
+            ok(f.acquisition.pendingGraphSources().has(a.path),'Closing demand preserves the graph backlog');ok(!index.hasCurrentFullSemanticGraph(),'Retired work grants no authority');f.acquisition.resumeInventory(wasEnabled);await settle();
+          }else{
+          index.plugin.settings.lastActivePath='A.md';await index.ensureSemanticScope('A.md');
+          ok(index.neighbours(index.get(a.path),'child').some(n=>n.page.path==='C.md'),'Requested area prepares ahead of queued global maintenance');release();release=null;await task;await settle();
+          }
+        }
+        equal(index.fullSemanticMaintenanceRevision,f.acquisition.getMaintenanceRevision(),'Complete eager graph is reusable');
+        oracle=await fullCenterIndex(M,f,await hostOracle(f,[...f.files.keys()],semantic,view,true),semantic,view);
+        for(const path of f.files.keys())equal(currentNeighborhoodView(index,path),currentNeighborhoodView(oracle,path),'Fresh full oracle parity: '+path);
+        equal(index.getSemanticPreparationDiagnostics().fullBuilds,beforeBuilds,'No replacement full rebuild');return true;
+      }finally{unlock?.();release?.();restore?.();oracle?.destroy();index?.destroy();f.close()}
+    })()`), true);
+  } finally {await browser.cleanup();}
+});
+
 test("navigation and a superseded scope retry preserve complete graph aliases and expanded relationships", async () => {
   const browser = await chromiumHarness(bundle);
   try {

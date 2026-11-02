@@ -1425,15 +1425,18 @@ or stored facts are altered by this fault injection.
 
 After full verification/exact-build staging in `kplex-test-small`, run
 `npm run verify:obsidian:startup-source-recovery` with the three explicit test-vault variables
-and a fresh `KPLEX_HOST_REPORT_DIR`. Back up the exact Small database before fault injection.
-The bounded probe reopens initial coordinator flags on an already settled source-backed eager
-native index, withholds metadata for one owned note, and lets real reconciliation fail. Restoring
-the genuine native metadata and delivering its existing changed event must complete adoption
-automatically, retain the published scene and leave no unsaved mask or new full build. The probe
-forwards original promises, caps retained attempt outcomes, restores method descriptors, deletes
-its note and reloads the plugin with original settings bytes. This controlled recovery lane does
-not establish fresh-process route selection, physical interaction or CPU improvement; use the
-separate guarded application-startup study for those startup observations.
+and a fresh `KPLEX_HOST_REPORT_DIR` outside the vault. The command now runs
+`eagerStartupRecovery.mjs`: it backs up derived snapshot stores/pointers on disk, removes one
+actual saved page chunk with the plugin disabled and observes ordinary eager startup after reload.
+Startup must complete global relationships without a harness-triggered build or unchanged-note
+body reads/parses; later destinations must perform zero local requests/source-family replay.
+Cache, configuration and workspace restore independently of the result. This plugin-reload lane
+does not establish a fresh application process, physical input, CPU or paint performance.
+
+The historical `startupSourceRecovery.mjs` controlled metadata-withholding probe required a
+settled source-backed eager index. That is no longer normal eager completion, so it is not the
+default command. Automatic metadata and storage-failure recovery remain covered with the actual
+startup coordinator and real Chromium IndexedDB in `startup-source-convergence-indexeddb.test.mjs`.
 
 ### Startup admission
 
@@ -1591,3 +1594,25 @@ must not create files. The maintained creation-navigation probe now includes spa
 unresolved-link cases; run only the affected lane for a scoped menu fix, not an indexing aggregate.
 See [the focused menu-target record](docs/validation/file-menu-targets-2026-11-01.md) for the reproduced
 failure, exact-build native evidence and the maintainer's explicit no-full-regression instruction.
+
+
+### Eager graph maintenance acceptance
+
+For the focused eager-maintenance regression, stage the verified build in the existing disposable
+Small vault, then run `npm run verify:obsidian:action-workflows` with
+`KPLEX_ACTION_WORKFLOW_SCENARIO=eager-navigation`, the three explicit test-vault variables and a
+fresh `KPLEX_HOST_REPORT_DIR` outside the vault. Small must already use the eager strategy.
+First run `node scripts/testing/obsidian/eagerStartupRecovery.mjs` with the same explicit Small
+variables and its own report directory. It backs up derived snapshot stores/pointers, removes one
+real active page chunk while K-Plex is disabled and reloads the plugin. Normal eager startup must
+recover a complete global relationship graph without rereading or reparsing unchanged Markdown.
+Six subsequent destinations must need no local preparation or source-family replay. The lane
+restores the original cache, configuration and workspace; it never calls a builder to establish
+readiness. This is a plugin reload, not a full application restart.
+
+The action lane creates owned calendar/hub fixtures, awaits natural global readiness, then verifies native
+create/modify/delete and canvas relationship updates regain global coverage without another full
+build. Subsequent real canvas-card clicks must perform zero source reads, parses or family replay.
+It retains the action-workflow driver's full settings/layout/inventory restoration and artifact
+hash checks. Serialize staging, scenarios and cleanup under the shared application-user-data lock.
+Programmatic native clicks and DOM publication timing do not establish physical input or paint.

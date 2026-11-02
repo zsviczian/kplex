@@ -305,6 +305,7 @@ for(const rejection of ["self","duplicate","attachment-tag"]){
 test("reactive startup backlog cannot rebuild a partial cache preview before hydration settles", async () => {
   let hydrating = true, closeHydration; const events = [];
   const closed = new Promise((resolve) => { closeHydration = resolve; });
+  let optionalUrlStarts=0;
   const context = {
     unloading: false, layoutReady: true, initialIndexTask: null, initialIndexComplete: false,
     indexDirty: true, indexDirtyRevision: 1, preRestoreUncoveredChanges: false,
@@ -312,6 +313,8 @@ test("reactive startup backlog cannot rebuild a partial cache preview before hyd
     rebuildTask: null, rebuildTimer: null,
     index: {
       isOnDemandMode: () => false,
+      /** Optional work is admitted only after this primary hydration/delta owner completes. */
+      startBackgroundUrlIndex: async () => { assert.equal(context.initialIndexComplete,true);assert.equal(hydrating,false);optionalUrlStarts++;return true; },
       size: 3, hasPendingStructuralMaintenance: () => false, hasPendingSnapshotHydration: () => hydrating,
       waitForSnapshotHydration: async () => { events.push("wait"); await closed; hydrating = false; return { restored: true, fresh: false }; },
       hasSourceBackedStartup: () => false, isFullSnapshotHydrated: () => !hydrating, hasIncrementalRestorePatch: () => true,
@@ -329,6 +332,7 @@ test("reactive startup backlog cannot rebuild a partial cache preview before hyd
   closeHydration(); await task;
   assert.deepEqual(events, ["wait", "patch-real-delta"]); assert.equal(context.initialIndexComplete, true);
   assert.equal(context.indexDirty, false); assert.equal(context.indexBacklogReasons.size, 0);
+  assert.equal(optionalUrlStarts,1,'Optional URL work starts once after primary startup completes');
 });
 
 /** A view may own cold startup before the cooperative physical catalog installs warm hydration. */
@@ -337,7 +341,7 @@ for (const outcome of ["fresh", "stale", "failed", "sources", "sources-pending"]
     let releaseMetadata, releaseHydration, hydrating = false, hydrated = false, sourceBacked = false;
     const metadata = new Promise(resolve => { releaseMetadata = resolve; });
     const hydration = new Promise(resolve => { releaseHydration = resolve; });
-    const events = [];
+    const events = [];let optionalUrlStarts=0;
     const context = {
       unloading: false, layoutReady: true, initialIndexTask: null, initialIndexComplete: false,
       indexDirty: true, indexDirtyRevision: 0, preRestoreUncoveredChanges: false,
@@ -345,6 +349,8 @@ for (const outcome of ["fresh", "stale", "failed", "sources", "sources-pending"]
       metadataStabilityPromise: null, rebuildTask: null, rebuildTimer: null,
       index: {
         isOnDemandMode: () => false,
+        /** Primary pending/failure cannot prematurely admit the optional inventory. */
+        startBackgroundUrlIndex: async () => {assert.equal(context.initialIndexComplete,true);optionalUrlStarts++;return true;},
         size: 0, hasPendingStructuralMaintenance: () => false, hasPendingSnapshotHydration: () => hydrating,
         hasSourceBackedStartup: () => sourceBacked, isFullSnapshotHydrated: () => hydrated,
         hasPhysicalBaseline: () => hydrated || sourceBacked, hasRestoredCheckpoint: () => false,
@@ -379,11 +385,12 @@ for (const outcome of ["fresh", "stale", "failed", "sources", "sources-pending"]
     assert.equal(context.rebuildTask, null); assert.equal(context.initialIndexComplete, false);
     releaseHydration(); await task;
     const expected = outcome === "fresh" ? [] : outcome === "stale" ? ["full"]
-      : outcome === "failed" ? ["progressive"] : ["adopt"];
+      : outcome === "failed" ? ["progressive"] : outcome === "sources" ? ["adopt", "full"] : ["adopt"];
     assert.deepEqual(events, ["metadata", "hydrate", ...expected]);
     assert.equal(context.initialIndexComplete, outcome !== "sources-pending");
+    assert.equal(optionalUrlStarts,Number(outcome!=='sources-pending'),'Only completed primary startup admits optional URL work');
     assert.equal(context.indexDirty, outcome === "sources-pending");
-    if (outcome.startsWith("sources")) assert.equal(hydrated, false, "Source adoption cannot claim full graph hydration");
+    if (outcome.startsWith("sources")) assert.equal(hydrated, outcome === "sources", "Only completed eager relationships can claim full graph hydration");
     if (outcome === "sources-pending") {
       assert.equal(context.initialIndexTask, null, "Failed adoption must release startup for a later real attempt");
       assert(context.indexBacklogReasons.has("startup:partial-restore-incomplete"));
@@ -653,6 +660,13 @@ function createdMetadataFixture({ extension = "md", displayField = "aliases", in
     writeRelationship: async () => { assert(pairCaptured); events.push("write-relation"); },
     publishSavedRelationship: async () => events.push("publish-relation"),
   };
+  // Materialization now defaults to Return. Opening-order cases below explicitly select Tab
+  // and retain the real shared completion owner rather than assuming an implicit document open.
+  context.finishNewRelatedNode = productionFunction("src/main.ts", "finishNewRelatedNode", {});
+  context.openCreatedNote = async (created, hostLeaf, destination, current) => {
+    assert.equal(destination, "tab"); assert(current());
+    await context.openInDocumentLeaf(created.file, hostLeaf);
+  };
   for (const method of ["newRelatedNoteFolder", "validateNoteFolderPath", "mutateCreatedNodeMetadata", "writeCreatedNodeDisplayName", "writeCreatedNodeAlias", "createNewRelatedFileForOrigin", "linkNewRelatedFile", "appendRelationshipReference"])
     context[method] = productionFunction("src/main.ts", method, { writeRelationshipMetadata, normalizeFieldName: actualNormalizeFieldName,
       normalizePath: value => value,
@@ -729,7 +743,7 @@ for (const consumer of ["folder", "ghost"]) test(`${consumer} creation also awai
       f.context.index.materializeFile = (oldPath, file) => { f.events.push(["materialize", oldPath, file.path]); return true; };
       f.context.openInDocumentLeaf = async file => f.events.push(["open", file.path]);
       const materialize = productionFunction("src/main.ts", "materializeGhostPage", {});
-      operation = materialize.call(f.context, { path: "Ghost", name: "Ghost display" }, "Created", "markdown", "").then(value => { finished = true; return value; });
+      operation = materialize.call(f.context, { path: "Ghost", name: "Ghost display" }, "Created", "markdown", "", undefined, undefined, {}, () => true, false, undefined, undefined, "tab").then(value => { finished = true; return value; });
     }
     await nextCreatedStep(); assert.equal(finished, false); assert.deepEqual(f.events, ["native-write"]);
     f.observe(); const result = await operation; assert(result); f.clean();
@@ -755,7 +769,7 @@ for (const central of [true, false]) test(`ghost promotion remaps saved navigati
     f.context.notifyNavigation = (path,owner) => {assert.equal(owner,host); assert.equal(path, f.file.path); assert.equal(f.context.settings.lastActivePath, path); f.events.push("navigated"); };
     f.context.saveSettings = async (...args) => { assert.deepEqual(args, [false, false]); f.events.push("saved"); };
     f.context.openInDocumentLeaf = async file => { assert.equal(file, f.file); f.events.push("opened"); };
-    operation = productionFunction("src/main.ts", "materializeGhostPage", {}).call(f.context, ghost, "Created", "markdown", "",undefined,undefined,{},()=>true,false,host);
+    operation = productionFunction("src/main.ts", "materializeGhostPage", {}).call(f.context, ghost, "Created", "markdown", "",undefined,undefined,{},()=>true,false,host,undefined,"tab");
     await nextCreatedStep(); f.observe(); assert.equal(await operation, true);
     assert.deepEqual(f.events, ["native-write", "cache-body-observed", "materialized", "remapped", ...(central ? ["navigated"] : []), "saved", "opened"]);
     assert.equal(f.context.settings.lastActivePath, central ? f.file.path : "Other.md");

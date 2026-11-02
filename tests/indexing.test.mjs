@@ -555,6 +555,7 @@ for (const file of [
   "src/adapters/obsidian/drawingTemplates.ts",
   "src/adapters/obsidian/nativeSubmenu.ts",
   "src/core/plex/startupIndexPreferences.ts",
+  "src/core/plex/createdNoteDestination.ts",
   "src/index/fieldParser.ts",
   "src/index/MetadataParser.ts",
   "src/index/RelationEvidence.ts",
@@ -1100,6 +1101,23 @@ const indexingStatusContext = {
     return "Status: updating index";
   },
 };
+// Source recovery runs its progressive builder without the ordinary rebuildTask wrapper.
+// Its real published note count must still be visible as indexing progress, including percentage.
+{
+  const context={...indexingStatusContext,rebuildTask:null,cachedMarkdownFileCount:5,
+    index:{...indexingStatusContext.index,isBuilding:()=>true},
+    translator:(key,params)=>key==='index.startupSemantics'?'Applying relationships'
+      :key==='index.startupNotesProgress'?`${params.activity}: ${params.processed} / ${params.total} (${params.percent}%)`:key};
+  const status=KplexPlugin.prototype.getIndexStatus.call(context);
+  assert.equal(status.phase,'indexing','An active recovery builder cannot hide behind generic preparation');
+  assert.equal(status.label,'Applying relationships: 3 / 5 (60%)','Recovery shows actual completed notes and percentage');
+  context.index.indexedMarkdownFileCount=()=>4;
+  assert.equal(KplexPlugin.prototype.getIndexStatus.call(context).label,'Applying relationships: 4 / 5 (80%)','Published build progress advances');
+  context.index.getBuildProgress=()=>({processed:5,total:5,stage:'relationships'});
+  assert.equal(KplexPlugin.prototype.getIndexStatus.call(context).label,'index.startupResolution','Completed note inputs expose the next relationship phase');
+  context.index.getBuildProgress=()=>({processed:5,total:5,stage:'presentation'});
+  assert.equal(KplexPlugin.prototype.getIndexStatus.call(context).label,'index.startupSearch','Final presentation/search work cannot look stuck at 100% notes');
+}
 // Local readiness must not certify every physical note as semantically indexed.
 {
   const context = { ...indexingStatusContext, initialIndexComplete: true, indexDirty: false,
@@ -1887,6 +1905,8 @@ for (const { inventoryRevision, fresh, remainsDirty } of [
 ]) {
   const startup = new KplexPlugin();
   startup.index = { isOnDemandMode: () => false,
+    /** Optional URL discovery is outside this captured-inventory coordinator fixture. */
+    startBackgroundUrlIndex: async () => true,
     getRestoreInventorySourceRevision: () => inventoryRevision,
     hasPendingSnapshotHydration: () => false,
     size: 1,
@@ -1961,24 +1981,30 @@ for (const { visible, unloading, complete, dirty, expected } of [
   assert.deepEqual([...startup.dirtyMarkdownPaths], ["Note A.md"], "A newer source edit must remain queued");
 }
 
-// Source progress is a startup authority independently of optional full-graph hydration.
-for (const adopted of [true, false]) {
+// Eager source recovery owns batched graph completion; vocabulary alone cannot finish startup.
+for (const [adopted, completed] of [[true, true], [true, false], [false, false]]) {
   const startup = new KplexPlugin();
-  let fullBuilds = 0;
+  let fullBuilds = 0, progressiveBuilds = 0, optionalUrlStarts = 0;
   startup.index = { isOnDemandMode: () => false,
+    /** Count optional admission separately from primary source/graph completion. */
+    startBackgroundUrlIndex: async () => { optionalUrlStarts++; return true; },
     size: 1, hasPendingSnapshotHydration: () => false, hasPhysicalBaseline: () => true,
     hasSourceBackedStartup: () => true, adoptStartupSources: async () => adopted,
+    rebuild: async () => { progressiveBuilds++; return completed; },
     isFullSnapshotHydrated: () => false,
   };
   startup.app = app; startup.layoutReady = true; startup.indexPreparationAdmitted = true; startup.indexDirty = true;
   startup.indexBacklogReasons.add("startup:no-snapshot");
   startup.notifyIndexStatus = () => {};
+  startup.startupGraphSeedPaths = () => [];
   startup.hasVisibleKplexSurface = () => false;
   startup.performRebuild = async () => { fullBuilds++; };
   await startup.ensureInitialIndex();
-  assert.equal(fullBuilds, 0, "Source-backed startup does not route missing graph cache to a full build");
-  assert.equal(startup.initialIndexComplete, adopted, "Unavailable/incomplete source adoption remains explicit");
-  assert.equal(startup.indexDirty, !adopted, "Only completed source adoption retires the startup backlog");
+  assert.equal(fullBuilds, 0, "Source-backed startup retains its own coordinator instead of an unrelated fallback");
+  assert.equal(progressiveBuilds, adopted ? 1 : 0, "Only recovered sources admit eager relationship completion");
+  assert.equal(startup.initialIndexComplete, completed, "Unavailable/incomplete graph recovery remains explicit");
+  assert.equal(optionalUrlStarts, Number(completed), "Only completed primary Eager graph recovery admits independent URL inventory");
+  assert.equal(startup.indexDirty, !completed, "Only completed eager graph recovery retires the startup backlog");
 }
 
 function expectRole(sourcePath, role, targetPath, type) {
@@ -3957,7 +3983,7 @@ try {
     } finally { index.get = originalGet; }
     index.dematerializeFile(preparedOnlyFile.path);
   }
-  assert(index.applyRelationshipEdit("Note A.md", immediateFile.path, "child", "Children"));
+  assert(index.applyRelationshipEdit("Note A.md", immediateFile.path, "child", "Children"), JSON.stringify({policy:index.fullSemanticPolicyRevision,currentPolicy:index.semanticPolicyRevision,maintenance:index.fullSemanticMaintenanceRevision,currentMaintenance:index.sourceAcquisition.getMaintenanceRevision(),pending:[...(index.sourceAcquisition.pendingGraphSources()??[])],sourceBacked:index.sourceBackedSemantics,source:index.fullSemanticSourceRevision,currentSource:plugin.getIndexSourceRevision()}));
   expectRole("Note A.md", "child", immediateFile.path, RelationType.DEFINED);
 
   // Placeholder creation is optimistic too: no TFile is required until the user materializes the
