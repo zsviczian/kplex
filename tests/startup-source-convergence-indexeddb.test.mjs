@@ -33,9 +33,11 @@ test('eager warm graph admission completes before held optional URL replay',asyn
         ok(await f.cache.writeSnapshot({createdAt:Date.now(),urlAliasVersion:2,vaultSignature:M.computeVaultSignature(f.app),settingsSignature:M.computeIndexSettingsSignature(settings),discoveredFields:[]},
           [...initial.state.pages.values()].map(page=>M.persistedPageFromGraphPage(page)),[...initial.state.evidence.declarations()].map(item=>M.persistedDeclarationFromEvidence(item))),'Genuine complete warm graph');
         initial.destroy();initial=null;f.acquisition.close();
-        const p=new M.StartupSourceCoordinator();Object.assign(p,{app:f.app,settings,layoutReady:true,
+        const phaseFacts=[],p=new M.StartupSourceCoordinator();Object.assign(p,{app:f.app,settings,layoutReady:true,
           startupIndexPolicy:{device:'desktop',beforeView:true,mode:'eager'},supportEvents:{record(){}},
-          notifyIndexStatus(){},hasVisibleKplexSurface:()=>false,refreshBookmarkedEntryPoints:async()=>{},
+          /** Keep ordinary record notifications throttled; every real phase must still reach UI listeners. */
+          notifyIndexStatus(){const phase=p.startupDiagnostics.progress('hydration')?.phase;if(phase)phaseFacts.push([phase,index.getSnapshotHydrationDiagnostics().phase]);p.lastStartupProgressNotification=performance.now()+10000;},
+          hasVisibleKplexSurface:()=>false,refreshBookmarkedEntryPoints:async()=>{},
           startupGraphSeedPaths:()=>['A.md'],registerReactiveIndexListeners(){},performRebuild:async()=>{throw Error('Healthy warm graph cannot rebuild');}});
         p.startupDiagnostics=new M.StartupDiagnostics();p.startupDiagnostics.begin(false);
         index=new M.GraphIndex(p,f.app);p.index=index;index.scheduleOrphanCleanup=()=>{};
@@ -45,6 +47,8 @@ test('eager warm graph admission completes before held optional URL replay',asyn
         const completed=await Promise.race([admission.then(()=>true),new Promise(done=>setTimeout(()=>done(false),2000))]);
         ok(completed,'Actual startup must finish healthy graph hydration before optional URL replay can hold P3');
         ok(p.initialIndexComplete&&index.isFullSnapshotHydrated(),'Complete graph is naturally ready');
+        for(const phase of ['preview','pages','relations','preview-search','evidence','promote'])ok(phaseFacts.some(row=>row[0]===phase),'Actual hydration phase must bypass per-record throttling: '+phase);
+        ok(phaseFacts.every(row=>row[0]===row[1]),'Listeners observe complete current phase facts, never the previous diagnostic phase');
         equal(index.publicApiCoverage(),{scope:'global',complete:true,pending:false},'Global navigation does not wait for URL owner replay');
         equal(index.getSemanticPreparationDiagnostics().fullBuilds,0,'Warm admission does not fall back to a build');
         ok(urlStarted,'Optional URL work still starts after initial graph completion');

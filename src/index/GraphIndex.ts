@@ -6210,16 +6210,18 @@ export class GraphIndex {
       this.snapshotHydrationDiagnostics.outcome === "running";
   }
 
-  /** Observe actual phase transitions; neither timing nor UI progress changes authority or scheduling. */
+  /** Publish complete phase facts before notifying synchronous listeners. Phase changes bypass
+   * per-record throttling so a long search/resolution stage cannot retain the previous UI label.
+   * No diagnostic writes follow notification: a reentrant cancellation owns its newer outcome. */
   private setSnapshotHydrationPhase(run: number, phase: SnapshotHydrationPhase): void {
     if (!this.isSnapshotHydrationRunning(run)) return;
     const now = Date.now();
     this.plugin.startupDiagnostics?.phase("hydration", phase);
-    this.plugin.notifyStartupProgress?.();
     this.snapshotHydrationDiagnostics.phase = phase;
     this.snapshotHydrationDiagnostics.lastActivePhase = phase;
     this.snapshotHydrationDiagnostics.phaseStartedAt = now;
     this.snapshotHydrationDiagnostics.lastProgressAt = now;
+    this.plugin.notifyStartupProgress?.(true);
   }
 
   private touchSnapshotHydrationProgress(run: number): void {
