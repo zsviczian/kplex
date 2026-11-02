@@ -305,6 +305,7 @@ for(const rejection of ["self","duplicate","attachment-tag"]){
 test("reactive startup backlog cannot rebuild a partial cache preview before hydration settles", async () => {
   let hydrating = true, closeHydration; const events = [];
   const closed = new Promise((resolve) => { closeHydration = resolve; });
+  let optionalUrlStarts=0;
   const context = {
     unloading: false, layoutReady: true, initialIndexTask: null, initialIndexComplete: false,
     indexDirty: true, indexDirtyRevision: 1, preRestoreUncoveredChanges: false,
@@ -312,6 +313,8 @@ test("reactive startup backlog cannot rebuild a partial cache preview before hyd
     rebuildTask: null, rebuildTimer: null,
     index: {
       isOnDemandMode: () => false,
+      /** Optional work is admitted only after this primary hydration/delta owner completes. */
+      startBackgroundUrlIndex: async () => { assert.equal(context.initialIndexComplete,true);assert.equal(hydrating,false);optionalUrlStarts++;return true; },
       size: 3, hasPendingStructuralMaintenance: () => false, hasPendingSnapshotHydration: () => hydrating,
       waitForSnapshotHydration: async () => { events.push("wait"); await closed; hydrating = false; return { restored: true, fresh: false }; },
       hasSourceBackedStartup: () => false, isFullSnapshotHydrated: () => !hydrating, hasIncrementalRestorePatch: () => true,
@@ -329,6 +332,7 @@ test("reactive startup backlog cannot rebuild a partial cache preview before hyd
   closeHydration(); await task;
   assert.deepEqual(events, ["wait", "patch-real-delta"]); assert.equal(context.initialIndexComplete, true);
   assert.equal(context.indexDirty, false); assert.equal(context.indexBacklogReasons.size, 0);
+  assert.equal(optionalUrlStarts,1,'Optional URL work starts once after primary startup completes');
 });
 
 /** A view may own cold startup before the cooperative physical catalog installs warm hydration. */
@@ -337,7 +341,7 @@ for (const outcome of ["fresh", "stale", "failed", "sources", "sources-pending"]
     let releaseMetadata, releaseHydration, hydrating = false, hydrated = false, sourceBacked = false;
     const metadata = new Promise(resolve => { releaseMetadata = resolve; });
     const hydration = new Promise(resolve => { releaseHydration = resolve; });
-    const events = [];
+    const events = [];let optionalUrlStarts=0;
     const context = {
       unloading: false, layoutReady: true, initialIndexTask: null, initialIndexComplete: false,
       indexDirty: true, indexDirtyRevision: 0, preRestoreUncoveredChanges: false,
@@ -345,6 +349,8 @@ for (const outcome of ["fresh", "stale", "failed", "sources", "sources-pending"]
       metadataStabilityPromise: null, rebuildTask: null, rebuildTimer: null,
       index: {
         isOnDemandMode: () => false,
+        /** Primary pending/failure cannot prematurely admit the optional inventory. */
+        startBackgroundUrlIndex: async () => {assert.equal(context.initialIndexComplete,true);optionalUrlStarts++;return true;},
         size: 0, hasPendingStructuralMaintenance: () => false, hasPendingSnapshotHydration: () => hydrating,
         hasSourceBackedStartup: () => sourceBacked, isFullSnapshotHydrated: () => hydrated,
         hasPhysicalBaseline: () => hydrated || sourceBacked, hasRestoredCheckpoint: () => false,
@@ -382,6 +388,7 @@ for (const outcome of ["fresh", "stale", "failed", "sources", "sources-pending"]
       : outcome === "failed" ? ["progressive"] : outcome === "sources" ? ["adopt", "full"] : ["adopt"];
     assert.deepEqual(events, ["metadata", "hydrate", ...expected]);
     assert.equal(context.initialIndexComplete, outcome !== "sources-pending");
+    assert.equal(optionalUrlStarts,Number(outcome!=='sources-pending'),'Only completed primary startup admits optional URL work');
     assert.equal(context.indexDirty, outcome === "sources-pending");
     if (outcome.startsWith("sources")) assert.equal(hydrated, outcome === "sources", "Only completed eager relationships can claim full graph hydration");
     if (outcome === "sources-pending") {
