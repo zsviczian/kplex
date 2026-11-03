@@ -9,8 +9,8 @@ import test from "node:test";
 import ts from "typescript";
 import {loadPortableModules} from "./support/portableTypeScript.mjs";
 
-const {exports: {ActionManager, ACTION_CATALOG, surfaceAction, validActionArguments, hasClickModifier}} = loadPortableModules([
-  "src/application/ActionManager.ts", "src/core/plex/actions.ts", "src/ui/surfaceActionImplementation.ts", "src/ui/components/modifierClick.ts",
+const {exports: {ActionManager, ACTION_CATALOG, surfaceAction, validActionArguments, hasClickModifier, isObsidianUri}} = loadPortableModules([
+  "src/application/ActionManager.ts", "src/core/plex/actions.ts", "src/ui/surfaceActionImplementation.ts", "src/ui/components/modifierClick.ts", "src/adapters/obsidian/urlIdentity.ts", "src/core/graph/model.ts",
 ]);
 const foldId = "view.sidecar.collapse-plex";
 const app = ts.createSourceFile("src/ui/App.tsx", readFileSync(new URL("../src/ui/App.tsx", import.meta.url), "utf8"), ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
@@ -35,8 +35,8 @@ function implementation(id) {
     && ts.isStringLiteral(node.name) && node.name.text === id);
 }
 
-/** Exercise the actual toolbar handler and action adapter for every modifier combination. */
-test("Sidecar primary click captures any modifier and forwards only finite maximize intent", async () => {
+/** Locate the current primary control without duplicating its implementation or markup. */
+function primaryButton() {
   let button;
   /** Locate the current primary control without duplicating its implementation. */
   const visit = node => {
@@ -45,6 +45,12 @@ test("Sidecar primary click captures any modifier and forwards only finite maxim
     ts.forEachChild(node, visit);
   };
   visit(app); assert(button);
+  return button;
+}
+
+/** Exercise the actual toolbar handler and action adapter for every modifier combination. */
+test("Sidecar primary click captures any modifier and forwards only finite maximize intent", async () => {
+  const button=primaryButton();
   const handler = button.openingElement.attributes.properties.find(attribute => attribute.name?.text === "onClick").initializer.expression;
   const requests = [], calls = [], hostLeaf = {}, page = {};
   const click = expression(handler.getText(app), {actions: {dispatch: request => requests.push(request)}, hasClickModifier});
@@ -62,6 +68,18 @@ test("Sidecar primary click captures any modifier and forwards only finite maxim
   assert.deepEqual(calls.at(-1), [hostLeaf, page, false], "Unmodified commands retain ordinary toggle behavior");
   for (const args of [{maximize: "true"}, {maximize: 1}, {maximize: true, execute: true}]) assert(!validActionArguments("view.sidecar.toggle", args));
   assert(!validActionArguments("view.sidecar.detach", {maximize: true}), "Intent does not broaden unrelated actions");
+});
+
+/** Protocol targets cannot borrow web-pane actions; closing a retained document stays available. */
+test("URI Sidecar controls and shared actions agree while existing companions remain closable", () => {
+  const disabled=primaryButton().openingElement.attributes.properties.find(attribute=>attribute.name?.text==='disabled').initializer.expression;
+  for(const page of [{url:'obsidian://open?file=Case%20Kept.md'}, {url:'https://example.com'}, {file:{path:'A.md'}}])for(const open of [false,true]){
+    const uriCenter=expression(declaration('uriCenter').initializer.getText(app),{page,isObsidianUri}),hostLeaf={};
+    const dependencies={uriCenter,page,hostLeaf,surface:'leaf',uiAction:surfaceAction,plugin:{isSidecarOpen:()=>open,getAdjacentSidecarCandidate:()=>({})}};
+    const toggle=expression(implementation('view.sidecar.toggle').initializer.getText(app),dependencies),attach=expression(implementation('view.sidecar.attach-from-center').initializer.getText(app),dependencies);
+    assert.equal(toggle.availability({}).state,uriCenter&&!open?'disabled':'enabled');assert.equal(attach.availability({}).state,uriCenter?'disabled':'enabled');
+    assert.equal(expression(disabled.getText(app),{uriCenter,sidecarOpen:open}),uriCenter&&!open);
+  }
 });
 
 /** Extract a native local-menu method without loading Obsidian or a browser runtime. */

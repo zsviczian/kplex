@@ -194,6 +194,10 @@ async function uri(app,c){
   uriNode.dispatchEvent(new uriNode.ownerDocument.defaultView.PointerEvent('pointerover',{bubbles:true,pointerType:'mouse',ctrlKey:true}));await f.wait(200);
   f.check(protocol.length===0,'Passive URI parsing/render/hover executed a protocol');f.check(!app.vault.getFileByPath(f.folder+'/Never created.md'),'Passive URI created a note');
   samples.push({case:'native discovery and representations',bare:true,labelled:true,autolink:true,central,ordinary:markdown,sidecar:true,passiveProtocolCalls:0,webGuests:0});
+  f.check(!leaf.view.contentEl.querySelector('.kplex-sidecar-primary').disabled,'An existing native Sidecar must remain closable at a URI center');await p.closeSidecar(leaf);
+  await f.until(()=>leaf.view.contentEl.querySelector('.kplex-sidecar-primary')?.disabled,'URI cannot open a web Sidecar',5000);
+  for(const id of ['view.sidecar.toggle','view.sidecar.attach-from-center']){const result=await p.actionManager.dispatch({id,source:'internal',surfaceId:f.surface(leaf)});f.check(result.status==='unavailable','URI exposed a web Sidecar action');}
+  f.check(!p.validateSidecarLeaf(leaf),'Unavailable URI action created a Sidecar');samples.push({case:'URI Sidecar capability',existingClosable:true,openDisabled:true,actionsUnavailable:true});
   await p.setDocumentSyncMode(leaf,'off');
   for(const enabled of [false,true]){
    if(enabled)await web.enable(false);else await web.disable(false);
