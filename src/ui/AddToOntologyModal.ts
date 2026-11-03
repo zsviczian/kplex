@@ -1,6 +1,7 @@
 /** Native structured ontology editor. Drafts are local; complete field/pair intents enter the
  * established queue once, with raw endpoint conflict checks and durable-before-publication semantics.
- * Description rows stack their labels above full-width literal text editors. */
+ * Description rows stack their labels above full-width literal text editors. Wording-only input
+ * reuses detached structural validation; it never clones the whole vocabulary per keystroke. */
 import {Modal,Notice,Setting,type ButtonComponent,type DropdownComponent,type TextComponent,type TextAreaComponent,type ToggleComponent} from 'obsidian';
 import type KplexPlugin from '../main';
 import {normalizeFieldName} from '../core/contracts/fieldName';
@@ -24,6 +25,7 @@ export class AddToOntologyModal extends Modal {
   private removing=false;
   private composing=false;
   private newField=false;
+  private structuralValidation:Readonly<{key:string;valid:boolean}>|null=null;
   private readonly descriptionDrafts=new Map<string,string>();
   private readonly physicalNames=new Map<string,string>();
   private partnerDescriptionControl:TextAreaComponent|null=null;
@@ -52,6 +54,7 @@ export class AddToOntologyModal extends Modal {
   /** Capture raw configuration and remote owner before mounting an explicit Save/Cancel form. */
   onOpen():void {
     this.opened=true;this.committed=false;this.newField=!this.fieldName;this.generation++;
+    this.structuralValidation=null;
     this.opening=structuredClone({hierarchy:this.plugin.settings.hierarchy,ontologyPairingVersion:this.plugin.settings.ontologyPairingVersion,ontologyDescriptions:this.plugin.settings.ontologyDescriptions});
     this.physicalNames.clear();
     for(const field of ontologyReadModel(ontologyConfiguration(this.opening)))this.physicalNames.set(field.key,field.name);
@@ -152,8 +155,23 @@ export class AddToOntologyModal extends Modal {
       movePair:Boolean(pair&&partner&&normalizeFieldName(pair.partner)===normalizeFieldName(partner)&&this.selected!==pair.role)};
   }
 
-  /** Validate a complete local candidate without graph/source work or persistence. */
-  private valid():boolean {try{if(this.newField&&ontologyConfiguration(this.opening!).roles.has(normalizeFieldName(this.fieldName)))return false;const operation=this.operation();applyOntologyEdit(this.opening!,operation);if(operation.kind==='assign'){validateOntologyDescription(operation.description??'');validateOntologyDescription(operation.partnerDescription??'');}return true;}catch{return false;}}
+  /** Validate the detached structural candidate once per field/role/pair choice. Descriptions
+   * have independent constant-time length checks; each Save still enters the writer's fresh
+   * complete validation and receipt/conflict fences. No live settings acquire draft authority. */
+  private valid():boolean {
+    try{
+      const operation=this.operation(),structure=operation.kind==='assign'?{...operation,description:undefined,partnerDescription:undefined}:operation;
+      const key=JSON.stringify([this.newField,structure]);
+      if(this.structuralValidation?.key!==key){
+        this.structuralValidation={key,valid:false};
+        if(this.newField&&ontologyConfiguration(this.opening!).roles.has(normalizeFieldName(this.fieldName)))return false;
+        applyOntologyEdit(this.opening!,structure);this.structuralValidation={key,valid:true};
+      }
+      if(!this.structuralValidation.valid)return false;
+      if(operation.kind==='assign'){validateOntologyDescription(operation.description??'');validateOntologyDescription(operation.partnerDescription??'');}
+      return true;
+    }catch{return false;}
+  }
 
   /** Show both derived assignments, destructive scope and inline candidate feedback. */
   private refresh():void {
@@ -161,7 +179,8 @@ export class AddToOntologyModal extends Modal {
     this.partnerRow?.settingEl.toggle(Boolean(reciprocal));
     this.createPartnerRow?.settingEl.toggle(Boolean(reciprocal));
     this.partnerDescriptionRow?.settingEl.toggle(Boolean(reciprocal&&this.partner.trim()));
-    this.partnerDescriptionControl?.setValue(this.description(this.partner.trim()));
+    const partnerDescription=this.description(this.partner.trim());
+    if(this.partnerDescriptionControl&&this.partnerDescriptionControl.inputEl.value!==partnerDescription)this.partnerDescriptionControl.setValue(partnerDescription);
     this.createPartnerControl?.setValue(this.createPartner).setDisabled(this.busy||this.removing);
     this.resolutionRow?.settingEl.toggle(Boolean(this.partner));
     if(this.preview){
@@ -200,7 +219,7 @@ export class AddToOntologyModal extends Modal {
 
   /** Retire only this invocation; an operation already accepted by storage remains owned by the queue. */
   onClose():void {
-    const notify=this.opened;this.opened=false;this.suggestions?.close();this.suggestions=null;this.releaseWindow?.();this.releaseWindow=null;
+    const notify=this.opened;this.opened=false;this.structuralValidation=null;this.suggestions?.close();this.suggestions=null;this.releaseWindow?.();this.releaseWindow=null;
     for(const dialog of this.usageDialogs)dialog.close();this.usageDialogs.clear();
     this.contentEl.empty();if(notify)this.onClosed?.();
   }
