@@ -2413,10 +2413,12 @@ export class KplexSettingTab extends PluginSettingTab {
     return /** Retire removed controls while allowing an already accepted disk write to settle. */ () => {active = false;unsubscribe();};
   }
 
-  /** Mount one integrated periodic-pin editor so initial state, dependent controls and preview
-   * share the same native definition lifetime. Rendering never saves defaults or creates files. */
+  /** Mount one full-width periodic-pin section so its heading cannot compete with the nested
+   * native controls. Initial state, dependent controls and preview share one definition lifetime;
+   * rendering never saves defaults or creates files. */
   private mountPeriodicPin(setting: Setting, period: PinPeriod): () => void {
     const plugin = this.kplexPlugin, translate = plugin.translator;
+    setting.settingEl.addClass("kplex-periodic-pin-section");
     const container = setting.controlEl.createDiv({cls: "kplex-periodic-pin-settings"});
     let active = true;
     const refreshers: (() => void)[] = [];
@@ -2431,11 +2433,11 @@ export class KplexSettingTab extends PluginSettingTab {
       catch (error) {console.error("K-Plex periodic pin settings failed", error);if (active) new Notice(translate("pins.saveFailed"));}
       finally {if (active) refresh();}
     };
-    new Setting(container).setName(translate("pins.enabled")).addToggle(/** Enable membership in the canonical saved order, preserving existing positions. */ toggle => {
+    new Setting(container).setClass("kplex-periodic-pin-toggle").setName(translate("pins.enabled")).addToggle(/** Enable membership in the canonical saved order, preserving existing positions. */ toggle => {
       refreshers.push(/** Keep this mounted control in sync with unpinning on another canvas. */ () => {toggle.setValue(plugin.settings.pinnedNodes.some(/** A fixed pin at the resolved path does not enable the symbolic period. */ pin => isPeriodicPin(pin) && pin.period === period));});
       toggle.onChange(/** Native activation alone changes opt-in membership. */ value => {void save({}, value);});
     });
-    if (period === "day") new Setting(container).setName(translate("pins.dailySettings")).addToggle(/** Daily Notes is an optional host capability, not a required plugin. */ toggle => {
+    if (period === "day") new Setting(container).setClass("kplex-periodic-pin-toggle").setName(translate("pins.dailySettings")).addToggle(/** Daily Notes is an optional host capability, not a required plugin. */ toggle => {
       refreshers.push(/** Apply the current dependency on initial render and subsequent updates. */ () => {toggle.setValue(configuration().useDailyNotes);});
       toggle.onChange(/** An explicit custom destination remains available when Daily Notes is disabled. */ value => {void save({useDailyNotes: value});});
     });

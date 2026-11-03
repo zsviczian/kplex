@@ -257,10 +257,29 @@ async function settings(app,c){
   app.setting.open();app.setting.openTabById('k-plex');app.setting.openPagePath('k-plex',[p.translator('settings.ui.plex.behavior'),p.translator('pins.settingsTitle')]);
   await f.until(()=>app.setting.getCurrentPageEl()?.querySelectorAll('.kplex-periodic-pin-settings').length===3,'Three native period editors');
   const editors=[...app.setting.getCurrentPageEl().querySelectorAll('.kplex-periodic-pin-settings')],day=editors[0],inputs=[...day.querySelectorAll('input[type=text]')],toggles=[...day.querySelectorAll('.checkbox-container')];
+  const doc=day.ownerDocument;await f.until(()=>doc.fonts.status==='loaded'&&editors.every(/** New native Settings windows acquire plugin styles asynchronously. */ editor=>doc.defaultView.getComputedStyle(editor.closest('.setting-item')).display==='block'),'Native periodic section styles');
   /** Declarative pages restore their own scroll position; input must use freshly visible controls. */
   const activate=async control=>{control.scrollIntoView({block:'center',behavior:'instant'});await f.until(()=>{try{f.point(control);return true}catch{return false}},'Visible periodic setting control',10000);await f.click(control);};
   f.check(JSON.stringify(p.settings)===before&&saves===0,'Rendering periodic settings persisted defaults');f.check(inputs.length===2&&inputs.every(input=>!input.disabled),'Initial custom destination controls');
   f.check(day.querySelector('.kplex-periodic-pin-preview').textContent.includes(f.folder),'Native destination preview');
+  if(c.visual){day.scrollIntoView({block:'start',behavior:'instant'});c.visualReady=true;await f.until(()=>c.visualAcknowledged,'Visual settings inspection',60000);}
+  const sections=editors.map(/** Measure the actual native outer row, not an isolated HTML imitation. */ editor=>editor.closest('.setting-item'));
+  const styles=sections.map(/** Restore only test-owned geometry after each width matrix. */ section=>section.getAttribute('style'));
+  const themes=['theme-dark','theme-light'],originalThemes=themes.map(/** Color-mode changes affect only this disposable Settings document. */ theme=>doc.body.classList.contains(theme));
+  const native=f.owner(doc),bounds=native.getBounds(),minimum=native.getMinimumSize(),maximized=native.isMaximized();
+  await p.updatePeriodicPin('day',{folder:f.folder+'/Long calendar folder/'+('UnbrokenSegment'.repeat(15))});const sizingSaves=saves;
+  try{if(maximized)native.unmaximize();native.setMinimumSize(200,200);native.setContentSize(1160,1000);for(const theme of themes)for(const width of [320,480,760]){
+   for(const candidate of themes)doc.body.classList.toggle(candidate,candidate===theme);
+   for(const section of sections){section.style.width=width+'px';section.style.maxWidth='100%';}
+   await f.wait(100);
+   for(const [index,section] of sections.entries()){
+    const heading=section.querySelector(':scope > .setting-item-info .setting-item-name'),name=heading.getBoundingClientRect(),bounds=section.getBoundingClientRect(),first=editors[index].querySelector('.setting-item').getBoundingClientRect();
+    f.check(name.width>=bounds.width*.8&&name.bottom<=first.top+1,'Period heading must have its own full-width row: '+JSON.stringify({index,width,name:name.toJSON(),section:bounds.toJSON(),first:first.toJSON(),classes:section.className}));
+    f.check(section.scrollWidth<=section.clientWidth+1,'Periodic settings overflow horizontally');
+    for(const input of editors[index].querySelectorAll('input[type=text],select')){const rect=input.getBoundingClientRect();f.check(rect.left>=bounds.left-1&&rect.right<=bounds.right+1,'Periodic field exceeds its settings section');}
+   }
+   f.check(saves===sizingSaves,'Responsive layout persisted settings');samples.push({case:'native responsive settings layout',theme,requestedWidth:width,actualWidth:sections[0].getBoundingClientRect().width,headingsUnclipped:true,horizontalOverflow:false,longPathWrapped:true});
+  }}finally{for(const [index,section] of sections.entries())if(styles[index]===null)section.removeAttribute('style');else section.setAttribute('style',styles[index]);for(const [index,theme] of themes.entries())doc.body.classList.toggle(theme,originalThemes[index]);native.setMinimumSize(...minimum);native.setBounds(bounds);if(maximized)native.maximize();await p.updatePeriodicPin('day',{folder:f.folder});}
   await activate(toggles[1]);await f.until(()=>p.settings.periodicPinSettings.day.useDailyNotes&&inputs.every(input=>input.disabled),'Daily Notes dependency');await p.settingsWriteQueue;
   await activate(toggles[1]);await f.until(()=>!p.settings.periodicPinSettings.day.useDailyNotes&&inputs.every(input=>!input.disabled),'Custom destination restored');await p.settingsWriteQueue;
   f.check(inputs[0].value===f.folder&&inputs[1].value==='YYYY-MM-DD','Daily Notes toggle lost custom settings');
@@ -272,7 +291,7 @@ async function settings(app,c){
 /** Every invocation captures exact current configuration bytes and delegates ownership to its lane. */
 export async function runPinsPreviewUri(){
  const target=validateTarget({vaultName:process.env.KPLEX_TEST_VAULT_NAME,vaultPath:process.env.KPLEX_TEST_VAULT_PATH,configDir:process.env.KPLEX_TEST_CONFIG_DIR});
- const definitions='c.sessions='+nativeDocumentSessions.toString()+';c.fixture='+nativeBatch270.toString()+';c.originalData='+JSON.stringify(readFileSync(join(target.pluginDir,'data.json'),'utf8'))+';c.originalEnabled='+JSON.stringify(readFileSync(join(target.config,'community-plugins.json'),'utf8'))+';';
+ const definitions='c.sessions='+nativeDocumentSessions.toString()+';c.fixture='+nativeBatch270.toString()+';c.originalData='+JSON.stringify(readFileSync(join(target.pluginDir,'data.json'),'utf8'))+';c.originalEnabled='+JSON.stringify(readFileSync(join(target.config,'community-plugins.json'),'utf8'))+';c.visual='+(process.env.KPLEX_270_SETTINGS_VISUAL==='true')+';';
  const lane=process.env.KPLEX_270_NATIVE_LANE??'pins',scenario={pins,preview,uri,ontology,settings}[lane];if(!scenario)throw Error('Unknown #270 native lane');
  return runControlledProbe('pins-preview-uri-'+lane+'-270',scenario,definitions,['src/core/plex/savedPins.ts','src/core/plex/periodicPins.ts','src/ui/components/ReorderableList.tsx','src/ui/PinnedNodeBar.tsx','src/ui/AddToOntologyModal.ts','src/index/SourceFacts.ts','src/index/SourceRepository.ts','src/adapters/obsidian/sourceAcquisition.ts','src/main.ts','src/settings.ts','src/ui/App.tsx','src/core/parser/metadata.ts','src/adapters/obsidian/externalUrl.ts'],{maximumMs:420000});
 }

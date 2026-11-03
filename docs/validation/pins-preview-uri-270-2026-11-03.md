@@ -34,7 +34,7 @@ The unchanged 20,015-owner scale case passed with exact metadata/evidence/gates/
 
 Earlier failures are retained in local logs: an isolated Chromium bundle-startup deadline recovered without increasing the deadline; extracted settings-method fixtures needed their real calendar dependencies; the pin source-location assertion now follows the extracted shared component. Native probes were corrected to wait for actual active-leaf identity, current DOM targets, rendered preview text and settled declarative scrolling. These corrections do not replace missing behavior with test doubles or turn failed runs into passes.
 
-## Exact-build native evidence
+## Exact-build native evidence at batch checkpoint `0d7c044`
 
 Windows, Obsidian 1.14.5, Node 22.22.2. All native writes used the existing disposable `kplex-test-small` vault at `C:/Obsidian/kplex-test-small`, config `.obsidian`. Its baseline was 117 files, including 98 Markdown files. Production vaults were untouched.
 
@@ -59,6 +59,22 @@ The staging caller held the shared application-user-data lock, froze the product
 Native baseline reproduction used the frozen preceding #272 build. Native Markdown already rendered labelled/autolink URIs, while graph URI discovery was absent and Page Preview registered two K-Plex sources. The final implementation keeps Obsidian's renderer.
 
 After exact-build staging, set `KPLEX_TEST_VAULT_NAME`, `KPLEX_TEST_VAULT_PATH`, `KPLEX_TEST_CONFIG_DIR`, a fresh `KPLEX_HOST_REPORT_DIR`, and one `KPLEX_270_NATIVE_LANE` value (`pins`, `settings`, `preview`, `uri`, `ontology`). Run `npm run verify:obsidian:pins-preview-uri` serially. `KPLEX_OBSIDIAN_USER_DATA` optionally overrides the shared application identity; ordinary CLI discovery/override comes from the existing process helper.
+
+## Periodic settings layout follow-up
+
+The reported cramped form came from nesting an entire editor in the native setting's control column. Period headings competed with that form, inherited control alignment pushed content right, and native Settings group rules added nested padding/dividers. Periods now occupy full-width sections with complete headings, left-aligned labels, compact toggles, fields that stack at narrow widths and wrapping destination previews. Styles use Obsidian theme variables and apply only to these sections.
+
+The old native build reproduced horizontal overflow. The updated `settings` lane passed all six actual layout cases: dark/light modes at widths 320, 480 and 700 pixels (the native page caps a requested 760 pixels at 700). Checks cover heading placement, field bounds and long unbroken destination paths. Changing widths/themes caused no settings writes. Existing native dependent-control/opt-in checks also passed with zero source reads; configuration bytes, native window geometry, theme classes and fixture inventories were restored. The final native appearance was visually inspected as well.
+
+`npm run build` and focused `eslint src/settings.ts` passed with Node 22.22.2 and installed Obsidian declarations. This follow-up changes scoped CSS and native styling classes, with no indexing, persistence or parser changes; the expensive aggregate was not repeated. The complete batch verification above remains the earlier checkpoint evidence.
+
+| Follow-up artifact | SHA-256 |
+| --- | --- |
+| `main.js` | `b58f67da43ca6f374d5c146aee24de58d953f170f1966282d519ade2ecd2ebd9` |
+| `styles.css` | `4826da18f4c1abac6ce3aa85257b64c0c0e620e2531f861efe5716a6f29f72e8` |
+| `manifest.json` | `8c65b0d38a506f8fa9fc3311b81ea22bcda48e0209e9190483752c1f20834326` |
+
+Passing local receipt: `%TEMP%/kplex-270-native-Wb3UAa/pins-preview-uri-settings-270.json`; original overflow reproduction: `%TEMP%/kplex-270-native-AUn0c6/pins-preview-uri-settings-270.json`. These settings-only artifacts supersede the batch artifact hashes for the current build.
 
 ## Remaining platform checks
 

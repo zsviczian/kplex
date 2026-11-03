@@ -3997,6 +3997,97 @@ button.kplex-sidecar-unfold-plex:focus-visible,
   min-width: 0;
   max-width: 70%;
 }
-.kplex-periodic-pin-settings { width: 100%; min-width: 0; }
-.kplex-periodic-pin-settings .setting-item { flex-wrap: wrap; }
-.kplex-periodic-pin-preview { overflow-wrap: anywhere; }
+/* Integrated native settings need their own full-width row; the default label/control split
+   otherwise squeezes period names beside a form and inherits right-aligned control content. */
+.setting-item.kplex-periodic-pin-section {
+  display: block;
+  padding-block: var(--size-4-5);
+}
+
+.kplex-periodic-pin-section > .setting-item-info {
+  width: 100%;
+  margin: 0 0 var(--size-4-3);
+  text-align: start;
+}
+
+.kplex-periodic-pin-section > .setting-item-info > .setting-item-name {
+  color: var(--text-normal);
+  font-size: var(--font-ui-medium);
+  font-weight: var(--font-semibold);
+  white-space: normal;
+  overflow: visible;
+  text-overflow: clip;
+}
+
+.kplex-periodic-pin-section > .setting-item-control {
+  display: block;
+  width: 100%;
+  min-width: 0;
+  padding: 0;
+  text-align: start;
+}
+
+.kplex-periodic-pin-settings {
+  width: 100%;
+  min-width: 0;
+}
+
+.kplex-periodic-pin-section .kplex-periodic-pin-settings .setting-item {
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--size-4-2) var(--size-4-4);
+  padding-block: var(--size-4-3);
+  padding-inline: 0;
+  border: 0;
+}
+
+.kplex-periodic-pin-section .kplex-periodic-pin-settings .setting-item:first-child {
+  padding-top: 0;
+}
+
+/* Native Settings groups also draw row separators with a pseudo-element. The outer
+   period sections already provide separation, so nested controls need no second divider. */
+.kplex-periodic-pin-section .kplex-periodic-pin-settings .setting-item::before {
+  display: none;
+}
+
+.kplex-periodic-pin-section .kplex-periodic-pin-settings .setting-item-info {
+  flex: 1 1 12rem;
+  min-width: 0;
+  margin: 0;
+  text-align: start;
+}
+
+.kplex-periodic-pin-section .kplex-periodic-pin-settings .setting-item-control {
+  flex: 1 1 16rem;
+  min-width: 0;
+  padding: 0;
+  text-align: start;
+}
+
+.kplex-periodic-pin-section .kplex-periodic-pin-toggle .setting-item-control {
+  flex: 0 0 auto;
+}
+
+.kplex-periodic-pin-settings input[type="text"],
+.kplex-periodic-pin-settings select {
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+}
+
+.kplex-periodic-pin-preview {
+  margin-top: var(--size-4-2);
+  padding: var(--size-4-3);
+  border-radius: var(--radius-s);
+  background: var(--background-secondary);
+  color: var(--text-muted);
+  line-height: 1.5;
+  text-align: start;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+.kplex-periodic-pin-preview > div {
+  margin-top: var(--size-4-1);
+}
