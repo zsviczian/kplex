@@ -3,7 +3,8 @@
  * are a finite compatibility output delegated to the shared presentation owner until SI4. Neutral
  * reference reads and configured date assignments use sourcePolicy; only active evidence survives compilation.
  * The node projection reuses that policy/materialization owner without retaining or resolving evidence;
- * its distinct result cannot authorize relationship readiness. Repeated body URLs reuse node names
+ * its distinct result cannot authorize relationship readiness. Property and body labels share URL
+ * name/search-alias policy without adding property evidence. Repeated body URLs reuse node names
  * and lazily reuse URL alias membership once a target has several distinct labels. Membership
  * belongs only to this private compiler lifetime; ordered output arrays retain their semantics.
  * The compiler creates one explicitly private evidence store for owned-array appends. Finalization
@@ -21,6 +22,7 @@ import {
   beginSourceRead,
   sourceReadCanPublish,
   type BodyUrlOccurrence,
+  type UrlLabelOccurrence,
   type DatePropertyOccurrence,
   type FileTreeOccurrence,
   type HostLinkOccurrence,
@@ -419,6 +421,7 @@ export class NormalizedGraphCompiler {
       case "obsidian-link":
       case "unresolved-link": return this.consumeHostLink(record);
       case "selected-reference": return this.consumeReference(record);
+      case "url-label": return this.consumeUrlLabel(record);
       case "field-name": return this.consumeFieldName(record);
       case "semantic-metadata": return this.consumeSemanticMetadata(record);
       case "date-property": return this.consumeDate(record);
@@ -631,26 +634,42 @@ export class NormalizedGraphCompiler {
     const label = record.label && record.label !== record.target.rawTarget ? record.label : undefined;
     const target = this.ensureNode(record.target.entity, label || canonicalUrl, canonicalUrl);
     if (!source || !target) return false;
-    if (((label && label !== target.url) || record.aliases?.length)
-      && target.aliases.length > 128 && !this.urlAliasMembership.has(target)
-      && !(await this.seedUrlAliasMembership(target))) return false;
-    if (label && label !== target.url && !this.urlLabels.has(target.id)) this.urlLabels.set(target.id, label);
-    if (label && label !== target.url) this.appendUrlAlias(target, label);
-    if (record.aliases?.length) {
-      let processedAliases = 0;
-      for (const alias of record.aliases) {
-        if (alias && alias !== target.url && alias !== record.target.rawTarget) this.appendUrlAlias(target, alias);
-        if ((++processedAliases & 127) === 0 && !(await this.checkpoint())) return false;
-      }
-    }
-    const preferredLabel = this.urlLabels.get(target.id);
-    if (preferredLabel) target.name = preferredLabel;
+    if (!(await this.applyUrlLabels(target, record.target.rawTarget, label, record.aliases))) return false;
     const line = record.provenance?.location?.line;
     this.addInferred(record, source, target, "body-url", line ? { line } : undefined);
     return this.consumeUrlOrigin(record, target);
   }
 
-  /** Append only a new body label; keep the common empty/single-label case allocation-free. */
+  /** Property labels carry no extra relationship or origin declaration; neutral references own both. */
+  private async consumeUrlLabel(record: UrlLabelOccurrence): Promise<boolean> {
+    if (record.target.entity.kind !== "url" || record.target.resolvedBy !== "url") return false;
+    const canonicalUrl = record.target.entity.semanticPath ?? record.target.rawTarget;
+    const target = this.ensureNode(record.target.entity, canonicalUrl, canonicalUrl);
+    if (!target) return false;
+    return this.applyUrlLabels(target, record.target.rawTarget, record.label);
+  }
+
+  /** Shared first meaningful name and ordered search aliases for property and body URL labels. */
+  private async applyUrlLabels(target: CompiledGraphNode, rawTarget: string, label?: string, aliases?: readonly string[]): Promise<boolean> {
+    if (label === rawTarget || label === target.url) label = undefined;
+    if ((label || aliases?.length)
+      && target.aliases.length > 128 && !this.urlAliasMembership.has(target)
+      && !(await this.seedUrlAliasMembership(target))) return false;
+    if (label && label !== target.url && !this.urlLabels.has(target.id)) this.urlLabels.set(target.id, label);
+    if (label && label !== target.url) this.appendUrlAlias(target, label);
+    if (aliases?.length) {
+      let processedAliases = 0;
+      for (const alias of aliases) {
+        if (alias && alias !== target.url && alias !== rawTarget) this.appendUrlAlias(target, alias);
+        if ((++processedAliases & 127) === 0 && !(await this.checkpoint())) return false;
+      }
+    }
+    const preferredLabel = this.urlLabels.get(target.id);
+    if (preferredLabel) target.name = preferredLabel;
+    return true;
+  }
+
+  /** Append only a new URL label; keep the common empty/single-label case allocation-free. */
   private appendUrlAlias(target: CompiledGraphNode, alias: string): void {
     let membership = this.urlAliasMembership.get(target);
     if (!membership && target.aliases.length < 2) {

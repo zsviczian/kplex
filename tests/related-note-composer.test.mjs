@@ -507,6 +507,7 @@ function literalOwners() {
   const parser = "src/core/parser/metadata.ts", facade = "src/index/fieldParser.ts", adapter = "src/adapters/obsidian/placeholderRelocation.ts";
   const tokens = production("iterateInternalLinkTokens", { WIKI_LINK_RE: production("WIKI_LINK_RE", {}, parser), MARKDOWN_LINK_RE: production("MARKDOWN_LINK_RE", {}, parser) }, parser);
   const references = production("iterateLinkReferencesFromValue", {
+    iterateMarkdownLinkSteps: production("iterateMarkdownLinkSteps", {}, parser),
     WIKI_LINK_RE: production("WIKI_LINK_RE", {}, parser), MARKDOWN_LINK_RE: production("MARKDOWN_LINK_RE", {}, parser),
     URL_RE: production("URL_RE", {}, parser), splitInternalSubpath: production("splitInternalSubpath", {}, parser),
   }, parser);
