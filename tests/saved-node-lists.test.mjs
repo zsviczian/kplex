@@ -34,7 +34,7 @@ pages[5]={...pages[5],file:null};pages[6]={...pages[6],file:{extension:'pdf'}};p
 window.clicks=[];const actions={dispatch:request=>clicks.push(request.id)},actionNodeRef=page=>({identity:page.path}),translate=key=>key;
 const plugin={settings:{navigationHistory:pages.map(p=>p.path),pinnedNodes:pages.slice(0,8).map(p=>p.path)},index:{get:path=>pages.find(p=>p.path===path),titleFor:page=>page.name},removePinnedEntry:async()=>{}};
 const activePath=pages[2].path,page=pages[2],paintSettings=settings;
-const movePin=move=>{const next=moveSavedPin(plugin.settings.pinnedNodes,move);if(next){plugin.settings.pinnedNodes=next;window.mount()}},pinMoveMenu=()=>{};
+const movePin=move=>{const next=moveSavedPin(plugin.settings.pinnedNodes,move);if(next){plugin.settings.pinnedNodes=next;window.mount()}},pinMoveMenu=()=>{},activateSavedPin=id=>{const row=savedPinEntries(plugin.settings.pinnedNodes).find(row=>row.id===id);if(row)actions.dispatch({id:'node.activate',target:{node:actionNodeRef(plugin.index.get(row.entry))}})};
 const ObsidianIcon=({name})=><span className='kplex-icon' data-icon={name}/>;
 let host,root;function Surface(){const pinnedPages=savedPinEntries(plugin.settings.pinnedNodes).map(row=>{const p=plugin.index.get(row.entry),v=nodeListPresentation(p,p.name,settings);return {id:row.id,path:row.entry,...v,active:row.entry===activePath,available:true}});return <>{${pins}}{${history}}</>};
 window.mount=()=>{if(!root){host=document.body.appendChild(document.createElement('div'));host.className='kplex-main-column';host.style.width='450px';root=createRoot(host)}flushSync(()=>root.render(<Surface/>))};window.unmount=()=>flushSync(()=>root.unmount());

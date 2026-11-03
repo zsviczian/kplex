@@ -124,6 +124,7 @@
  * pending durable-body results and mounted consumers without changing graph semantics or sources.
  */
 import {classicSiblingCandidateLimit, projectClassicNeighborhood} from "../core/plex/views/classic/projection";
+import {fixedPinPaths} from "../core/plex/savedPins";
 import type {TAbstractFile} from 'obsidian';
 import {ontologyConfiguration} from "../core/contracts/ontologyConfiguration";
 import { canonicalWebUrl } from "../adapters/obsidian/urlIdentity";
@@ -5468,7 +5469,7 @@ export class GraphIndex {
     const seeds = [...new Set([
       ...seedPaths,
       this.plugin.settings.lastActivePath,
-      ...this.plugin.settings.pinnedNodes,
+      ...fixedPinPaths(this.plugin.settings.pinnedNodes),
     ].filter((path): path is string => typeof path === "string" && path.length > 0))];
     if (!seeds.length) {
       return false;
@@ -9787,7 +9788,7 @@ export class GraphIndex {
     if (!q) {
       const output: GraphPage[] = [];
       const seen = new Set<string>();
-      const preferred = [...this.searchEntryPointPaths, ...this.plugin.settings.pinnedNodes];
+      const preferred = [...this.searchEntryPointPaths, ...fixedPinPaths(this.plugin.settings.pinnedNodes)];
       for (const path of preferred) {
         const page = this.get(path);
         if (!page || seen.has(page.path) || !eligible(page)) continue;

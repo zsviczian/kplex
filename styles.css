@@ -3997,3 +3997,6 @@ button.kplex-sidecar-unfold-plex:focus-visible,
   min-width: 0;
   max-width: 70%;
 }
+.kplex-periodic-pin-settings { width: 100%; min-width: 0; }
+.kplex-periodic-pin-settings .setting-item { flex-wrap: wrap; }
+.kplex-periodic-pin-preview { overflow-wrap: anywhere; }

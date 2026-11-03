@@ -56,7 +56,9 @@
  * New-file after-saving choices reuse surface-owned editor actions and exact native tab/Sidecar destinations; bounded readiness waits settle on unload.
  */
 import { registerFileMenus, type FilePlexNode, type FilePlexTarget } from "./adapters/obsidian/fileMenu";
-import {moveSavedPin, savedPinEntries, type SavedPinMove} from "./core/plex/savedPins";
+import {moveSavedPin, savedPinEntries, fixedPinPaths, isPeriodicPin, type PinPeriod, type SavedPinMove} from "./core/plex/savedPins";
+import {resolveSavedPins, setPeriodicPinEnabled, type PeriodicPinRuntime, type PeriodicPinConfiguration, type ResolvedSavedPin} from "./core/plex/periodicPins";
+import {createPeriodicPinRuntime} from "./adapters/obsidian/periodicPins";
 import { drawingAutomation, drawingTemplateOptions } from "./adapters/obsidian/drawingTemplates";
 import {viewLabel} from "./ui/plexViews/labels";
 import {startupIndexPolicy} from './core/plex/startupIndexPreferences';
@@ -244,6 +246,9 @@ export default class KplexPlugin extends Plugin {
   private appearanceMigrationDialog: NotificationModal | null = null;
   /** The host owns Settings navigation; the tab owns rendered shortcut controls and cleanup. */
   private settingsTab: KplexSettingTab | null = null;
+  private periodicPinRuntime: PeriodicPinRuntime | null = null;
+  private periodicPinTimer: number | null = null;
+  private periodicPinSignature: string | null = null;
   private actionPreferenceQueue: Promise<void> = Promise.resolve();
   private settingsWriteQueue: Promise<void> = Promise.resolve();
   private savedSettingsRefresh: SavedSettingsRefresh | undefined;
@@ -437,7 +442,7 @@ export default class KplexPlugin extends Plugin {
     this.disposePublicApiWindows=publishPublicApiWindows(this.app.workspace,this.api,
       /** Obsidian also owns listener cleanup if initialization fails later. */ event=>this.registerEvent(event));
     this.installPreRestoreChangeFence();
-    this.index.primeSavedNavigation([this.settings.lastActivePath, ...this.settings.navigationHistory.slice(-14), ...this.settings.pinnedNodes]);
+    this.index.primeSavedNavigation([this.settings.lastActivePath, ...this.settings.navigationHistory.slice(-14), ...fixedPinPaths(this.settings.pinnedNodes)]);
     this.registerMarkdownZoomPreferenceListeners();
     // URL acquisition is independent of MetadataCache, local graph preparation and full Eager inventory.
     this.registerEvent(this.app.vault.on("modify", /** Retire exact URL facts on content edits, including equal-stat writes. */
@@ -457,6 +462,11 @@ export default class KplexPlugin extends Plugin {
     this.registerHoverLinkSource(KPLEX_VIEW_TYPE, { display: "K-Plex", defaultMod: false });
     // Every surface emits the canonical primary source. Keep native view IDs independent of
     // Page Preview preferences so the same user choice also applies to Sidecar and popouts.
+    this.register(/** Main-window coordination survives closing popouts but stops at plugin unload. */ () => this.stopPeriodicPinTimer());
+    this.registerEvent(this.app.workspace.on("layout-change", /** Reveals re-resolve the current local period. */ () => this.refreshPeriodicPins()));
+    this.registerDomEvent(window, "focus", /** Suspended timers cannot leave the next foreground display stale. */ () => this.refreshPeriodicPins());
+    this.registerDomEvent(this.app.workspace.containerEl.ownerDocument, "visibilitychange", /** Resume changes presentation only. */ () => this.refreshPeriodicPins());
+    this.refreshPeriodicPins();
     this.settingsTab = new KplexSettingTab(this.app, this);
     this.addSettingTab(this.settingsTab);
     this.registerEditorSuggest(new OntologySuggester(this));
@@ -551,7 +561,7 @@ export default class KplexPlugin extends Plugin {
         this.installPreRestoreChangeFence();
         // The native tree may have settled since plugin load. Saved navigation must not await
         // appearance persistence, the vault-wide search catalog or semantic cache restoration.
-        this.index.primeSavedNavigation([this.settings.lastActivePath, ...this.settings.navigationHistory.slice(-14), ...this.settings.pinnedNodes]);
+        this.index.primeSavedNavigation([this.settings.lastActivePath, ...this.settings.navigationHistory.slice(-14), ...fixedPinPaths(this.settings.pinnedNodes)]);
         const legacySettings = !alreadyKplex && !this.externalSettingsReceived ? this.runningKplexSettings() : null;
         // First-use migration follows the actual loaded-data/import state. Never persist pristine
         // factory presets before a running ExcaliBrain appearance has had its existing import path.
@@ -615,7 +625,7 @@ export default class KplexPlugin extends Plugin {
     // closed, the preview can immediately recover the previous valid center instead of waiting
     // for the complete snapshot before discovering a usable fallback.
     paths.push(...this.settings.navigationHistory.slice(-12).reverse());
-    paths.push(...this.settings.pinnedNodes);
+    paths.push(...fixedPinPaths(this.settings.pinnedNodes));
     return [...new Set(paths.filter(Boolean))];
   }
 
@@ -970,12 +980,14 @@ export default class KplexPlugin extends Plugin {
       const next = remap(this.settings[key]);
       if (next !== this.settings[key]) { this.settings[key] = next; changed = true; }
     }
-    for (const key of ["navigationHistory", "pinnedNodes"] as const) {
+    for (const key of ["navigationHistory"] as const) {
       const next = this.settings[key].map(remap);
       if (next.some((path, index) => path !== this.settings[key][index])) {
         this.settings[key] = [...new Set(next)]; changed = true;
       }
     }
+    const pins = this.settings.pinnedNodes.map(/** Physical rename never rewrites symbolic or future descriptors. */ entry => typeof entry === "string" ? remap(entry) : entry);
+    if (pins.some((entry, index) => entry !== this.settings.pinnedNodes[index])) {this.settings.pinnedNodes = [...new Set(pins)];changed = true;}
     if (folder) for (const path of [...this.dirtyMarkdownPaths]) {
       const next = remap(path);
       if (next !== path) { this.dirtyMarkdownPaths.delete(path); this.dirtyMarkdownPaths.add(next); }
@@ -2120,6 +2132,7 @@ export default class KplexPlugin extends Plugin {
       || !appearanceThemes.themeValuesEqual(previous.appearanceThemesFuture, next.appearanceThemesFuture);
     const before = captureSettingsPolicy(previous), effects = classifySettingsChange(before, captureSettingsPolicy(next));
     this.settings = next;
+    this.refreshPeriodicPins();
     this.savedSettingsPolicy = captureSettingsPolicy(next);
     this.actionPreferenceUnsupportedVersion = actions.unsupportedVersion;
     this.actionPreferenceMigrationSkipped = actions.skippedDefaults;
@@ -2881,6 +2894,7 @@ export default class KplexPlugin extends Plugin {
       return;
     }
     if (this.unloading) return;
+    this.refreshPeriodicPins();
     // Preserve the established coverage decision; optional completion cannot hold the disk queue or Settings close.
     const needsSemantic = effects.semanticInvalidation || (effects.render && !effects.typographyOnly && !effects.paintOnly && !consentOnly && !layoutOnly && !isStyleOnlySettingsChange(effects) && !effects.changedKeys.every(/** Non-color theme geometry uses presentation/layout only. */ key => STYLE_SETTINGS_KEYS.some(/** Lens behavior keeps its separate owner. */ field => field === key)));
     await this.refreshSavedSettings(needsSemantic, true);
@@ -5287,6 +5301,45 @@ export default class KplexPlugin extends Plugin {
   }
 
   isPinned(path: string): boolean { return this.settings.pinnedNodes.includes(path); }
+
+  /** Resolve finite saved entries through one optional calendar/exact-file capability. No
+   * symbolic descriptor is passed to source priming or coerced to a graph NodeId. */
+  readSavedPins(pins = this.settings.pinnedNodes): ResolvedSavedPin[] {
+    this.periodicPinRuntime ??= createPeriodicPinRuntime(this.app,
+      /** Fixed placeholders/tags/URLs retain their behavior; native files may predate hydration. */ path => !!this.index?.get(path) || this.app.vault.getFileByPath(path) !== null,
+      /** Each activation and display snapshot captures the current local clock independently. */ () => Date.now());
+    return resolveSavedPins(pins, this.settings.periodicPinSettings, this.periodicPinRuntime);
+  }
+
+  /** Preview remains read-only even before the corresponding pin has been enabled. */
+  previewPeriodicPin(period: PinPeriod): ResolvedSavedPin {return this.readSavedPins([{kind: "periodic", period}])[0];}
+
+  /** Persist only this period's configuration/opt-in membership through the existing writer;
+   * fixed entries, other periods and future settings fields retain their data and saved order. */
+  async updatePeriodicPin(period: PinPeriod, patch: Partial<PeriodicPinConfiguration>, enabled?: boolean): Promise<void> {
+    const current = this.settings.periodicPinSettings;
+    this.settings.periodicPinSettings = {...current, [period]: {...current[period], ...patch}};
+    if (enabled !== undefined) this.settings.pinnedNodes = setPeriodicPinEnabled(this.settings.pinnedNodes, period, enabled);
+    await this.saveSettings(false, false);this.refreshPeriodicPins();this.index.notifyPresentation();
+  }
+
+  /** Retire the one bounded main-window clock, including plugin unload with popouts open. */
+  private stopPeriodicPinTimer(): void {
+    if (this.periodicPinTimer !== null) window.clearTimeout(this.periodicPinTimer);this.periodicPinTimer = null;
+  }
+
+  /** Rollover/reveal changes labels only, never attention/history/files/semantics. Disabled
+   * periodic pins allocate no timer; explicit activation always re-resolves independently. */
+  private refreshPeriodicPins(): void {
+    this.stopPeriodicPinTimer();
+    if (this.unloading || !this.settings.pinnedNodes.some(isPeriodicPin)) {this.periodicPinSignature = null;return;}
+    const signature = JSON.stringify(this.readSavedPins().filter(/** Only symbolic destinations need calendar refresh. */ row => row.period)
+      .map(/** Resume and configuration changes may alter path or availability. */ row => [row.id, row.path, row.state]));
+    if (signature !== this.periodicPinSignature) {this.periodicPinSignature = signature;this.index.notifyPresentation();}
+    this.periodicPinTimer = window.setTimeout(/** Re-enter the same owner after a bounded wait. */ () => {
+      this.periodicPinTimer = null;this.refreshPeriodicPins();
+    }, 60_000);
+  }
 
   /** Recheck the complete captured saved order before one serialized settings write. Concurrent
    * additions/removals/reorders cancel instead of publishing an old filtered toolbar collection. */

@@ -1,7 +1,26 @@
 /** Portable saved-pin identity and atomic relative ordering. Saved entries, including missing
  * destinations, remain canonical; graph hydration never selects or compresses this collection.
  * This owner has no navigation, source, storage or host capabilities. */
-export type SavedPin = string;
+export const PIN_PERIODS = ["day", "week", "month"] as const;
+export type PinPeriod = typeof PIN_PERIODS[number];
+/** Unknown future descriptor records remain inert and round-trip without becoming graph paths. */
+export type SavedPin = string | Readonly<Record<string, unknown>>;
+export type PeriodicPin = Readonly<{kind: "periodic"; period: PinPeriod} & Record<string, unknown>>;
+
+/** Recognize only the three explicit symbolic descriptors; never infer a graph/file identity. */
+export function isPeriodicPin(value: unknown): value is PeriodicPin {
+  return !!value && typeof value === "object" && !Array.isArray(value) && "kind" in value && value.kind === "periodic"
+    && "period" in value && (value.period === "day" || value.period === "week" || value.period === "month");
+}
+
+/** Preserve legacy strings and future data-only records; malformed scalars retain the old refusal. */
+export function loadSavedPins(value: unknown): SavedPin[] {
+  return Array.isArray(value) ? value.filter(/** A descriptor must be a record, never an executable/file-path coercion. */ (item): item is SavedPin =>
+    typeof item === "string" || !!item && typeof item === "object" && !Array.isArray(item)).map(/** Own the mutable JSON settings record without dropping future keys. */ item => typeof item === "string" ? item : {...item}) : [];
+}
+
+/** Only fixed legacy paths can seed saved graph navigation or participate in physical rename. */
+export function fixedPinPaths(pins: readonly SavedPin[]): string[] {return pins.filter(/** Symbolic/future descriptors have no graph NodeId authority. */ (pin): pin is string => typeof pin === "string");}
 
 /** Presentation identity is separate from graph NodeId; an ordinal preserves legacy duplicates. */
 export type SavedPinEntry = Readonly<{id: string; entry: SavedPin}>;
@@ -13,8 +32,9 @@ export type SavedPinMove = Readonly<{id: string; before: string | null; expected
 export function savedPinEntries(pins: readonly SavedPin[]): SavedPinEntry[] {
   const counts = new Map<string, number>();
   return pins.map(/** Equal legacy paths remain separately represented rather than silently deduplicated. */ entry => {
-    const ordinal = counts.get(entry) ?? 0;counts.set(entry, ordinal + 1);
-    return {id: JSON.stringify(["fixed", entry, ordinal]), entry};
+    const identity = typeof entry === "string" ? ["fixed", entry] : isPeriodicPin(entry) ? ["periodic", entry.period] : ["unsupported", entry];
+    const key = JSON.stringify(identity), ordinal = counts.get(key) ?? 0;counts.set(key, ordinal + 1);
+    return {id: JSON.stringify([...identity, ordinal]), entry};
   });
 }
 
