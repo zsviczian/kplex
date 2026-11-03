@@ -41,6 +41,65 @@ const initialize = `(() => {
   return true;
 })()`;
 
+/** URI grammar migration reuses the existing database and CAS owner. Old omitted references
+ * cannot masquerade as current inputs, while unrelated stored data and valid warm hits survive. */
+test("real Chromium: URI parser/fact versions repair old cache families and reopen warm", {timeout: 60000}, async () => {
+  const browser = await chromiumHarness(bundle);
+  try {
+    await browser.evaluate(initialize);
+    assert(await browser.evaluate(`(async()=>{
+      const M=sourceModules,name='uri-grammar-five',owner=await fresh(name),db=await owner.open();let reader;
+      const path='URI.md',uri='obsidian://open?vault=Other%20Vault&file=Case%2B.md%23Heading';
+      try{
+        const first=await owner.sources.replace(await make(owner.sources,path,{kind:'missing'},'Old body'));
+        equal(first.outcome,'activated','Initial real source persists');
+        await edit(db,['bodies','urlOwners','sourceHeads','meta'],async tx=>{
+          tx.objectStore('bodies').put({path,mtime:1,parserVersion:4,body:{inlineFields:{},inlineFieldOccurrences:[],urls:[]}});
+          tx.objectStore('urlOwners').put({path,mtime:1,size:uri.length,version:3,parserVersion:4,urls:[],inlineFieldOccurrences:[],frontmatter:{}});
+          const old=await requestValue(tx.objectStore('sourceHeads').get(path));old.compilerVersion=1;old.bodyParserVersion=4;tx.objectStore('sourceHeads').put(old);
+          tx.objectStore('meta').put({key:'uri-unrelated-sentinel',value:'keep'});
+        });
+        equal(await owner.getBody(path,1),null,'Parser4 body omitting URI is not a current empty result');
+        const urls=[];ok(await owner.readUrlOwners(async rows=>{urls.push(...rows)},()=>true),'URL inventory completes');equal(urls,[],'Parser4 URL owners require reacquisition');
+        const stale=await owner.sources.inspect(path,[]);equal(stale.reason,'format-version','Old lexical internal-reference facts cannot certify URI semantics');
+        const body=M.parseBodyMetadata(uri);equal(body.urls[0].url,uri,'Current grammar preserves encoded target');
+        ok(await owner.putBodies([{path,mtime:1,body}]),'Current body persists');
+        ok(await owner.putUrlOwners([{path,mtime:1,size:uri.length,urls:body.urls,inlineFieldOccurrences:[],frontmatter:{}}]),'Current URL owner persists');
+        const repaired=await owner.sources.replace(await make(owner.sources,path,stale.expected,uri));equal(repaired.outcome,'activated','Existing CAS replaces the incompatible fact head');
+        equal((await requestValue(db.transaction('meta').objectStore('meta').get('uri-unrelated-sentinel'))).value,'keep','No database wipe or unrelated eviction');
+        owner.close();reader=await fresh(name);
+        equal(await reader.getBody(path,1),body,'Warm body reopens without a parse');
+        const warm=[];ok(await reader.readUrlOwners(async rows=>{warm.push(...rows)},()=>true),'Warm URL inventory');equal(warm.length,1,'One current URI owner');equal(warm[0].urls[0].url,uri,'Warm URI bytes survive');
+        equal((await reader.sources.inspect(path,[])).reason,'ready','Current repaired facts reopen ready');return true;
+      }finally{owner.close();reader?.close();}
+    })()`));
+  } finally {await browser.cleanup();}
+});
+
+/** Historical deleted/offline owners cannot hold the whole source audit open after a URI upgrade. */
+test("real Chromium: URI upgrade enumerates old tombstones and retires offline-deleted headers without replay", {timeout: 60000}, async () => {
+  const browser = await chromiumHarness(bundle);
+  try {
+    await browser.evaluate(initialize);
+    assert(await browser.evaluate(`(async()=>{
+      const owner=await fresh('uri-retirement-grammar'),db=await owner.open();let reader;
+      try{
+        for(const id of ['Retired','Offline'])equal((await owner.sources.replace(await make(owner.sources,id))).outcome,'activated','Seed current source');
+        equal((await owner.sources.tombstone('Retired',()=>true,true)).outcome,'activated','Retain an actual deletion marker');
+        await edit(db,['sourceHeads'],async tx=>{for(const id of ['Retired','Offline']){const head=await requestValue(tx.objectStore('sourceHeads').get(id));head.compilerVersion=1;head.bodyParserVersion=4;tx.objectStore('sourceHeads').put(head);}});
+        owner.close();reader=await fresh('uri-retirement-grammar');
+        const strict=await reader.sources.headPage();equal(strict.invalid,1,'Only old complete facts lack current authority');
+        const retired=await reader.sources.headPage(null,256,{retirementOnly:true});equal(retired.invalid,0,'Known old physical headers remain available for absence reconciliation');equal(retired.heads.length,2,'Both historical owners are enumerable');
+        equal(await reader.sources.readBody('Retired',()=>true,()=>true,true),null,'Retained old parser data cannot become a rename body input');
+        equal((await reader.sources.inspect('Offline',[])).reason,'format-version','Ordinary selection still rejects old complete facts');
+        equal((await reader.sources.tombstone('Offline')).outcome,'activated','Existing absence CAS retires an offline-deleted old owner');
+        equal((await reader.sources.headPage()).invalid,0,'Retirement leaves no permanently invalid source catalog entry');
+        const raw=await requestValue((await reader.open()).transaction('sourceHeads').objectStore('sourceHeads').get('Retired'));equal(raw.compilerVersion,1,'Enumeration never restamps old data');return true;
+      }finally{owner.close();reader?.close();}
+    })()`));
+  } finally {await browser.cleanup();}
+});
+
 /** Queued bodies are optional parser-cache data; all completed flushes still use native IndexedDB. */
 test("real Chromium: parsed-body write-behind remains readable without granting durable source authority", { timeout: 60000 }, async t => {
   const browser = await chromiumHarness(bundle);

@@ -14,16 +14,16 @@ import { chromiumHarness } from './support/browserTypeScript.mjs';
 import { contributorBrowserBundle, contributorBrowserInitialize } from './support/contributorBrowserFixture.mjs';
 import { centerGateSettings } from './support/requestedCenterGateFixture.mjs';
 
-const indexBundle = await contributorBrowserBundle(['src/index/GraphIndex.ts', 'src/index/GraphPresentation.ts', 'src/core/graph/settingsPolicy.ts', 'src/core/contracts/ontologyConfiguration.ts', 'src/core/contracts/appearance.ts', 'src/adapters/obsidian/savedSettingsRefresh.ts']);
+const indexBundle = await contributorBrowserBundle(['src/index/GraphIndex.ts', 'src/index/GraphPresentation.ts', 'src/core/graph/settingsPolicy.ts', 'src/core/plex/savedPins.ts', 'src/core/contracts/ontologyConfiguration.ts', 'src/core/contracts/appearance.ts', 'src/adapters/obsidian/savedSettingsRefresh.ts']);
 const ui = await build({ stdin: { resolveDir: process.cwd(), contents: `export {ThoughtNode} from './src/ui/ThoughtNode'; export {createElement} from 'react'; export {createRoot} from 'react-dom/client'; export {flushSync} from 'react-dom'; export {renderToStaticMarkup} from 'react-dom/server';` }, bundle: true, write: false, platform: 'browser', format: 'iife', globalName: 'nodeUI', plugins: [{ name: 'native-icon-boundary', setup(builder) {
   builder.onResolve({filter:/^obsidian$/}, /** Keep only the native icon API doubled. */ () => ({path:'obsidian',namespace:'native'}));
   builder.onLoad({filter:/.*/,namespace:'native'}, /** The fixture uses no icons or native shell components. */ () => ({contents:'export const getIcon=()=>null;'}));
 } }] });
 const main = ts.createSourceFile('main.ts', readFileSync('src/main.ts','utf8'), ts.ScriptTarget.Latest, true);
 const owner = main.statements.find(node => ts.isClassDeclaration(node) && node.name?.text === 'KplexPlugin');
-const saveMethods = ['saveSettings','refreshSavedSettings'].map(name => owner.members.find(node => node.name?.getText(main) === name));
+const saveMethods = ['saveSettings','refreshSavedSettings','refreshPeriodicPins','stopPeriodicPinTimer'].map(name => owner.members.find(node => node.name?.getText(main) === name));
 assert(saveMethods.every(Boolean), 'Compile actual save and completion owners, never a policy or refresh reimplementation');
-const saveBundle = ts.transpileModule(`window.imageSaveNotices=[]; const Notice=class {/** Record native feedback without substituting a save or refresh outcome. */ constructor(message){window.imageSaveNotices.push(message)}}; const {ontologyConfiguration,captureSettingsPolicy,classifySettingsChange,isStyleOnlySettingsChange,STYLE_SETTINGS_KEYS,SavedSettingsRefresh}=window.sourceModules; window.ImageSaveOwner=class {${saveMethods.map(method=>method.getText(main)).join("\n")}};`, {compilerOptions:{target:ts.ScriptTarget.ES2021,module:ts.ModuleKind.None}}).outputText;
+const saveBundle = ts.transpileModule(`window.imageSaveNotices=[]; const Notice=class {/** Record native feedback without substituting a save or refresh outcome. */ constructor(message){window.imageSaveNotices.push(message)}}; const {isPeriodicPin,ontologyConfiguration,captureSettingsPolicy,classifySettingsChange,isStyleOnlySettingsChange,STYLE_SETTINGS_KEYS,SavedSettingsRefresh}=window.sourceModules; window.ImageSaveOwner=class {periodicPinTimer=null;periodicPinSignature=null;${saveMethods.map(method=>method.getText(main)).join("\n")}};`, {compilerOptions:{target:ts.ScriptTarget.ES2021,module:ts.ModuleKind.None}}).outputText;
 const bundle = indexBundle + '\n' + ui.outputFiles[0].text + '\n' + saveBundle;
 
 /** Own one real browser, real cache and finite image-bearing inventory per scenario. */
@@ -35,7 +35,7 @@ async function scenario(code, origin = 'http://127.0.0.1:9') {
       const M=sourceModules,f=await fixture('remote-node-images'); f.app.vault.getName=()=> 'remote-node-images';
       const local=f.add('Picture.png');
       f.app.vault.getResourcePath=()=> 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAIAAAD91JpzAAAAEElEQVR4nGNwONAARAwQCgApDgYBWgscUQAAAABJRU5ErkJggg==';
-      const settings={...(${centerGateSettings.toString()})(),hierarchy:{hidden:[],parents:[],children:[],leftFriends:[],rightFriends:[],previous:[],next:[],exclusions:[]},inferAllLinksAsFriends:false,inverseInfer:false,tagStyleList:[],thumbnailProperty:'thumbnail',nodeImageProperty:'node-image',attachmentImageDisplay:'thumbnail-label',indexingMode:'on-demand'};
+      const settings={...(${centerGateSettings.toString()})(),pinnedNodes:[],hierarchy:{hidden:[],parents:[],children:[],leftFriends:[],rightFriends:[],previous:[],next:[],exclusions:[]},inferAllLinksAsFriends:false,inverseInfer:false,tagStyleList:[],thumbnailProperty:'thumbnail',nodeImageProperty:'node-image',attachmentImageDisplay:'thumbnail-label',indexingMode:'on-demand'};
       const plugin=new ImageSaveOwner();Object.assign(plugin,{translator: key=>key,settings,getIndexSourceRevision:()=>0,app:f.app,startupDiagnostics:{mark(){},count(){},phase(){},/** Image fixture discards aggregate work receipts. */recordWork(){}}});
       const index=new M.GraphIndex(plugin,f.app);plugin.index=index;plugin.savedSettingsPolicy=M.captureSettingsPolicy(settings);
       let persists=0,semanticRefreshes=0;plugin.persistSettingsSnapshot=async()=>{persists++};index.refreshSemanticSettings=async()=>{semanticRefreshes++};

@@ -33,6 +33,9 @@
  * Creation and linking remember separate after-saving actions, retaining the former shared choice on upgrade.
  */
 import {STARTUP_INDEX_DEFAULTS, sanitizeStartupIndexPreferences, type IndexingMode, type StartupIndexPreferences} from './core/plex/startupIndexPreferences';
+import {PIN_PERIODS, isPeriodicPin, loadSavedPins, type PinPeriod, type SavedPin} from "./core/plex/savedPins";
+import {DEFAULT_PERIODIC_PIN_SETTINGS, loadPeriodicPinSettings, type PeriodicPinConfiguration, type PeriodicPinSettings} from "./core/plex/periodicPins";
+import {periodicPinLabel} from "./ui/savedPinPresentation";
 import { readObsidianPresentationEnvironment } from "./adapters/obsidian/presentationEnvironment";
 import {contentVisibilityPatch} from "./core/plex/contentVisibility";
 import {sanitizeCreationAfterSaving, type CreationAfterSavingAction} from "./core/plex/createdNoteDestination";
@@ -70,7 +73,7 @@ import {
   getIconIds,
   type SettingDefinitionItem,
   type SettingDefinition,
-  type Setting,
+  Setting,
 } from "obsidian";
 import type KplexPlugin from "./main";
 import {builtInCanvasViewSettings, canvasViewControl, type CanvasViewSettingsRegistry} from "./ui/plexViews/settingsContributions";
@@ -373,7 +376,8 @@ export interface KplexSettings extends StartupIndexPreferences {
   kplexInitialized: boolean;
   startInPopout: boolean;
   lastActivePath: string;
-  pinnedNodes: string[];
+  pinnedNodes: SavedPin[];
+  periodicPinSettings: PeriodicPinSettings;
   layoutProfiles: Record<string, KplexLayoutProfile>;
   /** Bounded effective reads validate registered schemas; unsupported persisted payloads remain inert and round-trip unchanged. */
   canvasViewSettings: unknown;
@@ -536,6 +540,7 @@ const LEGACY_DEFAULT_SETTINGS: KplexSettings = {
   startInPopout: false,
   lastActivePath: "",
   pinnedNodes: [],
+  periodicPinSettings: DEFAULT_PERIODIC_PIN_SETTINGS,
   layoutProfiles: DEFAULT_LAYOUT_PROFILES,
   canvasViewSettings: {},
   mouseInteractionMode: "smart",
@@ -808,7 +813,8 @@ export function migrateAndMergeSettings(raw: unknown): KplexSettings {
     kplexInitialized: Boolean(old.kplexInitialized),
     startInPopout: Boolean(old.startInPopout),
     lastActivePath: String(old.lastActivePath ?? ""),
-    pinnedNodes: Array.isArray(old.pinnedNodes) ? old.pinnedNodes.filter((value): value is string => typeof value === "string") : [],
+    pinnedNodes: loadSavedPins(old.pinnedNodes),
+    periodicPinSettings: loadPeriodicPinSettings(old.periodicPinSettings),
     layoutProfiles: migratedProfiles,
     typographyProfiles: sanitizeTypographyProfiles(old.typographyProfiles),
     hoverHighlightRequiresAlt: typeof old.hoverHighlightRequiresAlt === "boolean" ? old.hoverHighlightRequiresAlt : true,
@@ -2407,6 +2413,57 @@ export class KplexSettingTab extends PluginSettingTab {
     return /** Retire removed controls while allowing an already accepted disk write to settle. */ () => {active = false;unsubscribe();};
   }
 
+  /** Mount one full-width periodic-pin section so its heading cannot compete with the nested
+   * native controls. Initial state, dependent controls and preview share one definition lifetime;
+   * rendering never saves defaults or creates files. */
+  private mountPeriodicPin(setting: Setting, period: PinPeriod): () => void {
+    const plugin = this.kplexPlugin, translate = plugin.translator;
+    setting.settingEl.addClass("kplex-periodic-pin-section");
+    const container = setting.controlEl.createDiv({cls: "kplex-periodic-pin-settings"});
+    let active = true;
+    const refreshers: (() => void)[] = [];
+    /** Read the current configuration after local or incoming settings changes. */
+    const configuration = (): PeriodicPinConfiguration => plugin.settings.periodicPinSettings[period];
+    /** A disabled Daily Notes plugin remains visibly unconfigured rather than silently changing destinations. */
+    const usesDaily = (): boolean => period === "day" && configuration().useDailyNotes;
+    /** Accepted settings edits use the existing serialized writer and retain all unrelated keys. */
+    const save = async (patch: Partial<PeriodicPinConfiguration>, enabled?: boolean): Promise<void> => {
+      if (!active || !container.isConnected) return;
+      try {await plugin.updatePeriodicPin(period, patch, enabled);}
+      catch (error) {console.error("K-Plex periodic pin settings failed", error);if (active) new Notice(translate("pins.saveFailed"));}
+      finally {if (active) refresh();}
+    };
+    new Setting(container).setClass("kplex-periodic-pin-toggle").setName(translate("pins.enabled")).addToggle(/** Enable membership in the canonical saved order, preserving existing positions. */ toggle => {
+      refreshers.push(/** Keep this mounted control in sync with unpinning on another canvas. */ () => {toggle.setValue(plugin.settings.pinnedNodes.some(/** A fixed pin at the resolved path does not enable the symbolic period. */ pin => isPeriodicPin(pin) && pin.period === period));});
+      toggle.onChange(/** Native activation alone changes opt-in membership. */ value => {void save({}, value);});
+    });
+    if (period === "day") new Setting(container).setClass("kplex-periodic-pin-toggle").setName(translate("pins.dailySettings")).addToggle(/** Daily Notes is an optional host capability, not a required plugin. */ toggle => {
+      refreshers.push(/** Apply the current dependency on initial render and subsequent updates. */ () => {toggle.setValue(configuration().useDailyNotes);});
+      toggle.onChange(/** An explicit custom destination remains available when Daily Notes is disabled. */ value => {void save({useDailyNotes: value});});
+    });
+    for (const key of ["folder", "format"] as const) new Setting(container).setName(translate(key === "folder" ? "pins.folder" : "pins.format")).addText(/** Folder/date format are literal text, not numeric preferences. */ text => {
+      refreshers.push(/** The integrated configurator owns both value and dependency state. */ () => {text.setValue(configuration()[key]).setDisabled(usesDaily());});
+      text.onChange(/** Preserve intentional blank/invalid drafts with a truthful unavailable preview. */ value => {void save({[key]: value});});
+    });
+    if (period === "week") new Setting(container).setName(translate("pins.weekStart")).setDesc(translate("pins.calendarHelp")).addDropdown(/** Week anchoring is explicit and never mutates Moment's global locale. */ dropdown => {
+      dropdown.addOption("iso", translate("pins.isoWeek")).addOption("locale", translate("pins.localeWeek"));
+      refreshers.push(/** Restore the saved choice without emitting an edit. */ () => {dropdown.setValue(configuration().weekStart);});
+      dropdown.onChange(/** Date format remains explicit so changing week convention does not rewrite custom formats. */ value => {void save({weekStart: value === "locale" ? "locale" : "iso"});});
+    });
+    const preview = container.createDiv({cls: "setting-item-description kplex-periodic-pin-preview"});
+    /** Refresh the mounted controls from one owner; source and vault enumeration are never involved. */
+    const refresh = (): void => {
+      if (!active) return;
+      for (const paint of refreshers) paint();
+      const row = plugin.previewPeriodicPin(period);
+      preview.setText(row.path ? translate("pins.preview", {path: row.path}) : translate("pins.configurationRequired"));
+      if (row.state === "missing") preview.createDiv({text: translate("pins.missingTarget", {path: row.path ?? ""})});
+    };
+    const unsubscribe = plugin.index.subscribePresentation(refresh);refresh();
+    const timer = window.setInterval(/** A settings preview also follows local rollover while its pin is disabled. */ refresh, 60_000);
+    return /** Removed definitions cannot write or retain calendar/presentation subscriptions. */ () => {active = false;window.clearInterval(timer);unsubscribe();container.remove();};
+  }
+
   /** Build localized native settings and subpages, including shared persisted Plex visibility controls. */
   getSettingDefinitions(): SettingDefinitionItem<DeclarativeSettingKey>[] {
     const translate = createObsidianTranslator();
@@ -2445,6 +2502,7 @@ export class KplexSettingTab extends PluginSettingTab {
         name: translate("settings.ui.plex.behavior"),
         desc: translate("settings.ui.navigation.layout.visibility.and.relationship.behavior.i"),
         items: [
+          {type: "page", name: translate("pins.settingsTitle"), desc: translate("pins.settingsHelp"), items: PIN_PERIODS.map(/** One shared renderer supplies all three period editors and their dependent state. */ period => ({name: periodicPinLabel(period, translate), render: setting => this.mountPeriodicPin(setting, period)}))},
           {
             type: "group",
             heading: translate("settings.ui.navigation.interaction"),

@@ -14,11 +14,11 @@ const actionBuild=await build({entryPoints:['src/application/ActionManager.ts'],
 const {ActionManager}=await import('data:text/javascript;base64,'+Buffer.from(actionBuild.outputFiles[0].text).toString('base64'));
 const actionNodeRef = page => ({identity:page.path,path:page.path,kind:page.file?"file":"ghost"});
 import {loadPortableModules} from "./support/portableTypeScript.mjs";
-const {exports: {DoubleTapGesture}} = loadPortableModules(["src/ui/components/DoubleTapGesture.ts"]);
+const {exports: {DoubleTapGesture, isObsidianUri}} = loadPortableModules(["src/ui/components/DoubleTapGesture.ts", "src/adapters/obsidian/urlIdentity.ts", "src/core/graph/model.ts"]);
 
 /** Extract a real plugin method or App follow callback without invoking native plugin startup. */
 function production(name, dependencies = {}, filename = "src/main.ts") {
-  dependencies = {isEmbeddedMarkdownLeaf: leaf => Boolean(leaf?.embedded), nativeLeafId: (_workspace, leaf) => leaf?.id ?? null, ...dependencies};
+  dependencies = {isEmbeddedMarkdownLeaf: leaf => Boolean(leaf?.embedded), nativeLeafId: (_workspace, leaf) => leaf?.id ?? null, isObsidianUri, ...dependencies};
   if (name === "activate" && filename === "src/ui/App.tsx") {
     dependencies.pendingEditorNavigation ??= {current:null};
     if (dependencies.documentSession) {dependencies.documentSession.plexView ??= {};dependencies.documentSession.plexView.editors ??= {bindings:[]};}

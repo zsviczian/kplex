@@ -8,6 +8,7 @@
  */
 import { TFile, type App } from "obsidian";
 import { canonicalWebUrl, webUrlOrigin } from "./urlIdentity";
+import {readDailyNotesSettings} from "./dailyNotes";
 import { nodeId, type GraphNodeKind } from "../../core/graph/model";
 import {
   MAX_NORMALIZED_SOURCE_RECORDS_PER_BATCH,
@@ -75,13 +76,6 @@ type AppWithMetadataTypes = App & Readonly<{
   }>;
 }>;
 
-type AppWithInternalPlugins = App & Readonly<{
-  internalPlugins?: Readonly<{
-    getPluginById?: (id: string) => unknown;
-    plugins?: Readonly<Record<string, unknown>>;
-  }>;
-}>;
-
 type CapturedFileRevision = Readonly<{
   path: string;
   mtime: number;
@@ -110,18 +104,7 @@ export function createObsidianMetadataSourceHost(app: App): ObsidianMetadataSour
       const widget = info?.widget ?? manager?.getAssignedWidget?.(fieldName);
       return widget === "date";
     },
-    dailyNotesSettings: () => {
-      const registry = (app as AppWithInternalPlugins).internalPlugins;
-      const candidate = registry?.getPluginById?.("daily-notes") ?? registry?.plugins?.["daily-notes"];
-      if (!candidate || typeof candidate !== "object") return null;
-      const record = candidate as Record<string, unknown>;
-      if (record.enabled === false) return null;
-      const instance = record.instance && typeof record.instance === "object" ? record.instance as Record<string, unknown> : record;
-      const options = instance.options && typeof instance.options === "object" ? instance.options as Record<string, unknown> : instance;
-      const folder = typeof options.folder === "string" ? options.folder : "";
-      const format = typeof options.format === "string" && options.format.trim() ? options.format : "YYYY-MM-DD";
-      return { folder: normalizePath(folder), format };
-    },
+    dailyNotesSettings: /** Shared optional host capability retains the source adapter's exact rules. */ () => readDailyNotesSettings(app),
     formatDailyDate: (isoDate, format) => {
       const obsidianMoment = (window as unknown as { moment: ObsidianMomentFactory }).moment;
       const parsed = obsidianMoment(isoDate, "YYYY-MM-DD", true);
@@ -224,7 +207,7 @@ export function* frontmatterUrlLabelSteps(frontmatter: Readonly<Record<string, u
   for (const fieldName in frontmatter) {
     if (!Object.prototype.hasOwnProperty.call(frontmatter, fieldName) || fieldName === "position" || !normalizeFieldName(fieldName)) continue;
     for (const reference of iterateMarkdownLinkSteps(frontmatter[fieldName])) {
-      if (!reference || !reference.label || !/^https?:\/\//i.test(reference.rawTarget)) { yield null; continue; }
+      if (!reference || !reference.label || !/^(?:https?|obsidian):\/\//i.test(reference.rawTarget)) { yield null; continue; }
       const url = canonicalWebUrl(reference.rawTarget);
       if (reference.label === reference.rawTarget || reference.label === url) { yield null; continue; }
       yield { url, label: reference.label };

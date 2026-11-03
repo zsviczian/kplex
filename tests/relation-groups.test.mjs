@@ -6,7 +6,7 @@ import test from 'node:test';
 import ts from 'typescript';
 import { chromiumHarness } from './support/browserTypeScript.mjs';
 
-const projectionBundle=await build({stdin:{resolveDir:process.cwd(),contents:"export * from './src/ui/relationGroups';export * from './src/core/plex/relationGroups';export * from './src/ui/filteredGateCounts';export * from './src/core/graph/settingsPolicy';"},write:false,bundle:true,format:'cjs',platform:'node'});
+const projectionBundle=await build({stdin:{resolveDir:process.cwd(),contents:"export * from './src/ui/relationGroups';export * from './src/core/plex/relationGroups';export * from './src/ui/filteredGateCounts';export * from './src/core/graph/settingsPolicy';export {isPeriodicPin} from './src/core/plex/savedPins';"},write:false,bundle:true,format:'cjs',platform:'node'});
 const compiled={exports:{}};Function('module','exports',projectionBundle.outputFiles[0].text)(compiled,compiled.exports);
 const {groupNeighborhood,groupRelations,projectFilteredGateCounts}=compiled.exports;
 const translate = (key, params) => params ? `${params.name} (${params.count})` : key;
@@ -110,9 +110,10 @@ test('grouping saves, policy signatures and unfolded state have presentation-onl
   assert.equal(encodeIndexSettingsSignature(settings),signature);
   const main=ts.createSourceFile('main.ts',readFileSync('src/main.ts','utf8'),ts.ScriptTarget.Latest,true);
   const owner=main.statements.find(node=>ts.isClassDeclaration(node)&&node.name?.text==='KplexPlugin');
-  const method=owner.members.find(node=>node.name?.getText(main)==='saveSettings');assert(method);
-  const emitted=ts.transpileModule(`class SaveOwner {${method.getText(main)}}`,{compilerOptions:{target:ts.ScriptTarget.ES2021}}).outputText;
-  const SaveOwner=Function('ontologyConfiguration','captureSettingsPolicy','classifySettingsChange','STYLE_SETTINGS_KEYS','isStyleOnlySettingsChange',`${emitted};return SaveOwner`)(()=>{},captureSettingsPolicy,classifySettingsChange,[],()=>false);
+  const methods=['saveSettings','refreshPeriodicPins','stopPeriodicPinTimer'].map(name=>owner.members.find(node=>node.name?.getText(main)===name));assert(methods.every(Boolean));
+  const emitted=ts.transpileModule(`class SaveOwner {periodicPinTimer=null;periodicPinSignature=null;${methods.map(method=>method.getText(main)).join('\n')}}`,{compilerOptions:{target:ts.ScriptTarget.ES2021}}).outputText;
+  const SaveOwner=Function('ontologyConfiguration','captureSettingsPolicy','classifySettingsChange','STYLE_SETTINGS_KEYS','isStyleOnlySettingsChange','isPeriodicPin',`${emitted};return SaveOwner`)(()=>{},captureSettingsPolicy,classifySettingsChange,[],()=>false,compiled.exports.isPeriodicPin);
+  settings.pinnedNodes=[];
   const saved=new SaveOwner(),calls=[];Object.assign(saved,{settings,savedSettingsPolicy:before,index:{notifyPresentation:()=>calls.push('notify')},persistSettingsSnapshot:async()=>calls.push('persist'),refreshSavedSettings:async semantic=>{calls.push(semantic?'semantic':'presentation');return{refreshPending:false}}});
   await saved.saveSettings();assert.deepEqual(calls,['persist','presentation']);
 });

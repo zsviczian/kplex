@@ -13,8 +13,10 @@ import { MAX_REFERENCE_PAYLOAD_CHARS, type SourceLocation, type SourceTargetRef 
 
 /** Independent versions: none is a graph snapshot schema or a semantic/settings policy revision. */
 export const SOURCE_FACT_FORMAT_VERSION = 1;
-export const SOURCE_FACT_COMPILER_VERSION = 1;
-export const SOURCE_BODY_PARSER_VERSION = 4;
+// URI references were previously stored as internal/unresolved targets. Reacquire those derived
+// families as well as bodies; legacy primary-grammar reuse cannot certify their old classification.
+export const SOURCE_FACT_COMPILER_VERSION = 2;
+export const SOURCE_BODY_PARSER_VERSION = 5;
 export const SOURCE_RESOLUTION_VERSION = 1;
 export const SOURCE_CHUNK_TARGET_BYTES = 256 * 1024;
 export const SOURCE_MAX_RECORD_BYTES = 4 * 1024 * 1024;
@@ -223,12 +225,15 @@ export function sourceHeadReason(value: unknown): SourceReason {
     "physical", "observation", "state", "families", "sequence"]) || !text(value.sourceId) || !text(value.sourceRevision)
     || !validSourcePhysical(value.physical) || !observation(value.observation) || !sourceCount(value.sequence) || value.sequence < 1
     || (value.state !== "complete" && value.state !== "tombstone") || !sourceObject(value.families)) return "invalid-head";
-  if (value.formatVersion !== SOURCE_FACT_FORMAT_VERSION || value.compilerVersion !== SOURCE_FACT_COMPILER_VERSION
+  // Known old deletion markers carry only retirement/CAS identity. They must remain enumerable
+  // when a grammar upgrade rejects their former facts, or one deleted note blocks every audit.
+  const legacyRetirement = value.state === "tombstone" && (value.compilerVersion === 1
+    && (value.bodyParserVersion === 2 || value.bodyParserVersion === 3 || value.bodyParserVersion === 4) || value.compilerVersion === SOURCE_FACT_COMPILER_VERSION
+      && (value.bodyParserVersion === 2 || value.bodyParserVersion === 3));
+  if (value.formatVersion !== SOURCE_FACT_FORMAT_VERSION || value.compilerVersion !== SOURCE_FACT_COMPILER_VERSION && !legacyRetirement
     || value.resolutionVersion !== SOURCE_RESOLUTION_VERSION) return "format-version";
   if (!Object.entries(value.families).every(([key, entry]) => sourceFamily(key) && validFamilyManifest(entry))) return "invalid-head";
   if (value.state === "complete" && SOURCE_FAMILIES.some((family) => !Object.prototype.hasOwnProperty.call(value.families, family))) return "invalid-head";
-  // A known retired parser marker preserves deletion/CAS identity but grants no semantic facts.
-  const legacyRetirement = (value.bodyParserVersion === 2 || value.bodyParserVersion === 3) && value.state === "tombstone";
   if (value.bodyParserVersion !== SOURCE_BODY_PARSER_VERSION && !legacyRetirement
     && !legacyPrimaryGrammarCandidate(value as unknown as SourceHead)) return "format-version";
   return value.state === "tombstone" ? "tombstone" : "ready";
@@ -236,6 +241,15 @@ export function sourceHeadReason(value: unknown): SourceReason {
 /** Return a typed disk head only after full shape/version validation; never coerce unknown data. */
 export function decodeSourceHead(value: unknown): SourceHead | null {
   const reason = sourceHeadReason(value);
+  return reason === "ready" || reason === "tombstone" ? value as SourceHead : null;
+}
+/** Decode only a known historical header for absence reconciliation. Normal fact/preview readers
+ * never use this capability. Validate the same envelope without mutating/restamping the original;
+ * the caller may enumerate its physical owner or tombstone it, never replay its old facts. */
+export function decodeSourceRetirementHead(value: unknown): SourceHead | null {
+  const current = decodeSourceHead(value);if (current) return current;
+  if (!sourceObject(value) || value.compilerVersion !== 1 || !(value.bodyParserVersion === 2 || value.bodyParserVersion === 3 || value.bodyParserVersion === 4)) return null;
+  const reason = sourceHeadReason({...value, compilerVersion: SOURCE_FACT_COMPILER_VERSION, bodyParserVersion: SOURCE_BODY_PARSER_VERSION});
   return reason === "ready" || reason === "tombstone" ? value as SourceHead : null;
 }
 /** Strict envelope validation occurs before allocating encoded bytes or decoding the JSON payload. */

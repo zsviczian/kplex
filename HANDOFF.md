@@ -20,20 +20,49 @@ Obsidian is the production host; preserve the established portable semantic, ide
 ---
 
 
-# Facets preset node presentation (#272) — implementation for review
+# PR #270 implementation handoff
 
-User authorized merging #259, switching to main/fetching, then implementing #272. #259 is merged as d6ffedc79300fac6e4aa0c131faefe4116abbcff. Local main was fetched/fast-forwarded and its tree verified identical to the previously validated replacement. No production deployment or release occurred.
+Status: implementation complete on `2026-11-03-pins-preview-obsidian-uri`; maintainer explicitly authorized commits, push and PR updates. Keep PR #270 draft. Do not merge, release or close issues.
 
-Current branch: 2026-11-03-facets-preset-node-presentation. Original spec-only PR head: 22c79896d8963ff2342a7274b5778267556cacbd. Accepted main was merged normally at 56a1c10982e9e10ad935e9f4c61c89c0afe5c2b3. All implementation, tests and documentation remain uncommitted. PR #272 remains draft and unmerged; do not publish, merge, release or close issues without further authorization. C15–C26 remain paused.
+Preceding PR #272 was merged as requested (merge `f9d7acb3cdb4444ede180e1ee72666ba13772405`), then main was switched/fetched and merged into this existing branch. The accepted #267 ontology work is preserved. No other repository was changed, and production vaults were untouched.
 
-Implemented: optional independent default-off preset booleans focusInCategory and centerAnchoredLinks; single measured attention/editor inside its proven category with central diagnostic fallback; contained-area layout without phantom central reservation; shared rounded-body center-line intersections and collinear scroll clipping; scene-local gate hiding; existing canonical ports/evidence/actions unchanged; guarded native toggles and portable admission/export; all eight language catalogs. Gate dragging is explicitly unavailable when hidden; the native node menu opens the existing relationship composer. Other views retain default routing.
+## Delivered
 
-Validation: Node 22.22.2 installed-type production build passed. Focused tests passed (50), then the strengthened real overflow/filter browser case passed. Native Windows Obsidian 1.14.5 expanded lane passed against main.js SHA-256 5a9d63134c478a44252b7f2df5c89cb2f0870711b80eae3314af33c3095433cc. All 20 layout/toggle combinations passed with zero reads/parses/semantic acquisitions/rebuilds during the closed toggle interval. Dirty attention/neighbor editors, resize/scroll clip, native menu composer, Sidecar, same-preset live sharing, independent main/popout presets, migration and assigned/unassigned navigation passed. Final native receipt: kplex-272-native-rCeeuR. Every owned fixture/resource, settings/enablement byte snapshot, layout and window bound was restored. Candidate artifacts remain installed only in disposable Small. Earlier harness/cleanup failures are documented separately, never counted as passes.
+- #266: canonical saved-order reordering, stable identities including missing entries, six-pixel handle threshold, insertion feedback, keyboard menu, stale-order refusal and document-owned cancellation.
+- #265: opt-in Today/This Week/This Month, one fresh resolver for toolbar/picker/slots, optional existing Daily Notes configuration, exact lookups, local ISO/locale anchors, bounded cleaned refresh timer and truthful missing-note guidance. No automatic creation.
+- #262: one primary hover-source registration; native IDs and existing preference/hover behavior retained.
+- #263: canonical parser/worker/cooperative URI discovery, exact labels/identities, explicit native activation, web-only preview/Sidecar capability guards and bounded existing cache-family refresh. Known historical retired headers no longer stall the upgrade audit; incompatible facts cannot grant semantic authority.
+- Added ontology typing fix: detached structural validation is reused during wording input; structural edits and Save still validate. Regression coverage includes 2,000 configured fields and reciprocal textarea value/caret preservation.
 
-Full npm run verify PASSED on Node 22.22.2 with installed Obsidian typings 1.13.0: release metadata, architecture (9), portable core (133), lint, main (1,990), browser (470), portable sources (359), IndexedDB/source lifecycle (894), and production build. The initial full run exposed four legacy extracted-node fixtures missing the new helper import; their original assertions passed after importing the real helper, and the complete aggregate rerun passed. The 20,015-owner case passed with one canonical pass/publication, 8,187,369 checks and 152.3 seconds measured cached publication, preserving the earlier fixture performance. Final translated artifact was then redeployed/hash-verified and the entire native lane passed again. Final source/artifact hashes and receipts are durable in the validation JSON. No runtime source changed after this verification.
+Code is split into reviewable commits. Ontology typing: `7f7e421`; URI/cache: `ab01d23`; final URI Sidecar controls: `d0d8dd0`. Documentation/validation/scaffold cleanup follows those checkpoints. The temporary PR scaffold is removed.
 
-Durable implementation/evidence: docs/proposals/FACETS_PRESET_NODE_PRESENTATION.md; docs/validation/facets-node-presentation-272-2026-11-03.md and .json. End-user/API docs: docs/FACETS.md, docs/FACETS_VIEW.md, docs/CANVAS_VIEW_API.md. New test files are in the executed npm inventory. Native lane: KPLEX_WUXING_NATIVE_LANE=node-presentation with the existing verify:obsidian:wuxing command, explicit Small identity variables, fresh report directory, exact staged build and shared host lock. CLI enablement must settle before capturing enablement-file baselines. Native geometry uses the existing legacy rect(...) clip, not obsolete clip-path assertions.
+## Actual validation
 
-Residual acceptance: macOS native dirty editor/popout lifecycle and physical phone/tablet interactions remain unrun. The validation report gives the two prioritized manual procedures. Production Zsolt's Brain was untouched; this feature does not require production access. Do not restart Obsidian or test against production. Final source/architecture, artifact, whitespace and documentation review completed. Keep the implementation uncommitted for maintainer review.
+`npm run verify` passed with Node 22.22.2: release consistency, architecture (9), portable core (133), Obsidian lint, main regression group (2,008), UI group (479), source repository (360), Chromium persistence (896), and the final installed-types production build. Reported failures/cancellations/skips were zero. All three final build hashes matched the binary used by the five final native lanes.
 
-Publication authorization: on 2026-11-03 the maintainer approved committing, pushing and merging #272, followed by switching/fetching main and implementing draft PR #270. Earlier uncommitted/draft restrictions describe the prior review return and are superseded for #272 only. The #272 runtime source and exact verified artifacts are unchanged.
+Focused recovery: 39 ontology/relationship checks, 240 grouping/image/drop/on-demand checks, and 78 final Sidecar/passive-follow checks passed. The final presentation-only Sidecar delta landed during the aggregate and additionally passed App lint, the installed-types production build and all five native lanes. Source/compiler/cache owners were unchanged throughout that aggregate.
+
+All five native lanes passed serially on Windows Obsidian 1.14.5 with Node 22.22.2 in the existing disposable `C:/Obsidian/kplex-test-small` vault (117 files / 98 Markdown baseline), with the shared application lock. Configuration bytes, enablement, workspace and owned-file inventories were restored.
+
+Batch-checkpoint native `main.js` SHA-256: `dc35387cd5c12b824e42f69dc749efc00724548792a96c4b5a321c8897b3f3b0`. CSS: `66114919b8771a5d6bb5e183c2c23e39a874d943fe23e5291640de80ed4168b5`. Manifest: `8c65b0d38a506f8fa9fc3311b81ea22bcda48e0209e9190483752c1f20834326`.
+
+The native lanes cover pointer/keyboard reorder; zero-write cancellation including native close/migration; shared canvases; History grab scroll; controlled rollover/fresh picker/slots; actual settings dependencies; missing targets; one actual Page Preview row and contents in tab/sidebar/popout after reload; URI discovery/rendering/explicit opening with Web Viewer on/off; unavailable URI Sidecar opening with existing-close support; warm-cache reuse; and trusted Add/Edit/reciprocal description input.
+
+Final warm URI reload: 8.29 s during portable verification, zero vault reads/parses/URL reads/full builds (earlier 2.96 s). Final maximum input DOM receipts: 71.5/40.2/24.3 ms during portable verification (earlier 24.9/10.6/9.3 ms). These are functional observations under varying load, not isolated paint or production-scale performance claims.
+
+## Settings layout follow-up
+
+The added scoped CSS fixes the cramped native Pins page: full-width period headings, left-aligned labels, compact toggles, responsive text/select fields, wrapping previews and removal of duplicate nested dividers. Native styling classes are the only runtime markup change; settings behavior and indexing owners are unchanged.
+
+The old native build reproduced horizontal overflow. The final Settings lane passed 320/480/700-pixel widths in light/dark modes, with full headings, bounded fields, long-path wrapping, no render-time writes and zero source reads. Native toggles/opt-in and complete restoration passed. The actual native appearance was visually checked. Production build and focused settings lint passed; the earlier complete aggregate was not repeated for this isolated layout change.
+
+Current artifacts: main `b58f67da43ca6f374d5c146aee24de58d953f170f1966282d519ade2ecd2ebd9`, CSS `4826da18f4c1abac6ce3aa85257b64c0c0e620e2531f861efe5716a6f29f72e8`; manifest unchanged. Final local receipt: `%TEMP%/kplex-270-native-Wb3UAa/pins-preview-uri-settings-270.json`. See the validation record for checkpoint separation and actual results.
+
+## Evidence and review
+
+Durable evidence/limits: [validation record](docs/validation/pins-preview-uri-270-2026-11-03.md). User behavior: [Pins](docs/PINS.md) and README. Reproduction/commands are documented in CONTRIBUTING; `npm run verify:obsidian:pins-preview-uri` selects `pins`, `settings`, `preview`, `uri` or `ontology` through `KPLEX_270_NATIVE_LANE`.
+
+Local full log: `%TEMP%/kplex-270-verify-green.log`.
+Batch-checkpoint native receipt directories under `%TEMP%`: `kplex-270-native-jCow1B` (URI), `kplex-270-native-ElcZTG` (pins), `kplex-270-native-e0Brzu` (settings), `kplex-270-native-id6RdZ` (preview), `kplex-270-native-yjvlZB` (typing). Earlier native reproduction/failed attempts remain separate from passing receipts.
+
+Remaining platform/scale checks are the three prioritized checks in the validation record: physical touch; macOS modifier/URI/native dragging including OS-native menus; and a large disposable historical-cache upgrade followed by warm hydration. No whole-app restart or production-vault performance run was performed.

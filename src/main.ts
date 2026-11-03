@@ -2,6 +2,8 @@
  * Captured section opens retain exact native request identities. Explicit node copies use the
  * revocable host clipboard owner; section-scoped bulk visibility uses the existing settings queue.
  * Related-note completion keeps link and creation preferences independent through that same writer.
+ * Pin moves recheck a captured canonical order and publish presentation only; unavailable saved
+ * destinations remain bookmark entries and never acquire sources merely for reordering.
  * Eager startup admits optional URL replay only after primary graph completion, so its higher
  * per-owner preparation cannot starve saved-graph hydration or initial source compilation.
  * Full publication retires only its captured creation backlog; a later metadata save stays a
@@ -54,6 +56,9 @@
  * New-file after-saving choices reuse surface-owned editor actions and exact native tab/Sidecar destinations; bounded readiness waits settle on unload.
  */
 import { registerFileMenus, type FilePlexNode, type FilePlexTarget } from "./adapters/obsidian/fileMenu";
+import {moveSavedPin, savedPinEntries, fixedPinPaths, isPeriodicPin, type PinPeriod, type SavedPinMove} from "./core/plex/savedPins";
+import {resolveSavedPins, setPeriodicPinEnabled, type PeriodicPinRuntime, type PeriodicPinConfiguration, type ResolvedSavedPin} from "./core/plex/periodicPins";
+import {createPeriodicPinRuntime} from "./adapters/obsidian/periodicPins";
 import { drawingAutomation, drawingTemplateOptions } from "./adapters/obsidian/drawingTemplates";
 import {viewLabel} from "./ui/plexViews/labels";
 import {startupIndexPolicy} from './core/plex/startupIndexPreferences';
@@ -103,6 +108,7 @@ import { suggestHiddenProperty } from "./adapters/obsidian/hiddenPropertyName";
 import { LinkDirection, type GateRole, type GraphPage, type RelationshipRole } from "./types";
 import { OntologySuggester } from "./editor/OntologySuggester";
 import { isWebViewerAvailable, openExternalUrl } from "./adapters/obsidian/externalUrl";
+import {isObsidianUri} from "./adapters/obsidian/urlIdentity";
 import { normalizeFieldName, parseBodyMetadata, iterateLinkReferencesFromValue } from "./core/parser/metadata";
 import { extractLinksFromValue, iterateResolvedLinksFromValue } from "./index/fieldParser";
 import type { RelationEvidence } from "./index/RelationEvidence";
@@ -241,6 +247,9 @@ export default class KplexPlugin extends Plugin {
   private appearanceMigrationDialog: NotificationModal | null = null;
   /** The host owns Settings navigation; the tab owns rendered shortcut controls and cleanup. */
   private settingsTab: KplexSettingTab | null = null;
+  private periodicPinRuntime: PeriodicPinRuntime | null = null;
+  private periodicPinTimer: number | null = null;
+  private periodicPinSignature: string | null = null;
   private actionPreferenceQueue: Promise<void> = Promise.resolve();
   private settingsWriteQueue: Promise<void> = Promise.resolve();
   private savedSettingsRefresh: SavedSettingsRefresh | undefined;
@@ -434,7 +443,7 @@ export default class KplexPlugin extends Plugin {
     this.disposePublicApiWindows=publishPublicApiWindows(this.app.workspace,this.api,
       /** Obsidian also owns listener cleanup if initialization fails later. */ event=>this.registerEvent(event));
     this.installPreRestoreChangeFence();
-    this.index.primeSavedNavigation([this.settings.lastActivePath, ...this.settings.navigationHistory.slice(-14), ...this.settings.pinnedNodes]);
+    this.index.primeSavedNavigation([this.settings.lastActivePath, ...this.settings.navigationHistory.slice(-14), ...fixedPinPaths(this.settings.pinnedNodes)]);
     this.registerMarkdownZoomPreferenceListeners();
     // URL acquisition is independent of MetadataCache, local graph preparation and full Eager inventory.
     this.registerEvent(this.app.vault.on("modify", /** Retire exact URL facts on content edits, including equal-stat writes. */
@@ -452,7 +461,13 @@ export default class KplexPlugin extends Plugin {
     this.registerView(KPLEX_VIEW_TYPE, (leaf: WorkspaceLeaf) => new KplexView(leaf, this));
     this.registerView(KPLEX_SIDEPANEL_VIEW_TYPE, (leaf: WorkspaceLeaf) => new KplexSidepanelView(leaf, this));
     this.registerHoverLinkSource(KPLEX_VIEW_TYPE, { display: "K-Plex", defaultMod: false });
-    this.registerHoverLinkSource(KPLEX_SIDEPANEL_VIEW_TYPE, { display: "K-Plex", defaultMod: false });
+    // Every surface emits the canonical primary source. Keep native view IDs independent of
+    // Page Preview preferences so the same user choice also applies to Sidecar and popouts.
+    this.register(/** Main-window coordination survives closing popouts but stops at plugin unload. */ () => this.stopPeriodicPinTimer());
+    this.registerEvent(this.app.workspace.on("layout-change", /** Reveals re-resolve the current local period. */ () => this.refreshPeriodicPins()));
+    this.registerDomEvent(window, "focus", /** Suspended timers cannot leave the next foreground display stale. */ () => this.refreshPeriodicPins());
+    this.registerDomEvent(this.app.workspace.containerEl.ownerDocument, "visibilitychange", /** Resume changes presentation only. */ () => this.refreshPeriodicPins());
+    this.refreshPeriodicPins();
     this.settingsTab = new KplexSettingTab(this.app, this);
     this.addSettingTab(this.settingsTab);
     this.registerEditorSuggest(new OntologySuggester(this));
@@ -547,7 +562,7 @@ export default class KplexPlugin extends Plugin {
         this.installPreRestoreChangeFence();
         // The native tree may have settled since plugin load. Saved navigation must not await
         // appearance persistence, the vault-wide search catalog or semantic cache restoration.
-        this.index.primeSavedNavigation([this.settings.lastActivePath, ...this.settings.navigationHistory.slice(-14), ...this.settings.pinnedNodes]);
+        this.index.primeSavedNavigation([this.settings.lastActivePath, ...this.settings.navigationHistory.slice(-14), ...fixedPinPaths(this.settings.pinnedNodes)]);
         const legacySettings = !alreadyKplex && !this.externalSettingsReceived ? this.runningKplexSettings() : null;
         // First-use migration follows the actual loaded-data/import state. Never persist pristine
         // factory presets before a running ExcaliBrain appearance has had its existing import path.
@@ -611,7 +626,7 @@ export default class KplexPlugin extends Plugin {
     // closed, the preview can immediately recover the previous valid center instead of waiting
     // for the complete snapshot before discovering a usable fallback.
     paths.push(...this.settings.navigationHistory.slice(-12).reverse());
-    paths.push(...this.settings.pinnedNodes);
+    paths.push(...fixedPinPaths(this.settings.pinnedNodes));
     return [...new Set(paths.filter(Boolean))];
   }
 
@@ -966,12 +981,14 @@ export default class KplexPlugin extends Plugin {
       const next = remap(this.settings[key]);
       if (next !== this.settings[key]) { this.settings[key] = next; changed = true; }
     }
-    for (const key of ["navigationHistory", "pinnedNodes"] as const) {
+    for (const key of ["navigationHistory"] as const) {
       const next = this.settings[key].map(remap);
       if (next.some((path, index) => path !== this.settings[key][index])) {
         this.settings[key] = [...new Set(next)]; changed = true;
       }
     }
+    const pins = this.settings.pinnedNodes.map(/** Physical rename never rewrites symbolic or future descriptors. */ entry => typeof entry === "string" ? remap(entry) : entry);
+    if (pins.some((entry, index) => entry !== this.settings.pinnedNodes[index])) {this.settings.pinnedNodes = [...new Set(pins)];changed = true;}
     if (folder) for (const path of [...this.dirtyMarkdownPaths]) {
       const next = remap(path);
       if (next !== path) { this.dirtyMarkdownPaths.delete(path); this.dirtyMarkdownPaths.add(next); }
@@ -2116,6 +2133,7 @@ export default class KplexPlugin extends Plugin {
       || !appearanceThemes.themeValuesEqual(previous.appearanceThemesFuture, next.appearanceThemesFuture);
     const before = captureSettingsPolicy(previous), effects = classifySettingsChange(before, captureSettingsPolicy(next));
     this.settings = next;
+    this.refreshPeriodicPins();
     this.savedSettingsPolicy = captureSettingsPolicy(next);
     this.actionPreferenceUnsupportedVersion = actions.unsupportedVersion;
     this.actionPreferenceMigrationSkipped = actions.skippedDefaults;
@@ -2877,6 +2895,7 @@ export default class KplexPlugin extends Plugin {
       return;
     }
     if (this.unloading) return;
+    this.refreshPeriodicPins();
     // Preserve the established coverage decision; optional completion cannot hold the disk queue or Settings close.
     const needsSemantic = effects.semanticInvalidation || (effects.render && !effects.typographyOnly && !effects.paintOnly && !consentOnly && !layoutOnly && !isStyleOnlySettingsChange(effects) && !effects.changedKeys.every(/** Non-color theme geometry uses presentation/layout only. */ key => STYLE_SETTINGS_KEYS.some(/** Lens behavior keeps its separate owner. */ field => field === key)));
     await this.refreshSavedSettings(needsSemantic, true);
@@ -3889,7 +3908,7 @@ export default class KplexPlugin extends Plugin {
   /** Explicitly synchronize the recent tab, retiring older passive work on that destination. */
   async syncMostRecentTabWithKplex(page: GraphPage, hostLeaf: WorkspaceLeaf): Promise<void> {
     const session = this.documentSession(hostLeaf);
-    if (!session || !page.file && !page.url) return;
+    if (!session || !page.file && !page.url || page.url && isObsidianUri(page.url)) return;
     const leaf = this.findRecentDocumentLeaf(hostLeaf) ?? this.app.workspace.createLeafBySplit(hostLeaf, "vertical", false);
     session.lastDocumentLeaf = leaf;
     await this.syncSidecarToPage(hostLeaf, page, leaf, {active: false});
@@ -3916,6 +3935,7 @@ export default class KplexPlugin extends Plugin {
    */
   async syncPageToDocumentLeaf(page: GraphPage, hostLeaf: WorkspaceLeaf): Promise<void> {
     if (this.unloading || !this.documentSession(hostLeaf) || !this.syncKplexToLeafEnabled(hostLeaf) || !page.file && !page.url
+      || page.url && isObsidianUri(page.url)
       || page.file && this.app.vault.getFileByPath(page.file.path) !== page.file) return;
     // Passive following must never manufacture native tabs/splits or move focus. Explicit
     // sync/open actions own creation; a recent-mode canvas with no document simply stays put.
@@ -4446,7 +4466,7 @@ export default class KplexPlugin extends Plugin {
     if (direction === "to-plex" && !path) return null;
     if (direction === "to-leaf" && (!page || !page.file && !page.url
       || page.file && this.app.vault.getFileByPath(page.file.path) !== page.file
-      || page.url && !isWebViewerAvailable(this.app))) return null;
+      || page.url && !isWebViewerAvailable(this.app, page.url))) return null;
     const previous = {
       linked: session.linkedDocumentLeaf, last: session.lastDocumentLeaf,
       mode: session.preferences.documentSyncMode, open: session.preferences.sidecarOpen,
@@ -4749,7 +4769,7 @@ export default class KplexPlugin extends Plugin {
     if (page.url) {
       // setViewState resolves to a missing-plugin placeholder rather than rejecting an unavailable view.
       // Keep the companion's actual content/restore identity; explicit Open still uses host URL routing.
-      if (!isWebViewerAvailable(this.app)) {
+      if (!isWebViewerAvailable(this.app, page.url)) {
         new Notice(this.translator("notice.webViewerUnavailable"), 2600);
         return;
       }
@@ -4788,6 +4808,7 @@ export default class KplexPlugin extends Plugin {
   /** Open the managed companion through existing document/layout fences. Optional modifier intent
    * folds only this completed native pair, after its moving lease ends; superseded opens cannot fold a successor. */
   async openSidecar(hostLeaf: WorkspaceLeaf, page: GraphPage, maximize = false): Promise<void> {
+    if (page.url && isObsidianUri(page.url)) return;
     const session = this.documentSession(hostLeaf);if (!session) return;
     const hostView = hostLeaf.view;
     const hostGeneration = maximize && hostView instanceof KplexView ? hostView.getPlexFoldGeneration() : null;
@@ -4957,6 +4978,7 @@ export default class KplexPlugin extends Plugin {
    * newer open before it actually displays that target. Superseded queued requests never open.
    */
   async syncSidecarToPage(hostLeaf: WorkspaceLeaf, page: DocumentTarget, destination?: WorkspaceLeaf, intent?: DocumentOpenIntent): Promise<void> {
+    if (page.url && isObsidianUri(page.url)) return;
     const session = this.documentSession(hostLeaf); if (!session) return ;
     if (this.unloading || !this.leafIsAttached(hostLeaf)) return;
     const managed = this.validateSidecarLeaf(hostLeaf);
@@ -5187,19 +5209,21 @@ export default class KplexPlugin extends Plugin {
   }
 
 
-  /** Report whether Obsidian's internal Web Viewer is available for explicit URL actions. */
-  canOpenUrlInWebViewer(): boolean {
-    return isWebViewerAvailable(this.app);
+  /** Report native Web Viewer availability, excluding non-web targets when supplied. */
+  canOpenUrlInWebViewer(url?: string): boolean {
+    return isWebViewerAvailable(this.app, url);
   }
 
   /** Open a URL in the device browser, bypassing the optional internal Web Viewer. */
   openUrlInBrowser(url: string, ownerDocument = this.app.workspace.containerEl.ownerDocument): void {
+    if (isObsidianUri(url)) {openExternalUrl(url, ownerDocument);return;}
     const viewWindow = ownerDocument.defaultView ?? window;
     viewWindow.open(url, "_blank", "noopener");
   }
 
   /** Open a URL in a dedicated native Web Viewer tab when that core view is enabled. */
   async openUrlInWebViewer(url: string): Promise<void> {
+    if (isObsidianUri(url)) {openExternalUrl(url, this.app.workspace.containerEl.ownerDocument);return;}
     if (!isWebViewerAvailable(this.app)) {
       new Notice(this.translator("notice.webViewerUnavailable"), 2600);
       return;
@@ -5283,6 +5307,59 @@ export default class KplexPlugin extends Plugin {
   }
 
   isPinned(path: string): boolean { return this.settings.pinnedNodes.includes(path); }
+
+  /** Resolve finite saved entries through one optional calendar/exact-file capability. No
+   * symbolic descriptor is passed to source priming or coerced to a graph NodeId. */
+  readSavedPins(pins = this.settings.pinnedNodes): ResolvedSavedPin[] {
+    this.periodicPinRuntime ??= createPeriodicPinRuntime(this.app,
+      /** Fixed placeholders/tags/URLs retain their behavior; native files may predate hydration. */ path => !!this.index?.get(path) || this.app.vault.getFileByPath(path) !== null,
+      /** Each activation and display snapshot captures the current local clock independently. */ () => Date.now());
+    return resolveSavedPins(pins, this.settings.periodicPinSettings, this.periodicPinRuntime);
+  }
+
+  /** Preview remains read-only even before the corresponding pin has been enabled. */
+  previewPeriodicPin(period: PinPeriod): ResolvedSavedPin {return this.readSavedPins([{kind: "periodic", period}])[0];}
+
+  /** Persist only this period's configuration/opt-in membership through the existing writer;
+   * fixed entries, other periods and future settings fields retain their data and saved order. */
+  async updatePeriodicPin(period: PinPeriod, patch: Partial<PeriodicPinConfiguration>, enabled?: boolean): Promise<void> {
+    const current = this.settings.periodicPinSettings;
+    this.settings.periodicPinSettings = {...current, [period]: {...current[period], ...patch}};
+    if (enabled !== undefined) this.settings.pinnedNodes = setPeriodicPinEnabled(this.settings.pinnedNodes, period, enabled);
+    await this.saveSettings(false, false);this.refreshPeriodicPins();this.index.notifyPresentation();
+  }
+
+  /** Retire the one bounded main-window clock, including plugin unload with popouts open. */
+  private stopPeriodicPinTimer(): void {
+    if (this.periodicPinTimer !== null) window.clearTimeout(this.periodicPinTimer);this.periodicPinTimer = null;
+  }
+
+  /** Rollover/reveal changes labels only, never attention/history/files/semantics. Disabled
+   * periodic pins allocate no timer; explicit activation always re-resolves independently. */
+  private refreshPeriodicPins(): void {
+    this.stopPeriodicPinTimer();
+    if (this.unloading || !this.settings.pinnedNodes.some(isPeriodicPin)) {this.periodicPinSignature = null;return;}
+    const signature = JSON.stringify(this.readSavedPins().filter(/** Only symbolic destinations need calendar refresh. */ row => row.period)
+      .map(/** Resume and configuration changes may alter path or availability. */ row => [row.id, row.path, row.state]));
+    if (signature !== this.periodicPinSignature) {this.periodicPinSignature = signature;this.index.notifyPresentation();}
+    this.periodicPinTimer = window.setTimeout(/** Re-enter the same owner after a bounded wait. */ () => {
+      this.periodicPinTimer = null;this.refreshPeriodicPins();
+    }, 60_000);
+  }
+
+  /** Recheck the complete captured saved order before one serialized settings write. Concurrent
+   * additions/removals/reorders cancel instead of publishing an old filtered toolbar collection. */
+  async movePinned(move: SavedPinMove): Promise<boolean> {
+    const next = moveSavedPin(this.settings.pinnedNodes, move);if (!next) return false;
+    this.settings.pinnedNodes = next;await this.saveSettings(false, false);this.index.notifyPresentation();return true;
+  }
+
+  /** Remove one saved occurrence without materializing or acquiring its unavailable destination. */
+  async removePinnedEntry(id: string): Promise<void> {
+    const rows = savedPinEntries(this.settings.pinnedNodes);if (!rows.some(/** A retired occurrence cannot authorize another entry's removal. */ row => row.id === id)) return;
+    this.settings.pinnedNodes = rows.filter(/** Remove exactly the selected occurrence, including a missing destination. */ row => row.id !== id).map(/** Preserve original descriptor fields and fixed-path spelling. */ row => row.entry);
+    await this.saveSettings(false, false);this.index.notifyPresentation();
+  }
 
   async togglePinned(path: string): Promise<void> {
     this.settings.pinnedNodes = this.isPinned(path)
@@ -5733,7 +5810,7 @@ export default class KplexPlugin extends Plugin {
   /** Remove recognized matching link tokens, refusing grammar that cannot be transformed completely. */
   private stripTargetFromScalar(value: string, storageFile: TFile, target: GraphPage): string | null {
     if (!this.valueContainsTarget(value, storageFile, target)) return value;
-    const tokens = /(\[\[[^\]]+\]\]|\[[^\]]*\]\([^)]+\)|https?:\/\/[^\s,;]+)/gi;
+    const tokens = /(\[\[[^\]]+\]\]|\[[^\]]*\]\([^)]+\)|(?:https?|obsidian):\/\/[^\s,;]+)/gi;
     const stripped = value.replace(tokens, /** A token may be removed only when all its references are the approved target. */ (token) => {
       if (!this.valueContainsTarget(token, storageFile, target)) return token;
       // A broad lexical token may enclose another reference. Never consume an unrelated link as

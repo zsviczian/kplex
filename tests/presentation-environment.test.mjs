@@ -14,8 +14,12 @@ const require = createRequire(import.meta.url);
 const ts = require("typescript");
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 
-function compilePureModule(relativePath) {
+function compilePureModule(relativePath, dependencies = []) {
   const temp = mkdtempSync(join(tmpdir(), "kplex-presentation-test-"));
+  for (const dependency of dependencies) {
+    const compiled = ts.transpileModule(readFileSync(join(root, dependency), "utf8"), {compilerOptions: {target: ts.ScriptTarget.ES2021, module: ts.ModuleKind.CommonJS}});
+    const destination = join(temp, dependency.replace(/\.ts$/, ".js"));mkdirSync(dirname(destination), {recursive: true});writeFileSync(destination, compiled.outputText);
+  }
   const sourcePath = join(root, relativePath);
   const outputPath = join(temp, relativePath.replace(/\.ts$/, ".js"));
   mkdirSync(dirname(outputPath), { recursive: true });
@@ -68,7 +72,7 @@ process.on("exit", () => rmSync(fileDragCompiled.temp, { recursive: true, force:
 const excalidrawVersionCompiled = compilePureModule("src/adapters/obsidian/excalidrawIntegrationVersion.ts");
 const excalidrawVersion = excalidrawVersionCompiled.exports;
 process.on("exit", () => rmSync(excalidrawVersionCompiled.temp, { recursive: true, force: true }));
-const externalUrlCompiled = compilePureModule("src/adapters/obsidian/externalUrl.ts");
+const externalUrlCompiled = compilePureModule("src/adapters/obsidian/externalUrl.ts", ["src/adapters/obsidian/urlIdentity.ts", "src/core/graph/model.ts"]);
 const externalUrl = externalUrlCompiled.exports;
 process.on("exit", () => rmSync(externalUrlCompiled.temp, { recursive: true, force: true }));
 const fileRevealCompiled = compilePureModule("src/adapters/obsidian/fileReveal.ts");
@@ -176,6 +180,18 @@ test("Web Viewer capability rejects disabled or unavailable native views", () =>
     assert.equal(type, "webviewer");
     return () => {};
   } } }), true);
+});
+
+test("Obsidian URI activation uses the owning native protocol route without a web anchor", () => {
+  const calls = [], uri = "obsidian://open?vault=Other%20Vault&file=Folder%2FCase.md%23Heading";
+  const ownerDocument = {defaultView: {open: (...args) => calls.push(args)}, body: {createEl() {throw Error("Protocol must not become a Web Viewer anchor");}}};
+  externalUrl.openExternalUrl(uri, ownerDocument);assert.deepEqual(calls, [[uri, "_blank", "noopener"]]);
+  for (const unsupported of ["javascript://run", "file:///private", "ftp://example.com", "obsidian://"])
+    externalUrl.openExternalUrl(unsupported, ownerDocument);
+  assert.equal(calls.length, 1, "Unsupported and incomplete protocols cannot execute");
+  const app = {viewRegistry: {getViewCreatorByType: () => () => {}}};
+  assert.equal(externalUrl.isWebViewerAvailable(app, uri), false);
+  assert.equal(externalUrl.isWebViewerAvailable(app, "https://example.com"), true);
 });
 
 test("File Explorer drag adapter accepts one current Markdown file and rejects unrelated drags", () => {

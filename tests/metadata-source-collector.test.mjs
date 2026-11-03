@@ -35,6 +35,7 @@ for (const file of [
   "src/index/fieldParser.ts",
   "src/adapters/obsidian/yieldToHostTask.ts",
   "src/adapters/obsidian/urlIdentity.ts",
+  "src/adapters/obsidian/dailyNotes.ts",
   "src/adapters/obsidian/metadataSourceCollector.ts",
 ]) compile(file);
 

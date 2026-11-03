@@ -1616,6 +1616,19 @@ for ordinary snapshot persistence before real Eager and On-demand plugin reloads
 unchanged-note reads/parses and restoring its notes, settings, enablement and workspace.
 This is a functional desktop/cache lane, not physical mobile or paint-performance evidence.
 
+### Pins, Page Preview and Obsidian URI acceptance
+
+After exact-build staging in the existing disposable Small vault, run
+`npm run verify:obsidian:pins-preview-uri` with the three explicit test-vault variables,
+a fresh `KPLEX_HOST_REPORT_DIR` and one `KPLEX_270_NATIVE_LANE`: `pins`, `settings`,
+`preview`, `uri` or `ontology`. Run lanes serially. The driver owns the shared application
+lock, checks the installed artifacts and restores its notes, views, configuration and workspace.
+It exercises trusted reorder/cancel/History input, controlled calendar rollover and shared
+pin activation, actual declarative controls, core previews across tab/sidebar/popout, native
+URI actions and warm cache reuse, and Add/Edit ontology description typing. Native DOM receipts
+are not physical-device or paint benchmarks. See the [PR #270 validation record](docs/validation/pins-preview-uri-270-2026-11-03.md)
+for exact evidence, baseline reproduction and remaining platform checks.
+
 ### Eager graph maintenance acceptance
 
 For the edit-after-warm-restore window, run `node scripts/testing/obsidian/eagerWarmMaintenance.mjs`

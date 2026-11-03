@@ -22,6 +22,8 @@
  * retain an App-owned recovery action even when no graph can yet render.
  * Saved chips project the shared node style resolver; the History list owns mouse grab scrolling
  * independently of node activation, native touch scrolling and canvas gestures.
+ * Pins keep the complete canonical saved collection and use handle-only reorder mechanics;
+ * unavailable rows retain their slots, and native move menus share the guarded settings writer.
  */
 import { subscribeAppearanceSources } from "../adapters/obsidian/colorChanges";
 import {CanvasViewContributionController} from "./plexViews/CanvasViewContributionController";
@@ -80,12 +82,17 @@ import type { DocumentSyncMode, KplexViewSurface, NodeSortOrder, SidecarMarkdown
 import { SearchBox } from "./features/SearchBox";
 import { searchResultIconName } from "./features/searchResultPresentation";
 import { nodeListPresentation } from "./nodeListPresentation";
+import {PinnedNodeBar, type PinnedNodeRow} from "./PinnedNodeBar";
+import {captureSurfaceContinuation} from "./surfaceContinuation";
+import {type SavedPinMove} from "../core/plex/savedPins";
+import {savedPinPresentation} from "./savedPinPresentation";
 import {HorizontalDragScroll} from "./components/HorizontalDragScroll";
 import {nodeMarkdownLink} from "./nodeMarkdownLink";
 import { createLegacyGraphSearchRead } from "../adapters/obsidian/graphContracts";
 import { isEmbeddedMarkdownLeaf } from "../adapters/obsidian/embeddedMarkdownLeaf";
 import { focusEmbeddedMarkdown } from "../adapters/obsidian/embeddedMarkdownFocus";
 import { getDraggedFile } from "../adapters/obsidian/fileExplorerDrag";
+import {isObsidianUri} from "../adapters/obsidian/urlIdentity";
 import { draggedGraphPage, nodeLinkDragSource } from "../adapters/obsidian/nodeLinkDrag";
 import { registerFilePropertiesCenter, type FilePropertiesCenterLease } from "../adapters/obsidian/filePropertiesCenter";
 import { ActionButton } from "./components/ActionButton";
@@ -1120,19 +1127,39 @@ export function KplexApp({ plugin, surface, hostLeaf, translate, environment, on
       return activate(target, true, true, "user", true) ? {status: "completed"} : {status: "unavailable", reasonKey: "actions.target-unavailable"};
     },
   };
+  /** Resolve a symbolic pin at activation, not at menu-open time. Existing native identity/editor
+   * admission owns navigation; unavailable periods explain the safe native creation workflow. */
+  const activateSavedPin = (id: string): void => {
+    if (!rootRef.current?.isConnected || !actions.readSnapshot().mounted) return;
+    const row = plugin.readSavedPins().find(/** Reacquire the saved occurrence rather than a previously resolved filename. */ row => row.id === id);if (!row) return;
+    if (row.state !== "ready" || !row.path) {
+      if (row.period) new Notice(row.state === "configuration" ? translate("pins.configureNotice") : translate("pins.createNotice", {path: row.path ?? ""}));
+      return;
+    }
+    const file = plugin.app.vault.getFileByPath(row.path), target = plugin.index.get(row.path) ?? (file ? plugin.index.getVaultSearchPage(row.path, file) : undefined);
+    if (target && !target.transient) activate(target, true, true, "user", true);
+  };
   /** Open a finite pins/history list without materializing missing files or compressing saved slots. */
   const openSavedPicker = (kind: "pins" | "history"): ActionOutcome => {
-    const paths = [...(kind === "pins" ? plugin.settings.pinnedNodes : plugin.settings.navigationHistory)];
-    const items: ActionPickerItem<NodeRef | null>[] = paths.map(/** Retain unavailable saved rows explicitly. */ path => {
+    type SavedChoice = {pin: string} | {node: NodeRef} | null;
+    const items: ActionPickerItem<SavedChoice>[] = kind === "pins" ? plugin.readSavedPins().map(/** Share the exact toolbar presentation and preserve symbolic identity across rollover. */ row => {
+      const target = row.path ? plugin.index.get(row.path) : undefined;
+      const presentation = savedPinPresentation(row, target, target ? plugin.index.titleFor(target) : undefined, paintSettings, translate, page?.path ?? "");
+      return {label: presentation.label, icon: presentation.icon, detail: presentation.detail, disabled: !presentation.actionable, value: {pin: row.id}};
+    }) : [...plugin.settings.navigationHistory].map(/** Retain unavailable saved rows explicitly. */ path => {
       const target = plugin.index.get(path);
       const presentation = target ? nodeListPresentation(target, plugin.index.titleFor(target)) : null;
       return { label: presentation?.label ?? translate("actions.missingTarget", { path }), icon: presentation?.icon ?? "file-question",
-        detail: path, disabled: !target, value: target ? actionNodeRef(target) : null };
+        detail: path, disabled: !target, value: target ? {node: actionNodeRef(target)} : null };
     });
+    const current = captureSurfaceContinuation(/** Retain the launching document and canvas incarnation. */ () => rootRef.current,
+      /** Native picker focus is expected; another center or view retires the choice. */ () => actions.readSnapshot(), {checkInteraction: false});
     const sessionId = `${actions.surfaceId}:picker:${++dialogSerial.current}`;
     const picker = new ActionTargetPicker(plugin.app, items, translate(kind === "pins" ? "actions.pinsPlaceholder" : "actions.historyPlaceholder"),
       /** Dispatch the captured target only after manager identity and surface checks. */ target => {
-        if (target) actions.dispatch({ id: "node.activate", source: "local-menu", target: { kind: "explicit", node: target } });
+        if (!current() || !target) return;
+        if ("pin" in target) activateSavedPin(target.pin);
+        else actions.dispatch({ id: "node.activate", source: "local-menu", target: { kind: "explicit", node: target.node } });
       }, /** Release exclusivity and callback ownership on every modal exit. */ () => {
         actionDialogs.current.delete(picker); plugin.actionManager.closeSession(sessionId);
       });
@@ -1186,6 +1213,7 @@ export function KplexApp({ plugin, surface, hostLeaf, translate, environment, on
     if (trigger.getAttribute("aria-expanded") !== "true") trigger.click();
     trigger.focus();
   };
+  const uriCenter = Boolean(page?.url && isObsidianUri(page.url));
   const appImplementations: SurfaceActionImplementations = {
     "node.activate": savedDestinationAction,
     "actions.open": uiAction(/** Show actions for this surface's captured context. */ () => openLocalActions(false)),
@@ -1228,9 +1256,10 @@ export function KplexApp({ plugin, surface, hostLeaf, translate, environment, on
       () => Boolean(graphActionPorts.current?.canEditAreas?.())),
     "view.center-editor.toggle": uiAction(/** Existing embedded editor capability and cleanup remain graph-owned. */ () => setCentralNodeEditorEnabled(!centerMode.embedCentralNode)),
     "view.sync.choose": uiAction(/** Open the same keyboard-accessible native sync menu. */ () => showDocumentSyncMenu()),
-    "view.sidecar.toggle": uiAction(/** Toggle this leaf's companion; captured modifier intent optionally folds the completed pair. */ context => page ? plugin.toggleSidecar(hostLeaf, page, context.request.id === "view.sidecar.toggle" && context.request.args?.maximize === true) : undefined, () => surface !== "sidepanel" && Boolean(page)),
+    "view.sidecar.toggle": uiAction(/** Toggle this leaf's companion; captured modifier intent optionally folds the completed pair. */ context => page ? plugin.toggleSidecar(hostLeaf, page, context.request.id === "view.sidecar.toggle" && context.request.args?.maximize === true) : undefined,
+      /** A URI cannot populate a web pane; an existing companion can still be closed. */ () => surface !== "sidepanel" && Boolean(page) && (!uriCenter || plugin.isSidecarOpen(hostLeaf))),
     "view.sidecar.attach-from-center": uiAction(/** Reuse the eligible adjacent pane and populate it from this center. */ () => plugin.attachAdjacentSidecar(hostLeaf, "to-leaf", page),
-      /** Folder/tag/ghost centers cannot populate an ordinary document pane. */ () => Boolean((page?.file || page?.url) && plugin.getAdjacentSidecarCandidate(hostLeaf))),
+      /** Folder/tag/ghost centers and protocol actions cannot populate an ordinary document pane. */ () => Boolean(!uriCenter && (page?.file || page?.url) && plugin.getAdjacentSidecarCandidate(hostLeaf))),
     "view.sidecar.attach-from-pane": uiAction(/** Preserve the pane's content and reuse native follow's partial-index demand handover. */ async () => {
       const target = await plugin.attachAdjacentSidecar(hostLeaf, "to-plex");
       if (target?.file) observeDocumentFollow(target.file);
@@ -1265,10 +1294,10 @@ export function KplexApp({ plugin, surface, hostLeaf, translate, environment, on
   }
   for (const slot of [1, 2, 3, 4, 5, 6, 7, 8, 9] as const) {
     appImplementations[`pin.open-slot.${slot}`] = uiAction(/** Slot resolution precedes hydration filtering, so missing earlier entries do not shift meanings. */ () => {
-      const path = plugin.settings.pinnedNodes[slot - 1];
-      const target = path ? plugin.index.get(path) : undefined;
-      if (target) activate(target, true, true, "user", true);
-    }, /** Missing slots stay unavailable rather than redirecting to a neighboring pin. */ () => Boolean(plugin.index.get(plugin.settings.pinnedNodes[slot - 1] ?? "")));
+      const row = plugin.readSavedPins()[slot - 1];if (row) activateSavedPin(row.id);
+    }, /** Missing fixed slots stay unavailable; periodic slots can explain a missing destination. */ () => {
+      const row = plugin.readSavedPins()[slot - 1];return !!row && (row.state === "ready" || !!row.period);
+    });
   }
   const sidecarAvailable = surface !== "sidepanel";
   const sidecarPosition = sidecarAvailable ? plugin.getSidecarPosition(hostLeaf) : null;
@@ -1436,9 +1465,29 @@ export function KplexApp({ plugin, surface, hostLeaf, translate, environment, on
       : (syncTargetAvailable
         ? translate("app.syncStatusPinned", { suffix: linkedLabel ? ` · ${linkedLabel}` : "" })
         : translate("app.syncStatusPinnedUnavailable"));
-  const pinnedPages = plugin.settings.pinnedNodes
-    .map((path) => plugin.index.get(path))
-    .filter((item): item is GraphPage => Boolean(item));
+  const pinnedPages: PinnedNodeRow[] = plugin.readSavedPins().map(/** Keep all canonical slots; only cached node styles are read. */ row => {
+    const target = row.path ? plugin.index.get(row.path) : undefined;
+    return savedPinPresentation(row, target, target ? plugin.index.titleFor(target) : undefined, paintSettings, translate, page.path);
+  });
+  /** Surface feedback follows the existing writer; failed/cancelled moves never navigate. */
+  const movePin = (move: SavedPinMove): void => {void plugin.movePinned(move).catch(/** Report failure without retrying stale intent. */ error => {
+    console.error("K-Plex pin move failed", error);new Notice(translate("pins.saveFailed"));
+  });};
+  /** Native movement choices are reachable through pointer and keyboard handle activation. */
+  const pinMoveMenu = (id: string, button: HTMLButtonElement): void => {
+    const expected = pinnedPages.map(/** Native menu admission captures every canonical slot, including missing targets. */ row => row.id), index = expected.indexOf(id);if (index < 0) return;
+    const current = captureSurfaceContinuation(/** Keep the captured App incarnation and owning document. */ () => rootRef.current,
+      /** Native menus may borrow focus but cannot borrow a later graph/navigation generation. */ () => actions.readSnapshot(), {checkInteraction: false});
+    const sourceDocument = button.ownerDocument;
+    const menu = new Menu();
+    for (const [label, before, disabled] of [["pins.moveLeft", expected[index - 1], index === 0],
+      ["pins.moveRight", expected[index + 2] ?? null, index === expected.length - 1]] as const)
+      menu.addItem(/** Commit the same captured identity/order as a pointer drop. */ item => item.setTitle(translate(label)).setDisabled(disabled)
+        .onClick(/** Close/migration and another canvas's newer order both retire the old menu intent. */ () => {
+          if (current() && button.isConnected && button.ownerDocument === sourceDocument) movePin({id, before: before ?? null, expected});
+        }));
+    const bounds = button.getBoundingClientRect();plugin.showKplexMenuAtPosition(menu, {x: bounds.left, y: bounds.bottom}, button.ownerDocument, hostLeaf);
+  };
 
 
 
@@ -1584,15 +1633,10 @@ export function KplexApp({ plugin, surface, hostLeaf, translate, environment, on
           </div>
         </header>
 
-        {pinnedPages.length > 0 && <div className="kplex-pinned-bar" aria-label={translate("app.pinnedNodes")}>
-          {pinnedPages.map((pinned) => {
-            const { label: title, icon, style } = nodeListPresentation(pinned, plugin.index.titleFor(pinned), paintSettings);
-            return <div key={pinned.path} style={style} className={`kplex-pinned-chip${pinned.path === page.path ? " is-active" : ""}`}>
-              <button className="kplex-pinned-open" data-kplex-pinned-path={pinned.path} aria-label={`${title}\n${pinned.path}`} onClick={() => actions.dispatch({ id: "node.activate", source: "toolbar", target: { kind: "explicit", node: actionNodeRef(pinned) } })}><ObsidianIcon name={icon} size={12} /><span>{title}</span></button>
-              <button className="kplex-pinned-remove" aria-label={translate("app.unpinNode", { title })} onClick={() => actions.dispatch({ id: "pin.remove", source: "toolbar", target: { kind: "explicit", node: actionNodeRef(pinned) } })}><ObsidianIcon name="x" size={11} /></button>
-            </div>;
-          })}
-        </div>}
+        {pinnedPages.length > 0 && <PinnedNodeBar rows={pinnedPages} translate={translate} onMove={movePin} onMenu={pinMoveMenu}
+          onActivate={activateSavedPin} onRemove={/** Bookmark removal works without preparing a missing destination. */ id => {void plugin.removePinnedEntry(id).catch(/** Keep write failures visible. */ error => {
+            console.error("K-Plex pin removal failed", error);new Notice(translate("pins.saveFailed"));
+          });}} />}
       </div>
 
       <main className="kplex-workspace">
@@ -1623,9 +1667,9 @@ export function KplexApp({ plugin, surface, hostLeaf, translate, environment, on
       </main>
 
       {sidecarAvailable && <div className={`kplex-sidecar-controls is-${sidecarEdgePosition}${sidecarOpen ? " is-open" : " is-closed"}`} aria-label={translate("app.sidecarControls")}>
-        <button type="button" className="kplex-sidecar-primary" aria-pressed={sidecarOpen} aria-label={sidecarOpen ? translate("app.closeSidecar") : translate("app.openSidecarAt", { position: physicalPositionLabel(sidecarEdgePosition, translate) })} onClick={/** Capture any modifier without changing ordinary toolbar/command toggle defaults. */ event => actions.dispatch({ id: "view.sidecar.toggle", source: "toolbar", args: { maximize: hasClickModifier(event) } })}><ObsidianIcon name={sidecarOpen ? closeSidecarIcon : openSidecarIcon} size={16} /></button>
+        <button type="button" className="kplex-sidecar-primary" disabled={uriCenter && !sidecarOpen} aria-pressed={sidecarOpen} aria-label={sidecarOpen ? translate("app.closeSidecar") : translate("app.openSidecarAt", { position: physicalPositionLabel(sidecarEdgePosition, translate) })} onClick={/** Capture any modifier without changing ordinary toolbar/command toggle defaults. */ event => actions.dispatch({ id: "view.sidecar.toggle", source: "toolbar", args: { maximize: hasClickModifier(event) } })}><ObsidianIcon name={sidecarOpen ? closeSidecarIcon : openSidecarIcon} size={16} /></button>
         {adjacentSidecar && <SidecarAttachControls position={sidecarEdgePosition}
-          toLeaf={Boolean(page?.file || page?.url)} toPlex={plugin.getAdjacentSidecarTarget(hostLeaf) !== null}
+          toLeaf={Boolean(!uriCenter && (page?.file || page?.url))} toPlex={plugin.getAdjacentSidecarTarget(hostLeaf) !== null}
           toLeafLabel={translate("actions.view.sidecar.attach-from-center")} toPlexLabel={translate("actions.view.sidecar.attach-from-pane")}
           icon={/** Host supplies the installed Lucide icon renderer. */ name => <ObsidianIcon name={name} size={16} />}
           onToLeaf={/** All entry points share typed action availability and ownership. */ () => runAction("view.sidecar.attach-from-center")}

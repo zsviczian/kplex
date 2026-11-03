@@ -1836,7 +1836,9 @@ try {
 
 test("External file areas and pinned relationship targets use shared production routing",()=>{
   const app=readFileSync(join(root,"src/ui/App.tsx"),"utf8");
-  assert.match(app, /className="kplex-pinned-open" data-kplex-pinned-path=\{pinned.path\}/);
+  const pins=readFileSync(join(root,"src/ui/PinnedNodeBar.tsx"),"utf8");
+  assert.match(app, /<PinnedNodeBar rows=\{pinnedPages\}/);
+  assert.match(pins, /className="kplex-pinned-open" data-kplex-pinned-path=\{row.path \?\? undefined\}/);
   runBrowserDom(externalAndPinnedDropBrowserEntry(),"External and pinned drop behavior passed");
 });
 

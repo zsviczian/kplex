@@ -174,6 +174,22 @@ test('manual pair removal retains an implicit counterpart and two queued pair as
 });
 
 
+/** Wording edits are local and bounded independently of the total configured vocabulary. */
+test('description typing does not traverse the complete ontology and structural edits still revalidate',async()=>{
+ assert.equal(await scenario(`
+ p.settings.hierarchy={...p.settings.hierarchy,children:[...p.settings.hierarchy.children,...Array.from({length:2000},(_,n)=>'Configured '+n)]};
+ const modal=new sourceModules.AddToOntologyModal(p,'Parent');modal.open();let scans=0;
+ for(const list of Object.values(modal.opening.hierarchy)){const iterator=list[Symbol.iterator];Object.defineProperty(list,Symbol.iterator,{configurable:true,value:function(){scans++;return iterator.call(this)}});}
+ const textarea=modal.contentEl.querySelector('textarea[aria-label="'+p.translator('ontology.description')+'"]');
+ for(let n=1;n<=32;n++)type({input:textarea},'A useful ontology description.'.slice(0,n));
+ check(scans===0,'Description keystrokes cloned the complete ontology '+scans+' times');check(!modal.saveButton.buttonEl.disabled,'Valid wording disabled Save');
+ type({input:textarea},'x'.repeat(1001));check(modal.saveButton.buttonEl.disabled,'Oversized description remained valid');
+ type({input:textarea},'Corrected description');check(!modal.saveButton.buttonEl.disabled&&scans===0,'Corrected text failed to recover without structural work');
+ const select=modal.roleControl.selectEl;select.value='left';select.dispatchEvent(new Event('change',{bubbles:true}));check(scans>0,'Changed role reused stale structural validation');
+ check(p.writes.length===0&&p.work.invalidations===0,'Draft typing persisted or invalidated graph');modal.close();
+ `),true);
+});
+
 /** Incoming wording uses the existing receipt owner while graph/source policy remains identical. */
 test('incoming descriptions notify vocabulary presentation without graph refresh and retire stale drafts',async()=>{
  assert.equal(await scenario(`let notifications=0;p.index.notifyPresentation=()=>notifications++;const modal=new sourceModules.AddToOntologyModal(p,'Parent');modal.open();const textarea=modal.contentEl.querySelector('textarea[aria-label="'+p.translator('ontology.description')+'"]');type({input:textarea},'Unsaved wording');const signature=JSON.stringify(sourceModules.captureSettingsPolicy(p.settings));await receive({...copy(disk),ontologyDescriptions:{Parent:'Received description'}});check(p.settings.ontologyDescriptions.Parent==='Received description'&&notifications>0,'Incoming wording did not publish');check(p.work.invalidations===0&&p.work.semantic===0&&p.work.presentation===0&&JSON.stringify(sourceModules.captureSettingsPolicy(p.settings))===signature,'Incoming wording changed graph policy');check(textarea.value==='Unsaved wording','Receipt replaced dirty draft');modal.saveButton.buttonEl.click();await until(()=>!modal.busy,'Stale draft did not settle');check(modal.modalEl.isConnected&&modal.feedback.textContent===p.translator('settings.ontology.conflict')&&p.settings.ontologyDescriptions.Parent==='Received description','Stale remote owner overwrote receipt');modal.close();`),true);
