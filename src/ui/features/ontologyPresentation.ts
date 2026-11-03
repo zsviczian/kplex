@@ -4,6 +4,8 @@ import {normalizeFieldName} from '../../core/contracts/fieldName';
 import {type OntologyConfiguration, type OntologyRole} from '../../core/contracts/ontologyConfiguration';
 import type {Translator} from '../../lang';
 import {ontologyReadModel,type OntologyDescriptions,type DiscoveredOntologyField} from '../../core/contracts/ontologyReadModel';
+import {ontologySelectionFields} from '../../core/contracts/ontologyCompletion';
+export {ontologySelectionFields,ontologySelectionMatches} from '../../core/contracts/ontologyCompletion';
 export type {DiscoveredOntologyField} from '../../core/contracts/ontologyReadModel';
 
 export type OntologyFilter='all'|OntologyRole|'unassigned';
@@ -23,11 +25,6 @@ export function withOntologyDocumentCounts(fields:readonly OntologyFieldView[],c
     result.push(checked?{...field,documentCount:checked.count,countPartial:checked.partial}:field);
   }
   return result;
-}
-
-/** One selectable option per normalized physical identity, retaining the caller's order and spelling. */
-export function ontologySelectionFields(fields:readonly string[]):string[] {
-  const seen=new Set<string>();return fields.filter(/** Legacy multi-role assignments must not duplicate a physical option. */ field=>{const key=normalizeFieldName(field);if(!key||seen.has(key))return false;seen.add(key);return true;});
 }
 
 /** Translate role/state captions identically across the native and React adapters. */
@@ -74,12 +71,4 @@ export function ontologyManagerEntries(fields:readonly OntologyFieldView[],filte
     rows.push({key:[field.key,partner?.key??''].sort().join('\u0000'),first,second});
   }
   return rows.sort(/** Alphabetical presentation never reorders persisted defaults. */ (a,b)=>a.first.name.localeCompare(b.first.name));
-}
-
-/** Direct physical-name matches precede partner-only matches; role eligibility is supplied by the caller. */
-export function ontologySelectionMatches(fields:readonly string[],views:readonly OntologyFieldView[],query:string):string[] {
-  const byKey=new Map(views.map(/** Reuse current field annotations for native string-valued options. */ field=>[field.key,field]));
-  const needle=query.toLocaleLowerCase(),direct:string[]=[],indirect:string[]=[];
-  for(const name of ontologySelectionFields(fields)){if(name.toLocaleLowerCase().includes(needle))direct.push(name);else if(byKey.get(normalizeFieldName(name))?.partner?.toLocaleLowerCase().includes(needle))indirect.push(name);}
-  return [...direct,...indirect];
 }

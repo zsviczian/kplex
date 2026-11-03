@@ -5,6 +5,7 @@ import {PublicApiError,PUBLIC_API_LIMITS as limits,PUBLIC_API_VERSION,type Publi
 import type {Role} from '../core/graph/relations';
 import type {PublicApiConfiguration} from './PublicApiConfiguration';
 import {publicApiMarkdownLiteral as literal} from './publicApiMarkdown';
+import type {PublicOntologyCompletionRequest} from './publicApiContracts';
 
 const unknownCoverage:PublicCoverage={scope:'unknown',complete:false,pending:false};
 /** JSON output is bounded before serialization or copying, preventing oversized host values
@@ -63,6 +64,19 @@ export class PublicApi {
   ontology(options:PublicReadOptions&{includeDiscovered?:boolean;limit?:number}={}){
     return this.read(options,()=>this.ontologyModel(options),
       {scope:'configuration',complete:true,pending:false,discoveryComplete:false});
+  }
+  /** Complete the logical line before an explicit UTF-16 cursor without acquiring graph data.
+   * Offsets in the detached result address the original text, with an exclusive range end.
+   * Disabled/no-match are successful configuration reads; retired/unsupported owners fail closed. */
+  completeOntology(options:PublicOntologyCompletionRequest){
+    return this.read(options??{},()=>{
+      if(!options||typeof options!=='object'||typeof options.text!=='string')throw new PublicApiError('INVALID_ARGUMENT','Completion text must be a string');
+      if(options.text.length>limits.ontologyCompletionInput)throw new PublicApiError('LIMIT_EXCEEDED','Completion text exceeds the input budget');
+      if(!Number.isInteger(options.cursor)||options.cursor<0||options.cursor>options.text.length)throw new PublicApiError('INVALID_ARGUMENT','Completion cursor must be a UTF-16 offset within the text');
+      const take=pageLimit(options.limit,limits.ontologyCompletions,20),complete=this.owner().completeOntology;
+      if(!complete)throw new PublicApiError('UNSUPPORTED','Ontology completion is unavailable');
+      return complete(options.text,options.cursor,take);
+    },{scope:'configuration',complete:true,pending:false});
   }
   /** Return authored meanings and literal property-writing syntax without synthesizing meaning. */
   ontologyGuide(options:PublicReadOptions&{format?:'json'|'markdown';includeDiscovered?:boolean;limit?:number}={}){
@@ -135,7 +149,7 @@ export class PublicApi {
   /** Execute genuine read-only GraphQL through the injected lazy transport and the same read model. */
   query(request:PublicGraphqlRequest){return this.read({...request,requireComplete:false},()=>this.owner().graphql(this,request),()=>this.owner().graph.coverage());}
   /** Finite discovery advertises actual available operations and explicit deferred exporters. */
-  capabilities(){return this.read({},()=>({version:1,readOnlyGraphql:true,operations:['status','coverage','ontology','ontologyGuide','node','search','neighbors','evidence','canvases','canvas','context','exportMarkdown','navigate','selectView','selectPreset','configuration','query'],exports:{image:false,mindmapMarkdown:true},limits}),{scope:'configuration',complete:true,pending:false});}
+  capabilities(){return this.read({},()=>({version:1,readOnlyGraphql:true,operations:['status','coverage','ontology','ontologyGuide',...(this.owner().completeOntology?['completeOntology']:[]),'node','search','neighbors','evidence','canvases','canvas','context','exportMarkdown','navigate','selectView','selectPreset','configuration','query'],exports:{image:false,mindmapMarkdown:true},limits}),{scope:'configuration',complete:true,pending:false});}
   /** Release all host references. Previously retained methods remain callable with closed errors. */
   dispose():void{this.ports=null;}
   /** Fail closed without retaining the plugin through an unloaded service handle. */

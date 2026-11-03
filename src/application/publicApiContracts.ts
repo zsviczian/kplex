@@ -7,6 +7,7 @@ import type {Role} from '../core/graph/relations';
 import type {MindMapMarkdownResult} from '../core/plex/export/mindMapMarkdown';
 import type {PublicApiConfiguration} from './PublicApiConfiguration';
 import type {PublicApi} from './PublicApi';
+import type {OntologyCompletionCandidate,OntologyCompletionRole} from '../core/contracts/ontologyCompletion';
 
 export type JsonValue=null|boolean|number|string|readonly JsonValue[]|{readonly [key:string]:JsonValue};
 export type PublicApiErrorCode='INVALID_ARGUMENT'|'UNAVAILABLE'|'API_UNAVAILABLE'|'DISPOSED'|'NOT_FOUND'|'AMBIGUOUS_CANVAS'|'INDEX_INCOMPLETE'|'LIMIT_EXCEEDED'|'STALE_REVISION'|'CANCELLED'|'CONFIRMATION_REQUIRED'|'WRITE_FAILED'|'UNSUPPORTED';
@@ -26,6 +27,9 @@ export type PublicEvidenceDecision=Readonly<{id:string;sourceId:string;targetId:
 export type PublicEvidence=Readonly<{sourceId:string;targetId:string;resolvedRoles:readonly Readonly<{role:string;relationType:number}>[];hidden:boolean;summary:string;decisions:readonly PublicEvidenceDecision[];truncated:boolean}>;
 export type PublicIndexStatus=Readonly<{phase:string;upToDate:boolean;indexedFiles:number;totalFiles:number|null;coverage:PublicCoverage;searchComplete:boolean;hydrating:boolean;sourceReady:boolean;mode:'eager'|'on-demand'}>;
 export type PublicOntologyRead=Readonly<{fields:readonly OntologyReadField[];truncated:boolean;discoveryComplete:boolean}>;
+export type PublicOntologyCompletionRequest=PublicReadOptions&Readonly<{text:string;cursor:number;limit?:number}>;
+export type PublicOntologyCompletionContext=Readonly<{range:Readonly<{start:number;end:number}>;query:string;role:OntologyCompletionRole;trigger:string;prefix:string}>;
+export type PublicOntologyCompletion=Readonly<{state:'disabled'|'no-match';context:null;items:readonly OntologyCompletionCandidate[];truncated:false}>|Readonly<{state:'matched';context:PublicOntologyCompletionContext;items:readonly OntologyCompletionCandidate[];truncated:boolean}>;
 export type PublicRect=Readonly<{x:number;y:number;width:number;height:number}>;
 export type PublicCanvasSummary=Readonly<{id:string;viewId:string;attention:string|null;root:string|null;surface:'main'|'sidebar'|'popout';visible:boolean;revision:number}>;
 export type PublicCanvasOccurrence=Readonly<{id:string;nodeId:string|null;kind:'node'|'section'|'group';label:string;role:string;areaId:string|null;bounds:PublicRect;included:boolean;inViewport:boolean;description?:string;badge?:string}>;
@@ -38,6 +42,6 @@ export type PublicCanvasPort=Readonly<{list:()=>readonly PublicCanvasSummary[];s
 export type PublicGraphPort=Readonly<{node:(id:string)=>PublicNode|null;search:(query:string,limit:number,cancelled:()=>boolean)=>PublicPage<PublicNode>;neighbors:(id:string,role:Exclude<Role,'sibling'>|undefined,limit:number,cancelled:()=>boolean)=>PublicPage<PublicRelationship>;evidence:(sourceId:string,targetId:string,limit:number,cancelled:()=>boolean)=>PublicEvidence|null;coverage:(id?:string)=>PublicCoverage}>;
 export type PublicGraphqlRequest=PublicReadOptions&Readonly<{query:string;variables?:Readonly<Record<string,unknown>>;operationName?:string}>;
 export type PublicGraphqlExecution=Readonly<{data?:unknown;errors?:readonly Readonly<{message:string;path?:readonly (string|number)[];extensions?:Readonly<Record<string,unknown>>}>[]}>;
-export type PublicApiPorts=Readonly<{revisions:()=>PublicApiRevision;status:()=>PublicIndexStatus;ontology:(options:Readonly<{includeDiscovered:boolean;limit:number}>)=>PublicOntologyRead;graph:PublicGraphPort;canvas:PublicCanvasPort;configuration:PublicApiConfiguration;now:()=>number;graphql:(reads:PublicApi,request:PublicGraphqlRequest)=>PublicGraphqlExecution}>;
+export type PublicApiPorts=Readonly<{revisions:()=>PublicApiRevision;status:()=>PublicIndexStatus;ontology:(options:Readonly<{includeDiscovered:boolean;limit:number}>)=>PublicOntologyRead;completeOntology?:(text:string,cursor:number,limit:number)=>PublicOntologyCompletion;graph:PublicGraphPort;canvas:PublicCanvasPort;configuration:PublicApiConfiguration;now:()=>number;graphql:(reads:PublicApi,request:PublicGraphqlRequest)=>PublicGraphqlExecution}>;
 export const PUBLIC_API_VERSION=1;
-export const PUBLIC_API_LIMITS=Object.freeze({page:200,ontology:2048,queryCharacters:16384,queryTokens:4096,queryDepth:20,queryCost:65536,outputCharacters:1048576,scan:8192,evidence:512,text:4096});
+export const PUBLIC_API_LIMITS=Object.freeze({page:200,ontology:2048,ontologyCompletionInput:65536,ontologyCompletions:100,queryCharacters:16384,queryTokens:4096,queryDepth:20,queryCost:65536,outputCharacters:1048576,scan:8192,evidence:512,text:4096});

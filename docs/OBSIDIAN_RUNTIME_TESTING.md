@@ -13,6 +13,31 @@ obsidian vault=kplex-test eval 'code=JSON.stringify({loaded:!!app.plugins?.plugi
 
 The community-plugin registry is an internal Obsidian API used here for maintenance tests. Keep this access in CLI/test code: portable core/UI code must not discover the plugin through `app.plugins`, `window` or another global escape hatch. No permanent debug global is needed. Prefer existing diagnostic/query methods. Private fields can be reached in the current bundle for narrowly scoped fault injection, but are not a supported API.
 
+## Combined ontology completion consumer
+
+The Excalidraw integration is maintained in the sibling plugin repository's
+`npm run test:kplex-ontology` lane. It builds both selected workspace revisions,
+freezes and hash-verifies the real plugins, then stages them only in the plugin's
+marker-owned `.test-work/vaults/excalidraw-auto-test/`. This is the explicitly
+authorized combined-test target; do not redirect it to a personal vault.
+The runner supplies/checks `KPLEX_TEST_VAULT_NAME`, `KPLEX_TEST_VAULT_PATH` and
+`KPLEX_TEST_CONFIG_DIR` against the same CLI-reported target and shared host lock.
+Use `EXCALIDRAW_KPLEX_ROOT` for a non-sibling K-Plex checkout.
+
+The executable cases exercise the actual Excalidraw element-link editor and native
+Markdown suggester, passive completion with acquisition/I/O/write capabilities
+guarded, custom/live configuration, disable/re-enable, retired handles, popout
+publication, saving/reopening and fixture cleanup. The full plugin native profiles
+also execute these cases in responsive phone/tablet layouts. Desktop emulation
+and scripted composition do not establish physical touch, OS IME or mobile WebView
+acceptance. The companion has no fork source change or package/version publication.
+
+Focused portable checks use `npm run test:ontology-completion`; the existing
+architecture, restricted-core, installed types, scanner/build and affected settings
+checks remain separate evidence. This read-only capability adds no indexing,
+source repository, persistence schema or graph-semantic behavior and does not
+justify running the indexing aggregates solely to validate completion.
+
 ## Hydration and readiness probes
 
 ```bash
