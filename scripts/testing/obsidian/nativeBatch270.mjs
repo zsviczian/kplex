@@ -10,7 +10,9 @@ export function nativeBatch270(app,c){
  let directory,disabled=false;
  /** All asynchronous polling has a finite deadline and reports actual index/source progress. */
  const wait=ms=>new Promise(resolve=>window.setTimeout(resolve,ms));
+ /** Reject a fixture invariant immediately; independent cleanup remains owned by the lane. */
  const check=(value,message)=>{if(!value)throw Error(message);};
+ /** Publish actual phase/counters while waiting; cancellation and the local deadline both retire work. */
  const until=async(predicate,message,maximum=60000)=>{
   const start=Date.now();while(!predicate()){
    c.progress={phase:message,waitedMs:Date.now()-start,status:plugin?.getIndexStatus(),source:plugin?.index?.getSourceAcquisitionCounters(),semantic:plugin?.index?.getSemanticPreparationDiagnostics(),url:plugin?.index?.getUrlIndexProgress(),fixtureMetadata:{ready:files.filter(file=>!!app.metadataCache.getFileCache(file)).length,total:files.length},pinState:c.pinState,lastKey:c.lastKey,activeMenu:!!plugin?.activeKplexMenu,externalPreview:c.externalPreview,webViewer:c.webViewer};
@@ -19,9 +21,12 @@ export function nativeBatch270(app,c){
  };
  /** Native input must use the target document's Electron realm, including a popout. */
  const owner=doc=>{const win=doc.defaultView;check(typeof win?.require==='function','Native document realm missing');return win.require('@electron/remote').getCurrentWindow();};
+ /** Foreground only the selected test document. Refocusing an already focused window can restore
+  * CodeMirror's earlier input and steal a handle/menu key, so preserve an established focus owner. */
  const focus=async doc=>{const native=owner(doc);if(native.isFocused()&&doc.hasFocus()&&!doc.hidden)return native;remote.app.show?.();remote.app.focus({steal:true});native.show();native.moveTop();native.focus();native.webContents.focus();await until(()=>native.isFocused()&&doc.hasFocus()&&!doc.hidden,'Native input foreground',5000);return native;};
  /** Deliver trusted pointer input after proving that its current element is visible and hit-testable. */
  const point=element=>{const doc=element.ownerDocument,r=element.getBoundingClientRect(),x=Math.round(r.x+r.width/2),y=Math.round(r.y+r.height/2),hit=doc.elementFromPoint(x,y);check(r.width>0&&r.height>0&&element.contains(hit),'Visible native pointer target: '+JSON.stringify({tag:element.tagName,classes:element.className,rect:r.toJSON(),hit:hit?.className}));return{x,y};};
+ /** Require a trusted click at the proven current target and always retire its receipt observer. */
  const click=async element=>{const doc=element.ownerDocument,native=await focus(doc),xy=point(element);let trusted=false;
   const observe=event=>{if(element.contains(event.target))trusted=event.isTrusted};doc.addEventListener('click',observe,true);
   try{native.webContents.sendInputEvent({type:'mouseMove',...xy});native.webContents.sendInputEvent({type:'mouseDown',...xy,button:'left',clickCount:1});native.webContents.sendInputEvent({type:'mouseUp',...xy,button:'left',clickCount:1});await until(()=>trusted,'Trusted native click',5000);}
@@ -55,9 +60,11 @@ export function nativeBatch270(app,c){
  /** Create exact owned files through ordinary Vault events. Real canvases, not every fixture
   * note or saved pin, own foreground demands when they are actually displayed. */
  const note=async(name,body='')=>{const file=await app.vault.create(folder+'/'+name+'.md',body);files.push(file);await until(()=>!!app.metadataCache.getFileCache(file),'Owned fixture metadata: '+name);plugin.index.insertCreatedFile(file);return file;};
+ /** A visible native canvas must own foreground preparation before this convergence fence is used. */
  const ready=async()=>{await until(()=>!plugin.index.hasPendingSemanticPreparation()&&!plugin.index.isBuilding()&&plugin.getIndexStatus().upToDate,'Fixture index convergence');await wait(250);};
  /** Build a real tab/sidebar/popout using native registered view types, never direct React mounting. */
  const canvas=async(file,type='k-plex-react-view',destination='tab')=>{const leaf=workspace.getLeaf(destination);leaves.push(leaf);await leaf.setViewState({type,active:true});await workspace.revealLeaf(leaf);await leaf.view.waitUntilReady();plugin.notifyNavigation(file.path,leaf);await until(()=>leaf.view.contentEl.querySelector('[data-kplex-path="'+file.path+'"]'),'Native canvas center');return leaf;};
+ /** Resolve the actual mounted action registration, never a guessed ID or another canvas's fallback. */
  const surface=leaf=>{const id=[...plugin.actionSurfaceHosts].find(([,registration])=>registration.leaf===leaf)?.[0];check(id,'Live action surface');return id;};
  /** Plugin reload invalidates every captured plugin/view callback; callers reacquire explicitly. */
  const reload=async()=>{await plugin.settingsWriteQueue;await app.plugins.disablePlugin('k-plex');disabled=true;await app.plugins.enablePlugin('k-plex');disabled=false;plugin=app.plugins.plugins['k-plex'];check(plugin?.index,'Plugin reload');await until(()=>plugin.initialIndexComplete&&!plugin.index.isBuilding()&&plugin.getIndexStatus().upToDate,'Reloaded current index',120000);return plugin;};
