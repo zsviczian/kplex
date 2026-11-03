@@ -1130,7 +1130,7 @@ export function KplexApp({ plugin, surface, hostLeaf, translate, environment, on
    * admission owns navigation; unavailable periods explain the safe native creation workflow. */
   const activateSavedPin = (id: string): void => {
     if (!rootRef.current?.isConnected || !actions.readSnapshot().mounted) return;
-    const row = plugin.readSavedPins().find(row => row.id === id);if (!row) return;
+    const row = plugin.readSavedPins().find(/** Reacquire the saved occurrence rather than a previously resolved filename. */ row => row.id === id);if (!row) return;
     if (row.state !== "ready" || !row.path) {
       if (row.period) new Notice(row.state === "configuration" ? translate("pins.configureNotice") : translate("pins.createNotice", {path: row.path ?? ""}));
       return;
@@ -1472,7 +1472,7 @@ export function KplexApp({ plugin, surface, hostLeaf, translate, environment, on
   });};
   /** Native movement choices are reachable through pointer and keyboard handle activation. */
   const pinMoveMenu = (id: string, button: HTMLButtonElement): void => {
-    const expected = pinnedPages.map(row => row.id), index = expected.indexOf(id);if (index < 0) return;
+    const expected = pinnedPages.map(/** Native menu admission captures every canonical slot, including missing targets. */ row => row.id), index = expected.indexOf(id);if (index < 0) return;
     const current = captureSurfaceContinuation(/** Keep the captured App incarnation and owning document. */ () => rootRef.current,
       /** Native menus may borrow focus but cannot borrow a later graph/navigation generation. */ () => actions.readSnapshot(), {checkInteraction: false});
     const sourceDocument = button.ownerDocument;

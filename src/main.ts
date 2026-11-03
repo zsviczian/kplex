@@ -5356,8 +5356,8 @@ export default class KplexPlugin extends Plugin {
 
   /** Remove one saved occurrence without materializing or acquiring its unavailable destination. */
   async removePinnedEntry(id: string): Promise<void> {
-    const rows = savedPinEntries(this.settings.pinnedNodes);if (!rows.some(row => row.id === id)) return;
-    this.settings.pinnedNodes = rows.filter(row => row.id !== id).map(row => row.entry);
+    const rows = savedPinEntries(this.settings.pinnedNodes);if (!rows.some(/** A retired occurrence cannot authorize another entry's removal. */ row => row.id === id)) return;
+    this.settings.pinnedNodes = rows.filter(/** Remove exactly the selected occurrence, including a missing destination. */ row => row.id !== id).map(/** Preserve original descriptor fields and fixed-path spelling. */ row => row.entry);
     await this.saveSettings(false, false);this.index.notifyPresentation();
   }
 

@@ -42,12 +42,12 @@ export function savedPinEntries(pins: readonly SavedPin[]): SavedPinEntry[] {
  * missing or unchanged moves. Callers publish and persist the returned collection atomically. */
 export function moveSavedPin(pins: readonly SavedPin[], move: SavedPinMove): SavedPin[] | null {
   const rows = savedPinEntries(pins), ids = rows.map(/** Compare only stable saved identities, never resolved paths or availability. */ row => row.id);
-  if (ids.length !== move.expected.length || ids.some((id, index) => id !== move.expected[index])) return null;
+  if (ids.length !== move.expected.length || ids.some(/** Any concurrent collection edit retires the captured move. */ (id, index) => id !== move.expected[index])) return null;
   const from = ids.indexOf(move.id);
   if (from < 0 || move.before === move.id || move.before !== null && !ids.includes(move.before)) return null;
   const remaining = rows.filter(/** Retain every other canonical entry, including unavailable rows. */ row => row.id !== move.id);
   const target = move.before === null ? remaining.length : remaining.findIndex(/** The insertion anchor is a saved occurrence. */ row => row.id === move.before);
   remaining.splice(target, 0, rows[from]);
-  if (remaining.every((row, index) => row.id === ids[index])) return null;
+  if (remaining.every(/** A stationary drop must not allocate a settings write. */ (row, index) => row.id === ids[index])) return null;
   return remaining.map(/** Persist original entries without reconstructing them from presentation. */ row => row.entry);
 }

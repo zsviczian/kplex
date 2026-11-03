@@ -40,7 +40,7 @@ export function periodicPinPath(folder: string, formatted: string): string | nul
   if (!formatted.trim() || formatted.length > 512 || folder.length > 1024) return null;
   const joined = `${folder}/${formatted}`.replace(/\\/g, "/").replace(/\/{2,}/g, "/").replace(/^\/+|\/+$/g, "");
   if (!joined || joined.split("/").some(/** Refuse traversal and native-invalid names rather than silently creating a different target. */ part =>
-    part === "." || part === ".." || !part.trim() || [...part].some(character => (character.codePointAt(0) ?? 0) < 32 || '<>:"|?*'.includes(character)))) return null;
+    part === "." || part === ".." || !part.trim() || [...part].some(/** Keep destinations portable across native filesystem implementations. */ character => (character.codePointAt(0) ?? 0) < 32 || '<>:"|?*'.includes(character)))) return null;
   return joined.endsWith(".md") ? joined : `${joined}.md`;
 }
 

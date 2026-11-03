@@ -2432,7 +2432,7 @@ export class KplexSettingTab extends PluginSettingTab {
       finally {if (active) refresh();}
     };
     new Setting(container).setName(translate("pins.enabled")).addToggle(/** Enable membership in the canonical saved order, preserving existing positions. */ toggle => {
-      refreshers.push(/** Keep this mounted control in sync with unpinning on another canvas. */ () => {toggle.setValue(plugin.settings.pinnedNodes.some(pin => isPeriodicPin(pin) && pin.period === period));});
+      refreshers.push(/** Keep this mounted control in sync with unpinning on another canvas. */ () => {toggle.setValue(plugin.settings.pinnedNodes.some(/** A fixed pin at the resolved path does not enable the symbolic period. */ pin => isPeriodicPin(pin) && pin.period === period));});
       toggle.onChange(/** Native activation alone changes opt-in membership. */ value => {void save({}, value);});
     });
     if (period === "day") new Setting(container).setName(translate("pins.dailySettings")).addToggle(/** Daily Notes is an optional host capability, not a required plugin. */ toggle => {
