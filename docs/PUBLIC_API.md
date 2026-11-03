@@ -18,7 +18,8 @@ The API runs locally inside Obsidian. It creates no HTTP server, MCP server or n
 
 ## Results and revisions
 
-Every public operation returns an envelope. Reads are synchronous; explicit actions return a promise:
+Every public operation returns an envelope. Passive graph/configuration reads are synchronous;
+explicit usage lookup, selected-source inspection and actions return a promise:
 
 ```text
 // Success
@@ -77,7 +78,7 @@ The matcher, role selection and inverse-aware filtering are shared with the
 native Markdown suggester. Live generic and six role triggers, historical/custom
 values, empty triggers, generic-before-role collision precedence and the
 mid-sentence prefix are preserved. Direct physical-name matches precede
-inverse-partner-only matches. Generic options retain their native alphabetical
+inverse-partner-only matches, then matches in the candidate's own description. Generic options retain their native alphabetical
 order; role options retain configured order. `name` is the exact physical insertion
 value. Partner and description annotations are inert text, never insertion syntax.
 
@@ -141,7 +142,132 @@ Ontology is available once settings are loaded, before graph hydration finishes.
 
 Graph reads use published facts. They do not trigger source acquisition, Markdown reads/parsing, targeted hydration or semantic rebuilding. A pending or cached neighborhood is reported as such. Canonical roles are `parent`, `child`, `left`, `right`, `previous` and `next`; evidence retains explicit/inferred authority and source identity. Optional siblings in a visual projection do not become fabricated canonical declarations.
 
-Default graph pages contain at most 40 results; the maximum is 200. Search text is bounded to 512 characters. Search and neighborhood inspection have an 8,192-entry work budget and can truncate before examining all candidates. Ontology has a separate 2,048-field cap. Pair evidence defaults to 128 decisions and allows at most 512. Output is limited to 1,048,576 encoded characters, with a separate structural guard. Check `api.limits` and the envelope's truncation/coverage fields rather than assuming every result is exhaustive. Version 1 has no unbounded traversal or cursor that bypasses these caps.
+Default graph pages contain at most 40 results; the maximum is 200. Search text is bounded to 512 characters. Search and neighborhood inspection have an 8,192-entry work budget and can truncate before examining all candidates. Ontology has a separate 2,048-field cap. Pair evidence defaults to 128 decisions and allows at most 512. Output is limited to 1,048,576 encoded characters, with a separate structural guard. Check `api.limits` and the envelope's truncation/coverage fields rather than assuming every result is exhaustive. Explicit ontology-usage cursors below resume bounded stored-fact work; they do not expand passive graph reads.
+
+## Inspect and consolidate ontology safely
+
+The four additive operations below are optional API-v1 capabilities. Discover their exact names
+in `capabilities().value.operations`; `effects` identifies async stored-fact reads, async selected
+source reads, synchronous review and async confirmed configuration writes. Unavailable/retired
+providers return the established `UNSUPPORTED`/`API_UNAVAILABLE` errors. They are not GraphQL
+resolvers and do not change synchronous graph reads. Reacquire the API after reload.
+
+### Stored field-to-document lookup
+
+```js
+let cursor;
+do {
+  const page = await api.ontologyDocuments({field: 'Cites old', limit: 20, cursor});
+  if (!page.ok) throw new Error(page.error.code);
+  for (const document of page.value.documents) console.log(document.path, document.sourceId);
+  cursor = page.value.cursor ?? undefined;
+} while (cursor);
+```
+
+`ontologyDocuments({field, limit?, cursor?, ...readOptions})` returns
+`{field, normalizedField, documents:[{path,name,sourceId}], cursor, exhausted, postingComplete,
+wholeVaultComplete:false, partial:true, scanned, truncated}`. Source IDs are opaque; paths remain
+separate. Matching uses normalized physical names and includes recorded unassigned, scalar,
+non-link and semantically overridden usages. It shares the native Show documents authentication
+owner, never derives usage from active edges, and exposes no note values.
+
+Each call examines at most **512 posting steps** and **16 selected metadata sources**, retaining
+at most one 128-ID posting page. `limit` defaults to40/max100; work budgets can produce fewer
+results or an **empty page with a continuation**. Continue until `cursor === null`. Successful
+continuations consume their old token; there are at most8 live leases, one active request, and
+a fixed **120-second** traversal lifetime. Page size may change within its bound. Changed fields, expired/replayed tokens,
+source sequences, overlay ownership, API configuration or reload invalidate the cursor with
+`STALE_REVISION`. Restart from the intended scope rather than reusing that token. Cancellation
+is checked across repository awaits.
+
+Stored metadata authentication is capped before decoding at8192 records/1MiB/128 chunks per
+selected source. Historical grammar requiring extra compatibility work, stale/missing facts,
+invalid or over-budget families produce incomplete posting coverage. Existing protected-reader
+lease bookkeeping still occurs in IndexedDB; there are no Markdown reads/parses, source-fact
+writes, acquisition, repair, graph hydration, reindexing or network requests.
+
+`exhausted` describes this traversal's end; `postingComplete` separately describes its observed
+stored posting. Neither certifies whole-vault coverage. The envelope is always cached/incomplete,
+and `requireComplete:true` fails with `INDEX_INCOMPLETE`. Even an empty exhausted complete posting
+cannot authorize deleting an assignment. An exhaustive source audit requires explicit approval
+and bounded inspection of a selected Markdown inventory, as described in the worked guide.
+
+### Explicit selected-file occurrence inspection
+
+```js
+const result = await api.inspectOntologyOccurrences({
+  path: 'Selected.md', fields: ['Cites old', 'Cites', 'Cited by'], limit: 1024
+});
+if (!result.ok) throw new Error(result.error.code);
+console.log(result.value.snapshot, result.value.occurrences, result.value.unsupported);
+```
+
+`inspectOntologyOccurrences({path, fields, limit?, expectedSnapshot?, ...readOptions})` performs
+**one Vault.read** for all requested fields in one saved Markdown file. No vault inventory,
+other note read, settings write or index publication occurs. It reuses the canonical cooperative
+body parser, skips its ordinary values/URL retention, and uses supported Obsidian YAML decoding.
+The content SHA-256 in `snapshot.id` identifies the exact inspected original string;
+`snapshot.authority` is `saved`, with observed mtime/size as additional facts. Supplying an old
+`expectedSnapshot` fails explicitly, even when stat values happen to agree.
+
+Each occurrence contains exact `name`, `normalizedName`, `syntax` (`frontmatter`, `line`,
+`parenthesized`, `bracketed`), `keyRange`, `line`, `column` and `yamlKey`. Body `keyRange` is
+**zero-based, half-open UTF-16** in that original string; line is one-based and column zero-based.
+CRLF, BOM, surrogate pairs, list markers and emphasis do not shift those key tokens. YAML provides
+the exact logical top-level `yamlKey`, with null textual range/line/column. Legacy evidence spans
+are unchanged and are **never safe replacement ranges**. Repeated declarations remain separate.
+
+Limits:512 requested fields,512 units per field,1MiB UTF-8 and1MiB UTF-16 source,65536 units of
+YAML/8192 YAML properties, default256/max1024 occurrences, one concurrent inspection. Excess
+source is rejected before parsing. Truncated/unsupported results are explicit and prevent
+`complete:true`. Invalid/duplicate YAML, alias/merge/complex indirection and exceptional YAML
+budgets are conservatively unsupported; the API does not fabricate editable key locations.
+Host buffers in main/popout or K-Plex embedded editors must match saved content (CRLF/LF host
+normalization alone is accepted). Dirty/ambiguous buffers, rename/delete, cancellation, changed
+source/publication and unload fail closed. No bodies or values are returned.
+
+### Reviewed configuration batches
+
+```js
+const preview = api.previewOntologyConfiguration({edits: [
+  {kind:'assign', field:'Cites', role:'parent', partner:'Cited by', createPartner:true,
+    description:'References a source; formerly Cites old.', partnerDescription:'Is referenced by.'},
+  {kind:'describe', field:'Cites', description:'References a source; formerly Cites old.'}
+]});
+if (!preview.ok || preview.value.state !== 'ready') throw new Error('Review conflicts first');
+// Present preview.value.changes/before/after and obtain the user's explicit approval first.
+const saved = await api.applyOntologyConfiguration({previewId:preview.value.previewId, confirm:true});
+if (!saved.ok) throw new Error(saved.error.code);
+console.log(saved.value.state, saved.value.refreshPending, saved.value.verified, saved.value.readback);
+```
+
+Intents reuse native ontology rules: `assign` with role and a partner string creates/updates a
+pair (`createPartner:true` when needed; `movePair:true` only for an explicitly approved move).
+`partner:null` unpairs while retaining independent physical assignments. `describe` changes one
+exact configured field's wording; an empty description clears it. `remove` retires one exact
+configured assignment. A normalization-equivalent spelling correction transfers its description;
+later removing the obsolete exact spelling is rejected rather than deleting the new identity.
+
+The entire ordered batch (max128 edits,8192 configured entries,1MiB input/state) validates before
+acceptance. Conflicts return `state:'conflict'`, `previewId:null` and indexed conflict details;
+ready previews show exact before/after definitions and per-intent endpoint changes. At most16
+detached plans live for5minutes. Apply requires `confirm:true`, consumes the token once, and
+rechecks local submitted/incoming owners and affected endpoints **inside the canonical queue**.
+Remote/local A-to-B-to-A cannot revive an old review. Unrelated settings and unknown keys survive.
+No configuration operation rewrites notes or reciprocal declarations. Description-only changes
+and already-compatible pairing retain the presentation-only update path.
+
+A receipt's `state:'saved'` acknowledges the established durable writer; `refreshPending`
+separately reports semantic/presentation follow-up. `verified` compares current accepted endpoint
+readback with the reviewed result; `readbackScope:'reviewed-endpoints'` limits that data. It is not
+a whole-settings/disk export. Retirement, supersession or excessive readback after acceptance
+returns saved/unverified with null readback rather than falsely reporting an unsaved operation.
+Do not replay after uncertain completion: reacquire/read back and prepare a fresh review.
+
+The [worked consolidation guide](ONTOLOGY_CONSOLIDATION.md) covers approved source auditing,
+YAML/body collisions, guarded public Obsidian writes, backups, stale/dirty buffers, interruption,
+readback and idempotence. The repository's [agent skill](../skill.md) retains vault-selection,
+coverage and authorization safeguards. These capabilities do not authorize personal-vault cleanup.
 
 ## Read and control a specific canvas
 

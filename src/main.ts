@@ -73,6 +73,7 @@ import {createPublicApi, type KplexPublicApi, type PublicApiOwner} from './publi
 import {publishPublicApiWindows} from './adapters/obsidian/publicApiWindow';
 import type {PublicCanvasRegistry} from './application/PublicCanvasRegistry';
 import {ontologyConfiguration, assignOntologyField, applyOntologyEdit, ontologyEndpointState, editOntologyEntries, ONTOLOGY_GROUPS, type OntologyConfiguration, type OntologyConfigurationInput, type OntologyEdit} from './core/contracts/ontologyConfiguration';
+import {prepareOntologyBatch,type OntologyBatchEdit,type OntologyBatchPlan} from './core/contracts/ontologyBatch';
 import type {StyleEditorModal} from "./ui/StyleEditorModal";
 import {NotificationModal} from "./ui/NotificationModal";
 
@@ -5335,6 +5336,24 @@ export default class KplexPlugin extends Plugin {
       }
       return applyOntologyEdit(source,submitted);
     },current,/** Preserve all unchanged exact names, including an old partner when pairing changes. */ source=>editOntologyDescriptions(source.ontologyDescriptions,submitted.kind==='remove'?[{field:submitted.field,description:''}]:[{field:submitted.field,description:submitted.description},...(submitted.partner?[{field:submitted.partner,description:submitted.partnerDescription}]:[])]));
+  }
+
+  /** Commit one fully reviewed ontology batch through the same queue and durable writer as
+   * native field edits. All endpoints are rechecked against the reconciled accepted source;
+   * unrelated settings and unknown future keys remain owned by that source snapshot. */
+  async editOntologyConfigurationBatch(edits:readonly OntologyBatchEdit[],expected:OntologyConfigurationInput,current:()=>boolean):Promise<StyleCommitResult> {
+    const opening=prepareOntologyBatch(expected,edits),fields=[...new Set(opening.changes.flatMap(
+      /** Include removed/renamed endpoints and both old/new pair members in the conflict fence. */ change=>[change.edit.field,...change.before.map(field=>field.name),...change.after.map(field=>field.name)]))];
+    let accepted:OntologyBatchPlan|undefined;
+    return this.updateOntologyConfiguration(/** The existing queue reconciles before running this callback. */ source=>{
+      for(const field of fields)if(!appearanceThemes.themeValuesEqual(ontologyEndpointState(opening.input,field),ontologyEndpointState(source,field))){
+        const error=new Error(this.translator('settings.ontology.conflict'));error.name='SettingsConflictError';throw error;
+      }
+      accepted=prepareOntologyBatch(source,opening.edits);
+      const hierarchy={...source.hierarchy};for(const group of ONTOLOGY_GROUPS)hierarchy[group]=[...accepted.output.hierarchy[group]];return hierarchy;
+    },current,/** Preparation and this description read occur synchronously in one queued acceptance. */ ()=>{
+      if(!accepted)throw new Error('Ontology batch was not prepared');return accepted.output.ontologyDescriptions??{};
+    });
   }
 
   private fieldAtEditorCursor(editor: Editor): string | null {

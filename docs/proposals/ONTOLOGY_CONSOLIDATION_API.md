@@ -1,6 +1,6 @@
 # Ontology consolidation: API, suggestions and agent skill
 
-**Status: specification-only draft for local implementation. No runtime changes are implemented by this brief.**
+**Status: implemented and verified on the existing PR267 branch; draft and unmerged for maintainer review.**
 
 Prepared by **Zsolt's Codex Agent**, 3 November 2026.
 
@@ -14,13 +14,43 @@ K-Plex owns ontology interpretation, usage/occurrence inspection and ontology co
 
 Deliver these together:
 
-- [ ] Bounded public document-usage discovery and explicit source-occurrence inspection.
-- [ ] Reviewed ontology-configuration writes for canonical definitions, assignments, pairs and descriptions.
-- [ ] Description-aware ontology suggestions using the existing shared matchers.
-- [ ] A maintained CLI skill in this repository and a worked consolidation guide using public Obsidian APIs.
-- [ ] Focused automated coverage, real build, applicable native acceptance and truthful validation evidence.
+- [x] Bounded public document-usage discovery and explicit source-occurrence inspection.
+- [x] Reviewed ontology-configuration writes for canonical definitions, assignments, pairs and descriptions.
+- [x] Description-aware ontology suggestions using the existing shared matchers.
+- [x] A maintained CLI skill in this repository and a worked consolidation guide using public Obsidian APIs.
+- [x] Focused automated coverage, real build, applicable native acceptance and truthful validation evidence.
 
 Do not add another indexer, persistent occurrence database, Markdown grammar, relationship classifier, AI service, server, generic settings editor or automatic vault migration. Do not change existing passive graph reads into source-acquiring operations. Do not add a standalone bulk-cleanup UI or a semantic-alias registry.
+
+## Delivered contract
+
+The final additive v1 names are `ontologyDocuments`, `inspectOntologyOccurrences`,
+`previewOntologyConfiguration` and `applyOntologyConfiguration`. The
+[public reference](../PUBLIC_API.md#inspect-and-consolidate-ontology-safely) defines exact DTOs,
+budgets, coverage, cursor/review lifetime, cancellation and side effects. The
+[worked guide](../ONTOLOGY_CONSOLIDATION.md) and root [skill](../../skill.md) use those names.
+Accepted main, including shared completion PR268, was merged normally into this branch;
+specification commit `7a6dd608` remains in its history. No Help-repository or personal-vault
+consolidation/deployment is part of this implementation.
+
+The [validation record](../validation/ontology-consolidation-267-2026-11-03.md) contains
+full-suite counts, final57-case focused coverage, actual composer keyboard behavior, exact
+artifact/source identities, native YAML/body migration and plugin-reload results, cleanup,
+retained failed attempts and unverified macOS/physical-device limits.
+
+Usage traverses existing postings without recollecting earlier pages. Internal sequence/overlay
+guards fence every result, including pending-only continuations; authenticated family budgets
+apply before decoding. An exhausted posting remains insufficient whole-vault evidence. Source
+inspection uses one selected Vault.read and canonical cooperative parser hooks, with exact
+original UTF-16 body keys and truthful logical YAML locators. Legacy evidence offsets and worker
+payloads remain unchanged. Indirect/complex/duplicate YAML is conservatively unsupported.
+
+Configuration batches reuse the native validator and queued reconciliation/durable writer.
+Output budgets apply before retaining an expiring single-use preview; readback is limited to
+reviewed endpoints and cannot turn an accepted save into a false unsaved error. Shared substring
+and fuzzy owners rank physical, partner, then own description and retain canonical insertion.
+The guide's executed helpers require explicit exclusive saved-file ownership, reject stale no-op
+plans and bounded YAML collisions/types, and re-inspect after YAML before body offsets.
 
 ## Verified starting points
 

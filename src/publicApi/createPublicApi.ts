@@ -17,6 +17,12 @@ import {viewConfigurationUpdateDomain} from '../core/plex/views/configuration';
 import {facetPortablePackage} from '../ui/plexViews/facets/facetSharing';
 import {completeConfiguredOntology} from './ontologyCompletion';
 import {ontologyCompletionConfiguration} from '../editor/ontologyCompletionConfiguration';
+import {getFrontMatterInfo,parseYaml} from 'obsidian';
+import {createOntologyOccurrenceInspector} from '../adapters/obsidian/ontologyOccurrences';
+import {markdownBuffersMatchSaved} from '../adapters/obsidian/embeddedMarkdownLeaf';
+import {sourceRepositoryRuntime} from '../index/SourceRepository';
+import {PublicApiOntologyConfiguration} from '../application/PublicApiOntologyConfiguration';
+import type {OntologyUsagePager} from '../adapters/obsidian/ontologyUsagePager';
 
 export type KplexPublicApi=Readonly<{version:1;versions:readonly number[];v1:PublicApi}>;
 export type PublicApiOwner=Readonly<{api:KplexPublicApi;canvases:PublicCanvasRegistry;revisions:()=>PublicApiRevision;configurationSubmitted:()=>void;dispose:()=>void}>;
@@ -46,6 +52,16 @@ export function createPublicApi(plugin:KplexPlugin,current:()=>boolean,status:()
   const alive=()=>active&&current();
   /** Revisions are existing scalar/immutable-owner observations, independent of graph readiness. */
   const revisions=():PublicApiRevision=>({semantic:plugin.index.getSemanticRevision(),source:plugin.getIndexSourceRevision(),configuration:revision()});
+  const runtime=sourceRepositoryRuntime();
+  let usage:OntologyUsagePager|undefined,inspection:ReturnType<typeof createOntologyOccurrenceInspector>|undefined;
+  const ontologyEdits=new PublicApiOntologyConfiguration({sessionId:lifetime,current:alive,now:()=>Date.now(),revision,
+    read:/** Keep the existing settings owner private; the reviewed owner captures only ontology domains. */ ()=>plugin.settings,
+    capture:/** Incoming epochs and local submitted revisions reject remote/local A-to-B-to-A reviews. */ ()=>{
+      const hierarchy=plugin.receivedSettingsOwner('hierarchy'),descriptions=plugin.receivedSettingsOwner('ontologyDescriptions'),opening=revision();
+      return ()=>alive()&&hierarchy()&&descriptions()&&revision()===opening;
+    },
+    save:/** The existing serialized writer rechecks accepted endpoints after incoming reconciliation. */ (edits,expected,current)=>plugin.editOntologyConfigurationBatch(edits,expected,current),
+  });
   const configuration=new PublicApiConfiguration({sessionId:lifetime,current:alive,now:()=>Date.now(),revision,
     read:/** The canonical sharing owner returns only its finite configuration domains. */ ()=>plugin.readPortableSharingState(),
     preview:/** Capacity/palette/future-schema validation is identical to the existing native importer. */ plan=>{plugin.previewPortableSharing(plan);},
@@ -80,6 +96,21 @@ export function createPublicApi(plugin:KplexPlugin,current:()=>boolean,status:()
       if(!alive())throw new PublicApiError('API_UNAVAILABLE','K-Plex API is unloaded');
       return completeConfiguredOntology(plugin.settings,text,cursor,limit);
     },
+    ontologyConfiguration:ontologyEdits,
+    ontologyDocuments:/** Lazy cache-reader composition does not touch the graph while ordinary suggestions run. */ (request,current)=>{
+      usage??=plugin.index.publicOntologyUsagePager({current:alive,now:()=>Date.now(),uniqueId:()=>runtime.uniqueId(),
+        revision:/** Scalar publication coordinates fence cursor continuations without source work. */ ()=>JSON.stringify(revisions())});
+      return usage.read(request,current);
+    },
+    inspectOntologyOccurrences:/** Only this explicitly advertised operation can read saved Markdown text. */ (request,current)=>{
+      inspection??=createOntologyOccurrenceInspector({runtime,
+        fileForPath:/** Resolve only the caller's exact selected file. */ path=>plugin.app.vault.getFileByPath(path),
+        readFile:/** Vault.read supplies current saved bytes, independent of stale metadata/cachedRead. */ file=>plugin.app.vault.read(file),
+        hasUnsavedBuffer:/** The existing guard includes main/popout and K-Plex embedded native editors. */ (path,text)=>{
+          const file=plugin.app.vault.getFileByPath(path);return !file||!markdownBuffersMatchSaved(plugin.app,file,text);
+        },getFrontmatter:getFrontMatterInfo,parseYaml});
+      return inspection.inspect(request,()=>alive()&&current());
+    },
     ontology:/** Settings provide configured meanings before the graph starts; discovery is explicit and cache-only. */ options=>{
       if(ONTOLOGY_GROUPS.reduce(/** Reject an excessive configured vocabulary before projecting it. */ (count,group)=>count+plugin.settings.hierarchy[group].length,0)>PUBLIC_API_LIMITS.scan)
         throw new PublicApiError('LIMIT_EXCEEDED','Configured ontology exceeds the vocabulary read budget.');
@@ -93,6 +124,6 @@ export function createPublicApi(plugin:KplexPlugin,current:()=>boolean,status:()
   return {api:Object.freeze({version:1,versions:Object.freeze([1]),v1:service}),canvases,revisions,
     configurationSubmitted:/** Retire captured configurations synchronously before an accepted settings write queues. */ ()=>{if(alive())revision(true);},
     dispose:/** Reject old handles and release all native/index closures before any index teardown. */ ()=>{
-      active=false;service.dispose();configuration.dispose();canvases.dispose();transport.dispose();
+      active=false;service.dispose();ontologyEdits.dispose();usage?.dispose();inspection?.dispose();configuration.dispose();canvases.dispose();transport.dispose();
     }};
 }

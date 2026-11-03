@@ -23,6 +23,11 @@ test('unassigned scalar/inline metadata names work without a semantic relationsh
  const f=fixture();f.put('id-unrelated-to-path','Notes/Context.md',['erroneous-property']);assert.equal((await f.read('Erroneous Property')).documents[0].path,'Notes/Context.md');
 });
 
+test('existing native usage keeps its prior large-family compatibility; only the public pager opts into extra budgets',async()=>{
+ const f=fixture();f.put('large','Large.md',[...Array.from({length:8200},(_,i)=>'other-'+i),'field']);
+ const result=await f.read('field');assert.equal(result.partial,false);assert.equal(result.documents[0].path,'Large.md');
+});
+
 test('stale, deleted and invalid metadata families are omitted with truthful partial coverage',async()=>{
  const f=fixture();f.put('stale','Old.md',['field'],{mtime:1});f.put('deleted','Gone.md',['field']);f.files.delete('Gone.md');f.put('bad','Bad.md',['field'],{invalid:true});f.put('good','Good.md',['field']);
  assert.deepEqual(await f.read('field'),{documents:[{path:'Good.md',name:'Good'}],partial:true});
