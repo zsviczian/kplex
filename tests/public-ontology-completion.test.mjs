@@ -18,11 +18,11 @@ const source=ts.createSourceFile('main.ts',readFileSync('src/main.ts','utf8'),ts
 const pluginClass=source.statements.find(/** Use the real owning plugin class. */ node=>ts.isClassDeclaration(node)&&node.name?.text==='KplexPlugin');
 const persistence=pluginClass.members.find(/** Extract production code, never a second settings observer. */ node=>ts.isMethodDeclaration(node)&&node.name.getText(source)==='persistSettingsSnapshot');
 assert(persistence,'Missing production settings boundary');
-await build({stdin:{resolveDir:process.cwd(),loader:'ts',contents:`export {createPublicApi} from './src/publicApi/createPublicApi';export {OntologySuggester} from './src/editor/OntologySuggester';export {migrateAndMergeSettings} from './src/settings';/** Finite fixture for the actual submitted-write observation boundary. */ export class SettingsOwnerFixture {${persistence.getText(source)}}`},outfile,bundle:true,platform:'node',format:'esm',plugins:[{name:'native-shell-only',
+await build({stdin:{resolveDir:process.cwd(),loader:'ts',contents:`export {createPublicApi} from './src/publicApi/createPublicApi';export {OntologySuggester} from './src/editor/OntologySuggester';export {OntologyPartnerSuggest} from './src/ui/OntologyPartnerSuggest';export {ontologyConfiguration} from './src/core/contracts/ontologyConfiguration';export {migrateAndMergeSettings} from './src/settings';/** Finite fixture for the actual submitted-write observation boundary. */ export class SettingsOwnerFixture {${persistence.getText(source)}}`},outfile,bundle:true,platform:'node',format:'esm',plugins:[{name:'native-shell-only',
   /** Supply unused native UI classes without mocking a production completion owner. */
   setup(builder){
     builder.onResolve({filter:/^obsidian$/},/** Isolate the Obsidian import. */()=>({path:'obsidian',namespace:'native'}));
-    builder.onLoad({filter:/.*/,namespace:'native'},/** Selection uses the real owner over this finite editor context. */()=>({contents:'export class EditorSuggest {constructor(app){this.app=app;this.context=null}} export class Component {load(){} unload(){}} export const MarkdownRenderer={render:()=>{throw Error("Unexpected Markdown rendering")}}; export class App {} export class Modal {} export class SuggestModal extends Modal {} export class ColorComponent {} export class Notice {} export class AbstractInputSuggest {} export class PluginSettingTab {} export class Scope {} export class Setting {} export class ButtonComponent {} export class ExtraButtonComponent {} export class SearchComponent {} export const setIcon=()=>{},setTooltip=()=>{},getIcon=()=>null,getIconIds=()=>[],getLanguage=()=>"en",Platform={};'}));
+    builder.onLoad({filter:/.*/,namespace:'native'},/** Selection uses the real owner over this finite editor context. */()=>({contents:'export class FileView {} export class WorkspaceLeaf {} export class WorkspaceSplit {} export const parseLinktext=()=>{throw Error("Unexpected link parse")}; export class TextFileView {} export const getFrontMatterInfo=()=>{throw Error("Unexpected frontmatter read")},parseYaml=()=>{throw Error("Unexpected YAML parse")}; export class EditorSuggest {constructor(app){this.app=app;this.context=null}} export class Component {load(){} unload(){}} export const MarkdownRenderer={render:()=>{throw Error("Unexpected Markdown rendering")}}; export class App {} export class Modal {} export class SuggestModal extends Modal {} export class ColorComponent {} export class Notice {} export class AbstractInputSuggest {constructor(app,input){this.input=input}setValue(value){this.input.value=value}close(){this.closed=true}} export class PluginSettingTab {} export class Scope {} export class Setting {} export class ButtonComponent {} export class ExtraButtonComponent {} export class SearchComponent {} export const setIcon=()=>{},setTooltip=()=>{},getIcon=()=>null,getIconIds=()=>[],getLanguage=()=>"en",Platform={};'}));
   }}]});
 globalThis.window={crypto:{randomUUID},performance};
 const M=await import(pathToFileURL(outfile).href);
@@ -93,6 +93,31 @@ test('no-trigger, disabled, empty-result and unloaded states remain distinguisha
   h.owner.dispose();const count=h.accesses.length;assert.equal(h.api.completeOntology({text:':::',cursor:3}).error.code,'API_UNAVAILABLE');assert.equal(h.accesses.length,count);
   const fresh=M.createPublicApi(h.plugin,/** Fresh plugin incarnation. */()=>true,/** Status is still outside the request. */()=>{throw Error('Unexpected status');});
   assert.notEqual(fresh.api,h.owner.api);assert.equal(fresh.api.v1.completeOntology({text:':::',cursor:3}).value.state,'disabled');fresh.dispose();
+});
+
+test('description synonyms share native/public ordering and insert only canonical physical names',/** Querying annotations must neither read sources nor insert annotation text. */()=>{
+ const h=fixture({hierarchy:{parents:['Canonical/Inverse','Needle direct'],children:[],leftFriends:['Other'],rightFriends:[],previous:[],next:[],hidden:[],exclusions:[]},ontologyDescriptions:{Canonical:'Needle historical synonym',Other:'Needle alternative name',Inverse:'independent inverse wording'}});
+ const result=parity(h,':::Needle');assert.deepEqual(result.value.items.map(item=>item.name),['Needle direct','Canonical','Other']);
+ const role=parity(h,'::pNeedle');assert.deepEqual(role.value.items.map(item=>item.name),['Needle direct','Canonical']);
+ const native=new M.OntologySuggester(h.plugin),text='::pNeedle',info=native.onTrigger({line:0,ch:text.length},{getLine:()=>text},null);let replacement;
+ native.context={editor:{replaceRange:(...args)=>replacement=args}};native.selectSuggestion('Canonical');assert.equal(replacement[0],'Canonical:: ');assert.equal(info.query,'Needle');
+ h.settings.ontologyDescriptions={Canonical:'Updated wording'};assert.deepEqual(parity(h,':::Needle').value.items.map(item=>item.name),['Needle direct']);assert(h.accesses.every(key=>key==='getSemanticRevision'));h.owner.dispose();
+});
+
+test('actual native partner picker applies shared fuzzy tiers and inserts canonical spelling',/** Its host input double grants no source capability and creation remains an explicit last row. */()=>{
+ const h=fixture({hierarchy:{parents:['Canonical/Inverse','Needle direct'],children:[],leftFriends:['Other'],rightFriends:[],previous:[],next:[],hidden:[],exclusions:[]},ontologyDescriptions:{Canonical:'Needle historical synonym',Other:'Needle alternative name',Inverse:'independent inverse wording'}}),input={value:''},selected=[];
+ const picker=new M.OntologyPartnerSuggest({},input,()=>['Other','Inverse','Canonical','Needle direct'],(name,create)=>selected.push({name,create}),()=>M.ontologyConfiguration(h.settings),key=>key,()=>true,()=>h.settings.ontologyDescriptions);
+ const options=picker.getSuggestions('needle');assert.deepEqual(options,['Needle direct','Other','Canonical',{create:'needle'}]);
+ picker.selectSuggestion('Canonical');assert.equal(input.value,'Canonical');assert.deepEqual(selected,[{name:'Canonical',create:false}]);assert.equal(picker.closed,true);
+ h.settings.ontologyDescriptions={};assert.deepEqual(picker.getSuggestions('needle'),['Needle direct',{create:'needle'}]);h.owner.dispose();
+});
+
+test('more than 400 description candidates retain physical ordering and public result bounds',/** A large authored vocabulary is still settings-only and never asks for graph discovery. */()=>{
+ const fields=Array.from({length:450},(_,index)=>`Field ${String(index).padStart(3,'0')}`),descriptions=Object.fromEntries(fields.map(name=>[name,'Former-term: reviewed historical wording.']));
+ const h=fixture({hierarchy:{parents:fields,children:[],leftFriends:[],rightFriends:[],previous:[],next:[],hidden:[],exclusions:[]},ontologyDescriptions:descriptions});
+ const text='::pFormer-term',result=h.api.completeOntology({text,cursor:text.length,limit:20});assert(result.ok);assert(result.truncated);assert.deepEqual(result.value.items.map(item=>item.name),fields.slice(0,20));
+ const native=new M.OntologySuggester(h.plugin),info=native.onTrigger({line:0,ch:text.length},{getLine:()=>text},null);assert.deepEqual(native.getSuggestions({...info}),fields);
+ assert(h.accesses.every(key=>key==='getSemanticRevision'));h.owner.dispose();
 });
 
 test('input/result budgets, cancellation and full revision fences use ordinary API envelopes',/** Limits reject input instead of silently shifting replacement offsets. */()=>{

@@ -131,6 +131,7 @@ import { remapGraphEndpoint } from "./remapGraphEndpoint";
 import { isRemoteNodeImageSource } from "../core/plex/nodeImagePolicy";
 import { yieldToHostTask } from "../adapters/obsidian/yieldToHostTask";
 import {readOntologyUsage,type OntologyUsageResult} from '../adapters/obsidian/ontologyUsage';
+import {OntologyUsagePager} from '../adapters/obsidian/ontologyUsagePager';
 import { ForegroundWorkScheduler, INDEX_WORK_PRIORITY, type IndexWorkPriority, type IndexingThrottle } from "./ForegroundWorkScheduler";
 import { HostMetadataPreview } from "./HostMetadataPreview";
 import { ObsidianSourceAcquisition } from "../adapters/obsidian/sourceAcquisition";
@@ -4382,6 +4383,13 @@ export class GraphIndex {
   /** Read existing field postings for the explicit usage dialog; never acquire or extend the index. */
   ontologyUsage(field:string,current:()=>boolean):Promise<OntologyUsageResult> {
     return readOntologyUsage(this.indexedDb.sources,field,/** Native paths come from authenticated heads, never opaque source IDs. */ path=>this.app.vault.getFileByPath(path),current);
+  }
+
+  /** Compose an explicit cache-only cursor owner without exposing the repository or starting
+   * acquisition. API disposal closes its finite iterators before index teardown. */
+  publicOntologyUsagePager(options:Readonly<{revision:()=>string;current:()=>boolean;now:()=>number;uniqueId:()=>string}>):OntologyUsagePager {
+    return new OntologyUsagePager({...options,repository:this.indexedDb.sources,
+      fileForPath:/** Resolve only the authenticated selected path, never enumerate the vault. */ path=>this.app.vault.getFileByPath(path)});
   }
 
   discoveredFields(): Array<{ normalized: string; name: string; count: number }> {

@@ -2,6 +2,11 @@
 
 Obsidian CLI `eval` calls the [public K-Plex API](PUBLIC_API.md) inside the running application. Enable and register Obsidian's CLI using [Obsidian's official setup](https://help.obsidian.md/cli), keep the intended vault open, and address that vault explicitly. K-Plex does not register parameterized `obsidian kplex:*` commands or ship a separate executable wrapper.
 
+For agent workflows use the repository's [root skill](../skill.md). The
+[worked consolidation guide](ONTOLOGY_CONSOLIDATION.md) covers bounded usage lookup, explicit
+selected-file inspection and confirmed ontology batches. Reads do not grant migration authority.
+Keep the PR267 capabilities optional through discovery and reacquire after plugin reload.
+
 The API introduced in PR #240 has complete repository verification and exact-build Windows CLI acceptance. The [validation record](validation/public-api-cli-240-2026-10-30.md) records the results and remaining macOS, minimum-host and physical-device limits.
 
 First verify the destination:
@@ -29,6 +34,22 @@ obsidian vault=kplex-test-small eval \
 obsidian vault=kplex-test-small eval \
   'code=JSON.stringify(window.kplexApi.v1.canvases())'
 ```
+
+Explicit usage and source inspection are asynchronous; return the eventual envelope:
+
+```sh
+obsidian vault=kplex-test-small eval \
+  'code=(async()=>JSON.stringify(await window.kplexApi.v1.ontologyDocuments({field:"Cites old",limit:20})))()'
+
+obsidian vault=kplex-test-small eval \
+  'code=(async()=>JSON.stringify(await window.kplexApi.v1.inspectOntologyOccurrences({path:"Selected.md",fields:["Cites old","Cites"]})))()'
+```
+
+These examples use existing selected files; they create or migrate nothing. An empty usage page
+can have a continuation and incomplete source coverage. YAML/body migration requires a separate
+review, approval, backup and guarded Obsidian writes. Plain CLI eval does not provide the plugin
+module loader: do not assume `require("obsidian")` is available. The worked guide distinguishes
+direct CLI examples from static imports in a normally bundled local host helper.
 
 Use a returned canvas ID for subsequent calls:
 

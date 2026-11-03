@@ -7,3 +7,5 @@ repository.zip
 RELEASE_NOTES*
 handoff
 .test-work/ontology-completion/
+.test-work/ontology-consolidation/
+.test-work/ontology-occurrences-baseline.mjs

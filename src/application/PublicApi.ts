@@ -6,11 +6,15 @@ import type {Role} from '../core/graph/relations';
 import type {PublicApiConfiguration} from './PublicApiConfiguration';
 import {publicApiMarkdownLiteral as literal} from './publicApiMarkdown';
 import type {PublicOntologyCompletionRequest} from './publicApiContracts';
+import type {OntologyDocumentsRequest} from '../core/contracts/ontologyUsage';
+import type {OntologyOccurrenceRequest} from '../core/contracts/ontologyOccurrences';
+import type {OntologyBatchEdit} from '../core/contracts/ontologyBatch';
+import type {OntologyConfigurationApplyRequest} from './PublicApiOntologyConfiguration';
 
 const unknownCoverage:PublicCoverage={scope:'unknown',complete:false,pending:false};
 /** JSON output is bounded before serialization or copying, preventing oversized host values
  * from turning small queries into accidental note/property exports or large allocations. */
-function detached<T>(value:T):T {
+export function detachPublicApiValue<T>(value:T):T {
   let remaining=limits.outputCharacters as number,nodes=50000;
   /** Inspect only finite plain JSON values; output DTOs never contain executable/native objects. */
   const inspect=(item:unknown,depth:number):void=>{
@@ -77,6 +81,42 @@ export class PublicApi {
       if(!complete)throw new PublicApiError('UNSUPPORTED','Ontology completion is unavailable');
       return complete(options.text,options.cursor,take);
     },{scope:'configuration',complete:true,pending:false});
+  }
+  /** Explicit cache-only lookup resumes finite posting work; even exhausted postings cannot
+   * certify whole-vault absence. A continuation remains necessary after an empty bounded page. */
+  ontologyDocuments(options:PublicReadOptions&OntologyDocumentsRequest){
+    return this.asyncRead(options??{},async current=>{
+      const read=this.owner().ontologyDocuments;
+      if(!read)throw new PublicApiError('UNSUPPORTED','Ontology usage lookup is unavailable');
+      return read(options,current);
+    },()=>({scope:'cached',complete:false,pending:false}));
+  }
+  /** Explicitly read one saved Markdown source for all requested fields; ordinary synchronous
+   * reads/GraphQL retain their passive behavior and never call this source inspection port. */
+  inspectOntologyOccurrences(options:PublicReadOptions&OntologyOccurrenceRequest){
+    return this.asyncRead(options??{},async current=>{
+      const inspect=this.owner().inspectOntologyOccurrences;
+      if(!inspect)throw new PublicApiError('UNSUPPORTED','Ontology occurrence inspection is unavailable');
+      return inspect(options,current);
+    },value=>({scope:'local',complete:value.complete,pending:false}));
+  }
+  /** Prepare exact ordered ontology diffs through the shared validator without saving settings
+   * or acquiring sources. A conflict returns no reusable authorization capability. */
+  previewOntologyConfiguration(options:PublicReadOptions&Readonly<{edits:readonly OntologyBatchEdit[]}>){
+    return this.read(options??{},()=>{
+      const configuration=this.owner().ontologyConfiguration;
+      if(!configuration)throw new PublicApiError('UNSUPPORTED','Reviewed ontology configuration is unavailable');
+      return configuration.preview(options?.edits);
+    },{scope:'configuration',complete:true,pending:false});
+  }
+  /** Only an explicitly confirmed, unexpired review can join the existing durable settings
+   * queue. Saved-but-unverified receipts require readback before retry, never automatic replay. */
+  applyOntologyConfiguration(options:OntologyConfigurationApplyRequest){
+    return this.action(async()=>{
+      const configuration=this.owner().ontologyConfiguration;
+      if(!configuration)throw new PublicApiError('UNSUPPORTED','Reviewed ontology configuration is unavailable');
+      return configuration.apply(options);
+    });
   }
   /** Return authored meanings and literal property-writing syntax without synthesizing meaning. */
   ontologyGuide(options:PublicReadOptions&{format?:'json'|'markdown';includeDiscovered?:boolean;limit?:number}={}){
@@ -149,7 +189,9 @@ export class PublicApi {
   /** Execute genuine read-only GraphQL through the injected lazy transport and the same read model. */
   query(request:PublicGraphqlRequest){return this.read({...request,requireComplete:false},()=>this.owner().graphql(this,request),()=>this.owner().graph.coverage());}
   /** Finite discovery advertises actual available operations and explicit deferred exporters. */
-  capabilities(){return this.read({},()=>({version:1,readOnlyGraphql:true,operations:['status','coverage','ontology','ontologyGuide',...(this.owner().completeOntology?['completeOntology']:[]),'node','search','neighbors','evidence','canvases','canvas','context','exportMarkdown','navigate','selectView','selectPreset','configuration','query'],exports:{image:false,mindmapMarkdown:true},limits}),{scope:'configuration',complete:true,pending:false});}
+  capabilities(){return this.read({},()=>({version:1,readOnlyGraphql:true,operations:['status','coverage','ontology','ontologyGuide',...(this.owner().completeOntology?['completeOntology']:[]),...(this.owner().ontologyDocuments?['ontologyDocuments']:[]),...(this.owner().inspectOntologyOccurrences?['inspectOntologyOccurrences']:[]),...(this.owner().ontologyConfiguration?['previewOntologyConfiguration','applyOntologyConfiguration']:[]),'node','search','neighbors','evidence','canvases','canvas','context','exportMarkdown','navigate','selectView','selectPreset','configuration','query'],
+    effects:{ontologyDocuments:'async-stored-fact-read',inspectOntologyOccurrences:'async-selected-source-read',previewOntologyConfiguration:'sync-configuration-preview',applyOntologyConfiguration:'async-confirmed-configuration-write'},
+    exports:{image:false,mindmapMarkdown:true},limits}),{scope:'configuration',complete:true,pending:false});}
   /** Release all host references. Previously retained methods remain callable with closed errors. */
   dispose():void{this.ports=null;}
   /** Fail closed without retaining the plugin through an unloaded service handle. */
@@ -181,7 +223,7 @@ export class PublicApi {
       const before=this.revision();if(options.expectedRevision&&['semantic','source','configuration'].some(key=>Reflect.get(options.expectedRevision??{},key)!==Reflect.get(before,key)))throw new PublicApiError('STALE_REVISION','Requested revision is stale');
       const cover=typeof coverage==='function'?coverage():coverage;
       if(options.requireComplete===true&&!cover.complete)throw new PublicApiError('INDEX_INCOMPLETE','Required coverage is not complete');
-      const value=detached(read()),after=this.revision();
+      const value=detachPublicApiValue(read()),after=this.revision();
       if(this.cancellation(options)())throw new PublicApiError('CANCELLED','Request was cancelled');
       if(before.semantic!==after.semantic||before.source!==after.source||before.configuration!==after.configuration)throw new PublicApiError('STALE_REVISION','Publication changed during the read');
       const truncated=typeof value==='object'&&value!==null&&Reflect.get(value,'truncated')===true;
@@ -193,7 +235,27 @@ export class PublicApi {
   }
   /** An accepted durable write remains saved even if retirement occurs while disk I/O completes. */
   private async action<T>(run:()=>Promise<T>,coverage:PublicCoverage={scope:'configuration',complete:true,pending:false}):Promise<PublicApiResult<T>>{
-    try{this.owner();const value=detached(await run());return{ok:true,value,revision:this.revision(),coverage,truncated:false};}
+    try{this.owner();const value=detachPublicApiValue(await run());return{ok:true,value,revision:this.revision(),coverage,truncated:false};}
     catch(error){return this.failure(error);}
+  }
+  /** Explicit async inspection uses one publication frame across every await. Cancellation and
+   * retirement win over a provider's partial output; requireComplete is evaluated only against
+   * the inspected scope, and never requests missing source/index work. */
+  private async asyncRead<T>(options:PublicReadOptions,run:(current:()=>boolean)=>Promise<T>,coverage:(value:T)=>PublicCoverage):Promise<PublicApiResult<T>>{
+    try{
+      const owner=this.owner(),before=this.revision();
+      if(options.isCancelled?.())throw new PublicApiError('CANCELLED','Request was cancelled');
+      if(options.expectedRevision&&['semantic','source','configuration'].some(key=>Reflect.get(options.expectedRevision??{},key)!==Reflect.get(before,key)))throw new PublicApiError('STALE_REVISION','Requested revision is stale');
+      /** Providers can stop at their native checkpoints without learning the plugin instance. */
+      const current=():boolean=>this.ports===owner&&!options.isCancelled?.()&&JSON.stringify(this.revision())===JSON.stringify(before);
+      let read:T;
+      try{read=await run(current);}catch(error){if(!this.ports)throw new PublicApiError('API_UNAVAILABLE','K-Plex API is unloaded');if(options.isCancelled?.())throw new PublicApiError('CANCELLED','Request was cancelled');if(!current())throw new PublicApiError('STALE_REVISION','Publication changed during inspection');throw error;}
+      if(!this.ports)throw new PublicApiError('API_UNAVAILABLE','K-Plex API is unloaded');
+      if(options.isCancelled?.())throw new PublicApiError('CANCELLED','Request was cancelled');
+      if(!current())throw new PublicApiError('STALE_REVISION','Publication changed during inspection');
+      const value=detachPublicApiValue(read),cover=coverage(value),truncated=typeof value==='object'&&value!==null&&Reflect.get(value,'truncated')===true;
+      if(options.requireComplete===true&&(!cover.complete||truncated))throw new PublicApiError('INDEX_INCOMPLETE','Required inspection coverage is incomplete');
+      return {ok:true,value,revision:this.revision(),coverage:{...cover},truncated};
+    }catch(error){return this.failure(error);}
   }
 }

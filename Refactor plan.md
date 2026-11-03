@@ -6839,3 +6839,31 @@ submission fence. Remaining manual scope is physical mobile/OS IME and other
 operating systems; desktop emulation and scripted composition are separate
 from that evidence. Release the additive K-Plex capability before or together
 with the optional consumer. No release version, publication or merge is authorized.
+
+### 2026-11-03 - Ontology consolidation API feature acceptance
+
+PR267 extends the existing neutral-source reader, canonical cooperative parser,
+ontology validator/queued writer and shared suggestion owners. Its four additive
+v1 methods provide bounded usage cursors, explicit selected-file physical occurrences,
+and confirmed expiring ontology configuration reviews. Description search retains
+canonical insertion. Root skill and an executable YAML/body migration guide remain
+in K-Plex; no Help or personal-vault migration is included. Specification7a6dd608
+and accepted main116f7f8a are preserved through normal merge. C15-C26 stay paused.
+
+Independent review addressed predecode budgets, pending-cursor storage guards,
+bounded durable readback, normalization-equivalent spellings, original UTF16 ranges,
+rare formatting compatibility, YAML scalar roots and saved-file ownership. Final
+strict verification passes architecture9/core132/main1968/browser466/source357/
+realIDB893, scanner/installed types/production build; final focused57 cases and
+actual related-note composer description/keyboard behavior pass. Exact Windows
+Obsidian1.14.5 acceptance covers native YAML/body collision, reinspection,
+interruption/resume/idempotence, dirty/stale refusal, source-free matching/usage,
+Enter insertion, popout, durable reload and strict cleanup. See
+`docs/validation/ontology-consolidation-267-2026-11-03.md` for hashes, retained
+failed attempts, review findings and evidence limits.
+
+Highest risk remains treating partial usage as exhaustive absence or reusing body
+offsets after a YAML write; both have explicit refusal/coverage contracts and
+executed fixtures. No further manual Windows check is needed for covered flows.
+macOS, physical mobile/WebView, touch and OS IME remain unverified. Keep PR267
+draft/unmerged for review; no release/version bump or personal deployment.

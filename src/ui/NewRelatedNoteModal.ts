@@ -378,7 +378,10 @@ function RelatedNoteComposer({
     },
     getKey: (field: string) => field.toLocaleLowerCase(),
     getLabel: (field: string) => field,
-    getDetail: (field:string)=>ontologyFieldDetail(ontologyByKey.get(normalizeFieldName(field)),plugin.translator,ontologyTyped&&!fuzzyFilterStrings([field],ontology,1).length),
+    getDetail: /** Annotate partner matches only when that tier actually matched, not an own-description result. */ (field:string)=>{
+      const view=ontologyByKey.get(normalizeFieldName(field));
+      return ontologyFieldDetail(view,plugin.translator,Boolean(ontologyTyped&&!fuzzyFilterStrings([field],ontology,1).length&&view?.partner&&fuzzyFilterStrings([view.partner],ontology,1).length));
+    },
     placeholder: plugin.translator("addRelated.ontologyPlaceholder", { field: plugin.defaultOntologyField(role) }),
     ariaLabel: plugin.translator("addRelated.ontologyAria"),
     icon: "tags",

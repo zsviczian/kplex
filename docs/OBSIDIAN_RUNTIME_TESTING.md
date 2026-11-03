@@ -1,5 +1,18 @@
 # Inspecting the running plugin with Obsidian CLI
 
+PR267's maintained lane is `npm run verify:obsidian:ontology-consolidation`, after exact-build
+staging with `npm run verify:obsidian`. Supply all three explicit `kplex-test-small` destination
+variables and a fresh `KPLEX_HOST_REPORT_DIR`. It verifies installed artifact hashes and runs
+the guide's extracted public-host YAML/body helpers on owned notes: collisions, exact CRLF/Unicode
+spans, YAML reinspection, stale/dirty refusal, interruption/resume, idempotence, confirmed settings,
+description-only behavior, real Markdown popup/insertion, popout API and plugin reload. It restores
+settings bytes, owned notes and workspace independently of assertions. A shared application
+user-data lock serializes this lane with Excalidraw native automation; set
+`KPLEX_OBSIDIAN_USER_DATA` only for a nonstandard Obsidian profile. Do not run it against a personal
+vault. Native parser duplicates are checked through the built plugin; plain CLI eval has no
+`require("obsidian")` module alias. Synthetic keyboard/desktop execution is not physical-device
+or OS-IME acceptance.
+
 For Windows PowerShell and macOS zsh/bash setup, launcher discovery, first-open trust and disposable help-vault preparation, follow [Desktop CLI setup](../CONTRIBUTING.md#desktop-cli-setup-windows-and-macos). The examples below use zsh/bash quoting. On Windows use the Node native drivers for complex `eval` payloads; PowerShell 5.1's native argument handling can remove embedded quotes. `KPLEX_OBSIDIAN_CLI` may point directly to `Obsidian.com` without a PATH change.
 
 Use an explicitly selected disposable vault. Agents without Obsidian run `npm run verify` and leave host evidence pending. Deploy the exact build with `npm run verify:obsidian` and the three test-vault variables in [CONTRIBUTING.md](../CONTRIBUTING.md). Inspect installed syntax with `obsidian help`, then confirm the target:
