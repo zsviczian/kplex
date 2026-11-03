@@ -10,7 +10,7 @@ import ts from "typescript";
 /** Preserve original method bodies, including queue/await fences, while callers supply explicit host facts. */
 export function styleSettingsHostSource(root) {
   const source = ts.createSourceFile("main.ts", readFileSync(new URL("src/main.ts", root), "utf8"), ts.ScriptTarget.Latest, true);
-  const names = new Set(["setContentVisibility", "updateStyleSettings", "saveSettings", "enqueueSettingsWrite", "settingsSnapshotForPersistence", "persistSettingsSnapshot", "setGraphLenses", "readPortableSharingState", "previewPortableSharing", "importPortableSharing",
+  const names = new Set(["readSavedPins", "stopPeriodicPinTimer", "refreshPeriodicPins", "setContentVisibility", "updateStyleSettings", "saveSettings", "enqueueSettingsWrite", "settingsSnapshotForPersistence", "persistSettingsSnapshot", "setGraphLenses", "readPortableSharingState", "previewPortableSharing", "importPortableSharing",
     "captureAppearanceOwner", "isAppearanceOwnerCurrent", "subscribeAppearanceThemes", "bindAppearanceEditor", "appearanceThemeNames", "updateAppearanceThemes", "showAppearanceMigrationNotification",
     "createAppearanceTheme", "resetAppearanceThemeColors", "importLegacyAppearance", "settingsForWrite", "writeSettingsSnapshot", "updateOntologyField", "updateOntologyConfiguration", "editOntologyConfiguration", "assignFieldToOntology", "ontologyFieldsForRole", "ontologyRoleForField", "inverseOntologyField", "inverseRelationshipRole", "defaultOntologyField", "refreshSavedSettings",
     "initializeSettingsReconciliation", "onExternalSettingsChange", "queueExternalSettingsAdoption", "reportExternalSettingsFailure", "installExternalSettings", "updateActionPreferences", "receivedSettingsOwner", "receivedSettingsRevision", "updateCanvasViewSetting", "readCanvasViewConfiguration", "updateCanvasViewConfiguration", "resetCanvasViewConfiguration", "migrateCanvasViewConfiguration", "commitCanvasViewConfiguration", "editOntologyConfigurationBatch"]);
@@ -25,6 +25,9 @@ export function styleSettingsHostSource(root) {
     export {OntologyFieldControl} from "./src/ui/OntologyFieldControl";
     import {SavedSettingsRefresh} from "./src/adapters/obsidian/savedSettingsRefresh";
     import {contentVisibilityPatch} from "./src/core/plex/contentVisibility";
+    import {isPeriodicPin} from './src/core/plex/savedPins';
+    import {resolveSavedPins} from './src/core/plex/periodicPins';
+    import {createPeriodicPinRuntime} from './src/adapters/obsidian/periodicPins';
     import * as appearanceThemes from "./src/core/plex/appearanceThemes";
     import {DEFAULT_SETTINGS,importExcaliBrainGraphSettings,migrateAndMergeSettings} from "./src/settings";
     import {SettingsReconciliation} from "./src/adapters/obsidian/settingsReconciliation";
@@ -51,5 +54,5 @@ export function styleSettingsHostSource(root) {
     import {appearanceColorReferences,STYLE_SETTINGS_KEYS} from "./src/core/contracts/appearance";
     import {cyclicSemanticColorSlots,migrateColorPreferences} from "./src/core/plex/colorPreferences";
     import {captureSettingsPolicy,classifySettingsChange,isStyleOnlySettingsChange} from "./src/core/graph/settingsPolicy";
-    export class StyleSettingsHost {actionDialogs = new Map(); ${methods.join("\n")}}`;
+    export class StyleSettingsHost {actionDialogs = new Map();periodicPinTimer=null;periodicPinSignature=null;periodicPinRuntime=null; ${methods.join("\n")}}`;
 }
