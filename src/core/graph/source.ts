@@ -204,6 +204,13 @@ export type BodyUrlOccurrence = SourceRecordBase & Readonly<{
   aliases?: readonly string[];
 }>;
 
+/** Display/search label from current frontmatter, supplemental to neutral property evidence. */
+export type UrlLabelOccurrence = SourceRecordBase & Readonly<{
+  kind: "url-label";
+  target: SourceTargetRef;
+  label: string;
+}>;
+
 /** Host Date-property + Daily Notes normalization, retaining original property provenance. */
 export type DatePropertyOccurrence = SourceRecordBase & Readonly<{
   kind: "date-property";
@@ -221,6 +228,7 @@ export type NormalizedSourceRecord =
   | ReferencePayloadChunk
   | ReferenceCandidate
   | BodyUrlOccurrence
+  | UrlLabelOccurrence
   | DatePropertyOccurrence;
 
 export type SourceReadBoundary = Readonly<{

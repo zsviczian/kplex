@@ -43,11 +43,31 @@ test('authored descriptions retain exact physical names, literal content and ind
  const updated=c.editOntologyDescriptions(descriptions,[{field:'based on',description:''},{field:'quoted in',description:'<literal> **text**'}]);assert(!Object.hasOwn(updated,'based on'));assert.equal(updated['quoted in'],'<literal> **text**');assert.equal(descriptions['based on'],'Cites an earlier idea.');assert.throws(()=>c.editOntologyDescriptions(updated,[{field:'quoted in',description:'x'.repeat(1001)}]),error=>error.name==='SettingsValidationError');
 });
 
-test('description details do not change physical matching, ranking or inverse selection',()=>{
+test('description matches extend physical options after name and partner tiers',()=>{
  const descriptions={'based on':'A literal <b>description</b>.','quoted in':'The inverse has its own meaning.'},rows=c.ontologyFieldViews(c.ontologyConfiguration(input),[],descriptions);
  assert(c.ontologyFieldDetail(rows.find(row=>row.name==='based on'),t).endsWith('A literal <b>description</b>.'));
- assert.deepEqual(c.ontologySelectionMatches(['quoted in','based on'],rows,'based'),['based on','quoted in']);assert.deepEqual(c.ontologySelectionMatches(['quoted in','based on'],rows,'literal'),[]);
+ assert.deepEqual(c.ontologySelectionMatches(['quoted in','based on'],rows,'based'),['based on','quoted in']);assert.deepEqual(c.ontologySelectionMatches(['quoted in','based on'],rows,'literal'),['based on']);
  assert.equal(c.ontologyManagerEntries(rows,'all','literal',t)[0].first.name,'based on');
+});
+
+test('substring tiers preserve physical order, own-description independence and normalized deduplication',()=>{
+ const fields=['Described','Inverse','Match direct','described','Direct tail'];
+ const annotated=[{key:'described',name:'Described',description:'Match synonym',roles:['parent'],role:'parent'},{key:'inverse',name:'Inverse',partner:'Match partner',description:'irrelevant',roles:['child'],role:'child'},{key:'match-direct',name:'Match direct',roles:['parent'],role:'parent'},{key:'direct-tail',name:'Direct tail',partner:'Other',description:'MATCH alias',roles:['parent'],role:'parent'}];
+ assert.deepEqual(c.ontologySelectionMatches(fields,annotated,'match'),['Match direct','Inverse','Described','Direct tail']);
+ assert.deepEqual(c.ontologySelectionMatches(['Inverse'],annotated,'synonym'),[]);
+ assert.deepEqual(c.ontologySelectionMatches(fields,annotated,''),['Described','Inverse','Match direct','Direct tail']);
+ assert.deepEqual(c.ontologySelectionMatches(['Écriture'],[{key:'écriture',description:'référence ancienne'}],'RÉFÉRENCE'),['Écriture']);
+});
+
+test('fuzzy tiers retain injected direct rank, configured indirect order and finite result caps',()=>{
+ const fields=['Description first','Partner first','Physical needle','Description second','Partner second','physical needle'];
+ const annotated=[{key:'description-first',description:'needle old term'},{key:'partner-first',partner:'needle inverse'},{key:'physical-needle'},{key:'description-second',description:'needle synonym'},{key:'partner-second',partner:'needle counterpart'}];
+ /** Stand in only for the caller-owned ranking policy; tier projection is the production owner. */
+ const match=(values,query,limit)=>values.filter(value=>value.toLowerCase().includes(query.toLowerCase())).reverse().slice(0,limit);
+ assert.deepEqual(c.ontologyFuzzyMatches(fields,annotated,'needle',match,10),['Physical needle','Partner first','Partner second','Description first','Description second']);
+ assert.deepEqual(c.ontologyFuzzyMatches(fields,annotated,'needle',match,3),['Physical needle','Partner first','Partner second']);
+ assert.deepEqual(c.ontologyFuzzyMatches(fields,annotated,'needle',match,0),[]);
+ assert.deepEqual(c.ontologyFuzzyMatches(fields,annotated,'',match,2),['Partner second','Description second']);
 });
 
 

@@ -8,6 +8,33 @@ import type {NeutralSourceRepository} from '../../index/SourceRepository';
 export type OntologyUsageDocument=Readonly<{path:string;name:string}>;
 export type OntologyUsageResult=Readonly<{documents:readonly OntologyUsageDocument[];partial:boolean}>;
 
+/** Authenticate one posting through the same metadata family used by the native usage dialog.
+ * Explicit paged API requests opt into a pre-decode/visit budget; native callers keep their
+ * existing compatibility behavior. Over-budget facts are partial, never evidence of absence.
+ * Locations/values never escape this membership-only reader. */
+export async function readOntologyUsageSource(repository:Pick<NeutralSourceRepository,'readSelected'>,id:string,key:string,
+  fileForPath:(path:string)=>TFile|null,current:()=>boolean,bounded=false):Promise<Readonly<{document:OntologyUsageDocument|null;partial:boolean}>> {
+  const selected:{file:TFile|null}={file:null};let mtime=0,size=0;
+  const result=await repository.readSelected(id,/** Authenticate the selected native file both before and after family reads. */ stamp=>{
+    const physical=stamp.head.physical,file=fileForPath(physical.path);
+    if(!file||file.extension!=='md'||file.stat.mtime!==physical.mtime||physical.size!==undefined&&file.stat.size!==physical.size||selected.file&&selected.file!==file)return 'stale';
+    selected.file=file;mtime=file.stat.mtime;size=file.stat.size;return 'ready';
+  },/** Inspect physical names even when no ontology assignment or link-valued semantic edge exists. */ async reader=>{
+    let found=false,count=0;
+    const reason=await reader.visit('metadata',/** Refuse exceptional families with explicit partial coverage. */ records=>{
+      count+=records.length;if(bounded&&count>8192)return false;
+      for(const record of records)if(record.kind==='field-name'&&record.normalizedFieldName===key)found=true;
+      return current();
+    });
+    return {path:reason==='ready'&&found?reader.head.physical.path:null,complete:reason==='ready'};
+  },current,bounded?{family:'metadata',records:8192,bytes:1_048_576,chunks:128}:undefined);
+  if(!current()||result.outcome!=='ready')return {document:null,partial:true};
+  if(!result.value.path)return {document:null,partial:!result.value.complete};
+  const live=fileForPath(result.value.path);
+  return live&&live===selected.file&&live.stat.mtime===mtime&&live.stat.size===size
+    ?{document:{path:live.path,name:live.basename},partial:false}:{document:null,partial:true};
+}
+
 /** Query the existing field posting, then authenticate its name-only family and native identity.
  * Missing/stale sources yield a truthful partial list, never implicit repair or negative proof.
  * @param current Caller-owned modal/query lifetime, rechecked across every repository await.
@@ -19,25 +46,13 @@ export async function readOntologyUsage(repository:Pick<NeutralSourceRepository,
   const complete=await repository.querySources('field',key,/** Process one bounded posting page without a second vault inventory. */ async ids=>{
     for(const id of ids){
       if(!current())return false;
-      const captured:{file:TFile|null}={file:null};
-      const result=await repository.readSelected(id,/** Selected heads supply paths; source IDs remain opaque. */ stamp=>{
-        const physical=stamp.head.physical,candidate=fileForPath(physical.path);
-        if(!candidate||candidate.extension!=='md'||candidate.stat.mtime!==physical.mtime
-          ||physical.size!==undefined&&candidate.stat.size!==physical.size)return 'stale';
-        if(captured.file&&captured.file!==candidate)return 'stale';captured.file=candidate;return 'ready';
-      },/** Metadata name facts include unassigned fields and values without link targets. */ async reader=>{
-        let found=false;
-        await reader.visit('metadata',/** Retain only membership, never arbitrary property values. */ records=>{
-          for(const record of records)if(record.kind==='field-name'&&record.normalizedFieldName===key)found=true;
-          return current();
-        });
-        return found?reader.head.physical.path:null;
-      },current);
+      const result=await readOntologyUsageSource(repository,id,key,fileForPath,current);
       if(!current())return false;
-      if(result.outcome==='ready'&&result.value){
-        const live=fileForPath(result.value);
-        if(live&&live===captured.file)documents.set(live.path,{document:{path:live.path,name:live.basename},file:live,mtime:live.stat.mtime,size:live.stat.size});else partial=true;
-      }else if(result.outcome!=='ready')partial=true;
+      if(result.document){
+        const live=fileForPath(result.document.path);
+        if(live)documents.set(live.path,{document:result.document,file:live,mtime:live.stat.mtime,size:live.stat.size});else partial=true;
+      }
+      partial ||= result.partial;
     }
     return current();
   },current);

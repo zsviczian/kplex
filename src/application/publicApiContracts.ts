@@ -1,5 +1,6 @@
 /** Version-one trusted automation contracts. Values contain no host objects or note bodies;
- * application reads share published semantic owners and never grant indexing or write authority.
+ * passive graph reads share published owners. Explicit source inspection and reviewed settings
+ * writes are separate asynchronous capabilities; neither grants generic note-write authority.
  * Canvas registrations and configuration transactions retain their existing lifecycle owners. */
 import type {GraphNodeView} from '../core/graph/model';
 import type {OntologyReadField} from '../core/contracts/ontologyReadModel';
@@ -8,6 +9,11 @@ import type {MindMapMarkdownResult} from '../core/plex/export/mindMapMarkdown';
 import type {PublicApiConfiguration} from './PublicApiConfiguration';
 import type {PublicApi} from './PublicApi';
 import type {OntologyCompletionCandidate,OntologyCompletionRole} from '../core/contracts/ontologyCompletion';
+import type {OntologyDocumentsRequest,OntologyDocumentsPage} from '../core/contracts/ontologyUsage';
+import type {OntologyOccurrenceRequest,OntologyOccurrenceInspection} from '../core/contracts/ontologyOccurrences';
+import type {PublicApiOntologyConfiguration} from './PublicApiOntologyConfiguration';
+import {ONTOLOGY_OCCURRENCE_LIMITS} from '../core/contracts/ontologyOccurrences';
+import {ONTOLOGY_BATCH_LIMITS} from '../core/contracts/ontologyBatch';
 
 export type JsonValue=null|boolean|number|string|readonly JsonValue[]|{readonly [key:string]:JsonValue};
 export type PublicApiErrorCode='INVALID_ARGUMENT'|'UNAVAILABLE'|'API_UNAVAILABLE'|'DISPOSED'|'NOT_FOUND'|'AMBIGUOUS_CANVAS'|'INDEX_INCOMPLETE'|'LIMIT_EXCEEDED'|'STALE_REVISION'|'CANCELLED'|'CONFIRMATION_REQUIRED'|'WRITE_FAILED'|'UNSUPPORTED';
@@ -42,6 +48,13 @@ export type PublicCanvasPort=Readonly<{list:()=>readonly PublicCanvasSummary[];s
 export type PublicGraphPort=Readonly<{node:(id:string)=>PublicNode|null;search:(query:string,limit:number,cancelled:()=>boolean)=>PublicPage<PublicNode>;neighbors:(id:string,role:Exclude<Role,'sibling'>|undefined,limit:number,cancelled:()=>boolean)=>PublicPage<PublicRelationship>;evidence:(sourceId:string,targetId:string,limit:number,cancelled:()=>boolean)=>PublicEvidence|null;coverage:(id?:string)=>PublicCoverage}>;
 export type PublicGraphqlRequest=PublicReadOptions&Readonly<{query:string;variables?:Readonly<Record<string,unknown>>;operationName?:string}>;
 export type PublicGraphqlExecution=Readonly<{data?:unknown;errors?:readonly Readonly<{message:string;path?:readonly (string|number)[];extensions?:Readonly<Record<string,unknown>>}>[]}>;
-export type PublicApiPorts=Readonly<{revisions:()=>PublicApiRevision;status:()=>PublicIndexStatus;ontology:(options:Readonly<{includeDiscovered:boolean;limit:number}>)=>PublicOntologyRead;completeOntology?:(text:string,cursor:number,limit:number)=>PublicOntologyCompletion;graph:PublicGraphPort;canvas:PublicCanvasPort;configuration:PublicApiConfiguration;now:()=>number;graphql:(reads:PublicApi,request:PublicGraphqlRequest)=>PublicGraphqlExecution}>;
+export type PublicApiPorts=Readonly<{revisions:()=>PublicApiRevision;status:()=>PublicIndexStatus;ontology:(options:Readonly<{includeDiscovered:boolean;limit:number}>)=>PublicOntologyRead;completeOntology?:(text:string,cursor:number,limit:number)=>PublicOntologyCompletion;
+  ontologyDocuments?:(request:OntologyDocumentsRequest,current:()=>boolean)=>Promise<OntologyDocumentsPage>;
+  inspectOntologyOccurrences?:(request:OntologyOccurrenceRequest,current:()=>boolean)=>Promise<OntologyOccurrenceInspection>;
+  ontologyConfiguration?:PublicApiOntologyConfiguration;
+  graph:PublicGraphPort;canvas:PublicCanvasPort;configuration:PublicApiConfiguration;now:()=>number;graphql:(reads:PublicApi,request:PublicGraphqlRequest)=>PublicGraphqlExecution}>;
 export const PUBLIC_API_VERSION=1;
-export const PUBLIC_API_LIMITS=Object.freeze({page:200,ontology:2048,ontologyCompletionInput:65536,ontologyCompletions:100,queryCharacters:16384,queryTokens:4096,queryDepth:20,queryCost:65536,outputCharacters:1048576,scan:8192,evidence:512,text:4096});
+export const PUBLIC_API_LIMITS=Object.freeze({page:200,ontology:2048,ontologyCompletionInput:65536,ontologyCompletions:100,
+  ontologyDocuments:100,ontologyUsageCursors:8,ontologyUsageMilliseconds:120000,ontologyUsageScan:512,ontologyUsageSelected:16,
+  ontologyInspection:ONTOLOGY_OCCURRENCE_LIMITS,ontologyConfiguration:ONTOLOGY_BATCH_LIMITS,
+  queryCharacters:16384,queryTokens:4096,queryDepth:20,queryCost:65536,outputCharacters:1048576,scan:8192,evidence:512,text:4096});

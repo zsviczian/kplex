@@ -1150,7 +1150,7 @@ ${production}
   const plugin = {
    app: { vault: { on: () => ({}), offref: () => {}, getFileByPath: path => [origin, target].find(page => page.path === path)?.file,
     getAllFolders: includeRoot => { check(includeRoot === true, "folder inventory must include the vault root"); folderEnumerations++; return [{ path: "/" }, { path: "Projects" }, { path: "Projects/Ideas" }]; } } },
-   settings: { editNewNodeAfterCreate: false, newNodeDefaultType: "markdown",ontologyPairingVersion:1,hierarchy:{hidden:[],parents:["parent"],children:["children","review","example"],leftFriends:[],rightFriends:[],previous:[],next:[],exclusions:[]} },
+   settings: { editNewNodeAfterCreate: false, newNodeDefaultType: "markdown",ontologyPairingVersion:1,ontologyDescriptions:{review:"Historicterm meaningful synonym",parent:"Historicterm other role"},hierarchy:{hidden:[],parents:["parent"],children:["children","review","example"],leftFriends:[],rightFriends:[],previous:[],next:[],exclusions:[]} },
    createdNoteCompletionControl(_host,options={}){const context={desktop:true,sidepanel:false,another:options.another!==false,editable:options.editable!==false,follow:options.follow!==false},key=options.operation==='link'?'linkAfterSaving':'newNodeAfterSaving';return{choices:creationAfterSavingActions(context),value:effectiveCreationAfterSaving(sanitizeCreationAfterSaving(this.settings[key]??this.settings.newNodeAfterSaving,this.settings.editNewNodeAfterCreate),context),onChange:value=>{this.settings[key]=value}}},
    finishNewRelatedNode:async()=>{},
    translator: (key) => key, drawingTemplateOptions: () => null, isExcalidrawAvailable: () => false, defaultOntologyField: () => "children",
@@ -1189,6 +1189,12 @@ ${production}
   check(list?.querySelectorAll("button").length === 3, "composer disclosure did not show full empty-input role vocabulary");
   flushSync(() => list.querySelector('[data-kplex-fuzzy-index="1"]').click());
   check(ontology.value === "review" && host.querySelector(".kplex-add-related-link-button"), "ontology choice lost the existing-target selection");
+  flushSync(() => ontology.focus()); flushSync(() => type(ontology,"Historicterm"));
+  list=document.body.querySelector(".kplex-fuzzy-floating-results");
+  check(list?.querySelectorAll("button").length===1&&list.querySelector("span")?.textContent==="review"&&list.textContent.includes("Historicterm meaningful synonym"),"composer description query lost canonical name, own description or role eligibility");
+  flushSync(() => ontology.dispatchEvent(new KeyboardEvent("keydown",{key:"ArrowDown",bubbles:true})));
+  flushSync(() => ontology.dispatchEvent(new KeyboardEvent("keydown",{key:"Enter",bubbles:true})));
+  check(ontology.value==="review"&&commits===0&&intents.length===0,"description keyboard selection inserted annotation text or submitted a relationship");
   flushSync(() => link.click()); await new Promise((resolve) => setTimeout(resolve, 0));
   check(commits === 0 && closes === 0 && notices.length === 1, "failed existing-target write falsely committed or closed composer");
   rejectCommit = false; savedPending = true;
@@ -1382,6 +1388,7 @@ console.error = (...args) => { warnings.push(args.map(String).join(" ")); origin
 const ObsidianIcon = () => null;
 import {physicalGateStats} from ${JSON.stringify(join(root,"src/ui/plexViews/measurement.ts"))};
 import {useGateCountPresentation} from ${JSON.stringify(join(root,'src/ui/useGateCountPresentation.ts'))};
+import {thoughtCornerRadius} from ${JSON.stringify(join(root,'src/ui/plexViews/nodeConnections.ts'))};
 ${uiDefinitions("src/ui/ThoughtNode.tsx", ["GATES", "ThoughtNode"])}
 
 const settings = { horizontalCompactingFactor: 2, compactingFactor: 2, baseFontSize: 12.4, wrapNodeLabels: false, showNeighborCount: true, graphDepth: 2, minLinkLength: 18, childColumns: 2, maxItemCount: 100, siblingRelativeSize: 85 };
@@ -2271,6 +2278,7 @@ import {HoverPreview,bindHoverPreview} from ${JSON.stringify(join(root,'src/ui/c
 const ObsidianIcon=()=>null;
 import {physicalGateStats} from ${JSON.stringify(join(root,"src/ui/plexViews/measurement.ts"))};
 import {useGateCountPresentation} from ${JSON.stringify(join(root,'src/ui/useGateCountPresentation.ts'))};
+import {thoughtCornerRadius} from ${JSON.stringify(join(root,'src/ui/plexViews/nodeConnections.ts'))};
 ${uiDefinitions('src/ui/ThoughtNode.tsx',['GATES','ThoughtNode'])}
 const result=document.querySelector('#result'),container=document.body.appendChild(document.createElement('div')),root=createRoot(container);
 const check=(condition,message)=>{if(!condition)throw Error(message)},translate=createTranslator('en'),noop=()=>{};
@@ -2337,6 +2345,7 @@ import {canDisplayNodeImage} from ${JSON.stringify(join(root,'src/core/plex/node
 const ObsidianIcon=()=>null;
 import {physicalGateStats} from ${JSON.stringify(join(root,"src/ui/plexViews/measurement.ts"))};
 import {useGateCountPresentation} from ${JSON.stringify(join(root,'src/ui/useGateCountPresentation.ts'))};
+import {thoughtCornerRadius} from ${JSON.stringify(join(root,'src/ui/plexViews/nodeConnections.ts'))};
 ${uiDefinitions('src/ui/ThoughtNode.tsx',['GATES','ThoughtNode'])}
 const result=document.querySelector('#result'),container=document.body.appendChild(document.createElement('div')),root=createRoot(container),noop=()=>{};
 const check=(condition,message)=>{if(!condition)throw Error(message)};
@@ -2397,6 +2406,7 @@ import { physicalPositionLabel } from ${JSON.stringify(join(root, "src/ui/featur
 const ObsidianIcon=({className,size})=><span className={"kplex-icon "+className} style={{width:size,height:size}}/>;
 import {physicalGateStats} from ${JSON.stringify(join(root,"src/ui/plexViews/measurement.ts"))};
 import {useGateCountPresentation} from ${JSON.stringify(join(root,'src/ui/useGateCountPresentation.ts'))};
+import {thoughtCornerRadius} from ${JSON.stringify(join(root,'src/ui/plexViews/nodeConnections.ts'))};
 ${uiDefinitions("src/ui/ThoughtNode.tsx", ["GATES", "ThoughtNode"])}
 const result=document.querySelector("#result"),container=document.createElement("div");document.body.append(container);
 container.className="kplex-view-host";container.style.fontFamily="Arial, sans-serif";

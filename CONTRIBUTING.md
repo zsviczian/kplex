@@ -1473,6 +1473,8 @@ Chromium renderer with a test-only non-Classic definition, including arbitrary
 areas, repeated occurrences, Find, grouping, selection, preference restoration,
 action cancellation and failure recovery. All belong to normal `npm run verify`.
 
+Facets preset node presentation is covered by `facets-node-presentation`, `facets-node-presentation-browser`, `facets-manager-browser` and `portable-presets`. The browser matrix exercises all five layouts, four toggle combinations, default routing in other views, category scroll/crosslink clipping, hover, filtering, resize and theme changes. After exact-build staging under the shared application-user-data lock, use `KPLEX_WUXING_NATIVE_LANE=node-presentation` with `npm run verify:obsidian:wuxing`, the three explicit disposable Small variables and a fresh `KPLEX_HOST_REPORT_DIR`. This native lane observes zero source work during preset toggles, native dirty editor identity and clipping, Sidecar, and main/popout preset independence. Restore native plugin-enablement persistence before capturing a baseline; a completed CLI enable command can precede its file write. Windows automation does not establish macOS or physical touch acceptance.
+
 After exact-build `verify:obsidian` staging in backed-up Small, run
 `npm run verify:obsidian:plex-views` with the three explicit test-vault variables
 and a fresh report directory. Back up the native workspace and establish a usable
@@ -1603,6 +1605,16 @@ unresolved-link cases; run only the affected lane for a scoped menu fix, not an 
 See [the focused menu-target record](docs/validation/file-menu-targets-2026-11-01.md) for the reproduced
 failure, exact-build native evidence and the maintainer's explicit no-full-regression instruction.
 
+
+### Frontmatter URL label acceptance
+
+For frontmatter Markdown URL-label changes, stage the exact build in the existing disposable
+Small vault, then run `npm run verify:obsidian:frontmatter-labels` with the three explicit
+test-vault variables and a fresh `KPLEX_HOST_REPORT_DIR`. The driver uses the shared host lock
+and verifies actual canvas titles/search, native property edits and label removal. It waits
+for ordinary snapshot persistence before real Eager and On-demand plugin reloads, checking
+unchanged-note reads/parses and restoring its notes, settings, enablement and workspace.
+This is a functional desktop/cache lane, not physical mobile or paint-performance evidence.
 
 ### Eager graph maintenance acceptance
 

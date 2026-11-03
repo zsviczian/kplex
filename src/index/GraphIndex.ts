@@ -127,10 +127,12 @@ import {classicSiblingCandidateLimit, projectClassicNeighborhood} from "../core/
 import type {TAbstractFile} from 'obsidian';
 import {ontologyConfiguration} from "../core/contracts/ontologyConfiguration";
 import { canonicalWebUrl } from "../adapters/obsidian/urlIdentity";
+import { frontmatterUrlLabelSteps } from "../adapters/obsidian/metadataSourceCollector";
 import { remapGraphEndpoint } from "./remapGraphEndpoint";
 import { isRemoteNodeImageSource } from "../core/plex/nodeImagePolicy";
 import { yieldToHostTask } from "../adapters/obsidian/yieldToHostTask";
 import {readOntologyUsage,type OntologyUsageResult} from '../adapters/obsidian/ontologyUsage';
+import {OntologyUsagePager} from '../adapters/obsidian/ontologyUsagePager';
 import { ForegroundWorkScheduler, INDEX_WORK_PRIORITY, type IndexWorkPriority, type IndexingThrottle } from "./ForegroundWorkScheduler";
 import { HostMetadataPreview } from "./HostMetadataPreview";
 import { ObsidianSourceAcquisition } from "../adapters/obsidian/sourceAcquisition";
@@ -4384,6 +4386,13 @@ export class GraphIndex {
     return readOntologyUsage(this.indexedDb.sources,field,/** Native paths come from authenticated heads, never opaque source IDs. */ path=>this.app.vault.getFileByPath(path),current);
   }
 
+  /** Compose an explicit cache-only cursor owner without exposing the repository or starting
+   * acquisition. API disposal closes its finite iterators before index teardown. */
+  publicOntologyUsagePager(options:Readonly<{revision:()=>string;current:()=>boolean;now:()=>number;uniqueId:()=>string}>):OntologyUsagePager {
+    return new OntologyUsagePager({...options,repository:this.indexedDb.sources,
+      fileForPath:/** Resolve only the authenticated selected path, never enumerate the vault. */ path=>this.app.vault.getFileByPath(path)});
+  }
+
   discoveredFields(): Array<{ normalized: string; name: string; count: number }> {
     return [...this.state.discoveredFields.entries()]
       .map(([normalized, value]) => ({ normalized, ...value }))
@@ -4654,9 +4663,12 @@ export class GraphIndex {
    * New owners append distinct labels to authoritative aggregate facets; replacements retain the
    * existing ordered flatten fallback at commit. Preparation changes neither contributors, facets
    * nor graph pages. The existing per-target/reference slice admission and progress policy remains.
+   * Native/cached frontmatter labels precede body labels, matching canonical compilation; neutral
+   * source DTOs and URL-owner cache payloads require no format change or Markdown reread.
    */
   private async prepareUrlAliasOwners(owner: string, urls: ParsedBodyMetadata["urls"], current: () => boolean,
-    priority: IndexWorkPriority = INDEX_WORK_PRIORITY.urlInventory, onProgress?: () => void): Promise<Map<string, PreparedUrlAliasTarget> | null> {
+    priority: IndexWorkPriority = INDEX_WORK_PRIORITY.urlInventory, onProgress?: () => void,
+    frontmatter: Readonly<Record<string, unknown>> = {}): Promise<Map<string, PreparedUrlAliasTarget> | null> {
     const next = new Map<string, PreparedUrlAliasTarget>();
     const ownerLabels = new Map<string, Set<string>>();
     const previousTargets = this.urlOwnerTargets.get(owner);
@@ -4676,7 +4688,13 @@ export class GraphIndex {
       next.set(target, { labels: null });
       if (!(await checkpoint())) return null;
     }
-    for (const reference of urls) {
+    /** Match full/cached compilation's property-before-body label order without copying the input. */
+    function* references(): IterableIterator<ParsedBodyMetadata["urls"][number] | null> {
+      yield* frontmatterUrlLabelSteps(frontmatter);
+      yield* urls;
+    }
+    for (const reference of references()) {
+      if (!reference) { if (!(await checkpoint())) return null; continue; }
       const target = canonicalWebUrl(reference.url);
       const labels = ownerLabels.get(target) ?? new Set<string>();
       if (reference.label) labels.add(reference.label);
@@ -4795,7 +4813,7 @@ export class GraphIndex {
               progress();
             });
           const adjacencyPrivacy = this.captureUrlAdjacencyPrivacy();
-          const aliases = await this.prepareUrlAliasOwners(revision.path, urls, current, priority, progress);
+          const aliases = await this.prepareUrlAliasOwners(revision.path, urls, current, priority, progress, frontmatter);
           if (!aliases) { if (alive()) continue; return; }
           const touched = await builder.patchUrlReferences(this.urlState, file, body, (commit, publish) => {
             publish();

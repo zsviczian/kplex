@@ -51,7 +51,8 @@ export class OntologySuggester extends EditorSuggest<string> {
     bold.textContent = suggestion;
     el.appendChild(bold);
     const view=ontologyFieldViews(ontologyConfiguration(this.plugin.settings),[],this.plugin.settings.ontologyDescriptions).find(/** Annotation never changes the exact insertion value. */ field=>field.key===normalizeFieldName(suggestion));
-    if(view?.partner)el.createDiv({cls:'suggestion-note',text:ontologyFieldDetail({...view,description:undefined},this.plugin.translator,Boolean(this.latestTriggerInfo?.query&&!suggestion.toLocaleLowerCase().includes(this.latestTriggerInfo.query.toLocaleLowerCase())))});
+    const query=this.latestTriggerInfo?.query.toLocaleLowerCase();
+    if(view?.partner)el.createDiv({cls:'suggestion-note',text:ontologyFieldDetail({...view,description:undefined},this.plugin.translator,Boolean(query&&!suggestion.toLocaleLowerCase().includes(query)&&view.partner.toLocaleLowerCase().includes(query)))});
     if(view?.description)el.createDiv({cls:'suggestion-note kplex-ontology-description',text:view.description,attr:{'aria-label':view.description}});
     el.setAttribute('aria-label',[suggestion,view?ontologyFieldDetail(view,this.plugin.translator):''].filter(Boolean).join('\n'));
   }

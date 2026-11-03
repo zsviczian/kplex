@@ -16,6 +16,7 @@
  * isolation and caller-owned actions. This component owns neither traversal nor source loading.
  */
 import {physicalGateStats} from "./plexViews/measurement";
+import {thoughtCornerRadius} from "./plexViews/nodeConnections";
 import { useId, type CSSProperties, type DragEvent as ReactDragEvent, type MouseEvent, type PointerEvent as ReactPointerEvent, type ReactNode } from "react";
 import type { GateSide, NodeVisual, PositionedNode } from "../types";
 import {MeasuredNodeBadge} from "./plexViews/MeasuredNodeBadge";
@@ -47,6 +48,7 @@ export function ThoughtNode({
   highlighted,
   dimmed,
   highlightedGates,
+  hideGates = false,
   dragging,
   flair = false,
   connectionState = "normal",
@@ -80,6 +82,8 @@ export function ThoughtNode({
   highlighted: boolean;
   dimmed: boolean;
   highlightedGates: ReadonlySet<GateSide>;
+  /** Scene-scoped appearance only; canonical ports/counts and node actions remain available. */
+  hideGates?: boolean;
   dragging?: boolean;
   flair?: boolean;
   connectionState?: ConnectionDragState;
@@ -149,7 +153,7 @@ export function ThoughtNode({
     borderColor: isSection || content ? undefined : paint.border,
     borderWidth: isSection ? undefined : `${style.strokeWidth ?? 1}px`,
     borderStyle: isSection ? undefined : strokeStyle,
-    borderRadius: isSection ? undefined : (style.strokeShaprness === "sharp" ? 5 : node.role === "center" ? 18 : 12),
+    borderRadius: isSection ? undefined : thoughtCornerRadius(style, node.role === "center"),
     fontSize: `${nodeLabelFontSize(style.fontSize ?? 18, node.role === "center", settings.baseFontSize)}px`,
     "--kplex-gate-size": `${gateSize}px`,
     "--kplex-gate-stroke": paint.gateStroke,
@@ -262,7 +266,7 @@ export function ThoughtNode({
     {disclosure(branchFold, true)}
     {branchStatus && node.viewBadge?.presentation !== "status" && <NodeStatus label={branchStatus} description={branchStatusHint} />}
     {group && <span className="kplex-group-count" aria-hidden="true">{group.groupMembers?.length}</span>}
-    {!group && GATES.filter(gate => !node.physicalPorts || Boolean(node.physicalPorts[gate])).map((gate) => {
+    {!group && !hideGates && GATES.filter(gate => !node.physicalPorts || Boolean(node.physicalPorts[gate])).map((gate) => {
       // Structural nodes have no lateral relationship vocabulary, even before other counts close.
       const semanticGate = node.physicalPorts?.[gate];
       const structuralLateral = (node.page.isTag || node.page.isFolder) && (semanticGate ? semanticGate === "left" || semanticGate === "right" : gate === "left" || gate === "right");

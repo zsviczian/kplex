@@ -399,6 +399,8 @@ export class NeutralSourceRepository {
   private deleteTask: Promise<SourceWriteResult> | null = null;
   private readonly knownHeads = new Map<string, number>();
   private sourceActivationRevision = 0;
+  /** Retire explicit posting cursors when unsaved/masked source ownership changes. */
+  private sourcePostingEpoch = 0;
   private memoryBytes = 0;
   private retryTimer: number | null = null;
   private retryFailures = 0;
@@ -1013,7 +1015,7 @@ export class NeutralSourceRepository {
    * transaction. Its decode reservation belongs to the registered view before commit completion.
    */
   private async pin(sourceId: string, includeTombstone = false, deletion?: PendingSourceDeletion, leaseFamilies = true, current: () => boolean = () => true,
-    prepareMetadata = false): Promise<{ view: SourceView | null; expected: SourceHeadExpectation; reason: SourceReason }> {
+    prepareMetadata = false,acceptHead?:(head:SourceManifest)=>boolean): Promise<{ view: SourceView | null; expected: SourceHeadExpectation; reason: SourceReason }> {
     /** Match this request by identity after every asynchronous boundary; retention is not authority. */
     const deleting = (): boolean => deletion !== undefined && this.pendingDeletes.get(sourceId) === deletion
       && deletion.current() && !this.closed;
@@ -1024,6 +1026,7 @@ export class NeutralSourceRepository {
     if (memory && (includeTombstone || memory.head.state !== "tombstone")) {
       const reason = sourceHeadReason({ ...memory.head, sequence: 1 });
       if (reason !== "ready" && !(includeTombstone && reason === "tombstone")) return { view: null, expected: memory.expected, reason };
+      if(acceptHead&&!acceptHead(memory.head))return {view:null,expected:memory.expected,reason:'decode-budget'};
       const view: SourceView = { head: memory.head, sequence: null, saved: false, expected: memory.expected, leases: [], memory };
       if (legacyPrimaryGrammarCandidate(view.head)) {
         const validated = await this.visitFamily(view, "body-urls", /** Authenticate the primary grammar family without publishing facts. */
@@ -1053,6 +1056,7 @@ export class NeutralSourceRepository {
         if (deletion && !deleting()) throw new SourceFactError("cancelled");
         const expected = expectation(raw); const reason = sourceHeadReason(raw); const head = decodeSourceHead(raw);
         if (!head || head.sourceId !== sourceId || head.state === "tombstone" && !includeTombstone) return { view: null, expected, reason: head?.sourceId !== sourceId && head ? "invalid-head" as const : reason };
+        if(acceptHead&&!acceptHead(head))return {view:null,expected,reason:'decode-budget' as const};
         const leases: string[] = [];
         for (const revision of leaseFamilies ? new Set(Object.values(head.families).map((family) => family.revision)) : []) {
           const lease: SourceLease = { key: `source-lease:${this.runtime.uniqueId()}`, sourceId, revision, owner: this.owner };
@@ -1078,7 +1082,7 @@ export class NeutralSourceRepository {
       }
       if (selected.view && legacyPrimaryGrammarCandidate(selected.view.head)) {
         // A head-only candidate must acquire the same immutable family lease before authentication.
-        if (!leaseFamilies) return this.pin(sourceId, includeTombstone, deletion, true, current);
+        if (!leaseFamilies) return this.pin(sourceId, includeTombstone, deletion, true, current,false,acceptHead);
         const validated = await this.visitFamily(selected.view, "body-urls", /** Validate actual primary URL facts/digests/postings without changing stored bytes. */
           () => true, current);
         if (validated !== "ready") {
@@ -1245,11 +1249,19 @@ export class NeutralSourceRepository {
    * Read any required families under ONE selected head/pin. Every callback is private and fenced;
    * family failure poisons the result even if a consumer ignores its visit return. Head/host checks
    * occur before work, between families and after work. Pins are released on every terminal path.
+   * An optional family budget rejects exceptional manifests and legacy compatibility work before
+   * leases or decoding; existing readers retain their unchanged compatibility path by default.
    */
   async readSelected<T>(sourceId: string, matches: (stamp: SelectedSourceStamp) => SourceReason,
-    work: (reader: SelectedSourceReader) => Promise<T>, current: () => boolean = () => true): Promise<SelectedSourceResult<T>> {
+    work: (reader: SelectedSourceReader) => Promise<T>, current: () => boolean = () => true,
+    budget?:Readonly<{family:SourceFamily;records:number;bytes:number;chunks:number;allowLegacyGrammar?:boolean}>): Promise<SelectedSourceResult<T>> {
     if (this.closed || !current()) return selectedSourceFailure("cancelled");
-    const pinned = await this.pin(sourceId, false, undefined, true, current);
+    const pinned = await this.pin(sourceId, false, undefined, true, current,false,budget?
+      /** Reject exceptional/legacy facts from the manifest before pinning or decoding any family. */ head=>{
+        const family=head.families[budget.family];
+        return (budget.allowLegacyGrammar===true||!legacyPrimaryGrammarCandidate(head))
+          &&!!family&&family.records<=budget.records&&family.bytes<=budget.bytes&&family.chunks<=budget.chunks;
+      }:undefined);
     if (!pinned.view) return selectedSourceFailure(this.closed || !current() ? "cancelled" : pinned.reason);
     const view = pinned.view;
     const stamp: SelectedSourceStamp = { head: view.head, sequence: view.sequence, saved: view.saved };
@@ -2131,6 +2143,7 @@ export class NeutralSourceRepository {
 
   /** Retain bounded identical encoded facts for storage-degraded operation, never a second graph. */
   private rememberMemory(source: MemorySource): void {
+    this.sourcePostingEpoch++;
     const previous = this.memory.get(source.head.sourceId);
     if (previous) { this.memoryBytes -= previous.bytes; this.memory.delete(source.head.sourceId); }
     this.unsaved.add(source.head.sourceId);
@@ -2146,6 +2159,7 @@ export class NeutralSourceRepository {
   }
   /** Release only the saved source's unsaved facts; failure in another source remains independent. */
   private forgetMemory(sourceId: string): void {
+    this.sourcePostingEpoch++;
     const previous = this.memory.get(sourceId);
     if (previous) this.memoryBytes -= previous.bytes;
     this.memory.delete(sourceId); this.unsaved.delete(sourceId);
@@ -2427,7 +2441,7 @@ export class NeutralSourceRepository {
       memoryBytes += JSON.stringify(head).length * 2 + 256;
       if (memoryBytes > MAX_UNSAVED_BYTES) memoryComplete = false;
       if (memoryComplete) this.rememberMemory({ head, expected: input.expected, chunks, postings, bytes: memoryBytes, current });
-      else { this.unsaved.add(input.sourceId); this.scheduleRetry(); }
+      else { this.sourcePostingEpoch++;this.unsaved.add(input.sourceId); this.scheduleRetry(); }
       return this.result("unsaved", memoryComplete ? storageReason : "memory-budget", null, true);
     } catch (error) {
       return !current() || this.closed ? this.result("cancelled", "cancelled") : this.result("rejected", errorReason(error, "write-error"));
@@ -2593,7 +2607,7 @@ export class NeutralSourceRepository {
     const prerequisite = previous?.ready && ready ? Promise.all([previous.ready, ready]).then(() => undefined) : ready ?? previous?.ready;
     const pending: PendingSourceDeletion = { current: caller, retain: retainFamilies && canRetain,
       ready: prerequisite, observe: observe ?? previous?.observe };
-    this.pendingDeletes.set(sourceId, pending); this.unsaved.add(sourceId); this.knownHeads.delete(sourceId);
+    this.sourcePostingEpoch++;this.pendingDeletes.set(sourceId, pending); this.unsaved.add(sourceId); this.knownHeads.delete(sourceId);
     if (this.deleteTask) { this.scheduleRetry(); return Promise.resolve(this.result("unsaved", "backpressure", null, true)); }
     /** Fence every continuation against the exact coalesced absence request. */
     const current = (): boolean => !this.closed && caller() && this.pendingDeletes.get(sourceId) === pending;
@@ -3361,6 +3375,106 @@ export class NeutralSourceRepository {
       }
       return false;
     } catch { return false; }
+  }
+  /** Resume a cache-only posting traversal without recollecting previous pages or retaining an
+   * unbounded seen set. Disk lookup keys group source IDs, allowing constant-space deduplication.
+   * Every yield bounds examined postings/overlay steps, including pages containing no matches.
+   * The caller must fence source/configuration revisions between requests and close the iterator.
+   * Exhaustion proves only this posting's observed completeness, never whole-vault coverage. */
+  async *sourcePostingPages(kind: SourcePostingKind, key: string, current: () => boolean):
+    AsyncGenerator<Readonly<{ids:readonly string[];exhausted:boolean;complete:boolean;scanned:number;changed?:boolean;validate:()=>Promise<boolean>}>,void> {
+    const openingEpoch=this.sourcePostingEpoch,openingActivation=this.sourceActivationRevision;
+    /** A resumed cursor cannot continue across an in-process source-mask or durable activation. */
+    const unchanged=():boolean=>openingEpoch===this.sourcePostingEpoch&&openingActivation===this.sourceActivationRevision;
+    if(!current()||this.closed)return;
+    const db=await this.open();
+    /** Observe one durable source coordinate without acquiring sources or retaining a transaction. */
+    const readSequence=async():Promise<number|null>=>!db?null:this.transaction(db,[META_STORE],'readonly','',async transaction=>{
+      const raw=await unknownValue(transaction.objectStore(META_STORE).get(SOURCE_SEQUENCE_KEY));
+      return raw===undefined?0:sourceObject(raw)&&sourceCount(raw.value)?raw.value:null;
+    });
+    let sequence:number|null=null;
+    try{sequence=await readSequence();}catch{sequence=null;}
+    /** Validate after selected metadata awaits and pending-only continuations. Public publication
+     * coordinates alone do not observe background source activation or another storage owner.
+     * No closure escapes the internal repository/pager boundary or requests missing source work. */
+    const validate=async():Promise<boolean>=>{
+      if(!current()||this.closed||!unchanged())return false;
+      if(!db)return true;
+      try{const observed=await readSequence();return sequence!==null&&observed===sequence&&current()&&!this.closed&&unchanged();}catch{return false;}
+    };
+    let incomplete=false,steps=0;
+    for(const id of this.unsaved){
+      if(!current()||this.closed)return;
+      if(!unchanged()){yield {ids:[],exhausted:true,complete:false,scanned:0,changed:true,validate};return;}
+      if(!this.memory.has(id)&&!this.pendingDeletes.has(id))incomplete=true;
+      if(++steps>=128){yield {ids:[],exhausted:false,complete:false,scanned:steps,validate};steps=0;}
+    }
+    for(const source of this.memory.values()){
+      if(!current()||this.closed)return;
+      if(!unchanged()){yield {ids:[],exhausted:true,complete:false,scanned:0,changed:true,validate};return;}
+      if(++steps>=128){yield {ids:[],exhausted:false,complete:false,scanned:steps,validate};steps=0;}
+      if(!source.current()){incomplete=true;continue;}
+      if(source.head.state!=='complete'||this.pendingDeletes.has(source.head.sourceId))continue;
+      let matched=false;
+      for(const posting of source.postings.values()){
+        if(!current()||this.closed)return;
+        if(!unchanged()){yield {ids:[],exhausted:true,complete:false,scanned:0,changed:true,validate};return;}
+        matched=posting.kind===kind&&posting.key===key;
+        steps++;
+        if(matched||steps>=128){
+          const valid=this.memory.get(source.head.sourceId)===source&&source.current();
+          if(!valid)incomplete=true;
+          yield {ids:matched&&valid?[source.head.sourceId]:[],exhausted:false,complete:false,scanned:steps,validate};steps=0;
+        }
+        if(matched)break;
+      }
+    }
+    if(steps){yield {ids:[],exhausted:false,complete:false,scanned:steps,validate};steps=0;}
+    if(!unchanged()){yield {ids:[],exhausted:true,complete:false,scanned:0,changed:true,validate};return;}
+    if(!db){yield {ids:[],exhausted:true,complete:false,scanned:0,validate};return;}
+    let after:IDBValidKey|null=null,lastSource:string|null=null;
+    try {
+      while(current()&&!this.closed){
+        const page=await this.transaction(db,[SOURCE_POSTING_STORE,SOURCE_HEAD_STORE,META_STORE],'readonly','',async transaction=>{
+          const raw=await unknownValue(transaction.objectStore(META_STORE).get(SOURCE_SEQUENCE_KEY));
+          const observed=raw===undefined?0:sourceObject(raw)&&sourceCount(raw.value)?raw.value:null;
+          if(observed===null||sequence!==observed)return {ids:[],next:null,scanned:0,ended:true,changed:true};
+          return new Promise<{ids:string[];next:IDBValidKey|null;scanned:number;ended:boolean;changed?:boolean}>((resolve,reject)=>{
+            const ids:string[]=[];let scanned=0,next:IDBValidKey|null=null;
+            const request=transaction.objectStore(SOURCE_POSTING_STORE).index(SOURCE_LOOKUP_INDEX)
+              .openCursor(IDBKeyRange.bound(after??[kind,key],[kind,key,[]],after!==null,true));
+            request.onerror=()=>reject(request.error??new SourceFactError('read-error'));
+            request.onsuccess=()=>{
+              const cursor=request.result;
+              if(!cursor){resolve({ids,next,scanned,ended:true});return;}
+              next=cursor.key;scanned++;
+              /** Stop before the next record; the opaque IDB key resumes in the same lookup order. */
+              const advance=():void=>{if(scanned>=128)resolve({ids,next,scanned,ended:false});else cursor.continue();};
+              const raw:unknown=cursor.value;
+              if(!validSourcePosting(raw)||raw.kind!==kind||raw.key!==key){incomplete=true;advance();return;}
+              if(raw.sourceId===lastSource||this.memory.has(raw.sourceId)||this.unsaved.has(raw.sourceId)||this.pendingDeletes.has(raw.sourceId)){advance();return;}
+              const headRequest=transaction.objectStore(SOURCE_HEAD_STORE).get(raw.sourceId);
+              headRequest.onerror=()=>reject(headRequest.error??new SourceFactError('read-error'));
+              headRequest.onsuccess=()=>{
+                const head=decodeSourceHead(headRequest.result),manifest=head?.families[raw.family];
+                if(!head&&headRequest.result!==undefined)incomplete=true;
+                if(head?.state==='complete'&&manifest?.revision===raw.revision&&raw.index<manifest.postings){lastSource=raw.sourceId;ids.push(raw.sourceId);}
+                advance();
+              };
+            };
+          });});
+        if(!current()||this.closed)return;
+        if(page.changed||!unchanged()){yield {ids:[],exhausted:true,complete:false,scanned:0,changed:true,validate};return;}
+        yield {ids:page.ids,exhausted:false,complete:false,scanned:page.scanned,validate};
+        if(page.ended){
+          const changed=!(await validate());
+          yield {ids:[],exhausted:true,complete:!changed&&!incomplete,scanned:0,...changed?{changed:true}:{},validate};return;
+        }
+        after=page.next;
+        await this.runtime.yield();
+      }
+    }catch{if(current()&&!this.closed)yield {ids:[],exhausted:true,complete:false,scanned:0,validate};}
   }
   /**
    * Reclaim one explicitly known retired or abandoned revision. Source-local rows are removed in

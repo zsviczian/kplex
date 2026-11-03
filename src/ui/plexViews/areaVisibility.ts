@@ -13,15 +13,29 @@ export type ViewportEdgeEndpoint = Readonly<{point: Readonly<{x: number; y: numb
  * directions and evidence never change; the caller only changes paint and hides clipped markers. */
 export function edgeViewportEndpoints(a: Readonly<{x: number; y: number}>, b: Readonly<{x: number; y: number}>,
   sourcePort: GateSide, targetPort: GateSide, sourceArea?: SceneViewport, targetArea?: SceneViewport,
-  cards?: Readonly<{source: Pick<PositionedNode, "x" | "y" | "width" | "height">; target: Pick<PositionedNode, "x" | "y" | "width" | "height">; continueSource?: boolean; continueTarget?: boolean}>): Readonly<{source: ViewportEdgeEndpoint; target: ViewportEdgeEndpoint}> | null {
+  cards?: Readonly<{source: Pick<PositionedNode, "x" | "y" | "width" | "height">; target: Pick<PositionedNode, "x" | "y" | "width" | "height">; continueSource?: boolean; continueTarget?: boolean; centerLine?: boolean}>): Readonly<{source: ViewportEdgeEndpoint; target: ViewportEdgeEndpoint}> | null {
   /** Clip only scrollable apertures; fixed forests own complete measured geometry. */
-  const endpoint = (point: Readonly<{x: number; y: number}>, port: GateSide, area?: SceneViewport): ViewportEdgeEndpoint => {
+  const endpoint = (point: Readonly<{x: number; y: number}>, other: Readonly<{x: number; y: number}>, port: GateSide, area?: SceneViewport): ViewportEdgeEndpoint | null => {
     if (!area || area.scrollable === false) return {point, port, continued: false};
+    // Straight body attachments must stay collinear when a partially scrolled card is clipped.
+    // Intersect the segment with the aperture instead of independently clamping its coordinates.
+    if (cards?.centerLine) {
+      let enter = 0, leave = 1;
+      for (const [start, delta, min, max] of [[point.x, other.x - point.x, area.left, area.left + area.width],
+        [point.y, other.y - point.y, area.top, area.top + area.height]]) {
+        if (delta === 0) { if (start < min || start > max) return null; continue; }
+        const first = (min - start) / delta, second = (max - start) / delta;
+        enter = Math.max(enter, Math.min(first, second)); leave = Math.min(leave, Math.max(first, second));
+        if (enter > leave) return null;
+      }
+      return {point: {x: point.x + (other.x - point.x) * enter, y: point.y + (other.y - point.y) * enter}, port, continued: enter > 0};
+    }
     const x = Math.max(area.left, Math.min(area.left + area.width, point.x));
     const y = Math.max(area.top, Math.min(area.top + area.height, point.y));
     return {point: {x, y}, port, continued: x !== point.x || y !== point.y};
   };
-  const source = endpoint(a, sourcePort, sourceArea), target = endpoint(b, targetPort, targetArea);
+  const source = endpoint(a, b, sourcePort, sourceArea), target = endpoint(b, a, targetPort, targetArea);
+  if (!source || !target) return null;
   /** A card touching the aperture still supplies visible context when its protruding gate is clipped. */
   const visible = (end: ViewportEdgeEndpoint, area?: SceneViewport, card?: Pick<PositionedNode, "x" | "y" | "width" | "height">): boolean =>
     !area || area.scrollable === false || (card ? card.x + card.width / 2 > area.left && card.x - card.width / 2 < area.left + area.width

@@ -3,6 +3,8 @@
  * acquisition belongs to the neutral reference collector; this owner never selects image fields.
  * GraphBuilder owns parser/cache acquisition and publication; reads retain per-source revision fences.
  * Live and durable raw body facts share canonical web identities without changing lexical provenance.
+ * Supplemental frontmatter URL labels reuse current native metadata during live and cached reads;
+ * the neutral source format and its strict persisted lexical facts remain unchanged.
  */
 import { TFile, type App } from "obsidian";
 import { canonicalWebUrl, webUrlOrigin } from "./urlIdentity";
@@ -27,6 +29,7 @@ import {
 } from "../../core/graph/source";
 import {
   normalizeFieldName,
+  iterateMarkdownLinkSteps,
   type ParsedFileMetadata,
 } from "../../core/parser/metadata";
 
@@ -214,6 +217,22 @@ export function normalizedBodyUrl(source: SourceEntityRef, revision: SourceRevis
 }
 
 /**
+ * Reuse literal property grammar for current native frontmatter and cached URL-owner payloads.
+ * No host resolution, relationship classification, body parsing or source-cache migration occurs.
+ */
+export function* frontmatterUrlLabelSteps(frontmatter: Readonly<Record<string, unknown>>): IterableIterator<Readonly<{ url: string; label: string }> | null> {
+  for (const fieldName in frontmatter) {
+    if (!Object.prototype.hasOwnProperty.call(frontmatter, fieldName) || fieldName === "position" || !normalizeFieldName(fieldName)) continue;
+    for (const reference of iterateMarkdownLinkSteps(frontmatter[fieldName])) {
+      if (!reference || !reference.label || !/^https?:\/\//i.test(reference.rawTarget)) { yield null; continue; }
+      const url = canonicalWebUrl(reference.rawTarget);
+      if (reference.label === reference.rawTarget || reference.label === url) { yield null; continue; }
+      yield { url, label: reference.label };
+    }
+  }
+}
+
+/**
  * Source-scoped C12c adapter over already-acquired ParsedFileMetadata. Parser/cache ownership stays
  * in GraphBuilder/C16; this adapter owns only Obsidian-specific Date normalization plus
  * plain graph-relevant metadata normalization. Neutral property references have a separate producer. Dense sources stream in
@@ -366,7 +385,7 @@ export class ObsidianMetadataSourceCollector {
     return this.collectPresentationMetadata(emit, touch);
   }
 
-  /** Emit only selector-dependent metadata from cached frontmatter/inline values, without parsing. */
+  /** Emit selector-dependent metadata and literal URL labels from already available property values. */
   private async collectPresentationMetadata(
     emit: (record: NormalizedSourceRecord) => Promise<boolean>,
     touch: () => Promise<boolean>,
@@ -412,6 +431,12 @@ export class ObsidianMetadataSourceCollector {
             ...(metadataKind === "primary-tag-field" ? { definition: primaryTagField } : {}) },
         }))) return false;
       }
+    }
+    for (const reference of frontmatterUrlLabelSteps(this.metadata.frontmatter)) {
+      if (!reference) { if (!(await touch())) return false; continue; }
+      if (!(await emit({ kind: "url-label", source: this.source, sourceRevision: this.sourceRevision,
+        target: { entity: urlRef(reference.url), rawTarget: reference.url, resolvedBy: "url" },
+        label: reference.label, provenance: { surface: "frontmatter" } }))) return false;
     }
     return this.isCurrent();
   }

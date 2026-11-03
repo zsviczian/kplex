@@ -13,7 +13,7 @@ export function styleSettingsHostSource(root) {
   const names = new Set(["setContentVisibility", "updateStyleSettings", "saveSettings", "enqueueSettingsWrite", "settingsSnapshotForPersistence", "persistSettingsSnapshot", "setGraphLenses", "readPortableSharingState", "previewPortableSharing", "importPortableSharing",
     "captureAppearanceOwner", "isAppearanceOwnerCurrent", "subscribeAppearanceThemes", "bindAppearanceEditor", "appearanceThemeNames", "updateAppearanceThemes", "showAppearanceMigrationNotification",
     "createAppearanceTheme", "resetAppearanceThemeColors", "importLegacyAppearance", "settingsForWrite", "writeSettingsSnapshot", "updateOntologyField", "updateOntologyConfiguration", "editOntologyConfiguration", "assignFieldToOntology", "ontologyFieldsForRole", "ontologyRoleForField", "inverseOntologyField", "inverseRelationshipRole", "defaultOntologyField", "refreshSavedSettings",
-    "initializeSettingsReconciliation", "onExternalSettingsChange", "queueExternalSettingsAdoption", "reportExternalSettingsFailure", "installExternalSettings", "updateActionPreferences", "receivedSettingsOwner", "receivedSettingsRevision", "updateCanvasViewSetting", "readCanvasViewConfiguration", "updateCanvasViewConfiguration", "resetCanvasViewConfiguration", "migrateCanvasViewConfiguration", "commitCanvasViewConfiguration"]);
+    "initializeSettingsReconciliation", "onExternalSettingsChange", "queueExternalSettingsAdoption", "reportExternalSettingsFailure", "installExternalSettings", "updateActionPreferences", "receivedSettingsOwner", "receivedSettingsRevision", "updateCanvasViewSetting", "readCanvasViewConfiguration", "updateCanvasViewConfiguration", "resetCanvasViewConfiguration", "migrateCanvasViewConfiguration", "commitCanvasViewConfiguration", "editOntologyConfigurationBatch"]);
   const methods = [];
   /** The owning class keeps one definition for every requested method; a missing seam is an explicit failure. */
   const visit = node => {
@@ -38,6 +38,7 @@ export function styleSettingsHostSource(root) {
     import {applyPortableImport,PortableSharingCapacityError} from './src/core/plex/sharing/transfer';
     import {configurationJson} from './src/core/plex/views/configurationValues';
     import {editOntologyDescriptions} from './src/core/contracts/ontologyReadModel';
+    import {prepareOntologyBatch} from './src/core/contracts/ontologyBatch';
     import {ontologyConfiguration,assignOntologyField,applyOntologyEdit,ontologyEndpointState,editOntologyEntries,ONTOLOGY_GROUPS} from './src/core/contracts/ontologyConfiguration';
     export * from './src/core/contracts/ontologyConfiguration';
     export {OntologyUsageModal} from './src/ui/OntologyUsageModal';

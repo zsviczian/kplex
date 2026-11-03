@@ -40,6 +40,8 @@ export function isFacetPreset(value: unknown): value is FacetPreset {
   if (value.layout !== undefined && !isFacetLayout(value.layout)
     || value.focusAnchor !== undefined && (typeof value.focusAnchor !== "string" || !["top", "bottom", "left", "right"].includes(value.focusAnchor))
     || value.reverse !== undefined && typeof value.reverse !== "boolean") return false;
+  if (value.focusInCategory !== undefined && typeof value.focusInCategory !== "boolean"
+    || value.centerAnchoredLinks !== undefined && typeof value.centerAnchoredLinks !== "boolean") return false;
   if (value.helpMarkdown !== undefined && !validMarkdownHelp(value.helpMarkdown)
     || value.helpSourceLocale !== undefined && (typeof value.helpSourceLocale !== "string" || !/^[A-Za-z]{2,3}(?:-[A-Za-z0-9]{2,8}){0,2}$/.test(value.helpSourceLocale))) return false;
   if (value.flow !== undefined && !validFacetFlow(value.flow)) return false;

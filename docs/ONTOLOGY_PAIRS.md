@@ -10,6 +10,17 @@ In **Add connection ontology** or **Specify connection ontology**, select **Crea
 
 The manager shows each pair once. **Show** filters by direction or state while keeping both names visible, with the selected direction first. Search matches either field name. Friend/Friend and Challenger/Challenger pairs are supported. **Unassigned** contains discovered metadata that has no ontology assignment; **Excluded metadata** and **Hidden** are separate assignments. Discovery can be incomplete. **Rescan discovered fields** explicitly scans for more metadata and can take time in a large vault; opening or searching the manager does not rescan.
 
+Ontology suggestions also search each physical field's own description. Direct names rank first,
+then paired names, then description matches; choosing a result inserts only its physical field
+name. Descriptions on two paired fields remain independent meanings, and alternative wording
+does not become an alias in note parsing. The manager continues to search names and descriptions.
+
+For approved vocabulary cleanup, the [consolidation guide](ONTOLOGY_CONSOLIDATION.md) describes
+bounded usage discovery, exact selected-file inspection, reviewed configuration batches and
+guarded public Obsidian writes. The [public API](PUBLIC_API.md#inspect-and-consolidate-ontology-safely)
+and repository [agent skill](../skill.md) keep audit permission separate from write permission.
+Pairing or renaming a configured field never silently rewrites notes.
+
 Either note can declare the relationship. In Note B:
 
 ```markdown

@@ -1,5 +1,5 @@
 /** Settings-only ontology completion policy shared by the native editor and public API.
- * Literal matching, role ordering and inverse-aware filtering own no editor, graph or host work.
+ * Literal matching, role ordering and name/partner/description filtering own no editor, graph or host work.
  * Callers retain insertion, lifecycle and public request/output limits. */
 import {normalizeFieldName} from './fieldName';
 import type {OntologyConfiguration,OntologyRole} from './ontologyConfiguration';
@@ -10,7 +10,7 @@ export type OntologyCompletionRole=typeof ONTOLOGY_COMPLETION_ROLES[number];
 export type OntologyTriggerConfiguration=Readonly<{enabled:boolean;triggers:Readonly<Record<OntologyCompletionRole,string>>;midSentenceTrigger:string}>;
 export type OntologyTriggerMatch=Readonly<{start:number;end:number;query:string;role:OntologyCompletionRole;trigger:string;prefix:string}>;
 export type OntologyCompletionCandidate=Readonly<{name:string;role:OntologyRole|'unassigned';roles:readonly OntologyRole[];partner?:string;partnerRole?:OntologyRole;description?:string}>;
-type SelectionView=Readonly<{key:string;partner?:string}>;
+type SelectionView=Readonly<{key:string;partner?:string;description?:string}>;
 
 /** Match the historical optional greedy whitespace prefix and terminal query without regex
  * backtracking. KMP visits each literal/input character a bounded number of times. Position zero
@@ -71,15 +71,21 @@ export function ontologySelectionFields(fields:readonly string[]):string[] {
   });
 }
 
-/** Physical-name substring matches precede inverse-partner matches; roles remain caller-owned. */
+/** Rank physical-name, partner-only and own-description-only substring matches in stable tiers.
+ * Role eligibility and input order remain caller-owned. A partner's description is never an alias.
+ * Empty queries retain the complete physical-name tier without inspecting annotations. */
 export function ontologySelectionMatches(fields:readonly string[],views:readonly SelectionView[],query:string):string[] {
   const byKey=new Map(views.map(/** Reuse annotations without another ontology registry. */ field=>[field.key,field]));
-  const needle=query.toLocaleLowerCase(),direct:string[]=[],indirect:string[]=[];
+  const needle=query.toLocaleLowerCase(),direct:string[]=[],indirect:string[]=[],described:string[]=[];
   for(const name of ontologySelectionFields(fields)){
     if(name.toLocaleLowerCase().includes(needle))direct.push(name);
-    else if(byKey.get(normalizeFieldName(name))?.partner?.toLocaleLowerCase().includes(needle))indirect.push(name);
+    else {
+      const view=byKey.get(normalizeFieldName(name));
+      if(view?.partner?.toLocaleLowerCase().includes(needle))indirect.push(name);
+      else if(view?.description?.toLocaleLowerCase().includes(needle))described.push(name);
+    }
   }
-  return [...direct,...indirect];
+  return [...direct,...indirect,...described];
 }
 
 /** Select role-eligible physical fields and existing annotations without discovery/index reads.

@@ -88,6 +88,8 @@ export type PlexViewEdge = Readonly<{
 export type PlexProjection = Readonly<{
   attention: NodeId; layoutRoot?: NodeId; root?: OccurrenceId; entry: OccurrenceId; editor?: OccurrenceId; frame?: OccurrenceId;
   occurrences: readonly PlexOccurrence[]; edges: readonly PlexViewEdge[]; truncated: boolean; coverage: ViewCoverage;
+  /** View-scoped note presentation; logical ports/evidence remain intact. Decorative guides are unchanged. */
+  connectionPresentation?: "node-centers";
   /** Undefined inherits normal host presentation; null or an empty literal explicitly hides it. */
   heading?: CanvasViewText | null;
   /** Recoverable presentation status, independent of note/relationship semantics. */

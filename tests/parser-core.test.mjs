@@ -88,6 +88,29 @@ test("portable synchronous grammar and property-reference iterator match the fro
   }
 });
 
+test("property Markdown labels retain the literal target grammar through nested and malformed delimiters", () => {
+  const cases = ["[Readable](https://example.com/path)", "[ outer [inner](Target) [Next](Other)",
+    "[empty]() [ valid ](target )", "[broken] [real](Target)", "[a](missing [b](end)",
+    "[[Wiki]] [text\\]part](Target)", "[a](One) [b](One)", "[incomplete](target"];
+  for (let seed = 1; seed < 100; seed++) {
+    let value = "", state = seed;
+    for (let index = 0; index < 150; index++) { state = (state * 1664525 + 1013904223) >>> 0; value += "[]() ab"[state % 7]; }
+    cases.push(value);
+  }
+  for (const value of cases) {
+    const expected = [...value.matchAll(/\[[^\]]*\]\(([^)]+)\)/g)].map(match => ({
+      rawTarget: match[1], label: match[0].slice(1, match[0].indexOf("](")).trim(),
+    }));
+    assert.deepEqual([...parser.iterateMarkdownLinkSteps(value)].filter(Boolean), expected, value);
+  }
+  assert.deepEqual([...parser.iterateMarkdownLinkSteps({ nested: [cases[0], false] })].filter(Boolean),
+    [{ rawTarget: "https://example.com/path", label: "Readable" }]);
+  const start = performance.now();
+  assert.deepEqual([...parser.iterateMarkdownLinkSteps(`${"[a".repeat(500_000)} https://example.com/path`)].filter(Boolean), []);
+  assert.deepEqual([...parser.iterateMarkdownLinkSteps(`${"[a](".repeat(250_000)} https://example.com/path`)].filter(Boolean), []);
+  assert(performance.now() - start < 1_000, "Malformed property labels must not retry an unbounded suffix");
+});
+
 test("portable cooperative grammar matches frozen outputs across normal and pathological scans", async () => {
   for (const item of oracle.bodyCases) {
     let yields = 0;

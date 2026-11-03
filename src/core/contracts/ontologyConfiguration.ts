@@ -121,7 +121,8 @@ export function assignOntologyField(input:OntologyConfigurationInput, field:stri
     if(!reciprocal||configuration.roles.get(partnerKey)!==reciprocal)throw new OntologyConfigurationError('role');
     const other=configuration.pairs.get(partnerKey);if(other&&normalizeFieldName(other.partner)!==normalized)throw new OntologyConfigurationError('duplicate');
   }
-  if(configuration.roles.get(normalized)===role&&(paired?normalizeFieldName(paired.partner):null)===partnerKey)
+  if(configuration.roles.get(normalized)===role&&(paired?normalizeFieldName(paired.partner):null)===partnerKey
+    &&configuration.hierarchy[ONTOLOGY_ROLE_GROUP[role]].find(/** A spelling change is an explicit edit even when its normalized identity and semantics are stable. */ name=>normalizeFieldName(name)===normalized)===field.trim())
     return {...input.hierarchy,...Object.fromEntries(ONTOLOGY_GROUPS.map(/** An unchanged Save must not rewrite the pair's original declaration side or retained legacy keys. */ group=>[group,[...input.hierarchy[group]]]))} as Record<OntologyGroup,string[]>;
   const result={...input.hierarchy,...Object.fromEntries(ONTOLOGY_GROUPS.map(/** Work only on independent settings arrays, preserving unrelated retained legacy configuration. */ group=>[group,[...input.hierarchy[group]]]))} as Record<OntologyGroup,string[]>;
   if(paired){

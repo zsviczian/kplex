@@ -2,7 +2,7 @@
  * The caller validates creation and owns assignment; this adapter renders bounded suggestions. */
 import {AbstractInputSuggest,type App} from 'obsidian';
 import {fuzzyFilterStrings} from './FuzzySearchInput';
-import {ontologyFieldDetail,ontologyFieldViews} from './features/ontologyPresentation';
+import {ontologyFieldDetail,ontologyFieldViews,ontologyFuzzyMatches} from './features/ontologyPresentation';
 import {normalizeFieldName} from '../core/contracts/fieldName';
 import type {OntologyDescriptions} from '../core/contracts/ontologyReadModel';
 import type {OntologyConfiguration} from '../core/contracts/ontologyConfiguration';
@@ -17,7 +17,8 @@ export class OntologyPartnerSuggest extends AbstractInputSuggest<OntologyPartner
   /** Reuse reciprocal-field matching and reserve a row for a valid, explicitly new name. */
   protected getSuggestions(query:string):OntologyPartnerSuggestion[]{
     const field=query.trim(),create=Boolean(this.translate&&this.canCreate?.(field));
-    const matches:OntologyPartnerSuggestion[]=fuzzyFilterStrings(this.fields(),query,this.limit-(create?1:0));
+    const fields=this.fields(),views=this.configuration?ontologyFieldViews(this.configuration(),[],this.descriptions()):[];
+    const matches:OntologyPartnerSuggestion[]=ontologyFuzzyMatches(fields,views,query,fuzzyFilterStrings,this.limit-(create?1:0));
     if(create)matches.push({create:field});
     return matches;
   }

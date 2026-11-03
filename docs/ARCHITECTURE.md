@@ -109,6 +109,26 @@ work, variable and output budgets. Default and introspection resolvers share exe
 There are no GraphQL mutations, subscriptions or network listeners. Its retained legal-comment
 block carries GraphQL.js's installed MIT notice into the bundled release.
 
+PR267 adds explicit asynchronous ontology inspection beside those passive reads.
+`OntologyUsagePager` owns finite expiring cursor leases over `NeutralSourceRepository`'s existing
+postings; it never recollects an entire result or acquires missing facts. Internal snapshot guards
+observe in-process overlay/activation epochs and the durable sequence, including pending-only
+continuations. The same selected metadata membership reader serves the native usage dialog.
+An optional manifest budget rejects exceptional/legacy families before decoding; existing readers
+retain their compatibility behavior. Existing protected-reader lease bookkeeping remains intact.
+`ontologyOccurrences` reads one explicit saved file through Vault and projects canonical parser
+key-token hooks on demand, with metadata/value retention disabled. Indexed records, worker DTOs
+and historical evidence-coordinate semantics remain unchanged; logical YAML keys never become
+fabricated replacement ranges. The native buffer owner covers workspace and embedded editors.
+
+`PublicApiOntologyConfiguration` and the pure `ontologyBatch` planner reuse native ontology
+validation and the established queued/reconciled writer. No second settings queue or note writer
+is introduced. Whole-batch previews are finite, detached, expiring and single-use; local submitted
+and incoming owners plus endpoint comparisons guard acceptance inside that queue. Readback is
+bounded to reviewed endpoints and cannot erase a durable-save receipt. Shared substring/fuzzy
+matching adds own descriptions after physical/partner names without reading sources or changing
+canonical insertion. This feature does not resume paused structural refactoring.
+
 `application/PublicCanvasRegistry` leases existing native document-session identities; App owns
 fresh committed metadata/action callbacks, and PlexGraph publishes committed scene readers.
 `ui/publicCanvasScene` only projects supplied geometry/filter/viewport facts on explicit read;

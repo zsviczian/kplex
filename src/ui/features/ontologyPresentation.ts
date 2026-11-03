@@ -47,12 +47,21 @@ export function ontologyFieldDetail(field:OntologyFieldView|undefined,t:Translat
   return [parts.join(' · '),field.description].filter(Boolean).join('\n');
 }
 
-/** Extend an existing ranked matcher with partner-only candidates, retaining original physical values.
- * Matching is injected so native/editor consumers keep their established ranking contracts. */
+/** Extend the caller's ranked physical matcher with stable partner-only and own-description tiers.
+ * The injected matcher retains direct ranking and empty-query behavior; indirect tiers preserve
+ * configured physical order. Selection values are always canonical physical names, never wording. */
 export function ontologyFuzzyMatches(fields:readonly string[],views:readonly OntologyFieldView[],query:string,match:(values:readonly string[],query:string,limit:number)=>string[],limit:number):string[] {
+  if(limit<=0)return [];
   const byKey=new Map(views.map(/** Lookup annotations without another vocabulary registry. */ field=>[field.key,field]));
   const unique=ontologySelectionFields(fields),direct=match(unique,query,limit),seen=new Set(direct);
-  for(const field of unique){if(seen.has(field))continue;const partner=byKey.get(normalizeFieldName(field))?.partner;if(partner&&match([partner],query,1).length){direct.push(field);seen.add(field);if(direct.length>=limit)break;}}
+  for(const annotation of ['partner','description'] as const){
+    if(direct.length>=limit)break;
+    for(const field of unique){
+      if(seen.has(field))continue;
+      const value=byKey.get(normalizeFieldName(field))?.[annotation];
+      if(value&&match([value],query,1).length){direct.push(field);seen.add(field);if(direct.length>=limit)break;}
+    }
+  }
   return direct.slice(0,limit);
 }
 
