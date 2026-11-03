@@ -1773,6 +1773,10 @@ const russianTranslations = {
   "export.markdown.ontologyNone": "Не включать",
   "export.markdown.ontologyVisible": "Только видимая онтология",
   "export.markdown.ontologyAll": "Вся онтология, включая скрытую",
+  "pins.reorder": "Переместить закрепление {title}",
+  "pins.moveLeft": "Переместить влево",
+  "pins.moveRight": "Переместить вправо",
+  "pins.saveFailed": "Не удалось сохранить изменение закрепления. Повторите попытку.",
 } as const satisfies LocaleTranslationMap;
 
 export const russianCatalog = buildLocaleCatalog(russianTranslations);

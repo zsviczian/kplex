@@ -1769,6 +1769,10 @@ const spanishTranslations = {
   "export.markdown.ontologyNone": "No incluir",
   "export.markdown.ontologyVisible": "Solo ontología visible",
   "export.markdown.ontologyAll": "Toda la ontología, incluida la oculta",
+  "pins.reorder": "Reordenar el pin {title}",
+  "pins.moveLeft": "Mover a la izquierda",
+  "pins.moveRight": "Mover a la derecha",
+  "pins.saveFailed": "No se pudo guardar el cambio del pin. Inténtalo de nuevo.",
 } as const satisfies LocaleTranslationMap;
 
 export const spanishCatalog = buildLocaleCatalog(spanishTranslations);

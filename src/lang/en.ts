@@ -5725,6 +5725,10 @@ export const englishCatalog = {
   "export.markdown.ontologyNone": {"message": "Do not include", "context": "Markdown export ontology selection over a captured canvas; no extra nodes or graph reads.", "params": []},
   "export.markdown.ontologyVisible": {"message": "Visible ontology only", "context": "Markdown export ontology selection over a captured canvas; no extra nodes or graph reads.", "params": []},
   "export.markdown.ontologyAll": {"message": "All ontology, including hidden", "context": "Markdown export ontology selection over a captured canvas; no extra nodes or graph reads.", "params": []},
+  "pins.reorder": {"message":"Reorder pin {title}","context":"Saved pin reorder handle, native movement menu and persistence feedback.","params":["title"],"referenceParams":["title"]},
+  "pins.moveLeft": {"message":"Move left","context":"Saved pin reorder handle, native movement menu and persistence feedback.","params":[],"referenceParams":[]},
+  "pins.moveRight": {"message":"Move right","context":"Saved pin reorder handle, native movement menu and persistence feedback.","params":[],"referenceParams":[]},
+  "pins.saveFailed": {"message":"Could not save the pin change. Try again.","context":"Saved pin reorder handle, native movement menu and persistence feedback.","params":[],"referenceParams":[]},
 } as const;
 
 export type EnglishCatalog = typeof englishCatalog;

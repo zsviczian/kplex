@@ -22,6 +22,8 @@
  * retain an App-owned recovery action even when no graph can yet render.
  * Saved chips project the shared node style resolver; the History list owns mouse grab scrolling
  * independently of node activation, native touch scrolling and canvas gestures.
+ * Pins keep the complete canonical saved collection and use handle-only reorder mechanics;
+ * unavailable rows retain their slots, and native move menus share the guarded settings writer.
  */
 import { subscribeAppearanceSources } from "../adapters/obsidian/colorChanges";
 import {CanvasViewContributionController} from "./plexViews/CanvasViewContributionController";
@@ -80,6 +82,9 @@ import type { DocumentSyncMode, KplexViewSurface, NodeSortOrder, SidecarMarkdown
 import { SearchBox } from "./features/SearchBox";
 import { searchResultIconName } from "./features/searchResultPresentation";
 import { nodeListPresentation } from "./nodeListPresentation";
+import {PinnedNodeBar, type PinnedNodeRow} from "./PinnedNodeBar";
+import {captureSurfaceContinuation} from "./surfaceContinuation";
+import {savedPinEntries, type SavedPinMove} from "../core/plex/savedPins";
 import {HorizontalDragScroll} from "./components/HorizontalDragScroll";
 import {nodeMarkdownLink} from "./nodeMarkdownLink";
 import { createLegacyGraphSearchRead } from "../adapters/obsidian/graphContracts";
@@ -1436,9 +1441,30 @@ export function KplexApp({ plugin, surface, hostLeaf, translate, environment, on
       : (syncTargetAvailable
         ? translate("app.syncStatusPinned", { suffix: linkedLabel ? ` · ${linkedLabel}` : "" })
         : translate("app.syncStatusPinnedUnavailable"));
-  const pinnedPages = plugin.settings.pinnedNodes
-    .map((path) => plugin.index.get(path))
-    .filter((item): item is GraphPage => Boolean(item));
+  const pinnedPages: PinnedNodeRow[] = savedPinEntries(plugin.settings.pinnedNodes).map(/** Keep unavailable saved occurrences/shortcut slots visible without source work. */ row => {
+    const target = plugin.index.get(row.entry), presentation = target ? nodeListPresentation(target, plugin.index.titleFor(target), paintSettings) : null;
+    return {id: row.id, path: row.entry, label: presentation?.label ?? translate("actions.missingTarget", {path: row.entry}),
+      icon: presentation?.icon ?? "file-question", style: presentation?.style, active: row.entry === page.path, available: !!target};
+  });
+  /** Surface feedback follows the existing writer; failed/cancelled moves never navigate. */
+  const movePin = (move: SavedPinMove): void => {void plugin.movePinned(move).catch(/** Report failure without retrying stale intent. */ error => {
+    console.error("K-Plex pin move failed", error);new Notice(translate("pins.saveFailed"));
+  });};
+  /** Native movement choices are reachable through pointer and keyboard handle activation. */
+  const pinMoveMenu = (id: string, button: HTMLButtonElement): void => {
+    const expected = pinnedPages.map(row => row.id), index = expected.indexOf(id);if (index < 0) return;
+    const current = captureSurfaceContinuation(/** Keep the captured App incarnation and owning document. */ () => rootRef.current,
+      /** Native menus may borrow focus but cannot borrow a later graph/navigation generation. */ () => actions.readSnapshot(), {checkInteraction: false});
+    const sourceDocument = button.ownerDocument;
+    const menu = new Menu();
+    for (const [label, before, disabled] of [["pins.moveLeft", expected[index - 1], index === 0],
+      ["pins.moveRight", expected[index + 2] ?? null, index === expected.length - 1]] as const)
+      menu.addItem(/** Commit the same captured identity/order as a pointer drop. */ item => item.setTitle(translate(label)).setDisabled(disabled)
+        .onClick(/** Close/migration and another canvas's newer order both retire the old menu intent. */ () => {
+          if (current() && button.isConnected && button.ownerDocument === sourceDocument) movePin({id, before: before ?? null, expected});
+        }));
+    const bounds = button.getBoundingClientRect();plugin.showKplexMenuAtPosition(menu, {x: bounds.left, y: bounds.bottom}, button.ownerDocument, hostLeaf);
+  };
 
 
 
@@ -1584,15 +1610,13 @@ export function KplexApp({ plugin, surface, hostLeaf, translate, environment, on
           </div>
         </header>
 
-        {pinnedPages.length > 0 && <div className="kplex-pinned-bar" aria-label={translate("app.pinnedNodes")}>
-          {pinnedPages.map((pinned) => {
-            const { label: title, icon, style } = nodeListPresentation(pinned, plugin.index.titleFor(pinned), paintSettings);
-            return <div key={pinned.path} style={style} className={`kplex-pinned-chip${pinned.path === page.path ? " is-active" : ""}`}>
-              <button className="kplex-pinned-open" data-kplex-pinned-path={pinned.path} aria-label={`${title}\n${pinned.path}`} onClick={() => actions.dispatch({ id: "node.activate", source: "toolbar", target: { kind: "explicit", node: actionNodeRef(pinned) } })}><ObsidianIcon name={icon} size={12} /><span>{title}</span></button>
-              <button className="kplex-pinned-remove" aria-label={translate("app.unpinNode", { title })} onClick={() => actions.dispatch({ id: "pin.remove", source: "toolbar", target: { kind: "explicit", node: actionNodeRef(pinned) } })}><ObsidianIcon name="x" size={11} /></button>
-            </div>;
-          })}
-        </div>}
+        {pinnedPages.length > 0 && <PinnedNodeBar rows={pinnedPages} translate={translate} onMove={movePin} onMenu={pinMoveMenu}
+          onActivate={/** Preserve existing surface and navigation admission. */ id => {
+            const row = savedPinEntries(plugin.settings.pinnedNodes).find(row => row.id === id), target = row ? plugin.index.get(row.entry) : undefined;
+            if (target) actions.dispatch({id: "node.activate", source: "toolbar", target: {kind: "explicit", node: actionNodeRef(target)}});
+          }} onRemove={/** Bookmark removal works without preparing a missing destination. */ id => {void plugin.removePinnedEntry(id).catch(/** Keep write failures visible. */ error => {
+            console.error("K-Plex pin removal failed", error);new Notice(translate("pins.saveFailed"));
+          });}} />}
       </div>
 
       <main className="kplex-workspace">

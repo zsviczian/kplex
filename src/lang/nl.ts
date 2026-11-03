@@ -1765,6 +1765,10 @@ const dutchTranslations = {
   "export.markdown.ontologyNone": "Niet opnemen",
   "export.markdown.ontologyVisible": "Alleen zichtbare ontologie",
   "export.markdown.ontologyAll": "Alle ontologie, inclusief verborgen",
+  "pins.reorder": "Pin {title} verplaatsen",
+  "pins.moveLeft": "Naar links verplaatsen",
+  "pins.moveRight": "Naar rechts verplaatsen",
+  "pins.saveFailed": "De pinwijziging kon niet worden opgeslagen. Probeer het opnieuw.",
 } as const satisfies LocaleTranslationMap;
 
 export const dutchCatalog = buildLocaleCatalog(dutchTranslations);

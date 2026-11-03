@@ -1295,6 +1295,12 @@ button.kplex-sidecar-unfold-plex,
   outline: 1px solid var(--interactive-accent);
   outline-offset: -2px;
 }
+.kplex-pinned-chip.is-unavailable { color: var(--text-muted); }
+.kplex-pinned-chip.is-reorder-source { opacity: .6; }
+.kplex-pinned-chip.is-reorder-before { box-shadow: inset 3px 0 var(--interactive-accent); }
+.kplex-pinned-bar.is-reorder-end > .kplex-pinned-chip:last-child { box-shadow: inset -3px 0 var(--interactive-accent); }
+.kplex-pinned-chip .kplex-pin-reorder-handle { width: 18px; padding: 0; cursor: grab; touch-action: none; }
+.kplex-pinned-bar.is-reordering .kplex-pin-reorder-handle { cursor: grabbing; }
 .kplex-pinned-chip button {
   height: 25px;
   border: 0;

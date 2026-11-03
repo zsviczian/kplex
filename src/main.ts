@@ -2,6 +2,8 @@
  * Captured section opens retain exact native request identities. Explicit node copies use the
  * revocable host clipboard owner; section-scoped bulk visibility uses the existing settings queue.
  * Related-note completion keeps link and creation preferences independent through that same writer.
+ * Pin moves recheck a captured canonical order and publish presentation only; unavailable saved
+ * destinations remain bookmark entries and never acquire sources merely for reordering.
  * Eager startup admits optional URL replay only after primary graph completion, so its higher
  * per-owner preparation cannot starve saved-graph hydration or initial source compilation.
  * Full publication retires only its captured creation backlog; a later metadata save stays a
@@ -54,6 +56,7 @@
  * New-file after-saving choices reuse surface-owned editor actions and exact native tab/Sidecar destinations; bounded readiness waits settle on unload.
  */
 import { registerFileMenus, type FilePlexNode, type FilePlexTarget } from "./adapters/obsidian/fileMenu";
+import {moveSavedPin, savedPinEntries, type SavedPinMove} from "./core/plex/savedPins";
 import { drawingAutomation, drawingTemplateOptions } from "./adapters/obsidian/drawingTemplates";
 import {viewLabel} from "./ui/plexViews/labels";
 import {startupIndexPolicy} from './core/plex/startupIndexPreferences';
@@ -5283,6 +5286,20 @@ export default class KplexPlugin extends Plugin {
   }
 
   isPinned(path: string): boolean { return this.settings.pinnedNodes.includes(path); }
+
+  /** Recheck the complete captured saved order before one serialized settings write. Concurrent
+   * additions/removals/reorders cancel instead of publishing an old filtered toolbar collection. */
+  async movePinned(move: SavedPinMove): Promise<boolean> {
+    const next = moveSavedPin(this.settings.pinnedNodes, move);if (!next) return false;
+    this.settings.pinnedNodes = next;await this.saveSettings(false, false);this.index.notifyPresentation();return true;
+  }
+
+  /** Remove one saved occurrence without materializing or acquiring its unavailable destination. */
+  async removePinnedEntry(id: string): Promise<void> {
+    const rows = savedPinEntries(this.settings.pinnedNodes);if (!rows.some(row => row.id === id)) return;
+    this.settings.pinnedNodes = rows.filter(row => row.id !== id).map(row => row.entry);
+    await this.saveSettings(false, false);this.index.notifyPresentation();
+  }
 
   async togglePinned(path: string): Promise<void> {
     this.settings.pinnedNodes = this.isPinned(path)

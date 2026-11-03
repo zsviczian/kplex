@@ -1761,6 +1761,10 @@ const traditionalChineseTranslations = {
   "export.markdown.ontologyNone": "不包含",
   "export.markdown.ontologyVisible": "僅可見的本體",
   "export.markdown.ontologyAll": "包含隱藏項目的所有本體",
+  "pins.reorder": "重新排序釘選 {title}",
+  "pins.moveLeft": "向左移動",
+  "pins.moveRight": "向右移動",
+  "pins.saveFailed": "無法儲存釘選變更。請再試一次。",
 } as const satisfies LocaleTranslationMap;
 
 export const traditionalChineseCatalog = buildLocaleCatalog(traditionalChineseTranslations);

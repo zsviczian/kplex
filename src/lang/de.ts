@@ -1765,6 +1765,10 @@ const germanTranslations = {
   "export.markdown.ontologyNone": "Nicht einbeziehen",
   "export.markdown.ontologyVisible": "Nur sichtbare Ontologie",
   "export.markdown.ontologyAll": "Alle Ontologien, auch ausgeblendete",
+  "pins.reorder": "Angeheftete Notiz {title} verschieben",
+  "pins.moveLeft": "Nach links verschieben",
+  "pins.moveRight": "Nach rechts verschieben",
+  "pins.saveFailed": "Die Änderung der angehefteten Notiz konnte nicht gespeichert werden. Erneut versuchen.",
 } as const satisfies LocaleTranslationMap;
 
 export const germanCatalog = buildLocaleCatalog(germanTranslations);

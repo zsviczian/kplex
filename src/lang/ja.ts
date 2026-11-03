@@ -1761,6 +1761,10 @@ const japaneseTranslations = {
   "export.markdown.ontologyNone": "含めない",
   "export.markdown.ontologyVisible": "表示中のオントロジーのみ",
   "export.markdown.ontologyAll": "非表示を含むすべてのオントロジー",
+  "pins.reorder": "ピン {title} を並べ替え",
+  "pins.moveLeft": "左に移動",
+  "pins.moveRight": "右に移動",
+  "pins.saveFailed": "ピンの変更を保存できませんでした。もう一度お試しください。",
 } as const satisfies LocaleTranslationMap;
 
 export const japaneseCatalog = buildLocaleCatalog(japaneseTranslations);

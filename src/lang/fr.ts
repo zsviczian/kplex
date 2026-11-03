@@ -1769,6 +1769,10 @@ const frenchTranslations = {
   "export.markdown.ontologyNone": "Ne pas inclure",
   "export.markdown.ontologyVisible": "Ontologie visible uniquement",
   "export.markdown.ontologyAll": "Toute l’ontologie, y compris masquée",
+  "pins.reorder": "Réorganiser l’épingle {title}",
+  "pins.moveLeft": "Déplacer à gauche",
+  "pins.moveRight": "Déplacer à droite",
+  "pins.saveFailed": "Impossible d’enregistrer la modification de l’épingle. Réessayez.",
 } as const satisfies LocaleTranslationMap;
 
 export const frenchCatalog = buildLocaleCatalog(frenchTranslations);
