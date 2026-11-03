@@ -15,6 +15,50 @@ const bundle = await contributorBrowserBundle(['src/main.ts', 'src/index/GraphIn
   'src/index/IndexSnapshot.ts', 'src/core/graph/compiler.ts', 'src/adapters/obsidian/metadataSourceCollector.ts',
   'src/adapters/obsidian/ontologySourceCollector.ts', 'src/adapters/obsidian/startupDiagnostics.ts'], {'src/main.ts': startupSourceCoordinatorSource()});
 
+/** Offline sync changes must not put a complete cached graph behind an unrelated all-owner audit. */
+test('stale compatible graph hydrates before a held source audit without claiming current semantics',async()=>{
+ const browser=await chromiumHarness(bundle);
+ try{
+  await browser.evaluate(contributorBrowserInitialize);
+  assert.equal(await browser.evaluate(`(async()=>{
+   const M=sourceModules,f=await fixture('sync-stale-warm-graph'),assert=Object.assign((v,m)=>ok(v,m),{equal});
+   const collect=${collect.toString()},hostOracle=${hostOracle.toString()},fullCenterIndex=${fullCenterIndex.toString()},currentNeighborhoodView=${currentNeighborhoodView.toString()},centerGateSettings=${centerGateSettings.toString()};
+   let initial,index,oracle,unlock,preparation;
+   try{
+    f.text=f.texts;f.app.vault.getName=()=> 'sync-stale-warm-graph';
+    f.app.vault.getAbstractFileByPath=path=>f.files.get(path)??(path==='/'||path===''?f.app.vault.getRoot():null);
+    f.add('Audit.md','');f.add('A.md','Friends:: [[B]]');f.add('B.md','');
+    await f.acquire();ok(await f.acquisition.reconcile(),'Seed complete sources');
+    const semantic={hierarchy:{hidden:[],parents:[],children:['Children'],leftFriends:['Friends'],rightFriends:[],previous:[],next:[]},inferAllLinksAsFriends:false,inverseInfer:false,showFullTagName:true,tagStyleList:[],maxLabelLength:30};
+    const view=centerGateSettings({showFolderNodes:false}),settings={indexingMode:'eager',...semantic,...view,lastActivePath:'A.md',pinnedNodes:[]};
+    initial=await fullCenterIndex(M,f,await hostOracle(f,[...f.files.keys()],semantic,view,true),semantic,view);
+    ok(await f.cache.writeSnapshot({createdAt:Date.now(),urlAliasVersion:2,vaultSignature:M.computeVaultSignature(f.app),settingsSignature:M.computeIndexSettingsSignature(settings),discoveredFields:[]},
+      [...initial.state.pages.values()].map(page=>M.persistedPageFromGraphPage(page)),[...initial.state.evidence.declarations()].map(item=>M.persistedDeclarationFromEvidence(item))),'Seed complete graph');
+    initial.destroy();initial=null;f.acquisition.close();
+    const a=f.files.get('A.md');f.texts.set(a.path,'Children:: [[B]]');a.stat.mtime++;
+    const p=new M.StartupSourceCoordinator();Object.assign(p,{app:f.app,settings,layoutReady:true,startupIndexPolicy:{device:'desktop',beforeView:true,mode:'eager'},supportEvents:{record(){}},notifyIndexStatus(){},
+      hasVisibleKplexSurface:()=>false,refreshBookmarkedEntryPoints:async()=>{},startupGraphSeedPaths:()=>['A.md'],registerReactiveIndexListeners(){}});
+    p.startupDiagnostics=new M.StartupDiagnostics();p.startupDiagnostics.begin(false);
+    index=new M.GraphIndex(p,f.app);p.index=index;index.scheduleOrphanCleanup=()=>{};
+    const source=index.sourceAcquisition,inspect=source.repository.inspectWithLocalDependencies;
+    let entered;const reached=new Promise(done=>entered=done),held=new Promise(done=>unlock=done);
+    source.repository.inspectWithLocalDependencies=async function(...args){if(args[0]==='Audit.md'){entered();await held;}return inspect.apply(this,args)};
+    preparation=p.startIndexPreparation();await reached;
+    const end=Date.now()+2000;while(!index.isFullSnapshotHydrated()&&Date.now()<end)await new Promise(done=>setTimeout(done,10));
+    ok(index.isFullSnapshotHydrated(),'Compatible cached graph must hydrate before unrelated source validation finishes');
+    ok(!source.hasSemanticDependencies()&&!p.initialIndexComplete,'Cached hydration cannot certify the changed graph');
+    ok(!index.publicApiCoverage().complete,'Changed cached graph remains explicitly incomplete');
+    ok(index.get('A.md')?.neighbours.has('B.md'),'Cached relationships remain readable');
+    unlock();await preparation;await source.flush();
+    ok(p.initialIndexComplete&&index.publicApiCoverage().complete,'Source audit eventually closes real current graph');
+    oracle=await fullCenterIndex(M,f,await hostOracle(f,[...f.files.keys()],semantic,view,true),semantic,view);
+    for(const path of f.files.keys())equal(currentNeighborhoodView(index,path),currentNeighborhoodView(oracle,path),'Current full-compiler parity: '+path);
+    return true;
+   }finally{unlock?.();if(preparation)await preparation.catch(()=>{});index?.destroy();initial?.destroy();oracle?.destroy();f.close();}
+  })()`),true);
+ }finally{await browser.cleanup();}
+});
+
 test('warm placeholder edits publish before the initial source audit finishes', async () => {
   const browser = await chromiumHarness(bundle);
   try {

@@ -6,6 +6,36 @@ import { chromiumHarness } from './support/browserTypeScript.mjs';
 
 const bundle = await contributorBrowserBundle();
 
+/** A native sync edit invalidates its selected head, not the already checked inventory prefix. */
+test('restart host comparison retains its prefix when the selected owner changes',async()=>{
+ const browser=await chromiumHarness(bundle);
+ try{
+  await browser.evaluate(contributorBrowserInitialize);
+  const result=await browser.evaluate(`(async()=>{
+   const f=await fixture('sync-selected-owner'),M=sourceModules;let restarted;
+   try{
+    for(let i=0;i<8;i++)f.add('Owner'+i+'.md','Value:: original');await f.acquire();ok(await f.acquisition.reconcile(),'Seed closed sources');f.acquisition.close();
+    restarted=new M.ObsidianSourceAcquisition(f.app,f.cache,async text=>M.parseBodyMetadata(text));restarted.start();
+    const inspect=f.repository.inspectWithLocalDependencies,visits=[];let delivered=false;
+    f.repository.inspectWithLocalDependencies=async function(...args){
+     const value=await inspect.apply(this,args);visits.push(args[0]);
+     if(!delivered&&args[0]==='Owner6.md'){
+      delivered=true;const file=f.files.get(args[0]);f.texts.set(file.path,'Value:: synced');file.stat.mtime++;
+      f.app.vault.trigger('modify',file);f.app.metadataCache.trigger('changed',file);f.app.metadataCache.trigger('resolved');
+     }
+     return value;
+    };
+    let ready=await restarted.reconcile();if(!ready)ready=await restarted.reconcile();
+    ok(ready&&restarted.hasSemanticDependencies(),'Real current source closure');
+    const rows=[];equal(await f.repository.visit('Owner6.md','values',batch=>{rows.push(...batch);return true}),'ready','Authenticated current facts');
+    return{prefix:visits.filter(path=>path==='Owner0.md').length,selected:visits.filter(path=>path==='Owner6.md').length,values:rows.filter(row=>row.kind==='inline-payload').map(row=>row.text)};
+   }finally{restarted?.close();f.close();}
+  })()`);
+  assert.equal(result.prefix,1,'A source-local sync event must not restart unrelated comparisons');
+  assert.deepEqual(result.values,['synced']);assert(result.selected>=2,'The changed head is reacquired');
+ }finally{await browser.cleanup();}
+});
+
 test('a delayed native move close needs no per-file resolve and retains exact local maintenance', async () => {
   const browser = await chromiumHarness(bundle);
   try {

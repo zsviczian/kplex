@@ -1,0 +1,131 @@
+{
+  "name": "sync-hydration",
+  "status": "passed",
+  "node": "v22.22.2",
+  "startedAt": "2026-11-02T22:22:37.378Z",
+  "maximumMs": 900000,
+  "driver": {
+    "transport": "beb7677649f8ae6ae390c0df25b4a025a48777b5fbfc5e36c25f7fe252b8a0d3",
+    "scenario": "97ed40b0b4e96fec2bf541833183d33ee2540b5de91af6c5384940bbd67d9fac",
+    "definitions": "1871a2bf8c0b79440b798c1a1c8bd0d264fc1c99e639d51e405c7adc531d906e"
+  },
+  "artifacts": {
+    "main.js": "4f7f67b2af446859ac5c2e625cd09d6c4873670637103b3c6fc01b657bdecca2",
+    "manifest.json": "8c65b0d38a506f8fa9fc3311b81ea22bcda48e0209e9190483752c1f20834326",
+    "styles.css": "d89188385a224f257da98ca48b41ea1e0fe9dd14f67f45012a51b144fb492ab1"
+  },
+  "source": {
+    "src/index/GraphBuilder.ts": "c0cc0d30260e146978e942e9cd8953ca78ca92bbda772d64334eba026247606f",
+    "src/index/GraphIndex.ts": "af15c7b728c1451f0fa6683b587d70095617dc821753c9d889b058b5c8140bd6",
+    "src/core/graph/compiler.ts": "ee403bd86870137e7ea769dfb5c5c7cfa27e08ad768b1815bef47eab9732bd4f",
+    "src/main.ts": "94baf7778ab6951198747a07e6ba980d155e640f73f992ab44b5256b1fee8b96",
+    "src/adapters/obsidian/sourceAcquisition.ts": "12df47de95e9dc010e78890e14a59ecb7ae1cd05949a2bf039558f946ed6333d"
+  },
+  "limitations": "Controlled native method observations, not actual paint or physical-device acceptance.",
+  "obsidian": "1.14.5 (installer 1.14.5)",
+  "progress": {
+    "phase": "current-graph-persistence",
+    "normalIdleDelayMs": 300000,
+    "settled": {
+      "elapsedMs": 9084.099999904633,
+      "fullBuilds": 1,
+      "source": {
+        "checked": 12,
+        "reusedBodies": 11,
+        "legacyBodies": 0,
+        "vaultReads": 1,
+        "parses": 1,
+        "repaired": 1,
+        "resolutionRefreshes": 0,
+        "pendingMetadata": 0,
+        "failures": 0
+      },
+      "backlog": []
+    }
+  },
+  "result": {
+    "environment": {
+      "hidden": false,
+      "focused": true,
+      "backgroundThrottling": true,
+      "foregroundRecoveries": []
+    },
+    "changed": {
+      "hydratedMs": 633,
+      "auditHeldElapsedMs": 1038.4000000953674,
+      "hydration": {
+        "run": 1,
+        "phase": "complete",
+        "lastActivePhase": "promote",
+        "startedAt": 1793658464100,
+        "phaseStartedAt": 1793658464734,
+        "lastProgressAt": 1793658464733,
+        "pages": 231,
+        "relations": 231,
+        "evidence": 1605,
+        "outcome": "complete",
+        "attempts": 2,
+        "route": "full-snapshot",
+        "firstFailure": {
+          "reason": "publication-superseded",
+          "phase": "pages",
+          "operation": "checkpoint",
+          "attempt": 1,
+          "pages": 0,
+          "relations": 0,
+          "evidence": 0,
+          "expectedPublication": 1,
+          "actualPublication": 2,
+          "publicationCause": "snapshot",
+          "sourceRevision": 1,
+          "policyRevision": 1
+        }
+      },
+      "samples": [
+        {
+          "phase": "audit-held",
+          "status": {
+            "upToDate": false,
+            "phase": "preparing",
+            "indexedFiles": 102,
+            "totalFiles": 102,
+            "label": "Validating note metadata — 3 / 102 notes (2%)"
+          },
+          "source": {
+            "phase": "host-metadata-comparison",
+            "pass": 1,
+            "processed": 3,
+            "total": 102
+          },
+          "cachedHydrated": true,
+          "current": false
+        }
+      ],
+      "settled": {
+        "elapsedMs": 9084.099999904633,
+        "fullBuilds": 1,
+        "source": {
+          "checked": 12,
+          "reusedBodies": 11,
+          "legacyBodies": 0,
+          "vaultReads": 1,
+          "parses": 1,
+          "repaired": 1,
+          "resolutionRefreshes": 0,
+          "pendingMetadata": 0,
+          "failures": 0
+        },
+        "backlog": []
+      }
+    },
+    "warm": {
+      "elapsedMs": 7525,
+      "fullBuilds": 0,
+      "reads": 0,
+      "parses": 0,
+      "navigationRequests": 0
+    }
+  },
+  "cleanup": "passed",
+  "completedAt": "2026-11-02T22:33:02.430Z"
+}

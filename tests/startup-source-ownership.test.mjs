@@ -42,6 +42,27 @@ class HostFile {
 /** A real folder-shaped native event must remain structurally owed during source adoption. */
 class HostFolder { /** Retain folder identity independently of its path. */ constructor(path) { this.path = path; } }
 
+for(const newerReason of ['metadata:changed','vault:create'])test(`full publication retires only its captured creation backlog before ${newerReason}`,async()=>{
+ const f=fixture({reasons:['vault:create'],complete:true,published:true});
+ let release,entered;const held=new Promise(done=>release=done),reached=new Promise(done=>entered=done);
+ try{
+  f.p.index.rebuild=async()=>{f.counts.full++;entered();await held;return true;};
+  f.p.index.insertCreatedFile=()=>{};
+  const flight=f.p.performRebuild(false,false,'interval');await reached;
+  if(newerReason==='metadata:changed')f.p.dirtyMarkdownPaths.add('A.md');
+  f.p.scheduleRebuild(newerReason);
+  f.p.hasVisibleKplexSurface=()=>false;release();await flight;
+  assert.equal(f.p.indexBacklogReasons.has('vault:create'),newerReason==='vault:create','Only a newer creation can preserve the covered structural reason');
+  assert(f.p.indexDirty,'New work remains dirty');
+  if(newerReason==='metadata:changed'){
+   let patches=0;f.p.index.patchMarkdownPaths=async paths=>{assert.deepEqual(paths,['A.md']);patches++;return{outcome:'patched'}};
+   f.p.index.acknowledgeHostPresentation=()=>{};f.p.hasVisibleKplexSurface=()=>true;
+   await f.p.performRebuild(false,false,'coalesced-backlog');
+   assert.equal(f.counts.full,1,'The metadata follow-up must not rebuild the vault again');assert.equal(patches,1);
+  }
+ }finally{release?.();f.close();}
+});
+
 /** Supply a held initial adopter and finite graph effects to the actual legacy interval callback. */
 function fixture({ reasons = ['startup:stale-snapshot'], dirty = [], sourceBacked = true, complete = false, onDemand = false, published = false } = {}) {
   let callback, period, pending, release;

@@ -447,6 +447,8 @@ test("persisted layout keys and node-open leaf modes remain stable with canonica
   assert(plexSource.includes('translate("graph.openMenu")'), "node context menu must expose the localized Open submenu");
   assert(plexSource.includes('addNativeSubmenu(menu, translate("graph.openMenu")'));
   const nodeModule = compilePureModule("src/adapters/obsidian/actionNode.ts");
+  const continuationModule = compilePureModule("src/ui/surfaceContinuation.ts");
+  process.on("exit", () => rmSync(continuationModule.temp, {recursive: true, force: true}));
   try {
     const items = new Map(), requests = [], originalFile = {path: "Original.md", extension: "md"};
     const page = {path: originalFile.path, file: originalFile, isFolder: false, isTag: false, url: null};
@@ -462,9 +464,9 @@ test("persisted layout keys and node-open leaf modes remain stable with canonica
       viewDefinition: {hierarchy: undefined, capabilities: {}},
       touchDoubleTap: {current: {reset() {}}}, persistentPageFor: () => page,
       neighborhood: null, activePath: "Other.md", canExpandCentralSections: () => false,
-      Menu: MenuDouble, actionNodeRef: nodeModule.exports.actionNodeRef, actionSurfaceId: "owning-surface", sceneNodeKeys: new Map(),
+      Menu: MenuDouble, captureSurfaceContinuation: continuationModule.exports.captureSurfaceContinuation, actionNodeRef: nodeModule.exports.actionNodeRef, actionSurfaceId: "owning-surface", sceneNodeKeys: new Map(),
       plugin: {app: {}, getFileOpenMenuState: () => ({focusOpenTab: true, adjacentPane: true, popoutWindow: false}), isPinned: () => false,
-        actionManager: {dispatch: request => {requests.push(request); return Promise.resolve({status: "completed"});}}, showKplexMenuAtPosition() {}},
+        actionManager: {readSnapshot: () => null, dispatch: request => {requests.push(request); return Promise.resolve({status: "completed"});}}, showKplexMenuAtPosition() {}},
       addNativeSubmenu: (menu, _title, _icon, populate) => populate(menu), translate: key => key,
       nativeRevealTarget: fileReveal.nativeRevealTarget, fileRevealMenuState: () => ({systemLabel: "graph.openInFinder", navigation: true}), readObsidianPresentationEnvironment: () => ({}),
       viewport: {current: {ownerDocument: {}}}, hostLeaf: {},
