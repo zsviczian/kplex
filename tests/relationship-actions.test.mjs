@@ -373,7 +373,7 @@ for (const outcome of ["fresh", "stale", "failed", "sources", "sources-pending"]
       scheduleRebuild: () => assert.fail("This settled startup needs no additional rebuild"),
       pruneMissingDirtyMarkdownPaths: () => {}, startupGraphSeedPaths: () => [],
     };
-    for (const name of ["ensureInitialIndex", "performRebuild", "adoptInitialSourceIndex"]) {
+    for (const name of ["ensureInitialIndex", "performRebuild", "adoptInitialSourceIndex", "retireCoveredCreateReason"]) {
       context[name] = productionFunction("src/main.ts", name, { Platform: { isIosApp: false } });
     }
     const task = context.ensureInitialIndex();

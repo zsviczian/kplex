@@ -4,6 +4,8 @@
  * Related-note completion keeps link and creation preferences independent through that same writer.
  * Eager startup admits optional URL replay only after primary graph completion, so its higher
  * per-owner preparation cannot starve saved-graph hydration or initial source compilation.
+ * Full publication retires only its captured creation backlog; a later metadata save stays a
+ * per-file update, while a genuinely newer structural creation retains its own revision.
  * Pending relationship repair shows an active source audit's measured progress; a settled
  * unavailable scope retains the existing incomplete state instead of hiding ongoing validation.
  * Saved native centers/history are primed before asynchronous startup. Partial graph absence
@@ -291,6 +293,8 @@ export default class KplexPlugin extends Plugin {
   private metadataStabilized = false;
   private metadataStabilityPromise: Promise<number> | null = null;
   private readonly indexBacklogReasons = new Set<string>();
+  /** Exact generic creation observation; unrelated metadata cannot retain an already covered create. */
+  private pendingCreateRevision = 0;
   private indexDirtyRevision = 0;
   private rebuildTask: Promise<void> | null = null;
   private visibleMetadataTimer: number | null = null;
@@ -777,6 +781,7 @@ export default class KplexPlugin extends Plugin {
         || uncoveredCreateReasons.has(reason));
       if (this.preRestoreDormantReasons.has(reason) || inventoryRevision === null || revision > inventoryRevision || uncoveredCreate) {
         this.indexBacklogReasons.add(reason);
+        if (reason === "vault:create") this.pendingCreateRevision = revision;
         this.preRestoreUncoveredChanges = true;
       }
     }
@@ -1230,6 +1235,7 @@ export default class KplexPlugin extends Plugin {
   private scheduleRebuild(reason = "unknown"): void {
     this.indexDirty = true;
     this.indexDirtyRevision += 1;
+    if (reason === "vault:create") this.pendingCreateRevision = this.indexDirtyRevision;
     this.indexBacklogReasons.add(reason);
     this.notifyIndexStatus();
     if (!this.hasVisibleKplexSurface() || !this.initialIndexComplete || this.rebuildTask) return;
@@ -1241,6 +1247,11 @@ export default class KplexPlugin extends Plugin {
       this.rebuildTimer = null;
       void this.rebuildIndex(false, false, reason);
     }, delayMs);
+  }
+
+  /** A successful complete build covers its captured create, never a newer native creation. */
+  private retireCoveredCreateReason(revision: number): void {
+    if (this.pendingCreateRevision === revision) this.indexBacklogReasons.delete("vault:create");
   }
 
   async onKplexViewOpened(hostLeaf?: WorkspaceLeaf, session?: KplexDocumentSession): Promise<void> {
@@ -1287,10 +1298,12 @@ export default class KplexPlugin extends Plugin {
     this.initialSourceIndexIncomplete = false;
     const index = this.index;
     let adopted: boolean;
+    let coveredCreateRevision: number | null = null;
     try {
       adopted = await index.adoptStartupSources({deferVocabulary: !index.isOnDemandMode()});
       if (adopted && !this.unloading && this.index === index && !index.isOnDemandMode()
         && index.hasSourceBackedStartup()) {
+        coveredCreateRevision = this.pendingCreateRevision;
         adopted = await index.rebuild({retainSourceInventory: true});
       }
     }
@@ -1305,6 +1318,7 @@ export default class KplexPlugin extends Plugin {
     this.initialSourceIndexIncomplete = !adopted;
     this.initialIndexComplete = adopted;
     if (adopted) {
+      if (coveredCreateRevision !== null) this.retireCoveredCreateReason(coveredCreateRevision);
       for (const reason of ["startup:no-snapshot", "startup:stale-snapshot", "startup:partial-restore-incomplete"]) {
         this.indexBacklogReasons.delete(reason);
       }
@@ -1762,6 +1776,7 @@ export default class KplexPlugin extends Plugin {
         && !this.index.isFullSnapshotHydrated() && !reuseStartupSources;
       this.index.noteBuildDecision(progressiveStartup ? "cold-progressive" : "full-rebuild",
         [...this.indexBacklogReasons].sort().join("|") || reason);
+      const coveredCreateRevision = this.pendingCreateRevision;
       const published = progressiveStartup
         ? await rebuiltIndex.rebuildProgressively(this.startupGraphSeedPaths(), {
           // Keep the large-iOS low-memory checkpoint strategy, but only after the useful center
@@ -1784,6 +1799,8 @@ export default class KplexPlugin extends Plugin {
         }
         return;
       }
+
+      if (rebuiltIndex.isFullSnapshotHydrated()) this.retireCoveredCreateReason(coveredCreateRevision);
 
       // A cancelled initial owner may already have released its task. A later complete fallback
       // publication must finish that startup too; partial/source-backed publications still belong

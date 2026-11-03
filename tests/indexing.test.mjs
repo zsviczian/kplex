@@ -646,6 +646,8 @@ for (const file of [
   "src/application/SessionEventRecorder.ts",
   "src/application/supportClipboard.ts",
   "src/application/ClipboardSession.ts",
+  "src/adapters/obsidian/nodeLinkClipboard.ts",
+  "src/core/plex/contentVisibility.ts",
   "src/application/supportReport.ts",
   "src/application/supportReportProjection.ts",
   "src/application/supportCustomizationProjection.ts",

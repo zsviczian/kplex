@@ -207,15 +207,16 @@ test('hydration guards retain policy/lifetime/physical fences while removing per
       });
     }
 
-    await t.test('a real unchanged foreground file commit before page delivery does not force a source-vocabulary detour', /** Exercise coordinator recovery using the genuine source publisher and compiler snapshot. */ async () => {
+    for(const changedVault of [false,true])await t.test('a real unchanged foreground file commit before page delivery does not force a source-vocabulary detour (changed vault='+changedVault+')', /** Exercise coordinator recovery using the genuine source publisher and compiler snapshot. */ async () => {
       const result=await browser.evaluate(`(async()=>{
-        const f=await hydrationWorkFixture('guards-real-foreground',512,0,'eager',true),index=f.index;
+        const f=await hydrationWorkFixture('guards-real-foreground-${changedVault}',512,0,'eager',true),index=f.index;
+        if(${JSON.stringify(changedVault)})f.f.add('Offline.md','');
         const hold=holdHydrationOpen(index,'pages');let inventories=0,catalogs=0;
         const inventory=index.startPersistedSourceInventory,catalog=sourceModules.GraphBuilder.prototype.buildSourceNodeCatalog;
         index.startPersistedSourceInventory=/** Count fallback admission without replacing its work/result. */ async function(...args){inventories++;return inventory.apply(this,args);};
         sourceModules.GraphBuilder.prototype.buildSourceNodeCatalog=/** Count only actual global vocabulary calls. */ async function(...args){catalogs++;return catalog.apply(this,args);};
         try{
-          const restore=index.restoreIndexedDbSnapshot(['Hub.md']);
+          const restore=index.restoreIndexedDbSnapshot(['Hub.md'],${JSON.stringify(changedVault)});
           await hydrationDeadline(hold.entered,'Actual full-reader open');
           f.releaseSources();
           const patch=await hydrationDeadline(index.patchMarkdownPaths(['Hub.md'],{useDurableCache:true}),'Real foreground source publication');
@@ -241,6 +242,36 @@ test('hydration guards retain policy/lifetime/physical fences while removing per
       assert.equal(result.inventories,0,'An unchanged reusable graph does not need global source recovery');
       assert.equal(result.catalogs,0,'No unnecessary full source node catalog');
       assert.equal(result.reads,0);assert.equal(result.parses,0);
+    });
+
+    for(const changedSource of [false,true])await t.test('changed-vault retry joins the real center task between structural and file publication (changed source='+changedSource+')',async()=>{
+      const result=await browser.evaluate(`(async()=>{
+        const f=await hydrationWorkFixture('guards-center-between-publications-${changedSource}',32,0,'eager',true),index=f.index;
+        f.f.add('Offline.md','');const hold=holdHydrationOpen(index,'pages');
+        const candidates=index.hostPreview.candidateMarkdownPaths,iterate=index.indexedDb.iterateSnapshotPages;
+        let entered,release,center,passes=0;
+        const waiting=new Promise(resolve=>entered=resolve),gate=new Promise(resolve=>release=resolve);
+        index.hostPreview.candidateMarkdownPaths=async function(...args){entered();await gate;return candidates.apply(this,args)};
+        index.indexedDb.iterateSnapshotPages=async function(...args){if(++passes===2)await center;return iterate.apply(this,args)};
+        try{
+          const restore=index.restoreIndexedDbSnapshot(['Hub.md'],true);await hydrationDeadline(hold.entered,'First full reader');
+          f.releaseSources();center=index.ensureOnDemandCenter('Hub.md');await hydrationDeadline(waiting,'Actual center metadata read');
+          equal(index.getSnapshotHydrationDiagnostics().attempts,1,'Structural producer interrupted the first candidate');
+          if(${JSON.stringify(changedSource)}){
+            const text='[[NewTarget]]';f.f.texts.set(f.file.path,text);f.f.app.metadataCache.unresolvedLinks[f.file.path]={NewTarget:1};
+            await f.f.cache.putBody(f.file.path,f.file.stat.mtime,sourceModules.parseBodyMetadata(text));index.fieldCache.delete(f.file.path);
+          }
+          hold.release();setTimeout(release,10);
+          await hydrationDeadline(center,'Actual center source publication');await hydrationDeadline(restore,'Preview');
+          const outcome=await hydrationDeadline(index.waitForSnapshotHydration(),'Retry after center');
+          return{outcome,full:index.fullSnapshotHydrated,diagnostic:index.getSnapshotHydrationDiagnostics()};
+        }finally{release();index.hostPreview.candidateMarkdownPaths=candidates;index.indexedDb.iterateSnapshotPages=iterate;hold.restore();f.close();}
+      })()`);
+      assert.equal(result.full,!changedSource,JSON.stringify(result));
+      if(!changedSource)assert.equal(result.outcome.restored,true);
+      assert.equal(result.diagnostic.attempts,2,'The existing single retry remains bounded');
+      assert.equal(result.diagnostic.firstFailure.publicationCause,'snapshot');
+      assert.equal(result.diagnostic.route==='full-snapshot',!changedSource,'A changed current source cannot be overwritten by the saved graph');
     });
 
     for (const scenario of ['baseline-only','baseline-file','baseline-changed-file','baseline-mixed','baseline-reentrant']) {

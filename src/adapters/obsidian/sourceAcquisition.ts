@@ -26,6 +26,8 @@
  * equivalent alias storage failures preserve already-authenticated primary inventory and scopes.
  * A caller-owned before-owner capability gives requested readers a stable interval between optional
  * repairs without adding a scheduler, changing repository fences or retaining another work queue.
+ * Restart comparisons reacquire a newly observed revision of their current native owner without
+ * repeating validated unrelated owners; topology/global drift still retires the complete pass.
  * An explicit inventory pass consumes its queued debounce; newer events remain requested and are
  * scheduled by that pass's existing finally owner, avoiding duplicate unchanged readiness signals.
  * Readiness consumers run only after the awaited inventory releases ownership, so recovery cannot
@@ -809,25 +811,37 @@ export class ObsidianSourceAcquisition {
     this.startupDiagnostics?.phase("source", "host-metadata-comparison", markdown.length);
     const keys = new Set<string>(), changedPaths = new Set<string>();
     const checkpoint = inventoryCheckpoint();
-    for (const [markdownOrder, file] of markdown.entries()) {
+    for (let markdownOrder = 0; markdownOrder < markdown.length; markdownOrder++) {
+      const file = markdown[markdownOrder];
       await this.backgroundCheckpoint?.();
       if (!current()) return false;
       const order = structuralOrder.get(file.path);
       if (order === undefined) return false;
       const capture = this.capture(file);
+      /** Retry an observed owner revision, but retain rejection of equal-stat raw-body edits. */
+      const retryKnownOwner = (): boolean => current() && this.app.vault.getFileByPath(file.path) === file
+        && this.state(file).revision !== capture.revision && this.pendingKnownFiles.has(file)
+        && (!this.state(file).bodyDirty || file.stat.mtime !== capture.physical.mtime
+          || file.stat.size !== capture.physical.size || file.stat.ctime !== capture.physical.ctime);
       /** A local event retires this owner's result even when unrelated inventory work remains valid. */
       const ownerCurrent = (): boolean => this.current(capture, current);
       // A clean dependency check already selects this head. Exceptional/legacy owners retain normal
       // inspection and repair; metadata still acquires its own protected, exact-head family read.
       // Dependency upgrades also precede missing MetadataCache and deferred referrer fan-out.
       const selected = await this.repository.inspectWithLocalDependencies(file.path, order, markdownOrder, ownerCurrent);
-      if (!ownerCurrent()) return false;
+      if (!ownerCurrent()) {
+        if (retryKnownOwner()) { markdownOrder--; continue; }
+        return false;
+      }
       const inspection = selected.inspection;
       const head = inspection.head;
       if (inspection.saved && head?.state === "complete") {
         if (selected.dependencyReason !== "ready") return false;
         await checkpoint();
-        if (!ownerCurrent()) return false;
+        if (!ownerCurrent()) {
+          if (retryKnownOwner()) { markdownOrder--; continue; }
+          return false;
+        }
       }
       const cache = this.app.metadataCache.getFileCache(file);
       if (!cache) {
@@ -867,7 +881,10 @@ export class ObsidianSourceAcquisition {
       }
       const durable = await this.durableHostInventory(file.path, ownerCurrent, inspection.saved ? inspection.expected : undefined);
       await this.backgroundCheckpoint?.();
-      if (!ownerCurrent() || this.app.metadataCache.getFileCache(file) !== cache) return false;
+      if (!ownerCurrent() || this.app.metadataCache.getFileCache(file) !== cache) {
+        if (retryKnownOwner()) { markdownOrder--; continue; }
+        return false;
+      }
       if (durable.reason === "superseded") return false;
       this.inventoryProgress?.();
       const sameFacts = durable.reason === "ready" && JSON.stringify(durable.facts) === JSON.stringify(now);

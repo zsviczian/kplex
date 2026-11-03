@@ -55,6 +55,8 @@
  * inventory lease with P4 source maintenance. Local-mode URL discovery retains its existing lane.
  * Fresh warm source headers admit urgent local maintenance ahead of the independent metadata audit;
  * exact source receipts and existing per-file publication retain graph completeness and event fences.
+ * A compatible changed-vault cache hydrates as explicitly cached presentation before its source
+ * audit; neither decoded records nor that route certify current semantics or allow stale writes.
  * Saved previews start independently of shared URL replay; each restore retains its own watchdog
  * and priority ownership, while public supersession never retires healthy shared URL acquisition.
  * This owner coordinates snapshot restoration/persistence, search and
@@ -5995,10 +5997,17 @@ export class GraphIndex {
         const trustedWarmSnapshot = Boolean(active && active.key === "active" && active.schema >= 3
           && active.vaultSignature === inventory.signature && compatibility.get(active)?.reason === "compatible"
           && !compatibility.get(active)?.retiredFilepath);
+        // Sync can change one physical note while leaving a complete, current-policy cache useful.
+        // Decode that candidate before the all-owner audit, retaining the existing cached/read-only
+        // source-backed recovery path. Exact fresh candidates keep their faster authority route.
+        const deferSourceAudit = deferEagerVocabulary && !trustedWarmSnapshot && Boolean(active
+          && active.key === "active" && active.schema >= 3 && compatibility.get(active)?.reason === "compatible"
+          && !compatibility.get(active)?.retiredFilepath && !(checkpoint?.vaultSignature === inventory.signature
+            && compatibility.get(checkpoint)?.compatible));
         const eagerGraphMaintenanceRevision = deferEagerVocabulary && trustedWarmSnapshot
           ? this.sourceAcquisition.getMaintenanceRevision() : undefined;
         if (eagerGraphMaintenanceRevision !== undefined) this.sourceAcquisition.beginGraphPublication();
-        if (!trustedWarmSnapshot) {
+        if (!trustedWarmSnapshot && !deferSourceAudit) {
           // Cold/stale source inventory is optional background work. Release local startup demand
           // before joining it, rather than keeping a P1 owner waiting on its own P4 checkpoint.
           this.eagerPreviewArbitration?.release();
@@ -6036,7 +6045,8 @@ export class GraphIndex {
           if (!isCurrent()) return { restored: false, fresh: false, createdAt };
           createdAt = meta.createdAt;
           const decision = compatibility.get(meta)!;
-          this.sourceBackedSemantics = persistedSources || trustedWarmSnapshot || !decision.compatible;
+          const deferredCandidate = deferSourceAudit && meta === active;
+          this.sourceBackedSemantics = deferredCandidate || persistedSources || trustedWarmSnapshot || !decision.compatible;
           if (this.sourceBackedSemantics) this.fullSemanticPolicyRevision = 0;
           if (!decision.compatible) {
             this.recordIndexDiagnostic("restore", "source-backed-policy-baseline", { changedKeys: [...decision.changedKeys] });
@@ -6094,7 +6104,7 @@ export class GraphIndex {
           /** Foreground mutations/host events cannot be overwritten by a captured graph generation. */
           const candidateRecordCurrent = (operation: SnapshotReadOperation = "guard"): boolean => {
             if (!isLifetimeCurrent()) return false;
-            if (trustedWarmSnapshot && checkedSourceRevision !== this.plugin.getIndexSourceRevision()) {
+            if ((trustedWarmSnapshot || deferredCandidate) && checkedSourceRevision !== this.plugin.getIndexSourceRevision()) {
               checkedSourceRevision = this.plugin.getIndexSourceRevision();
               if (!physicalCurrent(operation)) return false;
             }
@@ -6104,7 +6114,7 @@ export class GraphIndex {
           const candidateCurrent = (operation: SnapshotReadOperation = "guard"): boolean => isCurrent() && candidateRecordCurrent(operation);
           // Physical freshness and a mutable acquisition strategy cannot certify a saved ontology.
           // Every candidate closes its captured policy and native/source observations independently.
-          const candidateSemanticsCurrent = (): boolean => decision.compatible && semanticCurrent();
+          const candidateSemanticsCurrent = (): boolean => !deferredCandidate && decision.compatible && semanticCurrent();
           /** Reuse the existing navigable milestone; neither attempt certifies neutral sources. */
           const onNavigable = trustedWarmSnapshot ? () => {
               this.plugin.startupDiagnostics?.mark("navigable-graph-published");
@@ -6112,7 +6122,7 @@ export class GraphIndex {
               this.warmSourceRecoveryAvailable = true;
               this.enableGlobalSourceInventoryIfConfigured();
             } : undefined;
-          const foregroundWindow = trustedWarmSnapshot && meta === active
+          const foregroundWindow = (trustedWarmSnapshot || deferredCandidate) && meta === active
             ? { run, publication: this.publicationRevision, commits: 0, baselines: 0, paths: new Set<string>() } : null;
           this.snapshotForegroundWindow = foregroundWindow;
           let result;
@@ -6121,6 +6131,10 @@ export class GraphIndex {
               onNavigable, candidateSemanticsCurrent, trustedWarmSnapshot ? physicalCurrent : undefined, retainRestoreWork, candidateRecordCurrent,
               undefined, physicalFoldersRevision, eagerGraphMaintenanceRevision);
             if (result.interruptedBeforePages && foregroundWindow && isCurrent()) {
+              // A deferred-cache center can await metadata between its P2 structural and file
+              // publications. Join those existing owners before spending the single retry; the
+              // scheduler alone cannot see their temporarily released priority leases.
+              if (deferredCandidate && !this.building) await Promise.allSettled([...this.onDemandTasks.values()]);
               // Retire the old candidate first. The existing P4 checkpoint drains higher-priority
               // work; it is not a new queue or a retry loop. All later awaits keep their own guards.
               await this.workScheduler.checkpoint(INDEX_WORK_PRIORITY.background);
@@ -6150,7 +6164,7 @@ export class GraphIndex {
             { changedKeys: [...decision.changedKeys] });
           if (result.restored) { this.warmSourceRecoveryAvailable = false; return result; }
           if (this.retainWarmSourceRecovery() || !isCurrent()) return result;
-          if (trustedWarmSnapshot) persistedSources = await this.startPersistedSourceInventory();
+          if (trustedWarmSnapshot || deferSourceAudit) persistedSources = await this.startPersistedSourceInventory();
         }
         if (persistedSources && await this.restoreSourceBackedBaseline(isCurrent, run,
             () => reportPreview({ restored: true, fresh: true, createdAt, partial: true }), deferEagerVocabulary)) {
