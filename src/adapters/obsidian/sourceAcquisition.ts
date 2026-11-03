@@ -908,7 +908,7 @@ export class ObsidianSourceAcquisition {
     while (current()) {
       await this.backgroundCheckpoint?.();
       if (!current()) return false;
-      const page = await this.repository.headPage(after);
+      const page = await this.repository.headPage(after, undefined, {retirementOnly: true});
       this.startupDiagnostics?.count("source", "headPageOwners", page.heads.length);
       if (current()) this.inventoryProgress?.();
       // Durable restart reconciliation is an enhancement; storage-degraded operation cannot prove
@@ -2387,7 +2387,7 @@ export class ObsidianSourceAcquisition {
         while (current()) {
           await this.backgroundCheckpoint?.();
           if (!current()) return false;
-          const page = await this.repository.headPage(after);
+          const page = await this.repository.headPage(after, undefined, {retirementOnly: true});
           this.startupDiagnostics?.count("source", "headPageOwners", page.heads.length);
           if (!page.available || !current()) return false;
           if (page.invalid > 0) complete = false;

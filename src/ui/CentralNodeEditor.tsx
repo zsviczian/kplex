@@ -123,7 +123,7 @@ export function CentralNodeEditor({
     setDocumentView(null);
     setExcalidrawFile(false);
     setStatus("loading");
-    const openTarget = page.url
+    const openTarget = page.url && urlEmbed(page.url)
       ? controller.openUrl(page.url)
       : page.file
         ? controller.open(page.file, initialMode)

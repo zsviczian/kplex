@@ -62,6 +62,7 @@ import { addNativeSubmenu } from "../adapters/obsidian/nativeSubmenu";
 import { getDraggedFile } from "../adapters/obsidian/fileExplorerDrag";
 import { canDragNodeLink, draggedGraphPage, finishNodeLinkDrag, isNodeLinkDragCurrent, nodeLinkDragSource, startNodeLinkDrag, type NodeLinkDragRelationship, type NodeLinkDragSource } from "../adapters/obsidian/nodeLinkDrag";
 import { urlEmbed } from "./features/urlEmbed";
+import {isObsidianUri} from "../adapters/obsidian/urlIdentity";
 import type KplexPlugin from "../main";
 import type { KplexDisplayModeState } from "./KplexDisplayModes";
 import type { GraphIndex } from "../index/GraphIndex";
@@ -4730,6 +4731,7 @@ export function PlexGraph({ viewDefinition = classicViewDefinition, viewSession,
       const page = graphActionPage(context);
       if (page?.transient?.kind === "group") { unfoldGroup(page); return; }
       if (page?.transient?.kind === "section") return plugin.openSection(page, hostLeaf);
+      if (page?.url && isObsidianUri(page.url)) return onOpen(page);
       if (page?.file && page.path === activePath) return plugin.openFileInMainTab(page.file);
       if (page?.file || page?.url) {
         if (context.target.kind === "node" && context.target.occurrenceId) navigationOccurrence.current = { identity: page.path, id: context.target.occurrenceId };
@@ -4895,8 +4897,8 @@ export function PlexGraph({ viewDefinition = classicViewDefinition, viewSession,
       if (destination === "window") return plugin.openFileInPopout(page.file);
     }, context => {
       const page = graphActionPage(context);
-      if (destination === "browser") return Boolean(page?.url);
-      if (destination === "web-viewer") return Boolean(page?.url) && plugin.canOpenUrlInWebViewer();
+      if (destination === "browser") return Boolean(page?.url && !isObsidianUri(page.url));
+      if (destination === "web-viewer") return Boolean(page?.url) && plugin.canOpenUrlInWebViewer(page?.url ?? undefined);
       if (destination === "system" || destination === "navigation") {
         if (!page || !nativeRevealTarget(plugin.app, page)) return false;
         const reveal = fileRevealMenuState(plugin.app, readObsidianPresentationEnvironment(viewport.current?.ownerDocument.defaultView ?? undefined));
@@ -5205,12 +5207,14 @@ export function PlexGraph({ viewDefinition = classicViewDefinition, viewSession,
     }
 
     if (persistent?.url && page.transient?.kind !== "section") {
-      addNativeSubmenu(menu, translate("graph.openMenu"), "external-link", (openMenu) => {
+      if (isObsidianUri(persistent.url)) menu.addItem(/** Protocol actions require explicit Open and never use a web guest or Sidecar. */ item => item
+        .setTitle(translate("graph.openMenu")).setIcon("external-link").onClick(() => runCapturedNodeAction("node.open", persistent)));
+      else addNativeSubmenu(menu, translate("graph.openMenu"), "external-link", (openMenu) => {
         openMenu.addItem((item) => item
           .setTitle(translate("graph.openBrowser"))
           .setIcon("globe")
           .onClick(() => runCapturedNodeAction("node.open.browser", persistent)));
-        if (plugin.canOpenUrlInWebViewer()) {
+        if (plugin.canOpenUrlInWebViewer(persistent.url ?? undefined)) {
           openMenu.addItem((item) => item
             .setTitle(translate("graph.openWebViewer"))
             .setIcon("panel-top-open")

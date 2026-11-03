@@ -1233,7 +1233,7 @@ export class GraphIndex {
       if (this.eagerPreviewArbitration) await this.eagerPreviewArbitration.task;
       if (!current() || this.hasCurrentOnDemandCachedScope(centerPath)) return;
       if (!(await this.initializeOnDemandBaseline()) || !current()) return;
-      if (/^https?:\/\//i.test(centerPath)) {
+      if (/^(?:https?|obsidian):\/\//i.test(centerPath)) {
         this.ensureUrlTarget(centerPath); void this.startBackgroundUrlIndex(); return;
       }
       const candidates = [...await this.hostPreview.candidateMarkdownPaths(centerPath, 64)];
@@ -2868,7 +2868,7 @@ export class GraphIndex {
   /** Register one visible semantic center. Releasing the final demand cancels its in-flight work. */
   acquireSemanticDemand(path: string): () => void {
     this.flushUrlPublication();
-    if (/^https?:\/\//i.test(path)) { path = canonicalWebUrl(path); this.ensureUrlTarget(path); }
+    if (/^(?:https?|obsidian):\/\//i.test(path)) { path = canonicalWebUrl(path); this.ensureUrlTarget(path); }
     const previous = this.semanticDemandCounts.get(path) ?? 0;
     this.semanticDemandCounts.set(path, previous + 1);
     this.releasedSemanticScopePaths.delete(path);
@@ -3488,7 +3488,7 @@ export class GraphIndex {
     // readable across Markdown/source repair; those unrelated epochs cannot empty a folder view.
     const nativeFolder = this.hostPreviewScopes.get(path)?.pages.get(path);
     if (nativeFolder?.isFolder && (path === "folder:/" || this.app.vault.getFolderByPath(path.slice("folder:".length)))) return nativeFolder;
-    if (/^https?:\/\//i.test(path)) {
+    if (/^(?:https?|obsidian):\/\//i.test(path)) {
       path = canonicalWebUrl(path);
       const canonical = this.state.pages.get(path);
       if (canonical?.url) return canonical;
@@ -4201,14 +4201,14 @@ export class GraphIndex {
    * update at the same synchronous publication boundary without granting semantic authority.
    */
   get(path: string): GraphPage | undefined {
-    if (/^https?:\/\//i.test(path)) {
+    if (/^(?:https?|obsidian):\/\//i.test(path)) {
       path = canonicalWebUrl(path);
       const canonical = this.state.pages.get(path);
       if (canonical?.url) return canonical;
     }
     const exactPrepared = this.semanticPage(path);
     if (exactPrepared && exactPrepared !== this.state.pages.get(path)) return this.composeRelationshipPairs(exactPrepared);
-    const base = /^https?:\/\//i.test(path) ? this.state.pages.get(path) : getGraphPage(this.state, path);
+    const base = /^(?:https?|obsidian):\/\//i.test(path) ? this.state.pages.get(path) : getGraphPage(this.state, path);
     if (!base) return exactPrepared ? this.composeRelationshipPairs(exactPrepared) : undefined;
     const page = this.semanticPage(base.path);
     return page ? this.composeRelationshipPairs(page) : undefined;
@@ -4932,7 +4932,7 @@ export class GraphIndex {
     for (const path of paths) {
       const page = this.publishedUrlState.pages.get(path);
       if (page?.url) { this.urlSearchEntries.set(path, this.makeSearchEntry(page)); this.retiredUrlTargets.delete(path); }
-      else { this.urlSearchEntries.delete(path); if (/^https?:\/\//i.test(path)) this.retiredUrlTargets.add(path); }
+      else { this.urlSearchEntries.delete(path); if (/^(?:https?|obsidian):\/\//i.test(path)) this.retiredUrlTargets.add(path); }
       if (this.usesLocalForeground()) this.onDemandGateRevisions.set(path, (this.onDemandGateRevisions.get(path) ?? 0) + 1);
       this.onDemandUnavailableCounts.delete(path);
       const canonical = this.state.pages.get(path); if (canonical) this.onDemandGateCounts.delete(canonical);
@@ -7642,8 +7642,8 @@ export class GraphIndex {
    * lifetime; unrelated document owners proceed independently of those finite predecessors.
    */
   prepareRelationshipPair(sourcePath: string, targetPath: string, provisionalTarget?: GraphPage): Promise<boolean> {
-    if (/^https?:\/\//i.test(sourcePath)) sourcePath = canonicalWebUrl(sourcePath);
-    if (/^https?:\/\//i.test(targetPath)) targetPath = canonicalWebUrl(targetPath);
+    if (/^(?:https?|obsidian):\/\//i.test(sourcePath)) sourcePath = canonicalWebUrl(sourcePath);
+    if (/^(?:https?|obsidian):\/\//i.test(targetPath)) targetPath = canonicalWebUrl(targetPath);
     const key = relationshipPairKey(sourcePath, targetPath);
     const existing = this.relationshipPairTasks.get(key);
     if (existing && this.relationshipPairTaskObservations.get(existing)?.current()) return existing;
@@ -9034,8 +9034,8 @@ export class GraphIndex {
 
   /** Preserve canonical exact-pair precedence while exposing current URL discovery provenance. */
   private semanticEvidence(sourcePath: string, targetPath: string): Readonly<{ evidence: RelationEvidence[]; settings: GraphCompilerSettings }> {
-    sourcePath = /^https?:\/\//i.test(sourcePath) ? canonicalWebUrl(sourcePath) : sourcePath;
-    targetPath = /^https?:\/\//i.test(targetPath) ? canonicalWebUrl(targetPath) : targetPath;
+    sourcePath = /^(?:https?|obsidian):\/\//i.test(sourcePath) ? canonicalWebUrl(sourcePath) : sourcePath;
+    targetPath = /^(?:https?|obsidian):\/\//i.test(targetPath) ? canonicalWebUrl(targetPath) : targetPath;
     const canonical = this.semanticEvidenceWithoutUrls(sourcePath, targetPath);
     if (this.relationshipPairs.has(relationshipPairKey(sourcePath, targetPath))) return canonical;
     const urls = this.currentUrlEvidence(sourcePath, targetPath);
@@ -9340,7 +9340,7 @@ export class GraphIndex {
   }
 
   isConnected(source: GraphPage, targetPath: string): boolean {
-    if (/^https?:\/\//i.test(targetPath)) targetPath = canonicalWebUrl(targetPath);
+    if (/^(?:https?|obsidian):\/\//i.test(targetPath)) targetPath = canonicalWebUrl(targetPath);
     const semanticSource = this.semanticRelationSource(source).page;
     if (semanticSource.neighbours.has(targetPath)) return true;
     const target = this.get(targetPath);

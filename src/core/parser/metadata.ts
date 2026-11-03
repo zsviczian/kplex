@@ -10,7 +10,7 @@ export { normalizeFieldName };
 
 const WIKI_LINK_RE = /\[\[([^\]|]+)(?:\|[^\]]*)?\]\]/g;
 const MARKDOWN_LINK_RE = /\[[^\]]*\]\(([^)]+)\)/g;
-const URL_RE = /\bhttps?:\/\/[^\s<>()\u005B\u005D{}"']+/gi;
+const URL_RE = /\b(?:https?|obsidian):\/\/[^\s<>()\u005B\u005D{}"']+/gi;
 
 export type ExtractedLinkReference = Readonly<{
   /** Literal target text from the property value, before host resolution or URI decoding. */
@@ -248,7 +248,7 @@ export function parseBodyMetadataCore(content: string): ParsedBodyMetadata {
     let hasRoundClose = false;
     let hasSquareOpen = false;
     let hasSquareClose = false;
-    let hasHttp = false;
+    let hasExternalUrl = false;
     const isWhitespace = (ch: string | undefined): boolean => Boolean(ch && /\s/.test(ch));
     const isWord = (ch: string | undefined): boolean => Boolean(ch && /[A-Za-z0-9_]/.test(ch));
     const isUrlChar = (ch: string | undefined): boolean => Boolean(ch && !/[\s<>()[\]{}"']/.test(ch));
@@ -261,7 +261,8 @@ export function parseBodyMetadataCore(content: string): ParsedBodyMetadata {
       else if (ch === ")") hasRoundClose = true;
       else if (ch === "[") hasSquareOpen = true;
       else if (ch === "]") hasSquareClose = true;
-      else if ((ch === "h" || ch === "H") && (visible.slice(i, i + 7).toLowerCase() === "http://" || visible.slice(i, i + 8).toLowerCase() === "https://")) hasHttp = true;
+      else if (((ch === "h" || ch === "H") && (visible.slice(i, i + 7).toLowerCase() === "http://" || visible.slice(i, i + 8).toLowerCase() === "https://"))
+        || (ch === "o" || ch === "O") && visible.slice(i, i + 11).toLowerCase() === "obsidian://") hasExternalUrl = true;
     }
 
     const hasFieldSyntax = firstFieldSeparator >= 0;
@@ -314,7 +315,7 @@ export function parseBodyMetadataCore(content: string): ParsedBodyMetadata {
     // External URLs use the same explicit scanner as the cooperative fallback. Incomplete schemes
     // such as `https://` are deliberately ignored; a URL must contain at least one URL character
     // after the scheme. This also keeps malformed partially typed Markdown grammar deterministic.
-    if (hasHttp) {
+    if (hasExternalUrl) {
       const aliasByUrl = new Map<string, string>();
       let markdownCursor = 0;
       while (markdownCursor < visible.length) {
@@ -334,8 +335,8 @@ export function parseBodyMetadataCore(content: string): ParsedBodyMetadata {
           continue;
         }
         const urlStart = closeLabel + 2;
-        const scheme = visible.slice(urlStart, urlStart + 8).toLowerCase();
-        const schemeLength = scheme.startsWith("https://") ? 8 : scheme.startsWith("http://") ? 7 : 0;
+        const scheme = visible.slice(urlStart, urlStart + 11).toLowerCase();
+        const schemeLength = scheme.startsWith("https://") ? 8 : scheme.startsWith("http://") ? 7 : scheme.startsWith("obsidian://") ? 11 : 0;
         if (!schemeLength) {
           markdownCursor = closeLabel + 1;
           continue;
@@ -364,8 +365,8 @@ export function parseBodyMetadataCore(content: string): ParsedBodyMetadata {
       }
 
       for (let i = 0; i < visible.length; i += 1) {
-        const lower = visible.slice(i, i + 8).toLowerCase();
-        const schemeLength = lower.startsWith("https://") ? 8 : lower.startsWith("http://") ? 7 : 0;
+        const lower = visible.slice(i, i + 11).toLowerCase();
+        const schemeLength = lower.startsWith("https://") ? 8 : lower.startsWith("http://") ? 7 : lower.startsWith("obsidian://") ? 11 : 0;
         if (!schemeLength || isWord(visible[i - 1])) continue;
         let end = i + schemeLength;
         while (end < visible.length && isUrlChar(visible[end])) end += 1;
@@ -717,7 +718,7 @@ export async function parseBodyMetadataCooperativeCore(
     let hasRoundClose = false;
     let hasSquareOpen = false;
     let hasSquareClose = false;
-    let hasHttp = false;
+    let hasExternalUrl = false;
     let lineFeatureCheckpoint = 0;
     for (let i = 0; i < visible.length; i += 1) {
       if (i >= lineFeatureCheckpoint) {
@@ -731,7 +732,8 @@ export async function parseBodyMetadataCooperativeCore(
       else if (ch === ")") hasRoundClose = true;
       else if (ch === "[") hasSquareOpen = true;
       else if (ch === "]") hasSquareClose = true;
-      else if ((ch === "h" || ch === "H") && (visible.slice(i, i + 7).toLowerCase() === "http://" || visible.slice(i, i + 8).toLowerCase() === "https://")) hasHttp = true;
+      else if (((ch === "h" || ch === "H") && (visible.slice(i, i + 7).toLowerCase() === "http://" || visible.slice(i, i + 8).toLowerCase() === "https://"))
+        || (ch === "o" || ch === "O") && visible.slice(i, i + 11).toLowerCase() === "obsidian://") hasExternalUrl = true;
     }
 
     const hasFieldSyntax = firstFieldSeparator >= 0;
@@ -788,7 +790,7 @@ export async function parseBodyMetadataCooperativeCore(
       }
     }
 
-    if (hasHttp && runtime.retainMetadata !== false) {
+    if (hasExternalUrl && runtime.retainMetadata !== false) {
       const aliasByUrl = new Map<string, string>();
       let markdownCursor = 0;
       while (markdownCursor < visible.length) {
@@ -808,8 +810,8 @@ export async function parseBodyMetadataCooperativeCore(
           continue;
         }
         const urlStart = closeLabel + 2;
-        const scheme = visible.slice(urlStart, urlStart + 8).toLowerCase();
-        const schemeLength = scheme.startsWith("https://") ? 8 : scheme.startsWith("http://") ? 7 : 0;
+        const scheme = visible.slice(urlStart, urlStart + 11).toLowerCase();
+        const schemeLength = scheme.startsWith("https://") ? 8 : scheme.startsWith("http://") ? 7 : scheme.startsWith("obsidian://") ? 11 : 0;
         if (!schemeLength) {
           markdownCursor = closeLabel + 1;
           await yieldToHost();
@@ -839,8 +841,8 @@ export async function parseBodyMetadataCooperativeCore(
           await yieldToHost(false, "url-scan");
           urlCheckpoint = i + 1024;
         }
-        const lower = visible.slice(i, i + 8).toLowerCase();
-        const schemeLength = lower.startsWith("https://") ? 8 : lower.startsWith("http://") ? 7 : 0;
+        const lower = visible.slice(i, i + 11).toLowerCase();
+        const schemeLength = lower.startsWith("https://") ? 8 : lower.startsWith("http://") ? 7 : lower.startsWith("obsidian://") ? 11 : 0;
         if (!schemeLength || isWord(visible[i - 1])) continue;
         let end = i + schemeLength;
         let scanned = 0;
@@ -910,7 +912,7 @@ export function* iterateInternalLinkTokens(value: string): IterableIterator<Inte
     let match: RegExpExecArray | null;
     while ((match = expression.exec(value)) !== null) {
       const captured = match[1];
-      if (!captured || /^https?:\/\//i.test(captured)) continue;
+      if (!captured || /^(?:https?|obsidian):\/\//i.test(captured)) continue;
       const offset = kind === "wiki" ? 2 : match[0].indexOf("](") + 2;
       const leading = captured.length - captured.trimStart().length;
       const rawTarget = captured.trim();
@@ -990,7 +992,7 @@ export function* iterateLinkReferencesFromValue(value: unknown): IterableIterato
     const { rawTarget } = reference;
     // Preserve the legacy external Markdown target exactly, including surrounding spaces.
     // Internal targets are trimmed later by host resolution.
-    yield /^https?:\/\//i.test(rawTarget)
+    yield /^(?:https?|obsidian):\/\//i.test(rawTarget)
       ? { rawTarget, external: true }
       : { ...splitInternalSubpath(rawTarget), external: false };
   }

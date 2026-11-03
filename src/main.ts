@@ -108,6 +108,7 @@ import { suggestHiddenProperty } from "./adapters/obsidian/hiddenPropertyName";
 import { LinkDirection, type GateRole, type GraphPage, type RelationshipRole } from "./types";
 import { OntologySuggester } from "./editor/OntologySuggester";
 import { isWebViewerAvailable, openExternalUrl } from "./adapters/obsidian/externalUrl";
+import {isObsidianUri} from "./adapters/obsidian/urlIdentity";
 import { normalizeFieldName, parseBodyMetadata, iterateLinkReferencesFromValue } from "./core/parser/metadata";
 import { extractLinksFromValue, iterateResolvedLinksFromValue } from "./index/fieldParser";
 import type { RelationEvidence } from "./index/RelationEvidence";
@@ -3907,7 +3908,7 @@ export default class KplexPlugin extends Plugin {
   /** Explicitly synchronize the recent tab, retiring older passive work on that destination. */
   async syncMostRecentTabWithKplex(page: GraphPage, hostLeaf: WorkspaceLeaf): Promise<void> {
     const session = this.documentSession(hostLeaf);
-    if (!session || !page.file && !page.url) return;
+    if (!session || !page.file && !page.url || page.url && isObsidianUri(page.url)) return;
     const leaf = this.findRecentDocumentLeaf(hostLeaf) ?? this.app.workspace.createLeafBySplit(hostLeaf, "vertical", false);
     session.lastDocumentLeaf = leaf;
     await this.syncSidecarToPage(hostLeaf, page, leaf, {active: false});
@@ -3934,6 +3935,7 @@ export default class KplexPlugin extends Plugin {
    */
   async syncPageToDocumentLeaf(page: GraphPage, hostLeaf: WorkspaceLeaf): Promise<void> {
     if (this.unloading || !this.documentSession(hostLeaf) || !this.syncKplexToLeafEnabled(hostLeaf) || !page.file && !page.url
+      || page.url && isObsidianUri(page.url)
       || page.file && this.app.vault.getFileByPath(page.file.path) !== page.file) return;
     // Passive following must never manufacture native tabs/splits or move focus. Explicit
     // sync/open actions own creation; a recent-mode canvas with no document simply stays put.
@@ -4464,7 +4466,7 @@ export default class KplexPlugin extends Plugin {
     if (direction === "to-plex" && !path) return null;
     if (direction === "to-leaf" && (!page || !page.file && !page.url
       || page.file && this.app.vault.getFileByPath(page.file.path) !== page.file
-      || page.url && !isWebViewerAvailable(this.app))) return null;
+      || page.url && !isWebViewerAvailable(this.app, page.url))) return null;
     const previous = {
       linked: session.linkedDocumentLeaf, last: session.lastDocumentLeaf,
       mode: session.preferences.documentSyncMode, open: session.preferences.sidecarOpen,
@@ -4767,7 +4769,7 @@ export default class KplexPlugin extends Plugin {
     if (page.url) {
       // setViewState resolves to a missing-plugin placeholder rather than rejecting an unavailable view.
       // Keep the companion's actual content/restore identity; explicit Open still uses host URL routing.
-      if (!isWebViewerAvailable(this.app)) {
+      if (!isWebViewerAvailable(this.app, page.url)) {
         new Notice(this.translator("notice.webViewerUnavailable"), 2600);
         return;
       }
@@ -4806,6 +4808,7 @@ export default class KplexPlugin extends Plugin {
   /** Open the managed companion through existing document/layout fences. Optional modifier intent
    * folds only this completed native pair, after its moving lease ends; superseded opens cannot fold a successor. */
   async openSidecar(hostLeaf: WorkspaceLeaf, page: GraphPage, maximize = false): Promise<void> {
+    if (page.url && isObsidianUri(page.url)) return;
     const session = this.documentSession(hostLeaf);if (!session) return;
     const hostView = hostLeaf.view;
     const hostGeneration = maximize && hostView instanceof KplexView ? hostView.getPlexFoldGeneration() : null;
@@ -4975,6 +4978,7 @@ export default class KplexPlugin extends Plugin {
    * newer open before it actually displays that target. Superseded queued requests never open.
    */
   async syncSidecarToPage(hostLeaf: WorkspaceLeaf, page: DocumentTarget, destination?: WorkspaceLeaf, intent?: DocumentOpenIntent): Promise<void> {
+    if (page.url && isObsidianUri(page.url)) return;
     const session = this.documentSession(hostLeaf); if (!session) return ;
     if (this.unloading || !this.leafIsAttached(hostLeaf)) return;
     const managed = this.validateSidecarLeaf(hostLeaf);
@@ -5205,19 +5209,21 @@ export default class KplexPlugin extends Plugin {
   }
 
 
-  /** Report whether Obsidian's internal Web Viewer is available for explicit URL actions. */
-  canOpenUrlInWebViewer(): boolean {
-    return isWebViewerAvailable(this.app);
+  /** Report native Web Viewer availability, excluding non-web targets when supplied. */
+  canOpenUrlInWebViewer(url?: string): boolean {
+    return isWebViewerAvailable(this.app, url);
   }
 
   /** Open a URL in the device browser, bypassing the optional internal Web Viewer. */
   openUrlInBrowser(url: string, ownerDocument = this.app.workspace.containerEl.ownerDocument): void {
+    if (isObsidianUri(url)) {openExternalUrl(url, ownerDocument);return;}
     const viewWindow = ownerDocument.defaultView ?? window;
     viewWindow.open(url, "_blank", "noopener");
   }
 
   /** Open a URL in a dedicated native Web Viewer tab when that core view is enabled. */
   async openUrlInWebViewer(url: string): Promise<void> {
+    if (isObsidianUri(url)) {openExternalUrl(url, this.app.workspace.containerEl.ownerDocument);return;}
     if (!isWebViewerAvailable(this.app)) {
       new Notice(this.translator("notice.webViewerUnavailable"), 2600);
       return;
@@ -5804,7 +5810,7 @@ export default class KplexPlugin extends Plugin {
   /** Remove recognized matching link tokens, refusing grammar that cannot be transformed completely. */
   private stripTargetFromScalar(value: string, storageFile: TFile, target: GraphPage): string | null {
     if (!this.valueContainsTarget(value, storageFile, target)) return value;
-    const tokens = /(\[\[[^\]]+\]\]|\[[^\]]*\]\([^)]+\)|https?:\/\/[^\s,;]+)/gi;
+    const tokens = /(\[\[[^\]]+\]\]|\[[^\]]*\]\([^)]+\)|(?:https?|obsidian):\/\/[^\s,;]+)/gi;
     const stripped = value.replace(tokens, /** A token may be removed only when all its references are the approved target. */ (token) => {
       if (!this.valueContainsTarget(token, storageFile, target)) return token;
       // A broad lexical token may enclose another reference. Never consume an unrelated link as

@@ -207,7 +207,7 @@ export function* frontmatterUrlLabelSteps(frontmatter: Readonly<Record<string, u
   for (const fieldName in frontmatter) {
     if (!Object.prototype.hasOwnProperty.call(frontmatter, fieldName) || fieldName === "position" || !normalizeFieldName(fieldName)) continue;
     for (const reference of iterateMarkdownLinkSteps(frontmatter[fieldName])) {
-      if (!reference || !reference.label || !/^https?:\/\//i.test(reference.rawTarget)) { yield null; continue; }
+      if (!reference || !reference.label || !/^(?:https?|obsidian):\/\//i.test(reference.rawTarget)) { yield null; continue; }
       const url = canonicalWebUrl(reference.rawTarget);
       if (reference.label === reference.rawTarget || reference.label === url) { yield null; continue; }
       yield { url, label: reference.label };
