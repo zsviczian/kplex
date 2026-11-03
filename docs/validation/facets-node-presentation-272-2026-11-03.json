@@ -1,0 +1,316 @@
+{
+    "feature":  "Facets preset node presentation #272",
+    "date":  "2026-11-03",
+    "branch":  "2026-11-03-facets-preset-node-presentation",
+    "integrationCheckpoint":  "56a1c10982e9e10ad935e9f4c61c89c0afe5c2b3",
+    "implementation":  "uncommitted",
+    "buildNode":  "v22.22.2",
+    "fullVerification":  {
+                             "command":  "npm run verify",
+                             "status":  "passed",
+                             "exitCode":  0,
+                             "node":  "v22.22.2",
+                             "logSha256":  "d44e2cd9738b756cb33cbeb930e5e799a5ba98c32e780a925b016fe1c47a938e",
+                             "groups":  {
+                                            "release":  "passed",
+                                            "architectureTests":  9,
+                                            "portableCoreTests":  133,
+                                            "lint":  "passed",
+                                            "mainTests":  1990,
+                                            "browserTests":  470,
+                                            "sourceTests":  359,
+                                            "sourceIndexedDbTests":  894,
+                                            "productionBuild":  "passed"
+                                        },
+                             "initialAttempt":  "1,990 main tests passed; four older extracted-node fixtures omitted the new actual helper import. All four passed unchanged assertions after adding that import; full rerun passed."
+                         },
+    "focusedTests":  {
+                         "status":  "passed",
+                         "count":  50,
+                         "strengthenedOverflowCase":  "passed"
+                     },
+    "native":  {
+                   "receipt":  "kplex-272-native-rCeeuR",
+                   "status":  "passed",
+                   "obsidian":  "1.14.5 (installer 1.14.5)",
+                   "fixtureBaseline":  {
+                                           "files":  117,
+                                           "markdownFiles":  98
+                                       },
+                   "ownedMarkdownFixtures":  8,
+                   "driver":  {
+                                  "transport":  "beb7677649f8ae6ae390c0df25b4a025a48777b5fbfc5e36c25f7fe252b8a0d3",
+                                  "scenario":  "053207c8ace6fdcf75d2fc1c24a49a5ff3af1edeef53d1886f9c9c5192679dfb",
+                                  "definitions":  "1fa8ee13790c1d94646d97c7cad490574fcb06e959441e86eaf3ed8780a3bda0"
+                              },
+                   "artifacts":  {
+                                     "main.js":  "5a9d63134c478a44252b7f2df5c89cb2f0870711b80eae3314af33c3095433cc",
+                                     "manifest.json":  "8c65b0d38a506f8fa9fc3311b81ea22bcda48e0209e9190483752c1f20834326",
+                                     "styles.css":  "d89188385a224f257da98ca48b41ea1e0fe9dd14f67f45012a51b144fb492ab1"
+                                 },
+                   "source":  {
+                                  "src/index/GraphBuilder.ts":  "c0cc0d30260e146978e942e9cd8953ca78ca92bbda772d64334eba026247606f",
+                                  "src/index/GraphIndex.ts":  "7c1c8486da9244ec568389880dfc70d4ca49bf95b07c918ec3fb0252bea531dc",
+                                  "src/core/graph/compiler.ts":  "6156fb1eb6e51e057a48a2b97dba0bddeaf9dd065277355ddc1a0af1b6075ec5",
+                                  "scripts/testing/obsidian/facetsNodePresentation.mjs":  "e7e89a02071c0a9aeec49f59cd51205c33ea78ca4672d18dfee1b01c965cda32",
+                                  "src/ui/plexViews/nodeConnections.ts":  "f565ee3f174ce2d3b2cd18ac0c5672c9a2a73b85ac311dfb325a7c2c96f806e1",
+                                  "scripts/testing/obsidian/helpVaultFacets222.mjs":  "baa01c35ad80e6036571605e26189620fcd568baea2512c8d5fb86b84c93571a",
+                                  "src/ui/PlexGraph.tsx":  "33b5207d619e765c3fae38d60a0894a1d48cf03f0515be257151cb860db9354e",
+                                  "src/ui/plexViews/areaVisibility.ts":  "11f51cea18070aa6f75e62f4b96bb55688fec3e881b7a229a1849a395a67366d",
+                                  "src/ui/plexViews/reflowArea.ts":  "1f0b9f2668abf6d35ae4a49d0eebf86acc42cfcbc6c155869bd31e8c699cb6b4",
+                                  "src/ui/plexViews/scene.ts":  "49bf3b08f5afa3c2835df268fea1ef1d67a2f530ec6ca6a4d089cc5b9563229e",
+                                  "src/ui/plexViews/prepareScene.ts":  "e4129c17058568586d0b19f8d234e6da6e2044fe77146684bceadcc87cbaa6c6",
+                                  "src/core/plex/views/contracts.ts":  "dbe3b17bb02f9209b3720450cb799d92cbb5ef6bc25281ca0d39955e44f1cab3",
+                                  "src/core/plex/views/hierarchy.ts":  "eabf11a0ec8d3acff87dab7d78a06601611ec3236a18f54b3d4adac3b2498ed7",
+                                  "src/core/plex/views/registry.ts":  "57ac3af3b45e632e7b998feec06ac7b8b7467cf6562958615848f1e25d3e5546",
+                                  "src/core/plex/views/mindmap/definition.ts":  "18ef7c507e8144d7bf5e1b85136652ca7dd63948891f899c82fa74ea7785db71",
+                                  "src/core/plex/views/mindmap/projection.ts":  "6d1185efb47b9f635d28e5037a7404954411f07901431669cf8bd9ab2ba4178d",
+                                  "src/core/plex/views/mindmap/layout.ts":  "af35738a3bb011e41d9a33544b9081cd282d190768ecefd2d79bc8c09318c16d",
+                                  "src/core/plex/views/wuxing/definition.ts":  "31cfc464bd4fe20c39b5c447792a562166fe1ad7cf86fd0618a8432d7059a85c",
+                                  "src/core/plex/views/facets/projection.ts":  "188c6d32077962b1d7dbc538629fbe226d17ceb4165a70f7e4757d39cebf0aad",
+                                  "src/core/plex/views/facets/layout.ts":  "4d08c078e7f3a99d4f8bd4af6fd2d0b44e83531e04600259ae1aaec0e98054f4",
+                                  "src/core/plex/views/facets/rules.ts":  "9f6a6cb6260424166e353567021e3a2748a5322fd9cef7170e3adb8db7d5f5e4",
+                                  "src/core/plex/predicate.ts":  "1385f7eeaa80a8a22813a1dd71ad436784eec626261a2ce8eb39a48ee9f3d9da",
+                                  "src/ui/plexViews/facets/FacetPresetEditor.ts":  "353a51a666fff00431704fb5ad96f71789cff01341771086618ad96d343c656e",
+                                  "src/ui/CanvasPropertyAssignmentActions.ts":  "7c9d038187c439a255d53691caf46a0a633e0d810c0bb73088187c35d56a2c8c",
+                                  "src/adapters/obsidian/predicateContracts.ts":  "a880ddf39add8ca9adacc2dc0bce2937d17207f2bebeeec26e0a13c1c000b955",
+                                  "src/ui/NativeMarkdownHelp.ts":  "5ffc0b5a5af0a091bfa622ebd75bc2c928159d817e981d2684797ae74a44fdc7",
+                                  "src/ui/MarkdownHelpModal.ts":  "6fec2222d055dde51231cb05030514fb092e62bf63458490114a37da9f70ce76",
+                                  "src/core/contracts/markdownHelp.ts":  "9034e70ea66566c0c81bc0360fb722e55d9051df28e769e4ad4d60c773d120c1",
+                                  "src/ui/plexViews/facets/helpSettings.ts":  "4ef188ea9ad4d22b2bccaa1981e1508a078308d5ed01812ed6704eac5ba09d7f",
+                                  "src/core/plex/views/facets/templates.ts":  "fc6ca0124a19ad483c823b8f92ebc2ed61e96ef27d34e694b2edbfa52cdd0603"
+                              },
+                   "result":  {
+                                  "lane":  "node-presentation",
+                                  "cases":  [
+                                                {
+                                                    "id":  "requested-local-cache-proof",
+                                                    "current":  true,
+                                                    "coverage":  "cached",
+                                                    "globalSemanticPending":  true
+                                                },
+                                                {
+                                                    "id":  "production-registry-five-phases-canonical-links",
+                                                    "regions":  7,
+                                                    "semanticConnectors":  7
+                                                },
+                                                {
+                                                    "id":  "native-20-presentation-combinations-zero-source-work",
+                                                    "work":  {
+                                                                 "reads":  0,
+                                                                 "parses":  0,
+                                                                 "acquisitions":  0,
+                                                                 "rebuilds":  0
+                                                             }
+                                                },
+                                                {
+                                                    "id":  "native-five-layouts-four-option-combinations",
+                                                    "combinations":  20,
+                                                    "canonicalUnchanged":  true,
+                                                    "cameraUnchanged":  true
+                                                },
+                                                {
+                                                    "id":  "contained-native-editor-dirty-toggle-fallback-overlay-sidecar-save",
+                                                    "nativeEditorRetained":  true
+                                                },
+                                                {
+                                                    "id":  "gate-free-neighbor-native-editor-dirty-scroll-clip-and-save",
+                                                    "attentionRetained":  true
+                                                },
+                                                {
+                                                    "id":  "gate-free-node-menu-opens-existing-relationship-composer-without-write"
+                                                },
+                                                {
+                                                    "id":  "same-preset-native-canvases-share-live-presentation"
+                                                },
+                                                {
+                                                    "id":  "independent-main-popout-presets-live-update-and-return",
+                                                    "sessionRetained":  true
+                                                },
+                                                {
+                                                    "id":  "native-navigation-assigned-and-unassigned-fallback"
+                                                }
+                                            ],
+                                  "cleanup":  [
+                                                  {
+                                                      "label":  "close-owned-settings",
+                                                      "status":  "passed"
+                                                  },
+                                                  {
+                                                      "label":  "restore-resource",
+                                                      "status":  "passed"
+                                                  },
+                                                  {
+                                                      "label":  "restore-resource",
+                                                      "status":  "passed"
+                                                  },
+                                                  {
+                                                      "label":  "restore-resource",
+                                                      "status":  "passed"
+                                                  },
+                                                  {
+                                                      "label":  "restore-resource",
+                                                      "status":  "passed"
+                                                  },
+                                                  {
+                                                      "label":  "restore-resource",
+                                                      "status":  "passed"
+                                                  },
+                                                  {
+                                                      "label":  "restore-resource",
+                                                      "status":  "passed"
+                                                  },
+                                                  {
+                                                      "label":  "restore-resource",
+                                                      "status":  "passed"
+                                                  },
+                                                  {
+                                                      "label":  "detach-owned-host",
+                                                      "status":  "passed"
+                                                  },
+                                                  {
+                                                      "label":  "detach-owned-host",
+                                                      "status":  "passed"
+                                                  },
+                                                  {
+                                                      "label":  "release-demand",
+                                                      "status":  "passed"
+                                                  },
+                                                  {
+                                                      "label":  "release-demand",
+                                                      "status":  "passed"
+                                                  },
+                                                  {
+                                                      "label":  "release-demand",
+                                                      "status":  "passed"
+                                                  },
+                                                  {
+                                                      "label":  "release-demand",
+                                                      "status":  "passed"
+                                                  },
+                                                  {
+                                                      "label":  "release-demand",
+                                                      "status":  "passed"
+                                                  },
+                                                  {
+                                                      "label":  "release-demand",
+                                                      "status":  "passed"
+                                                  },
+                                                  {
+                                                      "label":  "release-demand",
+                                                      "status":  "passed"
+                                                  },
+                                                  {
+                                                      "label":  "release-demand",
+                                                      "status":  "passed"
+                                                  },
+                                                  {
+                                                      "label":  "restore-live-settings",
+                                                      "status":  "passed"
+                                                  },
+                                                  {
+                                                      "label":  "restore-layout",
+                                                      "status":  "passed"
+                                                  },
+                                                  {
+                                                      "label":  "restore-window-bounds",
+                                                      "status":  "passed"
+                                                  },
+                                                  {
+                                                      "label":  "delete-owned-fixture",
+                                                      "status":  "passed"
+                                                  },
+                                                  {
+                                                      "label":  "delete-owned-fixture",
+                                                      "status":  "passed"
+                                                  },
+                                                  {
+                                                      "label":  "delete-owned-fixture",
+                                                      "status":  "passed"
+                                                  },
+                                                  {
+                                                      "label":  "delete-owned-fixture",
+                                                      "status":  "passed"
+                                                  },
+                                                  {
+                                                      "label":  "delete-owned-fixture",
+                                                      "status":  "passed"
+                                                  },
+                                                  {
+                                                      "label":  "delete-owned-fixture",
+                                                      "status":  "passed"
+                                                  },
+                                                  {
+                                                      "label":  "delete-owned-fixture",
+                                                      "status":  "passed"
+                                                  },
+                                                  {
+                                                      "label":  "delete-owned-fixture",
+                                                      "status":  "passed"
+                                                  },
+                                                  {
+                                                      "label":  "delete-owned-folder",
+                                                      "status":  "passed"
+                                                  },
+                                                  {
+                                                      "label":  "drain-settings",
+                                                      "status":  "passed"
+                                                  },
+                                                  {
+                                                      "label":  "restore-settings-bytes",
+                                                      "status":  "passed"
+                                                  }
+                                              ],
+                                  "host":  {
+                                               "node":  "v24.22.0",
+                                               "electron":  "43.8.3",
+                                               "chrome":  "150.0.7871.250",
+                                               "hidden":  false
+                                           },
+                                  "limits":  [
+                                                 "Windows native automation is separate from macOS and physical mobile acceptance.",
+                                                 "#215 extra-tab application restart/combined two-editor-pair baseline failures are not claimed fixed.",
+                                                 "Native trusted input uses Electron; this is not an OS clipboard acceptance receipt."
+                                             ]
+                              },
+                   "cleanup":  "passed",
+                   "stagingCleanup":  {
+                                          "disable":  "passed",
+                                          "data":  "passed",
+                                          "enable":  "passed",
+                                          "layout":  "passed",
+                                          "data-bytes":  "passed",
+                                          "enablement-bytes":  "passed"
+                                      },
+                   "startedAt":  "2026-11-03T16:26:24.922Z",
+                   "completedAt":  "2026-11-03T16:26:39.543Z"
+               },
+    "limits":  [
+                   "Windows native automation; macOS and physical phone/tablet remain unrun",
+                   "Native closed toggle interval is not an indexing scale benchmark",
+                   "No production vault deployment or release"
+               ],
+    "largeCachedPublication":  {
+                                   "owners":  20015,
+                                   "ownerChecks":  8187369,
+                                   "elapsedMs":  152325.70000004768,
+                                   "peakHeap":  468024379,
+                                   "replayPeak":  405146310,
+                                   "combinedPeak":  685201826,
+                                   "reservation":  {
+                                                       "owners":  248586300,
+                                                       "structure":  3278,
+                                                       "compilation":  131382170,
+                                                       "transient":  25174562,
+                                                       "peakBytes":  405146310
+                                                   },
+                                   "rootComplete":  false,
+                                   "canonicalPasses":  {
+                                                           "direct":  1,
+                                                           "optional":  0
+                                                       },
+                                   "published":  1,
+                                   "cancellationYields":  2
+                               },
+    "obsidianTypings":  "1.13.0"
+}

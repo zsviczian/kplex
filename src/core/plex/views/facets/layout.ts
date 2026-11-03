@@ -11,8 +11,8 @@ import {facetDiagnostics, facetLayout, facetLayoutOrder} from "./presentation";
 import {facetCategoryFrames} from "./layoutStrategies";
 import {layoutFacetFlows} from "./flow";
 
-/** Reuse the shared measured grid and native area reflow owner. Fixed attention never belongs
- * to a scroll surface, and empty regions retain their visible bounds and controls. */
+/** Reuse the shared measured grid/reflow for every area member, including opted-in attention.
+ * Empty regions retain their visible bounds and controls; classification/identity never changes. */
 function pack(id: string, bounds: ViewRect, projection: PlexProjection, measured: ReadonlyMap<string, PlexMeasurement>,
   positions: Map<string, ViewRect>, label: CanvasViewText, editable: boolean, described = false, partitionOrder?: readonly string[], content = bounds): PlexArea {
   const occurrences = projection.occurrences.filter(row => row.areaId === id);
@@ -36,6 +36,8 @@ export function layoutFacets(projection: PlexProjection, measured: readonly Plex
   const measurements = new Map(measured.map(row => [row.id, row])), attention = measurements.get(projection.entry);
   const assignments = new Set(editable ? facetPresetAssignments(presetId, preset).map(target => target.id) : []);
   if (!attention || preset.order.length < 3 || preset.order.length > 7) throw new Error("Invalid Facets center/categories");
+  const entry = projection.occurrences.find(row => row.id === projection.entry);
+  const contained = !!entry?.areaId && preset.order.some(id => entry.areaId === facetAreaId(presetId, "category", id));
   /** Each area owns only its actual card envelopes; unrelated long notes cannot enlarge it. */
   const dimensions = (id: string, fallback = preset.regionHeight): {width: number; height: number} => {
     const category = preset.order.find(/** Stable category IDs never alias diagnostic size defaults. */ key => facetAreaId(presetId, "category", key) === id);
@@ -49,11 +51,15 @@ export function layoutFacets(projection: PlexProjection, measured: readonly Plex
     }
     return {width, height};
   };
-  const order = facetLayoutOrder(preset), layout = facetLayout(preset, presetId, state), badge = attention.badge && nodeBadgeBounds({x: 0, y: 0, width: attention.width, height: attention.height}, attention.badge);
+  const order = facetLayoutOrder(preset), layout = facetLayout(preset, presetId, state), badge = !contained && attention.badge
+    ? nodeBadgeBounds({x: 0, y: 0, width: attention.width, height: attention.height}, attention.badge) : undefined;
+  // A contained editor belongs to its measured area. Reserving its old central envelope would
+  // stretch every category and diagnostic dock around a nonexistent second attention node.
+  const centralSize = contained ? {width: 0, height: 0} : attention;
   const strategy = facetCategoryFrames(order.map(/** Each area owns its actual measured size. */ id => dimensions(facetAreaId(presetId, "category", id))),
-    {x: 0, y: 0, width: attention.width, height: attention.height}, badge, preset.spacing, layout.effective, preset.focusAnchor);
+    {x: 0, y: 0, width: centralSize.width, height: centralSize.height}, badge, preset.spacing, layout.effective, preset.focusAnchor);
   const {radius, diagonal, centers} = strategy;
-  const positions = new Map<string, ViewRect>([[projection.entry, {x: 0, y: 0, width: attention.width, height: attention.height}]]);
+  const positions = new Map<string, ViewRect>(contained ? [] : [[projection.entry, {x: 0, y: 0, width: attention.width, height: attention.height}]]);
   const areas: PlexArea[] = [], decorations: PlexDecoration[] = [];
   const focusPartition = projection.occurrences.find(row => row.id === projection.entry)?.groupingPartition;
   const focus = preset.order.find(id => focusPartition === facetAreaId(presetId, "category", id));
@@ -93,7 +99,8 @@ export function layoutFacets(projection: PlexProjection, measured: readonly Plex
   // Dock outside the complete measured category/focus/guide footprint. Empty outer guide
   // routes are decorative, but still occupy space and must not run through diagnostic cards.
   const diagnostics = facetDiagnostics(preset, presetId, state), centerBounds = {x: -attention.width / 2, y: -attention.height / 2, width: attention.width, height: attention.height};
-  const footprint = [...areas.map(/** Area rectangles already include their bounded scroll surfaces. */ area => area.bounds), centerBounds, ...(badge ? [badge] : [])];
+  const footprint = [...areas.map(/** Area rectangles include contained focus/editor and their bounded scroll surfaces. */ area => area.bounds),
+    ...(!contained ? [centerBounds] : []), ...(badge ? [badge] : [])];
   for (const mark of decorations) if (mark.kind === "guide") {
     if (mark.stroke !== "none") for (const point of mark.points) footprint.push({x: point.x - 12, y: point.y - 12, width: 24, height: 24});
     if (mark.caption) footprint.push(mark.caption.bounds);

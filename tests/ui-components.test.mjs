@@ -1388,6 +1388,7 @@ console.error = (...args) => { warnings.push(args.map(String).join(" ")); origin
 const ObsidianIcon = () => null;
 import {physicalGateStats} from ${JSON.stringify(join(root,"src/ui/plexViews/measurement.ts"))};
 import {useGateCountPresentation} from ${JSON.stringify(join(root,'src/ui/useGateCountPresentation.ts'))};
+import {thoughtCornerRadius} from ${JSON.stringify(join(root,'src/ui/plexViews/nodeConnections.ts'))};
 ${uiDefinitions("src/ui/ThoughtNode.tsx", ["GATES", "ThoughtNode"])}
 
 const settings = { horizontalCompactingFactor: 2, compactingFactor: 2, baseFontSize: 12.4, wrapNodeLabels: false, showNeighborCount: true, graphDepth: 2, minLinkLength: 18, childColumns: 2, maxItemCount: 100, siblingRelativeSize: 85 };
@@ -2277,6 +2278,7 @@ import {HoverPreview,bindHoverPreview} from ${JSON.stringify(join(root,'src/ui/c
 const ObsidianIcon=()=>null;
 import {physicalGateStats} from ${JSON.stringify(join(root,"src/ui/plexViews/measurement.ts"))};
 import {useGateCountPresentation} from ${JSON.stringify(join(root,'src/ui/useGateCountPresentation.ts'))};
+import {thoughtCornerRadius} from ${JSON.stringify(join(root,'src/ui/plexViews/nodeConnections.ts'))};
 ${uiDefinitions('src/ui/ThoughtNode.tsx',['GATES','ThoughtNode'])}
 const result=document.querySelector('#result'),container=document.body.appendChild(document.createElement('div')),root=createRoot(container);
 const check=(condition,message)=>{if(!condition)throw Error(message)},translate=createTranslator('en'),noop=()=>{};
@@ -2343,6 +2345,7 @@ import {canDisplayNodeImage} from ${JSON.stringify(join(root,'src/core/plex/node
 const ObsidianIcon=()=>null;
 import {physicalGateStats} from ${JSON.stringify(join(root,"src/ui/plexViews/measurement.ts"))};
 import {useGateCountPresentation} from ${JSON.stringify(join(root,'src/ui/useGateCountPresentation.ts'))};
+import {thoughtCornerRadius} from ${JSON.stringify(join(root,'src/ui/plexViews/nodeConnections.ts'))};
 ${uiDefinitions('src/ui/ThoughtNode.tsx',['GATES','ThoughtNode'])}
 const result=document.querySelector('#result'),container=document.body.appendChild(document.createElement('div')),root=createRoot(container),noop=()=>{};
 const check=(condition,message)=>{if(!condition)throw Error(message)};
@@ -2403,6 +2406,7 @@ import { physicalPositionLabel } from ${JSON.stringify(join(root, "src/ui/featur
 const ObsidianIcon=({className,size})=><span className={"kplex-icon "+className} style={{width:size,height:size}}/>;
 import {physicalGateStats} from ${JSON.stringify(join(root,"src/ui/plexViews/measurement.ts"))};
 import {useGateCountPresentation} from ${JSON.stringify(join(root,'src/ui/useGateCountPresentation.ts'))};
+import {thoughtCornerRadius} from ${JSON.stringify(join(root,'src/ui/plexViews/nodeConnections.ts'))};
 ${uiDefinitions("src/ui/ThoughtNode.tsx", ["GATES", "ThoughtNode"])}
 const result=document.querySelector("#result"),container=document.createElement("div");document.body.append(container);
 container.className="kplex-view-host";container.style.fontFamily="Arial, sans-serif";

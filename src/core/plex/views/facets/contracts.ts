@@ -24,6 +24,8 @@ export type FacetPreset = Readonly<{version: 1; name: string; nameKey?: string; 
   interpretation?: "wuxing"; relativeLabels?: boolean; regulatingGuides?: boolean;
   diagnostics?: FacetDiagnostics;
   layout?: FacetLayout; focusAnchor?: FacetFocusAnchor; reverse?: boolean;
+  /** Per-preset presentation only. Absence preserves the historical central focus and gates. */
+  focusInCategory?: boolean; centerAnchoredLinks?: boolean;
   /** Stable defaults are separate from the existing per-canvas area dimension maps. */
   areaSizes?: Readonly<{categories?: Readonly<Record<string, FacetAreaSize>>; diagnostics?: Readonly<Record<string, FacetAreaSize>>}>;
   flow?: FacetFlowStyle; flowOverrides?: readonly FacetFlowOverride[];

@@ -24,6 +24,22 @@ const initialize=`
 `;
 const scenario=body=>colorEditorScenario(`(async()=>{${initialize}\n${body}\ntab.hide();return true})()`);
 
+test('per-preset focus and center links share detached Save Cancel Reset and persisted reload semantics',async()=>{
+ assert.equal(await scenario(`
+ const m=manager(),toggle=(editor,key,value)=>{const control=fields(editor,t(key))[0];check(control?.type==='checkbox','Native presentation toggle absent');control.checked=value;control.dispatchEvent(new Event('change',{bubbles:true}))};
+ let editor=edit(m,'Wu Xing');check(fields(editor,t('facets.focusInCategory'))[0].checked===false&&fields(editor,t('facets.centerAnchoredLinks'))[0].checked===false,'Missing fields default off');
+ toggle(editor,'facets.focusInCategory',true);toggle(editor,'facets.centerAnchoredLinks',true);close(editor);equal(p.writes,[],'Cancel never persists presentation draft');
+ editor=edit(m,'Wu Xing');check(!fields(editor,t('facets.focusInCategory'))[0].checked,'Canceled option stayed off');toggle(editor,'facets.focusInCategory',true);await save(editor);await drain();
+ let preset=disk.canvasViewSettings.wuxing.values.presets.wuxing;check(preset.focusInCategory===true&&preset.centerAnchoredLinks!==true,'First option independent');
+ editor=edit(m,'Wu Xing');toggle(editor,'facets.centerAnchoredLinks',true);await save(editor);await drain();preset=disk.canvasViewSettings.wuxing.values.presets.wuxing;check(preset.focusInCategory&&preset.centerAnchoredLinks,'Both options durable through one existing writer');
+ check(!disk.canvasViewSettings.wuxing.values.presets.arc.focusInCategory,'Other preset unaffected');
+ editor=edit(m,'Wu Xing');const reset=[...editor.contentEl.querySelectorAll('button')].find(row=>row.getAttribute('aria-label')===t('facets.restore'));check(reset,'Explicit preset Reset reachable');reset.click();check(!fields(editor,t('facets.focusInCategory'))[0].checked&&!fields(editor,t('facets.centerAnchoredLinks'))[0].checked,'Reset restores default-off draft');close(editor);
+ check(disk.canvasViewSettings.wuxing.values.presets.wuxing.centerAnchoredLinks,'Canceled reset retained accepted options');
+ editor=edit(m,'Wu Xing');[...editor.contentEl.querySelectorAll('button')].find(row=>row.getAttribute('aria-label')===t('facets.restore')).click();await save(editor);await drain();
+ check(!disk.canvasViewSettings.wuxing.values.presets.wuxing.focusInCategory&&!disk.canvasViewSettings.wuxing.values.presets.wuxing.centerAnchoredLinks,'Saved reset persisted default presentation');close(m);
+ `),true);
+});
+
 test('help source preview Save Cancel locale and explicit reset reuse one guarded preset writer',async()=>{
  assert.equal(await scenario(`
  const m=manager(),initialDisk=JSON.stringify(disk);let editor=edit(m,'ARC'),rendered=0;

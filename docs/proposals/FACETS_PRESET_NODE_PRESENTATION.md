@@ -1,6 +1,6 @@
 # Facets: preset-specific focused-note placement and gate-free connectors
 
-**Status:** Implementation brief, not implemented. Draft PR, 2026-11-03.
+**Status:** Implemented and validated locally on the draft PR branch, awaiting maintainer review, 2026-11-03. Implementation remains uncommitted; do not merge automatically. Automated and Windows-native evidence is in [the validation record](../validation/facets-node-presentation-272-2026-11-03.md); macOS and physical-device checks remain unrun.
 **Base:** Current accepted `main`. **Scope:** Facets only, across all Facets presets; no Wu Xing-only special case.
 
 ## Goal
@@ -8,7 +8,7 @@
 Add two **independent, off-by-default settings per Facets preset**, edited alongside existing Facets preset settings:
 
 1. **Display active note in matching container**
-2. **Hide gates, all links to originate from node center**
+2. **Hide gates, connect links from node centers**
 
 These options must be saved in the **individual preset definition**, not global K-Plex settings, not all Facets instances, and not the per-canvas selected-preset state. Two canvases selecting the same preset share these options; two canvases selecting different presets can behave differently. Existing presets, imported presets and existing saved canvases retain current behavior until toggled.
 
@@ -52,15 +52,17 @@ This should remain presentation-only, consistent with `AGENTS.md`, `CONTRIBUTING
 
 ## Acceptance criteria
 
-- [ ] Independent on/off toggles persisted on **each** preset, with default-off behavior for all existing presets; two presets with different values can be displayed at the same time in separate canvases/popouts.
-- [ ] Assigned focus appears once in its category and clearly larger than neighbors; no remaining central duplicate. When the option is off it appears centrally exactly as before.
-- [ ] Invalid/unknown/ambiguous classification keeps one usable central focus, without changing the note or granting assignment authority.
-- [ ] With gates hidden, genuine note connectors visually start/end at node boundaries on a center-to-center line, with no gate handles; with gates shown, existing gate placement/links stay unchanged.
-- [ ] Four toggle combinations work (off/off, on/off, off/on, on/on), with any supported layout and independently selected Facets presets.
-- [ ] Canonical relationship role, arrow style, crosslink visibility, hover/highlight, clicks, drag/drop/editing, navigation, central/neighbor Markdown editor, Sidecar and camera behaviors remain usable or have a clearly documented explicit alternative for gate-only interactions.
-- [ ] Measured reflow, category scrolling/clipping, resize, switching focus/preset/layout, status transition, lens filtering, theme, independent main/popout sessions and live settings update do not create duplicates, lost focus or stale connectors.
-- [ ] Preset Save/Cancel/Reset, import/export/copy, migrations/unknown fields, localization and validation are exercised; toggling settings causes zero added source reads/parses/acquisitions or full index builds.
-- [ ] Focused unit/integration tests for projection/layout/gate routing + settings, then `npm run verify` using Node 22.22.2 and real Obsidian typings, and relevant native Obsidian CLI acceptance in a **disposable** vault. Report unrun physical/mobile cases honestly.
+Checked items reflect automated and Windows-native evidence, not maintainer approval. macOS and physical phone/tablet acceptance remain explicitly unrun in the validation record.
+
+- [x] Independent on/off toggles persisted on **each** preset, with default-off behavior for all existing presets; two presets with different values can be displayed at the same time in separate canvases/popouts.
+- [x] Assigned focus appears once in its category and clearly larger than neighbors; no remaining central duplicate. When the option is off it appears centrally exactly as before.
+- [x] Invalid/unknown/ambiguous classification keeps one usable central focus, without changing the note or granting assignment authority.
+- [x] With gates hidden, genuine note connectors visually start/end at node boundaries on a center-to-center line, with no gate handles; with gates shown, existing gate placement/links stay unchanged.
+- [x] Four toggle combinations work (off/off, on/off, off/on, on/on), with any supported layout and independently selected Facets presets.
+- [x] Canonical relationship role, arrow style, crosslink visibility, hover/highlight, clicks, drag/drop/editing, navigation, central/neighbor Markdown editor, Sidecar and camera behaviors remain usable or have a clearly documented explicit alternative for gate-only interactions.
+- [x] Measured reflow, category scrolling/clipping, resize, switching focus/preset/layout, status transition, lens filtering, theme, independent main/popout sessions and live settings update do not create duplicates, lost focus or stale connectors.
+- [x] Preset Save/Cancel/Reset, import/export/copy, migrations/unknown fields, localization and validation are exercised; toggling settings causes zero added source reads/parses/acquisitions or full index builds.
+- [x] Focused unit/integration tests for projection/layout/gate routing + settings, then `npm run verify` using Node 22.22.2 and real Obsidian typings, and relevant native Obsidian CLI acceptance in a **disposable** vault. Report unrun physical/mobile cases honestly.
 
 ## Implementation handoff
 

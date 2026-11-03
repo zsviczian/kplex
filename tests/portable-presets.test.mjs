@@ -65,6 +65,17 @@ test('canonical admission refuses future, oversized, deeply nested, prototype, e
  const future=JSON.stringify({...base,version:99});M.validatePortablePackage(future);assert(future.includes('"version":99'),'Refusal never rewrites original source');
 });
 
+test('independent focus and center-line options survive reviewed portable import with strict boolean types',()=>{
+ for(const focusInCategory of [false,true])for(const centerAnchoredLinks of [false,true]){
+  const pkg=make('wuxing',{...M.FACET_TEMPLATES.wuxing,focusInCategory,centerAnchoredLinks});
+  const admitted=M.validatePortablePackage(JSON.stringify(pkg));assert.equal(admitted.status,'valid');
+  const installed=state(),result=M.applyPortableImport(M.preparePortableImport(admitted.value,choices(),installed),installed);
+  assert.equal(result.preset.focusInCategory,focusInCategory);assert.equal(result.preset.centerAnchoredLinks,centerAnchoredLinks);
+  for(const field of ['focusInCategory','centerAnchoredLinks'])for(const value of ['true',1,null])
+   assert.equal(M.validatePortablePackage({...pkg,preset:{...pkg.preset,[field]:value}}).status,'invalid');
+ }
+});
+
 test('standalone lenses use shared grammar/styles and export no enabled flag or unrelated lenses',()=>{
  const pkg=M.exportLensPackage(lens,[],M.LENS_AUTHORING_CONTEXT);assert.equal(pkg.lens.enabled,undefined);assert.equal(M.validatePortablePackage(pkg).status,'valid');
  assert.equal(M.exportLensPackage({...lens,name:''},[],M.LENS_AUTHORING_CONTEXT).lens.name,'','Existing untitled lens definitions round-trip without inventing a name');

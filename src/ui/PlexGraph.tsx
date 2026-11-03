@@ -35,6 +35,7 @@
 import { wheelCamera } from "./components/wheelCamera";
 import {editorOverlayClip, editorOverlayFrame} from "./editorOverlayFrame";
 import {edgeViewportClip, edgeViewportEndpoints, revealRowScrollTop, editorToolbarInsets} from "./plexViews/areaVisibility";
+import {nodeCenterConnector} from "./plexViews/nodeConnections";
 import {ontologyConfiguration} from "../core/contracts/ontologyConfiguration";
 import {hasDirectionalCaption,directionalRelationCaption} from "../core/plex/directionalRelationCaption";
 import { connectionActionAllowed, tagMembershipPair } from "./structuralConnectionActions";
@@ -609,6 +610,7 @@ function Edge({
   viewportForNode,
   inverseArrowDirection,
   connectorStyle,
+  centerAnchored = false,
   labelBackground,
   crossLinkOpacity,
   highlighted,
@@ -624,6 +626,7 @@ function Edge({
   viewportForNode: (node: PositionedNode) => SceneViewport | undefined;
   inverseArrowDirection: boolean;
   connectorStyle: "bezier" | "straight";
+  centerAnchored?: boolean;
   labelBackground: string;
   crossLinkOpacity: number;
   highlighted: boolean;
@@ -639,10 +642,13 @@ function Edge({
   if (!source || !target) return null;
 
   const gates = gatesForEdge(edge);
-  const a = gatePoint(source, gates.source);
-  const b = gatePoint(target, gates.target);
+  const centered = centerAnchored && edge.kind !== "decorative";
+  const body = centered ? nodeCenterConnector(source, target) : undefined;
+  if (centered && !body) return null;
+  const a = body ? body.source : gatePoint(source, gates.source);
+  const b = body ? body.target : gatePoint(target, gates.target);
   const sourceArea = viewportForNode(source), targetArea = viewportForNode(target);
-  const endpoints = edgeViewportEndpoints(a, b, gates.source, gates.target, sourceArea, targetArea, {source, target,
+  const endpoints = edgeViewportEndpoints(a, b, gates.source, gates.target, sourceArea, targetArea, {source, target, centerLine: centered,
     // Only the constructed tree proves ancestor context; arrow direction and ontology roles do not.
     continueSource: target.branch?.parent === edgePhysicalOccurrence(edge, "source"),
     continueTarget: source.branch?.parent === edgePhysicalOccurrence(edge, "target")});
@@ -651,7 +657,7 @@ function Edge({
   // anchors freely; the canvas clips them, without cutting a curve at an unrelated union box.
   const clip = sourceArea && sourceArea === targetArea ? edgeViewportClip(edge, nodes, viewportForNode) : undefined;
   if (clip === null) return null;
-  const geometry = edgeGeometry(endpoints.source.point, endpoints.target.point, endpoints.source.port, endpoints.target.port, connectorStyle);
+  const geometry = edgeGeometry(endpoints.source.point, endpoints.target.point, endpoints.source.port, endpoints.target.port, centered ? "straight" : connectorStyle);
   const style = edge.style;
   const dash = style.strokeStyle === "dashed" ? "7 7" : style.strokeStyle === "dotted" ? "2 6" : undefined;
   const reverse = edge.direction === (inverseArrowDirection ? LinkDirection.TO : LinkDirection.FROM);
@@ -2612,21 +2618,21 @@ export function PlexGraph({ viewDefinition = classicViewDefinition, viewSession,
   }, [pendingNodeFlair, scene.nodes, scene.zoneViewports, zoneDisplayLayouts]);
 
   const revealedEditor = useRef<string | null>(null);
-  useLayoutEffect(/** Opening/resizing reveals this exact native document once within its grown area;
-   * ordinary scroll/layout/selection changes never pull it back or steal editor focus. */ () => {
-    if (!boundEditorBinding) {revealedEditor.current = null;return;}
-    const key = `${boundEditorBinding.id}:${boundEditorBinding.dimensions.width}:${boundEditorBinding.dimensions.height}`;
-    if (revealedEditor.current === key) return;
-    const node = admittedBoundNode;
-    if (!node) return;
+  useLayoutEffect(/** Reveal a newly admitted contained attention or resized bound editor once.
+   * Ordinary scrolling/selection never pulls it back or changes the camera/editor focus. */ () => {
+    const node = boundEditorBinding ? admittedBoundNode : scene.nodes.find(row => occurrenceKey(row) === scene.entryOccurrence && !!row.areaId);
+    if (!node) {revealedEditor.current = null;return;}
     const zone = areaForNode(node), panel = zone ? scene.zoneViewports[zone] : undefined;
+    const key = boundEditorBinding ? `${boundEditorBinding.id}:${boundEditorBinding.dimensions.width}:${boundEditorBinding.dimensions.height}`
+      : JSON.stringify([viewLifetime, scene.entryOccurrence, zone, node.width, node.height, panel?.width, panel?.height]);
+    if (revealedEditor.current === key) return;
     if (!zone || !panel || panel.scrollable === false) {revealedEditor.current = key;return;}
     const scroll = zoneScrollRefs.current[zone], local = zoneDisplayLayouts[zone]?.localPositions.get(occurrenceKey(node));
     if (!scroll || !local) return;
     const top = revealRowScrollTop(local.y, node.height + 32, scroll.scrollTop, scroll.clientHeight, scroll.scrollHeight);
     revealedEditor.current = key;
     if (top !== scroll.scrollTop) {scroll.scrollTop = top;setZoneScrollTop(current => ({...current, [zone]: top}));}
-  }, [boundEditorBinding, admittedBoundNode, scene.zoneViewports, zoneDisplayLayouts]);
+  }, [boundEditorBinding, admittedBoundNode, scene.entryOccurrence, scene.nodes, scene.zoneViewports, zoneDisplayLayouts, viewLifetime]);
 
   const pendingBranchReveal = useRef<{id: string; lifetime: number; scope: string; previousScene: HostPlexScene; camera: {x: number; y: number; scale: number}; scrollTop?: number} | null>(null);
   useLayoutEffect(/** An accepted single-branch expansion reveals its exact row after measured reflow, without changing selection or editor focus; fixed areas reuse minimal canvas reveal. */ () => {
@@ -5428,6 +5434,7 @@ export function PlexGraph({ viewDefinition = classicViewDefinition, viewSession,
         || (finding ? findNodePaths.has(baseNode.page.path) : interaction.nodePaths.has(baseNode.page.path)))}
       dimmed={!connectDrag && !finding && hover !== null && !interaction.nodePaths.has(baseNode.page.path)}
       highlightedGates={highlightedGates}
+      hideGates={scene.projection?.connectionPresentation === "node-centers"}
       dragging={isDraggedNode(baseNode)}
       flair={activeNodeFlair === baseNode.page.path}
       connectionState={connectionStateFor(baseNode)}
@@ -5956,6 +5963,7 @@ export function PlexGraph({ viewDefinition = classicViewDefinition, viewSession,
           viewportForNode={node => {const zone = areaForNode(node);return zone ? scene.zoneViewports[zone] : undefined;}}
           inverseArrowDirection={settings.inverseArrowDirection}
           connectorStyle={settings.connectorStyle}
+          centerAnchored={scene.projection?.connectionPresentation === "node-centers"}
           labelBackground={NATIVE_LINK_LABEL_FILL}
           crossLinkOpacity={Math.max(0, Math.min(1, settings.crossLinkOpacity / 100))}
           highlighted={!connectDrag && (crossLinkPeek !== null && interaction.edgeIds.has(edge.id)

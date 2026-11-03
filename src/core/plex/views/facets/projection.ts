@@ -1,4 +1,4 @@
-/** Attention appears exactly once at the center. Bounded admitted direct neighbors retain real
+/** Attention appears exactly once, centrally or in its one proven category. Bounded direct neighbors retain real
  * canonical relationship evidence/roles; category membership changes presentation only. */
 import type {PlexViewInput, PlexProjection, PlexOccurrence, PlexViewEdge, PhysicalPort} from "../contracts";
 import type {NodeId} from "../../../graph/model";
@@ -57,13 +57,15 @@ export function projectFacets(input: PlexViewInput): PlexProjection | null {
     const diagnostic = membership.status !== "assigned", combined = diagnostics.combined && diagnostic;
     return {id: occurrenceId(node.id), nodeId: node.id, representation: "thought", role: center ? undefined : role, relation,
       groupingPartition: area, ...(center || combined ? {badge: facetMembershipBadge(membership, preset)} : {}),
-      ...(!center ? {areaId: combined ? facetCombinedAreaId(selected.id) : area} : {}),
+      ...(!center ? {areaId: combined ? facetCombinedAreaId(selected.id) : area}
+        : preset.focusInCategory && membership.status === "assigned" && preset.order.includes(membership.category) ? {areaId: area} : {}),
       description: facetMembershipDescription(membership), ports: {top: "parent", bottom: "child", left: "left", right: "right"}};
   };
   for (const {node, relations} of admitted.values()) occurrences.set(node.id, occurrence(node, relations[0]?.role, relations[0]));
   const entry = occurrences.get(attention.id)!;
   return input.read.isCurrent() && (!classifyRules || classifyRules.isCurrent()) ? {attention: attention.id, layoutRoot: attention.id, entry: entry.id, editor: entry.id, frame: entry.id,
     occurrences: [...occurrences.values()], edges, truncated, coverage, heading: facetPresetLabel(preset),
+    ...(preset.centerAnchoredLinks ? {connectionPresentation: "node-centers" as const} : {}),
     ...(!state || selected.status === "future" || selected.status === "missing" ? {status: {key: "facets.presetUnavailable"}}
       : facetLayout(preset, selected.id, state).fallback ? {status: {key: "facets.quadrantsUnavailable"}} : {})} : null;
 }

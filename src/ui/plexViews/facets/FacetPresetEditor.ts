@@ -102,6 +102,12 @@ export class FacetPresetEditor extends StyleEditorModal {
     renderFacetLayoutSettings(body, /** Keep sibling settings current through structural rerenders. */ () => this.draft, /** Only this detached preset's structure changes. */ preset => {
       if (!this.canEdit()) return;this.draft = preset;this.render();
     }, t);
+    for (const [field, label, help] of [["focusInCategory", "facets.focusInCategory", "facets.focusInCategoryHelp"],
+      ["centerAnchoredLinks", "facets.centerAnchoredLinks", "facets.centerAnchoredLinksHelp"]] as const)
+      new Setting(body).setName(t(label)).setDesc(t(help)).addToggle(/** Optional values stay inside the captured detached preset. */ input => input
+        .setValue(this.draft[field] === true).onChange(/** Save/Cancel/stale-entry guards are shared with every other preset field. */ value => {
+          if (this.canEdit() && this.owner()) {this.draft = {...this.draft, [field]: value};this.validate();}
+        }));
     new Setting(body).setName(t("facets.start")).addDropdown(input => input.addOptions(Object.fromEntries(this.draft.order.map(id => [id, canvasViewText(facetCategoryLabel(this.draft.categories[id], id), t)])))
       .setValue(this.draft.start).onChange(start => {this.draft = {...this.draft, start};this.render();}));
     for (const [field, label, minimum, maximum, step] of [["spacing", "wuxing.spacing", 24, 200, 8],
