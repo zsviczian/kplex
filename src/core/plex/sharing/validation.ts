@@ -8,7 +8,7 @@ import {tryParseGraphPredicateExpression} from "../predicateParser";
 import {parseLiteralColor, isThemeColorName, isPaletteColorId, sanitizeColorValue} from "../../contracts/colorValue";
 import {PORTABLE_PACKAGE_LIMITS as limits, type PackageValidation, type PortablePackage, type SharedLens} from "./contracts";
 
-const PRESET_FIELDS = "version name source field categories order start spacing regionWidth regionHeight guides tints interpretation relativeLabels regulatingGuides diagnostics layout focusAnchor reverse areaSizes flow flowOverrides helpMarkdown helpSourceLocale conflictingColor unassignedColor".split(" ");
+const PRESET_FIELDS = "version name source field categories order start spacing regionWidth regionHeight guides tints interpretation relativeLabels regulatingGuides diagnostics layout focusAnchor focusInCategory centerAnchoredLinks reverse areaSizes flow flowOverrides helpMarkdown helpSourceLocale conflictingColor unassignedColor".split(" ");
 const FLOW_FIELDS = ["direction", "style", "caption", "captionPosition"];
 /** Imported records may only contain their version's explicit fields. */
 function fields(value: Record<string, unknown>, keys: readonly string[]): boolean {return Object.keys(value).every(key => keys.includes(key));}

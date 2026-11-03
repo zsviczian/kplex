@@ -135,6 +135,7 @@ export function plexViewRead(source: SceneRead, current: () => boolean, maximum:
 /** Validate finite, independently keyed output and declared hierarchy depth before shared rendering/actions.
  * Hierarchies without an explicit depth capability retain their existing eight-level admission limit. */
 function validateProjection(projection: PlexProjection, maximum: number, definition: PlexViewDefinition): void {
+  if (projection.connectionPresentation !== undefined && projection.connectionPresentation !== "node-centers") throw new Error("Invalid connection presentation");
   if (projection.occurrences.length > maximum || projection.edges.length > maximum * 8) throw new Error("View projection exceeds its bound");
   const ids = new Map(projection.occurrences.map(row => [row.id, row]));
   if (projection.occurrences.filter(row => row.badge).length > Math.min(maximum, definition.badgeBudget ?? 16)) throw new Error("Too many node badges");

@@ -2,7 +2,7 @@
 
 The editor button on a neighboring note opens that note in its category, without changing the focus or classification. The same single native editor saves and closes before opening another document. Its area grows temporarily in width/height to fit; closing restores the configured area size. Central automatic editing keeps its existing behavior.
 
-Facets places the current note in the center and its directly related notes in configurable category regions. Its colored badge shows the current note's classification. The surrounding categories do not replace the recorded relationships between notes.
+Facets places the current note in the center by default and its directly related notes in configurable category regions. Its colored badge shows the current note's classification. The surrounding categories do not replace the recorded relationships between notes.
 
 Open **Views and lenses → Canvas view → Facets**. Choose a preset in the same panel. Manage definitions under **Settings → K-Plex → Canvas behavior → Views → Facets**. Each canvas keeps its own selected view/preset, camera and attention; definitions are shared settings. Switching views preserves lenses, filters and unsaved lens drafts.
 
@@ -26,6 +26,13 @@ Select the Info button immediately after the preset cog to read that preset's He
 Current native interface examples: [wide preset editor](images/facets/ux-preset-editor.png), [wide selectors](images/facets/ux-selectors-1280.png), [narrow selectors](images/facets/ux-selectors-640.png). These are genuine Windows captures; [current acceptance limits](validation/facets-222-ux-2026-10-26.md) remain explicit.
 
 ## Choose a layout
+
+The preset editor offers two independent options, both off by default:
+
+- **Display active note in matching container** places the active note once inside its assigned category, retaining its larger measured card and native editor. Unassigned, conflicting, checking or unavailable classifications keep one central note. This applies to every layout and preset; changing placement does not assign a category or edit a note.
+- **Hide gates, connect links from node centers** hides gate handles and draws real relationships, including crosslinks, along straight center-to-center lines clipped to node boundaries. Relationship roles, arrows, styles and hover actions remain the same. Use the node menu to add relationships when gates are hidden; gate dragging is unavailable. Decorative category guides keep their existing routes.
+
+Save applies these options to every canvas using that preset. Other presets keep their own choices. Cancel discards the draft; Reset restores both options to off. Copy/export and reviewed import preserve the choices. Each canvas retains its own selected preset, navigation, editor and camera intent.
 
 Open the preset cog, then choose **Layout** in the preset editor. Choose circular, concentric rectangles, vertical stack, horizontal spread or four-category quadrants. Layout belongs to the preset: saving it updates canvases using that preset. Canvases keep their independent selected presets, attention, editor and camera intent. Legacy per-canvas layout overrides no longer take precedence. Quadrants is unavailable for other category counts; a saved incompatible choice visibly falls back to circular while preserving every category.
 
