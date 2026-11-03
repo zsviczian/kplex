@@ -522,6 +522,7 @@ for (const file of [
   "src/adapters/obsidian/hostLinkSourceCollector.ts",
   "src/adapters/obsidian/ontologySourceCollector.ts",
   "src/adapters/obsidian/dailyNotes.ts",
+  "src/adapters/obsidian/periodicPins.ts",
   "src/adapters/obsidian/metadataSourceCollector.ts",
   "src/adapters/obsidian/relationshipMetadataWrite.ts",
   "src/adapters/obsidian/settingsNavigation.ts",
