@@ -6,6 +6,7 @@ import {readFileSync} from 'node:fs';
 import ts from 'typescript';
 import {build} from 'esbuild';
 import {chromiumHarness} from './support/browserTypeScript.mjs';
+import {nativeIconBoundary} from './support/nativeIconBoundary.mjs';
 const source=ts.createSourceFile('App.tsx',readFileSync('src/ui/App.tsx','utf8'),ts.ScriptTarget.Latest,true,ts.ScriptKind.TSX);
 let history,pins;
 /** Extract production JSX so shared style wiring and disabled/loading behavior are exercised. */
@@ -19,6 +20,8 @@ const bundle=await build({stdin:{resolveDir:process.cwd(),loader:'tsx',contents:
 import React from 'react';import{createRoot}from'react-dom/client';import{flushSync}from'react-dom';
 import{HorizontalDragScroll}from'./src/ui/components/HorizontalDragScroll';
 import{nodeListPresentation}from'./src/ui/nodeListPresentation';
+import{PinnedNodeBar}from'./src/ui/PinnedNodeBar';
+import{savedPinEntries,moveSavedPin}from'./src/core/plex/savedPins';
 export {nodeListPresentation};
 import{nodePaint,nodePaintFallbacks,resolveNodeStyle}from'./src/index/style';
 const settings={baseNodeStyle:{backgroundColor:'#222222',textColor:'#eeeeee',borderColor:'#444444'},
@@ -29,10 +32,11 @@ const pages=Array.from({length:16},(_,i)=>({path:'Note-'+i+'.md',name:'Note '+i,
 pages[3]={...pages[3],file:null,isFolder:true,path:'folder:Notes'};pages[4]={...pages[4],file:null,isTag:true,path:'tag:topic/child'};
 pages[5]={...pages[5],file:null};pages[6]={...pages[6],file:{extension:'pdf'}};pages[7]={...pages[7],file:null,url:'https://example.com'};
 window.clicks=[];const actions={dispatch:request=>clicks.push(request.id)},actionNodeRef=page=>({identity:page.path}),translate=key=>key;
-const plugin={settings:{navigationHistory:pages.map(p=>p.path)},index:{get:path=>pages.find(p=>p.path===path),titleFor:page=>page.name}};
-const pinnedPages=pages.slice(0,8),activePath=pages[2].path,page=pages[2],paintSettings=settings;
+const plugin={settings:{navigationHistory:pages.map(p=>p.path),pinnedNodes:pages.slice(0,8).map(p=>p.path)},index:{get:path=>pages.find(p=>p.path===path),titleFor:page=>page.name},removePinnedEntry:async()=>{}};
+const activePath=pages[2].path,page=pages[2],paintSettings=settings;
+const movePin=move=>{const next=moveSavedPin(plugin.settings.pinnedNodes,move);if(next){plugin.settings.pinnedNodes=next;window.mount()}},pinMoveMenu=()=>{},activateSavedPin=id=>{const row=savedPinEntries(plugin.settings.pinnedNodes).find(row=>row.id===id);if(row)actions.dispatch({id:'node.activate',target:{node:actionNodeRef(plugin.index.get(row.entry))}})};
 const ObsidianIcon=({name})=><span className='kplex-icon' data-icon={name}/>;
-let host,root;function Surface(){return <>{${pins}}{${history}}</>};
+let host,root;function Surface(){const pinnedPages=savedPinEntries(plugin.settings.pinnedNodes).map(row=>{const p=plugin.index.get(row.entry),v=nodeListPresentation(p,p.name,settings);return {id:row.id,path:row.entry,...v,active:row.entry===activePath,available:true}});return <>{${pins}}{${history}}</>};
 window.mount=()=>{if(!root){host=document.body.appendChild(document.createElement('div'));host.className='kplex-main-column';host.style.width='450px';root=createRoot(host)}flushSync(()=>root.render(<Surface/>))};window.unmount=()=>flushSync(()=>root.unmount());
 window.repaint=()=>{settings.noteTypeStyles.Guide.backgroundColor='#336699';delete settings.noteTypeStyles.Guide.prefix;window.mount()};
 window.expected=()=>nodePaint(resolveNodeStyle(pages[2],null,'child',settings),nodePaintFallbacks({page:pages[2],role:'child'}));
@@ -40,7 +44,7 @@ window.project=()=>pages.slice(0,8).map(p=>nodeListPresentation(p,p.name,setting
 window.checkOwnerDocument=()=>{const frame=document.body.appendChild(document.createElement('iframe')),doc=frame.contentDocument,counts={add:0,remove:0};
 const add=doc.addEventListener.bind(doc),remove=doc.removeEventListener.bind(doc);doc.addEventListener=(type,...args)=>{if(['pointermove','pointerup','pointercancel'].includes(type))counts.add++;return add(type,...args)};doc.removeEventListener=(type,...args)=>{if(['pointermove','pointerup','pointercancel'].includes(type))counts.remove++;return remove(type,...args)};
 const root=createRoot(doc.body.appendChild(doc.createElement('div')));flushSync(()=>root.render(<HorizontalDragScroll className='kplex-history-list'><button>Other document</button></HorizontalDragScroll>));flushSync(()=>root.unmount());frame.remove();return counts};
-`},bundle:true,write:false,format:'iife',globalName:'sourceModules',platform:'browser'});
+`},bundle:true,write:false,format:'iife',globalName:'sourceModules',platform:'browser',plugins:[nativeIconBoundary]});
 
 /** Load actual plugin CSS; native theme fallbacks receive finite test tokens. */
 async function browser(){const b=await chromiumHarness(bundle.outputFiles[0].text);try{await b.evaluate(`(()=>{window.mount();const s=document.createElement('style');s.textContent=${JSON.stringify(readFileSync('styles.css','utf8'))};document.head.append(s);document.body.style.setProperty('--text-normal','#eeeeee');})()`);return b}catch(e){await b.cleanup();throw e}}

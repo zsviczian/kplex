@@ -106,9 +106,15 @@ Navigating, editing, panning or using other controls pauses wandering. Select **
 
 ### Search, history and pins
 
+Reorder pins with their grip or its **Move left** / **Move right** menu. Enable **Today**, **This week** and **This month** under **Canvas behavior → Pins** for destinations that follow the local date. See [Pins](docs/PINS.md) for date formats and missing-note behavior.
+
 The toolbar search box (**F4**) searches notes, folders, tags, attachments, Canvas files and indexed URLs. It matches display names, file names, aliases, paths and URL substrings using fuzzy matching. Exact and prefix matches rank above looser matches. Type **#** before a query to search tags only; result icons identify each kind of item. Centering a hierarchical tag shows its parent, child tags and associated notes, even when tags are hidden from ordinary note neighborhoods.
 
 Markdown web links in document properties, such as `[Obsidian](https://obsidian.md)`, supply readable labels for URL nodes. Other labels for the same URL remain searchable.
+
+K-Plex also discovers `obsidian://` links in note bodies and document properties. Use **Open** on their nodes to run them in Obsidian. In Markdown reading view, use `[a caption](obsidian://open?...)` or `<obsidian://open?...>` for a clickable link. These links never run just because you browse the graph, and they do not open in a web preview.
+
+The core **Page Preview** settings have one **K-Plex** entry for tabs, sidebar and popout canvases. Its existing primary K-Plex preference applies to every surface; an earlier separate sidebar preference is no longer used.
 
 Use the toolbar **+** or **K-Plex: New canvas tab** command to open another canvas in an adjacent tab group. Each view keeps its own central editor/normal-node choice and Markdown reading/editing mode, including when its workspace tab is restored.
 

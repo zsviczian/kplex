@@ -8,17 +8,17 @@ import { chromiumHarness } from './support/browserTypeScript.mjs';
 import { centerGateSettings } from './support/requestedCenterGateFixture.mjs';
 
 const bundle = await contributorBrowserBundle(['src/index/GraphIndex.ts', 'src/index/GraphBuilder.ts', 'src/index/GraphState.ts', 'src/index/IndexSnapshot.ts',
-  'src/core/graph/settingsPolicy.ts', 'src/core/contracts/ontologyConfiguration.ts', 'src/core/graph/relations.ts', 'src/core/plex/typographyPreferences.ts', 'src/core/contracts/appearance.ts', 'src/core/plex/colorPreferences.ts', 'src/core/plex/appearanceThemes.ts', 'src/ui/layout.ts', 'src/adapters/obsidian/savedSettingsRefresh.ts']);
+  'src/core/graph/settingsPolicy.ts', 'src/core/contracts/ontologyConfiguration.ts', 'src/core/graph/relations.ts', 'src/core/plex/savedPins.ts', 'src/core/plex/typographyPreferences.ts', 'src/core/contracts/appearance.ts', 'src/core/plex/colorPreferences.ts', 'src/core/plex/appearanceThemes.ts', 'src/ui/layout.ts', 'src/adapters/obsidian/savedSettingsRefresh.ts']);
 
 /** Keep the actual settings classifier, save queue and typography writers without plugin startup. */
 function typographyHostSource() {
   const file=ts.createSourceFile('main.ts',readFileSync('src/main.ts','utf8'),ts.ScriptTarget.Latest,true);
-  const names=new Set(['saveSettings','refreshSavedSettings','updateStyleSettings','enqueueSettingsWrite','settingsSnapshotForPersistence','persistSettingsSnapshot','settingsForWrite','writeSettingsSnapshot',
+  const names=new Set(['saveSettings','refreshSavedSettings','refreshPeriodicPins','stopPeriodicPinTimer','updateStyleSettings','enqueueSettingsWrite','settingsSnapshotForPersistence','persistSettingsSnapshot','settingsForWrite','writeSettingsSnapshot',
     'captureAppearanceOwner','isAppearanceOwnerCurrent','stageTypographyOverride','persistTypographySettings','updateTypographyOverride','resetTypographyOverride']);
   const methods=[];
   const visit=node=>{if(ts.isMethodDeclaration(node)&&names.has(node.name.getText(file)))methods.push(node.getText(file));ts.forEachChild(node,visit);};
   visit(file);assert.equal(methods.length,names.size);
-  return ts.transpileModule('class TypographyHost {'+methods.join('\n')+'}',{compilerOptions:{target:ts.ScriptTarget.ES2021}}).outputText;
+  return ts.transpileModule('class TypographyHost {periodicPinTimer=null;periodicPinSignature=null;'+methods.join('\n')+'}',{compilerOptions:{target:ts.ScriptTarget.ES2021}}).outputText;
 }
 const initialize = `(() => {
   window.onDemandFixture = async(name, overrides={}) => {
@@ -38,7 +38,7 @@ const initialize = `(() => {
   window.settleDemand=async(index)=>{while(index.onDemandTasks.size)await Promise.all([...index.onDemandTasks.values()]);};
   window.typographyHost=o=>{
     const appearanceThemes=sourceModules;
-    const {ontologyConfiguration,SavedSettingsRefresh,STYLE_SETTINGS_KEYS,cyclicSemanticColorSlots,migrateColorPreferences,captureSettingsPolicy,classifySettingsChange,isStyleOnlySettingsChange,mergeTypographyOverride,resetTypographyOverride:resetDeviceTypography}=sourceModules;
+    const {isPeriodicPin,ontologyConfiguration,SavedSettingsRefresh,STYLE_SETTINGS_KEYS,cyclicSemanticColorSlots,migrateColorPreferences,captureSettingsPolicy,classifySettingsChange,isStyleOnlySettingsChange,mergeTypographyOverride,resetTypographyOverride:resetDeviceTypography}=sourceModules;
     class Notice {constructor(message){throw new Error('Unexpected settings failure: '+message);}}
     ${typographyHostSource()}
     const host=new TypographyHost();host.settings=o.settings;host.index=o.index;host.settingsWriteQueue=Promise.resolve();

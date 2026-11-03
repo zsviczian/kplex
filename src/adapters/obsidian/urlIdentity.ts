@@ -6,6 +6,10 @@
 import { nodeId } from "../../core/graph/model";
 import type { SourceTargetRef } from "../../core/graph/source";
 
+/** Recognize a supported Obsidian action without decoding its query into a local Vault target.
+ * This predicate grants no execution permission; explicit native activation owns that effect. */
+export function isObsidianUri(value: string): boolean {return /^obsidian:\/\/[^\s]/i.test(value);}
+
 /**
  * Normalize HTTP(S) scheme/host spelling and the optional root slash to one graph identity.
  * Standard URL serialization also handles IDN hosts and default ports. Path, query and fragment

@@ -54,7 +54,7 @@ import {
   SOURCE_BODY_PARSER_VERSION, SOURCE_CHUNK_TARGET_BYTES, SOURCE_DECODE_BUDGET_BYTES, SOURCE_FACT_COMPILER_VERSION,
   SOURCE_FACT_FORMAT_VERSION, SOURCE_FAMILIES, SOURCE_FLUSH_INTERVAL_MS, SOURCE_MAX_BATCH_RECORDS,
   SOURCE_MAX_RECORD_BYTES, SOURCE_REASONS, SOURCE_RESOLUTION_VERSION, SourceBodyDecoder, SourceFactError,
-  SourceFrameValidator, decodeSourceHead, legacyPrimaryGrammarCandidate, sourceCount, sourceHeadReason, sourceObject,
+  SourceFrameValidator, decodeSourceHead, decodeSourceRetirementHead, legacyPrimaryGrammarCandidate, sourceCount, sourceHeadReason, sourceObject,
   sourcePostingKeys, validSourceChunk, validSourcePhysical, validSourcePosting,
   type SourceChunk, type SourceFamily, type SourceFamilyManifest, type SourceHead, type SourceManifest,
   type SourceObservation, type SourcePhysical, type SourcePosting, type SourcePostingKind, type SourceReason,
@@ -1054,7 +1054,8 @@ export class NeutralSourceRepository {
         if (deletion && !deleting()) throw new SourceFactError("cancelled");
         const raw = await unknownValue(transaction.objectStore(SOURCE_HEAD_STORE).get(sourceId));
         if (deletion && !deleting()) throw new SourceFactError("cancelled");
-        const expected = expectation(raw); const reason = sourceHeadReason(raw); const head = decodeSourceHead(raw);
+        const expected = expectation(raw); const reason = sourceHeadReason(raw);
+        const head = decodeSourceHead(raw) ?? (deletion ? decodeSourceRetirementHead(raw) : null);
         if (!head || head.sourceId !== sourceId || head.state === "tombstone" && !includeTombstone) return { view: null, expected, reason: head?.sourceId !== sourceId && head ? "invalid-head" as const : reason };
         if(acceptHead&&!acceptHead(head))return {view:null,expected,reason:'decode-budget' as const};
         const leases: string[] = [];
@@ -1645,6 +1646,7 @@ export class NeutralSourceRepository {
     const view = pinned.view; const decoder = new SourceBodyDecoder();
     try {
       if (!matches(view.head.physical) || !current()) return null;
+      if (view.head.compilerVersion !== SOURCE_FACT_COMPILER_VERSION) return null;
       if (requireCurrentParser && view.head.bodyParserVersion !== SOURCE_BODY_PARSER_VERSION
         && (view.head.families["body-urls"]?.records ?? 0) > 0) return null;
       for (const family of ["values", "body-urls"] as const) {
@@ -2648,6 +2650,7 @@ export class NeutralSourceRepository {
       }
       const view = pinned.view;
       try {
+        const retainFamilies = pending.retain && view.head.compilerVersion === SOURCE_FACT_COMPILER_VERSION;
         if (pending.observe && view.head.state !== "tombstone") {
           let active = true, visiting = false;
           /** A retiring reader belongs to this exact absence request, never to live source selection. */
@@ -2670,7 +2673,7 @@ export class NeutralSourceRepository {
           if (!current()) return this.result("cancelled", "cancelled");
         }
         const head: SourceManifest = { ...view.head, sourceRevision: this.runtime.uniqueId(), state: "tombstone",
-          families: pending.retain ? view.head.families : {} };
+          families: retainFamilies ? view.head.families : {} };
         const db = await this.open();
         if (!current()) return this.result("cancelled", "cancelled");
         if (db) {
@@ -2683,9 +2686,9 @@ export class NeutralSourceRepository {
             // Commit completion can race a new request/recreation. A retiring capability may not
             // erase another request's mask or install old retained memory over a newer source.
             if (!current()) return result;
-            if (!pending.retain) retired = [...new Set(Object.values(view.head.families).map(family => family.revision))];
+            if (!retainFamilies) retired = [...new Set(Object.values(view.head.families).map(family => family.revision))];
             this.pendingDeletes.delete(sourceId);
-            if (pending.retain && view.memory) {
+            if (retainFamilies && view.memory) {
               this.rememberMemory({ ...view.memory, head, current: () => false });
               this.unsaved.delete(sourceId);
             } else this.forgetMemory(sourceId);
@@ -2709,8 +2712,9 @@ export class NeutralSourceRepository {
     void task.finally(() => { if (this.deleteTask === task) this.deleteTask = null; this.scheduleRetry(); });
     return task;
   }
-  /** Read a bounded catalog page for inventory reconciliation; no whole-vault manifest is rewritten. */
-  async headPage(after: string | null = null, limit = SOURCE_MAX_BATCH_RECORDS): Promise<Readonly<{ available: boolean; heads: SourceHead[]; invalid: number; next: string | null }>> {
+  /** Read a bounded catalog page; only an explicit absence scan admits known old headers for
+   * retirement. Current graph/warm-authority readers retain strict compiler/parser validation. */
+  async headPage(after: string | null = null, limit = SOURCE_MAX_BATCH_RECORDS, options?: Readonly<{retirementOnly?: boolean}>): Promise<Readonly<{ available: boolean; heads: SourceHead[]; invalid: number; next: string | null }>> {
     const db = await this.open();
     if (!db) return { available: false, heads: [], invalid: 0, next: null };
     try {
@@ -2720,7 +2724,7 @@ export class NeutralSourceRepository {
         const keys = await requestValue(transaction.objectStore(SOURCE_HEAD_STORE).getAllKeys(range, Math.max(1, Math.min(limit, SOURCE_MAX_BATCH_RECORDS))));
         const heads: SourceHead[] = []; let invalid = 0;
         for (let index = 0; index < entries.length; index += 1) {
-          const head = decodeSourceHead(entries[index]);
+          const head = options?.retirementOnly ? decodeSourceRetirementHead(entries[index]) : decodeSourceHead(entries[index]);
           if (head && head.sourceId === keys[index]) heads.push(head); else invalid += 1;
         }
         const last = keys[keys.length - 1];

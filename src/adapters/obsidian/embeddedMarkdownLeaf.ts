@@ -14,6 +14,7 @@
 import { FileView, TextFileView, parseLinktext, Platform, WorkspaceLeaf, WorkspaceSplit, type App, type Scope, type TFile, type Workspace } from "obsidian";
 import { focusEmbeddedMarkdownView, registerEmbeddedMarkdownFocus, registerEmbeddedMarkdownFocusTarget } from "./embeddedMarkdownFocus";
 import { EmbeddedDrawingFit } from "./EmbeddedDrawingFit";
+import {webUrlOrigin} from "./urlIdentity";
 import {
   hasMinimumExcalidrawIntegrationVersion,
   MINIMUM_EXCALIDRAW_INTEGRATION_VERSION,
@@ -1004,7 +1005,7 @@ export function mountEmbeddedMarkdownLeaf(
       }
     },
     async openUrl(url) {
-      if (disposed) return;
+      if (disposed || !webUrlOrigin(url)) return;
       const sequence = ++openSequence;
       drawingFit?.reset();
       currentFile = null;
