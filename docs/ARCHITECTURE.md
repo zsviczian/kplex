@@ -92,7 +92,12 @@ exact-build Windows native validation pass; remaining environment limits are rec
 checks and read-only use cases. `publicApi/createPublicApi` composes existing plugin/index/native
 capabilities once settings are loaded, independently of graph admission. Configuration revisions
 observe a fixed inventory of immutable settings owners; they do not traverse the vault or copy
-the settings model. The pure ontology read projection from PR #239 supplies physical names,
+the settings model. Submitted settings writes also retire prior configurations before queueing,
+including legacy same-reference and A-to-B-to-A edits. Completion reads never submit writes.
+`core/contracts/ontologyCompletion` owns literal trigger matching, physical role selection and
+inverse-aware filtering shared by `editor/OntologySuggester` and the settings-only public port.
+The native editor retains bold/trailing-space insertion; HTML consumers own their DOM/caret policy.
+The pure ontology read projection from PR #239 supplies physical names,
 roles, inverse partners, authored descriptions and configured/discovered state before hydration.
 
 `adapters/obsidian/publicApiGraph` delegates to passive bounded `GraphIndex` readers over existing

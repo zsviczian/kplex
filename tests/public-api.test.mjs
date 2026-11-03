@@ -42,6 +42,10 @@ function fixture(){
  return{...graph,api,transport,revision,configuration,setComplete:value=>{complete=value;},navigations:()=>navigations};
 }
 
+test('ontology completion capability is additive on the supported API',()=>{
+ const f=fixture();assert.equal(typeof f.api.completeOntology,'function');
+});
+
 test('settings ontology and actual GraphQL remain available before index readiness',()=>{
  const f=fixture();assert(f.api.ontology().ok);assert.equal(f.api.ontology().value.fields[0].description,'Physical containment');
  const result=f.api.query({query:'query Fields($take:Int!){ ontology(limit:$take){ fields{name role partner description configured discovered} } status{phase totalFiles coverage{scope complete}} }',variables:{take:20}});

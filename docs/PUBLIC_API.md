@@ -33,6 +33,96 @@ Read options include `expectedRevision`, `requireComplete` and an optional synch
 
 Coverage distinguishes configuration, global, local, cached and unknown scopes. A complete ontology definition list is not proof of complete graph coverage. Search readiness, neutral-source readiness, one prepared neighborhood and complete global relationship coverage are separate facts. Empty or missing partial results cannot prove a whole-vault negative.
 
+## Complete ontology fields in external inputs
+
+`v1.completeOntology({text, cursor, limit?, ...readOptions})` is an additive,
+synchronous configuration read. Discover it through
+`capabilities().value.operations.includes("completeOntology")` and check that the
+method exists. Older K-Plex versions without this capability remain valid API v1
+providers for their existing operations.
+
+`text` is a plain string containing the input or current logical line. `cursor`
+is an explicit **UTF-16 code-unit offset**, from zero through `text.length`, as
+used by HTML input selections. Only the logical line before that cursor is
+matched; CR, LF and Unicode line separators delimit lines. Returned replacement
+offsets address the **original text**, with an inclusive `start` and exclusive
+`end`. Nothing after the cursor is consumed. Text is never silently truncated.
+
+The success envelope contains:
+
+```ts
+{
+  state: "matched" | "no-match" | "disabled",
+  context: null | {
+    range: {start: number, end: number},
+    query: string,
+    role: "all" | "parent" | "child" | "leftFriend" | "rightFriend" | "previous" | "next",
+    trigger: string,
+    prefix: string
+  },
+  items: Array<{name: string, role: string, roles: string[],
+    partner?: string, partnerRole?: string, description?: string}>,
+  truncated: boolean
+}
+```
+
+`disabled` means the native ontology suggester preference is disabled. `no-match`
+means no configured trigger matches the current context. Both return no context
+or items. A matched trigger with no eligible field still returns `matched`, its
+context, and an empty list. These are successful reads; an unavailable/retired API
+returns the ordinary `API_UNAVAILABLE` failure. An API owner without the optional
+completion port returns `UNSUPPORTED` and does not advertise the operation.
+
+The matcher, role selection and inverse-aware filtering are shared with the
+native Markdown suggester. Live generic and six role triggers, historical/custom
+values, empty triggers, generic-before-role collision precedence and the
+mid-sentence prefix are preserved. Direct physical-name matches precede
+inverse-partner-only matches. Generic options retain their native alphabetical
+order; role options retain configured order. `name` is the exact physical insertion
+value. Partner and description annotations are inert text, never insertion syntax.
+
+Requests accept up to **65,536 UTF-16 units**, and `limit` is an integer from 1
+through **100**, default **20**. Invalid cursors/limits return `INVALID_ARGUMENT`.
+Excess input, configured trigger or vocabulary budgets return `LIMIT_EXCEEDED`;
+configured and decoded physical vocabularies are each capped at 8,192 entries.
+The normal 1 MiB output budget also applies. Excess candidates set `truncated`;
+`requireComplete: true` then returns `INDEX_INCOMPLETE` as for other API reads.
+
+Completion works once settings are loaded, without an open graph, indexing or
+hydration readiness. It does not read Markdown, enumerate files, acquire graph
+sources, hydrate/rebuild an index, persist settings or use the network. Coverage
+is configuration-complete, not a certificate about graph coverage.
+
+The caller owns DOM updates, wrappers, caret placement and its keyboard/popup
+lifetime. K-Plex's native Markdown insertion still honors `boldFields` and its
+trailing space; completion data does not include either formatting policy.
+Reacquire `window.kplexApi` on use and before selection. Compare the public root
+identity and configuration revision, then revalidate the current text/cursor and
+selected exact name. Completion preferences participate in the existing
+configuration coordinate; submitted local saves retire earlier configurations
+before entering the disk queue, including same-reference and A-to-B-to-A edits.
+A same-value save may conservatively advance this opaque coordinate too.
+
+```js
+// Optional integration: no private settings, registered EditorSuggest or graph is needed.
+function completionFor(text, cursor) {
+  const provider = window.kplexApi;
+  const api = provider?.v1;
+  const capabilities = api?.capabilities();
+  if (provider?.version !== 1 || !capabilities?.ok ||
+      !capabilities.value.operations.includes("completeOntology") ||
+      typeof api.completeOntology !== "function") return null;
+  const result = api.completeOntology({text, cursor, limit: 20});
+  if (!result.ok || result.value.state !== "matched") return null;
+  return {provider, configuration: result.revision.configuration, ...result.value};
+}
+
+const offered = completionFor("(::pPar)", 7);
+// On selection, call completionFor again with the actual current input/cursor.
+// Require the same provider/configuration and an offered item's exact name.
+// The consumer then replaces context.range and applies its own wrapper/caret policy.
+```
+
 ## Discover ontology and indexed knowledge
 
 | Method | Input and result |

@@ -2384,8 +2384,11 @@ export default class KplexPlugin extends Plugin {
       ? source.colorPreferencesFuture : source.colorPreferences };
   }
 
-  /** Persist live settings at the queued boundary, preserving an unsupported future schema verbatim. */
+  /** Observe submitted configuration before queueing, then persist it at the existing boundary.
+   * Local A-to-B-to-A preference saves must retire previously issued completion results even
+   * when no canvas or external API read occurs between them. Future schemas remain verbatim. */
   private persistSettingsSnapshot(startupMigration = false): Promise<void> {
+    this.publicApiOwner?.configurationSubmitted();
     return this.enqueueSettingsWrite(/** Only this submitted workflow intent crosses the shared boundary. */ () => {
       if (startupMigration && this.externalSettingsReceived) {
         this.settings.kplexInitialized = this.settingsForWrite({edits: [], versions: new Map()}).kplexInitialized;

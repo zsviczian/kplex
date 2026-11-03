@@ -15,20 +15,24 @@ import {LENS_AUTHORING_CONTEXT} from '../core/plex/sharing/authoring';
 import {isFacetPreset} from '../core/plex/views/facets/validation';
 import {viewConfigurationUpdateDomain} from '../core/plex/views/configuration';
 import {facetPortablePackage} from '../ui/plexViews/facets/facetSharing';
+import {completeConfiguredOntology} from './ontologyCompletion';
+import {ontologyCompletionConfiguration} from '../editor/ontologyCompletionConfiguration';
 
 export type KplexPublicApi=Readonly<{version:1;versions:readonly number[];v1:PublicApi}>;
-export type PublicApiOwner=Readonly<{api:KplexPublicApi;canvases:PublicCanvasRegistry;revisions:()=>PublicApiRevision;dispose:()=>void}>;
+export type PublicApiOwner=Readonly<{api:KplexPublicApi;canvases:PublicCanvasRegistry;revisions:()=>PublicApiRevision;configurationSubmitted:()=>void;dispose:()=>void}>;
 type StatusFacts=Readonly<{phase:string;upToDate:boolean;indexedFiles:number;totalFiles:number|null}>;
 
-/** Use immutable committed owner identities as an opaque observation token, not a second settings
- * snapshot or a count of every intermediate edit. Unrelated note reads never inspect these roots. */
-function configurationRevision(plugin:KplexPlugin):()=>number {
+/** Use immutable owner identities plus submitted-write epochs as an opaque observation token.
+ * Legacy same-reference mutations retire offers at submission without hashing settings or
+ * retaining another snapshot. Ordinary reads compare only this fixed set of owned roots. */
+function configurationRevision(plugin:KplexPlugin):(submitted?:boolean)=>number {
   let previous:readonly unknown[]=[],revision=0;
-  return /** Settings writers replace these owned roots; incoming receipts replace their containing settings. */ ()=>{
-    const settings=plugin.settings,roots:readonly unknown[]=[settings,settings.hierarchy,...ONTOLOGY_GROUPS.map(
+  return /** Incoming receipts replace roots; a submitted write also fences imperative compatibility writers. */ (submitted=false)=>{
+    const settings=plugin.settings,completion=ontologyCompletionConfiguration(settings),roots:readonly unknown[]=[settings,settings.hierarchy,...ONTOLOGY_GROUPS.map(
       /** Fixed-size role metadata captures compatibility writers that replace a list in its existing root. */ group=>settings.hierarchy[group]),
-      settings.ontologyDescriptions,settings.graphLenses,settings.canvasViewSettings,settings.colorPreferences,settings.colorPreferences.palette];
-    if(roots.length!==previous.length||roots.some(/** Constant-size reference comparison performs no dictionary traversal. */ (value,index)=>value!==previous[index])){previous=roots;revision++;}
+      settings.ontologyDescriptions,settings.graphLenses,settings.canvasViewSettings,settings.colorPreferences,settings.colorPreferences.palette,
+      completion.enabled,completion.midSentenceTrigger,...Object.values(completion.triggers),settings.primaryTagField,settings.ontologyPairingVersion];
+    if(submitted||roots.length!==previous.length||roots.some(/** Constant-size reference comparison performs no dictionary traversal. */ (value,index)=>value!==previous[index])){previous=roots;revision++;}
     return revision;
   };
 }
@@ -72,6 +76,10 @@ export function createPublicApi(plugin:KplexPlugin,current:()=>boolean,status:()
   const service=new PublicApi({configuration,canvas:canvases.port(),graph:createPublicGraphRead(plugin.index),now:()=>window.performance.now(),
     revisions,
     status:/** Reuse the existing passive status path with its cached Markdown total. */ ()=>plugin.index.publicApiStatus(status()),
+    completeOntology:/** Live configuration is sufficient; retirement rejects even before disposal. */ (text,cursor,limit)=>{
+      if(!alive())throw new PublicApiError('API_UNAVAILABLE','K-Plex API is unloaded');
+      return completeConfiguredOntology(plugin.settings,text,cursor,limit);
+    },
     ontology:/** Settings provide configured meanings before the graph starts; discovery is explicit and cache-only. */ options=>{
       if(ONTOLOGY_GROUPS.reduce(/** Reject an excessive configured vocabulary before projecting it. */ (count,group)=>count+plugin.settings.hierarchy[group].length,0)>PUBLIC_API_LIMITS.scan)
         throw new PublicApiError('LIMIT_EXCEEDED','Configured ontology exceeds the vocabulary read budget.');
@@ -83,6 +91,7 @@ export function createPublicApi(plugin:KplexPlugin,current:()=>boolean,status:()
     graphql:transport.execute,
   });
   return {api:Object.freeze({version:1,versions:Object.freeze([1]),v1:service}),canvases,revisions,
+    configurationSubmitted:/** Retire captured configurations synchronously before an accepted settings write queues. */ ()=>{if(alive())revision(true);},
     dispose:/** Reject old handles and release all native/index closures before any index teardown. */ ()=>{
       active=false;service.dispose();configuration.dispose();canvases.dispose();transport.dispose();
     }};
