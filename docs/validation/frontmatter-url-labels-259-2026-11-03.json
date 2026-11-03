@@ -1,0 +1,149 @@
+{
+    "name":  "frontmatter-url-labels-259",
+    "status":  "passed",
+    "node":  "v22.22.2",
+    "startedAt":  "2026-11-03T14:07:20.464Z",
+    "maximumMs":  900000,
+    "driver":  {
+                   "transport":  "beb7677649f8ae6ae390c0df25b4a025a48777b5fbfc5e36c25f7fe252b8a0d3",
+                   "scenario":  "c8aad516d5ad587593ef354ad97a1dc63be6d774a3b2a5a1fae0e3c062483bcf",
+                   "definitions":  "9eebd71c01f653b0de74beafdd377d69746200110aceaadc12d3c06d861e4ad2"
+               },
+    "artifacts":  {
+                      "main.js":  "4b83b059af3784801892cf29dddac20b4dde3a7f257b31de55731f71fe7379ed",
+                      "manifest.json":  "8c65b0d38a506f8fa9fc3311b81ea22bcda48e0209e9190483752c1f20834326",
+                      "styles.css":  "d89188385a224f257da98ca48b41ea1e0fe9dd14f67f45012a51b144fb492ab1"
+                  },
+    "source":  {
+                   "src/index/GraphBuilder.ts":  "c0cc0d30260e146978e942e9cd8953ca78ca92bbda772d64334eba026247606f",
+                   "src/index/GraphIndex.ts":  "7c1c8486da9244ec568389880dfc70d4ca49bf95b07c918ec3fb0252bea531dc",
+                   "src/core/graph/compiler.ts":  "6156fb1eb6e51e057a48a2b97dba0bddeaf9dd065277355ddc1a0af1b6075ec5",
+                   "src/core/parser/metadata.ts":  "1043bb3e0acbc8718f1a0c58974e77f3d90a22ffd298dbda42a72f1af967c638",
+                   "src/core/graph/source.ts":  "c1c2c1cb5a688482039c41d878bbec6a5f164be44affa74a24fd91cb423b8733",
+                   "src/adapters/obsidian/metadataSourceCollector.ts":  "975db2a291c741569fff3bd88745af60e9a470e457a8be88764fc92c04495321"
+               },
+    "limitations":  "Controlled native method observations, not actual paint or physical-device acceptance.",
+    "obsidian":  "1.14.5 (installer 1.14.5)",
+    "progress":  {
+                     "phase":  "restoring disposable fixture"
+                 },
+    "result":  {
+                   "created":  {
+                                   "name":  "Readable259",
+                                   "title":  "Readable259",
+                                   "aliases":  [
+                                                   "Readable259",
+                                                   "Alias259"
+                                               ]
+                               },
+                   "edited":  {
+                                  "name":  "Edited259",
+                                  "title":  "Edited259",
+                                  "aliases":  [
+                                                  "Edited259"
+                                              ]
+                              },
+                   "removed":  {
+                                   "name":  "https://example.com/kplex259-1793714840646",
+                                   "title":  "https://example.com/kplex259-1793714840646",
+                                   "aliases":  [
+
+                                               ]
+                               },
+                   "restored":  {
+                                    "name":  "Restored259",
+                                    "title":  "Restored259",
+                                    "aliases":  [
+                                                    "Restored259"
+                                                ]
+                                },
+                   "samples":  [
+                                   {
+                                       "strategy":  "eager",
+                                       "usableMs":  895.9000000953674,
+                                       "elapsedMs":  7565.200000047684,
+                                       "counters":  {
+                                                        "checked":  0,
+                                                        "reusedBodies":  1,
+                                                        "legacyBodies":  0,
+                                                        "vaultReads":  0,
+                                                        "parses":  0,
+                                                        "repaired":  0,
+                                                        "resolutionRefreshes":  0,
+                                                        "pendingMetadata":  0,
+                                                        "failures":  0
+                                                    },
+                                       "urlWork":  {
+                                                       "processed":  99,
+                                                       "total":  99,
+                                                       "complete":  true,
+                                                       "active":  false,
+                                                       "failed":  false,
+                                                       "restored":  99,
+                                                       "reads":  0,
+                                                       "checked":  99,
+                                                       "cacheAvailable":  true,
+                                                       "cacheWritesFailed":  0
+                                                   },
+                                       "fullBuilds":  0,
+                                       "facets":  {
+                                                      "name":  "Restored259",
+                                                      "title":  "Restored259",
+                                                      "aliases":  [
+                                                                      "Restored259"
+                                                                  ]
+                                                  }
+                                   },
+                                   {
+                                       "strategy":  "on-demand",
+                                       "usableMs":  394.7000000476837,
+                                       "elapsedMs":  900.5,
+                                       "counters":  {
+                                                        "checked":  0,
+                                                        "reusedBodies":  1,
+                                                        "legacyBodies":  0,
+                                                        "vaultReads":  0,
+                                                        "parses":  0,
+                                                        "repaired":  0,
+                                                        "resolutionRefreshes":  0,
+                                                        "pendingMetadata":  0,
+                                                        "failures":  0
+                                                    },
+                                       "urlWork":  {
+                                                       "processed":  99,
+                                                       "total":  99,
+                                                       "complete":  true,
+                                                       "active":  false,
+                                                       "failed":  false,
+                                                       "restored":  99,
+                                                       "reads":  0,
+                                                       "checked":  99,
+                                                       "cacheAvailable":  true,
+                                                       "cacheWritesFailed":  0
+                                                   },
+                                       "facets":  {
+                                                      "name":  "Restored259",
+                                                      "title":  "Restored259",
+                                                      "aliases":  [
+                                                                      "Restored259"
+                                                                  ]
+                                                  }
+                                   }
+                               ],
+                   "environment":  {
+                                       "hidden":  false,
+                                       "focused":  true,
+                                       "backgroundThrottling":  true
+                                   }
+               },
+    "cleanup":  "passed",
+    "completedAt":  "2026-11-03T14:12:45.253Z",
+    "stagingCleanup":  {
+                           "disable":  "passed",
+                           "data":  "passed",
+                           "enable":  "passed",
+                           "layout":  "passed",
+                           "data-bytes":  "passed",
+                           "enablement-bytes":  "passed"
+                       }
+}

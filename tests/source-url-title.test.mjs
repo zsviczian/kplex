@@ -10,6 +10,50 @@ import { M, replayFixture, settings, runtime, policy } from "./support/cachedSou
 import { seedTitleBodies, fullTitle, nestedTitleOwners } from "./support/selectedTitleFixture.mjs";
 import { titleFixture, bindTitleCatalog, titleUrl, urlRef, guardUrlTitle, rejectedTitle, reframeTitleCatalog } from "./support/urlTitleFixture.mjs";
 
+test("frontmatter Markdown labels survive full compilation and unchanged cached-source replay", async () => {
+  const f = await titleFixture(f => {
+    f.add("Bare.md", titleUrl);
+    f.add("Label.md", "", { Friends: [
+      `[Readable label](${titleUrl})`, { nested: `[Search alias](${titleUrl})` },
+      "[Local caption](Bare)", "[Missing caption](Missing)",
+    ] });
+    f.resolutions.set("Bare", "Bare.md");
+  });
+  try {
+    const full = await fullTitle(f, titleUrl);
+    assert.equal(full.title, "Readable label");
+    assert.deepEqual(full.aliases, ["Readable label", "Search alias"]);
+    assert.equal((await fullTitle(f, "Bare.md")).title, "Bare");
+    assert.equal((await fullTitle(f, "Missing")).title, "Missing");
+    const facts = await f.facts("Label.md", "values");
+    assert(facts.some(fact => fact.kind === "reference-candidate"));
+    assert(facts.filter(fact => fact.kind === "reference-candidate").every(fact => !("label" in fact)),
+      "The existing strict source-fact format remains reusable without migration");
+    const check = guardUrlTitle(f);
+    const result = await f.makeReader().prepare(urlRef(), policy(), runtime());
+    assert.equal(result.outcome, "ready", JSON.stringify(result));
+    assert.equal(result.input.name, full.title);
+    assert.equal(result.work.familyVisits, 8);
+    check();
+  } finally { f.close(); }
+});
+
+test("frontmatter URL labels precede body labels in the declaring note and preserve every alias", async () => {
+  const f = await titleFixture(f => f.add("Label.md", `[Body label](${titleUrl})`, {
+    Unassigned: [`[  Property label  ](${titleUrl})`, `[${titleUrl}](${titleUrl})`, `[   ](${titleUrl})`],
+    position: `[Ignored position](${titleUrl})`,
+  }));
+  try {
+    const full = await fullTitle(f, titleUrl);
+    assert.equal(full.title, "Property label");
+    assert.deepEqual(full.aliases, ["Property label", "Body label"]);
+    const check = guardUrlTitle(f);
+    const result = await f.makeReader().prepare(urlRef(), policy(), runtime());
+    assert.equal(result.outcome, "ready", JSON.stringify(result));
+    assert.equal(result.input.name, full.title); check();
+  } finally { f.close(); }
+});
+
 /** Read the real full-builder title before turning on settings-only work guards. */
 async function titleVariants(f, url = titleUrl) {
   const variants = [{}, { renderAlias: false }, { nameFields: "Title,ALIASES" },

@@ -1604,6 +1604,16 @@ See [the focused menu-target record](docs/validation/file-menu-targets-2026-11-0
 failure, exact-build native evidence and the maintainer's explicit no-full-regression instruction.
 
 
+### Frontmatter URL label acceptance
+
+For frontmatter Markdown URL-label changes, stage the exact build in the existing disposable
+Small vault, then run `npm run verify:obsidian:frontmatter-labels` with the three explicit
+test-vault variables and a fresh `KPLEX_HOST_REPORT_DIR`. The driver uses the shared host lock
+and verifies actual canvas titles/search, native property edits and label removal. It waits
+for ordinary snapshot persistence before real Eager and On-demand plugin reloads, checking
+unchanged-note reads/parses and restoring its notes, settings, enablement and workspace.
+This is a functional desktop/cache lane, not physical mobile or paint-performance evidence.
+
 ### Eager graph maintenance acceptance
 
 For the edit-after-warm-restore window, run `node scripts/testing/obsidian/eagerWarmMaintenance.mjs`

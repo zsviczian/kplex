@@ -89,7 +89,8 @@
     "verify:obsidian:editor-mobile-navigation": "node scripts/testing/obsidian/editorMobileNavigation.mjs",
     "verify:obsidian:rename-mobile-viewport": "node scripts/testing/obsidian/renameMobileViewport.mjs",
     "test:ontology-consolidation": "node --test --test-concurrency=1 tests/ontology-usage-pagination.test.mjs tests/ontology-occurrences.test.mjs tests/public-ontology-configuration.test.mjs tests/ontology-consolidation-recipe.test.mjs tests/ontology-usage.test.mjs tests/ontology-batch-writer.test.mjs tests/ontology-usage-indexeddb.test.mjs",
-    "verify:obsidian:ontology-consolidation": "node scripts/testing/obsidian/ontologyConsolidation.mjs"
+    "verify:obsidian:ontology-consolidation": "node scripts/testing/obsidian/ontologyConsolidation.mjs",
+    "verify:obsidian:frontmatter-labels": "node scripts/testing/obsidian/frontmatterUrlLabels.mjs"
   },
   "engines": {
     "node": ">=22.22.2 <23"

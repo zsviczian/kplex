@@ -1,5 +1,5 @@
 /**
- * Canonical host-free body grammar shared by synchronous workers and cooperative host parsing.
+ * Canonical host-free body/property grammar shared by workers, cooperative parsing and literal edits.
  * Versioned parser DTOs retain primary URL provenance while additional labels feed search facets.
  * Explicit cooperative inspection can observe original-string key ranges without enlarging indexed
  * records or changing the historical evidence offsets used by normal parser/worker consumers.
@@ -930,6 +930,40 @@ export function extractLinkReferencesFromValue(value: unknown): ExtractedLinkRef
   return [...iterateLinkReferencesFromValue(value)];
 }
 
+/**
+ * Expose labels from the existing literal property Markdown grammar. Null leaves let host
+ * collectors checkpoint even for large non-link containers. This is separate metadata, not an
+ * extension of persisted lexical reference DTOs; internal link captions never rename notes.
+ * Target-only consumers disable label extraction to avoid copying text they do not retain.
+ */
+export function* iterateMarkdownLinkSteps(value: unknown, includeLabel = true): IterableIterator<Readonly<{ rawTarget: string; label: string }> | null> {
+  if (Array.isArray(value)) {
+    for (const nested of value) yield* iterateMarkdownLinkSteps(nested, includeLabel);
+  } else if (value && typeof value === "object") {
+    for (const key in value) {
+      if (Object.prototype.hasOwnProperty.call(value, key)) yield* iterateMarkdownLinkSteps((value as Record<string, unknown>)[key], includeLabel);
+    }
+  } else if (typeof value === "string") {
+    // The literal grammar closes at the first `]` and `)`. Advance past failed label spans
+    // instead of retrying every nested `[`, which makes malformed dense values quadratic.
+    let cursor = 0;
+    while (cursor < value.length) {
+      const open = value.indexOf("[", cursor);
+      if (open < 0) break;
+      const close = value.indexOf("]", open + 1);
+      if (close < 0) break;
+      cursor = close + 1;
+      if (value[cursor] !== "(") { yield null; continue; }
+      const end = value.indexOf(")", cursor + 1);
+      if (end < 0) break;
+      if (end === cursor + 1) { yield null; continue; }
+      yield { rawTarget: value.slice(cursor + 1, end), label: includeLabel ? value.slice(open + 1, close).trim() : "" };
+      cursor = end + 1;
+    }
+  }
+  yield null;
+}
+
 /** Streaming form used by normalized source collectors so one dense value need not first build a
  * target array. Regex instances are local to each scanned string because consumers may checkpoint
  * asynchronously between yielded references. */
@@ -945,16 +979,15 @@ export function* iterateLinkReferencesFromValue(value: unknown): IterableIterato
   if (typeof value !== "string") return;
 
   const wikiLinkRe = new RegExp(WIKI_LINK_RE.source, WIKI_LINK_RE.flags);
-  const markdownLinkRe = new RegExp(MARKDOWN_LINK_RE.source, MARKDOWN_LINK_RE.flags);
   const urlRe = new RegExp(URL_RE.source, URL_RE.flags);
   let match: RegExpExecArray | null;
   while ((match = wikiLinkRe.exec(value)) !== null) {
     const rawTarget = match[1].trim();
     if (rawTarget) yield { ...splitInternalSubpath(rawTarget), external: false };
   }
-  while ((match = markdownLinkRe.exec(value)) !== null) {
-    const rawTarget = match[1];
-    if (!rawTarget) continue;
+  for (const reference of iterateMarkdownLinkSteps(value, false)) {
+    if (!reference) continue;
+    const { rawTarget } = reference;
     // Preserve the legacy external Markdown target exactly, including surrounding spaces.
     // Internal targets are trimmed later by host resolution.
     yield /^https?:\/\//i.test(rawTarget)

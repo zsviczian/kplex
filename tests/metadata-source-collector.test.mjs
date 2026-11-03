@@ -147,6 +147,25 @@ function assertNoHostObject(value) {
 
 try {
   {
+    // Property display labels share literal grammar, stream bounded batches and retain cancellation.
+    const source = new TFile("Labels.md");
+    const { host } = makeHost([source]);
+    const meta = makeMetadata({ frontmatter: { Links: Array.from({ length: 600 }, (_, i) => `[Label ${i}](https://example.com/${i})`) } });
+    const settings = { noteTypeField: "Type", primaryTagField: "Style" };
+    const records = await collect(new ObsidianMetadataSourceCollector(host,
+      { isCurrent: () => true, sourceRevision: () => 1, checkpoint: async () => true }, source, meta, settings, "presentation"));
+    assert.equal(records.filter(record => record.kind === "url-label").length, 600);
+    assert.equal(records.some(record => record.kind === "body-url" || record.kind === "reference-candidate"), false,
+      "Labels supplement existing reference evidence instead of adding another relationship");
+    const batches = []; let checkpoints = 0;
+    const cancelled = new ObsidianMetadataSourceCollector(host,
+      { isCurrent: () => true, sourceRevision: () => 1, checkpoint: async () => ++checkpoints < 10 }, source, meta, settings, "presentation");
+    assert.equal(await cancelled.collectBatches(batch => { batches.push(batch); return true; }), false);
+    assert.equal(batches.at(-1)?.final ?? false, false);
+    assert(batches.every(batch => batch.records.length <= MAX_NORMALIZED_SOURCE_RECORDS_PER_BATCH));
+    assert.equal(cancelled.isBoundaryCurrent(cancelled.boundary), false);
+  }
+  {
     // Real adapter replay normalizes old raw URL facts without rewriting lexical provenance.
     const source = { id: "source opaque", kind: "document", state: "materialized", semanticPath: "Source.md", physicalPath: "Source.md" };
     const variants = ["https://Obsidian.md", "HTTPS://OBSIDIAN.MD/", "https://obsidian.md"];
