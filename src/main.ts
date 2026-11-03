@@ -455,7 +455,8 @@ export default class KplexPlugin extends Plugin {
     this.registerView(KPLEX_VIEW_TYPE, (leaf: WorkspaceLeaf) => new KplexView(leaf, this));
     this.registerView(KPLEX_SIDEPANEL_VIEW_TYPE, (leaf: WorkspaceLeaf) => new KplexSidepanelView(leaf, this));
     this.registerHoverLinkSource(KPLEX_VIEW_TYPE, { display: "K-Plex", defaultMod: false });
-    this.registerHoverLinkSource(KPLEX_SIDEPANEL_VIEW_TYPE, { display: "K-Plex", defaultMod: false });
+    // Every surface emits the canonical primary source. Keep native view IDs independent of
+    // Page Preview preferences so the same user choice also applies to Sidecar and popouts.
     this.settingsTab = new KplexSettingTab(this.app, this);
     this.addSettingTab(this.settingsTab);
     this.registerEditorSuggest(new OntologySuggester(this));
