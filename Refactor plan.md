@@ -6808,3 +6808,34 @@ Checkpointb2647df passes Node22.22.2 full verify architecture9/core132/main1884/
 ### 2026-11-02 - Remote CI and final delivery
 
 CI649 succeeds for tested source/test checkpointb2647dfe65cddde653dba293903e814069add0b0. All24 frozen source/test hashes and all three built artifact hashes still match exact native acceptance. Final documentation follows the verified runtime with no rebuild; mainb4cc705a remains installed in production. Final Windows production notes unchanged during acceptance, navigation/settings/enablement restored, all controllers removed and shared lock absent. PR257 ready for review after this documentation checkpoint; do not merge/release. Earlier failed CI and interrupted/recovered native attempts remain documented. No remaining required local/native implementation work; platform/input limits remain explicit in the report.
+
+### 2026-11-03 - Settings-only ontology completion companion
+
+Maintainer-authorized companion to Excalidraw plugin PR #3033. The native Markdown
+suggester and additive public `v1.completeOntology` operation now share portable
+literal trigger matching, physical role selection and inverse-aware filtering.
+The public port reads configuration only; it owns no editor, graph admission,
+source acquisition, Markdown I/O, schema migration or persistence. The existing
+settings writer retires captured configuration at submission, including legacy
+same-reference and A-to-B-to-A edits. Native bold/trailing-space insertion remains
+with the Markdown editor. C15-C26 remain paused.
+
+Focused acceptance: 46 completion/API/window/parity tests, 142 affected public
+configuration/action/settings browser checks, architecture (239 roots/433 files,
+zero violations), 132 restricted-core checks, installed types/production builds
+and scanner lint pass on Node 22.22.2. The combined built-plugin lane passes 20
+cases on Windows Obsidian 1.14.5: main/popout plus emulated phone/tablet,
+passive API capability guards, real link and Markdown editors, keyboard/caret,
+Undo/Redo, physical save/reopen and provider lifecycle. Its strict error gates,
+fixture restoration and cleanup pass. Earlier fixture/discovery/migration/layout
+and delayed-read failures are retained in the plugin's ignored native reports;
+none is excluded from acceptance. The final coordinated PR records tested clean
+source/artifact identities and full plugin-profile results.
+
+Risk assessment: this completion path cannot change indexing/storage/semantic
+owners; do not run the expensive indexing aggregates merely to validate this
+read-only capability. Existing settings and public configuration lanes cover the
+submission fence. Remaining manual scope is physical mobile/OS IME and other
+operating systems; desktop emulation and scripted composition are separate
+from that evidence. Release the additive K-Plex capability before or together
+with the optional consumer. No release version, publication or merge is authorized.
