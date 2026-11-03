@@ -79,6 +79,30 @@ test("real IndexedDB URL-title order, compatibility and terminal fences", { time
   const browser = await chromiumHarness(bundle);
   try {
     await browser.evaluate(contributorBrowserInitialize); await browser.evaluate(initialize);
+    await t.test("frontmatter labels reuse unchanged strict source facts after a real database reopen", async () => {
+      assert.equal(await browser.evaluate(`(async()=>{
+        const M=sourceModules,f=await fixture('url-title-frontmatter-reopen');let reopened;
+        try{
+          f.add('Bare.md',titleUrl);
+          f.add('Property.md','',{Friends:['[Property label]('+titleUrl+')',{nested:'[Search alias]('+titleUrl+')'}]});
+          await f.acquire();f.discovery=await f.build();
+          equal(await titleFull(f),'Property label','Actual full-builder label after bare URL');
+          const before=await titleSnapshot(f),host=f.discovery.host;f.cache.close();
+          reopened=new M.KplexIndexedDbCache('url-title-frontmatter-reopen');const db=await reopened.open();ok(db,'Actual reopened database');
+          f.discovery=new M.SourceContributorDiscovery(reopened.sources,host,runtime());
+          const check=titleGuard(f);
+          const reader=new M.CachedRequestedUrlTitleReader(reopened.sources,f.discovery,
+            (id,rt)=>f.acquisition.captureForReplay(id,{noteTypeField:'',primaryTagField:''},rt),
+            {entity:ref=>{const file=ref.physicalPath?f.files.get(ref.physicalPath):null;return file?M.entityFactForFile(file):undefined;}});
+          const result=await reader.prepare(titleRef(),titlePolicy(),runtime());
+          equal(result.outcome,'ready','Reopened stored replay '+JSON.stringify(result));
+          equal(result.input.name,'Property label','Label preserved without source reacquisition');
+          equal(result.work.familyVisits,8,'Each supporting source visited once');check();
+          for(const [name,rows]of Object.entries(before))equal(await value(db.transaction(name).objectStore(name).getAll()),rows,name+' unchanged');
+          equal(db.version,10,'No database/schema upgrade');return true;
+        }finally{reopened?.close();f.close();}
+      })()`), true);
+    });
     await t.test("nested/root full-title parity, unchanged structural order and zero settings source work", async () => {
       assert.equal(await browser.evaluate(`(async()=>{
         const f=await titleSeed('url-title-order');try{

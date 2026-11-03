@@ -36,6 +36,29 @@ function fixture() {
   return { M, index, add, page, window: w, files, metadata, reads, advanceClock: () => { ticks = true; }, close: () => index.destroy() };
 }
 
+test('frontmatter URL labels publish, update and retire with their actual URL owner', async () => {
+  const f = fixture(), url = 'https://example.com/path';
+  try {
+    const a = f.add('A.md'), b = f.add('B.md', `[Body label](${url})`);
+    f.metadata.get('A.md').frontmatter = { Friends: [`[Property label](${url})`, `[Search alias](${url})`] };
+    await f.index.publishUrlOwner(a.file, a.body, 0);
+    await f.index.publishUrlOwner(b.file, b.body, 0);
+    const page = () => f.index.publishedUrlState.pages.get(url);
+    assert.equal(page().name, 'Property label');
+    assert.deepEqual([...page().aliases], ['Property label', 'Search alias', 'Body label']);
+    assert(f.index.urlSearchEntries.get(url).aliases.includes('search alias'));
+    f.metadata.set('A.md', { frontmatter: { Friends: `[Edited label](${url})` } });
+    a.file.stat.mtime++;
+    await f.index.publishUrlOwner(a.file, a.body, 0);
+    assert.equal(page().name, 'Body label', 'Updating an owner preserves the established contributor ordering');
+    assert.deepEqual([...page().aliases], ['Body label', 'Edited label']);
+    f.metadata.set('A.md', { frontmatter: {} }); a.file.stat.mtime++;
+    await f.index.publishUrlOwner(a.file, a.body, 0);
+    assert.deepEqual([...page().aliases], ['Body label']);
+    assert.deepEqual(f.reads, [], 'Property edits reuse the existing parsed body');
+  } finally { f.close(); }
+});
+
 /** Hold exactly one real task dispatch, restoring native channels before subsequent compiler slices. */
 function holdNextHostTask(f) {
   const original = f.window.MessageChannel;
