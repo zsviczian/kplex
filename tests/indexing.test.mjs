@@ -684,6 +684,7 @@ for (const file of [
   "src/adapters/obsidian/actionCommands.ts",
   "src/adapters/obsidian/actionNode.ts",
   "src/adapters/obsidian/relatedFileOutcome.ts",
+  "src/adapters/obsidian/fileCreationAutomation.ts",
   "src/adapters/obsidian/placeholderRelocation.ts",
   "src/ui/actionPresentation.ts",
   "src/ui/layout.ts",
