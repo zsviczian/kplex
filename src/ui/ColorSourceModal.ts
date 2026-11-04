@@ -3,11 +3,13 @@
  * source editor and two isolated usage previews share the existing durable style-operation policy.
  * Opening, Cancel, theme changes and picker streams never write settings or touch vault data.
  */
+import {formActions, iconButton, } from "../adapters/obsidian/KplexModal";
+
 import {NATIVE_CANVAS_FILL, NATIVE_LINK_STROKE, NATIVE_LINK_TEXT, nodeColorFallback} from "../index/style";
 import {COMPASS_COLOR_VARIABLES, COMPASS_SEMANTIC_SLOTS} from "../core/plex/colorPreferences";
 import {semanticColorCss} from "../adapters/obsidian/colorPresentation";
 import {ColorScope} from "../adapters/obsidian/colorScope";
-import {Setting, type App, type ButtonComponent} from "obsidian";
+import {type App, type ButtonComponent} from "obsidian";
 import {StyleEditorModal, type StyleCommitResult} from "./StyleEditorModal";
 import {ColorSourceEditor} from "./ColorSourceEditor";
 import {ColorPreview, type ColorPreviewOptions} from "./ColorPreview";
@@ -95,9 +97,9 @@ export class ColorSourceModal extends StyleEditorModal {
       onPreview: (source, finished) => this.preview?.update(source, finished),
       onChange: () => this.refreshSave(),
     });
-    new Setting(this.contentEl)
-      .addButton(button => button.setButtonText(t("common.cancel")).onClick(() => this.close()))
-      .addButton(button => { this.save = button; button.setButtonText(this.options.confirmation?.actionLabel ?? this.options.actionLabel ?? t("common.save")).setCta().onClick(() => this.submit()); });
+    formActions(this.contentEl)
+      .addButton(button => iconButton(button, t("common.cancel"), "x").onClick(() => this.close()))
+      .addButton(button => { this.save = button; iconButton(button,this.options.confirmation?.actionLabel ?? this.options.actionLabel ?? t("common.save"),"save").setCta().onClick(() => this.submit()); });
     this.releaseCss = this.options.subscribeCss?.(() => { this.editor?.refresh(true); this.preview?.invalidate(); }) ?? null;
     this.releaseColors = this.options.subscribeColors?.(() => {this.editor?.refresh(false); this.preview?.refreshSources();}) ?? null;
     this.refreshSave();

@@ -1,7 +1,9 @@
 /** Native document-use list reusing manager search/disclosure and Footprints' clipboard session.
  * The caller owns index lookup/navigation; this shell never acquires sources or changes a draft.
  * Dismissal retires reads and clipboard feedback without cancelling an accepted native write. */
-import {Modal,Notice,Setting} from 'obsidian';
+import {FormSetting as Setting, KplexModal as Modal} from "../adapters/obsidian/KplexModal";
+
+import {Notice} from 'obsidian';
 import type KplexPlugin from '../main';
 import type {OntologyUsageDocument,OntologyUsageResult} from '../adapters/obsidian/ontologyUsage';
 import {ClipboardSession} from '../application/ClipboardSession';

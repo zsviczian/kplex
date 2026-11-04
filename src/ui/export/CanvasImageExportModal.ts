@@ -2,7 +2,9 @@
  * owns gesture-safe copy, and native file handoff owns destination selection. No source/editor
  * or canvas state writer is exposed to this dialog. Once capture completes, live scene/theme
  * refreshes cannot invalidate the frozen preview; source/window teardown still retires output. */
-import {Setting, type App, type ButtonComponent, type EventRef, type ToggleComponent} from "obsidian";
+import {formActions, iconButton, FormSetting as Setting} from "../../adapters/obsidian/KplexModal";
+
+import {type App, type ButtonComponent, type EventRef, type ToggleComponent} from "obsidian";
 import {StyleEditorModal, appendIcon} from "../StyleEditorModal";
 import {numberSlider} from "../numberSlider";
 import {ClipboardSession} from "../../application/ClipboardSession";
@@ -72,10 +74,10 @@ export class CanvasImageExportModal extends StyleEditorModal {
     this.details = body.createDiv({cls: "setting-item-description"});this.warnings = body.createDiv({cls: "setting-item-description"});
     this.status = body.createDiv({attr: {role: "status", "aria-live": "polite"}});
     this.filename = suggestedArtifactFilename(this.options.name || this.translate("export.image.filenameStem"), "png");
-    new Setting(actions).setClass("kplex-modal-action-row")
+    formActions(actions).setClass("kplex-modal-action-row")
       .addButton(/** Encoding completes before this button can acquire clipboard activation. */ button => {this.copyButton = button;button.setButtonText(this.translate("export.image.copy")).setDisabled(true).onClick(/** The writer starts in this trusted handler turn. */ () => this.copy());appendIcon(button.buttonEl, "copy");})
       .addButton(/** Save uses exactly the encoded preview, never another scene read. */ button => {this.saveButton = button;button.setButtonText(this.translate("export.image.save")).setCta().setDisabled(true).onClick(/** Explicit native handoff remains independently guarded. */ () => {void this.save();});appendIcon(button.buttonEl, "save");})
-      .addButton(/** Cancel retires capture/decode/clipboard work without touching the canvas. */ button => button.setButtonText(this.translate("common.cancel")).onClick(/** Native close/migration share the same cleanup. */ () => this.close()));
+      .addButton(/** Cancel retires capture/decode/clipboard work without touching the canvas. */ button => iconButton(button, this.translate("common.cancel"), "x").onClick(/** Native close/migration share the same cleanup. */ () => this.close()));
     this.status.setText(this.translate("export.image.loading"));void this.prepare();
   }
 

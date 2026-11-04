@@ -32,6 +32,7 @@
  * saved dictionaries, including explicit clears, never inherit replacement wording on reload.
  * Creation and linking remember separate after-saving actions, retaining the former shared choice on upgrade.
  */
+import {FormSetting as Setting, formField} from "./adapters/obsidian/KplexModal";
 import {STARTUP_INDEX_DEFAULTS, sanitizeStartupIndexPreferences, type IndexingMode, type StartupIndexPreferences} from './core/plex/startupIndexPreferences';
 import {PIN_PERIODS, isPeriodicPin, loadSavedPins, type PinPeriod, type SavedPin} from "./core/plex/savedPins";
 import {DEFAULT_PERIODIC_PIN_SETTINGS, loadPeriodicPinSettings, type PeriodicPinConfiguration, type PeriodicPinSettings} from "./core/plex/periodicPins";
@@ -65,16 +66,7 @@ import { styleNumberSlider } from "./ui/styleNumberSlider";
 import {numberSlider} from "./ui/numberSlider";
 import {COMPASS_DIRECTIONS, SEMANTIC_COLOR_DEFAULTS} from "./core/plex/colorPreferences";
 import { ColorSourceModal } from "./ui/ColorSourceModal";
-import {
-  AbstractInputSuggest,
-  App,
-  Notice,
-  PluginSettingTab,
-  getIconIds,
-  type SettingDefinitionItem,
-  type SettingDefinition,
-  Setting,
-} from "obsidian";
+import {AbstractInputSuggest, App, Notice, PluginSettingTab, getIconIds, type SettingDefinitionItem, type SettingDefinition, } from "obsidian";
 import type KplexPlugin from "./main";
 import {builtInCanvasViewSettings, canvasViewControl, type CanvasViewSettingsRegistry} from "./ui/plexViews/settingsContributions";
 import {readViewConfiguration, readViewConfigurationAt, viewConfigurationUpdateDomain} from "./core/plex/views/configuration";
@@ -419,6 +411,8 @@ export interface KplexSettings extends StartupIndexPreferences {
   editNewNodeAfterCreate: boolean;
   /** Note-creation destination; the old toggle is retained solely for migration compatibility. */
   newNodeAfterSaving: CreationAfterSavingAction;
+  periodicNoteAfterSaving: CreationAfterSavingAction;
+  folderCreationTab: "note" | "folder";
   /** Existing-note/web-link completion is remembered independently from creation. */
   linkAfterSaving: CreationAfterSavingAction;
   /** Remember which create button Ctrl/Cmd+Enter should invoke next time. */
@@ -564,6 +558,8 @@ const LEGACY_DEFAULT_SETTINGS: KplexSettings = {
   allowRemoteNodeImages: false,
   editNewNodeAfterCreate: false,
   newNodeAfterSaving: "return",
+  periodicNoteAfterSaving: "sidecar",
+  folderCreationTab: "note",
   linkAfterSaving: "return",
   newNodeDefaultType: "markdown",
   lastDrawingTemplatePath: null,
@@ -852,6 +848,8 @@ export function migrateAndMergeSettings(raw: unknown): KplexSettings {
     allowRemoteNodeImages: old.allowRemoteNodeImages === true,
     editNewNodeAfterCreate: Boolean(old.editNewNodeAfterCreate),
     newNodeAfterSaving: sanitizeCreationAfterSaving(old.newNodeAfterSaving, old.editNewNodeAfterCreate === true),
+    periodicNoteAfterSaving: sanitizeCreationAfterSaving(old.periodicNoteAfterSaving ?? "sidecar"),
+    folderCreationTab: old.folderCreationTab === "folder" ? "folder" : "note",
     linkAfterSaving: sanitizeCreationAfterSaving(old.linkAfterSaving ?? old.newNodeAfterSaving, old.editNewNodeAfterCreate === true),
     trackpadNavigation: old.trackpadNavigation === true,
     lastDrawingTemplatePath: typeof old.lastDrawingTemplatePath === "string" ? old.lastDrawingTemplatePath : null,
@@ -2441,10 +2439,13 @@ export class KplexSettingTab extends PluginSettingTab {
       refreshers.push(/** Apply the current dependency on initial render and subsequent updates. */ () => {toggle.setValue(configuration().useDailyNotes);});
       toggle.onChange(/** An explicit custom destination remains available when Daily Notes is disabled. */ value => {void save({useDailyNotes: value});});
     });
-    for (const key of ["folder", "format"] as const) new Setting(container).setName(translate(key === "folder" ? "pins.folder" : "pins.format")).addText(/** Folder/date format are literal text, not numeric preferences. */ text => {
-      refreshers.push(/** The integrated configurator owns both value and dependency state. */ () => {text.setValue(configuration()[key]).setDisabled(usesDaily());});
+    for (const key of ["folder", "format"] as const) {
+      const row = new Setting(container).setName(translate(key === "folder" ? "pins.folder" : "pins.format"));
+      row.addText(/** Folder/date format are literal text, not numeric preferences. */ text => {
+      refreshers.push(/** Hide unused custom destinations without erasing the user's saved values. */ () => {text.setValue(configuration()[key]).setDisabled(usesDaily()); row.settingEl.toggle(!usesDaily());});
       text.onChange(/** Preserve intentional blank/invalid drafts with a truthful unavailable preview. */ value => {void save({[key]: value});});
-    });
+      });
+    }
     if (period === "week") new Setting(container).setName(translate("pins.weekStart")).setDesc(translate("pins.calendarHelp")).addDropdown(/** Week anchoring is explicit and never mutates Moment's global locale. */ dropdown => {
       dropdown.addOption("iso", translate("pins.isoWeek")).addOption("locale", translate("pins.localeWeek"));
       refreshers.push(/** Restore the saved choice without emitting an edit. */ () => {dropdown.setValue(configuration().weekStart);});
@@ -2896,6 +2897,9 @@ export class KplexSettingTab extends PluginSettingTab {
         searchable: item.searchable, visible: item.visible,
         render: /** Native controls preserve search/navigation styling while the shared draft owns submission. */ setting => this.ontologyField(hierarchyField).mount(setting, control.rows ?? 3),
       };
+      if ((control.type === "textarea" || control.type === "text") && !control.validate && !control.disabled
+        && ["excludeFilepathsCsv", "nameFields", "noteTypeField", "thumbnailProperty", "nodeImageProperty"].includes(control.key))
+        return this.authoredTextControl(item, control);
       if (!/^(baseNodeStyle\.|centralNodeStyle\.|baseLinkStyle\.|backgroundColorHex$)/.test(control.key)
         || (control.type !== "slider" && control.type !== "toggle" && control.type !== "dropdown"))
         return control.type === "slider" ? this.numberControl(item, control) : {...item, control: {...control, key: this.receivedControlKey(control.key) as DeclarativeSettingKey}};
@@ -2944,6 +2948,32 @@ export class KplexSettingTab extends PluginSettingTab {
         }, /** A closed/migrated settings window cannot retain scalar handlers. */ () => {active = false;mounted?.dispose();});
         return release;
       }};
+  }
+
+  /** Stack the finite long-text settings below their labels, including native global-search rows.
+   * The existing received-key setter retains persistence and conflict authority. No extra writer,
+   * settings subscription, debounce or semantic update is introduced by this layout adapter. */
+  private authoredTextControl(item: SettingDefinition<DeclarativeSettingKey>, control: Extract<NonNullable<SettingDefinition<DeclarativeSettingKey>["control"]>, {type: "text" | "textarea"}>): SettingDefinition<DeclarativeSettingKey> {
+    const key = this.receivedControlKey(control.key);
+    const metadata = {name: item.name, desc: item.desc, aliases: item.aliases, searchable: item.searchable, visible: item.visible};
+    /** A removed search result/page retires its native handlers. */
+    const renderAuthoredTextSetting = (setting: Setting): (() => void) => {
+      let active = true;
+      formField(setting);
+      const initial = this.getControlValue(key) ?? control.defaultValue;
+      /** Text edits retain native change timing and the canonical settings writer. */
+      const configure = (text: import("obsidian").TextComponent | import("obsidian").TextAreaComponent): void => {
+        text.setValue(typeof initial === "string" ? initial : "").setPlaceholder(control.placeholder ?? "");
+        if (control.type === "textarea" && control.rows) (text.inputEl as HTMLTextAreaElement).rows = control.rows;
+        text.inputEl.setAttribute("aria-label", item.name);
+        text.onChange(/** Detached/closed controls cannot write after their definition retires. */ value => {
+          if (active && setting.settingEl.isConnected && !setting.settingEl.ownerDocument.defaultView?.closed) void this.setControlValue(key, value);
+        });
+      };
+      if (control.type === "textarea") setting.addTextArea(configure); else setting.addText(configure);
+      return /** The native declarative renderer owns this release, also for global-search results. */ () => {active = false;};
+    };
+    return {...metadata, render: renderAuthoredTextSetting};
   }
 
   /** Adapt every declarative numeric preference to the shared visible-value native slider.

@@ -5,7 +5,7 @@ export function nativeBatch270(app,c){
  let plugin=app.plugins.plugins['k-plex'];
  if(!plugin||app.vault.getName()!=='kplex-test-small'||app.vault.getFiles().length>=1000||app.setting.win)throw Error('Clean disposable Small required');
  const workspace=app.workspace,layout=workspace.getLayout(),settings=structuredClone(plugin.settings),saved=c.sessions(plugin).capture(),lastTabId=app.setting.lastTabId;
- const inventory=app.vault.getFiles().map(file=>file.path).sort(),folder='__kplex270_'+Date.now(),files=[],leaves=[],releases=[],restores=[];
+ const inventory=app.vault.getFiles().map(file=>file.path).sort(),folder=(c.fixturePrefix??'__kplex270_')+Date.now(),files=[],leaves=[],releases=[],restores=[];
  const remote=require('@electron/remote'),main=remote.getCurrentWindow(),bounds=main.getBounds(),minimum=main.getMinimumSize(),maximized=main.isMaximized();
  let directory,disabled=false;
  /** All asynchronous polling has a finite deadline and reports actual index/source progress. */
@@ -63,7 +63,7 @@ export function nativeBatch270(app,c){
  /** A visible native canvas must own foreground preparation before this convergence fence is used. */
  const ready=async()=>{await until(()=>!plugin.index.hasPendingSemanticPreparation()&&!plugin.index.isBuilding()&&plugin.getIndexStatus().upToDate,'Fixture index convergence');await wait(250);};
  /** Build a real tab/sidebar/popout using native registered view types, never direct React mounting. */
- const canvas=async(file,type='k-plex-react-view',destination='tab')=>{const leaf=workspace.getLeaf(destination);leaves.push(leaf);await leaf.setViewState({type,active:true});await workspace.revealLeaf(leaf);await leaf.view.waitUntilReady();plugin.notifyNavigation(file.path,leaf);await until(()=>leaf.view.contentEl.querySelector('[data-kplex-path="'+file.path+'"]'),'Native canvas center');return leaf;};
+ const canvas=async(file,type='k-plex-react-view',destination='tab')=>{const leaf=workspace.getLeaf(destination);leaves.push(leaf);await leaf.setViewState({type,active:true});await workspace.revealLeaf(leaf);if(destination==='window')await until(()=>leaf.view.containerEl.ownerDocument!==workspace.containerEl.ownerDocument,'Native popout document adoption');await leaf.view.waitUntilReady();plugin.notifyNavigation(file.path,leaf);await until(()=>leaf.view.contentEl.querySelector('[data-kplex-path="'+file.path+'"]'),'Native canvas center');return leaf;};
  /** Resolve the actual mounted action registration, never a guessed ID or another canvas's fallback. */
  const surface=leaf=>{const id=[...plugin.actionSurfaceHosts].find(([,registration])=>registration.leaf===leaf)?.[0];check(id,'Live action surface');return id;};
  /** Plugin reload invalidates every captured plugin/view callback; callers reacquire explicitly. */

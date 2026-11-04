@@ -3,27 +3,15 @@
  * disk-before-publication owner, duplicate/Cancel exclusion and truthful saved-refresh-pending result.
  * Each content component owns its controls; explicit external retirement fences late UI callbacks.
  */
-import {Modal, Notice, getIcon, setTooltip, type ButtonComponent} from "obsidian";
+import {KplexModal as Modal, labelIconButton, appendIcon} from "../adapters/obsidian/KplexModal";
+import {Notice, type ButtonComponent} from "obsidian";
+
+export {labelIconButton, appendIcon} from "../adapters/obsidian/KplexModal";
 import type {ClipboardState} from "../application/ClipboardSession";
 import {createObsidianTranslator} from "../adapters/obsidian/localization";
 
 /** Storage succeeded; display refresh failure must never be presented as a destructive unsaved retry. */
 export type StyleCommitResult = Readonly<{refreshPending:boolean}>;
-
-/** Reuse the native settings glyph treatment without a second icon or button interaction policy. */
-export function appendIcon(button: HTMLElement, name: string): void {
-  const icon = getIcon(name);
-  if (!icon) return;
-  icon.classList.add("kplex-lucide");
-  button.prepend(icon);
-}
-
-/** Compact native action with a visible Lucide glyph, styled tooltip and accessible name.
- * Retain literal text for the existing save/Cancel lifecycle guards; CSS hides it visually. */
-export function labelIconButton(button: HTMLElement, label: string, icon: string): void {
-  button.setText(label);button.addClass("kplex-icon-action");button.setAttribute("aria-label", label);
-  setTooltip(button, label);appendIcon(button, icon);
-}
 
 /** Pending-state native shell; subclasses supply detached feature drafts and durable operations. */
 export abstract class StyleEditorModal extends Modal {

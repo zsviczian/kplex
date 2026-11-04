@@ -3,7 +3,10 @@
  * session owns authorization and mutation; this shell only reports an explicit confirm or cancel,
  * once, and discloses repeated-reference removal without promising whole-file formatting or undo.
  */
-import { Modal, Setting, type App } from "obsidian";
+import {formActions, iconButton, KplexModal as Modal} from "../adapters/obsidian/KplexModal";
+
+
+import {type App} from "obsidian";
 import type { Translator } from "../lang";
 
 export class RemoveRelationshipSourceModal extends Modal {
@@ -20,9 +23,8 @@ export class RemoveRelationshipSourceModal extends Modal {
     this.modalEl.addClass("kplex-remove-relationship-source-modal");
     this.contentEl.createEl("p", { text: this.translate("explain.removeConfirm", this.source) });
     this.contentEl.createEl("p", { text: this.translate("explain.removeScope") });
-    new Setting(this.contentEl)
-      .addButton(/** Native close and explicit Cancel both leave the source untouched. */ button => button
-        .setButtonText(this.translate("common.cancel")).onClick(/** Cancelling has no mutation capability. */ () => this.close()))
+    formActions(this.contentEl)
+      .addButton(/** Native close and explicit Cancel both leave the source untouched. */ button => iconButton(button, this.translate("common.cancel"), "x").onClick(/** Cancelling has no mutation capability. */ () => this.close()))
       .addButton(/** Only explicit approval can resume the parent's fresh authorization path. */ button => {
         button.buttonEl.dataset.kplexConfirmRemove = "true";
         button.setButtonText(this.translate("explain.removeRelationship")).setDestructive()

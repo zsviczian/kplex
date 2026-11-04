@@ -43,10 +43,13 @@ async function start(b,index=3,frame=false){const p=await b.evaluate(`point(${in
 
 test('real handle drop inserts once without navigation, menu activation or unpin',async()=>{
  const b=await browser();try{
-  await start(b);const target=await b.evaluate('point(0)');await mouse(b,'mouseMoved',target,1);
+  const source=await start(b);const target=await b.evaluate('point(0)');await mouse(b,'mouseMoved',target,1);
   assert.equal(await b.evaluate(`document.querySelectorAll('.is-reorder-before').length`),1);
+  const feedback=await b.evaluate(`(()=>{const source=document.querySelector('.is-reorder-source'),other=document.querySelector('.kplex-pinned-chip:not(.is-reorder-source):not(.is-reorder-before)');return {offset:parseFloat(source.style.getPropertyValue('--reorder-drag-x')),transform:getComputedStyle(source).transform,sourceOpacity:getComputedStyle(source).opacity,otherOpacity:getComputedStyle(other).opacity}})()`);
+  assert.equal(feedback.offset,target.x-source.x);assert.notEqual(feedback.transform,'none');assert.ok(Number(feedback.sourceOpacity)>Number(feedback.otherOpacity));
   await mouse(b,'mouseReleased',target);assert.deepEqual(await b.evaluate('order()'),['C.md','A.md','Unavailable.md','B.md']);
   assert.deepEqual(await b.evaluate('calls'),{writes:1,navigation:0,remove:0,menus:0});
+  assert.equal(await b.evaluate(`Array.from(document.querySelectorAll('.kplex-pinned-chip')).some(row=>row.style.getPropertyValue('--reorder-drag-x'))`),false);
   assert.equal(await b.evaluate(`document.querySelector('[data-kplex-pinned-path="Unavailable.md"]').disabled`),true);
  }finally{await b.cleanup()}
 });
@@ -69,6 +72,7 @@ for(const mode of ['escape','blur','cancel','unmount'])test(`committed ${mode} c
   else await b.evaluate(mode==='blur'?`window.dispatchEvent(new Event('blur'))`:mode==='cancel'?`document.querySelector('.kplex-pinned-bar').dispatchEvent(new PointerEvent('pointercancel',{bubbles:true,pointerId:pointer}))`:'unmount()');
   await mouse(b,'mouseReleased',target);assert.deepEqual(await b.evaluate('order()'),['A.md','Unavailable.md','B.md','C.md']);
   assert.equal(await b.evaluate('calls.writes+calls.navigation+calls.remove'),0);assert.equal(await b.evaluate(`!!document.querySelector('.is-reordering')`),false);
+  assert.equal(await b.evaluate(`Array.from(document.querySelectorAll('.kplex-pinned-chip')).some(row=>row.style.getPropertyValue('--reorder-drag-x'))`),false);
  }finally{await b.cleanup()}
 });
 

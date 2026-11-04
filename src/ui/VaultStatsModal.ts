@@ -1,5 +1,7 @@
 /** On-demand vault/index summary opened from the compact indexing status indicator. */
-import { Modal, Setting } from "obsidian";
+import {formActions, KplexModal as Modal} from "../adapters/obsidian/KplexModal";
+
+
 import type KplexPlugin from "../main";
 
 export class VaultStatsModal extends Modal {
@@ -30,7 +32,7 @@ export class VaultStatsModal extends Modal {
     row(translate("vaultStats.video"), stats.video, true);
     row(translate("vaultStats.otherAttachments"), stats.otherAttachments, true);
     row(translate("vaultStats.ontology"), translate("vaultStats.ontologyValue", { total: stats.ontologyTotal, used: stats.ontologyUsed }));
-    new Setting(this.contentEl).addButton((button) => button
+    formActions(this.contentEl).addButton((button) => button
       .setButtonText(translate("common.ok"))
       .setCta()
       .onClick(() => this.close()));

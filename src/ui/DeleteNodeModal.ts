@@ -7,7 +7,10 @@
  * stays in a native disclosure. File deletion explains the captured automatic-cleanup preference;
  * its settings cross-link cancels old consent before navigating to the actual preference.
  */
-import { Modal, Setting, type App, type TFile } from "obsidian";
+import {formActions, iconButton, FormSetting as Setting, KplexModal as Modal} from "../adapters/obsidian/KplexModal";
+
+
+import {type App, type TFile} from "obsidian";
 import type { EvidenceSourceKind } from "../index/RelationEvidence";
 import { createObsidianTranslator } from "../adapters/obsidian/localization";
 
@@ -125,9 +128,8 @@ export class DeleteNodeConfirmationModal extends Modal {
           .onChange(/** Native preference selection changes no property or file. */ (value) => { confirmFileDelete = value; }));
     }
 
-    const actions = new Setting(this.contentEl);
-    actions.addButton(/** Cancel never acquires native mutation authority. */ (button) => button
-      .setButtonText(this.translate("common.cancel"))
+    const actions = formActions(this.contentEl);
+    actions.addButton(/** Cancel never acquires native mutation authority. */ (button) => iconButton(button, this.translate("common.cancel"), "x")
       .onClick(/** Dismissal settles pending scope once. */ () => this.close()));
     actions.addButton(/** One primary button confirms the displayed finite scope and physical preference. */ (button) => { button.buttonEl.dataset.kplexDeleteConfirm = "true"; return button
       .setButtonText(this.translate(hasFile ? "delete.fileButton" : "delete.placeholderButton"))
@@ -205,7 +207,7 @@ export class RemainingNodeReferencesModal extends Modal {
       }
     }
 
-    const actions = new Setting(this.contentEl);
+    const actions = formActions(this.contentEl);
     actions.addButton((button) => button
       .setButtonText(this.translate("common.done"))
       .setCta()
@@ -256,7 +258,7 @@ export class HideRelationshipModal extends Modal {
       for (const key of this.fields) dropdown.addOption(key,key);
       dropdown.setValue(field).onChange(/** Retired controls and unconfigured keys cannot alter pending approval. */ value => {if(!this.decided && this.fields.includes(value))field=value;});
     });
-    new Setting(this.contentEl).addButton(/** Native dismissal is cancellation. */ button => button.setButtonText(translate("common.cancel")).onClick(/** Close without write authority. */ () => this.close()))
+    formActions(this.contentEl).addButton(/** Native dismissal is cancellation. */ button => iconButton(button, translate("common.cancel"), "x").onClick(/** Close without write authority. */ () => this.close()))
       .addButton(/** Confirmation is explicit even when file deletion prompts were disabled. */ button => {
         button.buttonEl.dataset.kplexHideConfirm="true";
         button.setButtonText(translate("hide.title")).setCta().onClick(/** Duplicate activation settles only once. */ () => {

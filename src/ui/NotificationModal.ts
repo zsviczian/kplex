@@ -1,6 +1,8 @@
 /** Native informational dialog shared by host notifications. The caller owns copy, durable
  * acknowledgment and lifetime; this shell releases its dismissal callback exactly once. */
-import {Modal, Setting, type App} from "obsidian";
+import {formActions, KplexModal as Modal} from "../adapters/obsidian/KplexModal";
+
+import {type App} from "obsidian";
 
 /** Present information until explicitly dismissed through the native button, Escape or close control. */
 export class NotificationModal extends Modal {
@@ -19,7 +21,7 @@ export class NotificationModal extends Modal {
     this.setTitle(this.title);
     this.contentEl.empty();
     this.contentEl.createEl("p", {text: this.message});
-    new Setting(this.contentEl).addButton(/** Acknowledgment dismisses only this informational shell. */ button => {
+    formActions(this.contentEl).addButton(/** Acknowledgment dismisses only this informational shell. */ button => {
       button.setButtonText(this.dismissLabel).setCta().onClick(/** Native close owns release for every dismissal route. */ () => this.close());
     });
   }

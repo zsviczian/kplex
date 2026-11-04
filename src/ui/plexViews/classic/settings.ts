@@ -3,8 +3,9 @@ import type {CanvasViewSettingsContribution} from "../settingsContributions";
 
 export const classicSettingsContribution: CanvasViewSettingsContribution = {
   id: "classic",
-  items: ({translate, areaTint}) => [
+  items: ({translate, areaTint, key}) => [
     {type: "group", heading: translate("view.arrangementSizing"), items: [
+      {name: translate("compass.flipEastWest"), desc: translate("compass.flipEastWestHelp"), control: {type: "toggle", key: key("flipEastWest")}},
       {type: "page", name: translate("layout.simplifiedTitle"), desc: translate("layout.simplifiedHelp"),
         items: (["desktop", "tablet", "mobile"] as const).flatMap(device => (["leaf", "sidepanel"] as const).map(surface => ({
           name: translate("layout.arrangementScope", {device: translate(`typography.${device}`), surface: translate(surface === "leaf" ? "layout.mainTab" : "layout.sidepanel")}),

@@ -3,7 +3,10 @@
  * a collision-checked name and owns persistence; this shell only returns create/settings/cancel.
  * Closing or retiring the owning graph cannot approve a late configuration or note mutation.
  */
-import { Modal, Setting, type App } from "obsidian";
+import {formActions, iconButton, KplexModal as Modal} from "../adapters/obsidian/KplexModal";
+
+
+import {type App} from "obsidian";
 import { createObsidianTranslator } from "../adapters/obsidian/localization";
 
 export type HiddenFieldSetupChoice = "create" | "settings" | null;
@@ -22,8 +25,8 @@ export class HiddenFieldSetupModal extends Modal {
     this.contentEl.createEl("p", { text: this.field
       ? translate("hide.setup.help", { field: this.field }) : translate("hide.setup.manualRequired") });
     if (this.field && this.field !== "hidden") this.contentEl.createEl("p", { text: translate("hide.setup.alternative") });
-    const actions = new Setting(this.contentEl);
-    actions.addButton(/** Cancellation never approves configuration. */ button => button.setButtonText(translate("common.cancel"))
+    const actions = formActions(this.contentEl);
+    actions.addButton(/** Cancellation never approves configuration. */ button => iconButton(button, translate("common.cancel"), "x")
       .onClick(/** Native cancellation uses the same one-shot disposal. */ () => this.close()));
     actions.addButton(/** Settings lets the user choose their own field without approving this hide operation. */ button => button.setButtonText(translate("hide.setup.settings"))
       .onClick(/** Settle before handing navigation to the host. */ () => this.finish("settings")));

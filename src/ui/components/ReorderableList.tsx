@@ -22,20 +22,21 @@ export function ReorderableList({ids, className, label, children, onMove}: {
   useEffect(/** Capture exact document ownership; migrated/unmounted roots cannot commit old gestures. */ () => {
     const element = root.current, doc = element?.ownerDocument, owner = doc?.defaultView;
     if (!element || !doc || !owner) return;
-    let gesture: {pointer: number; id: string; row: Element; x: number; y: number; expected: readonly string[]; dragging: boolean; before: string | null} | null = null;
+    let gesture: {pointer: number; id: string; row: HTMLElement; x: number; y: number; expected: readonly string[]; dragging: boolean; before: string | null} | null = null;
     let indicator: Element | null = null, suppressClick = false;
     /** Release only owned capture and visual state; never persist from a cancellation path. */
     const finish = (): void => {
       const old = gesture;gesture = null;indicator?.classList.remove("is-reorder-before");indicator = null;
       element.classList.remove("is-reordering", "is-reorder-end");
       old?.row.classList.remove("is-reorder-source");
+      old?.row.style.removeProperty("--reorder-drag-x");
       if (old && element.hasPointerCapture(old.pointer)) element.releasePointerCapture(old.pointer);
     };
     /** Handles alone acquire a gesture, preserving normal saved-note and external drag behavior. */
     const down = (event: PointerEvent): void => {
       suppressClick = false;finish();
       const target = ownedElement(event.target, doc) ? event.target : null;
-      const handle = target?.closest("[data-reorder-handle]"), row = handle?.closest("[data-reorder-id]");
+      const handle = target?.closest("[data-reorder-handle]"), row = handle?.closest<HTMLElement>("[data-reorder-id]");
       if (!row || !element.contains(row) || event.button !== 0 || !event.isPrimary) return;
       const id = row.getAttribute("data-reorder-id");if (!id || !latest.current.ids.includes(id)) return;
       gesture = {pointer: event.pointerId, id, row, x: event.clientX, y: event.clientY, expected: [...latest.current.ids], dragging: false, before: id};
@@ -49,6 +50,9 @@ export function ReorderableList({ids, className, label, children, onMove}: {
         gesture.dragging = true;suppressClick = true;element.setPointerCapture(event.pointerId);element.classList.add("is-reordering");gesture.row.classList.add("is-reorder-source");
       }
       event.preventDefault();indicator?.classList.remove("is-reorder-before");indicator = null;
+      // The source follows input without moving its layout slot or changing insertion geometry.
+      // This single dynamic coordinate is retired on every release/cancel/migration path.
+      gesture.row.style.setProperty("--reorder-drag-x", `${event.clientX - gesture.x}px`);
       for (const child of Array.from(element.children)) {
         if (!ownedElement(child, doc) || !child.getAttribute("data-reorder-id") || child.getAttribute("data-reorder-id") === gesture.id) continue;
         const bounds = child.getBoundingClientRect();

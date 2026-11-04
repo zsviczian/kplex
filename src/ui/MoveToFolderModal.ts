@@ -1,5 +1,8 @@
 /** Native confirmation for one captured physical move. FileManager owns link updates and rename events. */
-import { Modal, Notice, Setting, type App, type ButtonComponent } from "obsidian";
+import {formActions, iconButton, KplexModal as Modal} from "../adapters/obsidian/KplexModal";
+
+
+import {Notice, type App, type ButtonComponent} from "obsidian";
 import type { Translator } from "../lang";
 import { commitPhysicalMove, type PhysicalMovePlan } from "../adapters/obsidian/physicalNodeMove";
 import { readObsidianPresentationEnvironment } from "../adapters/obsidian/presentationEnvironment";
@@ -27,8 +30,8 @@ export class MoveToFolderModal extends Modal {
       }, true, "");
     if (shortcut) this.contentEl.createEl("p", {cls: "setting-item-description", text: this.translate("moveNode.modifierTip", {shortcut})});
     this.feedback = this.contentEl.createEl("p", { cls: "mod-warning", attr: { "role": "alert" } });
-    new Setting(this.contentEl)
-      .addButton(/** Cancel has no vault effects. */ button => { this.buttons.push(button); button.setButtonText(this.translate("common.cancel")).onClick(/** Close only this confirmation. */ () => this.close()); })
+    formActions(this.contentEl)
+      .addButton(/** Cancel has no vault effects. */ button => { this.buttons.push(button); iconButton(button, this.translate("common.cancel"), "x").onClick(/** Close only this confirmation. */ () => this.close()); })
       .addButton(/** A native CTA owns the single submit operation. */ button => { this.buttons.push(button); button.setButtonText(this.translate("moveNode.move")).setCta().onClick(/** Observe asynchronous native failure inside this shell. */ () => { void this.submit(); }); });
   }
 

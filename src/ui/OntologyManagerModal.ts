@@ -1,6 +1,7 @@
 /** Unified native vocabulary manager over StyleManagerList. The plugin retains configuration,
  * discovery and persistence; list interactions operate only on already available metadata. */
-import {Modal,Notice} from 'obsidian';
+import {KplexModal as Modal} from "../adapters/obsidian/KplexModal";
+import {Notice} from 'obsidian';
 import type KplexPlugin from '../main';
 import {ontologyConfiguration} from '../core/contracts/ontologyConfiguration';
 import {normalizeFieldName} from '../core/contracts/fieldName';

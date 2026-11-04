@@ -5,6 +5,7 @@ export type ClassicGeometryPreferences = Readonly<{
   compactingFactor: number; horizontalCompactingFactor?: number; compactView: boolean; minLinkLength: number;
   parentColumns: number; childColumns: number; siblingRelativeSize: number; lateralArrangement?: "split" | "left";
   parentMaxHeight: number; childMaxHeight: number; friendMaxHeight: number; siblingMaxHeight: number;
+  flipEastWest?: boolean;
 }>;
 export type ClassicMeasuredNode = {x: number; y: number; width: number; height: number; role: Role | "center"; editor?: true};
 export type ClassicGeometryRead<N> = Readonly<{
@@ -452,5 +453,15 @@ export function layoutClassic<N extends ClassicMeasuredNode>(input: {center: N; 
   zoneAreas.sibling = areaBoundsFor("sibling", occupiedSiblings, settings.siblingMaxHeight, "top", { centerX: siblingCenterX, width: siblingAreaHalfWidth * 2, fixedEdgeY: siblingBottom }, siblingBottom, siblingTop);
 
   const nodes = [center, ...parents, ...children, ...left, ...right, ...siblings];
+  if (settings.flipEastWest) mirrorClassicCoordinates(nodes, zoneAreas, zoneViewports);
   return {nodes, zoneViewports, zoneAreas};
+}
+
+/** Mirror private horizontal coordinates and area hit bounds only. Semantic roles, vertical meaning,
+ * labels and editor DOM remain untouched; section scenes reuse the same coordinate transform. */
+export function mirrorClassicCoordinates(nodes: readonly {x: number}[], areas: Readonly<Partial<Record<string, {left: number; width: number}>>>,
+  viewports: Readonly<Partial<Record<string, {left: number; width: number}>>>): void {
+  for (const node of nodes) node.x = -node.x;
+  for (const area of Object.values(areas)) if (area) area.left = -area.left - area.width;
+  for (const viewport of Object.values(viewports)) if (viewport) viewport.left = -viewport.left - viewport.width;
 }

@@ -365,6 +365,15 @@ export class KplexIndexedDbCache {
   private purgePromise: Promise<boolean> | null = null;
   /** Disposable snapshot generations remain reachable to maintenance until their writer settles. */
   private readonly snapshotWriters = new Set<string>();
+  /** Latest writer only; fixed categories and counts exclude exception messages and source data. */
+  private snapshotWriteReceipt = {phase: "idle", outcome: "idle", errorName: "none", pageChunks: 0, evidenceChunks: 0,
+    startedAt: 0, elapsedMs: 0};
+
+  /** Read the active/last snapshot writer without opening IndexedDB or requesting a save. */
+  getSnapshotWriteDiagnostics() {
+    const receipt = this.snapshotWriteReceipt;
+    return {...receipt, elapsedMs: receipt.outcome === "running" ? Math.max(0, Date.now() - receipt.startedAt) : receipt.elapsedMs};
+  }
 
   /** Read retained body-write state only; queued includes the current batch until its ordinary commit. */
   getActivityState(): Readonly<{queuedBodies: number; writerActive: boolean}> {
@@ -909,8 +918,10 @@ export class KplexIndexedDbCache {
     key: "active" | "checkpoint" = "active",
     onFailure?: (reason: SnapshotWriteFailureReason) => void,
   ): Promise<boolean> {
+    const receipt = this.snapshotWriteReceipt = {phase: "open", outcome: "running", errorName: "none",
+      pageChunks: 0, evidenceChunks: 0, startedAt: Date.now(), elapsedMs: 0};
     const db = await this.open();
-    if (!db) { onFailure?.("storage-unavailable"); return false; }
+    if (!db) { receipt.outcome = "unavailable"; receipt.elapsedMs = Math.max(0, Date.now() - receipt.startedAt); onFailure?.("storage-unavailable"); return false; }
     const generation = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
     this.snapshotWriters.add(generation);
     const batchSize = Platform.isIosApp ? 120 : Platform.isMobile ? 240 : 700;
@@ -934,6 +945,7 @@ export class KplexIndexedDbCache {
       await yieldToHostTask();
     };
     const cancelAndCleanup = async (): Promise<boolean> => {
+      receipt.outcome = "cancelled";
       // Do not launch a large delete transaction in the same moment the user resumes editing.
       // The incomplete generation is unreachable (META_STORE still points at the previous one)
       // and the low-priority orphan sweep will remove it after a long quiet period.
@@ -942,6 +954,7 @@ export class KplexIndexedDbCache {
     };
 
     try {
+      receipt.phase = "pages";
       const pageBatch: PageRecord[] = [];
       let pageBatchBytes = 0;
       let pageChunkValues: PersistedPage[] = [];
@@ -950,6 +963,7 @@ export class KplexIndexedDbCache {
       const finishPageChunk = (): void => {
         if (!pageChunkValues.length) return;
         pageChunks.push({ generation, kind: "pages", index: pageChunkCount++, values: pageChunkValues });
+        receipt.pageChunks = pageChunkCount;
         pageChunkValues = [];
         pageChunkBytes = 0;
       };
@@ -984,12 +998,14 @@ export class KplexIndexedDbCache {
       // declarations again as individual EVIDENCE_STORE records doubled the I/O and made every
       // cache refresh needlessly expensive. Keep the legacy store for schema-1/2 migration only.
       let evidenceChunkValues: PersistedEvidenceDeclaration[] = [];
+      receipt.phase = "evidence";
       let evidenceChunkBytes = 0;
       let pendingEvidenceBytes = 0;
       const evidenceChunks: SnapshotChunkRecord[] = [];
       const finishEvidenceChunk = (): void => {
         if (!evidenceChunkValues.length) return;
         evidenceChunks.push({ generation, kind: "evidence", index: evidenceChunkCount++, values: evidenceChunkValues });
+        receipt.evidenceChunks = evidenceChunkCount;
         evidenceChunkValues = [];
         evidenceChunkBytes = 0;
       };
@@ -1029,15 +1045,23 @@ export class KplexIndexedDbCache {
         ...meta,
       };
       const tx = this.openTransaction(db, META_STORE, "readwrite");
+      receipt.phase = "activate";
       tx.objectStore(META_STORE).put(active);
       await transactionDone(tx);
       // Once the metadata transaction commits, the generation is activated. A later cancellation
       // cannot retract it; the next restore will validate its physical/file signatures.
+      receipt.outcome = "complete";
       return true;
     } catch (error) {
+      receipt.outcome = "failed";
+      let name = "unknown";
+      try { if (error instanceof Error || error instanceof DOMException) name = error.name; }
+      catch { /* Diagnostic inspection cannot replace the existing storage failure result. */ }
+      receipt.errorName = ["AbortError", "QuotaExceededError", "InvalidStateError", "DataCloneError", "TransactionInactiveError", "UnknownError", "Error"].includes(name) ? name : "unknown";
       onFailure?.(error instanceof DOMException && error.name === "QuotaExceededError" ? "quota-exceeded" : "write-error");
       return false;
     } finally {
+      receipt.elapsedMs = Math.max(0, Date.now() - receipt.startedAt);
       this.snapshotWriters.delete(generation);
     }
   }

@@ -1,8 +1,10 @@
 /**
  * Native Obsidian dialog for renaming a real note through the Vault API. The plugin owns vault changes; this shell owns localized controls, validation feedback and close cleanup.
  */
-import { Modal, Notice, Setting, type TFile, normalizePath } from "obsidian";
-import { fitMobileModalToViewport } from "./mobileModalViewport";
+import {formActions, iconButton, FormSetting as Setting, KplexModal as Modal} from "../adapters/obsidian/KplexModal";
+
+
+import {Notice, type TFile, normalizePath} from "obsidian";
 import type KplexPlugin from "../main";
 
 /** Preserve compound Excalidraw suffixes while exposing only the editable filename stem. */
@@ -21,7 +23,6 @@ function editableStem(file: TFile, suffix: string): string {
 export class RenameNoteModal extends Modal {
   private opened = false;
   private busy = false;
-  private releaseViewport: (() => void) | null = null;
   private focusTimer: { owner: Window; id: number } | null = null;
   /** Capture the real file and optional originating-surface lifetime without changing existing callers. */
   constructor(private plugin: KplexPlugin, private file: TFile, private invocation: { current?: () => boolean; onClosed?: () => void } = {}) {
@@ -33,7 +34,6 @@ export class RenameNoteModal extends Modal {
     this.opened = true;
     this.titleEl.setText(this.plugin.translator("rename.title"));
     this.modalEl.addClass("kplex-rename-note-modal");
-    this.releaseViewport = fitMobileModalToViewport(this.modalEl);
     const suffix = fileSuffix(this.file);
     let value = editableStem(this.file, suffix);
     let input: HTMLInputElement | null = null;
@@ -99,16 +99,15 @@ export class RenameNoteModal extends Modal {
       });
     nameSetting.settingEl.addClass("kplex-rename-note-name-setting");
 
-    new Setting(this.contentEl)
-      .addButton((button) => button.setButtonText(this.plugin.translator("common.rename")).setCta().onClick(() => void rename()))
-      .addButton((button) => button.setButtonText(this.plugin.translator("common.cancel")).onClick(() => this.close()));
+    formActions(this.contentEl)
+      .addButton((button) => iconButton(button,this.plugin.translator("common.rename"),"pencil").setCta().onClick(() => void rename()))
+      .addButton((button) => iconButton(button, this.plugin.translator("common.cancel"), "x").onClick(() => this.close()));
   }
 
   /** Release native focus work and the manager's exact rename session once on close/unmount. */
   onClose(): void {
     if (!this.opened) return;
     this.opened = false;
-    this.releaseViewport?.(); this.releaseViewport = null;
     if (this.focusTimer) this.focusTimer.owner.clearTimeout(this.focusTimer.id);
     this.focusTimer = null;
     this.invocation.onClosed?.();

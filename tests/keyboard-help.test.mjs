@@ -9,10 +9,11 @@ import { chromiumHarness } from "./support/browserTypeScript.mjs";
 /** Native UI doubles supply only public shell APIs; production projection and search run unchanged. */
 async function helpBrowser() {
   const host = `
+    export function getIcon(){return document.createElementNS('http://www.w3.org/2000/svg','svg')}
     export const Platform={isMobile:false,isMacOS:true,isWin:false,isIosApp:false,isAndroidApp:false};
     export class Modal{constructor(app){this.app=app;this.modalEl=document.createElement('div');this.modalEl.className='modal';this.titleEl=this.modalEl.createDiv({cls:'modal-title'});this.contentEl=this.modalEl.createDiv({cls:'modal-content'})}setTitle(value){this.titleEl.textContent=value;return this}open(){document.body.append(this.modalEl);this.onOpen?.()}close(){this.onClose?.();this.modalEl.remove()}}
     export class SearchComponent{constructor(parent){this.inputEl=parent.createDiv({cls:'search-input-container'}).createEl('input')}setPlaceholder(value){this.inputEl.placeholder=value;return this}}
-    export class Setting{constructor(parent){this.settingEl=parent.createDiv({cls:'setting-item'});this.infoEl=this.settingEl.createDiv();this.controlEl=this.settingEl.createDiv({cls:'setting-item-control'})}setName(value){this.infoEl.createDiv({cls:'setting-item-name',text:value});return this}setDesc(value){this.infoEl.createDiv({cls:'setting-item-description',text:value});return this}addButton(fn){const el=this.controlEl.createEl('button');fn({setButtonText(value){el.textContent=value;return this},onClick(callback){el.addEventListener('click',callback);return this}});return this}}
+    export class Setting{constructor(parent){this.settingEl=parent.createDiv({cls:'setting-item'});this.infoEl=this.settingEl.createDiv();this.controlEl=this.settingEl.createDiv({cls:'setting-item-control'})}setName(value){this.infoEl.createDiv({cls:'setting-item-name',text:value});return this}setDesc(value){this.infoEl.createDiv({cls:'setting-item-description',text:value});return this}addButton(fn){const el=this.controlEl.createEl('button');fn({buttonEl:el,setButtonText(value){el.textContent=value;return this},onClick(callback){el.addEventListener('click',callback);return this}});return this}}
   `;
   const bundle = await build({ stdin: {
     contents: `export {KeyboardHelpModal} from './src/ui/KeyboardHelpModal';export {ACTION_CATALOG} from './src/core/plex/actions';export {migrateActionPreferences,effectiveActionBindings} from './src/core/plex/actionPreferences';export {englishCatalog} from './src/lang/en';`,
@@ -24,7 +25,7 @@ async function helpBrowser() {
   const browser = await chromiumHarness(bundle.outputFiles[0].text);
   const stylesheet = await readFile(new URL("../styles.css", import.meta.url), "utf8");
   await browser.evaluate(`(()=>{
-    const p=HTMLElement.prototype;p.empty=function(){this.replaceChildren()};p.setAttr=function(key,value){this.setAttribute(key,value)};p.addClass=function(...names){this.classList.add(...names)};
+    const p=HTMLElement.prototype;p.empty=function(){this.replaceChildren()};p.setText=function(text){this.textContent=text};p.setAttr=function(key,value){this.setAttribute(key,value)};p.addClass=function(...names){this.classList.add(...names)};
     p.createEl=function(tag,options={}){const el=this.ownerDocument.createElement(tag);if(options.cls)el.className=options.cls;if(options.text)el.textContent=options.text;this.append(el);return el};p.createDiv=function(options){return this.createEl('div',options)};p.createSpan=function(options){return this.createEl('span',options)};
     const {KeyboardHelpModal,migrateActionPreferences,englishCatalog}=sourceModules;
     const nativeShell=document.createElement('style');nativeShell.textContent=':root{--font-ui-small:12px;--text-muted:#666}.modal{width:560px;max-width:calc(100vw - 32px);padding:16px;box-sizing:border-box}.modal-title{font-size:20px;padding-bottom:12px;flex:0 0 auto}.modal-content{overflow-y:auto}.suggestion-item{padding:8px 12px;box-sizing:border-box}.suggestion-title{font-size:14px}.suggestion-note{font-size:12px}.suggestion-hotkey{font-size:12px;background:#eee;padding:2px 6px;border-radius:4px}.setting-item-control{display:flex;justify-content:flex-end}.search-input-container input{width:100%;box-sizing:border-box}.test-narrow{width:320px}';document.head.append(nativeShell);

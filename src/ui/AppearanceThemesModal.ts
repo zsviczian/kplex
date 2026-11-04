@@ -3,7 +3,9 @@
  * cross the caller's existing queued settings owner. Opening a row never selects a theme. Only
  * visible summaries resolve their private palette; graph rendering never receives the library.
  */
-import {Setting, type App, type ButtonComponent} from "obsidian";
+import {formActions, iconButton, FormSetting as Setting} from "../adapters/obsidian/KplexModal";
+
+import {type App, type ButtonComponent} from "obsidian";
 import {StyleEditorModal, type StyleCommitResult} from "./StyleEditorModal";
 import {StyleManagerList} from "./StyleManagerList";
 import {ColorSwatchList, type ColorSwatchItem} from "./ColorSwatchList";
@@ -160,9 +162,9 @@ class AppearanceThemeEditorModal extends StyleEditorModal {
       preferences: () => this.source().appearance.semantic.colorPreferences, nodeStyle: () => this.source().appearance.base.baseNodeStyle,
       linkStyle: () => this.source().appearance.base.baseLinkStyle, background: () => this.source().appearance.base.backgroundColor, target: {kind: "canvas"}}, theme.appearance.base.backgroundColor);
     this.releaseCss = this.options.context.subscribeCss?.(/** Native CSS stays live for both mode previews. */ () => this.preview?.invalidate()) ?? null;
-    new Setting(actions).addButton(/** Native dismissal shares pending exclusion with Escape. */ button => button.setButtonText(t("common.cancel")).onClick(() => this.close()))
-      .addButton(/** Rename keeps stable identity; Create publishes selection only after storage succeeds. */ button => {this.saveButton = button; button.setButtonText(t(this.id ? "common.save" : "themes.create")).setCta().setDisabled(immutable).onClick(() => this.submit());});
-    if (this.id) new Setting(actions).addButton(/** Factory metadata remains immutable in the UI and core owner. */ button => button.setButtonText(t("common.delete")).setDestructive().setDisabled(immutable).onClick(() => this.remove()));
+    const footer = formActions(actions).addButton(/** Native dismissal shares pending exclusion with Escape. */ button => iconButton(button, t("common.cancel"), "x").onClick(() => this.close()))
+      .addButton(/** Rename keeps stable identity; Create publishes selection only after storage succeeds. */ button => {this.saveButton = button; iconButton(button,t(this.id ? "common.save" : "themes.create"),this.id ? "save" : "plus").setCta().setDisabled(immutable).onClick(() => this.submit());});
+    if (this.id) footer.addButton(/** Factory metadata remains immutable in the UI and core owner. */ button => iconButton(button, t("common.delete"), "trash-2").setDestructive().setDisabled(immutable).onClick(() => this.remove()));
     this.validate(); if (this.input && !immutable) this.focusAfterAttachment(this.input);
   }
 
@@ -230,8 +232,8 @@ class AppearanceThemeDeleteModal extends StyleEditorModal {
   onOpen(): void {
     this.beginEditor(this.context.sourceScope, this.context.bindEditor); const t = this.context.translate; this.titleEl.setText(t("themes.deleteTitle", {name: this.name}));
     this.contentEl.createEl("p", {text: t("themes.deleteHelp")});
-    new Setting(this.contentEl).addButton(button => button.setButtonText(t("common.cancel")).onClick(() => this.close()))
-      .addButton(button => button.setButtonText(t("common.delete")).setDestructive().onClick(() => this.runOperation(this.save)));
+    formActions(this.contentEl).addButton(button => iconButton(button, t("common.cancel"), "x").onClick(() => this.close()))
+      .addButton(button => iconButton(button, t("common.delete"), "trash-2").setDestructive().onClick(() => this.runOperation(this.save)));
   }
   /** Clear confirmation controls after native lifetime retirement. */
   onClose(): void {super.onClose(); this.contentEl.empty(); this.closed();}

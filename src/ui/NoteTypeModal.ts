@@ -1,7 +1,10 @@
 /**
  * Native Obsidian dialog for editing the note-type property. The plugin owns vault changes; this shell owns localized controls, validation feedback and close cleanup.
  */
-import { Modal, Notice, Setting, type TFile } from "obsidian";
+import {formActions, iconButton, FormSetting as Setting, KplexModal as Modal} from "../adapters/obsidian/KplexModal";
+
+
+import {Notice, type TFile} from "obsidian";
 import type KplexPlugin from "../main";
 
 export class NoteTypeModal extends Modal {
@@ -26,10 +29,10 @@ export class NoteTypeModal extends Modal {
     });
     const datalist = this.contentEl.createEl("datalist", { attr: { id: listId } });
     [...known].sort().forEach((item) => datalist.createEl("option", { attr: { value: item } }));
-    new Setting(this.contentEl)
-      .addButton((button) => button.setButtonText(this.plugin.translator("common.save")).setCta().onClick(() => void this.save(value)))
+    formActions(this.contentEl)
+      .addButton((button) => iconButton(button, this.plugin.translator("common.save"), "save").setCta().onClick(() => void this.save(value)))
       .addButton((button) => button.setButtonText(this.plugin.translator("common.clear")).onClick(() => void this.save("")))
-      .addButton((button) => button.setButtonText(this.plugin.translator("common.cancel")).onClick(() => this.close()));
+      .addButton((button) => iconButton(button, this.plugin.translator("common.cancel"), "x").onClick(() => this.close()));
   }
 
   /** Serialize the existing property writer; a delayed modal never edits a replacement at the same path. */

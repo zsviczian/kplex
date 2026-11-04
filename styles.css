@@ -1296,9 +1296,24 @@ button.kplex-sidecar-unfold-plex,
   outline-offset: -2px;
 }
 .kplex-pinned-chip.is-unavailable { color: var(--text-muted); }
-.kplex-pinned-chip.is-reorder-source { opacity: .6; }
-.kplex-pinned-chip.is-reorder-before { box-shadow: inset 3px 0 var(--interactive-accent); }
-.kplex-pinned-bar.is-reorder-end > .kplex-pinned-chip:last-child { box-shadow: inset -3px 0 var(--interactive-accent); }
+.kplex-pinned-bar.is-reordering { cursor: grabbing; background: color-mix(in srgb, var(--interactive-accent) 10%, var(--background-secondary)); }
+.kplex-pinned-bar.is-reordering > .kplex-pinned-chip { opacity: .5; }
+.kplex-pinned-bar.is-reordering > .kplex-pinned-chip.is-reorder-source {
+  position: relative;
+  z-index: 2;
+  opacity: 1;
+  outline: 2px solid var(--interactive-accent);
+  outline-offset: -2px;
+  box-shadow: var(--shadow-s);
+  transform: translateX(var(--reorder-drag-x, 0px));
+  pointer-events: none;
+}
+.kplex-pinned-bar.is-reordering > .kplex-pinned-chip.is-reorder-before {
+  opacity: 1;
+  box-shadow: inset 5px 0 var(--interactive-accent);
+  border-left-color: var(--interactive-accent);
+}
+.kplex-pinned-bar.is-reorder-end > .kplex-pinned-chip:last-child { opacity: 1; box-shadow: inset -5px 0 var(--interactive-accent); }
 .kplex-pinned-chip .kplex-pin-reorder-handle { width: 18px; padding: 0; cursor: grab; touch-action: none; }
 .kplex-pinned-bar.is-reordering .kplex-pin-reorder-handle { cursor: grabbing; }
 .kplex-pinned-chip button {
@@ -1899,29 +1914,18 @@ button.kplex-sidecar-unfold-plex,
   flex: 1 1 auto;
 }
 .kplex-add-related-form .kplex-search,
+.kplex-import-modal .kplex-search,
 .kplex-folder-path-input .kplex-search {
   box-sizing: border-box;
   width: 100%;
-  height: 38px;
-  padding: 0 12px 0 35px;
-  color: var(--text-normal);
-  background: var(--background-primary);
-  border: 1px solid var(--background-modifier-border);
-  border-radius: var(--input-radius, 5px);
-  box-shadow: none;
 }
 .kplex-folder-path-input .kplex-search,
 .kplex-add-related-form .kplex-folder-path-input .kplex-search {
   width: 100%;
   box-sizing: border-box;
-  padding: 0 12px;
 }
-.kplex-add-related-form .kplex-search:focus,
-.kplex-folder-path-input .kplex-search:focus {
-  border-color: var(--interactive-accent);
-  box-shadow: 0 0 0 2px color-mix(in srgb, var(--interactive-accent) 18%, transparent);
-}
-.kplex-add-related-form .kplex-search-icon {
+.kplex-add-related-form .kplex-search-icon,
+.kplex-import-modal .kplex-search-icon {
   top: 10px;
   color: var(--text-muted);
 }
@@ -1969,6 +1973,11 @@ button.kplex-sidecar-unfold-plex,
 .kplex-add-related-control-row .kplex-add-related-ontology-search {
   flex: 1 1 280px;
 }
+.kplex-edit-selected-ontology { flex: 0 0 auto; }
+.kplex-edge-ontology-field { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.kplex-relationship-direction { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 14px; padding: 8px 0; }
+.kplex-relationship-direction > .setting-item-description { flex: 1 1 240px; overflow-wrap: anywhere; }
+.kplex-relationship-direction > button { flex: 0 0 auto; }
 .kplex-add-related-footer {
   display: flex;
   justify-content: flex-end;
@@ -1984,28 +1993,7 @@ button.kplex-sidecar-unfold-plex,
   min-width: 0;
   padding: var(--size-4-3) 0;
 }
-.kplex-creation-completion {
-  display: inline-flex;
-  align-items: center;
-  flex-wrap: wrap;
-  min-width: 0;
-  max-width: 100%;
-  gap: var(--size-4-2);
-  color: var(--text-muted);
-  font-size: var(--font-ui-small);
-  font-weight: normal;
-}
-.kplex-creation-completion-caption {
-  white-space: nowrap;
-}
-.kplex-creation-completion select.dropdown {
-  min-width: 9em;
-  max-width: 100%;
-  height: var(--input-height);
-  font-size: var(--font-ui-small);
-}
 .kplex-add-related-control-row .kplex-add-related-role-select {
-  height: 38px;
   max-width: 100%;
 }
 .kplex-add-related-compose-row {
@@ -2016,7 +2004,9 @@ button.kplex-sidecar-unfold-plex,
   min-width: 0;
 }
 .kplex-add-related-action-area {
-  min-width: 94px;
+  min-width: 0;
+  display: flex;
+  align-items: center;
   height: 38px;
 }
 .kplex-add-related-create-actions {
@@ -2035,29 +2025,6 @@ button.kplex-sidecar-unfold-plex,
   padding: 0;
   border: 1px solid var(--background-modifier-border);
   background: var(--background-primary);
-}
-.kplex-add-related-type-button:not(:disabled):hover {
-  border-color: var(--interactive-accent);
-  background: var(--background-modifier-hover);
-}
-.kplex-add-related-type-button.is-default:not(:disabled) {
-  border-color: color-mix(in srgb, var(--interactive-accent) 65%, var(--background-modifier-border));
-}
-.kplex-add-related-link-button {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
-  width: 94px;
-  height: 38px;
-  min-width: 94px;
-  padding: 0 10px;
-  color: var(--text-on-accent);
-  background: var(--interactive-accent);
-  border: 1px solid var(--interactive-accent);
-}
-.kplex-add-related-link-button:not(:disabled):hover {
-  background: var(--interactive-accent-hover);
 }
 /* Recovery is a separate message and action row; paths and translated buttons wrap safely. */
 .kplex-add-related-recovery {
@@ -2188,19 +2155,6 @@ button.kplex-sidecar-unfold-plex,
   justify-content: center;
   flex-wrap: wrap;
   width: 100%;
-}
-
-/* The last-used create type is the primary action; Ctrl/Cmd+Enter invokes it next time. */
-.kplex-add-related-type-button.is-default:not(:disabled) {
-  color: var(--text-on-accent);
-  background: var(--interactive-accent);
-  border-color: var(--interactive-accent);
-  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--text-on-accent) 18%, transparent);
-}
-.kplex-add-related-type-button.is-default:not(:disabled):hover {
-  color: var(--text-on-accent);
-  background: var(--interactive-accent-hover);
-  border-color: var(--interactive-accent-hover);
 }
 
 /* Fuzzy results shown from modals are portalled to the viewport so they are never clipped by
@@ -2996,34 +2950,10 @@ button.kplex-style-manager-row { height: fit-content; }
   justify-self: start;
 }
 
-/* New-node filename / alias pair. The focused field gets most of the row. */
-.kplex-create-name-pair {
-  display: flex;
-  align-items: stretch;
-  gap: 8px;
-  min-width: 0;
-  width: 100%;
-}
-.kplex-create-name-pair .kplex-add-related-note-search {
-  flex: 17 1 0;
-  min-width: 0;
-  transition: flex-grow 180ms ease;
-}
-.kplex-create-alias-input {
-  flex: 1 1 0;
-  min-width: 72px;
-  width: auto;
-  transition: flex-grow 180ms ease;
-}
-.kplex-create-name-pair.is-alias-focused .kplex-add-related-note-search {
-  flex-grow: 1;
-}
-.kplex-create-name-pair.is-alias-focused .kplex-create-alias-input {
-  flex-grow: 17;
-}
-.kplex-create-name-pair.has-selection .kplex-add-related-note-search {
-  flex: 1 1 auto;
-}
+/* Authored names and aliases use shared full-width fields; focus never shrinks another draft. */
+.kplex-create-name-pair { display: grid; grid-template-columns: minmax(0, 1fr); gap: 16px; min-width: 0; width: 100%; }
+.kplex-create-name-pair .kplex-add-related-note-search { width: 100%; min-width: 0; max-width: none; }
+.kplex-create-alias-input { width: 100%; min-width: 0; }
 
 @media (max-width: 520px) {
   .kplex-filter-visibility-grid { grid-template-columns: 1fr; }
@@ -3049,9 +2979,6 @@ button.kplex-style-manager-row { height: fit-content; }
 }
 .kplex-create-name-pair .kplex-add-related-note-search .kplex-search-icon {
   display: none;
-}
-.kplex-create-name-pair .kplex-add-related-note-search .kplex-search {
-  padding-left: 12px;
 }
 
 /* Keep the section outline control square; coarse pointers get a slightly larger glyph. */
@@ -3099,15 +3026,6 @@ button.kplex-style-manager-row { height: fit-content; }
     bottom: 3px;
     left: 5px;
   }
-}
-
-/* Follow-up polish: keep the filename/alias pair visually aligned. */
-.kplex-create-alias-input {
-  box-sizing: border-box;
-  height: 38px;
-  min-height: 38px;
-  padding: 0 12px;
-  line-height: 38px;
 }
 
 /* Obsidian Mobile/iPad can impose large native button metrics inside modals. Keep the
@@ -3809,7 +3727,7 @@ button.kplex-sidecar-unfold-plex:focus-visible,
 .kplex-style-editor-actions .setting-item { border-top: var(--border-width) solid var(--background-modifier-border); padding-bottom: 0; }
 /* Shared native modal controls leave room for scrollbars, chevrons and button icons. */
 .kplex-scroll-editor-modal .setting-item-control { min-width: 0; }
-.kplex-scroll-editor-modal .setting-item-control select { min-width: 0; max-width: 100%; padding-inline-end: var(--size-4-6); }
+.kplex-scroll-editor-modal .setting-item-control select { min-width: 0; max-width: 100%; }
 .kplex-modal-action-row button { display: inline-flex; align-items: center; gap: var(--size-4-1); }
 .kplex-modal-action-row .setting-item-info { display: none; }
 .kplex-modal-action-row .setting-item-control { flex: 1; display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; }
@@ -3985,18 +3903,6 @@ button.kplex-sidecar-unfold-plex:focus-visible,
   text-align: left;
 }
 
-.kplex-drawing-template {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--size-4-2);
-  margin-block: var(--size-4-2);
-}
-
-.kplex-drawing-template select {
-  min-width: 0;
-  max-width: 70%;
-}
 /* Integrated native settings need their own full-width row; the default label/control split
    otherwise squeezes period names beside a form and inherits right-aligned control content. */
 .setting-item.kplex-periodic-pin-section {
@@ -4051,14 +3957,14 @@ button.kplex-sidecar-unfold-plex:focus-visible,
   display: none;
 }
 
-.kplex-periodic-pin-section .kplex-periodic-pin-settings .setting-item-info {
+.kplex-periodic-pin-section .kplex-periodic-pin-settings :where(.setting-item:not(.kplex-form-field)) > .setting-item-info {
   flex: 1 1 12rem;
   min-width: 0;
   margin: 0;
   text-align: start;
 }
 
-.kplex-periodic-pin-section .kplex-periodic-pin-settings .setting-item-control {
+.kplex-periodic-pin-section .kplex-periodic-pin-settings :where(.setting-item:not(.kplex-form-field)) > .setting-item-control {
   flex: 1 1 16rem;
   min-width: 0;
   padding: 0;
@@ -4090,4 +3996,170 @@ button.kplex-sidecar-unfold-plex:focus-visible,
 
 .kplex-periodic-pin-preview > div {
   margin-top: var(--size-4-1);
+}
+
+/* Shared tab navigation keeps creation drafts mounted, including on narrow screens. */
+.kplex-tabs { display: flex; flex-wrap: wrap; gap: 4px; border-bottom: 1px solid var(--background-modifier-border); margin-bottom: 16px; padding-bottom: 8px; }
+.kplex-tabs > [role="tab"] { flex: 1 1 140px; box-shadow: none; }
+.kplex-tabs > [aria-selected="true"] { color: var(--text-accent); background: var(--background-modifier-active-hover); outline: 1px solid var(--interactive-accent); }
+.kplex-create-folder-note-modal [role="tabpanel"][hidden] { display: none; }
+.kplex-ownership-preview { padding: 12px 16px; margin-bottom: 12px; border: 1px solid var(--background-modifier-border); border-radius: var(--radius-m); }
+.kplex-ownership-preview.is-after { border-color: var(--interactive-accent); }
+.kplex-ownership-preview h4 { margin: 0 0 8px; font-size: var(--font-ui-small); color: var(--text-muted); }
+.kplex-ownership-preview p { margin: 0; overflow-wrap: anywhere; }
+.kplex-import-files input { width: 100%; }
+
+/* Canonical native/React form treatment. UI_RULES.md owns the consumer contract. */
+.kplex-modal {
+  --kplex-form-gap: 16px;
+  --kplex-control-gap: 8px;
+  --kplex-control-height: var(--input-height, 30px);
+  font-family: var(--font-interface);
+  font-size: var(--font-ui-medium);
+}
+.kplex-modal .modal-content { font-family: var(--font-interface); font-size: var(--font-ui-medium); }
+.modal.kplex-modal .modal-content .setting-item { padding: 0; margin-block: 0 var(--kplex-form-gap); border: 0; gap: var(--kplex-control-gap); }
+.modal.kplex-modal .setting-item-name,
+.kplex-modal .kplex-form-option > label { font-size: var(--font-ui-medium); font-weight: var(--font-normal); }
+.modal.kplex-modal .setting-item-description,
+.kplex-modal .kplex-form-status { font-family: var(--font-interface); font-size: var(--font-ui-small); line-height: 1.5; }
+.kplex-modal .setting-item-control { min-width: 0; gap: var(--kplex-control-gap); }
+.kplex-form-field { display: flex; flex-direction: column; align-items: stretch; gap: 8px; }
+.kplex-form-field > .setting-item-info { margin: 0; width: 100%; flex: 0 0 auto; }
+.kplex-form-field > .setting-item-control { width: 100%; display: flex; flex-wrap: wrap; min-width: 0; flex: 0 0 auto; }
+.kplex-form-field > .setting-item-control > input[type="text"],
+.kplex-form-field > .setting-item-control > select,
+.kplex-form-field > .setting-item-control > textarea,
+.kplex-form-field > .setting-item-control > div { width: 100%; min-width: 0; flex: 1 1 100%; }
+.kplex-form-field textarea { width: 100%; min-width: 0; resize: vertical; }
+.kplex-modal .kplex-form-field > .setting-item-control > select { max-width: none; }
+/* Source editors share field geometry while retaining readable code typography. */
+.kplex-modal .kplex-predicate-expression-field textarea,
+.kplex-modal textarea.kplex-package-source,
+.kplex-modal textarea.kplex-support-report-preview { font-family: var(--font-monospace); }
+.kplex-form-option {
+  display: grid;
+  grid-template-columns: minmax(120px, 1fr) minmax(180px, 1fr);
+  align-items: center;
+  gap: 8px 16px;
+  width: 100%;
+  margin-block: 16px;
+  font-family: var(--font-interface);
+  font-size: var(--font-ui-medium);
+}
+.kplex-form-option > label { margin: 0; color: var(--text-normal); text-align: start; }
+.kplex-form-option > select { width: 100%; max-width: none; margin: 0; }
+.kplex-modal .kplex-creation-completion-row { margin: 0; padding: 0; }
+.kplex-modal .kplex-add-related-footer { display: block; width: 100%; margin: 0; padding: 0; }
+.kplex-modal .kplex-add-related-form { gap: var(--kplex-form-gap); }
+.kplex-modal .kplex-add-related-form .kplex-form-option { margin: 0; }
+.kplex-modal .kplex-add-related-compose-row { grid-template-columns: minmax(0, 1fr); }
+.kplex-modal .kplex-add-related-action-area { justify-self: end; }
+.kplex-modal .kplex-create-folder-row { display: flex; flex-direction: column; align-items: stretch; gap: 8px; }
+.kplex-modal .kplex-create-folder-row .kplex-folder-path-input { width: 100%; max-width: none; }
+.kplex-react-field > label { font-size: var(--font-ui-medium); }
+.kplex-react-field > input, .kplex-react-field > .kplex-search-shell { width: 100%; min-width: 0; max-width: none; }
+.modal.kplex-modal .modal-content .kplex-form-actions,
+.modal.kplex-modal .modal-content .kplex-modal-action-row {
+  display: flex;
+  flex-direction: row;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px 16px;
+  margin-block: 20px 0;
+  padding-block: 16px 0;
+  border-top: var(--border-width) solid var(--background-modifier-border);
+}
+.kplex-form-actions > .setting-item-info { margin: 0; min-width: 0; flex: 1 1 180px; }
+.kplex-form-actions > .setting-item-info > .setting-item-name:empty,
+.kplex-form-actions > .setting-item-info > .setting-item-description:empty { display: none; }
+.kplex-form-actions > .setting-item-control { flex: 1 1 auto; margin-inline-start: auto; display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 8px; }
+.kplex-modal button.kplex-icon-action,
+.kplex-modal .kplex-add-related-type-button,
+.kplex-modal .kplex-edit-selected-ontology {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  min-width: var(--kplex-control-height);
+  width: var(--kplex-control-height);
+  height: var(--kplex-control-height);
+  padding: 8px;
+  font-size: 0;
+}
+.kplex-modal .kplex-icon-action svg { width: 18px; height: 18px; flex: 0 0 18px; }
+.kplex-icon-action-label { display: none; }
+.kplex-modal .kplex-add-related-action-area,
+.kplex-modal .kplex-add-related-create-actions { height: auto; }
+.kplex-modal .kplex-add-related-create-actions { align-items: center; }
+.kplex-relationship-field-control { width: 100%; display: flex; align-items: center; gap: 8px; }
+.kplex-relationship-field-control > .kplex-add-related-role-select { flex: 0 1 160px; min-width: 90px; }
+.kplex-relationship-field-control > .kplex-add-related-ontology-search { flex: 1 1 160px; min-width: 0; max-width: none; }
+.kplex-import-modal .kplex-relationship-field-control { margin-block: 0 16px; }
+/* Obsidian's .dropdown supplies the complete skin and caret. The input remains editable;
+   the transparent hit area opens suggestions without drawing a second boxed arrow. */
+.kplex-native-combobox { position: relative; }
+.kplex-native-combobox > input[type="text"] {
+  height: 100%;
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+  padding-block: 0;
+  padding-inline: 24px 0;
+  font: inherit;
+  color: inherit;
+  background: transparent;
+  border: 0;
+  box-shadow: none;
+}
+.kplex-native-combobox > input[type="text"]:focus { box-shadow: none; }
+.kplex-native-combobox:focus-within { box-shadow: 0 0 0 3px var(--background-modifier-border-focus); }
+.kplex-native-combobox .kplex-search-icon { top: 50%; transform: translateY(-50%); }
+.kplex-native-combobox > .kplex-fuzzy-disclosure {
+  inset-block: 0;
+  inset-inline-end: 0;
+  width: var(--dropdown-padding-end, 2.4em);
+  height: 100%;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+@media (max-width: 480px) {
+  .kplex-form-option { grid-template-columns: minmax(0, 1fr); }
+  .kplex-relationship-field-control { flex-wrap: wrap; }
+  .kplex-relationship-field-control > .kplex-add-related-role-select { flex-basis: 100%; }
+}
+@media (pointer: coarse) {
+  .kplex-modal { --kplex-control-height: 44px; }
+}
+.kplex-edge-source-actions { flex-wrap: wrap; }.kplex-edge-source-actions .kplex-edge-source-action { max-width: 100%; height: auto; white-space: normal; overflow-wrap: anywhere; text-align: start; }
+.kplex-edge-source-actions .kplex-edge-source-action svg { flex: 0 0 14px; }
+.kplex-relationship-selection { width: 100%; min-width: 0; }
+.kplex-relationship-selection-detail { margin-top: var(--size-4-2); white-space: pre-line; overflow-wrap: anywhere; }
+.modal.kplex-modal .kplex-relationship-selection-detail { font-size: var(--font-ui-smaller, var(--font-ui-small)); }
+.modal.kplex-modal .kplex-form-select-row { display: grid; grid-template-columns: max-content minmax(0, 1fr); align-items: center; }
+.kplex-form-select-row > .setting-item-info { margin: 0; max-width: 200px; min-width: 0; }
+.kplex-form-select-row > .setting-item-control { width: 100%; }
+.kplex-form-select-row > .setting-item-control > select { width: 100%; max-width: none; }
+.kplex-form-select-row > .setting-item-description { grid-column: 1 / -1; }
+.kplex-form-select-row > .setting-item-description:empty { display: none; }
+.kplex-modal button.kplex-icon-action { gap: 0; }
+@media (max-width: 420px) {
+  .modal.kplex-modal .kplex-form-select-row { grid-template-columns: minmax(0, 1fr); }
+  .kplex-form-select-row > .setting-item-info { max-width: none; }
+}
+/* Native Setting markup owns colors and finite choices; only their group geometry differs. */
+.kplex-style-row.setting-item { display: flex; }
+.kplex-style-color-row > .setting-item-control { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: var(--size-4-2); }
+.kplex-style-color-row button { max-width: 100%; white-space: normal; overflow-wrap: anywhere; }
+.kplex-form-options .setting-item:not(.kplex-form-field) > .setting-item-info { flex: 1 1 50%; min-width: 0; margin: 0; }
+.kplex-form-options .setting-item:not(.kplex-form-field) > .setting-item-control { flex: 1 1 50%; min-width: 0; }
+.kplex-form-options .setting-item-control > select { width: 100%; max-width: none; }
+.kplex-form-disclosure { margin-block-end: var(--kplex-form-gap, var(--size-4-4)); }
+@media (max-width: 420px) {
+  .kplex-form-options .setting-item:not(.kplex-form-field) { flex-wrap: wrap; }
+  .kplex-form-options .setting-item:not(.kplex-form-field) > .setting-item-info,
+  .kplex-form-options .setting-item:not(.kplex-form-field) > .setting-item-control { flex-basis: 100%; }
 }

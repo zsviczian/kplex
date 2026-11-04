@@ -2,7 +2,9 @@
  * Native off-by-default Compass editor. A detached draft reuses the source chooser, paired usage
  * preview, layout rail and disk-before-publication shell. No graph, note, scheduler or mode owner.
  */
-import {Setting, type App} from "obsidian";
+import {formActions, iconButton, FormSetting as Setting} from "../adapters/obsidian/KplexModal";
+
+import {type App} from "obsidian";
 import {createRoot, type Root} from "react-dom/client";
 import {StyleEditorModal, type StyleCommitResult} from "./StyleEditorModal";
 import {StyleColorControls, type StyleColorContext} from "./StyleColorControls";
@@ -50,8 +52,8 @@ export class CompassSettingsModal extends StyleEditorModal {
     this.preview = new ColorPreview(body, {...context, target: {kind: "compass"}}, undefined);
     this.releaseCss = context.subscribeCss?.(/** CSS changes retire only this editor?s isolated sample. */ () => this.preview?.invalidate()) ?? null;
     this.releaseColors = context.subscribeColors?.(/** Current named/semantic changes repaint without replacing local edits. */ () => this.preview?.refreshSources()) ?? null;
-    new Setting(actions).addButton(/** Cancel leaves persistence untouched. */ button => button.setButtonText(t("common.cancel")).onClick(/** The base shell excludes cancellation during a submitted write. */ () => this.close()))
-      .addButton(/** One explicit Save submits an immutable local snapshot. */ button => button.setButtonText(t("common.save")).setCta().onClick(/** Unchanged Save closes without storage or presentation work. */ () => {
+    formActions(actions).addButton(/** Cancel leaves persistence untouched. */ button => iconButton(button, t("common.cancel"), "x").onClick(/** The base shell excludes cancellation during a submitted write. */ () => this.close()))
+      .addButton(/** One explicit Save submits an immutable local snapshot. */ button => iconButton(button, t("common.save"), "save").setCta().onClick(/** Unchanged Save closes without storage or presentation work. */ () => {
         if (JSON.stringify(this.initial) === JSON.stringify(this.draft)) {this.close(); return;}
         const edited = structuredClone(this.draft); this.runOperation(/** The caller owns latest-state merging and durable publication. */ current => this.save(this.initial, edited, current));
       }));

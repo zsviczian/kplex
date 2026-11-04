@@ -40,6 +40,8 @@ That makes the graph useful as a working surface:
 
 The same relationship keeps the same spatial meaning as you move from note to note. You can therefore build a mental map of your knowledge without depending on a force simulation.
 
+For a right-to-left horizontal arrangement, enable **Settings → K-Plex → Canvas behavior → Views → Compass → Flip East–West axis**. Friends/Previous move to the right and Challengers/Next to the left; the option also mirrors the one-sided arrangement. Parent/child placement and note text retain their normal orientation.
+
 ## Requirements
 
 - Obsidian **1.13.0 or newer**
@@ -122,7 +124,9 @@ Drag a note, attachment, URL or placeholder node into a Markdown editor to inser
 
 History and pins show type icons and full tag paths. Drag a Markdown note onto a tag in either list to add that tag to the note's **tags** property.
 
-Drag a file or folder's gate onto a folder to move it there. With a folder in the center, you can also drag its gate onto a file or attachment to bring that file into the folder. K-Plex shows the source and destination for confirmation; hold **Alt** (**Option** on macOS) while dragging to move immediately. Collision and folder-ancestry checks still apply, and Obsidian updates links according to your file settings. Dragging a folder's child gate onto empty space still creates a note inside that folder.
+Drag a file or folder's gate onto a folder to move it there. With a folder in the center, you can also drag its gate onto a file or attachment to bring that file into the folder. K-Plex shows the source and destination for confirmation; hold **Alt** (**Option** on macOS) while dragging to move immediately. Collision and folder-ancestry checks still apply, and Obsidian updates links according to your file settings. Dragging a folder's gate onto empty space opens **Create note / Create subfolder** tabs and remembers your last choice. Use **Move** in a file or folder node's context menu to choose another destination.
+
+Drop files from your desktop onto a note to import them. One confirmation shows the filenames and lets you choose one destination folder, relationship direction and ontology for the whole batch. Child is the initial direction; you can change it before importing. The ontology picker includes the same search, browse and edit controls as linking notes. A single file opens directly in this form. Drop files or a folder onto a folder node to copy them into that physical folder without authoring note properties. Folder structure, including empty subfolders, is preserved. External originals stay unchanged, existing destinations are never overwritten, and a retry uses copies already imported. Imports accept up to 256 files, 32 MiB each and 128 MiB in total.
 
 Drag a tag's gate onto a Markdown note in the canvas, history or pins to assign it. You can also drop a tag from another canvas into a note's **Parents** area. Choose **Tag** or **Note Type** before saving. A note has one Note Type: when replacing it, choose whether to keep the current type or keep the new type, with the other remaining an ordinary tag. Right-click the tag connection to change between the two. Note Type tag links are twice as thick by default; customize them under **Visual styling → Link styling → Note Type tag links**.
 
@@ -197,15 +201,17 @@ The relationship dialog provides:
 
 The dialog names its captured origin. Navigating the canvas elsewhere while it is open does not change that origin. **Ctrl/Cmd+Enter** submits; **Ctrl/Cmd+Shift+Enter** creates or connects another node while keeping the same origin and ontology. If a suggestion list is open, accept or dismiss that suggestion first.
 
+Use the pencil beside the selected ontology to edit that exact property, its pairing and description without losing your form drafts. **Reverse property owner** shows which Markdown note will store which property and link. For a new note, K-Plex creates the note before writing the chosen relationship. Attachments, web links and placeholders cannot receive document properties.
+
 The folder field starts with Obsidian's calculated destination. Select an existing folder from its suggestions, type a new folder, or use `/` for the vault root. The same picker appears when you hold **Ctrl/Cmd** while double-clicking a placeholder. Moving a path-qualified placeholder to a different folder updates its saved references while keeping their aliases. If that save stops partway, the dialog retains the created file for retry.
 
 Choose **Return** to keep the origin and return to the invoking control, **Create another** to clear the name for another entry, **Follow node** to center the result, or **Edit note** to open its supported editor. The default choice honors **Open for editing** for newly created files. Placeholders and URLs can be followed but do not open as editable notes.
 
 Saved notes and relationships update the canvas without waiting for a full indexing cycle. If a save succeeds while the canvas update remains pending, the dialog offers a targeted refresh and prevents duplicate submission. If note creation finishes only partly, use its recovery controls to link or open the file that already exists. A placeholder retains its selected destination, with the filename as its default display alias: `[[folder/path/filename|filename]]`. You can provide a different alias. You can use the same filename in different folders. K-Plex remembers **After saving** separately for creating notes and linking existing notes or web links. **After saving** shows the action that will run: **Return**, **Create another**, **Follow node** or **Edit note**. **Edit note** centers the new note and opens it in the companion Sidecar in Obsidian's normal Markdown editor, ready for writing.
 
-When folder nodes are visible, drag outward from a folder's **Child gate** to create a new Markdown note (or Excalidraw drawing when available) directly in that folder. The folder location itself supplies the file-tree relationship, so K-Plex does not create a separate note-to-note link. Ctrl/Cmd+Enter uses the same remembered Markdown/Excalidraw default as the normal create-child workflow, and folder creation never offers a placeholder because an unresolved placeholder has no physical folder yet. Dropping a regular note gate onto a folder remains available as a secondary file-only shortcut.
+When folder nodes are visible, drag outward from a folder's gate and choose **Create a note…** to create a Markdown note (or Excalidraw drawing when available) directly in that folder. The folder location itself supplies the file-tree relationship, so K-Plex does not create a separate note-to-note link. The same chooser offers subfolder creation and moving the folder into an existing folder. The note composer retains its remembered Markdown/Excalidraw default and never offers a placeholder, because an unresolved placeholder has no physical folder yet.
 
-Drag a file from Obsidian Files, or a resolved note link from Bases, onto the central node to navigate to it. Drop it into a Parent, Friend, Challenger or Child area to open the linking dialog with that relationship type. The area for a valid relationship drop lights up while you drag.
+Drag a file or folder from Obsidian Files, or a resolved note link from Bases, onto the central node to navigate to it. Folder context menus in Obsidian Files also offer **Open in K-Plex**. Drop it into a Parent, Friend, Challenger or Child area to open the linking dialog with that relationship type. The area for a valid relationship drop lights up while you drag.
 
 Drag a sibling into a Parent, Friend, Challenger or Child area to add a direct relationship to the center. Its other relationships, including the shared parent, remain intact.
 
@@ -231,6 +237,8 @@ Right-click a connector to inspect, unlink or hide its relationship:
 - **Unlink connection** removes a single unambiguous editable property source directly. If several sources contribute to the edge, K-Plex opens Connection details rather than guessing which source you intended to remove.
 
 **Go to source** opens the real Markdown note at the relevant location, using the Sidecar when it is available. Continue editing there with Obsidian's normal editor, wikilinks, suggestions and hotkeys. The source Markdown files remain the source of truth; K-Plex does not create a separate database of edge notes.
+
+Connection details also offers a pencil for each ontology and **Reverse property owner** for eligible document-property sources. Choose the specific declaration to reverse. K-Plex saves its inverse property on the other Markdown note before removing the original, keeping unrelated properties and body links. Body-only and unsupported sources explain why reversal is unavailable; use **Go to source** to edit those links manually.
 
 ## Colors and appearance
 

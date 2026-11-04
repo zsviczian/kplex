@@ -3,12 +3,18 @@ import type {Role} from "../../../graph/relations";
 import type {PlexViewDefinition, PlexOccurrence, PlexViewEdge, PlexArea} from "../contracts";
 import {projectClassicNeighborhood} from "./projection";
 import {layoutClassic, siblingScale, type ClassicGeometryPreferences} from "./geometry";
+import {classicConfigurationSchema, classicFlipped} from "./configuration";
+
+/** All four gates use the same explicit physical interpretation as counts, hit testing and drags. */
+export function classicNodePorts(flipped: boolean): NonNullable<PlexOccurrence["ports"]> {
+  return {top: "parent", bottom: "child", left: flipped ? "right" : "left", right: flipped ? "left" : "right"};
+}
 
 /** Physical connector placement is a Classic policy, independent of the shared edge renderer. */
-export function classicPorts(role: Role): {source: "top" | "bottom" | "left" | "right"; target: "top" | "bottom" | "left" | "right"} {
+export function classicPorts(role: Role, flipped = false): {source: "top" | "bottom" | "left" | "right"; target: "top" | "bottom" | "left" | "right"} {
   if (role === "parent") return {source: "top", target: "bottom"};
   if (role === "child") return {source: "bottom", target: "top"};
-  if (role === "left" || role === "previous") return {source: "left", target: "right"};
+  if ((role === "left" || role === "previous") !== flipped) return {source: "left", target: "right"};
   return {source: "right", target: "left"};
 }
 
@@ -37,7 +43,7 @@ function geometryPreferences(value: unknown): value is ClassicGeometryPreference
 /** Existing legacy surface/device preferences remain authoritative; this contract creates no settings migration. */
 export const classicViewDefinition: PlexViewDefinition = {
   sectionSource: "attention", editorHosting: "occurrence",
-  id: "classic", version: 1, labelKey: "view.classic", icon: "brain-circuit",
+  id: "classic", version: 1, labelKey: "view.classic", icon: "brain-circuit", configuration: classicConfigurationSchema,
   capabilities: {sections: true, descendants: true, editor: true, compact: false}, defaultState: null,
   restoreState: /** Classic has no additional persisted preference payload in this extraction. */ () => null,
   /** Project admitted incidence with the same capped Classic policy used by legacy GraphIndex callers. */
@@ -53,11 +59,12 @@ export const classicViewDefinition: PlexViewDefinition = {
     const n = projectClassicNeighborhood(center, {identity: node => node.id, neighbours: relation,
       sort: rows => rows.sort((a, b) => input.read.compare(a.page, b.page))}, input.maximum,
       !input.state || typeof input.state !== "object" || Reflect.get(input.state, "renderSiblings") !== false);
-    const occurrences: PlexOccurrence[] = [{id: "attention", nodeId: center.id, representation: "thought"}];
+    const flipped = classicFlipped(input.configuration);
+    const occurrences: PlexOccurrence[] = [{id: "attention", nodeId: center.id, representation: "thought", ...(flipped ? {ports: classicNodePorts(true)} : {})}];
     const edges: PlexViewEdge[] = [];
     const add = (rows: typeof n.parents, area: typeof CLASSIC_AREAS[number]) => rows.forEach((row, position) => {
-      const id = JSON.stringify([area, row.page.id, position]), ports = classicPorts(area);
-      occurrences.push({id, nodeId: row.page.id, role: area, areaId: area, representation: "thought", relation: row.value, groupingPartition: area});
+      const id = JSON.stringify([area, row.page.id, position]), ports = classicPorts(area, classicFlipped(input.configuration));
+      occurrences.push({id, nodeId: row.page.id, role: area, areaId: area, representation: "thought", relation: row.value, groupingPartition: area, ...(flipped ? {ports: classicNodePorts(true)} : {})});
       if (area !== "sibling") edges.push({id, kind: "semantic", source: "attention", target: id,
         sourceNode: center.id, targetNode: row.page.id, sourcePort: ports.source, targetPort: ports.target, relation: row.value});
     });
@@ -76,10 +83,10 @@ export const classicViewDefinition: PlexViewDefinition = {
       occurrences, edges, truncated: truncated || [n.parents, n.children, n.leftFriends, n.rightFriends, n.siblings].some(rows => rows.length === input.maximum), coverage: input.read.coverage};
   },
   /** Arrange already measured occurrences; no count, source, host or asynchronous work is available here. */
-  layout(projection, measurements, preferences, editor) {
+  layout(projection, measurements, preferences, editor, context) {
     if (!geometryPreferences(preferences)) throw new Error("Missing Classic geometry preferences");
     // The internal host supplies the finite typed legacy geometry projection, never plugin settings.
-    const settings = preferences;
+    const settings = {...preferences, flipEastWest: preferences.flipEastWest ?? classicFlipped(context?.configuration)};
     const measured = new Map(measurements.map(row => [row.id, row]));
     const nodes = projection.occurrences.map(occurrence => {
       const size = measured.get(occurrence.id); if (!size) throw new Error("Missing occurrence measurement");

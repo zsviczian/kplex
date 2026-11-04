@@ -1,14 +1,18 @@
 /**
  * Native Obsidian dialog for adding or moving an ontology relationship. The plugin owns vault changes; this shell owns localized controls, validation feedback and close cleanup.
  */
+import {KplexModal as Modal, FormSetting as Setting, formField, formActions, labelIconButton} from "../adapters/obsidian/KplexModal";
+import {createElement} from "react";
+import {createRoot, type Root} from "react-dom/client";
 import { SavedRelationshipPendingError } from "../adapters/obsidian/relationshipMetadataWrite";
-import { Modal, Notice, type TFile, setIcon, type WorkspaceLeaf } from "obsidian";
+import {Notice, type TFile, setIcon, type WorkspaceLeaf} from "obsidian";
 import type KplexPlugin from "../main";
 import type { GateRole, GateSide, GraphPage, LinkDirection, RelationshipRole } from "../types";
 
 import { captureRelatedEndpoint, refreshCapturedPage, type RelatedNoteCommit, type RelatedNoteInvocation } from "./NewRelatedNoteModal";
-import {ontologyDescription} from '../core/contracts/ontologyReadModel';
+import {RelationshipSelectionControl} from "./RelationshipSelectionControl";
 import { AddToOntologyModal } from "./AddToOntologyModal";
+import {SelectedOntologyEditor} from "./SelectedOntologyEditor";
 
 /** Creation supports all semantic roles without pretending previous/next are physical gates. */
 export type CreateRelationModalOptions = {
@@ -61,6 +65,7 @@ function addIcon(el: HTMLElement, name: string): void {
 }
 
 export class RelationModal extends Modal {
+  private readonly selectedOntologyEditor: SelectedOntologyEditor;
   private selectedField: string;
   private semanticRole: GateRole;
   private selectedPath: string | null = null;
@@ -77,10 +82,14 @@ export class RelationModal extends Modal {
   private storageIdentity: TFile | null = null;
   private releaseRename: (() => void) | null = null;
   private ontologyDialog: AddToOntologyModal | null = null;
+  private ontologyRoot: Root | null = null;
+  private renderOntologySelection: () => void = () => {};
 
   /** Capture the exact endpoints/storage file before the modal takes focus. */
   constructor(private plugin: KplexPlugin, private options: RelinkRelationModalOptions) {
     super(plugin.app);
+    const doc = this.modalEl.ownerDocument;
+    this.selectedOntologyEditor = new SelectedOntologyEditor(plugin, /** A migrated or closed parent cannot accept vocabulary UI callbacks. */ () => this.opened && this.modalEl.isConnected && this.modalEl.ownerDocument === doc);
     this.options = { ...options, origin: captureRelatedEndpoint(options.origin), fixedTarget: options.fixedTarget ? captureRelatedEndpoint(options.fixedTarget) : undefined };
     this.semanticRole = options.semanticRole;
     this.selectedField = options.initialField?.trim() || plugin.defaultOntologyField(this.semanticRole);
@@ -114,18 +123,19 @@ export class RelationModal extends Modal {
 
   /** Require an actual captured endpoint and no previously saved pending write. */
   private canSave(): boolean {
-    return !this.pending && !this.ontologyDialog && Boolean(this.options.fixedTarget || this.selectedFile());
+    return !this.pending && !this.ontologyDialog && !this.selectedOntologyEditor.active
+      && this.plugin.ontologyRoleForField(this.selectedField) === this.semanticRole && Boolean(this.options.fixedTarget || this.selectedFile());
   }
 
   /** Keep native save availability aligned with the synchronous operation guard. */
   private updateSaveButton(): void {
     if (this.saveButton) this.saveButton.disabled = this.busy || !this.canSave();
+    this.renderOntologySelection();
   }
 
   /** Define vocabulary in the shared editor before applying any connection change. The child
    * retains this connection's role; Cancel restores the selection and parent close retires it. */
-  private createOntologyField(select: HTMLSelectElement, accept: (field: string) => void): void {
-    select.value = this.selectedField;
+  private createOntologyField(invoker: HTMLElement, accept: (field: string) => void): void {
     if (!this.opened || this.busy || this.pending || this.ontologyDialog) return;
     const role = this.semanticRole;
     const dialog = new AddToOntologyModal(this.plugin, "", /** Only the owning live picker accepts the saved physical field. */ field => {
@@ -133,10 +143,10 @@ export class RelationModal extends Modal {
     }, /** Restore focus only while this exact parent and child still own the picker. */ () => {
       if (this.ontologyDialog !== dialog) return;
       this.ontologyDialog = null;
-      if (this.opened) { select.disabled = false; this.updateSaveButton(); select.focus(); }
+      if (this.opened) { this.updateSaveButton(); if (invoker.isConnected) invoker.focus(); }
     }, undefined, {role});
     this.ontologyDialog = dialog;
-    select.disabled = true; this.updateSaveButton(); dialog.open();
+    this.updateSaveButton(); dialog.open();
   }
 
   /** Render candidate notes with localized empty/help copy while preserving ranking and actual vault labels. */
@@ -163,7 +173,7 @@ export class RelationModal extends Modal {
     files.forEach((file, index) => {
       const button = this.resultsEl!.createEl("button", {
         cls: index === this.activeIndex ? "is-selected" : "",
-        attr: { type: "button", title: file.path },
+        attr: { type: "button", "aria-label": file.path },
       });
       addIcon(button, "file-text");
       button.createSpan({ cls: "kplex-relation-file-name", text: file.basename });
@@ -252,13 +262,14 @@ export class RelationModal extends Modal {
   /** Render the relationship/ontology picker with localized captions and feedback; the native Modal owns its open/close shell. */
   onOpen(): void {
     this.opened = true;
+    const releaseMigration = this.options.hostLeaf?.view.containerEl.onWindowMigrated?.(/** Migrating the invoking surface closes all nested drafts before callbacks can resume. */ () => this.close());
     const rename = this.plugin.app.vault.on("rename", /** Follow renamed identities and expose updated endpoint labels. */ file => {
       if (file === this.options.origin.file) this.options.origin = { ...this.options.origin, path: file.path };
       if (file === this.options.fixedTarget?.file) this.options.fixedTarget = { ...this.options.fixedTarget, path: file.path };
       if (file === this.storageIdentity) this.selectedStoragePath = file.path;
       this.contentEl.querySelector<HTMLElement>(".kplex-relation-origin")?.setText(this.plugin.index.titleFor(this.options.origin));
     });
-    this.releaseRename = /** Native close releases the exact listener owned by this invocation. */ () => this.plugin.app.vault.offref(rename);
+    this.releaseRename = /** Native close releases only the listeners owned by this invocation. */ () => {this.plugin.app.vault.offref(rename); releaseMigration?.();};
     this.contentEl.createDiv({ cls: "kplex-relation-origin", text: this.plugin.index.titleFor(this.options.origin) });
     const roleLabel = (role: GateRole): string => ({ parent: this.plugin.translator("role.parent"), child: this.plugin.translator("role.child"), left: this.plugin.translator("role.friend"), right: this.plugin.translator("role.challenger") } satisfies Record<GateRole, string>)[role];
     let roleName = roleLabel(this.semanticRole);
@@ -272,27 +283,19 @@ export class RelationModal extends Modal {
         : this.plugin.translator("relation.addRole", { role: roleName.toLowerCase() }),
     );
     this.modalEl.addClass("kplex-relation-modal");
+    this.modalEl.setAttr("data-kplex-tooltip-scope", "");
     this.contentEl.addClass("kplex-relation-modal-content");
 
-    let fieldSelect: HTMLSelectElement | null = null;
+    // Native property selection and import compose the same searchable ontology picker.
     const repopulateFields = (createdField?: string) => {
-      if (!fieldSelect) return;
-      fieldSelect.empty();
-      const fields = [...this.plugin.ontologyFieldsForRole(this.semanticRole)];
-      const ontologyAction = this.options.purpose === "ontology-add" || this.options.purpose === "ontology-specify";
-      const preferred = createdField || (ontologyAction ? this.options.initialField?.trim() : "");
-      if (preferred && !fields.some((field) => field.toLocaleLowerCase() === preferred.toLocaleLowerCase())) fields.unshift(preferred);
-      for (const field of fields) {
-        const description=ontologyDescription(this.plugin.settings.ontologyDescriptions,field);
-        fieldSelect.createEl("option", { text: description?`${field} — ${description.replace(/\s+/g," ").slice(0,120)}`:field, attr: { value: field, "aria-label":description?`${field}\n${description}`:field } });
-      }
-      if (ontologyAction) fieldSelect.createEl("option", { text: this.plugin.translator("ontology.createField"), attr: { value: "" } });
-      this.selectedField = preferred || this.plugin.defaultOntologyField(this.semanticRole);
-      fieldSelect.value = this.selectedField;
+      if (createdField) this.selectedField = createdField;
+      this.renderOntologySelection();
     };
     if (this.options.allowRoleSelection) {
-      this.contentEl.createEl("label", { cls: "kplex-relation-label", text: this.plugin.translator("relation.directionRole"), attr: { for: "kplex-relation-modal-role" } });
-      const roleSelect = this.contentEl.createEl("select", { attr: { id: "kplex-relation-modal-role" } });
+      const roleRow = formField(new Setting(this.contentEl).setName(this.plugin.translator("relation.directionRole")));
+      let roleSelect!: HTMLSelectElement;
+      roleRow.addDropdown(dropdown => {roleSelect = dropdown.selectEl;});
+      roleSelect.setAttribute("aria-label", this.plugin.translator("relation.directionRole"));
       for (const role of ["parent", "child", "left", "right"] as GateRole[]) roleSelect.createEl("option", { text: roleLabel(role), attr: { value: role } });
       roleSelect.value = this.semanticRole;
       roleSelect.addEventListener("change", () => {
@@ -366,8 +369,11 @@ export class RelationModal extends Modal {
         return rank;
       };
       if (storageCandidates.length > 1) {
-        this.contentEl.createEl("label", { cls: "kplex-relation-label", text: this.plugin.translator("relation.writePropertyToNote"), attr: { for: "kplex-relation-modal-storage" } });
-        const storageSelect = this.contentEl.createEl("select", { attr: { id: "kplex-relation-modal-storage" } });
+        const storageRow = formField(new Setting(this.contentEl).setName(this.plugin.translator("relation.writePropertyToNote")));
+        let storageSelect!: HTMLSelectElement;
+        storageRow.addDropdown(dropdown => {storageSelect = dropdown.selectEl;});
+        storageSelect.id = "kplex-relation-modal-storage";
+        storageSelect.setAttribute("aria-label", this.plugin.translator("relation.writePropertyToNote"));
         for (let candidateIndex = 0; candidateIndex < storageCandidates.length; candidateIndex += 1) {
           const path = storageCandidates[candidateIndex];
           const page = this.plugin.index.get(path);
@@ -396,7 +402,7 @@ export class RelationModal extends Modal {
       }
       if (this.options.purpose === "ontology-add" || this.options.purpose === "ontology-specify") {
         this.contentEl.createDiv({
-          cls: "kplex-relation-hint",
+          cls: "setting-item-description",
           text: this.options.purpose === "ontology-specify"
             ? this.plugin.translator("relation.specifyOntologyHelp")
             : this.plugin.translator("relation.addOntologyHelp"),
@@ -411,14 +417,15 @@ export class RelationModal extends Modal {
       const effectiveField = storingOnOrigin ? this.selectedField : this.plugin.inverseOntologyField(this.selectedField, this.semanticRole);
       const ontologyAction = this.options.purpose === "ontology-add" || this.options.purpose === "ontology-specify";
       storageHint.setText(ontologyAction
-        ? this.plugin.translator("relation.willAddProperty", { field: effectiveField, note: page ? this.plugin.index.titleFor(page) : this.selectedStoragePath })
+        ? this.plugin.translator("relationship.directionPreview", { field: effectiveField, owner: page ? this.plugin.index.titleFor(page) : this.selectedStoragePath,
+            target: this.plugin.index.titleFor(storingOnOrigin ? this.options.fixedTarget : this.options.origin) })
         : this.plugin.translator("relation.willWriteProperty", { field: effectiveField, note: page ? this.plugin.index.titleFor(page) : this.selectedStoragePath }));
     };
 
-    this.contentEl.createEl("label", { cls: "kplex-relation-label", text: this.plugin.translator("relation.noteProperty"), attr: { for: "kplex-relation-modal-field" } });
-    const select = this.contentEl.createEl("select", { attr: { id: "kplex-relation-modal-field" } });
-    fieldSelect = select;
-    repopulateFields();
+    const propertyRow = formField(new Setting(this.contentEl).setName(this.plugin.translator("relation.noteProperty")));
+    propertyRow.nameEl.id = "kplex-relation-modal-field-label";
+    const picker = propertyRow.controlEl.createDiv({cls: "kplex-relation-ontology-picker", attr: {role: "group", "aria-labelledby": propertyRow.nameEl.id}});
+    this.ontologyRoot = createRoot(picker);
 
     const originIsMarkdown = this.options.origin.file?.extension === "md";
     const hint = !originIsMarkdown ? this.contentEl.createDiv({ cls: "kplex-relation-hint" }) : null;
@@ -427,32 +434,41 @@ export class RelationModal extends Modal {
       const inverseField = this.plugin.inverseOntologyField(this.selectedField, this.semanticRole);
       hint.setText(this.plugin.translator("relation.inverseTargetStorage", { property: inverseField }));
     };
-    select.addEventListener("change", () => {
-      if (this.busy || this.pending) { select.value = this.selectedField; return; }
-      if (!select.value) {
-        this.createOntologyField(select, /** Vocabulary Save updates this picker; the connection still requires its own confirmation. */ field => {
-          repopulateFields(field); updateInverseHint(); updateStorageHint();
-        });
-        return;
-      }
-      this.selectedField = select.value;
-      updateInverseHint();
-      updateStorageHint();
-    });
+    this.renderOntologySelection = /** Re-render values without replacing the shared input or its local search state. */ () => {
+      if (!this.opened) return;
+      this.ontologyRoot?.render(createElement(RelationshipSelectionControl, {
+        plugin: this.plugin, role: this.semanticRole, field: this.selectedField, showDirection: false,
+        disabled: this.busy || this.pending || Boolean(this.ontologyDialog) || this.selectedOntologyEditor.active,
+        onChange: /** Only the selected physical property changes; the native role/storage controls retain ownership. */ (_role, field) => {
+          if (this.busy || this.pending) return;
+          this.selectedField = field; updateInverseHint(); updateStorageHint(); this.updateSaveButton();
+        },
+        onCreate: this.options.purpose !== "ontology-add" && this.options.purpose !== "ontology-specify" ? undefined : /** Saving vocabulary returns to this same connection draft without applying a property. */ invoker => this.createOntologyField(invoker, field => {
+          repopulateFields(field); updateInverseHint(); updateStorageHint(); this.updateSaveButton();
+        }),
+        onEdit: /** The common editor retains target and storage drafts while changing vocabulary. */ invoker => {
+          this.selectedOntologyEditor.open(this.selectedField, invoker, () => {
+            repopulateFields(); updateInverseHint(); updateStorageHint(); this.updateSaveButton();
+          });
+        },
+      }));
+    };
+    repopulateFields();
     updateInverseHint();
     updateStorageHint();
 
-    const actions = this.contentEl.createDiv({ cls: "kplex-relation-actions" });
-    const cancel = actions.createEl("button", { attr: { type: "button", "aria-label": this.plugin.translator("common.cancel") } });
-    addIcon(cancel, "x");
-    cancel.addEventListener("click", () => this.close());
+    const actions = formActions(this.contentEl);
+    actions.addButton(button => {
+      labelIconButton(button.buttonEl, this.plugin.translator("common.cancel"), "x");
+      button.onClick(() => this.close());
+    });
 
     const ontologySave = this.options.purpose === "ontology-add" || this.options.purpose === "ontology-specify";
     const saveLabel = ontologySave ? this.plugin.translator(this.options.purpose === "ontology-specify" ? "relation.specifyOntologyButton" : "relation.addOntologyButton") : this.plugin.translator("relation.save");
-    const saveButton = actions.createEl("button", { cls: "mod-cta", attr: { type: "button", "aria-label": saveLabel } });
-    this.saveButton = saveButton;
-    addIcon(saveButton, "check");
-    saveButton.addEventListener("click", () => void this.confirm());
+    actions.addButton(button => {
+      labelIconButton(button.buttonEl, saveLabel, "check"); button.setCta(); this.saveButton = button.buttonEl;
+      button.onClick(() => void this.confirm());
+    });
     this.updateSaveButton();
 
     this.contentEl.ownerDocument.defaultView?.queueMicrotask(/** Focus only a still-mounted native input. */ () => { if (this.opened) this.searchInput?.focus(); });
@@ -462,6 +478,8 @@ export class RelationModal extends Modal {
   onClose(): void {
     if (!this.opened) return;
     this.opened = false; this.options.onClosed?.(); this.releaseRename?.(); this.releaseRename = null;
+    this.selectedOntologyEditor.close();
+    this.renderOntologySelection = () => {}; this.ontologyRoot?.unmount(); this.ontologyRoot = null;
     const ontologyDialog = this.ontologyDialog; this.ontologyDialog = null; ontologyDialog?.close();
     this.contentEl.empty();
   }

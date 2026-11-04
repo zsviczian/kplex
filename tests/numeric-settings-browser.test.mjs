@@ -2,6 +2,19 @@
 import test from 'node:test';import assert from 'node:assert/strict';
 import {colorEditorScenario} from './support/colorEditorBrowser.mjs';
 const setup=`const M=sourceModules,check=(value,message)=>{if(!value)throw Error(message)};`;
+
+test('long declarative text settings share stacked fields, preserve their writer and retire stale handlers',async()=>{
+ assert.equal(await colorEditorScenario(`(async()=>{${setup}
+ const p=await createAppearanceHost({});p.viewSettingsRegistry=M.builtInCanvasViewSettings;p.manifest={id:'k-plex'};
+ const tab=new M.KplexSettingTab({workspace:{on:()=>({}),offref:()=>{}}},p),all=[];const walk=items=>{for(const row of items){all.push(row);walk(row.items??[])}};walk(tab.getSettingDefinitions());
+ const fields=all.filter(row=>row.render?.name==='renderAuthoredTextSetting');check(fields.length===5,'Finite long native fields');
+ const writes=[];tab.setControlValue=async(key,value)=>writes.push({key,value});
+ for(const definition of fields){const host=document.body.createDiv(),row=new M.Setting(host),release=definition.render(row),input=host.querySelector('input,textarea');
+ check(row.settingEl.classList.contains('kplex-form-field')&&input.getAttribute('aria-label')===definition.name,'Shared full-width labelled field');check(!input.hasAttribute('title'),'No duplicate native tooltip');
+ input.value='Meaningful local value';input.dispatchEvent(new Event('input',{bubbles:true}));check(writes.at(-1)?.value==='Meaningful local value','Canonical setter receives actual input');
+ const before=writes.length;release();input.value='Retired';input.dispatchEvent(new Event('input',{bubbles:true}));check(writes.length===before,'Retired native row wrote settings');host.remove();}
+ return true})()`),true);
+});
 test('every generic Settings slider has a persistent accessible value and never writes on mount',async()=>{
  assert.equal(await colorEditorScenario(`(async()=>{${setup}
  const p=await createAppearanceHost({});p.writes=[];p.viewSettingsRegistry=M.builtInCanvasViewSettings;p.manifest={id:'k-plex'};

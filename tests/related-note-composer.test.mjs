@@ -10,7 +10,7 @@ import test from "node:test";
 /** Compile the actual callback or method with injected capabilities, keeping production control flow intact. */
 function production(name, dependencies = {}, path = "src/ui/NewRelatedNoteModal.ts") {
   if (path !== "src/core/plex/createdNoteDestination.ts") dependencies = {resolveCreationAfterSaving, continuation: "return", ...dependencies};
-  dependencies = { templateChoices: null, templatePath: "", folderValidation: { error: null }, folderPath: "", ...dependencies };
+  dependencies = { session: {}, storeOnTarget: false, ontologySelectionInvalid: false, assignedRole: null, templateChoices: null, templatePath: "", folderValidation: { error: null }, folderPath: "", ...dependencies };
   const source = ts.createSourceFile(path, readFileSync(new URL(`../${path}`, import.meta.url), "utf8"), ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
   let expression;
   /** Find one named production callback without evaluating the native Obsidian shell. */
@@ -68,7 +68,7 @@ test("unified completion resolves remembered and explicit command intents withou
 test("native Modal isOpen boolean cannot shadow composer readiness for button or Scope submit", async () => {
   class NativeModalFixture { constructor() { this.isOpen = true; } }
   const session = new NativeModalFixture();
-  Object.assign(session, { opened: true, invalidated: false, invocation: {}, contentEl: { querySelector: () => null } });
+  Object.assign(session, { opened: true, invalidated: false, ontologyEditor: {active: false}, invocation: {}, contentEl: { querySelector: () => null } });
   session.isSessionOpen = production("isSessionOpen");
   session.setWriting = production("setWriting");
   const origin = page("A.md"), created = page("New.md"), busyRef = { current: false };
@@ -236,7 +236,7 @@ test("focus restoration refuses a retired or migrated owner and preserves the ex
 
 /** Portaled suggestions are an owned interaction even though their list sits directly under body. */
 test("composer recognizes only its exact portal session identity", () => {
-  const owns = production("ownsInteractionTarget").bind({ modalEl: { contains: () => false }, suggestionOwnerId: "session-A" });
+  const owns = production("ownsInteractionTarget").bind({ modalEl: { contains: () => false }, ontologyEditor: {owns: () => false}, suggestionOwnerId: "session-A" });
   assert.equal(owns({ closest: selector => selector === '[data-fuzzy-owner="session-A"]' ? {} : null }), true);
   assert.equal(owns({ closest: () => null }), false);
   assert.equal(owns({}), false);
@@ -351,6 +351,7 @@ test("folder-child creation permits a parent's basename but rejects an exact des
   const context = {translator: key => key, unloading: false,
     app: {vault: {getFiles: assert.fail, getFileByPath: path => files.get(path) ?? null}},
     index: {withForegroundPriority: work => work(), insertCreatedFile: file => file},
+    waitForCreatedFileAutomation:async()=>{},
     createNewFileInFolder: async (stem, kind, folder) => {requests.push([stem, kind, folder]);files.set(child.path, child);return child;},
     writeCreatedNodeDisplayName: async () => "", configuredDisplayNameField: () => null,
   };
@@ -412,6 +413,7 @@ test("materialization Return preserves the center while explicit tab opening rem
     const context = { settings: {lastActivePath: wasCenter ? "Next" : "Origin.md"}, unloading: false,
       app: {vault: {getFileByPath: () => file}}, translator: key => key,
       validateNoteFolderPath: () => ({folderPath: "", error: null}),
+      waitForCreatedFileAutomation:async()=>{},
       createNewFileInFolder: async () => file, writeCreatedNodeDisplayName: async () => {}, rememberNewNodeDefaultType: async () => {},
       index: {materializeFile: (...args) => {promoted.push(args); return true;}},
       remapNavigationPaths: () => {if (wasCenter) context.settings.lastActivePath = file.path; return wasCenter;},
@@ -470,6 +472,7 @@ test("native materialization focuses the shared folder field without changing qu
     }
   }
   const open = production("onOpen", { Setting: NativeSetting,
+    formField: setting => setting.setClass("kplex-form-field"), formActions: () => new NativeSetting(), iconButton: button => button,
     createRoot: () => ({ render: element => { rendered = element; } }),
     createElement: (type, props) => ({ type, props }), MaterializationFolderInput() {},
   }, "src/ui/MaterializeGhostModal.ts");
@@ -480,7 +483,7 @@ test("native materialization focuses the shared folder field without changing qu
   };
   context.refreshControls = production("refreshControls", { createElement: (type, props) => ({ type, props }), MaterializationFolderInput() {} }, "src/ui/MaterializeGhostModal.ts");
   open.call(context);
-  assert.deepEqual(folderClasses,["kplex-materialize-folder-row"],"Folder label and input share the modal width without the description column");
+  assert.deepEqual(folderClasses,["kplex-materialize-folder-row","kplex-form-field"],"Folder label and input use the shared full-width field treatment and retain the consumer hook");
   assert.equal(rendered.props.value, "Projects"); assert.equal(rendered.props.autoFocus, true);
   assert.equal(rendered.props.openResultsOnFocus, false, "The prefilled destination must start closed without losing keyboard focus");
   context.focusFolder=false;context.refreshControls();assert.equal(rendered.props.autoFocus,false,"Ordinary materialization must retain its one-step default submission");
@@ -635,6 +638,7 @@ test("complete retarget followed by metadata or navigation failure retries the s
     const process=f.app.vault.process;f.app.vault.process=async(...args)=>{writes++;return process(...args);};
     const context={app:f.app,settings:{lastActivePath:"Unrelated.md"},translator:key=>key,unloading:false,
       validateNoteFolderPath:folder=>({folderPath:folder,error:null}),referencingMarkdownFiles:()=>[f.source],
+      waitForCreatedFileAutomation:async()=>{},
       createNewFileInFolder:async()=>{creates++;f.files.set(f.created.path,f.created);return f.created;},
       writeCreatedNodeDisplayName:async()=>{if(stage==="metadata"&&attempt++===0)throw Error("Later metadata failure");},
       rememberNewNodeDefaultType:async()=>{},index:{materializeFile:(oldPath,file)=>{oldPaths.push(oldPath);page.path=file.path;page.file=file;return true;}},
@@ -706,6 +710,7 @@ test("materialization fences final metadata races and dismissed capture or accep
     if(stage==="capture-cancel")f.app.vault.cachedRead=async file=>{entered.resolve();await barrier.promise;return read(file);};
     const context={app:f.app,settings:{lastActivePath:"Projects/Next"},translator:key=>key,unloading:false,
       validateNoteFolderPath:folder=>({folderPath:folder,error:null}),referencingMarkdownFiles:()=>[f.source],
+      waitForCreatedFileAutomation:async()=>{},
       createNewFileInFolder:async()=>{creates++;f.files.set(f.created.path,f.created);if(stage==="create-cancel"){entered.resolve();await barrier.promise;}return f.created;},
       writeCreatedNodeDisplayName:async()=>{if(stage==="metadata-rename")rename();},
       rememberNewNodeDefaultType:async()=>{if(stage==="default-rename")rename();},
@@ -871,7 +876,7 @@ test("raw or twice-decoded Markdown cache spellings cannot authorize a relocatio
 test('native additive-only invocation survives the shared existing-target composer',async()=>{
  const origin=page('R.md'),target=page('B.md'),calls=[],commits=[];
  const link=production('linkExisting',{origin,selectedTarget:target,role:'parent',continuation:'another',session:{additiveOnly:true,isSessionOpen:()=>true,setWriting(){}},beginWrite:()=>true,prepareField:async()=> 'parents',refreshCapturedPage:(_plugin,page)=>page,busyRef:{current:true},setBusy(){},reportFailure:assert.fail,complete:async(...args)=>commits.push(args),plugin:{createRelationToPage:async(...args)=>{calls.push(args);return{state:'saved-published',page:target}}}});
- await link();assert.deepEqual(calls,[[origin,'parent',target,'parents',undefined,true]]);assert.deepEqual(commits,[[target,'another',false]]);
+ await link();assert.deepEqual(calls,[[origin,'parent',target,'parents',undefined,true,false]]);assert.deepEqual(commits,[[target,'another',false]]);
 });
 
 /** Changing the destination of a pathful placeholder explicitly patches every approved native source. */

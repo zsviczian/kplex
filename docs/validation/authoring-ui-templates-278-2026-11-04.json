@@ -1,0 +1,1230 @@
+{
+  "date": "2026-11-04",
+  "branch": "2026-11-03-issue-277-creation-links-compass",
+  "base": "c0e6166",
+  "state": "uncommitted",
+  "artifacts": {
+    "main.js": "770fd253b59a2a255a4d4fbf656d15ac66394efe1a23cdf45f8aaea25bb1836e",
+    "styles.css": "78514221527af91cbd2088b4d055c34d9e766abb788ce6e792787a39d26bb35a",
+    "manifest.json": "8c65b0d38a506f8fa9fc3311b81ea22bcda48e0209e9190483752c1f20834326"
+  },
+  "node": "22.22.2",
+  "host": "Windows / Obsidian 1.14.5",
+  "focused": {
+    "uiAndAdapter": {
+      "passed": 93,
+      "failed": 0
+    },
+    "contracts": {
+      "passed": 242,
+      "failed": 0
+    },
+    "priorityAndEventConvergence": {
+      "passed": 88,
+      "failed": 0
+    },
+    "total": 423
+  },
+  "checks": {
+    "installedTypeBuild": "passed",
+    "portableTypes": "passed",
+    "lint": "passed",
+    "architecture": {
+      "roots": 263,
+      "reachable": 466,
+      "violations": 0
+    },
+    "numericControls": {
+      "sources": 211,
+      "violations": 0
+    }
+  },
+  "native": [
+    {
+      "lane": "template-lifecycle",
+      "receipt": "CRuR5k",
+      "result": {
+        "name": "authoring-compass-template-lifecycle-278",
+        "status": "passed",
+        "node": "v22.22.2",
+        "startedAt": "2026-11-04T18:26:39.297Z",
+        "maximumMs": 420000,
+        "driver": {
+          "transport": "beb7677649f8ae6ae390c0df25b4a025a48777b5fbfc5e36c25f7fe252b8a0d3",
+          "scenario": "392f4d33aba88ec065dc4bc5315137612d44aabddb3d95337e859f8da0f94779",
+          "definitions": "655348b076741a4e47a0bcee04058cc6e06f0ee76d4beaaaa531b0562c8565e1"
+        },
+        "artifacts": {
+          "main.js": "770fd253b59a2a255a4d4fbf656d15ac66394efe1a23cdf45f8aaea25bb1836e",
+          "manifest.json": "8c65b0d38a506f8fa9fc3311b81ea22bcda48e0209e9190483752c1f20834326",
+          "styles.css": "78514221527af91cbd2088b4d055c34d9e766abb788ce6e792787a39d26bb35a"
+        },
+        "source": {
+          "src/index/GraphBuilder.ts": "c0cc0d30260e146978e942e9cd8953ca78ca92bbda772d64334eba026247606f",
+          "src/index/GraphIndex.ts": "63fee629742c73308c79f114218cfa042c95b9c474686a59544da012e140c9ad",
+          "src/core/graph/compiler.ts": "6156fb1eb6e51e057a48a2b97dba0bddeaf9dd065277355ddc1a0af1b6075ec5",
+          "src/ui/StyleColorControls.ts": "86c646c5bbbe5e03b2736ce621a226e40b37d323986200ad000d1578bb46bb96",
+          "src/ui/plexViews/facets/FacetPresetEditor.ts": "591ae32b731bdd7bf229314e6cc2efde2394269e92338d3077df329ed45f6b9b",
+          "src/ui/export/MindMapMarkdownModal.ts": "56f025a6e5fb971bdebd95a41183a99dd71a61256038a18b5b6eeb5df153262d",
+          "src/adapters/obsidian/fileCreationAutomation.ts": "f1e0ff5485d263af603f46edcb0c6de06ca9164f3b42e224920ba2e012752c0c",
+          "src/adapters/obsidian/KplexModal.ts": "9885b27da459fec4e94a98189d5df8e72045973859ddde6f3e06f787170dd15f",
+          "src/ui/components/FormField.tsx": "7beedf2eef5db36da87a7e07fc95e1278da3473307d06fa3650e8fa191841acd",
+          "src/ui/components/FormSelect.tsx": "fd32774a82a1f6f22ebf5d39daf50d3a5c48f4d371b516ceaccdbcb1022b655d",
+          "src/ui/features/RelationshipFieldControl.tsx": "57fc0f085d099f96e62359ed6c544bae3c1dbbecb0f0e09ad1d5dd5a1c2be334",
+          "src/ui/features/gateRelationshipIntent.ts": "f9db85a85fa7b1cc9a68017249a4586b8879bcf3bed4f497a6e2f78384b1f8fa",
+          "src/application/indexRecoveryDiagnostics.ts": "51798394eda5d7d342948e6d9f26d31c992a83874ad6a0c9d553d32e68136cbb",
+          "src/ui/RelationshipSelectionControl.tsx": "67398b616941e7574409b17d7e98f1c510db41e07a5183d974988cd406168381",
+          "src/adapters/obsidian/dailyNotes.ts": "cd384ed025dfd8eb4a0f1169712801019bf19e4b4d4339b25aed5e49a996571a",
+          "src/main.ts": "57a32a0f6b53ec84ee11ec22bd0abb654dc0bd404def50157c8b58fdc3c2bd0e",
+          "src/adapters/obsidian/sourceAcquisition.ts": "8e32c007693514c9c3f013145822170cfa0b43df3f247d347a54b0be720276c9",
+          "src/adapters/obsidian/externalFileImport.ts": "79bed48654c528f1d0ac9f275ccf845e70bef90f0dac7bd383cd52ed3ce67539",
+          "src/adapters/obsidian/relationshipOwner.ts": "81448effcf8a92a59a6f998b73dd163f3b00140ed42314e19a6a6ca407d34dc8",
+          "src/ui/App.tsx": "f38f4193158704477336d954286b4465a3a2525856e63086fbb77a8664784831",
+          "src/ui/PlexGraph.tsx": "07b212cb9217c917c3bf310c1a9d2ecda0759dcd3092ae575837427d35538f30",
+          "src/ui/NewRelatedNoteModal.ts": "1cf4f52e3589e6f079bfd367de62ce910518e19a5b6175d4ee2a7099aaad3f55",
+          "src/ui/SelectedOntologyEditor.ts": "f54d7de6285443237aef1612535abd40a3c005dd7f1c9460db9381f880ef2b35",
+          "src/ui/CreateFolderNoteModal.ts": "f4cca6057a3a8d673631035ecf1a3ba4f54ab82be11ca9718710e8ee205f3090",
+          "src/ui/CreatePeriodicNoteModal.ts": "5988dafe1989ee24fcaec7fff138b5864a4f01bdbb1adc19642d8be6e2a9e879",
+          "src/ui/MoveNodeModal.ts": "fc973fa7dda5fbf3f0830bef319d81e76e15d8d707f4c0f43fe7d2cf8094198b",
+          "src/ui/components/Tabs.tsx": "0efe6859ae0e2ed5ad4a28c21ed73233c5ec7b31ad58b1f2a18996ba6f060952",
+          "src/adapters/obsidian/fileExplorerDrag.ts": "cad3f7dc66596ef144634d2d0c7300c6e95fa7a2253b7c1882ab8499628fa529",
+          "src/adapters/obsidian/fileMenu.ts": "64187e15fcba97b1591cffeb684f76457ef4c3118ef4fc64315b6629720aee12",
+          "src/ui/RelationModal.ts": "f99b0ea3633c6c1e874be738adbfc4394584d826670afc55f704536a42a02968",
+          "src/ui/RelationshipExplanationModal.ts": "003813ab3fc65f814e36ff89a8650a9caacb8c16ee1265c559bb72b38df408e7",
+          "src/ui/ReverseRelationshipModal.ts": "9dfd3621422fc88974e26554b543de455a8a9e9baf65cbb580387ca2b851712b",
+          "src/ui/ExternalFileImportBatchModal.ts": "c2dda2c16524aa49a7ab538bb6bdde2dd502bf4c1d40381fd0715b16e1f11f8a",
+          "src/ui/features/RelationshipDirectionControl.tsx": "236a5515bb90d159a37be5b5daf5d1408274699a4fca10a0d7ba2f427a2d23eb",
+          "src/ui/components/ReorderableList.tsx": "7a3f2a296e06cc6c24edb5404eb5a6cf89ed9669c061ae1398f63994e57b83ba",
+          "src/core/plex/views/classic/configuration.ts": "2f84c30c6465d8a68753a0d9c37140faef5fe46d971ca705cec724d0159e939c",
+          "src/core/plex/views/classic/definition.ts": "6b5f0a53b2edcbccd07750b83b3c186ba4358c9695fff7dd2473f80002067cd3",
+          "src/core/plex/views/classic/geometry.ts": "f6bd0513012c1fcf30915cc1a24300c3e1d3ba2f6a1d603d6f04708f530f833e",
+          "src/ui/plexViews/classic/layout.ts": "04523e2eda25308658919311b4235a918656751f91079066b429a95115467ea2",
+          "src/ui/plexViews/classic/ClassicAreaLabels.tsx": "6c8c62540d13cc842af9a637bd8705792018f06c371f41743ce22c084230b4db"
+        },
+        "limitations": "Controlled native method observations, not actual paint or physical-device acceptance.",
+        "obsidian": "1.14.5 (installer 1.14.5)",
+        "progress": {
+          "phase": "Fixture index convergence",
+          "waitedMs": 21322,
+          "status": {
+            "upToDate": false,
+            "phase": "updating",
+            "indexedFiles": 103,
+            "totalFiles": 103,
+            "label": "Status: updating index"
+          },
+          "source": {
+            "checked": 218,
+            "reusedBodies": 226,
+            "legacyBodies": 7,
+            "vaultReads": 6,
+            "parses": 6,
+            "repaired": 7,
+            "resolutionRefreshes": 101,
+            "pendingMetadata": 0,
+            "failures": 0
+          },
+          "semantic": {
+            "policyRevision": 1,
+            "requested": 6,
+            "prepared": 4,
+            "published": 4,
+            "cancelled": 0,
+            "pending": 2,
+            "dependencyVisits": 56,
+            "fullBuilds": 0,
+            "lastReason": null
+          },
+          "url": {
+            "processed": 98,
+            "total": 98,
+            "complete": true,
+            "active": false,
+            "failed": false,
+            "restored": 98,
+            "reads": 10,
+            "checked": 98,
+            "cacheAvailable": true,
+            "cacheWritesFailed": 0
+          },
+          "fixtureMetadata": {
+            "ready": 5,
+            "total": 5
+          },
+          "activeMenu": false
+        },
+        "result": {
+          "samples": [
+            {
+              "case": "folder template with reversed owner",
+              "yamlEvaluated": true,
+              "bodyEvaluated": true,
+              "propertiesWrittenAfterTemplate": true,
+              "templatePreserved": true,
+              "navigationPriorityAdvancedWhileTemplatePending": true,
+              "backgroundPriorityAdvancedWhileTemplatePending": true
+            },
+            {
+              "case": "regex template with reversed owner",
+              "yamlEvaluated": true,
+              "bodyEvaluated": true,
+              "propertiesWrittenAfterTemplate": true,
+              "templatePreserved": true,
+              "navigationPriorityAdvancedWhileTemplatePending": true,
+              "backgroundPriorityAdvancedWhileTemplatePending": true
+            },
+            {
+              "case": "core Daily Notes template",
+              "yamlEvaluated": true,
+              "bodyEvaluated": true
+            }
+          ],
+          "templater": "2.26.0",
+          "handlerRestored": true,
+          "additionalFullBuilds": 0,
+          "scope": "Real Templater execution in owned folder/regex/Daily files; no production template execution"
+        },
+        "cleanup": "passed",
+        "completedAt": "2026-11-04T18:27:11.139Z"
+      },
+      "stage": {
+        "status": "passed",
+        "node": "v22.22.2",
+        "staging": "Iterative Node 22.22.2 installed-type production build; full verify pending",
+        "artifacts": {
+          "main.js": "770fd253b59a2a255a4d4fbf656d15ac66394efe1a23cdf45f8aaea25bb1836e",
+          "styles.css": "78514221527af91cbd2088b4d055c34d9e766abb788ce6e792787a39d26bb35a",
+          "manifest.json": "8c65b0d38a506f8fa9fc3311b81ea22bcda48e0209e9190483752c1f20834326"
+        },
+        "cleanup": {
+          "disable": "passed",
+          "data": "passed",
+          "enable": "passed",
+          "layout": "passed",
+          "data-bytes": "passed",
+          "templater-disable": "passed",
+          "templater-files": "passed",
+          "enablement-bytes": "passed"
+        },
+        "fixtureBaseline": {
+          "files": 117,
+          "markdownFiles": 98
+        },
+        "templater": {
+          "version": "2.26.0",
+          "sha256": "c41ea9f4990934faa8efacabeda12222714d1d4c823e22724c8cc14789fa834e"
+        }
+      }
+    },
+    {
+      "lane": "ontology-export",
+      "receipt": "lJTf5i",
+      "result": {
+        "name": "authoring-compass-ontology-export-278",
+        "status": "passed",
+        "node": "v22.22.2",
+        "startedAt": "2026-11-04T18:39:14.732Z",
+        "maximumMs": 420000,
+        "driver": {
+          "transport": "beb7677649f8ae6ae390c0df25b4a025a48777b5fbfc5e36c25f7fe252b8a0d3",
+          "scenario": "3a29c9d8bddf72e5d0389f07a878cd6b840ec6043be0abe4f89e8f2931903128",
+          "definitions": "65e551e79ccb410e7a37d6fb27aa0d3365097e646adca65f4afd5a731546662d"
+        },
+        "artifacts": {
+          "main.js": "770fd253b59a2a255a4d4fbf656d15ac66394efe1a23cdf45f8aaea25bb1836e",
+          "manifest.json": "8c65b0d38a506f8fa9fc3311b81ea22bcda48e0209e9190483752c1f20834326",
+          "styles.css": "78514221527af91cbd2088b4d055c34d9e766abb788ce6e792787a39d26bb35a"
+        },
+        "source": {
+          "src/index/GraphBuilder.ts": "c0cc0d30260e146978e942e9cd8953ca78ca92bbda772d64334eba026247606f",
+          "src/index/GraphIndex.ts": "63fee629742c73308c79f114218cfa042c95b9c474686a59544da012e140c9ad",
+          "src/core/graph/compiler.ts": "6156fb1eb6e51e057a48a2b97dba0bddeaf9dd065277355ddc1a0af1b6075ec5",
+          "src/ui/StyleColorControls.ts": "86c646c5bbbe5e03b2736ce621a226e40b37d323986200ad000d1578bb46bb96",
+          "src/ui/plexViews/facets/FacetPresetEditor.ts": "591ae32b731bdd7bf229314e6cc2efde2394269e92338d3077df329ed45f6b9b",
+          "src/ui/export/MindMapMarkdownModal.ts": "56f025a6e5fb971bdebd95a41183a99dd71a61256038a18b5b6eeb5df153262d",
+          "src/adapters/obsidian/fileCreationAutomation.ts": "f1e0ff5485d263af603f46edcb0c6de06ca9164f3b42e224920ba2e012752c0c",
+          "src/adapters/obsidian/KplexModal.ts": "9885b27da459fec4e94a98189d5df8e72045973859ddde6f3e06f787170dd15f",
+          "src/ui/components/FormField.tsx": "7beedf2eef5db36da87a7e07fc95e1278da3473307d06fa3650e8fa191841acd",
+          "src/ui/components/FormSelect.tsx": "fd32774a82a1f6f22ebf5d39daf50d3a5c48f4d371b516ceaccdbcb1022b655d",
+          "src/ui/features/RelationshipFieldControl.tsx": "57fc0f085d099f96e62359ed6c544bae3c1dbbecb0f0e09ad1d5dd5a1c2be334",
+          "src/ui/features/gateRelationshipIntent.ts": "f9db85a85fa7b1cc9a68017249a4586b8879bcf3bed4f497a6e2f78384b1f8fa",
+          "src/application/indexRecoveryDiagnostics.ts": "51798394eda5d7d342948e6d9f26d31c992a83874ad6a0c9d553d32e68136cbb",
+          "src/ui/RelationshipSelectionControl.tsx": "67398b616941e7574409b17d7e98f1c510db41e07a5183d974988cd406168381",
+          "src/adapters/obsidian/dailyNotes.ts": "cd384ed025dfd8eb4a0f1169712801019bf19e4b4d4339b25aed5e49a996571a",
+          "src/main.ts": "57a32a0f6b53ec84ee11ec22bd0abb654dc0bd404def50157c8b58fdc3c2bd0e",
+          "src/adapters/obsidian/sourceAcquisition.ts": "8e32c007693514c9c3f013145822170cfa0b43df3f247d347a54b0be720276c9",
+          "src/adapters/obsidian/externalFileImport.ts": "79bed48654c528f1d0ac9f275ccf845e70bef90f0dac7bd383cd52ed3ce67539",
+          "src/adapters/obsidian/relationshipOwner.ts": "81448effcf8a92a59a6f998b73dd163f3b00140ed42314e19a6a6ca407d34dc8",
+          "src/ui/App.tsx": "f38f4193158704477336d954286b4465a3a2525856e63086fbb77a8664784831",
+          "src/ui/PlexGraph.tsx": "07b212cb9217c917c3bf310c1a9d2ecda0759dcd3092ae575837427d35538f30",
+          "src/ui/NewRelatedNoteModal.ts": "1cf4f52e3589e6f079bfd367de62ce910518e19a5b6175d4ee2a7099aaad3f55",
+          "src/ui/SelectedOntologyEditor.ts": "f54d7de6285443237aef1612535abd40a3c005dd7f1c9460db9381f880ef2b35",
+          "src/ui/CreateFolderNoteModal.ts": "f4cca6057a3a8d673631035ecf1a3ba4f54ab82be11ca9718710e8ee205f3090",
+          "src/ui/CreatePeriodicNoteModal.ts": "5988dafe1989ee24fcaec7fff138b5864a4f01bdbb1adc19642d8be6e2a9e879",
+          "src/ui/MoveNodeModal.ts": "fc973fa7dda5fbf3f0830bef319d81e76e15d8d707f4c0f43fe7d2cf8094198b",
+          "src/ui/components/Tabs.tsx": "0efe6859ae0e2ed5ad4a28c21ed73233c5ec7b31ad58b1f2a18996ba6f060952",
+          "src/adapters/obsidian/fileExplorerDrag.ts": "cad3f7dc66596ef144634d2d0c7300c6e95fa7a2253b7c1882ab8499628fa529",
+          "src/adapters/obsidian/fileMenu.ts": "64187e15fcba97b1591cffeb684f76457ef4c3118ef4fc64315b6629720aee12",
+          "src/ui/RelationModal.ts": "f99b0ea3633c6c1e874be738adbfc4394584d826670afc55f704536a42a02968",
+          "src/ui/RelationshipExplanationModal.ts": "003813ab3fc65f814e36ff89a8650a9caacb8c16ee1265c559bb72b38df408e7",
+          "src/ui/ReverseRelationshipModal.ts": "9dfd3621422fc88974e26554b543de455a8a9e9baf65cbb580387ca2b851712b",
+          "src/ui/ExternalFileImportBatchModal.ts": "c2dda2c16524aa49a7ab538bb6bdde2dd502bf4c1d40381fd0715b16e1f11f8a",
+          "src/ui/features/RelationshipDirectionControl.tsx": "236a5515bb90d159a37be5b5daf5d1408274699a4fca10a0d7ba2f427a2d23eb",
+          "src/ui/components/ReorderableList.tsx": "7a3f2a296e06cc6c24edb5404eb5a6cf89ed9669c061ae1398f63994e57b83ba",
+          "src/core/plex/views/classic/configuration.ts": "2f84c30c6465d8a68753a0d9c37140faef5fe46d971ca705cec724d0159e939c",
+          "src/core/plex/views/classic/definition.ts": "6b5f0a53b2edcbccd07750b83b3c186ba4358c9695fff7dd2473f80002067cd3",
+          "src/core/plex/views/classic/geometry.ts": "f6bd0513012c1fcf30915cc1a24300c3e1d3ba2f6a1d603d6f04708f530f833e",
+          "src/ui/plexViews/classic/layout.ts": "04523e2eda25308658919311b4235a918656751f91079066b429a95115467ea2",
+          "src/ui/plexViews/classic/ClassicAreaLabels.tsx": "6c8c62540d13cc842af9a637bd8705792018f06c371f41743ce22c084230b4db"
+        },
+        "limitations": "Controlled native method observations, not actual paint or physical-device acceptance.",
+        "obsidian": "1.14.5 (installer 1.14.5)",
+        "progress": {
+          "phase": "Trusted native click",
+          "waitedMs": 0,
+          "status": {
+            "upToDate": true,
+            "phase": "ready",
+            "indexedFiles": 100,
+            "totalFiles": 100,
+            "label": "Status: index ready"
+          },
+          "source": {
+            "checked": 4,
+            "reusedBodies": 2,
+            "legacyBodies": 1,
+            "vaultReads": 0,
+            "parses": 0,
+            "repaired": 2,
+            "resolutionRefreshes": 0,
+            "pendingMetadata": 0,
+            "failures": 0
+          },
+          "semantic": {
+            "policyRevision": 1,
+            "requested": 2,
+            "prepared": 0,
+            "published": 0,
+            "cancelled": 0,
+            "pending": 2,
+            "dependencyVisits": 0,
+            "fullBuilds": 0,
+            "lastReason": "dependency-pending"
+          },
+          "url": {
+            "processed": 98,
+            "total": 98,
+            "complete": true,
+            "active": false,
+            "failed": false,
+            "restored": 98,
+            "reads": 2,
+            "checked": 98,
+            "cacheAvailable": true,
+            "cacheWritesFailed": 0
+          },
+          "fixtureMetadata": {
+            "ready": 2,
+            "total": 2
+          },
+          "activeMenu": false
+        },
+        "result": {
+          "samples": [
+            {
+              "case": "connection property",
+              "theme": "theme-light",
+              "width": 1000,
+              "sharedPicker": true,
+              "descriptionBelow": true,
+              "createGlyph": true
+            },
+            {
+              "case": "Markdown export",
+              "theme": "theme-light",
+              "width": 1000,
+              "availableWidthUsed": true,
+              "cancelCentered": true
+            },
+            {
+              "case": "connection property",
+              "theme": "theme-dark",
+              "width": 420,
+              "sharedPicker": true,
+              "descriptionBelow": true,
+              "createGlyph": true
+            },
+            {
+              "case": "Markdown export",
+              "theme": "theme-dark",
+              "width": 420,
+              "availableWidthUsed": true,
+              "cancelCentered": true
+            }
+          ]
+        },
+        "cleanup": "passed",
+        "completedAt": "2026-11-04T18:39:22.744Z"
+      },
+      "stage": {
+        "status": "passed",
+        "node": "v22.22.2",
+        "staging": "Iterative Node 22.22.2 installed-type production build; full verify pending",
+        "artifacts": {
+          "main.js": "770fd253b59a2a255a4d4fbf656d15ac66394efe1a23cdf45f8aaea25bb1836e",
+          "styles.css": "78514221527af91cbd2088b4d055c34d9e766abb788ce6e792787a39d26bb35a",
+          "manifest.json": "8c65b0d38a506f8fa9fc3311b81ea22bcda48e0209e9190483752c1f20834326"
+        },
+        "cleanup": {
+          "disable": "passed",
+          "data": "passed",
+          "enable": "passed",
+          "layout": "passed",
+          "data-bytes": "passed",
+          "enablement-bytes": "passed"
+        },
+        "fixtureBaseline": {
+          "files": 117,
+          "markdownFiles": 98
+        }
+      }
+    },
+    {
+      "lane": "pin-settings",
+      "receipt": "yoFcne",
+      "result": {
+        "name": "authoring-compass-pin-settings-278",
+        "status": "passed",
+        "node": "v22.22.2",
+        "startedAt": "2026-11-04T18:39:33.166Z",
+        "maximumMs": 420000,
+        "driver": {
+          "transport": "beb7677649f8ae6ae390c0df25b4a025a48777b5fbfc5e36c25f7fe252b8a0d3",
+          "scenario": "beadc16bf36af917350aa3a3b18473f51d8a59b586ce070a7af425637f1e6ff4",
+          "definitions": "958231b458276bf4ffaa866a86c9e0a015c0e618c9fe6e6e3cde7eac9f0efbce"
+        },
+        "artifacts": {
+          "main.js": "770fd253b59a2a255a4d4fbf656d15ac66394efe1a23cdf45f8aaea25bb1836e",
+          "manifest.json": "8c65b0d38a506f8fa9fc3311b81ea22bcda48e0209e9190483752c1f20834326",
+          "styles.css": "78514221527af91cbd2088b4d055c34d9e766abb788ce6e792787a39d26bb35a"
+        },
+        "source": {
+          "src/index/GraphBuilder.ts": "c0cc0d30260e146978e942e9cd8953ca78ca92bbda772d64334eba026247606f",
+          "src/index/GraphIndex.ts": "63fee629742c73308c79f114218cfa042c95b9c474686a59544da012e140c9ad",
+          "src/core/graph/compiler.ts": "6156fb1eb6e51e057a48a2b97dba0bddeaf9dd065277355ddc1a0af1b6075ec5",
+          "src/ui/StyleColorControls.ts": "86c646c5bbbe5e03b2736ce621a226e40b37d323986200ad000d1578bb46bb96",
+          "src/ui/plexViews/facets/FacetPresetEditor.ts": "591ae32b731bdd7bf229314e6cc2efde2394269e92338d3077df329ed45f6b9b",
+          "src/ui/export/MindMapMarkdownModal.ts": "56f025a6e5fb971bdebd95a41183a99dd71a61256038a18b5b6eeb5df153262d",
+          "src/adapters/obsidian/fileCreationAutomation.ts": "f1e0ff5485d263af603f46edcb0c6de06ca9164f3b42e224920ba2e012752c0c",
+          "src/adapters/obsidian/KplexModal.ts": "9885b27da459fec4e94a98189d5df8e72045973859ddde6f3e06f787170dd15f",
+          "src/ui/components/FormField.tsx": "7beedf2eef5db36da87a7e07fc95e1278da3473307d06fa3650e8fa191841acd",
+          "src/ui/components/FormSelect.tsx": "fd32774a82a1f6f22ebf5d39daf50d3a5c48f4d371b516ceaccdbcb1022b655d",
+          "src/ui/features/RelationshipFieldControl.tsx": "57fc0f085d099f96e62359ed6c544bae3c1dbbecb0f0e09ad1d5dd5a1c2be334",
+          "src/ui/features/gateRelationshipIntent.ts": "f9db85a85fa7b1cc9a68017249a4586b8879bcf3bed4f497a6e2f78384b1f8fa",
+          "src/application/indexRecoveryDiagnostics.ts": "51798394eda5d7d342948e6d9f26d31c992a83874ad6a0c9d553d32e68136cbb",
+          "src/ui/RelationshipSelectionControl.tsx": "67398b616941e7574409b17d7e98f1c510db41e07a5183d974988cd406168381",
+          "src/adapters/obsidian/dailyNotes.ts": "cd384ed025dfd8eb4a0f1169712801019bf19e4b4d4339b25aed5e49a996571a",
+          "src/main.ts": "57a32a0f6b53ec84ee11ec22bd0abb654dc0bd404def50157c8b58fdc3c2bd0e",
+          "src/adapters/obsidian/sourceAcquisition.ts": "8e32c007693514c9c3f013145822170cfa0b43df3f247d347a54b0be720276c9",
+          "src/adapters/obsidian/externalFileImport.ts": "79bed48654c528f1d0ac9f275ccf845e70bef90f0dac7bd383cd52ed3ce67539",
+          "src/adapters/obsidian/relationshipOwner.ts": "81448effcf8a92a59a6f998b73dd163f3b00140ed42314e19a6a6ca407d34dc8",
+          "src/ui/App.tsx": "f38f4193158704477336d954286b4465a3a2525856e63086fbb77a8664784831",
+          "src/ui/PlexGraph.tsx": "07b212cb9217c917c3bf310c1a9d2ecda0759dcd3092ae575837427d35538f30",
+          "src/ui/NewRelatedNoteModal.ts": "1cf4f52e3589e6f079bfd367de62ce910518e19a5b6175d4ee2a7099aaad3f55",
+          "src/ui/SelectedOntologyEditor.ts": "f54d7de6285443237aef1612535abd40a3c005dd7f1c9460db9381f880ef2b35",
+          "src/ui/CreateFolderNoteModal.ts": "f4cca6057a3a8d673631035ecf1a3ba4f54ab82be11ca9718710e8ee205f3090",
+          "src/ui/CreatePeriodicNoteModal.ts": "5988dafe1989ee24fcaec7fff138b5864a4f01bdbb1adc19642d8be6e2a9e879",
+          "src/ui/MoveNodeModal.ts": "fc973fa7dda5fbf3f0830bef319d81e76e15d8d707f4c0f43fe7d2cf8094198b",
+          "src/ui/components/Tabs.tsx": "0efe6859ae0e2ed5ad4a28c21ed73233c5ec7b31ad58b1f2a18996ba6f060952",
+          "src/adapters/obsidian/fileExplorerDrag.ts": "cad3f7dc66596ef144634d2d0c7300c6e95fa7a2253b7c1882ab8499628fa529",
+          "src/adapters/obsidian/fileMenu.ts": "64187e15fcba97b1591cffeb684f76457ef4c3118ef4fc64315b6629720aee12",
+          "src/ui/RelationModal.ts": "f99b0ea3633c6c1e874be738adbfc4394584d826670afc55f704536a42a02968",
+          "src/ui/RelationshipExplanationModal.ts": "003813ab3fc65f814e36ff89a8650a9caacb8c16ee1265c559bb72b38df408e7",
+          "src/ui/ReverseRelationshipModal.ts": "9dfd3621422fc88974e26554b543de455a8a9e9baf65cbb580387ca2b851712b",
+          "src/ui/ExternalFileImportBatchModal.ts": "c2dda2c16524aa49a7ab538bb6bdde2dd502bf4c1d40381fd0715b16e1f11f8a",
+          "src/ui/features/RelationshipDirectionControl.tsx": "236a5515bb90d159a37be5b5daf5d1408274699a4fca10a0d7ba2f427a2d23eb",
+          "src/ui/components/ReorderableList.tsx": "7a3f2a296e06cc6c24edb5404eb5a6cf89ed9669c061ae1398f63994e57b83ba",
+          "src/core/plex/views/classic/configuration.ts": "2f84c30c6465d8a68753a0d9c37140faef5fe46d971ca705cec724d0159e939c",
+          "src/core/plex/views/classic/definition.ts": "6b5f0a53b2edcbccd07750b83b3c186ba4358c9695fff7dd2473f80002067cd3",
+          "src/core/plex/views/classic/geometry.ts": "f6bd0513012c1fcf30915cc1a24300c3e1d3ba2f6a1d603d6f04708f530f833e",
+          "src/ui/plexViews/classic/layout.ts": "04523e2eda25308658919311b4235a918656751f91079066b429a95115467ea2",
+          "src/ui/plexViews/classic/ClassicAreaLabels.tsx": "6c8c62540d13cc842af9a637bd8705792018f06c371f41743ce22c084230b4db"
+        },
+        "limitations": "Controlled native method observations, not actual paint or physical-device acceptance.",
+        "obsidian": "1.14.5 (installer 1.14.5)",
+        "progress": {
+          "phase": "Trusted native click",
+          "waitedMs": 0,
+          "status": {
+            "upToDate": true,
+            "phase": "ready",
+            "indexedFiles": 98,
+            "totalFiles": 98,
+            "label": "Status: index ready"
+          },
+          "source": {
+            "checked": 0,
+            "reusedBodies": 0,
+            "legacyBodies": 0,
+            "vaultReads": 0,
+            "parses": 0,
+            "repaired": 0,
+            "resolutionRefreshes": 0,
+            "pendingMetadata": 0,
+            "failures": 0
+          },
+          "semantic": {
+            "policyRevision": 1,
+            "requested": 0,
+            "prepared": 0,
+            "published": 0,
+            "cancelled": 0,
+            "pending": 0,
+            "dependencyVisits": 0,
+            "fullBuilds": 0,
+            "lastReason": null
+          },
+          "url": {
+            "processed": 98,
+            "total": 98,
+            "complete": true,
+            "active": false,
+            "failed": false,
+            "restored": 98,
+            "reads": 0,
+            "checked": 98,
+            "cacheAvailable": true,
+            "cacheWritesFailed": 0
+          },
+          "fixtureMetadata": {
+            "ready": 0,
+            "total": 0
+          },
+          "activeMenu": false
+        },
+        "result": {
+          "samples": [
+            {
+              "case": "native responsive settings layout",
+              "theme": "theme-dark",
+              "requestedWidth": 320,
+              "actualWidth": 320,
+              "headingsUnclipped": true,
+              "horizontalOverflow": false,
+              "longPathWrapped": true
+            },
+            {
+              "case": "native responsive settings layout",
+              "theme": "theme-dark",
+              "requestedWidth": 480,
+              "actualWidth": 480,
+              "headingsUnclipped": true,
+              "horizontalOverflow": false,
+              "longPathWrapped": true
+            },
+            {
+              "case": "native responsive settings layout",
+              "theme": "theme-dark",
+              "requestedWidth": 760,
+              "actualWidth": 700,
+              "headingsUnclipped": true,
+              "horizontalOverflow": false,
+              "longPathWrapped": true
+            },
+            {
+              "case": "native responsive settings layout",
+              "theme": "theme-light",
+              "requestedWidth": 320,
+              "actualWidth": 320,
+              "headingsUnclipped": true,
+              "horizontalOverflow": false,
+              "longPathWrapped": true
+            },
+            {
+              "case": "native responsive settings layout",
+              "theme": "theme-light",
+              "requestedWidth": 480,
+              "actualWidth": 480,
+              "headingsUnclipped": true,
+              "horizontalOverflow": false,
+              "longPathWrapped": true
+            },
+            {
+              "case": "native responsive settings layout",
+              "theme": "theme-light",
+              "requestedWidth": 760,
+              "actualWidth": 700,
+              "headingsUnclipped": true,
+              "horizontalOverflow": false,
+              "longPathWrapped": true
+            },
+            {
+              "case": "native integrated period settings",
+              "editors": 3,
+              "renderWrites": 0,
+              "dependentControls": true,
+              "customConfigurationPreserved": true,
+              "optIn": true,
+              "sourceReads": 0
+            }
+          ]
+        },
+        "cleanup": "passed",
+        "completedAt": "2026-11-04T18:39:40.384Z"
+      },
+      "stage": {
+        "status": "passed",
+        "node": "v22.22.2",
+        "staging": "Iterative Node 22.22.2 installed-type production build; full verify pending",
+        "artifacts": {
+          "main.js": "770fd253b59a2a255a4d4fbf656d15ac66394efe1a23cdf45f8aaea25bb1836e",
+          "styles.css": "78514221527af91cbd2088b4d055c34d9e766abb788ce6e792787a39d26bb35a",
+          "manifest.json": "8c65b0d38a506f8fa9fc3311b81ea22bcda48e0209e9190483752c1f20834326"
+        },
+        "cleanup": {
+          "disable": "passed",
+          "data": "passed",
+          "enable": "passed",
+          "layout": "passed",
+          "data-bytes": "passed",
+          "enablement-bytes": "passed"
+        },
+        "fixtureBaseline": {
+          "files": 117,
+          "markdownFiles": 98
+        }
+      }
+    },
+    {
+      "lane": "controls",
+      "receipt": "9QtopV",
+      "result": {
+        "name": "authoring-compass-controls-278",
+        "status": "passed",
+        "node": "v22.22.2",
+        "startedAt": "2026-11-04T18:39:50.669Z",
+        "maximumMs": 420000,
+        "driver": {
+          "transport": "beb7677649f8ae6ae390c0df25b4a025a48777b5fbfc5e36c25f7fe252b8a0d3",
+          "scenario": "fa7911171481637db660e15ee08876ab1de8f83aecced2097adb4f99b1571fa1",
+          "definitions": "af91a04d2552eabfc55b0329599f456b21b8f50a0543bb6c5f94bac69b4975e0"
+        },
+        "artifacts": {
+          "main.js": "770fd253b59a2a255a4d4fbf656d15ac66394efe1a23cdf45f8aaea25bb1836e",
+          "manifest.json": "8c65b0d38a506f8fa9fc3311b81ea22bcda48e0209e9190483752c1f20834326",
+          "styles.css": "78514221527af91cbd2088b4d055c34d9e766abb788ce6e792787a39d26bb35a"
+        },
+        "source": {
+          "src/index/GraphBuilder.ts": "c0cc0d30260e146978e942e9cd8953ca78ca92bbda772d64334eba026247606f",
+          "src/index/GraphIndex.ts": "63fee629742c73308c79f114218cfa042c95b9c474686a59544da012e140c9ad",
+          "src/core/graph/compiler.ts": "6156fb1eb6e51e057a48a2b97dba0bddeaf9dd065277355ddc1a0af1b6075ec5",
+          "src/ui/StyleColorControls.ts": "86c646c5bbbe5e03b2736ce621a226e40b37d323986200ad000d1578bb46bb96",
+          "src/ui/plexViews/facets/FacetPresetEditor.ts": "591ae32b731bdd7bf229314e6cc2efde2394269e92338d3077df329ed45f6b9b",
+          "src/ui/export/MindMapMarkdownModal.ts": "56f025a6e5fb971bdebd95a41183a99dd71a61256038a18b5b6eeb5df153262d",
+          "src/adapters/obsidian/fileCreationAutomation.ts": "f1e0ff5485d263af603f46edcb0c6de06ca9164f3b42e224920ba2e012752c0c",
+          "src/adapters/obsidian/KplexModal.ts": "9885b27da459fec4e94a98189d5df8e72045973859ddde6f3e06f787170dd15f",
+          "src/ui/components/FormField.tsx": "7beedf2eef5db36da87a7e07fc95e1278da3473307d06fa3650e8fa191841acd",
+          "src/ui/components/FormSelect.tsx": "fd32774a82a1f6f22ebf5d39daf50d3a5c48f4d371b516ceaccdbcb1022b655d",
+          "src/ui/features/RelationshipFieldControl.tsx": "57fc0f085d099f96e62359ed6c544bae3c1dbbecb0f0e09ad1d5dd5a1c2be334",
+          "src/ui/features/gateRelationshipIntent.ts": "f9db85a85fa7b1cc9a68017249a4586b8879bcf3bed4f497a6e2f78384b1f8fa",
+          "src/application/indexRecoveryDiagnostics.ts": "51798394eda5d7d342948e6d9f26d31c992a83874ad6a0c9d553d32e68136cbb",
+          "src/ui/RelationshipSelectionControl.tsx": "67398b616941e7574409b17d7e98f1c510db41e07a5183d974988cd406168381",
+          "src/adapters/obsidian/dailyNotes.ts": "cd384ed025dfd8eb4a0f1169712801019bf19e4b4d4339b25aed5e49a996571a",
+          "src/main.ts": "57a32a0f6b53ec84ee11ec22bd0abb654dc0bd404def50157c8b58fdc3c2bd0e",
+          "src/adapters/obsidian/sourceAcquisition.ts": "8e32c007693514c9c3f013145822170cfa0b43df3f247d347a54b0be720276c9",
+          "src/adapters/obsidian/externalFileImport.ts": "79bed48654c528f1d0ac9f275ccf845e70bef90f0dac7bd383cd52ed3ce67539",
+          "src/adapters/obsidian/relationshipOwner.ts": "81448effcf8a92a59a6f998b73dd163f3b00140ed42314e19a6a6ca407d34dc8",
+          "src/ui/App.tsx": "f38f4193158704477336d954286b4465a3a2525856e63086fbb77a8664784831",
+          "src/ui/PlexGraph.tsx": "07b212cb9217c917c3bf310c1a9d2ecda0759dcd3092ae575837427d35538f30",
+          "src/ui/NewRelatedNoteModal.ts": "1cf4f52e3589e6f079bfd367de62ce910518e19a5b6175d4ee2a7099aaad3f55",
+          "src/ui/SelectedOntologyEditor.ts": "f54d7de6285443237aef1612535abd40a3c005dd7f1c9460db9381f880ef2b35",
+          "src/ui/CreateFolderNoteModal.ts": "f4cca6057a3a8d673631035ecf1a3ba4f54ab82be11ca9718710e8ee205f3090",
+          "src/ui/CreatePeriodicNoteModal.ts": "5988dafe1989ee24fcaec7fff138b5864a4f01bdbb1adc19642d8be6e2a9e879",
+          "src/ui/MoveNodeModal.ts": "fc973fa7dda5fbf3f0830bef319d81e76e15d8d707f4c0f43fe7d2cf8094198b",
+          "src/ui/components/Tabs.tsx": "0efe6859ae0e2ed5ad4a28c21ed73233c5ec7b31ad58b1f2a18996ba6f060952",
+          "src/adapters/obsidian/fileExplorerDrag.ts": "cad3f7dc66596ef144634d2d0c7300c6e95fa7a2253b7c1882ab8499628fa529",
+          "src/adapters/obsidian/fileMenu.ts": "64187e15fcba97b1591cffeb684f76457ef4c3118ef4fc64315b6629720aee12",
+          "src/ui/RelationModal.ts": "f99b0ea3633c6c1e874be738adbfc4394584d826670afc55f704536a42a02968",
+          "src/ui/RelationshipExplanationModal.ts": "003813ab3fc65f814e36ff89a8650a9caacb8c16ee1265c559bb72b38df408e7",
+          "src/ui/ReverseRelationshipModal.ts": "9dfd3621422fc88974e26554b543de455a8a9e9baf65cbb580387ca2b851712b",
+          "src/ui/ExternalFileImportBatchModal.ts": "c2dda2c16524aa49a7ab538bb6bdde2dd502bf4c1d40381fd0715b16e1f11f8a",
+          "src/ui/features/RelationshipDirectionControl.tsx": "236a5515bb90d159a37be5b5daf5d1408274699a4fca10a0d7ba2f427a2d23eb",
+          "src/ui/components/ReorderableList.tsx": "7a3f2a296e06cc6c24edb5404eb5a6cf89ed9669c061ae1398f63994e57b83ba",
+          "src/core/plex/views/classic/configuration.ts": "2f84c30c6465d8a68753a0d9c37140faef5fe46d971ca705cec724d0159e939c",
+          "src/core/plex/views/classic/definition.ts": "6b5f0a53b2edcbccd07750b83b3c186ba4358c9695fff7dd2473f80002067cd3",
+          "src/core/plex/views/classic/geometry.ts": "f6bd0513012c1fcf30915cc1a24300c3e1d3ba2f6a1d603d6f04708f530f833e",
+          "src/ui/plexViews/classic/layout.ts": "04523e2eda25308658919311b4235a918656751f91079066b429a95115467ea2",
+          "src/ui/plexViews/classic/ClassicAreaLabels.tsx": "6c8c62540d13cc842af9a637bd8705792018f06c371f41743ce22c084230b4db"
+        },
+        "limitations": "Controlled native method observations, not actual paint or physical-device acceptance.",
+        "obsidian": "1.14.5 (installer 1.14.5)",
+        "progress": {
+          "phase": "Native-skin relationship visual review",
+          "until": 1793817640606,
+          "compared": [
+            {
+              "classes": "dropdown kplex-add-related-role-select",
+              "matchedCoreDropdown": true
+            },
+            {
+              "classes": "dropdown",
+              "matchedCoreDropdown": true
+            },
+            {
+              "classes": "dropdown",
+              "matchedCoreDropdown": true
+            },
+            {
+              "classes": "kplex-search-shell kplex-fuzzy-search kplex-add-related-ontology-search dropdown kplex-native-combobox",
+              "matchedCoreDropdown": true
+            },
+            {
+              "classes": "kplex-search",
+              "matchedCoreInput": true
+            },
+            {
+              "classes": "kplex-create-alias-input",
+              "matchedCoreInput": true
+            },
+            {
+              "classes": "kplex-search",
+              "matchedCoreInput": true
+            }
+          ]
+        },
+        "result": {
+          "samples": [
+            {
+              "tab": "editor",
+              "tag": "SELECT",
+              "classes": "dropdown",
+              "style": {
+                "height": "30px",
+                "fontFamily": "\"??\", \"??\", \"??\", ui-sans-serif, -apple-system, BlinkMacSystemFont, system-ui, \"Segoe UI\", \"Google Sans Flex\", Roboto, \"Inter Variable\", Inter, \"Apple Color Emoji\", \"Segoe UI Emoji\", \"Segoe UI Symbol\", sans-serif",
+                "fontSize": "13px",
+                "appearance": "none",
+                "backgroundColor": "rgb(51, 51, 51)",
+                "backgroundImage": "url(\"data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 width=%2724%27 height=%2724%27 viewBox=%270 0 24 24%27 fill=%27none%27 stroke=%27%23FFF%27 opacity=%270.6%27 stroke-width=%272%27 stroke-linecap=%27round%27 stroke-linejoin=%27round%27 %3E%3Cpath d=%27m7 15 5 5 5-5%27/%3E%3Cpath d=%27m7 9 5-5 5 5%27/%3E%3C/svg%3E\"), radial-gradient(rgba(0, 0, 0, 0) 48%, rgba(0, 0, 0, 0) 50%)",
+                "backgroundPosition": "calc(100% - 8.45px) 50%, calc(100% - 1.95px) 50%",
+                "paddingLeft": "10.4px",
+                "paddingRight": "31.2px",
+                "borderColor": "rgb(218, 218, 218)",
+                "borderRadius": "5px",
+                "boxShadow": "rgba(255, 255, 255, 0.09) 0px 0.5px 0.5px 0.5px inset, rgba(0, 0, 0, 0.15) 0px 2px 4px 0px, rgba(0, 0, 0, 0.1) 0px 1px 1.5px 0px, rgba(0, 0, 0, 0.2) 0px 1px 2px 0px, rgba(0, 0, 0, 0) 0px 0px 0px 0px"
+              },
+              "variables": [
+                [
+                  "--dropdown-padding",
+                  "0 2.4em 0 0.8em"
+                ],
+                [
+                  "--dropdown-padding-end",
+                  "2.4em"
+                ],
+                [
+                  "--dropdown-text-align",
+                  "start"
+                ],
+                [
+                  "--input-height",
+                  "30px"
+                ],
+                [
+                  "--dropdown-fitted-width",
+                  "112px"
+                ],
+                [
+                  "--dropdown-icon-inset",
+                  "0.65em"
+                ],
+                [
+                  "--dropdown-background-position",
+                  "right 0.65em top 50%, right 0.15em top 50%, 0 0"
+                ],
+                [
+                  "--dropdown-padding-start",
+                  "0.8em"
+                ],
+                [
+                  "--dropdown-transition",
+                  "none"
+                ],
+                [
+                  "--dropdown-background-size",
+                  "1em auto, 2em 2em, 100%"
+                ],
+                [
+                  "--dropdown-icon-background",
+                  "transparent"
+                ],
+                [
+                  "--dropdown-background-blend-mode",
+                  "hard-light, normal"
+                ],
+                [
+                  "--dropdown-background-hover",
+                  "#3f3f3f"
+                ],
+                [
+                  "--dropdown-background",
+                  "#333333"
+                ],
+                [
+                  "--dropdown-icon-width",
+                  "1em"
+                ]
+              ],
+              "rules": [
+                ".setting-item-control select.dropdown { width: var(--dropdown-fitted-width, inherit); }",
+                "select, .combobox-button, .dropdown { app-region: no-drag; height: var(--input-height); font-size: var(--font-ui-small); font-family: inherit; font-weight: var(--input-font-weight); color: var(--text-normal); line-height: var(--line-height-tight); max-width: 100%; box-sizing: border-box; margin: 0px; border: 0px; box-shadow: var(--input-shadow); border-radius: var(--input-radius); appearance: none; background-color: var(--dropdown-background); padding: var(--dropdown-padding); background-repeat: no-repeat, no-repeat, repeat; background-position: var(--dropdown-background-position); background-size: var(--dropdown-background-size); background-blend-mode: var(--dropdown-background-blend-mode); transition: var(--dropdown-transition); text-align: var(--dropdown-text-align); corner-shape: var(--corner-shape); }",
+                "select.mobile-tap:where(:not(.mod-disabled)), .combobox-button.mobile-tap:where(:not(.mod-disabled)), .dropdown.mobile-tap:where(:not(.mod-disabled)) { box-shadow: var(--input-shadow-hover); background-color: var(--dropdown-background-hover); }",
+                "select:disabled, .combobox-button:disabled, .dropdown:disabled { cursor: not-allowed; }",
+                "select.mod-disabled, .combobox-button.mod-disabled, .dropdown.mod-disabled { cursor: not-allowed; opacity: 0.5; }",
+                "select:focus-visible, .combobox-button:focus-visible, .dropdown:focus-visible { box-shadow: 0 0 0px 3px var(--background-modifier-border-focus); outline: none; }",
+                "select.mouse-focus:focus-visible, .combobox-button.mouse-focus:focus-visible, .dropdown.mouse-focus:focus-visible { outline: none; box-shadow: var(--input-shadow-hover); }",
+                ".dropdown { background-image: url(\"data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 width=%2724%27 height=%2724%27 viewBox=%270 0 24 24%27 fill=%27none%27 stroke=%27%23000%27 opacity=%270.9%27 stroke-width=%272%27 stroke-linecap=%27round%27 stroke-linejoin=%27round%27 %3E%3Cpath d=%27m7 15 5 5 5-5%27/%3E%3Cpath d=%27m7 9 5-5 5 5%27/%3E%3C/svg%3E\"), radial-gradient(ellipse, var(--dropdown-icon-background) 48%, transparent 50%); }",
+                ".theme-dark .dropdown { background-image: url(\"data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 width=%2724%27 height=%2724%27 viewBox=%270 0 24 24%27 fill=%27none%27 stroke=%27%23FFF%27 opacity=%270.6%27 stroke-width=%272%27 stroke-linecap=%27round%27 stroke-linejoin=%27round%27 %3E%3Cpath d=%27m7 15 5 5 5-5%27/%3E%3Cpath d=%27m7 9 5-5 5 5%27/%3E%3C/svg%3E\"), radial-gradient(ellipse, var(--dropdown-icon-background) 48%, transparent 50%); }",
+                ".dropdown option { font-weight: normal; background-color: var(--background-primary); }",
+                ".dropdown.is-measuring { position: absolute; visibility: hidden; pointer-events: none; width: max-content !important; max-width: none !important; }",
+                ".bases-query-container .filter-group .filter-group-header .conjunction.dropdown { padding-top: 0px; background-color: transparent; font-size: var(--font-ui-small); box-shadow: none; text-align: start; }",
+                ".bases-query-container .filter-group .filter-group-header .conjunction.dropdown:hover { background-color: var(--background-modifier-hover); }",
+                ".search-results-info .dropdown { height: 24px; box-shadow: none; background-color: transparent; font-size: var(--font-ui-smaller); color: var(--text-muted); text-align-last: end; max-width: 60%; text-overflow: ellipsis; white-space: nowrap; }",
+                ".search-results-info .dropdown option { color: initial; text-align: start; }",
+                ".is-phone .bases-query-container .conjunction.dropdown { width: 100%; }",
+                ".excalidraw .dropdown-menu { max-width: 20rem; z-index: 1; }",
+                ".excalidraw .dropdown-menu--placement-top { margin-bottom: 0.5rem; }",
+                ".excalidraw .dropdown-menu__submenu-trigger[aria-expanded=\"true\"] .dropdown-menu-item { background-color: var(--button-hover-bg); }",
+                ".excalidraw .dropdown-menu__submenu-trigger-icon { margin-left: auto; opacity: 0.5; }",
+                ".excalidraw .dropdown-menu__submenu-trigger-icon svg g { stroke-width: 2; }",
+                ".excalidraw .dropdown-menu--mobile { row-gap: 0.75rem; width: 100%; }",
+                ".excalidraw .dropdown-menu--mobile.main-menu { margin-bottom: 0px; margin-top: 0px; min-width: 232px; }",
+                ".excalidraw .dropdown-menu--mobile .dropdown-menu-container { border-radius: var(--border-radius-lg); box-sizing: border-box; display: flex; flex-direction: column; overflow-y: auto; padding: 8px; position: relative; transition: box-shadow 0.5s ease-in-out; }",
+                ".excalidraw .dropdown-menu--mobile .dropdown-menu-container.zen-mode { box-shadow: none; }"
+              ]
+            },
+            {
+              "tab": "daily-notes",
+              "tag": "INPUT",
+              "classes": "",
+              "style": {
+                "height": "30px",
+                "fontFamily": "\"??\", \"??\", \"??\", ui-sans-serif, -apple-system, BlinkMacSystemFont, system-ui, \"Segoe UI\", \"Google Sans Flex\", Roboto, \"Inter Variable\", Inter, \"Apple Color Emoji\", \"Segoe UI Emoji\", \"Segoe UI Symbol\", sans-serif",
+                "fontSize": "13px",
+                "appearance": "auto",
+                "backgroundColor": "rgb(46, 46, 46)",
+                "backgroundImage": "none",
+                "backgroundPosition": "0% 0%",
+                "paddingLeft": "8px",
+                "paddingRight": "8px",
+                "borderColor": "rgb(51, 51, 51)",
+                "borderRadius": "5px",
+                "boxShadow": "none"
+              },
+              "variables": [
+                [
+                  "--dropdown-padding",
+                  "0 2.4em 0 0.8em"
+                ],
+                [
+                  "--dropdown-padding-end",
+                  "2.4em"
+                ],
+                [
+                  "--dropdown-text-align",
+                  "start"
+                ],
+                [
+                  "--input-height",
+                  "30px"
+                ],
+                [
+                  "--dropdown-icon-inset",
+                  "0.65em"
+                ],
+                [
+                  "--dropdown-background-position",
+                  "right 0.65em top 50%, right 0.15em top 50%, 0 0"
+                ],
+                [
+                  "--dropdown-padding-start",
+                  "0.8em"
+                ],
+                [
+                  "--dropdown-transition",
+                  "none"
+                ],
+                [
+                  "--dropdown-background-size",
+                  "1em auto, 2em 2em, 100%"
+                ],
+                [
+                  "--dropdown-icon-background",
+                  "transparent"
+                ],
+                [
+                  "--dropdown-background-blend-mode",
+                  "hard-light, normal"
+                ],
+                [
+                  "--dropdown-background-hover",
+                  "#3f3f3f"
+                ],
+                [
+                  "--dropdown-background",
+                  "#333333"
+                ],
+                [
+                  "--dropdown-icon-width",
+                  "1em"
+                ]
+              ],
+              "rules": [
+                ".setting-item-control select.dropdown { width: var(--dropdown-fitted-width, inherit); }",
+                "select, .combobox-button, .dropdown { app-region: no-drag; height: var(--input-height); font-size: var(--font-ui-small); font-family: inherit; font-weight: var(--input-font-weight); color: var(--text-normal); line-height: var(--line-height-tight); max-width: 100%; box-sizing: border-box; margin: 0px; border: 0px; box-shadow: var(--input-shadow); border-radius: var(--input-radius); appearance: none; background-color: var(--dropdown-background); padding: var(--dropdown-padding); background-repeat: no-repeat, no-repeat, repeat; background-position: var(--dropdown-background-position); background-size: var(--dropdown-background-size); background-blend-mode: var(--dropdown-background-blend-mode); transition: var(--dropdown-transition); text-align: var(--dropdown-text-align); corner-shape: var(--corner-shape); }",
+                "select.mobile-tap:where(:not(.mod-disabled)), .combobox-button.mobile-tap:where(:not(.mod-disabled)), .dropdown.mobile-tap:where(:not(.mod-disabled)) { box-shadow: var(--input-shadow-hover); background-color: var(--dropdown-background-hover); }",
+                "select:disabled, .combobox-button:disabled, .dropdown:disabled { cursor: not-allowed; }",
+                "select.mod-disabled, .combobox-button.mod-disabled, .dropdown.mod-disabled { cursor: not-allowed; opacity: 0.5; }",
+                "select:focus-visible, .combobox-button:focus-visible, .dropdown:focus-visible { box-shadow: 0 0 0px 3px var(--background-modifier-border-focus); outline: none; }",
+                "select.mouse-focus:focus-visible, .combobox-button.mouse-focus:focus-visible, .dropdown.mouse-focus:focus-visible { outline: none; box-shadow: var(--input-shadow-hover); }",
+                ".dropdown { background-image: url(\"data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 width=%2724%27 height=%2724%27 viewBox=%270 0 24 24%27 fill=%27none%27 stroke=%27%23000%27 opacity=%270.9%27 stroke-width=%272%27 stroke-linecap=%27round%27 stroke-linejoin=%27round%27 %3E%3Cpath d=%27m7 15 5 5 5-5%27/%3E%3Cpath d=%27m7 9 5-5 5 5%27/%3E%3C/svg%3E\"), radial-gradient(ellipse, var(--dropdown-icon-background) 48%, transparent 50%); }",
+                ".theme-dark .dropdown { background-image: url(\"data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 width=%2724%27 height=%2724%27 viewBox=%270 0 24 24%27 fill=%27none%27 stroke=%27%23FFF%27 opacity=%270.6%27 stroke-width=%272%27 stroke-linecap=%27round%27 stroke-linejoin=%27round%27 %3E%3Cpath d=%27m7 15 5 5 5-5%27/%3E%3Cpath d=%27m7 9 5-5 5 5%27/%3E%3C/svg%3E\"), radial-gradient(ellipse, var(--dropdown-icon-background) 48%, transparent 50%); }",
+                ".dropdown option { font-weight: normal; background-color: var(--background-primary); }",
+                ".dropdown.is-measuring { position: absolute; visibility: hidden; pointer-events: none; width: max-content !important; max-width: none !important; }",
+                ".bases-query-container .filter-group .filter-group-header .conjunction.dropdown { padding-top: 0px; background-color: transparent; font-size: var(--font-ui-small); box-shadow: none; text-align: start; }",
+                ".bases-query-container .filter-group .filter-group-header .conjunction.dropdown:hover { background-color: var(--background-modifier-hover); }",
+                ".search-results-info .dropdown { height: 24px; box-shadow: none; background-color: transparent; font-size: var(--font-ui-smaller); color: var(--text-muted); text-align-last: end; max-width: 60%; text-overflow: ellipsis; white-space: nowrap; }",
+                ".search-results-info .dropdown option { color: initial; text-align: start; }",
+                ".is-phone .bases-query-container .conjunction.dropdown { width: 100%; }",
+                ".excalidraw .dropdown-menu { max-width: 20rem; z-index: 1; }",
+                ".excalidraw .dropdown-menu--placement-top { margin-bottom: 0.5rem; }",
+                ".excalidraw .dropdown-menu__submenu-trigger[aria-expanded=\"true\"] .dropdown-menu-item { background-color: var(--button-hover-bg); }",
+                ".excalidraw .dropdown-menu__submenu-trigger-icon { margin-left: auto; opacity: 0.5; }",
+                ".excalidraw .dropdown-menu__submenu-trigger-icon svg g { stroke-width: 2; }",
+                ".excalidraw .dropdown-menu--mobile { row-gap: 0.75rem; width: 100%; }",
+                ".excalidraw .dropdown-menu--mobile.main-menu { margin-bottom: 0px; margin-top: 0px; min-width: 232px; }",
+                ".excalidraw .dropdown-menu--mobile .dropdown-menu-container { border-radius: var(--border-radius-lg); box-sizing: border-box; display: flex; flex-direction: column; overflow-y: auto; padding: 8px; position: relative; transition: box-shadow 0.5s ease-in-out; }",
+                ".excalidraw .dropdown-menu--mobile .dropdown-menu-container.zen-mode { box-shadow: none; }"
+              ]
+            }
+          ],
+          "compared": [
+            {
+              "classes": "dropdown kplex-add-related-role-select",
+              "matchedCoreDropdown": true
+            },
+            {
+              "classes": "dropdown",
+              "matchedCoreDropdown": true
+            },
+            {
+              "classes": "dropdown",
+              "matchedCoreDropdown": true
+            },
+            {
+              "classes": "kplex-search-shell kplex-fuzzy-search kplex-add-related-ontology-search dropdown kplex-native-combobox",
+              "matchedCoreDropdown": true
+            },
+            {
+              "classes": "kplex-search",
+              "matchedCoreInput": true
+            },
+            {
+              "classes": "kplex-create-alias-input",
+              "matchedCoreInput": true
+            },
+            {
+              "classes": "kplex-search",
+              "matchedCoreInput": true
+            }
+          ],
+          "disclosureUnboxed": true,
+          "primaryActions": [
+            {
+              "kind": "markdown",
+              "disabledAccent": true,
+              "enabledAccent": true,
+              "keyboardDefault": true
+            },
+            {
+              "kind": "excalidraw",
+              "disabledAccent": true,
+              "enabledAccent": true,
+              "keyboardDefault": true
+            }
+          ],
+          "linking": [
+            {
+              "excalidrawInstalled": false,
+              "buttons": 2,
+              "aligned": true,
+              "compact": true,
+              "iconCentered": true
+            },
+            {
+              "excalidrawInstalled": true,
+              "buttons": 2,
+              "aligned": true,
+              "compact": true,
+              "iconCentered": true
+            }
+          ],
+          "recoveryDiagnostics": {
+            "available": true,
+            "sourceReads": 0,
+            "newLeases": 0
+          }
+        },
+        "cleanup": "passed",
+        "completedAt": "2026-11-04T18:39:58.673Z"
+      },
+      "stage": {
+        "status": "passed",
+        "node": "v22.22.2",
+        "staging": "Iterative Node 22.22.2 installed-type production build; full verify pending",
+        "artifacts": {
+          "main.js": "770fd253b59a2a255a4d4fbf656d15ac66394efe1a23cdf45f8aaea25bb1836e",
+          "styles.css": "78514221527af91cbd2088b4d055c34d9e766abb788ce6e792787a39d26bb35a",
+          "manifest.json": "8c65b0d38a506f8fa9fc3311b81ea22bcda48e0209e9190483752c1f20834326"
+        },
+        "cleanup": {
+          "disable": "passed",
+          "data": "passed",
+          "enable": "passed",
+          "layout": "passed",
+          "data-bytes": "passed",
+          "enablement-bytes": "passed"
+        },
+        "fixtureBaseline": {
+          "files": 117,
+          "markdownFiles": 98
+        }
+      }
+    },
+    {
+      "lane": "preset-ui",
+      "receipt": "JMd7Q2",
+      "result": {
+        "name": "authoring-compass-preset-ui-278",
+        "status": "passed",
+        "node": "v22.22.2",
+        "startedAt": "2026-11-04T18:40:09.002Z",
+        "maximumMs": 420000,
+        "driver": {
+          "transport": "beb7677649f8ae6ae390c0df25b4a025a48777b5fbfc5e36c25f7fe252b8a0d3",
+          "scenario": "47f73ff335d70fda5bc48aed4e7f8aebc5a6cb04eacdec8d4df5bcd3db0e9630",
+          "definitions": "a571809cb40ad3cc5c2759b386e66886cbd65246152ae59ff60dce58843271d8"
+        },
+        "artifacts": {
+          "main.js": "770fd253b59a2a255a4d4fbf656d15ac66394efe1a23cdf45f8aaea25bb1836e",
+          "manifest.json": "8c65b0d38a506f8fa9fc3311b81ea22bcda48e0209e9190483752c1f20834326",
+          "styles.css": "78514221527af91cbd2088b4d055c34d9e766abb788ce6e792787a39d26bb35a"
+        },
+        "source": {
+          "src/index/GraphBuilder.ts": "c0cc0d30260e146978e942e9cd8953ca78ca92bbda772d64334eba026247606f",
+          "src/index/GraphIndex.ts": "63fee629742c73308c79f114218cfa042c95b9c474686a59544da012e140c9ad",
+          "src/core/graph/compiler.ts": "6156fb1eb6e51e057a48a2b97dba0bddeaf9dd065277355ddc1a0af1b6075ec5",
+          "src/ui/StyleColorControls.ts": "86c646c5bbbe5e03b2736ce621a226e40b37d323986200ad000d1578bb46bb96",
+          "src/ui/plexViews/facets/FacetPresetEditor.ts": "591ae32b731bdd7bf229314e6cc2efde2394269e92338d3077df329ed45f6b9b",
+          "src/ui/export/MindMapMarkdownModal.ts": "56f025a6e5fb971bdebd95a41183a99dd71a61256038a18b5b6eeb5df153262d",
+          "src/adapters/obsidian/fileCreationAutomation.ts": "f1e0ff5485d263af603f46edcb0c6de06ca9164f3b42e224920ba2e012752c0c",
+          "src/adapters/obsidian/KplexModal.ts": "9885b27da459fec4e94a98189d5df8e72045973859ddde6f3e06f787170dd15f",
+          "src/ui/components/FormField.tsx": "7beedf2eef5db36da87a7e07fc95e1278da3473307d06fa3650e8fa191841acd",
+          "src/ui/components/FormSelect.tsx": "fd32774a82a1f6f22ebf5d39daf50d3a5c48f4d371b516ceaccdbcb1022b655d",
+          "src/ui/features/RelationshipFieldControl.tsx": "57fc0f085d099f96e62359ed6c544bae3c1dbbecb0f0e09ad1d5dd5a1c2be334",
+          "src/ui/features/gateRelationshipIntent.ts": "f9db85a85fa7b1cc9a68017249a4586b8879bcf3bed4f497a6e2f78384b1f8fa",
+          "src/application/indexRecoveryDiagnostics.ts": "51798394eda5d7d342948e6d9f26d31c992a83874ad6a0c9d553d32e68136cbb",
+          "src/ui/RelationshipSelectionControl.tsx": "67398b616941e7574409b17d7e98f1c510db41e07a5183d974988cd406168381",
+          "src/adapters/obsidian/dailyNotes.ts": "cd384ed025dfd8eb4a0f1169712801019bf19e4b4d4339b25aed5e49a996571a",
+          "src/main.ts": "57a32a0f6b53ec84ee11ec22bd0abb654dc0bd404def50157c8b58fdc3c2bd0e",
+          "src/adapters/obsidian/sourceAcquisition.ts": "8e32c007693514c9c3f013145822170cfa0b43df3f247d347a54b0be720276c9",
+          "src/adapters/obsidian/externalFileImport.ts": "79bed48654c528f1d0ac9f275ccf845e70bef90f0dac7bd383cd52ed3ce67539",
+          "src/adapters/obsidian/relationshipOwner.ts": "81448effcf8a92a59a6f998b73dd163f3b00140ed42314e19a6a6ca407d34dc8",
+          "src/ui/App.tsx": "f38f4193158704477336d954286b4465a3a2525856e63086fbb77a8664784831",
+          "src/ui/PlexGraph.tsx": "07b212cb9217c917c3bf310c1a9d2ecda0759dcd3092ae575837427d35538f30",
+          "src/ui/NewRelatedNoteModal.ts": "1cf4f52e3589e6f079bfd367de62ce910518e19a5b6175d4ee2a7099aaad3f55",
+          "src/ui/SelectedOntologyEditor.ts": "f54d7de6285443237aef1612535abd40a3c005dd7f1c9460db9381f880ef2b35",
+          "src/ui/CreateFolderNoteModal.ts": "f4cca6057a3a8d673631035ecf1a3ba4f54ab82be11ca9718710e8ee205f3090",
+          "src/ui/CreatePeriodicNoteModal.ts": "5988dafe1989ee24fcaec7fff138b5864a4f01bdbb1adc19642d8be6e2a9e879",
+          "src/ui/MoveNodeModal.ts": "fc973fa7dda5fbf3f0830bef319d81e76e15d8d707f4c0f43fe7d2cf8094198b",
+          "src/ui/components/Tabs.tsx": "0efe6859ae0e2ed5ad4a28c21ed73233c5ec7b31ad58b1f2a18996ba6f060952",
+          "src/adapters/obsidian/fileExplorerDrag.ts": "cad3f7dc66596ef144634d2d0c7300c6e95fa7a2253b7c1882ab8499628fa529",
+          "src/adapters/obsidian/fileMenu.ts": "64187e15fcba97b1591cffeb684f76457ef4c3118ef4fc64315b6629720aee12",
+          "src/ui/RelationModal.ts": "f99b0ea3633c6c1e874be738adbfc4394584d826670afc55f704536a42a02968",
+          "src/ui/RelationshipExplanationModal.ts": "003813ab3fc65f814e36ff89a8650a9caacb8c16ee1265c559bb72b38df408e7",
+          "src/ui/ReverseRelationshipModal.ts": "9dfd3621422fc88974e26554b543de455a8a9e9baf65cbb580387ca2b851712b",
+          "src/ui/ExternalFileImportBatchModal.ts": "c2dda2c16524aa49a7ab538bb6bdde2dd502bf4c1d40381fd0715b16e1f11f8a",
+          "src/ui/features/RelationshipDirectionControl.tsx": "236a5515bb90d159a37be5b5daf5d1408274699a4fca10a0d7ba2f427a2d23eb",
+          "src/ui/components/ReorderableList.tsx": "7a3f2a296e06cc6c24edb5404eb5a6cf89ed9669c061ae1398f63994e57b83ba",
+          "src/core/plex/views/classic/configuration.ts": "2f84c30c6465d8a68753a0d9c37140faef5fe46d971ca705cec724d0159e939c",
+          "src/core/plex/views/classic/definition.ts": "6b5f0a53b2edcbccd07750b83b3c186ba4358c9695fff7dd2473f80002067cd3",
+          "src/core/plex/views/classic/geometry.ts": "f6bd0513012c1fcf30915cc1a24300c3e1d3ba2f6a1d603d6f04708f530f833e",
+          "src/ui/plexViews/classic/layout.ts": "04523e2eda25308658919311b4235a918656751f91079066b429a95115467ea2",
+          "src/ui/plexViews/classic/ClassicAreaLabels.tsx": "6c8c62540d13cc842af9a637bd8705792018f06c371f41743ce22c084230b4db"
+        },
+        "limitations": "Controlled native method observations, not actual paint or physical-device acceptance.",
+        "obsidian": "1.14.5 (installer 1.14.5)",
+        "progress": {
+          "phase": "Native paired color preview",
+          "waitedMs": 143,
+          "status": {
+            "upToDate": true,
+            "phase": "ready",
+            "indexedFiles": 99,
+            "totalFiles": 99,
+            "label": "Status: index ready"
+          },
+          "source": {
+            "checked": 2,
+            "reusedBodies": 1,
+            "legacyBodies": 0,
+            "vaultReads": 1,
+            "parses": 1,
+            "repaired": 1,
+            "resolutionRefreshes": 0,
+            "pendingMetadata": 0,
+            "failures": 0
+          },
+          "semantic": {
+            "policyRevision": 1,
+            "requested": 2,
+            "prepared": 0,
+            "published": 0,
+            "cancelled": 0,
+            "pending": 2,
+            "dependencyVisits": 0,
+            "fullBuilds": 0,
+            "lastReason": "dependency-pending"
+          },
+          "url": {
+            "processed": 98,
+            "total": 98,
+            "complete": true,
+            "active": false,
+            "failed": false,
+            "restored": 98,
+            "reads": 1,
+            "checked": 98,
+            "cacheAvailable": true,
+            "cacheWritesFailed": 0
+          },
+          "fixtureMetadata": {
+            "ready": 1,
+            "total": 1
+          },
+          "activeMenu": false
+        },
+        "result": {
+          "samples": [
+            {
+              "case": "native preset polish",
+              "theme": "theme-light",
+              "width": 1000,
+              "classificationSpacing": true,
+              "uniformDropdowns": true,
+              "centeredIcons": true,
+              "nativeColorRow": true
+            },
+            {
+              "case": "native preset polish",
+              "theme": "theme-dark",
+              "width": 420,
+              "classificationSpacing": true,
+              "uniformDropdowns": true,
+              "centeredIcons": true,
+              "nativeColorRow": true
+            }
+          ],
+          "settingsWrites": 0,
+          "sourceReads": 0
+        },
+        "cleanup": "passed",
+        "completedAt": "2026-11-04T18:40:17.085Z"
+      },
+      "stage": {
+        "status": "passed",
+        "node": "v22.22.2",
+        "staging": "Iterative Node 22.22.2 installed-type production build; full verify pending",
+        "artifacts": {
+          "main.js": "770fd253b59a2a255a4d4fbf656d15ac66394efe1a23cdf45f8aaea25bb1836e",
+          "styles.css": "78514221527af91cbd2088b4d055c34d9e766abb788ce6e792787a39d26bb35a",
+          "manifest.json": "8c65b0d38a506f8fa9fc3311b81ea22bcda48e0209e9190483752c1f20834326"
+        },
+        "cleanup": {
+          "disable": "passed",
+          "data": "passed",
+          "enable": "passed",
+          "layout": "passed",
+          "data-bytes": "passed",
+          "enablement-bytes": "passed"
+        },
+        "fixtureBaseline": {
+          "files": 117,
+          "markdownFiles": 98
+        }
+      }
+    }
+  ],
+  "rendererRecovery": {
+    "firstCrashReason": "unknown; observed isCrashed=true after CLI enable timed out",
+    "wholeApplicationRestarted": false,
+    "productionWindowsChanged": false,
+    "restoredLayout": true,
+    "files": 117,
+    "loaded": true,
+    "status": {
+      "upToDate": true,
+      "phase": "ready",
+      "indexedFiles": 98,
+      "totalFiles": 98,
+      "label": "Status: index ready"
+    },
+    "events": [],
+    "observerRetired": true,
+    "rendererCrashed": false,
+    "dataBytesRestored": true,
+    "enablementBytesRestored": true,
+    "repeatedPresetRuns": [
+      "4JwNpu",
+      "OmDCGS"
+    ]
+  },
+  "deployment": {
+    "target": "C:\\Obsidian\\Zsolt's Brain\\.obsidian\\plugins\\k-plex",
+    "files": {
+      "styles.css": {
+        "expected": "78514221527af91cbd2088b4d055c34d9e766abb788ce6e792787a39d26bb35a",
+        "deployed": "78514221527af91cbd2088b4d055c34d9e766abb788ce6e792787a39d26bb35a",
+        "before": "3db644c65547eeb9c2cb4e4b244048fcf74044b5ee5349576cbf6d3c3aaa1aa3",
+        "copied": true
+      },
+      "main.js": {
+        "expected": "770fd253b59a2a255a4d4fbf656d15ac66394efe1a23cdf45f8aaea25bb1836e",
+        "deployed": "770fd253b59a2a255a4d4fbf656d15ac66394efe1a23cdf45f8aaea25bb1836e",
+        "before": "5047b3843cfb8bbcfcda85d80f7debbe7f05798cc814b6f1f54c4ce858bef9ab",
+        "copied": true
+      }
+    },
+    "backup": "C:\\Users\\viczi\\GitHub\\kplex\\.test-work\\deploy-backups\\brain-ui-2026-11-04-194518-393",
+    "at": "2026-11-04T18:45:24.2621248Z",
+    "manifestUnchanged": true,
+    "scope": "Only main.js and styles.css copied; no settings, notes, manifest or workspace writes.",
+    "vault": "Zsolt's Brain",
+    "status": "deployed",
+    "pluginReloaded": false
+  },
+  "limitations": [
+    "No full aggregate rerun for this follow-up.",
+    "Mac and physical mobile acceptance pending.",
+    "Templater uses a guarded unpublished handler; validated version 2.26.0.",
+    "Arbitrary future template timers/active-editor commands need explicit view targeting.",
+    "Earlier test-vault renderer crash cause remains unknown.",
+    "Production full-index recovery fragility remains unresolved."
+  ],
+  "screenshots": [
+    "assets/authoring-ui-templates-278-2026-11-04/preset-theme-light-1000-header.png",
+    "assets/authoring-ui-templates-278-2026-11-04/preset-theme-light-1000-color.png",
+    "assets/authoring-ui-templates-278-2026-11-04/preset-theme-dark-420-header.png",
+    "assets/authoring-ui-templates-278-2026-11-04/preset-theme-dark-420-color.png",
+    "assets/authoring-ui-templates-278-2026-11-04/ontology-export-Markdown-export-theme-dark-420.png"
+  ]
+}

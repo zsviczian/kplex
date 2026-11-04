@@ -1,0 +1,2667 @@
+{
+  "scope": "PR #278 shared UI, mobile native shells, editable imports, Daily Notes templates, native dropdowns and footer alignment",
+  "status": "Implemented; available Windows validation passed; uncommitted for review",
+  "branch": "2026-11-03-issue-277-creation-links-compass",
+  "base": "c0e6166",
+  "implementation": "uncommitted",
+  "host": {
+    "node": "v22.22.2",
+    "platform": "Windows",
+    "obsidian": "1.14.5",
+    "vault": "kplex-test-small",
+    "vaultPath": "C:/Obsidian/kplex-test-small",
+    "config": ".obsidian",
+    "baseline": {
+      "files": 117,
+      "markdown": 98
+    }
+  },
+  "frozenInputs": {
+    "files": 983,
+    "sha256": "76945c12f82949db17d10c985025e4e19e192c063123f74d6122001ff21207e8"
+  },
+  "artifacts": {
+    "main.js": "926dc454c05c7a49f1cbf4e2a596445fd4ec1c2e68313b56895969806e82f173",
+    "styles.css": "e0f104e4ee388eb39182a20f257667631879ff560f4621a918c545bc4953cb7e",
+    "manifest.json": "8c65b0d38a506f8fa9fc3311b81ea22bcda48e0209e9190483752c1f20834326"
+  },
+  "productionVaultAccess": true,
+  "productionVaultTesting": false,
+  "productionDeployment": {
+    "status": "deployed",
+    "at": "2026-11-04T13:15:24.272Z",
+    "vault": "Zsolt's Brain",
+    "target": "C:\\Obsidian\\Zsolt's Brain\\.obsidian\\plugins\\k-plex",
+    "files": {
+      "main.js": {
+        "before": "35340f9f2182fd94c63f227363566a05f9f0848ed40cb8f690eea264b7be8228",
+        "expected": "926dc454c05c7a49f1cbf4e2a596445fd4ec1c2e68313b56895969806e82f173",
+        "copied": true,
+        "deployed": "926dc454c05c7a49f1cbf4e2a596445fd4ec1c2e68313b56895969806e82f173"
+      },
+      "styles.css": {
+        "before": "8515b8a87759859e51d59f91d316b809026815167003a21bdc3443a4dcc18689",
+        "expected": "e0f104e4ee388eb39182a20f257667631879ff560f4621a918c545bc4953cb7e",
+        "copied": true,
+        "deployed": "e0f104e4ee388eb39182a20f257667631879ff560f4621a918c545bc4953cb7e"
+      }
+    },
+    "backup": "C:\\Users\\viczi\\GitHub\\kplex\\.test-work\\deploy-backups\\brain-ui-2026-11-04-1793798119866",
+    "manifestUnchanged": true,
+    "pluginReloaded": false,
+    "scope": "Only main.js and styles.css copied; no settings, notes, manifest or workspace writes."
+  },
+  "uiAudit": {
+    "modalConsumers": [
+      "src/adapters/obsidian/SupportReportModal.ts",
+      "src/ui/AddToOntologyModal.ts",
+      "src/ui/CreateFolderNoteModal.ts",
+      "src/ui/CreatePeriodicNoteModal.ts",
+      "src/ui/DeleteNodeModal.ts",
+      "src/ui/ExternalFileImportBatchModal.ts",
+      "src/ui/HiddenFieldSetupModal.ts",
+      "src/ui/KeyboardHelpModal.ts",
+      "src/ui/MaterializeGhostModal.ts",
+      "src/ui/MoveNodeModal.ts",
+      "src/ui/MoveToFolderModal.ts",
+      "src/ui/NewRelatedNoteModal.ts",
+      "src/ui/NoteTypeModal.ts",
+      "src/ui/NotificationModal.ts",
+      "src/ui/OntologyManagerModal.ts",
+      "src/ui/OntologyUsageModal.ts",
+      "src/ui/PurgeIndexCacheModal.ts",
+      "src/ui/RelationModal.ts",
+      "src/ui/RelationshipExplanationModal.ts",
+      "src/ui/RemoveRelationshipSourceModal.ts",
+      "src/ui/RenameNoteModal.ts",
+      "src/ui/ReverseRelationshipModal.ts",
+      "src/ui/ShortcutRecorder.ts",
+      "src/ui/StyleEditorModal.ts",
+      "src/ui/TagAssignmentModal.ts",
+      "src/ui/VaultStatsModal.ts"
+    ],
+    "settingConsumers": [
+      "src/settings.ts",
+      "src/ui/AddToOntologyModal.ts",
+      "src/ui/AppearanceThemesModal.ts",
+      "src/ui/CanvasPropertyAssignmentModal.ts",
+      "src/ui/ColorAdoptionModal.ts",
+      "src/ui/ColorLiteralEditor.ts",
+      "src/ui/ColorPairModal.ts",
+      "src/ui/CompassSettingsModal.tsx",
+      "src/ui/CreateFolderNoteModal.ts",
+      "src/ui/DeleteNodeModal.ts",
+      "src/ui/export/CanvasImageExportModal.ts",
+      "src/ui/export/MindMapMarkdownModal.ts",
+      "src/ui/ExternalFileImportBatchModal.ts",
+      "src/ui/MarkdownHelpModal.ts",
+      "src/ui/MaterializeGhostModal.ts",
+      "src/ui/MoveNodeModal.ts",
+      "src/ui/NoteTypeModal.ts",
+      "src/ui/OntologyUsageModal.ts",
+      "src/ui/plexViews/facets/diagnosticSettings.ts",
+      "src/ui/plexViews/facets/FacetPresetEditor.ts",
+      "src/ui/plexViews/facets/FacetPresetRemoval.ts",
+      "src/ui/plexViews/facets/flowSettings.ts",
+      "src/ui/plexViews/facets/helpSettings.ts",
+      "src/ui/plexViews/facets/layoutSettings.ts",
+      "src/ui/RenameNoteModal.ts",
+      "src/ui/sharing/PortablePackageModal.ts",
+      "src/ui/ShortcutRecorder.ts",
+      "src/ui/styleNumberSlider.ts",
+      "src/ui/TagAssignmentModal.ts"
+    ],
+    "rules": "UI_RULES.md",
+    "sharedOwners": [
+      "KplexModal",
+      "FormSetting",
+      "formField",
+      "formActions",
+      "FormField",
+      "FormSelect",
+      "FormActions",
+      "RelationshipFieldControl"
+    ],
+    "mobile": "The native shell owns the existing VisualViewport lease; physical-device acceptance remains pending"
+  },
+  "automated": {
+    "aggregate": {
+      "command": "npm run verify",
+      "status": "passed",
+      "exitCode": 0,
+      "completedAt": "2026-11-04T13:35:16.840Z",
+      "log": "%TEMP%/kplex-278-ui-verify-final4.log",
+      "completedSuiteCounts": [
+        9,
+        133,
+        2074,
+        504,
+        360,
+        900
+      ],
+      "passedTests": 3980,
+      "failedTests": 0,
+      "skippedTests": 0,
+      "coverageLimit": "Started before final native input/dropdown/footer follow-up. Semantic/index owners unchanged during that follow-up; final UI covered separately. Final installed-type build matches deployed artifacts."
+    },
+    "serialIndexing": {
+      "command": "node scripts/run-indexing-tests.mjs",
+      "status": "passed",
+      "exitCode": 0,
+      "log": "%TEMP%/kplex-278-ui-indexing-serial-final.log",
+      "assertions": "Original fixture assertions 1-68, P1-P17, startup admission/convergence, settings independence and restore watchdog passed",
+      "performanceBound": "Original URL-heavy graph patch timer-gap bound remains <50ms; passed alone"
+    },
+    "finalUi": {
+      "passed": 26,
+      "failed": 0,
+      "log": "%TEMP%/kplex-278-ui-native-skin-browser1.log",
+      "scope": "Native skin ownership, shared mobile shell/viewport, German labels, widths/themes, import directions and form owners"
+    },
+    "focusedRecovery": {
+      "composerFormsSettings": 111,
+      "finiteHosts": 171,
+      "settings": 15,
+      "facetsAndSupport": 24
+    },
+    "failuresAndRecovery": [
+      {
+        "attempt": 1,
+        "log": "%TEMP%/kplex-278-ui-verify-final1.log",
+        "reason": "Obsolete direct-button source assertion; compiled fixture inventory updated to shared owners without weakening behavioral gates"
+      },
+      {
+        "attempt": 2,
+        "log": "%TEMP%/kplex-278-ui-verify-final2.log",
+        "passed": 2022,
+        "failed": 52,
+        "reason": "Seven finite test hosts lacked shared shell DOM/icon/dependency members; repaired families passed 171/171"
+      },
+      {
+        "attempt": 3,
+        "log": "%TEMP%/kplex-278-ui-verify-final3.log",
+        "mainPassed": 2074,
+        "browserPassed": 496,
+        "browserFailed": 8,
+        "reason": "Native row lookups repaired; real common-CSS code-font regression fixed via shared monospace exception; Settings15/15 and Facets/support24/24 recovered"
+      },
+      {
+        "attempt": 5,
+        "log": "%TEMP%/kplex-278-ui-verify-final5.log",
+        "reason": "URL-heavy post-parse timer gap55.4ms exceeded unchanged50ms bound while aggregate4 large-IDB work was active. Subsequent standalone indexing fixture passed. Contention is plausible, not proven."
+      }
+    ],
+    "finalLint": {
+      "command": "npm run lint:obsidian",
+      "status": "passed",
+      "log": "%TEMP%/kplex-278-ui-final-lint.log"
+    },
+    "finalArchitecture": {
+      "command": "npm run check:architecture",
+      "status": "passed",
+      "tests": 9,
+      "roots": 260,
+      "reachableFiles": 463,
+      "violations": 0,
+      "numericSources": 210,
+      "log": "%TEMP%/kplex-278-ui-final-architecture.log"
+    }
+  },
+  "nativeFinal": [
+    {
+      "lane": "controls",
+      "status": "passed",
+      "receipt": "kplex-278-native-gBDpQf",
+      "receiptSha256": "e95232bad95d26808aadce7ee50ae7b077114e5cbeaeaa7206e9529c3335e798",
+      "completedAt": "2026-11-04T13:14:18.437Z",
+      "artifacts": {
+        "main.js": "926dc454c05c7a49f1cbf4e2a596445fd4ec1c2e68313b56895969806e82f173",
+        "manifest.json": "8c65b0d38a506f8fa9fc3311b81ea22bcda48e0209e9190483752c1f20834326",
+        "styles.css": "e0f104e4ee388eb39182a20f257667631879ff560f4621a918c545bc4953cb7e"
+      },
+      "source": {
+        "src/index/GraphBuilder.ts": "c0cc0d30260e146978e942e9cd8953ca78ca92bbda772d64334eba026247606f",
+        "src/index/GraphIndex.ts": "b2413a473174079b65d0c9298009f998cecde22354ab19ccb4f49eebf609f288",
+        "src/core/graph/compiler.ts": "6156fb1eb6e51e057a48a2b97dba0bddeaf9dd065277355ddc1a0af1b6075ec5",
+        "src/adapters/obsidian/KplexModal.ts": "e8b57d53260874b130d11d962e9c0b4793c655c82d9910b279311ee7d0788722",
+        "src/ui/components/FormField.tsx": "7beedf2eef5db36da87a7e07fc95e1278da3473307d06fa3650e8fa191841acd",
+        "src/ui/components/FormSelect.tsx": "fd32774a82a1f6f22ebf5d39daf50d3a5c48f4d371b516ceaccdbcb1022b655d",
+        "src/ui/features/RelationshipFieldControl.tsx": "c61ebe557e661319ca38d5ff6cea24add8b86d2785d5c2e84db422292a82c0eb",
+        "src/ui/ImportRelationshipControl.tsx": "88dc41c3c9b91e81847cbb52ec35f928beffb3280e5814d035071dee0a4c2043",
+        "src/adapters/obsidian/dailyNotes.ts": "cd384ed025dfd8eb4a0f1169712801019bf19e4b4d4339b25aed5e49a996571a",
+        "src/main.ts": "a30dcb49b252f20a8900a2f52dec0f75eba7c099034ea3a35256b74ad30d3caa",
+        "src/adapters/obsidian/sourceAcquisition.ts": "e9be5808779fa20db00e2a3456ee08fc99bccfa6a7f298d3c76e9fc0a4ff42e5",
+        "src/adapters/obsidian/externalFileImport.ts": "79bed48654c528f1d0ac9f275ccf845e70bef90f0dac7bd383cd52ed3ce67539",
+        "src/adapters/obsidian/relationshipOwner.ts": "81448effcf8a92a59a6f998b73dd163f3b00140ed42314e19a6a6ca407d34dc8",
+        "src/ui/App.tsx": "f38f4193158704477336d954286b4465a3a2525856e63086fbb77a8664784831",
+        "src/ui/PlexGraph.tsx": "8652797f254610e508f32ed7aacf2fed0e5c2d65c876eb6139a0663a216bf1d7",
+        "src/ui/NewRelatedNoteModal.ts": "6cd591847ad3fb7dfc38997a88a966d8cc761e615f5f18802af72402880ec126",
+        "src/ui/SelectedOntologyEditor.ts": "f54d7de6285443237aef1612535abd40a3c005dd7f1c9460db9381f880ef2b35",
+        "src/ui/CreateFolderNoteModal.ts": "f4cca6057a3a8d673631035ecf1a3ba4f54ab82be11ca9718710e8ee205f3090",
+        "src/ui/CreatePeriodicNoteModal.ts": "5988dafe1989ee24fcaec7fff138b5864a4f01bdbb1adc19642d8be6e2a9e879",
+        "src/ui/MoveNodeModal.ts": "fc973fa7dda5fbf3f0830bef319d81e76e15d8d707f4c0f43fe7d2cf8094198b",
+        "src/ui/components/Tabs.tsx": "0efe6859ae0e2ed5ad4a28c21ed73233c5ec7b31ad58b1f2a18996ba6f060952",
+        "src/adapters/obsidian/fileExplorerDrag.ts": "cad3f7dc66596ef144634d2d0c7300c6e95fa7a2253b7c1882ab8499628fa529",
+        "src/adapters/obsidian/fileMenu.ts": "64187e15fcba97b1591cffeb684f76457ef4c3118ef4fc64315b6629720aee12",
+        "src/ui/RelationModal.ts": "30eb3ac7c3b4bfe05962c02357b0107381f607183a72c0f4be6df030a9a57079",
+        "src/ui/RelationshipExplanationModal.ts": "003813ab3fc65f814e36ff89a8650a9caacb8c16ee1265c559bb72b38df408e7",
+        "src/ui/ReverseRelationshipModal.ts": "9dfd3621422fc88974e26554b543de455a8a9e9baf65cbb580387ca2b851712b",
+        "src/ui/ExternalFileImportBatchModal.ts": "0f5a33fd63670a6a73491c1b2525578051292d597b0456dccc6cfc54dc58c5eb",
+        "src/ui/features/RelationshipDirectionControl.tsx": "236a5515bb90d159a37be5b5daf5d1408274699a4fca10a0d7ba2f427a2d23eb",
+        "src/ui/components/ReorderableList.tsx": "7a3f2a296e06cc6c24edb5404eb5a6cf89ed9669c061ae1398f63994e57b83ba",
+        "src/core/plex/views/classic/configuration.ts": "2f84c30c6465d8a68753a0d9c37140faef5fe46d971ca705cec724d0159e939c",
+        "src/core/plex/views/classic/definition.ts": "6b5f0a53b2edcbccd07750b83b3c186ba4358c9695fff7dd2473f80002067cd3",
+        "src/core/plex/views/classic/geometry.ts": "f6bd0513012c1fcf30915cc1a24300c3e1d3ba2f6a1d603d6f04708f530f833e",
+        "src/ui/plexViews/classic/layout.ts": "04523e2eda25308658919311b4235a918656751f91079066b429a95115467ea2",
+        "src/ui/plexViews/classic/ClassicAreaLabels.tsx": "6c8c62540d13cc842af9a637bd8705792018f06c371f41743ce22c084230b4db"
+      },
+      "cleanup": "passed",
+      "stagingCleanup": {
+        "disable": "passed",
+        "data": "passed",
+        "enable": "passed",
+        "layout": "passed",
+        "data-bytes": "passed",
+        "enablement-bytes": "passed"
+      },
+      "assertions": {
+        "properties": [
+          "height",
+          "fontFamily",
+          "fontSize",
+          "appearance",
+          "backgroundColor",
+          "backgroundImage",
+          "backgroundPosition",
+          "paddingLeft",
+          "paddingRight",
+          "borderColor",
+          "borderRadius",
+          "boxShadow"
+        ],
+        "referenceControls": [
+          {
+            "tab": "editor",
+            "tag": "SELECT",
+            "classes": "dropdown"
+          },
+          {
+            "tab": "daily-notes",
+            "tag": "INPUT",
+            "classes": ""
+          }
+        ],
+        "compared": [
+          {
+            "classes": "dropdown kplex-add-related-role-select",
+            "matchedCoreDropdown": true
+          },
+          {
+            "classes": "dropdown",
+            "matchedCoreDropdown": true
+          },
+          {
+            "classes": "dropdown",
+            "matchedCoreDropdown": true
+          },
+          {
+            "classes": "kplex-search-shell kplex-fuzzy-search kplex-add-related-ontology-search dropdown kplex-native-combobox",
+            "matchedCoreDropdown": true
+          },
+          {
+            "classes": "kplex-search",
+            "matchedCoreInput": true
+          },
+          {
+            "classes": "kplex-create-alias-input",
+            "matchedCoreInput": true
+          },
+          {
+            "classes": "kplex-search",
+            "matchedCoreInput": true
+          }
+        ],
+        "disclosureUnboxed": true,
+        "footerAlignment": "All four top edges and heights agree within 0.5px; driver assertion passed",
+        "trustedDisclosureAndEscape": "passed"
+      }
+    },
+    {
+      "lane": "authoring",
+      "status": "passed",
+      "receipt": "kplex-278-native-BuZZtf",
+      "receiptSha256": "3248a754587c9247829f42301d09ec591aeba4ad427b4c027b2b52afdd28c490",
+      "completedAt": "2026-11-04T13:18:08.092Z",
+      "artifacts": {
+        "main.js": "926dc454c05c7a49f1cbf4e2a596445fd4ec1c2e68313b56895969806e82f173",
+        "manifest.json": "8c65b0d38a506f8fa9fc3311b81ea22bcda48e0209e9190483752c1f20834326",
+        "styles.css": "e0f104e4ee388eb39182a20f257667631879ff560f4621a918c545bc4953cb7e"
+      },
+      "source": {
+        "src/index/GraphBuilder.ts": "c0cc0d30260e146978e942e9cd8953ca78ca92bbda772d64334eba026247606f",
+        "src/index/GraphIndex.ts": "b2413a473174079b65d0c9298009f998cecde22354ab19ccb4f49eebf609f288",
+        "src/core/graph/compiler.ts": "6156fb1eb6e51e057a48a2b97dba0bddeaf9dd065277355ddc1a0af1b6075ec5",
+        "src/adapters/obsidian/KplexModal.ts": "e8b57d53260874b130d11d962e9c0b4793c655c82d9910b279311ee7d0788722",
+        "src/ui/components/FormField.tsx": "7beedf2eef5db36da87a7e07fc95e1278da3473307d06fa3650e8fa191841acd",
+        "src/ui/components/FormSelect.tsx": "fd32774a82a1f6f22ebf5d39daf50d3a5c48f4d371b516ceaccdbcb1022b655d",
+        "src/ui/features/RelationshipFieldControl.tsx": "c61ebe557e661319ca38d5ff6cea24add8b86d2785d5c2e84db422292a82c0eb",
+        "src/ui/ImportRelationshipControl.tsx": "88dc41c3c9b91e81847cbb52ec35f928beffb3280e5814d035071dee0a4c2043",
+        "src/adapters/obsidian/dailyNotes.ts": "cd384ed025dfd8eb4a0f1169712801019bf19e4b4d4339b25aed5e49a996571a",
+        "src/main.ts": "a30dcb49b252f20a8900a2f52dec0f75eba7c099034ea3a35256b74ad30d3caa",
+        "src/adapters/obsidian/sourceAcquisition.ts": "e9be5808779fa20db00e2a3456ee08fc99bccfa6a7f298d3c76e9fc0a4ff42e5",
+        "src/adapters/obsidian/externalFileImport.ts": "79bed48654c528f1d0ac9f275ccf845e70bef90f0dac7bd383cd52ed3ce67539",
+        "src/adapters/obsidian/relationshipOwner.ts": "81448effcf8a92a59a6f998b73dd163f3b00140ed42314e19a6a6ca407d34dc8",
+        "src/ui/App.tsx": "f38f4193158704477336d954286b4465a3a2525856e63086fbb77a8664784831",
+        "src/ui/PlexGraph.tsx": "8652797f254610e508f32ed7aacf2fed0e5c2d65c876eb6139a0663a216bf1d7",
+        "src/ui/NewRelatedNoteModal.ts": "6cd591847ad3fb7dfc38997a88a966d8cc761e615f5f18802af72402880ec126",
+        "src/ui/SelectedOntologyEditor.ts": "f54d7de6285443237aef1612535abd40a3c005dd7f1c9460db9381f880ef2b35",
+        "src/ui/CreateFolderNoteModal.ts": "f4cca6057a3a8d673631035ecf1a3ba4f54ab82be11ca9718710e8ee205f3090",
+        "src/ui/CreatePeriodicNoteModal.ts": "5988dafe1989ee24fcaec7fff138b5864a4f01bdbb1adc19642d8be6e2a9e879",
+        "src/ui/MoveNodeModal.ts": "fc973fa7dda5fbf3f0830bef319d81e76e15d8d707f4c0f43fe7d2cf8094198b",
+        "src/ui/components/Tabs.tsx": "0efe6859ae0e2ed5ad4a28c21ed73233c5ec7b31ad58b1f2a18996ba6f060952",
+        "src/adapters/obsidian/fileExplorerDrag.ts": "cad3f7dc66596ef144634d2d0c7300c6e95fa7a2253b7c1882ab8499628fa529",
+        "src/adapters/obsidian/fileMenu.ts": "64187e15fcba97b1591cffeb684f76457ef4c3118ef4fc64315b6629720aee12",
+        "src/ui/RelationModal.ts": "30eb3ac7c3b4bfe05962c02357b0107381f607183a72c0f4be6df030a9a57079",
+        "src/ui/RelationshipExplanationModal.ts": "003813ab3fc65f814e36ff89a8650a9caacb8c16ee1265c559bb72b38df408e7",
+        "src/ui/ReverseRelationshipModal.ts": "9dfd3621422fc88974e26554b543de455a8a9e9baf65cbb580387ca2b851712b",
+        "src/ui/ExternalFileImportBatchModal.ts": "0f5a33fd63670a6a73491c1b2525578051292d597b0456dccc6cfc54dc58c5eb",
+        "src/ui/features/RelationshipDirectionControl.tsx": "236a5515bb90d159a37be5b5daf5d1408274699a4fca10a0d7ba2f427a2d23eb",
+        "src/ui/components/ReorderableList.tsx": "7a3f2a296e06cc6c24edb5404eb5a6cf89ed9669c061ae1398f63994e57b83ba",
+        "src/core/plex/views/classic/configuration.ts": "2f84c30c6465d8a68753a0d9c37140faef5fe46d971ca705cec724d0159e939c",
+        "src/core/plex/views/classic/definition.ts": "6b5f0a53b2edcbccd07750b83b3c186ba4358c9695fff7dd2473f80002067cd3",
+        "src/core/plex/views/classic/geometry.ts": "f6bd0513012c1fcf30915cc1a24300c3e1d3ba2f6a1d603d6f04708f530f833e",
+        "src/ui/plexViews/classic/layout.ts": "04523e2eda25308658919311b4235a918656751f91079066b429a95115467ea2",
+        "src/ui/plexViews/classic/ClassicAreaLabels.tsx": "6c8c62540d13cc842af9a637bd8705792018f06c371f41743ce22c084230b4db"
+      },
+      "cleanup": "passed",
+      "stagingCleanup": {
+        "disable": "passed",
+        "data": "passed",
+        "enable": "passed",
+        "layout": "passed",
+        "data-bytes": "passed",
+        "enablement-bytes": "passed"
+      },
+      "assertions": {
+        "results": [
+          "create exact editor/cancel/save/drafts/focus",
+          "link exact editor/cancel/save/drafts/focus",
+          "saved role/removal revalidation preserves target and prevents implicit reassignment",
+          "relink inverse editor",
+          "existing reversed owner/property",
+          "stable before/after; pending Save observes and safely completes",
+          "details editor/selected reversal/unrelated content",
+          "new reversed file/metadata"
+        ]
+      }
+    },
+    {
+      "lane": "imports",
+      "status": "passed",
+      "receipt": "kplex-278-native-m4PEqg",
+      "receiptSha256": "90ff0c5c8a4f2ac08242e8bb8d2c8dea302c8cf8cb02e68f671343d8359767d1",
+      "completedAt": "2026-11-04T13:19:21.003Z",
+      "artifacts": {
+        "main.js": "926dc454c05c7a49f1cbf4e2a596445fd4ec1c2e68313b56895969806e82f173",
+        "manifest.json": "8c65b0d38a506f8fa9fc3311b81ea22bcda48e0209e9190483752c1f20834326",
+        "styles.css": "e0f104e4ee388eb39182a20f257667631879ff560f4621a918c545bc4953cb7e"
+      },
+      "source": {
+        "src/index/GraphBuilder.ts": "c0cc0d30260e146978e942e9cd8953ca78ca92bbda772d64334eba026247606f",
+        "src/index/GraphIndex.ts": "b2413a473174079b65d0c9298009f998cecde22354ab19ccb4f49eebf609f288",
+        "src/core/graph/compiler.ts": "6156fb1eb6e51e057a48a2b97dba0bddeaf9dd065277355ddc1a0af1b6075ec5",
+        "src/adapters/obsidian/KplexModal.ts": "e8b57d53260874b130d11d962e9c0b4793c655c82d9910b279311ee7d0788722",
+        "src/ui/components/FormField.tsx": "7beedf2eef5db36da87a7e07fc95e1278da3473307d06fa3650e8fa191841acd",
+        "src/ui/components/FormSelect.tsx": "fd32774a82a1f6f22ebf5d39daf50d3a5c48f4d371b516ceaccdbcb1022b655d",
+        "src/ui/features/RelationshipFieldControl.tsx": "c61ebe557e661319ca38d5ff6cea24add8b86d2785d5c2e84db422292a82c0eb",
+        "src/ui/ImportRelationshipControl.tsx": "88dc41c3c9b91e81847cbb52ec35f928beffb3280e5814d035071dee0a4c2043",
+        "src/adapters/obsidian/dailyNotes.ts": "cd384ed025dfd8eb4a0f1169712801019bf19e4b4d4339b25aed5e49a996571a",
+        "src/main.ts": "a30dcb49b252f20a8900a2f52dec0f75eba7c099034ea3a35256b74ad30d3caa",
+        "src/adapters/obsidian/sourceAcquisition.ts": "e9be5808779fa20db00e2a3456ee08fc99bccfa6a7f298d3c76e9fc0a4ff42e5",
+        "src/adapters/obsidian/externalFileImport.ts": "79bed48654c528f1d0ac9f275ccf845e70bef90f0dac7bd383cd52ed3ce67539",
+        "src/adapters/obsidian/relationshipOwner.ts": "81448effcf8a92a59a6f998b73dd163f3b00140ed42314e19a6a6ca407d34dc8",
+        "src/ui/App.tsx": "f38f4193158704477336d954286b4465a3a2525856e63086fbb77a8664784831",
+        "src/ui/PlexGraph.tsx": "8652797f254610e508f32ed7aacf2fed0e5c2d65c876eb6139a0663a216bf1d7",
+        "src/ui/NewRelatedNoteModal.ts": "6cd591847ad3fb7dfc38997a88a966d8cc761e615f5f18802af72402880ec126",
+        "src/ui/SelectedOntologyEditor.ts": "f54d7de6285443237aef1612535abd40a3c005dd7f1c9460db9381f880ef2b35",
+        "src/ui/CreateFolderNoteModal.ts": "f4cca6057a3a8d673631035ecf1a3ba4f54ab82be11ca9718710e8ee205f3090",
+        "src/ui/CreatePeriodicNoteModal.ts": "5988dafe1989ee24fcaec7fff138b5864a4f01bdbb1adc19642d8be6e2a9e879",
+        "src/ui/MoveNodeModal.ts": "fc973fa7dda5fbf3f0830bef319d81e76e15d8d707f4c0f43fe7d2cf8094198b",
+        "src/ui/components/Tabs.tsx": "0efe6859ae0e2ed5ad4a28c21ed73233c5ec7b31ad58b1f2a18996ba6f060952",
+        "src/adapters/obsidian/fileExplorerDrag.ts": "cad3f7dc66596ef144634d2d0c7300c6e95fa7a2253b7c1882ab8499628fa529",
+        "src/adapters/obsidian/fileMenu.ts": "64187e15fcba97b1591cffeb684f76457ef4c3118ef4fc64315b6629720aee12",
+        "src/ui/RelationModal.ts": "30eb3ac7c3b4bfe05962c02357b0107381f607183a72c0f4be6df030a9a57079",
+        "src/ui/RelationshipExplanationModal.ts": "003813ab3fc65f814e36ff89a8650a9caacb8c16ee1265c559bb72b38df408e7",
+        "src/ui/ReverseRelationshipModal.ts": "9dfd3621422fc88974e26554b543de455a8a9e9baf65cbb580387ca2b851712b",
+        "src/ui/ExternalFileImportBatchModal.ts": "0f5a33fd63670a6a73491c1b2525578051292d597b0456dccc6cfc54dc58c5eb",
+        "src/ui/features/RelationshipDirectionControl.tsx": "236a5515bb90d159a37be5b5daf5d1408274699a4fca10a0d7ba2f427a2d23eb",
+        "src/ui/components/ReorderableList.tsx": "7a3f2a296e06cc6c24edb5404eb5a6cf89ed9669c061ae1398f63994e57b83ba",
+        "src/core/plex/views/classic/configuration.ts": "2f84c30c6465d8a68753a0d9c37140faef5fe46d971ca705cec724d0159e939c",
+        "src/core/plex/views/classic/definition.ts": "6b5f0a53b2edcbccd07750b83b3c186ba4358c9695fff7dd2473f80002067cd3",
+        "src/core/plex/views/classic/geometry.ts": "f6bd0513012c1fcf30915cc1a24300c3e1d3ba2f6a1d603d6f04708f530f833e",
+        "src/ui/plexViews/classic/layout.ts": "04523e2eda25308658919311b4235a918656751f91079066b429a95115467ea2",
+        "src/ui/plexViews/classic/ClassicAreaLabels.tsx": "6c8c62540d13cc842af9a637bd8705792018f06c371f41743ce22c084230b4db"
+      },
+      "cleanup": "passed",
+      "stagingCleanup": {
+        "disable": "passed",
+        "data": "passed",
+        "enable": "passed",
+        "layout": "passed",
+        "data-bytes": "passed",
+        "enablement-bytes": "passed"
+      },
+      "assertions": {
+        "results": [
+          {
+            "case": "one form/all rows/cancel/no flip",
+            "receipt": {
+              "trusted": true,
+              "types": [
+                "Files"
+              ],
+              "files": [
+                "Native278.bin",
+                "Native278.md"
+              ]
+            }
+          },
+          "editable parent relation/shared ontology editor/captured origin/exact-file retry",
+          "single-file direct confirmation",
+          "recursive folder import/empty directories/no ontology"
+        ],
+        "filesCopied": 4,
+        "realm": "window"
+      }
+    },
+    {
+      "lane": "lifetime",
+      "status": "passed",
+      "receipt": "kplex-278-native-0siDvf",
+      "receiptSha256": "69d3d565e743296edd86d4290b2bf35bc76d8df47e2018f99c02c919c6744571",
+      "completedAt": "2026-11-04T13:19:38.048Z",
+      "artifacts": {
+        "main.js": "926dc454c05c7a49f1cbf4e2a596445fd4ec1c2e68313b56895969806e82f173",
+        "manifest.json": "8c65b0d38a506f8fa9fc3311b81ea22bcda48e0209e9190483752c1f20834326",
+        "styles.css": "e0f104e4ee388eb39182a20f257667631879ff560f4621a918c545bc4953cb7e"
+      },
+      "source": {
+        "src/index/GraphBuilder.ts": "c0cc0d30260e146978e942e9cd8953ca78ca92bbda772d64334eba026247606f",
+        "src/index/GraphIndex.ts": "b2413a473174079b65d0c9298009f998cecde22354ab19ccb4f49eebf609f288",
+        "src/core/graph/compiler.ts": "6156fb1eb6e51e057a48a2b97dba0bddeaf9dd065277355ddc1a0af1b6075ec5",
+        "src/adapters/obsidian/KplexModal.ts": "e8b57d53260874b130d11d962e9c0b4793c655c82d9910b279311ee7d0788722",
+        "src/ui/components/FormField.tsx": "7beedf2eef5db36da87a7e07fc95e1278da3473307d06fa3650e8fa191841acd",
+        "src/ui/components/FormSelect.tsx": "fd32774a82a1f6f22ebf5d39daf50d3a5c48f4d371b516ceaccdbcb1022b655d",
+        "src/ui/features/RelationshipFieldControl.tsx": "c61ebe557e661319ca38d5ff6cea24add8b86d2785d5c2e84db422292a82c0eb",
+        "src/ui/ImportRelationshipControl.tsx": "88dc41c3c9b91e81847cbb52ec35f928beffb3280e5814d035071dee0a4c2043",
+        "src/adapters/obsidian/dailyNotes.ts": "cd384ed025dfd8eb4a0f1169712801019bf19e4b4d4339b25aed5e49a996571a",
+        "src/main.ts": "a30dcb49b252f20a8900a2f52dec0f75eba7c099034ea3a35256b74ad30d3caa",
+        "src/adapters/obsidian/sourceAcquisition.ts": "e9be5808779fa20db00e2a3456ee08fc99bccfa6a7f298d3c76e9fc0a4ff42e5",
+        "src/adapters/obsidian/externalFileImport.ts": "79bed48654c528f1d0ac9f275ccf845e70bef90f0dac7bd383cd52ed3ce67539",
+        "src/adapters/obsidian/relationshipOwner.ts": "81448effcf8a92a59a6f998b73dd163f3b00140ed42314e19a6a6ca407d34dc8",
+        "src/ui/App.tsx": "f38f4193158704477336d954286b4465a3a2525856e63086fbb77a8664784831",
+        "src/ui/PlexGraph.tsx": "8652797f254610e508f32ed7aacf2fed0e5c2d65c876eb6139a0663a216bf1d7",
+        "src/ui/NewRelatedNoteModal.ts": "6cd591847ad3fb7dfc38997a88a966d8cc761e615f5f18802af72402880ec126",
+        "src/ui/SelectedOntologyEditor.ts": "f54d7de6285443237aef1612535abd40a3c005dd7f1c9460db9381f880ef2b35",
+        "src/ui/CreateFolderNoteModal.ts": "f4cca6057a3a8d673631035ecf1a3ba4f54ab82be11ca9718710e8ee205f3090",
+        "src/ui/CreatePeriodicNoteModal.ts": "5988dafe1989ee24fcaec7fff138b5864a4f01bdbb1adc19642d8be6e2a9e879",
+        "src/ui/MoveNodeModal.ts": "fc973fa7dda5fbf3f0830bef319d81e76e15d8d707f4c0f43fe7d2cf8094198b",
+        "src/ui/components/Tabs.tsx": "0efe6859ae0e2ed5ad4a28c21ed73233c5ec7b31ad58b1f2a18996ba6f060952",
+        "src/adapters/obsidian/fileExplorerDrag.ts": "cad3f7dc66596ef144634d2d0c7300c6e95fa7a2253b7c1882ab8499628fa529",
+        "src/adapters/obsidian/fileMenu.ts": "64187e15fcba97b1591cffeb684f76457ef4c3118ef4fc64315b6629720aee12",
+        "src/ui/RelationModal.ts": "30eb3ac7c3b4bfe05962c02357b0107381f607183a72c0f4be6df030a9a57079",
+        "src/ui/RelationshipExplanationModal.ts": "003813ab3fc65f814e36ff89a8650a9caacb8c16ee1265c559bb72b38df408e7",
+        "src/ui/ReverseRelationshipModal.ts": "9dfd3621422fc88974e26554b543de455a8a9e9baf65cbb580387ca2b851712b",
+        "src/ui/ExternalFileImportBatchModal.ts": "0f5a33fd63670a6a73491c1b2525578051292d597b0456dccc6cfc54dc58c5eb",
+        "src/ui/features/RelationshipDirectionControl.tsx": "236a5515bb90d159a37be5b5daf5d1408274699a4fca10a0d7ba2f427a2d23eb",
+        "src/ui/components/ReorderableList.tsx": "7a3f2a296e06cc6c24edb5404eb5a6cf89ed9669c061ae1398f63994e57b83ba",
+        "src/core/plex/views/classic/configuration.ts": "2f84c30c6465d8a68753a0d9c37140faef5fe46d971ca705cec724d0159e939c",
+        "src/core/plex/views/classic/definition.ts": "6b5f0a53b2edcbccd07750b83b3c186ba4358c9695fff7dd2473f80002067cd3",
+        "src/core/plex/views/classic/geometry.ts": "f6bd0513012c1fcf30915cc1a24300c3e1d3ba2f6a1d603d6f04708f530f833e",
+        "src/ui/plexViews/classic/layout.ts": "04523e2eda25308658919311b4235a918656751f91079066b429a95115467ea2",
+        "src/ui/plexViews/classic/ClassicAreaLabels.tsx": "6c8c62540d13cc842af9a637bd8705792018f06c371f41743ce22c084230b4db"
+      },
+      "cleanup": "passed",
+      "stagingCleanup": {
+        "disable": "passed",
+        "data": "passed",
+        "enable": "passed",
+        "layout": "passed",
+        "data-bytes": "passed",
+        "enablement-bytes": "passed"
+      },
+      "assertions": {
+        "results": [
+          {
+            "case": "popout-close",
+            "parentReady": false,
+            "childOpen": false
+          },
+          {
+            "case": "migration",
+            "parentReady": false,
+            "childOpen": false
+          },
+          {
+            "case": "popout-import-close",
+            "copies": 0,
+            "batchOpen": false,
+            "staleSubmitCreatesNothing": true
+          }
+        ]
+      }
+    },
+    {
+      "lane": "forms",
+      "status": "passed",
+      "receipt": "kplex-278-native-jeUPB1",
+      "receiptSha256": "f2617a48e831be7e24aa51f030608e3d5ecaa6f0528b7aec50bc85d24fd294ad",
+      "completedAt": "2026-11-04T13:19:58.320Z",
+      "artifacts": {
+        "main.js": "926dc454c05c7a49f1cbf4e2a596445fd4ec1c2e68313b56895969806e82f173",
+        "manifest.json": "8c65b0d38a506f8fa9fc3311b81ea22bcda48e0209e9190483752c1f20834326",
+        "styles.css": "e0f104e4ee388eb39182a20f257667631879ff560f4621a918c545bc4953cb7e"
+      },
+      "source": {
+        "src/index/GraphBuilder.ts": "c0cc0d30260e146978e942e9cd8953ca78ca92bbda772d64334eba026247606f",
+        "src/index/GraphIndex.ts": "b2413a473174079b65d0c9298009f998cecde22354ab19ccb4f49eebf609f288",
+        "src/core/graph/compiler.ts": "6156fb1eb6e51e057a48a2b97dba0bddeaf9dd065277355ddc1a0af1b6075ec5",
+        "src/adapters/obsidian/KplexModal.ts": "e8b57d53260874b130d11d962e9c0b4793c655c82d9910b279311ee7d0788722",
+        "src/ui/components/FormField.tsx": "7beedf2eef5db36da87a7e07fc95e1278da3473307d06fa3650e8fa191841acd",
+        "src/ui/components/FormSelect.tsx": "fd32774a82a1f6f22ebf5d39daf50d3a5c48f4d371b516ceaccdbcb1022b655d",
+        "src/ui/features/RelationshipFieldControl.tsx": "c61ebe557e661319ca38d5ff6cea24add8b86d2785d5c2e84db422292a82c0eb",
+        "src/ui/ImportRelationshipControl.tsx": "88dc41c3c9b91e81847cbb52ec35f928beffb3280e5814d035071dee0a4c2043",
+        "src/adapters/obsidian/dailyNotes.ts": "cd384ed025dfd8eb4a0f1169712801019bf19e4b4d4339b25aed5e49a996571a",
+        "src/main.ts": "a30dcb49b252f20a8900a2f52dec0f75eba7c099034ea3a35256b74ad30d3caa",
+        "src/adapters/obsidian/sourceAcquisition.ts": "e9be5808779fa20db00e2a3456ee08fc99bccfa6a7f298d3c76e9fc0a4ff42e5",
+        "src/adapters/obsidian/externalFileImport.ts": "79bed48654c528f1d0ac9f275ccf845e70bef90f0dac7bd383cd52ed3ce67539",
+        "src/adapters/obsidian/relationshipOwner.ts": "81448effcf8a92a59a6f998b73dd163f3b00140ed42314e19a6a6ca407d34dc8",
+        "src/ui/App.tsx": "f38f4193158704477336d954286b4465a3a2525856e63086fbb77a8664784831",
+        "src/ui/PlexGraph.tsx": "8652797f254610e508f32ed7aacf2fed0e5c2d65c876eb6139a0663a216bf1d7",
+        "src/ui/NewRelatedNoteModal.ts": "6cd591847ad3fb7dfc38997a88a966d8cc761e615f5f18802af72402880ec126",
+        "src/ui/SelectedOntologyEditor.ts": "f54d7de6285443237aef1612535abd40a3c005dd7f1c9460db9381f880ef2b35",
+        "src/ui/CreateFolderNoteModal.ts": "f4cca6057a3a8d673631035ecf1a3ba4f54ab82be11ca9718710e8ee205f3090",
+        "src/ui/CreatePeriodicNoteModal.ts": "5988dafe1989ee24fcaec7fff138b5864a4f01bdbb1adc19642d8be6e2a9e879",
+        "src/ui/MoveNodeModal.ts": "fc973fa7dda5fbf3f0830bef319d81e76e15d8d707f4c0f43fe7d2cf8094198b",
+        "src/ui/components/Tabs.tsx": "0efe6859ae0e2ed5ad4a28c21ed73233c5ec7b31ad58b1f2a18996ba6f060952",
+        "src/adapters/obsidian/fileExplorerDrag.ts": "cad3f7dc66596ef144634d2d0c7300c6e95fa7a2253b7c1882ab8499628fa529",
+        "src/adapters/obsidian/fileMenu.ts": "64187e15fcba97b1591cffeb684f76457ef4c3118ef4fc64315b6629720aee12",
+        "src/ui/RelationModal.ts": "30eb3ac7c3b4bfe05962c02357b0107381f607183a72c0f4be6df030a9a57079",
+        "src/ui/RelationshipExplanationModal.ts": "003813ab3fc65f814e36ff89a8650a9caacb8c16ee1265c559bb72b38df408e7",
+        "src/ui/ReverseRelationshipModal.ts": "9dfd3621422fc88974e26554b543de455a8a9e9baf65cbb580387ca2b851712b",
+        "src/ui/ExternalFileImportBatchModal.ts": "0f5a33fd63670a6a73491c1b2525578051292d597b0456dccc6cfc54dc58c5eb",
+        "src/ui/features/RelationshipDirectionControl.tsx": "236a5515bb90d159a37be5b5daf5d1408274699a4fca10a0d7ba2f427a2d23eb",
+        "src/ui/components/ReorderableList.tsx": "7a3f2a296e06cc6c24edb5404eb5a6cf89ed9669c061ae1398f63994e57b83ba",
+        "src/core/plex/views/classic/configuration.ts": "2f84c30c6465d8a68753a0d9c37140faef5fe46d971ca705cec724d0159e939c",
+        "src/core/plex/views/classic/definition.ts": "6b5f0a53b2edcbccd07750b83b3c186ba4358c9695fff7dd2473f80002067cd3",
+        "src/core/plex/views/classic/geometry.ts": "f6bd0513012c1fcf30915cc1a24300c3e1d3ba2f6a1d603d6f04708f530f833e",
+        "src/ui/plexViews/classic/layout.ts": "04523e2eda25308658919311b4235a918656751f91079066b429a95115467ea2",
+        "src/ui/plexViews/classic/ClassicAreaLabels.tsx": "6c8c62540d13cc842af9a637bd8705792018f06c371f41743ce22c084230b4db"
+      },
+      "cleanup": "passed",
+      "stagingCleanup": {
+        "disable": "passed",
+        "data": "passed",
+        "enable": "passed",
+        "layout": "passed",
+        "data-bytes": "passed",
+        "enablement-bytes": "passed"
+      },
+      "assertions": {
+        "templateChoices": "Injected availability with real owned file paths; no Excalidraw creation",
+        "results": [
+          {
+            "dialog": "Create note",
+            "theme": "theme-light",
+            "width": 1160,
+            "actualWidth": 1160,
+            "contentWidth": 526,
+            "fullWidthFields": true,
+            "footerClear": true,
+            "window": "window"
+          },
+          {
+            "dialog": "Create note",
+            "theme": "theme-dark",
+            "width": 440,
+            "actualWidth": 440,
+            "contentWidth": 318,
+            "fullWidthFields": true,
+            "footerClear": true,
+            "window": "window"
+          },
+          {
+            "dialog": "Create subfolder",
+            "theme": "theme-light",
+            "width": 1160,
+            "actualWidth": 1160,
+            "contentWidth": 526,
+            "fullWidthFields": true,
+            "footerClear": true,
+            "window": "window"
+          },
+          {
+            "dialog": "Create subfolder",
+            "theme": "theme-dark",
+            "width": 440,
+            "actualWidth": 440,
+            "contentWidth": 318,
+            "fullWidthFields": true,
+            "footerClear": true,
+            "window": "window"
+          },
+          {
+            "dialog": "Add relationship",
+            "theme": "theme-light",
+            "width": 1160,
+            "actualWidth": 1160,
+            "contentWidth": 646,
+            "fullWidthFields": true,
+            "footerClear": true,
+            "window": "window"
+          },
+          {
+            "dialog": "Add relationship",
+            "theme": "theme-dark",
+            "width": 440,
+            "actualWidth": 440,
+            "contentWidth": 382,
+            "fullWidthFields": true,
+            "footerClear": true,
+            "window": "window"
+          },
+          {
+            "dialog": "Ontology description",
+            "theme": "theme-light",
+            "width": 1160,
+            "actualWidth": 1160,
+            "contentWidth": 526,
+            "fullWidthFields": true,
+            "footerClear": true,
+            "window": "window"
+          },
+          {
+            "dialog": "Ontology description",
+            "theme": "theme-dark",
+            "width": 440,
+            "actualWidth": 440,
+            "contentWidth": 318,
+            "fullWidthFields": true,
+            "footerClear": true,
+            "window": "window"
+          },
+          {
+            "dialog": "Settings excluded paths"
+          }
+        ]
+      }
+    }
+  ],
+  "nativeEarlierScope": [
+    {
+      "lane": "folders",
+      "status": "passed",
+      "receipt": "kplex-278-native-qq3Uw3",
+      "receiptSha256": "25cd4cb17d69d6d87ca15de917906d68501617e6aa93950532439ce03735b434",
+      "completedAt": "2026-11-04T12:01:55.984Z",
+      "artifacts": {
+        "main.js": "35340f9f2182fd94c63f227363566a05f9f0848ed40cb8f690eea264b7be8228",
+        "manifest.json": "8c65b0d38a506f8fa9fc3311b81ea22bcda48e0209e9190483752c1f20834326",
+        "styles.css": "606cb66b23c32957a3589d093887ff5a1bfdf08cec14db9bc643ad5fee69feef"
+      },
+      "source": {
+        "src/index/GraphBuilder.ts": "c0cc0d30260e146978e942e9cd8953ca78ca92bbda772d64334eba026247606f",
+        "src/index/GraphIndex.ts": "b2413a473174079b65d0c9298009f998cecde22354ab19ccb4f49eebf609f288",
+        "src/core/graph/compiler.ts": "6156fb1eb6e51e057a48a2b97dba0bddeaf9dd065277355ddc1a0af1b6075ec5",
+        "src/adapters/obsidian/KplexModal.ts": "e8b57d53260874b130d11d962e9c0b4793c655c82d9910b279311ee7d0788722",
+        "src/ui/components/FormField.tsx": "7beedf2eef5db36da87a7e07fc95e1278da3473307d06fa3650e8fa191841acd",
+        "src/ui/components/FormSelect.tsx": "fd32774a82a1f6f22ebf5d39daf50d3a5c48f4d371b516ceaccdbcb1022b655d",
+        "src/ui/features/RelationshipFieldControl.tsx": "8cc5c7ea79e20ef4697e1c5cc2d47a88d2d2aee7d9e828dc3bd4152a01b0b7f6",
+        "src/ui/ImportRelationshipControl.tsx": "88dc41c3c9b91e81847cbb52ec35f928beffb3280e5814d035071dee0a4c2043",
+        "src/adapters/obsidian/dailyNotes.ts": "cd384ed025dfd8eb4a0f1169712801019bf19e4b4d4339b25aed5e49a996571a",
+        "src/main.ts": "a30dcb49b252f20a8900a2f52dec0f75eba7c099034ea3a35256b74ad30d3caa",
+        "src/adapters/obsidian/sourceAcquisition.ts": "e9be5808779fa20db00e2a3456ee08fc99bccfa6a7f298d3c76e9fc0a4ff42e5",
+        "src/adapters/obsidian/externalFileImport.ts": "79bed48654c528f1d0ac9f275ccf845e70bef90f0dac7bd383cd52ed3ce67539",
+        "src/adapters/obsidian/relationshipOwner.ts": "81448effcf8a92a59a6f998b73dd163f3b00140ed42314e19a6a6ca407d34dc8",
+        "src/ui/App.tsx": "f38f4193158704477336d954286b4465a3a2525856e63086fbb77a8664784831",
+        "src/ui/PlexGraph.tsx": "8652797f254610e508f32ed7aacf2fed0e5c2d65c876eb6139a0663a216bf1d7",
+        "src/ui/NewRelatedNoteModal.ts": "6cd591847ad3fb7dfc38997a88a966d8cc761e615f5f18802af72402880ec126",
+        "src/ui/SelectedOntologyEditor.ts": "f54d7de6285443237aef1612535abd40a3c005dd7f1c9460db9381f880ef2b35",
+        "src/ui/CreateFolderNoteModal.ts": "f4cca6057a3a8d673631035ecf1a3ba4f54ab82be11ca9718710e8ee205f3090",
+        "src/ui/CreatePeriodicNoteModal.ts": "5988dafe1989ee24fcaec7fff138b5864a4f01bdbb1adc19642d8be6e2a9e879",
+        "src/ui/MoveNodeModal.ts": "fc973fa7dda5fbf3f0830bef319d81e76e15d8d707f4c0f43fe7d2cf8094198b",
+        "src/ui/components/Tabs.tsx": "0efe6859ae0e2ed5ad4a28c21ed73233c5ec7b31ad58b1f2a18996ba6f060952",
+        "src/adapters/obsidian/fileExplorerDrag.ts": "cad3f7dc66596ef144634d2d0c7300c6e95fa7a2253b7c1882ab8499628fa529",
+        "src/adapters/obsidian/fileMenu.ts": "64187e15fcba97b1591cffeb684f76457ef4c3118ef4fc64315b6629720aee12",
+        "src/ui/RelationModal.ts": "30eb3ac7c3b4bfe05962c02357b0107381f607183a72c0f4be6df030a9a57079",
+        "src/ui/RelationshipExplanationModal.ts": "003813ab3fc65f814e36ff89a8650a9caacb8c16ee1265c559bb72b38df408e7",
+        "src/ui/ReverseRelationshipModal.ts": "9dfd3621422fc88974e26554b543de455a8a9e9baf65cbb580387ca2b851712b",
+        "src/ui/ExternalFileImportBatchModal.ts": "0f5a33fd63670a6a73491c1b2525578051292d597b0456dccc6cfc54dc58c5eb",
+        "src/ui/features/RelationshipDirectionControl.tsx": "236a5515bb90d159a37be5b5daf5d1408274699a4fca10a0d7ba2f427a2d23eb",
+        "src/ui/components/ReorderableList.tsx": "7a3f2a296e06cc6c24edb5404eb5a6cf89ed9669c061ae1398f63994e57b83ba",
+        "src/core/plex/views/classic/configuration.ts": "2f84c30c6465d8a68753a0d9c37140faef5fe46d971ca705cec724d0159e939c",
+        "src/core/plex/views/classic/definition.ts": "6b5f0a53b2edcbccd07750b83b3c186ba4358c9695fff7dd2473f80002067cd3",
+        "src/core/plex/views/classic/geometry.ts": "f6bd0513012c1fcf30915cc1a24300c3e1d3ba2f6a1d603d6f04708f530f833e",
+        "src/ui/plexViews/classic/layout.ts": "04523e2eda25308658919311b4235a918656751f91079066b429a95115467ea2",
+        "src/ui/plexViews/classic/ClassicAreaLabels.tsx": "6c8c62540d13cc842af9a637bd8705792018f06c371f41743ce22c084230b4db"
+      },
+      "cleanup": "passed",
+      "stagingCleanup": {
+        "disable": "passed",
+        "data": "passed",
+        "enable": "passed",
+        "layout": "passed",
+        "data-bytes": "passed",
+        "enablement-bytes": "passed"
+      },
+      "assertions": {
+        "samples": [
+          {
+            "unrelated": 3,
+            "files": 122,
+            "inspections": 5,
+            "headPages": 0,
+            "sourceInventoryPasses": 0,
+            "reads": 1,
+            "parses": 1,
+            "physicalComplete": true,
+            "delayedNamingMs": 450,
+            "nested": true
+          },
+          {
+            "unrelated": 103,
+            "files": 223,
+            "inspections": 5,
+            "headPages": 0,
+            "sourceInventoryPasses": 0,
+            "reads": 1,
+            "parses": 1,
+            "physicalComplete": true,
+            "delayedNamingMs": 450,
+            "nested": true
+          }
+        ],
+        "events": [
+          {
+            "event": "create",
+            "path": "__kplex278_1793793698189/Unrelated-0.md",
+            "physical": true,
+            "maintenance": 5
+          },
+          {
+            "event": "resolved",
+            "physical": true,
+            "maintenance": 7
+          },
+          {
+            "event": "create",
+            "path": "__kplex278_1793793698189/Unrelated-1.md",
+            "physical": true,
+            "maintenance": 8
+          },
+          {
+            "event": "resolved",
+            "physical": true,
+            "maintenance": 10
+          },
+          {
+            "event": "create",
+            "path": "__kplex278_1793793698189/Unrelated-2.md",
+            "physical": true,
+            "maintenance": 11
+          },
+          {
+            "event": "resolved",
+            "physical": true,
+            "maintenance": 13
+          },
+          {
+            "event": "create",
+            "path": "__kplex278_1793793698189/Untitled",
+            "physical": true,
+            "maintenance": 14
+          },
+          {
+            "event": "rename",
+            "path": "__kplex278_1793793698189/Named-3",
+            "old": "__kplex278_1793793698189/Untitled",
+            "physical": false,
+            "maintenance": 15
+          },
+          {
+            "event": "create",
+            "path": "__kplex278_1793793698189/Named-3/Untitled",
+            "physical": true,
+            "maintenance": 16
+          },
+          {
+            "event": "rename",
+            "path": "__kplex278_1793793698189/Named-3/Nested",
+            "old": "__kplex278_1793793698189/Named-3/Untitled",
+            "physical": false,
+            "maintenance": 17
+          },
+          {
+            "event": "create",
+            "path": "__kplex278_1793793698189/Named-3/Nested/Target.md",
+            "physical": true,
+            "maintenance": 18
+          },
+          {
+            "event": "resolved",
+            "physical": true,
+            "maintenance": 20
+          },
+          {
+            "event": "create",
+            "path": "__kplex278_1793793698189/Unrelated-3.md",
+            "physical": true,
+            "maintenance": 21
+          },
+          {
+            "event": "resolved",
+            "physical": true,
+            "maintenance": 23
+          },
+          {
+            "event": "create",
+            "path": "__kplex278_1793793698189/Unrelated-4.md",
+            "physical": true,
+            "maintenance": 24
+          },
+          {
+            "event": "resolved",
+            "physical": true,
+            "maintenance": 26
+          },
+          {
+            "event": "create",
+            "path": "__kplex278_1793793698189/Unrelated-5.md",
+            "physical": true,
+            "maintenance": 27
+          },
+          {
+            "event": "create",
+            "path": "__kplex278_1793793698189/Unrelated-6.md",
+            "physical": true,
+            "maintenance": 30
+          },
+          {
+            "event": "resolved",
+            "physical": true,
+            "maintenance": 32
+          },
+          {
+            "event": "create",
+            "path": "__kplex278_1793793698189/Unrelated-7.md",
+            "physical": true,
+            "maintenance": 33
+          },
+          {
+            "event": "resolved",
+            "physical": true,
+            "maintenance": 35
+          },
+          {
+            "event": "create",
+            "path": "__kplex278_1793793698189/Unrelated-8.md",
+            "physical": true,
+            "maintenance": 36
+          },
+          {
+            "event": "resolved",
+            "physical": true,
+            "maintenance": 38
+          },
+          {
+            "event": "create",
+            "path": "__kplex278_1793793698189/Unrelated-9.md",
+            "physical": true,
+            "maintenance": 39
+          },
+          {
+            "event": "resolved",
+            "physical": true,
+            "maintenance": 41
+          },
+          {
+            "event": "create",
+            "path": "__kplex278_1793793698189/Unrelated-10.md",
+            "physical": true,
+            "maintenance": 42
+          },
+          {
+            "event": "resolved",
+            "physical": true,
+            "maintenance": 44
+          },
+          {
+            "event": "create",
+            "path": "__kplex278_1793793698189/Unrelated-11.md",
+            "physical": true,
+            "maintenance": 45
+          },
+          {
+            "event": "resolved",
+            "physical": true,
+            "maintenance": 47
+          },
+          {
+            "event": "create",
+            "path": "__kplex278_1793793698189/Unrelated-12.md",
+            "physical": true,
+            "maintenance": 48
+          },
+          {
+            "event": "resolved",
+            "physical": true,
+            "maintenance": 50
+          },
+          {
+            "event": "create",
+            "path": "__kplex278_1793793698189/Unrelated-13.md",
+            "physical": true,
+            "maintenance": 51
+          },
+          {
+            "event": "resolved",
+            "physical": true,
+            "maintenance": 53
+          },
+          {
+            "event": "create",
+            "path": "__kplex278_1793793698189/Unrelated-14.md",
+            "physical": true,
+            "maintenance": 54
+          },
+          {
+            "event": "resolved",
+            "physical": true,
+            "maintenance": 56
+          },
+          {
+            "event": "create",
+            "path": "__kplex278_1793793698189/Unrelated-15.md",
+            "physical": true,
+            "maintenance": 57
+          },
+          {
+            "event": "create",
+            "path": "__kplex278_1793793698189/Unrelated-16.md",
+            "physical": true,
+            "maintenance": 60
+          },
+          {
+            "event": "resolved",
+            "physical": true,
+            "maintenance": 60
+          },
+          {
+            "event": "resolved",
+            "physical": true,
+            "maintenance": 62
+          },
+          {
+            "event": "create",
+            "path": "__kplex278_1793793698189/Unrelated-17.md",
+            "physical": true,
+            "maintenance": 63
+          },
+          {
+            "event": "resolved",
+            "physical": true,
+            "maintenance": 65
+          },
+          {
+            "event": "create",
+            "path": "__kplex278_1793793698189/Unrelated-18.md",
+            "physical": true,
+            "maintenance": 66
+          },
+          {
+            "event": "resolved",
+            "physical": true,
+            "maintenance": 68
+          },
+          {
+            "event": "create",
+            "path": "__kplex278_1793793698189/Unrelated-19.md",
+            "physical": true,
+            "maintenance": 69
+          },
+          {
+            "event": "resolved",
+            "physical": true,
+            "maintenance": 71
+          },
+          {
+            "event": "create",
+            "path": "__kplex278_1793793698189/Unrelated-20.md",
+            "physical": true,
+            "maintenance": 72
+          },
+          {
+            "event": "resolved",
+            "physical": true,
+            "maintenance": 74
+          },
+          {
+            "event": "create",
+            "path": "__kplex278_1793793698189/Unrelated-21.md",
+            "physical": true,
+            "maintenance": 75
+          },
+          {
+            "event": "resolved",
+            "physical": true,
+            "maintenance": 77
+          },
+          {
+            "event": "create",
+            "path": "__kplex278_1793793698189/Unrelated-22.md",
+            "physical": true,
+            "maintenance": 78
+          },
+          {
+            "event": "resolved",
+            "physical": true,
+            "maintenance": 80
+          },
+          {
+            "event": "create",
+            "path": "__kplex278_1793793698189/Unrelated-23.md",
+            "physical": true,
+            "maintenance": 81
+          },
+          {
+            "event": "resolved",
+            "physical": true,
+            "maintenance": 83
+          },
+          {
+            "event": "create",
+            "path": "__kplex278_1793793698189/Unrelated-24.md",
+            "physical": true,
+            "maintenance": 84
+          },
+          {
+            "event": "resolved",
+            "physical": true,
+            "maintenance": 86
+          },
+          {
+            "event": "create",
+            "path": "__kplex278_1793793698189/Unrelated-25.md",
+            "physical": true,
+            "maintenance": 87
+          },
+          {
+            "event": "create",
+            "path": "__kplex278_1793793698189/Unrelated-26.md",
+            "physical": true,
+            "maintenance": 90
+          },
+          {
+            "event": "resolved",
+            "physical": true,
+            "maintenance": 90
+          },
+          {
+            "event": "resolved",
+            "physical": true,
+            "maintenance": 92
+          },
+          {
+            "event": "create",
+            "path": "__kplex278_1793793698189/Unrelated-27.md",
+            "physical": true,
+            "maintenance": 93
+          },
+          {
+            "event": "resolved",
+            "physical": true,
+            "maintenance": 95
+          },
+          {
+            "event": "create",
+            "path": "__kplex278_1793793698189/Unrelated-28.md",
+            "physical": true,
+            "maintenance": 96
+          },
+          {
+            "event": "resolved",
+            "physical": true,
+            "maintenance": 98
+          },
+          {
+            "event": "create",
+            "path": "__kplex278_1793793698189/Unrelated-29.md",
+            "physical": true,
+            "maintenance": 99
+          },
+          {
+            "event": "resolved",
+            "physical": true,
+            "maintenance": 101
+          },
+          {
+            "event": "create",
+            "path": "__kplex278_1793793698189/Unrelated-30.md",
+            "physical": true,
+            "maintenance": 102
+          },
+          {
+            "event": "resolved",
+            "physical": true,
+            "maintenance": 104
+          },
+          {
+            "event": "create",
+            "path": "__kplex278_1793793698189/Unrelated-31.md",
+            "physical": true,
+            "maintenance": 105
+          },
+          {
+            "event": "resolved",
+            "physical": true,
+            "maintenance": 107
+          },
+          {
+            "event": "create",
+            "path": "__kplex278_1793793698189/Unrelated-32.md",
+            "physical": true,
+            "maintenance": 108
+          },
+          {
+            "event": "resolved",
+            "physical": true,
+            "maintenance": 110
+          },
+          {
+            "event": "create",
+            "path": "__kplex278_1793793698189/Unrelated-33.md",
+            "physical": true,
+            "maintenance": 111
+          },
+          {
+            "event": "resolved",
+            "physical": true,
+            "maintenance": 113
+          },
+          {
+            "event": "create",
+            "path": "__kplex278_1793793698189/Unrelated-34.md",
+            "physical": true,
+            "maintenance": 114
+          },
+          {
+            "event": "resolved",
+            "physical": true,
+            "maintenance": 116
+          },
+          {
+            "event": "create",
+            "path": "__kplex278_1793793698189/Unrelated-35.md",
+            "physical": true,
+            "maintenance": 117
+          },
+          {
+            "event": "resolved",
+            "physical": true,
+            "maintenance": 119
+          },
+          {
+            "event": "create",
+            "path": "__kplex278_1793793698189/Unrelated-36.md",
+            "physical": true,
+            "maintenance": 120
+          },
+          {
+            "event": "resolved",
+            "physical": true,
+            "maintenance": 122
+          },
+          {
+            "event": "create",
+            "path": "__kplex278_1793793698189/Unrelated-37.md",
+            "physical": true,
+            "maintenance": 123
+          },
+          {
+            "event": "resolved",
+            "physical": true,
+            "maintenance": 125
+          },
+          {
+            "event": "create",
+            "path": "__kplex278_1793793698189/Unrelated-38.md",
+            "physical": true,
+            "maintenance": 126
+          },
+          {
+            "event": "resolved",
+            "physical": true,
+            "maintenance": 128
+          },
+          {
+            "event": "create",
+            "path": "__kplex278_1793793698189/Unrelated-39.md",
+            "physical": true,
+            "maintenance": 129
+          },
+          {
+            "event": "resolved",
+            "physical": true,
+            "maintenance": 131
+          },
+          {
+            "event": "create",
+            "path": "__kplex278_1793793698189/Unrelated-40.md",
+            "physical": true,
+            "maintenance": 132
+          },
+          {
+            "event": "resolved",
+            "physical": true,
+            "maintenance": 134
+          },
+          {
+            "event": "create",
+            "path": "__kplex278_1793793698189/Unrelated-41.md",
+            "physical": true,
+            "maintenance": 135
+          },
+          {
+            "event": "resolved",
+            "physical": true,
+            "maintenance": 137
+          },
+          {
+            "event": "create",
+            "path": "__kplex278_1793793698189/Unrelated-42.md",
+            "physical": true,
+            "maintenance": 138
+          },
+          {
+            "event": "resolved",
+            "physical": true,
+            "maintenance": 140
+          },
+          {
+            "event": "create",
+            "path": "__kplex278_1793793698189/Unrelated-43.md",
+            "physical": true,
+            "maintenance": 141
+          },
+          {
+            "event": "resolved",
+            "physical": true,
+            "maintenance": 143
+          },
+          {
+            "event": "create",
+            "path": "__kplex278_1793793698189/Unrelated-44.md",
+            "physical": true,
+            "maintenance": 144
+          },
+          {
+            "event": "resolved",
+            "physical": true,
+            "maintenance": 146
+          },
+          {
+            "event": "create",
+            "path": "__kplex278_1793793698189/Unrelated-45.md",
+            "physical": true,
+            "maintenance": 147
+          },
+          {
+            "event": "resolved",
+            "physical": true,
+            "maintenance": 149
+          },
+          {
+            "event": "create",
+            "path": "__kplex278_1793793698189/Unrelated-46.md",
+            "physical": true,
+            "maintenance": 150
+          },
+          {
+            "event": "resolved",
+            "physical": true,
+            "maintenance": 152
+          },
+          {
+            "event": "create",
+            "path": "__kplex278_1793793698189/Unrelated-47.md",
+            "physical": true,
+            "maintenance": 153
+          },
+          {
+            "event": "resolved",
+            "physical": true,
+            "maintenance": 155
+          },
+          {
+            "event": "create",
+            "path": "__kplex278_1793793698189/Unrelated-48.md",
+            "physical": true,
+            "maintenance": 156
+          },
+          {
+            "event": "resolved",
+            "physical": true,
+            "maintenance": 158
+          },
+          {
+            "event": "create",
+            "path": "__kplex278_1793793698189/Unrelated-49.md",
+            "physical": true,
+            "maintenance": 159
+          },
+          {
+            "event": "resolved",
+            "physical": true,
+            "maintenance": 161
+          },
+          {
+            "event": "create",
+            "path": "__kplex278_1793793698189/Unrelated-50.md",
+            "physical": true,
+            "maintenance": 162
+          },
+          {
+            "event": "resolved",
+            "physical": true,
+            "maintenance": 164
+          },
+          {
+            "event": "create",
+            "path": "__kplex278_1793793698189/Unrelated-51.md",
+            "physical": true,
+            "maintenance": 165
+          },
+          {
+            "event": "resolved",
+            "physical": true,
+            "maintenance": 167
+          },
+          {
+            "event": "create",
+            "path": "__kplex278_1793793698189/Unrelated-52.md",
+            "physical": true,
+            "maintenance": 168
+          },
+          {
+            "event": "resolved",
+            "physical": true,
+            "maintenance": 170
+          },
+          {
+            "event": "create",
+            "path": "__kplex278_1793793698189/Unrelated-53.md",
+            "physical": true,
+            "maintenance": 171
+          },
+          {
+            "event": "resolved",
+            "physical": true,
+            "maintenance": 173
+          },
+          {
+            "event": "create",
+            "path": "__kplex278_1793793698189/Unrelated-54.md",
+            "physical": true,
+            "maintenance": 174
+          },
+          {
+            "event": "resolved",
+            "physical": true,
+            "maintenance": 176
+          },
+          {
+            "event": "create",
+            "path": "__kplex278_1793793698189/Unrelated-55.md",
+            "physical": true,
+            "maintenance": 177
+          },
+          {
+            "event": "resolved",
+            "physical": true,
+            "maintenance": 179
+          },
+          {
+            "event": "create",
+            "path": "__kplex278_1793793698189/Unrelated-56.md",
+            "physical": true,
+            "maintenance": 180
+          },
+          {
+            "event": "resolved",
+            "physical": true,
+            "maintenance": 182
+          },
+          {
+            "event": "create",
+            "path": "__kplex278_1793793698189/Unrelated-57.md",
+            "physical": true,
+            "maintenance": 183
+          },
+          {
+            "event": "resolved",
+            "physical": true,
+            "maintenance": 185
+          },
+          {
+            "event": "create",
+            "path": "__kplex278_1793793698189/Unrelated-58.md",
+            "physical": true,
+            "maintenance": 186
+          },
+          {
+            "event": "resolved",
+            "physical": true,
+            "maintenance": 188
+          },
+          {
+            "event": "create",
+            "path": "__kplex278_1793793698189/Unrelated-59.md",
+            "physical": true,
+            "maintenance": 189
+          },
+          {
+            "event": "resolved",
+            "physical": true,
+            "maintenance": 191
+          },
+          {
+            "event": "create",
+            "path": "__kplex278_1793793698189/Unrelated-60.md",
+            "physical": true,
+            "maintenance": 192
+          },
+          {
+            "event": "resolved",
+            "physical": true,
+            "maintenance": 194
+          },
+          {
+            "event": "create",
+            "path": "__kplex278_1793793698189/Unrelated-61.md",
+            "physical": true,
+            "maintenance": 195
+          },
+          {
+            "event": "resolved",
+            "physical": true,
+            "maintenance": 197
+          },
+          {
+            "event": "create",
+            "path": "__kplex278_1793793698189/Unrelated-62.md",
+            "physical": true,
+            "maintenance": 198
+          },
+          {
+            "event": "resolved",
+            "physical": true,
+            "maintenance": 200
+          },
+          {
+            "event": "create",
+            "path": "__kplex278_1793793698189/Unrelated-63.md",
+            "physical": true,
+            "maintenance": 201
+          },
+          {
+            "event": "resolved",
+            "physical": true,
+            "maintenance": 203
+          },
+          {
+            "event": "create",
+            "path": "__kplex278_1793793698189/Unrelated-64.md",
+            "physical": true,
+            "maintenance": 204
+          },
+          {
+            "event": "resolved",
+            "physical": true,
+            "maintenance": 206
+          },
+          {
+            "event": "create",
+            "path": "__kplex278_1793793698189/Unrelated-65.md",
+            "physical": true,
+            "maintenance": 207
+          },
+          {
+            "event": "create",
+            "path": "__kplex278_1793793698189/Unrelated-66.md",
+            "physical": true,
+            "maintenance": 210
+          },
+          {
+            "event": "resolved",
+            "physical": true,
+            "maintenance": 212
+          },
+          {
+            "event": "create",
+            "path": "__kplex278_1793793698189/Unrelated-67.md",
+            "physical": true,
+            "maintenance": 213
+          },
+          {
+            "event": "resolved",
+            "physical": true,
+            "maintenance": 215
+          },
+          {
+            "event": "create",
+            "path": "__kplex278_1793793698189/Unrelated-68.md",
+            "physical": true,
+            "maintenance": 216
+          },
+          {
+            "event": "resolved",
+            "physical": true,
+            "maintenance": 218
+          },
+          {
+            "event": "create",
+            "path": "__kplex278_1793793698189/Unrelated-69.md",
+            "physical": true,
+            "maintenance": 219
+          },
+          {
+            "event": "resolved",
+            "physical": true,
+            "maintenance": 221
+          },
+          {
+            "event": "create",
+            "path": "__kplex278_1793793698189/Unrelated-70.md",
+            "physical": true,
+            "maintenance": 222
+          },
+          {
+            "event": "resolved",
+            "physical": true,
+            "maintenance": 224
+          },
+          {
+            "event": "create",
+            "path": "__kplex278_1793793698189/Unrelated-71.md",
+            "physical": true,
+            "maintenance": 225
+          },
+          {
+            "event": "resolved",
+            "physical": true,
+            "maintenance": 227
+          },
+          {
+            "event": "create",
+            "path": "__kplex278_1793793698189/Unrelated-72.md",
+            "physical": true,
+            "maintenance": 228
+          },
+          {
+            "event": "resolved",
+            "physical": true,
+            "maintenance": 230
+          },
+          {
+            "event": "create",
+            "path": "__kplex278_1793793698189/Unrelated-73.md",
+            "physical": true,
+            "maintenance": 231
+          },
+          {
+            "event": "resolved",
+            "physical": true,
+            "maintenance": 233
+          },
+          {
+            "event": "create",
+            "path": "__kplex278_1793793698189/Unrelated-74.md",
+            "physical": true,
+            "maintenance": 234
+          },
+          {
+            "event": "resolved",
+            "physical": true,
+            "maintenance": 236
+          },
+          {
+            "event": "create",
+            "path": "__kplex278_1793793698189/Unrelated-75.md",
+            "physical": true,
+            "maintenance": 237
+          },
+          {
+            "event": "create",
+            "path": "__kplex278_1793793698189/Unrelated-76.md",
+            "physical": true,
+            "maintenance": 240
+          },
+          {
+            "event": "resolved",
+            "physical": true,
+            "maintenance": 240
+          },
+          {
+            "event": "resolved",
+            "physical": true,
+            "maintenance": 242
+          },
+          {
+            "event": "create",
+            "path": "__kplex278_1793793698189/Unrelated-77.md",
+            "physical": true,
+            "maintenance": 243
+          },
+          {
+            "event": "resolved",
+            "physical": true,
+            "maintenance": 245
+          },
+          {
+            "event": "create",
+            "path": "__kplex278_1793793698189/Unrelated-78.md",
+            "physical": true,
+            "maintenance": 246
+          },
+          {
+            "event": "resolved",
+            "physical": true,
+            "maintenance": 248
+          },
+          {
+            "event": "create",
+            "path": "__kplex278_1793793698189/Unrelated-79.md",
+            "physical": true,
+            "maintenance": 249
+          },
+          {
+            "event": "resolved",
+            "physical": true,
+            "maintenance": 251
+          },
+          {
+            "event": "create",
+            "path": "__kplex278_1793793698189/Unrelated-80.md",
+            "physical": true,
+            "maintenance": 252
+          },
+          {
+            "event": "resolved",
+            "physical": true,
+            "maintenance": 254
+          },
+          {
+            "event": "create",
+            "path": "__kplex278_1793793698189/Unrelated-81.md",
+            "physical": true,
+            "maintenance": 255
+          },
+          {
+            "event": "resolved",
+            "physical": true,
+            "maintenance": 257
+          },
+          {
+            "event": "create",
+            "path": "__kplex278_1793793698189/Unrelated-82.md",
+            "physical": true,
+            "maintenance": 258
+          },
+          {
+            "event": "resolved",
+            "physical": true,
+            "maintenance": 260
+          },
+          {
+            "event": "create",
+            "path": "__kplex278_1793793698189/Unrelated-83.md",
+            "physical": true,
+            "maintenance": 261
+          },
+          {
+            "event": "resolved",
+            "physical": true,
+            "maintenance": 263
+          },
+          {
+            "event": "create",
+            "path": "__kplex278_1793793698189/Unrelated-84.md",
+            "physical": true,
+            "maintenance": 264
+          },
+          {
+            "event": "resolved",
+            "physical": true,
+            "maintenance": 266
+          },
+          {
+            "event": "create",
+            "path": "__kplex278_1793793698189/Unrelated-85.md",
+            "physical": true,
+            "maintenance": 267
+          },
+          {
+            "event": "resolved",
+            "physical": true,
+            "maintenance": 269
+          },
+          {
+            "event": "create",
+            "path": "__kplex278_1793793698189/Unrelated-86.md",
+            "physical": true,
+            "maintenance": 270
+          },
+          {
+            "event": "resolved",
+            "physical": true,
+            "maintenance": 272
+          },
+          {
+            "event": "create",
+            "path": "__kplex278_1793793698189/Unrelated-87.md",
+            "physical": true,
+            "maintenance": 273
+          },
+          {
+            "event": "resolved",
+            "physical": true,
+            "maintenance": 275
+          },
+          {
+            "event": "create",
+            "path": "__kplex278_1793793698189/Unrelated-88.md",
+            "physical": true,
+            "maintenance": 276
+          },
+          {
+            "event": "resolved",
+            "physical": true,
+            "maintenance": 278
+          },
+          {
+            "event": "create",
+            "path": "__kplex278_1793793698189/Unrelated-89.md",
+            "physical": true,
+            "maintenance": 279
+          },
+          {
+            "event": "resolved",
+            "physical": true,
+            "maintenance": 281
+          },
+          {
+            "event": "create",
+            "path": "__kplex278_1793793698189/Unrelated-90.md",
+            "physical": true,
+            "maintenance": 282
+          },
+          {
+            "event": "resolved",
+            "physical": true,
+            "maintenance": 284
+          },
+          {
+            "event": "create",
+            "path": "__kplex278_1793793698189/Unrelated-91.md",
+            "physical": true,
+            "maintenance": 285
+          },
+          {
+            "event": "resolved",
+            "physical": true,
+            "maintenance": 287
+          },
+          {
+            "event": "create",
+            "path": "__kplex278_1793793698189/Unrelated-92.md",
+            "physical": true,
+            "maintenance": 288
+          },
+          {
+            "event": "resolved",
+            "physical": true,
+            "maintenance": 290
+          },
+          {
+            "event": "create",
+            "path": "__kplex278_1793793698189/Unrelated-93.md",
+            "physical": true,
+            "maintenance": 291
+          },
+          {
+            "event": "resolved",
+            "physical": true,
+            "maintenance": 293
+          },
+          {
+            "event": "create",
+            "path": "__kplex278_1793793698189/Unrelated-94.md",
+            "physical": true,
+            "maintenance": 294
+          },
+          {
+            "event": "resolved",
+            "physical": true,
+            "maintenance": 296
+          },
+          {
+            "event": "create",
+            "path": "__kplex278_1793793698189/Unrelated-95.md",
+            "physical": true,
+            "maintenance": 297
+          },
+          {
+            "event": "resolved",
+            "physical": true,
+            "maintenance": 299
+          },
+          {
+            "event": "create",
+            "path": "__kplex278_1793793698189/Unrelated-96.md",
+            "physical": true,
+            "maintenance": 300
+          },
+          {
+            "event": "resolved",
+            "physical": true,
+            "maintenance": 302
+          },
+          {
+            "event": "create",
+            "path": "__kplex278_1793793698189/Unrelated-97.md",
+            "physical": true,
+            "maintenance": 303
+          },
+          {
+            "event": "resolved",
+            "physical": true,
+            "maintenance": 305
+          },
+          {
+            "event": "create",
+            "path": "__kplex278_1793793698189/Unrelated-98.md",
+            "physical": true,
+            "maintenance": 306
+          },
+          {
+            "event": "resolved",
+            "physical": true,
+            "maintenance": 308
+          },
+          {
+            "event": "create",
+            "path": "__kplex278_1793793698189/Unrelated-99.md",
+            "physical": true,
+            "maintenance": 309
+          },
+          {
+            "event": "resolved",
+            "physical": true,
+            "maintenance": 311
+          },
+          {
+            "event": "create",
+            "path": "__kplex278_1793793698189/Unrelated-100.md",
+            "physical": true,
+            "maintenance": 312
+          },
+          {
+            "event": "resolved",
+            "physical": true,
+            "maintenance": 314
+          },
+          {
+            "event": "create",
+            "path": "__kplex278_1793793698189/Unrelated-101.md",
+            "physical": true,
+            "maintenance": 315
+          },
+          {
+            "event": "resolved",
+            "physical": true,
+            "maintenance": 317
+          },
+          {
+            "event": "create",
+            "path": "__kplex278_1793793698189/Unrelated-102.md",
+            "physical": true,
+            "maintenance": 318
+          },
+          {
+            "event": "resolved",
+            "physical": true,
+            "maintenance": 320
+          },
+          {
+            "event": "create",
+            "path": "__kplex278_1793793698189/Untitled",
+            "physical": true,
+            "maintenance": 321
+          },
+          {
+            "event": "rename",
+            "path": "__kplex278_1793793698189/Named-103",
+            "old": "__kplex278_1793793698189/Untitled",
+            "physical": false,
+            "maintenance": 322
+          },
+          {
+            "event": "create",
+            "path": "__kplex278_1793793698189/Named-103/Untitled",
+            "physical": true,
+            "maintenance": 323
+          },
+          {
+            "event": "rename",
+            "path": "__kplex278_1793793698189/Named-103/Nested",
+            "old": "__kplex278_1793793698189/Named-103/Untitled",
+            "physical": false,
+            "maintenance": 324
+          },
+          {
+            "event": "create",
+            "path": "__kplex278_1793793698189/Named-103/Nested/Target.md",
+            "physical": true,
+            "maintenance": 325
+          },
+          {
+            "event": "resolved",
+            "physical": true,
+            "maintenance": 327
+          },
+          {
+            "event": "resolved",
+            "physical": false,
+            "maintenance": 330
+          },
+          {
+            "event": "resolved",
+            "physical": false,
+            "maintenance": 333
+          }
+        ]
+      }
+    },
+    {
+      "lane": "structural",
+      "status": "passed",
+      "receipt": "kplex-278-native-GW82eI",
+      "receiptSha256": "80e5bf78ac58a2d2119caaa1e3a0db53d862b9da06b53130b0644963e1c1f4e7",
+      "completedAt": "2026-11-04T12:03:14.751Z",
+      "artifacts": {
+        "main.js": "35340f9f2182fd94c63f227363566a05f9f0848ed40cb8f690eea264b7be8228",
+        "manifest.json": "8c65b0d38a506f8fa9fc3311b81ea22bcda48e0209e9190483752c1f20834326",
+        "styles.css": "606cb66b23c32957a3589d093887ff5a1bfdf08cec14db9bc643ad5fee69feef"
+      },
+      "source": {
+        "src/index/GraphBuilder.ts": "c0cc0d30260e146978e942e9cd8953ca78ca92bbda772d64334eba026247606f",
+        "src/index/GraphIndex.ts": "b2413a473174079b65d0c9298009f998cecde22354ab19ccb4f49eebf609f288",
+        "src/core/graph/compiler.ts": "6156fb1eb6e51e057a48a2b97dba0bddeaf9dd065277355ddc1a0af1b6075ec5",
+        "src/adapters/obsidian/KplexModal.ts": "e8b57d53260874b130d11d962e9c0b4793c655c82d9910b279311ee7d0788722",
+        "src/ui/components/FormField.tsx": "7beedf2eef5db36da87a7e07fc95e1278da3473307d06fa3650e8fa191841acd",
+        "src/ui/components/FormSelect.tsx": "fd32774a82a1f6f22ebf5d39daf50d3a5c48f4d371b516ceaccdbcb1022b655d",
+        "src/ui/features/RelationshipFieldControl.tsx": "8cc5c7ea79e20ef4697e1c5cc2d47a88d2d2aee7d9e828dc3bd4152a01b0b7f6",
+        "src/ui/ImportRelationshipControl.tsx": "88dc41c3c9b91e81847cbb52ec35f928beffb3280e5814d035071dee0a4c2043",
+        "src/adapters/obsidian/dailyNotes.ts": "cd384ed025dfd8eb4a0f1169712801019bf19e4b4d4339b25aed5e49a996571a",
+        "src/main.ts": "a30dcb49b252f20a8900a2f52dec0f75eba7c099034ea3a35256b74ad30d3caa",
+        "src/adapters/obsidian/sourceAcquisition.ts": "e9be5808779fa20db00e2a3456ee08fc99bccfa6a7f298d3c76e9fc0a4ff42e5",
+        "src/adapters/obsidian/externalFileImport.ts": "79bed48654c528f1d0ac9f275ccf845e70bef90f0dac7bd383cd52ed3ce67539",
+        "src/adapters/obsidian/relationshipOwner.ts": "81448effcf8a92a59a6f998b73dd163f3b00140ed42314e19a6a6ca407d34dc8",
+        "src/ui/App.tsx": "f38f4193158704477336d954286b4465a3a2525856e63086fbb77a8664784831",
+        "src/ui/PlexGraph.tsx": "8652797f254610e508f32ed7aacf2fed0e5c2d65c876eb6139a0663a216bf1d7",
+        "src/ui/NewRelatedNoteModal.ts": "6cd591847ad3fb7dfc38997a88a966d8cc761e615f5f18802af72402880ec126",
+        "src/ui/SelectedOntologyEditor.ts": "f54d7de6285443237aef1612535abd40a3c005dd7f1c9460db9381f880ef2b35",
+        "src/ui/CreateFolderNoteModal.ts": "f4cca6057a3a8d673631035ecf1a3ba4f54ab82be11ca9718710e8ee205f3090",
+        "src/ui/CreatePeriodicNoteModal.ts": "5988dafe1989ee24fcaec7fff138b5864a4f01bdbb1adc19642d8be6e2a9e879",
+        "src/ui/MoveNodeModal.ts": "fc973fa7dda5fbf3f0830bef319d81e76e15d8d707f4c0f43fe7d2cf8094198b",
+        "src/ui/components/Tabs.tsx": "0efe6859ae0e2ed5ad4a28c21ed73233c5ec7b31ad58b1f2a18996ba6f060952",
+        "src/adapters/obsidian/fileExplorerDrag.ts": "cad3f7dc66596ef144634d2d0c7300c6e95fa7a2253b7c1882ab8499628fa529",
+        "src/adapters/obsidian/fileMenu.ts": "64187e15fcba97b1591cffeb684f76457ef4c3118ef4fc64315b6629720aee12",
+        "src/ui/RelationModal.ts": "30eb3ac7c3b4bfe05962c02357b0107381f607183a72c0f4be6df030a9a57079",
+        "src/ui/RelationshipExplanationModal.ts": "003813ab3fc65f814e36ff89a8650a9caacb8c16ee1265c559bb72b38df408e7",
+        "src/ui/ReverseRelationshipModal.ts": "9dfd3621422fc88974e26554b543de455a8a9e9baf65cbb580387ca2b851712b",
+        "src/ui/ExternalFileImportBatchModal.ts": "0f5a33fd63670a6a73491c1b2525578051292d597b0456dccc6cfc54dc58c5eb",
+        "src/ui/features/RelationshipDirectionControl.tsx": "236a5515bb90d159a37be5b5daf5d1408274699a4fca10a0d7ba2f427a2d23eb",
+        "src/ui/components/ReorderableList.tsx": "7a3f2a296e06cc6c24edb5404eb5a6cf89ed9669c061ae1398f63994e57b83ba",
+        "src/core/plex/views/classic/configuration.ts": "2f84c30c6465d8a68753a0d9c37140faef5fe46d971ca705cec724d0159e939c",
+        "src/core/plex/views/classic/definition.ts": "6b5f0a53b2edcbccd07750b83b3c186ba4358c9695fff7dd2473f80002067cd3",
+        "src/core/plex/views/classic/geometry.ts": "f6bd0513012c1fcf30915cc1a24300c3e1d3ba2f6a1d603d6f04708f530f833e",
+        "src/ui/plexViews/classic/layout.ts": "04523e2eda25308658919311b4235a918656751f91079066b429a95115467ea2",
+        "src/ui/plexViews/classic/ClassicAreaLabels.tsx": "6c8c62540d13cc842af9a637bd8705792018f06c371f41743ce22c084230b4db"
+      },
+      "cleanup": "passed",
+      "stagingCleanup": {
+        "disable": "passed",
+        "data": "passed",
+        "enable": "passed",
+        "layout": "passed",
+        "data-bytes": "passed",
+        "enablement-bytes": "passed"
+      },
+      "assertions": {
+        "results": [
+          "trusted folder gate/direct note/cancel",
+          "note creation without an extra chooser",
+          "native subfolder/remembered tab",
+          "node Move uses FileManager and updates incoming links",
+          "creation tab persisted across native reload"
+        ],
+        "renames": 1,
+        "physicalComplete": true
+      }
+    },
+    {
+      "lane": "periodic",
+      "status": "passed",
+      "receipt": "kplex-278-native-hk8gLU",
+      "receiptSha256": "af7cba4b9cc9a671d503265b00b89d913e2ea742bc52f6bc16e07f9d5dbc0de6",
+      "completedAt": "2026-11-04T12:04:10.407Z",
+      "artifacts": {
+        "main.js": "35340f9f2182fd94c63f227363566a05f9f0848ed40cb8f690eea264b7be8228",
+        "manifest.json": "8c65b0d38a506f8fa9fc3311b81ea22bcda48e0209e9190483752c1f20834326",
+        "styles.css": "606cb66b23c32957a3589d093887ff5a1bfdf08cec14db9bc643ad5fee69feef"
+      },
+      "source": {
+        "src/index/GraphBuilder.ts": "c0cc0d30260e146978e942e9cd8953ca78ca92bbda772d64334eba026247606f",
+        "src/index/GraphIndex.ts": "b2413a473174079b65d0c9298009f998cecde22354ab19ccb4f49eebf609f288",
+        "src/core/graph/compiler.ts": "6156fb1eb6e51e057a48a2b97dba0bddeaf9dd065277355ddc1a0af1b6075ec5",
+        "src/adapters/obsidian/KplexModal.ts": "e8b57d53260874b130d11d962e9c0b4793c655c82d9910b279311ee7d0788722",
+        "src/ui/components/FormField.tsx": "7beedf2eef5db36da87a7e07fc95e1278da3473307d06fa3650e8fa191841acd",
+        "src/ui/components/FormSelect.tsx": "fd32774a82a1f6f22ebf5d39daf50d3a5c48f4d371b516ceaccdbcb1022b655d",
+        "src/ui/features/RelationshipFieldControl.tsx": "8cc5c7ea79e20ef4697e1c5cc2d47a88d2d2aee7d9e828dc3bd4152a01b0b7f6",
+        "src/ui/ImportRelationshipControl.tsx": "88dc41c3c9b91e81847cbb52ec35f928beffb3280e5814d035071dee0a4c2043",
+        "src/adapters/obsidian/dailyNotes.ts": "cd384ed025dfd8eb4a0f1169712801019bf19e4b4d4339b25aed5e49a996571a",
+        "src/main.ts": "a30dcb49b252f20a8900a2f52dec0f75eba7c099034ea3a35256b74ad30d3caa",
+        "src/adapters/obsidian/sourceAcquisition.ts": "e9be5808779fa20db00e2a3456ee08fc99bccfa6a7f298d3c76e9fc0a4ff42e5",
+        "src/adapters/obsidian/externalFileImport.ts": "79bed48654c528f1d0ac9f275ccf845e70bef90f0dac7bd383cd52ed3ce67539",
+        "src/adapters/obsidian/relationshipOwner.ts": "81448effcf8a92a59a6f998b73dd163f3b00140ed42314e19a6a6ca407d34dc8",
+        "src/ui/App.tsx": "f38f4193158704477336d954286b4465a3a2525856e63086fbb77a8664784831",
+        "src/ui/PlexGraph.tsx": "8652797f254610e508f32ed7aacf2fed0e5c2d65c876eb6139a0663a216bf1d7",
+        "src/ui/NewRelatedNoteModal.ts": "6cd591847ad3fb7dfc38997a88a966d8cc761e615f5f18802af72402880ec126",
+        "src/ui/SelectedOntologyEditor.ts": "f54d7de6285443237aef1612535abd40a3c005dd7f1c9460db9381f880ef2b35",
+        "src/ui/CreateFolderNoteModal.ts": "f4cca6057a3a8d673631035ecf1a3ba4f54ab82be11ca9718710e8ee205f3090",
+        "src/ui/CreatePeriodicNoteModal.ts": "5988dafe1989ee24fcaec7fff138b5864a4f01bdbb1adc19642d8be6e2a9e879",
+        "src/ui/MoveNodeModal.ts": "fc973fa7dda5fbf3f0830bef319d81e76e15d8d707f4c0f43fe7d2cf8094198b",
+        "src/ui/components/Tabs.tsx": "0efe6859ae0e2ed5ad4a28c21ed73233c5ec7b31ad58b1f2a18996ba6f060952",
+        "src/adapters/obsidian/fileExplorerDrag.ts": "cad3f7dc66596ef144634d2d0c7300c6e95fa7a2253b7c1882ab8499628fa529",
+        "src/adapters/obsidian/fileMenu.ts": "64187e15fcba97b1591cffeb684f76457ef4c3118ef4fc64315b6629720aee12",
+        "src/ui/RelationModal.ts": "30eb3ac7c3b4bfe05962c02357b0107381f607183a72c0f4be6df030a9a57079",
+        "src/ui/RelationshipExplanationModal.ts": "003813ab3fc65f814e36ff89a8650a9caacb8c16ee1265c559bb72b38df408e7",
+        "src/ui/ReverseRelationshipModal.ts": "9dfd3621422fc88974e26554b543de455a8a9e9baf65cbb580387ca2b851712b",
+        "src/ui/ExternalFileImportBatchModal.ts": "0f5a33fd63670a6a73491c1b2525578051292d597b0456dccc6cfc54dc58c5eb",
+        "src/ui/features/RelationshipDirectionControl.tsx": "236a5515bb90d159a37be5b5daf5d1408274699a4fca10a0d7ba2f427a2d23eb",
+        "src/ui/components/ReorderableList.tsx": "7a3f2a296e06cc6c24edb5404eb5a6cf89ed9669c061ae1398f63994e57b83ba",
+        "src/core/plex/views/classic/configuration.ts": "2f84c30c6465d8a68753a0d9c37140faef5fe46d971ca705cec724d0159e939c",
+        "src/core/plex/views/classic/definition.ts": "6b5f0a53b2edcbccd07750b83b3c186ba4358c9695fff7dd2473f80002067cd3",
+        "src/core/plex/views/classic/geometry.ts": "f6bd0513012c1fcf30915cc1a24300c3e1d3ba2f6a1d603d6f04708f530f833e",
+        "src/ui/plexViews/classic/layout.ts": "04523e2eda25308658919311b4235a918656751f91079066b429a95115467ea2",
+        "src/ui/plexViews/classic/ClassicAreaLabels.tsx": "6c8c62540d13cc842af9a637bd8705792018f06c371f41743ce22c084230b4db"
+      },
+      "cleanup": "passed",
+      "stagingCleanup": {
+        "disable": "passed",
+        "data": "passed",
+        "enable": "passed",
+        "layout": "passed",
+        "data-bytes": "passed",
+        "enablement-bytes": "passed"
+      },
+      "assertions": {
+        "results": [
+          {
+            "period": "day",
+            "destination": "return",
+            "path": "__kplex278_1793793834741/Periodic 0/2026-11-04.md",
+            "confirmed": true,
+            "cancelCreatesNothing": true
+          },
+          {
+            "period": "week",
+            "destination": "sidecar",
+            "path": "__kplex278_1793793834741/Periodic 1/2026-W45.md",
+            "confirmed": true,
+            "cancelCreatesNothing": true
+          },
+          {
+            "period": "month",
+            "destination": "tab",
+            "path": "__kplex278_1793793834741/Periodic 2/2026-11.md",
+            "confirmed": true,
+            "cancelCreatesNothing": true
+          },
+          {
+            "period": "day",
+            "destination": "window",
+            "path": "__kplex278_1793793834741/Periodic 3/2026-11-04.md",
+            "confirmed": true,
+            "cancelCreatesNothing": true
+          }
+        ],
+        "persistedChoice": "window",
+        "fullBuildsBefore": 0
+      }
+    },
+    {
+      "lane": "compass",
+      "status": "passed",
+      "receipt": "kplex-278-native-sxRfuU",
+      "receiptSha256": "13f1675dbfc552f47887be8adaf5af5544995122886feaeccc24fbbaaab20341",
+      "completedAt": "2026-11-04T12:04:44.267Z",
+      "artifacts": {
+        "main.js": "35340f9f2182fd94c63f227363566a05f9f0848ed40cb8f690eea264b7be8228",
+        "manifest.json": "8c65b0d38a506f8fa9fc3311b81ea22bcda48e0209e9190483752c1f20834326",
+        "styles.css": "606cb66b23c32957a3589d093887ff5a1bfdf08cec14db9bc643ad5fee69feef"
+      },
+      "source": {
+        "src/index/GraphBuilder.ts": "c0cc0d30260e146978e942e9cd8953ca78ca92bbda772d64334eba026247606f",
+        "src/index/GraphIndex.ts": "b2413a473174079b65d0c9298009f998cecde22354ab19ccb4f49eebf609f288",
+        "src/core/graph/compiler.ts": "6156fb1eb6e51e057a48a2b97dba0bddeaf9dd065277355ddc1a0af1b6075ec5",
+        "src/adapters/obsidian/KplexModal.ts": "e8b57d53260874b130d11d962e9c0b4793c655c82d9910b279311ee7d0788722",
+        "src/ui/components/FormField.tsx": "7beedf2eef5db36da87a7e07fc95e1278da3473307d06fa3650e8fa191841acd",
+        "src/ui/components/FormSelect.tsx": "fd32774a82a1f6f22ebf5d39daf50d3a5c48f4d371b516ceaccdbcb1022b655d",
+        "src/ui/features/RelationshipFieldControl.tsx": "8cc5c7ea79e20ef4697e1c5cc2d47a88d2d2aee7d9e828dc3bd4152a01b0b7f6",
+        "src/ui/ImportRelationshipControl.tsx": "88dc41c3c9b91e81847cbb52ec35f928beffb3280e5814d035071dee0a4c2043",
+        "src/adapters/obsidian/dailyNotes.ts": "cd384ed025dfd8eb4a0f1169712801019bf19e4b4d4339b25aed5e49a996571a",
+        "src/main.ts": "a30dcb49b252f20a8900a2f52dec0f75eba7c099034ea3a35256b74ad30d3caa",
+        "src/adapters/obsidian/sourceAcquisition.ts": "e9be5808779fa20db00e2a3456ee08fc99bccfa6a7f298d3c76e9fc0a4ff42e5",
+        "src/adapters/obsidian/externalFileImport.ts": "79bed48654c528f1d0ac9f275ccf845e70bef90f0dac7bd383cd52ed3ce67539",
+        "src/adapters/obsidian/relationshipOwner.ts": "81448effcf8a92a59a6f998b73dd163f3b00140ed42314e19a6a6ca407d34dc8",
+        "src/ui/App.tsx": "f38f4193158704477336d954286b4465a3a2525856e63086fbb77a8664784831",
+        "src/ui/PlexGraph.tsx": "8652797f254610e508f32ed7aacf2fed0e5c2d65c876eb6139a0663a216bf1d7",
+        "src/ui/NewRelatedNoteModal.ts": "6cd591847ad3fb7dfc38997a88a966d8cc761e615f5f18802af72402880ec126",
+        "src/ui/SelectedOntologyEditor.ts": "f54d7de6285443237aef1612535abd40a3c005dd7f1c9460db9381f880ef2b35",
+        "src/ui/CreateFolderNoteModal.ts": "f4cca6057a3a8d673631035ecf1a3ba4f54ab82be11ca9718710e8ee205f3090",
+        "src/ui/CreatePeriodicNoteModal.ts": "5988dafe1989ee24fcaec7fff138b5864a4f01bdbb1adc19642d8be6e2a9e879",
+        "src/ui/MoveNodeModal.ts": "fc973fa7dda5fbf3f0830bef319d81e76e15d8d707f4c0f43fe7d2cf8094198b",
+        "src/ui/components/Tabs.tsx": "0efe6859ae0e2ed5ad4a28c21ed73233c5ec7b31ad58b1f2a18996ba6f060952",
+        "src/adapters/obsidian/fileExplorerDrag.ts": "cad3f7dc66596ef144634d2d0c7300c6e95fa7a2253b7c1882ab8499628fa529",
+        "src/adapters/obsidian/fileMenu.ts": "64187e15fcba97b1591cffeb684f76457ef4c3118ef4fc64315b6629720aee12",
+        "src/ui/RelationModal.ts": "30eb3ac7c3b4bfe05962c02357b0107381f607183a72c0f4be6df030a9a57079",
+        "src/ui/RelationshipExplanationModal.ts": "003813ab3fc65f814e36ff89a8650a9caacb8c16ee1265c559bb72b38df408e7",
+        "src/ui/ReverseRelationshipModal.ts": "9dfd3621422fc88974e26554b543de455a8a9e9baf65cbb580387ca2b851712b",
+        "src/ui/ExternalFileImportBatchModal.ts": "0f5a33fd63670a6a73491c1b2525578051292d597b0456dccc6cfc54dc58c5eb",
+        "src/ui/features/RelationshipDirectionControl.tsx": "236a5515bb90d159a37be5b5daf5d1408274699a4fca10a0d7ba2f427a2d23eb",
+        "src/ui/components/ReorderableList.tsx": "7a3f2a296e06cc6c24edb5404eb5a6cf89ed9669c061ae1398f63994e57b83ba",
+        "src/core/plex/views/classic/configuration.ts": "2f84c30c6465d8a68753a0d9c37140faef5fe46d971ca705cec724d0159e939c",
+        "src/core/plex/views/classic/definition.ts": "6b5f0a53b2edcbccd07750b83b3c186ba4358c9695fff7dd2473f80002067cd3",
+        "src/core/plex/views/classic/geometry.ts": "f6bd0513012c1fcf30915cc1a24300c3e1d3ba2f6a1d603d6f04708f530f833e",
+        "src/ui/plexViews/classic/layout.ts": "04523e2eda25308658919311b4235a918656751f91079066b429a95115467ea2",
+        "src/ui/plexViews/classic/ClassicAreaLabels.tsx": "6c8c62540d13cc842af9a637bd8705792018f06c371f41743ce22c084230b4db"
+      },
+      "cleanup": "passed",
+      "stagingCleanup": {
+        "disable": "passed",
+        "data": "passed",
+        "enable": "passed",
+        "layout": "passed",
+        "data-bytes": "passed",
+        "enablement-bytes": "passed"
+      },
+      "assertions": {
+        "samples": [
+          {
+            "case": "main/popout six-role orientation",
+            "normal": {
+              "parent": {
+                "x": -0.0078125,
+                "y": -126.59375,
+                "text": "\"Parent\" — \"__kplex278_1793793876253/Parent.md\"Parent1"
+              },
+              "child": {
+                "x": -0.0078125,
+                "y": 196.796875,
+                "text": "\"Child\" — \"__kplex278_1793793876253/Child.md\"Child1"
+              },
+              "left": {
+                "x": -311.453125,
+                "y": -25.140625,
+                "text": "\"صديق Friend\" — \"__kplex278_1793793876253/صديق Friend.md\"صديق Friend1"
+              },
+              "right": {
+                "x": 311.4453125,
+                "y": -25.140625,
+                "text": "\"אתגר Challenger\" — \"__kplex278_1793793876253/אתגר Challenger.md\"אתגר Challenger1"
+              },
+              "previous": {
+                "x": -311.4609375,
+                "y": 25.140625,
+                "text": "\"Previous السابق\" — \"__kplex278_1793793876253/Previous السابق.md\"Previous السابق1"
+              },
+              "next": {
+                "x": 311.4453125,
+                "y": 25.140625,
+                "text": "\"Next הבא\" — \"__kplex278_1793793876253/Next הבא.md\"Next הבא1"
+              }
+            },
+            "mirrored": {
+              "parent": {
+                "x": -0.0078125,
+                "y": -126.59375,
+                "text": "\"Parent\" — \"__kplex278_1793793876253/Parent.md\"Parent1"
+              },
+              "child": {
+                "x": -0.0078125,
+                "y": 196.796875,
+                "text": "\"Child\" — \"__kplex278_1793793876253/Child.md\"Child1"
+              },
+              "left": {
+                "x": 311.4375,
+                "y": -25.140625,
+                "text": "\"صديق Friend\" — \"__kplex278_1793793876253/صديق Friend.md\"صديق Friend1"
+              },
+              "right": {
+                "x": -311.4609375,
+                "y": -25.140625,
+                "text": "\"אתגר Challenger\" — \"__kplex278_1793793876253/אתגר Challenger.md\"אתגר Challenger1"
+              },
+              "previous": {
+                "x": 311.4453125,
+                "y": 25.140625,
+                "text": "\"Previous السابق\" — \"__kplex278_1793793876253/Previous السابق.md\"Previous السابق1"
+              },
+              "next": {
+                "x": -311.4609375,
+                "y": 25.140625,
+                "text": "\"Next הבא\" — \"__kplex278_1793793876253/Next הבא.md\"Next הבא1"
+              }
+            },
+            "sourceReads": 0,
+            "fullBuilds": 0
+          },
+          {
+            "case": "trusted physical Right keyboard navigation"
+          },
+          {
+            "case": "trusted physical right gate drag",
+            "semanticRole": "left"
+          },
+          {
+            "case": "one-sided mirrored composition"
+          },
+          {
+            "case": "native writer/reload",
+            "value": true
+          }
+        ]
+      }
+    },
+    {
+      "lane": "pins",
+      "status": "passed",
+      "receipt": "kplex-278-native-HP2NMX",
+      "receiptSha256": "f4e71daf8fe38ad3c7c55c7dafa71395a80228d30f40df15396dcf5d24cc8281",
+      "completedAt": "2026-11-04T12:05:33.398Z",
+      "artifacts": {
+        "main.js": "35340f9f2182fd94c63f227363566a05f9f0848ed40cb8f690eea264b7be8228",
+        "manifest.json": "8c65b0d38a506f8fa9fc3311b81ea22bcda48e0209e9190483752c1f20834326",
+        "styles.css": "606cb66b23c32957a3589d093887ff5a1bfdf08cec14db9bc643ad5fee69feef"
+      },
+      "source": {
+        "src/index/GraphBuilder.ts": "c0cc0d30260e146978e942e9cd8953ca78ca92bbda772d64334eba026247606f",
+        "src/index/GraphIndex.ts": "b2413a473174079b65d0c9298009f998cecde22354ab19ccb4f49eebf609f288",
+        "src/core/graph/compiler.ts": "6156fb1eb6e51e057a48a2b97dba0bddeaf9dd065277355ddc1a0af1b6075ec5",
+        "src/adapters/obsidian/KplexModal.ts": "e8b57d53260874b130d11d962e9c0b4793c655c82d9910b279311ee7d0788722",
+        "src/ui/components/FormField.tsx": "7beedf2eef5db36da87a7e07fc95e1278da3473307d06fa3650e8fa191841acd",
+        "src/ui/components/FormSelect.tsx": "fd32774a82a1f6f22ebf5d39daf50d3a5c48f4d371b516ceaccdbcb1022b655d",
+        "src/ui/features/RelationshipFieldControl.tsx": "8cc5c7ea79e20ef4697e1c5cc2d47a88d2d2aee7d9e828dc3bd4152a01b0b7f6",
+        "src/ui/ImportRelationshipControl.tsx": "88dc41c3c9b91e81847cbb52ec35f928beffb3280e5814d035071dee0a4c2043",
+        "src/adapters/obsidian/dailyNotes.ts": "cd384ed025dfd8eb4a0f1169712801019bf19e4b4d4339b25aed5e49a996571a",
+        "src/main.ts": "a30dcb49b252f20a8900a2f52dec0f75eba7c099034ea3a35256b74ad30d3caa",
+        "src/adapters/obsidian/sourceAcquisition.ts": "e9be5808779fa20db00e2a3456ee08fc99bccfa6a7f298d3c76e9fc0a4ff42e5",
+        "src/adapters/obsidian/externalFileImport.ts": "79bed48654c528f1d0ac9f275ccf845e70bef90f0dac7bd383cd52ed3ce67539",
+        "src/adapters/obsidian/relationshipOwner.ts": "81448effcf8a92a59a6f998b73dd163f3b00140ed42314e19a6a6ca407d34dc8",
+        "src/ui/App.tsx": "f38f4193158704477336d954286b4465a3a2525856e63086fbb77a8664784831",
+        "src/ui/PlexGraph.tsx": "8652797f254610e508f32ed7aacf2fed0e5c2d65c876eb6139a0663a216bf1d7",
+        "src/ui/NewRelatedNoteModal.ts": "6cd591847ad3fb7dfc38997a88a966d8cc761e615f5f18802af72402880ec126",
+        "src/ui/SelectedOntologyEditor.ts": "f54d7de6285443237aef1612535abd40a3c005dd7f1c9460db9381f880ef2b35",
+        "src/ui/CreateFolderNoteModal.ts": "f4cca6057a3a8d673631035ecf1a3ba4f54ab82be11ca9718710e8ee205f3090",
+        "src/ui/CreatePeriodicNoteModal.ts": "5988dafe1989ee24fcaec7fff138b5864a4f01bdbb1adc19642d8be6e2a9e879",
+        "src/ui/MoveNodeModal.ts": "fc973fa7dda5fbf3f0830bef319d81e76e15d8d707f4c0f43fe7d2cf8094198b",
+        "src/ui/components/Tabs.tsx": "0efe6859ae0e2ed5ad4a28c21ed73233c5ec7b31ad58b1f2a18996ba6f060952",
+        "src/adapters/obsidian/fileExplorerDrag.ts": "cad3f7dc66596ef144634d2d0c7300c6e95fa7a2253b7c1882ab8499628fa529",
+        "src/adapters/obsidian/fileMenu.ts": "64187e15fcba97b1591cffeb684f76457ef4c3118ef4fc64315b6629720aee12",
+        "src/ui/RelationModal.ts": "30eb3ac7c3b4bfe05962c02357b0107381f607183a72c0f4be6df030a9a57079",
+        "src/ui/RelationshipExplanationModal.ts": "003813ab3fc65f814e36ff89a8650a9caacb8c16ee1265c559bb72b38df408e7",
+        "src/ui/ReverseRelationshipModal.ts": "9dfd3621422fc88974e26554b543de455a8a9e9baf65cbb580387ca2b851712b",
+        "src/ui/ExternalFileImportBatchModal.ts": "0f5a33fd63670a6a73491c1b2525578051292d597b0456dccc6cfc54dc58c5eb",
+        "src/ui/features/RelationshipDirectionControl.tsx": "236a5515bb90d159a37be5b5daf5d1408274699a4fca10a0d7ba2f427a2d23eb",
+        "src/ui/components/ReorderableList.tsx": "7a3f2a296e06cc6c24edb5404eb5a6cf89ed9669c061ae1398f63994e57b83ba",
+        "src/core/plex/views/classic/configuration.ts": "2f84c30c6465d8a68753a0d9c37140faef5fe46d971ca705cec724d0159e939c",
+        "src/core/plex/views/classic/definition.ts": "6b5f0a53b2edcbccd07750b83b3c186ba4358c9695fff7dd2473f80002067cd3",
+        "src/core/plex/views/classic/geometry.ts": "f6bd0513012c1fcf30915cc1a24300c3e1d3ba2f6a1d603d6f04708f530f833e",
+        "src/ui/plexViews/classic/layout.ts": "04523e2eda25308658919311b4235a918656751f91079066b429a95115467ea2",
+        "src/ui/plexViews/classic/ClassicAreaLabels.tsx": "6c8c62540d13cc842af9a637bd8705792018f06c371f41743ce22c084230b4db"
+      },
+      "cleanup": "passed",
+      "stagingCleanup": {
+        "disable": "passed",
+        "data": "passed",
+        "enable": "passed",
+        "layout": "passed",
+        "data-bytes": "passed",
+        "enablement-bytes": "passed"
+      },
+      "assertions": {
+        "samples": [
+          {
+            "case": "trusted pointer reorder",
+            "saves": 1,
+            "navigations": 0,
+            "order": [
+              "__kplex278_1793793894856/Missing.md",
+              {
+                "kind": "periodic",
+                "period": "day"
+              },
+              "__kplex278_1793793894856/A.md",
+              "__kplex278_1793793894856/B.md",
+              {
+                "kind": "periodic",
+                "period": "week"
+              },
+              {
+                "kind": "periodic",
+                "period": "month"
+              }
+            ],
+            "twoCanvases": true
+          },
+          {
+            "case": "trusted Escape cancellation",
+            "saves": 0,
+            "navigations": 0
+          },
+          {
+            "case": "trusted keyboard reorder",
+            "order": [
+              {
+                "kind": "periodic",
+                "period": "day"
+              },
+              "__kplex278_1793793894856/Missing.md",
+              "__kplex278_1793793894856/A.md",
+              "__kplex278_1793793894856/B.md",
+              {
+                "kind": "periodic",
+                "period": "week"
+              },
+              {
+                "kind": "periodic",
+                "period": "month"
+              }
+            ]
+          },
+          {
+            "case": "trusted History grab scroll",
+            "scrollLeft": 50,
+            "navigations": 0
+          },
+          {
+            "case": "popout adopted icon and blur cancellation",
+            "documentIsMain": false,
+            "saves": 0
+          },
+          {
+            "case": "native view close cancellation",
+            "pinMoves": 0,
+            "viewLifecycleSettingsWrites": 0
+          },
+          {
+            "case": "native view migration cancellation",
+            "pinMoves": 0,
+            "viewLifecycleSettingsWrites": 0
+          },
+          {
+            "case": "passive day/month/week-year rollover",
+            "periods": [
+              {
+                "id": "[\"periodic\",\"day\",0]",
+                "entry": {
+                  "kind": "periodic",
+                  "period": "day"
+                },
+                "period": "day",
+                "path": "__kplex278_1793793894856/2021-01-01.md",
+                "state": "ready"
+              },
+              {
+                "id": "[\"periodic\",\"week\",0]",
+                "entry": {
+                  "kind": "periodic",
+                  "period": "week"
+                },
+                "period": "week",
+                "path": "__kplex278_1793793894856/2020-W53.md",
+                "state": "ready"
+              },
+              {
+                "id": "[\"periodic\",\"month\",0]",
+                "entry": {
+                  "kind": "periodic",
+                  "period": "month"
+                },
+                "period": "month",
+                "path": "__kplex278_1793793894856/2021-01.md",
+                "state": "ready"
+              }
+            ],
+            "sourceReads": 0,
+            "semanticRebuilds": 0,
+            "writes": 0
+          },
+          {
+            "case": "picker crosses suspended period",
+            "current": "__kplex278_1793793894856/2021-01-04.md",
+            "week": "__kplex278_1793793894856/2021-W01.md"
+          },
+          {
+            "case": "missing explicit activation",
+            "createdFiles": 0
+          },
+          {
+            "case": "native settings reload",
+            "canonicalOrder": true,
+            "unknownKeys": true
+          }
+        ],
+        "visual": [
+          {
+            "sourceMoves": true,
+            "accentOutline": true,
+            "otherOpacity": "0.5",
+            "insertionMarker": true,
+            "popout": false
+          },
+          {
+            "sourceMoves": true,
+            "accentOutline": true,
+            "otherOpacity": "0.5",
+            "insertionMarker": true,
+            "popout": false
+          },
+          {
+            "sourceMoves": true,
+            "accentOutline": true,
+            "otherOpacity": "0.5",
+            "insertionMarker": true,
+            "popout": true
+          },
+          {
+            "sourceMoves": true,
+            "accentOutline": true,
+            "otherOpacity": "0.5",
+            "insertionMarker": true,
+            "popout": false
+          },
+          {
+            "sourceMoves": true,
+            "accentOutline": true,
+            "otherOpacity": "0.5",
+            "insertionMarker": true,
+            "popout": false
+          }
+        ]
+      }
+    },
+    {
+      "lane": "navigation",
+      "status": "passed",
+      "receipt": "kplex-278-native-tpfd6A",
+      "receiptSha256": "9f591d60f3f06dc496d3d452b00afe17c049d335a96d8becfc969e640303340f",
+      "completedAt": "2026-11-04T12:05:49.615Z",
+      "artifacts": {
+        "main.js": "35340f9f2182fd94c63f227363566a05f9f0848ed40cb8f690eea264b7be8228",
+        "manifest.json": "8c65b0d38a506f8fa9fc3311b81ea22bcda48e0209e9190483752c1f20834326",
+        "styles.css": "606cb66b23c32957a3589d093887ff5a1bfdf08cec14db9bc643ad5fee69feef"
+      },
+      "source": {
+        "src/index/GraphBuilder.ts": "c0cc0d30260e146978e942e9cd8953ca78ca92bbda772d64334eba026247606f",
+        "src/index/GraphIndex.ts": "b2413a473174079b65d0c9298009f998cecde22354ab19ccb4f49eebf609f288",
+        "src/core/graph/compiler.ts": "6156fb1eb6e51e057a48a2b97dba0bddeaf9dd065277355ddc1a0af1b6075ec5",
+        "src/adapters/obsidian/KplexModal.ts": "e8b57d53260874b130d11d962e9c0b4793c655c82d9910b279311ee7d0788722",
+        "src/ui/components/FormField.tsx": "7beedf2eef5db36da87a7e07fc95e1278da3473307d06fa3650e8fa191841acd",
+        "src/ui/components/FormSelect.tsx": "fd32774a82a1f6f22ebf5d39daf50d3a5c48f4d371b516ceaccdbcb1022b655d",
+        "src/ui/features/RelationshipFieldControl.tsx": "8cc5c7ea79e20ef4697e1c5cc2d47a88d2d2aee7d9e828dc3bd4152a01b0b7f6",
+        "src/ui/ImportRelationshipControl.tsx": "88dc41c3c9b91e81847cbb52ec35f928beffb3280e5814d035071dee0a4c2043",
+        "src/adapters/obsidian/dailyNotes.ts": "cd384ed025dfd8eb4a0f1169712801019bf19e4b4d4339b25aed5e49a996571a",
+        "src/main.ts": "a30dcb49b252f20a8900a2f52dec0f75eba7c099034ea3a35256b74ad30d3caa",
+        "src/adapters/obsidian/sourceAcquisition.ts": "e9be5808779fa20db00e2a3456ee08fc99bccfa6a7f298d3c76e9fc0a4ff42e5",
+        "src/adapters/obsidian/externalFileImport.ts": "79bed48654c528f1d0ac9f275ccf845e70bef90f0dac7bd383cd52ed3ce67539",
+        "src/adapters/obsidian/relationshipOwner.ts": "81448effcf8a92a59a6f998b73dd163f3b00140ed42314e19a6a6ca407d34dc8",
+        "src/ui/App.tsx": "f38f4193158704477336d954286b4465a3a2525856e63086fbb77a8664784831",
+        "src/ui/PlexGraph.tsx": "8652797f254610e508f32ed7aacf2fed0e5c2d65c876eb6139a0663a216bf1d7",
+        "src/ui/NewRelatedNoteModal.ts": "6cd591847ad3fb7dfc38997a88a966d8cc761e615f5f18802af72402880ec126",
+        "src/ui/SelectedOntologyEditor.ts": "f54d7de6285443237aef1612535abd40a3c005dd7f1c9460db9381f880ef2b35",
+        "src/ui/CreateFolderNoteModal.ts": "f4cca6057a3a8d673631035ecf1a3ba4f54ab82be11ca9718710e8ee205f3090",
+        "src/ui/CreatePeriodicNoteModal.ts": "5988dafe1989ee24fcaec7fff138b5864a4f01bdbb1adc19642d8be6e2a9e879",
+        "src/ui/MoveNodeModal.ts": "fc973fa7dda5fbf3f0830bef319d81e76e15d8d707f4c0f43fe7d2cf8094198b",
+        "src/ui/components/Tabs.tsx": "0efe6859ae0e2ed5ad4a28c21ed73233c5ec7b31ad58b1f2a18996ba6f060952",
+        "src/adapters/obsidian/fileExplorerDrag.ts": "cad3f7dc66596ef144634d2d0c7300c6e95fa7a2253b7c1882ab8499628fa529",
+        "src/adapters/obsidian/fileMenu.ts": "64187e15fcba97b1591cffeb684f76457ef4c3118ef4fc64315b6629720aee12",
+        "src/ui/RelationModal.ts": "30eb3ac7c3b4bfe05962c02357b0107381f607183a72c0f4be6df030a9a57079",
+        "src/ui/RelationshipExplanationModal.ts": "003813ab3fc65f814e36ff89a8650a9caacb8c16ee1265c559bb72b38df408e7",
+        "src/ui/ReverseRelationshipModal.ts": "9dfd3621422fc88974e26554b543de455a8a9e9baf65cbb580387ca2b851712b",
+        "src/ui/ExternalFileImportBatchModal.ts": "0f5a33fd63670a6a73491c1b2525578051292d597b0456dccc6cfc54dc58c5eb",
+        "src/ui/features/RelationshipDirectionControl.tsx": "236a5515bb90d159a37be5b5daf5d1408274699a4fca10a0d7ba2f427a2d23eb",
+        "src/ui/components/ReorderableList.tsx": "7a3f2a296e06cc6c24edb5404eb5a6cf89ed9669c061ae1398f63994e57b83ba",
+        "src/core/plex/views/classic/configuration.ts": "2f84c30c6465d8a68753a0d9c37140faef5fe46d971ca705cec724d0159e939c",
+        "src/core/plex/views/classic/definition.ts": "6b5f0a53b2edcbccd07750b83b3c186ba4358c9695fff7dd2473f80002067cd3",
+        "src/core/plex/views/classic/geometry.ts": "f6bd0513012c1fcf30915cc1a24300c3e1d3ba2f6a1d603d6f04708f530f833e",
+        "src/ui/plexViews/classic/layout.ts": "04523e2eda25308658919311b4235a918656751f91079066b429a95115467ea2",
+        "src/ui/plexViews/classic/ClassicAreaLabels.tsx": "6c8c62540d13cc842af9a637bd8705792018f06c371f41743ce22c084230b4db"
+      },
+      "cleanup": "passed",
+      "stagingCleanup": {
+        "disable": "passed",
+        "data": "passed",
+        "enable": "passed",
+        "layout": "passed",
+        "data-bytes": "passed",
+        "enablement-bytes": "passed"
+      },
+      "assertions": {
+        "results": [
+          "Files context menu opens captured folder",
+          "native Files drag source and trusted canvas drop open folder"
+        ]
+      }
+    },
+    {
+      "lane": "daily-template",
+      "status": "passed",
+      "receipt": "kplex-278-native-4he5da",
+      "receiptSha256": "3c504c44713d3b134f14902bcba30e8eeeb53834777c311fb93463ce13d42e75",
+      "completedAt": "2026-11-04T12:07:12.798Z",
+      "artifacts": {
+        "main.js": "35340f9f2182fd94c63f227363566a05f9f0848ed40cb8f690eea264b7be8228",
+        "manifest.json": "8c65b0d38a506f8fa9fc3311b81ea22bcda48e0209e9190483752c1f20834326",
+        "styles.css": "606cb66b23c32957a3589d093887ff5a1bfdf08cec14db9bc643ad5fee69feef"
+      },
+      "source": {
+        "src/index/GraphBuilder.ts": "c0cc0d30260e146978e942e9cd8953ca78ca92bbda772d64334eba026247606f",
+        "src/index/GraphIndex.ts": "b2413a473174079b65d0c9298009f998cecde22354ab19ccb4f49eebf609f288",
+        "src/core/graph/compiler.ts": "6156fb1eb6e51e057a48a2b97dba0bddeaf9dd065277355ddc1a0af1b6075ec5",
+        "src/adapters/obsidian/KplexModal.ts": "e8b57d53260874b130d11d962e9c0b4793c655c82d9910b279311ee7d0788722",
+        "src/ui/components/FormField.tsx": "7beedf2eef5db36da87a7e07fc95e1278da3473307d06fa3650e8fa191841acd",
+        "src/ui/components/FormSelect.tsx": "fd32774a82a1f6f22ebf5d39daf50d3a5c48f4d371b516ceaccdbcb1022b655d",
+        "src/ui/features/RelationshipFieldControl.tsx": "8cc5c7ea79e20ef4697e1c5cc2d47a88d2d2aee7d9e828dc3bd4152a01b0b7f6",
+        "src/ui/ImportRelationshipControl.tsx": "88dc41c3c9b91e81847cbb52ec35f928beffb3280e5814d035071dee0a4c2043",
+        "src/adapters/obsidian/dailyNotes.ts": "cd384ed025dfd8eb4a0f1169712801019bf19e4b4d4339b25aed5e49a996571a",
+        "src/main.ts": "a30dcb49b252f20a8900a2f52dec0f75eba7c099034ea3a35256b74ad30d3caa",
+        "src/adapters/obsidian/sourceAcquisition.ts": "e9be5808779fa20db00e2a3456ee08fc99bccfa6a7f298d3c76e9fc0a4ff42e5",
+        "src/adapters/obsidian/externalFileImport.ts": "79bed48654c528f1d0ac9f275ccf845e70bef90f0dac7bd383cd52ed3ce67539",
+        "src/adapters/obsidian/relationshipOwner.ts": "81448effcf8a92a59a6f998b73dd163f3b00140ed42314e19a6a6ca407d34dc8",
+        "src/ui/App.tsx": "f38f4193158704477336d954286b4465a3a2525856e63086fbb77a8664784831",
+        "src/ui/PlexGraph.tsx": "8652797f254610e508f32ed7aacf2fed0e5c2d65c876eb6139a0663a216bf1d7",
+        "src/ui/NewRelatedNoteModal.ts": "6cd591847ad3fb7dfc38997a88a966d8cc761e615f5f18802af72402880ec126",
+        "src/ui/SelectedOntologyEditor.ts": "f54d7de6285443237aef1612535abd40a3c005dd7f1c9460db9381f880ef2b35",
+        "src/ui/CreateFolderNoteModal.ts": "f4cca6057a3a8d673631035ecf1a3ba4f54ab82be11ca9718710e8ee205f3090",
+        "src/ui/CreatePeriodicNoteModal.ts": "5988dafe1989ee24fcaec7fff138b5864a4f01bdbb1adc19642d8be6e2a9e879",
+        "src/ui/MoveNodeModal.ts": "fc973fa7dda5fbf3f0830bef319d81e76e15d8d707f4c0f43fe7d2cf8094198b",
+        "src/ui/components/Tabs.tsx": "0efe6859ae0e2ed5ad4a28c21ed73233c5ec7b31ad58b1f2a18996ba6f060952",
+        "src/adapters/obsidian/fileExplorerDrag.ts": "cad3f7dc66596ef144634d2d0c7300c6e95fa7a2253b7c1882ab8499628fa529",
+        "src/adapters/obsidian/fileMenu.ts": "64187e15fcba97b1591cffeb684f76457ef4c3118ef4fc64315b6629720aee12",
+        "src/ui/RelationModal.ts": "30eb3ac7c3b4bfe05962c02357b0107381f607183a72c0f4be6df030a9a57079",
+        "src/ui/RelationshipExplanationModal.ts": "003813ab3fc65f814e36ff89a8650a9caacb8c16ee1265c559bb72b38df408e7",
+        "src/ui/ReverseRelationshipModal.ts": "9dfd3621422fc88974e26554b543de455a8a9e9baf65cbb580387ca2b851712b",
+        "src/ui/ExternalFileImportBatchModal.ts": "0f5a33fd63670a6a73491c1b2525578051292d597b0456dccc6cfc54dc58c5eb",
+        "src/ui/features/RelationshipDirectionControl.tsx": "236a5515bb90d159a37be5b5daf5d1408274699a4fca10a0d7ba2f427a2d23eb",
+        "src/ui/components/ReorderableList.tsx": "7a3f2a296e06cc6c24edb5404eb5a6cf89ed9669c061ae1398f63994e57b83ba",
+        "src/core/plex/views/classic/configuration.ts": "2f84c30c6465d8a68753a0d9c37140faef5fe46d971ca705cec724d0159e939c",
+        "src/core/plex/views/classic/definition.ts": "6b5f0a53b2edcbccd07750b83b3c186ba4358c9695fff7dd2473f80002067cd3",
+        "src/core/plex/views/classic/geometry.ts": "f6bd0513012c1fcf30915cc1a24300c3e1d3ba2f6a1d603d6f04708f530f833e",
+        "src/ui/plexViews/classic/layout.ts": "04523e2eda25308658919311b4235a918656751f91079066b429a95115467ea2",
+        "src/ui/plexViews/classic/ClassicAreaLabels.tsx": "6c8c62540d13cc842af9a637bd8705792018f06c371f41743ce22c084230b4db"
+      },
+      "cleanup": "passed",
+      "stagingCleanup": {
+        "disable": "passed",
+        "data": "passed",
+        "enable": "passed",
+        "layout": "passed",
+        "data-bytes": "passed",
+        "enablement-bytes": "passed"
+      },
+      "assertions": {
+        "results": [
+          {
+            "case": "configured folder/nested date format",
+            "path": "__kplex278_1793793960176/2026/2026-11-04 Wednesday.md",
+            "templateExpanded": true,
+            "cancelCreatesNothing": true
+          },
+          {
+            "case": "default native parent",
+            "path": "__kplex278_1793793960176/Default/2026-11-04.md",
+            "templateExpanded": true,
+            "cancelCreatesNothing": true
+          },
+          {
+            "case": "missing template",
+            "explained": true,
+            "emptyFallback": false
+          }
+        ]
+      }
+    }
+  ],
+  "limitations": [
+    "Windows evidence does not establish macOS acceptance; maintainer is reviewing on a separate Mac",
+    "Desktop narrowing and simulated VisualViewport do not establish physical mobile keyboard/touch/IME acceptance",
+    "Native drawing-template layout used real owned paths with injected availability, not companion drawing creation",
+    "Core Daily Notes creation is an optional guarded unpublished capability tested on Obsidian1.14.5",
+    "Original-scope native receipts preserve their actual earlier artifact/source hashes; latest shared UI receipts match delivered binaries",
+    "No production-vault testing or whole-application restart performed"
+  ],
+  "generatedAt": "2026-11-04T13:42:00.966Z"
+}

@@ -6,6 +6,7 @@
  * are accepted, including own accessors and arbitrary toJSON implementations.
  */
 import { projectSupportCustomizations } from "./supportCustomizationProjection";
+import {projectIndexRecoveryDiagnostics} from "./indexRecoveryDiagnostics";
 import { SETTING_DIAGNOSTIC_KEYS } from "../core/graph/settingsPolicy";
 import {CENTER_RECOVERY_OUTCOMES, sanitizeCenterRecoveryDiagnostic} from "../core/contracts/centerRecovery";
 import { supportCode, supportCount, supportDuration, supportField, SUPPORT_PHASES } from "./SessionEventRecorder";
@@ -114,7 +115,8 @@ export function projectSupportIndex(input: unknown) {
     ...(centerCheck ? {centerCheck} : {}),
   };});
   return {
-    availability: "available" as const, decisionsOmitted: Math.max(0, supportRowCount(supportField(source, "decisions")) - 20), formatVersion: supportCount(supportField(source, "formatVersion")),
+    availability: "available" as const, recovery: projectIndexRecoveryDiagnostics(supportField(source, "recovery")),
+    decisionsOmitted: Math.max(0, supportRowCount(supportField(source, "decisions")) - 20), formatVersion: supportCount(supportField(source, "formatVersion")),
     generatedAt: supportIsoTime(supportField(source, "generatedAt")), plugin: { id: "k-plex", version: supportVersion(supportField(plugin, "version")) },
     platform: supportCode(supportField(source, "platform"), ["ios", "android", "desktop"]),
     device: { obsidianApiVersion: supportVersion(supportField(device, "obsidianApiVersion")), operatingSystem: supportOperatingSystem(supportField(device, "operatingSystem")),

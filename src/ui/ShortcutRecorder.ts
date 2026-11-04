@@ -5,7 +5,9 @@
  * Physical matching is the initial mode; editing consumers persist only the explicitly selected mode.
  * Only explicitly modified physical dead keys can be captured. No event is retained.
  */
-import { ButtonComponent, Modal, Setting, type Scope } from "obsidian";
+import {FormSetting as Setting, KplexModal as Modal} from "../adapters/obsidian/KplexModal";
+
+import {ButtonComponent, type Scope} from "obsidian";
 import type KplexPlugin from "../main";
 import { captureActionBinding, isModifiedPhysicalDeadKey, type LocalBinding } from "../core/plex/actionPreferences";
 import { readObsidianPresentationEnvironment } from "../adapters/obsidian/presentationEnvironment";

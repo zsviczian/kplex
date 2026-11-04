@@ -1,6 +1,7 @@
 /** Detached native preset draft. Categories retain stable IDs through rename/reorder; source
  * values, assignment and colors are explicit. Save commits one atomic entry through the host. */
-import {Setting, type App, type ButtonComponent} from "obsidian";
+import {FormSetting as Setting, formActions, formOptionGroup} from "../../../adapters/obsidian/KplexModal";
+import {type App, type ButtonComponent} from "obsidian";
 import {StyleEditorModal, labelIconButton} from "../../StyleEditorModal";
 import {StyleColorControls} from "../../StyleColorControls";
 import type {CanvasViewManagerContext} from "../managerContracts";
@@ -51,9 +52,9 @@ export class FacetPresetEditor extends StyleEditorModal {
     this.beginEditor(this.options.colors.sourceScope, this.options.colors.bindEditor);const t = this.translate;
     this.modalEl.addClass("kplex-facet-preset-editor");
     this.titleEl.setText(t(this.existing ? "facets.edit" : "facets.create"));
-    const {body, actions} = this.scrollableContent();this.body = body;
+    const {body, actions} = this.scrollableContent();this.body = body;formOptionGroup(body);
     this.validation = actions.createDiv({cls: "setting-item-description", attr: {role: "status", "aria-live": "polite"}});
-    const row = new Setting(actions);row.settingEl.addClass("kplex-modal-action-row");
+    const row = formActions(actions);row.settingEl.addClass("kplex-modal-action-row");
     if (this.options.sharing) for (const action of ["copy", "download"] as const) row.addButton(/** Export the visible unsaved draft without committing it. */ button => {
       labelIconButton(button.buttonEl, t(action === "copy" ? "sharing.copyJson" : "sharing.download"), action === "copy" ? "copy" : "download");
       button.onClick(/** Shared canonical export and transfer owners handle the requested gesture. */ () => this.exportDraft(action));

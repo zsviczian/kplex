@@ -4,6 +4,10 @@
 
 Read [CODING_STANDARDS.md](CODING_STANDARDS.md) before implementing or reviewing changes. It is the canonical home for cross-cutting coding requirements. Add future requirements there; keep architecture and subsystem constraints here. Read [CONTRIBUTING.md](CONTRIBUTING.md) for setup and build workflows.
 
+Read [UI_RULES.md](UI_RULES.md) before implementing or reviewing any modal, form,
+settings page, selector or button. Its shared owners and visual acceptance checklist
+are mandatory; reusing a bare input without its shared field/layout is insufficient.
+
 ## Mission
 
 Develop **K-Plex (Knowledge Plex)** as a dedicated React application inside Obsidian. Preserve relationship semantics, ontology and graph/node/link styling when migrating data from its predecessor, [ExcaliBrain](https://github.com/zsviczian/excalibrain). K-Plex is an independent, standalone solution with additional features and no runtime dependency on the legacy plugin, Excalidraw or Dataview.

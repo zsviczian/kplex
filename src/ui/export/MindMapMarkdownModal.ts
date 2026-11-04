@@ -4,8 +4,10 @@
  * handoff, and the existing native editor shell retires dialogs on window migration.
  * No source note, canvas state, index or settings writer is exposed to this shell.
  */
-import {Setting, TextAreaComponent, type App, type ButtonComponent} from "obsidian";
-import {StyleEditorModal, appendIcon} from "../StyleEditorModal";
+import {formActions, formSelect, iconButton, FormSetting as Setting} from "../../adapters/obsidian/KplexModal";
+
+import {TextAreaComponent, type App, type ButtonComponent} from "obsidian";
+import {StyleEditorModal} from "../StyleEditorModal";
 import {ClipboardSession} from "../../application/ClipboardSession";
 import {exportMindMapMarkdown, type MindMapMarkdownResult, type MindMapMarkdownSnapshot, type MarkdownOntologyMode} from "../../core/plex/export/mindMapMarkdown";
 import {suggestedArtifactFilename} from "../../core/plex/export/artifactFilename";
@@ -41,7 +43,7 @@ export class MindMapMarkdownModal extends StyleEditorModal {
     this.setTitle(this.translate("export.markdown.title"));
     this.modalEl.addClass("kplex-mindmap-markdown-export");
     const {body, actions} = this.scrollableContent();
-    const help = body.createEl("p"), marker = "\uFFFC";
+    const help = body.createEl("p", {cls: "setting-item-description"}), marker = "\uFFFC";
     const [before, after] = this.translate("export.markdown.help", {builder: marker}).split(marker);
     help.createSpan({text: before});
     help.createEl("a", {text: this.translate("export.markdown.builder"), cls: "external-link",
@@ -49,12 +51,12 @@ export class MindMapMarkdownModal extends StyleEditorModal {
     help.createSpan({text: after ?? ""});
     this.selectedRoot = this.options.snapshot.root;
     const selected = this.options.selected;
-    if (selected && selected !== this.options.snapshot.root) new Setting(body).setName(this.translate("export.markdown.scope"))
+    if (selected && selected !== this.options.snapshot.root) formSelect(new Setting(body).setName(this.translate("export.markdown.scope")))
       .addDropdown(/** Scope changes only project the frozen snapshot; they never expand a branch. */ dropdown => dropdown
         .addOption(this.options.snapshot.root, this.translate("export.markdown.whole"))
         .addOption(selected, this.translate("export.markdown.branch"))
         .onChange(/** A different scope retires the previous immutable clipboard attempt. */ id => this.refresh(id)));
-    new Setting(body).setName(this.translate("export.markdown.ontology")).setDesc(this.translate("export.markdown.ontologyHelp"))
+    formSelect(new Setting(body).setName(this.translate("export.markdown.ontology")).setDesc(this.translate("export.markdown.ontologyHelp")))
       .addDropdown(/** Labels are projected only from the frozen snapshot, never from another graph read. */ dropdown => dropdown
         .addOption("none", this.translate("export.markdown.ontologyNone")).addOption("visible", this.translate("export.markdown.ontologyVisible"))
         .addOption("all", this.translate("export.markdown.ontologyAll")).setValue(this.ontologyMode)
@@ -67,10 +69,10 @@ export class MindMapMarkdownModal extends StyleEditorModal {
     this.status = body.createDiv({attr: {role: "status", "aria-live": "polite"}});
     const rootLabel = this.options.snapshot.nodes.find(/** Captured root labels suggest a name only to the native save dialog. */ node => node.id === this.options.snapshot.root)?.label ?? this.translate("view.mindmap");
     this.filename = suggestedArtifactFilename(`${rootLabel} - ${this.translate("export.markdown.filename")}`, "md");
-    new Setting(actions).setClass("kplex-modal-action-row")
-      .addButton(/** Copy starts synchronously in the native button handler. */ button => {this.copyButton = button;button.setButtonText(this.translate("export.markdown.copy")).onClick(/** Retain owning-document clipboard activation. */ () => this.copy());appendIcon(button.buttonEl, "copy");})
-      .addButton(/** Save uses the same exact bytes shown in the read-only preview. */ button => {this.saveButton = button;button.setButtonText(this.translate("export.markdown.save")).setCta().onClick(/** Explicit output persistence never navigates the canvas. */ () => {void this.save();});appendIcon(button.buttonEl, "save");})
-      .addButton(/** Dismissal releases the snapshot's clipboard completion owner. */ button => button.setButtonText(this.translate("common.cancel")).onClick(/** Existing migration/close cleanup remains the only retirement path. */ () => this.close()));
+    formActions(actions).setClass("kplex-modal-action-row")
+      .addButton(/** Copy starts synchronously in the native button handler. */ button => {this.copyButton = button;iconButton(button, this.translate("export.markdown.copy"), "copy").onClick(/** Retain owning-document clipboard activation. */ () => this.copy());})
+      .addButton(/** Save uses the same exact bytes shown in the read-only preview. */ button => {this.saveButton = button;iconButton(button, this.translate("export.markdown.save"), "save").setCta().onClick(/** Explicit output persistence never navigates the canvas. */ () => {void this.save();});})
+      .addButton(/** Dismissal releases the snapshot's clipboard completion owner. */ button => iconButton(button, this.translate("common.cancel"), "x").onClick(/** Existing migration/close cleanup remains the only retirement path. */ () => this.close()));
     this.refresh(this.options.snapshot.root);
   }
 

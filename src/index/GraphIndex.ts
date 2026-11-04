@@ -665,6 +665,10 @@ export class GraphIndex {
   private semanticFingerprints = new Map<string, string>();
   private generation = 0;
   private building = false;
+  /** Per-file semantic publications share the builder lock but do not replace physical folder coverage. */
+  private patchingMarkdown = false;
+  /** One read-only physical certificate audit after uncertain topology recovery; never a semantic builder. */
+  private physicalFolderValidationTask: Promise<boolean> | null = null;
   private fullBuildProgress: {processed: number; total: number; stage: "notes" | "relationships" | "presentation"} | null = null;
   private checkpointSaving = false;
   private rebuildQueued = false;
@@ -742,7 +746,7 @@ export class GraphIndex {
   private hostPresentationRevision = 0;
   private fullSnapshotHydrated = false;
   /** Exact current state's complete physical-folder membership, independently of semantic incidence.
-   * Existing full structural producers grant it; every replacement clears it unless explicitly proven.
+   * Full structural producers or an exact native audit grant it; replacement clears it unless proven.
    * No prior graph is retained, and live structural mutations remain fenced by pendingStructuralTasks. */
   private completePhysicalFolderInventory = false;
   /** Monotonic physical proof incarnation; short native witnesses capture no former graph state. */
@@ -795,6 +799,7 @@ export class GraphIndex {
     this.sourceAcquisition = new ObsidianSourceAcquisition(app, this.indexedDb, (text, backgroundCheckpoint) => this.metadataParser.parse(text, backgroundCheckpoint),
       /** Source closure wakes a deferred restore and retries only current visible semantic demand. */
       () => {
+        void this.revalidatePhysicalFolderInventory();
         this.startupSourceAuthorityWaiter?.check();
         this.retryEagerGraphMaintenance();
         this.retryDemandedSemanticScopes();
@@ -1916,7 +1921,7 @@ export class GraphIndex {
   invalidateHostStructure(applyingPhysicalCreate = false): void {
     // An event skipped by main's physical-create admission cannot preserve negative membership.
     // In particular, failed/retained hydration must not revive a certificate from its page preview.
-    if (!applyingPhysicalCreate || this.building || this.snapshotHydrationTask || !this.hasPhysicalBaseline()) {
+    if (!applyingPhysicalCreate || this.building && !this.patchingMarkdown || this.snapshotHydrationTask || !this.hasPhysicalBaseline()) {
       this.retirePhysicalFolderInventory();
     }
     this.hostStructuralRevision += 1;
@@ -2169,6 +2174,22 @@ export class GraphIndex {
 
   /** Aggregate-only neutral persistence status, independent of graph snapshot readiness. */
   getSourceRepositoryDiagnostics() { return this.sourceAcquisition.getDiagnostics(); }
+  /** Capture why visible demand lacks a current scope, without acquisition, retries or Vault scans. */
+  getIndexRecoveryDiagnostics() {
+    const source = this.sourceAcquisition.getRecoveryDiagnostics(), scheduler = this.workScheduler.diagnostics();
+    let demandedCenters = 0, incompleteCenters = 0, activeCenterTasks = 0, dependencyPendingCenters = 0;
+    for (const [path, count] of this.semanticDemandCounts) if (count > 0) {
+      demandedCenters++;
+      const coverage = this.viewScopeCoverage(path);
+      if (!coverage.complete) incompleteCenters++;
+      if (coverage.pending) activeCenterTasks++;
+      if (this.semanticPreparationFailures.get(path)?.reason === "dependency-pending") dependencyPendingCenters++;
+    }
+    const foregroundLeases = scheduler.active[0] + scheduler.active[1] + scheduler.active[2];
+    return {demandedCenters, incompleteCenters, activeCenterTasks, dependencyPendingCenters, foregroundLeases,
+      waitingForSources: incompleteCenters > 0 && !source.dependenciesReady && activeCenterTasks === 0,
+      source, snapshot: this.indexedDb.getSnapshotWriteDiagnostics()};
+  }
   /** Aggregate acquisition counters for restart/selective-repair validation; never source contents. */
   getSourceAcquisitionCounters() { return this.sourceAcquisition.getCounters(); }
   /** Explicit maintenance durability fence; plugin unload deliberately does not await this. */
@@ -2306,6 +2327,14 @@ export class GraphIndex {
 
   /** Physical maintenance may use a complete inventory without pretending it is a complete graph. */
   hasPhysicalBaseline(): boolean { return this.fullSnapshotHydrated || this.sourceBackedStartup; }
+
+  /** Physical create admission follows the native inventory certificate, not startup's semantic
+   * completion flag. A cached source owner can retain this proof while its relationships recover;
+   * partial hydration, private builders and uncertain topology cannot lend it. */
+  canApplyLocalPhysicalCreate(): boolean {
+    return this.hasPhysicalBaseline() && this.completePhysicalFolderInventory && !this.diagnosticsClosed && !this.persistentCachePurged
+      && !this.building && !this.snapshotHydrationTask && !this.pendingStructuralTasks;
+  }
   /** Source-backed startup completion belongs to source adoption, not graph-cache hydration. */
   hasSourceBackedStartup(): boolean { return this.sourceBackedStartup; }
 
@@ -6614,6 +6643,7 @@ export class GraphIndex {
       }
 
       this.building = true;
+      this.patchingMarkdown = true;
       const run = ++this.generation;
       try {
         for (const path of this.restoredRemovedMarkdownPaths) this.dematerializeFile(path);
@@ -6665,6 +6695,7 @@ export class GraphIndex {
         this.deferOrphanCleanup();
         return { reconciled: true, patched: files.length };
       } finally {
+        this.patchingMarkdown = false;
         this.building = false;
         this.retryBuildBlockedOnDemandCenters();
       }
@@ -6693,6 +6724,7 @@ export class GraphIndex {
     if (!files.length) return { outcome: "patched", count: 0 };
 
     this.building = true;
+    this.patchingMarkdown = true;
     const run = ++this.generation;
     let committed = 0;
     const committedPaths = new Set<string>();
@@ -6727,7 +6759,9 @@ export class GraphIndex {
       this.deferOrphanCleanup();
       return { outcome: "patched", count: files.length };
     } finally {
+      this.patchingMarkdown = false;
       this.building = false;
+      void this.revalidatePhysicalFolderInventory();
       this.retryBuildBlockedOnDemandCenters();
       this.retrySourceNodeImpacts();
       this.retryEagerGraphMaintenance();
@@ -8201,17 +8235,46 @@ export class GraphIndex {
    * needed; uncertain inbound source resolution remains owned by acquisition.
    */
   renameFolder(oldPath: string, folder: TFolder): Promise<void> {
-    // A failed/interrupted cooperative remap must not revive old negative membership on finally.
-    this.retirePhysicalFolderInventory();
     const existing = this.folderRenameTasks.get(folder);
     if (existing) {
+      this.retirePhysicalFolderInventory();
       void this.updateHostFolderAvailability(oldPath, folder);
       return existing;
     }
+    const epoch = this.physicalFolderCoverageEpoch;
+    const path = folder.path, parent = folder.parent, old = this.state.pages.get(`folder:${oldPath}`);
+    /** Reuse only an unchanged complete physical incarnation, never source readiness or legacy flags. */
+    const complete = (): boolean => !this.diagnosticsClosed && !this.persistentCachePurged
+      && this.completePhysicalFolderInventory && !this.isOnDemandMode() && (!this.building || this.patchingMarkdown)
+      && !this.pendingStructuralTasks && !this.snapshotHydrationTask
+      && this.physicalFolderCoverageEpoch === epoch;
+    /** A failed or superseded remap must not retire a newer producer's physical proof. */
+    const invalidate = (): void => { if (this.physicalFolderCoverageEpoch === epoch) this.retirePhysicalFolderInventory(); };
+    const preserved = complete() && Boolean(old?.isFolder) && !this.state.pages.has(`folder:${path}`)
+      && !folder.children.length && Boolean(parent) && !this.app.vault.getFolderByPath(oldPath)
+      && this.app.vault.getFolderByPath(path) === folder
+      && this.state.pages.get(parent!.path ? `folder:${parent!.path}` : "folder:/")?.isFolder
+      && ![...this.state.evidence.declarationsTouching(`folder:${oldPath}`)].some(/** A leaf naming proof cannot cover omitted descendants. */ declaration =>
+        declaration.sourceKind === "file-tree" && declaration.declaredByPath === `folder:${oldPath}`)
+      && this.sourceAcquisition.qualifyEmptyFolderRename(folder, oldPath, complete, invalidate);
+    // Retain the incarnation only for the proven leaf delta. It remains unavailable while the
+    // existing cooperative owner runs; success, not finally, may restore its physical completeness.
+    if (preserved) this.completePhysicalFolderInventory = false;
+    else this.retirePhysicalFolderInventory();
     this.pendingStructuralTasks += 1;
-    const task = this.renameFolderTree(oldPath, folder).finally(() => {
+    const task = this.renameFolderTree(oldPath, folder).then(/** Successful exact native remapping may restore this physical incarnation. */ () => {
+      if (!preserved) return;
+      if (!this.diagnosticsClosed && !this.persistentCachePurged && (!this.building || this.patchingMarkdown) && !this.snapshotHydrationTask
+        && this.pendingStructuralTasks === 1 && this.physicalFolderCoverageEpoch === epoch
+        && folder.path === path && folder.parent === parent && !folder.children.length
+        && this.app.vault.getFolderByPath(path) === folder && !this.app.vault.getFolderByPath(oldPath)
+        && this.state.pages.get(`folder:${path}`) === old && !this.state.pages.has(`folder:${oldPath}`)) {
+        this.completePhysicalFolderInventory = true;
+      } else invalidate();
+    }).catch(/** Rejected remapping cannot retain physical completeness or hide its original failure. */ (error: unknown) => { invalidate(); throw error; }).finally(/** Release only this structural owner before waking deferred scopes and physical validation. */ () => {
       this.pendingStructuralTasks = Math.max(0, this.pendingStructuralTasks - 1);
       this.folderRenameTasks.delete(folder);
+      void this.revalidatePhysicalFolderInventory();
       this.retryDemandedSemanticScopes(); this.emit();
     });
     this.folderRenameTasks.set(folder, task);
@@ -8540,11 +8603,71 @@ export class GraphIndex {
     return page;
   }
 
-  /** Retire negative physical-folder membership without retaining the previous graph. A new full
-   * producer must grant a new incarnation; failed structural work cannot restore it in finally. */
+  /** Retire negative physical-folder membership without retaining the previous graph. Only a
+   * successful proven delta, full producer or exact native audit can grant it again, never finally. */
   private retirePhysicalFolderInventory(): void {
     this.completePhysicalFolderInventory = false;
     this.physicalFolderCoverageEpoch += 1;
+  }
+
+  /** Re-establish physical completeness only by checking the actual whole native tree against
+   * canonical membership after a conservative recovery. This does not repair missing structure,
+   * acquire Markdown/source families, change semantic readiness or run on an already proven path.
+   * Unknown/imported omissions and failed structural work keep their existing conservative fallback.
+   * All reads are cooperative P4 work; a native event/full producer/unload invalidates the result. */
+  private revalidatePhysicalFolderInventory(): Promise<boolean> {
+    if (this.completePhysicalFolderInventory) return Promise.resolve(true);
+    if (this.physicalFolderValidationTask) return this.physicalFolderValidationTask;
+    if (this.diagnosticsClosed || this.persistentCachePurged || this.isOnDemandMode() || !this.hasPhysicalBaseline()
+      || this.building || this.snapshotHydrationTask || this.pendingStructuralTasks || !this.sourceAcquisition.hasSemanticDependencies()) return Promise.resolve(false);
+    const epoch = this.physicalFolderCoverageEpoch, revision = this.hostStructuralRevision, state = this.state;
+    /** Source authority admits the audit; only actual unchanged native/canonical membership grants its certificate. */
+    const current = (): boolean => !this.diagnosticsClosed && !this.persistentCachePurged && this.physicalFolderCoverageEpoch === epoch
+      && this.hostStructuralRevision === revision && this.state === state && !this.pendingStructuralTasks && !this.snapshotHydrationTask;
+    const task = this.workScheduler.run(INDEX_WORK_PRIORITY.background, async (): Promise<boolean> => {
+      const root = this.app.vault.getRoot(), pending = [root], folders = new Set<string>();
+      let processed = 0, slice = performance.now();
+      /** Dense native folders and large graphs release host tasks under the existing scheduler. */
+      const checkpoint = async (): Promise<boolean> => {
+        if (++processed % 128 === 0 || performance.now() - slice >= 8) {
+          await yieldToHostTask(); await this.workScheduler.checkpoint(INDEX_WORK_PRIORITY.background); slice = performance.now();
+        }
+        return current();
+      };
+      while (pending.length && current()) {
+        const folder = pending.pop()!, path = folder === root ? "folder:/" : `folder:${folder.path}`;
+        if (folders.has(path) || (folder === root ? this.app.vault.getRoot() : this.app.vault.getFolderByPath(folder.path)) !== folder
+          || !state.pages.get(path)?.isFolder) return false;
+        folders.add(path); const targets = new Set<string>(), recorded = new Set<string>();
+        for (const child of folder.children) {
+          if (child.parent !== folder) return false;
+          if (child instanceof TFolder) {targets.add(`folder:${child.path}`); pending.push(child);}
+          else if (child instanceof TFile && this.app.vault.getFileByPath(child.path) === child && state.pages.get(child.path)?.file === child) targets.add(child.path);
+          else return false;
+          if (!(await checkpoint())) return false;
+        }
+        for (const declaration of state.evidence.declarationsTouching(path)) {
+          if (declaration.sourceKind === "file-tree" && declaration.declaredByPath === path) {
+            if (!targets.has(declaration.declaredTargetPath)) return false;
+            recorded.add(declaration.declaredTargetPath);
+          }
+          if (!(await checkpoint())) return false;
+        }
+        if (recorded.size !== targets.size) return false;
+      }
+      // A stale extra canonical folder is just as incomplete as an omitted native folder.
+      for (const page of state.pages.values()) {
+        if (page.isFolder && !folders.has(page.path)) return false;
+        if (!(await checkpoint())) return false;
+      }
+      if (!current() || this.building || !this.sourceAcquisition.hasSemanticDependencies()) return false;
+      this.completePhysicalFolderInventory = true;
+      this.recordIndexDiagnostic("reconcile", "physical-folder-inventory-revalidated", {modified: folders.size});
+      return true;
+    }).catch(/** Optional certificate validation never turns a host-read failure into authoritative coverage. */ () => false).finally(/** A failed/cancelled audit releases ownership without manufacturing completeness. */ () => {
+      if (this.physicalFolderValidationTask === task) this.physicalFolderValidationTask = null;
+    });
+    this.physicalFolderValidationTask = task; return task;
   }
 
   /**
@@ -8558,15 +8681,15 @@ export class GraphIndex {
     if (folder.children.length) this.retirePhysicalFolderInventory();
     // Only an unchanged complete physical owner can prove pre-insertion absence. A structural
     // preview or source-backed search projection cannot turn missing membership into authority.
-    const parent = folder.parent, generation = this.generation;
+    const parent = folder.parent;
     const coverageEpoch = this.physicalFolderCoverageEpoch;
     /** Fence the exact physical coverage incarnation until resolver close using only scalar tokens.
      * No previous graph state is captured. Builds, hydration, replacement and failed structural work
      * cannot inherit negative proof; this callback never grants durable source/semantic authority. */
     const complete = (): boolean => !this.diagnosticsClosed && !this.persistentCachePurged
       && !this.isOnDemandMode() && this.completePhysicalFolderInventory
-      && !this.building && !this.pendingStructuralTasks && !this.snapshotHydrationTask
-      && this.physicalFolderCoverageEpoch === coverageEpoch && this.generation === generation;
+      && (!this.building || this.patchingMarkdown) && !this.pendingStructuralTasks && !this.snapshotHydrationTask
+      && this.physicalFolderCoverageEpoch === coverageEpoch;
     if (complete() && parent && !this.state.pages.has(`folder:${folder.path}`)
       && this.state.pages.get(parent.path ? `folder:${parent.path}` : "folder:/")?.isFolder
       && this.app.vault.getFolderByPath(folder.path) === folder

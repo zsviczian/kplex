@@ -116,7 +116,7 @@ test("simplified arrangement persists independently for all devices and surfaces
       effects.push(geometry.classifySettingsChange(previous, current)); previous = current;
     } };
   const contribution = geometry.classicSettingsContribution.items({translate: tab.kplexPlugin.translator,
-    areaTint: () => ({name: "Owned tint action"}), key: () => {throw Error("Compass must retain legacy keys");}});
+    areaTint: () => ({name: "Owned tint action"}), key: field => {assert.equal(field, "flipEastWest", "Only the new orientation uses type-wide configuration");return `canvasView:classic:${field}`;}});
   const flatten = items => items.flatMap(item => [item, ...flatten(item.items ?? [])]);
   const rows = flatten(contribution).filter(row => row.control?.key.startsWith("layout."));
   assert.equal(rows.length, 6);

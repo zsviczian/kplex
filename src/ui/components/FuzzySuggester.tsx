@@ -33,6 +33,9 @@ export type FuzzySuggesterProps<T> = {
   placeholder: string;
   /** Localized accessible name; required even when no visible caption is rendered. */
   ariaLabel: string;
+  /** A visible shared form label replaces the standalone accessible-name/tooltip path. */
+  inputId?: string;
+  labelledBy?: string;
   icon?: ReactNode;
   autoFocus?: boolean;
   disabled?: boolean;
@@ -128,6 +131,8 @@ export function FuzzySuggester<T>({
   getDetail,
   placeholder,
   ariaLabel,
+  inputId,
+  labelledBy,
   icon,
   autoFocus = false,
   disabled = false,
@@ -354,6 +359,12 @@ export function FuzzySuggester<T>({
   /** Preserve IME/widget ownership; one Enter accepts a suggestion or submits, never both. */
   const onKeyDown = (event: ReactKeyboardEvent<HTMLInputElement>) => {
     if (event.nativeEvent.isComposing || event.key === "Dead" || event.getModifierState("AltGraph")) return;
+    if (event.key === "Tab") {
+      // Leave normal browser focus order intact. Tab dismisses suggestions without choosing one;
+      // a retained floating list must never cover the next form control after focus has moved.
+      dismissResults(); setFocused(false); onFocusChange?.(false);
+      return;
+    }
     if (event.key === "Escape") {
       if (visibleResults.length) {
         event.preventDefault();
@@ -425,6 +436,8 @@ export function FuzzySuggester<T>({
     {icon ? <div className="kplex-search-icon">{icon}</div> : null}
     <input
       ref={inputRef}
+      type="text"
+      id={inputId}
       className="kplex-search"
       value={value}
       disabled={disabled}
@@ -442,7 +455,8 @@ export function FuzzySuggester<T>({
       }}
       onKeyDown={onKeyDown}
       placeholder={placeholder}
-      aria-label={ariaLabel}
+      aria-label={labelledBy ? undefined : ariaLabel}
+      aria-labelledby={labelledBy}
       aria-expanded={focused && visibleResults.length > 0}
       autoComplete="off"
     />

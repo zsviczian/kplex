@@ -1,5 +1,8 @@
 ﻿/** One native assignment/convert form shared by scene, saved-list and external tag drops. */
-import { Modal, Setting, type App, type ButtonComponent } from "obsidian";
+import {formActions, iconButton, FormSetting as Setting, KplexModal as Modal} from "../adapters/obsidian/KplexModal";
+
+
+import {type App, type ButtonComponent} from "obsidian";
 import type { Translator } from "../lang";
 import { NoteTypeChangedError, type NoteTypeSelection, type TagAssignment, type NoteTypeConflictChoice } from "../adapters/obsidian/tagNoteType";
 import { SavedRelationshipPendingError } from "../adapters/obsidian/relationshipMetadataWrite";
@@ -37,8 +40,8 @@ export class TagAssignmentModal extends Modal {
     if (message) this.contentEl.createEl("p", {cls: "mod-warning", text: message, attr: {role: "alert"}});
     const unavailable = this.assignment === "note-type" && !this.selectedType.supported;
     if (unavailable) this.contentEl.createEl("p", {cls: "mod-warning", text: t("tagAssignment.invalid")});
-    new Setting(this.contentEl)
-      .addButton(button => button.setButtonText(t("common.cancel")).onClick(() => {if (!this.pending) this.close();}))
+    formActions(this.contentEl)
+      .addButton(button => iconButton(button, t("common.cancel"), "x").onClick(() => {if (!this.pending) this.close();}))
       .addButton(button => {saveButton = button; button.setButtonText(t(this.options.convert ? "tagAssignment.change" : "tagAssignment.add")).setCta()
         .setDisabled(unavailable || conflict && !this.conflict).onClick(() => {void this.submit();});});
   }

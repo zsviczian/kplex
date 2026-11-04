@@ -3,7 +3,7 @@
  * The host's drag manager is not part of the public typed API, so this module owns the narrow,
  * guarded compatibility bridge and returns current Vault files of any type to host-bound UI.
  */
-import type { App, TFile } from "obsidian";
+import type { App, TFile, TFolder } from "obsidian";
 
 type DragManagerBridge = {
   draggable?: unknown;
@@ -33,6 +33,7 @@ function hasFilePath(value: unknown): value is FileDragCandidate {
 export function singleFileExplorerDragCandidate(draggable: unknown): FileDragCandidate | null {
   if (!draggable || typeof draggable !== "object") return null;
   const value = draggable as Record<string, unknown>;
+  if (value.type === "folder") return hasFilePath(value.file) ? value.file : hasFilePath(value.folder) ? value.folder : null;
   if (value.type === "file") {
     return hasFilePath(value.file) ? value.file : null;
   }
@@ -70,4 +71,10 @@ export function getDraggedFile(app: App): TFile | null {
 export function getDraggedMarkdownFile(app: App): TFile | null {
   const file = getDraggedFile(app);
   return file?.extension.toLowerCase() === "md" ? file : null;
+}
+
+/** Resolve a native Files folder drag separately from note/link and external Files payloads. */
+export function getDraggedFolder(app: App): TFolder | null {
+  const candidate = singleFileExplorerDragCandidate((app as unknown as AppDragBridge).dragManager?.draggable);
+  return candidate && typeof candidate.path === "string" ? candidate.path === "/" ? app.vault.getRoot() : app.vault.getFolderByPath(candidate.path) : null;
 }

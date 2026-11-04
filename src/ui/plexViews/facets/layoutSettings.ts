@@ -1,6 +1,7 @@
 /** Native layout defaults and a semantic anchor schematic. The existing preset editor owns
  * the detached draft, Save/Cancel, conflict checks and component lifetime. No graph data is read. */
-import {Setting} from "obsidian";
+
+import {FormSetting as Setting} from "../../../adapters/obsidian/KplexModal";
 import type {FacetPreset} from "../../../core/plex/views/facets/contracts";
 import {FACET_LAYOUTS, isFacetLayout} from "../../../core/plex/views/facets/presentation";
 import type {Translator} from "../../../lang";

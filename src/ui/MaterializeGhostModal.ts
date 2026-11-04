@@ -1,9 +1,12 @@
 /**
  * Native Obsidian dialog for materializing a placeholder as a real Markdown note. The plugin owns vault changes; this shell owns localized controls, validation feedback and close cleanup.
  */
+import {formActions, iconButton, FormSetting as Setting, KplexModal as Modal, formField} from "../adapters/obsidian/KplexModal";
+
+
 import { DrawingTemplateSelect, type DrawingTemplateChoices } from "./features/DrawingTemplateSelect";
 import { SavedRelationshipPendingError } from "../adapters/obsidian/relationshipMetadataWrite";
-import { Modal, Notice, Setting, type App, type ButtonComponent, type Scope, type TFile } from "obsidian";
+import {Notice, type App, type ButtonComponent, type Scope, type TFile} from "obsidian";
 import { createElement, useState } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { createObsidianTranslator } from "../adapters/obsidian/localization";
@@ -137,6 +140,7 @@ export class MaterializeGhostModal extends Modal {
 
     const folderSetting = new Setting(this.contentEl).setName(this.translate("folderPicker.label"))
       .setClass("kplex-materialize-folder-row");
+    formField(folderSetting);
     const folderHost = folderSetting.controlEl.createDiv({ cls: "kplex-materialize-folder-input" });
     this.folderRoot = createRoot(folderHost);
     this.folderPaths = this.app.vault.getAllFolders(true).map(/** Include root without exposing note contents. */ folder => folder.path === "/" ? "/" : folder.path);
@@ -150,11 +154,10 @@ export class MaterializeGhostModal extends Modal {
       this.completionRoot = createRoot(this.contentEl.createDiv({cls: "kplex-creation-completion-row"}));
       this.renderCompletion();
     }
-    const actionSetting = new Setting(this.contentEl);
+    const actionSetting = formActions(this.contentEl);
     actionSetting.addButton((button) => {
       this.buttons.push({ button, kind: "markdown" });
-      button
-        .setButtonText(this.translate("common.markdown"))
+      iconButton(button, this.translate("common.markdown"), "text-initial")
         .onClick(() => { void this.create("markdown"); });
       if (effectiveDefault === "markdown") button.setCta();
     });
@@ -162,15 +165,13 @@ export class MaterializeGhostModal extends Modal {
     if (this.excalidrawAvailable) {
       actionSetting.addButton((button) => {
         this.buttons.push({ button, kind: "excalidraw" });
-        button
-          .setButtonText(this.translate("common.excalidraw"))
+        iconButton(button, this.translate("common.excalidraw"), "palette")
           .onClick(() => { void this.create("excalidraw"); });
         if (effectiveDefault === "excalidraw") button.setCta();
       });
     }
 
-    actionSetting.addButton((button) => button
-      .setButtonText(this.translate("common.cancel"))
+    actionSetting.addButton((button) => iconButton(button, this.translate("common.cancel"), "x")
       .onClick(() => this.close()));
 
     this.nativeHandlers.push(this.scope.register(["Mod"], "Enter", (event) => {

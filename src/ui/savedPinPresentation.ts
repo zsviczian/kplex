@@ -20,7 +20,7 @@ export function savedPinPresentation(row: ResolvedSavedPin, page: GraphPage | un
   const label = row.period ? periodicPinLabel(row.period, translate) : title ?? row.path ?? translate("pins.unsupported");
   const presentation = page ? nodeListPresentation(page, label, settings, row.period ? "calendar" : undefined) : null;
   const detail = row.state === "configuration" ? translate("pins.configurationRequired") : row.state === "unsupported" ? translate("pins.unsupported")
-    : row.state === "missing" ? translate("pins.missingTarget", {path: row.path ?? ""}) : row.path ?? "";
+    : row.state === "missing" ? translate(row.period ? "pins.createPrompt" : "pins.missingTarget", {path: row.path ?? ""}) : row.path ?? "";
   return {id: row.id, path: row.path, label: presentation?.label ?? label, icon: presentation?.icon ?? (row.period ? "calendar" : "file-question"),
     style: presentation?.style, active: row.path !== null && row.path === activePath, available: row.state === "ready", actionable: row.state === "ready" || !!row.period, detail};
 }

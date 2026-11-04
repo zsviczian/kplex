@@ -4,7 +4,9 @@
  * owns retry/selection controls. Closing retires callbacks and restores native selection/focus.
  * GitHub navigation is explicit through literal external anchors; nothing is submitted here.
  */
-import { Modal, Setting, type App } from "obsidian";
+import {formActions, KplexModal as Modal} from "./KplexModal";
+
+import {type App} from "obsidian";
 import type { Translator } from "../../lang";
 import { SupportClipboardSession, type SupportCopyState } from "../../application/supportClipboard";
 
@@ -47,7 +49,7 @@ export class SupportReportModal extends Modal {
     preview.spellcheck = false;
     preview.setAttr("aria-label", this.translate("support.previewLabel"));
     preview.rows = 9;
-    new Setting(content).addButton(/** Retry starts the owning writer in the native button callback's synchronous turn. */ button => {
+    formActions(content).addButton(/** Retry starts the owning writer in the native button callback's synchronous turn. */ button => {
       this.retry = button.buttonEl;
       button.setButtonText(this.translate("support.copyAgain"))
         .onClick(/** No report regeneration or prior await can consume clipboard user activation. */ () => this.session.copy());
