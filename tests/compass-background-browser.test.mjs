@@ -13,7 +13,7 @@ const built=await build({stdin:{resolveDir:process.cwd(),loader:'ts',contents:`
  import {CameraMotion} from './src/ui/components/CameraMotion';
  export {CameraMotion};
  import {compassPolygons} from './src/core/plex/compassBackground';const classic={tint:compassPolygons};import {COMPASS_DIRECTIONS} from './src/core/plex/colorPreferences';
- export function fixture(count=0){
+ export function fixture(count=0,flipEastWest=false){
   const root=document.createElement('div'),cameraNode=document.createElement('div'),svg=document.createElementNS('http://www.w3.org/2000/svg','svg'),node=document.createElement('div');
   root.style.cssText='position:fixed;left:10px;top:10px;width:800px;height:600px;overflow:hidden';svg.style.cssText='position:absolute;inset:0;width:100%;height:100%;pointer-events:none';
   cameraNode.style.cssText='position:absolute;transform-origin:0 0';node.style.cssText='position:absolute;left:30px;top:40px;width:120px;height:26px';
@@ -81,6 +81,14 @@ test('shared camera frame stops at settle, cancel, disable, hidden or zero viewp
  })()`);
  console.log(JSON.stringify({compassFrames:rows}));
  assert.equal(rows.length,2);for(const row of rows){assert(row.settledFrames>0&&row.settledFrames<50,JSON.stringify(rows));assert.equal(row.idleFrames,0);assert.equal(row.cameraOverlayWrites,1)}
+});
+
+/** Real owner documents and final computed styles prove lease lifetime, separate from GPU timing. */
+test('flipped Compass swaps only east/west backdrop geometry while sharing the same camera center',async()=>{
+ assert.equal(await scenario(`(()=>{const normal=sourceModules.fixture(),flipped=sourceModules.fixture(0,true);try{
+  const points=f=>[...f.svg.children].map(p=>p.getAttribute('points'));
+  const a=points(normal),b=points(flipped);if(a[0]!==b[0]||a[2]!==b[2]||a[1]!==b[3]||a[3]!==b[1])throw Error('Compass backdrop disagrees with mirrored physical axes');return true;
+ }finally{normal.dispose();flipped.dispose()}})()`),true);
 });
 
 /** Real owner documents and final computed styles prove lease lifetime, separate from GPU timing. */

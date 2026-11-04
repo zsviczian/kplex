@@ -4,6 +4,7 @@
  * The narrow ports keep settings storage and semantic interpretation with their existing owners.
  */
 import {type ButtonComponent, type Setting} from "obsidian";
+import {formField} from "../adapters/obsidian/KplexModal";
 import {TextSettingDraft} from "./components/textSettingDraft";
 import type {Translator} from "../lang";
 
@@ -19,6 +20,7 @@ export class OntologyFieldControl {
 
   /** Mount a native field without initial writes; row replacement cannot redirect an old callback. */
   mount(setting: Setting, rows: number): () => void {
+    formField(setting);
     this.draft.refresh();
     const owner = this.captureOwner();
     let live = true, retry: ButtonComponent | undefined, discard: ButtonComponent | undefined;

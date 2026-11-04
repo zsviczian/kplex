@@ -15,13 +15,14 @@ import ts from "typescript";
 // The real convergence adapter is exercised with host events, not replaced by an immediate success.
 const metadataTemp = mkdtempSync(join(tmpdir(), "kplex-created-metadata-"));
 process.on("exit", () => rmSync(metadataTemp, { recursive: true, force: true }));
-await build({ stdin: { contents: 'export * from "./src/adapters/obsidian/relationshipMetadataWrite"; export { normalizeFieldName } from "./src/core/contracts/fieldName"; export { captureSurfaceContinuation } from "./src/ui/surfaceContinuation"; export { createTranslator } from "./src/lang/index";', resolveDir: fileURLToPath(new URL("..", import.meta.url)) },
+await build({ stdin: { contents: 'export * from "./src/adapters/obsidian/relationshipMetadataWrite"; export {gateCreationRole,gateGroupRole} from "./src/ui/features/gateRelationshipIntent"; export { normalizeFieldName } from "./src/core/contracts/fieldName"; export { captureSurfaceContinuation } from "./src/ui/surfaceContinuation"; export { createTranslator } from "./src/lang/index";', resolveDir: fileURLToPath(new URL("..", import.meta.url)) },
   outfile: join(metadataTemp, "observer.mjs"), bundle: true, platform: "node", format: "esm" });
-const { writeRelationshipMetadata, SavedRelationshipPendingError: ActualSavedPendingError, normalizeFieldName: actualNormalizeFieldName, captureSurfaceContinuation, createTranslator }
+const { gateCreationRole,gateGroupRole,writeRelationshipMetadata, SavedRelationshipPendingError: ActualSavedPendingError, normalizeFieldName: actualNormalizeFieldName, captureSurfaceContinuation, createTranslator }
   = await import(pathToFileURL(join(metadataTemp, "observer.mjs")));
 
 /** Compile a production callback/method; class-field arrows capture the supplied owning instance. */
 function productionFunction(path, name, dependencies) {
+  dependencies={gateCreationRole,gateGroupRole,...dependencies};
   const source = ts.createSourceFile(path, readFileSync(new URL(`../${path}`, import.meta.url), "utf8"), ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
   let expression;
   function visit(node) {
@@ -38,6 +39,7 @@ function productionFunction(path, name, dependencies) {
 }
 
 const tagMembershipPair = productionFunction("src/ui/structuralConnectionActions.ts", "tagMembershipPair", {});
+const eligibleRelationshipOwner = productionFunction("src/adapters/obsidian/relationshipOwner.ts", "eligibleRelationshipOwner", {});
 const structuralDropKind = productionFunction("src/ui/StructuralNodeDropActions.ts", "structuralDropKind", {tagMembershipPair});
 
 /** Minimal Markdown-backed graph page retaining exact endpoint paths and canonical identity. */
@@ -669,7 +671,7 @@ function createdMetadataFixture({ extension = "md", displayField = "aliases", in
       if (nextBody !== body) { file.stat.mtime++; file.stat.size = nextBody.length; body = nextBody; }
       writes.push(structuredClone(next)); events.push("native-write");
     },
-  } }, relationshipWriteCancels: new Set(), managedMetadataWrites: new Map(), unloading: false,
+  } }, fileCreationAutomation: {wait: async()=>{}}, relationshipWriteCancels: new Set(), managedMetadataWrites: new Map(), unloading: false,
     pruneManagedMetadataWrites: () => {}, configuredDisplayNameField: () => displayField,
     translator: key => key, validateRelatedNoteName: () => ({ valid: true, existing: null, stem: "Created" }),
     createNewFileInFolder: async () => file,
@@ -690,9 +692,9 @@ function createdMetadataFixture({ extension = "md", displayField = "aliases", in
     assert.equal(destination, "tab"); assert(current());
     await context.openInDocumentLeaf(created.file, hostLeaf);
   };
-  for (const method of ["newRelatedNoteFolder", "validateNoteFolderPath", "mutateCreatedNodeMetadata", "writeCreatedNodeDisplayName", "writeCreatedNodeAlias", "createNewRelatedFileForOrigin", "linkNewRelatedFile", "appendRelationshipReference"])
+  for (const method of ["newRelatedNoteFolder", "validateNoteFolderPath", "waitForCreatedFileAutomation", "mutateCreatedNodeMetadata", "writeCreatedNodeDisplayName", "writeCreatedNodeAlias", "createNewRelatedFileForOrigin", "linkNewRelatedFile", "appendRelationshipReference"])
     context[method] = productionFunction("src/main.ts", method, { writeRelationshipMetadata, normalizeFieldName: actualNormalizeFieldName,
-      normalizePath: value => value,
+      eligibleRelationshipOwner, normalizePath: value => value,
       Notice: class { constructor(message) { notices.push(message); } } }).bind(context);
   return { context, file, origin, writes, events, notices, metadataCache, vault,
     observe() { cache = { frontmatter: structuredClone(frontmatter) }; events.push("cache-body-observed"); metadataCache.emit("changed", file, body, cache); },
@@ -818,9 +820,9 @@ for (const mode of ["refreshing", "preview-failed", "source-replaced", "target-r
         refreshVisibleHostMetadataPreviews: () => { previews++; if (mode === "preview-failed") throw new Error("Preview failed after saving"); } }, configuredDisplayNameField: () => null,
       prepareRelationshipMutation: assert.fail, publishSavedRelationship: assert.fail, translator: key => key,
       referenceForPage: page => `[[${page.path}]]`, valueContainsTarget: (values, _file, page) => values.includes(`[[${page.path}]]`),
-      pruneManagedMetadataWrites() {}, managedMetadataWrites: new Map() };
+      pruneManagedMetadataWrites() {}, managedMetadataWrites: new Map(), fileCreationAutomation: {wait: async()=>{}} };
     context.appendRelationshipReference = productionFunction("src/main.ts", "appendRelationshipReference", { normalizeFieldName: actualNormalizeFieldName });
-    const link = productionFunction("src/main.ts", "linkNewRelatedFile", { normalizeFieldName: actualNormalizeFieldName, SavedRelationshipPendingError: ActualSavedPendingError, console: { error() {} } }).bind(context);
+    const link = productionFunction("src/main.ts", "linkNewRelatedFile", {eligibleRelationshipOwner, normalizeFieldName: actualNormalizeFieldName, SavedRelationshipPendingError: ActualSavedPendingError, console: { error() {} } }).bind(context);
     if (mode === "refreshing" || mode === "preview-failed") {
       const result = await link(origin, "child", target.file, "child");
       assert.equal(result.state, "saved-pending"); assert.equal(result.page, target); assert.equal(writes, 1); assert.equal(previews, 1);

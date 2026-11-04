@@ -1,6 +1,8 @@
 /** Explicit native property preview/confirmation. Shared modal submission owns focus, pending
  * exclusion and truthful disk outcomes. It never writes bodies or chooses another canvas. */
-import {Setting, type App} from "obsidian";
+import {formActions, iconButton, FormSetting as Setting} from "../adapters/obsidian/KplexModal";
+
+import {type App} from "obsidian";
 import {StyleEditorModal, type StyleCommitResult} from "./StyleEditorModal";
 import type {PropertyFieldValue} from "../core/plex/views/propertyAssignment";
 import type {Translator} from "../lang";
@@ -28,10 +30,10 @@ export class CanvasPropertyAssignmentModal extends StyleEditorModal {
     body.createEl("p", {text: t("assignment.sharedField")});
     this.failure = actions.createDiv({cls: "setting-item-description", attr: {role: "status", "aria-live": "polite"}});
     if (this.options.unrelated) body.createEl("p", {text: t("assignment.unrelated")});
-    if (this.options.connect) new Setting(actions).addButton(button => button.setButtonText(t("assignment.connectOnly")).onClick(() => {
+    if (this.options.connect) formActions(actions).addButton(button => button.setButtonText(t("assignment.connectOnly")).onClick(() => {
       if (!this.canEdit()) return;this.close();this.options.connect?.();
     }));
-    new Setting(actions).addButton(button => button.setButtonText(t("common.cancel")).onClick(() => this.close()))
+    formActions(actions).addButton(button => iconButton(button, t("common.cancel"), "x").onClick(() => this.close()))
       .addButton(button => button.setButtonText(t(this.options.undo ? "assignment.undo" : "assignment.apply")).setCta()
         .onClick(() => {if (this.canEdit()) this.runOperation(this.options.commit);}));
   }

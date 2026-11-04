@@ -68,6 +68,16 @@ const obsidianFacts = classified.exports;
 process.on("exit", () => rmSync(classified.temp, { recursive: true, force: true }));
 const fileDragCompiled = compilePureModule("src/adapters/obsidian/fileExplorerDrag.ts");
 const fileExplorerDrag = fileDragCompiled.exports;
+
+test('native Files folder drags resolve one current folder separately from note drags', () => {
+  const folder={path:'Folder',children:[]},folders=new Map([[folder.path,folder]]);
+  const app={dragManager:{draggable:{type:'folder',file:folder}},vault:{getFolderByPath:path=>folders.get(path)??null,getFileByPath:()=>null}};
+  assert.equal(fileExplorerDrag.getDraggedFolder(app),folder);assert.equal(fileExplorerDrag.getDraggedFile(app),null);
+  app.dragManager.draggable={type:'folder',folder};assert.equal(fileExplorerDrag.getDraggedFolder(app),folder);
+  app.dragManager.draggable={type:'files',files:[folder]};assert.equal(fileExplorerDrag.getDraggedFolder(app),folder);
+  app.dragManager.draggable={type:'files',files:[folder,{path:'Another'}]};assert.equal(fileExplorerDrag.getDraggedFolder(app),null);
+  app.dragManager.draggable={type:'folder',file:folder};folders.clear();assert.equal(fileExplorerDrag.getDraggedFolder(app),null);
+});
 process.on("exit", () => rmSync(fileDragCompiled.temp, { recursive: true, force: true }));
 const excalidrawVersionCompiled = compilePureModule("src/adapters/obsidian/excalidrawIntegrationVersion.ts");
 const excalidrawVersion = excalidrawVersionCompiled.exports;

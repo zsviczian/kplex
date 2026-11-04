@@ -30,6 +30,7 @@ const mainSource = readFileSync(join(root, "src/main.ts"), "utf8");
 
 const appSource = readFileSync(join(root, "src/ui/App.tsx"), "utf8").replace(/\r\n/g, "\n");
 const newRelatedSource = readFileSync(join(root, "src/ui/NewRelatedNoteModal.ts"), "utf8");
+const relationshipControlSource = readFileSync(join(root, "src/ui/features/RelationshipFieldControl.tsx"), "utf8");
 const draggableDialogSource = readFileSync(join(root, "src/ui/components/DraggableDialog.ts"), "utf8");
 const ghostModalSource = readFileSync(join(root, "src/ui/MaterializeGhostModal.ts"), "utf8");
 const plexGraphSource = readFileSync(join(root, "src/ui/PlexGraph.tsx"), "utf8");
@@ -138,7 +139,7 @@ assert(draggableDialogSource.includes('ownerWindow.addEventListener("pagehide", 
 assert(ghostModalSource.includes('this.scope.register(["Mod"], "Enter"'), "Ghost materialization must support the same Ctrl/Cmd+Enter default action as create-related");
 assert(ghostModalSource.includes('setName(this.translate("folderPicker.label"))') && ghostModalSource.includes('createElement(MaterializationFolderInput') && ghostModalSource.includes('setClass("kplex-materialize-folder-row")'), "Ghost destinations must reuse the localized full-width folder field");
 assert(!ghostModalSource.includes('"ghost.locationConflictHelp"') && !ghostModalSource.includes('"folderPicker.help"'), "The requested compact folder row must not restore the removed guidance");
-assert(ghostModalSource.includes('setButtonText(this.translate("common.excalidraw"))'), "Ghost materialization must offer localized Excalidraw copy when the integration is available");
+assert(ghostModalSource.includes('if (this.excalidrawAvailable)') && ghostModalSource.includes('iconButton(button, this.translate("common.excalidraw"), "palette")'), "Ghost materialization must offer the shared localized Excalidraw action only when the integration is available");
 assert(!appSource.includes('void plugin.openSidecar(hostLeaf, page);'), "React mount must not create a sidecar during startup restore; plugin-level restore owns re-association");
 assert(appSource.includes("plugin.isStartupInitializing() && plugin.settings.lastActivePath"), "A restored K-Plex view must keep its persisted center while Obsidian startup tab ordering is unstable");
 assert(appSource.includes('getDraggedFile(plugin.app)') && appSource.includes('onDragOver={handlePlexDragOver}') && appSource.includes('onDrop={handlePlexDrop}'), "K-Plex surfaces must accept supported Obsidian File Explorer file drops");
@@ -334,12 +335,17 @@ assert(createFolderNoteModalSource.includes('this.scope.register(["Mod"], "Enter
 assert(createFolderNoteModalSource.includes('this.plugin.settings.newNodeDefaultType'), "Folder creation must share the create-child Markdown/Excalidraw default");
 assert(!createFolderNoteModalSource.includes("addRelated.createPlaceholder"), "Folder creation must not offer a placeholder because folders require real files");
 assert(plexGraphSource.includes('if (event.button !== 0 || node.page.transient) return;'), "Persistent tag and physical folder gates must remain valid structural drag origins");
-assert(plexGraphSource.includes('drag.moved && drag.gate === "bottom" && !target'), "Only an empty-space folder child-gate drop starts file creation");
+assert(plexGraphSource.includes('if (drag.moved && !target) plugin.openCreateInFolderModal(origin, hostLeaf);'), "Empty-space folder gates open explicit structural choices");
+assert(mainSource.includes('const dialog = new CreateFolderNoteModal(this, folder, hostLeaf, {')
+  && createFolderNoteModalSource.includes('this.tabRoot?.render(createElement(Tabs,')
+  && !mainSource.includes('this.structuralDropOwner().openFolderActions(folder,'), "Empty-space folder creation uses the existing note composer with shared tabs, without the old combined move chooser");
+assert(mainSource.includes('const dialog = new MoveNodeModal(this.app, source, this.translator,')
+  && plexGraphSource.includes('plugin.openMoveNodeModal(persistent, hostLeaf, actionSurfaceId, menuCurrent)'), "Physical node moves retain the separate native adapter-backed modal and captured context-menu lifetime");
 assert(thoughtNodeSource.includes('translate("node.gateFolderChild")'), "Folder child gates must explain their creation gesture through localized copy");
 assert(plexGraphSource.includes("plugin.openStructuralNodeDrop(origin, target)"), "Dropping a physical node gate onto a folder must use native move confirmation");
 assert(mainSource.includes("createNewNodeInFolder(folder: GraphPage"), "Folder creation must materialize directly in the selected folder");
-assert(newRelatedSource.includes('className: "kplex-add-related-control-row"'), "Ontology and open-for-editing controls must share the first responsive row");
-assert(newRelatedSource.includes('className: "kplex-add-related-compose-row"'), "Name search and create/link actions must share the second row");
+assert(newRelatedSource.includes('createElement(RelationshipFieldControl,') && relationshipControlSource.includes('kplex-add-related-control-row kplex-relationship-field-control'), "Ontology and selected-field edit controls must use the shared first responsive row");
+assert(newRelatedSource.includes('className: "kplex-add-related-compose-row" }, nameEditor)') && newRelatedSource.includes('createElement(FormActions, {status},'), "Full-width authored name/alias fields must be followed by the common actions footer");
 assert(newRelatedSource.indexOf("controlRow,") < newRelatedSource.indexOf("composeRow,"), "Relationship controls must render above the focused name row");
 assert(newRelatedSource.includes('className: "kplex-create-alias-input"'), "Create-related UI must provide an optional alias field");
 assert(newRelatedSource.includes("plugin.createWebLinkRelatedPage(refreshCapturedPage(plugin, origin), role, webUrl, alias, field)"), "Create-related UI must recognize and persist web-link relationships");
@@ -359,7 +365,7 @@ assert(!plexFilterSource.includes('"renderAlias"'), "Display aliases is presenta
 assert(plexFilterSource.indexOf('translate("filter.nodeOrder")') < plexFilterSource.indexOf('translate("filter.quickLens")'), "Node order must precede Quick lens");
 assert(plexFilterSource.indexOf('translate("filter.quickLens")') < plexFilterSource.indexOf('translate("filter.graphLenses")'), "Quick lens must precede Graph lenses");
 assert(plexFilterSource.includes("data-kplex-long-press-tooltip"), "Filter toggles must expose touch-friendly tooltips");
-assert(newRelatedSource.includes('["previous", "role.previous"]') && newRelatedSource.includes('["next", "role.next"]') && newRelatedSource.includes('plugin.translator(key)'), "Add-note relationship dropdown must include localized previous and next labels");
+assert(relationshipControlSource.includes('["previous", "role.previous"]') && relationshipControlSource.includes('["next", "role.next"]') && relationshipControlSource.includes('translate(key)'), "The shared relationship dropdown must include localized previous and next labels");
 assert(newRelatedSource.includes('className: "kplex-create-alias-input"'), "Add-note dialog must retain its optional alias editor");
 assert(plexGraphSource.includes('.setTitle(translate("graph.addNote"))'), "Node context menus must expose localized Add note copy");
 assert(plexGraphSource.includes("TOUCH_GATE_LONG_PRESS_MS"), "Touch gate long-press must enter relationship drag mode");
@@ -522,6 +528,8 @@ for (const file of [
   "src/adapters/obsidian/hostLinkSourceCollector.ts",
   "src/adapters/obsidian/ontologySourceCollector.ts",
   "src/adapters/obsidian/dailyNotes.ts",
+  "src/adapters/obsidian/KplexModal.ts",
+  "src/ui/mobileModalViewport.ts",
   "src/adapters/obsidian/periodicPins.ts",
   "src/adapters/obsidian/metadataSourceCollector.ts",
   "src/adapters/obsidian/relationshipMetadataWrite.ts",
@@ -548,6 +556,7 @@ for (const file of [
   "src/adapters/obsidian/graphFolder.ts",
   "src/adapters/obsidian/ontologyUsage.ts",
   "src/ui/features/ontologyPresentation.ts",
+  "src/ui/features/gateRelationshipIntent.ts",
   "src/ui/StyleColorControls.ts",
   "src/ui/styleNumberSlider.ts",
   "src/ui/numberSlider.ts",
@@ -660,6 +669,7 @@ for (const file of [
   "src/ui/plexViews/classic/occurrenceEditor.ts",
   "src/application/ActionManager.ts",
   "src/application/IndexingActivity.ts",
+  "src/application/indexRecoveryDiagnostics.ts",
   "src/application/SessionEventRecorder.ts",
   "src/application/supportClipboard.ts",
   "src/application/ClipboardSession.ts",
@@ -682,6 +692,9 @@ for (const file of [
   "src/core/plex/views/classic/projection.ts",
   "src/core/plex/views/classic/geometry.ts",
   "src/core/plex/views/classic/definition.ts",
+  "src/core/plex/views/classic/configuration.ts",
+  "src/adapters/obsidian/relationshipOwner.ts",
+  "src/adapters/obsidian/externalFileImport.ts",
   "src/core/plex/views/state.ts",
   "src/core/plex/views/hierarchy.ts",
   "src/core/plex/views/mindmap/definition.ts",
@@ -786,7 +799,8 @@ class FileView { constructor() { this.containerEl = null; } }
 class MarkdownView extends FileView {}
 class Menu {}
 class Notice { constructor() {} }
-class Modal { constructor(app) { this.app = app; } open() { Modal.latest = this; } }
+class Modal { constructor(app) { this.app = app; this.modalEl = {addClass() {}, isConnected: false}; this.contentEl = {addClass() {}}; } open() { Modal.latest = this; } close() {} }
+class Setting {}
 class App {}
 class AbstractInputSuggest {}
 class SuggestModal extends Modal {}
@@ -799,7 +813,7 @@ function normalizePath(path) { return path; }
 function setIcon() {}
 module.exports = {
   TAbstractFile, TFile, TFolder, getAllTags, moment, Platform, apiVersion: "1.14.2", Plugin, FileView, MarkdownView,
-  Menu, Notice, normalizePath, setIcon, Modal, App, AbstractInputSuggest, PluginSettingTab, getIcon, getIconIds, SuggestModal, ColorComponent, getLanguage,
+  Menu, Notice, normalizePath, setIcon, Modal, Setting, App, AbstractInputSuggest, PluginSettingTab, getIcon, getIconIds, SuggestModal, ColorComponent, getLanguage,
 };
 `);
 
@@ -831,8 +845,11 @@ exports.KplexSidepanelView = class {};
 for (const [path, name] of [
   ["src/ui/RelationModal.js", "RelationModal"],
   ["src/ui/NewRelatedNoteModal.js", "NewRelatedNoteModal"],
+  ["src/ui/ExternalFileImportBatchModal.js", "ExternalFileImportBatchModal"],
   ["src/ui/MaterializeGhostModal.js", "MaterializeGhostModal"],
   ["src/ui/CreateFolderNoteModal.js", "CreateFolderNoteModal"],
+  ["src/ui/CreatePeriodicNoteModal.js", "CreatePeriodicNoteModal"],
+  ["src/ui/MoveNodeModal.js", "MoveNodeModal"],
   ["src/ui/StructuralNodeDropActions.js", "StructuralNodeDropActions"],
   ["src/editor/OntologySuggester.js", "OntologySuggester"],
   ["src/ui/AddToOntologyModal.js", "AddToOntologyModal"],

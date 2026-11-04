@@ -1,6 +1,7 @@
 /** Native diagnostics controls edit only the enclosing detached preset draft. The preset editor
  * retains save/conflict/lifecycle ownership; layout and classification stay in the pure view. */
-import {Setting} from "obsidian";
+
+import {FormSetting as Setting} from "../../../adapters/obsidian/KplexModal";
 import type {FacetDiagnostics} from "../../../core/plex/views/facets/contracts";
 import {FACET_DIAGNOSTIC_ORDER} from "../../../core/plex/views/facets/presentation";
 import type {Translator} from "../../../lang";

@@ -1,7 +1,9 @@
 /** Reusable native read-only Markdown help surface. The invoking canvas owns the dialog;
  * native modal/Component lifetimes fence async rendering, close, window migration and Edit.
  * Opening never saves settings, acquires a source or changes navigation/editor attention. */
-import {Setting, type App} from "obsidian";
+import {iconButton, FormSetting as Setting} from "../adapters/obsidian/KplexModal";
+
+import {type App} from "obsidian";
 import {StyleEditorModal} from "./StyleEditorModal";
 import {NativeMarkdownHelp} from "./NativeMarkdownHelp";
 
@@ -16,7 +18,7 @@ export class MarkdownHelpModal extends StyleEditorModal {
     this.titleEl.setText(this.edit ? this.translate("view.helpFor", {name: this.name}) : this.name);
     const {body, actions} = this.scrollableContent();
     const row = new Setting(actions);
-    row.addButton(/** Native close/Escape shares the same immediate render retirement. */ button => button.setButtonText(this.translate("styles.operation.close")).onClick(/** Explicit dismissal has no settings effect. */ () => this.close()));
+    row.addButton(/** Native close/Escape shares the same immediate render retirement. */ button => iconButton(button, this.translate("styles.operation.close"), "x").onClick(/** Explicit dismissal has no settings effect. */ () => this.close()));
     if (this.edit) row.addButton(/** Editable preset Help offers the existing captured editor; format guidance is read-only. */ button => button.setButtonText(this.translate("view.editHelp")).setDisabled(!this.current())
       .onClick(/** Retire this renderer before transferring to the existing captured settings editor. */ () => {if (this.canEdit() && this.current() && this.edit) {this.close();this.edit();}}));
     if (!this.markdown.trim()) {body.createDiv({cls: "setting-item-description", text: this.translate("view.emptyHelp")});return;}

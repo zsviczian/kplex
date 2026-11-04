@@ -14,6 +14,21 @@ Existing subsystem requirements in those guides remain mandatory.
 - Recheck captured file, view, generation and demand identities after asynchronous work before publishing or writing. Preserve atomic source/index publication and native ownership fences.
 - Use owning-window animation frames for rendering, never as the sole persistence or cleanup clock. A frame callback is not evidence of paint.
 
+## Native note creation and template automation
+
+Route K-Plex physical file creation/copying through `createFileWithAutomation` (the
+low-level native creator and configured Daily Notes creation share its adapter).
+Await the captured Templater creation receipt before display-name, alias or relationship
+property writes. A folder/regex template can be delayed before its pending set is
+populated, so an empty set, a quiet interval or a fixed delay cannot authorize writes.
+Do not duplicate Templater's matching rules or execute its parser a second time.
+Retain exact native identities after asynchronous work and on partial-file recovery.
+Wait for foreign template/user code outside mutation-priority scopes: a template
+may itself need navigation or source preparation. Acquire mutation priority only
+after that barrier for the actual metadata writes and graph publication.
+The optional guarded host seam and its limits are documented in
+[template creation](docs/TEMPLATE_CREATION.md); no graph scheduling belongs there.
+
 ## Compatibility and validation
 
 - Preserve settings (including unknown keys), command IDs, persisted graph/schema contracts and public APIs. Settings additions need defaults, validation and the existing serialized writer; renamed data needs an explicit migration.
@@ -59,6 +74,10 @@ Rules:
 11. Register long-lived Obsidian/DOM/timer resources through plugin lifecycle helpers where practical, or provide an equally explicit cleanup path. Reload/unload must not leak listeners, timers or detached UI.
 
 ## Host UX, privacy and accessibility
+
+Follow [UI_RULES.md](UI_RULES.md) for required shared form/modal components,
+icon actions, tooltip ownership, typography, full-width authored fields and visual
+acceptance. New local styling must not bypass these shared owners.
 
 - K-Plex is local/offline by default. Do not add telemetry, remote-code loading or network calls without an explicit user-facing reason, opt-in where appropriate, and clear documentation.
 - Keep UI copy short, sentence-case and action-oriented. Prefer established Obsidian classes/components before inventing a parallel visual language.

@@ -3,7 +3,9 @@
  * Callers supply detached affected/preview projections and the established durable writer. This
  * shell never samples colors into settings or clears geometry, rules, palettes or note content.
  */
-import {Setting, type App, type ButtonComponent} from "obsidian";
+import {formActions, iconButton, FormSetting as Setting} from "../adapters/obsidian/KplexModal";
+
+import {type App, type ButtonComponent} from "obsidian";
 import {StyleEditorModal, type StyleCommitResult} from "./StyleEditorModal";
 import {ColorPreview, type ColorPreviewTarget} from "./ColorPreview";
 import type {StyleColorContext} from "./StyleColorControls";
@@ -48,7 +50,7 @@ export class ColorAdoptionModal extends StyleEditorModal {
       dropdown.selectEl.setAttribute("aria-label", t("themes.resetScope"));
     });}
     this.display = body.createDiv();
-    new Setting(actions).addButton(button => button.setButtonText(t("common.cancel")).onClick(() => this.close()))
+    formActions(actions).addButton(button => iconButton(button, t("common.cancel"), "x").onClick(() => this.close()))
       .addButton(/** The single durable confirmation owner applies only the reviewed scope. */ button => {
         this.confirm = button; button.setButtonText(t(this.scoped && !this.scoped.baseShortcut ? "themes.reset" : "colors.adoptConfirm")).setDestructive().onClick(() => {
           if (!this.canEdit() || !this.affected.length) return;

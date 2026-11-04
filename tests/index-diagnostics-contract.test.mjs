@@ -108,3 +108,19 @@ test('center recovery aggregates survive both diagnostic exports without private
   assert.deepEqual(parsed.decisions[0].centerCheck,report.index.decisions[0].centerCheck);assert.equal(report.index.decisions[0].reason,'center-watchdog:repaired');
   assert.deepEqual(report.index.decisions[0].centerCheck.after,[0,7,0,0,0]);assert(!native.includes('PRIVATE'));assert(!support.includes('PRIVATE'));
 });
+
+test('recovery blockers and writer error classes survive both exports without private values',async()=>{
+ const api=await reportRuntime(),index=indexFacts();let getters=0;
+ const source={dependenciesReady:false,localAuthorityReady:false,pendingKnown:2152,inventoryActive:true,
+  pass:{phase:'sources',outcome:'cancelled',elapsedMs:1000,visited:42,total:11988,scopeChanges:1,path:'PRIVATE-PATH'}};
+ Object.defineProperty(source,'warmAuthority',{get(){getters++;throw Error('PRIVATE-ERROR')}});
+ index.getIndexRecoveryDiagnostics=()=>({demandedCenters:1,incompleteCenters:1,activeCenterTasks:0,dependencyPendingCenters:1,foregroundLeases:0,
+  waitingForSources:true,source,snapshot:{phase:'pages',outcome:'failed',errorName:'DataCloneError',elapsedMs:20,pageChunks:2,evidenceChunks:0,message:'PRIVATE-ERROR'}});
+ const native=api.createIndexDiagnosticsReport(index,()=>({upToDate:false,phase:'updating',indexedFiles:3,totalFiles:3}),'1.2.3'),parsed=JSON.parse(native);
+ const support=api.createSupportReport({capturedAt:'2026-11-04T14:11:32.000Z',indexReport:parsed,environment:{},indexingPreferences:{},startup:{},session:{}});
+ const report=JSON.parse(support.slice(support.indexOf('```json\n')+8,-5));
+ assert.deepEqual(parsed.recovery,report.index.recovery);assert.equal(parsed.recovery.source.pass.scopeChanges,1);
+ assert.equal(parsed.recovery.snapshot.errorName,'DataCloneError');assert.equal(parsed.recovery.waitingForSources,true);
+ assert.equal(getters,0);assert(!native.includes('PRIVATE'));assert(!support.includes('PRIVATE'));
+ assert(Buffer.byteLength(native)<=32768&&Buffer.byteLength(support)<=32768);
+});

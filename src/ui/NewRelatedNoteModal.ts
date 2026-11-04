@@ -1,14 +1,16 @@
 /**
  * Native Obsidian shell and shared React composer for related-note creation. The plugin owns mutations and separate link/create completion preferences; the modal owns operation-local choices, focus, suggestions, failure-only recovery and cleanup, and consumes localized copy. Recovery retains the exact durable file and displays the failure reason without enabling fresh creation.
  */
+import {KplexModal as Modal} from "../adapters/obsidian/KplexModal";
 import { DrawingTemplateSelect } from "./features/DrawingTemplateSelect";
 import { SavedRelationshipPendingError } from "../adapters/obsidian/relationshipMetadataWrite";
-import { Modal, Notice, type TFile, type Scope, type WorkspaceLeaf } from "obsidian";
-import { createElement, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {Notice, type TFile, type Scope, type WorkspaceLeaf} from "obsidian";
+import { createElement, useCallback, useEffect, useMemo, useRef, useState, useId } from "react";
+import {FormField, FormActions} from "./components/FormField";
 import { createRoot, type Root } from "react-dom/client";
 import type KplexPlugin from "../main";
 import type { GraphPage, RelationshipRole } from "../types";
-import { FuzzySearchInput, fuzzyFilterStrings } from "./FuzzySearchInput";
+import { FuzzySearchInput, fuzzyFilterStrings, type FuzzySearchInputProps } from "./FuzzySearchInput";
 import {ontologyConfiguration} from '../core/contracts/ontologyConfiguration';
 import {normalizeFieldName} from '../core/contracts/fieldName';
 import {ontologyFieldViews,ontologyFieldDetail,ontologyFuzzyMatches,ontologySelectionFields} from './features/ontologyPresentation';
@@ -16,11 +18,15 @@ import { FolderPathInput } from "./FolderPathInput";
 import { readObsidianPresentationEnvironment } from "../adapters/obsidian/presentationEnvironment";
 import { enableDraggableDialog } from "./components/DraggableDialog";
 import { ObsidianIcon } from "./ObsidianIcon";
-import { fitMobileModalToViewport } from "./mobileModalViewport";
 import { PartialRelatedFileError } from "../adapters/obsidian/relatedFileOutcome";
 import type { CompletionIntent } from "../core/plex/actions";
 import {resolveCreationAfterSaving, type CreationAfterSavingAction} from "../core/plex/createdNoteDestination";
 import { CreationCompletionSelect } from "./features/CreationCompletionSelect";
+import {RelationshipFieldControl} from "./features/RelationshipFieldControl";
+import {SelectedOntologyEditor} from "./SelectedOntologyEditor";
+import {RelationshipDirectionControl} from "./features/RelationshipDirectionControl";
+import {eligibleRelationshipOwner} from "../adapters/obsidian/relationshipOwner";
+import {copyExternalFile, validateExternalImportName} from "../adapters/obsidian/externalFileImport";
 
 /**
  * Confirmed saved relationship state; a pending publication remains a committed vault write.
@@ -36,6 +42,11 @@ export type RelatedNoteInvocation = {
   onClosed?: () => void;
   /** Existing-target native imports may append ontology but cannot inherit the legacy automatic-relink policy. */
   additiveOnly?: boolean;
+  /** Confirm one browser File through the same destination/ontology/recovery composer. */
+  importSource?: File;
+  importedFile?: TFile;
+  onImported?: (file: TFile) => void;
+  onImportFailure?: (error: string) => void;
 };
 
 /** Detach the bounded endpoint reference from mutable published page metadata while retaining its exact TFile. */
@@ -81,17 +92,20 @@ function RelatedNoteComposer({
   const [,setVocabularyRevision]=useState(0);
   useEffect(/** Update clean selection annotations after saved configuration publications without replacing typed drafts. */ ()=>plugin.index.subscribePresentation?.(/** Bump only this composer's current rendering. */ ()=>setVocabularyRevision(value=>value+1)),[plugin]);
   const [roleFilter, setRoleFilter] = useState<RelationshipRole | "all">(initialRole);
-  const [query, setQuery] = useState(/** Preselect the historical endpoint without requiring a second search. */ () => fixedTarget ? plugin.index.titleFor(fixedTarget) : "");
+  const [query, setQuery] = useState(/** Import names retain their extension and exact recovery file; historical endpoints keep the existing preselection. */ () => session.importedFile?.name ?? session.importSource?.name ?? (fixedTarget ? plugin.index.titleFor(fixedTarget) : ""));
   const [alias, setAlias] = useState("");
-  const [aliasFocused, setAliasFocused] = useState(false);
+  const noteId = useId(), aliasId = useId();
   const [noteTyped, setNoteTyped] = useState(false);
   const [selectedTarget, setSelectedTarget] = useState<GraphPage | null>(fixedTarget ?? null);
   const [ontology, setOntology] = useState(() => plugin.defaultOntologyField(initialRole));
+  const [editedOntology, setEditedOntology] = useState<string | null>(null);
   const assignedRole = plugin.ontologyRoleForField(ontology);
   const knownRole = assignedRole === "parent" || assignedRole === "child" || assignedRole === "left" || assignedRole === "right"
     || assignedRole === "previous" || assignedRole === "next" ? assignedRole : null;
   const role = roleFilter === "all" ? knownRole ?? initialRole : roleFilter;
+  const ontologySelectionInvalid = Boolean(assignedRole && assignedRole !== role || editedOntology === normalizeFieldName(ontology) && !assignedRole);
   const [ontologyTyped, setOntologyTyped] = useState(false);
+  const [storeOnTarget, setStoreOnTarget] = useState(false);
   const [browseOntology, setBrowseOntology] = useState(false);
   const [busy, setBusy] = useState(false);
   const busyRef = useRef(false);
@@ -100,9 +114,9 @@ function RelatedNoteComposer({
   const [linkContinuation, setLinkContinuation] = useState<CreationAfterSavingAction>(/** Linking starts from its own persisted preference. */ () =>
     resolveCreationAfterSaving(session.continuation, plugin.createdNoteCompletionControl(hostLeaf, {operation: "link"}).value));
   const [savedPending, setSavedPending] = useState<GraphPage | null>(null);
-  const [partialFile, setPartialFile] = useState<TFile | null>(null);
+  const [partialFile, setPartialFile] = useState<TFile | null>(session.importedFile ?? null);
   const [partialFailure, setPartialFailure] = useState<string | null>(null);
-  const excalidrawAvailable = plugin.isExcalidrawAvailable();
+  const excalidrawAvailable = !session.importSource && plugin.isExcalidrawAvailable();
   const [templateChoices] = useState(() => plugin.drawingTemplateOptions());
   const [templatePath, setTemplatePath] = useState(() => templateChoices?.selected ?? "");
   const [defaultCreateType, setDefaultCreateType] = useState<"markdown" | "excalidraw">(() =>
@@ -124,6 +138,7 @@ function RelatedNoteComposer({
   }, [plugin, selectedTarget]);
 
   const getNoteResults = useCallback(/** Filename-only selection needs no graph visibility evaluation or prepared incidence. */ (value: string) => {
+    if (session.importSource) return [];
     const trimmed = value.trim();
     return trimmed ? plugin.index.search(trimmed, 48, "vault-files").filter((page) => isNoteTarget(page, origin.path)).slice(0, 18) : [];
   }, [plugin, origin.path]);
@@ -142,6 +157,7 @@ function RelatedNoteComposer({
   );
 
   const webUrl = useMemo(() => {
+    if (session.importSource) return null;
     const value = query.trim();
     if (!/^https?:\/\//i.test(value)) return null;
     try {
@@ -152,8 +168,11 @@ function RelatedNoteComposer({
     }
   }, [query]);
   const linking = Boolean(selectedTarget || webUrl);
-  const continuation = linking ? linkContinuation : createContinuation;
-  const nameValidation = useMemo(() => plugin.validateRelatedNoteName(query, folderValidation.folderPath), [plugin, query, folderValidation.folderPath]);
+  const selectedContinuation = linking ? linkContinuation : createContinuation;
+  const continuation = session.importSource && selectedContinuation === "another" ? "return" : selectedContinuation;
+  const nameValidation = useMemo(() => session.importSource
+    ? validateExternalImportName(plugin.app, session.importSource, query, folderValidation.folderPath, plugin.translator)
+    : plugin.validateRelatedNoteName(query, folderValidation.folderPath), [plugin, session, query, folderValidation.folderPath]);
 
   useEffect(() => {
     setRoleFilter(initialRole);
@@ -164,7 +183,13 @@ function RelatedNoteComposer({
 
   /** Validate remembered ontology before mutation; completion revalidates captured endpoints afterward. */
   const prepareField = async (): Promise<string | null> => {
-    if (roleFilter === "all" && !knownRole) {
+    if (session.importSource && !/\.md$/i.test(session.importSource.name) && !eligibleRelationshipOwner(plugin.app, origin)) {
+      new Notice(plugin.translator("relationship.flipUnavailable")); return null;
+    }
+    if (storeOnTarget && (webUrl || selectedTarget && !eligibleRelationshipOwner(plugin.app, selectedTarget))) {
+      new Notice(plugin.translator("relationship.flipUnavailable")); return null;
+    }
+    if (roleFilter === "all" && !knownRole || ontologySelectionInvalid) {
       new Notice(plugin.translator("addRelated.chooseDirection"), 1800);
       return null;
     }
@@ -184,7 +209,7 @@ function RelatedNoteComposer({
     let action = resolveCreationAfterSaving(intent, continuation);
     if (!page.file && action !== "return" && action !== "another" && action !== "follow") action = "return";
     if (action === "another") {
-      setSelectedTarget(null); setQuery(""); setAlias(""); setNoteTyped(false); setAliasFocused(false);
+      setSelectedTarget(null); setQuery(""); setAlias(""); setNoteTyped(false);
       setPartialFile(null); setPartialFailure(null); setOntologyTyped(false); setBrowseOntology(false);
       session.focusName(); return;
     }
@@ -221,6 +246,7 @@ function RelatedNoteComposer({
     if (!session.isSessionOpen()) return;
     const existingFile = error instanceof PartialRelatedFileError ? error.file : file;
     const detail = error instanceof Error ? error.message : String(error);
+    if (session.importSource) session.reportImportFailure(detail);
     if (existingFile) {
       setPartialFile(existingFile);
       setPartialFailure(detail);
@@ -238,8 +264,8 @@ function RelatedNoteComposer({
       if (!field || !session.isSessionOpen()) return;
       const currentOrigin = refreshCapturedPage(plugin, origin), currentTarget = refreshCapturedPage(plugin, target);
       const result = session.additiveOnly
-        ? await plugin.createRelationToPage(currentOrigin, role, currentTarget, field, undefined, true)
-        : await plugin.createRelationToPage(currentOrigin, role, currentTarget, field);
+        ? await plugin.createRelationToPage(currentOrigin, role, currentTarget, field, undefined, true, storeOnTarget)
+        : await plugin.createRelationToPage(currentOrigin, role, currentTarget, field, undefined, false, storeOnTarget);
       if (result.state === "unavailable") return;
       await complete(result.page, intent, false);
     } catch (error) { reportFailure(error, target); }
@@ -254,13 +280,22 @@ function RelatedNoteComposer({
       const field = await prepareField();
       if (!field || !session.isSessionOpen()) return;
       const currentOrigin = refreshCapturedPage(plugin, origin);
+      if (!file && session.importSource) {
+        const destination = folderValidation.folderPath ? plugin.app.vault.getFolderByPath(folderValidation.folderPath) : plugin.app.vault.getRoot();
+        if (!destination) throw new Error(plugin.translator("fileImport.existingFolder"));
+        file = await plugin.createFileWithAutomation(() => copyExternalFile(plugin.app, session.importSource!, query, destination, plugin.translator, /** Copy acceptance requires the same original endpoint and live surface. */ () => {
+          if (!session.isSessionOpen()) return false;
+          return !origin.file || plugin.app.vault.getFileByPath(origin.file.path) === origin.file;
+        }));
+        session.rememberImported(file);
+      }
       if (!file) file = await plugin.createNewRelatedFileForOrigin(currentOrigin, query, kind, alias, folderPath, templateChoices ? templatePath : undefined);
       if (!file) return;
       if (!session.isSessionOpen()) return;
       if (plugin.app.vault.getFileByPath(file.path) !== file) throw new Error(plugin.translator("addRelated.endpointChanged"));
       // Retain recovery state only after a failure. A durable file is normal progress while linking.
-      if (!partialFile) { setDefaultCreateType(kind); void plugin.rememberNewNodeDefaultType(kind); }
-      const result = await plugin.linkNewRelatedFile(refreshCapturedPage(plugin, origin), role, file, field, alias, query, Boolean(partialFile));
+      if (!partialFile && !session.importSource) { setDefaultCreateType(kind); void plugin.rememberNewNodeDefaultType(kind); }
+      const result = await plugin.linkNewRelatedFile(refreshCapturedPage(plugin, origin), role, file, field, session.importSource ? "" : alias, session.importSource ? "" : query, Boolean(partialFile) && !session.importSource, storeOnTarget);
       await complete(result.page, intent, true, result.state);
     } catch (error) { reportFailure(error, undefined, file ?? undefined); }
     finally { busyRef.current = false; session.setWriting(false); if (session.isSessionOpen()) setBusy(false); }
@@ -268,7 +303,7 @@ function RelatedNoteComposer({
 
   /** Save an unresolved target through the existing writer without materializing a file. */
   const createPlaceholder = async (intent: CompletionIntent | CreationAfterSavingAction = continuation) => {
-    if (selectedTarget || webUrl || folderValidation.error || !nameValidation.valid || nameValidation.existing || !beginWrite()) return;
+    if (storeOnTarget || selectedTarget || webUrl || folderValidation.error || !nameValidation.valid || nameValidation.existing || !beginWrite()) return;
     try {
       const field = await prepareField();
       if (!field || !session.isSessionOpen()) return;
@@ -292,7 +327,8 @@ function RelatedNoteComposer({
 
   /** One semantic submit route shared by native buttons, modal Scope and local form key delivery. */
   const submit = (override?: CompletionIntent, kind?: "markdown" | "excalidraw" | "placeholder"): void => {
-    const intent = override ?? continuation;
+    const requested = override ?? continuation;
+    const intent = session.importSource && requested === "another" ? "return" : requested;
     if (kind === "placeholder") void createPlaceholder(intent);
     else if (selectedTarget) void linkExisting(intent);
     else if (webLinkAvailable) void createWebLink(intent);
@@ -315,15 +351,17 @@ function RelatedNoteComposer({
 
   /** Editing exits explicit browsing and resumes the normal fuzzy ontology search. */
   const onOntologyChange = (value: string) => {
+    setEditedOntology(null);
     setBrowseOntology(false);
     setOntologyTyped(true);
     setOntology(value);
   };
 
-  const createAvailable = !savedPending && !partialFile && !selectedTarget && !webUrl && !folderValidation.error && nameValidation.valid && !nameValidation.existing;
-  const placeholderAvailable = createAvailable && origin.file?.extension === "md";
+  const createAvailable = !ontologySelectionInvalid && !savedPending && !partialFile && !selectedTarget && !webUrl && !folderValidation.error && nameValidation.valid && !nameValidation.existing;
+  const placeholderAvailable = !session.importSource && createAvailable && origin.file?.extension === "md";
   const webLinkAvailable = !selectedTarget && Boolean(webUrl) && origin.file?.extension === "md";
   const noteSearch = createElement(FuzzySearchInput<GraphPage>, {
+    inputId: noteId, labelledBy: `${noteId}-label`,
     value: query,
     onChange: onNoteChange,
     getResults: getNoteResults,
@@ -345,26 +383,24 @@ function RelatedNoteComposer({
 
   });
 
-  const aliasInput = !selectedTarget ? createElement("input", {
+  const aliasInput = !selectedTarget && !session.importSource ? createElement("input", {
     type: "text",
     className: "kplex-create-alias-input",
+    id: aliasId,
     value: alias,
     placeholder: plugin.translator("addRelated.aliasPlaceholder"),
-    "aria-label": plugin.translator("addRelated.aliasAria"),
     disabled: busy || Boolean(savedPending) || Boolean(partialFile),
-    onFocus: () => setAliasFocused(true),
-    onBlur: () => setAliasFocused(false),
     onChange: (event: { currentTarget: HTMLInputElement }) => setAlias(event.currentTarget.value),
   }) : null;
 
   const nameEditor = createElement(
     "div",
-    { className: `kplex-create-name-pair${aliasFocused ? " is-alias-focused" : ""}${selectedTarget ? " has-selection" : ""}` },
-    noteSearch,
-    aliasInput,
+    { className: `kplex-create-name-pair${selectedTarget ? " has-selection" : ""}` },
+    createElement(FormField, {label: plugin.translator("addRelated.searchAria"), controlId: noteId, children: noteSearch}),
+    aliasInput ? createElement(FormField, {label: plugin.translator("addRelated.aliasAria"), controlId: aliasId, children: aliasInput}) : null,
   );
 
-  const ontologySearch = createElement(FuzzySearchInput<string>, {
+  const ontologySearch: FuzzySearchInputProps<string> = {
     value: ontology,
     onChange: onOntologyChange,
     results: ontologyResults,
@@ -394,20 +430,21 @@ function RelatedNoteComposer({
     maxFloatingHeight: 280,
     resultsOwnerId: session.suggestionOwnerId,
     preferSuggestionOnModifiedEnter: true,
-  });
+  };
 
   const markdownButton = createElement(
     "button",
     {
       type: "button",
-      className: `kplex-add-related-type-button${defaultCreateType === "markdown" ? " is-default" : ""}`,
-      "aria-label": plugin.translator(createAvailable ? "addRelated.createMarkdownLink" : "addRelated.createMarkdown"),
+      className: `kplex-add-related-type-button${defaultCreateType === "markdown" ? " is-default mod-cta" : ""}`,
+      "aria-label": session.importSource ? plugin.translator("fileImport.import") : plugin.translator(createAvailable ? "addRelated.createMarkdownLink" : "addRelated.createMarkdown"),
       "aria-keyshortcuts": "Control+Enter Meta+Enter",
       disabled: !createAvailable || busy,
       "data-kplex-primary-action": defaultCreateType === "markdown" ? "true" : undefined,
       onClick: /** The Markdown button and session shortcut share submit validation. */ () => submit(undefined, "markdown"),
     },
-    createElement(ObsidianIcon, { name: "text-initial", size: 20 }),
+    createElement(ObsidianIcon, { name: session.importSource ? "file-down" : "text-initial", size: 20 }),
+    session.importSource ? plugin.translator("fileImport.import") : null,
   );
 
   const excalidrawButton = excalidrawAvailable
@@ -415,7 +452,7 @@ function RelatedNoteComposer({
         "button",
         {
           type: "button",
-          className: `kplex-add-related-type-button${defaultCreateType === "excalidraw" ? " is-default" : ""}`,
+          className: `kplex-add-related-type-button${defaultCreateType === "excalidraw" ? " is-default mod-cta" : ""}`,
           "aria-label": plugin.translator(createAvailable ? "addRelated.createExcalidrawLink" : "addRelated.createExcalidraw"),
           "aria-keyshortcuts": "Control+Enter Meta+Enter",
           disabled: !createAvailable || busy,
@@ -426,13 +463,13 @@ function RelatedNoteComposer({
       )
     : null;
 
-  const placeholderButton = createElement(
+  const placeholderButton = session.importSource ? null : createElement(
     "button",
     {
       type: "button",
       className: "kplex-add-related-type-button",
       "aria-label": plugin.translator("addRelated.createPlaceholder"),
-      disabled: !placeholderAvailable || busy,
+      disabled: !placeholderAvailable || busy || storeOnTarget,
       onClick: /** Explicit unresolved creation retains the same captured session policy. */ () => submit(undefined, "placeholder"),
     },
     createElement(ObsidianIcon, { name: "circle-dashed", size: 20 }),
@@ -443,14 +480,14 @@ function RelatedNoteComposer({
         "button",
         {
           type: "button",
-          className: "kplex-add-related-link-button",
+          className: "kplex-add-related-link-button kplex-icon-action mod-cta",
           "aria-label": plugin.translator(origin.file?.extension === "md" ? "addRelated.addWebLink" : "addRelated.webLinkRequiresMarkdown"),
           disabled: !webLinkAvailable || busy,
           "data-kplex-primary-action": webLinkAvailable ? "true" : undefined,
           onClick: /** Submit the same URL intent used by native keyboard delivery. */ () => submit(),
         },
         createElement(ObsidianIcon, { name: "globe", size: 19 }),
-        createElement("span", null, plugin.translator("addRelated.addLink")),
+        createElement("span", {className: "kplex-icon-action-label"}, plugin.translator("addRelated.addLink")),
       )
     : null;
 
@@ -459,14 +496,14 @@ function RelatedNoteComposer({
         "button",
         {
           type: "button",
-          className: "kplex-add-related-link-button",
+          className: "kplex-add-related-link-button kplex-icon-action mod-cta",
           "aria-label": plugin.translator("addRelated.linkTo", { title: plugin.index.titleFor(selectedTarget) }),
-          disabled: busy || Boolean(savedPending),
+          disabled: busy || Boolean(savedPending) || ontologySelectionInvalid,
           "data-kplex-primary-action": "true",
           onClick: /** Submit the same selected-target intent as the keyboard route. */ () => submit(),
         },
         createElement(ObsidianIcon, { name: "link", size: 19 }),
-        createElement("span", null, plugin.translator("addRelated.link")),
+        createElement("span", {className: "kplex-icon-action-label"}, plugin.translator("addRelated.link")),
       )
     : null;
 
@@ -486,7 +523,8 @@ function RelatedNoteComposer({
           ),
   );
 
-  const completion = plugin.createdNoteCompletionControl(hostLeaf, {operation: linking ? "link" : "create", editable: Boolean(selectedTarget?.file || !selectedTarget && !webUrl)});
+  const configuredCompletion = plugin.createdNoteCompletionControl(hostLeaf, {operation: linking ? "link" : "create", editable: Boolean(selectedTarget?.file || !selectedTarget && !webUrl)});
+  const completion = session.importSource ? {...configuredCompletion, choices: configuredCompletion.choices.filter(/** One source file has one accepted import identity in this batch. */ choice => choice !== "another")} : configuredCompletion;
   const completionSelect = createElement(CreationCompletionSelect, {...completion,
     translate: plugin.translator, value: completion.choices.includes(continuation) ? continuation : "return",
     disabled: busy || Boolean(savedPending) || Boolean(partialFile),
@@ -511,25 +549,30 @@ function RelatedNoteComposer({
       createElement("button", { type: "button", disabled: busy || Boolean(savedPending), onClick: /** Recover the existing file relationship rather than creating a duplicate. */ () => submit() }, plugin.translator("addRelated.linkCreatedFile")),
       createElement("button", { type: "button", disabled: busy, onClick: /** Deliberately inspect the retained file in the supported editor. */ () => { void plugin.openInDocumentLeaf(partialFile, hostLeaf); } }, plugin.translator("addRelated.openCreatedFile"))),
   ) : null;
-  const roleChoices = [
-    ["all", "addRelated.allDirections"], ["child", "role.child"], ["parent", "role.parent"],
-    ["left", "role.friend"], ["right", "role.challenger"], ["previous", "role.previous"], ["next", "role.next"],
-  ] as const;
-  const roleSelect = createElement("select", {
-    className: "kplex-add-related-role-select", value: roleFilter,
-    "aria-label": plugin.translator("addRelated.relationshipType"), disabled: busy || Boolean(savedPending) || Boolean(partialFile),
-    onChange: /** All browses existing assignments; a specific direction retains explicit new-field assignment. */ (event: { currentTarget: HTMLSelectElement }) => {
+  const controlRow = createElement(RelationshipFieldControl, {
+    icons: {tag: createElement(ObsidianIcon, {name: "tags", size: 16}), edit: createElement(ObsidianIcon, {name: "pencil", size: 18})},
+    role: roleFilter, search: ontologySearch, translate: plugin.translator,
+    detail: ontologyViews.find(value => value.key === normalizeFieldName(ontology))?.description,
+    disabled: busy || Boolean(savedPending) || Boolean(partialFile), canEdit: Boolean(assignedRole),
+    onRoleChange: /** Changing the shared direction preserves validation and explicit new-field assignment. */ value => {
       if (busyRef.current) return;
-      const choice = roleChoices.find(([value]) => value === event.currentTarget.value);
-      if (!choice) return;
-      setRoleFilter(choice[0]);
-      if (choice[0] !== "all") setOntology(plugin.defaultOntologyField(choice[0]));
+      setRoleFilter(value);
+      if (value !== "all") setOntology(plugin.defaultOntologyField(value));
       setOntologyTyped(false); setBrowseOntology(false);
     },
-  }, ...roleChoices.map(([value, key]) => createElement("option", { key: value, value }, plugin.translator(key))));
-  const controlRow = createElement("div", { className: "kplex-add-related-control-row" }, roleSelect, ontologySearch);
-  const footer = createElement("div", { className: "kplex-add-related-footer" }, completionSelect);
-  const composeRow = createElement("div", { className: "kplex-add-related-compose-row" }, nameEditor, actionArea);
+    onEdit: /** Every surface uses the same selected-ontology editor and exact parent lifetime. */ invoker =>
+      session.editOntology(ontology, invoker, () => {setEditedOntology(normalizeFieldName(ontology)); setVocabularyRevision(value => value + 1);}),
+  });
+  const onTarget = storeOnTarget || !eligibleRelationshipOwner(plugin.app, origin);
+  const targetName = selectedTarget ? plugin.index.titleFor(selectedTarget) : query || plugin.translator("relationship.newNote");
+  const direction = createElement(RelationshipDirectionControl, {translate: plugin.translator, icon: createElement(ObsidianIcon, {name: "arrow-left-right", size: 18}),
+    owner: onTarget ? targetName : plugin.index.titleFor(origin), target: onTarget ? plugin.index.titleFor(origin) : targetName,
+    field: onTarget ? plugin.inverseOntologyField(ontology, role) : ontology,
+    canFlip: Boolean(eligibleRelationshipOwner(plugin.app, origin)) && !webUrl && (!session.importSource || /\.md$/i.test(session.importSource.name)) && (!selectedTarget || Boolean(eligibleRelationshipOwner(plugin.app, selectedTarget))),
+    disabled: busy || Boolean(savedPending) || Boolean(partialFile),
+    onFlip: /** Change physical authorship only; canonical roles and the selected physical field stay explicit. */ () => setStoreOnTarget(value => !value),
+  });
+  const composeRow = createElement("div", { className: "kplex-add-related-compose-row" }, nameEditor);
   const folderRow = !selectedTarget && !webUrl ? createElement("div", { className: "kplex-create-folder-row" },
     createElement("span", { className: "kplex-create-folder-caption" }, plugin.translator("folderPicker.label")),
     createElement(FolderPathInput, {
@@ -557,6 +600,8 @@ function RelatedNoteComposer({
       statusError = true;
     } else if (nameValidation.existing) {
       statusText = plugin.translator("addRelated.existingName");
+    } else if (session.importSource) {
+      statusText = plugin.translator("fileImport.ready", {name: nameValidation.stem});
     } else {
       statusText = plugin.translator(excalidrawAvailable ? "addRelated.createStatusWithExcalidraw" : "addRelated.createStatus", { name: nameValidation.stem });
     }
@@ -565,18 +610,25 @@ function RelatedNoteComposer({
   const status = statusText && !partialFile && !savedPending
     ? createElement("div", { className: `kplex-add-related-create-hint${statusError ? " is-error" : ""}` }, statusText)
     : null;
+  const footer = createElement("div", {className: "kplex-add-related-footer"}, completionSelect,
+    createElement(FormActions, {status},
+      createElement("button", {type: "button", className: "kplex-icon-action", "aria-label": plugin.translator("common.cancel"),
+        onClick: /** Dismissal retires this session while any accepted native write retains its owner. */ () => session.close()},
+      createElement(ObsidianIcon, {name: "x", size: 18})), actionArea));
 
   return createElement(
     "div",
     { className: "kplex-add-related-form" },
     controlRow,
+    ontologySelectionInvalid ? createElement("div", {className: "kplex-add-related-create-hint is-error", role: "alert"}, plugin.translator("addRelated.chooseDirection")) : null,
+    session.importSource ? createElement("p", {className: "setting-item-description"}, plugin.translator("fileImport.incoming", {name: session.importSource.name})) : null,
+    session.importSource ? null : direction,
     composeRow,
     folderRow,
-    templateChoices && !selectedTarget && !webUrl ? createElement(DrawingTemplateSelect, {
+    templateChoices && !session.importSource && !selectedTarget && !webUrl ? createElement(DrawingTemplateSelect, {
       choices: templateChoices, value: templatePath, translate: plugin.translator, onChange: setTemplatePath,
       disabled: busy || Boolean(savedPending) || Boolean(partialFile),
     }) : null,
-    status,
     recovery,
     footer,
   );
@@ -587,8 +639,8 @@ let composerSequence = 0;
 
 /** Native modal session owns submit routing, captured identity, focus leases and shell cleanup. */
 export class NewRelatedNoteModal extends Modal {
+  private readonly ontologyEditor: SelectedOntologyEditor;
   private root: Root | null = null;
-  private releaseMobileViewport: (() => void) | null = null;
   private releaseDesktopDrag: (() => void) | null = null;
   private nativeHandlers: Array<ReturnType<Scope["register"]>> = [];
   private opened = false;
@@ -607,6 +659,8 @@ export class NewRelatedNoteModal extends Modal {
   readonly continuation: CompletionIntent;
   readonly additiveOnly: boolean;
   readonly suggestionOwnerId = `related-composer-${++composerSequence}`;
+  readonly importSource?: File;
+  importedFile?: TFile;
 
   /** Capture origin and invoker now; future shared-center changes never replace them. */
   constructor(
@@ -619,6 +673,8 @@ export class NewRelatedNoteModal extends Modal {
     private invocation: RelatedNoteInvocation = {},
   ) {
     super(plugin.app);
+    this.importSource = invocation.importSource; this.importedFile = invocation.importedFile;
+    this.ontologyEditor = new SelectedOntologyEditor(plugin, /** Child callbacks require this exact connected parent invocation. */ () => this.canComplete() && this.opened);
     this.origin = captureRelatedEndpoint(origin);
     this.fixedTarget = fixedTarget ? captureRelatedEndpoint(fixedTarget) : undefined;
     this.hostContainer = hostLeaf?.view.containerEl ?? null;
@@ -638,7 +694,16 @@ export class NewRelatedNoteModal extends Modal {
   /** A close cancels unstarted work; completed disk writes remain truthful after dismissal.
    * @remarks Native Modal owns an `isOpen` boolean, so session readiness uses a distinct name.
    */
-  isSessionOpen(): boolean { return this.opened && !this.invalidated && this.invocation.current?.() !== false; }
+  isSessionOpen(): boolean { return this.opened && !this.invalidated && !this.ontologyEditor.active && this.invocation.current?.() !== false; }
+
+  /** Open the exact selected physical field without replacing any React composer draft. */
+  editOntology(field: string, invoker: HTMLElement, saved: () => void): void {this.ontologyEditor.open(field, invoker, saved);}
+
+  /** The batch retains the exact durable copy even when its linking composer is dismissed. */
+  rememberImported(file: TFile): void {this.importedFile = file; this.invocation.onImported?.(file);}
+
+  /** Per-file batch receipts retain actual failed outcomes without replacing the composer's recovery. */
+  reportImportFailure(error: string): void {this.invocation.onImportFailure?.(error);}
 
   /** Fence UI effects against owner-document migration, view retirement and intervening interaction. */
   canComplete(): boolean {
@@ -727,7 +792,7 @@ export class NewRelatedNoteModal extends Modal {
 
   /** Recognize only this modal and its exact portaled suggester identity, never another modal's list. */
   private ownsInteractionTarget(target: EventTarget): boolean {
-    if (this.modalEl.contains(target as Node)) return true;
+    if (this.modalEl.contains(target as Node) || this.ontologyEditor.owns(target)) return true;
     return "closest" in target && typeof target.closest === "function"
       && Boolean((target as Element).closest(`[data-fuzzy-owner="${this.suggestionOwnerId}"]`));
   }
@@ -756,11 +821,13 @@ export class NewRelatedNoteModal extends Modal {
       if (this.fixedTarget?.file === file) this.fixedTarget = { ...this.fixedTarget, path: file.path };
       this.renderTitle(); this.renderComposer();
     });
+    const releaseMigration = this.hostContainer?.onWindowMigrated?.(/** Native view migration retires this parent and its nested ontology editor. */ () => this.close());
     this.contentEl.addEventListener("keydown", domSubmit);
     this.invokingDocument.addEventListener("pointerdown", outsideInteraction, true);
     this.invokingDocument.addEventListener("focusin", outsideInteraction, true);
     this.releaseIdentity = /** Release every exact shell-owned listener on cancel, completion or close. */ () => {
       this.plugin.app.vault.offref(rename);
+      releaseMigration?.();
       this.contentEl.removeEventListener("keydown", domSubmit);
     };
     this.releaseInteraction = /** Retain post-close interaction fencing only until explicit completion settles. */ () => {
@@ -769,7 +836,6 @@ export class NewRelatedNoteModal extends Modal {
     };
     this.renderTitle();
     this.modalEl.addClass("kplex-add-related-modal");
-    this.releaseMobileViewport = fitMobileModalToViewport(this.modalEl);
     const environment = readObsidianPresentationEnvironment(this.modalEl.ownerDocument.defaultView ?? undefined);
     if (environment.device === "desktop") this.releaseDesktopDrag = enableDraggableDialog({ modalEl: this.modalEl, handleEl: this.titleEl });
     this.modalEl.setAttr("data-kplex-tooltip-scope", "");
@@ -792,6 +858,7 @@ export class NewRelatedNoteModal extends Modal {
 
   /** Close prevents late write UI effects, releases listeners, and notifies the host's single-flight owner exactly once. */
   onClose(): void {
+    this.ontologyEditor.close();
     if (this.nameFocusFrame !== null) this.contentEl.ownerDocument.defaultView?.cancelAnimationFrame(this.nameFocusFrame);
     this.nameFocusFrame = null;
     const restore = !this.completing && this.canComplete();
@@ -803,7 +870,6 @@ export class NewRelatedNoteModal extends Modal {
     this.submitCallback = null;
     for (const handler of this.nativeHandlers) this.scope.unregister(handler); this.nativeHandlers = [];
     this.releaseDesktopDrag?.(); this.releaseDesktopDrag = null;
-    this.releaseMobileViewport?.(); this.releaseMobileViewport = null;
     this.root?.unmount(); this.root = null; this.contentEl.empty();
     if (!this.closedNotified) { this.closedNotified = true; this.invocation.onClosed?.(); }
   }

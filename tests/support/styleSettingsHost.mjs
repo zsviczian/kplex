@@ -10,7 +10,7 @@ import ts from "typescript";
 /** Preserve original method bodies, including queue/await fences, while callers supply explicit host facts. */
 export function styleSettingsHostSource(root) {
   const source = ts.createSourceFile("main.ts", readFileSync(new URL("src/main.ts", root), "utf8"), ts.ScriptTarget.Latest, true);
-  const names = new Set(["readSavedPins", "stopPeriodicPinTimer", "refreshPeriodicPins", "setContentVisibility", "updateStyleSettings", "saveSettings", "enqueueSettingsWrite", "settingsSnapshotForPersistence", "persistSettingsSnapshot", "setGraphLenses", "readPortableSharingState", "previewPortableSharing", "importPortableSharing",
+  const names = new Set(["validateRelatedNoteName", "validateNoteFolderPath", "newRelatedNoteFolder", "allOntologyFields", "rememberRelationshipOntology", "openAddToOntologyModal", "readSavedPins", "stopPeriodicPinTimer", "refreshPeriodicPins", "setContentVisibility", "updateStyleSettings", "saveSettings", "enqueueSettingsWrite", "settingsSnapshotForPersistence", "persistSettingsSnapshot", "setGraphLenses", "readPortableSharingState", "previewPortableSharing", "importPortableSharing",
     "captureAppearanceOwner", "isAppearanceOwnerCurrent", "subscribeAppearanceThemes", "bindAppearanceEditor", "appearanceThemeNames", "updateAppearanceThemes", "showAppearanceMigrationNotification",
     "createAppearanceTheme", "resetAppearanceThemeColors", "importLegacyAppearance", "settingsForWrite", "writeSettingsSnapshot", "updateOntologyField", "updateOntologyConfiguration", "editOntologyConfiguration", "assignFieldToOntology", "ontologyFieldsForRole", "ontologyRoleForField", "inverseOntologyField", "inverseRelationshipRole", "defaultOntologyField", "refreshSavedSettings",
     "initializeSettingsReconciliation", "onExternalSettingsChange", "queueExternalSettingsAdoption", "reportExternalSettingsFailure", "installExternalSettings", "updateActionPreferences", "receivedSettingsOwner", "receivedSettingsRevision", "updateCanvasViewSetting", "readCanvasViewConfiguration", "updateCanvasViewConfiguration", "resetCanvasViewConfiguration", "migrateCanvasViewConfiguration", "commitCanvasViewConfiguration", "editOntologyConfigurationBatch"]);
@@ -22,6 +22,14 @@ export function styleSettingsHostSource(root) {
   };
   visit(source); assert.equal(methods.length, names.size);
   return `export {TextSettingDraft} from "./src/ui/components/textSettingDraft";
+    export {NewRelatedNoteModal} from './src/ui/NewRelatedNoteModal';
+    export {CreateFolderNoteModal} from './src/ui/CreateFolderNoteModal';
+    export {MoveNodeModal} from './src/ui/MoveNodeModal';
+    export {CreatePeriodicNoteModal} from './src/ui/CreatePeriodicNoteModal';
+    export {ReverseRelationshipModal} from './src/ui/ReverseRelationshipModal';
+    export {ExternalFileImportBatchModal} from './src/ui/ExternalFileImportBatchModal';
+    export {SelectedOntologyEditor} from './src/ui/SelectedOntologyEditor';
+    export {TFile,TFolder} from 'obsidian';
     export {OntologyFieldControl} from "./src/ui/OntologyFieldControl";
     import {SavedSettingsRefresh} from "./src/adapters/obsidian/savedSettingsRefresh";
     import {contentVisibilityPatch} from "./src/core/plex/contentVisibility";
@@ -34,7 +42,7 @@ export function styleSettingsHostSource(root) {
     import {assertExternalSettingsRecord} from "./src/adapters/obsidian/settingsInput";
     import {readObsidianPresentationEnvironment} from "./src/adapters/obsidian/presentationEnvironment";
     import {migrateActionPreferences,sanitizeActionPreferences,compileActionBindings} from "./src/core/plex/actionPreferences";
-    import {Notice} from "obsidian";
+    import {Notice,normalizePath} from "obsidian";
     import {builtInCanvasViewSettings} from './src/ui/plexViews/settingsContributions';
     import {editViewConfigurationAt,migrateViewConfiguration,readViewConfiguration,readViewConfigurationAt,resetViewConfiguration,viewConfigurationOwnerDomains,viewConfigurationUpdateDomain} from './src/core/plex/views/configuration';
     import {facetLibrary} from './src/core/plex/views/facets/configuration';
@@ -46,7 +54,8 @@ export function styleSettingsHostSource(root) {
     export * from './src/core/contracts/ontologyConfiguration';
     export {OntologyUsageModal} from './src/ui/OntologyUsageModal';
     export {OntologyManagerModal} from './src/ui/OntologyManagerModal';
-    export {AddToOntologyModal} from './src/ui/AddToOntologyModal';
+    import {AddToOntologyModal} from './src/ui/AddToOntologyModal';
+    export {AddToOntologyModal};
     import {normalizeFieldName} from './src/core/contracts/fieldName';
     import {NotificationModal} from "./src/ui/NotificationModal";
     import {mergeGraphLensDefinitions} from "./src/lens/GraphLens";

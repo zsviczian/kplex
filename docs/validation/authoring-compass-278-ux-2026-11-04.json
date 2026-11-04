@@ -1,0 +1,764 @@
+{
+  "scope": "Maintainer UX review after PR #278 baseline",
+  "status": "implemented; available Windows validation complete; uncommitted for review",
+  "branch": "2026-11-03-issue-277-creation-links-compass",
+  "base": "c0e6166",
+  "implementation": "uncommitted",
+  "productionVaultAccess": false,
+  "host": {
+    "node": "v22.22.2",
+    "os": "Windows",
+    "obsidian": "1.14.5",
+    "vault": "kplex-test-small",
+    "files": 117,
+    "markdown": 98
+  },
+  "automated": {
+    "command": "npm run verify",
+    "status": "passed",
+    "log": "%TEMP%/kplex-278-ux-verify-final2.log",
+    "frozenInputs": {
+      "files": 976,
+      "sha256": "595c21b5003b8bbc2cdf7560916b164ba26a574330100ad7c77c3a39aca83354",
+      "unchanged": true
+    },
+    "focused": {
+      "folderStartupOwnership": {
+        "pass": 76,
+        "fail": 0,
+        "beforeFix": {
+          "pass": 40,
+          "fail": 2
+        }
+      },
+      "finalAffected": {
+        "pass": 138,
+        "fail": 0,
+        "log": "%TEMP%/kplex-278-ux-focused-final.log"
+      }
+    },
+    "recovery": {
+      "firstRun": "%TEMP%/kplex-278-ux-verify-final.log",
+      "failure": "Existing source assertion expected the replaced combined folder chooser",
+      "change": "Assert shared tabbed note composer and separate captured Move route; existing native behavior and negative controls retained",
+      "customIndexingHarness": "passed",
+      "log": "%TEMP%/kplex-278-ux-indexing-fixture.log"
+    },
+    "exitCode": 0,
+    "completedAt": "2026-11-04T08:36:57.408Z",
+    "suites": [
+      {
+        "name": "Architecture/numeric",
+        "tests": 9,
+        "passed": 9,
+        "failed": 0,
+        "cancelled": 0,
+        "skipped": 0
+      },
+      {
+        "name": "Core contracts",
+        "tests": 133,
+        "passed": 133,
+        "failed": 0,
+        "cancelled": 0,
+        "skipped": 0
+      },
+      {
+        "name": "Main regressions",
+        "tests": 2067,
+        "passed": 2067,
+        "failed": 0,
+        "cancelled": 0,
+        "skipped": 0
+      },
+      {
+        "name": "Browser UI",
+        "tests": 492,
+        "passed": 492,
+        "failed": 0,
+        "cancelled": 0,
+        "skipped": 0
+      },
+      {
+        "name": "Source contracts",
+        "tests": 360,
+        "passed": 360,
+        "failed": 0,
+        "cancelled": 0,
+        "skipped": 0
+      },
+      {
+        "name": "Real Chromium IndexedDB",
+        "tests": 900,
+        "passed": 900,
+        "failed": 0,
+        "cancelled": 0,
+        "skipped": 0
+      }
+    ],
+    "reportedTestTotal": 3961,
+    "releaseMetadata": "passed",
+    "architectureScan": "passed",
+    "officialLint": "passed",
+    "customIndexingHarness": "passed",
+    "installedTypecheckAndProductionBuild": "passed",
+    "artifactHashes": {
+      "main.js": "9efd0cc26380f0b0f7cf6f9965be93785315175fbe5176476f715423f4eb107a",
+      "styles.css": "5a6e024d3bf2a53ec12eb4b50fa57447419974d285eb38fe58a76aec364f7f90",
+      "manifest.json": "8c65b0d38a506f8fa9fc3311b81ea22bcda48e0209e9190483752c1f20834326"
+    },
+    "nativeJavascriptMatches": true,
+    "affectedNativeCssMatches": true,
+    "largePublication": {
+      "owners": 20015,
+      "ownerChecks": 8187369,
+      "elapsedMs": 402468.09999990463,
+      "peakHeap": 425751626,
+      "replayPeak": 405146310,
+      "combinedPeak": 685201826,
+      "reservation": {
+        "owners": 248586300,
+        "structure": 3278,
+        "compilation": 131382170,
+        "transient": 25174562,
+        "peakBytes": 405146310
+      },
+      "rootComplete": false,
+      "canonicalPasses": {
+        "direct": 1,
+        "optional": 0
+      },
+      "published": 1,
+      "cancellationYields": 2
+    },
+    "timingLimit": "No controlled paired elapsed-time comparison or production-vault speedup claim"
+  },
+  "native": {
+    "folders": {
+      "status": "passed",
+      "receipt": "%TEMP%/kplex-278-native-pViec7/authoring-compass-folders-278.json",
+      "startedAt": "2026-11-04T07:36:54.259Z",
+      "completedAt": "2026-11-04T07:37:12.375Z",
+      "artifacts": {
+        "main.js": "9efd0cc26380f0b0f7cf6f9965be93785315175fbe5176476f715423f4eb107a",
+        "manifest.json": "8c65b0d38a506f8fa9fc3311b81ea22bcda48e0209e9190483752c1f20834326",
+        "styles.css": "e1339ea8e60884c20f35b16f40091bdd7664595507d01ca4a959cffa5f4bc360"
+      },
+      "cleanup": "passed",
+      "stagingCleanup": {
+        "disable": "passed",
+        "data": "passed",
+        "enable": "passed",
+        "layout": "passed",
+        "data-bytes": "passed",
+        "enablement-bytes": "passed"
+      },
+      "result": {
+        "samples": [
+          {
+            "unrelated": 3,
+            "files": 122,
+            "inspections": 5,
+            "headPages": 0,
+            "sourceInventoryPasses": 0,
+            "reads": 1,
+            "parses": 1,
+            "physicalComplete": true,
+            "delayedNamingMs": 450,
+            "nested": true
+          },
+          {
+            "unrelated": 103,
+            "files": 223,
+            "inspections": 5,
+            "headPages": 0,
+            "sourceInventoryPasses": 0,
+            "reads": 1,
+            "parses": 1,
+            "physicalComplete": true,
+            "delayedNamingMs": 450,
+            "nested": true
+          }
+        ]
+      }
+    },
+    "structural": {
+      "status": "passed",
+      "receipt": "%TEMP%/kplex-278-native-zcCQSx/authoring-compass-structural-278.json",
+      "startedAt": "2026-11-04T07:40:03.861Z",
+      "completedAt": "2026-11-04T07:41:04.483Z",
+      "artifacts": {
+        "main.js": "9efd0cc26380f0b0f7cf6f9965be93785315175fbe5176476f715423f4eb107a",
+        "manifest.json": "8c65b0d38a506f8fa9fc3311b81ea22bcda48e0209e9190483752c1f20834326",
+        "styles.css": "5a6e024d3bf2a53ec12eb4b50fa57447419974d285eb38fe58a76aec364f7f90"
+      },
+      "cleanup": "passed",
+      "stagingCleanup": {
+        "disable": "passed",
+        "data": "passed",
+        "enable": "passed",
+        "layout": "passed",
+        "data-bytes": "passed",
+        "enablement-bytes": "passed"
+      },
+      "result": {
+        "results": [
+          "trusted folder gate/direct note/cancel",
+          "note creation without an extra chooser",
+          "native subfolder/remembered tab",
+          "node Move uses FileManager and updates incoming links",
+          "creation tab persisted across native reload"
+        ],
+        "renames": 1,
+        "physicalComplete": true
+      }
+    },
+    "authoring": {
+      "status": "passed",
+      "receipt": "%TEMP%/kplex-278-native-6zHYkB/authoring-compass-authoring-278.json",
+      "startedAt": "2026-11-04T07:32:22.893Z",
+      "completedAt": "2026-11-04T07:33:29.773Z",
+      "artifacts": {
+        "main.js": "9efd0cc26380f0b0f7cf6f9965be93785315175fbe5176476f715423f4eb107a",
+        "manifest.json": "8c65b0d38a506f8fa9fc3311b81ea22bcda48e0209e9190483752c1f20834326",
+        "styles.css": "e1339ea8e60884c20f35b16f40091bdd7664595507d01ca4a959cffa5f4bc360"
+      },
+      "cleanup": "passed",
+      "stagingCleanup": {
+        "disable": "passed",
+        "data": "passed",
+        "enable": "passed",
+        "layout": "passed",
+        "data-bytes": "passed",
+        "enablement-bytes": "passed"
+      },
+      "result": {
+        "results": [
+          "create exact editor/cancel/save/drafts/focus",
+          "link exact editor/cancel/save/drafts/focus",
+          "saved role/removal revalidation preserves target and prevents implicit reassignment",
+          "relink inverse editor",
+          "existing reversed owner/property",
+          "stable before/after; pending Save observes and safely completes",
+          "details editor/selected reversal/unrelated content",
+          "new reversed file/metadata"
+        ]
+      }
+    },
+    "imports": {
+      "status": "passed",
+      "receipt": "%TEMP%/kplex-278-native-bB02rN/authoring-compass-imports-278.json",
+      "startedAt": "2026-11-04T07:41:14.578Z",
+      "completedAt": "2026-11-04T07:42:16.320Z",
+      "artifacts": {
+        "main.js": "9efd0cc26380f0b0f7cf6f9965be93785315175fbe5176476f715423f4eb107a",
+        "manifest.json": "8c65b0d38a506f8fa9fc3311b81ea22bcda48e0209e9190483752c1f20834326",
+        "styles.css": "5a6e024d3bf2a53ec12eb4b50fa57447419974d285eb38fe58a76aec364f7f90"
+      },
+      "cleanup": "passed",
+      "stagingCleanup": {
+        "disable": "passed",
+        "data": "passed",
+        "enable": "passed",
+        "layout": "passed",
+        "data-bytes": "passed",
+        "enablement-bytes": "passed"
+      },
+      "result": {
+        "results": [
+          {
+            "case": "one form/all rows/cancel/no flip",
+            "receipt": {
+              "trusted": true,
+              "types": [
+                "Files"
+              ],
+              "files": [
+                "Native278.bin",
+                "Native278.md"
+              ]
+            }
+          },
+          "shared child relation/captured origin/exact-file retry",
+          "single-file direct confirmation",
+          "recursive folder import/empty directories/no ontology"
+        ],
+        "filesCopied": 4,
+        "realm": "tab"
+      }
+    },
+    "compass": {
+      "status": "passed",
+      "receipt": "%TEMP%/kplex-278-native-TSQgk2/authoring-compass-compass-278.json",
+      "startedAt": "2026-11-04T07:36:19.734Z",
+      "completedAt": "2026-11-04T07:36:27.858Z",
+      "artifacts": {
+        "main.js": "9efd0cc26380f0b0f7cf6f9965be93785315175fbe5176476f715423f4eb107a",
+        "manifest.json": "8c65b0d38a506f8fa9fc3311b81ea22bcda48e0209e9190483752c1f20834326",
+        "styles.css": "e1339ea8e60884c20f35b16f40091bdd7664595507d01ca4a959cffa5f4bc360"
+      },
+      "cleanup": "passed",
+      "stagingCleanup": {
+        "disable": "passed",
+        "data": "passed",
+        "enable": "passed",
+        "layout": "passed",
+        "data-bytes": "passed",
+        "enablement-bytes": "passed"
+      },
+      "result": {
+        "samples": [
+          {
+            "case": "main/popout six-role orientation",
+            "normal": {
+              "parent": {
+                "x": -0.0078125,
+                "y": -126.59375,
+                "text": "\"Parent\" — \"__kplex278_1793777779970/Parent.md\"Parent1"
+              },
+              "child": {
+                "x": -0.0078125,
+                "y": 196.796875,
+                "text": "\"Child\" — \"__kplex278_1793777779970/Child.md\"Child1"
+              },
+              "left": {
+                "x": -311.453125,
+                "y": -25.140625,
+                "text": "\"صديق Friend\" — \"__kplex278_1793777779970/صديق Friend.md\"صديق Friend1"
+              },
+              "right": {
+                "x": 311.4453125,
+                "y": -25.140625,
+                "text": "\"אתגר Challenger\" — \"__kplex278_1793777779970/אתגר Challenger.md\"אתגר Challenger1"
+              },
+              "previous": {
+                "x": -311.4609375,
+                "y": 25.140625,
+                "text": "\"Previous السابق\" — \"__kplex278_1793777779970/Previous السابق.md\"Previous السابق1"
+              },
+              "next": {
+                "x": 311.4453125,
+                "y": 25.140625,
+                "text": "\"Next הבא\" — \"__kplex278_1793777779970/Next הבא.md\"Next הבא1"
+              }
+            },
+            "mirrored": {
+              "parent": {
+                "x": -0.0078125,
+                "y": -126.59375,
+                "text": "\"Parent\" — \"__kplex278_1793777779970/Parent.md\"Parent1"
+              },
+              "child": {
+                "x": -0.0078125,
+                "y": 196.796875,
+                "text": "\"Child\" — \"__kplex278_1793777779970/Child.md\"Child1"
+              },
+              "left": {
+                "x": 311.4375,
+                "y": -25.140625,
+                "text": "\"صديق Friend\" — \"__kplex278_1793777779970/صديق Friend.md\"صديق Friend1"
+              },
+              "right": {
+                "x": -311.4609375,
+                "y": -25.140625,
+                "text": "\"אתגר Challenger\" — \"__kplex278_1793777779970/אתגר Challenger.md\"אתגר Challenger1"
+              },
+              "previous": {
+                "x": 311.4453125,
+                "y": 25.140625,
+                "text": "\"Previous السابق\" — \"__kplex278_1793777779970/Previous السابق.md\"Previous السابق1"
+              },
+              "next": {
+                "x": -311.4609375,
+                "y": 25.140625,
+                "text": "\"Next הבא\" — \"__kplex278_1793777779970/Next הבא.md\"Next הבא1"
+              }
+            },
+            "sourceReads": 0,
+            "fullBuilds": 0
+          },
+          {
+            "case": "trusted physical Right keyboard navigation"
+          },
+          {
+            "case": "trusted physical right gate drag",
+            "semanticRole": "left"
+          },
+          {
+            "case": "one-sided mirrored composition"
+          },
+          {
+            "case": "native writer/reload",
+            "value": true
+          }
+        ]
+      }
+    },
+    "pins": {
+      "status": "passed",
+      "receipt": "%TEMP%/kplex-278-native-pJihZZ/authoring-compass-pins-278.json",
+      "startedAt": "2026-11-04T07:29:48.251Z",
+      "completedAt": "2026-11-04T07:30:32.174Z",
+      "artifacts": {
+        "main.js": "9efd0cc26380f0b0f7cf6f9965be93785315175fbe5176476f715423f4eb107a",
+        "manifest.json": "8c65b0d38a506f8fa9fc3311b81ea22bcda48e0209e9190483752c1f20834326",
+        "styles.css": "e1339ea8e60884c20f35b16f40091bdd7664595507d01ca4a959cffa5f4bc360"
+      },
+      "cleanup": "passed",
+      "stagingCleanup": {
+        "disable": "passed",
+        "data": "passed",
+        "enable": "passed",
+        "layout": "passed",
+        "data-bytes": "passed",
+        "enablement-bytes": "passed"
+      },
+      "result": {
+        "samples": [
+          {
+            "case": "trusted pointer reorder",
+            "saves": 1,
+            "navigations": 0,
+            "order": [
+              "__kplex278_1793777388438/Missing.md",
+              {
+                "kind": "periodic",
+                "period": "day"
+              },
+              "__kplex278_1793777388438/A.md",
+              "__kplex278_1793777388438/B.md",
+              {
+                "kind": "periodic",
+                "period": "week"
+              },
+              {
+                "kind": "periodic",
+                "period": "month"
+              }
+            ],
+            "twoCanvases": true
+          },
+          {
+            "case": "trusted Escape cancellation",
+            "saves": 0,
+            "navigations": 0
+          },
+          {
+            "case": "trusted keyboard reorder",
+            "order": [
+              {
+                "kind": "periodic",
+                "period": "day"
+              },
+              "__kplex278_1793777388438/Missing.md",
+              "__kplex278_1793777388438/A.md",
+              "__kplex278_1793777388438/B.md",
+              {
+                "kind": "periodic",
+                "period": "week"
+              },
+              {
+                "kind": "periodic",
+                "period": "month"
+              }
+            ]
+          },
+          {
+            "case": "trusted History grab scroll",
+            "scrollLeft": 50,
+            "navigations": 0
+          },
+          {
+            "case": "popout adopted icon and blur cancellation",
+            "documentIsMain": false,
+            "saves": 0
+          },
+          {
+            "case": "native view close cancellation",
+            "pinMoves": 0,
+            "viewLifecycleSettingsWrites": 0
+          },
+          {
+            "case": "native view migration cancellation",
+            "pinMoves": 0,
+            "viewLifecycleSettingsWrites": 0
+          },
+          {
+            "case": "passive day/month/week-year rollover",
+            "periods": [
+              {
+                "id": "[\"periodic\",\"day\",0]",
+                "entry": {
+                  "kind": "periodic",
+                  "period": "day"
+                },
+                "period": "day",
+                "path": "__kplex278_1793777388438/2021-01-01.md",
+                "state": "ready"
+              },
+              {
+                "id": "[\"periodic\",\"week\",0]",
+                "entry": {
+                  "kind": "periodic",
+                  "period": "week"
+                },
+                "period": "week",
+                "path": "__kplex278_1793777388438/2020-W53.md",
+                "state": "ready"
+              },
+              {
+                "id": "[\"periodic\",\"month\",0]",
+                "entry": {
+                  "kind": "periodic",
+                  "period": "month"
+                },
+                "period": "month",
+                "path": "__kplex278_1793777388438/2021-01.md",
+                "state": "ready"
+              }
+            ],
+            "sourceReads": 0,
+            "semanticRebuilds": 0,
+            "writes": 0
+          },
+          {
+            "case": "picker crosses suspended period",
+            "current": "__kplex278_1793777388438/2021-01-04.md",
+            "week": "__kplex278_1793777388438/2021-W01.md"
+          },
+          {
+            "case": "missing explicit activation",
+            "createdFiles": 0
+          },
+          {
+            "case": "native settings reload",
+            "canonicalOrder": true,
+            "unknownKeys": true
+          }
+        ],
+        "visual": [
+          {
+            "sourceMoves": true,
+            "accentOutline": true,
+            "otherOpacity": "0.5",
+            "insertionMarker": true,
+            "popout": false
+          },
+          {
+            "sourceMoves": true,
+            "accentOutline": true,
+            "otherOpacity": "0.5",
+            "insertionMarker": true,
+            "popout": false
+          },
+          {
+            "sourceMoves": true,
+            "accentOutline": true,
+            "otherOpacity": "0.5",
+            "insertionMarker": true,
+            "popout": true
+          },
+          {
+            "sourceMoves": true,
+            "accentOutline": true,
+            "otherOpacity": "0.5",
+            "insertionMarker": true,
+            "popout": false
+          },
+          {
+            "sourceMoves": true,
+            "accentOutline": true,
+            "otherOpacity": "0.5",
+            "insertionMarker": true,
+            "popout": false
+          }
+        ]
+      }
+    },
+    "lifetime": {
+      "status": "passed",
+      "receipt": "%TEMP%/kplex-278-native-XNrNSP/authoring-compass-lifetime-278.json",
+      "startedAt": "2026-11-04T07:36:38.823Z",
+      "completedAt": "2026-11-04T07:36:43.820Z",
+      "artifacts": {
+        "main.js": "9efd0cc26380f0b0f7cf6f9965be93785315175fbe5176476f715423f4eb107a",
+        "manifest.json": "8c65b0d38a506f8fa9fc3311b81ea22bcda48e0209e9190483752c1f20834326",
+        "styles.css": "e1339ea8e60884c20f35b16f40091bdd7664595507d01ca4a959cffa5f4bc360"
+      },
+      "cleanup": "passed",
+      "stagingCleanup": {
+        "disable": "passed",
+        "data": "passed",
+        "enable": "passed",
+        "layout": "passed",
+        "data-bytes": "passed",
+        "enablement-bytes": "passed"
+      },
+      "result": {
+        "results": [
+          {
+            "case": "popout-close",
+            "parentReady": false,
+            "childOpen": false
+          },
+          {
+            "case": "migration",
+            "parentReady": false,
+            "childOpen": false
+          },
+          {
+            "case": "popout-import-close",
+            "copies": 0,
+            "batchOpen": false,
+            "staleSubmitCreatesNothing": true
+          }
+        ]
+      }
+    },
+    "periodic": {
+      "status": "passed",
+      "receipt": "%TEMP%/kplex-278-native-SBLdGw/authoring-compass-periodic-278.json",
+      "startedAt": "2026-11-04T07:34:52.286Z",
+      "completedAt": "2026-11-04T07:35:53.078Z",
+      "artifacts": {
+        "main.js": "9efd0cc26380f0b0f7cf6f9965be93785315175fbe5176476f715423f4eb107a",
+        "manifest.json": "8c65b0d38a506f8fa9fc3311b81ea22bcda48e0209e9190483752c1f20834326",
+        "styles.css": "e1339ea8e60884c20f35b16f40091bdd7664595507d01ca4a959cffa5f4bc360"
+      },
+      "cleanup": "passed",
+      "stagingCleanup": {
+        "disable": "passed",
+        "data": "passed",
+        "enable": "passed",
+        "layout": "passed",
+        "data-bytes": "passed",
+        "enablement-bytes": "passed"
+      },
+      "result": {
+        "results": [
+          {
+            "period": "day",
+            "destination": "return",
+            "path": "__kplex278_1793777692506/Periodic 0/2026-11-04.md",
+            "confirmed": true,
+            "cancelCreatesNothing": true
+          },
+          {
+            "period": "week",
+            "destination": "sidecar",
+            "path": "__kplex278_1793777692506/Periodic 1/2026-W45.md",
+            "confirmed": true,
+            "cancelCreatesNothing": true
+          },
+          {
+            "period": "month",
+            "destination": "tab",
+            "path": "__kplex278_1793777692506/Periodic 2/2026-11.md",
+            "confirmed": true,
+            "cancelCreatesNothing": true
+          },
+          {
+            "period": "day",
+            "destination": "window",
+            "path": "__kplex278_1793777692506/Periodic 3/2026-11-04.md",
+            "confirmed": true,
+            "cancelCreatesNothing": true
+          }
+        ],
+        "persistedChoice": "window",
+        "fullBuildsBefore": 0
+      }
+    },
+    "navigation": {
+      "status": "passed",
+      "receipt": "%TEMP%/kplex-278-native-fvK2uR/authoring-compass-navigation-278.json",
+      "startedAt": "2026-11-04T07:36:03.635Z",
+      "completedAt": "2026-11-04T07:36:09.575Z",
+      "artifacts": {
+        "main.js": "9efd0cc26380f0b0f7cf6f9965be93785315175fbe5176476f715423f4eb107a",
+        "manifest.json": "8c65b0d38a506f8fa9fc3311b81ea22bcda48e0209e9190483752c1f20834326",
+        "styles.css": "e1339ea8e60884c20f35b16f40091bdd7664595507d01ca4a959cffa5f4bc360"
+      },
+      "cleanup": "passed",
+      "stagingCleanup": {
+        "disable": "passed",
+        "data": "passed",
+        "enable": "passed",
+        "layout": "passed",
+        "data-bytes": "passed",
+        "enablement-bytes": "passed"
+      },
+      "result": {
+        "results": [
+          "Files context menu opens captured folder",
+          "native Files drag source and trusted canvas drop open folder"
+        ]
+      }
+    },
+    "imports-popout": {
+      "status": "passed",
+      "receipt": "%TEMP%/kplex-278-native-Sbo44E/authoring-compass-imports-278.json",
+      "startedAt": "2026-11-04T07:42:26.492Z",
+      "completedAt": "2026-11-04T07:43:28.377Z",
+      "artifacts": {
+        "main.js": "9efd0cc26380f0b0f7cf6f9965be93785315175fbe5176476f715423f4eb107a",
+        "manifest.json": "8c65b0d38a506f8fa9fc3311b81ea22bcda48e0209e9190483752c1f20834326",
+        "styles.css": "5a6e024d3bf2a53ec12eb4b50fa57447419974d285eb38fe58a76aec364f7f90"
+      },
+      "cleanup": "passed",
+      "stagingCleanup": {
+        "disable": "passed",
+        "data": "passed",
+        "enable": "passed",
+        "layout": "passed",
+        "data-bytes": "passed",
+        "enablement-bytes": "passed"
+      },
+      "result": {
+        "results": [
+          {
+            "case": "one form/all rows/cancel/no flip",
+            "receipt": {
+              "trusted": true,
+              "types": [
+                "Files"
+              ],
+              "files": [
+                "Native278.bin",
+                "Native278.md"
+              ]
+            }
+          },
+          "shared child relation/captured origin/exact-file retry",
+          "single-file direct confirmation",
+          "recursive folder import/empty directories/no ontology"
+        ],
+        "filesCopied": 4,
+        "realm": "window"
+      }
+    }
+  },
+  "visualReview": {
+    "method": "Computer-use skill: read-only native screenshots in disposable Small; window explicitly selected by vault identity",
+    "inspected": [
+      "fixed Current relationship / After saving confirmation and source action row",
+      "periodic-note creation confirmation and opening selector",
+      "shared folder note/subfolder tabs at 560 px native window width",
+      "one-form bulk import with corrected child relationship field sizing"
+    ],
+    "limits": [
+      "No paint or physical-device benchmark",
+      "Narrow desktop width is not physical mobile acceptance"
+    ]
+  },
+  "nativeArtifactQualification": "All native lanes use the final main.js. Only import-modal-scoped CSS changed after the earlier native lanes; affected imports were repeated in main/popout and structural narrow coverage uses the final CSS. Full verification will independently rebuild and compare artifacts.",
+  "limits": [
+    "macOS 1.15 not available",
+    "Physical mobile not available",
+    "Trusted Chromium Files transport does not establish Explorer/Finder drag initiation",
+    "No production-vault performance claim",
+    "Periodic Notes third-party templates/hooks are not invoked",
+    "Cross-file copy/link can be partially durable; exact-file receipts support retry",
+    "Uncertain imported topology retains conservative recovery"
+  ]
+}

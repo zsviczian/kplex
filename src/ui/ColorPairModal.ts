@@ -1,6 +1,8 @@
 /** Native detached named-pair editor; both literal controls and previews share the existing color owners. */
+import {formActions, iconButton, FormSetting as Setting} from "../adapters/obsidian/KplexModal";
+
 import {recommendColorCounterpart} from "../core/plex/colorCounterpart";
-import {Setting, type App, type ButtonComponent} from "obsidian";
+import {type App, type ButtonComponent} from "obsidian";
 import {StyleEditorModal, type StyleCommitResult} from "./StyleEditorModal";
 import {ColorLiteralEditor, type LiteralColorLabels} from "./ColorLiteralEditor";
 import {ColorPreview, type ColorPreviewOptions} from "./ColorPreview";
@@ -50,8 +52,8 @@ export class ColorPairModal extends StyleEditorModal {
     this.preview = new ColorPreview(this.contentEl, {...this.options, target: {kind: "node", field: "backgroundColor"}, pairDraft: () => this.draft}, {kind: "palette", id: this.draft.id});
     new Setting(this.contentEl).setName(t("colors.resetPair")).setDesc(t("colors.resetPairHelp"))
       .addButton(button => button.setButtonText(t("colors.resetPair")).onClick(() => { if (this.canEdit()) for (const literal of this.literals) literal.reset(); }));
-    new Setting(this.contentEl).addButton(button => button.setButtonText(t("common.cancel")).onClick(() => this.close()))
-      .addButton(button => { this.save = button; button.setButtonText(t("common.save")).setCta().onClick(() => this.submit()); });
+    formActions(this.contentEl).addButton(button => iconButton(button, t("common.cancel"), "x").onClick(() => this.close()))
+      .addButton(button => { this.save = button; iconButton(button, t("common.save"), "save").setCta().onClick(() => this.submit()); });
     this.releaseCss = this.options.subscribeCss?.(() => this.preview?.invalidate()) ?? null;
     this.releaseColors = this.options.subscribeColors?.(() => this.preview?.refreshSources()) ?? null;
     this.refreshSave();

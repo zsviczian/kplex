@@ -1,6 +1,7 @@
 /** Native Markdown source/preview inside one detached preset draft. The shared native help
  * owner handles rendering; the existing editor retains validation, Save/Cancel and stale guards. */
-import {Setting, getLanguage, type App} from "obsidian";
+import {FormSetting as Setting} from "../../../adapters/obsidian/KplexModal";
+import {getLanguage, type App} from "obsidian";
 import type {FacetPreset} from "../../../core/plex/views/facets/contracts";
 import {MARKDOWN_HELP_LIMIT, validMarkdownHelp} from "../../../core/contracts/markdownHelp";
 import {NativeMarkdownHelp} from "../../NativeMarkdownHelp";
@@ -12,7 +13,7 @@ import type {Translator} from "../../../lang";
 export function renderPresetHelpSettings(app: App, body: HTMLElement, id: string, read: () => FacetPreset,
   change: (preset: FacetPreset, structural: boolean) => void, current: () => boolean, t: Translator, open = false): () => void {
   let alive = true, renderer: NativeMarkdownHelp | null = null;
-  const section = body.createEl("details", {cls: "kplex-facet-help-settings", ...(open ? {attr: {open: ""}} : {})});section.createEl("summary", {text: t("facets.help")});
+  const section = body.createEl("details", {cls: "kplex-facet-help-settings kplex-form-disclosure", ...(open ? {attr: {open: ""}} : {})});section.createEl("summary", {text: t("facets.help")});
   const source = new Setting(section).setName(t("facets.help")).setDesc(t("facets.helpHint")).addTextArea(/** Native source occupies its own full-width row below the description. */ input => {
     input.inputEl.maxLength = MARKDOWN_HELP_LIMIT;input.inputEl.rows = 12;
     input.setValue(read().helpMarkdown ?? effectiveFacetHelp(id, read(), t)).onChange(/** Explicit blank source remains blank across locale changes. */ helpMarkdown => {

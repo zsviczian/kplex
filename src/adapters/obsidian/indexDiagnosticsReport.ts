@@ -5,6 +5,7 @@ import { sanitizeSourceRepositoryDiagnostics } from "../../index/SourceRepositor
 import type { GraphIndex } from "../../index/GraphIndex";
 import { formatDiagnosticsJson, SUPPORT_REPORT_BYTE_LIMIT } from "../../application/supportReport";
 import { projectIndexingActivity } from "../../application/IndexingActivity";
+import {projectIndexRecoveryDiagnostics} from "../../application/indexRecoveryDiagnostics";
 
 type IndexStatusFacts = {
   upToDate: boolean;
@@ -42,6 +43,7 @@ export function createIndexDiagnosticsReport(
     hydration: index.getSnapshotHydrationDiagnostics(),
     saved,
     sources: sanitizeSourceRepositoryDiagnostics(index.getSourceRepositoryDiagnostics?.()),
+    recovery: projectIndexRecoveryDiagnostics(index.getIndexRecoveryDiagnostics?.()),
     decisions: sanitizeIndexDiagnostics(index.getIndexDiagnostics()),
     truncation: { oldestDecisionsOmitted: 0 },
   };

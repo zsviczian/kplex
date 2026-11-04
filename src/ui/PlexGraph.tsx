@@ -59,7 +59,7 @@ import { CameraMotion } from "./components/CameraMotion";
 import { ColorSourceModal } from "./ColorSourceModal";
 import { Keymap, Menu, Notice, Platform, type TFile, type WorkspaceLeaf } from "obsidian";
 import { addNativeSubmenu } from "../adapters/obsidian/nativeSubmenu";
-import { getDraggedFile } from "../adapters/obsidian/fileExplorerDrag";
+import { getDraggedFile, getDraggedFolder } from "../adapters/obsidian/fileExplorerDrag";
 import { canDragNodeLink, draggedGraphPage, finishNodeLinkDrag, isNodeLinkDragCurrent, nodeLinkDragSource, startNodeLinkDrag, type NodeLinkDragRelationship, type NodeLinkDragSource } from "../adapters/obsidian/nodeLinkDrag";
 import { urlEmbed } from "./features/urlEmbed";
 import {isObsidianUri} from "../adapters/obsidian/urlIdentity";
@@ -67,7 +67,7 @@ import type KplexPlugin from "../main";
 import type { KplexDisplayModeState } from "./KplexDisplayModes";
 import type { GraphIndex } from "../index/GraphIndex";
 import type { KplexLayoutProfile, KplexSettings, KplexViewSurface, SidecarMarkdownMode } from "../settings";
-import type { GateRole, GateSide, GraphPage, Neighbour, Neighborhood, NodeStyle, NodeVisual, PositionedEdge, PositionedNode, Role, } from "../types";
+import type { GateRole, GateSide, GraphPage, Neighbour, Neighborhood, NodeStyle, NodeVisual, PositionedEdge, PositionedNode, Role, RelationshipRole, } from "../types";
 import { LinkDirection, RelationType } from "../types";
 import { alphaHexToCss, resolveLinkStyle, resolveNodeStyle, currentNodeColorStyle, nodePaint, nodePaintFallbacks, NATIVE_CANVAS_FILL, NATIVE_LINK_STROKE, NATIVE_LINK_TEXT, NATIVE_LINK_LABEL_FILL } from "../index/style";
 import { TYPOGRAPHY_FIELDS, TYPOGRAPHY_LIMITS, type TypographyValues } from "../core/plex/typographyPreferences";
@@ -102,6 +102,9 @@ import {hierarchyPathClosure} from "../core/plex/views/hierarchy";
 import type {AreaId as ScrollZone, PlexViewDefinition, PlexBranchAction} from "../core/plex/views/contracts";
 import type {PlexViewSession} from "../application/PlexViewSession";
 import {classicViewDefinition, classicPorts} from "../core/plex/views/classic/definition";
+import {classicFlipped} from "../core/plex/views/classic/configuration";
+import {sourceGateRole, gateCreationRole, gateGroupRole} from "./features/gateRelationshipIntent";
+import {externalFilesPayload} from "../adapters/obsidian/externalFileImport";
 import {plexViewContributionFor} from "./plexViews/contributions";
 import {reflowArea} from "./plexViews/reflowArea";
 import {prepareViewScene, plexViewRead, attentionFallbackScene} from "./plexViews/prepareScene";
@@ -832,7 +835,8 @@ export function PlexGraph({ viewDefinition = classicViewDefinition, viewSession,
   const [areaHeightOverrides, setAreaHeightOverrides] = useState<Partial<Record<AreaHeightKey, number>>>({});
   // App receives fresh prepared facades during unrelated renders. Explicit drafts survive those
   // publications; mutating one temporary facade would discard slow slider changes mid-gesture.
-  const settings = useMemo(() => Object.assign(withAreaHeightOverrides(viewSettings, areaHeightOverrides), layoutOverrides), [viewSettings, areaHeightOverrides, layoutOverrides]);
+  const flipEastWest = Boolean(classic) && classicFlipped(readViewConfiguration(viewDefinition, plugin.settings.canvasViewSettings));
+  const settings = useMemo(() => Object.assign(withAreaHeightOverrides(viewSettings, areaHeightOverrides), layoutOverrides, {flipEastWest}), [viewSettings, areaHeightOverrides, layoutOverrides, flipEastWest]);
   const paintedNodeStyles = useMemo(/** Reuse resolved colors for stable scene occurrences across hover/count/scroll renders. */ () => new WeakMap<object, NodeStyle>(), [paintSettings]);
   const colorScope = useRef<ColorScope | null>(null);
   const compassRefresh = useRef<() => void>(/** Context can initialize before layout has captured a center. */ () => {});
@@ -1700,7 +1704,9 @@ export function PlexGraph({ viewDefinition = classicViewDefinition, viewSession,
     const box = `0 0 ${size.width} ${size.height}`; if (svg.getAttribute("viewBox") !== box) svg.setAttribute("viewBox", box);
     const polygons = classic!.tint(size.width, size.height, {x: current.x + x * current.scale, y: current.y + y * current.scale});
     for (let index = 0; index < COMPASS_DIRECTIONS.length; index++) {
-      const points = polygons[COMPASS_DIRECTIONS[index]].map(/** Serialize one bounded viewport vertex without touching a graph occurrence. */ point => `${point.x},${point.y}`).join(" ");
+      const direction = COMPASS_DIRECTIONS[index];
+      const physical = flipEastWest && (direction === "east" || direction === "west") ? direction === "east" ? "west" : "east" : direction;
+      const points = polygons[physical].map(/** Serialize one bounded viewport vertex without touching a graph occurrence. */ point => `${point.x},${point.y}`).join(" ");
       const polygon = svg.children[index]; if (polygon?.getAttribute("points") !== points) polygon?.setAttribute("points", points);
     }
     return !!target.element && sceneMotion.isRunning(target.element);
@@ -3319,7 +3325,7 @@ export function PlexGraph({ viewDefinition = classicViewDefinition, viewSession,
           originPath: pending.nodePath,
           sourceGateElement: pending.element,
           gate: pending.gate,
-          semanticRole: node.physicalPorts?.[pending.gate],
+          semanticRole: sourceGateRole(pending.gate, node.physicalPorts, flipEastWest) ?? undefined,
           pointerId,
           current: toWorld(startX, startY),
           startClientX: startX,
@@ -3340,7 +3346,7 @@ export function PlexGraph({ viewDefinition = classicViewDefinition, viewSession,
       originPath: node.page.path,
       sourceGateElement: event.currentTarget,
       gate,
-      semanticRole: node.physicalPorts?.[gate],
+      semanticRole: sourceGateRole(gate, node.physicalPorts, flipEastWest) ?? undefined,
       pointerId: event.pointerId,
       current: toWorld(event.clientX, event.clientY),
       startClientX: event.clientX,
@@ -3613,7 +3619,7 @@ export function PlexGraph({ viewDefinition = classicViewDefinition, viewSession,
     updateAreaSettingsDismiss(e);
     if (connectDrag) {
       if (e.pointerId !== connectDrag.pointerId) return;
-      updateHistoryDragHover(index.get(connectDrag.originPath), e.clientX, e.clientY, e.currentTarget.ownerDocument, (connectDrag.semanticRole ?? semanticRoleForGate(connectDrag.gate)));
+      updateHistoryDragHover(index.get(connectDrag.originPath), e.clientX, e.clientY, e.currentTarget.ownerDocument, gateCreationRole(connectDrag.semanticRole ?? semanticRoleForGate(connectDrag.gate), e));
       setConnectDrag((current) => current ? {
         ...current,
         current: toWorld(e.clientX, e.clientY),
@@ -3712,26 +3718,26 @@ export function PlexGraph({ viewDefinition = classicViewDefinition, viewSession,
   };
 
   /** Reuse canonical gate membership and the composer's writable-endpoint requirement for all fixed targets. */
-  const relationshipDropRoles = (origin: GraphPage, target: GraphPage, semanticRole?: GateRole): GateRole[] => {
+  const relationshipDropRoles = (origin: GraphPage, target: GraphPage, semanticRole?: RelationshipRole): GateRole[] => {
     if (target.path === origin.path || target.isFolder || target.isTag || origin.isFolder || origin.isTag
       || (origin.file?.extension !== "md" && target.file?.extension !== "md")) return [];
     const gates: Array<{ role: GateRole; gate: GateSide }> = [
       { role: "parent", gate: "top" }, { role: "child", gate: "bottom" },
       { role: "left", gate: "left" }, { role: "right", gate: "right" },
     ];
-    return gates.filter(({ role }) => !semanticRole || role === semanticRole)
+    return gates.filter(({ role }) => !semanticRole || role === gateGroupRole(semanticRole))
       .filter(({ gate }) => !index.gateNeighbourPaths(origin, gate).has(target.path)).map(({ role }) => role);
   };
 
   /** Resolve history and pinned open buttons through one owner-document hit test and eligibility check. */
-  const historyRelationshipTarget = (origin: GraphPage, clientX: number, clientY: number, ownerDocument: Document, semanticRole?: GateRole): { button: HTMLElement; target: GraphPage } | null => {
+  const historyRelationshipTarget = (origin: GraphPage, clientX: number, clientY: number, ownerDocument: Document, semanticRole?: RelationshipRole): { button: HTMLElement; target: GraphPage } | null => {
     const button = ownerDocument.elementFromPoint(clientX, clientY)?.closest<HTMLElement>("[data-kplex-history-path], [data-kplex-pinned-path]");
     const path = button?.dataset.kplexHistoryPath ?? button?.dataset.kplexPinnedPath;
     const target = path ? index.get(path) : undefined;
     if (!button || !target) return null;
     if (structuralDropKind(origin, target)) return { button, target };
     const roles = relationshipDropRoles(origin, target, semanticRole);
-    return (semanticRole ? roles.includes(semanticRole) : roles.length > 0) ? { button, target } : null;
+    return (semanticRole ? roles.includes(gateGroupRole(semanticRole)) : roles.length > 0) ? { button, target } : null;
   };
 
   /** Retire the view-owned history/pinned drag affordance on leave, release, cancellation or unload. */
@@ -3745,7 +3751,7 @@ export function PlexGraph({ viewDefinition = classicViewDefinition, viewSession,
   }, [connectDrag?.originPath, nodeDrag?.path]);
 
   /** Highlight only the same eligible endpoint that an eventual drop can select. */
-  const updateHistoryDragHover = (origin: GraphPage | undefined, clientX: number, clientY: number, ownerDocument: Document, semanticRole?: GateRole): void => {
+  const updateHistoryDragHover = (origin: GraphPage | undefined, clientX: number, clientY: number, ownerDocument: Document, semanticRole?: RelationshipRole): void => {
     const next = origin ? historyRelationshipTarget(origin, clientX, clientY, ownerDocument, semanticRole)?.button ?? null : null;
     if (next === historyDragHover.current) return;
     clearHistoryDragHover();
@@ -3754,7 +3760,7 @@ export function PlexGraph({ viewDefinition = classicViewDefinition, viewSession,
   };
 
   /** A gate states its role directly; body drops on history or pinned chips offer the remaining eligible roles. */
-  const openHistoryRelationshipMenu = (origin: GraphPage, clientX: number, clientY: number, ownerDocument: Document, semanticRole?: GateRole, immediateMove = false, additiveOnly = false): boolean => {
+  const openHistoryRelationshipMenu = (origin: GraphPage, clientX: number, clientY: number, ownerDocument: Document, semanticRole?: RelationshipRole, immediateMove = false, additiveOnly = false): boolean => {
     const hit = historyRelationshipTarget(origin, clientX, clientY, ownerDocument, semanticRole);
     if (!hit) return false;
     const { target } = hit;
@@ -3889,6 +3895,11 @@ export function PlexGraph({ viewDefinition = classicViewDefinition, viewSession,
     // the browser's drop before the corresponding drop handler has a chance to yield ownership.
     if ((event.target as Element | null)?.closest(".kplex-central-editor-overlay")) {setExternalDropZone(null);setPropertyDropArea(null); return;}
     externalDropPoint.current = toWorld(event.clientX, event.clientY);
+    if (event.dataTransfer.types.includes("Files") && !getDraggedFile(plugin.app) && !getDraggedFolder(plugin.app) && !nodeLinkDragSource(plugin.app)) {
+      const hit = externalFileDropTarget(event.clientX, event.clientY, event.currentTarget.ownerDocument.elementFromPoint(event.clientX, event.clientY));
+      setExternalDropZone(hit === "blocked" ? null : hit ?? "center"); setPropertyDropArea(null);
+      event.preventDefault(); event.stopPropagation(); event.dataTransfer.dropEffect = hit === "blocked" ? "none" : "copy"; return;
+    }
     const target = draggedGraphPage(plugin.app, index, event);
     const file = getDraggedFile(plugin.app);
     if (!target && (nodeLinkDragSource(plugin.app) || !file)) { setExternalDropZone(null);setPropertyDropArea(null); return; }
@@ -3971,6 +3982,15 @@ export function PlexGraph({ viewDefinition = classicViewDefinition, viewSession,
     setExternalDropZone(null);
     setPropertyDropArea(null);
     if ((event.target as Element | null)?.closest(".kplex-central-editor-overlay")) return;
+    if (event.dataTransfer.types.includes("Files") && !getDraggedFile(plugin.app) && !getDraggedFolder(plugin.app) && !nodeLinkDragSource(plugin.app)) {
+      const element = event.currentTarget.ownerDocument.elementFromPoint(event.clientX, event.clientY);
+      const hit = externalFileDropTarget(event.clientX, event.clientY, element);
+      event.preventDefault(); event.stopPropagation();
+      if (hit === "blocked") return;
+      const origin = hit && hit !== "center" ? dropOriginAt(event.clientX, event.clientY, element) : navigationNode()?.page;
+      if (origin) plugin.openExternalFileImports(origin, externalFilesPayload(event.dataTransfer), hit && hit !== "center" ? hit : "child", hostLeaf, actionSurfaceId);
+      return;
+    }
     const target = draggedGraphPage(plugin.app, index, event);
     if (!target && (nodeLinkDragSource(plugin.app) || !getDraggedFile(plugin.app))) return;
     const source = nodeLinkDragSource(plugin.app);
@@ -4020,7 +4040,7 @@ export function PlexGraph({ viewDefinition = classicViewDefinition, viewSession,
   /** Compass neighbors retain directional hysteresis. Other views authorize only explicit area drop roles, never ontology inferred from a phase or screen quadrant. */
   const nodeDropRole = (node: PositionedNode, position: Point, clientX: number, clientY: number, hit: Element | null): GateRole | null => {
     const currentRole = normalizedRole(node.role);
-    if (classic && currentRole && settings.lateralArrangement !== "left") return semanticRoleForPosition(position, currentRole, NODE_RELINK_HYSTERESIS_PX / Math.max(0.3, camera.current.scale));
+    if (classic && currentRole && settings.lateralArrangement !== "left") return semanticRoleForPosition(settings.flipEastWest ? {...position, x: -position.x} : position, currentRole, NODE_RELINK_HYSTERESIS_PX / Math.max(0.3, camera.current.scale));
     if (currentRole) {
       const area = externalFileDropTarget(clientX, clientY, hit);
       return area && area !== "center" && area !== "blocked" ? area : null;
@@ -4088,7 +4108,8 @@ export function PlexGraph({ viewDefinition = classicViewDefinition, viewSession,
     if (connectDrag && e.pointerId === connectDrag.pointerId) {
       const drag = connectDrag;
       const origin = index.get(drag.originPath);
-      if (origin && drag.moved && (openHistoryRelationshipMenu(origin, e.clientX, e.clientY, e.currentTarget.ownerDocument, (drag.semanticRole ?? semanticRoleForGate(drag.gate)), e.altKey) || relationshipChip)) {
+      const semanticRole = gateCreationRole(drag.semanticRole ?? semanticRoleForGate(drag.gate), e);
+      if (origin && drag.moved && (openHistoryRelationshipMenu(origin, e.clientX, e.clientY, e.currentTarget.ownerDocument, semanticRole, e.altKey) || relationshipChip)) {
         setConnectDrag(null);
         clearHoverIntent(true);
         suppressActivateUntil.current = Date.now() + 220;
@@ -4100,18 +4121,9 @@ export function PlexGraph({ viewDefinition = classicViewDefinition, viewSession,
       }
       const hit = e.currentTarget.ownerDocument.elementFromPoint(e.clientX, e.clientY) as HTMLElement | null;
       const targetEl = hit?.closest<HTMLElement>("[data-kplex-path]") ?? null;
-      const targetGateEl = hit?.closest<HTMLElement>("[data-kplex-gate]") ?? null;
       const targetPath = targetEl?.dataset.kplexPath ?? null;
       const target = targetPath ? index.get(targetPath) : null;
-      const targetGate = targetGateEl?.dataset.kplexGate as GateSide | undefined;
-      // If the user deliberately drops on a gate, that gate states how the origin is seen from
-      // the target. Invert it to obtain the relationship stored from the drag origin's view.
-      const targetOccurrence = targetEl?.dataset.kplexKeyboardId;
-      const targetNode = scene.nodes.find(node => occurrenceKey(node) === targetOccurrence);
-      const targetRole = targetGate && targetNode?.physicalPorts !== undefined ? targetNode.physicalPorts[targetGate] : undefined;
-      const semanticRole = targetGate && (targetRole || targetNode?.physicalPorts === undefined)
-        ? plugin.inverseGateRole(targetRole ?? semanticRoleForGate(targetGate))
-        : (drag.semanticRole ?? semanticRoleForGate(drag.gate));
+      // A destination gate selects this target note; only the captured source gate owns intent.
       const fixedTarget = target && !target.isFolder && !target.isTag && target.path !== drag.originPath && !connectBlockedPaths.has(target.path) ? target : undefined;
       setConnectDrag(null);
       clearHoverIntent(true);
@@ -4122,8 +4134,7 @@ export function PlexGraph({ viewDefinition = classicViewDefinition, viewSession,
         return;
       }
       if (origin?.isFolder) {
-        if ((!drag.semanticRole && drag.moved && drag.gate === "bottom" && !target)
-          || drag.semanticRole === "child" && drag.moved && !target) plugin.openCreateInFolderModal(origin, hostLeaf);
+        if (drag.moved && !target) plugin.openCreateInFolderModal(origin, hostLeaf);
         return;
       }
       if (origin?.isTag) return;
@@ -5162,6 +5173,11 @@ export function PlexGraph({ viewDefinition = classicViewDefinition, viewSession,
         .onClick(/** Native confirmation cannot borrow a new menu target. */ () => runCapturedNodeAction("view.root.selected", persistent)));
       menu.addSeparator();
     }
+
+    if (persistent && capturedNativeTarget?.parent && !page.transient) menu.addItem(/** Physical files and folders share the canonical native move dialog. */ item => item
+      .setTitle(translate("moveNode.move")).setIcon("folder-input").onClick(/** Retain this menu's exact surface and native target. */ () => {
+        if (menuCurrent() && nativeRevealTarget(plugin.app, persistent) === capturedNativeTarget) plugin.openMoveNodeModal(persistent, hostLeaf, actionSurfaceId, menuCurrent);
+      }));
 
     const persistentFile = persistent?.file;
     const revealState = fileRevealMenuState(plugin.app,

@@ -1,0 +1,478 @@
+{
+  "scope": "PR #278 source gate creation intent, compact Link footer, bounded recovery diagnostics",
+  "status": "Implemented and deployed; Windows validation passed; no indexing recovery behavior fix claimed",
+  "branch": "2026-11-03-issue-277-creation-links-compass",
+  "base": "c0e6166",
+  "implementation": "uncommitted",
+  "frozenInputs": {
+    "files": 985,
+    "sha256": "41dfe98917fa1fb4ba732dda7ce02d36ccf5af0397e2c9fb762ab9d5b27cfaa7"
+  },
+  "artifacts": {
+    "main.js": "5047b3843cfb8bbcfcda85d80f7debbe7f05798cc814b6f1f54c4ce858bef9ab",
+    "styles.css": "3db644c65547eeb9c2cb4e4b244048fcf74044b5ee5349576cbf6d3c3aaa1aa3",
+    "manifest.json": "8c65b0d38a506f8fa9fc3311b81ea22bcda48e0209e9190483752c1f20834326"
+  },
+  "deployment": {
+    "status": "deployed",
+    "at": "2026-11-04T14:54:16.900Z",
+    "vault": "Zsolt's Brain",
+    "target": "C:\\Obsidian\\Zsolt's Brain\\.obsidian\\plugins\\k-plex",
+    "files": {
+      "main.js": {
+        "before": "cc921ffd89a735f01c0fa9b1181618f2e79686e42dd27d4d7c5cb0c8283984f7",
+        "expected": "5047b3843cfb8bbcfcda85d80f7debbe7f05798cc814b6f1f54c4ce858bef9ab",
+        "copied": true,
+        "deployed": "5047b3843cfb8bbcfcda85d80f7debbe7f05798cc814b6f1f54c4ce858bef9ab"
+      },
+      "styles.css": {
+        "before": "25b9cfd2dfbc189ec9135567f6a01af32ad4404cf88fe83d1182a655b0adcb00",
+        "expected": "3db644c65547eeb9c2cb4e4b244048fcf74044b5ee5349576cbf6d3c3aaa1aa3",
+        "copied": true,
+        "deployed": "3db644c65547eeb9c2cb4e4b244048fcf74044b5ee5349576cbf6d3c3aaa1aa3"
+      }
+    },
+    "backup": "C:\\Users\\viczi\\GitHub\\kplex\\.test-work\\deploy-backups\\brain-ui-2026-11-04-1793804049480",
+    "manifestUnchanged": true,
+    "pluginReloaded": false,
+    "scope": "Only main.js and styles.css copied; no settings, notes, manifest or workspace writes."
+  },
+  "automated": {
+    "uiComposerCompass": {
+      "passed": 92,
+      "failed": 0,
+      "log": "%TEMP%/kplex-278-source-gate-ui.log"
+    },
+    "reportPrivacyActivityClipboard": {
+      "passed": 49,
+      "failed": 0,
+      "log": "%TEMP%/kplex-278-recovery-report-tests-final.log"
+    },
+    "realIndexedDbRecovery": {
+      "passed": 2,
+      "failed": 0,
+      "log": "%TEMP%/kplex-278-recovery-diagnostics-idb-final.log"
+    },
+    "architecture": {
+      "passed": 9,
+      "failed": 0,
+      "roots": 262,
+      "reachableFiles": 465,
+      "violations": 0
+    },
+    "core": {
+      "passed": 133,
+      "failed": 0
+    },
+    "officialLint": "passed",
+    "installedTypeProductionBuild": "passed",
+    "indexingFixture": {
+      "status": "passed",
+      "log": "%TEMP%/kplex-278-gates-diagnostics-indexing.log",
+      "guards": "Original assertions1-68/P1-P17 and responsiveness limits unchanged"
+    },
+    "fullAggregate": "Not rerun for this follow-up; prior3980-case acceptance retains original attribution"
+  },
+  "native": [
+    {
+      "lane": "gate-defaults",
+      "receipt": "kplex-278-native-JHSI35",
+      "receiptSha256": "251827c65a102d4f49c4ef1425f6918bb75a403462ef21be8f9baf5becbf7472",
+      "status": "passed",
+      "cleanup": "passed",
+      "stagingCleanup": {
+        "disable": "passed",
+        "data": "passed",
+        "enable": "passed",
+        "layout": "passed",
+        "data-bytes": "passed",
+        "enablement-bytes": "passed"
+      },
+      "artifacts": {
+        "main.js": "5047b3843cfb8bbcfcda85d80f7debbe7f05798cc814b6f1f54c4ce858bef9ab",
+        "manifest.json": "8c65b0d38a506f8fa9fc3311b81ea22bcda48e0209e9190483752c1f20834326",
+        "styles.css": "3db644c65547eeb9c2cb4e4b244048fcf74044b5ee5349576cbf6d3c3aaa1aa3"
+      },
+      "assertions": {
+        "samples": [
+          {
+            "flipped": false,
+            "role": "left",
+            "modified": false,
+            "targetSide": "left",
+            "expected": "left",
+            "fixedTarget": true,
+            "defaultMatches": true
+          },
+          {
+            "flipped": false,
+            "role": "left",
+            "modified": false,
+            "targetSide": "right",
+            "expected": "left",
+            "fixedTarget": true,
+            "defaultMatches": true
+          },
+          {
+            "flipped": false,
+            "role": "left",
+            "modified": true,
+            "targetSide": "left",
+            "expected": "previous",
+            "fixedTarget": true,
+            "defaultMatches": true
+          },
+          {
+            "flipped": false,
+            "role": "left",
+            "modified": true,
+            "targetSide": "right",
+            "expected": "previous",
+            "fixedTarget": true,
+            "defaultMatches": true
+          },
+          {
+            "flipped": false,
+            "role": "right",
+            "modified": false,
+            "targetSide": "left",
+            "expected": "right",
+            "fixedTarget": true,
+            "defaultMatches": true
+          },
+          {
+            "flipped": false,
+            "role": "right",
+            "modified": false,
+            "targetSide": "right",
+            "expected": "right",
+            "fixedTarget": true,
+            "defaultMatches": true
+          },
+          {
+            "flipped": false,
+            "role": "right",
+            "modified": true,
+            "targetSide": "left",
+            "expected": "next",
+            "fixedTarget": true,
+            "defaultMatches": true
+          },
+          {
+            "flipped": false,
+            "role": "right",
+            "modified": true,
+            "targetSide": "right",
+            "expected": "next",
+            "fixedTarget": true,
+            "defaultMatches": true
+          },
+          {
+            "flipped": false,
+            "role": "parent",
+            "modified": false,
+            "targetSide": null,
+            "expected": "parent",
+            "fixedTarget": false,
+            "defaultMatches": true
+          },
+          {
+            "flipped": false,
+            "role": "child",
+            "modified": false,
+            "targetSide": null,
+            "expected": "child",
+            "fixedTarget": false,
+            "defaultMatches": true
+          },
+          {
+            "flipped": true,
+            "role": "left",
+            "modified": false,
+            "targetSide": "left",
+            "expected": "left",
+            "fixedTarget": true,
+            "defaultMatches": true
+          },
+          {
+            "flipped": true,
+            "role": "left",
+            "modified": false,
+            "targetSide": "right",
+            "expected": "left",
+            "fixedTarget": true,
+            "defaultMatches": true
+          },
+          {
+            "flipped": true,
+            "role": "left",
+            "modified": true,
+            "targetSide": "left",
+            "expected": "previous",
+            "fixedTarget": true,
+            "defaultMatches": true
+          },
+          {
+            "flipped": true,
+            "role": "left",
+            "modified": true,
+            "targetSide": "right",
+            "expected": "previous",
+            "fixedTarget": true,
+            "defaultMatches": true
+          },
+          {
+            "flipped": true,
+            "role": "right",
+            "modified": false,
+            "targetSide": "left",
+            "expected": "right",
+            "fixedTarget": true,
+            "defaultMatches": true
+          },
+          {
+            "flipped": true,
+            "role": "right",
+            "modified": false,
+            "targetSide": "right",
+            "expected": "right",
+            "fixedTarget": true,
+            "defaultMatches": true
+          },
+          {
+            "flipped": true,
+            "role": "right",
+            "modified": true,
+            "targetSide": "left",
+            "expected": "next",
+            "fixedTarget": true,
+            "defaultMatches": true
+          },
+          {
+            "flipped": true,
+            "role": "right",
+            "modified": true,
+            "targetSide": "right",
+            "expected": "next",
+            "fixedTarget": true,
+            "defaultMatches": true
+          },
+          {
+            "flipped": true,
+            "role": "parent",
+            "modified": false,
+            "targetSide": null,
+            "expected": "parent",
+            "fixedTarget": false,
+            "defaultMatches": true
+          },
+          {
+            "flipped": true,
+            "role": "child",
+            "modified": false,
+            "targetSide": null,
+            "expected": "child",
+            "fixedTarget": false,
+            "defaultMatches": true
+          }
+        ]
+      }
+    },
+    {
+      "lane": "controls",
+      "receipt": "kplex-278-native-XlaWQt",
+      "receiptSha256": "487baf8530b980411767045568af69855a2f9989502f861ba200c856aa8a126f",
+      "status": "passed",
+      "cleanup": "passed",
+      "stagingCleanup": {
+        "disable": "passed",
+        "data": "passed",
+        "enable": "passed",
+        "layout": "passed",
+        "data-bytes": "passed",
+        "enablement-bytes": "passed"
+      },
+      "artifacts": {
+        "main.js": "5047b3843cfb8bbcfcda85d80f7debbe7f05798cc814b6f1f54c4ce858bef9ab",
+        "manifest.json": "8c65b0d38a506f8fa9fc3311b81ea22bcda48e0209e9190483752c1f20834326",
+        "styles.css": "3db644c65547eeb9c2cb4e4b244048fcf74044b5ee5349576cbf6d3c3aaa1aa3"
+      },
+      "assertions": {
+        "compared": [
+          {
+            "classes": "dropdown kplex-add-related-role-select",
+            "matchedCoreDropdown": true
+          },
+          {
+            "classes": "dropdown",
+            "matchedCoreDropdown": true
+          },
+          {
+            "classes": "dropdown",
+            "matchedCoreDropdown": true
+          },
+          {
+            "classes": "kplex-search-shell kplex-fuzzy-search kplex-add-related-ontology-search dropdown kplex-native-combobox",
+            "matchedCoreDropdown": true
+          },
+          {
+            "classes": "kplex-search",
+            "matchedCoreInput": true
+          },
+          {
+            "classes": "kplex-create-alias-input",
+            "matchedCoreInput": true
+          },
+          {
+            "classes": "kplex-search",
+            "matchedCoreInput": true
+          }
+        ],
+        "primaryActions": [
+          {
+            "kind": "markdown",
+            "disabledAccent": true,
+            "enabledAccent": true,
+            "keyboardDefault": true
+          },
+          {
+            "kind": "excalidraw",
+            "disabledAccent": true,
+            "enabledAccent": true,
+            "keyboardDefault": true
+          }
+        ],
+        "linking": [
+          {
+            "excalidrawInstalled": false,
+            "buttons": 2,
+            "aligned": true,
+            "compact": true,
+            "iconCentered": true
+          },
+          {
+            "excalidrawInstalled": true,
+            "buttons": 2,
+            "aligned": true,
+            "compact": true,
+            "iconCentered": true
+          }
+        ],
+        "recoveryDiagnostics": {
+          "available": true,
+          "sourceReads": 0,
+          "newLeases": 0
+        }
+      }
+    },
+    {
+      "lane": "controls",
+      "receipt": "kplex-278-native-qM4Jh8",
+      "receiptSha256": "f1e2e3c29d110ec1773f1c88ee696c4473d193835b99091eebb0f61f5193ad96",
+      "status": "passed",
+      "cleanup": "passed",
+      "stagingCleanup": {
+        "disable": "passed",
+        "data": "passed",
+        "enable": "passed",
+        "layout": "passed",
+        "data-bytes": "passed",
+        "enablement-bytes": "passed"
+      },
+      "artifacts": {
+        "main.js": "5047b3843cfb8bbcfcda85d80f7debbe7f05798cc814b6f1f54c4ce858bef9ab",
+        "manifest.json": "8c65b0d38a506f8fa9fc3311b81ea22bcda48e0209e9190483752c1f20834326",
+        "styles.css": "3db644c65547eeb9c2cb4e4b244048fcf74044b5ee5349576cbf6d3c3aaa1aa3"
+      },
+      "assertions": {
+        "compared": [
+          {
+            "classes": "dropdown kplex-add-related-role-select",
+            "matchedCoreDropdown": true
+          },
+          {
+            "classes": "dropdown",
+            "matchedCoreDropdown": true
+          },
+          {
+            "classes": "dropdown",
+            "matchedCoreDropdown": true
+          },
+          {
+            "classes": "kplex-search-shell kplex-fuzzy-search kplex-add-related-ontology-search dropdown kplex-native-combobox",
+            "matchedCoreDropdown": true
+          },
+          {
+            "classes": "kplex-search",
+            "matchedCoreInput": true
+          },
+          {
+            "classes": "kplex-create-alias-input",
+            "matchedCoreInput": true
+          },
+          {
+            "classes": "kplex-search",
+            "matchedCoreInput": true
+          }
+        ],
+        "primaryActions": [
+          {
+            "kind": "markdown",
+            "disabledAccent": true,
+            "enabledAccent": true,
+            "keyboardDefault": true
+          },
+          {
+            "kind": "excalidraw",
+            "disabledAccent": true,
+            "enabledAccent": true,
+            "keyboardDefault": true
+          }
+        ],
+        "linking": [
+          {
+            "excalidrawInstalled": false,
+            "buttons": 2,
+            "aligned": true,
+            "compact": true,
+            "iconCentered": true
+          },
+          {
+            "excalidrawInstalled": true,
+            "buttons": 2,
+            "aligned": true,
+            "compact": true,
+            "iconCentered": true
+          }
+        ],
+        "recoveryDiagnostics": {
+          "available": true,
+          "sourceReads": 0,
+          "newLeases": 0
+        }
+      }
+    }
+  ],
+  "visual": {
+    "status": "directly reviewed",
+    "receipt": "qM4Jh8",
+    "coverage": "Native dark-theme existing-node Link footer: equal-sized adjacent Cancel/Link with centered glyph"
+  },
+  "recoveryFailures": [
+    {
+      "receipt": "4iLR31",
+      "reason": "Hovered ontology native skin compared with unhovered core reference; park pointer consistently before comparing; unchanged assertions passed"
+    },
+    {
+      "log": "%TEMP%/kplex-278-link-footer-visual-final.log",
+      "reason": "The first local visual-poll helper mixed require and top-level await; native scenario continued and passed, screenshot was directly captured"
+    }
+  ],
+  "limitations": [
+    "Native Windows20drag cases establish Ctrl temporal gestures; unit matrix covers all modifier flags; physical Mac/mobile separate",
+    "No indexing recovery/publication/scheduling behavior change; enriched facts support a failing reproduction before implementing that fix",
+    "Test driver source inventory was extended after accepted runs to name the new helper/projection; runtime artifacts unchanged",
+    "No production reload or writes except authorized main.js/styles.css deployment"
+  ],
+  "generatedAt": "2026-11-04T14:56:55.102Z"
+}

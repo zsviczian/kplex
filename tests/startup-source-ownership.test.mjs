@@ -127,6 +127,7 @@ function eventFixture(options = {}) {
   p.managedMetadataWrites = new Map(); p.managedCreatedPaths = new Map(); p.renameMetadataSuppressions = new Map();
   p.managedCreatedFiles = new WeakSet(); p.deletedMarkdownFiles = new WeakSet();
   p.adjustCachedMarkdownFileCount = /** Cached count presentation is outside rebuild admission. */ () => {};
+  p.index.canApplyLocalPhysicalCreate = /** Unproven fixture topology retains the conservative admission path. */ () => false;
   p.index.invalidateHostStructure = /** Retain admission independently of graph storage or structural algorithms. */ () => {};
   p.index.dematerializeFile = /** Observe delegation to semantic deletion without duplicating that algorithm. */ () => { f.counts.dematerialized++; };
   p.index.insertCreatedFile = /** Successful full publication keeps a genuinely dirty native endpoint available. */ () => {};

@@ -58,7 +58,12 @@
 import { registerFileMenus, type FilePlexNode, type FilePlexTarget } from "./adapters/obsidian/fileMenu";
 import {moveSavedPin, savedPinEntries, fixedPinPaths, isPeriodicPin, type PinPeriod, type SavedPinMove} from "./core/plex/savedPins";
 import {resolveSavedPins, setPeriodicPinEnabled, type PeriodicPinRuntime, type PeriodicPinConfiguration, type ResolvedSavedPin} from "./core/plex/periodicPins";
+import {MoveNodeModal} from "./ui/MoveNodeModal";
+import {graphFolder} from "./adapters/obsidian/graphFolder";
+import {CreatePeriodicNoteModal} from "./ui/CreatePeriodicNoteModal";
 import {createPeriodicPinRuntime} from "./adapters/obsidian/periodicPins";
+import {createConfiguredDailyNote} from "./adapters/obsidian/dailyNotes";
+import {FileCreationAutomation} from "./adapters/obsidian/fileCreationAutomation";
 import { drawingAutomation, drawingTemplateOptions } from "./adapters/obsidian/drawingTemplates";
 import {viewLabel} from "./ui/plexViews/labels";
 import {startupIndexPolicy} from './core/plex/startupIndexPreferences';
@@ -100,6 +105,9 @@ import { nativeLeafId, type KplexDocumentSession, type DocumentFollowIntent } fr
 import { RelationModal, type RelationModalOptions } from "./ui/RelationModal";
 import { NewRelatedNoteModal, type RelatedNoteInvocation } from "./ui/NewRelatedNoteModal";
 import { CreateFolderNoteModal } from "./ui/CreateFolderNoteModal";
+import {eligibleRelationshipOwner} from "./adapters/obsidian/relationshipOwner";
+import {EXTERNAL_IMPORT_LIMITS, type ExternalImportPayload} from "./adapters/obsidian/externalFileImport";
+import {ExternalFileImportBatchModal} from "./ui/ExternalFileImportBatchModal";
 import { MaterializeGhostModal, type GhostMaterializationKind, type GhostMaterializationLocation } from "./ui/MaterializeGhostModal";
 import { DeleteNodeConfirmationModal, RemainingNodeReferencesModal, HideRelationshipModal, type DeleteNodePreview, type DeleteSourcePreview, type RemainingNodeReference } from "./ui/DeleteNodeModal";
 import { HiddenFieldSetupModal, type HiddenFieldSetupChoice } from "./ui/HiddenFieldSetupModal";
@@ -197,6 +205,8 @@ export type FrontmatterUnlinkExpectation = Readonly<{
 
 /** A writing adapter signals commitment only after the existing canonical pair publication. */
 export type RelationshipWriteResult = { state: "saved-published"; page: GraphPage } | { state: "unavailable" };
+/** Cross-file reversal never calls an incomplete disk operation an unsaved connection. */
+export type RelationshipReversalResult = {state: "reversed"} | {state: "pending"; stage: "replacement" | "removal"};
 
 const isUnknownRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null && !Array.isArray(value);
@@ -218,6 +228,8 @@ type StyleCommitOptions = Readonly<{themeAction?: appearanceThemes.AppearanceThe
   persistExistingChanges?: boolean}>;
 
 export default class KplexPlugin extends Plugin {
+  /** Coalesce simultaneous explicit reversals of one declaration; settled work retains no files or UI. */
+  private readonly relationshipReversals = new Map<string, Promise<RelationshipReversalResult>>();
   /** Clipboard receipts live only as long as this native plugin instance. */
   nodeLinkClipboard?: NodeLinkClipboard;
   /** Versioned trusted automation surface; settings-based reads precede graph hydration. */
@@ -310,6 +322,11 @@ export default class KplexPlugin extends Plugin {
   private visibleMetadataTimer: number | null = null;
   private readonly visibleMetadataPaths = new Set<string>();
   private unloading = false;
+  private readonly fileCreationAutomation = new FileCreationAutomation(this.app, {
+    waiting: () => {const notice = new Notice(this.translator("note.applyingTemplate"), 0); return () => notice.hide();},
+    unavailable: () => this.translator("note.templateIntegrationUnavailable"),
+    cancelled: () => this.translator("addRelated.endpointChanged"),
+  });
   private initialIndexTask: Promise<void> | null = null;
   private initialIndexComplete = false;
   private initialSourceIndexIncomplete = false;
@@ -666,6 +683,7 @@ export default class KplexPlugin extends Plugin {
     for (const resolve of this.layoutReadyWaiters) resolve();
     this.layoutReadyWaiters.clear();
     this.unloading = true;
+    this.fileCreationAutomation.dispose();
     this.nodeLinkClipboard?.dispose();this.nodeLinkClipboard = undefined;
     for (const [timer, resolve] of this.createdEditorWaits) {window.clearTimeout(timer); resolve();}
     this.createdEditorWaits.clear();
@@ -1008,8 +1026,11 @@ export default class KplexPlugin extends Plugin {
     this.registerEvent(this.app.vault.on("create",
       /** Publish native file availability independently of startup/build completion, then queue its source patch. */
       (created) => {
+        // Physical inventory may already be complete while cached-source semantics are still
+        // adopting. A proven create must not add vault:create and admit a competing full build.
+        const localPhysicalCreate = this.initialIndexComplete || this.index.canApplyLocalPhysicalCreate();
         this.index.invalidateHostStructure(Boolean((created instanceof TFile || created instanceof TFolder)
-          && this.initialIndexComplete && this.index.hasPhysicalBaseline()));
+          && localPhysicalCreate && this.index.hasPhysicalBaseline()));
         this.pruneManagedMetadataWrites();
         if (created instanceof TFile && created.extension === "md") {
           this.deletedMarkdownFiles.delete(created);
@@ -1032,18 +1053,18 @@ export default class KplexPlugin extends Plugin {
           this.scheduleRebuild("vault:create-markdown");
           return;
         }
-        if (created instanceof TFolder && this.initialIndexComplete && this.index?.hasPhysicalBaseline()) {
+        if (created instanceof TFolder && localPhysicalCreate && this.index?.hasPhysicalBaseline()) {
           // Empty folder creation is a known structural delta. Materialize only its root-to-folder
           // ancestry; subsequent Markdown creates reuse the same folder pages and remain per-file
           // patches instead of leaving a structural `vault:create` reason that forces a full rebuild.
-          this.index.cancelRebuild();
+          if (this.initialIndexComplete) this.index.cancelRebuild();
           this.index.insertCreatedFolder(created);
           return;
         }
-        if (created instanceof TFile && this.initialIndexComplete && this.index?.hasPhysicalBaseline()) {
+        if (created instanceof TFile && localPhysicalCreate && this.index?.hasPhysicalBaseline()) {
           // Attachments have no Markdown patch to consume a structural backlog. Materialize their
           // known file-tree endpoint locally; source-local resolution maintenance owns inbound links.
-          this.index.cancelRebuild();
+          if (this.initialIndexComplete) this.index.cancelRebuild();
           this.index.insertCreatedFile(created);
           return;
         }
@@ -1089,7 +1110,10 @@ export default class KplexPlugin extends Plugin {
     this.registerEvent(this.app.vault.on("rename",
       /** Preserve path-owned state and refresh totals when a rename changes Markdown membership. */
       (renamed, oldPath) => {
-        this.index.invalidateHostStructure();
+        // The existing structural owner must prove and apply this native delta. Unknown, non-leaf
+        // and interrupted renames still retire physical coverage there; do not retire it before
+        // that owner can inspect the old canonical leaf and exact observed naming receipt.
+        this.index.invalidateHostStructure(renamed instanceof TFolder && this.initialIndexComplete && this.index.hasPhysicalBaseline());
         if (!(renamed instanceof TFile)) {
           if (renamed instanceof TFolder && this.initialIndexComplete && this.index?.hasPhysicalBaseline()) {
             this.index.cancelRebuild();
@@ -5044,14 +5068,16 @@ export default class KplexPlugin extends Plugin {
 
   /** Open a captured native file or unresolved link without waiting for complete graph publication. */
   async openFileInKplex(file: FilePlexNode, target: FilePlexTarget): Promise<void> {
-    const path = file.path, native = "source" in file ? null : file;
+    const path = file instanceof TFolder ? file === this.app.vault.getRoot() ? "folder:/" : `folder:${file.path}` : file.path, native = "source" in file ? null : file;
+    const nativePath = native?.path;
     const source = "source" in file ? file.source : null, sourcePath = source?.path;
     /** A retired native/source identity or a newly resolved placeholder cannot inherit this request. */
     const current = (): boolean => !this.unloading && (native
-      ? native.path === path && this.app.vault.getFileByPath(path) === native
+      ? native.path === nativePath && (native instanceof TFolder ? native === this.app.vault.getRoot() ? this.app.vault.getRoot() : this.app.vault.getFolderByPath(nativePath ?? "") : this.app.vault.getFileByPath(path)) === native
       : Boolean(source && source.path === sourcePath && this.app.vault.getFileByPath(sourcePath ?? "") === source
         && !this.app.metadataCache.getFirstLinkpathDest(path, sourcePath ?? "")));
     if (!current()) return;
+    if (native instanceof TFolder) this.index.primeSavedNavigation([path]);
     if (!native && !this.index.get(path)) this.index.insertVirtualPage(path);
     const workspace = this.app.workspace;
     const environment = readObsidianPresentationEnvironment();
@@ -5100,6 +5126,34 @@ export default class KplexPlugin extends Plugin {
     }
     this.restorePlexFoldBeforeReveal(leaf);
     await this.app.workspace.revealLeaf(leaf);
+  }
+
+  /** Missing periodic pins use explicit creation consent and the shared native opening control. */
+  openPeriodicPinCreation(id: string, path: string, hostLeaf: WorkspaceLeaf, current: () => boolean, surfaceId: string): void {
+    if (this.unloading || !current()) return;
+    const owner = hostLeaf.view.containerEl, doc = owner.ownerDocument, generation = this.actionSurfaceHosts.get(surfaceId)?.generation;
+    const dialog = new CreatePeriodicNoteModal(this, id, path, hostLeaf,
+      /** Creation consent belongs to this connected native canvas and generation. */ () => !this.unloading && current() && owner.isConnected && owner.ownerDocument === doc
+        && (generation === undefined || this.isActionSurfaceCurrent(surfaceId, generation)),
+      /** Native close and unload retire the same prompt. */ () => this.actionDialogs.delete(dialog));
+    this.actionDialogs.set(dialog, {surfaceId, generation}); dialog.open();
+  }
+
+  /** Create only the currently resolved missing destination; rollover or replacement requires new consent. */
+  async createPeriodicPinNote(id: string, path: string, current: () => boolean): Promise<GraphPage | null> {
+    const row = this.readSavedPins().find(/** A fixed pin never gains periodic creation capability. */ item => item.id === id);
+    if (!current() || !row?.period || row.state !== "missing" || row.path !== path || !path.endsWith(".md")) return null;
+    if (row.period === "day" && this.settings.periodicPinSettings.day.useDailyNotes) {
+      const file = await this.fileCreationAutomation.create(() => createConfiguredDailyNote(this.app, path, /** Native creation and post-write effects retain the clicked pin's consent. */ () => !this.unloading && current()
+        && this.settings.periodicPinSettings.day.useDailyNotes
+        && this.readSavedPins().some(item => item.id === id && item.period === "day" && item.path === path && (item.state === "missing" || item.state === "ready"))));
+      if (!file && current()) throw new Error(this.translator("pins.createFailed"));
+      return file ? this.index.insertCreatedFile(file) : null;
+    }
+    const folder = path.split("/").slice(0, -1).join("/"), name = path.split("/").at(-1)!.slice(0, -3);
+    const file = await this.createNewFileInFolder(name, "markdown", folder, /** Recheck local date and settings after ancestor creation. */ () => !this.unloading && current()
+      && this.readSavedPins().some(item => item.id === id && item.period === row.period && item.path === path && item.state === "missing"));
+    return file ? this.index.insertCreatedFile(file) : null;
   }
 
   /** Create an adjacent Plex tab group, without reusing an existing tab or startup surface preference. */
@@ -5179,9 +5233,11 @@ export default class KplexPlugin extends Plugin {
     }
     const session = this.documentSession(hostLeaf), file = this.app.vault.getFileByPath(path);
     const page = file ? this.index.getVaultSearchPage(path, file) : this.index.get(path);
-    if (!hostLeaf || !session || !page || file && page.file !== file) return;
+    const folder = page?.isFolder ? graphFolder(this.app, page) : null, folderPath = folder?.path;
+    if (!hostLeaf || !session || !page || file && page.file !== file || page.isFolder && !folder) return;
     await this.app.workspace.revealLeaf(hostLeaf);
-    if (!this.unloading && this.documentSession(hostLeaf) === session && this.app.vault.getFileByPath(path) === file) this.notifyNavigation(path, hostLeaf, true);
+    if (!this.unloading && this.documentSession(hostLeaf) === session && this.app.vault.getFileByPath(path) === file
+      && (!folder || folder.path === folderPath && graphFolder(this.app, page) === folder)) this.notifyNavigation(path, hostLeaf, true);
   }
 
   /** Explicitly open and reveal a native document, superseding passive work on that exact leaf. */
@@ -5941,7 +5997,7 @@ export default class KplexPlugin extends Plugin {
   }
 
   /** Append one explicit ontology through the existing metadata/publication owner, preserving other declarations and optional caller spelling. */
-  private async addRelationshipOntology(storageFile: TFile, target: GraphPage, field: string, referenceOverride?: string): Promise<void> {
+  private async addRelationshipOntology(storageFile: TFile, target: GraphPage, field: string, referenceOverride?: string, beforeMutation?: () => boolean, simpleProperty = false): Promise<void> {
     if (!this.index.isSemanticWriteReady(storageFile.path, target.path)
       && !(await this.index.prepareRelationshipPair(storageFile.path, target.path, this.index.get(target.path) ? undefined : target))) {
       throw new Error(this.translator("relation.preparingRelationship"));
@@ -5954,15 +6010,21 @@ export default class KplexPlugin extends Plugin {
     const reference = referenceOverride ?? this.referenceForPage(target, storageFile);
 
     await this.mutateRelationshipMetadata(storageFile, new Set([desiredNormalized]), (frontmatter: Record<string, unknown>) => {
-      this.appendRelationshipReference(frontmatter, storageFile, target, field, reference);
-    }, target.path);
+      if (beforeMutation?.() === false) throw new Error(this.translator("addRelated.endpointChanged"));
+      this.appendRelationshipReference(frontmatter, storageFile, target, field, reference, simpleProperty);
+    }, target.path, beforeMutation);
   }
 
   /** Append one requested reference without removing other properties, relationships or template metadata. */
-  private appendRelationshipReference(frontmatter: Record<string, unknown>, storageFile: TFile, target: GraphPage, field: string, reference: string): void {
+  private appendRelationshipReference(frontmatter: Record<string, unknown>, storageFile: TFile, target: GraphPage, field: string, reference: string, simpleProperty = false): void {
     const desiredNormalized = normalizeFieldName(field);
-    const desiredKey = Object.keys(frontmatter).find(/** Preserve the existing spelling of the requested property. */ key => normalizeFieldName(key) === desiredNormalized) ?? field;
+    const keys = Object.keys(frontmatter).filter(/** Preserve the existing spelling of the requested property. */ key => normalizeFieldName(key) === desiredNormalized);
+    const desiredKey = keys[0] ?? field;
     const current = frontmatter[desiredKey];
+    if (simpleProperty && (keys.length > 1 || current !== undefined && current !== null && typeof current !== "string"
+      && (!Array.isArray(current) || !current.every(/** Direction reversal cannot silently change the shape of a custom property. */ value => typeof value === "string")))) {
+      throw new Error(this.translator("explain.removeUnsupported"));
+    }
     if (current === undefined || current === null || current === "") {
       frontmatter[desiredKey] = [reference];
       return;
@@ -6002,12 +6064,13 @@ export default class KplexPlugin extends Plugin {
 
   /** Persist under exact current pair authority. Native imports without removal authority reuse the existing append-only ontology owner; legacy callers retain automatic relink. */
   async createRelationToPage(origin: GraphPage, semanticRole: RelationshipRole, target: GraphPage, selectedField: string, referenceOverride?: string,
-    additiveOnly = false): Promise<RelationshipWriteResult> {
+    additiveOnly = false, storeOnTarget = false): Promise<RelationshipWriteResult> {
     return this.index.withForegroundPriority(async () => {
       const originPath = origin.path;
       const targetPath = target.path;
       if (originPath === targetPath) return { state: "unavailable" };
       [origin, target] = await this.prepareRelationshipMutation(originPath, targetPath, origin.file, target.file);
+      if (storeOnTarget && !eligibleRelationshipOwner(this.app, target)) throw new Error(this.translator("error.relationshipRequiresMarkdownEndpoint"));
       const gate = semanticRole === "parent" ? "top" : semanticRole === "child" ? "bottom" : semanticRole === "left" || semanticRole === "previous" ? "left" : "right";
       if (this.index.gateNeighbourPaths(origin, gate).has(target.path)) {
         new Notice(this.translator("notice.alreadyConnected"), 1800);
@@ -6016,11 +6079,21 @@ export default class KplexPlugin extends Plugin {
 
       // Legacy creation keeps its automatic-relink policy. An import without source removal
       // authority must instead append, even when this canonical pair already has another role.
-      if (!additiveOnly && this.index.isConnected(origin, target.path)) {
+      if (!additiveOnly && !storeOnTarget && this.index.isConnected(origin, target.path)) {
         return this.relinkCentralNeighbour(origin, target, semanticRole, selectedField, origin.neighbours.get(target.path)?.direction ?? null);
       }
 
-      if (origin.file?.extension === "md") {
+      if (storeOnTarget) {
+        const field = this.inverseOntologyField(selectedField, semanticRole);
+        /** Explicit opposite-owner consent cannot cross native replacement, rename or pairing changes. */
+        const current = (): boolean => !this.unloading && origin.path === originPath && target.path === targetPath
+          && (!origin.file || origin.file.path === originPath && this.app.vault.getFileByPath(originPath) === origin.file)
+          && target.file?.path === targetPath && this.app.vault.getFileByPath(targetPath) === target.file
+          && this.inverseOntologyField(selectedField, semanticRole) === field;
+        await this.addRelationshipOntology(target.file!, origin, field, undefined, current, true);
+        if (!current()) throw new SavedRelationshipPendingError(this.translator("relation.savedUpdatePending"));
+        await this.publishSavedRelationship(origin.path, target.path);
+      } else if (origin.file?.extension === "md") {
         if (additiveOnly) await this.addRelationshipOntology(origin.file, target, selectedField, referenceOverride);
         else await this.writeRelationship(origin.file, target, selectedField, referenceOverride);
         await this.publishSavedRelationship(origin.path, target.path);
@@ -6913,6 +6986,71 @@ export default class KplexPlugin extends Plugin {
       viewSourcePath: evidence.sourcePath, viewTargetPath: evidence.targetPath };
   }
 
+  /** Reverse only one explicitly selected physical declaration. Replacement metadata must be
+   * durably observed and published before the canonical selected-source remover is invoked.
+   * Retrying appends idempotently to the same field; it never creates files or clears other fields. */
+  reverseFrontmatterEvidence(evidence: RelationEvidence, approved: FrontmatterUnlinkExpectation,
+    beforeMutation: () => boolean): Promise<RelationshipReversalResult> {
+    const key = frontmatterDeclarationKey(evidence);
+    if (!key || !evidence.fieldName || !["parent", "child", "left", "right", "previous", "next"].includes(evidence.declaredRole)) {
+      return Promise.reject(new Error(this.translator("relationship.flipUnavailable")));
+    }
+    const existing = this.relationshipReversals.get(key); if (existing) return existing;
+    const field = this.inverseOntologyField(evidence.fieldName, evidence.declaredRole as RelationshipRole);
+    const role = this.ontologyRoleForField(evidence.fieldName);
+    /** Both physical incarnations and the selected ontology interpretation remain exact across awaits. */
+    const current = (): boolean => beforeMutation() && !this.unloading && role === evidence.declaredRole && approved.declarationKey === key
+      && approved.storage.path === approved.storagePath && approved.target?.path === approved.targetPath
+      && this.app.vault.getFileByPath(approved.storagePath) === approved.storage
+      && this.app.vault.getFileByPath(approved.targetPath) === approved.target
+      && this.ontologyRoleForField(evidence.fieldName!) === role
+      && this.inverseOntologyField(evidence.fieldName!, evidence.declaredRole as RelationshipRole) === field;
+    const task = this.index.withForegroundPriority(async (): Promise<RelationshipReversalResult> => {
+      if (!current()) throw new Error(this.translator("explain.removeSourceChanged"));
+      const [owner, receiving] = await this.prepareRelationshipMutation(approved.storagePath, approved.targetPath, approved.storage, approved.target);
+      const file = eligibleRelationshipOwner(this.app, receiving);
+      if (!file || !current()) throw new Error(this.translator("relationship.flipUnavailable"));
+      const declaration = this.index.evidenceBetween(approved.viewSourcePath, approved.viewTargetPath).some(/** Fresh provenance must name the selected physical declaration. */ item => frontmatterDeclarationKey(item) === key);
+      if (!declaration) {
+        // Missing canonical provenance alone is not a completed retry: a changed role or stale
+        // source view may hide a property that is still physically present. Require its observed
+        // absence before recognizing an already committed replacement as success.
+        const original = this.app.metadataCache.getFileCache(approved.storage);
+        if (!original || Object.keys(original.frontmatter ?? {}).some(/** Every equivalent physical spelling must have lost this target. */ name =>
+          normalizeFieldName(name) === normalizeFieldName(evidence.fieldName!) && this.valueContainsTarget(original.frontmatter![name], approved.storage, receiving))) {
+          throw new Error(this.translator("explain.removeSourceChanged"));
+        }
+        const fm = this.app.metadataCache.getFileCache(file)?.frontmatter ?? {};
+        const fields = Object.keys(fm).filter(/** A completed retry must still have one unambiguous inverse property. */ name => normalizeFieldName(name) === normalizeFieldName(field));
+        if (fields.length === 1 && this.valueContainsTarget(fm[fields[0]], file, owner)) return {state: "reversed"};
+        throw new Error(this.translator("explain.removeSourceChanged"));
+      }
+      // The original is still present. Never delete it if the replacement write/observation fails.
+      try {
+        await this.addRelationshipOntology(file, owner, field, undefined, current, true);
+      } catch (error) {
+        if (error instanceof SavedRelationshipPendingError) return {state: "pending", stage: "replacement"};
+        throw error;
+      }
+      try {await this.publishSavedRelationship(owner.path, receiving.path);}
+      catch {
+        // The replacement has already been observed on disk. Even an unexpected publication
+        // exception is pending saved work, never permission to remove the original declaration.
+        return {state: "pending", stage: "replacement"};
+      }
+      if (!current()) return {state: "pending", stage: "replacement"};
+      try {
+        const removed = await this.unlinkFrontmatterEvidence(evidence, approved, current);
+        return removed ? {state: "reversed"} : {state: "pending", stage: "removal"};
+      } catch {
+        // A native removal can already be durable. Report only what is known: replacement saved,
+        // removal not yet confirmed. A fresh explicit retry reuses the same idempotent intent.
+        return {state: "pending", stage: "removal"};
+      }
+    }).finally(/** Release exact coalescing ownership without retaining settled native identities. */ () => {if (this.relationshipReversals.get(key) === task) this.relationshipReversals.delete(key);});
+    this.relationshipReversals.set(key, task); return task;
+  }
+
   /**
    * Remove one reauthorized declaration. A details confirmation supplies pre-approval identities and
    * a mounted-generation guard; once the native mutation starts its publication is plugin-owned.
@@ -7180,6 +7318,21 @@ export default class KplexPlugin extends Plugin {
 
   /** Create the requested physical note in its target folder and localize user-visible errors without changing vault path semantics. */
   private async createNewFileInFolder(leafName: string, kind: GhostMaterializationKind, configuredFolder: string, parentCurrent?: () => boolean, templatePath?: string): Promise<TFile | null> {
+    return this.createFileWithAutomation(() => this.createNativeFileInFolder(leafName, kind, configuredFolder, parentCurrent, templatePath));
+  }
+
+  /** All native file creators, including external copies, share one optional template barrier. */
+  async createFileWithAutomation(create: () => Promise<TFile>): Promise<TFile>;
+  async createFileWithAutomation(create: () => Promise<TFile | null>): Promise<TFile | null>;
+  async createFileWithAutomation(create: () => Promise<TFile | null>): Promise<TFile | null> {
+    return this.fileCreationAutomation.create(create);
+  }
+
+  /** A retry reuses the original template receipt instead of bypassing unfinished creation. */
+  async waitForCreatedFileAutomation(file: TFile): Promise<void> {await this.fileCreationAutomation.wait(file);}
+
+  /** Native creation and existing drawing-template ownership stay intact behind one automation barrier. */
+  private async createNativeFileInFolder(leafName: string, kind: GhostMaterializationKind, configuredFolder: string, parentCurrent?: () => boolean, templatePath?: string): Promise<TFile | null> {
     const normalizedFolder = configuredFolder ? normalizePath(configuredFolder) : "";
     if (parentCurrent && !parentCurrent()) throw new Error(this.translator("addRelated.endpointChanged"));
     await this.ensureFolderPath(normalizedFolder);
@@ -7307,30 +7460,31 @@ export default class KplexPlugin extends Plugin {
 
   /** Create a child with exact destination collision checks and existing optimistic/index reconciliation. */
   async createNewNodeInFolder(folder: GraphPage, rawName: string, kind: GhostMaterializationKind, capturedFolder?: TFolder, templatePath?: string): Promise<GraphPage | null> {
-    return this.index.withForegroundPriority(async () => {
-      if (!folder.isFolder) return null;
-      const folderPath = folder.path === "folder:/"
-        ? ""
-        : folder.path.startsWith("folder:")
-          ? normalizePath(folder.path.slice("folder:".length))
-          : "";
-      const currentFolderPath = capturedFolder?.path ?? folderPath;
-      const validation = this.validateRelatedNoteName(rawName, currentFolderPath === "/" ? "" : currentFolderPath);
-      if (!validation.valid) {
-        new Notice(validation.error ?? this.translator("note.validation.enterValid"), 2800);
-        return null;
-      }
-      if (validation.existing) {
-        new Notice(this.translator("note.existsNamed", { name: validation.stem }), 2800);
-        return null;
-      }
+    if (!folder.isFolder) return null;
+    const folderPath = folder.path === "folder:/"
+      ? ""
+      : folder.path.startsWith("folder:")
+        ? normalizePath(folder.path.slice("folder:".length))
+        : "";
+    const currentFolderPath = capturedFolder?.path ?? folderPath;
+    const validation = this.validateRelatedNoteName(rawName, currentFolderPath === "/" ? "" : currentFolderPath);
+    if (!validation.valid) {
+      new Notice(validation.error ?? this.translator("note.validation.enterValid"), 2800);
+      return null;
+    }
+    if (validation.existing) {
+      new Notice(this.translator("note.existsNamed", { name: validation.stem }), 2800);
+      return null;
+    }
 
-      /** Check again inside queued work and after the shared file creator's awaited folder check. */
-      const current = (): boolean => !this.unloading && (!capturedFolder ||
-        (capturedFolder === this.app.vault.getRoot() ? this.app.vault.getRoot() : this.app.vault.getFolderByPath(capturedFolder.path)) === capturedFolder);
-      if (!current()) throw new Error(this.translator("addRelated.endpointChanged"));
-      const file = await this.createNewFileInFolder(validation.stem, kind, currentFolderPath === "/" ? "" : currentFolderPath, current, templatePath);
-      if (!file) return null;
+    /** Recheck the captured folder before native creation and inside its awaited path checks. */
+    const current = (): boolean => !this.unloading && (!capturedFolder ||
+      (capturedFolder === this.app.vault.getRoot() ? this.app.vault.getRoot() : this.app.vault.getFolderByPath(capturedFolder.path)) === capturedFolder);
+    if (!current()) throw new Error(this.translator("addRelated.endpointChanged"));
+    const file = await this.createNewFileInFolder(validation.stem, kind, currentFolderPath === "/" ? "" : currentFolderPath, current, templatePath);
+    if (!file) return null;
+    // Foreign template execution must not hold P0 and preempt navigation or indexing.
+    return this.index.withForegroundPriority(async () => {
       const displayName = await this.writeCreatedNodeDisplayName(file, rawName);
       const displayField = this.configuredDisplayNameField();
       const normalizedDisplayField = displayField ? normalizeFieldName(displayField) : "";
@@ -7338,9 +7492,49 @@ export default class KplexPlugin extends Plugin {
     });
   }
 
+  /** Context menus expose native moves for real files/folders without granting ontology writes. */
+  openMoveNodeModal(page: GraphPage, hostLeaf: WorkspaceLeaf, surfaceId: string, current: () => boolean): void {
+    const source = page.isFolder ? graphFolder(this.app, page) : page.file;
+    if (this.unloading || !current() || page.transient || page.isTag || page.url || !source || source === this.app.vault.getRoot()) return;
+    const owner = hostLeaf.view.containerEl, doc = owner.ownerDocument, generation = this.actionSurfaceHosts.get(surfaceId)?.generation;
+    const dialog = new MoveNodeModal(this.app, source, this.translator,
+      /** A stale menu or migrated view cannot accept a new native move. */ () => !this.unloading && current() && owner.isConnected && owner.ownerDocument === doc,
+      /** Unload and close release only this dialog. */ () => this.actionDialogs.delete(dialog), owner);
+    this.actionDialogs.set(dialog, {surfaceId, generation}); dialog.open();
+  }
+
   openCreateInFolderModal(folder: GraphPage, hostLeaf?: WorkspaceLeaf): void {
-    if (!folder.isFolder) return;
-    new CreateFolderNoteModal(this, folder, hostLeaf).open();
+    if (!folder.isFolder || this.unloading) return;
+    const container = hostLeaf?.view.containerEl, doc = container?.ownerDocument;
+    const entry = [...this.actionSurfaceHosts].find(/** Match the invoking native canvas, never an unrelated most-recent one. */ ([, host]) => host.leaf === hostLeaf);
+    const dialog = new CreateFolderNoteModal(this, folder, hostLeaf, {
+      current: /** Native close/migration/unload revokes all unaccepted folder creation. */ () => !this.unloading && (!container || container.isConnected && container.ownerDocument === doc)
+        && (!entry || this.isActionSurfaceCurrent(entry[0], entry[1].generation)),
+      onClosed: /** Release this exact creation shell from plugin lifetime ownership. */ () => this.actionDialogs.delete(dialog),
+    }, true);
+    this.actionDialogs.set(dialog, entry ? {surfaceId: entry[0], generation: entry[1].generation} : {}); dialog.open();
+  }
+
+  /** Confirm a bounded external Files payload from one captured canvas. Directory trees require
+   * a physical folder parent; oversized inventories are rejected before copying any entry. */
+  openExternalFileImports(origin: GraphPage, payload: ExternalImportPayload, role: RelationshipRole,
+    hostLeaf: WorkspaceLeaf, surfaceId: string): void {
+    if (this.unloading) return;
+    if (payload.directory && !origin.isFolder) {new Notice(this.translator("fileImport.folderTargetRequired")); return;}
+    const {files} = payload;
+    if (!files.length && !payload.entries?.length) return;
+    if (files.length > EXTERNAL_IMPORT_LIMITS.files || files.some(/** Reject the entire bounded batch rather than discarding later files. */ file => file.size > EXTERNAL_IMPORT_LIMITS.fileBytes)
+      || files.reduce(/** Aggregate bytes are checked before opening any copying capability. */ (sum, file) => sum + file.size, 0) > EXTERNAL_IMPORT_LIMITS.batchBytes) {
+      new Notice(this.translator("fileImport.limits", {files: EXTERNAL_IMPORT_LIMITS.files, size: 32})); return;
+    }
+    if (origin.isTag || origin.transient || !origin.isFolder && !eligibleRelationshipOwner(this.app, origin) && !files.every(/** A Markdown import can own the inverse property for an attachment or URL parent. */ file => /\.md$/i.test(file.name))) {new Notice(this.translator("error.relationshipRequiresMarkdownEndpoint")); return;}
+    const container = hostLeaf.view.containerEl, doc = container.ownerDocument;
+    const generation = this.actionSurfaceHosts.get(surfaceId)?.generation;
+    const dialog = new ExternalFileImportBatchModal(this, origin, payload, "child", hostLeaf,
+      /** The originating canvas and native document, not the active editor, authorize later import acceptance. */ () => !this.unloading && container.isConnected && container.ownerDocument === doc
+        && (generation === undefined || this.isActionSurfaceCurrent(surfaceId, generation)),
+      /** Unload/migration releases the exact batch and all of its per-file child composers. */ () => this.actionDialogs.delete(dialog));
+    this.actionDialogs.set(dialog, {surfaceId, generation}); dialog.open();
   }
 
   /** Reuse one plugin-owned metadata queue for assignment and unlink, including actions from other windows. */
@@ -7474,21 +7668,22 @@ export default class KplexPlugin extends Plugin {
 
   /** Create a related file for the selected origin while preserving folder/name validation and localized product feedback. */
   async createNewRelatedFileForOrigin(origin: GraphPage, rawName: string, kind: GhostMaterializationKind, rawAlias = "", selectedFolder?: string, templatePath?: string): Promise<TFile | null> {
-    return this.index.withForegroundPriority(async () => {
-      const destination = this.validateNoteFolderPath(selectedFolder ?? this.newRelatedNoteFolder(origin, rawName, kind));
-      if (destination.error) throw new Error(destination.error);
-      const validation = this.validateRelatedNoteName(rawName, destination.folderPath);
-      if (!validation.valid) {
-        new Notice(validation.error ?? this.translator("note.validation.enterValid"), 2800);
-        return null;
-      }
-      if (validation.existing) {
-        new Notice(this.translator("note.existsNamed", { name: validation.stem }), 2800);
-        return null;
-      }
+    const destination = this.validateNoteFolderPath(selectedFolder ?? this.newRelatedNoteFolder(origin, rawName, kind));
+    if (destination.error) throw new Error(destination.error);
+    const validation = this.validateRelatedNoteName(rawName, destination.folderPath);
+    if (!validation.valid) {
+      new Notice(validation.error ?? this.translator("note.validation.enterValid"), 2800);
+      return null;
+    }
+    if (validation.existing) {
+      new Notice(this.translator("note.existsNamed", { name: validation.stem }), 2800);
+      return null;
+    }
 
-      const file = await this.createNewFileInFolder(validation.stem, kind, destination.folderPath, undefined, templatePath);
-      if (!file) return null;
+    const file = await this.createNewFileInFolder(validation.stem, kind, destination.folderPath, undefined, templatePath);
+    if (!file) return null;
+    // Foreign template execution must not hold P0 and preempt navigation or indexing.
+    return this.index.withForegroundPriority(async () => {
       try {
         const displayName = await this.writeCreatedNodeDisplayName(file, rawName);
         const alias = await this.writeCreatedNodeAlias(file, rawAlias);
@@ -7509,7 +7704,8 @@ export default class KplexPlugin extends Plugin {
    * protect the mutation; existing properties and template relationships survive. The committed
    * file may be opened immediately while the ordinary metadata/source lane reconciles the graph.
    */
-  async linkNewRelatedFile(origin: GraphPage, semanticRole: RelationshipRole, file: TFile, selectedField: string, rawAlias = "", rawDisplayName = "", recoverMetadata = false): Promise<{ state: "saved-pending"; page: GraphPage }> {
+  async linkNewRelatedFile(origin: GraphPage, semanticRole: RelationshipRole, file: TFile, selectedField: string, rawAlias = "", rawDisplayName = "", recoverMetadata = false, storeOnTarget = false): Promise<{ state: "saved-pending"; page: GraphPage }> {
+    await this.fileCreationAutomation.wait(file);
     return this.index.withForegroundPriority(async () => {
       if (this.app.vault.getFileByPath(file.path) !== file) throw new Error(this.translator("addRelated.endpointChanged"));
       // Recovery reuses this exact durable file, completing idempotent presentation writes that
@@ -7534,21 +7730,24 @@ export default class KplexPlugin extends Plugin {
         && this.app.vault.getFileByPath(targetPath) === file
         && (!originFile || originFile.path === originPath && this.app.vault.getFileByPath(originPath) === originFile);
       if (!current()) throw new Error(this.translator("addRelated.endpointChanged"));
-      const storageFile = originFile?.extension === "md" ? originFile : file.extension === "md" ? file : null;
+      const storageFile = storeOnTarget ? eligibleRelationshipOwner(this.app, target)
+        : eligibleRelationshipOwner(this.app, origin) ?? eligibleRelationshipOwner(this.app, target);
       if (!storageFile) throw new Error(this.translator("error.relationshipRequiresMarkdownEndpoint"));
       const referenced = storageFile === originFile ? target : origin;
       const field = storageFile === originFile ? selectedField : this.inverseOntologyField(selectedField, semanticRole);
+      /** A template/import write must retain the selected physical owner and inverse interpretation. */
+      const fieldCurrent = (): boolean => current() && (storageFile === originFile || this.inverseOntologyField(selectedField, semanticRole) === field);
       const reference = this.referenceForPage(referenced, storageFile);
       this.pruneManagedMetadataWrites();
       this.managedMetadataWrites.set(storageFile.path, Date.now() + 15000);
       await this.app.fileManager.processFrontMatter(storageFile,
         /** Native frontmatter is authoritative for this additive write; no index or body proof is needed. */
         (frontmatter: Record<string, unknown>) => {
-          if (!current()) throw new Error(this.translator("addRelated.endpointChanged"));
-          this.appendRelationshipReference(frontmatter, storageFile, referenced, field, reference);
+          if (!fieldCurrent()) throw new Error(this.translator("addRelated.endpointChanged"));
+          this.appendRelationshipReference(frontmatter, storageFile, referenced, field, reference, storeOnTarget);
         });
       // A native write already committed before a rename/replacement must never invite another create.
-      if (!current()) throw new SavedRelationshipPendingError(this.translator("relation.savedUpdatePending"));
+      if (!fieldCurrent()) throw new SavedRelationshipPendingError(this.translator("relation.savedUpdatePending"));
       // Publish available host facts without joining body parsing, pair preparation or full indexing.
       // A saved-pending result is a successful vault mutation; it must not block editor completion.
       let page = target;
@@ -7661,10 +7860,10 @@ export default class KplexPlugin extends Plugin {
   }
 
   /** Supply the operation's After saving preference without persisting dialog/context fallbacks. */
-  createdNoteCompletionControl(hostLeaf?: WorkspaceLeaf, options: Readonly<{another?: boolean; editable?: boolean; follow?: boolean; operation?: "create" | "link"}> = {}): CreatedNoteCompletionControl {
+  createdNoteCompletionControl(hostLeaf?: WorkspaceLeaf, options: Readonly<{another?: boolean; editable?: boolean; follow?: boolean; operation?: "create" | "link" | "periodic"}> = {}): CreatedNoteCompletionControl {
     const context = {...this.createdNoteContext(hostLeaf), another: options.another !== false, editable: options.editable !== false,
       follow: options.follow !== false}, choices = creationAfterSavingActions(context);
-    const key = options.operation === "link" ? "linkAfterSaving" : "newNodeAfterSaving";
+    const key = options.operation === "periodic" ? "periodicNoteAfterSaving" : options.operation === "link" ? "linkAfterSaving" : "newNodeAfterSaving";
     const preference = sanitizeCreationAfterSaving(this.settings[key] ?? this.settings.newNodeAfterSaving, this.settings.editNewNodeAfterCreate);
     return {choices, value: effectiveCreationAfterSaving(preference, context),
       onChange: /** Persist an actual offered selection through the serialized settings writer. */ value => {
@@ -7849,6 +8048,7 @@ export default class KplexPlugin extends Plugin {
     const file = retainedFile ?? await this.createNewFileInFolder(stem, kind, destination.folderPath, undefined, templatePath);
     if (!file) return false;
     try {
+      await this.waitForCreatedFileAutomation(file);
       if ((file.parent?.path === "/" ? "" : file.parent?.path) !== destination.folderPath) throw new Error(changed);
       if (relocation) await applyPlaceholderRelocation(this.app, relocation, file, /** Native replacement identities never inherit a dismissed placeholder's write authority. */ () => !this.unloading
         && !this.app.metadataCache.getFirstLinkpathDest(oldPath, sources[0]?.path ?? ""), changed);

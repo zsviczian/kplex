@@ -12,7 +12,7 @@ import {nativeBatch270} from './nativeBatch270.mjs';
 import {validateTarget} from './runner.mjs';
 
 /** Exercise actual saved-order persistence, native input and fresh symbolic activation across views. */
-async function pins(app,c){
+export async function pins(app,c){
  const f=c.fixture(app,c),samples=[];
  try{
   await f.initialize();let p=f.p;
@@ -64,10 +64,11 @@ async function pins(app,c){
    finally{native.webContents.sendInputEvent({type:'mouseUp',...end,button:'left',clickCount:1});}
    f.check(historyList.scrollLeft>=40&&navigations===historyNavigations&&!historyList.classList.contains('is-mouse-scrolling'),'Native History grab scroll regressed');samples.push({case:'trusted History grab scroll',scrollLeft:historyList.scrollLeft,navigations:0});
   }finally{if(historyStyle===null)historyList.removeAttribute('style');else historyList.setAttribute('style',historyStyle);}
-  const popout=await f.canvas(a,'k-plex-react-view','window');await f.until(()=>rows(popout).length===6,'Popout pin list');
+  const popout=await f.canvas(a,'k-plex-react-view','window');await f.until(()=>rows(popout).length===6,'Popout pin list');await p.settingsWriteQueue;await f.wait(200);
   const popoutOrder=JSON.stringify(p.settings.pinnedNodes),popoutWrites=saves,r=rows(popout)[1].getBoundingClientRect();
-  await f.drag(rows(popout)[0].querySelector('[data-reorder-handle]'),{x:Math.round(r.right-2),y:Math.round(r.y+r.height/2)},async(doc,native)=>{native.blur();await f.wait(70);});
-  await f.wait(100);f.check(JSON.stringify(p.settings.pinnedNodes)===popoutOrder&&saves===popoutWrites,'Popout blur committed a gesture');
+  // BrowserWindow.blur alone may leave Chromium focused on Windows; prove an actual realm blur before release.
+  await f.drag(rows(popout)[0].querySelector('[data-reorder-handle]'),{x:Math.round(r.right-2),y:Math.round(r.y+r.height/2)},async(doc,native)=>{let blurred=false;const observe=()=>{blurred=true};doc.defaultView.addEventListener('blur',observe);try{native.blur();await f.focus(document);await f.until(()=>blurred,'Native popout DOM blur receipt',5000);f.check(!doc.querySelector('.kplex-pinned-bar.is-reordering'),'Popout DOM blur retained gesture');}finally{doc.defaultView.removeEventListener('blur',observe);}});
+  await f.wait(100);f.check(JSON.stringify(p.settings.pinnedNodes)===popoutOrder&&saves===popoutWrites,'Popout blur committed a gesture '+JSON.stringify({orderUnchanged:JSON.stringify(p.settings.pinnedNodes)===popoutOrder,saves:saves-popoutWrites,moves,documentIsMain:popout.view.containerEl.ownerDocument===document}));
   samples.push({case:'popout adopted icon and blur cancellation',documentIsMain:popout.view.containerEl.ownerDocument===document,saves:0});
   popout.detach();await f.workspace.revealLeaf(first);
   const cancelledOrder=JSON.stringify(p.settings.pinnedNodes),cancelledMoves=moves;
@@ -97,7 +98,7 @@ async function pins(app,c){
   await f.until(()=>p.documentSession(second).centerPath===f.folder+'/2021-01-04.md','Numbered shortcut shares current period resolver');
   clock=window.moment('2021-01-05T12:00:00').valueOf();p.refreshPeriodicPins();const fileCount=app.vault.getFiles().length;
   await p.actionManager.dispatch({id:'pin.open-slot.'+(day+1),source:'internal',surfaceId:f.surface(second)});
-  await f.until(()=>[...document.querySelectorAll('.notice')].some(notice=>notice.textContent.includes('2021-01-05')),'Missing periodic note explanation');f.check(app.vault.getFiles().length===fileCount,'Missing pin created a file');
+  await f.until(()=>[...p.actionDialogs.keys()].some(dialog=>dialog.path?.includes('2021-01-05')),'Missing periodic creation confirmation');f.check(app.vault.getFiles().length===fileCount,'Missing pin created a file without confirmation');for(const dialog of p.actionDialogs.keys())if(dialog.path?.includes('2021-01-05'))dialog.close();
   samples.push({case:'missing explicit activation',createdFiles:0});
   const persisted=JSON.stringify(p.settings.pinnedNodes);p.saveSettings=save;p.notifyNavigation=notify;await p.settingsWriteQueue;p=await f.reload();
   f.check(JSON.stringify(p.settings.pinnedNodes)===persisted,'Reload changed mixed pin order');f.check(JSON.stringify(p.settings.__kplex270Unknown)===JSON.stringify({keep:['case','order']}),'Reload lost unknown setting');
@@ -248,7 +249,7 @@ async function ontology(app,c){
 }
 
 /** Actual declarative controls share initial dependency state and commit through the settings writer. */
-async function settings(app,c){
+export async function settings(app,c){
  const f=c.fixture(app,c),samples=[];
  try{
   await f.initialize();const p=f.p;await p.updatePeriodicPin('day',{folder:f.folder,format:'YYYY-MM-DD',useDailyNotes:false},false);
@@ -264,6 +265,8 @@ async function settings(app,c){
   f.check(day.querySelector('.kplex-periodic-pin-preview').textContent.includes(f.folder),'Native destination preview');
   if(c.visual){day.scrollIntoView({block:'start',behavior:'instant'});c.visualReady=true;await f.until(()=>c.visualAcknowledged,'Visual settings inspection',60000);}
   const sections=editors.map(/** Measure the actual native outer row, not an isolated HTML imitation. */ editor=>editor.closest('.setting-item'));
+  await f.until(()=>sections.every(section=>section.parentElement.getBoundingClientRect().width>=320),'Native Pins content layout settled',10000);
+  if(c.visualPhase==='pin-settings'){day.scrollIntoView({block:'start',behavior:'instant'});c.progress={phase:'Pins settings before responsive matrix',until:Date.now()+30000};await f.wait(30000);}
   const styles=sections.map(/** Restore only test-owned geometry after each width matrix. */ section=>section.getAttribute('style'));
   const themes=['theme-dark','theme-light'],originalThemes=themes.map(/** Color-mode changes affect only this disposable Settings document. */ theme=>doc.body.classList.contains(theme));
   const native=f.owner(doc),bounds=native.getBounds(),minimum=native.getMinimumSize(),maximized=native.isMaximized();
@@ -271,18 +274,26 @@ async function settings(app,c){
   try{if(maximized)native.unmaximize();native.setMinimumSize(200,200);native.setContentSize(1160,1000);for(const theme of themes)for(const width of [320,480,760]){
    for(const candidate of themes)doc.body.classList.toggle(candidate,candidate===theme);
    for(const section of sections){section.style.width=width+'px';section.style.maxWidth='100%';}
-   await f.wait(100);
+   await f.until(()=>sections.every(section=>section.getBoundingClientRect().width>=320),'Native Pins resized content layout settled',10000);await f.wait(100);
    for(const [index,section] of sections.entries()){
     const heading=section.querySelector(':scope > .setting-item-info .setting-item-name'),name=heading.getBoundingClientRect(),bounds=section.getBoundingClientRect(),first=editors[index].querySelector('.setting-item').getBoundingClientRect();
-    f.check(name.width>=bounds.width*.8&&name.bottom<=first.top+1,'Period heading must have its own full-width row: '+JSON.stringify({index,width,name:name.toJSON(),section:bounds.toJSON(),first:first.toJSON(),classes:section.className}));
+    const ancestors=[];for(let node=section;node&&ancestors.length<7;node=node.parentElement){const style=doc.defaultView.getComputedStyle(node);ancestors.push({tag:node.tagName,classes:node.className,width:node.getBoundingClientRect().width,display:style.display,direction:style.flexDirection,flex:style.flex,padding:style.padding});}
+    f.check(name.width>=bounds.width*.8&&name.bottom<=first.top+1,'Period heading must have its own full-width row: '+JSON.stringify({index,width,name:name.toJSON(),section:bounds.toJSON(),first:first.toJSON(),classes:section.className,ancestors}));
     f.check(section.scrollWidth<=section.clientWidth+1,'Periodic settings overflow horizontally');
-    for(const input of editors[index].querySelectorAll('input[type=text],select')){const rect=input.getBoundingClientRect();f.check(rect.left>=bounds.left-1&&rect.right<=bounds.right+1,'Periodic field exceeds its settings section');}
+    for(const input of editors[index].querySelectorAll('input[type=text],select')){const rect=input.getBoundingClientRect();f.check(rect.left>=bounds.left-1&&rect.right<=bounds.right+1,'Periodic field exceeds its settings section');
+     if(input.matches('input[type=text]')){const field=input.closest('.setting-item'),label=field.querySelector('.setting-item-info').getBoundingClientRect(),fieldRect=field.getBoundingClientRect();f.check(fieldRect.height<140&&rect.top>=label.bottom&&rect.top-label.bottom<40,'Stacked periodic field has excessive vertical spacing '+JSON.stringify({width,height:fieldRect.height,gap:rect.top-label.bottom}));f.check(rect.width>=fieldRect.width*.95,'Stacked periodic input must fill its row');}
+    }
    }
    f.check(saves===sizingSaves,'Responsive layout persisted settings');samples.push({case:'native responsive settings layout',theme,requestedWidth:width,actualWidth:sections[0].getBoundingClientRect().width,headingsUnclipped:true,horizontalOverflow:false,longPathWrapped:true});
   }}finally{for(const [index,section] of sections.entries())if(styles[index]===null)section.removeAttribute('style');else section.setAttribute('style',styles[index]);for(const [index,theme] of themes.entries())doc.body.classList.toggle(theme,originalThemes[index]);native.setMinimumSize(...minimum);native.setBounds(bounds);if(maximized)native.maximize();await p.updatePeriodicPin('day',{folder:f.folder});}
+  if(c.visualPhase==='pin-settings'){day.scrollIntoView({block:'start',behavior:'instant'});c.progress={phase:'Pins settings visual review',until:Date.now()+30000};await f.wait(30000);}
   await activate(toggles[1]);await f.until(()=>p.settings.periodicPinSettings.day.useDailyNotes&&inputs.every(input=>input.disabled),'Daily Notes dependency');await p.settingsWriteQueue;
+  f.check(inputs.every(input=>!input.closest('.setting-item').getBoundingClientRect().height),'Daily Notes custom fields must be hidden');
+  f.check(day.querySelector('.kplex-periodic-pin-preview').getBoundingClientRect().height>0,'Daily Notes destination preview was hidden');
+  if(c.visualPhase==='pin-settings-daily'){day.scrollIntoView({block:'start',behavior:'instant'});c.progress={phase:'Daily Notes hides custom destination fields',until:Date.now()+20000};await f.wait(20000);}
   await activate(toggles[1]);await f.until(()=>!p.settings.periodicPinSettings.day.useDailyNotes&&inputs.every(input=>!input.disabled),'Custom destination restored');await p.settingsWriteQueue;
   f.check(inputs[0].value===f.folder&&inputs[1].value==='YYYY-MM-DD','Daily Notes toggle lost custom settings');
+  f.check(inputs.every(input=>input.closest('.setting-item').getBoundingClientRect().height>0),'Custom destination fields did not reappear');
   await activate(toggles[0]);await f.until(()=>p.settings.pinnedNodes.some(pin=>pin?.kind==='periodic'&&pin.period==='day'),'Native opt-in membership');await p.settingsWriteQueue;
   f.check(JSON.stringify(p.index.getSourceAcquisitionCounters())===JSON.stringify(source),'Periodic settings acquired source data');samples.push({case:'native integrated period settings',editors:3,renderWrites:0,dependentControls:true,customConfigurationPreserved:true,optIn:true,sourceReads:0});app.setting.close();return{samples};
  }finally{await f.cleanup();}

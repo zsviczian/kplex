@@ -1117,13 +1117,17 @@ function relatedComposerBrowserEntry() {
     && ["RelatedNoteComposer", "isNoteTarget", "captureRelatedEndpoint", "refreshCapturedPage"].includes(statement.name?.text)).map((statement) => statement.getText(source)).join("\n");
   const production = ts.transpileModule(functions, { compilerOptions: { target: ts.ScriptTarget.ES2021, module: ts.ModuleKind.None } }).outputText;
   return `
-import React, { createElement, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import React, { createElement, useCallback, useEffect, useMemo, useRef, useState, useId } from "react";
 import { flushSync } from "react-dom";
 import { createRoot } from "react-dom/client";
 import { FuzzySuggester } from ${JSON.stringify(join(root, "src/ui/components/FuzzySuggester.tsx"))};
 import { SavedRelationshipPendingError } from ${JSON.stringify(join(root, "src/adapters/obsidian/relationshipMetadataWrite.ts"))};
 import { PartialRelatedFileError } from ${JSON.stringify(join(root, "src/adapters/obsidian/relatedFileOutcome.ts"))};
 import { CreationCompletionSelect } from ${JSON.stringify(join(root, "src/ui/features/CreationCompletionSelect.tsx"))};
+import {FormField,FormActions} from ${JSON.stringify(join(root,"src/ui/components/FormField.tsx"))};
+import {RelationshipFieldControl} from ${JSON.stringify(join(root,"src/ui/features/RelationshipFieldControl.tsx"))};
+import {RelationshipDirectionControl} from ${JSON.stringify(join(root,"src/ui/features/RelationshipDirectionControl.tsx"))};
+import {eligibleRelationshipOwner} from ${JSON.stringify(join(root,"src/adapters/obsidian/relationshipOwner.ts"))};
 import {resolveCreationAfterSaving,creationAfterSavingActions,effectiveCreationAfterSaving,sanitizeCreationAfterSaving} from ${JSON.stringify(join(root,"src/core/plex/createdNoteDestination.ts"))};
 import {ontologyConfiguration} from ${JSON.stringify(join(root,"src/core/contracts/ontologyConfiguration.ts"))};
 import {normalizeFieldName} from ${JSON.stringify(join(root,"src/core/contracts/fieldName.ts"))};
@@ -1153,7 +1157,7 @@ ${production}
    settings: { editNewNodeAfterCreate: false, newNodeDefaultType: "markdown",ontologyPairingVersion:1,ontologyDescriptions:{review:"Historicterm meaningful synonym",parent:"Historicterm other role"},hierarchy:{hidden:[],parents:["parent"],children:["children","review","example"],leftFriends:[],rightFriends:[],previous:[],next:[],exclusions:[]} },
    createdNoteCompletionControl(_host,options={}){const context={desktop:true,sidepanel:false,another:options.another!==false,editable:options.editable!==false,follow:options.follow!==false},key=options.operation==='link'?'linkAfterSaving':'newNodeAfterSaving';return{choices:creationAfterSavingActions(context),value:effectiveCreationAfterSaving(sanitizeCreationAfterSaving(this.settings[key]??this.settings.newNodeAfterSaving,this.settings.editNewNodeAfterCreate),context),onChange:value=>{this.settings[key]=value}}},
    finishNewRelatedNode:async()=>{},
-   translator: (key) => key, drawingTemplateOptions: () => null, isExcalidrawAvailable: () => false, defaultOntologyField: () => "children",
+   translator: (key) => key, drawingTemplateOptions: () => null, isExcalidrawAvailable: () => false, defaultOntologyField: role => role === "right" ? "Challenger" : role === "parent" ? "parent" : "children",
    ontologyFieldsForRole: () => ["children", "review", "example"],
    allOntologyFields: () => ["children", "review", "example", "parent"],
    ontologyRoleForField: field => field === "parent" ? "parent" : ["children", "review", "example"].includes(field) ? "child" : null,
@@ -1711,7 +1715,7 @@ try {
  const other=surface.appendChild(document.createElement("div"));other.className="kplex-thought";other.dataset.kplexPath="Other.md";other.style.cssText="position:absolute;left:320px;top:100px;width:40px;height:30px";
  const control=surface.appendChild(document.createElement("button"));control.style.cssText="position:absolute;left:460px;top:100px;width:40px;height:30px";
  const editor=surface.appendChild(document.createElement("div"));editor.className="kplex-central-editor-overlay";editor.style.cssText="position:absolute;left:60px;top:200px;width:100px;height:100px";
- const event=(x,y)=>({clientX:x,clientY:y,currentTarget:surface,target:document.elementFromPoint(x,y),prevented:false,stopped:false,dataTransfer:{dropEffect:"move"},preventDefault(){this.prevented=true},stopPropagation(){this.stopped=true}});
+ const event=(x,y)=>({clientX:x,clientY:y,currentTarget:surface,target:document.elementFromPoint(x,y),prevented:false,stopped:false,dataTransfer:{types:[],dropEffect:"move"},preventDefault(){this.prevented=true},stopPropagation(){this.stopped=true}});
  let e=event(90,90);dropExternalFile(e);check(e.stopped&&navigated[0]===target&&calls.length===0,"actual center did not navigate the resolved dropped file");
  e=event(90,240);dropExternalFile(e);check(navigated.length===1&&!e.prevented&&!e.stopped,"attention-following native editor did not retain its own drop ownership");
  for(const [role,area] of Object.entries(scene.zoneAreas)) {

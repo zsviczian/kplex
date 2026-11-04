@@ -29,9 +29,20 @@ function externalVaultEventSource(event,factoryName) {
   }).outputText;
 }
 
-const bundle=await contributorBrowserBundle(['src/index/GraphIndex.ts','src/index/GraphBuilder.ts']);
+/** Preserve actual settings-save/refresh bodies; the fixture supplies persistence and periodic-clock ports. */
+function pluginSettingsMethodSource(name) {
+  const source=ts.createSourceFile('main.ts',readFileSync(new URL('../src/main.ts',import.meta.url),'utf8'),ts.ScriptTarget.Latest,true);let method;
+  const visit=node=>{if(ts.isMethodDeclaration(node)&&node.name.getText(source)===name)method=node;ts.forEachChild(node,visit)};visit(source);assert(method);
+  return ts.transpileModule(`const plugin_${name}=${method.modifiers?.some(node=>node.kind===ts.SyntaxKind.AsyncKeyword)?'async ':''}function(${method.parameters.map(node=>node.getText(source)).join(',')})${method.body.getText(source)};`,{compilerOptions:{target:ts.ScriptTarget.ES2021,module:ts.ModuleKind.None}}).outputText;
+}
+
+const bundle=await contributorBrowserBundle(['src/index/GraphIndex.ts','src/index/GraphBuilder.ts','src/core/graph/settingsPolicy.ts','src/core/contracts/ontologyConfiguration.ts','src/core/contracts/appearance.ts','src/adapters/obsidian/savedSettingsRefresh.ts']);
 const initialize=`(()=>{
   const M=sourceModules,TFile=window.ContributorFile,TFolder=window.ContributorFolder;
+  const {captureSettingsPolicy,classifySettingsChange,isStyleOnlySettingsChange,ontologyConfiguration,STYLE_SETTINGS_KEYS,SavedSettingsRefresh}=M;
+  const Notice=class{constructor(message){throw Error('Unexpected fixture notice: '+message)}};
+  ${pluginSettingsMethodSource('saveSettings')}
+  ${pluginSettingsMethodSource('refreshSavedSettings')}
   ${externalVaultEventSource('create','makeExternalCreate')}
   ${externalVaultEventSource('rename','makeExternalRename')}
   let sequence=0;
@@ -110,22 +121,27 @@ const initialize=`(()=>{
     const reset=()=>{wholePasses=0;parseCalls=0;work.inspections.length=work.visits.length=work.writes.length=0;work.headPages=0;f.reads.length=0;f.work.reset();};
     reset();
     /** Finish the real acquisition/journal owner; no readiness field or dependency row is assigned. */
-    const settle=async()=>{for(let n=0;n<6;n++)if(await index.sourceAcquisition.flush())return true;return false;};
+    const settle=async()=>{for(let n=0;n<6;n++)if(await index.sourceAcquisition.flush()){await index.physicalFolderValidationTask;return true;}return false;};
     const createFolder=(item)=>{revision++;f.app.vault.trigger('create',item);};
     const createFile=(item,metadata=true)=>{revision++;f.app.vault.trigger('create',item);if(metadata)f.app.metadataCache.trigger('changed',item);};
     /** Move the exact native fixture identity, then deliver the real source and main rename owners. */
     const rename=(file,path)=>{const old=file.path,metadata=f.metadata.get(old),text=f.texts.get(old);f.files.delete(old);f.metadata.delete(old);f.texts.delete(old);
       file.path=path;file.name=path.split('/').pop();file.basename=file.name.replace(/\\.[^.]+$/,'');
       f.files.set(path,file);f.metadata.set(path,metadata);f.texts.set(path,text);revision++;f.app.vault.trigger('rename',file,old);};
+    /** Deliver naming of an empty native folder through both actual registered event owners. */
+    const renameNativeFolder=async(item,path)=>{equal(item.children.length,0,'This fixture names an empty folder');
+      const old=item.path;folders.delete(old);item.path=path;item.name=path.split('/').pop();folders.set(path,item);
+      revision++;f.app.vault.trigger('rename',item,old);await index.folderRenameTasks.get(item);};
     const target=(parent=folders.get('Journal/Date'))=>{const file=add(parent.path+'/Note.md','',{aliases:['Alias174']});aliases.set('Alias174',file.path);
       f.app.metadataCache.resolvedLinks[ref.path]={'Note.md':1,[file.path]:2};f.app.metadataCache.unresolvedLinks[ref.path]={};return file;};
     const closeWave=()=>{const before=index.sourceAcquisition.getMaintenanceRevision();f.app.metadataCache.trigger('resolved');return index.sourceAcquisition.getMaintenanceRevision()-before;};
-    return {f,index,plugin,root,folders,established,folder,add,ref,old,other,repo,work,target,createFolder,createFile,rename,closeWave,settle,reset,heldHydration,
+    return {f,index,plugin,root,folders,established,folder,add,ref,old,other,repo,work,target,createFolder,createFile,rename,renameNativeFolder,closeWave,settle,reset,heldHydration,
       get wholePasses(){return wholePasses;},get summary(){return {wholePasses,markdownEnumerations:f.work.markdownEnumerations,headPages:work.headPages,reads:[...f.reads],parses:parseCalls};},
       close(){f.app.vault.offref(mainRef);if(renameRef)f.app.vault.offref(renameRef);index.destroy();f.close();}};
   };
   /** Inspect only one authenticated source's exact lexical bindings after ordinary event maintenance. */
   window.folderResolution=async(f,path)=>{const rows=[];equal(await f.repo.visit(path,'resolution',records=>{rows.push(...records);return true;}),'ready','Current stored resolution');return rows.filter(record=>record.kind==='reference-resolution').map(record=>({raw:record.rawTarget,target:record.target?.entity?.id,kind:record.target?.entity?.kind}));};
+  window.installPinSaveFixture=p=>{const saved=[];p.persistSettingsSnapshot=async()=>{saved.push(structuredClone(p.settings));};p.refreshPeriodicPins=()=>{};p.savedSettingsPolicy=captureSettingsPolicy(p.settings);p.saveSettings=plugin_saveSettings;p.refreshSavedSettings=plugin_refreshSavedSettings;return saved;};
   return true;
 })()`;
 
@@ -168,6 +184,60 @@ test('folder creation wave uses complete physical ownership and real source-loca
           counts.push({inspections:f.work.inspections.length,visits:f.work.visits.length,writes:f.work.writes.length,headPages:f.work.headPages,reads:f.summary.reads.length,parses:f.summary.parses});
         }finally{f.close();}}return counts;
       })()`);assert.deepEqual(result[1],result[0]);
+    });
+
+    await t.test('actual pin settings saves during held snapshot hydration do not restart source or graph work',async()=>{
+      assert.equal(await browser.evaluate(`(async()=>{
+        const f=await folderWaveFixture({heldHydration:true});try{
+          const p=f.plugin,index=f.index,saved=installPinSaveFixture(p),run=index.snapshotHydrationRun,task=index.snapshotHydrationTask;
+          const source=index.getSourceAcquisitionCounters(),builds=index.getSemanticPreparationDiagnostics().fullBuilds;
+          p.settings.pinnedNodes=['Ref.md',{kind:'periodic',period:'day'},'Other.md'];p.settings.periodicPinSettings={day:{useDailyNotes:true}};
+          await p.saveSettings(false,false);p.settings.pinnedNodes=[p.settings.pinnedNodes[1],'Ref.md','Other.md'];await p.saveSettings(false,false);
+          equal(saved.length,2,'Both actual save boundaries persist their complete pin choices');equal(index.snapshotHydrationRun,run,'No restarted hydration owner');ok(index.snapshotHydrationTask===task,'Original held hydration remains owned');
+          equal(index.getSemanticPreparationDiagnostics().fullBuilds,builds,'Pin preference writes start no full graph build');equal(index.getSourceAcquisitionCounters(),source,'Pin saves read/parse/reconcile no source');equal(f.wholePasses,0,'No cached-source inventory starts');
+          f.heldHydration.release();await f.heldHydration.done;await f.heldHydration.task;await f.heldHydration.restoring;return true;
+        }finally{f.plugin.savedSettingsRefresh?.close();f.heldHydration.release();await f.heldHydration.done;await f.heldHydration.task;await f.heldHydration.restoring;f.close();}
+      })()`),true);
+    });
+
+    for(const delayed of [false,true])await t.test('ordinary Files create and '+(delayed?'delayed ':'')+'folder naming preserve local authority',async()=>{
+      assert.equal(await browser.evaluate(`(async()=>{
+        const f=await folderWaveFixture({nativeRename:true});try{
+          const folder=f.folder('Journal/Untitled',f.established);f.createFolder(folder);
+          if(${delayed}){await new Promise(resolve=>window.setTimeout(resolve,80));ok(await f.settle(),'Earlier native creation settles');}
+          await f.renameNativeFolder(folder,'Journal/Named');equal(f.closeWave(),0,'Exact native naming retains local resolver attribution');
+          ok(await f.settle(),'Naming converges');ok(f.index.completePhysicalFolderInventory,'Successful native delta preserves complete physical coverage');
+          ok(f.index.get('folder:Journal/Named')?.isFolder&&!f.index.get('folder:Journal/Untitled'),'Only current native name remains');
+          const next=f.folder('Journal/AfterNaming',f.established);f.createFolder(next);const file=f.target(next);f.createFile(file);
+          equal(f.closeWave(),0,'Subsequent folder and file remain eligible');ok(await f.settle(),'Later local sources converge');
+          equal(f.wholePasses,0,'No whole-source pass');equal(f.work.headPages,0,'No unrelated head inventory');
+          const rows=await folderResolution(f,'Ref.md');ok(rows.some(row=>row.target===file.path),'Existing dependency machinery repairs alias owners '+JSON.stringify(rows));return true;
+        }finally{f.close();}
+      })()`),true);
+    });
+
+    await t.test('fully observed nested folder creates and their note remain bounded local work',async()=>{
+      assert.equal(await browser.evaluate(`(async()=>{
+        const f=await folderWaveFixture();try{
+          const parent=f.folder('Journal/NewParent',f.established);f.createFolder(parent);
+          const child=f.folder(parent.path+'/Child',parent);f.createFolder(child);const file=f.target(child);f.createFile(file);
+          equal(f.closeWave(),0,'Every nested native create has independent canonical absence proof');ok(await f.settle(),'Nested local sources converge');
+          ok(f.index.completePhysicalFolderInventory,'Observed hierarchy retains physical completeness');
+          ok(f.index.get('folder:'+child.path)?.neighbours.has('folder:'+parent.path),'Native ancestry is present');
+          equal(f.wholePasses,0,'No whole-source pass');equal(f.work.headPages,0,'No unrelated head inventory');return true;
+        }finally{f.close();}
+      })()`),true);
+    });
+
+    await t.test('a known baseline folder rename recovers physical coverage through actual native membership validation',async()=>{
+      assert.equal(await browser.evaluate(`(async()=>{
+        const f=await folderWaveFixture({nativeRename:true});try{
+          await f.renameNativeFolder(f.established,'RenamedJournal');equal(f.closeWave(),1,'An old folder without a bounded create receipt remains conservative');
+          ok(await f.settle(),'Actual source recovery and native certificate audit complete');ok(f.index.completePhysicalFolderInventory,'Verified canonical/native membership restores physical coverage');
+          f.reset();const next=f.folder('RenamedJournal/AfterRecovery',f.established);f.createFolder(next);const file=f.target(next);f.createFile(file);
+          equal(f.closeWave(),0,'Later ordinary folders regain local eligibility');ok(await f.settle(),'Later local sources close');equal(f.wholePasses,0,'Recovery does not permanently force global reconciliation');return true;
+        }finally{f.close();}
+      })()`),true);
     });
 
     await t.test('rapid native create fill rename closes an authoritative absent old source locally',async()=>{
@@ -221,6 +291,9 @@ test('folder creation wave uses complete physical ownership and real source-loca
     await t.test('actual source-backed Eager physical ownership is independent of partial semantics',async()=>{
       assert.equal(await browser.evaluate(`(async()=>{
         const f=await folderWaveFixture({sourceBacked:true});try{
+          f.plugin.initialIndexComplete=false;const reasons=[],cancel=f.index.cancelRebuild.bind(f.index);let cancelled=0;
+          f.plugin.scheduleRebuild=reason=>reasons.push(reason);f.index.cancelRebuild=(...args)=>{cancelled++;return cancel(...args)};
+          ok(f.index.canApplyLocalPhysicalCreate(),'Source-backed physical certificate is valid before semantic startup completion');
           /** Fixed scalar proof states only; native file/folder identities and contents stay out. */
           const proof=()=>{const i=f.index,a=i.sourceAcquisition,w=a.emptyFolderCreateWave;return {
             physical:i.completePhysicalFolderInventory,canonicalCreateOwner:i.hasPhysicalBaseline(),sourceBacked:i.sourceBackedStartup,
@@ -229,7 +302,12 @@ test('folder creation wave uses complete physical ownership and real source-loca
             building:i.building,hydration:Boolean(i.snapshotHydrationTask),structural:i.pendingStructuralTasks,
             wave:Boolean(w),qualified:Boolean(w?.current),current:w?.current?w.current():null,members:w?.members.size??0};};
           ok(f.index.onDemandPartialState,'Actual local bootstrap remains semantically partial');ok(f.index.completePhysicalFolderInventory,'Complete physical producer grants the independent certificate');
-          const before=proof();f.createFolder(f.folder('Journal/Date',f.established));const qualified=proof();const file=f.target();f.createFile(file);const closing=proof();
+          const before=proof();f.createFolder(f.folder('Journal/Date',f.established));const qualified=proof();
+          ok(f.index.state.pages.has('folder:Journal/Date'),'Actual main materializes the qualified folder during source adoption');
+          equal(cancelled,0,'A local folder delta cannot cancel the initial semantic owner');
+          ok(!reasons.includes('vault:create'),'No whole-graph structural reason is admitted for this proven create');
+          ok(!f.plugin.initialIndexComplete,'Physical admission never restamps semantic readiness');
+          const file=f.target();f.createFile(file);const closing=proof();
           equal(f.closeWave(),0,'Complete physical owner qualifies ordinary new folder '+JSON.stringify({before,qualified,closing}));
           ok(await f.settle(),'Ordinary source-local maintenance closes');equal(f.wholePasses,0,'No forced full source inventory');return true;
         }finally{f.close();}
@@ -305,7 +383,7 @@ test('folder creation wave uses complete physical ownership and real source-loca
       })()`),true);
     });
 
-    for(const mode of ['nonempty','missing-member','nested','prior-unknown','foreign','rename','delete-recreate','folder-replacement','file-replacement','parent-replacement','overflow','expired','pause'])await t.test('folder proof fails closed for '+mode,async()=>{
+    for(const mode of ['nonempty','missing-member','nonempty-nested','prior-unknown','foreign','rename','delete-recreate','folder-replacement','file-replacement','parent-replacement','overflow','pause'])await t.test('folder proof fails closed for '+mode,async()=>{
       assert.equal(await browser.evaluate(`(async()=>{
         const f=await folderWaveFixture();try{
           const mode=${JSON.stringify(mode)},folder=f.folder('Journal/Date',f.established);
@@ -314,7 +392,7 @@ test('folder creation wave uses complete physical ownership and real source-loca
           f.createFolder(folder);
           if(mode==='nonempty')equal(f.index.completePhysicalFolderInventory,false,'Nonempty imported subtree retires incomplete descendant coverage');
           if(mode==='missing-member')f.add(folder.path+'/Missing.md','');
-          if(mode==='nested')f.createFolder(f.folder(folder.path+'/Nested',folder));
+          if(mode==='nonempty-nested'){const nested=f.folder(folder.path+'/Nested',folder);f.add(nested.path+'/Imported.md','');f.createFolder(nested);}
           if(mode==='foreign')f.f.app.vault.trigger('modify',{});
           if(mode==='rename'){const old=folder.path;f.folders.delete(old);folder.path='Journal/Moved';f.folders.set(folder.path,folder);f.f.app.vault.trigger('rename',folder,old);}
           if(mode==='delete-recreate'){f.folders.delete(folder.path);f.established.children=f.established.children.filter(item=>item!==folder);f.f.app.vault.trigger('delete',folder);f.createFolder(f.folder('Journal/Date',f.established));}
@@ -323,8 +401,7 @@ test('folder creation wave uses complete physical ownership and real source-loca
             const replacement=f.folder('Journal');replacement.children=f.established.children;for(const child of replacement.children)child.parent=replacement;f.established.children=[];}
           if(mode==='overflow')for(let n=0;n<33;n++){const file=f.add(folder.path+'/Overflow-'+n+'.md','');f.createFile(file);}
           if(mode==='pause'){const enabled=f.index.sourceAcquisition.pauseInventory();f.index.sourceAcquisition.resumeInventory(enabled);}
-          if(mode==='expired')await new Promise(resolve=>window.setTimeout(resolve,80));
-          if(mode!=='rename'&&mode!=='expired'){const file=f.target();f.createFile(file);}
+          if(mode!=='rename'){const file=f.target();f.createFile(file);}
           if(mode==='file-replacement'){const prior=f.f.files.get(folder.path+'/Note.md');folder.children=folder.children.filter(item=>item!==prior);f.add(prior.path,'Replacement');}
           equal(f.closeWave(),1,'Uncertain folder close advances global maintenance for '+mode);ok(await f.settle(),'Conservative '+mode+' converges');ok(f.wholePasses>0,'Actual inventory fallback for '+mode);
           if(mode==='nonempty'){
@@ -436,7 +513,7 @@ test('folder creation wave uses complete physical ownership and real source-loca
       })()`),true);
     });
 
-    await t.test('deterministic overdue native timer cannot revive folder proof before its callback executes',async()=>{
+    await t.test('qualified exact native topology survives an overdue raw timer and is consumed once',async()=>{
       assert.equal(await browser.evaluate(`(async()=>{
         const f=await folderWaveFixture(),clock=window.performance,descriptor=Object.getOwnPropertyDescriptor(clock,'now'),origin=clock.now();
         let offset=0,installed=false;
@@ -450,8 +527,9 @@ test('folder creation wave uses complete physical ownership and real source-loca
           offset=65;ok(clock.now()-wave.openedAt===65&&a.resolverWaveTimer===timer&&a.emptyFolderCreateWave===wave,
             'Virtual deadline passed without any await or execution of the real timer callback');
           f.f.app.metadataCache.trigger('changed',file);ok(a.resolverWaveTimer!==timer,'Actual known metadata cause rearms the unchanged native timer owner');
-          equal(f.closeWave(),1,'Rearming cannot revive the overdue pre-callback folder proof');
-          restore();ok(await f.settle(),'Conservative real-IDB maintenance closes after clock restoration');equal(f.wholePasses,1,'Overdue proof performs the actual full source inventory');return true;
+          equal(f.closeWave(),0,'Independent exact native membership, not raw timer rearming, proves this close');
+          restore();ok(await f.settle(),'Current real-IDB maintenance closes after clock restoration');equal(f.wholePasses,0,'Qualified topology stays local');
+          equal(f.closeWave(),1,'Consumed topology never masks a second unknown close');ok(await f.settle(),'Unknown close still reconciles globally');equal(f.wholePasses,1,'Actual global fallback remains');return true;
         }finally{restore();f.close();}
       })()`),true);
     });

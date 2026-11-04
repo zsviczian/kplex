@@ -2,6 +2,8 @@ import {classicEditorKey, measureClassicEditor, bindClassicEditor, type ClassicE
 import { classicAreaForRole as scrollZoneForRole, horizontalDensity, spacingPolicy, layoutColumns, siblingScale, lateralAreaGap} from "../../../core/plex/views/classic/geometry";
 export {scrollZoneForRole, horizontalDensity, spacingPolicy, layoutColumns, siblingScale, lateralAreaGap};
 import {classicViewDefinition} from "../../../core/plex/views/classic/definition";
+import {classicPorts, classicNodePorts} from "../../../core/plex/views/classic/definition";
+import {mirrorClassicCoordinates} from "../../../core/plex/views/classic/geometry";
 import {nodeId} from "../../../core/graph/model";
 import type {PlexProjection} from "../../../core/plex/views/contracts";
 import {nodeSize, sectionNodeSize, countsForLayout, nodeLabelFontSize} from "../measurement";
@@ -28,6 +30,8 @@ import { appearanceWithoutColors } from "../../../core/contracts/appearance";
 
 /** The Classic host adapter receives only cached presentation/incidence reads, never a mutable index or plugin. */
 export type ClassicSceneRead = Pick<GraphIndex, "titleFor" | "neighbours" | "neighbourCount" | "gateStats" | "visibleRelationshipsWithin">;
+/** The orientation is an effective view configuration, never a second persisted global setting. */
+type ClassicSceneSettings = KplexSettings & Readonly<{flipEastWest?: boolean}>;
 /** Bound a geometry input to its supported presentation interval. */
 const clamp = (n: number, min: number, max: number) => Math.max(min, Math.min(max, n));
 
@@ -54,11 +58,11 @@ export type PlexScene = HostPlexScene;
 
 /** Ordinary geometry policy only. The existing appearance projection removes paint fields;
  * inactive themes, workflow settings and lens behavior never enter this finite layout key. */
-export function sceneLayoutPolicyKey(settings: KplexSettings): string {
+export function sceneLayoutPolicyKey(settings: ClassicSceneSettings): string {
   return JSON.stringify([
     settings.baseFontSize, settings.childColumns, settings.childMaxHeight, settings.compactingFactor,
     settings.compactView, settings.friendMaxHeight, settings.graphDepth, settings.horizontalCompactingFactor,
-    settings.lateralArrangement, settings.maxItemCount, settings.minLinkLength, settings.parentColumns,
+    settings.lateralArrangement, settings.flipEastWest === true, settings.maxItemCount, settings.minLinkLength, settings.parentColumns,
     settings.parentMaxHeight, settings.siblingMaxHeight, settings.siblingRelativeSize, settings.wrapNodeLabels,
     ...(["baseNodeStyle", "centralNodeStyle", "baseLinkStyle", "inferredLinkStyle", "folderLinkStyle", "tagLinkStyle", "hierarchyLinkStyles"] as const)
       .map(/** Compare the active prepared style policy, preserving every supported non-color field. */ key => appearanceWithoutColors(key, settings[key])),
@@ -203,7 +207,7 @@ function withMiniColumnEnvelope(settings: KplexSettings): KplexSettings {
 export function buildScene(
   neighborhood: Neighborhood,
   index: ClassicSceneRead,
-  settings: KplexSettings,
+  settings: ClassicSceneSettings,
   showCrossLinks = true,
   centerSizeOverride?: CenterNodeSize,
   deferCounts = false,
@@ -283,7 +287,20 @@ export function buildScene(
   appendSiblingParentLinks(nodes, edges, index, settings, neighborhood.center.path);
   if (showCrossLinks) appendVisibleCrossLinks(nodes, edges, index, settings, neighborhood.center.path);
 
-  return bindEditor ? bindClassicEditor({nodes, edges, zoneViewports, zoneAreas}, neighborhood.center.path, editor) : {nodes, edges, zoneViewports, zoneAreas};
+  const scene = orientClassicScene({nodes, edges, zoneViewports, zoneAreas}, settings.flipEastWest === true);
+  return bindEditor ? bindClassicEditor(scene, neighborhood.center.path, editor) : scene;
+}
+
+/** Private scene orientation composes with one-sided profiles, sections and generic physical-port
+ * rendering. Semantic roles/area identities stay stable for filters, grouping and authored links. */
+function orientClassicScene(scene: PlexScene, flipped: boolean): PlexScene {
+  if (!flipped) return scene;
+  mirrorClassicCoordinates(scene.nodes, scene.zoneAreas, scene.zoneViewports);
+  for (const node of scene.nodes) node.physicalPorts = classicNodePorts(true);
+  for (const edge of scene.edges) {
+    const ports = classicPorts(edge.role, true); edge.sourcePort = ports.source; edge.targetPort = ports.target;
+  }
+  return scene;
 }
 
 function appendSiblingParentLinks(
@@ -412,7 +429,7 @@ export function appendVisibleCrossLinks(
 export function buildSectionExpandedScene(
   expansion: import("../../../index/SectionExpansion").CentralSectionExpansion,
   index: ClassicSceneRead,
-  settings: KplexSettings,
+  settings: ClassicSceneSettings,
   expandedSectionIds: ReadonlySet<string> = new Set(expansion.sections.filter((section) => section.childIds.length).map((section) => section.id)),
   showCrossLinks = true,
   centerSizeOverride?: CenterNodeSize,
@@ -426,7 +443,8 @@ export function buildSectionExpandedScene(
   };
   // Add cross-links after section/runtime relationship nodes are appended, so the visibility rule
   // is truly based on the final scene rather than only on the unexpanded center neighbourhood.
-  const scene = buildScene(baseNeighborhood, index, settings, false, centerSizeOverride, deferCounts, editor, false);
+  const unflipped = Object.assign(Object.create(settings) as ClassicSceneSettings, {flipEastWest: false});
+  const scene = buildScene(baseNeighborhood, index, unflipped, false, centerSizeOverride, deferCounts, editor, false);
   const byId = new Map(expansion.sections.map((section) => [section.id, section] as const));
   const roots = expansion.sections.filter((section) => !section.parentId);
   const visible: Array<{ section: import("../../../index/SectionExpansion").ExpandedSection; depth: number }> = [];
@@ -661,5 +679,5 @@ export function buildSectionExpandedScene(
 
   scene.sectionTreeEdges = sectionTreeEdges;
   if (showCrossLinks) appendVisibleCrossLinks(scene.nodes, scene.edges, index, settings, expansion.centerNeighborhood.center.path);
-  return bindClassicEditor(scene, expansion.centerNeighborhood.center.path, editor);
+  return bindClassicEditor(orientClassicScene(scene, settings.flipEastWest === true), expansion.centerNeighborhood.center.path, editor);
 }

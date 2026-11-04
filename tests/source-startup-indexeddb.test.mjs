@@ -10,6 +10,45 @@ import { createStartupResourceProbe } from "../scripts/testing/obsidian/startupR
 const bundle = await contributorBrowserBundle(["src/index/GraphIndex.ts", "src/index/GraphBuilder.ts", "src/index/IndexSnapshot.ts",
   "src/core/graph/compiler.ts", "src/adapters/obsidian/metadataSourceCollector.ts", "src/adapters/obsidian/ontologySourceCollector.ts"]);
 
+test('recovery diagnostics preserve real snapshot failure, cancellation and retry outcomes',async()=>{
+ const browser=await chromiumHarness(bundle);try{
+  assert(await browser.evaluate(contributorBrowserInitialize));
+  assert(await browser.evaluate(`(async()=>{
+   const f=await fixture('recovery-writer-receipts'),cache=f.cache;
+   const meta={createdAt:1,vaultSignature:'fixture',settingsSignature:'fixture',discoveredFields:[]},page={path:'A.md',filePath:'A.md',name:'A',url:null,isFolder:false,isTag:false,mtime:1,aliases:[],tags:[],noteType:null,primaryStyleTag:null,styleTags:[],maxLabelLength:30};
+   try{
+    ok(await cache.writeSnapshot(meta,[page],[]),'Actual initial snapshot');const before=await cache.readSnapshotMeta();
+    ok(!(await cache.writeSnapshot({...meta,createdAt:2},[{...page,uncloneable:()=>{}}],[])),'Actual structured-clone error');
+    const failed=cache.getSnapshotWriteDiagnostics();equal(failed.outcome,'failed','Writer failed');equal(failed.phase,'pages','Failed phase');equal(failed.errorName,'DataCloneError','Finite host exception class');
+    equal((await cache.readSnapshotMeta()).generation,before.generation,'Failure preserves active pointer');
+    ok(!(await cache.writeSnapshot({...meta,createdAt:3},[page],[],()=>false)),'Actual cancelled generation');equal(cache.getSnapshotWriteDiagnostics().outcome,'cancelled','Cancellation stays distinct');
+    ok(await cache.writeSnapshot({...meta,createdAt:4},[page],[]),'Actual retry');const done=cache.getSnapshotWriteDiagnostics();equal(done.outcome,'complete','Retry completes');equal(done.errorName,'none','Old error retires');equal(done.pageChunks,1,'Chunk receipt');
+    const activity=JSON.stringify(cache.getActivityState()),sources=JSON.stringify(f.repository.getDiagnostics());for(let n=0;n<10;n++)cache.getSnapshotWriteDiagnostics();equal(JSON.stringify(cache.getActivityState()),activity,'Capture schedules no work');equal(JSON.stringify(f.repository.getDiagnostics()),sources,'Capture writes no source data');
+    return true;
+   }finally{f.close();}
+  })()`));
+ }finally{await browser.cleanup();}
+});
+
+test('recovery diagnostics expose inventory phase and global invalidation without acquisition on capture',async()=>{
+ const browser=await chromiumHarness(bundle);try{
+  assert(await browser.evaluate(contributorBrowserInitialize));
+  assert(await browser.evaluate(`(async()=>{
+   const f=await fixture('recovery-source-receipts');f.add('A.md','[[B]]');let release,entered;
+   const hold=new Promise(done=>release=done),reached=new Promise(done=>entered=done),inspect=f.repository.inspect;let once=false;
+   f.repository.inspect=async function(...args){if(!once){once=true;entered();await hold;}return inspect.apply(this,args)};
+   try{
+    const task=f.acquisition.reconcile();await reached;
+    const before=JSON.stringify(f.work.snapshot()),reads=f.reads.length,diagnostics=f.acquisition.getRecoveryDiagnostics();
+    ok(diagnostics.inventoryActive&&diagnostics.pass.outcome==='running','Real active inventory receipt');
+    equal(JSON.stringify(f.work.snapshot()),before,'Capture performs no inventory/lookup/write');equal(f.reads.length,reads,'Capture reads no body');
+    f.app.metadataCache.trigger('resolved');release();await task;
+    const ended=f.acquisition.getRecoveryDiagnostics();equal(ended.pass.outcome,'cancelled','Actual unscoped host wave cancels captured pass');ok(ended.pass.scopeChanges>0,'Changed scope revision retained');return true;
+   }finally{release();f.close();}
+  })()`));
+ }finally{await browser.cleanup();}
+});
+
 for(const overlap of ['writing','published-after-selection','cancelled-writer','failed-writer']) test(`orphan cleanup preserves a snapshot ${overlap}`, async()=>{
   const browser=await chromiumHarness(bundle);
   try{

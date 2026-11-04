@@ -6,6 +6,7 @@
  */
 import assert from "node:assert/strict";
 import test from "node:test";
+import {build} from "esbuild";
 import { browserBundle, chromiumHarness } from "./support/browserTypeScript.mjs";
 import { contributorBrowserBundle, contributorBrowserInitialize } from "./support/contributorBrowserFixture.mjs";
 import { hostOracle, collect } from "./support/cachedSourceFixture.mjs";
@@ -18,10 +19,13 @@ exports.Modal=class Modal{constructor(app){this.app=app;this.modalEl=make(docume
 exports.Setting=class Setting{constructor(parent){this.parent=this.settingEl=make(parent,'div',{cls:'setting-item'})}addButton(callback){const el=make(this.parent,'button');callback({buttonEl:el,setButtonText(text){el.textContent=text;return this},setDestructive(){el.classList.add('mod-warning');return this},setCta(){el.classList.add('mod-cta');return this},onClick(fn){el.addEventListener('click',fn);return this}});return this}setName(text){make(this.parent,'strong',{text});return this}setDesc(text){let el=this.parent.querySelector('.setting-item-description');if(!el)el=make(this.parent,'div',{cls:'setting-item-description'});el.textContent=text;return this}addDropdown(callback){const selectEl=make(this.parent,'select');callback({selectEl,addOption(value,label){const option=make(selectEl,'option',{text:label});option.value=value;return this},setValue(value){selectEl.value=value;return this},onChange(fn){selectEl.addEventListener('change',()=>fn(selectEl.value));return this}});return this}addToggle(callback){const toggleEl=make(this.parent,'input');toggleEl.type='checkbox';callback({toggleEl,setValue(value){toggleEl.checked=value;return this},onChange(fn){toggleEl.addEventListener('change',()=>fn(toggleEl.checked));return this}});return this}};
 exports.getLanguage=()=> 'en';
 exports.setIcon=(el,icon)=>el.dataset.icon=icon;
+exports.getIcon=()=>document.createElementNS('http://www.w3.org/2000/svg','svg');
 exports.Notice=class Notice{constructor(text){window.notices.push(text)}};
 `;
-const bundle = await browserBundle(["src/ui/DeleteNodeModal.ts", "src/ui/RelationshipExplanationModal.ts", "src/application/frontmatterUnlink.ts", "src/lang/index.ts",
- "src/adapters/obsidian/relationshipMetadataWrite.ts"], { obsidian: host });
+// Details now owns a shared React-backed reversal child. Bundle the real installed React
+// runtime while retaining this lane's finite native mutation/Modal boundary.
+const compiled = await build({stdin:{resolveDir:process.cwd(),contents:`export * from './src/ui/DeleteNodeModal';export * from './src/ui/RelationshipExplanationModal';export * from './src/application/frontmatterUnlink';export * from './src/lang/index';export * from './src/adapters/obsidian/relationshipMetadataWrite';`},bundle:true,write:false,platform:'browser',format:'iife',globalName:'sourceModules',plugins:[{name:'native-source-controls',setup(builder){builder.onResolve({filter:/^obsidian$/},()=>({path:'obsidian',namespace:'native'}));builder.onLoad({filter:/.*/,namespace:'native'},()=>({contents:host+`\nexports.AbstractInputSuggest=class {};exports.Scope=class {};exports.TFile=class {};exports.TFolder=class {};exports.Platform={};exports.normalizePath=path=>path;`}));}}]});
+const bundle=compiled.outputFiles[0].text;
 const setup = `(()=>{
  const M=window.sourceModules;window.notices=[];window.ok=(value,message)=>{if(!value)throw new Error(message)};
  window.tick=async()=>{for(let i=0;i<8;i++)await Promise.resolve()};
@@ -37,7 +41,7 @@ const setup = `(()=>{
   const plugin={app:{},translator:M.createTranslator('en'),index:{get:path=>pages.get(path),titleFor:page=>page.path,explainRelationship:()=>current,isSemanticWriteReady:()=>f.ready,subscribe:fn=>{listeners.add(fn);return()=>listeners.delete(fn)}},
    captureFrontmatterUnlinkExpectation:item=>item.sourceKind==='frontmatter-ontology'?{storage:owners.get(item.declaredByPath),target:owners.get(item.declaredTargetPath),storagePath:item.declaredByPath,targetPath:item.declaredTargetPath,fieldKey:item.fieldName,declarationKey:M.frontmatterDeclarationKey(item)}:null,
    unlinkFrontmatterEvidence:async(...args)=>{calls.push(args);return f.save(...args)},relationshipEvidenceSectionsBatch:items=>f.sections(items),openRelationshipEvidenceLocation:async(...args)=>{f.navigation=args},openRelationModal:()=>{}};
-  f.plugin=plugin;f.modal=new M.RelationshipExplanationModal(plugin,current, {hostLeaf:{id:'owned-sidecar'}});f.emit=()=>{for(const fn of listeners)fn()};return f;
+  f.plugin=plugin;f.modal=new M.RelationshipExplanationModal(plugin,current, {hostLeaf:{id:'owned-sidecar',view:{containerEl:document.body.createDiv()}}});f.emit=()=>{for(const fn of listeners)fn()};return f;
  };
  return true;
 })()`;

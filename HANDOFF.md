@@ -19,50 +19,18 @@ Obsidian is the production host; preserve the established portable semantic, ide
 
 ---
 
+# PR #278 implementation return
 
-# PR #270 implementation handoff
+Implementation completed on 2026-11-03-issue-277-creation-links-compass, tested base c0e6166. Maintainer authorized commit/push/merge on 2026-11-04; merge handoff in progress. No release or explicit issue closure; no delegation. Production read-only except authorized K-Plex main.js/styles.css deployment. Testing only disposable vaults.
 
-Status: implementation complete on `2026-11-03-pins-preview-obsidian-uri`; maintainer explicitly authorized commits, push and PR updates. Keep PR #270 draft. Do not merge, release or close issues.
+Current completed follow-up: native shared UI/layout for Facets preset, color sources, ontology property selection, Markdown export and dependent Today pin fields. Generic Templater receipt barrier covers all native creation and exact-file recovery. Template execution stays outside mutation-priority scopes; property writes/publication remain prioritized afterward. Existing source-gate/RTL/modifier defaults, structural folder/import UX, shared mobile native modal shell, CTA/Pins repairs and sanitized index recovery diagnostics are retained.
 
-Preceding PR #272 was merged as requested (merge `f9d7acb3cdb4444ede180e1ee72666ba13772405`), then main was switched/fetched and merged into this existing branch. The accepted #267 ontology work is preserved. No other repository was changed, and production vaults were untouched.
+Actual final-build validation: 423 focused tests passed (93 UI/adapter + 242 contracts + 88 scheduler/event convergence), zero failed/skipped; real installed-type production build, portable types, lint, architecture and numeric-control audits passed. Five serial native lanes passed: template-lifecycle (actual Templater2.26.0), ontology-export, pin-settings, controls, preset-ui; exact settings/enablement/layout/117-file98-Markdown baseline restored. Suspended templates did not block P1/P4 or trigger full semantic builds. Current main.js 770fd253b59a2a255a4d4fbf656d15ac66394efe1a23cdf45f8aaea25bb1836e; styles.css 78514221527af91cbd2088b4d055c34d9e766abb788ce6e792787a39d26bb35a; manifest unchanged 8c65b0d38a506f8fa9fc3311b81ea22bcda48e0209e9190483752c1f20834326.
 
-## Delivered
+Current evidence: [authoring UI/templates](docs/validation/authoring-ui-templates-278-2026-11-04.md), matching JSON/source inventory/screenshots; [integration seam](docs/TEMPLATE_CREATION.md), [UI rules](UI_RULES.md). Older source-gate/diagnostic evidence: docs/validation/source-gate-recovery-diagnostics-278-2026-11-04.md. Earlier full aggregate results remain historical artifact-specific evidence, not a new full-suite pass.
 
-- #266: canonical saved-order reordering, stable identities including missing entries, six-pixel handle threshold, insertion feedback, keyboard menu, stale-order refusal and document-owned cancellation.
-- #265: opt-in Today/This Week/This Month, one fresh resolver for toolbar/picker/slots, optional existing Daily Notes configuration, exact lookups, local ISO/locale anchors, bounded cleaned refresh timer and truthful missing-note guidance. No automatic creation.
-- #262: one primary hover-source registration; native IDs and existing preference/hover behavior retained.
-- #263: canonical parser/worker/cooperative URI discovery, exact labels/identities, explicit native activation, web-only preview/Sidecar capability guards and bounded existing cache-family refresh. Known historical retired headers no longer stall the upgrade audit; incompatible facts cannot grant semantic authority.
-- Added ontology typing fix: detached structural validation is reused during wording input; structural edits and Save still validate. Regression coverage includes 2,000 configured fields and reciprocal textarea value/caret preservation.
+Residual limits: one unexplained disposable renderer crash during repeated enable/reload staging, recovered by reloading only Small, not reproduced in repeated/final runs; cause remains unknown. Mac/physical mobile untested. Guarded unpublished Templater handler validated2.26.0; future timers/global active-editor commands require explicit targeting. Production personal template untouched. Initial callback investigation docs/validation/daily-note-sidecar-automation-2026-11-04.md is superseded by the full Templater follow-up for creation coordination, but its active-editor target finding remains valid.
 
-Code is split into reviewable commits. Ontology typing: `7f7e421`; URI/cache: `ab01d23`; final URI Sidecar controls: `d0d8dd0`. Documentation/validation/scaffold cleanup follows those checkpoints. The temporary PR scaffold is removed.
+Original unexpected full-index-recovery fragility is NOT resolved: docs/validation/index-recovery-observation-2026-11-04.md. Do not bypass stale-input fences or equate new diagnostics with a recovery fix. The new P0 correction protects creation-template waits only.
 
-## Actual validation
-
-`npm run verify` passed with Node 22.22.2: release consistency, architecture (9), portable core (133), Obsidian lint, main regression group (2,008), UI group (479), source repository (360), Chromium persistence (896), and the final installed-types production build. Reported failures/cancellations/skips were zero. All three final build hashes matched the binary used by the five final native lanes.
-
-Focused recovery: 39 ontology/relationship checks, 240 grouping/image/drop/on-demand checks, and 78 final Sidecar/passive-follow checks passed. The final presentation-only Sidecar delta landed during the aggregate and additionally passed App lint, the installed-types production build and all five native lanes. Source/compiler/cache owners were unchanged throughout that aggregate.
-
-All five native lanes passed serially on Windows Obsidian 1.14.5 with Node 22.22.2 in the existing disposable `C:/Obsidian/kplex-test-small` vault (117 files / 98 Markdown baseline), with the shared application lock. Configuration bytes, enablement, workspace and owned-file inventories were restored.
-
-Batch-checkpoint native `main.js` SHA-256: `dc35387cd5c12b824e42f69dc749efc00724548792a96c4b5a321c8897b3f3b0`. CSS: `66114919b8771a5d6bb5e183c2c23e39a874d943fe23e5291640de80ed4168b5`. Manifest: `8c65b0d38a506f8fa9fc3311b81ea22bcda48e0209e9190483752c1f20834326`.
-
-The native lanes cover pointer/keyboard reorder; zero-write cancellation including native close/migration; shared canvases; History grab scroll; controlled rollover/fresh picker/slots; actual settings dependencies; missing targets; one actual Page Preview row and contents in tab/sidebar/popout after reload; URI discovery/rendering/explicit opening with Web Viewer on/off; unavailable URI Sidecar opening with existing-close support; warm-cache reuse; and trusted Add/Edit/reciprocal description input.
-
-Final warm URI reload: 8.29 s during portable verification, zero vault reads/parses/URL reads/full builds (earlier 2.96 s). Final maximum input DOM receipts: 71.5/40.2/24.3 ms during portable verification (earlier 24.9/10.6/9.3 ms). These are functional observations under varying load, not isolated paint or production-scale performance claims.
-
-## Settings layout follow-up
-
-The added scoped CSS fixes the cramped native Pins page: full-width period headings, left-aligned labels, compact toggles, responsive text/select fields, wrapping previews and removal of duplicate nested dividers. Native styling classes are the only runtime markup change; settings behavior and indexing owners are unchanged.
-
-The old native build reproduced horizontal overflow. The final Settings lane passed 320/480/700-pixel widths in light/dark modes, with full headings, bounded fields, long-path wrapping, no render-time writes and zero source reads. Native toggles/opt-in and complete restoration passed. The actual native appearance was visually checked. Production build and focused settings lint passed; the earlier complete aggregate was not repeated for this isolated layout change.
-
-Current artifacts: main `b58f67da43ca6f374d5c146aee24de58d953f170f1966282d519ade2ecd2ebd9`, CSS `4826da18f4c1abac6ce3aa85257b64c0c0e620e2531f861efe5716a6f29f72e8`; manifest unchanged. Final local receipt: `%TEMP%/kplex-270-native-Wb3UAa/pins-preview-uri-settings-270.json`. See the validation record for checkpoint separation and actual results.
-
-## Evidence and review
-
-Durable evidence/limits: [validation record](docs/validation/pins-preview-uri-270-2026-11-03.md). User behavior: [Pins](docs/PINS.md) and README. Reproduction/commands are documented in CONTRIBUTING; `npm run verify:obsidian:pins-preview-uri` selects `pins`, `settings`, `preview`, `uri` or `ontology` through `KPLEX_270_NATIVE_LANE`.
-
-Local full log: `%TEMP%/kplex-270-verify-green.log`.
-Batch-checkpoint native receipt directories under `%TEMP%`: `kplex-270-native-jCow1B` (URI), `kplex-270-native-ElcZTG` (pins), `kplex-270-native-e0Brzu` (settings), `kplex-270-native-id6RdZ` (preview), `kplex-270-native-yjvlZB` (typing). Earlier native reproduction/failed attempts remain separate from passing receipts.
-
-Remaining platform/scale checks are the three prioritized checks in the validation record: physical touch; macOS modifier/URI/native dragging including OS-native menus; and a large disposable historical-cache upgrade followed by warm hydration. No whole-app restart or production-vault performance run was performed.
+Production deployment completed 2026-11-04T18:45:24.2621248Z: exact main.js/styles.css hashes verified, prior files backed up, manifest unchanged. Receipt .test-work/brain-ui-deployment.json and durable validation JSON. No production reload or template/settings/manifest/workspace edits. Mac Sync/load not verified. Prioritized manual checks: Mac theme/layout; personal file-targeted Sidecar template; physical keyboard/scroll reachability. Full detailed results and remaining limits are in the current validation report.

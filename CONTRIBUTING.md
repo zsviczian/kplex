@@ -1629,6 +1629,83 @@ URI actions and warm cache reuse, and Add/Edit ontology description typing. Nati
 are not physical-device or paint benchmarks. See the [PR #270 validation record](docs/validation/pins-preview-uri-270-2026-11-03.md)
 for exact evidence, baseline reproduction and remaining platform checks.
 
+### Folder, authoring and Compass acceptance
+
+After exact-build staging in disposable Small, run `npm run verify:obsidian:authoring-compass`
+with the three explicit test-vault variables, a fresh `KPLEX_HOST_REPORT_DIR`, and
+`KPLEX_278_NATIVE_LANE` set to `folders`, `structural`, `authoring`, `imports`, `compass`,
+`pins`, `pin-settings`, `lifetime`, `periodic`, `navigation`, `daily-template`, `daily-automation`, `forms`, `gate-defaults` or `controls`. Run these lanes serially; the driver holds the shared application lock,
+verifies installed artifact hashes and restores exact configuration bytes and owned fixtures.
+`inventory` is a read-only host-control discovery lane with the same fixture cleanup.
+
+The folder lane uses trusted Files create/name input and compares affected work at two unrelated
+fixture sizes. Authoring checks actual ontology child dialogs and stored properties. Imports use
+Electron's documented debugger transport for trusted Chromium Files drops from owned external
+Markdown/binary fixtures and a recursive directory with an empty subfolder. It checks one shared destination/child ontology, exact-file retry after a linking failure, and unchanged originals; set `KPLEX_278_IMPORT_WINDOW=window` to repeat in a real popout.
+Compass checks physical layout, gate/keyboard routing, one-sided composition and reload. Pins
+reuse the accepted #270 suite and inspect computed feedback during held native gestures;
+`KPLEX_278_VISUAL_HOLD=true` holds its first gesture for visual review without changing deadlines.
+Focus changes during that hold intentionally cancel the operation. Lifetime checks retire stale
+ontology children on native popout close and migration. Structural checks exercise the shared note/subfolder tabs, remembered choice, and native Move with incoming-link maintenance. Periodic checks confirm Cancel, each opening destination, exact creation and remembered choice across reload. Navigation checks the Files folder menu and trusted folder drag. Set `KPLEX_278_UX_VISUAL_PHASE` to `folder-note`, `folder-subfolder`, `flip`, `imports` or `periodic` for a bounded 45-second dialog review hold. These are Windows/native functional
+receipts, not macOS, physical-mobile or production-vault performance evidence.
+
+`daily-template` delegates actual creation to core Daily Notes with an owned template,
+checking token expansion, configured/default destinations, Cancel, and a missing-template
+failure with no empty substitute. `forms` measures the shared fields, option typography,
+footer glyphs, spacing and divider clearance in native light/wide and dark/narrow windows,
+including declarative Settings; `KPLEX_278_IMPORT_WINDOW=window` exercises a real popout.
+Its template dropdown uses real owned paths with injected drawing availability for layout
+only, not a companion-plugin creation claim. Set `KPLEX_278_UX_VISUAL_PHASE=forms` for
+15-second visual holds, or `form:Add relationship` to hold only that form. Native modal
+and browser viewport coverage cannot establish physical on-screen keyboard acceptance.
+
+`controls` compares the actual relationship direction, template, completion and editable
+ontology controls with core Obsidian Editor/Daily Notes Settings. It checks native
+input/dropdown skin properties, the unboxed ontology disclosure, trusted browse/Escape
+behavior, disabled/enabled remembered creation CTA and equal footer-button top edges/heights.
+`pin-settings` reuses the native declarative Settings lane, including intrinsic stacked
+field heights/gaps at three widths in both themes, dependent controls and persistence. Use
+`KPLEX_278_UX_VISUAL_PHASE=controls-reference` for bounded core-control review holds,
+or `controls` for the composed relationship form. These checks preserve core preferences;
+they do not establish physical mobile or macOS acceptance.
+
+`gate-defaults` exercises trusted source-to-destination gate drops on both lateral
+destination gates, temporal modifiers, empty-canvas Parent/Child and flipped Compass
+orientation. It inspects the actual composer role and per-role ontology default, then
+cancels. `controls` also checks compact Cancel/Link geometry and glyph centering with
+and without drawing availability, and read-only recovery capture with zero new work.
+
+`daily-automation` reproduces a daily-template callback using the installed Excalidraw
+command and actual metadata events. It compares an active-editor command with an
+explicitly targeted Sidecar view, then executes the replacement in
+[the daily-note snippet](docs/snippets/daily-note-excalidraw-view.md), both before
+and after that editor opens. The fixture supplies only the template-complete hook;
+it does not establish full Templater/DNP template processing. Real native
+Markdown/Excalidraw views and all fixture/configuration cleanup are required.
+
+`template-lifecycle` requires actual Templater staged and enabled in the disposable
+vault (the validated run used its installed 2.26.0 executable). It suspends real
+folder/regex template commands in YAML, verifies no early K-Plex metadata writes,
+then checks evaluated body/properties, reversed ownership, handler restoration and
+zero additional full semantic builds. Core Daily Notes commands are also evaluated.
+Templater settings, local automation flags and owned files are restored; the staging
+caller owns temporary executable installation/removal under the shared lock.
+`ontology-export` validates the shared connection picker and Markdown export in
+light/wide and dark/narrow native windows. Use
+`KPLEX_278_UX_VISUAL_PHASE=ontology-export` (or `ontology-export-dark`) for bounded
+review holds. `pin-settings` also verifies that custom Folder/Date format rows hide
+while Daily Notes settings are selected and return with their saved values intact;
+`pin-settings-daily` is its visual hold phase.
+
+`preset-ui` opens the real Facets preset editor from a connected native Settings
+page, exercises aligned dropdowns and the shared paired color/source row, and
+checks centered footer icons and Help/classification spacing at wide and narrow
+sizes. Both the main and Settings documents must use the requested theme during
+capture; restore their original classes afterward. Native renderer screenshots
+are written only into the staging caller's report directory. This lane preserves
+drafts/configuration and requires zero source acquisitions. Its optional hold phase
+is `preset-ui-dark`.
+
 ### Eager graph maintenance acceptance
 
 For the edit-after-warm-restore window, run `node scripts/testing/obsidian/eagerWarmMaintenance.mjs`

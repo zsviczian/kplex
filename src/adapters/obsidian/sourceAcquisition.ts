@@ -101,10 +101,15 @@ type BodyInputReceipt = { inputToken: string; parserVersion: number; physical: S
 export type SourceBodyInput = BodyCacheStamp & { accept(): boolean };
 /** One graph commit may acknowledge only the exact native/source observation it compiled. */
 export type SourceGraphPublication = Readonly<{ sourcePath: string; sequence: number; isCurrent: () => boolean; rememberNativeInput: () => void }>;
-/** One short native create wave; never a retained folder catalog or durable source certificate. */
-type EmptyFolderCreateWave = {
-  folder: TFolder; path: string; parent: TFolder; parentPath: string; openedAt: number; lastCauseAt: number;
-  hostRevision: number; members: Map<TFile, string>; current: (() => boolean) | null; invalidate: (() => void) | null;
+/** Exact native folder observation, independently qualified by the complete physical graph owner. */
+type NativeFolderWitness = {
+  folder: TFolder; path: string; parent: TFolder; parentPath: string; oldPath?: string;
+  current: (() => boolean) | null; invalidate: (() => void) | null;
+};
+/** One bounded, single-close native topology receipt; neither a folder catalog nor source authority. */
+type EmptyFolderCreateWave = NativeFolderWitness & {
+  openedAt: number; lastCauseAt: number; hostRevision: number;
+  folders: Map<TFolder, NativeFolderWitness>; members: Map<TFile, string>;
 };
 /** Narrow parser port: acquisition does not import GraphBuilder or own a second parser. */
 export type SourceBodyParser = (content: string, backgroundCheckpoint?: () => Promise<void>) => Promise<ParsedBodyMetadata>;
@@ -223,8 +228,10 @@ export class ObsidianSourceAcquisition {
   /** Retires a known wave if the host never emits its traced closing resolved event. */
   private resolverWaveTimer: number | null = null;
   private resolverWaveGeneration = 0;
-  /** Bounded until the existing resolver deadline; qualification comes from the physical owner. */
+  /** Bounded native membership for one resolver close; qualification comes from the physical owner. */
   private emptyFolderCreateWave: EmptyFolderCreateWave | null = null;
+  /** Weak identity receipts allow later naming of a genuinely observed empty folder, without a catalog. */
+  private qualifiedCreatedFolders = new WeakMap<TFolder, NativeFolderWitness>();
   /** Finite coarse observations only; no event/source identities enter diagnostic history. */
   private resolverWaveExpired = false;
   private resolverCloseObserved = false;
@@ -238,6 +245,12 @@ export class ObsidianSourceAcquisition {
   private deferredResolutionRetryDelay = DEFERRED_RESOLUTION_RETRY_MIN_MS;
   /** Date/Daily Notes drift closes semantic writes without advancing the reversible legacy host revision. */
   private environmentMaintenancePending = false;
+  /** One path-free active/last inventory receipt; capture never schedules or inspects sources. */
+  private recoveryPass: {phase: string; outcome: string; startedAt: number; elapsedMs: number;
+    visited: number; total: number; sourceRevision: number; scopeRevision: number; hostRevision: number;
+    sourceChanges: number; scopeChanges: number; hostChanges: number} | null = null;
+  /** Primitive last-event classification survives pass admission consuming the pending cause. */
+  private recoveryInvalidation = {kind: "none", reason: "none", global: false, knownFile: false, observations: 0};
   /** Transient local lookup misses coalesce by dependency/source identity instead of retaining one entry per event. */
   private readonly pendingResolutionKeys = new Set<string>();
   /** A failed durable count-journal close is retried without rediscovering source inventory. */
@@ -300,6 +313,21 @@ export class ObsidianSourceAcquisition {
   }
   /** The repository independently sanitizes all persistent diagnostic fields. */
   getDiagnostics(): SourceRepositoryDiagnostics { return this.repository.getDiagnostics(); }
+  /** Explain unavailable dependency authority separately from the already-published graph. */
+  getRecoveryDiagnostics() {
+    const pass = this.recoveryPass;
+    return {dependenciesReady: this.hasSemanticDependencies(), localAuthorityReady: this.localDependencyAuthorityReady,
+      restartChecked: this.restartInventoryChecked, warmAuthority: this.warmMaintenanceAuthority !== null,
+      environmentPending: this.environmentMaintenancePending, resolutionUncertain: this.uncertainResolution,
+      resolutionBackpressure: this.resolutionBackpressure, pendingKnown: this.pendingKnownFiles.size,
+      pendingResolution: this.pendingResolutionKeys.size, knownImpactTasks: this.knownImpactTasks,
+      inventoryActive: this.inventory !== null, maintenanceRevision: this.maintenanceRevision,
+      invalidation: {...this.recoveryInvalidation},
+      pass: pass ? {...pass, elapsedMs: pass.outcome === "running" ? Math.max(0, Date.now() - pass.startedAt) : pass.elapsedMs,
+        sourceChanges: pass.outcome === "running" ? Math.max(0, this.inventoryRevision - pass.sourceRevision) : pass.sourceChanges,
+        scopeChanges: pass.outcome === "running" ? Math.max(0, this.inventoryScopeRevision - pass.scopeRevision) : pass.scopeChanges,
+        hostChanges: pass.outcome === "running" ? Math.max(0, this.hostRevision - pass.hostRevision) : pass.hostChanges} : null};
+  }
   /** Record dormant changes without subscriptions, repository work, timers or body reads.
    * Native identities and dirty parser inputs share the normal coalesced observation owner. */
   observeBeforeStart(file?: TFile, bodyChanged = true, oldPath?: string): void {
@@ -339,7 +367,7 @@ export class ObsidianSourceAcquisition {
      * the separate complete graph owner must still qualify its pre-insertion absence.
      */
     const changed = (file?: TFile, created = false, oldPath?: string, bodyChanged = false,
-      kind: ContributorHostChange["kind"] = "source", createdFolder?: TFolder): void => {
+      kind: ContributorHostChange["kind"] = "source", createdFolder?: TFolder, renamedFolder?: TFolder): void => {
       const effectiveKind = created || oldPath ? "topology" : kind;
       if (!file && effectiveKind === "resolution") {
         // Obsidian 1.14.4 closes ordinary create/rename/modify/delete waves with metadata:resolved.
@@ -356,8 +384,9 @@ export class ObsidianSourceAcquisition {
       // Folder events still require their separate complete membership proof below.
       if (file && effectiveKind === "topology"
         && (this.app.vault.getFileByPath(file.path) === file || this.app.vault.getFileByPath(file.path) === null)) this.nativeTopologyWave = true;
-      const coveredFolder = createdFolder ? this.beginEmptyFolderCreateWave(createdFolder) : false;
-      if (!createdFolder && !file) this.retireEmptyFolderCreateWave();
+      const coveredFolder = createdFolder ? this.beginEmptyFolderCreateWave(createdFolder)
+        : renamedFolder && oldPath ? this.beginEmptyFolderRenameWave(renamedFolder, oldPath) : false;
+      if (!createdFolder && !renamedFolder && !file) this.retireEmptyFolderCreateWave();
       if (file && created) this.observeEmptyFolderMember(file);
       this.noteResolverWaveCause(Boolean(file) || coveredFolder);
       const dependenciesWereReady = this.localDependencyAuthorityReady;
@@ -384,8 +413,9 @@ export class ObsidianSourceAcquisition {
     const rename = this.app.vault.on("rename",
       /** Fence the new path immediately; retire old body/incidence after existing fan-out closes. */
       (file, oldPath) => {
-      this.retireEmptyFolderCreateWave();
-      changed(file instanceof TFile ? file : undefined, false, oldPath);
+      if (!(file instanceof TFolder)) this.retireEmptyFolderCreateWave();
+      changed(file instanceof TFile ? file : undefined, false, oldPath, false, "source", undefined,
+        file instanceof TFolder ? file : undefined);
       if (file instanceof TFile) {
         this.pendingUrlAliasSources.delete(oldPath);
         const state = this.state(file), fanout = this.knownFanoutTasks.get(file) ?? Promise.resolve();
@@ -440,31 +470,74 @@ export class ObsidianSourceAcquisition {
    */
   qualifyEmptyFolderCreate(folder: TFolder, current: () => boolean, invalidate: () => void): void {
     const wave = this.emptyFolderCreateWave;
-    if (!wave || wave.folder !== folder || wave.current || !this.emptyFolderWaveCurrent(wave) || !current()) return;
-    wave.current = current;
-    wave.invalidate = invalidate;
+    const witness = wave?.folders.get(folder);
+    if (!wave || !witness || witness.current || !this.emptyFolderWaveCurrent(wave) || !current()) return;
+    witness.current = current;
+    witness.invalidate = invalidate;
+    this.qualifiedCreatedFolders.set(folder, {...witness});
   }
 
-  /** Require settled source-local authority before opening the one bounded native folder witness. */
+  /** Match an observed naming event; the structural owner independently checks the old canonical leaf. */
+  qualifyEmptyFolderRename(folder: TFolder, oldPath: string, current: () => boolean, invalidate: () => void): boolean {
+    if (this.emptyFolderCreateWave?.folders.get(folder)?.oldPath === oldPath) {
+      this.qualifyEmptyFolderCreate(folder, current, invalidate);
+      return this.emptyFolderCreateWave.folders.get(folder)?.current === current;
+    }
+    return false;
+  }
+
+  /** Require source-local authority and independently qualified, bounded native membership. */
   private beginEmptyFolderCreateWave(folder: TFolder): boolean {
-    if (this.emptyFolderCreateWave) { this.retireEmptyFolderCreateWave(); return false; }
     const parent = folder.parent;
-    if (this.closed || !this.enabled || !this.localDependencyAuthorityReady || !this.localDependenciesReady
+    if (this.closed || !this.enabled || !this.localDependencyAuthorityReady
       || !this.restartInventoryChecked || this.uncertainResolution || this.environmentMaintenancePending
-      || this.resolutionBackpressure || this.localInventoryCompletionPending || this.pendingResolutionKeys.size
-      || this.knownResolverWave || this.uncoveredResolverWave || !parent || folder.children.length !== 0
+      || this.resolutionBackpressure || this.uncoveredResolverWave || this.uncoveredResolverSinceClose
+      || !parent || folder.children.length !== 0
       || this.app.vault.getFolderByPath(folder.path) !== folder
-      || (parent.path && parent.path !== "/" ? this.app.vault.getFolderByPath(parent.path) : this.app.vault.getRoot()) !== parent) return false;
+      || (parent.path && parent.path !== "/" ? this.app.vault.getFolderByPath(parent.path) : this.app.vault.getRoot()) !== parent) {
+      this.retireEmptyFolderCreateWave(); return false;
+    }
+    const wave = this.emptyFolderCreateWave;
+    if (wave) {
+      if (!this.emptyFolderWaveCurrent(wave) || wave.folders.has(folder)
+        || wave.folders.size + wave.members.size >= EMPTY_FOLDER_CREATE_MAX_MEMBERS) {
+        this.retireEmptyFolderCreateWave(); return false;
+      }
+      wave.folders.set(folder, {folder, path: folder.path, parent, parentPath: parent.path, current: null, invalidate: null});
+      return true;
+    }
     const openedAt = window.performance.now();
-    this.emptyFolderCreateWave = { folder, path: folder.path, parent, parentPath: parent.path,
-      openedAt, lastCauseAt: openedAt, hostRevision: this.hostRevision, members: new Map(), current: null, invalidate: null };
+    const receipt: EmptyFolderCreateWave = { folder, path: folder.path, parent, parentPath: parent.path,
+      openedAt, lastCauseAt: openedAt, hostRevision: this.hostRevision, members: new Map(), folders: new Map(), current: null, invalidate: null };
+    receipt.folders.set(folder, receipt);
+    this.emptyFolderCreateWave = receipt;
+    return true;
+  }
+
+  /** Only a previously qualified exact empty native folder can retain local attribution while named. */
+  private beginEmptyFolderRenameWave(folder: TFolder, oldPath: string): boolean {
+    const prior = this.emptyFolderCreateWave?.folders.get(folder) ?? this.qualifiedCreatedFolders.get(folder);
+    if (!prior || prior.path !== oldPath || !prior.current?.() || !folder.parent || folder.children.length
+      || this.app.vault.getFolderByPath(oldPath) || this.app.vault.getFolderByPath(folder.path) !== folder) {
+      this.retireEmptyFolderCreateWave(); return false;
+    }
+    // Remove only this identity's old coordinates. Every other observed member remains fenced.
+    const wave = this.emptyFolderCreateWave;
+    if (wave?.folders.has(folder)) {
+      prior.path = folder.path; prior.parent = folder.parent; prior.parentPath = folder.parent.path;
+      prior.oldPath = oldPath; prior.current = null; prior.invalidate = null;
+      if (!this.emptyFolderWaveCurrent(wave)) { this.retireEmptyFolderCreateWave(); return false; }
+    } else {
+      if (!this.beginEmptyFolderCreateWave(folder)) return false;
+      this.emptyFolderCreateWave!.folders.get(folder)!.oldPath = oldPath;
+    }
     return true;
   }
 
   /** Retirement poisons this unresolved wave; a following known file cannot erase the missing proof. */
   private retireEmptyFolderCreateWave(): void {
     if (!this.emptyFolderCreateWave) return;
-    this.emptyFolderCreateWave.invalidate?.();
+    for (const witness of this.emptyFolderCreateWave.folders.values()) witness.invalidate?.();
     this.emptyFolderCreateWave = null;
     this.uncoveredResolverWave = true;
     this.uncoveredResolverSinceClose = true;
@@ -473,9 +546,9 @@ export class ObsidianSourceAcquisition {
   /** Track only real direct native CREATE identities, bounded independently of vault size. */
   private observeEmptyFolderMember(file: TFile): void {
     const wave = this.emptyFolderCreateWave;
-    if (!wave || file.parent !== wave.folder) return;
+    if (!wave || !file.parent || !wave.folders.has(file.parent)) return;
     if (!this.emptyFolderWaveCurrent(wave) || wave.members.has(file)
-      || wave.members.size >= EMPTY_FOLDER_CREATE_MAX_MEMBERS || this.app.vault.getFileByPath(file.path) !== file) {
+      || wave.members.size + wave.folders.size >= EMPTY_FOLDER_CREATE_MAX_MEMBERS || this.app.vault.getFileByPath(file.path) !== file) {
       this.retireEmptyFolderCreateWave(); return;
     }
     wave.members.set(file, file.path);
@@ -486,46 +559,47 @@ export class ObsidianSourceAcquisition {
     return !this.closed && this.enabled && this.localDependencyAuthorityReady && this.restartInventoryChecked
       && !this.uncertainResolution && !this.environmentMaintenancePending && !this.resolutionBackpressure
       && wave.hostRevision === this.hostRevision
-      && window.performance.now() - wave.lastCauseAt <= KNOWN_RESOLVER_WAVE_RETIRE_MS
-      && wave.folder.path === wave.path && wave.folder.parent === wave.parent && wave.parent.path === wave.parentPath
-      && this.app.vault.getFolderByPath(wave.path) === wave.folder
-      && (wave.parentPath && wave.parentPath !== "/" ? this.app.vault.getFolderByPath(wave.parentPath) : this.app.vault.getRoot()) === wave.parent;
+      && [...wave.folders.values()].every(/** Exact identity and coordinates survive until their single close. */ witness => this.nativeFolderWitnessCurrent(witness));
   }
 
-  /** Close exactly the recorded direct membership; a missing create, nested folder or replacement rejects. */
+  /** Physical completeness does not depend on temporarily busy source-storage transactions. */
+  private nativeFolderWitnessCurrent(witness: NativeFolderWitness): boolean {
+    return witness.folder.path === witness.path && witness.folder.parent === witness.parent && witness.parent.path === witness.parentPath
+      && this.app.vault.getFolderByPath(witness.path) === witness.folder
+      && (witness.parentPath && witness.parentPath !== "/" ? this.app.vault.getFolderByPath(witness.parentPath) : this.app.vault.getRoot()) === witness.parent;
+  }
+
+  /** Close exactly the recorded membership; an unobserved nested folder, missing create or replacement rejects. */
   private emptyFolderWaveComplete(wave: EmptyFolderCreateWave): boolean {
     const membership = this.emptyFolderMembershipComplete(wave);
-    if (!membership) wave.invalidate?.();
-    return membership && this.emptyFolderWaveCurrent(wave) && Boolean(wave.current?.());
+    if (!membership) for (const witness of wave.folders.values()) witness.invalidate?.();
+    return membership && this.emptyFolderWaveCurrent(wave)
+      && [...wave.folders.values()].every(/** Each event needs its own complete canonical qualification. */ witness => Boolean(witness.current?.()));
   }
 
   /** Check at most 32 direct members without a clock or inventory scan. Missing native topology
    * retires the physical owner's proof; an ordinary elapsed deadline alone does not. */
   private emptyFolderMembershipComplete(wave: EmptyFolderCreateWave): boolean {
-    if (wave.folder.path !== wave.path || wave.folder.parent !== wave.parent || wave.parent.path !== wave.parentPath
-      || this.app.vault.getFolderByPath(wave.path) !== wave.folder
-      || (wave.parentPath && wave.parentPath !== "/" ? this.app.vault.getFolderByPath(wave.parentPath) : this.app.vault.getRoot()) !== wave.parent
-      || wave.folder.children.length !== wave.members.size || wave.folder.children.length > EMPTY_FOLDER_CREATE_MAX_MEMBERS) return false;
-    for (const child of wave.folder.children) {
-      if (!(child instanceof TFile) || wave.members.get(child) !== child.path || child.parent !== wave.folder
-        || this.app.vault.getFileByPath(child.path) !== child) return false;
+    let members = 0;
+    for (const witness of wave.folders.values()) {
+      if (!this.nativeFolderWitnessCurrent(witness) || witness.folder.children.length > EMPTY_FOLDER_CREATE_MAX_MEMBERS) return false;
+      for (const child of witness.folder.children) {
+        if (child.parent !== witness.folder) return false;
+        if (child instanceof TFile) {
+          if (wave.members.get(child) !== child.path || this.app.vault.getFileByPath(child.path) !== child) return false;
+          members += 1;
+        } else if (!(child instanceof TFolder) || !wave.folders.has(child)) return false;
+      }
     }
-    return true;
+    return members === wave.members.size;
   }
   /**
    * Coalesce all causes since the previous resolver close into constant-size causal state. TFile
-   * events are source-local proof; only one independently qualified folder create can accompany
-   * them. The timer prevents a missing close from suppressing a later unrelated resolved event.
+   * events are source-local proof; a bounded independently qualified folder wave can accompany
+   * them. The raw modification timer remains finite; native topology covers one resolver close.
    */
   private noteResolverWaveCause(covered: boolean): void {
-    const wave = this.emptyFolderCreateWave;
-    if (wave) {
-      const observedAt = window.performance.now();
-      // Reuse the existing per-cause expiry, without reviving an overdue witness when the
-      // native timer was delayed or suspended. This changes no timer duration or member cap.
-      if (observedAt - wave.lastCauseAt > KNOWN_RESOLVER_WAVE_RETIRE_MS) this.retireEmptyFolderCreateWave();
-      else wave.lastCauseAt = observedAt;
-    }
+    if (this.emptyFolderCreateWave) this.emptyFolderCreateWave.lastCauseAt = window.performance.now();
     if (covered) this.knownResolverWave = true;
     else { this.uncoveredResolverWave = true; this.uncoveredResolverSinceClose = true; }
     const generation = ++this.resolverWaveGeneration;
@@ -538,17 +612,18 @@ export class ObsidianSourceAcquisition {
       this.uncoveredResolverWave = false;
       const wave = this.emptyFolderCreateWave;
       if (wave && !this.emptyFolderMembershipComplete(wave)) {
-        wave.invalidate?.();
+        for (const witness of wave.folders.values()) witness.invalidate?.();
         this.uncoveredResolverSinceClose = true;
       }
-      this.emptyFolderCreateWave = null;
+      // The raw modification timer remains unchanged. Qualified native topology, like TFile
+      // create/rename, has exact identity/membership proof for one later resolver close.
     }, KNOWN_RESOLVER_WAVE_RETIRE_MS);
   }
 
   /** Consume a known native wave only after its optional bounded folder witness also closes. */
   private consumeKnownResolverWave(): boolean {
     const folderCovered = !this.emptyFolderCreateWave || this.emptyFolderWaveComplete(this.emptyFolderCreateWave);
-    const covered = (this.knownResolverWave || this.nativeResolvedWave || this.nativeTopologyWave)
+    const covered = (this.knownResolverWave || this.nativeResolvedWave || this.nativeTopologyWave || Boolean(this.emptyFolderCreateWave))
       && !this.uncoveredResolverWave && !this.uncoveredResolverSinceClose && folderCovered;
     if (!folderCovered) this.uncoveredResolverWave = true;
     this.resolverActivityReason = covered ? (this.emptyFolderCreateWave ? "qualified-folder" : "known-resolver")
@@ -575,6 +650,10 @@ export class ObsidianSourceAcquisition {
    * This qualification grants neither source validity nor completed inventory authority.
    */
   private markContributorHostChange(kind: ContributorHostChange["kind"], global = kind === "resolution", activityReason: ActivityReason = "unknown", knownSource = false, knownFile = knownSource): void {
+    this.recoveryInvalidation.kind = kind;
+    this.recoveryInvalidation.reason = kind === "environment" ? "environment" : activityReason === "unknown" && knownFile ? "known-file" : activityReason;
+    this.recoveryInvalidation.global = global; this.recoveryInvalidation.knownFile = knownFile;
+    this.recoveryInvalidation.observations = Math.min(Number.MAX_SAFE_INTEGER, this.recoveryInvalidation.observations + 1);
     if (global || kind === "environment" || !knownFile) {
       this.warmMaintenanceAuthority = null; this.warmMaintenanceRevision = null;
     }
@@ -621,6 +700,7 @@ export class ObsidianSourceAcquisition {
     this.knownResolverWave = false; this.uncoveredResolverWave = false;
     this.nativeResolvedWave = false; this.nativeTopologyWave = false; this.uncoveredResolverSinceClose = false;
     this.emptyFolderCreateWave = null;
+    this.qualifiedCreatedFolders = new WeakMap();
   }
   /** Allocate an incarnation lazily; a matching restart head can supply its already durable identity. */
   private state(file: TFile): FileObservation {
@@ -2249,6 +2329,15 @@ export class ObsidianSourceAcquisition {
     // topology/global resolution; a known source event still retires that owner's native capture.
     const revision = this.inventoryRevision;
     const scopeRevision = this.inventoryScopeRevision;
+    const recovery = this.recoveryPass = {phase: "queued", outcome: "running", startedAt: Date.now(), elapsedMs: 0,
+      visited: 0, total: 0, sourceRevision: revision, scopeRevision, hostRevision: this.hostRevision, sourceChanges: 0, scopeChanges: 0, hostChanges: 0};
+    /** Freeze completed-pass deltas; later host events belong to a later admission. */
+    const finishRecovery = (outcome: string): void => {
+      recovery.outcome = outcome; recovery.elapsedMs = Math.max(0, Date.now() - recovery.startedAt);
+      recovery.sourceChanges = Math.max(0, this.inventoryRevision - recovery.sourceRevision);
+      recovery.scopeChanges = Math.max(0, this.inventoryScopeRevision - recovery.scopeRevision);
+      recovery.hostChanges = Math.max(0, this.hostRevision - recovery.hostRevision);
+    };
     let broad = false;
     let activityToken = 0, activityFailed = false, readyNotification = false;
     this.inventoryCaptureRevision = revision;
@@ -2260,12 +2349,14 @@ export class ObsidianSourceAcquisition {
       try {
         await this.backgroundCheckpoint?.();
         while (this.knownImpactTasks > 0 && current()) {
+          recovery.phase = "known-impacts";
           await this.backgroundCheckpoint?.();
           await new Promise<void>(resolve => window.setTimeout(resolve, 0));
         }
         if (!current()) return false;
         if (this.localDependencyAuthorityReady && this.restartInventoryChecked
           && !this.uncertainResolution && !this.environmentMaintenancePending) {
+          recovery.phase = "local-maintenance";
           try { activityToken = this.startupDiagnostics?.beginActivity?.("local-maintenance", "local",
             this.pendingKnownFiles.size ? "known-file" : "known-topology", this.counters) ?? 0; }
           catch { /* The local work owner is authoritative even if accounting fails. */ }
@@ -2286,6 +2377,7 @@ export class ObsidianSourceAcquisition {
         this.startupDiagnostics?.recordWork("sourceInventoryPasses");
         this.startupDiagnostics?.phase("source", "source-inventory");
         const markdown = this.app.vault.getMarkdownFiles();
+        recovery.phase = "coordinates"; recovery.total = markdown.length;
         const structuralOrder = structuralMarkdownSourceOrder(this.app.vault);
         if (structuralOrder.size !== markdown.length) return false;
         this.sourceCoordinates.clear();
@@ -2302,6 +2394,7 @@ export class ObsidianSourceAcquisition {
         this.environmentFields.clear();
         this.dailyNotesObservation = JSON.stringify(this.metadataHost.dailyNotesSettings());
         if (!(await this.reconcileRestartHostInventory(markdown, structuralOrder, current))) return false;
+        recovery.phase = "sources";
         this.startupDiagnostics?.phase("source", "source-reconciliation", markdown.length);
         const checkpoint = inventoryCheckpoint();
         let projection: SourceLocalInventoryProjection | undefined;
@@ -2313,6 +2406,7 @@ export class ObsidianSourceAcquisition {
           complete = false;
         }
         for (const [markdownOrder, file] of markdown.entries()) {
+          recovery.visited += 1;
           await this.backgroundCheckpoint?.();
           if (!current()) return false;
           const order = structuralOrder.get(file.path);
@@ -2401,10 +2495,12 @@ export class ObsidianSourceAcquisition {
         let ready = current() && complete;
         if (ready) {
           this.startupDiagnostics?.phase("source", "dependency-completion");
+          recovery.phase = "dependencies";
           const local = await this.repository.completeLocalDependencyInventory(current, projection);
           ready = current() && local === "ready";
           if (ready) {
             this.startupDiagnostics?.phase("source", "resolution-reconciliation", markdown.length);
+            recovery.phase = "resolution";
             const deferred = await this.retryDeferredResolutionImpacts(current);
             ready = deferred === "ready" && await this.repairResolutionDirtySources(markdown, structuralOrder, current);
             if (ready) {
@@ -2420,6 +2516,7 @@ export class ObsidianSourceAcquisition {
             }
             if (ready) {
               this.startupDiagnostics?.phase("source", "dependency-final-validation");
+              recovery.phase = "final-proof";
               const finalRevision = this.inventoryRevision;
               /** No newer local event may cross the final all-owner dependency/publication fence. */
               const finalCurrent = (): boolean => current() && finalRevision === this.inventoryRevision;
@@ -2459,6 +2556,7 @@ export class ObsidianSourceAcquisition {
     this.inventory = this.runBackgroundWork ? this.runBackgroundWork(work) : work();
     try {
       const result = await this.inventory;
+      finishRecovery(activityFailed ? "failed" : !current() ? "cancelled" : result ? "complete" : "incomplete");
       readyNotification = result;
       try { this.startupDiagnostics?.endActivity?.(activityToken,
         activityFailed ? "failed" : !current() ? "cancelled" : result ? "complete" : "incomplete", this.counters); }
@@ -2468,6 +2566,7 @@ export class ObsidianSourceAcquisition {
       return result;
     }
     catch (error) {
+      finishRecovery("failed");
       try { this.startupDiagnostics?.endActivity?.(activityToken, "failed", this.counters); }
       catch { /* Accounting must not replace an existing task rejection. */ }
       try { this.startupDiagnostics?.stopActivityPhase?.("source"); }

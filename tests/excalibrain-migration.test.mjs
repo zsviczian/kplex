@@ -39,12 +39,14 @@ await build({
     builder.onLoad({ filter: /.*/, namespace: "double" }, () => ({ contents: `
       export class Component {load(){} unload(){}} export const MarkdownRenderer={render:()=>{throw Error("Native Markdown is outside this finite fixture")}}; export class App {}
       export class ExtraButtonComponent {} export class Scope {}
+      export class TFile {} export class TFolder {}
+      export const normalizePath=path=>path.replaceAll('\\\\','/');
       export const Platform = {};
       /** Narrow form-shell double: production modal fields, listeners and save callbacks remain real. */
       class FormElement {
         constructor(tag = "div", options = {}) {
           this.tag = tag; this.children = []; this.buttons = []; this.listeners = {}; this.value = options.value ?? "";
-          this.text = options.text ?? ""; this.attrs = {}; this.visible = true; this.disabled = false; this.isConnected = true; this.ownerDocument = { defaultView: globalThis.window };
+          this.text = options.text ?? ""; this.attrs = {}; this.visible = true; this.disabled = false; this.isConnected = true; this.ownerDocument = { defaultView: globalThis.window, body: {classList: {contains: () => false}} };
           const classes = new Set((options.cls ?? "").split(" ").filter(Boolean));
           this.classList = { add(...names) { names.forEach(name => classes.add(name)); }, remove(...names) { names.forEach(name => classes.delete(name)); }, contains(name) { return classes.has(name); } };
           Object.entries(options.attr ?? {}).forEach(([name, value]) => this.setAttribute(name, value));
@@ -60,6 +62,7 @@ await build({
         get tagName() { return this.tag.toUpperCase(); }
         get textContent() { return this.text; }
         setAttribute(name, value) { this.attrs[name] = value; if (name === "type") this.type = value; }
+        removeAttribute(name) { delete this.attrs[name]; }
         setCssProps() {}
         toggle(value) { this.visible = value; }
         focus() { this.focused = true; }
@@ -93,7 +96,8 @@ await build({
           create(api); return this;
         }
         addButton(cb) {
-          const button = { setButtonText(text) { this.text = text; return this; }, setDestructive() { return this; }, setDisabled(value) { this.disabled = value; return this; }, onClick(cb) { this.activate = cb; return this; } };
+          const buttonEl = this.controlEl.createEl("button");
+          const button = { buttonEl, get text() {return buttonEl.text;}, setButtonText(text) { buttonEl.setText(text); return this; }, setCta() {return this;}, setDestructive() { return this; }, setDisabled(value) { this.disabled = value; return this; }, onClick(cb) { this.activate = cb; return this; } };
           this.container.buttons.push(button); cb(button); return this;
         }
       }

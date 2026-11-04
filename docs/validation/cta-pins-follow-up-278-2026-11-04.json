@@ -1,0 +1,243 @@
+{
+  "scope": "PR #278 CTA and Pins spacing follow-up",
+  "status": "UI fixed; Windows validation passed; indexing investigation remains unresolved",
+  "branch": "2026-11-03-issue-277-creation-links-compass",
+  "base": "c0e6166",
+  "implementation": "uncommitted",
+  "frozenInputs": {
+    "files": 983,
+    "sha256": "2e83a7c77da7b2f5085988caa77115fb0c2d9e1d669f73754a193bcdd92afabe"
+  },
+  "artifacts": {
+    "main.js": "cc921ffd89a735f01c0fa9b1181618f2e79686e42dd27d4d7c5cb0c8283984f7",
+    "styles.css": "25b9cfd2dfbc189ec9135567f6a01af32ad4404cf88fe83d1182a655b0adcb00",
+    "manifest.json": "8c65b0d38a506f8fa9fc3311b81ea22bcda48e0209e9190483752c1f20834326"
+  },
+  "deployment": {
+    "status": "deployed",
+    "at": "2026-11-04T14:15:30.759Z",
+    "vault": "Zsolt's Brain",
+    "target": "C:\\Obsidian\\Zsolt's Brain\\.obsidian\\plugins\\k-plex",
+    "files": {
+      "main.js": {
+        "before": "cc921ffd89a735f01c0fa9b1181618f2e79686e42dd27d4d7c5cb0c8283984f7",
+        "expected": "cc921ffd89a735f01c0fa9b1181618f2e79686e42dd27d4d7c5cb0c8283984f7",
+        "copied": true,
+        "deployed": "cc921ffd89a735f01c0fa9b1181618f2e79686e42dd27d4d7c5cb0c8283984f7"
+      },
+      "styles.css": {
+        "before": "25b9cfd2dfbc189ec9135567f6a01af32ad4404cf88fe83d1182a655b0adcb00",
+        "expected": "25b9cfd2dfbc189ec9135567f6a01af32ad4404cf88fe83d1182a655b0adcb00",
+        "copied": true,
+        "deployed": "25b9cfd2dfbc189ec9135567f6a01af32ad4404cf88fe83d1182a655b0adcb00"
+      }
+    },
+    "backup": "C:\\Users\\viczi\\GitHub\\kplex\\.test-work\\deploy-backups\\brain-ui-2026-11-04-1793801726231",
+    "manifestUnchanged": true,
+    "pluginReloaded": false,
+    "scope": "Only main.js and styles.css copied; no settings, notes, manifest or workspace writes."
+  },
+  "tests": {
+    "before": {
+      "passed": 0,
+      "failed": 3,
+      "log": "%TEMP%/kplex-278-cta-pins-before2.log"
+    },
+    "focused": {
+      "passed": 86,
+      "failed": 0,
+      "log": "%TEMP%/kplex-278-cta-pins-focused.log"
+    },
+    "settings": {
+      "passed": 40,
+      "failed": 0,
+      "log": "%TEMP%/kplex-278-cta-pins-settings.log"
+    },
+    "overlap": "Focused and settings commands overlap; counts are not unique across runs",
+    "lint": {
+      "status": "passed",
+      "log": "%TEMP%/kplex-278-cta-pins-lint.log"
+    },
+    "build": {
+      "status": "passed",
+      "node": "22.22.2",
+      "installedObsidianTypes": true,
+      "log": "%TEMP%/kplex-278-cta-pins-build.log"
+    },
+    "indexing": "Not rerun for isolated UI styling; previous full result retains original attribution"
+  },
+  "native": [
+    {
+      "lane": "controls",
+      "receipt": "kplex-278-native-UIFl8E",
+      "sha256": "40c5c4ab10a3a41ef260e37bf41bef5e728fc493e88aca3ad1f412a63e8f6b10",
+      "status": "passed",
+      "cleanup": "passed",
+      "stagingCleanup": {
+        "disable": "passed",
+        "data": "passed",
+        "enable": "passed",
+        "layout": "passed",
+        "data-bytes": "passed",
+        "enablement-bytes": "passed"
+      },
+      "artifacts": {
+        "main.js": "cc921ffd89a735f01c0fa9b1181618f2e79686e42dd27d4d7c5cb0c8283984f7",
+        "manifest.json": "8c65b0d38a506f8fa9fc3311b81ea22bcda48e0209e9190483752c1f20834326",
+        "styles.css": "2233211007eb4991a0b7fe942067190611ac4d49cd553fda0134b90043e5be96"
+      },
+      "result": {
+        "primaryActions": [
+          {
+            "kind": "markdown",
+            "disabledAccent": true,
+            "enabledAccent": true,
+            "keyboardDefault": true
+          },
+          {
+            "kind": "excalidraw",
+            "disabledAccent": true,
+            "enabledAccent": true,
+            "keyboardDefault": true
+          }
+        ],
+        "compared": [
+          {
+            "classes": "dropdown kplex-add-related-role-select",
+            "matchedCoreDropdown": true
+          },
+          {
+            "classes": "dropdown",
+            "matchedCoreDropdown": true
+          },
+          {
+            "classes": "dropdown",
+            "matchedCoreDropdown": true
+          },
+          {
+            "classes": "kplex-search-shell kplex-fuzzy-search kplex-add-related-ontology-search dropdown kplex-native-combobox",
+            "matchedCoreDropdown": true
+          },
+          {
+            "classes": "kplex-search",
+            "matchedCoreInput": true
+          },
+          {
+            "classes": "kplex-create-alias-input",
+            "matchedCoreInput": true
+          },
+          {
+            "classes": "kplex-search",
+            "matchedCoreInput": true
+          }
+        ],
+        "disclosureUnboxed": true
+      }
+    },
+    {
+      "lane": "pin-settings",
+      "receipt": "kplex-278-native-gGpq78",
+      "sha256": "4266e1381100bdca79d025c1928082fc4ac0c678ade0e918b32edfa0cbf3e951",
+      "status": "passed",
+      "cleanup": "passed",
+      "stagingCleanup": {
+        "disable": "passed",
+        "data": "passed",
+        "enable": "passed",
+        "layout": "passed",
+        "data-bytes": "passed",
+        "enablement-bytes": "passed"
+      },
+      "artifacts": {
+        "main.js": "cc921ffd89a735f01c0fa9b1181618f2e79686e42dd27d4d7c5cb0c8283984f7",
+        "manifest.json": "8c65b0d38a506f8fa9fc3311b81ea22bcda48e0209e9190483752c1f20834326",
+        "styles.css": "25b9cfd2dfbc189ec9135567f6a01af32ad4404cf88fe83d1182a655b0adcb00"
+      },
+      "result": {
+        "samples": [
+          {
+            "case": "native responsive settings layout",
+            "theme": "theme-dark",
+            "requestedWidth": 320,
+            "actualWidth": 320,
+            "headingsUnclipped": true,
+            "horizontalOverflow": false,
+            "longPathWrapped": true
+          },
+          {
+            "case": "native responsive settings layout",
+            "theme": "theme-dark",
+            "requestedWidth": 480,
+            "actualWidth": 480,
+            "headingsUnclipped": true,
+            "horizontalOverflow": false,
+            "longPathWrapped": true
+          },
+          {
+            "case": "native responsive settings layout",
+            "theme": "theme-dark",
+            "requestedWidth": 760,
+            "actualWidth": 700,
+            "headingsUnclipped": true,
+            "horizontalOverflow": false,
+            "longPathWrapped": true
+          },
+          {
+            "case": "native responsive settings layout",
+            "theme": "theme-light",
+            "requestedWidth": 320,
+            "actualWidth": 320,
+            "headingsUnclipped": true,
+            "horizontalOverflow": false,
+            "longPathWrapped": true
+          },
+          {
+            "case": "native responsive settings layout",
+            "theme": "theme-light",
+            "requestedWidth": 480,
+            "actualWidth": 480,
+            "headingsUnclipped": true,
+            "horizontalOverflow": false,
+            "longPathWrapped": true
+          },
+          {
+            "case": "native responsive settings layout",
+            "theme": "theme-light",
+            "requestedWidth": 760,
+            "actualWidth": 700,
+            "headingsUnclipped": true,
+            "horizontalOverflow": false,
+            "longPathWrapped": true
+          },
+          {
+            "case": "native integrated period settings",
+            "editors": 3,
+            "renderWrites": 0,
+            "dependentControls": true,
+            "customConfigurationPreserved": true,
+            "optIn": true,
+            "sourceReads": 0
+          }
+        ]
+      }
+    }
+  ],
+  "failedNative": [
+    {
+      "receipt": "ghMOKW",
+      "reason": "Settings content had not settled before width measurement; bounded readiness added while preserving all geometry assertions"
+    },
+    {
+      "log": "%TEMP%/kplex-278-cta-pins-native-settings2.log",
+      "reason": "Foreground interrupted by production observation; serial uninterrupted rerun passed"
+    }
+  ],
+  "limits": [
+    "Windows native evidence does not establish Mac or physical-mobile acceptance",
+    "Controls receipt precedes the final Pins-only CSS specificity adjustment; actual artifact hashes retained",
+    "Native drawing availability injection is layout evidence, not drawing creation",
+    "No graph/source scheduler implementation change made for the new indexing investigation"
+  ],
+  "indexingInvestigation": "index-recovery-observation-2026-11-04.md",
+  "generatedAt": "2026-11-04T14:19:05.770Z"
+}

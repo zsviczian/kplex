@@ -6,9 +6,11 @@
  * saved writes remain plugin-owned. Incomplete previews acquire only the inspected pair before
  * exposing its canonical property sources, including declarations owned by the opposite endpoint.
  */
+import {labelIconButton, KplexModal as Modal} from "../adapters/obsidian/KplexModal";
+
 import {activeOntologyFields} from "../core/plex/relationshipOntology";
 import { connectionActionAllowed } from "./structuralConnectionActions";
-import { Modal, Notice, setIcon, type WorkspaceLeaf } from "obsidian";
+import {Notice, type WorkspaceLeaf} from "obsidian";
 import type KplexPlugin from "../main";
 import type { RelationshipSourceSection } from "../main";
 import { RelationType, type GateRole, type Role } from "../types";
@@ -19,6 +21,9 @@ import { frontmatterDeclarationKey, selectedFrontmatterDeclarations } from "../a
 import { SavedRelationshipPendingError } from "../adapters/obsidian/relationshipMetadataWrite";
 import { RemoveRelationshipSourceModal } from "./RemoveRelationshipSourceModal";
 import type { RelationEvidence } from "../index/RelationEvidence";
+import {SelectedOntologyEditor} from "./SelectedOntologyEditor";
+import {ReverseRelationshipModal} from "./ReverseRelationshipModal";
+import {eligibleRelationshipOwner} from "../adapters/obsidian/relationshipOwner";
 
 const ROLE_LABEL: Record<string, PlainTranslationKey> = {
   parent: "role.parent",
@@ -98,8 +103,7 @@ function gateRoleForDisplayRole(role: Role): GateRole | null {
 /** Mount a localized native-icon action with one accessible name and no duplicate tooltip. */
 function iconButton(parent: HTMLElement, icon: string, label: string, action: () => void): HTMLButtonElement {
   const button = parent.createEl("button", { cls: "kplex-edge-source-action", attr: { type: "button", "aria-label": label } });
-  setIcon(button, icon);
-  button.createSpan({ text: label });
+  labelIconButton(button, label, icon);
   button.addEventListener("click", action);
   return button;
 }
@@ -132,6 +136,7 @@ function renderDecisionEvaluations(parent: HTMLElement, decisions: readonly Evid
 
 /** One source-of-truth view for understanding a connection and navigating its provenance. */
 export class RelationshipExplanationModal extends Modal {
+  private readonly ontologyEditor: SelectedOntologyEditor;
   private closed = false;
   private loadGeneration = 0;
   private operation: "idle" | "confirming" | "removing" | "saved-pending" = "idle";
@@ -142,6 +147,7 @@ export class RelationshipExplanationModal extends Modal {
   private statusText = "";
   private pendingDeclaration: string | null = null;
   private releaseIndex: (() => void) | null = null;
+  private releaseMigration: (() => void) | null = null;
 
   /** Capture one pair explanation and optional native-dialog lease; source reads are cancelled on close. */
   constructor(
@@ -158,11 +164,22 @@ export class RelationshipExplanationModal extends Modal {
     private onClosed: () => void = () => {},
   ) {
     super(plugin.app);
+    const doc = this.modalEl.ownerDocument;
+    this.ontologyEditor = new SelectedOntologyEditor(plugin, /** Retire selected-field callbacks when the pair inspection closes or migrates. */ () => !this.closed && this.modalEl.isConnected && this.modalEl.ownerDocument === doc);
   }
 
   /** Project active field names for additive ontology display without rewriting declaration provenance. */
   private currentOntologies(): string[] {
     return activeOntologyFields(this.explanation);
+  }
+
+  /** Every physical field uses the same exact editor and parent lifetime, including overridden sources. */
+  private ontologyEditButton(parent: HTMLElement, field: string): HTMLButtonElement {
+    const edit = iconButton(parent, "pencil", this.plugin.translator("ontology.editSelected", {field}), /** Vocabulary changes never mutate the inspected connection. */ () => {
+      if (this.operation !== "idle") return;
+      this.ontologyEditor.open(field, edit, /** Saved annotations reacquire the current inspected pair. */ () => this.refreshDetails());
+    });
+    edit.disabled = this.operation !== "idle"; this.mutationNavigationButtons.push(edit); return edit;
   }
 
   /** Render the additive ontology action for the inspected pair with localized captions; existing sources remain preserved. */
@@ -171,7 +188,12 @@ export class RelationshipExplanationModal extends Modal {
     const copy = row.createDiv({ cls: "kplex-edge-ontology-copy" });
     copy.createEl("strong", { text: this.plugin.translator("explain.ontology") });
     const ontologies = this.currentOntologies();
-    copy.createDiv({ cls: "kplex-edge-ontology-value", text: ontologies.length ? ontologies.join(", ") : this.plugin.translator("explain.noOntology") });
+    const values = copy.createDiv({cls: "kplex-edge-ontology-value"});
+    if (!ontologies.length) values.setText(this.plugin.translator("explain.noOntology"));
+    for (const field of ontologies) {
+      const value = values.createDiv({cls: "kplex-edge-ontology-field"}); value.createSpan({text: field});
+      this.ontologyEditButton(value, field);
+    }
 
     const activeDefined = this.explanation.decisions.filter((decision) =>
       decision.active && decision.evidence.relationType === RelationType.DEFINED,
@@ -244,6 +266,7 @@ export class RelationshipExplanationModal extends Modal {
       const row = container.createDiv({ cls: `kplex-edge-source-card is-metadata${decision.active ? " is-active" : " is-overridden"}` });
       const header = row.createDiv({ cls: "kplex-edge-source-header" });
       header.createDiv({ cls: "kplex-edge-source-meta", text: evidenceDescription(decision, this.plugin.translator) });
+      if (evidence.fieldName && (evidence.sourceKind === "frontmatter-ontology" || evidence.sourceKind === "inline-ontology")) this.ontologyEditButton(header, evidence.fieldName);
       const status = header.createDiv({ cls: "kplex-edge-source-status" });
       renderDecisionEvaluations(status, [decision], this.plugin.translator);
       status.createSpan({
@@ -283,6 +306,9 @@ export class RelationshipExplanationModal extends Modal {
       for (const reason of reasons) card.createDiv({ cls: "kplex-edge-source-reason", text: suppressionReasonLabel(reason, this.plugin.translator) });
 
       const actions = card.createDiv({ cls: "kplex-edge-source-actions" });
+      for (const field of new Set(decisions.filter(/** Overridden properties retain their own physical editing identity. */ decision =>
+        decision.evidence.sourceKind === "frontmatter-ontology" || decision.evidence.sourceKind === "inline-ontology")
+        .map(/** Field names are source facts, not combined connector captions. */ decision => decision.evidence.fieldName).filter(/** Body/property sources without a physical field have no ontology editor target. */ (field): field is string => Boolean(field)))) this.ontologyEditButton(actions, field);
       const navigate = iconButton(actions, "locate-fixed", this.plugin.translator("explain.goToSource"), () => {
         if (this.closed || this.operation !== "idle") return;
         void this.plugin.openRelationshipEvidenceLocation({ path: section.path, line: section.startLine }, this.displayContext?.hostLeaf).then(() => this.close());
@@ -326,6 +352,31 @@ export class RelationshipExplanationModal extends Modal {
       button.dataset.kplexRemoveField = expected.fieldKey;
       button.disabled = this.operation !== "idle";
       this.removalButtons.push(button);
+      const receiving = this.plugin.index.get(expected.targetPath);
+      const reversible = receiving && eligibleRelationshipOwner(this.app, receiving)
+        && ["parent", "child", "left", "right", "previous", "next"].includes(evidence.declaredRole);
+      const reverse = iconButton(parent.querySelector<HTMLElement>(".kplex-edge-source-actions") ?? parent.createDiv({cls: "kplex-edge-source-actions"}), "arrow-left-right", this.plugin.translator("relationship.flip"), /** Each action names one independent declaration, even when the pair has several evidence sources. */ () => {
+        if (!reversible || !this.isCurrent(generation) || this.operation !== "idle" || this.ontologyEditor.active) return;
+        const actual = this.plugin.captureFrontmatterUnlinkExpectation(evidence);
+        if (!actual || actual.storage !== expected.storage || actual.target !== expected.target || actual.fieldKey !== expected.fieldKey) {
+          this.refreshDetails(this.plugin.translator("explain.removeSourceChanged")); return;
+        }
+        this.setOperation("confirming");
+        const dialog = new ReverseRelationshipModal(this.app, this.plugin.translator, {
+          owner: actual.storagePath, field: actual.fieldKey, target: actual.targetPath,
+          inverse: this.plugin.inverseOntologyField(actual.fieldKey, evidence.declaredRole as import("../types").RelationshipRole),
+        }, /** Parent close/migration revokes unaccepted cross-file work. */ () => this.isCurrent(generation),
+        /** The canonical writer creates the replacement before removing this exact selected property. */ () => this.plugin.reverseFrontmatterEvidence(evidence, actual, () => this.isCurrent(generation)),
+        /** Refresh is observation-only and restores pair authority before an explicit retry. */ () => this.plugin.index.prepareRelationshipPair(actual.storagePath, actual.targetPath),
+        /** Close restores the current details, including any durable partial result. */ () => {
+          if (this.confirmation !== dialog) return; this.confirmation = null;
+          if (this.isCurrent(generation)) {this.setOperation("idle"); this.refreshDetails();}
+        });
+        this.confirmation = dialog; dialog.open();
+      });
+      reverse.disabled = !reversible || this.operation !== "idle";
+      if (reversible) this.removalButtons.push(reverse);
+      else row.createDiv({cls: "setting-item-description", text: this.plugin.translator("relationship.flipUnavailable")});
     }
   }
 
@@ -403,6 +454,7 @@ export class RelationshipExplanationModal extends Modal {
   /** Render the pair’s Connection details, evidence evaluations and provenance actions with localized captions and feedback; the native Modal owns its open/close shell. */
   onOpen(): void {
     this.closed = false;
+    this.releaseMigration = this.displayContext?.hostLeaf?.view.containerEl.onWindowMigrated?.(/** A migrated inspector cannot retain nested ontology or cross-file mutation prompts. */ () => this.close()) ?? null;
     this.releaseIndex = this.plugin.index.subscribe(/** Only a saved-pending operation needs publication-driven refresh. */ () => this.refreshPendingRemoval());
     this.refreshDetails();
     void this.prepareEditablePair(this.loadGeneration);
@@ -449,6 +501,10 @@ export class RelationshipExplanationModal extends Modal {
 
     this.addOntologyEditor(this.contentEl);
     this.addHiddenAction(this.contentEl);
+    if (!selectedFrontmatterDeclarations(this.explanation.decisions.map(/** Availability reflects actual selected-source provenance, never screen direction. */ decision => decision.evidence))
+      .some(/** Unsupported property shapes must be edited manually rather than broadly rewritten. */ evidence => Boolean(this.plugin.captureFrontmatterUnlinkExpectation(evidence)))) {
+      this.contentEl.createDiv({cls: "setting-item-description", text: this.plugin.translator("relationship.flipSourceUnavailable")});
+    }
 
     if (this.displayContext?.role === "sibling") {
       const center = this.displayContext.centerPath ? this.plugin.index.get(this.displayContext.centerPath) : null;
@@ -560,6 +616,8 @@ export class RelationshipExplanationModal extends Modal {
   onClose(): void {
     if (this.closed) return;
     this.closed = true;
+    this.ontologyEditor.close();
+    this.releaseMigration?.(); this.releaseMigration = null;
     this.loadGeneration++;
     this.confirmation?.close();
     this.confirmation = null;

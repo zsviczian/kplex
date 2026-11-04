@@ -197,6 +197,7 @@ async function settingsBrowser(keyConvention = "windows") {
   const host = `
     export const Platform={isMobile:false,isMacOS:${keyConvention === "macos"},isWin:${keyConvention === "windows"},isIosApp:false,isAndroidApp:false};
     export function setIcon(el,name){el.setAttribute('data-icon',name)} export function setTooltip(el,text){el.setAttribute('aria-label',text)}
+    export function getIcon(){return document.createElementNS('http://www.w3.org/2000/svg','svg')}
     export class Scope{constructor(){this.handlers=[]}register(modifiers,key,callback){const value={callback};this.handlers.push(value);return value}unregister(value){this.handlers=this.handlers.filter(x=>x!==value)}}
     export class Modal{constructor(app){this.app=app;this.scope=new Scope();this.modalEl=document.createElement('div');this.modalEl.className='modal';this.contentEl=this.modalEl.appendChild(document.createElement('div'));this.contentEl.className='modal-content'}setTitle(){}open(){document.body.append(this.modalEl);this.onOpen?.()}close(){this.onClose?.();this.modalEl.remove()}}
     export class ButtonComponent{constructor(parent){this.buttonEl=parent.createEl('button',{attr:{type:'button'}})}setButtonText(value){this.buttonEl.textContent=value;return this}}

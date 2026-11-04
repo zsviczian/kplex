@@ -1,6 +1,7 @@
 /** Bounded native workflow-guide editing inside the existing detached preset draft. Defaults
  * and stable category-pair overrides share one grammar; no relationship or settings writer lives here. */
-import {Setting} from "obsidian";
+
+import {FormSetting as Setting} from "../../../adapters/obsidian/KplexModal";
 import type {FacetPreset, FacetFlowStyle} from "../../../core/plex/views/facets/contracts";
 import {facetFlowId, facetFlowStyle, facetFlowOrder} from "../../../core/plex/views/facets/flow";
 import {facetCategoryLabel} from "../../../core/plex/views/facets/labels";

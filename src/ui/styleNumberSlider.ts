@@ -1,5 +1,6 @@
 /** Native style dimensions share one bounded slider, visible value and explicit inheritance action. */
-import { Setting, type ExtraButtonComponent } from "obsidian";
+import {FormSetting as Setting} from "../adapters/obsidian/KplexModal";
+import {type ExtraButtonComponent} from "obsidian";
 import {numberSlider} from "./numberSlider";
 import type { Translator } from "../lang";
 

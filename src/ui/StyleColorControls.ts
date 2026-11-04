@@ -6,6 +6,7 @@ import type {App} from "obsidian";
 import {ColorSourceModal} from "./ColorSourceModal";
 import type {ColorPreviewOptions, ColorPreviewTarget} from "./ColorPreview";
 import {colorIdentityText, type ColorValue} from "../core/contracts/colorValue";
+import {FormSetting as Setting} from "../adapters/obsidian/KplexModal";
 
 export type StyleColorContext = Omit<ColorPreviewOptions, "target"> & Readonly<{
   subscribeCss?: (changed: () => void) => () => void;
@@ -37,11 +38,12 @@ export class StyleColorControls {
   add(container: HTMLElement, label: string, target: ColorPreviewTarget,
     read: () => ColorValue | undefined, write: (value: ColorValue | undefined) => void,
     inherit: () => ColorValue | undefined): void {
-    const row = container.createDiv({cls: "kplex-style-row"});
-    row.createSpan({text: label});
+    const setting = new Setting(container).setName(label);
+    setting.settingEl.addClass("kplex-style-row", "kplex-style-color-row");
+    const controls = setting.controlEl;
     const fallback = target.kind === "node" ? nodeColorFallback(target.field, this.context.fallbacks) : target.kind === "link" ? target.field === "textColor" ? NATIVE_LINK_TEXT : NATIVE_LINK_STROKE : NATIVE_CANVAS_FILL;
-    this.swatches.add(row.createDiv(), /** Directional defaults retain their semantic fallback instead of sampling the canvas as all four fills. */ () => target.kind === "compass" ? [compassSwatchItem(label, target.direction ?? "north", read())] : [{label, value: read(), inherit: inherit(), fallback}]);
-    const button = row.createEl("button", {attr: {type: "button", "aria-label": label}});
+    this.swatches.add(controls.createDiv(), /** Directional defaults retain their semantic fallback instead of sampling the canvas as all four fills. */ () => target.kind === "compass" ? [compassSwatchItem(label, target.direction ?? "north", read())] : [{label, value: read(), inherit: inherit(), fallback}]);
+    const button = controls.createEl("button", {attr: {type: "button", "aria-label": label}});
     const refresh = (): void => {const value = read(); button.setText(colorIdentityText(value, this.context.preferences().palette) || this.context.translate(value === undefined ? "colors.inherit" : "colors.unsupportedSource"));};
     this.refreshers.add(refresh); refresh();
     button.addEventListener("click", () => {

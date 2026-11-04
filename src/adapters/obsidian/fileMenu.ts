@@ -3,14 +3,14 @@
  * files; a guarded native link-menu wrapper supplies the missing unresolved-link hook in both
  * editor and reading views. Unload disables retained wrappers and releases the plugin reference.
  */
-import { Notice, TFile, normalizePath, parseLinktext, type Menu, type Workspace, type WorkspaceLeaf } from "obsidian";
+import { Notice, TFile, TFolder, normalizePath, parseLinktext, type Menu, type Workspace, type WorkspaceLeaf } from "obsidian";
 import type KplexPlugin from "../../main";
 import { readObsidianPresentationEnvironment } from "./presentationEnvironment";
 import { addNativeSubmenu } from "./nativeSubmenu";
 
 export type FilePlexTarget = "reuse" | "tab" | "split" | "window" | "sidepanel";
 /** A missing link retains its exact native source; it never grants file-creation authority. */
-export type FilePlexNode = TFile | Readonly<{path: string; source: TFile}>;
+export type FilePlexNode = TFile | TFolder | Readonly<{path: string; source: TFile}>;
 type NativeLinkWorkspace = Workspace & {
   handleLinkContextMenu?: (menu: Menu, linktext: string, sourcePath: string, leaf?: WorkspaceLeaf) => boolean;
 };
@@ -42,7 +42,12 @@ function addPlexOpenMenu(plugin: KplexPlugin, menu: Menu, node: FilePlexNode): v
 /** Register public file menus and the feature-detected native hook; all ownership is plugin-scoped. */
 export function registerFileMenus(plugin: KplexPlugin): void {
   plugin.registerEvent(plugin.app.workspace.on("file-menu", (menu, file) => {
-    if (file instanceof TFile) addPlexOpenMenu(plugin, menu, file);
+    if (file instanceof TFolder) menu.addItem(/** Folders have a direct opening action, with the same captured native target as note menus. */ item => item
+      .setTitle(plugin.translator("fileMenu.openFolder")).setIcon("brain-circuit").onClick(/** Folder opening remains owned by the shared native destination route. */ async () => {
+        try {await plugin.openFileInKplex(file, "reuse");}
+        catch (error) {console.error("K-Plex folder-menu navigation failed", error); new Notice(plugin.translator("ontology.usage.openFailed"));}
+      }));
+    else if (file instanceof TFile) addPlexOpenMenu(plugin, menu, file);
   }));
   const workspace = plugin.app.workspace as NativeLinkWorkspace;
   const original: unknown = Reflect.get(workspace, "handleLinkContextMenu");

@@ -3,6 +3,8 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {readFileSync} from "node:fs";
 import ts from "typescript";
+/** Stable native folder identity for source-extracted menu/opening tests. */
+class NativeFolder {}
 
 function moduleAt(path, dependencies = {}) {
   const source = readFileSync(new URL(`../${path}`, import.meta.url), "utf8");
@@ -61,7 +63,7 @@ test("template selectors require EA 2.29.1 and preserve blank, valid and removed
 
 test("creation uses a disposable EA, exact format/root and the chosen template, then remembers a successful choice", async () => {
   const template = {path: "Templates/T.md"}, file = {path: "New.excalidraw"}, calls = [], disposed = [];
-  const create = method("src/main.ts", "createNewFileInFolder", {
+  const create = method("src/main.ts", "createNativeFileInFolder", {
     normalizePath: path => path, MANAGED_CREATED_PATH_TTL_MS: 1000,
     drawingAutomation: () => ({getDrawingFilePath: (name, folder) => {assert.equal(folder, ""); return name+".excalidraw";},
       getAPI: () => ({create: async args => {calls.push(args); args.validateBeforeCreate(); return file.path;}, destroy: () => disposed.push(true)})}),
@@ -80,7 +82,7 @@ test("native file-menu actions capture the clicked file and offer only supported
   let listener, device = "desktop";
   const actions = [], opened = [];
   const {registerFileMenus} = moduleAt("src/adapters/obsidian/fileMenu.ts", {
-    obsidian: {TFile: File}, "./presentationEnvironment": {readObsidianPresentationEnvironment: () => ({device})},
+    obsidian: {TFolder: NativeFolder, TFile: File}, "./presentationEnvironment": {readObsidianPresentationEnvironment: () => ({device})},
     "./nativeSubmenu": {addNativeSubmenu: (_menu, _title, _icon, populate) => populate({addItem: configure => {
       const item = {setTitle(value) {this.title = value; return this;}, setIcon() {return this;}, onClick(callback) {actions.push({title: this.title, callback}); return this;}};
       configure(item);
@@ -95,7 +97,7 @@ test("native file-menu actions capture the clicked file and offer only supported
 });
 
 test("explicit new-tab/tab-group/window actions allocate the requested native surface and focus the captured file", async () => {
-  const open = method("src/main.ts", "openFileInKplex", {KplexView: class {}, KplexSidepanelView: class {}, readObsidianPresentationEnvironment: () => ({device: "desktop"}), KPLEX_VIEW_TYPE: "plex", KPLEX_SIDEPANEL_VIEW_TYPE: "sidebar"});
+  const open = method("src/main.ts", "openFileInKplex", {TFolder: NativeFolder, KplexView: class {}, KplexSidepanelView: class {}, readObsidianPresentationEnvironment: () => ({device: "desktop"}), KPLEX_VIEW_TYPE: "plex", KPLEX_SIDEPANEL_VIEW_TYPE: "sidebar"});
   for (const [target, type] of [["tab", "tab"], ["split", "split"], ["window", "window"]]) {
     const file = {path: "A.md"}, calls = [], leaf = {setViewState: async state => calls.push(state)};
     const owner = {app: {vault: {getFileByPath: () => file}, workspace: {getMostRecentLeaf: () => null, getLeaf: value => {assert.equal(value, type); return leaf;}}},
@@ -110,7 +112,7 @@ test("a warm new Plex waits for its mounted navigation consumer before focusing 
   let ready;
   const pending = new Promise(resolve => {ready = resolve;});
   class View {waitUntilReady() {return pending;}}
-  const open = method("src/main.ts", "openFileInKplex", {KplexView: View, KplexSidepanelView: class {},
+  const open = method("src/main.ts", "openFileInKplex", {TFolder: NativeFolder, KplexView: View, KplexSidepanelView: class {},
     readObsidianPresentationEnvironment: () => ({device: "desktop"}), KPLEX_VIEW_TYPE: "plex", KPLEX_SIDEPANEL_VIEW_TYPE: "sidebar"});
   const file = {path: "Chosen.md"}, focused = [], leaf = {view: new View(), setViewState: async () => {}};
   const owner = {app: {vault: {getFileByPath: () => file}, workspace: {getMostRecentLeaf: () => null, getLeaf: () => leaf}},
@@ -124,19 +126,21 @@ test("template dropdown retains complete paths for duplicate names and exposes a
   const changes = [];
   const {DrawingTemplateSelect} = moduleAt("src/ui/features/DrawingTemplateSelect.tsx", {
     react: {createElement: (type, props, ...children) => ({type, props, children})},
+    "../components/FormSelect": {FormSelect: "shared-labelled-select"},
   });
   const tree = DrawingTemplateSelect({choices: {root: "Templates", selected: "Templates/B/Same.md", files: [{path: "Templates/A/Same.md"}, {path: "Templates/B/Same.md"}]},
     value: "Templates/B/Same.md", disabled: false, translate: key => key, onChange: value => changes.push(value)});
-  const select = tree.children[1];
+  assert.equal(tree.type, "shared-labelled-select");
+  const select = tree;
   assert.equal(select.props.value, "Templates/B/Same.md");
-  assert.deepEqual(select.children.map(option => option.props.value), ["", "Templates/A/Same.md", "Templates/B/Same.md"]);
-  assert.deepEqual(select.children.slice(1).map(option => option.children[0]), ["A/Same.md", "B/Same.md"]);
-  select.props.onChange({target: {value: ""}}); assert.deepEqual(changes, [""]);
+  assert.deepEqual(select.props.children.map(option => option.props.value), ["", "Templates/A/Same.md", "Templates/B/Same.md"]);
+  assert.deepEqual(select.props.children.slice(1).map(option => option.children[0]), ["A/Same.md", "B/Same.md"]);
+  select.props.onChange(""); assert.deepEqual(changes, [""]);
 });
 
 test("a rejected drawing write destroys its private workbench and retains the last successful template", async () => {
   let destroyed = 0;
-  const create = method("src/main.ts", "createNewFileInFolder", {
+  const create = method("src/main.ts", "createNativeFileInFolder", {
     normalizePath: path => path, MANAGED_CREATED_PATH_TTL_MS: 1000,
     drawingAutomation: () => ({getDrawingFilePath: () => "New.md", getAPI: () => ({create: async () => {throw Error("write rejected");}, destroy: () => destroyed++})}),
   });
@@ -146,6 +150,37 @@ test("a rejected drawing write destroys its private workbench and retains the la
 });
 
 const creationDestinations=moduleAt('src/core/plex/createdNoteDestination.ts');
+
+for(const kind of ['related','folder'])test(`foreign ${kind} template completion does not hold mutation priority`,async()=>{
+ const {ForegroundWorkScheduler}=moduleAt('src/index/ForegroundWorkScheduler.ts'),scheduler=new ForegroundWorkScheduler();
+ let finish;const pending=new Promise(resolve=>finish=resolve),file={path:'Folder/New.md',extension:'md'};
+ const owner={unloading:false,translator:key=>key,validateNoteFolderPath:()=>({folderPath:'Folder'}),validateRelatedNoteName:()=>({valid:true,stem:'New'}),
+  createNewFileInFolder:()=>pending,writeCreatedNodeDisplayName:async()=>'',writeCreatedNodeAlias:async()=>'',mutateCreatedNodeMetadata:async()=>{},configuredDisplayNameField:()=>'',
+  index:{withForegroundPriority:work=>scheduler.run(0,work),insertCreatedFile:created=>({file:created})}};
+ const create=method('src/main.ts',kind==='related'?'createNewRelatedFileForOrigin':'createNewNodeInFolder',{normalizePath:value=>value});
+ const work=kind==='related'?create.call(owner,{},'New','markdown','','Folder'):create.call(owner,{isFolder:true,path:'folder:Folder'},'New','markdown');
+ try{await Promise.resolve();assert.equal(scheduler.diagnostics().active[0],0,'Waiting for another plugin must not preempt navigation or background work');await scheduler.checkpoint(1);}
+ finally{finish(file);await work.catch(()=>{});scheduler.close();}
+});
+
+test('partial-file linking waits outside mutation priority and still rejects a retired identity',async()=>{
+ const {ForegroundWorkScheduler}=moduleAt('src/index/ForegroundWorkScheduler.ts'),scheduler=new ForegroundWorkScheduler();let finish;
+ const pending=new Promise(resolve=>finish=resolve),file={path:'Created.md',extension:'md'},owner={translator:key=>key,fileCreationAutomation:{wait:()=>pending},
+  app:{vault:{getFileByPath:()=>null}},index:{withForegroundPriority:work=>scheduler.run(0,work)}};
+ const link=method('src/main.ts','linkNewRelatedFile',{}),work=link.call(owner,{},'child',file,'Child','','',true);
+ try{await Promise.resolve();assert.equal(scheduler.diagnostics().active[0],0);await scheduler.checkpoint(1);}
+ finally{finish();await assert.rejects(work,/endpointChanged/);scheduler.close();}
+});
+
+test('retained ghost recovery does not write or relocate a file whose template receipt failed',async()=>{
+ const {PartialRelatedFileError}=moduleAt('src/adapters/obsidian/relatedFileOutcome.ts');
+ const file={path:'Folder/Ghost.md',parent:{path:'Folder'},extension:'md'},owner={unloading:false,translator:key=>key,
+  validateNoteFolderPath:()=>({folderPath:'Folder'}),app:{vault:{getFileByPath:()=>file}},
+  waitForCreatedFileAutomation:async()=>{throw Error('template failed')},writeCreatedNodeDisplayName:assert.fail,index:{materializeFile:assert.fail}};
+ const materialize=method('src/main.ts','materializeGhostPage',{PartialRelatedFileError});
+ await assert.rejects(materialize.call(owner,{path:'Ghost',file:null,name:'Ghost'},'Ghost','markdown','Folder','Ghost',file),
+  error=>error instanceof PartialRelatedFileError&&error.file===file&&error.cause.message==='template failed');
+});
 /** Destination preferences survive unavailable contexts without being rewritten by rendering. */
 test('new-file destinations migrate the old toggle and filter only unsupported native targets',()=>{
  const {CREATION_AFTER_SAVING_ACTIONS,sanitizeCreationAfterSaving,creationAfterSavingActions,effectiveCreatedNoteDestination}=creationDestinations;
@@ -307,7 +342,7 @@ function missingLinkMenuFixture() {
   const workspace = {on: (name, handler) => {handlers.set(name, handler); return handler;},
     handleLinkContextMenu(menu, path, sourcePath, leaf) {assert.equal(this, workspace); calls.push([path, sourcePath, leaf]); if (files.has(path)) handlers.get('file-menu')(menu, files.get(path)); return true;}};
   const original = workspace.handleLinkContextMenu;
-  const {registerFileMenus} = moduleAt('src/adapters/obsidian/fileMenu.ts', {obsidian: {TFile: File, normalizePath: value => value, parseLinktext: value => ({path: value.split('#')[0]})},
+  const {registerFileMenus} = moduleAt('src/adapters/obsidian/fileMenu.ts', {obsidian: {TFolder: NativeFolder, TFile: File, normalizePath: value => value, parseLinktext: value => ({path: value.split('#')[0]})},
     './presentationEnvironment': {readObsidianPresentationEnvironment: () => ({device: 'desktop'})},
     './nativeSubmenu': {addNativeSubmenu: (menu, _title, _icon, populate) => {menu.groups++; populate(menu);}}});
   const plugin = {app: {workspace, vault: {getFileByPath: path => files.get(path) ?? null}, metadataCache: {getFirstLinkpathDest: path => files.get(path) ?? null}},
@@ -361,4 +396,26 @@ test('file-menu availability facade admits only an explicitly supplied current n
   assert.equal(read.call(index, file.path, file), page); assert.equal(facades, 1);
   current = {...file}; assert.equal(read.call(index, file.path, file), undefined); assert.equal(facades, 1);
   assert.equal(read.call(index, 'Other.md', file), undefined); assert.equal(facades, 1);
+});
+
+test('native folder menu provides a direct captured Open in K-Plex action',async()=>{
+ let listener,click,title;const opened=[],folder=new NativeFolder();
+ const {registerFileMenus}=moduleAt('src/adapters/obsidian/fileMenu.ts',{obsidian:{TFolder:NativeFolder,TFile:class{}},'./presentationEnvironment':{},'./nativeSubmenu':{}});
+ const plugin={translator:key=>key,registerEvent(){},app:{workspace:{on(_event,callback){listener=callback}}},openFileInKplex:async(...args)=>opened.push(args)};
+ registerFileMenus(plugin);listener({addItem(configure){const item={setTitle(value){title=value;return this},setIcon(){return this},onClick(callback){click=callback;return this}};configure(item)}},folder);
+ assert.equal(title,'fileMenu.openFolder');await click();assert.deepEqual(opened,[[folder,'reuse']]);
+});
+
+for(const boundary of ['current','replacement','rename'])test('folder menu opening primes native availability and fences '+boundary,async()=>{
+ const open=method('src/main.ts','openFileInKplex',{TFolder:NativeFolder,KplexView:class{},KplexSidepanelView:class{},readObsidianPresentationEnvironment:()=>({device:'desktop'}),KPLEX_VIEW_TYPE:'plex',KPLEX_SIDEPANEL_VIEW_TYPE:'sidebar'});
+ const folder=Object.assign(new NativeFolder(),{path:'Folder'}),original=folder.path,focused=[],primed=[];let current=folder;
+ const leaf={setViewState:async()=>{if(boundary==='replacement')current=Object.assign(new NativeFolder(),{path:original});if(boundary==='rename')folder.path='Renamed'}};
+ const owner={index:{primeSavedNavigation:paths=>primed.push(paths)},app:{vault:{getFolderByPath:path=>path===original?current:null,getRoot:()=>null},workspace:{getLeavesOfType:()=>[],getMostRecentLeaf:()=>null,getLeaf:()=>leaf}},rememberDocumentLeaf(){},focusInKplex:async(...args)=>focused.push(args)};
+ await open.call(owner,folder,'tab');assert.deepEqual(primed,[['folder:Folder']]);assert.deepEqual(focused,boundary==='current'?[['folder:Folder',leaf]]:[]);
+});
+test('root folder opens through the native root owner without a path lookup',async()=>{
+ const root=Object.assign(new NativeFolder(),{path:'/'}),primed=[],focused=[],leaf={setViewState:async()=>{}};
+ const open=method('src/main.ts','openFileInKplex',{TFolder:NativeFolder,KplexView:class{},KplexSidepanelView:class{},readObsidianPresentationEnvironment:()=>({device:'desktop'}),KPLEX_VIEW_TYPE:'plex',KPLEX_SIDEPANEL_VIEW_TYPE:'sidebar'});
+ const owner={index:{primeSavedNavigation:paths=>primed.push(paths)},app:{vault:{getRoot:()=>root,getFolderByPath(){throw Error('Root uses getRoot')}},workspace:{getLeavesOfType:()=>[],getMostRecentLeaf:()=>null,getLeaf:()=>leaf}},rememberDocumentLeaf(){},focusInKplex:async(...args)=>focused.push(args)};
+ await open.call(owner,root,'tab');assert.deepEqual(primed,[['folder:/']]);assert.deepEqual(focused,[['folder:/',leaf]]);
 });

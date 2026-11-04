@@ -4,7 +4,9 @@
  * The launching App owns the dialog lifetime, while this modal releases its preference subscription,
  * search listener and captured dialog lease exactly once when closed.
  */
-import { Modal, SearchComponent, Setting } from "obsidian";
+import {formActions, KplexModal as Modal} from "../adapters/obsidian/KplexModal";
+
+import {SearchComponent} from "obsidian";
 import type KplexPlugin from "../main";
 import { ACTION_CATALOG } from "../core/plex/actions";
 import { effectiveActionBindings } from "../core/plex/actionPreferences";
@@ -47,7 +49,7 @@ export class KeyboardHelpModal extends Modal {
     this.input.addEventListener("input", this.onSearch);
     this.list = this.contentEl.createDiv({ cls: "kplex-action-results kplex-keyboard-help-results" });
     const footer = this.contentEl.createDiv({ cls: "kplex-keyboard-help-footer" });
-    new Setting(footer).addButton(/** Navigation is explicit and releases this dialog before opening native settings. */ button => {
+    formActions(footer).addButton(/** Navigation is explicit and releases this dialog before opening native settings. */ button => {
       button.setButtonText(this.plugin.translator("actions.helpConfigure"))
         .onClick(/** Closing clears the surface dialog lease before native settings change focus. */ () => {
           if (!this.opened) return;

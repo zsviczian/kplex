@@ -3,9 +3,10 @@
  * public native RGB adapter, explicit opacity and partial/IME-safe text share the portable parser.
  * Opening never rewrites a literal. The containing editor owns Save/Cancel and calls dispose.
  */
+import {FormSetting as Setting} from "../adapters/obsidian/KplexModal";
 import { colorRgbInput, formatLiteralColor, literalRgbHex, parseLiteralColor, type LiteralColor } from "../core/contracts/colorValue";
 import { mountRgbColorControl, type RgbColorControl } from "../adapters/obsidian/rgbColorControl";
-import {Setting} from "obsidian";
+
 import {numberSlider} from "./numberSlider";
 
 export type LiteralColorLabels = Readonly<{ rgb: string; value: string; opacity: string; reset: string; invalid: string; legacy: string }>;

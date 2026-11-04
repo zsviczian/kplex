@@ -15,7 +15,7 @@ const initialize=`
  p.initializeSettingsReconciliation(copy(disk));
  const app={workspace:{on:()=>({}),offref:()=>{}}},tab=new M.KplexSettingTab(app,p),t=M.createTranslator('en');
  const last=()=>M.TestModal.instances.at(-1),button=(modal,label)=>[...modal.contentEl.querySelectorAll('button')].filter(row=>row.textContent===label).at(-1);
- const fields=(modal,name)=>[...modal.contentEl.querySelectorAll('input,textarea,select')].filter(input=>input.parentElement.parentElement.firstElementChild.textContent===name);
+ const fields=(modal,name)=>[...modal.contentEl.querySelectorAll('input,textarea,select')].filter(input=>input.closest('.setting-item')?.querySelector('.setting-item-name')?.textContent===name);
  const manager=()=>{tab.openCanvasViewManager('wuxing');return last()};
  const edit=(manager,name)=>{[...manager.contentEl.querySelectorAll('.kplex-style-manager-row')].find(row=>row.textContent.startsWith(name)).click();return last()};
  const save=async modal=>{button(modal,t('common.save')).click();await waitFor(()=>!modal.modalEl.isConnected)};
@@ -23,6 +23,24 @@ const initialize=`
  const drain=async()=>{await p.settingsWriteQueue;await Promise.resolve();await new Promise(resolve=>setTimeout(resolve,20))};
 `;
 const scenario=body=>colorEditorScenario(`(async()=>{${initialize}\n${body}\ntab.hide();return true})()`);
+
+test('preset native rows align dropdowns and color actions, space help and center footer glyphs',async()=>{
+ assert.equal(await scenario(`
+ const css=document.createElement('style');css.textContent=${JSON.stringify(readFileSync('styles.css','utf8'))};document.head.append(css);
+ const m=manager(),e=edit(m,'Wu Xing'),before=JSON.stringify(disk);
+ for(const width of [920,360]){e.modalEl.style.width=width+'px';
+ const source=fields(e,t('wuxing.source'))[0],layout=fields(e,t('facets.layout'))[0],help=e.contentEl.querySelector('.kplex-facet-help-settings');
+ check(source.closest('.setting-item').getBoundingClientRect().top-help.getBoundingClientRect().bottom>=8,'Classification source touches help disclosure');
+ const a=source.getBoundingClientRect(),b=layout.getBoundingClientRect();check(Math.abs(a.left-b.left)<1&&Math.abs(a.right-b.right)<1,'Preset dropdown columns differ');
+ for(const row of e.contentEl.querySelectorAll('.kplex-style-color-row')){const control=row.querySelector(':scope > .setting-item-control'),button=control.querySelector('button'),label=row.querySelector('.setting-item-name');
+ check(row.classList.contains('setting-item')&&control.contains(row.querySelector('.kplex-color-strips')),'Color row bypasses native Setting structure');
+ const r=row.getBoundingClientRect(),c=control.getBoundingClientRect(),v=button.getBoundingClientRect();check(v.right<=r.right+1&&v.left>=c.left-1&&v.top>=c.top-1&&v.bottom<=c.bottom+1,'Color source escaped right-side control group');
+ if(width>420)check(v.left>=label.getBoundingClientRect().right,'Color selector moved to a different label column');}
+ const actions=[...e.contentEl.querySelectorAll('.kplex-modal-action-row button')];
+ for(const button of actions){const box=button.getBoundingClientRect(),glyph=button.querySelector('svg').getBoundingClientRect();check(Math.abs(box.left+box.right-glyph.left-glyph.right)<1&&Math.abs(box.top+box.bottom-glyph.top-glyph.bottom)<1,'Preset footer glyph is off-center');}
+ }close(e);check(JSON.stringify(disk)===before,'Layout/cancel saved a preset');close(m);css.remove();
+ `),true);
+});
 
 test('per-preset focus and center links share detached Save Cancel Reset and persisted reload semantics',async()=>{
  assert.equal(await scenario(`
@@ -77,8 +95,8 @@ test('native layout defaults preview anchors and preserve exact independent area
  const m=manager(),editor=edit(m,'PARA'),select=(key,value)=>{const node=fields(editor,t(key))[0];node.value=value;node.dispatchEvent(new Event('change',{bubbles:true}))};
  select('facets.layout','horizontal');check(editor.contentEl.querySelector('.kplex-facet-anchor-preview.is-horizontal.is-anchor-top'),'Native anchor preview matches the horizontal default');
  select('facets.focusAnchor','right');check(editor.contentEl.querySelector('.kplex-facet-anchor-preview.is-anchor-right'),'Explicit cardinal anchor is previewed');
- const first=editor.contentEl.querySelector('h3').parentElement,width=[...first.querySelectorAll('input')].find(node=>node.parentElement.parentElement.firstElementChild.textContent===t('wuxing.width'));
- input(width,920);const height=[...first.querySelectorAll('input')].find(node=>node.parentElement.parentElement.firstElementChild.textContent===t('wuxing.height'));input(height,460);
+ const first=editor.contentEl.querySelector('h3').parentElement,width=[...first.querySelectorAll('input')].find(node=>node.closest('.setting-item')?.querySelector('.setting-item-name')?.textContent===t('wuxing.width'));
+ input(width,920);const height=[...first.querySelectorAll('input')].find(node=>node.closest('.setting-item')?.querySelector('.setting-item-name')?.textContent===t('wuxing.height'));input(height,460);
  equal(p.writes,[],'Layout and exact dimensions remain detached');await save(editor);await drain();
  const preset=disk.canvasViewSettings.wuxing.values.presets.para;equal([preset.layout,preset.focusAnchor],['horizontal','right'],'Layout and anchor use the existing preset writer');equal(preset.areaSizes.categories.projects,{width:920,height:460},'Exact area defaults compose without overwriting their other axis');close(m);
  `),true);
@@ -224,7 +242,7 @@ test('unchanged Save and canceled template restoration do not write, while expli
 test('real shared color-source child edits only the detached preset until parent Save',async()=>{
  assert.equal(await scenario(`
  const m=manager(),e=edit(m,'ARC'),row=e.contentEl.querySelector('.kplex-style-row');
- row.querySelector(':scope > button').click();const child=last();chooseThemeColor(child,'--color-green');button(child,t('colors.useColor')).click();await waitFor(()=>!child.modalEl.isConnected);
+ row.querySelector(':scope > .setting-item-control > button').click();const child=last();chooseThemeColor(child,'--color-green');button(child,t('colors.useColor')).click();await waitFor(()=>!child.modalEl.isConnected);
  equal(p.writes,[],'Choosing a source in the child does not persist the parent draft');await save(e);
  equal(disk.canvasViewSettings.wuxing.values.presets.arc.categories.add.color,{kind:'theme',variable:'--color-green'},'Parent Save retains the source identity');
  close(m);check(window.migrationListeners===0,'Shared color child resources retired');

@@ -13,8 +13,9 @@ after(()=>rmSync(temp,{recursive:true,force:true}));
 const stub=`export class TFolder {};
 export const Platform={isMobile:false,isWin:true};
 export const notices=[]; export class Notice {constructor(message){notices.push(message)}};
-export class Modal {constructor(app){this.app=app;this.contentEl={empty(){}}}close(){this.onClose?.()}open(){this.didOpen=true}}
+export class Modal {constructor(app){this.app=app;this.modalEl={addClass(){},isConnected:false};this.contentEl={empty(){},addClass(){}}}close(){this.onClose?.()}open(){this.didOpen=true}}
 export class Setting{};
+export function getIcon(){return null};
 export function normalizePath(value){return value.replace(/\\\\/g,'/').replace(/\\/+/g,'/').replace(/^\\/|\\/$/g,'')||'/'}
 export function parseFrontMatterTags(fm){return (Array.isArray(fm.tags)?fm.tags:typeof fm.tags==='string'?fm.tags.split(/[ ,]+/):[]).filter(Boolean).map(t=>t.startsWith('#')?t:'#'+t)};
 `;
@@ -152,7 +153,7 @@ test('production drop routing preserves explicit structural targets and empty fo
  const graph=readFileSync(new URL('../src/ui/PlexGraph.tsx',import.meta.url),'utf8');
  assert.match(graph,/if \(structuralDropKind\(origin, target\)\) return \{ button, target \}/);
  assert.match(graph,/if \(plugin\.openStructuralNodeDrop\(origin, target, \{immediateMove\}\)\) return true/);
- assert.match(graph,/drag\.moved && drag\.gate === "bottom" && !target/);
+ assert.match(graph,/if \(origin\?\.isFolder\) \{\s*if \(drag\.moved && !target\) plugin\.openCreateInFolderModal/);
  assert.match(graph,/openHistoryRelationshipMenu[\s\S]*\|\| relationshipChip/);
 });
 

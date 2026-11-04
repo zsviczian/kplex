@@ -149,8 +149,16 @@ test('all moved controls have one native location and original ownership/bounds'
  assert.equal(await scenario(`
  const p=await create(),tab=new M.KplexSettingTab({},p);const definitions=tab.getSettingDefinitions(),rows=flatten(definitions);
  const find=key=>{const matches=rows.filter(row=>row.control.key.replace(/^received:\\d+:/,'')===key);check(matches.length===1,'Expected one '+key);return matches[0]};
- const shared=['hoverHighlightRequiresAlt','gateTooltipRequiresAlt','areaOutlineRequiresAlt','animationSpeed','allowAutozoom','startInPopout','confirmFileDelete','removeOntologyLinksOnDelete','mouseInteractionMode','centralNodeMarkdownMode','maxItemCount','showCrossLinks','showInferredNodes','showVirtualNodes','showURLNodes','showAttachments','showFolderNodes','showTagNodes','showPageNodes','excludeFilepathsCsv','showNeighborCount'];
+ const shared=['hoverHighlightRequiresAlt','gateTooltipRequiresAlt','areaOutlineRequiresAlt','animationSpeed','allowAutozoom','startInPopout','confirmFileDelete','removeOntologyLinksOnDelete','mouseInteractionMode','centralNodeMarkdownMode','maxItemCount','showCrossLinks','showInferredNodes','showVirtualNodes','showURLNodes','showAttachments','showFolderNodes','showTagNodes','showPageNodes','showNeighborCount'];
  for(const key of shared)equal(find(key).path,['Canvas behavior'],'Shared '+key);
+ // Long text now has a shared imperative field. Inspect its real mounted callback rather
+ // than inventing a generic control key on a render-only declarative definition.
+ const authored=[];const inspect=(items,path=[])=>{for(const item of items){if(item.name===p.translator('settings.ui.excluded.path.prefixes'))authored.push({item,path});inspect(item.items??[],item.type==='page'?[...path,item.name]:path)}};inspect(definitions);
+ check(authored.length===1&&authored[0].item.render?.name==='renderAuthoredTextSetting','Expected one shared excluded-path field');equal(authored[0].path,['Canvas behavior'],'Shared excludeFilepathsCsv');
+ const host=document.body.createDiv(),setting=new M.Setting(host),writer=tab.setControlValue;let capturedKey;
+ tab.setControlValue=async key=>{capturedKey=key};let release;
+ try{release=authored[0].item.render(setting);const input=host.querySelector('textarea');check(input?.rows===4&&setting.settingEl.classList.contains('kplex-form-field'),'Original textarea rows and shared field layout');input.dispatchEvent(new Event('input',{bubbles:true}));equal(capturedKey?.replace(/^received:\\d+:/,''),'excludeFilepathsCsv','Original canonical writer ownership');}
+ finally{tab.setControlValue=writer;release?.();host.remove();}
  for(const key of ['parentMaxHeight','friendMaxHeight','childMaxHeight','siblingMaxHeight','siblingRelativeSize','compactView','minLinkLength','renderSiblings'])equal(find(key).path,['Canvas behavior','Compass'],'Compass '+key);
  for(const key of ['inferAllLinksAsFriends','inverseInfer','datePropertyRelations'])equal(find(key).path,['Ontology'],'Canonical policy '+key);
  equal(find('inverseArrowDirection').path,['Visual styling','Link styling'],'Displayed arrows');

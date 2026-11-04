@@ -1,5 +1,6 @@
 /** Shared native data-only transfer surface. Validation/planning are portable; native modal, clipboard and existing queued save owners retain effects. */
-import {Setting, type App, type ButtonComponent} from "obsidian";
+import {FormSetting as Setting} from "../../adapters/obsidian/KplexModal";
+import {type App, type ButtonComponent} from "obsidian";
 import {StyleEditorModal, labelIconButton} from "../StyleEditorModal";
 import type {ClipboardSession} from "../../application/ClipboardSession";
 import {NativeMarkdownHelp} from "../NativeMarkdownHelp";

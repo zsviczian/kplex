@@ -1,0 +1,70 @@
+{
+  "name": "authoring-compass-daily-automation-278",
+  "status": "passed",
+  "startedAt": "2026-11-04T16:28:36.910Z",
+  "completedAt": "2026-11-04T16:28:46.123Z",
+  "node": "v22.22.2",
+  "obsidian": "1.14.5 (installer 1.14.5)",
+  "excalidraw": "2.29.0",
+  "artifacts": {
+    "main.js": "5047b3843cfb8bbcfcda85d80f7debbe7f05798cc814b6f1f54c4ce858bef9ab",
+    "manifest.json": "8c65b0d38a506f8fa9fc3311b81ea22bcda48e0209e9190483752c1f20834326",
+    "styles.css": "3db644c65547eeb9c2cb4e4b244048fcf74044b5ee5349576cbf6d3c3aaa1aa3"
+  },
+  "driver": {
+    "transport": "beb7677649f8ae6ae390c0df25b4a025a48777b5fbfc5e36c25f7fe252b8a0d3",
+    "scenario": "64a7e50df4c11122638ec911f4a71c5c5223d6a6301591914ef27dcbe797b497",
+    "definitions": "47dd6488a1ec209e21dcdfbc0fa31b69c9b24ff4b9d59f53e93277ff6e53a179"
+  },
+  "snippetSha256": "dd6e10c4ec40992ea698f37714a82e2806f05df9f9a9a30f4b4b642204fabd7d",
+  "receipt": "kplex-278-native-h7Vk4j",
+  "fixtureBaseline": {
+    "files": 117,
+    "markdownFiles": 98
+  },
+  "result": {
+    "samples": [
+      {
+        "targeted": false,
+        "activeType": "k-plex-react-view",
+        "activeFile": true,
+        "accepted": true,
+        "case": "template command while canvas active",
+        "targetSwitched": false
+      },
+      {
+        "targeted": false,
+        "activeType": "markdown",
+        "activeFile": true,
+        "accepted": true,
+        "case": "same callback with Sidecar active",
+        "targetSwitched": true
+      },
+      {
+        "targeted": true,
+        "activeType": "k-plex-react-view",
+        "activeFile": true,
+        "case": "explicit target view while canvas active",
+        "targetSwitched": true
+      },
+      {
+        "case": "proposal with inactive existing editor",
+        "targetSwitched": true
+      },
+      {
+        "case": "proposal before editor opens",
+        "initialNativeMode": "markdown",
+        "noUnrequestedLeaf": true,
+        "targetSwitched": true
+      }
+    ],
+    "templaterInstalled": false,
+    "scope": "Exact rendered metadata callback only; no full Templater/DNP template processing claim"
+  },
+  "cleanup": "passed",
+  "limits": [
+    "Template-complete hook delivery supplied by fixture; Templater/DNP pipeline not run.",
+    "Windows evidence only; no macOS or mobile execution.",
+    "No runtime changes, production-template edits or deployment for this investigation."
+  ]
+}

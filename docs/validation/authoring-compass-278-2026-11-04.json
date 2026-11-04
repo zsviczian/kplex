@@ -1,0 +1,473 @@
+{
+  "scope": "K-Plex PR #278",
+  "branch": "2026-11-03-issue-277-creation-links-compass",
+  "base": "c0e6166",
+  "implementation": "Uncommitted local implementation; PR stays draft",
+  "productionVaultAccess": false,
+  "host": {
+    "platform": "Windows",
+    "node": "v22.22.2",
+    "vault": "kplex-test-small",
+    "config": ".obsidian",
+    "baseline": {
+      "files": 117,
+      "markdownFiles": 98
+    }
+  },
+  "automated": {
+    "fullVerify": "passed",
+    "focusedReversal": {
+      "passed": 25,
+      "failed": 0,
+      "includesUnexpectedPublicationError": true
+    },
+    "command": "npm run verify",
+    "exitCode": 0,
+    "completedAt": "2026-11-04T01:35:08.828Z",
+    "log": "%TEMP%/kplex-278-verify5.log",
+    "node": "v22.22.2",
+    "frozenInputs": {
+      "files": 974,
+      "sha256": "45b718934543c673f829d55a9600a8366ef1928153c58d71e0ae959ae327db24",
+      "unchanged": true
+    },
+    "suites": [
+      {
+        "name": "Architecture/numeric",
+        "passed": 9,
+        "failed": 0,
+        "skipped": 0
+      },
+      {
+        "name": "Core contracts",
+        "passed": 133,
+        "failed": 0,
+        "skipped": 0
+      },
+      {
+        "name": "Main regressions",
+        "passed": 2057,
+        "failed": 0,
+        "skipped": 0
+      },
+      {
+        "name": "Browser UI",
+        "passed": 486,
+        "failed": 0,
+        "skipped": 0
+      },
+      {
+        "name": "Source contracts",
+        "passed": 360,
+        "failed": 0,
+        "skipped": 0
+      },
+      {
+        "name": "Real Chromium IndexedDB",
+        "passed": 900,
+        "failed": 0,
+        "skipped": 0
+      }
+    ],
+    "reportedTestTotal": 3945,
+    "releaseMetadata": "passed",
+    "architectureScan": "passed",
+    "officialLint": "passed",
+    "customIndexingHarness": "passed",
+    "installedTypecheckAndProductionBuild": "passed",
+    "buildArtifactsMatchNative": true,
+    "artifactHashes": {
+      "main.js": "e6f16d7b1a61d65dfe8be40006d44c9ee1fa88a7d732a5f4783657ab328256c9",
+      "styles.css": "384a5d3d541be4ecf3fbe4ff2f2c1eac17d3ca774959d980fb6026832887dc8d",
+      "manifest.json": "8c65b0d38a506f8fa9fc3311b81ea22bcda48e0209e9190483752c1f20834326"
+    },
+    "largePublication": {
+      "owners": 20015,
+      "ownerChecks": 8187369,
+      "elapsedMs": 378801.10000014305,
+      "peakHeap": 486863251,
+      "replayPeak": 405146310,
+      "combinedPeak": 685201826,
+      "reservation": {
+        "owners": 248586300,
+        "structure": 3278,
+        "compilation": 131382170,
+        "transient": 25174562,
+        "peakBytes": 405146310
+      },
+      "rootComplete": false,
+      "canonicalPasses": {
+        "direct": 1,
+        "optional": 0
+      },
+      "published": 1,
+      "cancellationYields": 2
+    },
+    "timingLimit": "No controlled paired elapsed-time comparison or production-vault speedup claim"
+  },
+  "native": [
+    {
+      "lane": "folders",
+      "status": "passed",
+      "obsidian": "1.14.5 (installer 1.14.5)",
+      "completedAt": "2026-11-04T00:28:13.218Z",
+      "driver": {
+        "transport": "beb7677649f8ae6ae390c0df25b4a025a48777b5fbfc5e36c25f7fe252b8a0d3",
+        "scenario": "88f044b87e78dfa950d91b15316f74472f9bb832c85e5980a50d7dd825e2132c",
+        "definitions": "1f029ec1c46148b447698575067a3ff505eb7998fdd4e59b5fec5008ba4702c6"
+      },
+      "artifacts": {
+        "main.js": "e6f16d7b1a61d65dfe8be40006d44c9ee1fa88a7d732a5f4783657ab328256c9",
+        "manifest.json": "8c65b0d38a506f8fa9fc3311b81ea22bcda48e0209e9190483752c1f20834326",
+        "styles.css": "384a5d3d541be4ecf3fbe4ff2f2c1eac17d3ca774959d980fb6026832887dc8d"
+      },
+      "result": {
+        "samples": [
+          {
+            "unrelated": 3,
+            "files": 122,
+            "inspections": 5,
+            "headPages": 0,
+            "sourceInventoryPasses": 0,
+            "reads": 1,
+            "parses": 1,
+            "physicalComplete": true,
+            "delayedNamingMs": 450,
+            "nested": true
+          },
+          {
+            "unrelated": 103,
+            "files": 223,
+            "inspections": 5,
+            "headPages": 0,
+            "sourceInventoryPasses": 0,
+            "reads": 1,
+            "parses": 1,
+            "physicalComplete": true,
+            "delayedNamingMs": 450,
+            "nested": true
+          }
+        ]
+      },
+      "cleanup": "passed"
+    },
+    {
+      "lane": "structural",
+      "status": "passed",
+      "obsidian": "1.14.5 (installer 1.14.5)",
+      "completedAt": "2026-11-04T00:28:31.696Z",
+      "driver": {
+        "transport": "beb7677649f8ae6ae390c0df25b4a025a48777b5fbfc5e36c25f7fe252b8a0d3",
+        "scenario": "0f27a8bd4ec9fcca76f58edbb38fe8be6569c667c55c6b6069c94c85136ad458",
+        "definitions": "1f029ec1c46148b447698575067a3ff505eb7998fdd4e59b5fec5008ba4702c6"
+      },
+      "artifacts": {
+        "main.js": "e6f16d7b1a61d65dfe8be40006d44c9ee1fa88a7d732a5f4783657ab328256c9",
+        "manifest.json": "8c65b0d38a506f8fa9fc3311b81ea22bcda48e0209e9190483752c1f20834326",
+        "styles.css": "384a5d3d541be4ecf3fbe4ff2f2c1eac17d3ca774959d980fb6026832887dc8d"
+      },
+      "result": {
+        "results": [
+          "trusted gate/cancel",
+          "native subfolder/hierarchy",
+          "native move/exact child bytes"
+        ],
+        "physicalComplete": true
+      },
+      "cleanup": "passed"
+    },
+    {
+      "lane": "authoring",
+      "status": "passed",
+      "obsidian": "1.14.5 (installer 1.14.5)",
+      "completedAt": "2026-11-04T00:27:47.141Z",
+      "driver": {
+        "transport": "beb7677649f8ae6ae390c0df25b4a025a48777b5fbfc5e36c25f7fe252b8a0d3",
+        "scenario": "ec8a58ae656f8f1a6debb6d923200308167ac0d3728992ec46a91bdda415705f",
+        "definitions": "1f029ec1c46148b447698575067a3ff505eb7998fdd4e59b5fec5008ba4702c6"
+      },
+      "artifacts": {
+        "main.js": "e6f16d7b1a61d65dfe8be40006d44c9ee1fa88a7d732a5f4783657ab328256c9",
+        "manifest.json": "8c65b0d38a506f8fa9fc3311b81ea22bcda48e0209e9190483752c1f20834326",
+        "styles.css": "384a5d3d541be4ecf3fbe4ff2f2c1eac17d3ca774959d980fb6026832887dc8d"
+      },
+      "result": {
+        "results": [
+          "create exact editor/cancel/save/drafts/focus",
+          "link exact editor/cancel/save/drafts/focus",
+          "saved role/removal revalidation preserves target and prevents implicit reassignment",
+          "relink inverse editor",
+          "existing reversed owner/property",
+          "post-save publication exception retains original/pending/explicit refresh retry",
+          "details editor/selected reversal/unrelated content",
+          "new reversed file/metadata"
+        ]
+      },
+      "cleanup": "passed"
+    },
+    {
+      "lane": "imports",
+      "status": "passed",
+      "obsidian": "1.14.5 (installer 1.14.5)",
+      "completedAt": "2026-11-04T00:28:46.994Z",
+      "driver": {
+        "transport": "beb7677649f8ae6ae390c0df25b4a025a48777b5fbfc5e36c25f7fe252b8a0d3",
+        "scenario": "41a3ffd064d0925c347ef5bddf4c3954f6b6ee393cdaac0f0fcef62f194f6569",
+        "definitions": "ef7899709d0e3803c84aa420f53ebd2b5b93c74dcdf0e43460e26f592a8aa4f7"
+      },
+      "artifacts": {
+        "main.js": "e6f16d7b1a61d65dfe8be40006d44c9ee1fa88a7d732a5f4783657ab328256c9",
+        "manifest.json": "8c65b0d38a506f8fa9fc3311b81ea22bcda48e0209e9190483752c1f20834326",
+        "styles.css": "384a5d3d541be4ecf3fbe4ff2f2c1eac17d3ca774959d980fb6026832887dc8d"
+      },
+      "result": {
+        "results": [
+          {
+            "case": "native Files/cancel/all rows visible",
+            "receipt": {
+              "trusted": true,
+              "types": [
+                "Files"
+              ],
+              "files": [
+                "Native278.bin",
+                "Native278.md"
+              ]
+            }
+          },
+          "native directory rejected without copying",
+          "binary/canonical link failure/exact-file retry",
+          "Markdown/binary copies/captured origin/external originals unchanged"
+        ],
+        "filesCopied": 2
+      },
+      "cleanup": "passed"
+    },
+    {
+      "lane": "compass",
+      "status": "passed",
+      "obsidian": "1.14.5 (installer 1.14.5)",
+      "completedAt": "2026-11-04T00:29:03.248Z",
+      "driver": {
+        "transport": "beb7677649f8ae6ae390c0df25b4a025a48777b5fbfc5e36c25f7fe252b8a0d3",
+        "scenario": "12f0331f68945946670594a69307c20c832c3e15024889d600dfcc6d7d97c307",
+        "definitions": "1f029ec1c46148b447698575067a3ff505eb7998fdd4e59b5fec5008ba4702c6"
+      },
+      "artifacts": {
+        "main.js": "e6f16d7b1a61d65dfe8be40006d44c9ee1fa88a7d732a5f4783657ab328256c9",
+        "manifest.json": "8c65b0d38a506f8fa9fc3311b81ea22bcda48e0209e9190483752c1f20834326",
+        "styles.css": "384a5d3d541be4ecf3fbe4ff2f2c1eac17d3ca774959d980fb6026832887dc8d"
+      },
+      "result": {
+        "cases": [
+          {
+            "case": "main/popout six-role orientation",
+            "sourceReads": 0,
+            "fullBuilds": 0
+          },
+          {
+            "case": "trusted physical Right keyboard navigation"
+          },
+          {
+            "case": "trusted physical right gate drag",
+            "semanticRole": "left"
+          },
+          {
+            "case": "one-sided mirrored composition"
+          },
+          {
+            "case": "native writer/reload",
+            "value": true
+          }
+        ]
+      },
+      "cleanup": "passed"
+    },
+    {
+      "lane": "pins",
+      "status": "passed",
+      "obsidian": "1.14.5 (installer 1.14.5)",
+      "completedAt": "2026-11-04T00:29:22.781Z",
+      "driver": {
+        "transport": "beb7677649f8ae6ae390c0df25b4a025a48777b5fbfc5e36c25f7fe252b8a0d3",
+        "scenario": "2c7f6523d6ab21ca37df0efd35bfbb633525f34ba4446eb6d5b7a1756016f0d3",
+        "definitions": "1f029ec1c46148b447698575067a3ff505eb7998fdd4e59b5fec5008ba4702c6"
+      },
+      "artifacts": {
+        "main.js": "e6f16d7b1a61d65dfe8be40006d44c9ee1fa88a7d732a5f4783657ab328256c9",
+        "manifest.json": "8c65b0d38a506f8fa9fc3311b81ea22bcda48e0209e9190483752c1f20834326",
+        "styles.css": "384a5d3d541be4ecf3fbe4ff2f2c1eac17d3ca774959d980fb6026832887dc8d"
+      },
+      "result": {
+        "cases": [
+          {
+            "case": "trusted pointer reorder",
+            "saves": 1,
+            "navigations": 0
+          },
+          {
+            "case": "trusted Escape cancellation",
+            "saves": 0,
+            "navigations": 0
+          },
+          {
+            "case": "trusted keyboard reorder"
+          },
+          {
+            "case": "trusted History grab scroll",
+            "navigations": 0
+          },
+          {
+            "case": "popout adopted icon and blur cancellation",
+            "saves": 0
+          },
+          {
+            "case": "native view close cancellation"
+          },
+          {
+            "case": "native view migration cancellation"
+          },
+          {
+            "case": "passive day/month/week-year rollover",
+            "sourceReads": 0,
+            "semanticRebuilds": 0
+          },
+          {
+            "case": "picker crosses suspended period"
+          },
+          {
+            "case": "missing explicit activation"
+          },
+          {
+            "case": "native settings reload"
+          }
+        ],
+        "visual": [
+          {
+            "sourceMoves": true,
+            "accentOutline": true,
+            "otherOpacity": "0.5",
+            "insertionMarker": true,
+            "popout": false
+          },
+          {
+            "sourceMoves": true,
+            "accentOutline": true,
+            "otherOpacity": "0.5",
+            "insertionMarker": true,
+            "popout": false
+          },
+          {
+            "sourceMoves": true,
+            "accentOutline": true,
+            "otherOpacity": "0.5",
+            "insertionMarker": true,
+            "popout": true
+          },
+          {
+            "sourceMoves": true,
+            "accentOutline": true,
+            "otherOpacity": "0.5",
+            "insertionMarker": true,
+            "popout": false
+          },
+          {
+            "sourceMoves": true,
+            "accentOutline": true,
+            "otherOpacity": "0.5",
+            "insertionMarker": true,
+            "popout": false
+          }
+        ]
+      },
+      "cleanup": "passed"
+    },
+    {
+      "lane": "lifetime",
+      "status": "passed",
+      "obsidian": "1.14.5 (installer 1.14.5)",
+      "completedAt": "2026-11-04T00:29:36.930Z",
+      "driver": {
+        "transport": "beb7677649f8ae6ae390c0df25b4a025a48777b5fbfc5e36c25f7fe252b8a0d3",
+        "scenario": "14e73c29a3fe439ceade92efe1e22b9fc8cd686d80b3939f41b6dafd2c06a63b",
+        "definitions": "1f029ec1c46148b447698575067a3ff505eb7998fdd4e59b5fec5008ba4702c6"
+      },
+      "artifacts": {
+        "main.js": "e6f16d7b1a61d65dfe8be40006d44c9ee1fa88a7d732a5f4783657ab328256c9",
+        "manifest.json": "8c65b0d38a506f8fa9fc3311b81ea22bcda48e0209e9190483752c1f20834326",
+        "styles.css": "384a5d3d541be4ecf3fbe4ff2f2c1eac17d3ca774959d980fb6026832887dc8d"
+      },
+      "result": {
+        "results": [
+          {
+            "case": "popout-close",
+            "parentReady": false,
+            "childOpen": false
+          },
+          {
+            "case": "migration",
+            "parentReady": false,
+            "childOpen": false
+          },
+          {
+            "case": "popout-import-close",
+            "copies": 0,
+            "batchOpen": false,
+            "childReady": false
+          }
+        ]
+      },
+      "cleanup": "passed"
+    }
+  ],
+  "limits": [
+    "No macOS or physical phone/tablet acceptance",
+    "Bounded native folder work, not a production-vault CPU benchmark",
+    "Trusted Chromium filesystem drag transport, not Finder/Explorer drag-initiation testing",
+    "Cross-file writes retain explicit partial/pending recovery"
+  ],
+  "supplementary": {
+    "popoutImports": {
+      "status": "passed",
+      "completedAt": "2026-11-04T00:29:53.204Z",
+      "driver": {
+        "transport": "beb7677649f8ae6ae390c0df25b4a025a48777b5fbfc5e36c25f7fe252b8a0d3",
+        "scenario": "41a3ffd064d0925c347ef5bddf4c3954f6b6ee393cdaac0f0fcef62f194f6569",
+        "definitions": "191c28ec7e82ab896fe237397bdeec7159eda93e62366477ec937f451376d443"
+      },
+      "artifacts": {
+        "main.js": "e6f16d7b1a61d65dfe8be40006d44c9ee1fa88a7d732a5f4783657ab328256c9",
+        "manifest.json": "8c65b0d38a506f8fa9fc3311b81ea22bcda48e0209e9190483752c1f20834326",
+        "styles.css": "384a5d3d541be4ecf3fbe4ff2f2c1eac17d3ca774959d980fb6026832887dc8d"
+      },
+      "result": {
+        "results": [
+          {
+            "case": "native Files/cancel/all rows visible",
+            "receipt": {
+              "trusted": true,
+              "types": [
+                "Files"
+              ],
+              "files": [
+                "Native278.bin",
+                "Native278.md"
+              ]
+            }
+          },
+          "native directory rejected without copying",
+          "binary/canonical link failure/exact-file retry",
+          "Markdown/binary copies/captured origin/external originals unchanged"
+        ],
+        "filesCopied": 2
+      },
+      "cleanup": "passed"
+    }
+  },
+  "visualReview": {
+    "css": "384a5d3d541be4ecf3fbe4ff2f2c1eac17d3ca774959d980fb6026832887dc8d",
+    "nativeDarkTheme": true,
+    "heldSourceOutlineAndDimmedPeersInspected": true,
+    "priorFocusChangeCanceledWithoutPersistence": true
+  }
+}

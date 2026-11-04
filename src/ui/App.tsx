@@ -91,8 +91,10 @@ import {nodeMarkdownLink} from "./nodeMarkdownLink";
 import { createLegacyGraphSearchRead } from "../adapters/obsidian/graphContracts";
 import { isEmbeddedMarkdownLeaf } from "../adapters/obsidian/embeddedMarkdownLeaf";
 import { focusEmbeddedMarkdown } from "../adapters/obsidian/embeddedMarkdownFocus";
-import { getDraggedFile } from "../adapters/obsidian/fileExplorerDrag";
+import { getDraggedFile, getDraggedFolder } from "../adapters/obsidian/fileExplorerDrag";
 import {isObsidianUri} from "../adapters/obsidian/urlIdentity";
+import {readViewConfiguration} from "../core/plex/views/configuration";
+import {externalFilesPayload} from "../adapters/obsidian/externalFileImport";
 import { draggedGraphPage, nodeLinkDragSource } from "../adapters/obsidian/nodeLinkDrag";
 import { registerFilePropertiesCenter, type FilePropertiesCenterLease } from "../adapters/obsidian/filePropertiesCenter";
 import { ActionButton } from "./components/ActionButton";
@@ -1080,7 +1082,11 @@ export function KplexApp({ plugin, surface, hostLeaf, translate, environment, on
   /** Accept current native files and exact Plex URL/tag/placeholder links without source acquisition. */
   const handlePlexDragOver = (event: ReactDragEvent<HTMLDivElement>) => {
     if (documentSession.plexView.definition.editorHosting !== undefined && (event.target as Element).closest(".kplex-central-editor-overlay")) return;
+    if (getDraggedFolder(plugin.app)) {event.preventDefault(); return;}
     const target = draggedGraphPage(plugin.app, plugin.index, event);
+    if (event.dataTransfer.types.includes("Files") && !getDraggedFile(plugin.app) && !getDraggedFolder(plugin.app) && !nodeLinkDragSource(plugin.app)) {
+      event.preventDefault(); event.dataTransfer.dropEffect = "copy"; return;
+    }
     if (!target && (nodeLinkDragSource(plugin.app) || !getDraggedFile(plugin.app)) && !event.dataTransfer.types.includes("text/plain")) return;
     event.preventDefault();
   };
@@ -1088,6 +1094,21 @@ export function KplexApp({ plugin, surface, hostLeaf, translate, environment, on
   /** Re-center on an existing dropped endpoint; only native files may wait for partial indexing. */
   const handlePlexDrop = (event: ReactDragEvent<HTMLDivElement>) => {
     if (documentSession.plexView.definition.editorHosting !== undefined && (event.target as Element).closest(".kplex-central-editor-overlay")) return;
+    if (event.dataTransfer.types.includes("Files") && !getDraggedFile(plugin.app) && !getDraggedFolder(plugin.app) && !nodeLinkDragSource(plugin.app)) {
+      event.preventDefault(); event.stopPropagation();
+      const origin = plugin.index.get(activePathRef.current);
+      if (origin) plugin.openExternalFileImports(origin, externalFilesPayload(event.dataTransfer), "child", hostLeaf, actions.surfaceId);
+      return;
+    }
+    const folder = getDraggedFolder(plugin.app);
+    if (folder) {
+      event.preventDefault(); event.stopPropagation();
+      pendingFileExplorerDropRef.current = null;
+      const path = folder === plugin.app.vault.getRoot() ? "folder:/" : `folder:${folder.path}`;
+      plugin.index.primeSavedNavigation([path]);
+      const page = plugin.index.get(path); if (page?.isFolder) activate(page, true, true, "user", true);
+      return;
+    }
     let target = draggedGraphPage(plugin.app, plugin.index, event);
     const file = getDraggedFile(plugin.app);
     if (!target && (nodeLinkDragSource(plugin.app) || !file)) return;
@@ -1133,7 +1154,8 @@ export function KplexApp({ plugin, surface, hostLeaf, translate, environment, on
     if (!rootRef.current?.isConnected || !actions.readSnapshot().mounted) return;
     const row = plugin.readSavedPins().find(/** Reacquire the saved occurrence rather than a previously resolved filename. */ row => row.id === id);if (!row) return;
     if (row.state !== "ready" || !row.path) {
-      if (row.period) new Notice(row.state === "configuration" ? translate("pins.configureNotice") : translate("pins.createNotice", {path: row.path ?? ""}));
+      if (row.period && row.state === "missing" && row.path) plugin.openPeriodicPinCreation(row.id, row.path, hostLeaf, /** Only the invoking canvas may accept creation or opening. */ () => !!rootRef.current?.isConnected && actions.readSnapshot().mounted, actions.surfaceId);
+      else if (row.period) new Notice(translate("pins.configureNotice"));
       return;
     }
     const file = plugin.app.vault.getFileByPath(row.path), target = plugin.index.get(row.path) ?? (file ? plugin.index.getVaultSearchPage(row.path, file) : undefined);
@@ -1641,7 +1663,7 @@ export function KplexApp({ plugin, surface, hostLeaf, translate, environment, on
 
       <main className="kplex-workspace">
         <section className="kplex-graph-area" data-kplex-tooltip-boundary>
-          {ViewLabels && <ViewLabels translate={translate} />}
+          {ViewLabels && <ViewLabels translate={translate} configuration={readViewConfiguration(plexViewDefinition, plugin.settings.canvasViewSettings)} />}
           <PlexGraph publicFrame={publicFrame} publicScene={plugin.publicCanvases?publicScene:undefined} viewDefinition={plexViewDefinition} viewSession={documentSession.plexView} viewContributions={viewContributions} viewRevision={viewRevision} sidecarOpen={sidecarOpen} plugin={plugin} index={plugin.index} settings={viewSettings} paintSettings={paintSettings} paintLenses={paintLenses} surface={profileSurface} hostLeaf={hostLeaf} predicate={plexFilterPredicate} lenses={compiledGraphLenses} filterLayoutMode={filterLayoutMode} predicateRevision={predicateRevision} showCrossLinks={plugin.settings.showCrossLinks} activePath={page.path} renderRevision={renderRevision} findFocusRequest={findFocusRequest}
             onExportBreadcrumbs={exportBreadcrumbs} hasBreadcrumbs={/** Read the native trail only when composing the menu. */ () => documentSession.footprints.length > 0}
             footprintsControl={<PlexFootprintsPanel trail={documentSession.footprints} translate={translate}

@@ -3,7 +3,10 @@
  * owns cancellation/storage effects; this modal owns localized controls, notices and detached
  * DOM cleanup. It never accesses or modifies vault files.
  */
-import { Modal, Notice, Setting, type App, type ButtonComponent } from "obsidian";
+import {formActions, iconButton, KplexModal as Modal} from "../adapters/obsidian/KplexModal";
+
+
+import {Notice, type App, type ButtonComponent} from "obsidian";
 import { createObsidianTranslator } from "../adapters/obsidian/localization";
 
 export class PurgeIndexCacheModal extends Modal {
@@ -20,10 +23,10 @@ export class PurgeIndexCacheModal extends Modal {
   onOpen(): void {
     this.titleEl.setText(this.translate("indexing.purgeTitle"));
     this.contentEl.createEl("p", { text: this.translate("indexing.purgeHelp") });
-    new Setting(this.contentEl)
+    formActions(this.contentEl)
       .addButton(/** Native cancel leaves both persistent cache and vault files untouched. */ button => {
         this.buttons.push(button);
-        button.setButtonText(this.translate("common.cancel")).onClick(() => this.close());
+        iconButton(button, this.translate("common.cancel"), "x").onClick(() => this.close());
       })
       .addButton(/** Only explicit confirmation invokes the destructive derived-cache maintenance owner. */ button => {
         this.buttons.push(button);
