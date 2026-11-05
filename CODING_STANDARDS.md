@@ -99,6 +99,18 @@ acceptance. New local styling must not bypass these shared owners.
 - Keep the README's first-start indexing notice and existing product screenshots unless deliberately replacing them with newer user-facing imagery.
 - Release notes should be written in product language and focus on observable behavior.
 
+### Validation evidence and retention
+
+Follow [the validation artifact policy](docs/VALIDATION_ARTIFACTS.md): executable tests
+and concise PR results are the default durable evidence. Raw reports/logs, complete
+diagnostic JSON, hashes for every input, deployment receipts and transient captures
+belong in ignored managed storage, not product documentation or Git history.
+New committed validation records require explicit maintainer approval, a retention
+reason and a review date; agents must not approve their own exceptions. Do not force-add
+ignored output or weaken the commit gate to publish a report. Stage reviewed paths
+explicitly, and run `npm run check:validation` before committing. Age-based retention
+does not extend the validity of results after affected code changes.
+
 ## Naming
 
 Use **K-Plex** in user-facing UI and current product docs, `Kplex` for named code types/components and `kplex` for CSS classes, custom properties, SVG IDs and canonical command suffixes. ExcaliBrain terminology belongs only to explicit data-migration/compatibility boundaries and their preserved source evidence. Keep supported graph-migration keys and migration fixtures stable; do not register legacy CSS or command aliases; never rebrand user data or rewrite historical validation transcripts as though they tested the new namespace. See [legacy compatibility](docs/LEGACY_COMPATIBILITY.md).

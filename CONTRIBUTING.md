@@ -10,6 +10,22 @@ Read [CODING_STANDARDS.md](CODING_STANDARDS.md) before implementing or reviewing
 
 ## Setup
 
+### Validation output and cleanup
+
+Follow [validation storage and retention](docs/VALIDATION_ARTIFACTS.md). Raw output
+uses ignored `.test-work/validation/` runs created with `createValidationRun` from
+`scripts/validationArtifacts.mjs`; complete each run in `finally`. Finished raw data
+expires after 14 days, with reasoned holds limited to 90 days. `preverify` tests the
+policy, purges expired owned runs and checks staged/CI-diff validation content.
+Use `npm run validation:prune` at task start/end, `npm run validation:audit -- --list`
+for the monthly committed-history review, and `npm run check:validation` before
+commit. New validation files are ignored by default. Keep results in the PR;
+exceptional committed summaries require explicit approval and expiring registry
+entries. Cleanup never sweeps personal vaults, deployment backups or arbitrary temp
+directories, and never automatically deletes tracked history.
+
+### Dependencies and checks
+
 Use Node.js **22.22.2** for acceptance checks. If your environment cannot provide it or install dependencies, record the limitation and return runnable checks for the validation agent; results from another runtime do not replace the required lane.
 
 ```bash
@@ -1705,6 +1721,15 @@ capture; restore their original classes afterward. Native renderer screenshots
 are written only into the staging caller's report directory. This lane preserves
 drafts/configuration and requires zero source acquisitions. Its optional hold phase
 is `preset-ui-dark`.
+
+`source-recovery` retires only the disposable acquisition's local lookup authority,
+then runs the real conservative cached-source sweep. It counts native head/dependency
+transactions, requires actual final dependency closure, checks unchanged Markdown
+read/parse counts and verifies a subsequent native edit without a full semantic
+build. Newly inserted notes may shift native ordinals; the existing coordinate CAS
+must still run. This forced retry is not a reproduction of a production storage
+failure or a production-vault timing benchmark. Use the same exact-build staging,
+shared host lock, three explicit disposable-vault variables and baseline restoration.
 
 ### Eager graph maintenance acceptance
 

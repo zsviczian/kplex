@@ -4,6 +4,10 @@
 
 Read [CODING_STANDARDS.md](CODING_STANDARDS.md) before implementing or reviewing changes. It is the canonical home for cross-cutting coding requirements. Add future requirements there; keep architecture and subsystem constraints here. Read [CONTRIBUTING.md](CONTRIBUTING.md) for setup and build workflows.
 
+For every task, follow [validation storage and retention](docs/VALIDATION_ARTIFACTS.md).
+Run its local cleanup at task start/end and its commit gate before staging/pushing.
+Do not turn routine test output into new committed validation reports.
+
 Read [UI_RULES.md](UI_RULES.md) before implementing or reviewing any modal, form,
 settings page, selector or button. Its shared owners and visual acceptance checklist
 are mandatory; reusing a bare input without its shared field/layout is insufficient.
