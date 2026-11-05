@@ -2424,7 +2424,12 @@ export class ObsidianSourceAcquisition {
             return false;
           }
           const environment = await this.repository.observationDigest(environmentText);
-          const inspection = await this.repository.inspect(file.path, [], ownerCurrent);
+          // Share the clean head/dependency observation with the adjacent ensure below. The
+          // projection consumes it once and still requires its final cross-connection sequence CAS.
+          const selected = capture.state.dirty || capture.state.resolutionDirty || capture.state.created
+            ? {inspection: await this.repository.inspect(file.path, [], ownerCurrent), dependencyReason: "ready" as const}
+            : await this.repository.inspectWithLocalDependencies(file.path, order, markdownOrder, ownerCurrent, projection);
+          const inspection = selected.inspection;
           if (!ownerCurrent()) return false;
           const head = inspection.head;
           this.observeUrlAliasGrammar(file.path, head);
@@ -2450,7 +2455,7 @@ export class ObsidianSourceAcquisition {
             capture.state.observation = { ...head.observation };
             const local = await this.repository.ensureLocalDependencies(file.path, order, markdownOrder, ownerCurrent, projection);
             if (!ownerCurrent()) return false;
-            complete &&= local === "ready";
+            complete &&= selected.dependencyReason === "ready" && local === "ready";
             this.startupDiagnostics?.processed("source", file.path);
             this.inventoryProgress?.();
             await checkpoint();

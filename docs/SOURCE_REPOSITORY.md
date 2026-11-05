@@ -8,6 +8,16 @@ This is the accepted SI3 persistence contract and historical contributor prototy
 
 `src/adapters/obsidian/sourceAcquisition.ts` owns observed file incarnations/events, MetadataCache readiness, legacy migration, inventory and host resolution. It calls the existing exported `resolveObsidianReferenceTarget()` and Date collector. No path/basename guesser, Date grammar or semantic classifier is added.
 
+A captured broad recovery pass shares one copied head/dependency selection between
+its adjacent inspection and dependency verification. The receipt is repository-owned,
+single-use and retains at most one selection. It rechecks activation revision, memory,
+unsaved/deletion masks and the native caller lifetime. Shifted native enumeration
+coordinates still use the existing durable owner/head CAS; they are not accepted
+merely because the source bytes are unchanged. Legacy/repair/known-dirty paths retain
+their ordinary validation. Final all-owner readiness still requires the durable source
+sequence fence, dependency completion and pending-event drain. No schema or semantic
+authority changes follow from this IO optimization.
+
 Complete current-process parses may carry an optional parser-input token through the existing hot,
 queued and durable body cache. Acquisition validates native file identity, path, mtime/ctime/size,
 observed per-file revision and parser version before sharing that input. An unrelated host-resolution

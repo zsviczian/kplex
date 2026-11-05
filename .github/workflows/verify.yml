@@ -11,8 +11,11 @@ jobs:
     runs-on: ubuntu-24.04
     env:
       KPLEX_TEST_BROWSER: /usr/bin/google-chrome
+      VALIDATION_BASE: ${{ github.event.pull_request.base.sha || github.event.before }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - uses: actions/setup-node@v4
         with:
           node-version: '22.22.2'

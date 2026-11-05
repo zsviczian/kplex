@@ -8,3 +8,7 @@ RELEASE_NOTES*
 handoff
 # Generated native probes, verification reports and deployment backups.
 .test-work/
+# New validation records are opt-in: keep raw runs local. Retention-approved summaries
+# and screenshots require an explicit force-add plus the CI validation-content gate.
+/docs/validation/*
+!/docs/validation/README.md

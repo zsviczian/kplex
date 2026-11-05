@@ -375,6 +375,10 @@ function* postingBatches(sourceId: string, revision: string, family: SourceFamil
 /** Repository-owned receipt for one existing all-owner inventory pass; no source facts are retained. */
 export type SourceLocalInventoryProjection = Readonly<{ ownerVersion: typeof SOURCE_LOCAL_DEPENDENCY_VERSION }>;
 
+/** One copied head/owner observation may bridge the inventory's adjacent inspect/ensure calls.
+ * It is single-use and never replaces the projection's final durable sequence fence. */
+type LocalInventorySelection = Readonly<{sourceId: string; selected: LocalDependencySelection; activationRevision: number}>;
+
 /**
  * Settings-neutral source store with at most two active source lanes and one replaceable pending
  * writer per lane. Callers producing multiple files await each result; excess independent writers
@@ -382,7 +386,7 @@ export type SourceLocalInventoryProjection = Readonly<{ ownerVersion: typeof SOU
  */
 export class NeutralSourceRepository {
   private closed = false;
-  private readonly localInventoryProjections = new WeakMap<SourceLocalInventoryProjection, { total: number; next: number; sequence: number; activations: number; current: () => boolean }>();
+  private readonly localInventoryProjections = new WeakMap<SourceLocalInventoryProjection, { total: number; next: number; sequence: number; activations: number; current: () => boolean; selection?: LocalInventorySelection }>();
   private owner = "";
   private ticket = 0;
   private readonly lanes = new Map<string, SourceWriteLane>();
@@ -2836,9 +2840,13 @@ export class NeutralSourceRepository {
    * The returned head is a copied observation, not a family-read or publication certificate. The
    * caller must retain native/host fences and correlate its later protected metadata pin exactly.
    * Legacy authentication precedes normal dependency repair/backfill on the conservative fallback.
+   * A captured broad pass may consume this same clean selection in its adjacent ensure call;
+   * ordinary restart callers retain no selection and gain no additional authority.
    */
   async inspectWithLocalDependencies(sourceId: string, order: number, markdownOrder: number,
-    current: () => boolean = () => true): Promise<SourceLocalDependencyInspection> {
+    current: () => boolean = () => true, projection?: SourceLocalInventoryProjection): Promise<SourceLocalDependencyInspection> {
+    const pass = projection ? this.localInventoryProjections.get(projection) : undefined;
+    if (pass) pass.selection = undefined;
     let probeFailure: SourceReason | undefined;
     if (sourceCount(order) && sourceCount(markdownOrder) && !this.closed && current()) {
       try {
@@ -2846,8 +2854,15 @@ export class NeutralSourceRepository {
         if (db) {
           const activationRevision = this.sourceActivationRevision;
           const selected = await this.localDependencySelection(db, sourceId, current, true);
-          const inspection = this.cleanLocalDependencyInspection(sourceId, selected, activationRevision, order, markdownOrder, current);
-          if (inspection) return { inspection, dependencyReason: "ready" };
+          // A broad pass may observe a sound owner whose ordinals need changing. Reuse its copied
+          // head, then let ensure perform the original durable coordinate CAS. Only the captured
+          // projection's final proof may publish readiness after a shifted native enumeration.
+          const inspection = this.cleanLocalDependencyInspection(sourceId, selected, activationRevision,
+            pass ? selected.owner?.order ?? order : order, pass ? selected.owner?.markdownOrder ?? markdownOrder : markdownOrder, current);
+          if (inspection) {
+            if (pass?.current() && pass.next === markdownOrder) pass.selection = {sourceId, selected, activationRevision};
+            return { inspection, dependencyReason: "ready" };
+          }
         }
       } catch (error) {
         // A failed optional selection cannot become a ready dependency proof after fallback IO.
@@ -2869,11 +2884,24 @@ export class NeutralSourceRepository {
   async ensureLocalDependencies(sourceId: string, order: number, markdownOrder: number, current: () => boolean = () => true,
     projection?: SourceLocalInventoryProjection): Promise<SourceReason> {
     if (!sourceCount(order) || !sourceCount(markdownOrder) || this.closed || !current()) return "cancelled";
+    const pass = projection ? this.localInventoryProjections.get(projection) : undefined;
+    const observed = pass?.selection;
+    if (pass) pass.selection = undefined;
+    // Recheck native lifetime, repository activations and memory/deletion masks after the caller's
+    // await. Another connection is still fenced by completeLocalDependencyInventory's sequence CAS.
+    if (observed?.sourceId === sourceId && pass?.current()
+      && this.cleanLocalDependencyInspection(sourceId, observed.selected, observed.activationRevision, order, markdownOrder, current)) {
+      this.recordLocalDependencyProjection(projection, markdownOrder);
+      return "ready";
+    }
     const db = await this.open(); if (!db) return this.storage.unavailableReason?.() ?? "storage-unavailable";
     let stagingRevision: string | null = null;
     try {
       const activationRevision = this.sourceActivationRevision;
-      let selected = await this.localDependencySelection(db, sourceId, current, true);
+      let selected = observed?.sourceId === sourceId && pass?.current()
+        && this.cleanLocalDependencyInspection(sourceId, observed.selected, observed.activationRevision,
+          observed.selected.owner?.order ?? order, observed.selected.owner?.markdownOrder ?? markdownOrder, current)
+        ? observed.selected : await this.localDependencySelection(db, sourceId, current, true);
       if (this.cleanLocalDependencyInspection(sourceId, selected, activationRevision, order, markdownOrder, current)) {
         this.recordLocalDependencyProjection(projection, markdownOrder);
         return "ready";

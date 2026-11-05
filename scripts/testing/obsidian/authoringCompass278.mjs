@@ -821,17 +821,52 @@ async function inventory(app,c){
  }finally{await f.cleanup();}
 }
 
+/** Exercise conservative source recovery against actual native cache/metadata, without production access.
+ * Only the disposable acquisition's lookup authority is retired; final durable closure remains real. */
+async function sourceRecovery(app,c){
+ const f=c.fixture(app,c);
+ try{
+  await f.initialize();const p=f.p,note=await f.note('Recovery origin','Recovery fixture\n');await f.canvas(note);await f.ready();
+  const source=p.index.sourceAcquisition,repo=source.repository,transaction=repo.transaction,clean=repo.cleanLocalDependencyInspection;
+  const diagnostics=p.startupDiagnostics,phase=diagnostics.phase;
+  let currentPhase='',headOnly=0,selections=0;const misses=[];
+  repo.cleanLocalDependencyInspection=function(...args){const result=clean.apply(this,args);if(!result&&currentPhase==='source-reconciliation'&&misses.length<5){const [id,selected,revision,order,markdownOrder]=args;misses.push({order,markdownOrder,owner:selected.owner,repair:selected.repair,headParser:selected.head?.bodyParserVersion,headSequence:selected.head?.sequence,headRevision:selected.head?.sourceRevision,activationChanged:revision!==this.sourceActivationRevision,memory:this.memory.has(id),unsaved:this.unsaved.has(id),deleting:this.pendingDeletes.has(id)});}return result;};
+  diagnostics.phase=function(kind,value,...rest){if(kind==='source')currentPhase=value;return phase.call(this,kind,value,...rest)};
+  repo.transaction=function(db,stores,mode,...rest){
+   if(currentPhase==='source-reconciliation'&&mode==='readonly'){
+    if(stores.length===1&&stores[0]==='sourceHeads')headOnly++;
+    if(stores.includes('sourceHeads')&&stores.includes('sourceLocalDependencyOwners'))selections++;
+   }
+   return transaction.call(this,db,stores,mode,...rest);
+  };
+  const retire=()=>{diagnostics.phase=phase;repo.transaction=transaction;repo.cleanLocalDependencyInspection=clean};f.restores.push(retire);
+  const before=p.index.getSourceAcquisitionCounters(),fullBuilds=p.index.getSemanticPreparationDiagnostics().fullBuilds,files=app.vault.getMarkdownFiles().length;
+  source.localDependencyAuthorityReady=false;source.localDependenciesReady=false;
+  c.progress={phase:'Actual cached-source recovery',files};const started=Date.now();
+  f.check(await source.reconcile(),'Actual dependency projection must close');
+  const after=p.index.getSourceAcquisitionCounters(),elapsedMs=Date.now()-started;
+  f.check(headOnly===0,'Recovery reread clean source heads '+headOnly+' '+JSON.stringify(misses));
+  f.check(selections===files,'One native selection per clean owner '+JSON.stringify({selections,files}));
+  f.check(after.vaultReads===before.vaultReads&&after.parses===before.parses,'Unchanged recovery read or parsed Markdown');
+  f.check(source.hasSemanticDependencies(),'Actual local dependency authority not restored');retire();
+  await app.vault.modify(note,'Recovery fixture after native edit\n');await f.until(()=>p.index.getSourceAcquisitionCounters().checked>after.checked,'Native edit source acquisition');await f.ready();
+  f.check((await app.vault.read(note))==='Recovery fixture after native edit\n','Native edit lost');
+  f.check(p.index.getSemanticPreparationDiagnostics().fullBuilds===fullBuilds,'Recovery or later edit started a full semantic build');
+  return {files,headOnly,selections,elapsedMs,unchangedVaultReads:0,unchangedParses:0,dependencyAuthority:true,laterNativeEdit:true,additionalFullBuilds:0,scope:'Forced dependency-authority retry in disposable Small; not reproduction of the Mac storage failure'};
+ }finally{await f.cleanup();}
+}
+
 /** Every run validates installed artifact/source hashes and preserves exact configuration bytes. */
 export async function runAuthoringCompass278(){
  const target=validateTarget({vaultName:process.env.KPLEX_TEST_VAULT_NAME,vaultPath:process.env.KPLEX_TEST_VAULT_PATH,configDir:process.env.KPLEX_TEST_CONFIG_DIR});
- const lane=process.env.KPLEX_278_NATIVE_LANE??'inventory',scenario={inventory,folders,structural,authoring,imports,compass,pins,lifetime,periodic,navigation,forms,controls,'gate-defaults':gateDefaults,'daily-automation':dailyAutomation,'template-lifecycle':templateLifecycle,'ontology-export':ontologyExport,'preset-ui':presetUi,'pin-settings':nativePinSettings270,'daily-template':dailyTemplate}[lane];if(!scenario)throw Error('Unknown #278 native lane');
+ const lane=process.env.KPLEX_278_NATIVE_LANE??'inventory',scenario={inventory,folders,structural,authoring,imports,compass,pins,lifetime,periodic,navigation,forms,controls,'source-recovery':sourceRecovery,'gate-defaults':gateDefaults,'daily-automation':dailyAutomation,'template-lifecycle':templateLifecycle,'ontology-export':ontologyExport,'preset-ui':presetUi,'pin-settings':nativePinSettings270,'daily-template':dailyTemplate}[lane];if(!scenario)throw Error('Unknown #278 native lane');
  const dailySwitchScript=lane==='daily-automation'?readFileSync(new URL('../../../docs/snippets/daily-note-excalidraw-view.md',import.meta.url),'utf8').match(/```javascript\r?\n([\s\S]*?)\r?\n```/)[1].replace(/^<%\*\s*/, '').replace(/\s*%>$/, ''):'';
  const sources=lane==='imports'?[{path:join(process.env.KPLEX_HOST_REPORT_DIR,'Native278.bin'),bytes:[0,255,13,10,128,1]},{path:join(process.env.KPLEX_HOST_REPORT_DIR,'Native278.md'),bytes:[...new TextEncoder().encode('# External native fixture\n\nExact Markdown bytes.\n')]}]:[];
  for(const source of sources)writeFileSync(source.path,new Uint8Array(source.bytes));
  const directory=lane==='imports'?join(process.env.KPLEX_HOST_REPORT_DIR,'Native278-directory'):null;if(directory){mkdirSync(directory);mkdirSync(join(directory,'Empty'));mkdirSync(join(directory,'Nested'));writeFileSync(join(directory,'Nested','Note.md'),'# Nested external note\n');writeFileSync(join(directory,'Root.bin'),new Uint8Array([0,255,13,10]));}
  const definitions='c.nativeScreenshot='+nativeScreenshot.toString()+';c.captureRoot='+JSON.stringify(process.env.KPLEX_HOST_REPORT_DIR)+';c.dailySwitchScript='+JSON.stringify(dailySwitchScript)+';c.sessions='+nativeDocumentSessions.toString()+';c.fixture='+nativeBatch270.toString()+';c.type='+nativeText.toString()+';c.pins='+nativePins270.toString()+';c.visualHold='+(process.env.KPLEX_278_VISUAL_HOLD==='true')+';c.visualPhase='+JSON.stringify(process.env.KPLEX_278_UX_VISUAL_PHASE??'')+';c.fixturePrefix="__kplex278_";c.importWindow='+JSON.stringify(process.env.KPLEX_278_IMPORT_WINDOW==='window'?'window':'tab')+';c.externalSources='+JSON.stringify(sources)+';c.externalDirectory='+JSON.stringify(directory)+';c.originalData='+JSON.stringify(readFileSync(join(target.pluginDir,'data.json'),'utf8'))+';c.originalEnabled='+JSON.stringify(readFileSync(join(target.config,'community-plugins.json'),'utf8'))+';';
  return runControlledProbe('authoring-compass-'+lane+'-278',scenario,definitions,
-  ['src/ui/StyleColorControls.ts','src/ui/plexViews/facets/FacetPresetEditor.ts','src/ui/export/MindMapMarkdownModal.ts','src/adapters/obsidian/fileCreationAutomation.ts','src/adapters/obsidian/KplexModal.ts','src/ui/components/FormField.tsx','src/ui/components/FormSelect.tsx','src/ui/features/RelationshipFieldControl.tsx','src/ui/features/gateRelationshipIntent.ts','src/application/indexRecoveryDiagnostics.ts','src/ui/RelationshipSelectionControl.tsx','src/adapters/obsidian/dailyNotes.ts','src/main.ts','src/adapters/obsidian/sourceAcquisition.ts','src/adapters/obsidian/externalFileImport.ts','src/adapters/obsidian/relationshipOwner.ts',
+  ['src/index/SourceRepository.ts','src/ui/StyleColorControls.ts','src/ui/plexViews/facets/FacetPresetEditor.ts','src/ui/export/MindMapMarkdownModal.ts','src/adapters/obsidian/fileCreationAutomation.ts','src/adapters/obsidian/KplexModal.ts','src/ui/components/FormField.tsx','src/ui/components/FormSelect.tsx','src/ui/features/RelationshipFieldControl.tsx','src/ui/features/gateRelationshipIntent.ts','src/application/indexRecoveryDiagnostics.ts','src/ui/RelationshipSelectionControl.tsx','src/adapters/obsidian/dailyNotes.ts','src/main.ts','src/adapters/obsidian/sourceAcquisition.ts','src/adapters/obsidian/externalFileImport.ts','src/adapters/obsidian/relationshipOwner.ts',
    'src/ui/App.tsx','src/ui/PlexGraph.tsx','src/ui/NewRelatedNoteModal.ts','src/ui/SelectedOntologyEditor.ts','src/ui/CreateFolderNoteModal.ts','src/ui/CreatePeriodicNoteModal.ts','src/ui/MoveNodeModal.ts','src/ui/components/Tabs.tsx','src/adapters/obsidian/fileExplorerDrag.ts','src/adapters/obsidian/fileMenu.ts',
    'src/ui/RelationModal.ts','src/ui/RelationshipExplanationModal.ts','src/ui/ReverseRelationshipModal.ts','src/ui/ExternalFileImportBatchModal.ts',
    'src/ui/features/RelationshipDirectionControl.tsx','src/ui/components/ReorderableList.tsx','src/core/plex/views/classic/configuration.ts',

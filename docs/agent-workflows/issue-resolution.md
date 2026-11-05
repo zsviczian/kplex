@@ -2,6 +2,13 @@
 
 Use this workflow after the maintainer selects an issue from the [assessment shortlist](issue-assessment.md). The assessment remains in the GitHub issue; a draft PR is the implementation queue and its branch is the implementation workspace. Follow K-Plex's `AGENTS.md`, `CONTRIBUTING.md`, and [mixed-agent workflow](../AGENT_WORKFLOW.md). The root `HANDOFF.md` remains the single transient assignment/return document; a plan-only PR file is not a second durable handoff.
 
+Follow [validation retention](../VALIDATION_ARTIFACTS.md). The PR holds concise actual
+results; raw JSON/logs and per-run screenshots stay in ignored managed storage.
+Do not create dated validation documents as a routine completion step. Before a
+commit, review staged paths and run the validation-content gate; close local report
+leases and prune expired output at handoff. Curated exceptions need explicit
+maintainer approval and a review date, not an agent's self-approved registry entry.
+
 ## Prepare a draft PR — chat or main agent, after maintainer selection
 
 1. Recheck the issue, comments, existing PRs, and current `main`; do not duplicate ongoing or merged work. Confirm the exact issue(s) selected by the maintainer.

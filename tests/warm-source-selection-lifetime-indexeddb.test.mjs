@@ -6,6 +6,44 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { warmSelectionScenario as scenario } from './support/warmSourceSelectionBrowser.mjs';
 
+for (const mutation of ['none', 'cancel', 'overlay', 'delete', 'activation', 'independent-writer', 'storage-failure']) {
+  test(`inventory selection reuse preserves its finality fences: ${mutation}`, async () => {
+    assert.equal(await scenario(`inventory-selection-${mutation}`, String.raw`
+      let live=true;
+      const current=()=>live;
+      const projection=await r.beginLocalDependencyInventoryProjection(1,current);
+      const selected=await r.inspectWithLocalDependencies(id,0,0,current,projection);
+      equal(selected.dependencyReason,'ready','Original selection authenticated');
+      let other=null;
+      const transaction=r.transaction;let headReads=0;
+      r.transaction=function(database,stores,mode,...rest){if(stores.includes('sourceHeads'))headReads++;return transaction.call(this,database,stores,mode,...rest);};
+      try {
+        if(${JSON.stringify(mutation)}==='cancel')live=false;
+        if(${JSON.stringify(mutation)}==='overlay')r.unsaved.add(id);
+        if(${JSON.stringify(mutation)}==='delete')equal((await r.tombstone(id)).outcome,'activated','Actual selected deletion');
+        if(${JSON.stringify(mutation)}==='storage-failure')f.cache.storageFailed(db);
+        if(['activation','independent-writer'].includes(${JSON.stringify(mutation)})) {
+          other=${JSON.stringify(mutation)}==='activation'?c.fixture.cache:new M.KplexIndexedDbCache(c.name);
+          ok(await other.open(),'Writer connection');
+          equal((await other.sources.replace({sourceId:id,expected:selected.inspection.expected,
+            physical:originalHead.physical,observation:originalHead.observation,bodyParserVersion:originalHead.bodyParserVersion,
+            families:originalHead.families})).outcome,'activated','Actual canonical activation');
+          headReads=0;
+        }
+        const ensured=await r.ensureLocalDependencies(id,0,0,current,projection);
+        const complete=await r.completeLocalDependencyInventory(current,projection);
+        if(${JSON.stringify(mutation)}==='none') {equal(ensured,'ready','Shared clean selection');equal(headReads,0,'No duplicate owner/head IO');equal(complete,'ready','Final durable proof still required');}
+        if(${JSON.stringify(mutation)}==='cancel')ok(ensured!=='ready'&&complete!=='ready','Cancelled selection never grants closure');
+        if(${JSON.stringify(mutation)}==='overlay')ok(ensured!=='ready'&&complete!=='ready','Unsaved memory masks the observed durable head');
+        if(${JSON.stringify(mutation)}==='delete')ok(ensured!=='ready'&&complete!=='ready','Deleted selection never grants closure');
+        if(${JSON.stringify(mutation)}==='activation'){equal(ensured,'ready','Current canonical replacement can be checked afresh');ok(headReads>0,'New activation forces native re-selection');equal(complete,'ready','Owned current activation satisfies exact final sequence');}
+        if(${JSON.stringify(mutation)}==='independent-writer'){equal(ensured,'ready','Copied observation is advisory within its captured pass');equal(complete,'superseded','Independent sequence change rejects final authority');}
+        if(${JSON.stringify(mutation)}==='storage-failure')equal(complete,'storage-unavailable','A copied observation cannot hide unavailable storage at final closure');
+      } finally {r.transaction=transaction;r.unsaved.delete(id);if(other&&other!==c.fixture.cache)other.close();}
+    `,{reopenForCleanup:mutation==='storage-failure'}),true);
+  });
+}
+
 for (const mode of ['unsaved', 'delete', 'activation', 'cancel', 'close', 'selection-error']) {
   test(`${mode} during the awaited local selection cannot expose a stale ready receipt`, /** The initial native result must survive repository overlays and the caller's lifetime. */async () => {
     assert.equal(await scenario(`warm-selection-late-${mode}`, String.raw`
