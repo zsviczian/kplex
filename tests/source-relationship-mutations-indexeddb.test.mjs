@@ -27,7 +27,7 @@ function productionMethods() {
 }
 const bundle=await contributorBrowserBundle(["src/index/GraphIndex.ts","src/index/GraphBuilder.ts","src/index/IndexSnapshot.ts",
   "src/core/graph/compiler.ts","src/core/graph/evidence.ts","src/core/graph/relations.ts","src/adapters/obsidian/metadataSourceCollector.ts",
-  "src/adapters/obsidian/ontologySourceCollector.ts","src/adapters/obsidian/relationshipMetadataWrite.ts","src/adapters/obsidian/relationshipOwner.ts","src/application/frontmatterUnlink.ts","src/adapters/obsidian/placeholderRelocation.ts","src/core/contracts/ontologyConfiguration.ts"]);
+  "src/adapters/obsidian/ontologySourceCollector.ts","src/adapters/obsidian/relationshipMetadataWrite.ts","src/adapters/obsidian/relationshipOwner.ts","src/application/frontmatterUnlink.ts","src/adapters/obsidian/placeholderRelocation.ts","src/core/contracts/ontologyConfiguration.ts","src/adapters/obsidian/fileCreationAutomation.ts"]);
 const methods=`const assert=Object.assign((value,message)=>ok(value,message),{equal}),M=sourceModules,normalizeFieldName=M.normalizeFieldName,extractLinksFromValue=M.extractLinksFromValue;
 const writeRelationshipMetadata=M.writeRelationshipMetadata,SavedRelationshipPendingError=M.SavedRelationshipPendingError;
 const relationshipMetadataPayload=M.relationshipMetadataPayload,SOURCE_DECODE_BUDGET_BYTES=M.SOURCE_DECODE_BUDGET_BYTES;
@@ -53,6 +53,7 @@ window.makeRelationshipFixture=async name=>{
  ok(await index.sourceAcquisition.reconcile(),'Actual index reuses authenticated sources');
  f.acquisition=index.sourceAcquisition;
  const context={...relationshipMethods,app:f.app,index,settings:plugin.settings,translator:key=>key,
+  fileCreationAutomation:new M.FileCreationAutomation(f.app,{waiting:()=>{},unavailable:()=>"unavailable",cancelled:()=>"cancelled"}),
   relationshipWriteCancels:new Set(),managedMetadataWrites:new Map(),pruneManagedMetadataWrites:()=>{}};
  f.app.fileManager={generateMarkdownLink:file=>'[['+file.path+']]',processFrontMatter:async(file,update)=>{
   const frontmatter=structuredClone(f.metadata.get(file.path).frontmatter??{});update(frontmatter);
@@ -60,7 +61,7 @@ window.makeRelationshipFixture=async name=>{
   f.app.vault.trigger('modify',file);const cache={...f.metadata.get(file.path),frontmatter};f.metadata.set(file.path,cache);
   f.app.metadataCache.trigger('changed',file,f.texts.get(file.path),cache);
  }};
- return {...f,index,plugin,context,close(){for(const cancel of context.relationshipWriteCancels)cancel();index.destroy();f.cache.close();}};
+ return {...f,index,plugin,context,close(){context.fileCreationAutomation.dispose();for(const cancel of context.relationshipWriteCancels)cancel();index.destroy();f.cache.close();}};
 };`;
 
 /** Saved pair replacements must compose across edits without changing unedited old-policy relations. */
