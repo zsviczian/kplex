@@ -117,6 +117,13 @@ test('explicit Sidecar candidates respect all edges, ambiguity, visibility and o
     owner.documentSession(host).preferences.sidecarPosition = side; active.side = hidden.side = side;
     assert.equal(candidate.call(owner, host), active); assert.equal(active.managed, undefined);
   }
+  owner.isSidecarOpen = () => true; hidden.managed = true;
+  assert.equal(candidate.call(owner, host), active, 'An owned hidden Sidecar must not block the visible neighboring tab');
+  hidden.visible = true; active.visible = false;
+  assert.equal(candidate.call(owner, host), null, 'The selected managed Sidecar must hide attachment controls');
+  hidden.visible = false; active.visible = true;
+  active.kind = 'empty'; assert.equal(candidate.call(owner, host), active, 'An empty sibling can receive the center while the old Sidecar remains attached');
+  active.kind = 'markdown'; hidden.managed = false; owner.isSidecarOpen = () => false;
   owner.leaves.push(leaf({}, 'below', 'utility')); assert.equal(candidate.call(owner, host), null, 'A second edge group is ambiguous'); owner.leaves.pop();
   active.managed = true; assert.equal(candidate.call(owner, host), null); active.managed = false;
   active.embedded = true; assert.equal(candidate.call(owner, host), null); active.embedded = false;
@@ -135,7 +142,8 @@ test('Sidecar attachment uses both initial flows, rejects empty reverse flow and
   const make = () => documentSessions({ settings: { sidecarPosition: 'right', documentSyncMode: 'off', sidecarOpen: false, sidecarLastFilePath: '', sidecarLastUrl: '' },
     sidecarMovingHosts: new Set(), sidecarLeaves: new Map(), currentFile: file, openCalls: 0,
     setSidecarOwner(host, leaf) { this.sidecarLeaves.set(host, leaf); }, deleteSidecarOwner(host) { this.sidecarLeaves.delete(host); },
-    getAdjacentSidecarCandidate() { return this.sidecarLeaves.has(host) || this.sidecarMovingHosts.has(host) ? null : leaf; },
+    getAdjacentSidecarCandidate() { return this.sidecarLeaves.get(host) === leaf || this.sidecarMovingHosts.has(host) ? null : leaf; },
+    isManagedSidecarLeaf(candidate) { return [...this.sidecarLeaves.values()].includes(candidate); },
     fileForLeaf() { return this.currentFile; }, indexedUrlPathForLeaf: () => null, webViewerUrlForLeaf: () => null,
     app: { vault: { getFileByPath: () => page.file } }, leafIsAttached: () => true, adjacentPosition: () => 'right',
     notifySidecar() {}, async saveSettings() {}, async openPageInSidecarLeaf(actual, center) { assert.equal(actual, leaf); assert.equal(center, page); this.openCalls++; this.currentFile = center.file; },
@@ -148,6 +156,17 @@ test('Sidecar attachment uses both initial flows, rejects empty reverse flow and
   owner = make(); await attach.call(owner, host, 'to-leaf', {path:'folder:/'}); assert.equal(owner.sidecarLeaves.size, 0, 'A non-document center cannot clear the pane');
   owner = make(); owner.openPageInSidecarLeaf = async () => { throw Error('open failed'); };
   await assert.rejects(attach.call(owner, host, 'to-leaf', page), /open failed/); assert.equal(owner.sidecarLeaves.size, 0); assert.equal(owner.documentSession(host).preferences.documentSyncMode, 'off'); assert.equal(owner.sidecarMovingHosts.size, 0);
+  const original = { id: 'original-sidecar' };
+  owner = make(); owner.sidecarLeaves.set(host, original);
+  let session = owner.documentSession(host); session.targetId = 'original-sidecar'; session.preferences.sidecarOpen = true;
+  assert.deepEqual(await attach.call(owner, host, 'to-plex'), {file, path:file.path});
+  assert.equal(owner.sidecarLeaves.get(host), leaf); assert.equal(session.linkedDocumentLeaf, leaf); assert.equal(owner.openCalls, 0);
+  owner = make(); owner.sidecarLeaves.set(host, original);
+  session = owner.documentSession(host); session.targetId = 'original-sidecar'; session.preferences.sidecarOpen = true;
+  owner.openPageInSidecarLeaf = async () => { throw Error('replacement open failed'); };
+  await assert.rejects(attach.call(owner, host, 'to-leaf', page), /replacement open failed/);
+  assert.equal(owner.sidecarLeaves.get(host), original); assert.equal(session.linkedDocumentLeaf, original);
+  assert.equal(session.targetId, 'original-sidecar'); assert.equal(session.preferences.sidecarOpen, true);
   owner = make(); let finish; owner.openPageInSidecarLeaf = () => new Promise(resolve => { finish = resolve; });
   const pending = attach.call(owner, host, 'to-leaf', page); assert.equal(owner.sidecarLeaves.get(host), leaf);
   assert.equal(await attach.call(owner, host, 'to-leaf', page), null, 'A pending attachment cannot be acquired twice');

@@ -1325,7 +1325,7 @@ export function KplexApp({ plugin, surface, hostLeaf, translate, environment, on
   const sidecarPosition = sidecarAvailable ? plugin.getSidecarPosition(hostLeaf) : null;
   const sidecarOpen = Boolean(sidecarPosition);
   const sidecarEdgePosition = sidecarPosition ?? plugin.getDocumentSidecarPosition(hostLeaf);
-  const adjacentSidecar = sidecarAvailable && !sidecarOpen ? plugin.getAdjacentSidecarCandidate(hostLeaf) : null;
+  const adjacentSidecar = sidecarAvailable ? plugin.getAdjacentSidecarCandidate(hostLeaf) : null;
   const foldPlexIcon = sidecarEdgePosition === "left" ? "panel-right-close"
     : sidecarEdgePosition === "above" ? "panel-bottom-close"
       : sidecarEdgePosition === "below" ? "panel-top-close"
