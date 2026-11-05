@@ -13,9 +13,10 @@ const hooks = new WeakMap<object, {observers: Set<Observer>; release(): void}>()
 function observe(owner: HandlerOwner, observer: Observer): () => void {
   let hook = hooks.get(owner);
   if (!hook) {
-    const original = owner.on_file_creation, observers = new Set<Observer>();
+    // Keep call() typed even when the host compiler disables strictBindCallApply.
+    const original: Handler & CallableFunction = owner.on_file_creation, observers = new Set<Observer>();
     const wrapped: Handler = function(engine, app, file) {
-      const completion = original.call(this, engine, app, file) as Promise<void>;
+      const completion = original.call(this, engine, app, file);
       for (const receive of observers) receive(app, file, completion);
       return completion;
     };

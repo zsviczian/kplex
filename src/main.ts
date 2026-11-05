@@ -5157,7 +5157,9 @@ export default class KplexPlugin extends Plugin {
       if (!file && current()) throw new Error(this.translator("pins.createFailed"));
       return file ? this.index.insertCreatedFile(file) : null;
     }
-    const folder = path.split("/").slice(0, -1).join("/"), name = path.split("/").at(-1)!.slice(0, -3);
+    const separator = path.lastIndexOf("/");
+    const folder = separator < 0 ? "" : path.slice(0, separator);
+    const name = path.slice(separator + 1, -3);
     const file = await this.createNewFileInFolder(name, "markdown", folder, /** Recheck local date and settings after ancestor creation. */ () => !this.unloading && current()
       && this.readSavedPins().some(item => item.id === id && item.period === row.period && item.path === path && item.state === "missing"));
     return file ? this.index.insertCreatedFile(file) : null;
