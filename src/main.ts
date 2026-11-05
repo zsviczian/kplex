@@ -4440,13 +4440,14 @@ export default class KplexPlugin extends Plugin {
   /**
    * Offer the visible tab in one unambiguous group on the configured edge, without acquiring it.
    * Hidden tabs, embedded views, other Plex surfaces and already managed companions are ineligible.
+   * A hidden managed companion does not prevent attaching its group's displayed sibling tab.
    * Multiple groups sharing that edge remain ambiguous, including utility-only groups.
    */
   getAdjacentSidecarCandidate(hostLeaf: WorkspaceLeaf): WorkspaceLeaf | null {
     const session = this.documentSession(hostLeaf); if (!session) return null;
     if (this.unloading || this.startupInitializing || !this.leafIsAttached(hostLeaf)
       || hostLeaf.view.getViewType() === KPLEX_SIDEPANEL_VIEW_TYPE
-      || this.isSidecarOpen(hostLeaf) || this.sidecarMovingHosts.has(hostLeaf)) return null;
+      || this.sidecarMovingHosts.has(hostLeaf)) return null;
     const groups = new Map<HTMLElement, WorkspaceLeaf[]>();
     this.app.workspace.iterateAllLeaves(/** Inspect native geometry only; no file reads or ownership changes. */ leaf => {
       if (leaf === hostLeaf || this.adjacentPosition(hostLeaf, leaf) !== session.preferences.sidecarPosition) return;
@@ -4492,6 +4493,7 @@ export default class KplexPlugin extends Plugin {
       || page.file && this.app.vault.getFileByPath(page.file.path) !== page.file
       || page.url && !isWebViewerAvailable(this.app, page.url))) return null;
     const previous = {
+      sidecar: this.sidecarLeaves.get(hostLeaf), targetId: session.targetId,
       linked: session.linkedDocumentLeaf, last: session.lastDocumentLeaf,
       mode: session.preferences.documentSyncMode, open: session.preferences.sidecarOpen,
       file: session.preferences.sidecarLastFilePath, url: session.preferences.sidecarLastUrl,
@@ -4522,6 +4524,11 @@ export default class KplexPlugin extends Plugin {
     } catch (error) {
       if (this.sidecarLeaves.get(hostLeaf) === leaf) {
         this.deleteSidecarOwner(hostLeaf);
+        // Reattaching a visible sibling must not lose the original companion if native opening fails.
+        if (previous.sidecar && this.leafIsAttached(previous.sidecar) && !this.isManagedSidecarLeaf(previous.sidecar)) {
+          this.setSidecarOwner(hostLeaf, previous.sidecar);
+        }
+        session.targetId = previous.targetId;
         session.linkedDocumentLeaf = previous.linked;
         session.lastDocumentLeaf = previous.last;
         session.preferences.documentSyncMode = previous.mode;

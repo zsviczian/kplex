@@ -17,6 +17,7 @@ import { runSidecarFoldingCases } from "./sidecarFoldingCases.mjs";
 import { runSidecarFoldRoutingCases } from "./sidecarFoldingRoutingCases.mjs";
 import { runSidecarFoldingLifecycleCases } from "./sidecarFoldingLifecycleCases.mjs";
 import {withNativeDocumentSessions} from "./nativeDocumentSessions.mjs";
+import {runSidecarAttachmentCases} from "./sidecarAttachmentCases.mjs";
 
 const projectRoot = resolve(fileURLToPath(new URL("../../..", import.meta.url)));
 const vaultName = process.env.KPLEX_TEST_VAULT_NAME;
@@ -28,7 +29,7 @@ mkdirSync(output, { recursive: true });
 const source = readFileSync(fileURLToPath(import.meta.url));
 writeFileSync(join(output, "driver-source.mjs"), source);
 const helperHashes = {};
-for (const name of ["sidecarFoldingCases.mjs", "sidecarFoldingRoutingCases.mjs", "sidecarFoldingLifecycleCases.mjs"]) {
+for (const name of ["sidecarFoldingCases.mjs", "sidecarFoldingRoutingCases.mjs", "sidecarFoldingLifecycleCases.mjs", "sidecarAttachmentCases.mjs"]) {
   const bytes = readFileSync(fileURLToPath(new URL(name, import.meta.url)));
   writeFileSync(join(output, name), bytes); helperHashes[name] = createHash("sha256").update(bytes).digest("hex");
 }
@@ -60,7 +61,7 @@ function evaluate(code) {code=withNativeDocumentSessions(code); return JSON.pars
 function pause(milliseconds) { return new Promise(/** Yield one bounded driver interval. */ done => setTimeout(done, milliseconds)); }
 
 /** Exercise actual host owners and native controls while retaining cleanup even after a failed assertion. */
-function installProbe(extendedCases, routingCases, lifecycleCases, modifierOnly = false) {
+function installProbe(extendedCases, routingCases, lifecycleCases, modifierOnly = false, attachmentOnly = false, attachmentCases) {
   const p = app.plugins.plugins["k-plex"], native = require("@electron/remote").getCurrentWindow();
   if (!p?.actionManager || window.__kplex173FoldProbe || app.setting.isOpen || document.querySelector(".modal-container .modal,.modal-container .prompt")) throw Error("Clean loaded native prerequisites required");
   const c = window.__kplex173FoldProbe = { done: false, scenarios: [], wrappers: [], layout: app.workspace.getLayout(), settings: structuredClone(p.settings),
@@ -194,6 +195,11 @@ function installProbe(extendedCases, routingCases, lifecycleCases, modifierOnly 
     await host.view.waitUntilReady(); check(surface(host), "Current action surface required");
     check(p.sidecarLeaves.size === 0 && p.collapsedPlexHosts.size === 0, "Start without managed companions/folds");
     const page = p.index.get(p.settings.lastActivePath); check(page?.file, "An existing physical center is required");
+    if (attachmentOnly) {
+      await attachmentCases({p, workspace, c, page, host, check, until, frames, click, scenario});
+      c.final = {fileCount: app.vault.getFiles().length, markdownCount: app.vault.getMarkdownFiles().length, folds: p.collapsedPlexHosts.size};
+      return;
+    }
     if (modifierOnly) {
       /** Reacquire the real React control after native layout replaces its owning elements. */
       const primary = () => host.view.containerEl.querySelector(".kplex-sidecar-primary");
@@ -338,7 +344,7 @@ try {
     assert(built.equals(installed), `Stage the exact build before this lane: ${name}`);
     report.artifacts[name] = createHash("sha256").update(built).digest("hex");
   }
-  cli("dev:errors", "clear"); evaluate(`(${installProbe.toString()})(${runSidecarFoldingCases.toString()},${runSidecarFoldRoutingCases.toString()},${runSidecarFoldingLifecycleCases.toString()},${process.env.KPLEX_SIDECAR_MODIFIER_ONLY === "true"})`); started = true;
+  cli("dev:errors", "clear"); evaluate(`(${installProbe.toString()})(${runSidecarFoldingCases.toString()},${runSidecarFoldRoutingCases.toString()},${runSidecarFoldingLifecycleCases.toString()},${process.env.KPLEX_SIDECAR_MODIFIER_ONLY === "true"},${process.env.KPLEX_SIDECAR_ATTACHMENT_ONLY === "true"},${runSidecarAttachmentCases.toString()})`); started = true;
   const deadline = Date.now() + 240000;
   while (true) {
     const value = evaluate("JSON.stringify((()=>{const c=window.__kplex173FoldProbe;return {done:c?.done,error:c?.error,currentScenario:c?.currentScenario,scenarios:c?.scenarios,before:c?.before,final:c?.final,cleanTransitionCounts:c?.cleanTransitionCounts,routingFailure:c?.routingFailure,lifecycleFailure:c?.lifecycleFailure,errorEvents:c?.errorEvents}})())");

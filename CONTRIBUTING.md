@@ -1181,6 +1181,13 @@ checks. A failed cleanup or an installed/build hash mismatch invalidates accepta
 
 ### Native Sidecar folding acceptance
 
+Set `KPLEX_SIDECAR_ATTACHMENT_ONLY=true` on the folding driver for the focused
+four-edge attachment matrix: selected Sidecar hides both arrows, another document
+shows both, an empty sibling shows only outward flow, and closing the hidden
+companion retains attachment. Trusted arrow clicks verify both synchronization
+directions, replacement ownership and preserving the former companion's tab.
+This reuses the same exact-build staging, shared host lock and state restoration.
+
 After exact-build staging, run `npm run verify:obsidian:sidecar-folding` with all three explicit
 disposable `kplex-test-small` vault variables and a fresh `KPLEX_HOST_REPORT_DIR`. Run native and
 browser lanes serially. The lane exercises the published toggle and trusted native shortcut,
