@@ -510,8 +510,9 @@ button.kplex-sidecar-unfold-plex,
 }
 .kplex-history-label { flex: 0 0 auto; font-size: 8px; font-weight: 700; letter-spacing: .13em; color: var(--text-muted); }
 .kplex-history-list { min-width: 0; display: flex; gap: 5px; overflow-x: auto; scrollbar-width: none; user-select: none; }
-.kplex-history-list.is-mouse-scrolling, .kplex-history-list.is-mouse-scrolling button { cursor: grabbing; }
-.kplex-history-list::-webkit-scrollbar { display: none; }
+.kplex-history-list.is-mouse-scrolling, .kplex-history-list.is-mouse-scrolling button,
+.kplex-pinned-bar.is-mouse-scrolling, .kplex-pinned-bar.is-mouse-scrolling button { cursor: grabbing; }
+.kplex-history-list::-webkit-scrollbar, .kplex-pinned-bar::-webkit-scrollbar { display: none; }
 .kplex-history-list button { flex: 0 0 auto; width: 180px; max-width: 180px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-align: left; justify-content: flex-start; color: var(--text-normal); border: 1px solid var(--background-modifier-border); border-radius: 6px; background: var(--background-primary); padding: 5px 9px; cursor: pointer; font-size: 11px; }
 .kplex-history-list button { display: flex; align-items: center; gap: 5px; }
 .kplex-history-list button > .kplex-icon,
@@ -1278,7 +1279,8 @@ button.kplex-sidecar-unfold-plex,
   padding: 2px 10px 6px;
   overflow-x: auto;
   overflow-y: hidden;
-  scrollbar-width: thin;
+  scrollbar-width: none;
+  user-select: none;
   background: var(--background-secondary);
 }
 .kplex-pinned-chip {

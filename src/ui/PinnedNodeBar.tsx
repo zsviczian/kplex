@@ -15,7 +15,7 @@ export function PinnedNodeBar({rows, translate, onActivate, onRemove, onMove, on
   rows: readonly PinnedNodeRow[]; translate: Translator; onActivate: (id: string) => void; onRemove: (id: string) => void;
   onMove: (move: ReorderMove) => void; onMenu: (id: string, button: HTMLButtonElement) => void;
 }) {
-  return <ReorderableList ids={rows.map(/** Ordering includes missing entries rather than graph-filtered rows. */ row => row.id)} className="kplex-pinned-bar" label={translate("app.pinnedNodes")} onMove={onMove}>
+  return <ReorderableList ids={rows.map(/** Ordering includes missing entries rather than graph-filtered rows. */ row => row.id)} className="kplex-pinned-bar" label={translate("app.pinnedNodes")} onMove={onMove} grabScroll>
     {rows.map(/** Keep legacy paint/selectors and per-entry actions independent of the drag handle. */ row => <div key={row.id} role="listitem" data-reorder-id={row.id}
       style={row.style} className={`kplex-pinned-chip${row.active ? " is-active" : ""}${row.available ? "" : " is-unavailable"}`}>
       <button type="button" className="kplex-pin-reorder-handle" data-reorder-handle aria-label={translate("pins.reorder", {title: row.label})}
