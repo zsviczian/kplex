@@ -18,7 +18,7 @@ Guide:
 2. <Try a local, reversible action.>
 3. <State the expected result.>
 
-![[Assets/<real screenshot>.png]]
+![[<real screenshot>.png]]
 
 *<The visible cue to check, without private note information.>*
 
@@ -32,3 +32,5 @@ Guide:
 ```
 
 Explain states in terms of what the reader can do. Avoid internal implementation names, unmeasured performance promises or advice to purge caches before collecting evidence.
+
+Follow [Links and Markdown tables](README.md#links-and-markdown-tables). Symptom tables must have equal column counts; use unaliased short wikilinks or standard Markdown links for descriptive labels, never aliased wikilinks.

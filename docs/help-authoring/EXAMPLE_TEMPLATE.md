@@ -22,7 +22,7 @@ Guide:
 2. <Use the feature.>
 3. <Look for a specific, observable result.>
 
-![[Assets/<actual demonstration screenshot>.png]]
+![[<actual demonstration screenshot>.png]]
 
 *<What to notice.>*
 
@@ -32,3 +32,5 @@ Guide:
 ```
 
 Use ordinary, supported properties and real link targets. For editing demonstrations, let readers practice on their own copies; screenshot capture should not silently unlink, delete or move shared demonstration notes. Preserve Excalidraw drawing payloads when adding explanatory Markdown. Example pages are user-facing articles, not fixture manifests or validation reports.
+
+Follow [Links and Markdown tables](README.md#links-and-markdown-tables): short note and asset targets unless ambiguous, and no aliased wikilinks in tables.

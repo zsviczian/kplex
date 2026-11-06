@@ -27,3 +27,5 @@ Child:
 ```
 
 Check actual graph children, not just this page's authored list. Reparent affected notes when splitting a hub; otherwise inverse relationships keep the original hub crowded. Keep navigation available in both ordinary Markdown and K-Plex.
+
+Follow [Links and Markdown tables](README.md#links-and-markdown-tables): use short targets unless filenames are ambiguous, and no aliased wikilinks in table cells.

@@ -15,6 +15,15 @@ Help Home → sections → feature guides and outcome-oriented use cases. A sepa
 
 In the Help vault's current ontology, `Guide`/ `Parent` map to Parent; `Explains`/ `Child` to Child; `Related`/ `Friend` to Friend; `Watch out`/ `Challenger` to Challenger; `Previous` and `Next` are sequence roles. Check the current help `00 Start Here/How to use this help vault.md` and settings before changing field names. Prefer **release → Explains → guide/use case** and **use-case → Explains → relevant feature guides**; do not reverse relationships arbitrarily or invent a new ontology. The relation should make navigational sense when either note is centered.
 
+### Links and Markdown tables
+
+- **Use short Obsidian links.** Prefer `[[Connection details and evidence]]` over `[[03 Build and edit/Connection details and evidence]]`. Apply this to body links, YAML ontology lists, heading/block links and image embeds. Use `![[Screenshot - Pins.png]]` for a uniquely named asset. Retain a vault-relative path only when duplicate filenames require disambiguation; check the current file inventory before shortening a link.
+- Preserve the resolved target, heading/block fragment, display label and embed sizing. Leave executable code, literal syntax examples, external URLs and serialized Excalidraw payloads intact. Do not shorten API file paths or filenames passed to commands: those are data, not navigational links.
+- **Never use aliased wikilinks in Markdown tables**, including an escaped alias separator. A pipe in `[[target|label]]` can be parsed as another column. Use an unaliased short wikilink, such as `[[Quick Filter]]`, or preserve a descriptive label with a standard Markdown link, such as `[Inspect Connection details](<Connection details and evidence.md>)`. Use a disambiguating path only when necessary. Avoid pipes in table-cell labels and inline code too; code formatting does not protect table delimiters.
+- Check every table's header, separator and body rows for equal column counts. Verify local Markdown links as well as wikilinks and embeds against real targets. Check both ordinary Obsidian reading and ontology navigation; changing link notation must not change the connected notes.
+
+These rules apply to every template below and to later edits of existing Help pages. Keep authoring instructions here, outside the consumer vault.
+
 ### Content types
 
 - **[Feature guide template](FEATURE_TEMPLATE.md):** one capability/workflow, reader-oriented steps, limitations, related features, screenshots where helpful.
@@ -26,9 +35,9 @@ In the Help vault's current ontology, `Guide`/ `Parent` map to Parent; `Explains
 1. Identify the task and read K-Plex `AGENTS.md`, `CONTRIBUTING.md`, and this playbook. Review the relevant K-Plex implementation, merged PRs and **published releases**; distinguish released, merged-only and proposed changes. GitHub is authoritative for code and history.
 2. Read the **current** Help branch and its own instructions if present, Help Home, Use cases, Release notes, ontology guide and related feature notes. Check for conflicting/duplicate pages. Use its own branch workflow and verify repository identity before edits.
 3. Plan a small set of page changes; use the templates as starting points, not a replacement for existing content conventions. Favor audience value over lists of UI controls.
-4. Write frontmatter properties as valid YAML and use Obsidian wikilinks to real paths. `Note type: Use case` is the exact value for use-case pages; tags can supplement it but should not substitute for the property. Add `Explains` edges only to meaningful, existing targets.
+4. Write frontmatter properties as valid YAML and use short Obsidian wikilinks to real targets, retaining a path only for filename ambiguity. Follow the link and table rules above. `Note type: Use case` is the exact value for use-case pages; tags can supplement it but should not substitute for the property. Add `Explains` edges only to meaningful, existing targets.
 5. For **screenshots**: the local agent can open a suitable build of K-Plex in Obsidian, capture genuine screenshots showing actual current UI, crop for clarity, store them under the Help vault's existing `Assets/` conventions, and embed with working Obsidian links. Do not fabricate UI, screenshot evidence, tests or version coverage; remove personal data and secrets. Record missing screenshot opportunities as TODOs, not fake image paths.
-6. Validate both directions of each link and ontology edge; check titles, aliases, Note Type values, backlinks, image paths, displayed formatting, rendered Plex and version claims. Keep screenshots and text in sync. Save on the authorized Help branch, read files back and inspect the diff.
+6. Validate both directions of each link and ontology edge; check titles, aliases, Note Type values, backlinks, image targets, displayed formatting, rendered Plex and version claims. Audit all edited Markdown tables for equal column counts and no aliased wikilinks. Keep screenshots and text in sync. Save on the authorized Help branch, read files back and inspect the diff.
 7. In the relevant PR, briefly describe changed reader outcomes, sourced releases/PRs, screenshots captured, rendering tested and remaining gaps. **Do not merge** without authorization.
 
 ## Release cadence and boundaries
@@ -40,7 +49,7 @@ When a K-Plex release ships, update the Help vault's plugin assets only under a 
 - Use `Previous` for the immediately preceding release page and `Next` for the immediately following release page in version order. Use existing pages, including explicitly labeled drafts; do not invent missing versions or link to nonexistent future pages.
 - Maintain both frontmatter declarations: the newer page's `Previous` points to the older page, and the older page's `Next` points to the newer page. When adding or inserting a release page, update its neighbors in the same edit. Omit `Previous` on the earliest page and `Next` on the latest page.
 - Never classify chronological release-to-release links as `Related` or `Friend`, or leave the same pair under both a sequence field and a friend field. Keep `Related` for genuine companion references and source URLs; keep `Explains` for feature and use-case guides.
-- For example, `K-Plex 0.3.0 release notes` has `Previous: [[11 Release notes/K-Plex 0.2.4 release notes]]`, and `K-Plex 0.2.4 release notes` has `Next: [[11 Release notes/K-Plex 0.3.0 release notes]]`. Store these as quoted wikilinks in YAML lists, as shown in the release template.
+- For example, `Release 0.3.0` has `Previous: [[Release 0.2.4]]`, and `Release 0.2.4` has `Next: [[Release 0.3.0]]`. Store these as quoted wikilinks in YAML lists, as shown in the release template.
 
 Before completing a release-note edit, check the entire release archive in version order: valid YAML, existing targets, correct reciprocal `Previous`/`Next` links, no chronological links under `Related`/`Friend`, and correct endpoints. Preserve historical body text when correcting navigation metadata.
 

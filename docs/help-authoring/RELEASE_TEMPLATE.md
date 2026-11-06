@@ -10,14 +10,14 @@ tags:
 - kplex-help/release-notes
 - kplex/<released-or-unreleased>
 Guide:
-- '[[11 Release notes/Release notes]]'
+- '[[Release notes]]'
 Previous:
-- '[[11 Release notes/<previous release page>]]'
+- '[[<previous release page>]]'
 Next:
-- '[[11 Release notes/<next release page>]]'
+- '[[<next release page>]]'
 Explains:
 - '[[<existing feature guide>]]'
-- '[[07 Use cases/<evergreen use case>]]'
+- '[[<evergreen use case>]]'
 ---
 # K-Plex <version> — <human-readable release theme>
 
@@ -44,6 +44,8 @@ Explains:
 ```
 
 Replace sequence placeholders with the actual adjacent release pages in version order. Omit `Previous` if there is no earlier page and `Next` if there is no later page; never create a link to a nonexistent page. Explicitly labeled drafts participate in the sequence without changing their release status. Update the previous page's `Next` and, when inserting between existing pages, the next page's `Previous` in the same edit. Chronological release links belong only in `Previous`/`Next`, never `Related`/`Friend`.
+
+Follow [Links and Markdown tables](README.md#links-and-markdown-tables): short note names unless ambiguous, including sequence and ontology lists; never use an aliased wikilink in a table.
 
 Validate the entire archive's reciprocal sequence and endpoints, YAML and link targets before finishing. See [Release sequence navigation](README.md#release-sequence-navigation) for the rules and a 0.2.4 ↔ 0.3.0 example. Preserve historical body text when fixing navigation metadata.
 

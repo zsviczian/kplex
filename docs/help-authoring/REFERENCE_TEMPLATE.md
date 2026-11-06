@@ -29,3 +29,5 @@ Guide:
 ```
 
 Use searchable terms and short rows. Keep Windows/macOS shortcut conventions accurate. Link to the shared action and feature guides instead of repeating long instructions. A native keyboard-help screenshot illustrates the reference; it is not evidence of physical mobile keyboard testing.
+
+Follow [Links and Markdown tables](README.md#links-and-markdown-tables): short targets unless filenames are ambiguous, no aliased wikilinks inside tables, and equal column counts in every row. For a descriptive table link, use `[Inspect the source](<Connection details and evidence.md>)`; for the note name itself, use `[[Connection details and evidence]]`.

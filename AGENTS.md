@@ -80,6 +80,8 @@ See [coding standards](CODING_STANDARDS.md#documentation-contract).
 
 When tasked with editing the living K-Plex Help vault at [zsviczian/kplex-help](https://github.com/zsviczian/kplex-help), **first read [docs/help-authoring/README.md](docs/help-authoring/README.md)** and its [feature](docs/help-authoring/FEATURE_TEMPLATE.md), [use-case](docs/help-authoring/USE_CASE_TEMPLATE.md) and [release](docs/help-authoring/RELEASE_TEMPLATE.md) templates as applicable. K-Plex Help is a separate Obsidian-vault repository, combining readable help pages, ontology relationships, visual styling and screenshots. The K-Plex product README and interface should **not** become navigational advertising for that vault.
 
+Follow the playbook's [link and table rules](docs/help-authoring/README.md#links-and-markdown-tables): short Obsidian targets unless filenames are ambiguous, and no aliased wikilinks in Markdown tables. Audit table column counts and resolved targets before completing Help edits.
+
 Use the Help repository's current branch, own instructions, ontology and existing documentation as authority for content organization. Keep use cases evergreen and marked `Note type: Use case`; connect release pages to relevant feature/use-case pages via the Help vault's existing `Explains` ontology. Release pages must distinguish drafts from published history. Capture authentic screenshots locally, preserve existing visual assets and avoid changing its bundled plugin executables or `.obsidian` settings without separate authorization. Verify Help-repository writes independently of K-Plex source changes.
 
 ## Architecture boundaries

@@ -11,7 +11,7 @@ tags:
 - kplex-help/example
 - kplex/use-cases
 Parent:
-- '[[07 Use cases/Use cases]]'
+- '[[Use cases]]'
 Explains:
 - '[[<existing feature guide>]]'
 - '[[<another existing guide>]]'
@@ -27,7 +27,7 @@ Friend:
 ## Try it with a real example
 <One concrete project, research or personal-life story.>
 
-![[Assets/<genuine screenshot of this example>.png]]
+![[<genuine screenshot of this example>.png]]
 
 *<What to notice and how it supports the reader's goal.>*
 
@@ -50,6 +50,7 @@ Friend:
 ```
 
 Rules:
+- Follow [Links and Markdown tables](README.md#links-and-markdown-tables): use short targets unless ambiguous, and no aliased wikilinks in table cells.
 - **Always** set frontmatter `Note type: Use case` exactly, checking live vault conventions.
 - Keep the article evergreen: **no** "Next release", unpublished-version announcements, or dated status tables in the use-case page. Release-specific history belongs in the versioned release archive, which can point back here via `Explains`.
 - Reuse existing `Parent`, `Explains`, `Friend` ontology fields and actual target paths. Preserve the landing page's structural links; avoid duplicate guidance.
