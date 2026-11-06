@@ -51,7 +51,7 @@ async function browser(){const b=await chromiumHarness(bundle.outputFiles[0].tex
 /** Send real primary mouse input through the browser's pointer capture and synthesized-click path. */
 async function mouse(b,type,x,y,buttons=0){await b.command('Input.dispatchMouseEvent',{type,x,y,button:type==='mouseMoved'?'none':'left',buttons,clickCount:type==='mouseMoved'?0:1})}
 /** Read a visible button's interior point independently of compact label wrapping. */
-async function point(b){return b.evaluate(`(()=>{const r=document.querySelector('.kplex-history-list button').getBoundingClientRect();return{x:r.x+60,y:r.y+r.height/2}})()`)}
+async function point(b,selector='.kplex-history-list button'){return b.evaluate(`(()=>{const r=document.querySelector(${JSON.stringify(selector)}).getBoundingClientRect();return{x:r.x+r.width/2,y:r.y+r.height/2}})()`)}
 
 test('History and pins use live type/tag/kind node paint, prefix and icon without changing compact size',async()=>{
  const b=await browser();try{
@@ -63,12 +63,28 @@ test('History and pins use live type/tag/kind node paint, prefix and icon withou
  }finally{await b.cleanup()}
 });
 
-test('mouse grab scroll suppresses only its drag click; ordinary click and keyboard still navigate',async()=>{
+for(const selector of ['.kplex-history-list','.kplex-pinned-bar'])test(`${selector} mouse grab scroll suppresses only its drag click; ordinary click and keyboard still navigate`,async()=>{
  const b=await browser();try{
-  const p=await point(b);await mouse(b,'mousePressed',p.x,p.y,1);await mouse(b,'mouseMoved',p.x-45,p.y,1);await mouse(b,'mouseReleased',p.x-45,p.y);
-  assert((await b.evaluate(`document.querySelector('.kplex-history-list').scrollLeft`))>35);assert.equal(await b.evaluate('clicks.length'),0);assert.equal(await b.evaluate(`document.querySelector('.is-mouse-scrolling')===null`),true);
-  await b.evaluate(`document.querySelector('.kplex-history-list').scrollLeft=0`);const q=await point(b);await mouse(b,'mousePressed',q.x,q.y,1);await mouse(b,'mouseMoved',q.x+2,q.y,1);await mouse(b,'mouseReleased',q.x+2,q.y);assert.equal(await b.evaluate('clicks.length'),1);
-  await b.evaluate(`document.querySelector('.kplex-history-list button').focus()`);await b.command('Input.dispatchKeyEvent',{type:'keyDown',key:'Enter',code:'Enter',windowsVirtualKeyCode:13,text:'\r'});await b.command('Input.dispatchKeyEvent',{type:'keyUp',key:'Enter',code:'Enter',windowsVirtualKeyCode:13});assert.equal(await b.evaluate('clicks.length'),2);
+  const button=selector+(selector.includes('pinned')?' .kplex-pinned-open':' button');
+  const p=await point(b,button);await mouse(b,'mousePressed',p.x,p.y,1);await mouse(b,'mouseMoved',p.x-45,p.y,1);await mouse(b,'mouseReleased',p.x-45,p.y);
+  assert((await b.evaluate(`document.querySelector('${selector}').scrollLeft`))>35);assert.equal(await b.evaluate('clicks.length'),0);assert.equal(await b.evaluate(`document.querySelector('.is-mouse-scrolling')===null`),true);
+  const scrollbars=await b.evaluate(`(()=>{const el=document.querySelector('${selector}');return{width:getComputedStyle(el).scrollbarWidth,display:getComputedStyle(el,'::-webkit-scrollbar').display}})()`);assert.deepEqual(scrollbars,{width:'none',display:'none'});
+  await b.evaluate(`document.querySelector('${selector}').scrollLeft=0`);const q=await point(b,button);await mouse(b,'mousePressed',q.x,q.y,1);await mouse(b,'mouseMoved',q.x+2,q.y,1);await mouse(b,'mouseReleased',q.x+2,q.y);assert.equal(await b.evaluate('clicks.length'),1);
+  await b.evaluate(`document.querySelector('${button}').focus()`);await b.command('Input.dispatchKeyEvent',{type:'keyDown',key:'Enter',code:'Enter',windowsVirtualKeyCode:13,text:'\r'});await b.command('Input.dispatchKeyEvent',{type:'keyUp',key:'Enter',code:'Enter',windowsVirtualKeyCode:13});assert.equal(await b.evaluate('clicks.length'),2);
+ }finally{await b.cleanup()}
+});
+
+test('pins retain native horizontal touch scrolling without navigation or reordering',async()=>{
+ const b=await browser();try{
+  await b.command('Emulation.setTouchEmulationEnabled',{enabled:true});
+  const p=await b.evaluate(`(()=>{const r=document.querySelectorAll('.kplex-pinned-open')[1].getBoundingClientRect();return{x:r.x+r.width/2,y:r.y+r.height/2}})()`);
+  const before=await b.evaluate(`Array.from(document.querySelectorAll('[data-reorder-id]'),el=>el.dataset.reorderId)`);
+  await b.command('Input.dispatchTouchEvent',{type:'touchStart',touchPoints:[{...p,id:1,radiusX:1,radiusY:1,force:1}]});
+  for(let step=1;step<=8;step++){await b.command('Input.dispatchTouchEvent',{type:'touchMove',touchPoints:[{x:p.x-step*15,y:p.y,id:1,radiusX:1,radiusY:1,force:1}]});await b.evaluate(`new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)))`);}
+  await b.command('Input.dispatchTouchEvent',{type:'touchEnd',touchPoints:[]});
+  assert((await b.evaluate(`document.querySelector('.kplex-pinned-bar').scrollLeft`))>50);
+  assert.equal(await b.evaluate('clicks.length'),0);assert.equal(await b.evaluate(`!!document.querySelector('.is-reordering')`),false);
+  assert.deepEqual(await b.evaluate(`Array.from(document.querySelectorAll('[data-reorder-id]'),el=>el.dataset.reorderId)`),before);
  }finally{await b.cleanup()}
 });
 

@@ -3,6 +3,7 @@
  * captured order before persistence. Ordinary buttons, native drags and touch scroll are untouched.
  * This component owns capture/listeners only in its actual document and retires on migration. */
 import {useEffect, useRef, type ReactNode} from "react";
+import {useHorizontalDragScroll} from "./HorizontalDragScroll";
 
 /** One relative insertion request; the caller owns semantic identity, persistence and feedback. */
 export type ReorderMove = Readonly<{id: string; before: string | null; expected: readonly string[]}>;
@@ -15,10 +16,12 @@ function ownedElement(value: EventTarget | null, doc: Document): value is Elemen
 
 /** Dedicated handles may drag with mouse, pen or touch. A stationary handle remains a normal
  * button, allowing the caller's native keyboard-accessible reorder menu to open. */
-export function ReorderableList({ids, className, label, children, onMove}: {
+export function ReorderableList({ids, className, label, children, onMove, grabScroll = false}: {
   ids: readonly string[]; className: string; label: string; children: ReactNode; onMove: (move: ReorderMove) => void;
+  grabScroll?: boolean;
 }) {
   const root = useRef<HTMLDivElement>(null), latest = useRef({ids, onMove});latest.current = {ids, onMove};
+  useHorizontalDragScroll(root, grabScroll, "[data-reorder-handle]");
   useEffect(/** Capture exact document ownership; migrated/unmounted roots cannot commit old gestures. */ () => {
     const element = root.current, doc = element?.ownerDocument, owner = doc?.defaultView;
     if (!element || !doc || !owner) return;

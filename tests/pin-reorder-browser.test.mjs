@@ -65,6 +65,24 @@ test('threshold and keyboard handle activation preserve normal menu and note cli
  }finally{await b.cleanup()}
 });
 
+test('overflowing pins scroll from their body while handles alone reorder and remove still works',async()=>{
+ const b=await browser();try{
+  await b.evaluate(`document.querySelector('.kplex-pinned-bar').parentElement.style.width='350px'`);
+  const body=await b.evaluate(`(()=>{const r=document.querySelector('.kplex-pinned-open').getBoundingClientRect();return{x:r.x+r.width/2,y:r.y+r.height/2}})()`);
+  await mouse(b,'mousePressed',body,1);await mouse(b,'mouseMoved',{x:body.x-40,y:body.y},1);await mouse(b,'mouseReleased',{x:body.x-40,y:body.y});
+  assert((await b.evaluate(`document.querySelector('.kplex-pinned-bar').scrollLeft`))>30);
+  assert.deepEqual(await b.evaluate('calls'),{writes:0,navigation:0,remove:0,menus:0});
+  await b.evaluate(`document.querySelector('.kplex-pinned-bar').scrollLeft=0`);
+  await start(b,0);const target=await b.evaluate(`(()=>{const r=document.querySelectorAll('.kplex-pinned-chip')[1].getBoundingClientRect();return{x:r.x+r.width/2+5,y:r.y+r.height/2}})()`);await mouse(b,'mouseMoved',target,1);
+  assert.equal(await b.evaluate(`document.querySelector('.kplex-pinned-bar').scrollLeft`),0);
+  assert.equal(await b.evaluate(`!!document.querySelector('.is-mouse-scrolling')`),false);
+  await mouse(b,'mouseReleased',target);assert.equal(await b.evaluate('calls.writes'),1);
+  assert.deepEqual(await b.evaluate('order()'),['Unavailable.md','A.md','B.md','C.md']);
+  const remove=await b.evaluate(`(()=>{const r=document.querySelector('.kplex-pinned-remove').getBoundingClientRect();return{x:r.x+r.width/2,y:r.y+r.height/2}})()`);
+  await mouse(b,'mousePressed',remove,1);await mouse(b,'mouseReleased',remove);assert.equal(await b.evaluate('calls.remove'),1);
+ }finally{await b.cleanup()}
+});
+
 for(const mode of ['escape','blur','cancel','unmount'])test(`committed ${mode} cancellation never writes or navigates`,async()=>{
  const b=await browser();try{
   await start(b);const target=await b.evaluate('point(0)');await mouse(b,'mouseMoved',target,1);
@@ -88,6 +106,6 @@ test('another document accepts adopted SVG handles and releases its exact listen
  const b=await browser();try{
   await b.evaluate('frame()');await start(b,3,true);const target=await b.evaluate('point(0,true)');await mouse(b,'mouseMoved',target,1);await mouse(b,'mouseReleased',target);
   assert.deepEqual(await b.evaluate('order()'),['C.md','A.md','Unavailable.md','B.md']);assert.equal(await b.evaluate('calls.writes'),1);
-  await b.evaluate('closeFrame()');assert.deepEqual(await b.evaluate('listenerCounts'),{add:4,remove:4});
+  await b.evaluate('closeFrame()');assert.deepEqual(await b.evaluate('listenerCounts'),{add:7,remove:7});
  }finally{await b.cleanup()}
 });
