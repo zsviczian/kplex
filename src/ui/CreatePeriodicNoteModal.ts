@@ -1,10 +1,12 @@
 /** Missing periodic pin confirmation. Opening is a separate remembered preference, while the
- * captured period/path and native canvas lifetime authorize exactly one creation attempt. */
+ * captured period/path and native canvas lifetime authorize exactly one creation attempt.
+ * Calendar selections may inject their explicit daily-date creator through the same confirmation. */
 import {KplexModal as Modal, formActions, labelIconButton} from "../adapters/obsidian/KplexModal";
 import {type ButtonComponent, type WorkspaceLeaf} from "obsidian";
 import {createElement} from "react";
 import {createRoot, type Root} from "react-dom/client";
 import type KplexPlugin from "../main";
+import type {GraphPage} from "../types";
 
 import {CreationCompletionSelect} from "./features/CreationCompletionSelect";
 
@@ -20,7 +22,8 @@ export class CreatePeriodicNoteModal extends Modal {
 
   /** Keep the clicked symbolic pin and resolved path independent of later active files. */
   constructor(private readonly plugin: KplexPlugin, private readonly pinId: string, private readonly path: string,
-    private readonly hostLeaf: WorkspaceLeaf, private readonly current: () => boolean, private readonly retired: () => void) {super(plugin.app);}
+    private readonly hostLeaf: WorkspaceLeaf, private readonly current: () => boolean, private readonly retired: () => void,
+    private readonly createNote?: (current: () => boolean) => Promise<GraphPage | null>) {super(plugin.app);}
 
   /** Reuse the shared completion selector with a preference independent from ordinary creation. */
   private renderControl(): void {
@@ -37,7 +40,8 @@ export class CreatePeriodicNoteModal extends Modal {
     this.busy = true; this.renderControl();
     const action = this.plugin.createdNoteCompletionControl(this.hostLeaf, {operation: "periodic", another: false, follow: false}).value;
     try {
-      const page = await this.plugin.createPeriodicPinNote(this.pinId, this.path, /** A canceled prompt cannot authorize a later file write. */ () => this.opened && this.current());
+      const current = /** A canceled prompt cannot authorize a later file write. */ (): boolean => this.opened && this.current();
+      const page = await (this.createNote ? this.createNote(current) : this.plugin.createPeriodicPinNote(this.pinId, this.path, current));
       if (!page || !this.opened || !this.current()) return;
       this.completing = true; this.close();
       await this.plugin.finishNewRelatedNode(page, this.hostLeaf, "follow", /** A confirmed pin activation follows the new note even when no native editor is requested. */ () => this.completing && this.current());

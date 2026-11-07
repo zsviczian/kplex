@@ -37,6 +37,16 @@ test('Markdown export gives the native ontology dropdown remaining width and cen
 });
 import {authoringScenario} from './support/authoring278Browser.mjs';
 
+test('journal invocation restores a Parent field and retains a separate memory callback without linking on open',async()=>{
+ assert.equal(await authoringScenario(`
+ let remembered='';const modal=new M.NewRelatedNoteModal(p,origin,'parent',undefined,leaf,target,{initialOntology:'Parent',additiveOnly:true,onOntologySelected:async field=>{remembered=field}});modal.open();
+ await waitFor(()=>field(modal));check(field(modal).value==='Parent'&&modal.contentEl.querySelector('.kplex-add-related-role-select').value==='parent','Journal field/role was not restored');
+ check(name(modal).value===p.index.titleFor(target)&&links.length===0&&!remembered,'Opening a proposed daily link wrote data');
+ button(modal,'addRelated.link').click();await waitFor(()=>links.length===1);check(remembered==='Parent','Chronological memory callback did not receive the confirmed field');
+ modal.close();
+ `),true);
+});
+
 for(const drawing of [false,true])test('linking footer has two aligned compact icon actions without reserved creation space: '+drawing,async()=>{
  assert.equal(await authoringScenario(`
  p.isExcalidrawAvailable=()=>${drawing};const modal=openComposer(target);await waitFor(()=>modal.contentEl.querySelector('.kplex-add-related-link-button'));
@@ -104,7 +114,7 @@ test('all native form shells share the keyboard viewport lease and release it ac
  const parent={...origin,path:'folder:Folder',file:null,isFolder:true,name:'Folder'};
  for(const create of [()=>new M.CreateFolderNoteModal(p,parent,leaf,{},true),()=>new M.NewRelatedNoteModal(p,origin,'child',undefined,leaf),()=>new M.CreatePeriodicNoteModal(p,'periodic:day','Today.md',leaf,()=>true,()=>{}),()=>new M.ExternalFileImportBatchModal(p,origin,{files:[new File(['one'],'One.md')],directory:false},'child',leaf,()=>true,()=>{})]){
    const modal=create(),baseline=listenerCount(),setProps=modal.modalEl.setCssProps;let updates=0;modal.modalEl.setCssProps=function(values){if('--kplex-visible-height' in values)updates++;return setProps.call(this,values)};modal.open();await waitFor(()=>modal.contentEl.querySelector('input,select,button'));
-   check(modal.modalEl.classList.contains('kplex-mobile-fullscreen-modal')&&updates===1,'Shared mobile shell was bypassed or duplicated');
+   check(modal.modalEl.classList.contains('kplex-mobile-fullscreen-modal')&&updates===1,'Shared mobile shell was bypassed or duplicated: '+modal.constructor.name+' / '+updates);
    viewport.height=320;viewport.offsetTop=24;viewport.dispatchEvent(new Event('resize'));
    check(updates===2&&modal.modalEl.style.getPropertyValue('--kplex-visible-height')==='320px'&&modal.modalEl.style.getPropertyValue('--kplex-visible-top')==='24px','Keyboard viewport was not applied exactly once');
    const content=modal.contentEl;check(getComputedStyle(content).overflowY==='auto','Keyboard-sized content cannot scroll');

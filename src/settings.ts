@@ -7,6 +7,7 @@
  * density from the same saved value. All saves cross the plugin settings-impact classifier; the
  * injected translator owns display copy. Device indexing strategies and admission take effect after restart; persistent
  * cache estimates run only when their settings row is rendered, never during plugin startup.
+ * Calendar visibility is canvas chrome; journal link memories are independent workflow fields.
  * Date fallback roles reinterpret cached facts through the semantic settings owner; absent/interim
  * preferences use Parent and foreign imports cannot overwrite the local default role.
  * Background throttle changes apply live without reconstructing semantic data. Style creation selects
@@ -370,6 +371,10 @@ export interface KplexSettings extends StartupIndexPreferences {
   lastActivePath: string;
   pinnedNodes: SavedPin[];
   periodicPinSettings: PeriodicPinSettings;
+  /** Shared canvas chrome; choosing dates never enables a periodic pin. */
+  showDailyCalendar: boolean;
+  /** Journal chronology remembers fields independently of their configured semantic roles. */
+  dailyNoteLinkFields: {previous: string; next: string};
   layoutProfiles: Record<string, KplexLayoutProfile>;
   /** Bounded effective reads validate registered schemas; unsupported persisted payloads remain inert and round-trip unchanged. */
   canvasViewSettings: unknown;
@@ -535,6 +540,8 @@ const LEGACY_DEFAULT_SETTINGS: KplexSettings = {
   lastActivePath: "",
   pinnedNodes: [],
   periodicPinSettings: DEFAULT_PERIODIC_PIN_SETTINGS,
+  showDailyCalendar: true,
+  dailyNoteLinkFields: {previous: "", next: ""},
   layoutProfiles: DEFAULT_LAYOUT_PROFILES,
   canvasViewSettings: {},
   mouseInteractionMode: "smart",
@@ -811,6 +818,10 @@ export function migrateAndMergeSettings(raw: unknown): KplexSettings {
     lastActivePath: String(old.lastActivePath ?? ""),
     pinnedNodes: loadSavedPins(old.pinnedNodes),
     periodicPinSettings: loadPeriodicPinSettings(old.periodicPinSettings),
+    showDailyCalendar: typeof old.showDailyCalendar === "boolean" ? old.showDailyCalendar : true,
+    dailyNoteLinkFields: {...(old.dailyNoteLinkFields && typeof old.dailyNoteLinkFields === "object" && !Array.isArray(old.dailyNoteLinkFields) ? old.dailyNoteLinkFields : {}),
+      previous: typeof old.dailyNoteLinkFields?.previous === "string" ? old.dailyNoteLinkFields.previous : "",
+      next: typeof old.dailyNoteLinkFields?.next === "string" ? old.dailyNoteLinkFields.next : ""},
     layoutProfiles: migratedProfiles,
     typographyProfiles: sanitizeTypographyProfiles(old.typographyProfiles),
     hoverHighlightRequiresAlt: typeof old.hoverHighlightRequiresAlt === "boolean" ? old.hoverHighlightRequiresAlt : true,
@@ -2503,7 +2514,10 @@ export class KplexSettingTab extends PluginSettingTab {
         name: translate("settings.ui.plex.behavior"),
         desc: translate("settings.ui.navigation.layout.visibility.and.relationship.behavior.i"),
         items: [
-          {type: "page", name: translate("pins.settingsTitle"), desc: translate("pins.settingsHelp"), items: PIN_PERIODS.map(/** One shared renderer supplies all three period editors and their dependent state. */ period => ({name: periodicPinLabel(period, translate), render: setting => this.mountPeriodicPin(setting, period)}))},
+          {type: "page", name: translate("pins.settingsTitle"), desc: translate("pins.settingsHelp"), items: [
+            {name: translate("daily.showCalendar"), desc: translate("daily.showCalendarHelp"), control: {type: "toggle", key: "showDailyCalendar"}},
+            ...PIN_PERIODS.map(/** One shared renderer supplies all three period editors and their dependent state. */ period => ({name: periodicPinLabel(period, translate), render: (setting: Setting) => this.mountPeriodicPin(setting, period)})),
+          ]},
           {
             type: "group",
             heading: translate("settings.ui.navigation.interaction"),

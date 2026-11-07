@@ -77,6 +77,8 @@ SI3 source storage has two focused lanes: `npm run test:sources` exercises produ
 
 ### Desktop CLI setup (Windows and macOS)
 
+After exact-build staging, `npm run verify:obsidian:pins-calendar-journal` uses the three explicit disposable `kplex-test-small` target variables below and `KPLEX_HOST_REPORT_DIR`. It exercises pin editing and scrolling, the native Daily Notes calendar, confirmed past-date creation through Core templates, nearest journal links in Compass/Mindmap/Facets, independent ontology memory, narrow light/dark presentation and popout navigation. The driver owns its temporary notes and restores Daily Notes options, settings bytes, appearance, workspace and geometry. Core Daily Notes must be enabled in this disposable vault. It uses Obsidian's DOM menu backend for observable trusted Electron input; macOS, physical touch and OS date-picker behavior remain separate acceptance.
+
 Install a CLI-capable Obsidian desktop installer, enable **Settings → General → Advanced → Command line interface**, and complete registration. Keep Obsidian running and the test vault open. Restart the terminal (and an already-running IDE/agent session) after registration so it sees the updated PATH. See [Obsidian's CLI installation and troubleshooting](https://help.obsidian.md/cli).
 
 Use `kplex-test-small` for functional checks and `kplex-test` for scale work. Names alone do not establish a large fixture: record its actual file counts. Both must be disposable vaults, separate from personal notes. Existing prepared vaults need no recloning or configuration reset.

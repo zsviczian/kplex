@@ -1271,7 +1271,29 @@ button.kplex-sidecar-unfold-plex,
   border-bottom: 0;
   box-shadow: none;
 }
+.kplex-pinned-row {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  background: var(--background-secondary);
+}
+.kplex-pin-tools { display: flex; flex: 0 0 auto; gap: 2px; padding: 2px 2px 6px 8px; }
+.kplex-pin-tools .kplex-icon-button { width: 28px; height: 28px; }
+.kplex-calendar-modal { width: 360px; max-width: calc(100vw - 24px); }
+.kplex-calendar-heading { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 8px; }
+.kplex-calendar-heading > span { font-weight: 600; text-align: center; }
+.kplex-calendar-weekdays, .kplex-calendar-grid { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 3px; }
+.kplex-calendar-weekdays { color: var(--text-muted); text-align: center; font-size: var(--font-ui-smaller); margin-bottom: 4px; }
+.kplex-calendar-grid { margin-bottom: 12px; }
+.kplex-calendar-grid button { display: flex; flex-direction: column; align-items: center; justify-content: center; min-width: 0; height: 40px; padding: 2px; }
+.kplex-calendar-grid .is-other-month { color: var(--text-muted); }
+.kplex-calendar-grid .is-today { outline: 2px solid var(--interactive-accent); outline-offset: -2px; }
+.kplex-calendar-grid .has-note { font-weight: 600; }
+.kplex-calendar-note-dot { height: 9px; line-height: 9px; color: var(--interactive-accent); }
+.kplex-calendar-picker input[type="date"] { width: 100%; }
 .kplex-pinned-bar {
+  flex: 1 1 auto;
+  min-width: 0;
   display: flex;
   align-items: center;
   gap: 6px;

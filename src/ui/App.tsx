@@ -1655,7 +1655,8 @@ export function KplexApp({ plugin, surface, hostLeaf, translate, environment, on
           </div>
         </header>
 
-        {pinnedPages.length > 0 && <PinnedNodeBar rows={pinnedPages} translate={translate} onMove={movePin} onMenu={pinMoveMenu}
+        {(pinnedPages.length > 0 || plugin.settings.showDailyCalendar) && <PinnedNodeBar rows={pinnedPages} translate={translate} onMove={movePin} onMenu={pinMoveMenu}
+          onCalendar={plugin.settings.showDailyCalendar ? /** The native date picker retains this canvas and its current day. */ () => plugin.openDailyNoteCalendar(hostLeaf, actions.surfaceId, page.path) : undefined}
           onActivate={activateSavedPin} onRemove={/** Bookmark removal works without preparing a missing destination. */ id => {void plugin.removePinnedEntry(id).catch(/** Keep write failures visible. */ error => {
             console.error("K-Plex pin removal failed", error);new Notice(translate("pins.saveFailed"));
           });}} />}

@@ -42,6 +42,9 @@ export type RelatedNoteInvocation = {
   onClosed?: () => void;
   /** Existing-target native imports may append ontology but cannot inherit the legacy automatic-relink policy. */
   additiveOnly?: boolean;
+  /** Chronological journal actions may restore a field whose semantic role is Parent/Child. */
+  initialOntology?: string;
+  onOntologySelected?: (field: string) => Promise<void>;
   /** Confirm one browser File through the same destination/ontology/recovery composer. */
   importSource?: File;
   importedFile?: TFile;
@@ -97,7 +100,7 @@ function RelatedNoteComposer({
   const noteId = useId(), aliasId = useId();
   const [noteTyped, setNoteTyped] = useState(false);
   const [selectedTarget, setSelectedTarget] = useState<GraphPage | null>(fixedTarget ?? null);
-  const [ontology, setOntology] = useState(() => plugin.defaultOntologyField(initialRole));
+  const [ontology, setOntology] = useState(() => session.initialOntology ?? plugin.defaultOntologyField(initialRole));
   const [editedOntology, setEditedOntology] = useState<string | null>(null);
   const assignedRole = plugin.ontologyRoleForField(ontology);
   const knownRole = assignedRole === "parent" || assignedRole === "child" || assignedRole === "left" || assignedRole === "right"
@@ -176,10 +179,10 @@ function RelatedNoteComposer({
 
   useEffect(() => {
     setRoleFilter(initialRole);
-    setOntology(plugin.defaultOntologyField(initialRole));
+    setOntology(session.initialOntology ?? plugin.defaultOntologyField(initialRole));
     setOntologyTyped(false);
     setBrowseOntology(false);
-  }, [initialRole, plugin]);
+  }, [initialRole, plugin, session]);
 
   /** Validate remembered ontology before mutation; completion revalidates captured endpoints afterward. */
   const prepareField = async (): Promise<string | null> => {
@@ -198,7 +201,9 @@ function RelatedNoteComposer({
       new Notice(plugin.translator("addRelated.enterOntologyField"), 1800);
       return null;
     }
-    return plugin.rememberRelationshipOntology(role, field);
+    const selected = await plugin.rememberRelationshipOntology(role, field);
+    await session.rememberOntology(selected);
+    return selected;
   };
 
   /** Complete a durable save using one remembered outcome; non-files cannot inherit editor actions. */
@@ -658,6 +663,7 @@ export class NewRelatedNoteModal extends Modal {
   private releaseInteraction: (() => void) | null = null;
   readonly continuation: CompletionIntent;
   readonly additiveOnly: boolean;
+  readonly initialOntology?: string;
   readonly suggestionOwnerId = `related-composer-${++composerSequence}`;
   readonly importSource?: File;
   importedFile?: TFile;
@@ -683,7 +689,11 @@ export class NewRelatedNoteModal extends Modal {
     this.invokingElement = active && "focus" in active ? active as HTMLElement : null;
     this.continuation = invocation.continuation ?? "configured";
     this.additiveOnly = invocation.additiveOnly === true;
+    this.initialOntology = invocation.initialOntology;
   }
+
+  /** Retain an invocation's independent field memory through the existing serialized host writer. */
+  async rememberOntology(field: string): Promise<void> {await this.invocation.onOntologySelected?.(field);}
 
   /** Protect role changes during the exact asynchronous save, independently of React state. */
   setWriting(writing: boolean): void {

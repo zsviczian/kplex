@@ -7,6 +7,22 @@
 import { buildLocaleCatalog, type LocaleTranslationMap } from "./catalog";
 
 const traditionalChineseTranslations = {
+  "pins.edit": "編輯釘選",
+  "daily.calendar": "前往每日筆記",
+  "daily.date": "日期",
+  "daily.previousMonth": "上個月",
+  "daily.nextMonth": "下個月",
+  "daily.loading": "正在尋找每日筆記…",
+  "daily.existingHint": "圓點表示已有每日筆記。",
+  "daily.go": "前往",
+  "daily.showCalendar": "在釘選列顯示日曆",
+  "daily.showCalendarHelp": "選擇日期以瀏覽該日的每日筆記。",
+  "daily.configure": "請先啟用並設定 Obsidian 的每日筆記。",
+  "daily.noPrevious": "找不到較早的每日筆記。",
+  "daily.noNext": "找不到較晚的每日筆記。",
+  "daily.linkPrevious": "連結到上一篇每日筆記…",
+  "daily.linkNext": "連結到下一篇每日筆記…",
+  "daily.lookupFailed": "無法尋找每日筆記，請再試一次。",
   "fileImport.folderLimits": "資料夾最多可含 {entries} 個項目及 {depth} 層。本次未匯入任何內容。",
   "fileImport.creatingFolder": "正在建立資料夾 {path}…",
   "fileImport.copying": "正在複製 {name}（{current}/{total}）…",

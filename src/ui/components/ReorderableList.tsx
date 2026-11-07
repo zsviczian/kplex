@@ -1,7 +1,8 @@
 /** Pointer reordering mechanics for a finite list with explicit handles. Caller-owned rows
  * supply stable data-reorder-id keys and a data-reorder-handle control; domain code rechecks
  * captured order before persistence. Ordinary buttons, native drags and touch scroll are untouched.
- * This component owns capture/listeners only in its actual document and retires on migration. */
+ * This component owns capture/listeners only in its actual document and retires on migration.
+ * Disabling reordering cancels any captured drag while optional body scrolling remains active. */
 import {useEffect, useRef, type ReactNode} from "react";
 import {useHorizontalDragScroll} from "./HorizontalDragScroll";
 
@@ -16,15 +17,16 @@ function ownedElement(value: EventTarget | null, doc: Document): value is Elemen
 
 /** Dedicated handles may drag with mouse, pen or touch. A stationary handle remains a normal
  * button, allowing the caller's native keyboard-accessible reorder menu to open. */
-export function ReorderableList({ids, className, label, children, onMove, grabScroll = false}: {
+export function ReorderableList({ids, className, label, children, onMove, grabScroll = false, reorderEnabled = true}: {
   ids: readonly string[]; className: string; label: string; children: ReactNode; onMove: (move: ReorderMove) => void;
   grabScroll?: boolean;
+  reorderEnabled?: boolean;
 }) {
   const root = useRef<HTMLDivElement>(null), latest = useRef({ids, onMove});latest.current = {ids, onMove};
   useHorizontalDragScroll(root, grabScroll, "[data-reorder-handle]");
   useEffect(/** Capture exact document ownership; migrated/unmounted roots cannot commit old gestures. */ () => {
     const element = root.current, doc = element?.ownerDocument, owner = doc?.defaultView;
-    if (!element || !doc || !owner) return;
+    if (!element || !doc || !owner || !reorderEnabled) return;
     let gesture: {pointer: number; id: string; row: HTMLElement; x: number; y: number; expected: readonly string[]; dragging: boolean; before: string | null} | null = null;
     let indicator: Element | null = null, suppressClick = false;
     /** Release only owned capture and visual state; never persist from a cancellation path. */
@@ -83,6 +85,6 @@ export function ReorderableList({ids, className, label, children, onMove, grabSc
       finish();element.removeEventListener("pointerdown", down);element.removeEventListener("click", click, true);element.removeEventListener("lostpointercapture", cancel);
       doc.removeEventListener("pointermove", move);doc.removeEventListener("pointerup", up);doc.removeEventListener("pointercancel", cancel);doc.removeEventListener("keydown", key, true);owner.removeEventListener("blur", finish);
     };
-  }, []);
+  }, [reorderEnabled]);
   return <div ref={root} className={className} role="list" aria-label={label}>{children}</div>;
 }

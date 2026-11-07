@@ -7,6 +7,22 @@
 import { buildLocaleCatalog, type LocaleTranslationMap } from "./catalog";
 
 const frenchTranslations = {
+  "pins.edit": "Modifier les épingles",
+  "daily.calendar": "Aller à une note quotidienne",
+  "daily.date": "Date",
+  "daily.previousMonth": "Mois précédent",
+  "daily.nextMonth": "Mois suivant",
+  "daily.loading": "Recherche des notes quotidiennes…",
+  "daily.existingHint": "Les points indiquent les notes quotidiennes existantes.",
+  "daily.go": "Aller",
+  "daily.showCalendar": "Afficher le calendrier dans la rangée des épingles",
+  "daily.showCalendarHelp": "Choisissez une date pour accéder à sa note quotidienne.",
+  "daily.configure": "Activez et configurez d’abord les notes quotidiennes d’Obsidian.",
+  "daily.noPrevious": "Aucune note quotidienne antérieure trouvée.",
+  "daily.noNext": "Aucune note quotidienne ultérieure trouvée.",
+  "daily.linkPrevious": "Relier à la note quotidienne précédente…",
+  "daily.linkNext": "Relier à la note quotidienne suivante…",
+  "daily.lookupFailed": "Impossible de trouver les notes quotidiennes. Réessayez.",
   "fileImport.folderLimits": "Importez des dossiers contenant au plus {entries} entrées et {depth} niveaux. Rien n’a été importé.",
   "fileImport.creatingFolder": "Création du dossier {path}…",
   "fileImport.copying": "Copie de {name} ({current}/{total})…",

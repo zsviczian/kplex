@@ -24,7 +24,10 @@ export async function pins(app,c){
   p.settings.__kplex270Unknown={keep:['case','order']};await p.saveSettings(false,false);p.index.notifyPresentation();
   const first=await f.canvas(a),second=await f.canvas(b);await f.workspace.revealLeaf(first);await f.wait(200);
   const rows=leaf=>[...leaf.view.contentEl.querySelectorAll('.kplex-pinned-chip')],ids=leaf=>rows(leaf).map(row=>row.getAttribute('data-reorder-id'));
+  /** Reorder acceptance explicitly opts into the view-local editing mode. */
+  const edit=async leaf=>{const toggle=leaf.view.contentEl.querySelector('.kplex-pin-edit-toggle');if(toggle.getAttribute('aria-pressed')==='false')await f.click(toggle);await f.until(()=>rows(leaf).every(row=>row.querySelector('[data-reorder-handle]')),'Enabled pin reorder handles');};
   await f.until(()=>rows(first).length===6&&rows(second).length===6,'Complete mixed pin collection');
+  await edit(first);await f.workspace.revealLeaf(second);await edit(second);await f.workspace.revealLeaf(first);
   await f.ready();
   const startOrder=JSON.stringify(p.settings.pinnedNodes),centers=[p.documentSession(first).centerPath,p.documentSession(second).centerPath],history=JSON.stringify(p.settings.navigationHistory);
   const source=p.index.getSourceAcquisitionCounters(),semantic=p.index.getSemanticPreparationDiagnostics();
@@ -64,7 +67,7 @@ export async function pins(app,c){
    finally{native.webContents.sendInputEvent({type:'mouseUp',...end,button:'left',clickCount:1});}
    f.check(historyList.scrollLeft>=40&&navigations===historyNavigations&&!historyList.classList.contains('is-mouse-scrolling'),'Native History grab scroll regressed');samples.push({case:'trusted History grab scroll',scrollLeft:historyList.scrollLeft,navigations:0});
   }finally{if(historyStyle===null)historyList.removeAttribute('style');else historyList.setAttribute('style',historyStyle);}
-  const popout=await f.canvas(a,'k-plex-react-view','window');await f.until(()=>rows(popout).length===6,'Popout pin list');await p.settingsWriteQueue;await f.wait(200);
+  const popout=await f.canvas(a,'k-plex-react-view','window');await f.until(()=>rows(popout).length===6,'Popout pin list');await edit(popout);await p.settingsWriteQueue;await f.wait(200);
   const popoutOrder=JSON.stringify(p.settings.pinnedNodes),popoutWrites=saves,r=rows(popout)[1].getBoundingClientRect();
   // BrowserWindow.blur alone may leave Chromium focused on Windows; prove an actual realm blur before release.
   await f.drag(rows(popout)[0].querySelector('[data-reorder-handle]'),{x:Math.round(r.right-2),y:Math.round(r.y+r.height/2)},async(doc,native)=>{let blurred=false;const observe=()=>{blurred=true};doc.defaultView.addEventListener('blur',observe);try{native.blur();await f.focus(document);await f.until(()=>blurred,'Native popout DOM blur receipt',5000);f.check(!doc.querySelector('.kplex-pinned-bar.is-reordering'),'Popout DOM blur retained gesture');}finally{doc.defaultView.removeEventListener('blur',observe);}});
@@ -73,7 +76,7 @@ export async function pins(app,c){
   popout.detach();await f.workspace.revealLeaf(first);
   const cancelledOrder=JSON.stringify(p.settings.pinnedNodes),cancelledMoves=moves;
   for(const kind of ['close','migration']){
-   const moving=await f.canvas(a);await f.until(()=>rows(moving).length===6,'Cancellation fixture pins');await p.settingsWriteQueue;const end=rows(moving)[1].getBoundingClientRect(),beforeWrites=saves;
+   const moving=await f.canvas(a);await f.until(()=>rows(moving).length===6,'Cancellation fixture pins');await edit(moving);await p.settingsWriteQueue;const end=rows(moving)[1].getBoundingClientRect(),beforeWrites=saves;
    await f.drag(rows(moving)[0].querySelector('[data-reorder-handle]'),{x:Math.round(end.right-2),y:Math.round(end.y+end.height/2)},async()=>{
     if(kind==='close')moving.detach();else{f.workspace.moveLeafToPopout(moving);await f.until(()=>moving.view.contentEl.ownerDocument!==document,'Native migration during pin gesture');await moving.view.waitUntilReady();}
    });

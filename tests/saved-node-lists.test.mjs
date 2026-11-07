@@ -12,7 +12,7 @@ let history,pins;
 /** Extract production JSX so shared style wiring and disabled/loading behavior are exercised. */
 function find(node){
  if(ts.isVariableDeclaration(node)&&node.name.getText(source)==='historyBar')history=node.initializer.getText(source);
- if(ts.isJsxExpression(node)&&node.expression?.getText(source).startsWith('pinnedPages.length > 0 &&'))pins=node.expression.getText(source);
+ if(ts.isJsxExpression(node)&&node.expression?.getText(source).includes('<PinnedNodeBar rows={pinnedPages}'))pins=node.expression.getText(source);
  ts.forEachChild(node,find);
 }
 find(source);assert(history&&pins);

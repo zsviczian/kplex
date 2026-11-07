@@ -54,6 +54,8 @@
  * Ontology text drafts persist one guarded field through the existing settings queue before live
  * semantic publication; slow refresh remains outside the disk queue and cannot replay failed saves.
  * New-file after-saving choices reuse surface-owned editor actions and exact native tab/Sidecar destinations; bounded readiness waits settle on unload.
+ * Explicit daily calendar/gap requests walk only the configured native journal tree; creation and
+ * linking retain shared template/confirmation/composer owners and separate chronological field memory.
  */
 import { registerFileMenus, type FilePlexNode, type FilePlexTarget } from "./adapters/obsidian/fileMenu";
 import {moveSavedPin, savedPinEntries, fixedPinPaths, isPeriodicPin, type PinPeriod, type SavedPinMove} from "./core/plex/savedPins";
@@ -63,6 +65,10 @@ import {graphFolder} from "./adapters/obsidian/graphFolder";
 import {CreatePeriodicNoteModal} from "./ui/CreatePeriodicNoteModal";
 import {createPeriodicPinRuntime} from "./adapters/obsidian/periodicPins";
 import {createConfiguredDailyNote} from "./adapters/obsidian/dailyNotes";
+import {readDailyPinSettings} from "./adapters/obsidian/dailyNotes";
+import {collectDailyNotes, dailyNoteDate, dailyNotePath, dailyEntryForDate, dailyNotesSettingsCurrent, type DailyNoteEntry} from "./adapters/obsidian/dailyNoteNavigation";
+import {calendarDay, calendarDayKey, adjacentJournalEntry, missingJournalDirections, type JournalDirection} from "./core/plex/calendarDates";
+import {DailyNoteCalendarModal} from "./ui/DailyNoteCalendarModal";
 import {FileCreationAutomation} from "./adapters/obsidian/fileCreationAutomation";
 import { drawingAutomation, drawingTemplateOptions } from "./adapters/obsidian/drawingTemplates";
 import {viewLabel} from "./ui/plexViews/labels";
@@ -5134,6 +5140,84 @@ export default class KplexPlugin extends Plugin {
     }
     this.restorePlexFoldBeforeReveal(leaf);
     await this.app.workspace.revealLeaf(leaf);
+  }
+
+  /** Open a finite native calendar without requiring index readiness or reading note bodies. */
+  openDailyNoteCalendar(hostLeaf: WorkspaceLeaf, surfaceId: string, path: string): void {
+    const configuration = readDailyPinSettings(this.app);
+    if (!configuration) {new Notice(this.translator("daily.configure"));return;}
+    const owner = hostLeaf.view.containerEl, doc = owner.ownerDocument, generation = this.actionSurfaceHosts.get(surfaceId)?.generation;
+    const current = /** Calendar navigation belongs to this exact canvas document and action registration. */ (): boolean => !this.unloading && owner.isConnected && owner.ownerDocument === doc
+      && (generation === undefined || this.isActionSurfaceCurrent(surfaceId, generation)) && dailyNotesSettingsCurrent(this.app, configuration);
+    const file = this.app.vault.getFileByPath(path), initial = file ? dailyNoteDate(this.app, file) : null;
+    const dialog = new DailyNoteCalendarModal(this.app, this.translator, hostLeaf, initial ?? calendarDayKey(new Date()), current,
+      /** Explicit selection rechecks native identity and configuration before navigation or creation. */ (date, entries) => {void this.navigateDailyNote(date, entries, hostLeaf, surfaceId, current)
+        .catch(/** No failed calendar lookup silently creates a replacement note. */ error => {console.error("K-Plex daily date navigation failed", error);if (current()) new Notice(this.translator("daily.lookupFailed"));});},
+      /** The plugin unload/surface owner retires this popup exactly once. */ () => this.actionDialogs.delete(dialog));
+    this.actionDialogs.set(dialog, {surfaceId, generation});dialog.open();
+  }
+
+  /** Existing historical daily notes win over a new canonical path. Missing days require explicit consent. */
+  private async navigateDailyNote(date: string, entries: readonly DailyNoteEntry[], hostLeaf: WorkspaceLeaf, surfaceId: string, current: () => boolean): Promise<void> {
+    const settings = readDailyPinSettings(this.app), path = dailyNotePath(this.app, date, settings), day = calendarDay(date);
+    if (!current() || !settings || !path || !day) return;
+    const entry = dailyEntryForDate(this.app, entries, date), exact = this.app.vault.getFileByPath(path);
+    let existing = entry && dailyNoteDate(this.app, entry.file, settings) === date ? entry.file : exact;
+    if (!existing) {
+      // A note may have arrived in a historical subfolder after the popup inventory. Recheck
+      // that explicit date before asking to create a canonical-path duplicate.
+      const refreshed = await collectDailyNotes(this.app, current);if (!refreshed || !current()) return;
+      existing = dailyEntryForDate(this.app, refreshed, date)?.file ?? null;
+    }
+    if (existing?.extension === "md") {const indexed = this.index.get(existing.path);await this.finishNewRelatedNode(indexed?.file === existing ? indexed : this.index.insertCreatedFile(existing), hostLeaf, "follow", current);return;}
+    const generation = this.actionSurfaceHosts.get(surfaceId)?.generation;
+    const dialog = new CreatePeriodicNoteModal(this, "", path, hostLeaf, current, /** Native close releases this exact creation prompt. */ () => this.actionDialogs.delete(dialog),
+      /** Core Daily Notes and the shared automation receipt own template expansion for the chosen date. */ async accepted => {
+        const valid = (): boolean => accepted() && current() && dailyNotesSettingsCurrent(this.app, settings) && dailyNotePath(this.app, date) === path;
+        if (!valid()) return null;
+        const file = await this.fileCreationAutomation.create(() => createConfiguredDailyNote(this.app, path, valid, day.getTime()));
+        if (!file && valid()) throw new Error(this.translator("pins.createFailed"));
+        return file && valid() ? this.index.insertCreatedFile(file) : null;
+      });
+    this.actionDialogs.set(dialog, {surfaceId, generation});dialog.open();
+  }
+
+  /** Known daily connectors suppress their chronological side without depending on view layout or ontology role. */
+  dailyNoteGapDirections(page: GraphPage): JournalDirection[] {
+    if (!page.file) return [];
+    const date = dailyNoteDate(this.app, page.file);if (!date) return [];
+    const linked: string[] = [];
+    for (const relation of page.neighbours.values()) {
+      const file = relation.target.file, target = file && dailyNoteDate(this.app, file);
+      if (target && this.index.isConnected(page, relation.target.path)) linked.push(target);
+    }
+    return missingJournalDirections(date, linked);
+  }
+
+  /** Find the nearest existing earlier/later journal note, then reuse the shared reviewed link composer. */
+  async openDailyNoteGapLink(page: GraphPage, direction: JournalDirection, hostLeaf: WorkspaceLeaf, surfaceId: string, current: () => boolean): Promise<void> {
+    const file = page.file, settings = readDailyPinSettings(this.app), date = file && dailyNoteDate(this.app, file, settings);
+    if (!file || !settings || !date || !current()) return;
+    const path = file.path;
+    const valid = /** Async folder traversal cannot replace the clicked source or borrow another canvas. */ (): boolean => !this.unloading && current() && file.path === path
+      && this.app.vault.getFileByPath(path) === file && dailyNotesSettingsCurrent(this.app, settings) && dailyNoteDate(this.app, file, settings) === date;
+    const entries = await collectDailyNotes(this.app, valid);if (!entries || !valid()) return;
+    const nearest = adjacentJournalEntry(entries, date, direction), candidate = nearest && dailyEntryForDate(this.app, entries, nearest.date);
+    if (!candidate) {new Notice(this.translator(direction === "previous" ? "daily.noPrevious" : "daily.noNext"));return;}
+    const origin = this.index.get(path) ?? page;
+    if (!this.dailyNoteGapDirections(origin).includes(direction) || this.index.isConnected(origin, candidate.file.path)) return;
+    const indexed = this.index.get(candidate.file.path), target = indexed?.file === candidate.file ? indexed : this.index.insertCreatedFile(candidate.file);
+    const remembered = this.settings.dailyNoteLinkFields[direction], assigned = this.ontologyRoleForField(remembered);
+    const role = assigned === "parent" || assigned === "child" || assigned === "left" || assigned === "right" || assigned === "previous" || assigned === "next" ? assigned : direction;
+    const field = assigned === role ? remembered : this.defaultOntologyField(role);
+    const generation = this.actionSurfaceHosts.get(surfaceId)?.generation;
+    const dialog = this.openRelationModal({mode: "create", origin, fixedTarget: target, semanticRole: role, hostLeaf,
+      invocation: {current: valid, additiveOnly: true, initialOntology: field,
+        onOntologySelected: /** Chronological field memory is independent of the field's semantic direction. */ async selected => {
+          this.settings.dailyNoteLinkFields = {...this.settings.dailyNoteLinkFields, [direction]: selected};await this.saveSettings(false, false);
+        },
+        onClosed: /** Shared composer dismissal retires only this surface-owned dialog. */ () => this.actionDialogs.delete(dialog)}});
+    this.actionDialogs.set(dialog, {surfaceId, generation});
   }
 
   /** Missing periodic pins use explicit creation consent and the shared native opening control. */

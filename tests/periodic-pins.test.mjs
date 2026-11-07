@@ -18,6 +18,12 @@ function fixture(time,overrides={}){
 const calendar=(locale='en')=>{global.window={moment:time=>moment(time).utc().locale(locale)}};
 const symbolic=period=>({kind:'periodic',period});
 
+test('calendar chrome and independent journal fields load without changing semantic policy or unknown settings',()=>{
+ const future={version:3},settings=M.migrateAndMergeSettings({showDailyCalendar:false,dailyNoteLinkFields:{previous:'Yesterday',next:'Tomorrow',future},unknownJournalPreference:future});
+ assert.equal(settings.showDailyCalendar,false);assert.deepEqual(settings.dailyNoteLinkFields,{previous:'Yesterday',next:'Tomorrow',future});assert.deepEqual(settings.unknownJournalPreference,future);
+ const defaults=M.migrateAndMergeSettings({});assert.equal(defaults.showDailyCalendar,true);assert.deepEqual(defaults.dailyNoteLinkFields,{previous:'',next:''});
+});
+
 test('fixed strings, future descriptors and extra configuration keys survive loading without coercion',()=>{
  const future={kind:'future-version',id:'keep',payload:{version:9}},pins=['Case.md',symbolic('day'),'Unavailable.md',future,'Case.md'];
  const loaded=M.loadSavedPins(pins);assert.deepEqual(loaded,pins);assert.deepEqual(M.fixedPinPaths(loaded),['Case.md','Unavailable.md','Case.md']);
