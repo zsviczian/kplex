@@ -1,5 +1,6 @@
 /** Unified native vocabulary manager over StyleManagerList. The plugin retains configuration,
- * discovery and persistence; list interactions operate only on already available metadata. */
+ * discovery and persistence; list interactions operate only on already available metadata.
+ * Index bursts coalesce on the owning window; unchanged rows retain DOM and focus. */
 import {KplexModal as Modal} from "../adapters/obsidian/KplexModal";
 import {Notice} from 'obsidian';
 import type KplexPlugin from '../main';
@@ -22,6 +23,9 @@ export class OntologyManagerModal extends Modal {
   private refreshing=false;
   private refreshProgress={done:0,total:0};
   private refreshButton:HTMLButtonElement|null=null;
+  private renderTimer:number|null=null;
+  private renderWindow:Window|null=null;
+  private renderedSignature='';
 
   /** Capture only the plugin's existing host owners and a presentation filter. */
   constructor(private readonly plugin:KplexPlugin,private filter:OntologyFilter='all',private readonly closed?:()=>void){super(plugin.app);}
@@ -45,7 +49,7 @@ export class OntologyManagerModal extends Modal {
     const rescan=this.contentEl.createDiv({cls:'kplex-style-actions'}).createEl('button',{text:t('ontology.manager.rescan'),attr:{type:'button'}});
     this.contentEl.createEl('p',{text:t('settings.ui.rescan.note.properties.now.this.can.take.longer.in.a.lar'),cls:'setting-item-description'});
     rescan.addEventListener('click',/** Deliberate costly discovery uses the existing index owner and warns before selection. */ ()=>{this.cancelRefresh();this.documentCounts.clear();rescan.disabled=true;void this.plugin.rebuildIndex(true,true,'ontology-discovery').then(/** Refresh only this still-mounted manager. */ ()=>{if(this.opened)this.renderList();}).catch(/** Fail visibly without treating missing inventory as complete. */ ()=>{if(this.opened)new Notice(t('styles.operation.notSaved'));}).finally(/** A retired shell cannot be revived by completion. */ ()=>{if(this.opened)rescan.disabled=false;});});
-    this.release=this.plugin.index?.subscribePresentation(/** Semantic and caption publications refresh clean rows, never editor drafts. */ ()=>this.renderList())??null;
+    this.release=this.plugin.index?.subscribePresentation(/** A per-file publication must not synchronously rebuild an expanded vocabulary list. */ ()=>this.scheduleRender())??null;
     const view=this.contentEl.ownerDocument.defaultView,close=():void=>this.close();view?.addEventListener('pagehide',close,{once:true});this.releaseWindow=()=>view?.removeEventListener('pagehide',close);
     this.renderList();
   }
@@ -61,6 +65,19 @@ export class OntologyManagerModal extends Modal {
 
   /** Read saved configuration plus the existing discovered vocabulary without querying any uses. */
   private fields():OntologyFieldView[]{return ontologyFieldViews(ontologyConfiguration(this.plugin.settings),this.plugin.index?.unassignedOntologyFields()??[],this.plugin.settings.ontologyDescriptions);}
+
+  /** Batch optional index notifications; explicit search/disclosure/edit actions still render immediately. */
+  private scheduleRender():void {
+    if(!this.opened||this.renderTimer!==null)return;
+    this.renderWindow=this.contentEl.ownerDocument.defaultView;
+    this.renderTimer=this.renderWindow?.setTimeout(/** Render the latest vocabulary once after a source burst. */ ()=>{this.renderTimer=null;this.renderWindow=null;this.renderList();},100)??null;
+  }
+
+  /** Cancel through the captured owner even when the shell has moved or closed. */
+  private cancelRender():void {
+    if(this.renderTimer!==null)this.renderWindow?.clearTimeout(this.renderTimer);
+    this.renderTimer=null;this.renderWindow=null;
+  }
 
   /** Retire stale completions on filter/search/editor changes or native close. */
   private cancelRefresh():void {this.refreshGeneration++;this.refreshing=false;if(this.refreshButton)this.refreshButton.disabled=false;}
@@ -93,9 +110,14 @@ export class OntologyManagerModal extends Modal {
   /** Render bounded pair rows from current saved configuration and the existing discovered inventory. */
   private renderList():void {
     if(!this.opened||!this.manager)return;
+    this.cancelRender();
     const t=this.plugin.translator,fields=withOntologyDocumentCounts(this.fields(),this.documentCounts);
     const entries=ontologyManagerEntries(fields,this.filter,this.query,t),windowed=this.manager.window(entries);
-    this.manager.status.setText(t('ontology.manager.counts',{entries:entries.length,fields:fields.filter(/** Configured counts exclude incomplete discovery. */ field=>field.role!=='unassigned').length})+' '+(this.refreshing?t('ontology.manager.counting',this.refreshProgress):entries.some(/** Visible partial counts remain labelled; a failed lookup has no numeric result. */ entry=>entry.first.countPartial||entry.second?.countPartial)?t('ontology.manager.countsPartial'):''));
+    const status=t('ontology.manager.counts',{entries:entries.length,fields:fields.filter(/** Configured counts exclude incomplete discovery. */ field=>field.role!=='unassigned').length})+' '+(this.refreshing?t('ontology.manager.counting',this.refreshProgress):entries.some(/** Visible partial counts remain labelled; a failed lookup has no numeric result. */ entry=>entry.first.countPartial||entry.second?.countPartial)?t('ontology.manager.countsPartial'):'');
+    const signature=JSON.stringify([status,this.refreshing,windowed]);
+    if(signature===this.renderedSignature)return;
+    this.renderedSignature=signature;
+    this.manager.status.setText(status);
     if(this.refreshButton)this.refreshButton.disabled=this.refreshing;
     this.manager.list.empty();
     if(!entries.length)this.manager.list.createDiv({cls:'kplex-style-manager-empty',text:t('ontology.manager.empty')});
@@ -115,7 +137,7 @@ export class OntologyManagerModal extends Modal {
 
   /** Release subscriptions and every child without cancelling operations already accepted by storage. */
   onClose():void {
-    this.opened=false;this.cancelRefresh();this.documentCounts.clear();this.release?.();this.release=null;this.releaseWindow?.();this.releaseWindow=null;
+    this.opened=false;this.cancelRender();this.renderedSignature='';this.cancelRefresh();this.documentCounts.clear();this.release?.();this.release=null;this.releaseWindow?.();this.releaseWindow=null;
     for(const child of this.children)child.close();this.children.clear();this.manager=null;this.contentEl.empty();this.closed?.();
   }
 }

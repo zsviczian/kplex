@@ -2372,6 +2372,21 @@ try{
   }
   check(container.querySelector('.gate-wrap-top .kplex-gate-count'),'Structural lateral rule incorrectly hid unresolved hierarchy counts');
  }
+ // An unresolved first paint must yield to an available local/cache observation, even when
+ // its numerical lower bound remains zero. It is not a previous numerical label to retain.
+ for(const coverage of ['local','cached']){
+  node.page={path:'Resolving-'+coverage+'.md',name:'Resolving',isTag:false,isFolder:false};
+  node.gateStats=Object.fromEntries(['top','bottom','left','right'].map(side=>[side,{visibleCount:0,hasAny:false,complete:false}]));
+  flushSync(()=>root.render(<ThoughtNode {...props}/>));
+  check(container.querySelector('.gate-wrap-top .kplex-gate-count').textContent==='…','Initial unknown count was certified');
+  for(const stat of Object.values(node.gateStats))stat.coverage=coverage;
+  flushSync(()=>root.render(<ThoughtNode {...props}/>));
+  check(container.querySelector('.gate-wrap-top .kplex-gate-count').textContent==='0','Available '+coverage+' zero stayed behind an unknown label');
+  check(node.gateStats.top.complete===false,'Resolving a label incorrectly certified complete incidence');
+  node.gateStats.top.visibleCount=2;node.gateStats.top.hasAny=true;
+  flushSync(()=>root.render(<ThoughtNode {...props}/>));
+  check(container.querySelector('.gate-wrap-top .kplex-gate-count').textContent==='2','Newly observed relationships did not update the local count');
+ }
  node.page={path:'Stable.md',name:'Stable'};
  node.gateStats=Object.fromEntries(['top','bottom','left','right'].map(side=>[side,{visibleCount:side==='top'?2:0,hasAny:side==='top',complete:true}]));
  flushSync(()=>root.render(<ThoughtNode {...props}/>));
