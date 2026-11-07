@@ -492,6 +492,7 @@ test("persisted layout keys and node-open leaf modes remain stable with canonica
       neighborhood: null, activePath: "Other.md", canExpandCentralSections: () => false,
       Menu: MenuDouble, captureSurfaceContinuation: continuationModule.exports.captureSurfaceContinuation, actionNodeRef: nodeModule.exports.actionNodeRef, actionSurfaceId: "owning-surface", sceneNodeKeys: new Map(),
       plugin: {app: {}, getFileOpenMenuState: () => ({focusOpenTab: true, adjacentPane: true, popoutWindow: false}), isPinned: () => false,
+        dailyNoteGapDirections: target => {assert.equal(target, page); return [];},
         actionManager: {readSnapshot: () => null, dispatch: request => {requests.push(request); return Promise.resolve({status: "completed"});}}, showKplexMenuAtPosition() {}},
       addNativeSubmenu: (menu, _title, _icon, populate) => populate(menu), translate: key => key,
       nativeRevealTarget: fileReveal.nativeRevealTarget, fileRevealMenuState: () => ({systemLabel: "graph.openInFinder", navigation: true}), readObsidianPresentationEnvironment: () => ({}),
