@@ -1148,9 +1148,10 @@ ${production}
  try {
   const host = document.createElement("div"); document.body.append(host);
   const origin = { path: "Origin.md", file: { path: "Origin.md", extension: "md" } }; const target = { path: "Target.md", file: { path: "Target.md", extension: "md" } };
-  const intents = [], outcomes = []; let commits = 0; let closes = 0; let rejectCommit = true; let savedPending = false;
+  const intents = [], outcomes = [], remembered = []; let commits = 0; let closes = 0; let rejectCommit = true; let savedPending = false;
   let folderEnumerations = 0;
   const session = { continuation: "return", suggestionOwnerId: "composer-browser-fixture", isSessionOpen: () => true, canComplete: () => true, setWriting: () => {}, registerSubmit: () => () => {}, focusName: () => host.querySelector("input")?.focus(), closeForCompletion: () => { closes++; }, finishCompletion: () => {}, focusGraph: () => {} };
+  session.rememberOntology = async field => { remembered.push(field); };
   const plugin = {
    app: { vault: { on: () => ({}), offref: () => {}, getFileByPath: path => [origin, target].find(page => page.path === path)?.file,
     getAllFolders: includeRoot => { check(includeRoot === true, "folder inventory must include the vault root"); folderEnumerations++; return [{ path: "/" }, { path: "Projects" }, { path: "Projects/Ideas" }]; } } },
@@ -1201,6 +1202,7 @@ ${production}
   check(ontology.value==="review"&&commits===0&&intents.length===0,"description keyboard selection inserted annotation text or submitted a relationship");
   flushSync(() => link.click()); await new Promise((resolve) => setTimeout(resolve, 0));
   check(commits === 0 && closes === 0 && notices.length === 1, "failed existing-target write falsely committed or closed composer");
+  check(remembered.length === 1 && remembered[0] === "review", "composer did not forward the accepted ontology to invocation memory");
   rejectCommit = false; savedPending = true;
   flushSync(() => link.click()); await new Promise((resolve) => setTimeout(resolve, 0));
   check(commits === 1 && outcomes[0].state === "saved-pending" && closes === 0 && notices.at(-1) === "Saved; graph pending", "saved-pending outcome lost its committed state or closed the composer");
