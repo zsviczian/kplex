@@ -3,6 +3,26 @@ import assert from 'node:assert/strict';import test from 'node:test';import {col
 import {readFileSync} from 'node:fs';
 const setup=`const p=await createAppearanceHost({ontologyPairingVersion:1,hierarchy:{parents:['Parent'],children:['Child'],leftFriends:['Friend','Ally'],rightFriends:['Challenger'],previous:['replies to','precedes'],next:['replied by','succeeds'],hidden:['Hidden'],exclusions:[]}}),t=p.translator,check=(value,message)=>{if(!value)throw Error(message)},open=field=>{const modal=new sourceModules.AddToOntologyModal(p,field);modal.open();return modal},button=(modal,key)=>[...modal.contentEl.querySelectorAll('button')].find(b=>b.textContent===t(key)),save=modal=>button(modal,'common.save').click(),partner=modal=>modal.contentEl.querySelector('input[aria-label="'+t('ontology.pairWith')+'"]'),role=modal=>modal.roleControl.selectEl;`;
 
+test('expanded manager coalesces indexing notifications and preserves unchanged rows',async()=>{
+ assert.equal(await scenario(`(async()=>{${setup}
+ const catalog=Array.from({length:600},(_,i)=>({normalized:'field'+i,name:'Field '+i,count:1}));
+ p.index.unassignedOntologyFields=()=>catalog;
+ const modal=new sourceModules.OntologyManagerModal(p,'unassigned');modal.open();
+ modal.manager.list.querySelector('.kplex-style-manager-more').click();
+ check(modal.manager.list.querySelectorAll('.kplex-style-manager-row').length===32,'Show more did not expand');
+ const first=modal.manager.list.firstElementChild;let renders=0;const render=modal.renderList.bind(modal);
+ modal.renderList=()=>{renders++;render()};
+ for(let i=0;i<200;i++)p.index.notifyPresentation();
+ check(renders===0,'Index publications synchronously rebuilt the expanded manager');
+ await new Promise(done=>setTimeout(done,160));
+ check(renders===1&&modal.manager.list.firstElementChild===first,'Unchanged rows were replaced or the burst was not coalesced');
+ catalog[0]={...catalog[0],count:7};p.index.notifyPresentation();await new Promise(done=>setTimeout(done,160));
+ check(modal.manager.list.textContent.includes(t('settings.occurrenceMany',{count:7})),'Changed discovery count was not rendered');
+ p.index.notifyPresentation();modal.close();const retired=renders;await new Promise(done=>setTimeout(done,160));
+ check(renders===retired&&!modal.modalEl.isConnected,'Retired manager timer ran');return true;
+ })()`),true);
+});
+
 /** Production CSS must keep both labels above their editors across desktop and narrow dialogs. */
 test('both description editors span the modal content below their labels and help',async()=>{
  const css=readFileSync('styles.css','utf8');

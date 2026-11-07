@@ -32,5 +32,5 @@ export function startupSourceCoordinatorSource() {
     return text.startsWith('this.registerEvent(this.app.vault.on(');
   });
   assert.equal(urlListeners.length, 4, 'Keep the independent native URL listener inventory explicit');
-  return `import {Platform,TFile,TFolder} from 'obsidian';\nimport {perfNow} from './util/perf';\nexport class StartupSourceCoordinator {\n${members.map(/** Preserve exact member implementation and initializers. */ member => member.getText(module)).join('\n')}\n/** Install the exact production onload statements without its unrelated UI shell. */\ninstallInitialUrlListeners(){${urlListeners.map(/** Keep native callback policy unchanged. */ statement => statement.getText(module)).join('\n')}}\n}`;
+  return `import {Platform,TFile,TFolder} from 'obsidian';\nimport {perfNow} from './util/perf';\nimport {INDEX_WORK_PRIORITY} from './index/ForegroundWorkScheduler';\nexport class StartupSourceCoordinator {\n${members.map(/** Preserve exact member implementation and initializers. */ member => member.getText(module)).join('\n')}\n/** Install the exact production onload statements without its unrelated UI shell. */\ninstallInitialUrlListeners(){${urlListeners.map(/** Keep native callback policy unchanged. */ statement => statement.getText(module)).join('\n')}}\n}`;
 }

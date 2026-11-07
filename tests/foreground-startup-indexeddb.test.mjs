@@ -6,7 +6,7 @@ import { chromiumHarness } from "./support/browserTypeScript.mjs";
 import { hostOracle, collect } from "./support/cachedSourceFixture.mjs";
 import { fullCenterIndex, centerGateSettings } from "./support/requestedCenterGateFixture.mjs";
 
-const bundle = await contributorBrowserBundle(["src/index/GraphIndex.ts", "src/index/GraphBuilder.ts", "src/index/IndexSnapshot.ts",
+const bundle = await contributorBrowserBundle(["src/index/GraphIndex.ts", "src/index/GraphBuilder.ts", "src/index/IndexSnapshot.ts", "src/index/ForegroundWorkScheduler.ts",
   "src/core/graph/compiler.ts", "src/adapters/obsidian/metadataSourceCollector.ts", "src/adapters/obsidian/ontologySourceCollector.ts", "src/ui/components/centerWatchdog.ts"]);
 
 const initialize = `(() => {
@@ -543,6 +543,49 @@ test('stationary startup watchdog retains finite center reads across a late real
 });
 
 /** A current center's finite host/body cover must not join unrelated whole-vault compilation. */
+for (const work of ['baseline','full-build','background-backlog']) for (const center of ['Ghost','Witness.md']) test(`${center} body ontology resolves during held global work (${work})`, async () => {
+ const browser=await chromiumHarness(bundle);
+ try {
+  await browser.evaluate(contributorBrowserInitialize);await browser.evaluate(initialize);
+  assert.equal(await browser.evaluate(`(async()=>{
+   const M=sourceModules,{f,settings}=await startupSeed('placeholder-before-baseline');
+   const build=M.GraphBuilder.prototype.buildStructuralBaseline,fullBuild=M.GraphBuilder.prototype.build,patch=M.GraphBuilder.prototype.patchMarkdownFiles;
+   let index,release,unlock,unlockSources,building;
+   const held=new Promise(done=>unlock=done),sources=new Promise(done=>unlockSources=done);
+   try {
+    f.add('Witness.md','Child:: [[Ghost]]');f.app.metadataCache.unresolvedLinks={'Witness.md':{Ghost:1}};
+    const center=${JSON.stringify(center)};
+    const baselineReady=${work!=='baseline'};
+    settings.showInferredNodes=false;settings.lastActivePath=center;
+    if(!baselineReady)M.GraphBuilder.prototype.buildStructuralBaseline=async function(...args){await held;return build.apply(this,args)};
+    index=new M.GraphIndex({app:f.app,settings,getIndexSourceRevision:()=>0},f.app);index.scheduleOrphanCleanup=()=>{};
+    const reconcile=index.sourceAcquisition.reconcile.bind(index.sourceAcquisition);
+    index.sourceAcquisition.reconcile=async(...args)=>{await sources;return reconcile(...args)};
+    await index.primePhysicalSearchCatalog();
+    if(baselineReady){
+     await index.initializeOnDemandBaseline();
+     if(${JSON.stringify(work)}==='background-backlog'){
+      M.GraphBuilder.prototype.patchMarkdownFiles=async function(...args){await held;return patch.apply(this,args)};
+      building=index.patchMarkdownPaths(['A.md'],{priority:M.INDEX_WORK_PRIORITY.background});
+     } else {
+      M.GraphBuilder.prototype.build=async function(...args){await held;return fullBuild.apply(this,args)};
+      building=index.rebuild();
+     }
+     await deadline((async()=>{while(!index.building)await new Promise(done=>setTimeout(done,0))})(),'actual background owner admission');
+    }
+    f.reads.length=0;
+    release=index.acquireSemanticDemand(center);
+    await deadline((async()=>{while(!index.getNeighborhood(center)?.[center==='Ghost'?'parents':'children'].some(row=>row.page.path===(center==='Ghost'?'Witness.md':'Ghost'))){if(index.diagnosticsClosed)return;await new Promise(done=>setTimeout(done,10))}})(),'current-view ontology before unrelated global work');
+    equal(index.hasLocalBaseline(),baselineReady,'Foreground completion must not release held global work');
+    ok(!index.isSemanticWriteReady('Ghost','Witness.md'),'Readonly cover grants no write authority');
+    equal(f.reads,['Witness.md'],'Only the actual placeholder contributor is acquired');
+    ok(!f.files.has('Ghost')&&!f.files.has('Ghost.md'),'Placeholder navigation creates no file');
+    return true;
+   } finally {release?.();index?.destroy();unlock?.();unlockSources?.();await building?.catch(()=>{});M.GraphBuilder.prototype.buildStructuralBaseline=build;M.GraphBuilder.prototype.build=fullBuild;M.GraphBuilder.prototype.patchMarkdownFiles=patch;f.close();}
+  })()`),true);
+ } finally {await browser.cleanup();}
+});
+
 for (const surface of ["frontmatter", "body", "cached-body", "body-resolve"]) {
   test(`stationary dense ${surface} center becomes readable before a held whole-vault baseline`, async () => {
     const browser = await chromiumHarness(bundle);

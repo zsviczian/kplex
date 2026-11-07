@@ -24,6 +24,8 @@
  * separately from the shared host observation lifecycle. Loaded tag metadata supplies only lexical
  * lookup acceleration during the existing physical inventory pass; selected tag covers reuse actual
  * structural facts and the compiler, without waiting for unrelated semantic source acquisition.
+ * Per-subtree observations survive unrelated host waves, while exact selected metadata closes again
+ * at publication. Removed tags retire their revision entries; monotonic tokens prevent resurrection ABA.
  */
 import {ontologyConfiguration} from "../core/contracts/ontologyConfiguration";
 import { getAllTags, TFile, TFolder, type App } from "obsidian";
@@ -62,6 +64,8 @@ export type HostMetadataPreviewResult = Readonly<{
   visiblePaths: ReadonlySet<string>;
   incomplete: true;
   settings: GraphCompilerSettings;
+  /** Close selected native inputs again at the caller's synchronous publication boundary. */
+  isCurrent?: () => boolean;
   /** Direct native membership proves only these gates; it never grants body/editing authority. */
   structuralGates?: ReadonlyMap<string, Partial<CachedCenterGates>>;
 }>;
@@ -128,6 +132,8 @@ export class HostMetadataPreview {
   private readonly tagMembers = new Map<string, Set<string>>();
   private readonly tagChildren = new Map<string, Set<string>>();
   private readonly tagParents = new Map<string, string>();
+  private readonly tagRevisions = new Map<string, number>();
+  private tagRevision = 0;
   private initialized = false;
   private initialization: Promise<void> | null = null;
   private revision = 0;
@@ -253,6 +259,10 @@ export class HostMetadataPreview {
       const members = this.tagMembers.get(tag) ?? new Set<string>(); members.add(filePath); this.tagMembers.set(tag, members);
     }
     if (next.size) this.tagsByFile.set(filePath, next); else this.tagsByFile.delete(filePath);
+    for (const path of affected) {
+      if (this.tagChildren.has(path)) this.tagRevisions.set(path, ++this.tagRevision);
+      else this.tagRevisions.delete(path);
+    }
     this.revision++;
     return affected;
   }
@@ -261,6 +271,9 @@ export class HostMetadataPreview {
   tagPaths(): Iterable<string> { return this.tagChildren.keys(); }
   /** Test one metadata-observed lexical identity without scanning notes or tag descendants. */
   hasTag(path: string): boolean { return this.tagChildren.has(path); }
+
+  /** Fence one tag subtree without invalidating its metadata-only cover for unrelated note updates. */
+  tagObservationRevision(path: string): number { return this.tagRevisions.get(path) ?? 0; }
 
   /** Retire the exact old path contribution on native rename/delete before observing a replacement. */
   private removeTagSource(path: string): ReadonlySet<string> {
@@ -394,7 +407,7 @@ export class HostMetadataPreview {
     this.incoming.clear();
     this.unresolvedOutgoing.clear();
     this.unresolvedIncoming.clear();
-    this.tagsByFile.clear(); this.tagMembers.clear(); this.tagChildren.clear(); this.tagParents.clear();
+    this.tagsByFile.clear(); this.tagMembers.clear(); this.tagChildren.clear(); this.tagParents.clear(); this.tagRevisions.clear();
   }
 
   /**
@@ -424,7 +437,7 @@ export class HostMetadataPreview {
     onUnavailable?: () => void;
   }> = {}): Promise<HostMetadataPreviewResult | null> {
     if (this.disposed || !this.runtime.isCurrent()) return null;
-    if (this.hasTag(centerPath)) return this.buildTag(centerPath, options.checkpoint);
+    if (this.hasTag(centerPath)) return this.buildTag(centerPath, options.checkpoint, options.isCurrent);
     // Folder identity is interpreted only at this host boundary. No backlink catalog or note
     // metadata is needed to expose the native direct tree during blocked durable startup.
     if (centerPath.startsWith("folder:")) {
@@ -660,8 +673,11 @@ export class HostMetadataPreview {
    * The lookup selects witnesses only; canonical structural facts/compiler own hierarchy and membership.
    * Direct members and child-tag witnesses are bounded by the existing visible-cover limit, and all
    * metadata/file observations close again after cooperative work. No complete-source proof is granted. */
-  private async buildTag(centerPath: string, checkpoint?: () => Promise<void>): Promise<HostMetadataPreviewResult | null> {
-    const revision = this.revision, settings = this.settings(), compilerSettings = graphCompilerSettingsFromLegacy(settings);
+  private async buildTag(centerPath: string, checkpoint?: () => Promise<void>, callerCurrent?: () => boolean): Promise<HostMetadataPreviewResult | null> {
+    const revision = this.tagObservationRevision(centerPath), settings = this.settings(), compilerSettings = graphCompilerSettingsFromLegacy(settings);
+    /** Membership belongs to this subtree; selected metadata owners close individually below. */
+    const membershipCurrent = (): boolean => !this.disposed && this.runtime.isCurrent() && callerCurrent?.() !== false
+      && revision === this.tagObservationRevision(centerPath);
     const limit = Math.min(MAX_FOLDER_PREVIEW_COVER, Math.max(1, Math.floor(settings.maxItemCount || 100)));
     const selected = new Set<string>();
     for (const path of this.tagMembers.get(centerPath) ?? []) { selected.add(path); if (selected.size >= limit) break; }
@@ -678,12 +694,12 @@ export class HostMetadataPreview {
         tag = first(this.tagChildren.get(tag));
         if ((++inspected & 63) === 0) {
           await this.runtime.yield(); await checkpoint?.();
-          if (this.disposed || !this.runtime.isCurrent() || revision !== this.revision) return null;
+          if (!membershipCurrent()) return null;
         }
       }
     }
     const captured = new Map<TFile, Readonly<{ path: string; mtime: number; size: number; cache: ReturnType<App["metadataCache"]["getFileCache"]> }>>();
-    const current = (): boolean => !this.disposed && this.runtime.isCurrent() && revision === this.revision
+    const current = (): boolean => membershipCurrent()
       && [...captured].every(([file, value]) => file.path === value.path && file.stat.mtime === value.mtime
         && file.stat.size === value.size && this.app.vault.getFileByPath(value.path) === file
         && this.app.metadataCache.getFileCache(file) === value.cache);
@@ -711,7 +727,7 @@ export class HostMetadataPreview {
     }
     const compiled = await compiler.finish(); if (!compiled || !current()) return null;
     const state = this.bind(compiled), center = state?.pages.get(centerPath); if (!state || !center || !current()) return null;
-    return { state, centerPath, visiblePaths: new Set([centerPath, ...center.neighbours.keys()]), incomplete: true, settings: compilerSettings };
+    return { state, centerPath, visiblePaths: new Set([centerPath, ...center.neighbours.keys()]), incomplete: true, settings: compilerSettings, isCurrent: current };
   }
 
   /**

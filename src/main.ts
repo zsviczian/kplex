@@ -96,6 +96,7 @@ import {editViewConfigurationAt, migrateViewConfiguration, readViewConfiguration
 import {configurationJson} from "./core/plex/views/configurationValues";
 import { removeMarkdownZoomModes, renameMarkdownZoomModes } from "./core/plex/markdownZoomPreferences";
 import { GraphIndex } from "./index/GraphIndex";
+import { INDEX_WORK_PRIORITY } from "./index/ForegroundWorkScheduler";
 import {SavedSettingsRefresh} from "./adapters/obsidian/savedSettingsRefresh";
 import { DEFAULT_SETTINGS, KplexSettingTab, migrateAndMergeSettings, importExcaliBrainGraphSettings, type DocumentSyncMode, type KplexSettings, type KplexLayoutProfile, type KplexViewSurface, type SidecarPosition, type StyleSettingsDraft, type StyleCommitResult, type EditableHierarchyKey } from "./settings";
 import { STYLE_SETTINGS_KEYS } from "./core/contracts/appearance";
@@ -1763,15 +1764,18 @@ export default class KplexPlugin extends Plugin {
       if (canIncrementalPatch) {
         const paths = [...this.dirtyMarkdownPaths];
         this.index.noteBuildDecision("per-file-patch", [...this.indexBacklogReasons].sort().join("|") || reason, paths.length);
-        const result = await this.index.patchMarkdownPaths(paths);
+        const result = await this.index.patchMarkdownPaths(paths, {
+          // Reactive catch-up is background work; current-view previews retain their own P1 lane.
+          priority: INDEX_WORK_PRIORITY.background,
+          /** Retire exactly the published source before another host event can re-add it.
+           * A batch-wide revision check otherwise replays thousands of completed files whenever
+           * an unrelated note changes. A later same-file event still adds its own pending work. */
+          onCommitted: path => this.dirtyMarkdownPaths.delete(path),
+        });
         if (this.unloading) return;
         if (result.outcome === "patched") {
           if (this.indexDirtyRevision === startRevision) {
             for (const path of paths) this.dirtyMarkdownPaths.delete(path);
-          } else {
-            // A metadata event arrived while the patch was running. Keep the original paths in the
-            // backlog too: the same file may have changed again. Deleting them here previously left
-            // indexDirty=true with zero paths, which forced an unnecessary full-vault rebuild.
           }
           if (this.indexDirtyRevision === startRevision && this.dirtyMarkdownPaths.size === 0) {
             this.indexDirty = false;
@@ -1782,11 +1786,8 @@ export default class KplexPlugin extends Plugin {
           return;
         }
         if (result.outcome === "cancelled") {
-          // Cancellation/supersession is not evidence that the semantic graph needs a full scan.
-          // If no newer metadata event arrived, retain only files that did not reach the per-file
-          // commit boundary; already-published files need not be reparsed when the view reopens.
-          // A concurrent metadata event wins: keep the conservative backlog because a committed
-          // file may already have changed again.
+          // Cancellation is not a full-scan request. Per-file receipts already retired committed
+          // paths; later native events re-add their own work independently of this batch.
           if (this.indexDirtyRevision === startRevision) {
             for (const path of paths) this.dirtyMarkdownPaths.delete(path);
             for (const path of result.pendingPaths) this.dirtyMarkdownPaths.add(path);
