@@ -7,6 +7,22 @@
 import { buildLocaleCatalog, type LocaleTranslationMap } from "./catalog";
 
 const germanTranslations = {
+  "pins.edit": "Pins bearbeiten",
+  "daily.calendar": "Zu einer Tagesnotiz wechseln",
+  "daily.date": "Datum",
+  "daily.previousMonth": "Vorheriger Monat",
+  "daily.nextMonth": "Nächster Monat",
+  "daily.loading": "Tagesnotizen werden gesucht…",
+  "daily.existingHint": "Punkte markieren vorhandene Tagesnotizen.",
+  "daily.go": "Los",
+  "daily.showCalendar": "Kalender in der Pin-Leiste anzeigen",
+  "daily.showCalendarHelp": "Wähle ein Datum, um zu seiner Tagesnotiz zu wechseln.",
+  "daily.configure": "Aktiviere und konfiguriere zuerst Obsidians tägliche Notizen.",
+  "daily.noPrevious": "Keine frühere Tagesnotiz gefunden.",
+  "daily.noNext": "Keine spätere Tagesnotiz gefunden.",
+  "daily.linkPrevious": "Mit vorheriger Tagesnotiz verbinden…",
+  "daily.linkNext": "Mit nächster Tagesnotiz verbinden…",
+  "daily.lookupFailed": "Tagesnotizen konnten nicht gefunden werden. Versuche es erneut.",
   "fileImport.folderLimits": "Ordner mit höchstens {entries} Einträgen und {depth} Ebenen importieren. Nichts wurde importiert.",
   "fileImport.creatingFolder": "Ordner {path} wird erstellt…",
   "fileImport.copying": "{name} wird kopiert ({current}/{total})…",

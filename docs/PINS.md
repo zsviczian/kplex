@@ -2,7 +2,17 @@
 
 Pin a node from its context menu to keep it above the canvas. Pins and their order are shared by your K-Plex canvases; each canvas keeps its own center and navigation history.
 
-Drag a pin by its grip to change its position. The pin follows your pointer with an accent outline, other pins dim, and the insertion marker shows where it will land. Press Escape to cancel. You can also activate the grip with the keyboard and choose **Move left** or **Move right**. Missing destinations keep their positions, including numbered pin shortcuts.
+Pins start in a compact, locked mode. Select the **pencil** at the beginning of the row to show reorder grips and remove buttons; select it again to hide them and prevent reordering or removal from the row. Editing is local to each open canvas. In both modes, drag a pin's body with the mouse or swipe with touch to scroll horizontally.
+
+While editing, drag a pin by its grip to change its position. The pin follows your pointer with an accent outline, other pins dim, and the insertion marker shows where it will land. Press Escape to cancel. You can also activate the grip with the keyboard and choose **Move left** or **Move right**. Turning editing off cancels an unfinished drag. Missing destinations keep their positions, including numbered pin shortcuts.
+
+## Calendar and journal gaps
+
+Select the **calendar** at the beginning of the row to choose a Daily Notes date. Dots mark existing notes. Browse months, enter an exact date, or use the arrow keys in the calendar and press Enter to choose. The calendar follows the enabled Core Daily Notes plugin's folder and format, including nested date folders. Existing notes in additional journal subfolders retain their actual paths. Selecting a missing day opens a creation confirmation and uses the configured Daily Notes template. Hide the button under **Canvas behavior → Pins → Show calendar in pins row**.
+
+For historical notes, Core Daily Notes expands `{{date}}` and `{{time}}` using the creation time. `{{title}}` follows the selected filename.
+
+For a daily note without an earlier or later daily-note connector, its node menu offers **Connect to previous daily note…** or **Connect to next daily note…** in every canvas view. K-Plex finds the nearest existing note in that direction, skipping missing journal days, and opens the normal link dialog with that file selected. Review the proposed file and ontology before saving. Each direction remembers its own ontology field; you can use Parent/Child fields as well as Previous/Next. Choosing a menu action alone never writes a relationship or creates intervening days.
 
 ## Today, this week and this month
 

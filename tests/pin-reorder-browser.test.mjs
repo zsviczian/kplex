@@ -39,7 +39,7 @@ async function browser(){const b=await chromiumHarness(bundle.outputFiles[0].tex
 /** Hardware-style primary input exercises native capture and post-release synthesized clicks. */
 async function mouse(b,type,point,buttons=0){await b.command('Input.dispatchMouseEvent',{type,...point,button:type==='mouseMoved'?'none':'left',buttons,clickCount:type==='mouseMoved'?0:1})}
 /** Start on the actual SVG glyph, including adopted native icons inside another document. */
-async function start(b,index=3,frame=false){const p=await b.evaluate(`point(${index},${frame})`);await mouse(b,'mousePressed',p,1);return p}
+async function start(b,index=3,frame=false){await b.evaluate(`(()=>{const doc=${frame}?document.querySelector('iframe').contentDocument:document,toggle=doc.querySelector('.kplex-pin-edit-toggle');if(toggle.getAttribute('aria-pressed')==='false')toggle.click()})()`);const p=await b.evaluate(`point(${index},${frame})`);await mouse(b,'mousePressed',p,1);return p}
 
 test('real handle drop inserts once without navigation, menu activation or unpin',async()=>{
  const b=await browser();try{
@@ -51,6 +51,20 @@ test('real handle drop inserts once without navigation, menu activation or unpin
   assert.deepEqual(await b.evaluate('calls'),{writes:1,navigation:0,remove:0,menus:0});
   assert.equal(await b.evaluate(`Array.from(document.querySelectorAll('.kplex-pinned-chip')).some(row=>row.style.getPropertyValue('--reorder-drag-x'))`),false);
   assert.equal(await b.evaluate(`document.querySelector('[data-kplex-pinned-path="Unavailable.md"]').disabled`),true);
+ }finally{await b.cleanup()}
+});
+
+test('pins start locked, edit mode alone exposes mutation controls and disabling it cancels an active drag',async()=>{
+ const b=await browser();try{
+  assert.equal(await b.evaluate(`document.querySelector('.kplex-pin-edit-toggle').getAttribute('aria-pressed')`),'false');
+  assert.equal(await b.evaluate(`document.querySelectorAll('.kplex-pin-reorder-handle,.kplex-pinned-remove').length`),0);
+  await b.evaluate(`document.querySelector('.kplex-pinned-open').click()`);assert.equal(await b.evaluate('calls.navigation'),1);
+  await start(b);const target=await b.evaluate('point(0)');await mouse(b,'mouseMoved',target,1);
+  assert.equal(await b.evaluate(`!!document.querySelector('.is-reordering')`),true);
+  await b.evaluate(`document.querySelector('.kplex-pin-edit-toggle').click()`);await mouse(b,'mouseReleased',target);
+  assert.equal(await b.evaluate(`document.querySelectorAll('.kplex-pin-reorder-handle,.kplex-pinned-remove').length`),0);
+  assert.equal(await b.evaluate(`!!document.querySelector('.is-reordering')`),false);
+  assert.deepEqual(await b.evaluate('calls'),{writes:0,navigation:1,remove:0,menus:0});
  }finally{await b.cleanup()}
 });
 
@@ -67,7 +81,7 @@ test('threshold and keyboard handle activation preserve normal menu and note cli
 
 test('overflowing pins scroll from their body while handles alone reorder and remove still works',async()=>{
  const b=await browser();try{
-  await b.evaluate(`document.querySelector('.kplex-pinned-bar').parentElement.style.width='350px'`);
+  await b.evaluate(`document.querySelector('.kplex-pinned-bar').parentElement.style.width='220px'`);
   const body=await b.evaluate(`(()=>{const r=document.querySelector('.kplex-pinned-open').getBoundingClientRect();return{x:r.x+r.width/2,y:r.y+r.height/2}})()`);
   await mouse(b,'mousePressed',body,1);await mouse(b,'mouseMoved',{x:body.x-40,y:body.y},1);await mouse(b,'mouseReleased',{x:body.x-40,y:body.y});
   assert((await b.evaluate(`document.querySelector('.kplex-pinned-bar').scrollLeft`))>30);

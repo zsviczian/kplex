@@ -22,6 +22,16 @@ const selected=raw=>raw.appearanceThemes.themes.find(theme=>theme.id===raw.appea
 /** Keep every trial in a fresh real browser with the established native-shaped editor boundary. */
 const scenario=body=>colorEditorScenario(`(async()=>{${initialize}\n${body}\nreturn true})()`);
 
+test('calendar visibility publishes only canvas rendering while journal field memories remain workflow preferences',async()=>{
+ assert.equal(await scenario(`
+ const p=await create();p.settings.showDailyCalendar=false;p.settings.dailyNoteLinkFields={previous:'Yesterday',next:'Tomorrow'};
+ await p.saveSettings(false,true);check(disk.showDailyCalendar===false&&disk.dailyNoteLinkFields.previous==='Yesterday','Journal preferences were not persisted');
+ check(p.work.semantic===0&&p.work.invalidate===0&&p.work.notify>0,'Calendar chrome requested semantic work or failed to notify views');
+ const effects=sourceModules.classifySettingsChange(sourceModules.captureSettingsPolicy({...p.settings,showDailyCalendar:true}),sourceModules.captureSettingsPolicy(p.settings));check(!effects.semanticInvalidation&&!effects.presentationFacets,'Calendar chrome changed semantic/facet policy');
+ const reloaded=await create();check(reloaded.settings.showDailyCalendar===false&&reloaded.settings.dailyNoteLinkFields.next==='Tomorrow','Journal preferences did not survive reload');
+ `),true);
+});
+
 test('startup preferences migrate independently and external device edits remain outside graph and theme policy',async()=>{
  assert.equal(await scenario(`
  const equal=(a,b,message)=>check(JSON.stringify(a)===JSON.stringify(b),message+' '+JSON.stringify([a,b]));

@@ -8,6 +8,7 @@
  * Host-bound Plex scene composition, shared captured center-arrival motion and finite Wander navigation ports, layout and relationship interactions. Semantic resolution stays index/core-owned; UI labels and on-demand evidence hints use the injected translator. Navigation fits keep the central node centered and follow late geometry until manual camera input; publication and ordinary pane resizing preserve manual intent. Sidecar open/close transitions explicitly reframe the current viewport after native layout settles, with pending work retired by input, navigation or unmount. View-owned display transitions retain camera coordinates and scene settings. Device typography stages scalar live preferences and persists after input settles; unmount flushes storage without replaying stale overrides. Area-height gestures own viewport pointer capture and persist existing presentation settings on completion or interruption. History and pinned drag targets share composer eligibility; external file drops follow the rendered area's semantic role. Theme-native area previews follow the existing drop action without intercepting capture or moving the dragged thought. Visible rows retain finite cache-only presentation demand; hidden surfaces and effect teardown release it. Geometry defers gate/count queries until a row intersects the displayed viewport, including partially clipped rows. Ordinary unfiltered scenes project cross-links for clipped visible rows; filtered and section scenes retain their established edge/count policy. Scene-local React keys capture paths before canonical pages can mutate during rename; semantic pages and actions retain their live identity. Normal-mode keyboard and exact-phrase typing selection are view-local; the displayed occurrence projection supplies all candidates and the shared selection owner reveals them without changing the center, filters or native search. Host methods own activation/rename/creation. Filtered badge numerators use revision-scoped semantic endpoint membership independently of connector routing and viewport clipping. Pane-fit native layout controls own local touch containment and bounded scrolling without changing preferences or browser range behavior. Accessible layout-wrapper hints use the shell's shared tooltip owner; inputs retain concise accessible names.
  * Hierarchy Find selects and reveals exact occurrences without activating attention or opening an editor.
  * Registered view layout rails share the native Settings queued writer and measured layout pipeline;
+ * Daily journal gap links share this captured node menu across every registered canvas layout.
  * they preserve camera intent and editor instances without acquiring semantic sources.
  * Visual resolution and metadata refreshes retain the index consent epoch; teardown and revocation
  * reject late publication. Hover enlargement uses the same already-guarded image element.
@@ -5248,6 +5249,12 @@ export function PlexGraph({ viewDefinition = classicViewDefinition, viewSession,
     }
 
     if (isMarkdown && persistent && page.transient?.kind !== "section") {
+      for (const direction of plugin.dailyNoteGapDirections(persistent)) menu.addItem(/** Every registered layout uses this same captured node context menu. */ item => item
+        .setTitle(translate(direction === "previous" ? "daily.linkPrevious" : "daily.linkNext")).setIcon(direction === "previous" ? "calendar-arrow-up" : "calendar-arrow-down")
+        .onClick(/** Candidate discovery is an explicit metadata-only action; the composer owns any later write. */ () => {
+          if (menuCurrent()) void plugin.openDailyNoteGapLink(persistent, direction, hostLeaf, actionSurfaceId, menuCurrent)
+            .catch(/** Preserve the current view and report lookup failures without automatic linking. */ error => {console.error("K-Plex daily note gap lookup failed", error);new Notice(translate("daily.lookupFailed"));});
+        }));
       menu.addItem((item) => item
         .setTitle(translate("graph.setNoteType"))
         .setIcon("tags")

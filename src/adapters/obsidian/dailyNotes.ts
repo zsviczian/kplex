@@ -1,6 +1,7 @@
 /** Shared finite Daily Notes capability. Metadata dates retain their read-only folder/format
- * projection; pin activation alone may delegate confirmed creation to Obsidian's core Daily
- * Notes owner, preserving its template processing without opening a native editor. */
+ * projection; explicit pin/calendar confirmation may delegate creation to Obsidian's core Daily
+ * Notes owner, preserving its template processing without opening a native editor. Calendar
+ * selections pass an explicit local-day timestamp; symbolic day pins retain the current day. */
 import {TFile, type App} from "obsidian";
 import {periodicPinPath} from "../../core/plex/periodicPins";
 
@@ -42,11 +43,11 @@ type DailyCalendarWindow = Window & {moment?: (time: number) => DailyMoment};
  * with its configured template through FileManager and returns the file without opening it.
  * It is unpublished, so absence is explicit rather than silently creating an empty substitute.
  * Once accepted, core owns its asynchronous write; dismissal only retires later UI effects. */
-export async function createConfiguredDailyNote(app: App, path: string, current: () => boolean): Promise<TFile | null> {
+export async function createConfiguredDailyNote(app: App, path: string, current: () => boolean, time = Date.now()): Promise<TFile | null> {
   const instance = dailyNotesInstance(app), settings = readDailyPinSettings(app);
   const factory = (window as DailyCalendarWindow).moment;
-  if (!current() || !instance || !settings || typeof instance.getDailyNote !== "function" || typeof factory !== "function") return null;
-  const date = factory(Date.now()).clone().startOf("day");
+  if (!current() || !instance || !settings || !Number.isFinite(time) || typeof instance.getDailyNote !== "function" || typeof factory !== "function") return null;
+  const date = factory(time).clone().startOf("day");
   if (!date.isValid() || periodicPinPath(settings.folder, date.format(settings.format).trim()) !== path) return null;
   const create = instance.getDailyNote as (date: DailyMoment) => Promise<unknown>;
   const file: unknown = await create.call(instance, date);

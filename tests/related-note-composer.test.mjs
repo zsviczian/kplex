@@ -37,14 +37,17 @@ function page(path) { return { path, file: { path, extension: "md" }, neighbours
 function deferred() { let resolve; const promise = new Promise(done => { resolve = done; }); return { promise, resolve }; }
 
 test("All keeps a known field in its assigned direction and refuses unassigned new fields", async () => {
-  const calls = [], notices = [];
-  const deps = { roleFilter: "all", knownRole: "parent", role: "parent", ontology: "Mentor",
+  const calls = [], notices = [], remembered = [];
+  const session = { invocation: { onOntologySelected: async field => { remembered.push(field); } }, rememberOntology: production("rememberOntology") };
+  const deps = { session, roleFilter: "all", knownRole: "parent", role: "parent", ontology: "Mentor",
     plugin: { rememberRelationshipOntology: async (...args) => { calls.push(args); return args[1]; }, translator: key => key },
     Notice: class { constructor(message) { notices.push(message); } } };
   assert.equal(await production("prepareField", deps)(), "Mentor");
   assert.deepEqual(calls, [["parent", "Mentor"]]);
+  assert.deepEqual(remembered, ["Mentor"], "the invocation remembers the field accepted by the shared ontology writer");
   assert.equal(await production("prepareField", { ...deps, knownRole: null, ontology: "new field" })(), null);
   assert.equal(calls.length, 1, "All must not reassign or invent ontology membership");
+  assert.deepEqual(remembered, ["Mentor"], "invalid ontology cannot update invocation memory");
   assert.deepEqual(notices, ["addRelated.chooseDirection"]);
 });
 

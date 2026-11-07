@@ -7,6 +7,22 @@
 import { buildLocaleCatalog, type LocaleTranslationMap } from "./catalog";
 
 const japaneseTranslations = {
+  "pins.edit": "ピンを編集",
+  "daily.calendar": "デイリーノートに移動",
+  "daily.date": "日付",
+  "daily.previousMonth": "前の月",
+  "daily.nextMonth": "次の月",
+  "daily.loading": "デイリーノートを検索中…",
+  "daily.existingHint": "点は既存のデイリーノートを示します。",
+  "daily.go": "移動",
+  "daily.showCalendar": "ピンの行にカレンダーを表示",
+  "daily.showCalendarHelp": "日付を選択して、その日のデイリーノートに移動します。",
+  "daily.configure": "先にObsidianのデイリーノートを有効にして設定してください。",
+  "daily.noPrevious": "以前のデイリーノートが見つかりませんでした。",
+  "daily.noNext": "以後のデイリーノートが見つかりませんでした。",
+  "daily.linkPrevious": "前のデイリーノートに接続…",
+  "daily.linkNext": "次のデイリーノートに接続…",
+  "daily.lookupFailed": "デイリーノートが見つかりませんでした。もう一度お試しください。",
   "fileImport.folderLimits": "フォルダーは {entries} 項目、{depth} 階層までです。何もインポートしていません。",
   "fileImport.creatingFolder": "フォルダー {path} を作成中…",
   "fileImport.copying": "{name} をコピー中（{current}/{total}）…",

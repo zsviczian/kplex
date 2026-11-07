@@ -108,7 +108,7 @@ Navigating, editing, panning or using other controls pauses wandering. Select **
 
 ### Search, history and pins
 
-Reorder pins with their grip or its **Move left** / **Move right** menu. Enable **Today**, **This week** and **This month** under **Canvas behavior → Pins** for destinations that follow the local date. See [Pins](docs/PINS.md) for date formats and missing-note behavior.
+Use the **pencil** at the start of the pins row to show reorder grips and remove buttons. Turn it off to keep pins compact and locked; dragging a pin's body still scrolls the row in either mode. The **calendar** opens a date picker for Daily Notes. Enable **Today**, **This week** and **This month**, or hide the calendar, under **Canvas behavior → Pins**. See [Pins](docs/PINS.md) for date formats, missing notes and linking across journal gaps.
 
 The toolbar search box (**F4**) searches notes, folders, tags, attachments, Canvas files and indexed URLs. It matches display names, file names, aliases, paths and URL substrings using fuzzy matching. Exact and prefix matches rank above looser matches. Type **#** before a query to search tags only; result icons identify each kind of item. Centering a hierarchical tag shows its parent, child tags and associated notes, even when tags are hidden from ordinary note neighborhoods.
 

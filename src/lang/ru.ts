@@ -7,6 +7,22 @@
 import { buildLocaleCatalog, type LocaleTranslationMap } from "./catalog";
 
 const russianTranslations = {
+  "pins.edit": "Изменить закрепления",
+  "daily.calendar": "Перейти к ежедневной заметке",
+  "daily.date": "Дата",
+  "daily.previousMonth": "Предыдущий месяц",
+  "daily.nextMonth": "Следующий месяц",
+  "daily.loading": "Поиск ежедневных заметок…",
+  "daily.existingHint": "Точки отмечают существующие ежедневные заметки.",
+  "daily.go": "Перейти",
+  "daily.showCalendar": "Показывать календарь в строке закреплений",
+  "daily.showCalendarHelp": "Выберите дату для перехода к её ежедневной заметке.",
+  "daily.configure": "Сначала включите и настройте ежедневные заметки Obsidian.",
+  "daily.noPrevious": "Более ранняя ежедневная заметка не найдена.",
+  "daily.noNext": "Более поздняя ежедневная заметка не найдена.",
+  "daily.linkPrevious": "Связать с предыдущей ежедневной заметкой…",
+  "daily.linkNext": "Связать со следующей ежедневной заметкой…",
+  "daily.lookupFailed": "Не удалось найти ежедневные заметки. Повторите попытку.",
   "fileImport.folderLimits": "Можно импортировать до {entries} элементов и {depth} уровней. Ничего не импортировано.",
   "fileImport.creatingFolder": "Создание папки {path}…",
   "fileImport.copying": "Копирование {name} ({current}/{total})…",

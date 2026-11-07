@@ -7,6 +7,22 @@
 import { buildLocaleCatalog, type LocaleTranslationMap } from "./catalog";
 
 const dutchTranslations = {
+  "pins.edit": "Vastgezette notities bewerken",
+  "daily.calendar": "Naar een dagelijkse notitie",
+  "daily.date": "Datum",
+  "daily.previousMonth": "Vorige maand",
+  "daily.nextMonth": "Volgende maand",
+  "daily.loading": "Dagelijkse notities zoeken…",
+  "daily.existingHint": "Stippen markeren bestaande dagelijkse notities.",
+  "daily.go": "Ga",
+  "daily.showCalendar": "Kalender tonen in de rij met vastgezette notities",
+  "daily.showCalendarHelp": "Kies een datum om naar de dagelijkse notitie te gaan.",
+  "daily.configure": "Schakel eerst de dagelijkse notities van Obsidian in en configureer ze.",
+  "daily.noPrevious": "Geen eerdere dagelijkse notitie gevonden.",
+  "daily.noNext": "Geen latere dagelijkse notitie gevonden.",
+  "daily.linkPrevious": "Verbinden met vorige dagelijkse notitie…",
+  "daily.linkNext": "Verbinden met volgende dagelijkse notitie…",
+  "daily.lookupFailed": "Dagelijkse notities konden niet worden gevonden. Probeer het opnieuw.",
   "fileImport.folderLimits": "Importeer mappen met maximaal {entries} items en {depth} niveaus. Er is niets geïmporteerd.",
   "fileImport.creatingFolder": "Map {path} maken…",
   "fileImport.copying": "{name} kopiëren ({current}/{total})…",

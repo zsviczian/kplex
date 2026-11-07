@@ -9,6 +9,22 @@
  * parameters remain unquoted regardless of their names. Locale catalogs inherit this classification.
  */
 export const englishCatalog = {
+  "pins.edit": {"message":"Edit pins","context":"Pins editing and explicit Daily Notes calendar/gap navigation.","params":[],"referenceParams":[]},
+  "daily.calendar": {"message":"Go to a daily note","context":"Pins editing and explicit Daily Notes calendar/gap navigation.","params":[],"referenceParams":[]},
+  "daily.date": {"message":"Date","context":"Pins editing and explicit Daily Notes calendar/gap navigation.","params":[],"referenceParams":[]},
+  "daily.previousMonth": {"message":"Previous month","context":"Pins editing and explicit Daily Notes calendar/gap navigation.","params":[],"referenceParams":[]},
+  "daily.nextMonth": {"message":"Next month","context":"Pins editing and explicit Daily Notes calendar/gap navigation.","params":[],"referenceParams":[]},
+  "daily.loading": {"message":"Finding daily notes…","context":"Pins editing and explicit Daily Notes calendar/gap navigation.","params":[],"referenceParams":[]},
+  "daily.existingHint": {"message":"Dots mark existing daily notes.","context":"Pins editing and explicit Daily Notes calendar/gap navigation.","params":[],"referenceParams":[]},
+  "daily.go": {"message":"Go","context":"Pins editing and explicit Daily Notes calendar/gap navigation.","params":[],"referenceParams":[]},
+  "daily.showCalendar": {"message":"Show calendar in pins row","context":"Pins editing and explicit Daily Notes calendar/gap navigation.","params":[],"referenceParams":[]},
+  "daily.showCalendarHelp": {"message":"Choose a date to navigate to its daily note.","context":"Pins editing and explicit Daily Notes calendar/gap navigation.","params":[],"referenceParams":[]},
+  "daily.configure": {"message":"Enable and configure Obsidian Daily Notes first.","context":"Pins editing and explicit Daily Notes calendar/gap navigation.","params":[],"referenceParams":[]},
+  "daily.noPrevious": {"message":"No earlier daily note was found.","context":"Pins editing and explicit Daily Notes calendar/gap navigation.","params":[],"referenceParams":[]},
+  "daily.noNext": {"message":"No later daily note was found.","context":"Pins editing and explicit Daily Notes calendar/gap navigation.","params":[],"referenceParams":[]},
+  "daily.linkPrevious": {"message":"Connect to previous daily note…","context":"Pins editing and explicit Daily Notes calendar/gap navigation.","params":[],"referenceParams":[]},
+  "daily.linkNext": {"message":"Connect to next daily note…","context":"Pins editing and explicit Daily Notes calendar/gap navigation.","params":[],"referenceParams":[]},
+  "daily.lookupFailed": {"message":"Could not find daily notes. Please try again.","context":"Pins editing and explicit Daily Notes calendar/gap navigation.","params":[],"referenceParams":[]},
   "fileImport.folderLimits": {"message":"Import folders with at most {entries} entries and {depth} levels. Nothing was imported.","context":"Import progress or missing periodic-pin action.","params":["entries","depth"],"referenceParams":[]},
   "fileImport.creatingFolder": {"message":"Creating folder {path}…","context":"Import progress or missing periodic-pin action.","params":["path"],"referenceParams":["path"]},
   "fileImport.copying": {"message":"Copying {name} ({current}/{total})…","context":"Import progress or missing periodic-pin action.","params":["name","current","total"],"referenceParams":["name"]},
