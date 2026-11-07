@@ -7,6 +7,17 @@
 import { buildLocaleCatalog, type LocaleTranslationMap } from "./catalog";
 
 const frenchTranslations = {
+  "nodeProperties.title": "Propriétés des nœuds",
+  "nodeProperties.help": "Choisissez les propriétés supplémentaires affichées sous le nom du nœud, pour chaque type de note. Les notes restent inchangées.",
+  "nodeProperties.search": "Rechercher un type de note…",
+  "nodeProperties.addType": "Ajouter un type de note",
+  "nodeProperties.type": "Type de note",
+  "nodeProperties.valuesHelp": "Ajoutez jusqu’à 16 noms de propriété uniques dans l’ordre d’affichage. Les valeurs simples et les listes visibles et non vides apparaissent en petit texte ; les valeurs complexes sont omises.",
+  "nodeProperties.add": "Ajouter une propriété",
+  "nodeProperties.field": "Nom de propriété",
+  "nodeProperties.visible": "Afficher sur le nœud",
+  "nodeProperties.invalid": "Utilisez un type de note et jusqu’à 16 noms de propriété uniques et non vides.",
+  "nodeProperties.changed": "Cette configuration a changé. Fermez et rouvrez l’éditeur avant d’enregistrer.",
   "fileImport.folderLimits": "Importez des dossiers contenant au plus {entries} entrées et {depth} niveaux. Rien n’a été importé.",
   "fileImport.creatingFolder": "Création du dossier {path}…",
   "fileImport.copying": "Copie de {name} ({current}/{total})…",

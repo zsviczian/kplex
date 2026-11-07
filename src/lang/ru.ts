@@ -7,6 +7,17 @@
 import { buildLocaleCatalog, type LocaleTranslationMap } from "./catalog";
 
 const russianTranslations = {
+  "nodeProperties.title": "Свойства узлов",
+  "nodeProperties.help": "Выберите дополнительные свойства под названием узла для каждого типа заметки. Сами заметки не изменяются.",
+  "nodeProperties.search": "Найти тип заметки…",
+  "nodeProperties.addType": "Добавить тип заметки",
+  "nodeProperties.type": "Тип заметки",
+  "nodeProperties.valuesHelp": "Добавьте до 16 уникальных имён свойств в порядке отображения. Видимые непустые простые значения и списки выводятся мелким текстом; сложные значения пропускаются.",
+  "nodeProperties.add": "Добавить свойство",
+  "nodeProperties.field": "Имя свойства",
+  "nodeProperties.visible": "Показывать на узле",
+  "nodeProperties.invalid": "Укажите тип заметки и до 16 уникальных непустых имён свойств.",
+  "nodeProperties.changed": "Эта конфигурация изменилась. Перед сохранением закройте и снова откройте редактор.",
   "fileImport.folderLimits": "Можно импортировать до {entries} элементов и {depth} уровней. Ничего не импортировано.",
   "fileImport.creatingFolder": "Создание папки {path}…",
   "fileImport.copying": "Копирование {name} ({current}/{total})…",

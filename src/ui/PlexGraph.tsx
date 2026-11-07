@@ -114,6 +114,7 @@ import {createPlexSectionViewContext} from "./plexViews/sections";
 import {viewLabel} from "./plexViews/labels";
 import {ViewDecorations, viewDecorationCounts} from "./plexViews/ViewDecorations";
 import {createLegacyPropertyProvider} from "../adapters/obsidian/predicateContracts";
+import {nodePropertyReader} from "../adapters/obsidian/nodeProperties";
 import { DropAreaPreview } from "./components/DropAreaPreview";
 import { DoubleTapGesture } from "./components/DoubleTapGesture";
 import { ObsidianIcon } from "./ObsidianIcon";
@@ -789,9 +790,14 @@ export function PlexGraph({ viewDefinition = classicViewDefinition, viewSession,
   const translate = plugin.translator;
   const classic = plexViewContributionFor(viewDefinition);
   const ClassicControls = classic?.Controls;
+  const [viewPropertyRevision, refreshViewProperties] = useState(0);
+  const [nodePropertyRevision, refreshNodeProperties] = useState(0);
+  const readNodeProperties = useMemo(() => nodePropertyReader(plugin.app, viewSettings.noteTypeProperties),
+    [plugin, viewSettings.noteTypeProperties, renderRevision, semanticRevision, viewPropertyRevision, nodePropertyRevision]);
   const classicRead = useMemo(() => ({titleFor: (page: GraphPage) => index.titleFor(page),
+    detailsFor: readNodeProperties,
     neighbours: (page: GraphPage, role: Role) => index.neighbours(page, role), neighbourCount: (page: GraphPage) => index.neighbourCount(page),
-    gateStats: (page: GraphPage) => index.gateStats(page), visibleRelationshipsWithin: (source: GraphPage, paths: ReadonlySet<string>) => index.visibleRelationshipsWithin(source, paths)}), [index]);
+    gateStats: (page: GraphPage) => index.gateStats(page), visibleRelationshipsWithin: (source: GraphPage, paths: ReadonlySet<string>) => index.visibleRelationshipsWithin(source, paths)}), [index, readNodeProperties]);
   const viewLifetime = viewSession?.getLifetime() ?? 0;
   const occurrenceEditorCapable = viewDefinition.editorHosting !== undefined;
   const boundEditorBinding = occurrenceEditorCapable ? viewSession?.editors.bindings[0] : undefined;
@@ -1041,7 +1047,6 @@ export function PlexGraph({ viewDefinition = classicViewDefinition, viewSession,
   const scenePolicyKey = useMemo(/** Equivalent wrappers and paint-only updates retain the actual geometry policy. */ () => classic?.policyKey(settings) ?? viewDefinition.id, [classic, viewDefinition, settings]);
   const sceneGeometryKey = useMemo(/** Compare consumed values, never mutable page identity or source clocks alone. */ () =>
     classic?.geometryKey(layoutNeighborhood, classicRead, settings) ?? "", [classic, layoutNeighborhood, classicRead, settings]);
-  const [viewPropertyRevision, refreshViewProperties] = useState(0);
   /** Share exact current admission between rendering, restored intent and branch-removal preflight. */
   const touchBranchControls = readObsidianPresentationEnvironment(hostLeaf?.view?.containerEl?.ownerDocument.defaultView ?? undefined).inputModes.touch === true;
   const prepareSelectedDefinition = (state: unknown, bindings: readonly PlexEditorBinding[] = viewSession?.editors.bindings ?? []): ReturnType<typeof prepareViewScene> => {
@@ -1053,7 +1058,7 @@ export function PlexGraph({ viewDefinition = classicViewDefinition, viewSession,
       propertyProvider ? {...propertyProvider, viewDependencies} : undefined);
     const sections = viewDefinition.capabilities.sections === true && sectionExpanded
       ? effectiveSectionExpansion && createPlexSectionViewContext(effectiveSectionExpansion, `section-${sectionRevision.current.value}`, expandedSectionIds, index, current) : undefined;
-    return prepareViewScene(viewDefinition, read, index, activePath, state, settings, current, centralEditorSize,
+    return prepareViewScene(viewDefinition, read, {get: path => index.get(path), titleFor: page => index.titleFor(page), detailsFor: readNodeProperties}, activePath, state, settings, current, centralEditorSize,
       node => !globalFiltering || filterLayoutMode === "keep" && !settings.groupRelations || (matchesGraphPredicateNode(predicateEngine, predicate, node, predicateCenter)
         && matchesVisibleLensNode(predicateEngine, index, lenses, node, predicateCenter)),
       {translate, unfolded: unfoldedGroups.center === sceneScope ? unfoldedGroups.keys : new Set(), areaHeights: viewSession?.getAreaHeights(), areaWidths: viewSession?.getAreaWidths(), layoutRoot: rooted ? nodeId(sceneScope) : undefined,
@@ -1065,7 +1070,7 @@ export function PlexGraph({ viewDefinition = classicViewDefinition, viewSession,
   useLayoutEffect(/** Refuse a branch-state mutation before it can remove the exact live editor occurrence. */ () =>
     viewSession?.guardState(state => branchPreflight.current(state)), [viewSession, viewLifetime]);
   const preparedDefinitionScene = useMemo(() => classic ? null : prepareSelectedDefinition(viewSession?.state),
-    [classic, viewDefinition, viewRevision, viewSession, index, activePath, renderRevision, semanticRevision, settings, centralEditorSize, globalFiltering, filterLayoutMode, predicateEngine, predicate, lenses, predicateRevision, unfoldedGroups, translate, rooted, sceneScope, occurrenceEditorPolicy, predicateCenter, hierarchyDemand.revision, viewPropertyRevision, effectiveSectionExpansion, expandedSectionIds, sectionExpanded, touchBranchControls]);
+    [classic, viewDefinition, viewRevision, viewSession, index, activePath, renderRevision, semanticRevision, settings, centralEditorSize, globalFiltering, filterLayoutMode, predicateEngine, predicate, lenses, predicateRevision, unfoldedGroups, translate, rooted, sceneScope, occurrenceEditorPolicy, predicateCenter, hierarchyDemand.revision, viewPropertyRevision, effectiveSectionExpansion, expandedSectionIds, sectionExpanded, touchBranchControls, readNodeProperties]);
   useLayoutEffect(/** Only an actually admitted selected scene can request finite source frontiers or commit stable side/fold intent. */ () => {
     if (!viewDefinition.hierarchy || !viewSession) return;
     const current = viewSession.capture();
@@ -1103,7 +1108,7 @@ export function PlexGraph({ viewDefinition = classicViewDefinition, viewSession,
         : {nodes: [], edges: [], zoneAreas: {}, zoneViewports: {}};
     } catch { return attentionFallbackScene(index, activePath, settings, centralEditorSize); }
   }, [classic, preparedDefinitionScene, scenePolicyKey, sceneGeometryKey, semanticRevision, layoutSectionExpansion, layoutSectionExpansion ? settings : null,
-    expandedSectionIds, index, layoutRevision, showCrossLinks, globalFiltering, centralEditorSize, viewLifetime, boundEditorBinding, boundEditorPage]);
+    expandedSectionIds, index, layoutRevision, showCrossLinks, globalFiltering, centralEditorSize, viewLifetime, boundEditorBinding, boundEditorPage, nodePropertyRevision]);
   const viewFailed = Boolean(sceneGeometry.failed);
   const scene = useMemo(() => viewFailed || layoutSectionExpansion || !classic ? sceneGeometry : classic.bind(sceneGeometry, layoutNeighborhood),
     [classic, viewFailed, sceneGeometry, layoutNeighborhood, layoutSectionExpansion]);
@@ -1198,15 +1203,19 @@ export function PlexGraph({ viewDefinition = classicViewDefinition, viewSession,
   ).values()], [scene.nodes]);
   const visualPageByPath = useMemo(() => new Map(visualPages.map((page) => [page.path, page])), [visualPages]);
   useEffect(/** Cached-field views refresh only admitted current files; real note edits retain normal index maintenance. No body read or semantic notification is requested here. */ () => {
-    if (!viewDefinition.capabilities.properties) return;
+    if (!viewDefinition.capabilities.properties && !Object.values(viewSettings.noteTypeProperties ?? {}).some(rows => rows.some(row => row.visible))) return;
     const current = viewSession?.capture() ?? (() => true);
     let alive = true;
     const ref = plugin.app.metadataCache.on("changed", /** Late metadata from a retired view or replaced native file has no presentation authority. */ file => {
       if (!alive || !current() || visualPageByPath.get(file.path)?.file !== file || plugin.app.vault.getFileByPath(file.path) !== file) return;
-      refreshViewProperties(/** Retain the lifetime fence even if React delays this state updater. */ revision => alive && current() ? revision + 1 : revision);
+      const page = visualPageByPath.get(file.path)!;
+      const lines = nodePropertyReader(plugin.app, viewSettings.noteTypeProperties)(page);
+      const displayed = scene.nodes.find(node => node.page === page && !node.page.transient)?.propertyLines ?? [];
+      if (JSON.stringify(lines) !== JSON.stringify(displayed)) refreshNodeProperties(revision => alive && current() ? revision + 1 : revision);
+      if (viewDefinition.capabilities.properties) refreshViewProperties(/** Retain the lifetime fence even if React delays this state updater. */ revision => alive && current() ? revision + 1 : revision);
     });
     return /** Exact view-owned listener is retired before replacement/unmount. */ () => {alive = false; plugin.app.metadataCache.offref(ref);};
-  }, [plugin, viewDefinition, viewLifetime, viewSession, visualPageByPath]);
+  }, [plugin, viewDefinition, viewLifetime, viewSession, visualPageByPath, viewSettings.noteTypeProperties, scene.nodes]);
   useEffect(/** Resolve visible imagery under one consent epoch and retire publication on teardown. */ () => {
     let cancelled = false;
     const revision = index.getNodeVisualRevision();

@@ -7,6 +7,17 @@
 import { buildLocaleCatalog, type LocaleTranslationMap } from "./catalog";
 
 const japaneseTranslations = {
+  "nodeProperties.title": "ノードのプロパティ",
+  "nodeProperties.help": "ノートの種類ごとに、ノード名の下に表示する追加プロパティを選びます。ノートは変更されません。",
+  "nodeProperties.search": "ノートの種類を検索…",
+  "nodeProperties.addType": "ノートの種類を追加",
+  "nodeProperties.type": "ノートの種類",
+  "nodeProperties.valuesHelp": "表示順に、重複しないプロパティ名を16個まで追加できます。表示が有効な空でない単純値やリストを小さな文字で表示し、複雑な値は省略します。",
+  "nodeProperties.add": "プロパティを追加",
+  "nodeProperties.field": "プロパティ名",
+  "nodeProperties.visible": "ノードに表示",
+  "nodeProperties.invalid": "ノートの種類と、重複せず空でないプロパティ名を16個まで指定してください。",
+  "nodeProperties.changed": "設定が変更されました。保存する前にエディターを閉じて開き直してください。",
   "fileImport.folderLimits": "フォルダーは {entries} 項目、{depth} 階層までです。何もインポートしていません。",
   "fileImport.creatingFolder": "フォルダー {path} を作成中…",
   "fileImport.copying": "{name} をコピー中（{current}/{total}）…",

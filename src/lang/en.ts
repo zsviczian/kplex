@@ -9,6 +9,17 @@
  * parameters remain unquoted regardless of their names. Locale catalogs inherit this classification.
  */
 export const englishCatalog = {
+  "nodeProperties.title": {"message":"Node properties","context":"Display-only document properties configured per note type.","params":[],"referenceParams":[]},
+  "nodeProperties.help": {"message":"Choose additional document properties to display below node names, separately for each note type. Notes stay unchanged.","context":"Display-only document properties configured per note type.","params":[],"referenceParams":[]},
+  "nodeProperties.search": {"message":"Find a note type…","context":"Display-only document properties configured per note type.","params":[],"referenceParams":[]},
+  "nodeProperties.addType": {"message":"Add note type","context":"Display-only document properties configured per note type.","params":[],"referenceParams":[]},
+  "nodeProperties.type": {"message":"Note type","context":"Display-only document properties configured per note type.","params":[],"referenceParams":[]},
+  "nodeProperties.valuesHelp": {"message":"Add up to 16 unique property names in display order. Visible, non-empty scalar values and lists appear as smaller text; complex values are omitted.","context":"Display-only document properties configured per note type.","params":[],"referenceParams":[]},
+  "nodeProperties.add": {"message":"Add property","context":"Display-only document properties configured per note type.","params":[],"referenceParams":[]},
+  "nodeProperties.field": {"message":"Property name","context":"Display-only document properties configured per note type.","params":[],"referenceParams":[]},
+  "nodeProperties.visible": {"message":"Show on node","context":"Display-only document properties configured per note type.","params":[],"referenceParams":[]},
+  "nodeProperties.invalid": {"message":"Use a note type and up to 16 unique, non-empty property names.","context":"Display-only document properties configured per note type.","params":[],"referenceParams":[]},
+  "nodeProperties.changed": {"message":"This configuration changed. Close and reopen the editor before saving.","context":"Display-only document properties configured per note type.","params":[],"referenceParams":[]},
   "fileImport.folderLimits": {"message":"Import folders with at most {entries} entries and {depth} levels. Nothing was imported.","context":"Import progress or missing periodic-pin action.","params":["entries","depth"],"referenceParams":[]},
   "fileImport.creatingFolder": {"message":"Creating folder {path}…","context":"Import progress or missing periodic-pin action.","params":["path"],"referenceParams":["path"]},
   "fileImport.copying": {"message":"Copying {name} ({current}/{total})…","context":"Import progress or missing periodic-pin action.","params":["name","current","total"],"referenceParams":["name"]},

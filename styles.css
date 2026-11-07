@@ -577,6 +577,12 @@ button.kplex-sidecar-unfold-plex,
 /* Font ink may extend outside its line box (notably Segoe UI descenders). Keep ellipsis clipping
    around a padded text box; node geometry reserves the same 0.4em of vertical ink space. */
 .kplex-thought-text { padding: .2em 0; box-sizing: content-box; }
+.kplex-thought-caption { display: flex; flex-direction: column; min-width: 0; width: 100%; gap: 4px; }
+.kplex-thought-caption > .kplex-thought-label { flex-shrink: 0; }
+.kplex-node-properties { display: flex; flex-direction: column; min-width: 0; font-size: .85em; line-height: 1.4; font-weight: normal; text-align: left; }
+.kplex-node-property { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.kplex-node-property-fields { display: flex; flex-direction: column; gap: 16px; }
+.kplex-node-property-field + .kplex-node-property-field { border-top: 1px solid var(--background-modifier-border); padding-top: 16px; }
 .kplex-thought.is-dragging { cursor: grabbing; z-index: 28; filter: brightness(1.16); box-shadow: 0 0 0 2px var(--interactive-accent), var(--shadow-s); }
 .kplex-role-parent,
 .kplex-role-child,

@@ -98,6 +98,7 @@ import { removeMarkdownZoomModes, renameMarkdownZoomModes } from "./core/plex/ma
 import { GraphIndex } from "./index/GraphIndex";
 import {SavedSettingsRefresh} from "./adapters/obsidian/savedSettingsRefresh";
 import { DEFAULT_SETTINGS, KplexSettingTab, migrateAndMergeSettings, importExcaliBrainGraphSettings, type DocumentSyncMode, type KplexSettings, type KplexLayoutProfile, type KplexViewSurface, type SidecarPosition, type StyleSettingsDraft, type StyleCommitResult, type EditableHierarchyKey } from "./settings";
+import {validNodeProperties, nodePropertyRows, type NodeProperty} from "./core/plex/nodeProperties";
 import { STYLE_SETTINGS_KEYS } from "./core/contracts/appearance";
 import { cyclicSemanticColorSlots, migrateColorPreferences } from "./core/plex/colorPreferences";
 import { KPLEX_VIEW_TYPE, KPLEX_SIDEPANEL_VIEW_TYPE, KplexView, KplexSidepanelView } from "./ui/KplexView";
@@ -2880,6 +2881,27 @@ export default class KplexPlugin extends Plugin {
     });
     if (changed && !this.unloading) this.index.notifyPresentation();
     return changed;
+  }
+
+  /** Save one reviewed type through the existing disk queue; presentation never recompiles sources. */
+  async updateNoteTypeProperties(type: string, opening: readonly NodeProperty[], properties: readonly NodeProperty[], current: () => boolean): Promise<StyleCommitResult> {
+    const name = type.trim().replace(/^#/, ""), rows = properties.map(row => ({field: row.field.trim(), visible: row.visible}));
+    if (!name || name.length > 128 || !validNodeProperties(rows)) throw new Error(this.translator("nodeProperties.invalid"));
+    await this.enqueueSettingsWrite(async () => {
+      if (this.unloading || !current()) throw new Error(this.translator("nodeProperties.changed"));
+      const source = this.settingsForWrite(), previous = nodePropertyRows(source.noteTypeProperties, name);
+      if (JSON.stringify(previous) !== JSON.stringify(opening)) throw new Error(this.translator("nodeProperties.changed"));
+      const live = JSON.stringify(nodePropertyRows(this.settings.noteTypeProperties, name));
+      const next = {...source, noteTypeProperties: {...source.noteTypeProperties, [name]: rows}};
+      await this.writeSettingsSnapshot(this.settingsSnapshotForPersistence(source.actionPreferencesFuture ?? source.actionPreferences, next));
+      if (this.unloading) return;
+      if (JSON.stringify(nodePropertyRows(this.settings.noteTypeProperties, name)) === live)
+        this.settings.noteTypeProperties = {...this.settings.noteTypeProperties, [name]: rows};
+      this.savedSettingsPolicy = captureSettingsPolicy(next);
+    });
+    if (this.unloading) return {refreshPending: true};
+    try {this.index.notifyPresentation();return {refreshPending: false};}
+    catch (error) {console.error("K-Plex saved node properties refresh failed", error);return {refreshPending: true};}
   }
 
   /**

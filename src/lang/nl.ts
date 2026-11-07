@@ -7,6 +7,17 @@
 import { buildLocaleCatalog, type LocaleTranslationMap } from "./catalog";
 
 const dutchTranslations = {
+  "nodeProperties.title": "Knoopeigenschappen",
+  "nodeProperties.help": "Kies per notitietype extra documenteigenschappen voor onder de knoopnaam. Notities blijven ongewijzigd.",
+  "nodeProperties.search": "Notitietype zoeken…",
+  "nodeProperties.addType": "Notitietype toevoegen",
+  "nodeProperties.type": "Notitietype",
+  "nodeProperties.valuesHelp": "Voeg maximaal 16 unieke eigenschapsnamen toe in weergavevolgorde. Zichtbare, niet-lege enkelvoudige waarden en lijsten verschijnen kleiner; complexe waarden worden overgeslagen.",
+  "nodeProperties.add": "Eigenschap toevoegen",
+  "nodeProperties.field": "Eigenschapsnaam",
+  "nodeProperties.visible": "Op knoop tonen",
+  "nodeProperties.invalid": "Gebruik een notitietype en maximaal 16 unieke, niet-lege eigenschapsnamen.",
+  "nodeProperties.changed": "Deze configuratie is gewijzigd. Sluit en heropen de editor voordat je opslaat.",
   "fileImport.folderLimits": "Importeer mappen met maximaal {entries} items en {depth} niveaus. Er is niets geïmporteerd.",
   "fileImport.creatingFolder": "Map {path} maken…",
   "fileImport.copying": "{name} kopiëren ({current}/{total})…",

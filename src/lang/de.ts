@@ -7,6 +7,17 @@
 import { buildLocaleCatalog, type LocaleTranslationMap } from "./catalog";
 
 const germanTranslations = {
+  "nodeProperties.title": "Knoteneigenschaften",
+  "nodeProperties.help": "Wähle je Notiztyp zusätzliche Dokumenteigenschaften, die unter dem Knotennamen erscheinen. Notizen bleiben unverändert.",
+  "nodeProperties.search": "Notiztyp suchen…",
+  "nodeProperties.addType": "Notiztyp hinzufügen",
+  "nodeProperties.type": "Notiztyp",
+  "nodeProperties.valuesHelp": "Füge bis zu 16 eindeutige Eigenschaftsnamen in Anzeigereihenfolge hinzu. Sichtbare, nicht leere Einzelwerte und Listen erscheinen kleiner; komplexe Werte werden ausgelassen.",
+  "nodeProperties.add": "Eigenschaft hinzufügen",
+  "nodeProperties.field": "Eigenschaftsname",
+  "nodeProperties.visible": "Auf Knoten anzeigen",
+  "nodeProperties.invalid": "Verwende einen Notiztyp und bis zu 16 eindeutige, nicht leere Eigenschaftsnamen.",
+  "nodeProperties.changed": "Diese Konfiguration wurde geändert. Schließe den Editor und öffne ihn erneut.",
   "fileImport.folderLimits": "Ordner mit höchstens {entries} Einträgen und {depth} Ebenen importieren. Nichts wurde importiert.",
   "fileImport.creatingFolder": "Ordner {path} wird erstellt…",
   "fileImport.copying": "{name} wird kopiert ({current}/{total})…",

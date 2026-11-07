@@ -7,6 +7,17 @@
 import { buildLocaleCatalog, type LocaleTranslationMap } from "./catalog";
 
 const spanishTranslations = {
+  "nodeProperties.title": "Propiedades de los nodos",
+  "nodeProperties.help": "Elige propiedades adicionales para mostrar debajo del nombre del nodo, por tipo de nota. Las notas no cambian.",
+  "nodeProperties.search": "Buscar un tipo de nota…",
+  "nodeProperties.addType": "Añadir tipo de nota",
+  "nodeProperties.type": "Tipo de nota",
+  "nodeProperties.valuesHelp": "Añade hasta 16 nombres de propiedad únicos en orden de visualización. Los valores simples y las listas visibles y no vacíos aparecen en texto pequeño; se omiten los valores complejos.",
+  "nodeProperties.add": "Añadir propiedad",
+  "nodeProperties.field": "Nombre de propiedad",
+  "nodeProperties.visible": "Mostrar en el nodo",
+  "nodeProperties.invalid": "Usa un tipo de nota y hasta 16 nombres de propiedad únicos y no vacíos.",
+  "nodeProperties.changed": "Esta configuración ha cambiado. Cierra y vuelve a abrir el editor antes de guardar.",
   "fileImport.folderLimits": "Importa carpetas con hasta {entries} elementos y {depth} niveles. No se importó nada.",
   "fileImport.creatingFolder": "Creando carpeta {path}…",
   "fileImport.copying": "Copiando {name} ({current}/{total})…",

@@ -33,6 +33,8 @@
  * Creation and linking remember separate after-saving actions, retaining the former shared choice on upgrade.
  */
 import {FormSetting as Setting, formField} from "./adapters/obsidian/KplexModal";
+import {loadNoteTypeProperties, nodePropertyRows, type NoteTypeProperties} from "./core/plex/nodeProperties";
+import {NoteTypePropertiesManager} from "./ui/NoteTypePropertiesModal";
 import {STARTUP_INDEX_DEFAULTS, sanitizeStartupIndexPreferences, type IndexingMode, type StartupIndexPreferences} from './core/plex/startupIndexPreferences';
 import {PIN_PERIODS, isPeriodicPin, loadSavedPins, type PinPeriod, type SavedPin} from "./core/plex/savedPins";
 import {DEFAULT_PERIODIC_PIN_SETTINGS, loadPeriodicPinSettings, type PeriodicPinConfiguration, type PeriodicPinSettings} from "./core/plex/periodicPins";
@@ -365,6 +367,7 @@ export interface KplexSettings extends StartupIndexPreferences {
   childMaxHeight: number;
   noteTypeField: string;
   noteTypeStyles: Record<string, NodeStyle>;
+  noteTypeProperties: NoteTypeProperties;
   kplexInitialized: boolean;
   startInPopout: boolean;
   lastActivePath: string;
@@ -530,6 +533,7 @@ const LEGACY_DEFAULT_SETTINGS: KplexSettings = {
   childMaxHeight: 400,
   noteTypeField: "Note type",
   noteTypeStyles: {},
+  noteTypeProperties: {},
   kplexInitialized: false,
   startInPopout: false,
   lastActivePath: "",
@@ -783,6 +787,7 @@ export function migrateAndMergeSettings(raw: unknown): KplexSettings {
     tagNodeStyles: old.tagNodeStyles ?? {},
     tagStyleList: old.tagStyleList ?? [],
     noteTypeStyles: old.noteTypeStyles ?? {},
+    noteTypeProperties: loadNoteTypeProperties(old.noteTypeProperties),
     hierarchyLinkStyles: old.hierarchyLinkStyles ?? {},
     navigationHistory: old.navigationHistory ?? [],
     excludeFilepaths: old.excludeFilepaths ?? [],
@@ -2683,6 +2688,16 @@ export class KplexSettingTab extends PluginSettingTab {
                   { name: translate("settings.ui.maximum.central.node.width"), desc: translate("settings.ui.maximum.central.node.width.help"), control: { type: "slider", key: "centralNodeStyle.maxWidth", min: 180, max: 1000, step: 10 } },
                   { name: translate("settings.ui.gate.radius"), desc: translate("settings.ui.radius.of.the.relationship.gates.around.nodes.in.pixels"), control: { type: "slider", key: "baseNodeStyle.gateRadius", min: 2, max: 8, step: 0.5 } },
                   { name: translate("settings.ui.style.property"), desc: translate("settings.ui.a.yaml.or.dataview.style.property.whose.value.can.select"), control: { type: "text", key: "noteTypeField" } },
+                  { name: translate("nodeProperties.title"), desc: translate("nodeProperties.help"), action: () => {
+                    // Discover suggestions once per manager opening, never once per search keystroke.
+                    const knownTypes = this.nodeStyleValueSuggestions().property.map(row => row.value);
+                    const dialog = new NoteTypePropertiesManager(this.app, {
+                      translate, types: () => [...new Set([...knownTypes, ...Object.keys(this.kplexPlugin.settings.noteTypeProperties)])],
+                      read: type => nodePropertyRows(this.kplexPlugin.settings.noteTypeProperties, type),
+                      save: (type, opening, rows, current) => this.kplexPlugin.updateNoteTypeProperties(type, opening, rows, current),
+                      closed: () => this.colorDialogs.delete(dialog),
+                    });this.colorDialogs.add(dialog);dialog.open();
+                  } },
                   {
                     name: translate("styles.nodeTitle"),
                     desc: translate("styles.settingsSummary", { count: nodeStyles.length }),

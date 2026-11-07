@@ -7,6 +7,17 @@
 import { buildLocaleCatalog, type LocaleTranslationMap } from "./catalog";
 
 const traditionalChineseTranslations = {
+  "nodeProperties.title": "節點屬性",
+  "nodeProperties.help": "依筆記類型選擇要顯示在節點名稱下方的額外文件屬性。筆記內容不會變更。",
+  "nodeProperties.search": "尋找筆記類型…",
+  "nodeProperties.addType": "新增筆記類型",
+  "nodeProperties.type": "筆記類型",
+  "nodeProperties.valuesHelp": "依顯示順序新增最多 16 個不重複的屬性名稱。已啟用且非空白的單一值與清單會以較小文字顯示；複雜值則略過。",
+  "nodeProperties.add": "新增屬性",
+  "nodeProperties.field": "屬性名稱",
+  "nodeProperties.visible": "在節點上顯示",
+  "nodeProperties.invalid": "請指定筆記類型，以及最多 16 個不重複且非空白的屬性名稱。",
+  "nodeProperties.changed": "此設定已變更。儲存前請關閉並重新開啟編輯器。",
   "fileImport.folderLimits": "資料夾最多可含 {entries} 個項目及 {depth} 層。本次未匯入任何內容。",
   "fileImport.creatingFolder": "正在建立資料夾 {path}…",
   "fileImport.copying": "正在複製 {name}（{current}/{total}）…",

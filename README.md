@@ -405,6 +405,8 @@ Use **Node styles** to assign icon, background, text, border, border width, gate
 
 Imported ExcaliBrain `primaryTagField` data is retained for compatibility, but it is not exposed as a second K-Plex style selector. Explicit property-value styles take precedence over the generic central/sibling appearance, so a styled note keeps its custom colors when it becomes the center of the Plex.
 
+Use **Node properties** in the same settings section to show selected YAML values below node titles, separately for each note type. Keep a requirement's serial number as its title while showing its `title` or `status` property as smaller text. Visibility and order are configurable; notes and relationships stay unchanged. See [Show useful properties below node names](docs/NODE_PROPERTIES.md).
+
 Graph Lenses complement property-value styles when you want temporary, context-specific styling rather than a permanent visual identity.
 
 ## Mobile and touch

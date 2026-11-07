@@ -14,6 +14,7 @@ export function styleSettingsHostSource(root) {
     "captureAppearanceOwner", "isAppearanceOwnerCurrent", "subscribeAppearanceThemes", "bindAppearanceEditor", "appearanceThemeNames", "updateAppearanceThemes", "showAppearanceMigrationNotification",
     "createAppearanceTheme", "resetAppearanceThemeColors", "importLegacyAppearance", "settingsForWrite", "writeSettingsSnapshot", "updateOntologyField", "updateOntologyConfiguration", "editOntologyConfiguration", "assignFieldToOntology", "ontologyFieldsForRole", "ontologyRoleForField", "inverseOntologyField", "inverseRelationshipRole", "defaultOntologyField", "refreshSavedSettings",
     "initializeSettingsReconciliation", "onExternalSettingsChange", "queueExternalSettingsAdoption", "reportExternalSettingsFailure", "installExternalSettings", "updateActionPreferences", "receivedSettingsOwner", "receivedSettingsRevision", "updateCanvasViewSetting", "readCanvasViewConfiguration", "updateCanvasViewConfiguration", "resetCanvasViewConfiguration", "migrateCanvasViewConfiguration", "commitCanvasViewConfiguration", "editOntologyConfigurationBatch"]);
+  names.add("updateNoteTypeProperties");
   const methods = [];
   /** The owning class keeps one definition for every requested method; a missing seam is an explicit failure. */
   const visit = node => {
@@ -22,6 +23,8 @@ export function styleSettingsHostSource(root) {
   };
   visit(source); assert.equal(methods.length, names.size);
   return `export {TextSettingDraft} from "./src/ui/components/textSettingDraft";
+    export * from './src/ui/NoteTypePropertiesModal';
+    import {validNodeProperties,nodePropertyRows} from './src/core/plex/nodeProperties';
     export {NewRelatedNoteModal} from './src/ui/NewRelatedNoteModal';
     export {CreateFolderNoteModal} from './src/ui/CreateFolderNoteModal';
     export {MoveNodeModal} from './src/ui/MoveNodeModal';
