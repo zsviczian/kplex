@@ -511,6 +511,7 @@ for (const file of [
   "src/core/plex/lens.ts",
   "src/adapters/obsidian/startupDiagnostics.ts",
   "src/adapters/obsidian/yieldToHostTask.ts",
+  "src/adapters/obsidian/backgroundIdle.ts",
   "src/adapters/obsidian/urlIdentity.ts",
   "src/adapters/obsidian/graphContracts.ts",
   "src/adapters/obsidian/adjacentFileLeaf.ts",
@@ -674,6 +675,8 @@ for (const file of [
   "src/ui/plexViews/classic/occurrenceEditor.ts",
   "src/application/ActionManager.ts",
   "src/application/IndexingActivity.ts",
+  "src/application/IndexingHistory.ts",
+  "src/application/diagnosticBuildIdentity.ts",
   "src/application/indexRecoveryDiagnostics.ts",
   "src/application/SessionEventRecorder.ts",
   "src/application/supportClipboard.ts",
@@ -972,13 +975,13 @@ const KplexPlugin = require(join(temp, "src/main.js")).default;
     getSnapshotHydrationDiagnostics: () => ({ phase: "pages", pages: 12, evidence: 0 }),
     getIndexDiagnostics: () => [{ at: 123, stage: "restore", reason: "complete-snapshot-stale", added: 1 }],
   }, () => ({ upToDate: false, phase: "loading-cache", label: "not shared", indexedFiles: 8, totalFiles: 10 }), "0.0.5"));
-  assert.equal(report.plugin.version, "0.0.5");
-  assert.deepEqual(report.device, { obsidianApiVersion: "1.14.2", operatingSystem: "macos", formFactor: "desktop" });
-  assert.equal(report.status.totalFiles, 10);
-  assert.equal(report.graph.nodes, 42);
-  assert.equal(report.saved.active.schema, 3);
-  assert.equal(report.saved.checkpoint.completedMarkdownFiles, 1);
-  assert.equal(report.decisions[0].reason, "complete-snapshot-stale");
+  assert.equal(report.plugin.manifestVersion, "0.0.5");
+  assert.equal(report.environment.obsidianApiVersion, "1.14.2");assert.equal(report.environment.operatingSystem, "macos");assert.equal(report.environment.formFactor, "desktop");
+  assert.equal(report.index.status.totalFiles, 10);
+  assert.equal(report.index.graph.nodes, 42);
+  assert.equal(report.index.cache.active.schema, 3);
+  assert.equal(report.index.cache.checkpoint.completedMarkdownFiles, 1);
+  assert.equal(report.index.decisions[0].reason, "complete-snapshot-stale");
   obsidianTestApi.Platform.isIosApp = true;
   obsidianTestApi.Platform.isTablet = true;
   const iosReport = JSON.parse(createIndexDiagnosticsReport({
@@ -986,8 +989,8 @@ const KplexPlugin = require(join(temp, "src/main.js")).default;
     isFullSnapshotHydrated: () => false, hasPhysicalBaseline: () => false, hasSourceBackedStartup: () => false, getSnapshotHydrationDiagnostics: () => ({}),
     getIndexDiagnostics: () => [],
   }, () => ({ upToDate: false, phase: "indexing", indexedFiles: 8, totalFiles: 10 }), "0.0.5"));
-  assert.equal(iosReport.platform, "ios");
-  assert.deepEqual(iosReport.device, { obsidianApiVersion: "1.14.2", operatingSystem: "ios", formFactor: "tablet" });
+  assert.equal(iosReport.environment.operatingSystem, "ios");
+  assert.equal(iosReport.environment.obsidianApiVersion, "1.14.2");assert.equal(iosReport.environment.formFactor, "tablet");
   obsidianTestApi.Platform.isIosApp = false;
   obsidianTestApi.Platform.isTablet = false;
   assert(!JSON.stringify(report).includes("Private/Note.md"));
@@ -1059,7 +1062,7 @@ const KplexPlugin = require(join(temp, "src/main.js")).default;
   let mainWrites = 0, popoutWrites = 0, captures = 0, release;
   const context = {
     manifest: { version: "0.1.3" }, translator: () => "Copied",
-    captureIndexingActivity() { captures++; return null; },
+    captureDiagnosticJson() { captures++; return JSON.stringify({formatVersion:2}); },
     getIndexDiagnosticsStatus: () => ({ upToDate: true, phase: "ready", indexedFiles: 0, totalFiles: null }),
     index: { size: 0, getSavedSnapshotSummary: () => null, indexedMarkdownFileCount: () => 0,
       isFullSnapshotHydrated: () => false, getSnapshotHydrationDiagnostics: () => null,
@@ -1068,7 +1071,7 @@ const KplexPlugin = require(join(temp, "src/main.js")).default;
   try {
     Object.defineProperty(window, "navigator", { configurable: true, value: { clipboard: { writeText() { mainWrites++; return Promise.resolve(); } } } });
     Object.defineProperty(window, "activeWindow", { configurable: true, writable: true, value: {
-      navigator: { clipboard: { writeText(text) { popoutWrites++; assert.equal(JSON.parse(text).formatVersion, 1); return new Promise(resolve => { release = resolve; }); } } },
+      navigator: { clipboard: { writeText(text) { popoutWrites++; assert.equal(JSON.parse(text).formatVersion, 2); return new Promise(resolve => { release = resolve; }); } } },
     } });
     const pending = KplexPlugin.prototype.copyIndexDiagnostics.call(context);
     assert.equal(popoutWrites, 1, "Invoking popout writes synchronously before any await");
@@ -1182,9 +1185,9 @@ const indexingStatusContext = {
     translator: (key, params) => params ? `${key}:${params.processed}/${params.total}` : key };
   assert.equal(KplexPlugin.prototype.getIndexStatus.call(context).label, "indexing.localReady");
   context.index.getUrlIndexProgress = () => ({ active: true, failed: false, processed: 2, total: 5 });
-  assert.equal(KplexPlugin.prototype.getIndexStatus.call(context).label, "indexing.urlsProgress:2/5");
+  assert.equal(KplexPlugin.prototype.getIndexStatus.call(context).label, "indexing.urlsProgress:2/5", "Only remaining URL work is described while it is active");
   context.index.getUrlIndexProgress = () => ({ active: false, failed: true, processed: 2, total: 5 });
-  assert.equal(KplexPlugin.prototype.getIndexStatus.call(context).label, "indexing.urlsIncomplete");
+  assert.equal(KplexPlugin.prototype.getIndexStatus.call(context).label, "indexing.urlsIncomplete", "An unfinished URL index cannot be presented beside a ready claim");
 }
 // Startup labels describe the real pass; record loading has no invented percentage.
 {
@@ -1227,7 +1230,7 @@ const indexingStatusContext = {
   assert.equal(KplexPlugin.prototype.getIndexStatus.call(context).label, "index.statusSavingCache");
   context.index.isCheckpointSaving = /** The save has finished. */ () => false;
   context.index.getUrlIndexProgress = /** Optional URL work keeps its existing label. */ () => ({ active: true, failed: false, processed: 2, total: 5 });
-  assert.equal(KplexPlugin.prototype.getIndexStatus.call(context).label, "indexing.urlsProgress");
+  assert.equal(KplexPlugin.prototype.getIndexStatus.call(context).label, "Processing pending changes — 1 / 5 notes (20%)\nindexing.urlsProgress");
   context.index.getUrlIndexProgress = indexingStatusContext.index.getUrlIndexProgress;
   context.index.isOnDemandMode = /** Local readiness never adopts global source progress. */ () => true;
   assert.equal(KplexPlugin.prototype.getIndexStatus.call(context).label, "indexing.localPreparing");
@@ -1250,6 +1253,8 @@ const indexingStatusContext = {
 }
 assert.deepEqual(KplexPlugin.prototype.getIndexStatus.call(indexingStatusContext), {
   upToDate: false,
+  activeWork: true,
+  cacheSavePending: false,
   phase: "indexing",
   label: "Status: indexing 3 of 5 files",
   indexedFiles: 3,
@@ -1380,6 +1385,8 @@ assert.deepEqual(KplexPlugin.prototype.getIndexStatus.call({
 }), {
   upToDate: false,
   phase: "saving-cache",
+  activeWork: true,
+  cacheSavePending: false,
   label: "Status: saving index to cache",
   indexedFiles: 3,
   totalFiles: 5,
@@ -1391,6 +1398,8 @@ assert.deepEqual(KplexPlugin.prototype.getIndexStatus.call({
 }), {
   upToDate: false,
   phase: "loading-cache",
+  activeWork: true,
+  cacheSavePending: false,
   label: "Status: restoring saved graph",
   indexedFiles: 0,
   totalFiles: 5,
@@ -1403,10 +1412,23 @@ assert.deepEqual(KplexPlugin.prototype.getIndexStatus.call({
 }), {
   upToDate: true,
   phase: "ready",
+  activeWork: false,
+  cacheSavePending: false,
   label: "Status: index ready",
   indexedFiles: 5,
   totalFiles: 5,
 }, "Ready status must report the complete Markdown-file total");
+{
+  const pendingStatus = KplexPlugin.prototype.getIndexStatus.call({
+    ...indexingStatusContext, rebuildTask: null, initialIndexComplete: true, indexDirty: false,
+    index: {...indexingStatusContext.index, getSnapshotPersistenceDiagnostics: () => ({pending:true,active:false})},
+    translator: key => key === "index.statusCacheSavePending" ? "Index ready; cache save pending" : indexingStatusContext.translator(key),
+  });
+  assert.equal(pendingStatus.upToDate,true,"A delayed cache save does not invalidate graph readiness");
+  assert.equal(pendingStatus.activeWork,false,"A delayed save is not active indexing");
+  assert.equal(pendingStatus.cacheSavePending,true);
+  assert.match(pendingStatus.label,/cache save pending/);
+}
 let startupBubbleSaves = 0;
 const startupBubbleContext = {
   startupIndexInfoBubbleClaimed: false,
@@ -1949,6 +1971,7 @@ for (const { inventoryRevision, fresh, remainsDirty } of [
   startup.index = { isOnDemandMode: () => false,
     /** Optional URL discovery is outside this captured-inventory coordinator fixture. */
     startBackgroundUrlIndex: async () => true,
+    finishStartupSnapshot: () => {},
     getRestoreInventorySourceRevision: () => inventoryRevision,
     hasPendingSnapshotHydration: () => false,
     size: 1,
@@ -2005,6 +2028,7 @@ for (const { visible, unloading, complete, dirty, expected } of [
 ]) {
   const startup = new KplexPlugin();
   startup.initialIndexTask = Promise.resolve();
+  startup.index = {finishStartupSnapshot: () => {},isOnDemandMode: () => false};
   startup.initialIndexComplete = complete;
   startup.layoutReady = true; startup.indexPreparationAdmitted = true;
   startup.indexDirty = dirty;
@@ -2030,6 +2054,7 @@ for (const [adopted, completed] of [[true, true], [true, false], [false, false]]
   startup.index = { isOnDemandMode: () => false,
     /** Count optional admission separately from primary source/graph completion. */
     startBackgroundUrlIndex: async () => { optionalUrlStarts++; return true; },
+    finishStartupSnapshot: () => {},
     size: 1, hasPendingSnapshotHydration: () => false, hasPhysicalBaseline: () => true,
     hasSourceBackedStartup: () => true, adoptStartupSources: async () => adopted,
     rebuild: async () => { progressiveBuilds++; return completed; },

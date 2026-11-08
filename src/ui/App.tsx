@@ -131,9 +131,13 @@ function useIndexStatus(plugin: KplexPlugin, hostLeaf: WorkspaceLeaf): IndexStat
       // Terminal readiness must clear a stale indicator even if native leaf geometry has not
       // settled yet. Skip intermediate hidden-view progress to avoid background render churn.
       const visible = plugin.isKplexLeafVisible(hostLeaf);
-      if (!visible && (!next.upToDate || lastStatusRef.current.upToDate)) return;
+      if (!visible && (!next.upToDate || next.activeWork
+        || lastStatusRef.current.upToDate && !lastStatusRef.current.activeWork
+          && lastStatusRef.current.cacheSavePending === next.cacheSavePending)) return;
       const previous = lastStatusRef.current;
       if (previous.upToDate === next.upToDate
+        && previous.activeWork === next.activeWork
+        && previous.cacheSavePending === next.cacheSavePending
         && previous.phase === next.phase
         && previous.label === next.label
         && previous.indexedFiles === next.indexedFiles
@@ -190,7 +194,7 @@ function IndexStatusIndicator({
     <button
       ref={controlRef}
       type="button"
-      className={`kplex-index-status${status.upToDate ? " is-ready" : status.phase === "incomplete" ? " is-incomplete" : " is-updating"}`}
+      className={`kplex-index-status${status.upToDate && !status.activeWork ? status.cacheSavePending ? " is-cache-pending" : " is-ready" : status.phase === "incomplete" ? " is-incomplete" : " is-updating"}`}
       aria-labelledby={nameId}
       data-kplex-tooltip="callout"
       aria-expanded={open}
@@ -839,7 +843,7 @@ export function KplexApp({ plugin, surface, hostLeaf, translate, environment, on
     {!plugin.index.isOnDemandMode() && ["indexing", "saving-cache", "updating"].includes(indexStatus.phase) &&
       <div>{translate("index.filesIndexed", { indexed: indexStatus.indexedFiles, total: indexStatus.totalFiles })}</div>
     }
-    <div>{indexStatus.label}</div>
+    <div className="kplex-index-activities">{indexStatus.label}</div>
   </div>;
 
   // The first render can show the empty indexing view, which has no rootRef. Attach once the

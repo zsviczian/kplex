@@ -23,6 +23,8 @@ export class StartupDiagnostics {
   private startedAt = 0;
   private frozen = false;
   private disposed = false;
+  private activityBoundary: ((boundary: "activity" | "settled" | "failure") => void) | null = null;
+  private readinessObserved = false;
   private sessionWork: StartupSessionWork = { sourceInventoryPasses: 0, fullBuildStarts: 0, nodeCatalogStarts: 0,
     completeSnapshotSaves: 0, checkpointSaves: 0 };
   private phases: Phase[] = [];
@@ -34,6 +36,11 @@ export class StartupDiagnostics {
 
   /** Inject a monotonic clock for bounded lifecycle tests; production owns no diagnostic timer. */
   constructor(private readonly clock: () => number = () => window.performance.now()) {}
+
+  /** One coarse diagnostic observer; file/progress loops never notify or capture history. */
+  observeActivityBoundary(listener: ((boundary: "activity" | "settled" | "failure") => void) | null): void { this.activityBoundary = listener; }
+  /** Optional diagnostic failure cannot affect the observed indexing boundary. */
+  private changed(boundary: "activity" | "settled" | "failure" = "activity"): void { try { this.activityBoundary?.(boundary); } catch { /* Best-effort diagnostics only. */ } }
 
   /** Start one plugin lifetime; only an explicit maintenance opt-in retains detailed measurements. */
   begin(enabled: boolean): void {
@@ -54,6 +61,7 @@ export class StartupDiagnostics {
   }
   /** Close the preceding activity and count its actual pass, including retries without timing opt-in. */
   phase(lane: StartupLane, phase: string, total: number | null = null): void {
+    this.changed();
     try { this.activity?.phase(lane, phase); } catch { /* Detailed profiling and work retain their own lifetimes. */ }
     if (this.frozen) return;
     const now = this.enabled ? window.performance.now() - this.startedAt : 0;
@@ -92,19 +100,23 @@ export class StartupDiagnostics {
   }
   /** Count an actual existing work boundary, including work after readiness; never retain owners. */
   recordWork(kind: keyof StartupSessionWork): void {
+    this.changed();
     if (!this.disposed) this.sessionWork[kind] = Math.min(Number.MAX_SAFE_INTEGER, this.sessionWork[kind] + 1);
   }
   /** Observe only an actual coarse invalidation; source/file loops never call this owner. */
   activityCause(reason: ActivityReason): void {
+    this.changed(reason === "cache-failure" ? "failure" : "activity");
     try { this.activity?.cause(reason); } catch { /* Accounting failure cannot widen or admit work. */ }
   }
   /** Capture trusted existing counters at an actual pass boundary without copying owners. */
   beginActivity(kind: ActivityKind, scope: ActivityScope, reason: ActivityReason, source?: ActivitySourceWork): number {
+    this.changed();
     try { return this.activity?.begin(kind, scope, reason, source, this.sessionWork) ?? 0; }
     catch { return 0; }
   }
   /** Close exactly the observed pass; its result is never used as source authority. */
   endActivity(token: number, outcome: ActivityOutcome, source?: ActivitySourceWork): void {
+    this.changed(outcome === "failed" ? "failure" : "activity");
     try { this.activity?.end(token, outcome, source, this.sessionWork); } catch { /* Preserve the work owner's outcome. */ }
   }
   /** Close a real lane boundary even when bounded pass detail was omitted; closed lanes read no clock. */
@@ -123,6 +135,7 @@ export class StartupDiagnostics {
   /** Freeze the measured lifetime and release all private owner identities on strict readiness. */
   finish(): void {
     try { this.activity?.mark("strict-ready"); } catch { /* Readiness is established by the caller, not this observation. */ }
+    if (!this.readinessObserved) { this.readinessObserved = true; this.changed("settled"); }
     if (!this.enabled || this.frozen) return;
     this.mark("strict-ready");
     const now = window.performance.now() - this.startedAt;
@@ -139,6 +152,7 @@ export class StartupDiagnostics {
   }
   /** Release private owner identities on unload without claiming strict readiness. */
   dispose(): void {
+    this.activityBoundary = null;
     this.activity?.dispose(); this.activity = null;
     this.owners.clear();
     this.frozen = true;

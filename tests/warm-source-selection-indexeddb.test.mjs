@@ -7,6 +7,63 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { warmSelectionScenario as scenario } from './support/warmSourceSelectionBrowser.mjs';
 
+test('restart metadata copies the complete bounded family without persistent lease writes', async () => {
+  assert.equal(await scenario('restart-copy-clean', String.raw`
+    const selected=await r.inspectWithLocalDependencies(id,0,0),observer=B.observe(r);
+    let metadata;
+    try {metadata=await f.acquisition.durableHostInventory(id,()=>true,selected.inspection.expected,true);}
+    finally {observer.retire();}
+    equal(metadata.reason,'ready','Copied family authenticates');
+    equal(metadata.facts,f.acquisition.currentHostInventory(file,f.metadata.get(id)),'Exact host inventory');
+    equal(observer.totals.leaseAdds,0,'No persistent reader write');equal(observer.totals.leaseDeletes,0,'No persistent release write');
+    equal(observer.totals.transactions['readonly|sourceChunks,sourceHeads,sourcePostings'],1,'Atomic copy');
+    equal(observer.totals.transactions['readonly|sourceHeads'],1,'Closing exact head fence');
+    equal(observer.totals.hashes,3,'All digests retained');equal(observer.totals.decodes,1,'Bounded single decode');
+  `),true);
+});
+
+for (const mutation of ['revision','sequence','overlay','cancel','close','reclaim']) {
+  test(`copied restart metadata retains final authority after ${mutation} during hashing`, async () => {
+    assert.equal(await scenario('restart-copy-'+mutation, String.raw`
+      const selected=await r.inspectWithLocalDependencies(id,0,0),digest=r.runtime.digest;
+      let changed=false,live=true;
+      r.runtime.digest=async function(...args){const result=await digest.apply(this,args);if(!changed){changed=true;
+        if(${JSON.stringify(mutation)}==='cancel')live=false;
+        if(${JSON.stringify(mutation)}==='close')r.close();
+        if(${JSON.stringify(mutation)}==='overlay')r.unsaved.add(id);
+        if(['revision','sequence'].includes(${JSON.stringify(mutation)}))await edit(db,[M.SOURCE_HEAD_STORE],tx=>tx.objectStore(M.SOURCE_HEAD_STORE).put({
+          ...originalHead,sourceRevision:${mutation === 'revision' ? "originalHead.sourceRevision+'-changed'" : 'originalHead.sourceRevision'},sequence:originalHead.sequence+1}));
+        if(${JSON.stringify(mutation)}==='reclaim')await edit(db,[M.SOURCE_CHUNK_STORE,M.SOURCE_POSTING_STORE],tx=>{
+          tx.objectStore(M.SOURCE_CHUNK_STORE).clear();tx.objectStore(M.SOURCE_POSTING_STORE).clear();});
+      }return result;};
+      try {const result=await f.acquisition.durableHostInventory(id,()=>live,selected.inspection.expected,true);
+        ok(changed,'Crypto await reached');equal(result.reason,${['cancel','close'].includes(mutation) ? "'cancelled'" : mutation==='reclaim' ? "'ready'" : mutation==='overlay'?"'unsaved'":"'superseded'"},'Copied bytes do not replace selection authority');
+      }finally{r.runtime.digest=digest;r.unsaved.delete(id);}
+    `),true);
+  });
+}
+
+for (const damage of ['sha','posting']) {
+  test(`copied restart metadata rejects ${damage} corruption`, async () => {
+    assert.equal(await scenario('restart-copy-corrupt-'+damage,String.raw`
+      const selected=await r.inspectWithLocalDependencies(id,0,0);await B.corruptMetadata(c,${JSON.stringify(damage)});
+      const result=await f.acquisition.durableHostInventory(id,()=>true,selected.inspection.expected,true);
+      equal(result.reason,${damage==='sha'?"'invalid-chunk'":"'invalid-posting'"},'Canonical authentication retained');
+    `),true);
+  });
+}
+
+for (const mode of ['dense','legacy']) {
+  test(`restart ${mode} metadata retains the leased fallback`, async () => {
+    assert.equal(await scenario('restart-copy-fallback-'+mode,String.raw`
+      if(${mode==='legacy'})await B.prepareControl(c,'legacy');
+      const selected=await r.inspectWithLocalDependencies(id,0,0),observer=B.observe(r);let result;
+      try{result=await f.acquisition.durableHostInventory(id,()=>true,selected.inspection.expected,true);}finally{observer.retire();}
+      equal(result.reason,'ready','Fallback authenticates');ok(observer.totals.leaseAdds>0,'Dense/legacy immutable data remains leased');
+    `,{dense:mode==='dense',urlFree:mode==='legacy'}),true);
+  });
+}
+
 test('clean warm observation shares one native selection and preserves protected metadata authentication', /** Count native work rather than inferring it from public wrapper calls. */async () => {
   assert.equal(await scenario('warm-selection-clean', String.raw`
     const observer=B.observe(r);let selected,metadata;

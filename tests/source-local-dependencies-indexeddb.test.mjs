@@ -1277,6 +1277,9 @@ test("source-local semantic dependencies are incrementally activated, reusable, 
           try{
             f.add('A.md','Friends:: [[Ghost]]');await f.acquire();ok(await f.acquisition.reconcile(),'Seed clean restart');f.acquisition.close();f.cache.close();
             const db=await cache2.open();ok(db,'Reopen clean source');
+            // Keep this cancellation injected in the authenticated legacy dependency await;
+            // current restart certificates intentionally avoid that owner altogether.
+            await edit(db,['meta'],tx=>tx.objectStore('meta').delete('source-host-observation:A.md'));
             if(phase==='legacy-ensure'){
               // This URL-free owner has identical legitimate v3 memberships, requiring the real upgrade path.
               const owner=await value(db.transaction(M.SOURCE_LOCAL_OWNER_STORE).objectStore(M.SOURCE_LOCAL_OWNER_STORE).get('A.md'));

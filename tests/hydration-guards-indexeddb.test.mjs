@@ -264,14 +264,43 @@ test('hydration guards retain policy/lifetime/physical fences while removing per
           hold.release();setTimeout(release,10);
           await hydrationDeadline(center,'Actual center source publication');await hydrationDeadline(restore,'Preview');
           const outcome=await hydrationDeadline(index.waitForSnapshotHydration(),'Retry after center');
-          return{outcome,full:index.fullSnapshotHydrated,diagnostic:index.getSnapshotHydrationDiagnostics()};
+          return{outcome,full:index.fullSnapshotHydrated,fresh:index.fullSnapshotFresh,patch:index.hasIncrementalRestorePatch(),
+            current:!!index.get('Hub.md')?.neighbours.has('NewTarget'),diagnostic:index.getSnapshotHydrationDiagnostics()};
         }finally{release();index.hostPreview.candidateMarkdownPaths=candidates;index.indexedDb.iterateSnapshotPages=iterate;hold.restore();f.close();}
       })()`);
-      assert.equal(result.full,!changedSource,JSON.stringify(result));
-      if(!changedSource)assert.equal(result.outcome.restored,true);
+      assert.equal(result.full,true,JSON.stringify(result));
+      assert.equal(result.outcome.restored,true);
+      assert.equal(result.fresh,false,'The changed-vault generation cannot grant current authority');
+      assert.equal(result.patch,true,'A finite current-policy repair remains mandatory');
+      if(changedSource)assert.equal(result.current,true,'Current foreground vocabulary survives the readonly cache baseline');
       assert.equal(result.diagnostic.attempts,2,'The existing single retry remains bounded');
       assert.equal(result.diagnostic.firstFailure.publicationCause,'snapshot');
-      assert.equal(result.diagnostic.route==='full-snapshot',!changedSource,'A changed current source cannot be overwritten by the saved graph');
+      assert.equal(result.diagnostic.route,'full-snapshot','A changed source retains the compatible readonly graph and an explicit repair obligation');
+    });
+
+    for(const bootstrap of [false,true])for(const mutation of ['one-save','second-save','replacement','ctime'])await t.test(`eager startup shares one retry for a changing Markdown stat: ${mutation}, bootstrap=${bootstrap}`,async()=>{
+      const result=await browser.evaluate(`(async()=>{
+        const f=await hydrationWorkFixture('guards-bounded-stat-${mutation}-${bootstrap}',12,0,'eager',true),index=f.index;
+        const hold=holdHydrationOpen(index,'pages'),iterate=index.indexedDb.iterateSnapshotPages;let mutatedAgain=false;
+        index.indexedDb.iterateSnapshotPages=async function(...args){const result=await iterate.apply(this,args);if('${mutation}'==='second-save'&&index.getSnapshotHydrationDiagnostics().attempts===2&&!mutatedAgain){mutatedAgain=true;f.file.stat.mtime++;f.f.texts.set(f.file.path,'[[SecondTarget]]');}return result;};
+        try{
+          const restore=index.restoreIndexedDbSnapshot(['Hub.md'],true);await hydrationDeadline(hold.entered,'Initial warm reader');
+          if(${bootstrap})ok(await hydrationDeadline(index.initializeOnDemandBaseline(['Hub.md']),'Body-free bootstrap before the real edit'),'Actual bootstrap publishes');
+          f.f.texts.set(f.file.path,'[[NewTarget]]');f.f.app.metadataCache.unresolvedLinks[f.file.path]={NewTarget:1};
+          if('${mutation}'==='replacement')f.f.add(f.file.path,'[[NewTarget]]');else{f.file.stat.mtime++;if('${mutation}'==='ctime')f.file.stat.ctime++;}
+          f.releaseSources();hold.release();await hydrationDeadline(restore,'Preview');await hydrationDeadline(index.waitForSnapshotHydration(),'Bounded retry');
+          const diagnostic=index.getSnapshotHydrationDiagnostics();
+          if('${mutation}'==='one-save'){
+            ok(index.isFullSnapshotHydrated()&&!index.fullSnapshotFresh&&index.hasIncrementalRestorePatch(),'Only a readonly repair candidate is restored');
+            ok((await index.reconcileRestoredSnapshot()).reconciled,'The changed note commits through the existing per-file owner');
+            ok(index.get('NewTarget'),'Actual new reference vocabulary survives repair');equal(index.getSemanticPreparationDiagnostics().fullBuilds,0,'No full graph compilation');
+          }
+          return{diagnostic,full:index.isFullSnapshotHydrated(),reads:f.f.reads};
+        }finally{index.indexedDb.iterateSnapshotPages=iterate;hold.restore();f.close();}
+      })()`);
+      assert.equal(result.diagnostic.attempts,['one-save','second-save'].includes(mutation)?2:1,'No third attempt or destructive-identity shortcut');
+      if(mutation==='one-save'){assert.equal(result.full,true);assert.equal(result.diagnostic.route,'full-snapshot');assert(result.reads.every(path=>path==='Hub.md'));}
+      else assert.equal(result.full,false,'Repeated edits and native reincarnation retain conservative recovery');
     });
 
     for (const scenario of ['baseline-only','baseline-file','baseline-changed-file','baseline-mixed','baseline-reentrant']) {
@@ -304,8 +333,9 @@ test('hydration guards retain policy/lifetime/physical fences while removing per
         })()`);
         const reusable=scenario==='baseline-only'||scenario==='baseline-file';
         assert.equal(result.full,reusable,JSON.stringify(result));assert.equal(result.retired,true);
-        assert.equal(result.diagnostic.attempts,scenario==='baseline-mixed'||scenario==='baseline-reentrant'?1:2);
-        assert.equal(result.diagnostic.firstFailure?.reason,'publication-superseded');
+        assert.equal(result.diagnostic.attempts,scenario==='baseline-only'||scenario==='baseline-mixed'||scenario==='baseline-reentrant'?1:2);
+        if(scenario==='baseline-only')assert.equal(result.diagnostic.firstFailure,null,'A known body-free bootstrap is not failed semantic hydration');
+        else assert.equal(result.diagnostic.firstFailure?.reason,'publication-superseded');
         if(reusable){assert.equal(result.inventories,0);assert.equal(result.catalogs,0);assert.equal(result.diagnostic.route,'full-snapshot');}
         if(scenario==='baseline-changed-file')assert.equal(result.current,true,'Changed facts survive conservative fallback');
         assert.equal(result.reads,0);assert.equal(result.parses,0);

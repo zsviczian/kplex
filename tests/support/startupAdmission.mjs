@@ -12,13 +12,14 @@ export async function runStartupAdmission({KplexPlugin,GraphIndex,app,settings,T
     p.index={isOnDemandMode:()=>mode==='on-demand',admitPreparation(){counts.admit++},async startBackgroundUrlIndex(){if(!urlsStarted){urlsStarted=true;counts.urls++;}return true;},
       async primePhysicalSearchCatalog(){counts.catalog++;await hold.promise},
       async restorePersistedSnapshot(){counts.restore++;return {restored:warm,fresh:warm}},
-      getRestoreInventorySourceRevision:()=>0,withForegroundPriority:work=>work(),publishHostMetadataPreview:async()=>{}};
+      getRestoreInventorySourceRevision:()=>0,withForegroundPriority:work=>work(),publishHostMetadataPreview:async()=>{},finishStartupSnapshot(){}};
     p.settings={...settings,indexingMode:mode,urlIndexingMode,lastActivePath:'A.md',navigationHistory:['A.md'],pinnedNodes:['B.md']};
     p.startupGraphSeedPaths=()=>['A.md'];p.refreshBookmarkedEntryPoints=async()=>{};
     p.registerReactiveIndexListeners=()=>{};p.ensureInitialIndex=async()=>{counts.initial++;p.initialIndexComplete=true;if(mode==='eager')void p.index.startBackgroundUrlIndex();};
     p.notifyIndexStatus=()=>{};p.performRebuild=async()=>{};p.restorePersistedSidecar=async()=>{};
     p.hasVisibleKplexSurface=()=>false;
     p.index.cancelRebuild=()=>{};p.index.cancelPendingPersistence=()=>{};
+    p.index.isFullSnapshotHydrated=()=>warm&&mode==='eager';
     p.prepareIndexIfRequested();
     await settle();
     assert.deepEqual(counts,enabled?{catalog:1,restore:0,initial:0,urls:mode==='on-demand'?1:0,admit:1}:{catalog:0,restore:0,initial:0,urls:0,admit:0});

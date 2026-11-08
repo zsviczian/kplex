@@ -17,9 +17,9 @@
  * only storage port can release them after a failed/closed normal connection, without new authority.
  * Clean dependency checks select the owner/journal and durable head in one readonly transaction;
  * overlays and exceptional heads retain ordinary inspection, and repair writes require a reread.
- * Restart comparison may return that clean head as a call-local observation; its later protected
- * metadata pin and original-connection retirement match the same revision/sequence. An observation
- * never replaces family protection, and final matching adds no separate transaction or coordinator.
+ * Restart comparison may atomically copy one bounded current metadata chunk and its complete
+ * posting page with that exact head, authenticate privately, then close the revision/sequence fence.
+ * Dense/legacy metadata retains normal persistent leases and original-connection retirement.
  * Ordinary replacements may preserve selected dependency counts only after bounded old-row/ledger
  * authentication, recomputed projection equality and a final activation fence. Their inactive
  * rows use the existing durable private reclaim owner; source facts and primary journals still advance.
@@ -84,6 +84,10 @@ export const SOURCE_FAMILY_INDEX = "sourceFamilyRevision";
 export const SOURCE_LOOKUP_INDEX = "lookup";
 export const SOURCE_LEASE_INDEX = "sourceLease";
 const META_STORE = "meta";
+const HOST_OBSERVATION_PREFIX = "source-host-observation:";
+/** Local cached-host equality, tied to an exact source activation; never source-family authority. */
+export type SourceHostObservation = Readonly<{sourceId: string; sourceRevision: string; sequence: number; digest: string}>;
+type SourceHostObservationReceipt = SourceHostObservation & Readonly<{order: number; markdownOrder: number}>;
 const SOURCE_SEQUENCE_KEY = "source-sequence";
 const MAX_UNSAVED_BYTES = 16 * 1024 * 1024;
 const MAX_WRITERS = 2;
@@ -144,6 +148,7 @@ export type SourceReplacement = Readonly<{
   sourceId: string;
   physical: SourcePhysical;
   observation: SourceObservation;
+  hostObservationDigest?: string;
   /** Grammar of the supplied/retained parser body; compatibility never restamps old URL inputs. */
   bodyParserVersion?: number;
   /** Optional alias maintenance alone may retain a proven identical authenticated primary selection. */
@@ -224,6 +229,7 @@ type SourceView = {
   release?: Promise<void>;
   releaseSelection?: { expected: SourceHeadExpectation; reason: SourceReason };
   prepared?: Readonly<{ family: SourceFamily; chunk: PrefetchedSourceChunk }>;
+  copiedMetadata?: boolean;
 };
 type MemorySource = {
   head: SourceManifest;
@@ -246,6 +252,7 @@ type PrefetchedSourceChunk = Readonly<{
   raw: unknown;
   decoded?: readonly StoredSourceFact[];
   firstPostings?: unknown[];
+  complete?: boolean;
   release?: () => void;
 }>;
 /** A write-local streamed equality receipt, never persisted or shared as source authority. */
@@ -1378,7 +1385,7 @@ export class NeutralSourceRepository {
    * @throws Request/cancellation/decode failures after releasing any private reservation.
    */
   private async readSingleFamilyChunk(transaction: IDBTransaction, view: SourceView, family: SourceFamily,
-    manifest: SourceFamilyManifest, current: () => boolean, boundedPreview = false): Promise<PrefetchedSourceChunk> {
+    manifest: SourceFamilyManifest, current: () => boolean, boundedPreview = false, completePreview = false): Promise<PrefetchedSourceChunk> {
     let release: (() => void) | undefined;
     try {
       const raw = await unknownValue(transaction.objectStore(SOURCE_CHUNK_STORE).get([view.head.sourceId, manifest.revision, family, 0]));
@@ -1388,7 +1395,7 @@ export class NeutralSourceRepository {
       if (boundedPreview && (raw.bytes > manifest.bytes || raw.records > manifest.records
         || raw.data.length > SOURCE_CHUNK_TARGET_BYTES)) return { raw };
       release = this.reserveDecode(raw.data.length * 4 + raw.bytes);
-      let facts: StoredSourceFact[], first: SourcePosting[] | undefined;
+      let facts: StoredSourceFact[], first: SourcePosting[] | undefined, complete = true;
       try {
         if (encodedBytes(raw.data) !== raw.bytes) throw new SourceFactError("invalid-chunk", family);
         const decoded: unknown = JSON.parse(raw.data);
@@ -1397,9 +1404,11 @@ export class NeutralSourceRepository {
         facts = [];
         for (const record of decoded) { preview.accept(record); facts.push(record); }
         preview.finish();
-        // Breaking a typed iteration closes the generator without reading its untyped return value.
+        // A second bounded page disqualifies atomic-copy readers; ordinary leased readers retain it.
         for (const batch of postingBatches(view.head.sourceId, manifest.revision, family, facts, 0)) {
-          first = batch; break;
+          if (first) { complete = false; break; }
+          first = batch;
+          if (!completePreview) { complete = false; break; }
         }
       } catch {
         release(); release = undefined;
@@ -1407,13 +1416,13 @@ export class NeutralSourceRepository {
       }
       // Only the first byte/record-bounded page travels with this chunk. The preview page is
       // discarded on return; canonical validation regenerates it after the SHA/frame checks.
-      if (!first) return { raw, decoded: facts, release };
+      if (!first) return { raw, decoded: facts, release, complete };
       const lower = first[0], upper = first[first.length - 1];
       const range = IDBKeyRange.bound([lower.sourceId, lower.revision, lower.family, lower.index],
         [upper.sourceId, upper.revision, upper.family, upper.index]);
       const firstPostings = await requestValue<unknown[]>(transaction.objectStore(SOURCE_POSTING_STORE).getAll(range, first.length));
       if (!current()) throw new SourceFactError("cancelled", family);
-      return { raw, decoded: facts, firstPostings, release };
+      return { raw, decoded: facts, firstPostings, release, complete };
     } catch (error) { release?.(); throw error; }
   }
 
@@ -1437,7 +1446,8 @@ export class NeutralSourceRepository {
             view.prepared = undefined;
             raw = prepared.raw; release = prepared.release;
             prefetchedDecoded = prepared.decoded; firstPostings = prepared.firstPostings;
-          } else if (view.memory) raw = view.memory.chunks.get(memoryKey(family, index));
+          } else if (view.copiedMetadata) return "cancelled";
+          else if (view.memory) raw = view.memory.chunks.get(memoryKey(family, index));
           else {
             const db = await this.open(); if (!db || !current()) return "storage-unavailable";
             if (manifest.chunks === 1) {
@@ -1472,6 +1482,7 @@ export class NeutralSourceRepository {
               stored = firstPostings;
               firstPostings = undefined;
             } else {
+              if (view.copiedMetadata) return this.fail("invalid-posting", family);
               const db = await this.open(); if (!db || !current()) return "storage-unavailable";
               const first = batch[0], last = batch[batch.length - 1];
               // The primary key orders one immutable family by posting index. Keep the existing
@@ -1625,6 +1636,46 @@ export class NeutralSourceRepository {
     if (this.closed || !current()) return "cancelled";
     if (this.memory.has(sourceId) || this.unsaved.has(sourceId) || this.pendingDeletes.has(sourceId)) return "superseded";
     return pinned.view.releaseSelection?.reason ?? "read-error";
+  }
+  /**
+   * Copy a small current-grammar metadata family and its complete bounded posting page atomically
+   * with the exact expected head. Copied bytes need no persistent cleanup lease: validation never
+   * reads storage again except for its closing head/sequence fence. Consumers retain facts privately
+   * until ready. Null requests the ordinary leased path for legacy, dense or local-overlay owners.
+   */
+  async visitCopiedMetadata(sourceId: string, expected: SourceHeadExpectation,
+    consume: (records: readonly StoredSourceFact[]) => Promise<boolean> | boolean,
+    current: () => boolean): Promise<SourceReason | null> {
+    if (this.closed || !current()) return "cancelled";
+    if (expected.kind !== "head" || this.memory.has(sourceId) || this.unsaved.has(sourceId) || this.pendingDeletes.has(sourceId)) return null;
+    const db = await this.open();
+    if (!db) return this.storage.unavailableReason?.() ?? "storage-unavailable";
+    let view: SourceView | undefined;
+    try {
+      const selected = await this.transaction(db, [SOURCE_HEAD_STORE, SOURCE_CHUNK_STORE, SOURCE_POSTING_STORE], "readonly", sourceId,
+        async transaction => {
+          const raw = await unknownValue(transaction.objectStore(SOURCE_HEAD_STORE).get(sourceId));
+          if (!expectedHeadMatches(expected, raw)) return "superseded" as const;
+          const head = decodeSourceHead(raw);
+          if (!head || head.sourceId !== sourceId || sourceHeadReason(raw) !== "ready") return "invalid-head" as const;
+          const metadata = head.families.metadata;
+          if (!metadata || legacyPrimaryGrammarCandidate(head) || metadata.chunks !== 1 || metadata.bytes > SOURCE_CHUNK_TARGET_BYTES
+            || metadata.records > SOURCE_MAX_BATCH_RECORDS) return null;
+          view = { head, sequence: head.sequence, saved: true, expected, leases: [], copiedMetadata: true };
+          this.readers.add(view);
+          const chunk = await this.readSingleFamilyChunk(transaction, view, "metadata", metadata,
+            /** Native close and caller cancellation retire a copied selection before delivery. */ () => !this.closed && current(), true, true);
+          view.prepared = { family: "metadata", chunk };
+          return chunk.complete ? "ready" as const : null;
+        });
+      if (this.closed || !current()) return "cancelled";
+      if (selected !== "ready" || !view) return selected;
+      if (this.memory.has(sourceId) || this.unsaved.has(sourceId) || this.pendingDeletes.has(sourceId)) return "superseded";
+      const reason = await this.visitFamily(view, "metadata", consume, current);
+      if (reason !== "ready") return reason;
+      return await this.selectionReason({ head: view.head, sequence: view.sequence, saved: true }, current);
+    } catch (error) { return this.fail(errorReason(error, "read-error"), "metadata"); }
+    finally { if (view) void this.releaseLeases(view); }
   }
   /**
    * Restore immutable parser inputs without reading note text or reparsing Markdown. An optional
@@ -2431,7 +2482,7 @@ export class NeutralSourceRepository {
           if (localReuse && localReuse.owner.records === local.records && localReuse.owner.digest === local.digest) {
             await this.authenticateLocalCountReuse(db, localReuse, current);
           }
-          const result = await this.activate(db, head, input.expected, current, dependencyTicket, local, input.aliasUpgradeFrom);
+          const result = await this.activate(db, head, input.expected, current, dependencyTicket, local, input.aliasUpgradeFrom, input.hostObservationDigest);
           if (result.outcome === "activated") {
             localSelected = true;
             // An activation that is no longer live must not erase a newer deletion/unsaved mask.
@@ -2471,7 +2522,8 @@ export class NeutralSourceRepository {
    * mutation ticket, journal and source publication; only old/new count churn changes to private reclaim.
    */
   private async activate(db: IDBDatabase, head: SourceManifest, expected: SourceHeadExpectation,
-    current: () => boolean, dependencyTicket?: string, local?: PreparedLocalDependencies, aliasUpgrade?: SelectedSourceStamp): Promise<SourceWriteResult> {
+    current: () => boolean, dependencyTicket?: string, local?: PreparedLocalDependencies, aliasUpgrade?: SelectedSourceStamp,
+    hostObservationDigest?: string): Promise<SourceWriteResult> {
     if (!current() || this.closed) return this.result("cancelled", "cancelled");
     try {
       let countsReused = false;
@@ -2569,6 +2621,10 @@ export class NeutralSourceRepository {
         await this.finishDependencyMutation(transaction, head.sourceId, { kind: "head", head: activated }, dependencyTicket);
         meta.put({ key: SOURCE_SEQUENCE_KEY, value: activated.sequence });
         await requestValue(heads.put(activated));
+        const observationKey = HOST_OBSERVATION_PREFIX + head.sourceId;
+        if (head.state === "complete" && hostObservationDigest && /^[a-f0-9]{64}$/.test(hostObservationDigest))
+          meta.put({key: observationKey, version: 1, sourceRevision: head.sourceRevision, sequence: activated.sequence, digest: hostObservationDigest});
+        else meta.delete(observationKey);
         if (!current() || this.closed) throw new SourceFactError("cancelled");
         return activated;
       });
@@ -2717,24 +2773,61 @@ export class NeutralSourceRepository {
     return task;
   }
   /** Read a bounded catalog page; only an explicit absence scan admits known old headers for
-   * retirement. Current graph/warm-authority readers retain strict compiler/parser validation. */
-  async headPage(after: string | null = null, limit = SOURCE_MAX_BATCH_RECORDS, options?: Readonly<{retirementOnly?: boolean}>): Promise<Readonly<{ available: boolean; heads: SourceHead[]; invalid: number; next: string | null }>> {
+   * retirement. Current graph/warm-authority readers retain strict compiler/parser validation.
+   * Independent certificate reads share the same readonly snapshot in sixteen-owner waves:
+   * storage round trips are bounded without retaining a page of unvalidated receipt payloads. */
+  async headPage(after: string | null = null, limit = SOURCE_MAX_BATCH_RECORDS, options?: Readonly<{retirementOnly?: boolean; hostObservations?: boolean}>): Promise<Readonly<{ available: boolean; heads: SourceHead[]; invalid: number; next: string | null; hostObservations?: readonly SourceHostObservationReceipt[] }>> {
     const db = await this.open();
     if (!db) return { available: false, heads: [], invalid: 0, next: null };
     try {
-      return await this.transaction(db, [SOURCE_HEAD_STORE], "readonly", "", async (transaction) => {
+      return await this.transaction(db, options?.hostObservations ? [SOURCE_HEAD_STORE, SOURCE_LOCAL_OWNER_STORE, META_STORE] : [SOURCE_HEAD_STORE], "readonly", "", async (transaction) => {
         const range = after === null ? undefined : IDBKeyRange.lowerBound(after, true);
-        const entries: unknown[] = await requestValue(transaction.objectStore(SOURCE_HEAD_STORE).getAll(range, Math.max(1, Math.min(limit, SOURCE_MAX_BATCH_RECORDS))));
-        const keys = await requestValue(transaction.objectStore(SOURCE_HEAD_STORE).getAllKeys(range, Math.max(1, Math.min(limit, SOURCE_MAX_BATCH_RECORDS))));
+        const store = transaction.objectStore(SOURCE_HEAD_STORE), count = Math.max(1, Math.min(limit, SOURCE_MAX_BATCH_RECORDS));
+        const [entries, keys] = await Promise.all([requestValue<unknown[]>(store.getAll(range, count)), requestValue(store.getAllKeys(range, count))]);
         const heads: SourceHead[] = []; let invalid = 0;
         for (let index = 0; index < entries.length; index += 1) {
           const head = options?.retirementOnly ? decodeSourceRetirementHead(entries[index]) : decodeSourceHead(entries[index]);
           if (head && head.sourceId === keys[index]) heads.push(head); else invalid += 1;
         }
         const last = keys[keys.length - 1];
-        return { available: true, heads, invalid, next: typeof last === "string" ? last : null };
+        const hostObservations: SourceHostObservationReceipt[] = [];
+        if (options?.hostObservations) for (let offset = 0; offset < heads.length; offset += 16) {
+          const receipts = await Promise.all(heads.slice(offset, offset + 16).map(/** Decode promptly; only compact validated receipts survive the request wave. */ async head => {
+            const key = HOST_OBSERVATION_PREFIX + head.sourceId;
+            const [raw, owner] = await Promise.all([unknownValue(transaction.objectStore(META_STORE).get(key)),
+              unknownValue(transaction.objectStore(SOURCE_LOCAL_OWNER_STORE).get(head.sourceId))]);
+            if (validSourceLocalDependencyOwner(owner) && owner.version === SOURCE_LOCAL_DEPENDENCY_VERSION
+              && owner.sourceId === head.sourceId && owner.sourceRevision === head.sourceRevision && owner.sequence === head.sequence
+              && sourceObject(raw) && Object.keys(raw).length === 5 && raw.key === key && raw.version === 1
+              && raw.sourceRevision === head.sourceRevision && raw.sequence === head.sequence
+              && typeof raw.digest === "string" && /^[a-f0-9]{64}$/.test(raw.digest))
+              return {sourceId: head.sourceId, sourceRevision: head.sourceRevision, sequence: head.sequence, digest: raw.digest,
+                order: owner.order, markdownOrder: owner.markdownOrder};
+            return null;
+          }));
+          for (const receipt of receipts) if (receipt) hostObservations.push(receipt);
+        }
+        return { available: true, heads, invalid, next: typeof last === "string" ? last : null,
+          ...(options?.hostObservations ? {hostObservations} : {}) };
       });
     } catch { return { available: false, heads: [], invalid: 0, next: null }; }
+  }
+  /** Seed old unchanged activations after their ordinary authenticated inventory. Bounded batches
+   * alter only optional metadata; a changed head is skipped, never restamped or rewritten. */
+  async saveHostObservations(rows: readonly SourceHostObservation[], current: () => boolean): Promise<boolean> {
+    if (rows.length > SOURCE_MAX_BATCH_RECORDS || rows.some(row => !/^[a-f0-9]{64}$/.test(row.digest))
+      || rows.reduce((bytes, row) => bytes + 2 * (row.sourceId.length + row.sourceRevision.length) + 192, 0) > SOURCE_DECODE_BUDGET_BYTES) return false;
+    const db = await this.open(); if (!db || !current() || this.closed) return false;
+    try { return await this.transaction(db, [SOURCE_HEAD_STORE, META_STORE], "readwrite", "", async transaction => {
+      for (const row of rows) {
+        if (!current() || this.closed) throw new SourceFactError("cancelled");
+        const head = decodeSourceHead(await unknownValue(transaction.objectStore(SOURCE_HEAD_STORE).get(row.sourceId)));
+        if (head?.state !== "complete" || head.sourceRevision !== row.sourceRevision || head.sequence !== row.sequence) continue;
+        transaction.objectStore(META_STORE).put({key: HOST_OBSERVATION_PREFIX + row.sourceId, version: 1,
+          sourceRevision: row.sourceRevision, sequence: row.sequence, digest: row.digest});
+      }
+      return current() && !this.closed;
+    }); } catch { return false; }
   }
   /**
    * Upgrade an accepted historical owner by appending resolver, tag-ancestor and canonical URL memberships. The source

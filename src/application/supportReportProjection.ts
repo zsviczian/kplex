@@ -2,7 +2,7 @@
  * Public support-report privacy projection. Only enumerated categories and bounded counters cross
  * this application boundary, together with explicitly requested plugin/theme metadata; native
  * diagnostics remain unknown input and are never serialized intact.
- * Existing host diagnostics commands keep their own schemas. No host/API reads or effectful callbacks
+ * Both host diagnostics commands share this projection. No host/API reads or effectful callbacks
  * are accepted, including own accessors and arbitrary toJSON implementations.
  */
 import { projectSupportCustomizations } from "./supportCustomizationProjection";
@@ -116,6 +116,9 @@ export function projectSupportIndex(input: unknown) {
   };});
   return {
     availability: "available" as const, recovery: projectIndexRecoveryDiagnostics(supportField(source, "recovery")),
+    persistence: {pending: supportBoolean(supportField(supportField(source, "persistence"), "pending")),
+      active: supportBoolean(supportField(supportField(source, "persistence"), "active")),
+      dueInMs: supportDuration(supportField(supportField(source, "persistence"), "dueInMs"))},
     decisionsOmitted: Math.max(0, supportRowCount(supportField(source, "decisions")) - 20), formatVersion: supportCount(supportField(source, "formatVersion")),
     generatedAt: supportIsoTime(supportField(source, "generatedAt")), plugin: { id: "k-plex", version: supportVersion(supportField(plugin, "version")) },
     platform: supportCode(supportField(source, "platform"), ["ios", "android", "desktop"]),
@@ -180,9 +183,12 @@ export function projectSupportStartup(input: unknown) {
     row => ({ first: supportCode(supportField(row, "first"), SUPPORT_PHASES), second: supportCode(supportField(row, "second"), SUPPORT_PHASES), owners: supportCount(supportField(row, "owners")) })) : [];
   const milestones: Record<string, number | null> = {};
   if (enabled === true) for (const code of MILESTONES) milestones[code] = supportMilliseconds(supportField(supportField(input, "milestones"), code));
-  const source = supportField(input, "source"), semantic = supportField(input, "semantic");
+  const source = supportField(input, "source"), semantic = supportField(input, "semantic"), admission = supportField(input, "admission");
   return { availability: input !== null && typeof input === "object" ? "available" : "unavailable",
     detailedTelemetry: enabled === true ? "enabled" : enabled === false ? "disabled" : "unavailable", frozen: supportBoolean(supportField(input, "frozen")),
+    admission: {device: supportCode(supportField(admission, "device"), ["phone", "tablet", "desktop"]),
+      beforeView: supportBoolean(supportField(admission, "beforeView")), admitted: supportBoolean(supportField(admission, "admitted")),
+      mode: supportCode(supportField(admission, "mode"), ["eager", "on-demand"])},
     sessionWork: supportCounters(supportField(input, "sessionWork"),
       ["sourceInventoryPasses", "fullBuildStarts", "nodeCatalogStarts", "completeSnapshotSaves", "checkpointSaves"]),
     progress: { source: supportField(progress, "source") == null ? null : supportStartupPhase(supportField(progress, "source"), false, "source"),

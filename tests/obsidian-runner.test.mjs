@@ -245,6 +245,8 @@ test("desktop CLI discovery honors overrides and selects Windows console and mac
 test("portable verification invokes npm-cli.js with the same Node and preserves spaces", () => {
   const npm = "C:/Program Files/nodejs/node_modules/npm/bin/npm-cli.js", node = "C:/Program Files/nodejs/node.exe";
   assert.deepEqual(npmInvocation({ npm_execpath: npm }, node, path => path === npm), { file: node, args: [npm, "run", "verify"] });
+  assert.deepEqual(npmInvocation({ npm_execpath: npm }, node, path => path === npm, "build:local"), { file: node, args: [npm, "run", "build:local"] });
+  assert.throws(() => npmInvocation({ npm_execpath: npm }, node, path => path === npm, "arbitrary"), /Unsupported native preparation/);
   const adjacent = join("C:/tools", "node_modules", "npm", "bin", "npm-cli.js");
   assert.equal(npmInvocation({}, "C:/tools/node.exe", path => path === adjacent).args[0], adjacent);
   assert.throws(() => npmInvocation({}, node, () => false), /Cannot locate npm-cli.js/);

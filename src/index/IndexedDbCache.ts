@@ -344,6 +344,60 @@ function estimatedStoredValueBytes(value: unknown): number | null {
   return bytes;
 }
 
+/**
+ * Open only an existing metadata store for best-effort diagnostics. This independent connection
+ * never creates/upgrades the database, participates in index backoff or invokes index checkpoints.
+ * Each atomic merge has a bounded abort deadline and closes its handle, including late opens.
+ */
+export function createIndexingHistoryStorage(vaultName: string): import("../application/IndexingHistory").IndexingHistoryStorage {
+  return {
+    /** Serialize competing lifetimes through one native metadata transaction, preserving unrelated records. */
+    update: <T>(transform: (previous: unknown) => Readonly<{json: string; value: T}>): Promise<import("../application/IndexingHistory").HistoryStorageResult<T>> =>
+      new Promise(resolve => {
+        let db: IDBDatabase | undefined, transaction: IDBTransaction | undefined;
+        let result: T | undefined, prepared = false, settled = false;
+        /** Only committed transactions return a receipt; cleanup never marks the index cache failed. */
+        const finish = (available: boolean): void => {
+          if (settled) return; settled = true; window.clearTimeout(timer);
+          try { db?.close(); } catch { /* The diagnostic handle may already be closed. */ }
+          resolve(available && prepared ? {available: true, value: result as T} : {available: false});
+        };
+        const timer = window.setTimeout(() => {
+          if (!transaction) {finish(false);return;}
+          try { transaction.abort(); }
+          catch { /* A finished transaction's already-queued terminal event owns its exact receipt. */ }
+        }, 1000);
+        try {
+          const request = window.indexedDB.open(safeDbName(vaultName));
+          request.onupgradeneeded = () => {try {request.transaction?.abort();} catch { /* Never create or upgrade diagnostic storage. */ }};
+          request.onerror = () => finish(false);
+          request.onsuccess = () => {
+            db = request.result;
+            if (settled) {db.close();return;}
+            db.onversionchange = () => db?.close();
+            if (db.version !== DB_VERSION || !db.objectStoreNames.contains(META_STORE)) {finish(false);return;}
+            try {
+              transaction = db.transaction(META_STORE, "readwrite");
+              transaction.oncomplete = () => finish(true);
+              transaction.onabort = () => finish(false);
+              transaction.onerror = () => {try {transaction?.abort();} catch { /* Terminal handlers still own the receipt. */ }};
+              const store = transaction.objectStore(META_STORE), read = store.get("indexing-history");
+              read.onsuccess = () => {
+                try {
+                  const raw: unknown = read.result;
+                  const json: unknown = isUnknownRecord(raw) ? Object.getOwnPropertyDescriptor(raw, "json")?.value : undefined;
+                  const updated = transform(raw === undefined ? undefined : typeof json === "string" ? json : false);
+                  if (typeof updated.json !== "string" || updated.json.length > 96 * 1024) {transaction?.abort();return;}
+                  store.put({key: "indexing-history", json: updated.json});result = updated.value;prepared = true;
+                } catch {try {transaction?.abort();} catch {finish(false);}}
+              };
+            } catch {finish(false);}
+          };
+        } catch {finish(false);}
+      }),
+  };
+}
+
 /** Durable K-Plex cache backed by IndexedDB. */
 export class KplexIndexedDbCache {
   private dbPromise: Promise<IDBDatabase | null> | null = null;
@@ -368,11 +422,12 @@ export class KplexIndexedDbCache {
   /** Latest writer only; fixed categories and counts exclude exception messages and source data. */
   private snapshotWriteReceipt = {phase: "idle", outcome: "idle", errorName: "none", pageChunks: 0, evidenceChunks: 0,
     startedAt: 0, elapsedMs: 0};
+  private snapshotWriteStartedAtMonotonic = 0;
 
   /** Read the active/last snapshot writer without opening IndexedDB or requesting a save. */
   getSnapshotWriteDiagnostics() {
     const receipt = this.snapshotWriteReceipt;
-    return {...receipt, elapsedMs: receipt.outcome === "running" ? Math.max(0, Date.now() - receipt.startedAt) : receipt.elapsedMs};
+    return {...receipt, elapsedMs: receipt.outcome === "running" ? Math.max(0, window.performance.now() - this.snapshotWriteStartedAtMonotonic) : receipt.elapsedMs};
   }
 
   /** Read retained body-write state only; queued includes the current batch until its ordinary commit. */
@@ -918,10 +973,12 @@ export class KplexIndexedDbCache {
     key: "active" | "checkpoint" = "active",
     onFailure?: (reason: SnapshotWriteFailureReason) => void,
   ): Promise<boolean> {
+    const startedAtMonotonic = window.performance.now();
+    this.snapshotWriteStartedAtMonotonic = startedAtMonotonic;
     const receipt = this.snapshotWriteReceipt = {phase: "open", outcome: "running", errorName: "none",
       pageChunks: 0, evidenceChunks: 0, startedAt: Date.now(), elapsedMs: 0};
     const db = await this.open();
-    if (!db) { receipt.outcome = "unavailable"; receipt.elapsedMs = Math.max(0, Date.now() - receipt.startedAt); onFailure?.("storage-unavailable"); return false; }
+    if (!db) { receipt.outcome = "unavailable"; receipt.elapsedMs = Math.max(0, window.performance.now() - startedAtMonotonic); onFailure?.("storage-unavailable"); return false; }
     const generation = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
     this.snapshotWriters.add(generation);
     const batchSize = Platform.isIosApp ? 120 : Platform.isMobile ? 240 : 700;
@@ -1061,7 +1118,7 @@ export class KplexIndexedDbCache {
       onFailure?.(error instanceof DOMException && error.name === "QuotaExceededError" ? "quota-exceeded" : "write-error");
       return false;
     } finally {
-      receipt.elapsedMs = Math.max(0, Date.now() - receipt.startedAt);
+      receipt.elapsedMs = Math.max(0, window.performance.now() - startedAtMonotonic);
       this.snapshotWriters.delete(generation);
     }
   }

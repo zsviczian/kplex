@@ -58,6 +58,10 @@
   cursor: pointer;
 }
 
+.kplex-index-activities {
+  white-space: pre-line;
+}
+
 /* Keep the compact dot layout while giving mouse/touch users a larger invisible hit target. */
 .kplex-index-status::before {
   content: "";
@@ -95,6 +99,12 @@
   background: var(--color-red);
   box-shadow: var(--shadow-s);
   animation: kplex-index-status-blink 1s ease-in-out infinite;
+}
+
+.kplex-index-status.is-cache-pending,
+.kplex-topbar button.kplex-index-status.is-cache-pending {
+  background: var(--color-orange);
+  box-shadow: var(--shadow-s);
 }
 
 .kplex-index-status-empty {

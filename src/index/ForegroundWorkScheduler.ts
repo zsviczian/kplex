@@ -1,7 +1,7 @@
 /**
  * Cooperative priority boundary owned by the existing GraphIndex lifecycle. Work retains its private
  * progress while higher-priority requests run. Injected host capabilities pace background lanes with
- * shared idle windows; this owner cancels those timers on foreground admission and unload. Publication
+ * shared idle windows; this owner cancels those host waits on foreground admission and unload. Publication
  * and freshness remain caller-owned. Checkpoints must run outside IDB transactions.
  */
 /** Named cooperative lanes; lower numbers preempt higher numbers at safe task boundaries. */
@@ -32,6 +32,8 @@ export interface IndexWorkPacing {
   now: () => number;
   setTimeout: (callback: () => void, milliseconds: number) => number;
   clearTimeout: (timer: number) => void;
+  /** Host-owned cancellable short waits avoid hidden-renderer timer clamping where supported. */
+  scheduleIdle?: (callback: () => void, milliseconds: number) => () => void;
   throttle: () => unknown;
 }
 
@@ -49,7 +51,7 @@ export class ForegroundWorkScheduler {
   private pauses = 0;
   private readonly pausesByLane = [0, 0, 0, 0, 0];
   private sliceStarted: number | undefined;
-  private idleTimer: number | undefined;
+  private cancelIdle: (() => void) | undefined;
   private idleWait: Promise<void> | undefined;
   private releaseIdle: (() => void) | undefined;
   private idleWindows = 0;
@@ -123,8 +125,14 @@ export class ForegroundWorkScheduler {
       this.idleWindows++;
       this.idleWait = new Promise<void>(/** Retain only the shared idle completion until resume or close. */
         resolve => { this.releaseIdle = resolve; });
-      this.idleTimer = this.pacing.setTimeout(/** Start a fresh bounded work window after host idle time. */
-        () => this.finishIdle(), policy.idle);
+      const idle = this.idleWait;
+      /** A retired wait can never settle a newer idle window through a queued host callback. */
+      const complete = (): void => {if (this.idleWait === idle) this.finishIdle();};
+      if (this.pacing.scheduleIdle) this.cancelIdle = this.pacing.scheduleIdle(complete, policy.idle);
+      else {
+        const timer = this.pacing.setTimeout(complete, policy.idle);
+        this.cancelIdle = () => this.pacing?.clearTimeout(timer);
+      }
     }
     return this.idleWait.then(/** Foreground admission can cancel the timer; it must still preempt resumed work. */
       () => this.checkpoint(priority));
@@ -132,8 +140,9 @@ export class ForegroundWorkScheduler {
 
   /** Cancel and resolve the single idle resource; caller fences remain authoritative after wakeup. */
   private finishIdle(): void {
-    if (this.idleTimer !== undefined) this.pacing?.clearTimeout(this.idleTimer);
-    this.idleTimer = undefined;
+    const cancel = this.cancelIdle;
+    this.cancelIdle = undefined;
+    cancel?.();
     this.sliceStarted = this.pacing?.now();
     const release = this.releaseIdle;
     this.releaseIdle = undefined;

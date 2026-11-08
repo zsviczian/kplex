@@ -305,7 +305,7 @@ for(const eventOnly of [false,true]){
 }
 
 /** Caller policy/physical identity changes cancel private preparation; unrelated edits may reprepare once. */
-for(const mode of ['policy','cache','file','unrelated']){
+for(const mode of ['policy','unnotified-policy','unnotified-presentation','cache','file','unrelated']){
  test(`exact pair publication fences ${mode} changes during preparation`,async()=>{
   const browser=await chromiumHarness(bundle);
   try{
@@ -318,18 +318,42 @@ for(const mode of ['policy','cache','file','unrelated']){
      i.sourceAcquisition.prepareRequestedPair=async(...args)=>{const result=await prepare(...args);if(once){once=false;entered();await blocked;}return result;};
      const revision=i.getSemanticRevision(),task=i.prepareRelationshipPair('A.md','image.png');await reached;
      if(mode==='policy'){i.plugin.settings.inferAllLinksAsFriends=true;i.invalidateSemanticPolicy();}
+     if(mode==='unnotified-policy')i.plugin.settings.hierarchy.children.push('Uncommitted child field');
+     if(mode==='unnotified-presentation')i.plugin.settings.baseNodeStyle.maxLabelLength++;
      if(mode==='cache')f.metadata.set('A.md',{...f.metadata.get('A.md'),frontmatter:{Children:['[[B]]']}});
      if(mode==='file')f.files.set('A.md',new window.ContributorFile('A.md'));
      if(mode==='unrelated'){const file=f.files.get('Unrelated.md');file.stat.mtime++;f.texts.set(file.path,'Changed');f.app.vault.trigger('modify',file);}
      release();const ready=await task;
-     equal(ready,mode==='unrelated','Only unchanged selected identity/policy may reprepare after an unrelated source event');
-     equal(i.getSemanticRevision(),revision+(mode==='unrelated'?1:0),'No partial or stale semantic prefix publication');
+     const mayReprepare=mode==='unrelated'||mode==='unnotified-presentation';
+     equal(ready,mayReprepare,'Semantic/selected identity changes reject; unrelated source or presentation inputs may reprepare');
+     equal(i.getSemanticRevision(),revision+(mayReprepare?1:0),'No partial or stale semantic prefix publication');
+     if(mode==='unnotified-presentation')equal([...i.relationshipPairs.values()][0].settings.maxLabelLength,i.plugin.settings.baseNodeStyle.maxLabelLength,'Retry captures the changed presentation input');
      ok(!i.isConnected(i.get('A.md'),'image.png'),'Negative evidence retained coherently');return true;
     }finally{f.close();}
    })()`),true);
   }finally{await browser.cleanup();}
  });
 }
+
+/** Known linked-source fanout must settle before the unchanged exact pair spends its last retry. */
+test('published exact pairs survive presentation edits and reject unnotified semantic edits',async()=>{
+ const browser=await chromiumHarness(bundle);
+ try{
+  assert.equal(await browser.evaluate(contributorBrowserInitialize),true);await browser.evaluate(setup);
+  assert.equal(await browser.evaluate(`(async()=>{
+   const f=await makeRelationshipFixture('pair-published-policy'),i=f.index;
+   try{
+    ok(await i.prepareRelationshipPair('A.md','image.png'),'Exact pair prepares');
+    const pair=[...i.relationshipPairs.values()][0];ok(pair.current(),'Published current pair');
+    i.plugin.settings.baseNodeStyle.maxLabelLength++;
+    i.plugin.settings.tagStyleList.push('New presentation style');
+    ok(pair.current(),'Presentation does not retire published semantic relations');
+    i.plugin.settings.inferAllLinksAsFriends=!i.plugin.settings.inferAllLinksAsFriends;
+    ok(!pair.current(),'Direct semantic edits still retire published authority');return true;
+   }finally{f.close();}
+  })()`),true);
+ }finally{await browser.cleanup();}
+});
 
 /** Known linked-source fanout must settle before the unchanged exact pair spends its last retry. */
 test('exact pair retry drains admitted linked-owner resolution fanout without joining semantic inventory',async()=>{

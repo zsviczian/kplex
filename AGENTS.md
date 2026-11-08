@@ -12,6 +12,12 @@ Read [UI_RULES.md](UI_RULES.md) before implementing or reviewing any modal, form
 settings page, selector or button. Its shared owners and visual acceptance checklist
 are mandatory; reusing a bare input without its shared field/layout is insufficient.
 
+For startup, indexing, cache, scheduling or index-status work, read and apply the
+[mandatory indexing and persistence acceptance gates](CODING_STANDARDS.md#mandatory-indexing-and-persistence-acceptance-gates)
+and [restart acceptance procedure](CONTRIBUTING.md#indexing-and-persistence-acceptance).
+Include these gates in the task checklist before implementation and in the final
+acceptance report. A missing gate leaves that workflow unfinished.
+
 ## Mission
 
 Develop **K-Plex (Knowledge Plex)** as a dedicated React application inside Obsidian. Preserve relationship semantics, ontology and graph/node/link styling when migrating data from its predecessor, [ExcaliBrain](https://github.com/zsviczian/excalibrain). K-Plex is an independent, standalone solution with additional features and no runtime dependency on the legacy plugin, Excalidraw or Dataview.
@@ -28,6 +34,12 @@ npm run build
 ```
 
 Use `npm run dev` for watch-mode development.
+
+When deploying an optimized build to any local Obsidian vault, use
+`npm run build:local` so diagnostics identify the exact local rebuild. Use
+`npm run dev` when watch mode is required. `npm run build` remains the
+deterministic release/scanner build and must stay unchanged in release workflows;
+never publish a locally identified artifact as a release.
 
 A change is not complete if the real repository does not build successfully.
 

@@ -15,7 +15,7 @@ export function startupSourceCoordinatorSource() {
   const module = ts.createSourceFile('main.ts', source, ts.ScriptTarget.Latest, true);
   const declaration = module.statements.find(/** Select the plugin class, not nested declarations. */ node => ts.isClassDeclaration(node) && node.name?.text === 'KplexPlugin');
   assert(declaration, 'Actual plugin class exists');
-  const required = new Set(['performRebuild', 'adoptInitialSourceIndex', 'finishStartupIndexPreparation', 'ensureInitialIndex', 'getIndexSourceRevision', 'installPreRestoreChangeFence', 'notifyStartupProgress', 'startIndexPreparation', 'classifyPreRestoreChanges', 'retireCoveredCreateReason']);
+  const required = new Set(['performRebuild', 'adoptInitialSourceIndex', 'finishStartupIndexPreparation', 'ensureInitialIndex', 'getIndexSourceRevision', 'installPreRestoreChangeFence', 'notifyStartupProgress', 'startIndexPreparation', 'classifyPreRestoreChanges', 'retireCoveredCreateReason', 'pruneMissingDirtyMarkdownPaths', 'retireCoveredMarkdownBacklog']);
   const fields = new Set(['layoutReady', 'startupIndexPolicy', 'indexPreparationTask', 'indexPreparationAdmitted',
     'explicitIndexPreparationRequested', 'indexViewOpened', 'openKplexViews', 'indexDirty', 'indexDirtyRevision',
     'indexBacklogReasons', 'pendingCreateRevision', 'dirtyMarkdownPaths', 'preRestoreUncoveredChanges', 'unloading',

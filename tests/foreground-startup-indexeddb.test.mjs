@@ -12,10 +12,10 @@ const bundle = await contributorBrowserBundle(["src/index/GraphIndex.ts", "src/i
 const initialize = `(() => {
   const M=sourceModules,assert=Object.assign((v,m)=>ok(v,m),{equal});
   const collect=${collect.toString()},hostOracle=${hostOracle.toString()},fullCenterIndex=${fullCenterIndex.toString()},centerGateSettings=${centerGateSettings.toString()};
-  window.startupSeed=async(name,key='active')=>{
+  window.startupSeed=async(name,key='active',input={})=>{
     const M=sourceModules,f=await fixture(name);let initial;
     try{
-      f.text=f.texts;f.add('A.md','[Evidence URL](https://example.com/startup-evidence)',{Parent:'[[B]]'});f.add('B.md','');f.add('C.md','');
+      f.text=f.texts;f.add('A.md',input.body??'[Evidence URL](https://example.com/startup-evidence)',input.frontmatter??{Parent:'[[B]]'});f.add('B.md','');f.add('C.md','');
       f.app.metadataCache.resolvedLinks={'A.md':{'B.md':1}};f.app.vault.getName=()=>name;
       f.app.vault.getAbstractFileByPath=path=>f.files.get(path)??(path==='/'||path===''?f.app.vault.getRoot():null);
       await f.acquire();ok(await f.acquisition.reconcile(),'Seeded neutral sources have genuine authority');
@@ -503,6 +503,88 @@ for(const cancellation of ['navigation','same-stat-source-revision','file-replac
     let notifications=0;const stop=index.subscribePresentation(()=>notifications++);finish();await deadline(task,'retired repair');stop();
     equal(notifications,0,'Retired continuation does not repaint or acquire its next scope');equal(index.getIndexDiagnostics().filter(row=>row.centerCheck).at(-1).centerCheck.outcome,'cancelled','Exact stale lifetime is diagnosed');return true;
    }finally{finish?.();unblock?.();release?.();index?.destroy();f.close()}
+  })()`),true);
+ }finally{await browser.cleanup()}
+});
+
+test('a known body-free bootstrap publication does not consume the warm-cache retry',async()=>{
+ const browser=await chromiumHarness(bundle);try{
+  assert.equal(await browser.evaluate(contributorBrowserInitialize),true);assert.equal(await browser.evaluate(initialize),true);
+  assert.equal(await browser.evaluate(`(async()=>{
+   const {f,settings}=await startupSeed('warm-bootstrap-publication');let index,releaseSources;
+   try{
+    const gate=new Promise(resolve=>releaseSources=resolve);
+    index=new sourceModules.GraphIndex({app:f.app,settings,getIndexSourceRevision:()=>0},f.app);index.scheduleOrphanCleanup=()=>{};
+    const reconcile=index.sourceAcquisition.reconcile.bind(index.sourceAcquisition);index.sourceAcquisition.reconcile=async(...args)=>{await gate;return reconcile(...args)};
+    const pages=index.indexedDb.iterateSnapshotPages.bind(index.indexedDb);let baseline=false;
+    index.indexedDb.iterateSnapshotPages=async(...args)=>{if(!baseline){baseline=true;ok(await index.initializeOnDemandBaseline(['A.md']),'Actual body-free bootstrap publishes during first page admission');}return pages(...args)};
+    ok((await index.restorePersistedSnapshot(['A.md'])).restored,'Warm preview publishes');
+    ok((await deadline(index.waitForSnapshotHydration(),'warm hydration after bootstrap')).restored,'Complete cached graph survives bootstrap');
+    equal(index.getSnapshotHydrationDiagnostics().attempts,1,'A body-free bootstrap must not spend the retry reserved for actual changed input');
+    equal(index.getNeighborhood('A.md').parents.map(n=>n.page.path),['B.md'],'Cached parent remains current');
+    equal(index.getNeighborhood('A.md').children.map(n=>n.page.path),['https://example.com/startup-evidence'],'Body-only cached incidence survives');
+    equal(index.getSemanticPreparationDiagnostics().fullBuilds,0,'No whole graph compilation');return true;
+   }finally{releaseSources?.();index?.destroy();f.close()}
+  })()`),true);
+ }finally{await browser.cleanup()}
+});
+
+test('warm graph hydration and stationary incidence do not wait for unfinished native link resolution',async()=>{
+ const browser=await chromiumHarness(bundle);try{
+  assert.equal(await browser.evaluate(contributorBrowserInitialize),true);assert.equal(await browser.evaluate(initialize),true);
+  assert.equal(await browser.evaluate(`(async()=>{
+   const {f,settings}=await startupSeed('warm-native-resolver-pending');let index,release,clean=false;
+   try{
+    f.app.metadataCache.resolvedLinks={};f.app.metadataCache.unresolvedLinks={};f.app.metadataCache.isCacheClean=()=>clean;
+    index=new sourceModules.GraphIndex({app:f.app,settings,getIndexSourceRevision:()=>0},f.app);index.scheduleOrphanCleanup=()=>{};
+    release=index.acquireSemanticDemand('A.md');
+    ok((await deadline(index.restorePersistedSnapshot(['A.md']),'warm preview with pending native resolver')).restored,'Cached first paint remains available');
+    const result=await deadline(index.waitForSnapshotHydration(),'full cached hydration without native resolver completion');
+    ok(result.restored,'The actual complete cached graph hydrates independently');
+    ok(!index.sourceAcquisition.hasSemanticDependencies(),'Native resolution still does not grant global source authority');
+    equal(index.getNeighborhood('A.md').parents.map(n=>n.page.path),['B.md'],'Stationary cached parent remains visible');
+    equal(index.getNeighborhood('A.md').children.map(n=>n.page.path),['https://example.com/startup-evidence'],'Stationary cached body-only connection remains visible');
+    equal(f.reads,[],'No vault body reads');equal(f.parses,[],'No parsing');equal(index.getSemanticPreparationDiagnostics().fullBuilds,0,'No full compilation');
+    clean=true;f.app.metadataCache.resolvedLinks['A.md']={'B.md':1};f.app.metadataCache.trigger('resolved');
+    ok(await deadline(index.sourceAcquisition.flush(),'eventual native source closure'),'Native completion closes the existing owner');return true;
+   }finally{clean=true;f.app.metadataCache.trigger('resolved');release?.();index?.destroy();f.close()}
+  })()`),true);
+ }finally{await browser.cleanup()}
+});
+
+for(const bodyParent of [false,true])test('stationary cached incidence survives a later source recovery node-only publication (body parent '+bodyParent+')',async()=>{
+ const browser=await chromiumHarness(bundle);try{
+  assert.equal(await browser.evaluate(contributorBrowserInitialize),true);assert.equal(await browser.evaluate(initialize),true);
+  assert.equal(await browser.evaluate(`(async()=>{
+   const M=sourceModules,{f,settings}=await startupSeed('stationary-node-only-handoff-${bodyParent}','active',${bodyParent ? "{body:'Parent:: [[B]]',frontmatter:{}}" : '{}'});let index,release,stop,unblockBaseline,unblockSources,restoring;
+   const build=M.GraphBuilder.prototype.buildStructuralNodeBaseline;
+   try{
+    const db=await f.cache.open();await edit(db,['snapshotChunks'],tx=>tx.objectStore('snapshotChunks').clear());
+    let baselineEntered=false;const baselineGate=new Promise(r=>unblockBaseline=r),sourceGate=new Promise(r=>unblockSources=r);
+    M.GraphBuilder.prototype.buildStructuralNodeBaseline=async function(...args){baselineEntered=true;await baselineGate;return build.apply(this,args)};
+    index=new M.GraphIndex({app:f.app,settings,getIndexSourceRevision:()=>0},f.app);index.scheduleOrphanCleanup=()=>{};
+    const reconcile=index.sourceAcquisition.reconcile.bind(index.sourceAcquisition);index.sourceAcquisition.reconcile=async(...args)=>{await sourceGate;return reconcile(...args)};
+    restoring=index.restorePersistedSnapshot(['A.md']);
+    await deadline((async()=>{while(!baselineEntered)await new Promise(r=>setTimeout(r,0))})(),'real source fallback admission');
+    release=index.acquireSemanticDemand('A.md');
+    await deadline((async()=>{while(index.onDemandTasks.size)await Promise.all([...index.onDemandTasks.values()])})(),'foreground cached center');
+    equal(index.getNeighborhood('A.md').parents.map(n=>n.page.path),['B.md'],'Foreground parent is visible before replacement');
+    const expectedChildren=${bodyParent ? '[]' : "['https://example.com/startup-evidence']"};
+    equal(index.getNeighborhood('A.md').children.map(n=>n.page.path),expectedChildren,'Body-only incidence is visible before replacement');
+    const counts=index.getSourceAcquisitionCounters(), observed=[];
+    stop=index.subscribePresentation(()=>observed.push(index.getNeighborhood('A.md')?.[${bodyParent ? "'parents'" : "'children'"}].some(n=>n.page.path===${bodyParent ? "'B.md'" : "'https://example.com/startup-evidence'"})??false));
+    unblockBaseline();
+    await deadline((async()=>{while(!index.getIndexDiagnostics().some(r=>r.reason==='source-backed-physical-baseline'))await new Promise(r=>setTimeout(r,0))})(),'physical baseline publication');
+    ok(!index.sourceAcquisition.hasSemanticDependencies(),'Whole-vault source authority remains held');
+    equal(index.getNeighborhood('A.md').parents.map(n=>n.page.path),['B.md'],'Stationary parent survives node-only handoff');
+    equal(index.getNeighborhood('A.md').children.map(n=>n.page.path),expectedChildren,'Stationary body-only incidence survives node-only handoff');
+    ok(observed.every(Boolean),'No published transient removes the cached body relationship');
+    await deadline(index.recheckVisibleCenter('A.md',[1,1,0,0,0],'initial',()=>true),'stationary watchdog');
+    equal(index.getNeighborhood('A.md').children.map(n=>n.page.path),expectedChildren,'Watchdog preserves the existing cached body relationship');
+    equal(index.getNeighborhood('A.md').parents.map(n=>n.page.path),['B.md'],'Watchdog preserves the cached parent ontology');
+    equal(index.getSourceAcquisitionCounters().vaultReads,counts.vaultReads,'Handoff does not reread unchanged bodies');
+    ok(!index.isSemanticWriteReady('A.md','B.md'),'Local continuity does not claim global pair authority');return true;
+   }finally{stop?.();unblockBaseline?.();unblockSources?.();release?.();index?.destroy();await restoring?.catch(()=>{});M.GraphBuilder.prototype.buildStructuralNodeBaseline=build;f.close()}
   })()`),true);
  }finally{await browser.cleanup()}
 });

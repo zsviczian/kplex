@@ -94,6 +94,8 @@ export type PatchFileCommit = Readonly<{
   semanticChanged: boolean;
   /** Exact source fingerprint matched; unlike node-only repairs, no compiled incidence changed. */
   unchangedSource?: boolean;
+  /** A semantic no-op can still introduce a field into the persisted discovery catalog. */
+  discoveryChanged?: boolean;
   /** A later equal-stat edit or metadata observation cannot be acknowledged by this commit. */
   sourcePublication?: SourceGraphPublication;
 }>;
@@ -323,8 +325,13 @@ export class GraphBuilder {
    * newer native/cache observations retain their journal entry through the receipt guard.
    * Call only after the owning private graph becomes live; failed/cancelled builders discard it.
    */
-  acknowledgePublishedSources(): void {
-    for (const receipt of this.sourcePublications.values()) this.sourceAcquisition?.acknowledgeGraphSource(receipt);
+  acknowledgePublishedSources(onCommitted?: (path: string) => void): void {
+    for (const receipt of this.sourcePublications.values()) {
+      // Retire the coordinator's matching observation at the same synchronous publication.
+      // A later edit/cache replacement must survive even when an unrelated source was covered.
+      if (receipt.isCurrent()) onCommitted?.(receipt.sourcePath);
+      this.sourceAcquisition?.acknowledgeGraphSource(receipt);
+    }
     this.sourcePublications.clear();
   }
 
@@ -1556,13 +1563,14 @@ export class GraphBuilder {
       const fileTouchedPagePaths = new Set<string>();
       let sourcePublication: SourceGraphPublication | undefined;
       this.patchTouchedPagePaths = fileTouchedPagePaths;
-      const publishFileCommit = (semanticChanged: boolean, publishPreparedState: () => void): void => {
+      const publishFileCommit = (semanticChanged: boolean, publishPreparedState: () => void, discoveryChanged = false): void => {
         fileTouchedPagePaths.add(sourcePath);
         const commit: PatchFileCommit = {
           sourcePath,
           touchedPagePaths: new Set(fileTouchedPagePaths),
           semanticChanged,
           ...(!semanticChanged ? { unchangedSource: true } : {}),
+          ...(discoveryChanged ? {discoveryChanged: true} : {}),
           ...(sourcePublication ? { sourcePublication } : {}),
         };
         for (const path of fileTouchedPagePaths) touchedPagePaths.add(path);
@@ -1684,7 +1692,7 @@ export class GraphBuilder {
           if (retiredEndpoints) this.sourceAcquisition?.acknowledgeNodeImpacts(sourcePath, retiredEndpoints);
           this.rememberFieldCache(sourcePath, { mtime: revision.mtime, body, inputToken: bodyToken, semanticSignature: signature });
           this.semanticFingerprints.set(sourcePath, signature);
-        });
+        }, stagedState.discoveredFields.size !== state.discoveredFields.size);
         semanticNoops += 1;
         if (!(await this.yieldToHost())) return { ok: false, cancelled: true, rebuildRequired: false, touchedPagePaths, semanticChanges, semanticNoops };
         continue;

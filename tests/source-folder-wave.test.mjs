@@ -39,10 +39,13 @@ function pluginSettingsMethodSource(name) {
 const bundle=await contributorBrowserBundle(['src/index/GraphIndex.ts','src/index/GraphBuilder.ts','src/core/graph/settingsPolicy.ts','src/core/contracts/ontologyConfiguration.ts','src/core/contracts/appearance.ts','src/adapters/obsidian/savedSettingsRefresh.ts']);
 const initialize=`(()=>{
   const M=sourceModules,TFile=window.ContributorFile,TFolder=window.ContributorFolder;
+  const Platform={isIosApp:false};
   const {captureSettingsPolicy,classifySettingsChange,isStyleOnlySettingsChange,ontologyConfiguration,STYLE_SETTINGS_KEYS,SavedSettingsRefresh}=M;
   const Notice=class{constructor(message){throw Error('Unexpected fixture notice: '+message)}};
   ${pluginSettingsMethodSource('saveSettings')}
   ${pluginSettingsMethodSource('refreshSavedSettings')}
+  ${pluginSettingsMethodSource('onKplexViewClosed')}
+  window.closeLastPlex=plugin_onKplexViewClosed;
   ${externalVaultEventSource('create','makeExternalCreate')}
   ${externalVaultEventSource('rename','makeExternalRename')}
   let sequence=0;
@@ -150,6 +153,34 @@ test('folder creation wave uses complete physical ownership and real source-loca
   const browser=await chromiumHarness(bundle);
   try {
     assert.equal(await browser.evaluate(contributorBrowserInitialize),true);assert.equal(await browser.evaluate(initialize),true);
+    await t.test('a no-op catch-up and last-view close preserve the earlier real cache save across repeated warm owners',async()=>{
+      assert.equal(await browser.evaluate(`(async()=>{
+        const M=sourceModules,f=await folderWaveFixture();let restored;
+        try{
+          const index=f.index,before=(await index.indexedDb.readSnapshotCatalog()).active?.generation;
+          index.scheduleSnapshotPersist(50);f.reset();
+          const result=await index.patchMarkdownPaths(['Other.md'],{useDurableCache:true});equal(result.outcome,'patched','Real no-op file owner completes');
+          ok(index.snapshotPersistTimer!==null,'Earlier save remains queued after catch-up');
+          f.plugin.openKplexViews=1;f.plugin.initialIndexComplete=true;f.plugin.rebuildTimer=null;
+          closeLastPlex.call(f.plugin);ok(index.snapshotPersistTimer!==null,'Closing the last full graph preserves the actual pending write');
+          const deadline=Date.now()+4000;let catalog;
+          while(Date.now()<deadline){catalog=await index.indexedDb.readSnapshotCatalog();if(catalog.active&&catalog.active.generation!==before)break;await new Promise(resolve=>setTimeout(resolve,10));}
+          ok(catalog?.active&&catalog.active.generation!==before,'The normal scheduled writer activates a new complete generation without a manual flush');
+          equal(index.getIndexRecoveryDiagnostics().snapshot.outcome,'complete','Actual writer committed');
+          equal(f.wholePasses,0,'No-op catch-up starts no global source pass');equal(f.summary.reads,[],'No body reads');equal(f.summary.parses,0,'No body parsing');
+          index.destroy();
+          for(let attempt=0;attempt<2;attempt++){
+            restored=new M.GraphIndex(f.plugin,f.f.app);f.plugin.index=restored;restored.scheduleOrphanCleanup=()=>{};
+            ok((await restored.restorePersistedSnapshot(['Ref.md'],{deferEagerVocabulary:true})).restored,'Compatible saved preview reopens');
+            ok((await restored.waitForSnapshotHydration()).restored,'Complete cached graph reopens');
+            equal(restored.getSourceAcquisitionCounters().checked,0,'An unchanged owner does not repeat all-source validation');
+            equal(restored.getSourceAcquisitionCounters().vaultReads,0,'No restart body reads');equal(restored.getSourceAcquisitionCounters().parses,0,'No restart parsing');
+            equal(restored.getSemanticPreparationDiagnostics().fullBuilds,0,'No full rebuild on repeated unchanged cache reuse');restored.destroy();restored=null;
+          }
+          return true;
+        }finally{restored?.destroy();f.close();}
+      })()`),true);
+    });
     await t.test('complete Eager existing-parent folder plus immediate note remains local and repairs true referrers',async()=>{
       const result=await browser.evaluate(`(async()=>{
         const f=await folderWaveFixture();try{

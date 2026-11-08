@@ -47,7 +47,9 @@ test('restart host comparison retains its prefix when the selected owner changes
   const result=await browser.evaluate(`(async()=>{
    const f=await fixture('sync-selected-owner'),M=sourceModules;let restarted;
    try{
-    for(let i=0;i<8;i++)f.add('Owner'+i+'.md','Value:: original');await f.acquire();ok(await f.acquisition.reconcile(),'Seed closed sources');f.acquisition.close();
+    for(let i=0;i<8;i++)f.add('Owner'+i+'.md','Value:: original');await f.acquire();ok(await f.acquisition.reconcile(),'Seed closed sources');
+    // This regression deliberately exercises the legacy comparison owner and its selected await.
+    await edit(await f.cache.open(),['meta'],tx=>tx.objectStore('meta').delete('source-host-observation:Owner0.md'));f.acquisition.close();
     restarted=new M.ObsidianSourceAcquisition(f.app,f.cache,async text=>M.parseBodyMetadata(text));restarted.start();
     const inspect=f.repository.inspectWithLocalDependencies,visits=[];let delivered=false;
     f.repository.inspectWithLocalDependencies=async function(...args){

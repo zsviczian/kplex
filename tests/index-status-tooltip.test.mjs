@@ -19,6 +19,7 @@ ${component.getText(source)}
 export {IndexStatusIndicator};
 function Fixture(){const ref=useRef(null),[open,setOpen]=useState(false),[summary,setSummary]=useState(0);useEffect(()=>installKplexLongPressTooltips(document),[]);return <main data-kplex-tooltip-scope><IndexStatusIndicator status={{upToDate:false,phase:'incomplete',label:'Relationship data is incomplete'}} indicatorRef={ref} open={open} onHoverStart={()=>setOpen(true)} onHoverEnd={()=>setOpen(false)} onToggle={()=>{setOpen(false);setSummary(value=>value+1)}}/>{open&&<aside data-status-callout>Relationship data is incomplete</aside>}<output data-summary>{summary}</output></main>}
 window.mountStatus=()=>{document.body.innerHTML='<div id="fixture"></div>';window.statusRoot=createRoot(document.getElementById('fixture'));flushSync(()=>window.statusRoot.render(<Fixture/>))};
+window.renderActivityStatus=(activeWork,cacheSavePending=false)=>{if(!window.statusRoot){document.body.innerHTML='<div id="fixture"></div>';window.statusRoot=createRoot(document.getElementById('fixture'))}flushSync(()=>window.statusRoot.render(<IndexStatusIndicator status={{upToDate:true,activeWork,cacheSavePending,phase:'ready',label:activeWork?'Validating note metadata':cacheSavePending?'Index ready; cache save pending':'Index ready'}} open={false} onHoverStart={()=>{}} onHoverEnd={()=>{}} onToggle={()=>{}}/>))};
 `},write:false,bundle:true,format:'iife',globalName:'sourceModules',platform:'browser'});
 
 test('status retains one callout, accessible naming, keyboard activation and touch summary gestures',async()=>{
@@ -31,4 +32,20 @@ test('status retains one callout, accessible naming, keyboard activation and tou
   assert.deepEqual(result.keyboard,{callouts:0,tooltips:0,summary:1});assert.equal(result.doubleTap.summary,2);
   assert.equal(result.removed,true);
  }finally{await host.cleanup()}
+});
+
+test('a ready usable graph retains the updating indicator while background validation is active',async()=>{
+ const host=await chromiumHarness(bundle.outputFiles[0].text);
+ try{
+  assert.deepEqual(await host.evaluate(`(()=>{renderActivityStatus(true);const button=document.querySelector('button');const active={updating:button.classList.contains('is-updating'),green:button.classList.contains('is-ready')};renderActivityStatus(false);const settled={updating:button.classList.contains('is-updating'),green:button.classList.contains('is-ready')};statusRoot.unmount();return{active,settled}})()`),
+   {active:{updating:true,green:false},settled:{updating:false,green:true}});
+ }finally{await host.cleanup();}
+});
+
+test('a delayed cache save has a steady pending indicator until the restart cache is saved',async()=>{
+ const host=await chromiumHarness(bundle.outputFiles[0].text);
+ try{
+  assert.deepEqual(await host.evaluate(`(()=>{renderActivityStatus(false,true);const button=document.querySelector('button');const pending={amber:button.classList.contains('is-cache-pending'),green:button.classList.contains('is-ready'),blinking:button.classList.contains('is-updating'),label:document.getElementById(button.getAttribute('aria-labelledby')).textContent};renderActivityStatus(false,false);const saved=button.classList.contains('is-ready')&&!button.classList.contains('is-cache-pending');statusRoot.unmount();return{pending,saved}})()`),
+   {pending:{amber:true,green:false,blinking:false,label:'Index ready; cache save pending'},saved:true});
+ }finally{await host.cleanup();}
 });

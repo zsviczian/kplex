@@ -70,6 +70,13 @@ for (const mode of ['eager', 'on-demand']) for (const change of ['discovery', 's
             f.metadata.set('B.md',missing);f.app.metadataCache.trigger('changed',f.files.get('B.md'));
             ok(await index.sourceAcquisition.flush(),'Actual metadata recovery retains its source fence');
           }else ok(reconciled,'Actual source validation completes');
+          if(change==='damaged-metadata'){
+            // Unchanged host comparison is not an integrity scrub; an actual selected owner
+            // still authenticates and repairs its damaged family before use.
+            const body=await index.sourceAcquisition.readRequestedBody(a,()=>true);ok(body,'Immutable body remains independently readable');
+            const acquired=await index.sourceAcquisition.acquire(a,body,()=>true);ok(acquired.current&&acquired.saved,'Selected owner repairs metadata');
+            ok(await index.sourceAcquisition.flush(),'Repair closes ordinary authority');
+          }
           await index.startBackgroundUrlIndex();await until(()=>index.getUrlIndexProgress().complete&&!index.getUrlIndexProgress().active,'Restart URL inventory');
           const counters=index.getSourceAcquisitionCounters();
           if(change==='discovery'){

@@ -1857,6 +1857,11 @@ export const englishCatalog = {
     context: "Actual startup activity; no estimated percentage is implied.",
     params: [],
   },
+  "index.waitingNativeResolution": {
+    message: "Waiting for Obsidian link resolution",
+    context: "Native cached link maps are still being populated; K-Plex retains cached presentation and waits without auditing incomplete inputs.",
+    params: [],
+  },
   "index.startupSemantics": {
     message: "Applying current ontology & settings",
     context: "Actual startup activity; no estimated percentage is implied.",
@@ -1935,6 +1940,11 @@ export const englishCatalog = {
   "index.statusSavingCache": {
     message: "Status: saving index to cache",
     context: "K-Plex index indicator detail while a progressive checkpoint saves the graph.",
+    params: [],
+  },
+  "index.statusCacheSavePending": {
+    message: "Restart cache save scheduled (within five minutes)",
+    context: "Index indicator for a coalesced restart-cache save. Ordinary edits wait at most five minutes; startup repairs use the shorter startup delay. No active indexing is implied.",
     params: [],
   },
   "index.statusRelationshipLimit": {

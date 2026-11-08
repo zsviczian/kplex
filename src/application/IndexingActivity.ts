@@ -5,6 +5,7 @@
  * here. Explicit capture builds a deeply frozen, privately branded public projection.
  */
 import { SUPPORT_PHASES } from "./SessionEventRecorder";
+import { diagnosticBuildIdentity } from "./diagnosticBuildIdentity";
 export const ACTIVITY_KINDS = ["host-inventory", "local-maintenance", "structural", "full-build", "node-catalog", "hydration", "requested", "url-inventory", "unknown"] as const;
 export const ACTIVITY_REASONS = ["startup-offline", "known-file", "known-topology", "known-resolver", "qualified-folder", "uncovered-non-file", "unscoped-resolved", "expired-resolver", "extra-resolved", "environment", "source-replaced", "cache-failure", "dependency-repair", "local-authority-unavailable", "policy-change", "manual", "unknown"] as const;
 export const ACTIVITY_MILESTONES = ["onload", "settings-loaded", "layout-ready", "strict-ready", "on-demand-baseline-ready", "on-demand-center-requested", "on-demand-center-patched", "host-search-ready", "host-preview-ready", "first-requested-scope-authoritative", "url-background-start", "url-background-complete", "evidence-hydration-start", "evidence-hydration-end", "snapshot-catalog-read", "host-inventory-start", "host-inventory-end", "preview-available", "source-authority-await-ended", "requested-semantics-refresh-ended", "navigable-graph-published", "source-authority", "snapshot-complete", "snapshot-failed"] as const;
@@ -67,6 +68,8 @@ export function projectIndexingActivity(value: unknown): IndexingActivityCapture
   for (let index = 0; index < INDEXING_ACTIVITY_CAPTURE_ADMISSION_LIMIT; index++) if (captures[index].has(value)) return value as IndexingActivityCapture;
   return null;
 }
+
+export { COLUMNS as INDEXING_ACTIVITY_COLUMNS };
 
 /** Bounded coarse-boundary recorder; one injected monotonic clock is its only capability. */
 export class IndexingActivity {
@@ -196,7 +199,7 @@ export class IndexingActivity {
       settings: Object.freeze({mode: code(mode, ["eager", "on-demand"]) < 0 ? null : mode as string,
         urls: code(urls, ["on-demand", "background"]) < 0 ? null : urls as string,
         pacing: code(pacing, ["responsive", "balanced", "faster"]) < 0 ? null : pacing as string,
-        build: typeof build === "string" && (build === "source-archive" || /^\d{1,5}\.\d{1,5}\.\d{1,5}(?:-(?:alpha|beta|rc)\.\d{1,5})?(?:\+(?:[a-f0-9]{12}(?:\.dirty)?|source-archive))?$/.test(build)) ? build : null}),
+        build: diagnosticBuildIdentity(build)}),
       current: Object.freeze(ACTIVITY_CURRENT_COLUMNS.map(/** Read the function-owned rest array, never caller collections. */ (_, index) => count(current[index]))), columns: COLUMNS};
     while (JSON.stringify(report).length > INDEXING_ACTIVITY_BYTE_LIMIT && recent.length) { recent.shift(); report.omitted.reportRecent++; }
     if (JSON.stringify(report).length > INDEXING_ACTIVITY_BYTE_LIMIT) { phaseCounts.length = 0; phaseElapsed.length = 0; phaseMax.length = 0; report.omitted.reportPhaseLanes = 2; }

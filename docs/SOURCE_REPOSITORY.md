@@ -18,6 +18,71 @@ their ordinary validation. Final all-owner readiness still requires the durable 
 sequence fence, dependency completion and pending-event drain. No schema or semantic
 authority changes follow from this IO optimization.
 
+The restart host-metadata comparison can copy one current-grammar, target-sized
+metadata chunk (at most 256 records) and its complete single bounded posting page
+in the same readonly transaction as its exact selected head. The copied payload
+uses the ordinary decode reservation and canonical hash/frame/posting validator.
+It never reads immutable rows after that transaction, so concurrent reclamation
+cannot affect validation and no persistent reader lease is required. A closing
+readonly head/sequence check plus caller and local-overlay fences is still
+mandatory before accepting the comparison. Dense, multi-page, legacy and
+memory-backed sources keep the existing leased reader. General family readers
+and editable-pair replay retain their established lease contract.
+
+An optional `source-host-observation:` record in the existing `meta` store binds
+the native cached-input checksum to an exact source revision and activation
+sequence. Source activation writes it atomically; legacy activations receive one
+only after their ordinary authenticated inventory. No store/schema upgrade or
+source-head format change is needed. A restart compares bounded header pages,
+native file stamps, cached metadata/resolver inputs and the closed dependency
+root fence. Unchanged owners need no source-family sweep, body read or replay.
+At most 256 changed/removed owners can use the existing host-fact comparison and
+local dependency repair; larger changes or missing/invalid certificates retain
+normal recovery. Cached graph presentation stays incomplete until its finite
+offline edit plan commits under the captured compiler policy. These private
+checksums/identities never enter support reports. Family readers still validate
+their payloads on use; the reuse proof is not a background integrity scrub.
+The initial comparison waits for native aggregate-link readiness where the
+guarded host capability is available. Parsed file metadata and an empty resolver
+map do not prove that relationships disappeared. The existing source task joins
+the public native completion event without polling; intermediate closes retain
+the wait and unload releases it. Matching cached inputs discharge initial
+resolver-only observations under the final root/event fence, including their
+exact unchanged graph-journal entries. Real body edits, creation/move and damaged
+replay requests remain changed owners. Comparison retains native references and
+scalar journal tokens, not a second full source-head inventory.
+Retirement uses the canonical native Markdown catalog: a path lookup may still
+return an obsolete TFile absent from that catalog and without cached metadata.
+Such a header must not keep every current note in repeated recovery. Its derived
+facts retire under a fresh native-membership fence; no physical note is removed.
+
+Native enumeration reordering alone updates the existing owner-coordinate CAS;
+it does not count toward the 256 changed-source limit. A finite graph repair also
+queries the existing local dependency index for affected old/current aliases.
+That lookup is read-only: sources may already have been repaired in a previous
+lifetime while the complete graph snapshot is older. The startup journal alone
+would then miss referrers whose graph declarations still require patching.
+
+A production Eager restore can spend its existing single retry on a bounded
+Markdown mtime/size change during hydration. Native identities, creation stamps,
+membership and compiler policy must still match; the retried graph remains
+read-only until the normal finite source repair closes. A second change or a
+replacement retains conservative recovery. Full source fallback publication
+consumes only the coordinator paths certified by its existing per-source input
+receipts, before subscribers run. A later same-source edit cannot be consumed by
+an older private graph.
+
+The saved repair candidate retains its compiler-policy and native-structure
+fences. Its source epoch is captured when repair starts, after coordinator
+bookkeeping, and checked across every awaited repair step. Source changes before
+admission are covered by the journal and closing source flush. Reusing an epoch
+captured at hydration publication incorrectly treats stale-cache/backlog
+bookkeeping as a new native edit and can repeatedly reject useful repair plans.
+Periodic/reactive graph catch-up joins the existing initial task even after
+hydration ends. Source closure and finite repair still belong to that task;
+only its own allow-closed fallback may admit another initial writer. Explicit
+user rebuilds retain their separate admission.
+
 Complete current-process parses may carry an optional parser-input token through the existing hot,
 queued and durable body cache. Acquisition validates native file identity, path, mtime/ctime/size,
 observed per-file revision and parser version before sharing that input. An unrelated host-resolution
