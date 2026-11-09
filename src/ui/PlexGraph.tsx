@@ -75,7 +75,7 @@ import { TYPOGRAPHY_FIELDS, TYPOGRAPHY_LIMITS, type TypographyValues } from "../
 import { appendVisibleCrossLinks, presentationPage, projectNodeCounts, scrollZoneForRole, rowIntersectsViewport, effectiveLabelLimit, expandedMiniLayout, horizontalDensity, gateDiameter, siblingScale, withAreaHeightOverrides, type CenterNodeSize, type ZoneViewport, type ZoneAreaBounds } from "./layout";
 import { LayoutSlider } from "./components/LayoutSlider";
 import {appendOccurrenceCrossLinks} from "./plexViews/crossLinks";
-import { centeredViewportFit, sameFitCamera, zoomedViewportCamera, type FitCamera } from "./components/viewportFit";
+import { centeredViewportFit, restoredViewportCamera, sameFitCamera, zoomedViewportCamera, type FitCamera } from "./components/viewportFit";
 import { projectFilteredGateCounts } from "./filteredGateCounts";
 import { LayoutControls } from "./components/LayoutControls";
 import {readViewConfiguration, readViewConfigurationAt} from "../core/plex/views/configuration";
@@ -4992,7 +4992,9 @@ export function PlexGraph({ viewDefinition = classicViewDefinition, viewSession,
     if (!viewSession) return;
     const restored = viewSession.readTransient(viewDefinition.id, nodeId(activePath));
     if (restored) {
-      preserveCameraOnNextLayout.current = true; suppressAutoFitUntil.current = Date.now() + 2500; applyCamera(restored.camera);
+      const root = viewport.current;
+      const camera = root ? restoredViewportCamera(restored.camera, restored.viewport, {width: root.clientWidth, height: root.clientHeight}) : restored.camera;
+      preserveCameraOnNextLayout.current = true; suppressAutoFitUntil.current = Date.now() + 2500; applyCamera(camera);
       setUnfoldedGroups({center: sceneScope, keys: new Set(restored.unfolded)});
       if (restored.selected) selection.select(restored.selected);
     } else selection.select(null);
@@ -5002,6 +5004,7 @@ export function PlexGraph({ viewDefinition = classicViewDefinition, viewSession,
       areaResizeDrag.current = null;
       if (resize?.changed) persistAreaSize(resize.zone, resize.axis);
       viewSession.retainTransient(viewDefinition.id, {attention: nodeId(recoveryCenter.current), scope: nodeId(sceneScope), camera: centralEditorRestoreCamera.current ?? camera.current,
+        viewport: previousCameraViewport.current ?? undefined,
         selected: outgoingViewState.current.selected()?.id ?? null,
         unfolded: outgoingViewState.current.groups.center === sceneScope ? [...outgoingViewState.current.groups.keys] : [],
         sections: {expanded: outgoingViewState.current.sectionExpanded, unfolded: [...outgoingViewState.current.expandedSectionIds]}});

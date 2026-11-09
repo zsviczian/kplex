@@ -6,6 +6,14 @@
 export type FitCamera = Readonly<{ x: number; y: number; scale: number }>;
 export type FitBounds = Readonly<{ left: number; top: number; right: number; bottom: number }>;
 
+/** Restore saved pan relative to the viewport midpoint, retaining zoom through pane/Sidecar resizing.
+ * Older in-memory entries and hidden/invalid dimensions retain their original coordinates. */
+export function restoredViewportCamera(camera: FitCamera, previous: Readonly<{width: number; height: number}> | undefined,
+  current: Readonly<{width: number; height: number}>): FitCamera {
+  if (!previous || ![previous.width, previous.height, current.width, current.height].every(value => Number.isFinite(value) && value > 0)) return {...camera};
+  return {...camera, x: camera.x + (current.width - previous.width) / 2, y: camera.y + (current.height - previous.height) / 2};
+}
+
 /** Preserve the world point underneath a caller-selected viewport point while changing scale.
  * Manual translation and off-origin geometry remain intact; callers retain platform clamps and
  * automatic/manual camera ownership. Invalid input leaves the current camera unchanged. */

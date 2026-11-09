@@ -455,6 +455,7 @@ export const englishCatalog = {
   "colors.adoptConfirm": {"message": "Use theme colors", "context": "Native palette, semantic/standard colors and explicit adoption. Names and IDs are user data.", "params": []},
   "colors.standardColors": {"message": "Standard colors", "context": "Native palette, semantic/standard colors and explicit adoption. Names and IDs are user data.", "params": []},
   "colors.semanticColors": {"message": "Semantic colors", "context": "Native palette, semantic/standard colors and explicit adoption. Names and IDs are user data.", "params": []},
+  "colors.semanticColorsHelp": {"message": "Shared colors for node and link styles that select a semantic color, and for directional area tint. To enable background tint, open {views} → {compass} → {tint} and turn on {toggle}.", "context": "Semantic color palette page introduction. Parameters are localized Settings page and toggle labels.", "params": ["views", "compass", "tint", "toggle"], "referenceParams": []},
   "colors.semantic.origin": {"message": "Parents · North", "context": "Paired color settings and relationship direction labels. Stable semantic IDs are unchanged.", "params": []},
   "colors.semantic.development": {"message": "Children · South", "context": "Paired color settings and relationship direction labels. Stable semantic IDs are unchanged.", "params": []},
   "colors.semantic.support": {"message": "Friends and previous · West", "context": "Paired color settings and relationship direction labels. Stable semantic IDs are unchanged.", "params": []},

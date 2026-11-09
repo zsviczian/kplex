@@ -462,6 +462,7 @@ const russianTranslations = {
   "colors.adoptConfirm": "Использовать цвета темы",
   "colors.standardColors": "Стандартные цвета",
   "colors.semanticColors": "Смысловые цвета",
+  "colors.semanticColorsHelp": "Общие цвета для стилей узлов и связей, в которых выбран смысловой цвет, и для направленной заливки. Чтобы включить заливку фона, откройте {views} → {compass} → {tint} и включите {toggle}.",
   "colors.semantic.origin": "Родители · Север",
   "colors.semantic.development": "Дети · Юг",
   "colors.semantic.support": "Друзья и предыдущие · Запад",

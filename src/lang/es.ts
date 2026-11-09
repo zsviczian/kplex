@@ -462,6 +462,7 @@ const spanishTranslations = {
   "colors.adoptConfirm": "Usar colores del tema",
   "colors.standardColors": "Colores estándar",
   "colors.semanticColors": "Colores semánticos",
+  "colors.semanticColorsHelp": "Colores compartidos para los estilos de nodos y enlaces que eligen un color semántico y para el tinte direccional. Para activar el tinte de fondo, abre {views} → {compass} → {tint} y activa {toggle}.",
   "colors.semantic.origin": "Padres · Norte",
   "colors.semantic.development": "Hijos · Sur",
   "colors.semantic.support": "Amigos y anteriores · Oeste",

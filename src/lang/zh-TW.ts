@@ -462,6 +462,7 @@ const traditionalChineseTranslations = {
   "colors.adoptConfirm": "使用佈景主題色彩",
   "colors.standardColors": "標準色彩",
   "colors.semanticColors": "語意色彩",
+  "colors.semanticColorsHelp": "供選用語意色彩的節點與連線樣式，以及方向色調共用的色彩。若要啟用背景色調，請開啟 {views} → {compass} → {tint}，並開啟 {toggle}。",
   "colors.semantic.origin": "父節點・北",
   "colors.semantic.development": "子節點・南",
   "colors.semantic.support": "朋友與前一個・西",

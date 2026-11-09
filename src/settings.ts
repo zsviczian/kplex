@@ -2229,7 +2229,7 @@ export class KplexSettingTab extends PluginSettingTab {
     const result = await this.kplexPlugin.updateStyleSettings(edit, owner);
     if (!isCurrent()) return result;
     let refreshPending = result.refreshPending;
-    for (const refresh of [afterChange, /** Refresh only this still-mounted native Settings page. */ () => { if (this.containerEl.isConnected) this.update(); }]) {
+    for (const refresh of [afterChange, /** Declarative subpages detach the tab root while their actual Settings page stays mounted. */ () => { if (this.colorActionPage().isConnected) this.update(); }]) {
       try { refresh?.(); } catch (error) {
         console.error("K-Plex saved style manager refresh failed", error);
         refreshPending = true;
@@ -2659,10 +2659,13 @@ export class KplexSettingTab extends PluginSettingTab {
               {name: translate("colors.palettePreview"), desc: translate("colors.palettePreviewHelp"), render: setting => this.mountStandardOverview(setting)},
               ...this.standardColorPages(),
             ]},
-            {type: "page", name: translate("colors.semanticColors"), items: [{type: "group", heading: translate("colors.semanticColors"), items: SEMANTIC_COLOR_SLOTS.map(slot => this.colorAction(
+            {type: "page", name: translate("colors.semanticColors"), items: [{type: "group", items: [
+              {name: translate("colors.semanticColors"), desc: translate("colors.semanticColorsHelp", {views: translate("view.settingsViews"), compass: translate("view.classic"), tint: translate("compass.title"), toggle: translate("compass.enabled")}),
+                render: /** Native headings retain their explanatory text on the page itself, not just its navigation entry. */ setting => {setting.setHeading();}},
+              ...SEMANTIC_COLOR_SLOTS.map(slot => this.colorAction(
               translate(`colors.semantic.${slot}`), () => [{label: translate(`colors.semantic.${slot}`), value: {kind: "theme", variable: `--kplex-semantic-${slot}`}, fallback: `var(${SEMANTIC_COLOR_DEFAULTS[slot]}, var(--text-normal))`}],
               () => this.openSemanticColor(slot), translate(`colors.semanticHelp.${slot}`),
-            ))}]},
+            ))]}]},
             {type: "group", items: [
               this.colorAction(translate("settings.ui.plex.background"), () => [{label: translate("settings.ui.plex.background"), value: this.kplexPlugin.settings.backgroundColor, fallback: NATIVE_CANVAS_FILL}], () => this.openCanvasColorEditor()),
               {name: translate("colors.namedColors"), action: () => this.openColorPalette()},
@@ -2996,11 +2999,12 @@ export class KplexSettingTab extends PluginSettingTab {
   private numberControl(item: SettingDefinition<DeclarativeSettingKey>, control: Extract<NonNullable<SettingDefinition<DeclarativeSettingKey>["control"]>, {type: "slider"}>, unavailable = false): SettingDefinition<DeclarativeSettingKey> {
     const key = this.receivedControlKey(control.key) as DeclarativeSettingKey;
     const plugin = this.kplexPlugin;
+    const subscribeRow = (...args: Parameters<KplexSettingTab["subscribeThemeRow"]>) => this.subscribeThemeRow(...args);
     const readValue = (key: DeclarativeSettingKey) => this.getControlValue(key);
     const writeValue = (key: DeclarativeSettingKey, value: number) => this.setControlValue(key, value);
     return {name: item.name, desc: unavailable ? plugin.translator("view.settingsUnavailable") : item.desc,
       searchable: item.searchable, visible: item.visible, render: function renderNumberSetting(setting) {
-        let active = true;const doc = setting.settingEl.ownerDocument;
+        let active = true, doc = setting.settingEl.ownerDocument;
         const current = (): boolean => active && setting.settingEl.isConnected && setting.settingEl.ownerDocument === doc && !doc.defaultView?.closed;
         setting.settingEl.dataset.kplexSettingKey = key;
         const read = (): number => Number(readValue(key) ?? control.defaultValue ?? control.min);
@@ -3013,7 +3017,10 @@ export class KplexSettingTab extends PluginSettingTab {
             finally {if (current()) slider.setValue(read());}
           }});
         const release = plugin.index.subscribePresentation(() => {if (current()) slider.setValue(read());});
-        return () => {active = false;slider.dispose();release();};
+        return subscribeRow(setting, /** Native Settings may move a live numeric row into its popout document. */ migrated => {
+          if (migrated) doc = setting.settingEl.ownerDocument;
+          if (current()) slider.setValue(read());
+        }, /** Page replacement or its actual owning window closing retires both subscriptions and input. */ () => {active = false;slider.dispose();release();});
       }};
   }
 

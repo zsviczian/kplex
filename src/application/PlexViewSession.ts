@@ -6,6 +6,7 @@ import {PlexEditorBindings, type SavedPlexEditorIntent} from "./PlexEditorBindin
 import {boundedViewState as savedState} from "../core/plex/views/state";
 
 export type PlexViewTransient = Readonly<{attention: NodeId; scope?: NodeId; camera: Readonly<{x: number; y: number; scale: number}>;
+  viewport?: Readonly<{width: number; height: number}>;
   selected: string | null; unfolded: readonly string[];
   sections?: Readonly<{expanded: boolean; unfolded: readonly string[]}>}>;
 
@@ -143,7 +144,10 @@ export class PlexViewSession {
     if (this.closed || !this.registry.has(id) || !Object.values(value.camera).every(Number.isFinite) || value.camera.scale <= 0
       || value.camera.scale > 16 || Math.abs(value.camera.x) > 1e9 || Math.abs(value.camera.y) > 1e9
       || value.attention.length > 4096 || (value.scope?.length ?? 0) > 4096) return;
+    const viewport = value.viewport;
     const entry = {attention: value.attention, ...(value.scope ? {scope: value.scope} : {}), camera: {...value.camera},
+      ...(viewport && Number.isFinite(viewport.width) && Number.isFinite(viewport.height) && viewport.width > 0 && viewport.height > 0
+        ? {viewport: {...viewport}} : {}),
       selected: value.selected?.slice(0, 4096) ?? null, unfolded: [] as string[],
       ...(value.sections ? {sections: {expanded: value.sections.expanded, unfolded: [] as string[]}} : {})};
     let remaining = 8192 - JSON.stringify(entry).length;
