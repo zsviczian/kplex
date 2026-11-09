@@ -71,6 +71,11 @@ unassigned properties retain the existing property-info fallback.
 
 Native enumeration reordering alone updates the existing owner-coordinate CAS in
 bounded sixteen-owner IO waves, settling every member before returning or retiring.
+If a concurrent coordinate/count repair supersedes the closed projection while its
+source sequence is unchanged, the existing startup owner repeats the header proof.
+It grants no readiness from the retired proof and does not escalate that race into
+a source-family audit. Changed source sequences, invalid roots and real native
+input changes retain ordinary recovery; disposal retires the same owner.
 Per-owner checks and complete count-journal finality remain unchanged. This work
 does not count toward the 256 changed-source limit. A finite graph repair also
 queries the existing local dependency index for affected old/current aliases.

@@ -2775,13 +2775,17 @@ export class NeutralSourceRepository {
   /** Read a bounded catalog page; only an explicit absence scan admits known old headers for
    * retirement. Current graph/warm-authority readers retain strict compiler/parser validation.
    * Independent certificate reads share the same readonly snapshot in sixteen-owner waves:
-   * storage round trips are bounded without retaining a page of unvalidated receipt payloads. */
-  async headPage(after: string | null = null, limit = SOURCE_MAX_BATCH_RECORDS, options?: Readonly<{retirementOnly?: boolean; hostObservations?: boolean}>): Promise<Readonly<{ available: boolean; heads: SourceHead[]; invalid: number; next: string | null; hostObservations?: readonly SourceHostObservationReceipt[] }>> {
+   * storage round trips are bounded without retaining a page of unvalidated receipt payloads.
+   * An exact sourceId query reuses that validation for one owner, without a range successor. */
+  async headPage(after: string | null = null, limit = SOURCE_MAX_BATCH_RECORDS, options?: Readonly<{retirementOnly?: boolean; hostObservations?: boolean; sourceId?: string}>): Promise<Readonly<{ available: boolean; heads: SourceHead[]; invalid: number; next: string | null; hostObservations?: readonly SourceHostObservationReceipt[] }>> {
+    if (options?.sourceId !== undefined && (typeof options.sourceId !== "string" || !options.sourceId || after !== null || limit !== 1))
+      return {available: false, heads: [], invalid: 0, next: null};
     const db = await this.open();
     if (!db) return { available: false, heads: [], invalid: 0, next: null };
     try {
       return await this.transaction(db, options?.hostObservations ? [SOURCE_HEAD_STORE, SOURCE_LOCAL_OWNER_STORE, META_STORE] : [SOURCE_HEAD_STORE], "readonly", "", async (transaction) => {
-        const range = after === null ? undefined : IDBKeyRange.lowerBound(after, true);
+        const range = options?.sourceId !== undefined ? IDBKeyRange.only(options.sourceId)
+          : after === null ? undefined : IDBKeyRange.lowerBound(after, true);
         const store = transaction.objectStore(SOURCE_HEAD_STORE), count = Math.max(1, Math.min(limit, SOURCE_MAX_BATCH_RECORDS));
         const [entries, keys] = await Promise.all([requestValue<unknown[]>(store.getAll(range, count)), requestValue(store.getAllKeys(range, count))]);
         const heads: SourceHead[] = []; let invalid = 0;
@@ -2807,7 +2811,7 @@ export class NeutralSourceRepository {
           }));
           for (const receipt of receipts) if (receipt) hostObservations.push(receipt);
         }
-        return { available: true, heads, invalid, next: typeof last === "string" ? last : null,
+        return { available: true, heads, invalid, next: options?.sourceId !== undefined ? null : typeof last === "string" ? last : null,
           ...(options?.hostObservations ? {hostObservations} : {}) };
       });
     } catch { return { available: false, heads: [], invalid: 0, next: null }; }

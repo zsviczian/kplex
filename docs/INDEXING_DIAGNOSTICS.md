@@ -18,12 +18,16 @@ opens storage, records readiness or waits for historical loading.
 | `startup` | Admission, progress, timing availability, aggregate source/semantic work and bounded detailed phases |
 | `session` | Bounded finite session events, capture availability and omission summary |
 | `indexingActivity` | Current lifetime's existing schema-1/capture-1 numeric activity summary |
-| `indexingHistory` | Compact prior lifetimes, schema/statistics version 1, availability, bounds and omissions |
+| `indexingHistory` | Compact prior lifetimes, schema/statistics version 1, availability and bounds |
 | `truncation`, `limits` | Explicit deterministic omissions and the combined export budget |
 
 Identity and environment are not repeated inside the index. Current activity's `settings.build`
 moves to `plugin.buildId`; every historical session retains its own manifest and build values.
 For example, an installed manifest `0.4.1` and embedded build `0.4.2` remain distinct.
+
+`url-background-start` now marks admission of the complete web-link operation, including cached
+link restoration. Earlier builds recorded it after restoration, so their start-to-complete interval
+measures only the final missing-owner sweep. Do not use that older interval as total web-link time.
 
 Both formats fit **48 KiB including the Markdown wrapper**. Current scalar state is readable;
 large numeric activity and historical summaries occupy compact JSON lines. Historical dictionaries
@@ -34,6 +38,7 @@ Trimming first removes older healthy historical summaries, then older exceptiona
 current state/activity take priority. If necessary, oldest session events, excess plugin metadata
 and older detailed startup rows follow. Counts disclose every omission. Export trimming never
 changes recorder state or persisted history. A report can contain fewer sessions than storage.
+Historical export omissions are counted once in `truncation.historicalSessionsOmitted`.
 
 ## Rolling history and durability
 

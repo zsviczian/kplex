@@ -76,7 +76,7 @@ export function createDiagnosticJson(input:SupportReportInput,indexingActivity?:
   const trustedHistory=projectIndexingHistory(supportField(input,"indexingHistory"));
   const history={schemaVersion:1,statisticsVersion:1,status:trustedHistory?.status??"unavailable",
     ...(activity?{}:{columns:INDEXING_ACTIVITY_COLUMNS}),previousSessions:[...(trustedHistory?.previousSessions??[])],
-    limits:trustedHistory?.limits,storage:trustedHistory?.storage,omittedSessions:0};
+    limits:trustedHistory?.limits,storage:trustedHistory?.storage};
   const report={formatVersion:SUPPORT_REPORT_FORMAT_VERSION,generatedAt:supportIsoTime(supportField(input,"capturedAt")),
     plugin:{id:"k-plex",manifestVersion,buildId},index:state(),environment,
     indexingPreferences:projectSupportPreferences(supportField(input,"indexingPreferences")),startup:projectSupportStartup(supportField(input,"startup")),
@@ -94,7 +94,7 @@ export function createDiagnosticJson(input:SupportReportInput,indexingActivity?:
   while(json.length>limit&&history.previousSessions.length){
     let selected=history.previousSessions.length-1;
     for(let index=history.previousSessions.length-1;index>=0;index--)if(!exceptionalIndexingSession(history.previousSessions[index])){selected=index;break;}
-    history.previousSessions.splice(selected,1);history.omittedSessions++;report.truncation.historicalSessionsOmitted++;json=render();
+    history.previousSessions.splice(selected,1);report.truncation.historicalSessionsOmitted++;json=render();
   }
   if(json.length>limit&&report.session.events.length){
     const previous=report.truncation.oldestEventsOmitted;

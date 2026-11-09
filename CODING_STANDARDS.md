@@ -76,6 +76,9 @@ or making one expensive step faster does not establish that the workflow is fixe
    per-file resolver notifications. Cached graph hydration and stationary
    body-defined connections must remain available without auditing temporarily
    empty maps. Keep source authority and exact-pair writes separately fenced.
+   Supersede the restart header proof with an actual coordinate-only CAS. Require
+   a fresh proof under the replacement root without a global source audit; cover
+   repeated races, disposal and changed-source sequences separately.
    Prose-only autosaves must preserve displayed node identities, positions,
    visibility and connections while replacement input is pending. Cover both
    the center and incoming relationship contributors, with delayed body parsing

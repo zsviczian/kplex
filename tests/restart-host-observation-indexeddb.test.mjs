@@ -5,6 +5,50 @@ import {contributorBrowserBundle,contributorBrowserInitialize} from './support/c
 import {chromiumHarness} from './support/browserTypeScript.mjs';
 const bundle=await contributorBrowserBundle();
 
+test('exact header receipts preserve case-sensitive identity and never return a range successor',async()=>{
+ const browser=await chromiumHarness(bundle);try{await browser.evaluate(contributorBrowserInitialize);
+  assert(await browser.evaluate(`(async()=>{const f=await fixture('exact-restart-receipt');f.add('A.md','');f.add('a.md','');
+   try{await f.acquire();ok(await f.acquisition.reconcile(),'Closed receipt baseline');
+    for(const id of ['A.md','a.md','Missing.md']){const p=await f.repository.headPage(null,1,{hostObservations:true,sourceId:id});ok(p.available&&!p.invalid,'Exact native read');equal(p.heads.map(h=>h.sourceId),id==='Missing.md'?[]:[id],'Opaque exact key');equal(p.next,null,'No successor continuation');equal(p.hostObservations.length,id==='Missing.md'?0:1,'Same validated receipt');}
+    for(const args of [['A.md',1,{sourceId:'a.md'}],[null,2,{sourceId:'A.md'}],[null,1,{sourceId:{toString(){throw Error('No coercion')}}}]])equal((await f.repository.headPage(...args)).available,false,'Invalid exact scope fails closed');
+    return true;
+   }finally{f.close();}})()`));
+ }finally{await browser.cleanup();}
+});
+
+for(const situation of ['one','multiple','retired','fact-change'])test('a concurrent '+situation+' coordinate update retains the correct restart recovery scope',async()=>{
+ const browser=await chromiumHarness(bundle);try{
+  await browser.evaluate(contributorBrowserInitialize);
+  assert(await browser.evaluate(`(async()=>{
+   const name='restart-coordinate-proof-race-${situation}',first=await fixture(name);
+   for(let n=0;n<48;n++)first.add('Owner'+n+'.md','');await first.acquire();ok(await first.acquisition.reconcile(),'Seed closed restart observations');first.close();
+   const f=await fixture(name);for(let n=0;n<48;n++)f.add('Owner'+n+'.md','');let globals=0,races=0;
+   f.acquisition.startupDiagnostics=new Proxy({}, {get:(_,key)=>key==='beginActivity'?(kind)=>{if(kind==='host-inventory')globals++;return 0}:()=>{}});
+   const page=f.repository.headPage.bind(f.repository);
+   f.repository.headPage=async(...args)=>{const result=await page(...args);
+    if(races<('${situation}'==='multiple'?3:1)&&args[2]?.hostObservations){races++;
+     if('${situation}'==='fact-change')ok((await f.repository.tombstone('Owner47.md')).outcome==='activated','An actual source activation is independent from coordinates');
+     else equal(await f.repository.ensureLocalDependencies('Owner0.md',777+races,888+races),'ready','Independent foreground coordinate CAS');
+     if('${situation}'==='retired')f.acquisition.close();
+    }
+    return result;
+   };
+   try{
+    f.acquisition.enableInventory();await f.acquisition.flush();
+    // The existing coalesced owner may retire once before its replacement closes.
+    if(!f.acquisition.hasSemanticDependencies())await f.acquisition.flush();
+    equal(races,'${situation}'==='multiple'?3:1,'Each race follows a genuine header read');
+    if('${situation}'==='fact-change'){ok(globals>0,'Changed source activations retain ordinary recovery');ok(f.acquisition.hasSemanticDependencies(),'Genuine recovery must close');return true;}
+    equal(f.acquisition.hasSemanticDependencies(),'${situation}'!=='retired','Only a complete current replacement proof grants readiness');
+    equal(globals,0,'A superseded valid root is not evidence that all source families need auditing');
+    equal(f.acquisition.getCounters().checked,0,'No unchanged source acquisition');equal(f.work.visits,[],'No source-family authentication');
+    equal(f.work.inspections,[],'No per-owner source inspection');
+    equal(f.work.writes,[],'No source activations');equal(f.reads,[],'No vault reads');equal(f.parses,[],'No parsing');return true;
+   }finally{f.close();}
+  })()`));
+ }finally{await browser.cleanup();}
+});
+
 for(const type of ['date','text'])test('explicit '+type+' assignment survives incomplete or stale native property info on restart',async()=>{
  const browser=await chromiumHarness(bundle);try{
   await browser.evaluate(contributorBrowserInitialize);

@@ -6,6 +6,23 @@ import {urlPublicationFixture} from './support/urlPublicationFixture.mjs';
 const bundle=await contributorBrowserBundle(['src/index/GraphIndex.ts','src/index/GraphBuilder.ts']);
 const target='https://policy.example/shared';
 
+for(const dispose of [false,true])test(`web-link startup duration includes held cached restoration (dispose ${dispose})`,async()=>{
+ const f=urlPublicationFixture(bundle),i=f.index,marks=[];let now=7,enter,release,task;
+ const entered=new Promise(resolve=>enter=resolve),gate=new Promise(resolve=>release=resolve);
+ const restore=i.restoreUrlIndex;
+ i.plugin.startupDiagnostics={mark(name){marks.push({name,at:now});}};
+ i.restoreUrlIndex=async()=>{enter();await gate;};
+ try{
+  task=i.startBackgroundUrlIndex();await entered;
+  assert.deepEqual(marks,[{name:'url-background-start',at:7}],'Cached restoration is already part of the reported operation');
+  assert.equal(i.getUrlIndexProgress().active,true,'The loading operation remains visible');
+  now=57;if(dispose)i.destroy();release();await task;
+  assert.deepEqual(marks,dispose?[{name:'url-background-start',at:7}]:[
+   {name:'url-background-start',at:7},{name:'url-background-complete',at:57}],
+  'A normal duration includes the held restore; disposal never claims completion');
+ }finally{release();await task;i.restoreUrlIndex=restore;f.close();}
+});
+
 test('many URL owners share one normalized policy, and a new policy reclassifies all contributions',async()=>{
  const parents=['Resource',...Array.from({length:426},(_,n)=>'Dormant '+n)];
  const hierarchy={hidden:[],parents,children:[],leftFriends:[],rightFriends:[],previous:[],next:[],exclusions:[]};

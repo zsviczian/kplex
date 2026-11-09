@@ -35,6 +35,71 @@ const initialize = `(() => {
   return true;
 })()`;
 
+for(const scenario of ['unchanged','resolution-change','missing-receipt','metadata-race','disposed','failed-maintenance']){
+ const changed=scenario==='resolution-change';
+ test('initial resolver observation '+scenario+' ahead of a held restart audit',async()=>{
+ const browser=await chromiumHarness(bundle);try{
+  await browser.evaluate(contributorBrowserInitialize);await browser.evaluate(initialize);
+  assert(await browser.evaluate(`(async()=>{
+   const M=sourceModules,{f,settings}=await startupSeed('initial-resolver-warm-${scenario}');settings.lastActivePath='B.md';
+   let index,release,releaseDemand;try{
+    index=new M.GraphIndex({app:f.app,settings,getIndexSourceRevision:()=>0},f.app);index.scheduleOrphanCleanup=()=>{};
+    const source=index.sourceAcquisition,observe=source.restoreRestartHostObservations;let entered;
+    const started=new Promise(done=>entered=done),gate=new Promise(done=>release=done);
+    source.restoreRestartHostObservations=async function(...args){entered();await gate;return observe.apply(this,args)};
+    releaseDemand=index.acquireSemanticDemand('B.md');
+    ok((await index.restorePersistedSnapshot(['B.md'],{deferEagerVocabulary:true,deferEagerUrlRestore:true})).restored,'Saved graph restores');
+    await index.waitForSnapshotHydration();await deadline(started,'Initial header owner');
+    ok(source.canPrepareWarmMaintenance(),'The existing warm authority can serve foreground work');
+    let maintenanceCalls=0;if('${scenario}'==='failed-maintenance')source.prepareWarmMaintenance=async()=>{maintenanceCalls++;return false;};
+    if('${scenario}'==='missing-receipt'){const db=await source.repository.open();await edit(db,['meta'],tx=>{tx.objectStore('meta').delete('source-host-observation:A.md')});}
+    let raced=false;
+    if(['metadata-race','disposed'].includes('${scenario}')){const page=source.repository.headPage;
+     source.repository.headPage=async function(...args){const result=await page.apply(this,args);
+      if(!raced&&args[2]?.sourceId==='A.md'){raced=true;
+       if('${scenario}'==='disposed')index.destroy();
+       else{f.metadata.get('A.md').frontmatter.Parent='[[C]]';f.app.metadataCache.resolvedLinks['A.md']={'C.md':1};f.app.metadataCache.trigger('changed',f.files.get('A.md'));}
+      }return result;};
+    }
+    if(${changed}){const resolve=f.app.metadataCache.getFirstLinkpathDest;f.app.metadataCache.getFirstLinkpathDest=(literal,...args)=>literal==='B'?f.files.get('C.md'):resolve(literal,...args);f.app.metadataCache.resolvedLinks['A.md']={'C.md':1};}
+    f.app.metadataCache.trigger('resolve',f.files.get('A.md'));
+    await deadline(index.ensureSemanticScope('B.md'),'Foreground resolver convergence');
+    if(index.eagerGraphMaintenanceTask)await deadline(index.eagerGraphMaintenanceTask,'Warm maintenance closure');
+    if('${scenario}'==='disposed'){ok(raced&&index.diagnosticsClosed,'Retired point proof cannot continue');equal(source.hasSemanticDependencies(),false,'No readiness after disposal');return true;}
+    ok(!source.restartInventoryChecked,'Current-view work did not wait for the held audit');
+    const counters=source.getCounters(),semantic=index.getSemanticPreparationDiagnostics();
+    if('${scenario}'==='failed-maintenance'){equal(maintenanceCalls,1,'An unchanged failed warm owner is not retried in a loop');ok(semantic.requested>0,'Ordinary selected preparation remains available');}
+    else if(${changed}||'${scenario}'==='metadata-race'){ok(index.get('A.md').neighbours.get('C.md')?.isParent,'Actual changed native input publishes promptly');ok(!index.get('A.md').neighbours.has('B.md'),'Old target retires');}
+    else if('${scenario}'==='missing-receipt')ok(counters.checked>0,'Missing receipt retains ordinary family authentication');
+    else{equal(counters.checked,0,'Unchanged resolver observations do not authenticate source families');equal(counters.repaired,0,'No source activation');equal(semantic.requested,0,'Current view joins maintenance rather than compiling a duplicate scope');}
+    equal(counters.vaultReads,0,'Cached native observations never reread Markdown');equal(counters.parses,0,'No body parsing');equal(semantic.fullBuilds,0,'No global graph build');
+    release();await source.flush();return true;
+   }finally{release?.();releaseDemand?.();index?.destroy();f.close();}
+  })()`));
+ }finally{await browser.cleanup();}
+});}
+
+test('an unrelated urgent owner cannot hold current-view preparation behind its unfinished work',async()=>{
+ const browser=await chromiumHarness(bundle);try{await browser.evaluate(contributorBrowserInitialize);await browser.evaluate(initialize);
+  assert(await browser.evaluate(`(async()=>{
+   const M=sourceModules,{f,settings}=await startupSeed('unrelated-urgent-source-owner');settings.lastActivePath='B.md';let index,releaseHeader,releaseMaintenance,releaseDemand;
+   try{index=new M.GraphIndex({app:f.app,settings,getIndexSourceRevision:()=>0},f.app);index.scheduleOrphanCleanup=()=>{};
+    const source=index.sourceAcquisition,observe=source.restoreRestartHostObservations;const header=new Promise(done=>releaseHeader=done);
+    source.restoreRestartHostObservations=async function(...args){await header;return observe.apply(this,args)};
+    releaseDemand=index.acquireSemanticDemand('B.md');await index.restorePersistedSnapshot(['B.md'],{deferEagerVocabulary:true,deferEagerUrlRestore:true});await index.waitForSnapshotHydration();
+    let entered;const arrived=new Promise(done=>entered=done),held=new Promise(done=>releaseMaintenance=done),warm=source.prepareWarmMaintenance;
+    source.prepareWarmMaintenance=async function(...args){entered();await held;return warm.apply(this,args)};
+    f.metadata.get('C.md').frontmatter.Status='Changed unrelated scalar';f.app.metadataCache.trigger('changed',f.files.get('C.md'));
+    index.retryEagerGraphMaintenance();await deadline(arrived,'Unrelated actual canonical owner');
+    await deadline(index.ensureSemanticScope('B.md'),'Current view cannot join unrelated urgent work');
+    ok(index.eagerGraphMaintenanceTask,'The unrelated owner is still intentionally held');
+    equal(index.getSemanticPreparationDiagnostics().fullBuilds,0,'No competing global build');
+    releaseMaintenance();if(index.eagerGraphMaintenanceTask)await index.eagerGraphMaintenanceTask;releaseHeader();await source.flush();return true;
+   }finally{releaseMaintenance?.();releaseHeader?.();releaseDemand?.();index?.destroy();f.close();}
+  })()`));
+ }finally{await browser.cleanup();}
+});
+
 /** Source/evidence holds are outside transactions; real page reads and exact source preparation are never replaced. */
 for (const mutation of [false, true]) {
   test(`trusted warm navigation precedes source authority and evidence${mutation ? " and late evidence cannot replace a foreground canonical commit" : " while an exact pair survives promotion"}`, async () => {

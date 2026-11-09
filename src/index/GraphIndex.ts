@@ -150,6 +150,7 @@ import type { CompiledGraphNode, GraphCompilerRuntime, GraphCompilerSettings } f
 import type { NodeId } from "../core/graph/model";
 import {PublicApiError,PUBLIC_API_LIMITS as publicLimits,type PublicCoverage,type PublicNode,type PublicPage,type PublicRelationship,type PublicEvidence,type PublicIndexStatus} from '../application/publicApiContracts';
 import { estimateReferenceRecordBytes, sourceRevision, type SourceEntityFact, type SourceEntityRef } from "../core/graph/source";
+import {SOURCE_MAX_BATCH_RECORDS} from "./SourceFacts";
 import { RelationEvidenceStore, emptyRelation, applyOntologyPrecedence, applyEvidenceDecisionsToRelation } from "../core/graph/evidence";
 import { ReferencePolicySelector } from "../core/graph/sourcePolicy";
 import { Platform, TFile, TFolder, normalizePath, type App, type CachedMetadata } from "obsidian";
@@ -624,6 +625,8 @@ export class GraphIndex {
   private fullSemanticSourceRevision = 0;
   /** Source persistence and graph publication acknowledge the same coalesced owner journal. */
   private eagerGraphMaintenanceTask: Promise<void> | null = null;
+  private eagerGraphMaintenancePriority: IndexWorkPriority | null = null;
+  private eagerGraphMaintenanceInitialResolution = false;
   private fullSemanticSettings: GraphCompilerSettings;
   private semanticDemandRevision = new Map<string, number>();
   private semanticDemandCounts = new Map<string, number>();
@@ -1698,6 +1701,8 @@ export class GraphIndex {
     const source = this.plugin.getIndexSourceRevision(), maintenance = this.sourceAcquisition.getMaintenanceRevision();
     const urgent = !this.sourceAcquisition.hasSemanticDependencies() && this.sourceAcquisition.canPrepareWarmMaintenance();
     const priority = urgent ? INDEX_WORK_PRIORITY.currentNode : INDEX_WORK_PRIORITY.background;
+    const initialResolution = changes.size <= SOURCE_MAX_BATCH_RECORDS
+      && [...changes.keys()].every(path => this.sourceAcquisition.isInitialResolutionObservation(path));
     const task = this.withForegroundPriority(async () => {
       if (urgent) {
         await this.workScheduler.checkpoint(priority);
@@ -1736,6 +1741,8 @@ export class GraphIndex {
     }).finally(() => {
       if (this.eagerGraphMaintenanceTask !== task) return;
       this.eagerGraphMaintenanceTask = null;
+      this.eagerGraphMaintenancePriority = null;
+      this.eagerGraphMaintenanceInitialResolution = false;
       if (!this.diagnosticsClosed) this.emitPresentation();
       // Retry changed observations only; unchanged unavailable input never starts a polling loop.
       if (!this.diagnosticsClosed && (source !== this.plugin.getIndexSourceRevision()
@@ -1744,6 +1751,8 @@ export class GraphIndex {
       if (this.startupSnapshotRequested) this.finishStartupSnapshot();
     });
     this.eagerGraphMaintenanceTask = task;
+    this.eagerGraphMaintenancePriority = priority;
+    this.eagerGraphMaintenanceInitialResolution = initialResolution;
     if (urgent) this.plugin.notifyStartupProgress?.(true);
   }
 
@@ -3523,8 +3532,24 @@ export class GraphIndex {
   }
 
   /** Coalesce one center/revision request and reject stale completion through the captured demand token. */
-  private ensureSemanticScope(centerPath: string): Promise<void> {
+  private ensureSemanticScope(centerPath: string, joinedMaintenance = false): Promise<void> {
     if (this.preparationDeferred) return Promise.resolve();
+    if (!joinedMaintenance && !this.isOnDemandMode() && this.fullSnapshotHydrated && this.fullSnapshotFresh) {
+      const changes = this.sourceAcquisition.pendingGraphSources(), center = this.state.pages.get(centerPath);
+      const related = Boolean(changes?.size && changes.size <= SOURCE_MAX_BATCH_RECORDS && [...changes.keys()]
+        .every(path => this.sourceAcquisition.isInitialResolutionObservation(path) && (path === centerPath || center?.neighbours.has(path))));
+      if (related) this.retryEagerGraphMaintenance();
+      const maintenance = this.eagerGraphMaintenanceTask, demand = this.semanticDemandRevision.get(centerPath) ?? 0;
+      if (maintenance && this.eagerGraphMaintenancePriority === INDEX_WORK_PRIORITY.currentNode
+        && (related || changes?.size === 0 && this.eagerGraphMaintenanceInitialResolution)) {
+        // The urgent canonical owner already assesses these observations. Join it once before
+        // admitting a duplicate private compiler; a failed owner retains the ordinary fallback.
+        return maintenance.then(() => {
+          if (this.diagnosticsClosed || this.persistentCachePurged || demand !== (this.semanticDemandRevision.get(centerPath) ?? 0)) return;
+          return this.ensureSemanticScope(centerPath, true);
+        });
+      }
+    }
     void this.ensureVisibleSemanticRecovery(centerPath);
     if (this.pendingStructuralTasks > 0) return Promise.resolve();
     // A complete current publication already owns aliases, outgoing relationships and search.
@@ -5153,11 +5178,12 @@ export class GraphIndex {
     this.urlDiscoveryRunning = true;
     const priority = this.isOnDemandMode() ? INDEX_WORK_PRIORITY.urlInventory : INDEX_WORK_PRIORITY.background;
     const task = this.workScheduler.run(priority, async () => {
+      // Measure cached-link restoration too; placing this after restore hides most warm-start work.
+      this.plugin.startupDiagnostics?.mark("url-background-start");
       await this.restoreUrlIndex();
       if (this.diagnosticsClosed || this.persistentCachePurged) return false;
       const files = this.app.vault.getMarkdownFiles();
       this.urlDiscoveryTotal = files.length;
-      this.plugin.startupDiagnostics?.mark("url-background-start");
       const concurrency = Platform.isIosApp ? 1 : Platform.isMobile ? 2 : 6;
       const byteBudget = (Platform.isMobile ? 2 : 8) * 1024 * 1024;
       let offset = 0, bodyCacheEnd = 0;
@@ -6422,7 +6448,7 @@ export class GraphIndex {
                   const file = revised.filesByPath.get(path);
                   if (file !== token.file || file.stat.ctime !== token.ctime) return false;
                   if (fileRevisionMatches(file, token.revision)) return true;
-                  return file.extension === "md" && ++changed <= 256;
+                  return file.extension === "md" && ++changed <= SOURCE_MAX_BATCH_RECORDS;
                 });
               if (eligible && changed > 0 && isCurrent()) {
                 inventory = revised;physicalFoldersRevision = this.hostStructuralRevision;
