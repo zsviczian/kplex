@@ -342,7 +342,7 @@ export class HostMetadataPreview {
     }
     const metadataHost = createObsidianMetadataSourceHost(this.app);
     for (const name in frontmatter) if (Object.prototype.hasOwnProperty.call(frontmatter, name)
-      && metadataHost.isDateProperty(name)) return null;
+      && metadataHost.isDateProperty(name, frontmatter[name])) return null;
     const fields = new Set<string>();
     let fieldCount = 0, fieldBytes = 0;
     for (const group of [hierarchy.parents, hierarchy.children, hierarchy.leftFriends, hierarchy.rightFriends,

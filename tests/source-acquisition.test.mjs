@@ -6,6 +6,7 @@ import { browserBundle } from "./support/browserTypeScript.mjs";
 
 const bundle = await browserBundle([
   "src/adapters/obsidian/sourceAcquisition.ts", "src/index/SourceRepository.ts", "src/index/SourceLocalDependencies.ts", "src/core/parser/metadata.ts", "src/index/GraphBuilder.ts", "src/index/fieldParser.ts", "src/index/ForegroundWorkScheduler.ts",
+  "src/adapters/obsidian/metadataSourceCollector.ts",
 ], { obsidian: `exports.Platform={isMobile:false}; exports.TFile=class TFile {
   constructor(path){this.path=path;this.name=path.split('/').pop();this.extension=path.split('.').pop();this.basename=path.split('/').pop().replace(/\\.[^.]+$/,'');this.stat={mtime:1,size:100,ctime:1};this.parent={path:''};}
 }; exports.TFolder=class TFolder {constructor(){this.path='';this.name='';this.children=[];this.parent=null;}};
@@ -14,6 +15,27 @@ globalThis.window = globalThis;
 new Function("window", bundle)(window);
 const { ObsidianSourceAcquisition, NeutralSourceRepository, parseBodyMetadata } = window.sourceModules;
 const TFile = window.SourceTestFile;
+
+test('unassigned native widget hints cannot change Date semantics in another note',()=>{
+ let hint='date';const assigned=new Map();
+ const app={metadataTypeManager:{getAssignedWidget:field=>assigned.get(field)??null,getPropertyInfo:()=>({widget:hint}),
+  getTypeInfo:(_field,value)=>({inferred:{type:value==='2026-11-09'?'date':'text'}})}};
+ const host=window.sourceModules.createObsidianMetadataSourceHost(app);
+ assert.equal(host.isDateProperty('Due','2026-11-09'),true,'The source value retains native Date inference');
+ assert.equal(host.isDateProperty('Due'),false,'An inferred hint is not a global Date assignment');
+ assert.equal(host.datePropertyAssignment('Due'),null,'Unassigned differs from an explicit non-Date assignment');
+ assert.equal(host.isDateProperty('Due','[[Monday]]'),false,'A link remains Text even if another source supplied the Date hint');
+ hint='text';
+ assert.equal(host.isDateProperty('Due','2026-11-09'),true,'Creating a text-valued note cannot remove another source\'s Date interpretation');
+ assigned.set('Due','text');assert.equal(host.isDateProperty('Due','2026-11-09'),false,'Explicit Text wins over inference');assert.equal(host.datePropertyAssignment('Due'),false);
+ assigned.set('Due','date');assert.equal(host.isDateProperty('Due'),true,'Explicit Date participates in global registry change detection');
+ assert.equal(host.isDateProperty('Due','not a date'),true,'The established Date parser still rejects invalid values');
+});
+
+test('older Date hosts retain their existing property-info fallback',()=>{
+ const host=window.sourceModules.createObsidianMetadataSourceHost({metadataTypeManager:{getPropertyInfo:()=>({widget:'date'})}});
+ assert.equal(host.isDateProperty('Due'),true);assert.equal(host.isDateProperty('Due','2026-11-09'),true);
+});
 
 /** Canonical cache merge and cooperative facets share order, duplicates, fallback and ignored-work rules. */
 test("streaming frontmatter aliases match the canonical merge without unrelated metadata traversal", () => {

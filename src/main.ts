@@ -66,7 +66,8 @@ import {CreatePeriodicNoteModal} from "./ui/CreatePeriodicNoteModal";
 import {createPeriodicPinRuntime} from "./adapters/obsidian/periodicPins";
 import {createConfiguredDailyNote} from "./adapters/obsidian/dailyNotes";
 import {readDailyPinSettings} from "./adapters/obsidian/dailyNotes";
-import {collectDailyNotes, dailyNoteDate, dailyNotePath, dailyEntryForDate, dailyNotesSettingsCurrent, type DailyNoteEntry} from "./adapters/obsidian/dailyNoteNavigation";
+import {collectDailyNotes, dailyNoteDate, dailyNotePath, dailyNoteCreationTarget, dailyEntryForDate, dailyNotesSettingsCurrent, type DailyNoteEntry} from "./adapters/obsidian/dailyNoteNavigation";
+import {deletedFileNavigationTarget} from "./adapters/obsidian/deletedFileNavigation";
 import {calendarDay, calendarDayKey, adjacentJournalEntry, missingJournalDirections, type JournalDirection} from "./core/plex/calendarDates";
 import {DailyNoteCalendarModal} from "./ui/DailyNoteCalendarModal";
 import {FileCreationAutomation} from "./adapters/obsidian/fileCreationAutomation";
@@ -144,8 +145,10 @@ import { StartupDiagnostics } from "./adapters/obsidian/startupDiagnostics";
 import { writeRelationshipMetadata, SavedRelationshipPendingError, relationshipMetadataPayload } from "./adapters/obsidian/relationshipMetadataWrite";
 import { SOURCE_DECODE_BUDGET_BYTES } from "./index/SourceFacts";
 import { perfNow } from "./util/perf";
-import { createIndexDiagnosticsReport } from "./adapters/obsidian/indexDiagnosticsReport";
-import { createSupportReport } from "./application/supportReport";
+import {captureIndexDiagnostics} from "./adapters/obsidian/indexDiagnosticsReport";
+import {createDiagnosticJson, wrapDiagnosticJson} from "./application/supportReport";
+import {IndexingHistory} from "./application/IndexingHistory";
+import {createIndexingHistoryStorage} from "./index/IndexedDbCache";
 import type { IndexingActivityCapture } from "./application/IndexingActivity";
 import { SessionEventRecorder } from "./application/SessionEventRecorder";
 import { SupportClipboardSession } from "./application/supportClipboard";
@@ -298,6 +301,9 @@ export default class KplexPlugin extends Plugin {
   private readonly hoverParent: HoverParent = { hoverPopover: null };
   private reactiveIndexListenersRegistered = false;
   private preRestoreUncoveredChanges = false;
+  /** Initial discovery is retired only after a source-fenced compatible-cache repair. */
+  private readonly preRestoreInventoryCreatePaths = new Set<string>();
+  private readonly preRestoreActualMarkdownChanges = new Set<string>();
   private readonly preRestoreReasons = new Map<string, number>();
   private readonly preRestoreMarkdownPaths = new Map<string, number>();
   /** A dormant observation protects later non-create events through admission's asynchronous setup. */
@@ -380,6 +386,7 @@ export default class KplexPlugin extends Plugin {
   /** Paths suppress the synchronous vault:create rebuild; object identity protects optimistic UI. */
   private readonly managedCreatedPaths = new Map<string, number>();
   private readonly managedCreatedFiles = new WeakSet<TFile>();
+  private readonly createdDailyNotes = new WeakSet<TFile>();
   /** Markdown files whose metadata/body changed since the last published graph. */
   private readonly dirtyMarkdownPaths = new Set<string>();
   /** Rename-only metadata notifications are semantic no-ops when mtime/size are unchanged. */
@@ -427,14 +434,44 @@ export default class KplexPlugin extends Plugin {
   }
 
   readonly startupDiagnostics = new StartupDiagnostics();
+
+  /** Separate best-effort meta storage cannot delay startup or change index storage health. */
+  private startIndexingHistory(): void {
+    try {
+      const owner = window;
+      const history = new IndexingHistory(createIndexingHistoryStorage(this.app.vault.getName()), {
+        now: () => owner.performance.now(), wallTime: () => Date.now(),
+        schedule: (callback, milliseconds) => owner.setTimeout(callback, milliseconds),
+        cancel: timer => owner.clearTimeout(timer),
+      }, () => this.captureIndexingActivity(), this.manifest.version,
+      typeof __KPLEX_BUILD_ID__ === "string" ? __KPLEX_BUILD_ID__ : "source-archive",
+      () => this.index?.getSnapshotPersistenceDiagnostics());
+      this.indexingHistory = history;
+      this.startupDiagnostics.observeActivityBoundary(boundary => {
+        if (boundary === "settled") history.settled();
+        else if (boundary === "failure") history.failed();
+        else history.changed();
+      });
+      this.registerDomEvent(owner.document, "visibilitychange", () => {
+        if (owner.document.visibilityState === "hidden") history.background();
+      });
+      history.start();
+    } catch {
+      this.indexingHistory?.close();this.indexingHistory = null;
+      this.startupDiagnostics.observeActivityBoundary(null);
+      // Optional diagnostics never affect source/index initialization.
+    }
+  }
   /** Passive scalar-only evidence for this plugin lifetime, never a source or publication owner. */
   readonly supportEvents = new SessionEventRecorder(/** Use the existing host monotonic clock without a timer. */ () => window.performance.now());
   private lastSupportIndexPhase: string | null = null;
+  private indexingHistory: IndexingHistory | null = null;
 
   /** Register host resources; optional startup diagnostics observe this exact production path. */
   async onload(): Promise<void> {
     this.supportEvents.record("plugin-start");
     this.startupDiagnostics.begin((window as Window & { kplexStartupDiagnosticsEnabled?: boolean }).kplexStartupDiagnosticsEnabled === true);
+    this.startIndexingHistory();
     this.translator = createObsidianTranslator();
     this.nodeLinkClipboard = new NodeLinkClipboard(this.app, /** Feedback belongs to this plugin's active catalog. */ key => {new Notice(this.translator(key));});
     this.registerEvent(this.app.workspace.on("editor-paste", /** The native receiver supplies destination context, including embedded and popout editors. */ (event, editor, info) => this.nodeLinkClipboard?.paste(event, editor, info)));
@@ -673,9 +710,12 @@ export default class KplexPlugin extends Plugin {
     }
 
     const preferred = candidates[0];
-    if (preferred && !this.isNavigationFallbackReady()) return this.index.get(preferred)?.path ?? null;
+    if (preferred && !this.isNavigationFallbackReady()) return deletedFileNavigationTarget(this.app, preferred, path => this.index.get(path))?.path
+      ?? this.index.get(preferred)?.path ?? null;
 
     for (const path of candidates) {
+      const placeholder = deletedFileNavigationTarget(this.app, path, candidate => this.index.get(candidate));
+      if (placeholder) return placeholder.path;
       if (this.index.get(path)) return path;
     }
     return this.index.get("folder:/")?.path ?? null;
@@ -687,6 +727,9 @@ export default class KplexPlugin extends Plugin {
 
   /** Release action publications, surface registrations and host resources before index teardown. */
   onunload(): void {
+    this.indexingHistory?.close();
+    this.indexingHistory = null;
+    this.startupDiagnostics.observeActivityBoundary(null);
     for (const resolve of this.layoutReadyWaiters) resolve();
     this.layoutReadyWaiters.clear();
     this.unloading = true;
@@ -798,6 +841,7 @@ export default class KplexPlugin extends Plugin {
   /** Discard startup events already covered by the captured physical inventory. */
   private classifyPreRestoreChanges(snapshotFresh: boolean): void {
     const inventoryRevision = this.index.getRestoreInventorySourceRevision();
+    this.preRestoreInventoryCreatePaths.clear();
     const uncoveredCreates = new Set<string>();
     const uncoveredCreateReasons = new Set<string>();
     const observedCreateReasons = new Set<string>();
@@ -807,6 +851,10 @@ export default class KplexPlugin extends Plugin {
         ? this.app.vault.getFileByPath(path) === token.item
           && token.item.stat.mtime === token.mtime && token.item.stat.ctime === token.ctime && token.item.stat.size === token.size
         : this.app.vault.getFolderByPath(path) === token.item;
+      if (inventoryRevision !== null && token.revision <= inventoryRevision && token.item.path === path && current
+        && token.item instanceof TFile && token.item.extension === "md" && !this.preRestoreActualMarkdownChanges.has(path)) {
+        this.preRestoreInventoryCreatePaths.add(path);
+      }
       // Matching physical signatures alone cannot prove a replaced native identity. This only
       // retires an unchanged create seen before capture; full hydration keeps its own final fences.
       if (!snapshotFresh || inventoryRevision === null || token.revision > inventoryRevision
@@ -854,6 +902,7 @@ export default class KplexPlugin extends Plugin {
       this.preRestoreHadDormantEvent ||= !this.indexPreparationAdmitted;
       this.preRestoreReasons.set(reason, this.indexDirtyRevision);
       if (file?.extension === "md") this.preRestoreMarkdownPaths.set(file.path, this.indexDirtyRevision);
+      if (file?.extension === "md" && !createdItem) this.preRestoreActualMarkdownChanges.add(file.path);
       if (createdItem) {
         // Keep the first native proof: another delivered create for a replacement object must
         // not erase observed identity drift. Latest reason/path revisions still fence late events.
@@ -947,6 +996,7 @@ export default class KplexPlugin extends Plugin {
       this.preRestoreDormantMarkdownPaths.clear();
       this.preRestoreHadDormantEvent = false;
       this.preRestoreCreatedItems.clear();
+      this.preRestoreActualMarkdownChanges.clear();
       this.preRestoreListenerCleanup = null;
     };
     this.preRestoreListenerCleanup = release;
@@ -1301,6 +1351,7 @@ export default class KplexPlugin extends Plugin {
   /** A successful complete build covers its captured create, never a newer native creation. */
   private retireCoveredCreateReason(revision: number): void {
     if (this.pendingCreateRevision === revision) this.indexBacklogReasons.delete("vault:create");
+    this.preRestoreInventoryCreatePaths.clear();
   }
 
   async onKplexViewOpened(hostLeaf?: WorkspaceLeaf, session?: KplexDocumentSession): Promise<void> {
@@ -1335,7 +1386,10 @@ export default class KplexPlugin extends Plugin {
     // remain useful, so reopening resumes with less work instead of keeping a hidden iPad WebView
     // under memory pressure.
     if (this.initialIndexComplete || Platform.isIosApp) this.index.cancelRebuild();
-    this.index.cancelPendingPersistence();
+    // A completed graph's pending cache save must survive closing its last surface. Otherwise a
+    // corrected ontology/topology cache can be lost and the next reload repeats global recovery.
+    // Partial/on-demand graphs retain the existing cancellation and never become complete caches.
+    if (!this.index.isFullSnapshotHydrated()) this.index.cancelPendingPersistence();
   }
 
   /** Close source recovery before declaring eager startup complete.
@@ -1353,7 +1407,11 @@ export default class KplexPlugin extends Plugin {
       if (adopted && !this.unloading && this.index === index && !index.isOnDemandMode()
         && index.hasSourceBackedStartup()) {
         coveredCreateRevision = this.pendingCreateRevision;
-        adopted = await index.rebuild({retainSourceInventory: true});
+        adopted = await index.rebuild({retainSourceInventory: true,
+          // This fallback replaces the entire graph. Consume only exact source observations
+          // published into it; newer same-file events remain in the ordinary patch backlog.
+          onCommitted: path => this.dirtyMarkdownPaths.delete(path),
+        });
       }
     }
     catch (error) {
@@ -1371,12 +1429,24 @@ export default class KplexPlugin extends Plugin {
       for (const reason of ["startup:no-snapshot", "startup:stale-snapshot", "startup:partial-restore-incomplete"]) {
         this.indexBacklogReasons.delete(reason);
       }
+      if (coveredCreateRevision !== null) this.retireCoveredMarkdownBacklog();
       if (!this.preRestoreUncoveredChanges && this.indexBacklogReasons.size === 0 && this.dirtyMarkdownPaths.size === 0) {
         this.indexDirty = false;
       }
       if (this.indexDirty && this.hasVisibleKplexSurface()) this.scheduleRebuild("startup:post-initial-backlog");
+      if (!this.indexDirty && !index.isOnDemandMode()) index.finishStartupSnapshot();
     }
     this.notifyIndexStatus();
+  }
+
+  /** Retire patch/scheduling reasons only after publication consumed every dirty source.
+   * Structural, policy and unknown causes retain independent ownership. */
+  private retireCoveredMarkdownBacklog(): void {
+    if (this.dirtyMarkdownPaths.size) return;
+    for (const reason of ["metadata:changed", "vault:create-markdown", "coalesced-backlog", "interval", "startup:post-initial-backlog"]) {
+      this.indexBacklogReasons.delete(reason);
+    }
+    this.preRestoreUncoveredChanges = this.indexBacklogReasons.size > 0;
   }
 
   /** Only the current admitted eager lifetime with actual policy/demand may resume failed startup. */
@@ -1430,6 +1500,7 @@ export default class KplexPlugin extends Plugin {
    */
   private async finishStartupIndexPreparation(): Promise<void> {
     await this.ensureInitialIndex();
+    if (!this.unloading && this.initialIndexComplete && !this.indexDirty && !this.index.isOnDemandMode()) this.index.finishStartupSnapshot();
     if (!this.unloading && this.initialIndexComplete && this.indexDirty && this.hasVisibleKplexSurface()) {
       this.scheduleRebuild("startup:post-initial-backlog");
     }
@@ -1554,7 +1625,7 @@ export default class KplexPlugin extends Plugin {
 
       // Source recovery first preserves current views and vocabulary. Eager startup must also
       // complete global relationships before its coordinator can report the initial index ready.
-      if (this.index.hasSourceBackedStartup()) {
+      if (this.index.hasSourceBackedStartup() && !this.index.hasIncrementalRestorePatch?.()) {
         await this.adoptInitialSourceIndex();
         return;
       }
@@ -1584,6 +1655,15 @@ export default class KplexPlugin extends Plugin {
         if (this.unloading) return;
         if (patched.reconciled) {
           this.indexBacklogReasons.delete("startup:stale-snapshot");
+          if (patched.coveredSourceRevision === patchRevision && patchRevision === this.indexDirtyRevision) {
+            // Initial native create callbacks describe files already covered by the captured
+            // inventory. A completed source-fenced repair covers them; later events cannot borrow
+            // this receipt. Real Markdown changes retain their separate per-file backlog.
+            for (const path of this.preRestoreInventoryCreatePaths) this.dirtyMarkdownPaths.delete(path);
+            this.indexBacklogReasons.delete("vault:create");this.indexBacklogReasons.delete("vault:create-markdown");
+            this.preRestoreUncoveredChanges = this.indexBacklogReasons.size > 0 || this.dirtyMarkdownPaths.size > 0;
+            this.preRestoreInventoryCreatePaths.clear();
+          }
           this.initialIndexComplete = true;
           if (!this.preRestoreUncoveredChanges && patchRevision === this.indexDirtyRevision &&
               this.indexBacklogReasons.size === 0 && this.dirtyMarkdownPaths.size === 0) {
@@ -1624,7 +1704,10 @@ export default class KplexPlugin extends Plugin {
       // Keep the resolved promise only after a complete initial index. If iOS work was cancelled
       // because the last K-Plex view closed, reopening must be able to resume the durable prewarm.
       if (!this.initialIndexComplete) this.initialIndexTask = null;
-      else if (!this.unloading && !this.index.isOnDemandMode()) void this.index.startBackgroundUrlIndex();
+      else if (!this.unloading && !this.index.isOnDemandMode()) {
+        if (!this.indexDirty) this.index.finishStartupSnapshot();
+        void this.index.startBackgroundUrlIndex();
+      }
     });
     return this.initialIndexTask;
   }
@@ -1662,6 +1745,13 @@ export default class KplexPlugin extends Plugin {
    * genuine structural work, dirty sources and explicit rebuilds keep their existing admission. */
   private async performRebuild(showNotice: boolean, force: boolean, reason: string, allowClosed: boolean): Promise<void> {
     if (this.unloading) return;
+    // Hydration finishing does not retire the initial owner: source closure and finite repair
+    // can still be awaiting work. Periodic/reactive catch-up must join that owner before deciding
+    // on another writer. The owner's own allow-closed fallback must never await itself.
+    if (!force && !showNotice && !allowClosed && !this.initialIndexComplete && !this.index.isOnDemandMode() && this.initialIndexTask) {
+      await this.initialIndexTask;
+      if (this.unloading || !this.initialIndexComplete) return;
+    }
     if (this.index.hasPendingStructuralMaintenance()) await this.index.waitForStructuralMaintenance();
     if (this.unloading) return;
     // Reactive backlog can arrive after a preview but before optional cache hydration finishes.
@@ -1686,7 +1776,7 @@ export default class KplexPlugin extends Plugin {
         if (this.unloading) return;
         // A late graph-cache failure can still retain durable sources. Keep the same initial
         // adoption decision as a restore that was already pending when this owner first ran.
-        if (this.index.hasSourceBackedStartup()) {
+        if (this.index.hasSourceBackedStartup() && !this.index.hasIncrementalRestorePatch?.()) {
           await this.adoptInitialSourceIndex();
           return;
         }
@@ -1762,6 +1852,9 @@ export default class KplexPlugin extends Plugin {
       if (!force && !showNotice && this.index.size > 0 && !structuralDirty && this.dirtyMarkdownPaths.size === 0) {
         this.indexDirty = false;
         this.indexBacklogReasons.clear();
+        // Earlier per-file receipts can drain a burst after its coordinator revision advanced.
+        // Close that epoch through the existing source/maintenance fences, without replaying it.
+        this.index.acknowledgeHostPresentation();
         this.notifyIndexStatus();
         return;
       }
@@ -1831,8 +1924,10 @@ export default class KplexPlugin extends Plugin {
           // Keep the large-iOS low-memory checkpoint strategy, but only after the useful center
           // neighborhood has been published so first paint is no longer blocked by vault prewarm.
           prewarmBodyCache: Platform.isIosApp && this.app.vault.getMarkdownFiles().length > 5000,
+          onCommitted: path => this.dirtyMarkdownPaths.delete(path),
         })
-        : await rebuiltIndex.rebuild(reuseStartupSources ? {retainSourceInventory: true} : undefined);
+        : await rebuiltIndex.rebuild({...(reuseStartupSources ? {retainSourceInventory: true} : {}),
+          onCommitted: path => this.dirtyMarkdownPaths.delete(path)});
       if (this.unloading || this.index !== rebuiltIndex) return;
       if (!published) {
         this.indexDirty = true;
@@ -1864,20 +1959,26 @@ export default class KplexPlugin extends Plugin {
       for (const pendingReason of [...this.indexBacklogReasons]) {
         if (pendingReason.startsWith("startup:")) this.indexBacklogReasons.delete(pendingReason);
       }
+      if (rebuiltIndex.isFullSnapshotHydrated()) this.retireCoveredMarkdownBacklog();
       for (const path of this.dirtyMarkdownPaths) {
         const file = this.app.vault.getFileByPath(path);
         if (file?.extension === "md") this.index.insertCreatedFile(file);
       }
       this.indexBacklogReasons.delete("vault:create-markdown");
 
-      // Only clear the backlog that this build actually covered. If a vault/metadata event fired
-      // while GraphBuilder was working, keep the index dirty and coalesce one follow-up pass.
-      if (this.indexDirtyRevision === startRevision) {
+      // Exact source receipts may cover observations delivered during compilation. A newer
+      // source or independent reason remains queued; bookkeeping alone cannot reopen the vault.
+      if (this.indexDirtyRevision === startRevision || !this.preRestoreUncoveredChanges
+        && this.indexBacklogReasons.size === 0 && this.dirtyMarkdownPaths.size === 0) {
         this.indexDirty = false;
         this.indexBacklogReasons.clear();
         this.dirtyMarkdownPaths.clear();
       } else {
         this.indexDirty = true;
+      }
+      if (!this.indexDirty) {
+        this.index.acknowledgeHostPresentation();
+        if (this.initialIndexComplete) this.index.finishStartupSnapshot();
       }
       await this.refreshBookmarkedEntryPoints();
       if (showNotice) new Notice(this.translator("notice.indexedNodes", { count: this.index.size }), 1800);
@@ -3757,6 +3858,7 @@ export default class KplexPlugin extends Plugin {
       const leaf = this.app.workspace.getLeaf("window");
       this.lastDocumentLeaf = leaf;
       await leaf.openFile(file, { active: true });
+      await this.finishDailyNoteOpening(leaf, file);
       await this.app.workspace.revealLeaf(leaf);
     } catch {
       new Notice(this.translator("notice.popoutUnavailable"), 2200);
@@ -4005,14 +4107,12 @@ export default class KplexPlugin extends Plugin {
    * diagnostic owner fails independently to unavailable; raw exceptions never enter the report.
    * The modal previews exactly these bytes and is retired with its captured surface or plugin.
    */
-  reportBug(origin?: HTMLElement, surfaceId?: string): void {
-    if (this.unloading) return;
-    const owner = origin?.ownerDocument.defaultView ?? window.activeWindow ?? window;
+  private captureDiagnosticJson(owner: Window, surfaceId?: string): string {
     const indexingActivity = this.captureIndexingActivity();
     let indexReport: unknown = null;
     let startup: unknown = null;
     try {
-      if (this.index) indexReport = JSON.parse(createIndexDiagnosticsReport(this.index, () => this.getIndexDiagnosticsStatus(), this.manifest.version, indexingActivity));
+      if (this.index) indexReport = captureIndexDiagnostics(this.index, () => this.getIndexDiagnosticsStatus(), this.manifest.version);
     } catch { /* Partial startup/cache failures remain explicit unavailable facts, never raw errors. */ }
     try { startup = this.getStartupDiagnostics(); } catch { /* Report remains available without this optional owner. */ }
     let formFactor: unknown = null;
@@ -4020,8 +4120,11 @@ export default class KplexPlugin extends Plugin {
     try { formFactor = readObsidianPresentationEnvironment(owner).device; } catch { /* Optional evidence can be unavailable during window teardown. */ }
     try { locale = getLanguage(); } catch { /* A missing host locale must not disable issue reporting. */ }
     const host = this.actionHostLeaf(surfaceId);
-    const report = createSupportReport({
+    return createDiagnosticJson({
       capturedAt: new Date().toISOString(), indexReport, startup, session: this.supportEvents.snapshot(),
+      identity: {manifestVersion: this.manifest.version,
+        buildId: typeof __KPLEX_BUILD_ID__ === "string" ? __KPLEX_BUILD_ID__ : "source-archive"},
+      indexingHistory: this.indexingHistory?.snapshot(),
       environment: {
         ...readSupportCustomizations(this.app),
         pluginVersion: this.manifest.version, obsidianApiVersion: apiVersion,
@@ -4036,6 +4139,13 @@ export default class KplexPlugin extends Plugin {
         excalidrawFitOnNodeOpen: this.settings?.excalidrawFitOnNodeOpen,
       },
     }, indexingActivity);
+  }
+
+  /** Preserve synchronous capture and clipboard initiation before the native modal opens. */
+  reportBug(origin?: HTMLElement, surfaceId?: string): void {
+    if (this.unloading) return;
+    const owner = origin?.ownerDocument.defaultView ?? window.activeWindow ?? window;
+    const report = wrapDiagnosticJson(this.captureDiagnosticJson(owner, surfaceId));
     const session = new SupportClipboardSession(report, /** Capture only this toolbar's actual native clipboard owner. */ text => owner.navigator.clipboard.writeText(text));
     session.copy(); // Must precede native UI creation and every await on mobile clipboard paths.
     const registration = surfaceId ? this.actionSurfaceHosts.get(surfaceId) : undefined;
@@ -4102,8 +4212,7 @@ export default class KplexPlugin extends Plugin {
   private async copyIndexDiagnostics(): Promise<void> {
     const owner = window.activeWindow ?? window;
     try {
-      const indexingActivity = this.captureIndexingActivity();
-      const report = createIndexDiagnosticsReport(this.index, () => this.getIndexDiagnosticsStatus(), this.manifest.version, indexingActivity);
+      const report = this.captureDiagnosticJson(owner);
       await owner.navigator.clipboard.writeText(report);
       new Notice(this.translator("notice.indexDiagnosticsCopied"));
     } catch (error) {
@@ -4178,6 +4287,8 @@ export default class KplexPlugin extends Plugin {
    */
   getIndexStatus(): {
     upToDate: boolean;
+    activeWork: boolean;
+    cacheSavePending: boolean;
     phase: "ready" | "loading-cache" | "preparing" | "checking-cache" | "indexing" | "saving-cache" | "updating" | "incomplete" | "deferred";
     label: string;
     indexedFiles: number;
@@ -4194,7 +4305,7 @@ export default class KplexPlugin extends Plugin {
     const aliasProgress = phase === "updating" ? this.index.getUrlAliasUpgradeProgress?.() : null;
     const urlProgress = this.index.getUrlIndexProgress();
     const buildProgress = phase === "indexing" ? this.index.getBuildProgress?.() : null;
-    const label = phase === "deferred" ? this.translator("indexing.deferred") : urlProgress.active
+    const urlLabel = urlProgress.active
       ? urlProgress.total === 0
         ? urlProgress.restored > 0
           ? this.translator("indexing.urlsRestoring", { restored: urlProgress.restored })
@@ -4202,6 +4313,8 @@ export default class KplexPlugin extends Plugin {
         : this.translator("indexing.urlsProgress", { processed: urlProgress.processed, total: urlProgress.total })
       : urlProgress.failed
         ? this.translator("indexing.urlsIncomplete")
+        : null;
+    const label = phase === "deferred" ? this.translator("indexing.deferred")
       : phase === "incomplete" && !failure && !this.initialIndexComplete && this.initialSourceIndexIncomplete
       ? this.translator("index.statusStartupIncomplete")
       : this.index.isOnDemandMode() && ["ready", "preparing", "updating", "indexing", "incomplete"].includes(phase)
@@ -4234,8 +4347,8 @@ export default class KplexPlugin extends Plugin {
                 ? this.translator("index.statusSavingCache")
               : this.translator("index.statusUpdating");
     const hydration = this.index.getSnapshotHydrationDiagnostics?.();
-    const sourceProgress = (phase === "preparing" || phase === "updating" && this.index.hasActiveSourcePreparation?.())
-      && !this.index.isOnDemandMode() && !urlProgress.active && !urlProgress.failed
+    const sourceProgress = (phase === "preparing" || this.index.hasActiveSourcePreparation?.())
+      && !this.index.isOnDemandMode()
       ? this.startupDiagnostics?.progress("source") : null;
     const progress = phase === "loading-cache" && hydration?.phase === "source-authority"
       ? this.startupDiagnostics?.progress("source") : phase === "loading-cache" ? this.startupDiagnostics?.progress("hydration")
@@ -4261,7 +4374,26 @@ export default class KplexPlugin extends Plugin {
         : progress.processed > 0
           ? this.translator("index.startupRecordsProgress", { activity, processed: progress.processed.toLocaleString() }) : activity
       : label;
-    return { ...facts, label: progressLabel, totalFiles };
+    // Independent lanes remain visible together. An unrelated source/URL notification must not
+    // replace the current full-build progress with a single alternating activity description.
+    const labels = [progressLabel];
+    if (this.index.isWaitingForNativeResolution?.()) labels.push(this.translator("index.waitingNativeResolution"));
+    if (phase === "indexing" && progressLabel !== label) labels.unshift(label);
+    if (urlLabel && phase !== "deferred") labels.push(urlLabel);
+    const persistence = this.index.getSnapshotPersistenceDiagnostics?.();
+    const cacheSavePending = phase !== "deferred" && Boolean(persistence?.pending);
+    if (persistence?.active) labels.push(this.translator("index.statusSavingCache"));
+    else if (cacheSavePending) labels.push(this.translator("index.statusCacheSavePending"));
+    const activeWork = phase !== "deferred" && Boolean(phase === "loading-cache" || phase === "indexing" || phase === "saving-cache"
+      || this.index.hasActiveSemanticPreparation?.() || this.index.hasActiveSourcePreparation?.()
+      || urlProgress.active || persistence?.active);
+    // Read authority is independent of background completion. Describe the remaining work here;
+    // an unqualified ready line beside loading/saving makes the indicator contradict itself.
+    if (phase === "ready" && progressLabel === label && (activeWork || urlLabel)) {
+      labels.shift();
+      if (!labels.length) labels.push(this.translator("index.statusUpdating"));
+    }
+    return { ...facts, activeWork, cacheSavePending, label: [...new Set(labels)].join("\n"), totalFiles };
   }
 
   /**
@@ -4302,7 +4434,7 @@ export default class KplexPlugin extends Plugin {
       this.lastSupportIndexPhase = status.phase;
       this.supportEvents.record("index-phase-change", { category: "index", phase: status.phase });
     }
-    const key = `${status.upToDate ? "1" : "0"}:${status.phase}:${status.indexedFiles}:${status.totalFiles}:${status.label}`;
+    const key = `${status.upToDate ? "1" : "0"}:${status.activeWork ? "1" : "0"}:${status.cacheSavePending ? "1" : "0"}:${status.phase}:${status.indexedFiles}:${status.totalFiles}:${status.label}`;
     if (key === this.lastIndexStatusKey) return;
     this.lastIndexStatusKey = key;
     for (const listener of this.indexStatusListeners) listener();
@@ -4830,6 +4962,7 @@ export default class KplexPlugin extends Plugin {
       {line: Math.max(0, Math.floor(intent.line ?? 0))});
     else if (intent || !this.leafDisplaysPage(leaf, page)) await leaf.openFile(page.file, {active: intent?.active ?? false,
       ...(intent?.subpath ? {eState: {subpath: intent.subpath}} : {})});
+    if (!intent?.markdown) await this.finishDailyNoteOpening(leaf, page.file, stillCurrent);
     if (stillCurrent && (!stillCurrent() || !this.leafDisplaysPage(leaf, page))) return;
     session.preferences.sidecarLastFilePath = page.file.path;session.preferences.sidecarLastUrl = "";
     const state = leaf.getViewState();
@@ -5175,7 +5308,7 @@ export default class KplexPlugin extends Plugin {
       /** Core Daily Notes and the shared automation receipt own template expansion for the chosen date. */ async accepted => {
         const valid = (): boolean => accepted() && current() && dailyNotesSettingsCurrent(this.app, settings) && dailyNotePath(this.app, date) === path;
         if (!valid()) return null;
-        const file = await this.fileCreationAutomation.create(() => createConfiguredDailyNote(this.app, path, valid, day.getTime()));
+        const file = await this.createDailyNoteFile(path, valid, day.getTime());
         if (!file && valid()) throw new Error(this.translator("pins.createFailed"));
         return file && valid() ? this.index.insertCreatedFile(file) : null;
       });
@@ -5236,9 +5369,9 @@ export default class KplexPlugin extends Plugin {
     const row = this.readSavedPins().find(/** A fixed pin never gains periodic creation capability. */ item => item.id === id);
     if (!current() || !row?.period || row.state !== "missing" || row.path !== path || !path.endsWith(".md")) return null;
     if (row.period === "day" && this.settings.periodicPinSettings.day.useDailyNotes) {
-      const file = await this.fileCreationAutomation.create(() => createConfiguredDailyNote(this.app, path, /** Native creation and post-write effects retain the clicked pin's consent. */ () => !this.unloading && current()
+      const file = await this.createDailyNoteFile(path, /** Native creation and post-write effects retain the clicked pin's consent. */ () => !this.unloading && current()
         && this.settings.periodicPinSettings.day.useDailyNotes
-        && this.readSavedPins().some(item => item.id === id && item.period === "day" && item.path === path && (item.state === "missing" || item.state === "ready"))));
+        && this.readSavedPins().some(item => item.id === id && item.period === "day" && item.path === path && (item.state === "missing" || item.state === "ready")));
       if (!file && current()) throw new Error(this.translator("pins.createFailed"));
       return file ? this.index.insertCreatedFile(file) : null;
     }
@@ -7980,7 +8113,30 @@ export default class KplexPlugin extends Plugin {
     } else leaf = workspace.getLeaf("tab");
     this.lastDocumentLeaf = leaf;
     await leaf.openFile(file, {active: true});
+    await this.finishDailyNoteOpening(leaf, file);
     await workspace.revealLeaf(leaf);
+  }
+
+  /** Calendar, symbolic pins and placeholders share the native template/automation owner. */
+  private async createDailyNoteFile(path: string, current: () => boolean, time = Date.now()): Promise<TFile | null> {
+    const file = await this.fileCreationAutomation.create(() => createConfiguredDailyNote(this.app, path, current, time));
+    if (file) this.createdDailyNotes.add(file);
+    return file;
+  }
+
+  /** A template's active-editor command can run before any editor opens. Honor a newly created
+   * daily drawing through Excalidraw's public exact-view API, never through that global command.
+   * Explicit Markdown source inspection and pre-existing daily notes retain their chosen mode. */
+  private async finishDailyNoteOpening(leaf: WorkspaceLeaf, file: TFile, current: () => boolean = () => true): Promise<void> {
+    if (!this.createdDailyNotes.has(file) || this.unloading || !current() || this.app.vault.getFileByPath(file.path) !== file) return;
+    const view = leaf.view;
+    if (!(view instanceof FileView) || view.file !== file) return;
+    if (view.getViewType() === "excalidraw") {this.createdDailyNotes.delete(file);return;}
+    if (view.getViewType() !== "markdown") return;
+    const ea = (window as unknown as {ExcalidrawAutomate?: {isExcalidrawFile?: (file: TFile) => boolean; toggleViewMode?: (view: FileView) => Promise<unknown>}}).ExcalidrawAutomate;
+    if (!ea?.isExcalidrawFile?.(file) || typeof ea.toggleViewMode !== "function") return;
+    await ea.toggleViewMode(view);
+    if (leaf.view instanceof FileView && leaf.view.file === file && leaf.view.getViewType() === "excalidraw") this.createdDailyNotes.delete(file);
   }
 
   /** Yield only while an explicit editor request waits for its committed scene; unload settles every wait. */
@@ -8115,6 +8271,7 @@ export default class KplexPlugin extends Plugin {
     hostLeaf?: WorkspaceLeaf,
     templatePath?: string,
     afterSaving: CreationAfterSavingAction = "return",
+    dailyDate?: string,
   ): Promise<boolean> {
     const retainedPlan = retainedFile ? continuation.relocation : undefined;
     const oldPath = retainedPlan?.oldPath ?? page.path;
@@ -8139,15 +8296,18 @@ export default class KplexPlugin extends Plugin {
       this.translator("ghost.relocationUnsupported"));
     if (this.unloading || retainedFile && this.app.vault.getFileByPath(retainedFile.path) !== retainedFile) throw new Error(changed);
     if (retainedFile && (retainedFile.parent?.path === "/" ? "" : retainedFile.parent?.path) !== destination.folderPath) throw new Error(changed);
-    const file = retainedFile ?? await this.createNewFileInFolder(stem, kind, destination.folderPath, undefined, templatePath);
+    const day = dailyDate ? calendarDay(dailyDate) : null;
+    const file = retainedFile ?? (day ? await this.createDailyNoteFile(`${destination.folderPath ? destination.folderPath + "/" : ""}${stem}.md`, current, day.getTime())
+      : await this.createNewFileInFolder(stem, kind, destination.folderPath, undefined, templatePath));
     if (!file) return false;
     try {
       await this.waitForCreatedFileAutomation(file);
+      if (dailyDate) this.createdDailyNotes.add(file);
       if ((file.parent?.path === "/" ? "" : file.parent?.path) !== destination.folderPath) throw new Error(changed);
       if (relocation) await applyPlaceholderRelocation(this.app, relocation, file, /** Native replacement identities never inherit a dismissed placeholder's write authority. */ () => !this.unloading
         && !this.app.metadataCache.getFirstLinkpathDest(oldPath, sources[0]?.path ?? ""), changed);
       await this.writeCreatedNodeDisplayName(file, rawDisplayName);
-      await this.rememberNewNodeDefaultType(kind);
+      if (!dailyDate) await this.rememberNewNodeDefaultType(kind);
       const target = relocation?.target;
       if (target && (target.file !== file || file.path !== target.path || this.app.vault.getFileByPath(target.path) !== file)) throw new Error(changed);
       const wasCenter = (hostLeaf ? this.documentSession(hostLeaf)?.centerPath : this.settings.lastActivePath) === oldPath;
@@ -8193,6 +8353,8 @@ export default class KplexPlugin extends Plugin {
       : "markdown";
 
     const continuation: { relocation?: PlaceholderRelocation } = {};
+    const dailySettings = readDailyPinSettings(this.app), daily = dailyNoteCreationTarget(this.app, page.path, dailySettings);
+    const dailyFolder = daily ? daily.path.slice(0, Math.max(0, daily.path.lastIndexOf("/"))) : "";
     new MaterializeGhostModal(
       this.app,
       validation.stem,
@@ -8204,6 +8366,14 @@ export default class KplexPlugin extends Plugin {
       chooseFolder,
       this.drawingTemplateOptions(),
       this.createdNoteCompletionControl(hostLeaf, {another: false, follow: false}),
+      daily && dailySettings ? {path: daily.path, create: (retainedFile, current, afterSaving) => {
+        const valid = (): boolean => current() && ownerCurrent() && dailyNotesSettingsCurrent(this.app, dailySettings)
+          && dailyNoteCreationTarget(this.app, page.path)?.path === daily.path;
+        if (!valid()) return Promise.resolve(false);
+        const name = daily.path.slice(daily.path.lastIndexOf("/") + 1, -3);
+        return this.materializeGhostPage(page, name, "markdown", dailyFolder ?? "", rawLeafName, retainedFile, continuation,
+          valid, preserveCenter, hostLeaf, undefined, afterSaving, daily.date);
+      }} : undefined,
     ).open();
   }
 

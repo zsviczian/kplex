@@ -3,7 +3,7 @@
  * the exact build in an explicit disposable vault. CLI deadlines and test-window activation belong
  * to this driver; no renderer scheduling, cache authority or production settings are modified.
  */
-import { spawnNativeSync as spawnSync, obsidianCliExecutable, runPortableVerification } from "./processTools.mjs";
+import { spawnNativeSync as spawnSync, obsidianCliExecutable, runPortableVerification, runLocalBuild } from "./processTools.mjs";
 import { mkdtempSync } from "node:fs";
 import { release } from "node:os";
 import { tmpdir } from "node:os";
@@ -44,7 +44,7 @@ const report = await runObsidianVerification({
     os: `${process.platform} ${release()}`,
   },
   runCli: runNativeCli,
-  runVerify: () => runPortableVerification(projectRoot),
+  runVerify: () => {runPortableVerification(projectRoot);runLocalBuild(projectRoot);},
 });
 
 console.log(`Obsidian verification ${report.status}; report: ${join(reportDir, "report.json")}`);

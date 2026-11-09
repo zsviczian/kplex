@@ -134,12 +134,13 @@ function probe() {
     const value = parsed?.indexingActivity, text = JSON.stringify(value), bytes = new TextEncoder().encode(text).length;
     check(owned && Object.isFrozen(owned) && Object.isFrozen(owned.current) && Object.isFrozen(owned.columns), "Report did not receive an owned frozen activity capture");
     check(value && value.schemaVersion === 1 && value.captureVersion === 1 && value.status === "active", "Activity export schema/status differs");
-    check(JSON.stringify(owned) === text && !Object.hasOwn(parsed.index ?? {}, "indexingActivity"), "Export did not share the exact one top-level owned activity capture");
+    const {build, ...settings} = owned.settings;
+    check(JSON.stringify({...owned, settings}) === text && parsed.plugin.buildId === build && !Object.hasOwn(parsed.index ?? {}, "indexingActivity"), "Export did not share the exact activity with canonical build identity");
     check(bytes <= 8192 && value.hours.length <= 25 && value.recent.length <= 16 && value.active.length <= 2, "Activity export exceeds its bounded capacity");
     check(value.totals.length === value.columns.totals.length && value.current.length === value.columns.current.length
       && value.hours.every(/** Hour row shape follows the exported shared dictionary. */ row => row.length === value.columns.hour.length)
       && [...value.recent, ...value.active, ...(value.lastGlobal ? [value.lastGlobal] : [])].every(/** Recent/open/global rows use the same declared pass schema. */ row => row.length === value.columns.pass.length), "Activity row/schema columns differ");
-    check(typeof value.settings.build === "string" && value.settings.build.length > 0, "Static public build identity unavailable");
+    check(typeof parsed.plugin.buildId === "string" && parsed.plugin.buildId.length > 0 && value.settings.build === undefined, "Canonical public build identity unavailable");
     return { summaryBytes: bytes, schemaVersion: value.schemaVersion, captureVersion: value.captureVersion, exactOwnedCapture: true,
       frozenCapture: true, hourRows: value.hours.length, recentRows: value.recent.length, activeRows: value.active.length, currentColumns: value.columns.current.length };
   };
@@ -209,13 +210,27 @@ function probe() {
   const activate = async (leaf, nativeWindow) => { ensureActive(); nativeWindow.show(); nativeWindow.focus(); nativeWindow.webContents.focus(); app.workspace.setActiveLeaf(leaf, { focus: true }); await app.workspace.revealLeaf(leaf); ensureActive(); leaf.view.focus?.(); await wait(100); };
   /** Deliver a trusted Electron click to the real native control, then inspect its production result. */
   const click = async (element, nativeWindow) => {
-    const rect = element?.getBoundingClientRect(); check(rect && rect.width > 0 && rect.height > 0, "Control has no native rectangle");
     const owner = element.ownerDocument.defaultView;
+    // Native Modal owns vertical scrolling. Narrow/short windows can legitimately place a
+    // footer below its scrollport; bring the real control into view before hit-testing it.
+    element.scrollIntoView({block:"nearest",inline:"nearest"});
+    remote.app.focus({ steal: true }); nativeWindow.show(); nativeWindow.focus(); nativeWindow.webContents.focus();
+    await until(/** Resizing and modal dismissal can asynchronously change native focus/target ownership. */ () =>
+      nativeWindow.isFocused() && owner.document.hasFocus() && !owner.document.hidden, "Native support control lost foreground", 5000);
+    await until(/** A retained toolbar rectangle is insufficient while a native narrow-layout pass moves controls. */ () => {
+      const rect = element.getBoundingClientRect(), hit = owner.document.elementFromPoint(rect.left + rect.width / 2, rect.top + rect.height / 2);
+      c.focusFailure = {phase:c.phase,kind:"native-hit-test",control:element.getAttribute("aria-label"),controlClass:element.className,
+        rect:rect.toJSON(),hitClass:hit?.className??null,hitLabel:hit?.getAttribute("aria-label")??null,viewport:[owner.innerWidth,owner.innerHeight]};
+      return element.isConnected && rect.width > 0 && rect.height > 0 && element.contains(hit);
+    }, "Native support control is not hit-testable", 5000);
+    c.focusFailure = null;
+    const rect = element.getBoundingClientRect();
     check(rect.left >= 0 && rect.right <= owner.innerWidth && rect.top >= 0 && rect.bottom <= owner.innerHeight, "Control is outside native viewport");
     c.lastTrusted = false;
+    nativeWindow.webContents.sendInputEvent({ type: "mouseMove", x: Math.round(rect.left + rect.width / 2), y: Math.round(rect.top + rect.height / 2) });
     nativeWindow.webContents.sendInputEvent({ type: "mouseDown", x: Math.round(rect.left + rect.width / 2), y: Math.round(rect.top + rect.height / 2), button: "left", clickCount: 1 });
     nativeWindow.webContents.sendInputEvent({ type: "mouseUp", x: Math.round(rect.left + rect.width / 2), y: Math.round(rect.top + rect.height / 2), button: "left", clickCount: 1 });
-    await wait(80); check(c.lastTrusted, "Native support control did not receive trusted Electron input");
+    await until(/** Observe delivery rather than assuming a fixed timer proves native input completion. */ () => c.lastTrusted, "Native support control did not receive trusted Electron input", 2000);
   };
   /** Close exactly this report's actual native Modal, never unrelated host dialogs. */
   const close = async (owner, nativeWindow) => {
@@ -279,7 +294,7 @@ function probe() {
     const element = modal(owner), preview = element?.querySelector("textarea"), status = element?.querySelector("[role=status]"), write = c.writes.at(-1);
     check(element && preview && status, "Native report modal incomplete"); c.ownedModal = { owner, element };
     const bytes = preview.value, parsed = JSON.parse(bytes.split("```json\n")[1]?.split("\n```")[0] ?? "null");
-    check(parsed?.formatVersion === 1 && bytes.length <= 32768, "Support schema/size contract failed");
+    check(parsed?.formatVersion === 2 && bytes.length <= 49152, "Support schema/size contract failed");
     check(c.latestActivity?.phase === c.phase, "Support activity capture belongs to another invocation");
     const activityChecks = verifyActivity(parsed, c.latestActivity.owned);
     if (c.phase !== "missing") check(bytes === write?.text, "Preview differs from exact intercepted clipboard bytes");
@@ -333,7 +348,7 @@ function probe() {
       check(wrongOwnerWrites === 0 && c.writes.length === before + 1, "Index diagnostics used the wrong native clipboard owner or copied twice");
       const write = c.writes.at(-1), parsed = JSON.parse(write.text);
       check(write.ownerKind === ownerKind && write.phase === c.phase && write.inReport && !write.modalBeforeWrite && !modal(owner), "Index copy lost owning-window synchronous delivery");
-      check(new TextEncoder().encode(write.text).length <= 32768 && c.latestActivity?.phase === c.phase, "Index diagnostics size or capture invocation differs");
+      check(new TextEncoder().encode(write.text).length <= 49152 && c.latestActivity?.phase === c.phase, "Index diagnostics size or capture invocation differs");
       const activityChecks = verifyActivity(parsed, c.latestActivity.owned);
       c.cases.push({ name: c.phase, activation: "programmatic-native-command", trustedInput: false, exactClipboardOwner: !sharedClipboard,
         clipboardCapability: sharedClipboard ? "shared-native-object-owner-distinction-unavailable" : "distinct-native-owner",
@@ -357,7 +372,8 @@ function probe() {
       check(tab && typeof tab.getSettingDefinitions === "function", "Native declarative settings definitions unavailable");
       const compatibility = tab.getSettingDefinitions().find(/** Native searchable hierarchy must own this control under Compatibility. */ definition => definition.type === "page" && definition.name === p.translator("settings.ui.compatibility"));
       const group = compatibility?.items?.find(/** Excalidraw is an actual declarative group, not a separate imperative modal. */ definition => definition.type === "group" && definition.heading === p.translator("settings.excalidrawCompatibility"));
-      const definition = group?.items?.find(/** Require the stable setting key, native toggle type and default search visibility. */ item => item.control?.key === "excalidrawFitOnNodeOpen" && item.control.type === "toggle" && item.searchable !== false && item.visible !== false);
+      const fitKey = tab.receivedControlKey("excalidrawFitOnNodeOpen");
+      const definition = group?.items?.find(/** Require the current native received-settings epoch, toggle type and default search visibility. */ item => item.control?.key === fitKey && item.control.type === "toggle" && item.searchable !== false && item.visible !== false);
       check(definition?.name && definition.desc, "Drawing-fit declarative setting is absent or not searchable");
       const doc = app.setting.getCurrentPageEl().ownerDocument, ownerWindow = doc.defaultView;
       check(typeof ownerWindow?.require === "function", "Native Settings document has no Electron owner");
@@ -400,7 +416,7 @@ function probe() {
       for (const key of ["requestInventory", "reconcile"]) observeRefresh(p.index.sourceAcquisition, key, "source/" + key);
       const originalWriter = tab.setControlValue;
       restores.push(replace(tab, "setControlValue", /** Track completion of the unchanged public declarative writer so persistence checks cannot race its save. */ async function (key, value) {
-        if (key !== "excalidrawFitOnNodeOpen") return originalWriter.call(this, key, value);
+        if (key !== fitKey) return originalWriter.call(this, key, value);
         activeWrites++;
         try { const returned = await originalWriter.call(this, key, value); completed.push(value); return returned; }
         catch (error) { failures.push("setting-write-failed"); throw error; }
@@ -485,7 +501,10 @@ function probe() {
       c.restoreRealClipboard = /** Restore text/empty formats exactly; private original text never enters a serializable result. */ () => {
         const original = c.originalClipboard; if (!original) return;
         if (original.empty) nativeClipboard.clear(); else nativeClipboard.writeText(original.text);
-        check(nativeClipboard.readText() === original.text && JSON.stringify(nativeClipboard.availableFormats()) === JSON.stringify(original.formats), "Original native clipboard formats/text not restored");
+        const restoredText = nativeClipboard.readText() === original.text, restoredFormats = nativeClipboard.availableFormats();
+        check(restoredText && JSON.stringify(restoredFormats) === JSON.stringify(original.formats),
+          "Original native clipboard formats/text not restored " + JSON.stringify({ empty: original.empty,
+            expectedFormats: original.formats.length, actualFormats: restoredFormats.length, textMatches: restoredText }));
         c.realClipboardModified = false; c.originalClipboard = null;
       };
       try {
@@ -595,7 +614,7 @@ finally {
         await attempt('settings-after-layout',/** Await original preference persistence after native layout callbacks settle. */ async()=>{Object.assign(c.p.settings,c.originalSettings);await c.p.saveSettings(false,false);await c.p.settingsWriteQueue;});
         await attempt('native-window-bounds',/** Restore the exact disposable main window's original minimum and desktop geometry. */ ()=>{c.win.setMinimumSize(...c.originalMinimum);c.win.setBounds(c.originalBounds);});
         await attempt('sidebar-state',/** Preserve both original collapsed states independently of test-created sidebar leaves. */ ()=>{for(const side of ['left','right']){const split=app.workspace[side+'Split'];if(c.originalSidebarStates[side])split.collapse();else split.expand();}});
-        await attempt('native-leaf-associations',/** Restore native linked/sidecar associations after layout replaces leaf instances. */ ()=>{
+        await attempt('native-leaf-associations',/** Restore native linked/sidecar associations after layout replaces leaf instances. */ async()=>{
           /** Native layout restoration can replace objects; use the original serialized leaf id. */
           const rebind=old=>old?app.workspace.getLeavesOfType(old.getViewState().type).find(/** Identify the serialized original native leaf rather than selecting an arbitrary same-type surface. */ leaf=>leaf.id===old.id)??null:null;
           await documentSessions(c.p).restore(c.owners.documents);c.p.lastDocumentLeaf=rebind(c.owners.lastDocumentLeaf);

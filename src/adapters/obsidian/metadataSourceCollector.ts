@@ -55,7 +55,8 @@ export type ObsidianMetadataSourceHost = Readonly<{
   getFileByPath(path: string): TFile | null;
   resolveLinkpath(linkpath: string, sourcePath: string): TFile | null;
   resolvedLinkCount(sourcePath: string, targetPath: string): number;
-  isDateProperty(fieldName: string): boolean;
+  /** Without a value, observe global assignments; with a value, include source-local inference. */
+  isDateProperty(fieldName: string, value?: unknown): boolean;
   dailyNotesSettings(): DailyNotesSourceSettings | null;
   formatDailyDate(isoDate: string, format: string): string | null;
 }>;
@@ -73,6 +74,7 @@ type AppWithMetadataTypes = App & Readonly<{
   metadataTypeManager?: Readonly<{
     getPropertyInfo?: (name: string) => Readonly<{ widget?: string }> | null;
     getAssignedWidget?: (name: string) => string | null;
+    getTypeInfo?: (name: string, value: unknown) => Readonly<{ inferred?: Readonly<{ type?: string }> }>;
   }>;
 }>;
 
@@ -93,16 +95,31 @@ function normalizePath(path: string): string {
  * Explicit Obsidian-only runtime service used by C12c. Private property-registry/Daily Notes
  * compatibility reads and host Moment stay here; normalized records never retain the App/window.
  */
-export function createObsidianMetadataSourceHost(app: App): ObsidianMetadataSourceHost {
+export function createObsidianMetadataSourceHost(app: App): ObsidianMetadataSourceHost & Readonly<{
+  /** Null means source-local inference, distinct from an explicit non-Date assignment. */
+  datePropertyAssignment(fieldName: string): boolean | null;
+}> {
+  /** Read live native assignments; per-note hints must never become global registry changes. */
+  const datePropertyAssignment = (fieldName: string): boolean | null => {
+    const manager = (app as AppWithMetadataTypes).metadataTypeManager;
+    if (manager?.getAssignedWidget && manager.getTypeInfo) {
+      const assigned = manager.getAssignedWidget(fieldName);
+      return assigned == null ? null : assigned === "date";
+    }
+    const widget = manager?.getAssignedWidget?.(fieldName) ?? manager?.getPropertyInfo?.(fieldName)?.widget;
+    return widget === "date";
+  };
   return {
     getFileByPath: (path) => app.vault.getFileByPath(path),
     resolveLinkpath: (linkpath, sourcePath) => app.metadataCache.getFirstLinkpathDest(linkpath, sourcePath),
     resolvedLinkCount: (sourcePath, targetPath) => app.metadataCache.resolvedLinks[sourcePath]?.[targetPath] ?? 0,
-    isDateProperty: (fieldName) => {
+    datePropertyAssignment,
+    isDateProperty: (fieldName, value) => {
       const manager = (app as AppWithMetadataTypes).metadataTypeManager;
-      const info = manager?.getPropertyInfo?.(fieldName);
-      const widget = info?.widget ?? manager?.getAssignedWidget?.(fieldName);
-      return widget === "date";
+      const assignment = datePropertyAssignment(fieldName);
+      if (assignment !== null) return assignment;
+      // Native inference belongs to this value, not the last note parsed with this field name.
+      return value != null && manager?.getTypeInfo?.(fieldName, value).inferred?.type === "date";
     },
     dailyNotesSettings: /** Shared optional host capability retains the source adapter's exact rules. */ () => readDailyNotesSettings(app),
     formatDailyDate: (isoDate, format) => {
@@ -432,7 +449,7 @@ export class ObsidianMetadataSourceCollector {
     const daily = this.host.dailyNotesSettings();
     if (daily) {
       for (const [fieldName, rawValue] of Object.entries(this.metadata.frontmatter)) {
-        if (!this.host.isDateProperty(fieldName)) {
+        if (!this.host.isDateProperty(fieldName, rawValue)) {
           if (!(await touch())) return false;
           continue;
         }

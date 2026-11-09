@@ -57,6 +57,7 @@ import type {PublicCanvasRegistration} from '../application/PublicCanvasRegistry
 import {PublicApiError} from '../application/publicApiContracts';
 import {publicCanvasState, type PublicScenePublication} from './publicCanvasScene';
 import type { GraphPage } from "../types";
+import {deletedFileNavigationTarget} from "../adapters/obsidian/deletedFileNavigation";
 import type { PresentationEnvironment } from "../core/contracts/presentationEnvironment";
 import { isGraphTabCommandAvailable } from "../core/plex/viewPresentation";
 import { type ActionContext } from "../application/ActionManager";
@@ -131,9 +132,13 @@ function useIndexStatus(plugin: KplexPlugin, hostLeaf: WorkspaceLeaf): IndexStat
       // Terminal readiness must clear a stale indicator even if native leaf geometry has not
       // settled yet. Skip intermediate hidden-view progress to avoid background render churn.
       const visible = plugin.isKplexLeafVisible(hostLeaf);
-      if (!visible && (!next.upToDate || lastStatusRef.current.upToDate)) return;
+      if (!visible && (!next.upToDate || next.activeWork
+        || lastStatusRef.current.upToDate && !lastStatusRef.current.activeWork
+          && lastStatusRef.current.cacheSavePending === next.cacheSavePending)) return;
       const previous = lastStatusRef.current;
       if (previous.upToDate === next.upToDate
+        && previous.activeWork === next.activeWork
+        && previous.cacheSavePending === next.cacheSavePending
         && previous.phase === next.phase
         && previous.label === next.label
         && previous.indexedFiles === next.indexedFiles
@@ -190,7 +195,7 @@ function IndexStatusIndicator({
     <button
       ref={controlRef}
       type="button"
-      className={`kplex-index-status${status.upToDate ? " is-ready" : status.phase === "incomplete" ? " is-incomplete" : " is-updating"}`}
+      className={`kplex-index-status${status.upToDate && !status.activeWork ? " is-ready" : status.phase === "incomplete" ? " is-incomplete" : " is-updating"}`}
       aria-labelledby={nameId}
       data-kplex-tooltip="callout"
       aria-expanded={open}
@@ -621,6 +626,14 @@ export function KplexApp({ plugin, surface, hostLeaf, translate, environment, on
       const trackedFile = activeFileRef.current;
       const currentPage = plugin.index.get(activePathRef.current);
       const trackedPage = activePageRef.current;
+      const trackedFilePresent = trackedFile && plugin.app.vault.getFileByPath(trackedFile.path) === trackedFile;
+      const placeholder = deletedFileNavigationTarget(plugin.app, activePathRef.current, path => plugin.index.get(path));
+      if (placeholder) {
+        activePathRef.current = placeholder.path;
+        activePageRef.current = placeholder;
+        activeFileRef.current = null;
+        setActivePath(placeholder.path);
+      }
       // A centered ghost has no native file to track until materialization mutates that exact
       // accepted page. Follow only its identity remap; replacement objects and other Plex centers
       // cannot authorize navigation, history changes or document synchronization on this surface.
@@ -639,7 +652,7 @@ export function KplexApp({ plugin, surface, hostLeaf, translate, environment, on
         plugin.index.insertCreatedFile(trackedFile);
         return;
       }
-      if (trackedFile && trackedFile.path !== activePathRef.current && plugin.index.get(trackedFile.path)) {
+      if (trackedFilePresent && trackedFile.path !== activePathRef.current && plugin.index.get(trackedFile.path)) {
         activePathRef.current = trackedFile.path;
         setActivePath(trackedFile.path);
       }
@@ -839,7 +852,7 @@ export function KplexApp({ plugin, surface, hostLeaf, translate, environment, on
     {!plugin.index.isOnDemandMode() && ["indexing", "saving-cache", "updating"].includes(indexStatus.phase) &&
       <div>{translate("index.filesIndexed", { indexed: indexStatus.indexedFiles, total: indexStatus.totalFiles })}</div>
     }
-    <div>{indexStatus.label}</div>
+    <div className="kplex-index-activities">{indexStatus.label}</div>
   </div>;
 
   // The first render can show the empty indexing view, which has no rootRef. Attach once the

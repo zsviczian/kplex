@@ -28,6 +28,14 @@ directories, and never automatically deletes tracked history.
 
 Use Node.js **22.22.2** for acceptance checks. If your environment cannot provide it or install dependencies, record the limitation and return runnable checks for the validation agent; results from another runtime do not replace the required lane.
 
+Use `npm run build:local` for an optimized build deployed to a local vault. It has the same
+optimizations and hardening as production, with a compile-time UTC/Git build identity for diagnostics.
+Use `npm run dev` for watch development; each actual rebuild refreshes that identity. The release
+and scanner command remains `npm run build`, reproducible without Git metadata. Release workflows
+must never publish locally identified bundles. See [diagnostic build identities](docs/INDEXING_DIAGNOSTICS.md#local-build-identities).
+
+After exact-build staging, `npm run verify:obsidian:index-pacing` uses the three explicit `kplex-test-small` target variables and a fresh `KPLEX_HOST_REPORT_DIR`. It exercises bundled short-wait pacing in all three scheduling modes, mutation preemption, unload settlement, and replacement/reclamation/restoration of a private synthetic IndexedDB snapshot. It creates no vault notes and preserves settings/enablement bytes. The report compares the retained timer fallback with the native short-wait path and records actual visibility. `KPLEX_PACING_HIDDEN=true` temporarily hides only the selected Small window and restores its visibility/focus/minimized state in independent cleanup; it does not alter Electron throttling. Hosts without asynchronous atomic-wait support retain native timer fallback. Windows evidence does not establish macOS or physical mobile behavior.
+
 ```bash
 npm i
 npm run verify
@@ -46,6 +54,43 @@ Build output must appear in `dist/` and contain:
 - `dist/styles.css`
 
 The plugin ID is `k-plex`.
+
+### Indexing and persistence acceptance
+
+The [mandatory indexing and persistence gates](CODING_STANDARDS.md#mandatory-indexing-and-persistence-acceptance-gates)
+apply before declaring an indexing change complete. Include the following in the
+implementation checklist and the PR results:
+
+1. Capture the reported workload, released baseline, branch base, exact artifact,
+   settings and cache condition. State which measured behavior must improve.
+2. Reproduce the failed workflow with executable coverage. Include a settled
+   persisted graph with non-default ontology and structural changes, rather than
+   relying only on a clean installation or a tiny source fixture.
+3. After reconciliation, verify that the correct complete cache actually
+   activates. Run two unchanged restart cycles and compare all work admissions
+   and counters. Verify that the same settings/topology differences do not return
+   and that only actual changed owners and proven dependents require processing.
+   Include Obsidian's **Reload app without saving** when validating application
+   startup: a plugin toggle does not reproduce native metadata-cache startup, and
+   a shutdown flush cannot satisfy this restart path.
+4. Exercise pending-save close/reopen, no-op native events, save failure/retry,
+   idle/wake and foreground mutations during background work. Keep assertions
+   about current-view correctness, cancellation, identities and bounded memory.
+5. Check simultaneous status activities in the real UI. Record first paint,
+   requested-view readiness, full settlement and cache activation separately.
+6. Run `npm run verify` and the affected exact-build native lanes using Node
+   22.22.2. If an aggregate run fails, preserve the failure and record any unchanged
+   rerun plus the completion of every remaining gate; do not claim that failed
+   aggregate invocation passed. Recheck affected evidence after source edits.
+7. Compare the final artifact with the tested/staged/deployed hashes and verify
+   independent cleanup. Keep logs and timing receipts in managed ignored storage;
+   put a concise gate-by-gate result and any unfinished acceptance in the PR.
+
+Read-only observation in a production vault does not authorize changing its notes,
+resetting its cache, altering preferences or creating another test vault. Use the
+existing approved disposable vault for mutation/failure scenarios; obtain consent
+before preparing a new vault. Existing explicit deployment/restart authorization
+continues to apply within its stated scope.
 
 ### Release metadata
 
@@ -78,6 +123,15 @@ SI3 source storage has two focused lanes: `npm run test:sources` exercises produ
 ### Desktop CLI setup (Windows and macOS)
 
 After exact-build staging, `npm run verify:obsidian:pins-calendar-journal` uses the three explicit disposable `kplex-test-small` target variables below and `KPLEX_HOST_REPORT_DIR`. It exercises pin editing and scrolling, the native Daily Notes calendar, confirmed past-date creation through Core templates, nearest journal links in Compass/Mindmap/Facets, independent ontology memory, narrow light/dark presentation and popout navigation. The driver owns its temporary notes and restores Daily Notes options, settings bytes, appearance, workspace and geometry. Core Daily Notes must be enabled in this disposable vault. It uses Obsidian's DOM menu backend for observable trusted Electron input; macOS, physical touch and OS date-picker behavior remain separate acceptance.
+
+For daily-template materialization, run `node scripts/testing/obsidian/dailyNoteMaterialization.mjs`
+under the same shared application lock, exact-build staging and explicit Small variables.
+Stage and enable real Templater and Excalidraw first; the caller restores that executable
+staging afterward. The scenario checks the native placeholder option and its displayed
+destination, actual template evaluation, calendar and Today confirmation, exact-file drawing
+opening and plain Markdown preservation, with zero additional full graph builds. It restores
+its notes, template callbacks, native options, settings and workspace; it does not run the
+production DNP template or establish physical mobile/Mac acceptance.
 
 Install a CLI-capable Obsidian desktop installer, enable **Settings → General → Advanced → Command line interface**, and complete registration. Keep Obsidian running and the test vault open. Restart the terminal (and an already-running IDE/agent session) after registration so it sees the updated PATH. See [Obsidian's CLI installation and troubleshooting](https://help.obsidian.md/cli).
 

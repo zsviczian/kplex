@@ -81,15 +81,20 @@ function encode(value: unknown): string {
 }
 
 /** Pick only semantic roles and suppression inputs; discovery exclusions are not compiled policy. */
-function semanticValues(settings: SettingsPolicyInput): Record<string, unknown> {
+function scalarSemanticValues(settings: SettingsPolicyInput) {
   return {
-    hierarchy: Object.fromEntries(HIERARCHY_ROLES.map((role) => [role, [...ontologyConfiguration(settings).hierarchy[role]]])),
     inferAllLinksAsFriends: settings.inferAllLinksAsFriends,
     inverseInfer: settings.inverseInfer,
     datePropertyRelations: sanitizeDatePropertyRelations(settings.datePropertyRelations),
     thumbnailProperty: settings.thumbnailProperty ?? "thumbnail",
     nodeImageProperty: settings.nodeImageProperty ?? "node-image",
   };
+}
+
+/** Resolve the canonical hierarchy once; callers may already hold its immutable paired projection. */
+function semanticValues(settings: SettingsPolicyInput, hierarchy = ontologyConfiguration(settings).hierarchy,
+  values = scalarSemanticValues(settings)): Record<string, unknown> {
+  return {hierarchy: Object.fromEntries(HIERARCHY_ROLES.map(role => [role, [...hierarchy[role]]])), ...values};
 }
 
 /** Capture before the next mutation. The caller may continue mutating its original settings. */
@@ -154,9 +159,20 @@ export function sanitizeChangedSettingKeys(value: unknown): SettingDiagnosticKey
   return SETTING_DIAGNOSTIC_KEYS.filter((key) => value.includes(key));
 }
 
-/** Write signature format 4 for Date fallback roles; neutral source and snapshot schemas stay intact. */
+/** One encoding per live immutable paired hierarchy/scalar policy; no mutable plugin settings are retained. */
+const signatures = new WeakMap<SemanticHierarchy, Readonly<{values: ReturnType<typeof scalarSemanticValues>; encoded: string}>>();
+
+/** Write the identical format-4 bytes. The ontology owner retires paired projections on committed
+ * edits; legacy mutable hierarchies and unsupported scalar shapes retain uncached encoding. */
 export function encodeIndexSettingsSignature(settings: SettingsPolicyInput): string {
-  return JSON.stringify({ schema: 1, signatureVersion: 4, ...semanticValues(settings) });
+  const hierarchy = ontologyConfiguration(settings).hierarchy, values = scalarSemanticValues(settings);
+  const reusable = settings.ontologyPairingVersion === 1 && typeof values.inferAllLinksAsFriends === "boolean"
+    && typeof values.inverseInfer === "boolean" && typeof values.thumbnailProperty === "string" && typeof values.nodeImageProperty === "string";
+  const cached = reusable ? signatures.get(hierarchy) : undefined;
+  if (cached && SEMANTIC_KEYS.every(key => cached.values[key] === values[key])) return cached.encoded;
+  const encoded = JSON.stringify({schema: 1, signatureVersion: 4, ...semanticValues(settings, hierarchy, values)});
+  if (reusable) signatures.set(hierarchy, {values, encoded});
+  return encoded;
 }
 
 export type SignatureCompatibility = Readonly<{

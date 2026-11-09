@@ -43,6 +43,7 @@ import { perfNow } from "../util/perf";
 import { NormalizedGraphCompiler, type CompiledGraphNode, type CompiledRelationEvidence, type GraphCompilerSourceRead, type PortableGraphCompilation, type PortableNodeCompilation } from "../core/graph/compiler";
 import { graphCompilerSettingsFromLegacy } from "../adapters/obsidian/graphContracts";
 import { NormalizedSourcePatchPreparer, type PreparedSourcePatch, type SourcePatchReadPort } from "../core/graph/patch";
+import type { ReferencePolicySelector } from "../core/graph/sourcePolicy";
 import { nodeId, type NodeId } from "../core/graph/model";
 import { entityFactForFile, ObsidianStructuralPatchSourceCollector, ObsidianStructuralSourceCollector } from "../adapters/obsidian/structuralSourceCollector";
 import { ObsidianHostLinkSourceCollector, readHostLinkSignatureEntries } from "../adapters/obsidian/hostLinkSourceCollector";
@@ -94,6 +95,8 @@ export type PatchFileCommit = Readonly<{
   semanticChanged: boolean;
   /** Exact source fingerprint matched; unlike node-only repairs, no compiled incidence changed. */
   unchangedSource?: boolean;
+  /** A semantic no-op can still introduce a field into the persisted discovery catalog. */
+  discoveryChanged?: boolean;
   /** A later equal-stat edit or metadata observation cannot be acknowledged by this commit. */
   sourcePublication?: SourceGraphPublication;
 }>;
@@ -323,8 +326,13 @@ export class GraphBuilder {
    * newer native/cache observations retain their journal entry through the receipt guard.
    * Call only after the owning private graph becomes live; failed/cancelled builders discard it.
    */
-  acknowledgePublishedSources(): void {
-    for (const receipt of this.sourcePublications.values()) this.sourceAcquisition?.acknowledgeGraphSource(receipt);
+  acknowledgePublishedSources(onCommitted?: (path: string) => void): void {
+    for (const receipt of this.sourcePublications.values()) {
+      // Retire the coordinator's matching observation at the same synchronous publication.
+      // A later edit/cache replacement must survive even when an unrelated source was covered.
+      if (receipt.isCurrent()) onCommitted?.(receipt.sourcePath);
+      this.sourceAcquisition?.acknowledgeGraphSource(receipt);
+    }
     this.sourcePublications.clear();
   }
 
@@ -338,7 +346,7 @@ export class GraphBuilder {
       resolved, unresolved,
       frontmatterFields: this.semanticFrontmatterFields,
       inlineFields: this.semanticInlineFields,
-      isDateProperty: (field) => this.metadataSourceHost.isDateProperty(field),
+      isDateProperty: (field) => this.metadataSourceHost.isDateProperty(field, cache?.frontmatter?.[field]),
     };
   }
 
@@ -798,11 +806,14 @@ export class GraphBuilder {
    * existing inline/property grammar is restricted to external targets; unrelated note relations and source inventory are not acquired here.
    * Private copy-on-write staging is committed only after exact native file/lifetime checks.
    * Evidence and adjacency adoption require independent live privacy checks during that commit.
+   * An optional immutable reference selector must belong to the same caller-fenced policy epoch;
+   * only configured-field preparation is shared, never source payloads or publication authority.
    * This isolated lane opts into cooperatively activated target/kind facts before origin reconciliation.
    * @returns Paths affected by the synchronous publication, or null after supersession.
    */
   async patchUrlReferences(state: GraphState, file: TFile, body: ParsedBodyMetadata, publisher: PatchFilePublisher, cachedFrontmatter?: Record<string, unknown>,
-    canAdoptEvidence?: (evidence: RelationEvidenceStore) => boolean, canAdoptAdjacency?: UrlAdjacencyPrivacy): Promise<Set<string> | null> {
+    canAdoptEvidence?: (evidence: RelationEvidenceStore) => boolean, canAdoptAdjacency?: UrlAdjacencyPrivacy,
+    referencePolicy?: ReferencePolicySelector): Promise<Set<string> | null> {
     const revision = this.captureFileRevision(file), sourcePath = revision.path;
     if (!this.isCurrent() || !(await this.compactPublishedPatchLayers(state))) return null;
     const staged = this.createPatchState(state, true, true, Boolean(canAdoptAdjacency));
@@ -810,7 +821,7 @@ export class GraphBuilder {
       if (!staged.pages.has(sourcePath)) this.addPage(staged, this.createPage({ path: sourcePath, name: file.basename, file }));
       const source = entityFactForFile(file);
       const preparer = new NormalizedSourcePatchPreparer(nodeId(sourcePath), this.fullCompilerSettings(),
-        this.patchCompilerRuntime(), this.patchReadPort(staged));
+        this.patchCompilerRuntime(), this.patchReadPort(staged), referencePolicy);
       const boundary = { generation: sourceGeneration(`url-owner:${sourcePath}:${revision.mtime}`),
         snapshotRevision: sourceSnapshotRevision(`url-owner:${sourcePath}:${revision.mtime}`) };
       const read = preparer.beginRead(boundary);
@@ -1556,13 +1567,14 @@ export class GraphBuilder {
       const fileTouchedPagePaths = new Set<string>();
       let sourcePublication: SourceGraphPublication | undefined;
       this.patchTouchedPagePaths = fileTouchedPagePaths;
-      const publishFileCommit = (semanticChanged: boolean, publishPreparedState: () => void): void => {
+      const publishFileCommit = (semanticChanged: boolean, publishPreparedState: () => void, discoveryChanged = false): void => {
         fileTouchedPagePaths.add(sourcePath);
         const commit: PatchFileCommit = {
           sourcePath,
           touchedPagePaths: new Set(fileTouchedPagePaths),
           semanticChanged,
           ...(!semanticChanged ? { unchangedSource: true } : {}),
+          ...(discoveryChanged ? {discoveryChanged: true} : {}),
           ...(sourcePublication ? { sourcePublication } : {}),
         };
         for (const path of fileTouchedPagePaths) touchedPagePaths.add(path);
@@ -1684,7 +1696,7 @@ export class GraphBuilder {
           if (retiredEndpoints) this.sourceAcquisition?.acknowledgeNodeImpacts(sourcePath, retiredEndpoints);
           this.rememberFieldCache(sourcePath, { mtime: revision.mtime, body, inputToken: bodyToken, semanticSignature: signature });
           this.semanticFingerprints.set(sourcePath, signature);
-        });
+        }, stagedState.discoveredFields.size !== state.discoveredFields.size);
         semanticNoops += 1;
         if (!(await this.yieldToHost())) return { ok: false, cancelled: true, rebuildRequired: false, touchedPagePaths, semanticChanges, semanticNoops };
         continue;

@@ -135,7 +135,7 @@ function startProbe(token, width, height, expected) {
       stableSamples = stable ? stableSamples + 1 : 0; previousRect = values; return stableSamples >= 2;
     }, "Native mobile report geometry did not settle");
     const text = preview.value, parsed = JSON.parse(text.split("```json\n")[1]?.split("\n```")[0] ?? "null"), write = c.writes[0];
-    check(c.writes.length === 1 && text === write.text && write.trusted && write.beforeModal && text.length <= 32768 && parsed?.formatVersion === 1, "Mobile report exact bytes/gesture/schema failed");
+    check(c.writes.length === 1 && text === write.text && write.trusted && write.beforeModal && text.length <= 49152 && parsed?.formatVersion === 2, "Mobile report exact bytes/gesture/schema failed");
     check(parsed.environment.formFactor === expected && parsed.environment.surfaceKind === "sidepanel" && !text.includes("kplex-test-small"), "Report lost actual device/surface privacy facts");
     const links = [...modal.querySelectorAll("a")];
     check(links.length === 2 && links[0].getAttribute("href") === "https://github.com/zsviczian/kplex/issues" && links[1].getAttribute("href") === "https://github.com/zsviczian/kplex/issues/new" && links.every(/** Both explicit external links retain isolated browser targets. */ link => link.target === "_blank" && link.rel.includes("noopener")), "Mobile issue guidance anchors incorrect");

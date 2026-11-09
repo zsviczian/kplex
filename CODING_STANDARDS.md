@@ -9,6 +9,7 @@ Existing subsystem requirements in those guides remain mandatory.
 ## Timers, window ownership and asynchronous work
 
 - In Obsidian host modules, use `window.setTimeout()` / `window.setInterval()` and matching main-window cancellation for coordination, persistence, retries and promise settlement that must survive a popout closing. Portable core receives clock/yield/cancellation capabilities; never introduce browser globals there.
+- Short index-pacing rests use `scheduleBackgroundIdle` from the Obsidian adapter. Its private nonblocking atomic wait avoids hidden-renderer timer clamping where supported, with owning-window timer fallback. Keep retry/debounce/deadline timers on the normal timer owner; never use blocking atomic waits, polling or global Electron throttling changes for pacing.
 - DOM creation, focus, events, observers, portals and rendering belong to the owning document/window. Disposable UI timers may use that window; capture it and cancel through the same object, even after migration.
 - Clean up resources when their owner retires; use Obsidian registration helpers or explicit idempotent cleanup. Canceling a timer must also settle any pending promise so finally blocks release resources.
 - Recheck captured file, view, generation and demand identities after asynchronous work before publishing or writing. Preserve atomic source/index publication and native ownership fences.
@@ -35,6 +36,108 @@ The optional guarded host seam and its limits are documented in
 - Every behavior change needs executable tests of observable outcomes and affected workflows. Capture failing regression evidence before fixing where practical. Never weaken accepted goldens, time bounds, architecture or lint gates to make a change pass.
 - Run focused checks while iterating, then `npm run verify` (including the real build and installed Obsidian types). Use exact-build native checks for affected workspace/UI/integration behavior and record unavailable environments honestly. Source checks and desktop emulation do not establish native or physical-device acceptance.
 - Keep new tests in the executed command inventory. Settings/persistence checks must include non-default data, unknown-key preservation and actual reload where relevant.
+
+### Mandatory indexing and persistence acceptance gates
+
+These gates apply to startup, hydration, indexing, source authority, scheduling,
+cache selection/persistence and index-status changes. They are completion and
+release requirements, not optional follow-up recommendations. Passing unit tests
+or making one expensive step faster does not establish that the workflow is fixed.
+
+1. **Establish the regression boundary.** Compare the last known good released
+   tag, the branch base and the uncommitted changes separately. Identify the
+   responsible trigger and owner from evidence. Distinguish a suspected cause
+   from a demonstrated cause; do not blame a release, branch, user action or
+   "normal background work" without tracing the actual admission. Preserve a
+   failing end-to-end regression before fixing the behavior where practical.
+2. **Define acceptance before editing.** Record the affected user workflow,
+   baseline timings/work counts and the required result. Distinguish first paint,
+   current-view authority, global settlement and durable cache activation. A fast
+   first paint, fast pair preparation or a ready indicator cannot substitute for
+   a settled, restartable index. An existing maintainer latency requirement is
+   the acceptance target; do not silently replace it with a weaker target.
+3. **Require repeated unchanged restarts.** After settling and verifying cache
+   activation, perform at least two consecutive unchanged warm restarts with
+   the exact candidate artifact. Cover the actual reported restart boundary;
+   distinguish closing/reopening a canvas, plugin reload and application/vault
+   restart. Also cover closing/reopening while a cache save is pending. Record
+   which fast path was taken, not merely that the final graph looks correct.
+4. **Unchanged input must reuse unchanged work.** A cheap native inventory/stamp
+   comparison may detect changes made while the plugin was absent. It must not
+   become per-note source-family authentication, body reads/parses, source
+   rewriting, semantic replay, full rebuild or URL-index regeneration just to
+   rediscover that nothing changed. Exercise changed-file, alias, folder,
+   ontology, Date-registry and Daily Notes invalidation separately; each must
+   have a demonstrated scope and must settle without repeating on the next
+   unchanged restart. Do not remove freshness checks, restamp stale graphs as
+   current, or serialize mixed-policy state to satisfy this gate.
+   Test parsed native metadata with aggregate link resolution still pending,
+   including intermediate native completion events and repeated unchanged
+   per-file resolver notifications. Cached graph hydration and stationary
+   body-defined connections must remain available without auditing temporarily
+   empty maps. Keep source authority and exact-pair writes separately fenced.
+   Supersede the restart header proof with an actual coordinate-only CAS. Require
+   a fresh proof under the replacement root without a global source audit; cover
+   repeated races, disposal and changed-source sequences separately.
+   Prose-only autosaves must preserve displayed node identities, positions,
+   visibility and connections while replacement input is pending. Cover both
+   the center and incoming relationship contributors, with delayed body parsing
+   and native metadata notifications. A merely observed contributor cannot
+   replace an acquired body-defined relationship with a thinner host preview.
+   Verify genuine link/ontology edits, deletion, rename, policy changes and demand
+   retirement separately; presentation continuity must never renew write proof.
+5. **Prove durable reuse.** Assert the activated generation, its actual settings
+   and source/host validity fences, and reuse after reload. A settings/topology
+   mismatch must not recur indefinitely against the same old snapshot after
+   successful reconciliation. Verify write failure/retry and that no-op events,
+   render notifications, visibility changes or debounce resets cannot starve
+   persistence. Shutdown must not be the primary save boundary. If persistence
+   fails, report that failure separately from graph readiness.
+   A coherent completed initial graph must start its required snapshot save without an edit-idle
+   wait. Reuse an unchanged saved generation; never flush an incomplete/source-backed view as a
+   complete snapshot. Later edits may coalesce normally without postponing existing cache debt.
+   Hold independent startup-source validation past complete graph hydration, then let it enqueue
+   an actual late graph repair. Its first required cache save must activate without an edit-idle
+   delay. Recheck policy, source, maintenance and structural ownership before consuming that handoff.
+6. **Validate the whole workload.** Measure all startup/background passes and
+   their admissions, reads, parses, repairs, rebuilds and writes, including work
+   continuing after first paint. Exercise idle/wake, foreground interaction during
+   recovery and a representative large persisted graph. Never present reduced
+   cost in one phase as proof that redundant phases were eliminated. Concurrent
+   operations must appear together in status; cycling one label between owners
+   is not adequate progress reporting.
+   Hold the initial owner after hydration but before source closure/repair and
+   invoke the actual periodic/reactive catch-up handler. It must join that owner,
+   never start a competing full writer. Exercise coordinator bookkeeping before
+   repair admission, genuine edits before/during repair and native structure
+   changes separately. Successful full recovery must retire only the dirty
+   source observations it actually published, preserving newer same-file edits.
+7. **Use comparable evidence.** Compare baseline and candidate under the same
+   vault/fixture, settings, cache condition and host visibility. Record actual
+   file/source counts and platform. Clearly distinguish production observations,
+   disposable-vault tests and synthetic microbenchmarks. A small-vault result
+   cannot establish production-vault latency. Production notes remain read-only
+   unless the maintainer authorizes a specific mutation; repeat destructive
+   cases only in an approved disposable vault.
+8. **Verify the final revision and report failures honestly.** Run the affected
+   regressions, complete mandatory verification and exact-build native scenarios
+   against the final source. A later source edit invalidates affected results.
+   Keep assertions and deadlines unchanged. Record a failed aggregate command
+   even when an unchanged rerun passes; identify the rerun and all remaining
+   gates explicitly instead of describing the original command as successful.
+   Hash-check the tested, staged and deployed artifacts and independently verify
+   observer, fixture, database and settings cleanup.
+   A native driver exiting successfully after observing eventual readiness is
+   not a performance acceptance result. Assert the allowed full-build, global
+   source-inventory, body-read/parse and follow-up batch counts explicitly.
+9. **Do not declare completion with missing evidence.** "Fixed", "regression
+   resolved" and "ready to merge/release" require the gates above for the claimed
+   workflow. Deployment for observation is an intermediate experiment and must be
+   described as such. Keep unavailable platform/workflow acceptance explicitly
+   unfinished. Only the maintainer may waive a named gate; an agent cannot grant
+   itself an exception or classify an unexplained expensive pass as necessary.
+
+Follow the restart acceptance procedure in [CONTRIBUTING.md](CONTRIBUTING.md#indexing-and-persistence-acceptance).
 
 ## Code-scanner hygiene
 

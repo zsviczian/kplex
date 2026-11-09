@@ -6,6 +6,25 @@ notes, notes created inside folders, placeholder materialization, drawing creati
 external copies and configured core Daily Notes. Reversed property ownership uses
 the rendered new note rather than racing commands in its YAML frontmatter.
 
+An unresolved name matching the configured Daily Notes format offers a **Daily note**
+choice in the normal creation dialog. It uses the configured daily folder and template;
+the Markdown and Excalidraw choices retain their ordinary behavior. Calendar, Today and
+daily-placeholder creation share the template-completion barrier and open a newly
+created drawing in Excalidraw only after that exact file's template has finished.
+
+Deleting a centered note preserves surviving incoming declarations while referrers
+update. If Obsidian then replaces its full file path with one unambiguous unresolved
+spelling, the canvas follows that published placeholder instead of an empty old path.
+This changes navigation only; it neither rewrites the referring notes nor renews source
+or relationship-write authority.
+
+Obsidian can change its shared inferred property widget when it parses a newly created
+note. Those hints do not represent a user changing a property type. Where the native
+type-info API is available, K-Plex infers unassigned Date values from each source's
+actual value and observes explicit assignments separately. Creating a text-valued DNP
+therefore cannot invalidate other notes' Date interpretations. Explicit type changes
+and removal of an explicit assignment still repair the affected field holders.
+
 `FileCreationAutomation` is an optional Obsidian adapter. It observes the enabled
 Templater engine's static `on_file_creation` promise before native creation starts.
 It delegates exactly once, retains the native handler's receiver and result, and

@@ -77,7 +77,7 @@ On phones, K-Plex opens naturally in the side panel. Tablets can use either a no
 - **Single-click / tap** a node to make it the center.
 - **Double-click** a file-backed node to open it in Obsidian.
 - Double-clicking a URL opens it in the browser.
-- Double-clicking an unresolved link can create the missing note. **Control-click** (**Command-click** on macOS) opens its creation dialog without moving the canvas center. A placeholder can already specify its intended folder.
+- Double-clicking an unresolved link can create the missing note. **Control-click** (**Command-click** on macOS) opens its creation dialog without moving the canvas center. A placeholder can already specify its intended folder. When its name matches your Daily Notes date format, **Daily note** creates it with the configured daily template in the displayed daily-note destination.
 - Folder and tag nodes can also become the center.
 - An open, unpinned **File properties** pane follows the central file while K-Plex is active. Pinned or grouped Properties panes keep their own file; non-file centers clear the unpinned pane.
 - Drag empty graph space to pan and use the mouse wheel or pinch gesture to zoom.

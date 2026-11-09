@@ -159,6 +159,8 @@ for (const mode of ['cancel', 'close', 'unsaved', 'throw']) {
 for (const mode of ['date', 'daily']) {
   test(`${mode} interpretation changing after selection requires a current environment before full readiness`, /** The enclosing reconciliation retains its independent Date/Daily Notes proof. */async () => {
     assert.equal(await scenario(`warm-selection-environment-${mode}`, String.raw`
+      // Exercise the historical selected-dependency await rather than bypassing it with reuse.
+      await edit(db,['meta'],tx=>tx.objectStore('meta').delete('source-host-observation:'+id));
       const inspect=r.inspectWithLocalDependencies;let fired=false;
       r.inspectWithLocalDependencies=/** Forward the original operation and inject one controlled transition. */async function(...args){const result=await inspect.apply(this,args);if(!fired){fired=true;
         if(${JSON.stringify(mode)}==='date')f.app.dateFields.add('Date');else f.app.daily.format='YYYY/MM/DD';}return result;};

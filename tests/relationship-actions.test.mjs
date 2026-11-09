@@ -320,6 +320,7 @@ test("reactive startup backlog cannot rebuild a partial cache preview before hyd
       size: 3, hasPendingStructuralMaintenance: () => false, hasPendingSnapshotHydration: () => hydrating,
       waitForSnapshotHydration: async () => { events.push("wait"); await closed; hydrating = false; return { restored: true, fresh: false }; },
       hasSourceBackedStartup: () => false, isFullSnapshotHydrated: () => !hydrating, hasIncrementalRestorePatch: () => true,
+      finishStartupSnapshot: () => {},
       reconcileRestoredSnapshot: async () => { assert.equal(hydrating, false); events.push("patch-real-delta"); return { reconciled: true, patched: 1 }; },
       rebuild: () => assert.fail("A valid warm delta must not start from zero"),
     },
@@ -346,7 +347,7 @@ for (const outcome of ["fresh", "stale", "failed", "sources", "sources-pending"]
     const events = [];let optionalUrlStarts=0;
     const context = {
       unloading: false, layoutReady: true, initialIndexTask: null, initialIndexComplete: false,
-      indexDirty: true, indexDirtyRevision: 0, preRestoreUncoveredChanges: false,
+      indexDirty: true, indexDirtyRevision: 0, preRestoreUncoveredChanges: false, preRestoreInventoryCreatePaths:new Set(),
       indexBacklogReasons: new Set(["startup:no-snapshot"]), dirtyMarkdownPaths: new Set(), metadataStabilized: false,
       metadataStabilityPromise: null, rebuildTask: null, rebuildTimer: null,
       index: {
@@ -369,13 +370,15 @@ for (const outcome of ["fresh", "stale", "failed", "sources", "sources-pending"]
         noteBuildDecision: () => {},
         rebuild: async () => { events.push("full"); hydrated = true; return true; },
         rebuildProgressively: async () => { events.push("progressive"); hydrated = true; return true; },
+        acknowledgeHostPresentation: () => {},
+        finishStartupSnapshot: () => {},
       },
       waitForMetadataCacheStability: async () => { events.push("metadata"); await metadata; },
       refreshBookmarkedEntryPoints: async () => {}, notifyIndexStatus: () => {}, hasVisibleKplexSurface: () => true,
       scheduleRebuild: () => assert.fail("This settled startup needs no additional rebuild"),
       pruneMissingDirtyMarkdownPaths: () => {}, startupGraphSeedPaths: () => [],
     };
-    for (const name of ["ensureInitialIndex", "performRebuild", "adoptInitialSourceIndex", "retireCoveredCreateReason"]) {
+    for (const name of ["ensureInitialIndex", "performRebuild", "adoptInitialSourceIndex", "retireCoveredCreateReason", "retireCoveredMarkdownBacklog"]) {
       context[name] = productionFunction("src/main.ts", name, { Platform: { isIosApp: false } });
     }
     const task = context.ensureInitialIndex();
@@ -439,6 +442,11 @@ test("a pending relationship update exposes an active source audit and its measu
   sourceActive=false;facts=await compute.call(context,11819);
   assert.equal(facts.phase,"incomplete");assert.equal(facts.upToDate,false);
   assert.equal(JSON.parse((await status.call(context)).label).key,"index.statusRelationshipIncomplete");
+  sourceActive=true;context.index.isWaitingForNativeResolution=()=>true;
+  facts={...facts,phase:"ready",upToDate:true};
+  const waiting=await status.call(context);
+  assert.equal(waiting.activeWork,true,"A usable cached graph remains busy during the native readiness wait");
+  assert(waiting.label.includes("index.waitingNativeResolution"),"The tooltip identifies native resolution separately from K-Plex validation");
 });
 
 /** Alias maintenance reports search work/failure without masquerading as relationship loading or readiness. */
@@ -511,29 +519,37 @@ test("URL discovery status is independent of ready local graphs and clears after
   let facts = await compute.call(context, 100);
   context.computeIndexStatusFacts = () => facts;
   assert.equal(facts.phase, "ready", "Optional discovery cannot withhold local readiness");
-  assert.deepEqual(JSON.parse((await status.call(context)).label), {
+  const activityLabel = async () => {
+    const labels = (await status.call(context)).label.split("\n").map(line => JSON.parse(line));
+    if(localActive)assert.equal(labels[0].key,"indexing.localPreparing");
+    else if(url.active||url.failed)assert(labels[0].key.startsWith("indexing.urls"),"Only remaining work is shown instead of an unqualified ready line");
+    else assert.equal(labels[0].key,"indexing.localReady");
+    assert.equal(labels.length,localActive&&(url.active||url.failed)?2:1,"Concurrent active lanes remain visible");
+    return labels.find(row => row.key.startsWith("indexing.urls")) ?? labels[0];
+  };
+  assert.deepEqual(await activityLabel(), {
     key: "indexing.urlsPreparing",
   });
   url = { active: true, failed: false, processed: 0, total: 0, restored: 42 };
-  assert.deepEqual(JSON.parse((await status.call(context)).label), {
+  assert.deepEqual(await activityLabel(), {
     key: "indexing.urlsRestoring", params: { restored: 42 },
   });
   url = { active: true, failed: false, processed: 0, total: 0, restored: 75 };
-  assert.deepEqual(JSON.parse((await status.call(context)).label), {
+  assert.deepEqual(await activityLabel(), {
     key: "indexing.urlsRestoring", params: { restored: 75 },
   }, "The label tracks the actual restored count");
   url = { active: true, failed: false, processed: 4, total: 100, restored: 75 };
-  assert.deepEqual(JSON.parse((await status.call(context)).label), {
+  assert.deepEqual(await activityLabel(), {
     key: "indexing.urlsProgress", params: { processed: 4, total: 100 },
   });
   url = { active: false, failed: true, processed: 99, total: 100, restored: 75 };
-  assert.equal(JSON.parse((await status.call(context)).label).key, "indexing.urlsIncomplete");
+  assert.equal((await activityLabel()).key, "indexing.urlsIncomplete");
   url = { active: false, failed: false, processed: 100, total: 100, restored: 75 };
-  assert.equal(JSON.parse((await status.call(context)).label).key, "indexing.localReady");
+  assert.equal((await activityLabel()).key, "indexing.localReady");
   localActive = true;
   facts = await compute.call(context, 100);
   assert.equal(facts.upToDate, false);
-  assert.equal(JSON.parse((await status.call(context)).label).key, "indexing.localPreparing");
+  assert.equal((await activityLabel()).key, "indexing.localPreparing");
 });
 
 test("pre-restore file events update temporary availability while preserving backlog revision fences", async () => {
@@ -541,7 +557,7 @@ test("pre-restore file events update temporary availability while preserving bac
   class TFolder { constructor(path) { this.path = path; } }
   const vaultEvents = new Map(), metadataEvents = new Map(), updates = [], cleanup = [], topology = [];
   const context = { indexPreparationAdmitted: true, preRestoreListenerCleanup: null, indexDirtyRevision: 0,
-    preRestoreReasons: new Map(), preRestoreMarkdownPaths: new Map(),
+    preRestoreReasons: new Map(), preRestoreMarkdownPaths: new Map(), preRestoreActualMarkdownChanges:new Set(),
     preRestoreDormantReasons: new Set(), preRestoreDormantMarkdownPaths: new Set(), preRestoreCreatedItems: new Map(),
     app: { vault: { on: (kind, callback) => { vaultEvents.set(kind, callback); return kind; }, offref: kind => vaultEvents.delete(kind) },
       metadataCache: { on: (kind, callback) => { metadataEvents.set(kind, callback); return kind; }, offref: kind => metadataEvents.delete(kind) } },

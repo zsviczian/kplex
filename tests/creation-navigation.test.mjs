@@ -221,10 +221,28 @@ test('new-file tabs use the Plex group or the most recent main group from the si
  const file={},plexParent={},mainParent={},otherParent={},root={},calls=[];
  const plex={parent:plexParent,view:{getViewType:()=> 'plex'}},main={parent:mainParent},sidepanel={parent:otherParent,view:{getViewType:()=> 'sidepanel'}};
  const leaf={openFile:async(...args)=>calls.push(['open',...args])};
- const p={app:{workspace:{rootSplit:root,getMostRecentLeaf:given=>{assert.equal(given,root);return main},iterateAllLeaves:run=>[plex,{parent:plexParent},main,{parent:otherParent}].forEach(run),createLeafInParent:(parent,index)=>{calls.push(['create',parent,index]);return leaf},revealLeaf:async given=>{assert.equal(given,leaf)}}}};
+ const p={finishDailyNoteOpening:async(given,created)=>{assert.equal(given,leaf);assert.equal(created,file)},app:{workspace:{rootSplit:root,getMostRecentLeaf:given=>{assert.equal(given,root);return main},iterateAllLeaves:run=>[plex,{parent:plexParent},main,{parent:otherParent}].forEach(run),createLeafInParent:(parent,index)=>{calls.push(['create',parent,index]);return leaf},revealLeaf:async given=>{assert.equal(given,leaf)}}}};
  await open.call(p,file,plex);assert.deepEqual(calls[0],['create',plexParent,2]);assert.equal(p.lastDocumentLeaf,leaf);
  calls.length=0;await open.call(p,file,sidepanel);assert.deepEqual(calls[0],['create',mainParent,1]);
  assert.deepEqual(calls[1],['open',file,{active:true}]);
+});
+
+test('new daily drawings switch only their exact opened Markdown view through the public companion API',async()=>{
+ class FileView{constructor(file,type='markdown'){this.file=file;this.type=type}getViewType(){return this.type}}
+ const previous=globalThis.window,file={path:'Daily/2026-11-09.md'},other={path:'Other.md'},calls=[],leaf={view:new FileView(file)};
+ const finish=method('src/main.ts','finishDailyNoteOpening',{FileView});
+ const p={createdDailyNotes:new WeakSet([file]),app:{vault:{getFileByPath:()=>file}}};
+ globalThis.window={ExcalidrawAutomate:{isExcalidrawFile:value=>value===file,toggleViewMode:async view=>{calls.push(view);leaf.view=new FileView(file,'excalidraw')}}};
+ try{
+  leaf.view=new FileView(other);await finish.call(p,leaf,file);assert.equal(calls.length,0,'Never switch an unrelated active document');
+  leaf.view=new FileView(file);await finish.call(p,leaf,file,()=>false);assert.equal(calls.length,0,'Retired opens cannot switch views');
+  p.app.vault.getFileByPath=()=>other;await finish.call(p,leaf,file);assert.equal(calls.length,0,'Replaced native identities are rejected');
+  p.app.vault.getFileByPath=()=>file;const opened=leaf.view;await finish.call(p,leaf,file);assert.deepEqual(calls,[opened]);assert.equal(leaf.view.getViewType(),'excalidraw');
+  await finish.call(p,leaf,file);assert.equal(calls.length,1,'Never toggle a drawing back to Markdown');assert.equal(p.createdDailyNotes.has(file),false);
+  leaf.view=new FileView(file);await finish.call(p,leaf,file);assert.equal(calls.length,1,'Pre-existing files retain their chosen mode');
+  p.createdDailyNotes.add(file);window.ExcalidrawAutomate.isExcalidrawFile=()=>false;await finish.call(p,leaf,file);assert.equal(calls.length,1,'Ordinary daily Markdown stays Markdown');
+  delete window.ExcalidrawAutomate;await finish.call(p,leaf,file);assert.equal(calls.length,1,'Missing optional companion is harmless');
+ }finally{globalThis.window=previous}
 });
 
 /** Narrow native doubles keep execution/identity observable without starting Obsidian or an index. */

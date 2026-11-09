@@ -6,6 +6,26 @@ import { chromiumHarness } from './support/browserTypeScript.mjs';
 
 const bundle = await contributorBrowserBundle();
 
+test('uncovered resolver diagnostics distinguish native owner failures without weakening recovery',async()=>{
+ const browser=await chromiumHarness(bundle);try{
+  await browser.evaluate(contributorBrowserInitialize);
+  assert(await browser.evaluate(`(async()=>{
+   for(const [kind,expected]of [['absent','resolve-no-owner'],['foreign','resolve-non-file'],['attachment','resolve-non-markdown'],['retired','resolve-missing-native-file'],['replaced','resolve-replaced-native-file']]){
+    const f=await fixture('uncovered-resolver-'+kind);try{
+     f.add('A.md','');await f.acquire();ok(await f.acquisition.reconcile(),'Source baseline');
+     const File=f.files.get('A.md').constructor;
+     const owner=kind==='absent'?undefined:kind==='foreign'?{}:new File(kind==='attachment'?'Attachment.png':kind==='retired'?'Retired.md':'A.md');
+     f.app.metadataCache.trigger('resolve',owner);
+     equal(f.acquisition.getRecoveryDiagnostics().uncoveredResolverCause,expected,'Fixed native category');
+     ok(!f.acquisition.hasSemanticDependencies(),'Unknown input still fences authority');
+     f.app.metadataCache.trigger('changed',f.files.get('A.md'));
+     equal(f.acquisition.getRecoveryDiagnostics().uncoveredResolverCause,expected,'A later known edit cannot erase the cause');
+    }finally{f.close();}
+   }return true;
+  })()`));
+ }finally{await browser.cleanup();}
+});
+
 for (const reordered of [false,true]) test('a clean recovery sweep shares each head and dependency selection (reordered='+reordered+')', async () => {
   const browser = await chromiumHarness(bundle);
   try {
@@ -47,7 +67,9 @@ test('restart host comparison retains its prefix when the selected owner changes
   const result=await browser.evaluate(`(async()=>{
    const f=await fixture('sync-selected-owner'),M=sourceModules;let restarted;
    try{
-    for(let i=0;i<8;i++)f.add('Owner'+i+'.md','Value:: original');await f.acquire();ok(await f.acquisition.reconcile(),'Seed closed sources');f.acquisition.close();
+    for(let i=0;i<8;i++)f.add('Owner'+i+'.md','Value:: original');await f.acquire();ok(await f.acquisition.reconcile(),'Seed closed sources');
+    // This regression deliberately exercises the legacy comparison owner and its selected await.
+    await edit(await f.cache.open(),['meta'],tx=>tx.objectStore('meta').delete('source-host-observation:Owner0.md'));f.acquisition.close();
     restarted=new M.ObsidianSourceAcquisition(f.app,f.cache,async text=>M.parseBodyMetadata(text));restarted.start();
     const inspect=f.repository.inspectWithLocalDependencies,visits=[];let delivered=false;
     f.repository.inspectWithLocalDependencies=async function(...args){

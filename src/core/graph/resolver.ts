@@ -120,7 +120,7 @@ const relationHasRole = <TTarget>(relation: SemanticRelation<TTarget>): boolean 
  * The legacy path-based API below delegates to the same evidence/precedence implementation.
  */
 export function resolveEvidencePairByKey<TPage extends ResolverKeyTarget<TPage>>(
-  pages: Map<string, TPage>,
+  pages: ReadonlyMap<string, TPage>,
   store: RelationEvidenceStore,
   sourceKey: string,
   targetKey: string,
@@ -156,7 +156,7 @@ export function resolveEvidenceStoreByKey<TPage extends ResolverKeyTarget<TPage>
 }
 
 export function resolveEvidencePair<TPage extends ResolverTarget<TPage>>(
-  pages: Map<string, TPage>,
+  pages: ReadonlyMap<string, TPage>,
   store: RelationEvidenceStore,
   sourcePath: string,
   targetPath: string,

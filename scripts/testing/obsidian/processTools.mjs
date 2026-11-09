@@ -50,20 +50,29 @@ export function obsidianCliExecutable(env = process.env, platform = process.plat
 }
 
 /** Build a shell-free npm invocation, including direct node-script launches outside npm run. */
-export function npmInvocation(env = process.env, node = process.execPath, exists = existsSync) {
+export function npmInvocation(env = process.env, node = process.execPath, exists = existsSync, script = "verify") {
+  if (script !== "verify" && script !== "build:local") throw new Error("Unsupported native preparation script");
   const candidates = [env.npm_execpath, join(dirname(node), "node_modules", "npm", "bin", "npm-cli.js"),
     join(dirname(node), "..", "lib", "node_modules", "npm", "bin", "npm-cli.js")];
   const npm = candidates.filter(Boolean).find(exists);
   if (!npm) throw new Error("Cannot locate npm-cli.js; invoke this driver with npm run verify:obsidian");
-  return { file: node, args: [npm, "run", "verify"] };
+  return { file: node, args: [npm, "run", script] };
 }
 
-/** Run the complete serial suite. Its established large IndexedDB case alone allows 14 minutes;
- * the aggregate deadline must also cover the other portable/browser suites on slower hosts.
- * Individual test deadlines and native CLI deadlines remain unchanged. */
+/** Prepare an identified optimized local artifact only after the independent release checks. */
+export function runLocalBuild(projectRoot) {
+  const {file, args} = npmInvocation(process.env, process.execPath, existsSync, "build:local");
+  const result = spawnSync(file, args, {cwd: projectRoot, stdio: "inherit", timeout: 120000});
+  if (result.error) throw result.error;
+  if (result.status !== 0) throw new Error(`npm run build:local failed (${result.status})`);
+}
+
+/** Run the complete serial suite. Measured Windows stages total about 50 minutes, including
+ * the established large IndexedDB case's 14-minute allowance. This 75-minute transport ceiling
+ * covers the full command; individual test, native CLI and performance deadlines stay unchanged. */
 export function runPortableVerification(projectRoot) {
   const { file, args } = npmInvocation();
-  const result = spawnSync(file, args, { cwd: projectRoot, stdio: "inherit", timeout: 2_100_000 });
+  const result = spawnSync(file, args, { cwd: projectRoot, stdio: "inherit", timeout: 4_500_000 });
   if (result.error) throw result.error;
   if (result.status !== 0) throw new Error(`npm run verify failed (${result.status})`);
 }

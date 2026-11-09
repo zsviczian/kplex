@@ -13,7 +13,7 @@ import {
   type PortableGraphCompilation,
 } from "./compiler";
 import type { NodeId } from "./model";
-import type { SelectedSourceRecord } from "./sourcePolicy";
+import type { ReferencePolicySelector, SelectedSourceRecord } from "./sourcePolicy";
 import type {
   NormalizedSourceBatch,
   SourceEntityFact,
@@ -75,13 +75,16 @@ export class NormalizedSourcePatchPreparer {
   private missingRequiredMaterializedEntity = false;
   private rejected = false;
 
+  /** Own one source's mutable read/compilation state; optional immutable selection belongs to
+   * the caller's captured policy epoch and is never a shared payload cursor or graph. */
   constructor(
     private readonly sourceId: NodeId,
     settings: GraphCompilerSettings,
     private readonly runtime: GraphCompilerRuntime,
     private readonly readPort: SourcePatchReadPort,
+    referencePolicy?: ReferencePolicySelector,
   ) {
-    this.compiler = new NormalizedGraphCompiler(settings, runtime);
+    this.compiler = new NormalizedGraphCompiler(settings, runtime, "graph", referencePolicy);
   }
 
   beginRead(boundary: SourceReadBoundary): GraphCompilerSourceRead {

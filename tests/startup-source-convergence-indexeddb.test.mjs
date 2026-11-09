@@ -16,18 +16,20 @@ const bundle = await contributorBrowserBundle(['src/main.ts', 'src/index/GraphIn
   'src/adapters/obsidian/ontologySourceCollector.ts', 'src/adapters/obsidian/startupDiagnostics.ts'], {'src/main.ts': startupSourceCoordinatorSource()});
 
 /** Offline sync changes must not put a complete cached graph behind an unrelated all-owner audit. */
-test('stale compatible graph hydrates before a held source audit without claiming current semantics',async()=>{
+for (const {legacy,alias,discovery,ahead,rename,bookkeeping} of [{legacy:true,alias:false},{legacy:false,alias:false},{legacy:false,alias:true},{legacy:false,alias:false,discovery:true},{legacy:false,alias:true,ahead:true},{legacy:false,alias:false,ahead:true,rename:true},{legacy:false,alias:false,bookkeeping:true},{legacy:false,alias:false,bookkeeping:"before-edit"},{legacy:false,alias:false,bookkeeping:"during-edit"},{legacy:false,alias:false,bookkeeping:"structure"},{legacy:false,alias:false,bookkeeping:"interval"}]) test(`stale compatible graph repairs ${rename?'a rename and its referrer':alias ? 'an alias and its referrer' : 'one offline edit'} without rebuilding${legacy ? ' while a legacy audit is held' : ' using unchanged-owner certificates'}${discovery?' after native startup discovery':''}${ahead?' with newer durable sources':''}${bookkeeping?' after coordinator bookkeeping '+bookkeeping:''}`,async()=>{
  const browser=await chromiumHarness(bundle);
  try{
   await browser.evaluate(contributorBrowserInitialize);
   assert.equal(await browser.evaluate(`(async()=>{
    const M=sourceModules,f=await fixture('sync-stale-warm-graph'),assert=Object.assign((v,m)=>ok(v,m),{equal});
    const collect=${collect.toString()},hostOracle=${hostOracle.toString()},fullCenterIndex=${fullCenterIndex.toString()},currentNeighborhoodView=${currentNeighborhoodView.toString()},centerGateSettings=${centerGateSettings.toString()};
-   let initial,index,oracle,unlock,preparation;
+   let initial,index,oracle,unlock,preparation,cleanupFence=()=>{};
    try{
     f.text=f.texts;f.app.vault.getName=()=> 'sync-stale-warm-graph';
     f.app.vault.getAbstractFileByPath=path=>f.files.get(path)??(path==='/'||path===''?f.app.vault.getRoot():null);
-    f.add('Audit.md','');f.add('A.md','Friends:: [[B]]');f.add('B.md','');
+    f.add('Audit.md','');f.add('A.md',${Boolean(alias||rename)}?'Friends:: [[oldAlias]]':'Friends:: [[B]]');f.add('B.md','',{aliases:['oldAlias']});
+    const resolve=f.app.metadataCache.getFirstLinkpathDest;
+    f.app.metadataCache.getFirstLinkpathDest=(literal,...args)=>resolve(literal,...args)??[...f.files.values()].find(file=>f.metadata.get(file.path)?.frontmatter.aliases?.includes(literal))??null;
     await f.acquire();ok(await f.acquisition.reconcile(),'Seed complete sources');
     const semantic={hierarchy:{hidden:[],parents:[],children:['Children'],leftFriends:['Friends'],rightFriends:[],previous:[],next:[]},inferAllLinksAsFriends:false,inverseInfer:false,showFullTagName:true,tagStyleList:[],maxLabelLength:30};
     const view=centerGateSettings({showFolderNodes:false}),settings={indexingMode:'eager',...semantic,...view,lastActivePath:'A.md',pinnedNodes:[]};
@@ -35,26 +37,75 @@ test('stale compatible graph hydrates before a held source audit without claimin
     ok(await f.cache.writeSnapshot({createdAt:Date.now(),urlAliasVersion:2,vaultSignature:M.computeVaultSignature(f.app),settingsSignature:M.computeIndexSettingsSignature(settings),discoveredFields:[]},
       [...initial.state.pages.values()].map(page=>M.persistedPageFromGraphPage(page)),[...initial.state.evidence.declarations()].map(item=>M.persistedDeclarationFromEvidence(item))),'Seed complete graph');
     initial.destroy();initial=null;f.acquisition.close();
-    const a=f.files.get('A.md');f.texts.set(a.path,'Children:: [[B]]');a.stat.mtime++;
-    const p=new M.StartupSourceCoordinator();Object.assign(p,{app:f.app,settings,layoutReady:true,startupIndexPolicy:{device:'desktop',beforeView:true,mode:'eager'},supportEvents:{record(){}},notifyIndexStatus(){},
-      hasVisibleKplexSurface:()=>false,refreshBookmarkedEntryPoints:async()=>{},startupGraphSeedPaths:()=>['A.md'],registerReactiveIndexListeners(){}});
+    if(${legacy})await edit(await f.cache.open(),['meta'],tx=>tx.objectStore('meta').delete('source-host-observation:Audit.md'));
+    if(${Boolean(rename)}){f.files.delete('B.md');f.metadata.delete('B.md');f.add('Renamed.md','',{aliases:['oldAlias']});}
+    else{const a=f.files.get(${alias}?'B.md':'A.md');if(${alias})f.metadata.get(a.path).frontmatter.aliases=['newAlias'];else f.texts.set(a.path,'Children:: [[B]]');a.stat.mtime++;}
+    if(${Boolean(ahead)}){const newer=new M.ObsidianSourceAcquisition(f.app,f.cache,async text=>M.parseBodyMetadata(text));try{ok(await newer.reconcile(),'Prior lifetime already persisted the updated source facts');}finally{newer.close();}}
+    const p=new M.StartupSourceCoordinator();Object.assign(p,{app:f.app,settings,layoutReady:true,metadataStabilized:true,startupIndexPolicy:{device:'desktop',beforeView:true,mode:'eager'},supportEvents:{record(){}},notifyIndexStatus(){},
+      hasVisibleKplexSurface:()=>false,refreshBookmarkedEntryPoints:async()=>{},startupGraphSeedPaths:()=>['A.md'],registerReactiveIndexListeners(){},
+      performRebuild:async()=>{throw Error('One offline edit must reconcile the compatible graph without a full rebuild');}});
     p.startupDiagnostics=new M.StartupDiagnostics();p.startupDiagnostics.begin(false);
     index=new M.GraphIndex(p,f.app);p.index=index;index.scheduleOrphanCleanup=()=>{};
+    if(${Boolean(discovery)}){
+     p.layoutReady=false;p.register=release=>{cleanupFence=release;};p.installPreRestoreChangeFence();
+     for(const file of f.files.values())f.app.vault.trigger('create',file);
+     p.layoutReady=true;
+    }
+    index.rebuild=()=>{throw Error('Compatible offline delta must not compile the full source graph; patch='+index.hasIncrementalRestorePatch()+' decisions='+JSON.stringify(index.getIndexDiagnostics()));};
     const source=index.sourceAcquisition,inspect=source.repository.inspectWithLocalDependencies;
     let entered;const reached=new Promise(done=>entered=done),held=new Promise(done=>unlock=done);
-    source.repository.inspectWithLocalDependencies=async function(...args){if(args[0]==='Audit.md'){entered();await held;}return inspect.apply(this,args)};
-    preparation=p.startIndexPreparation();await reached;
+    source.repository.inspectWithLocalDependencies=async function(...args){if(${legacy}&&args[0]==='Audit.md'){entered();await held;}return inspect.apply(this,args)};
+    preparation=p.startIndexPreparation(!${Boolean(bookkeeping)});if(${legacy})await reached;
     const end=Date.now()+2000;while(!index.isFullSnapshotHydrated()&&Date.now()<end)await new Promise(done=>setTimeout(done,10));
     ok(index.isFullSnapshotHydrated(),'Compatible cached graph must hydrate before unrelated source validation finishes');
-    ok(!source.hasSemanticDependencies()&&!p.initialIndexComplete,'Cached hydration cannot certify the changed graph');
-    ok(!index.publicApiCoverage().complete,'Changed cached graph remains explicitly incomplete');
+    if(${legacy}){
+     ok(!source.hasSemanticDependencies()&&!p.initialIndexComplete,'Cached hydration cannot certify the changed graph');
+     ok(!index.publicApiCoverage().complete,'Changed cached graph remains explicitly incomplete');
+    }
     ok(index.get('A.md')?.neighbours.has('B.md'),'Cached relationships remain readable');
-    unlock();await preparation;await source.flush();
+    unlock();await preparation;
+    if(${Boolean(bookkeeping)}){
+      const change=()=>{const file=f.files.get('A.md');file.stat.mtime++;f.texts.set(file.path,'Friends:: [[B]]');f.app.vault.trigger('modify',file);p.indexDirtyRevision++;};
+      p.indexDirtyRevision++;p.indexBacklogReasons.add('interval');
+      if(${JSON.stringify(bookkeeping)}==='before-edit')change();
+      if(${JSON.stringify(bookkeeping)}==='structure'){f.add('New.md','');index.invalidateHostStructure();}
+      if(${JSON.stringify(bookkeeping)}==='during-edit'){
+        const select=source.snapshotResolutionSources;source.snapshotResolutionSources=async function(...args){const result=await select.apply(this,args);change();return result;};
+      }
+      if(['during-edit','structure'].includes(${JSON.stringify(bookkeeping)})){
+        let rejected=false;try{await p.finishStartupIndexPreparation();}catch(error){rejected=String(error).includes('without a full rebuild');}
+        // The fixture's fail-fast full-builder is the expected conservative fallback here.
+        // Its actual error text describes the protected non-race route.
+        ok(rejected,'A newer in-flight edit or native topology must take the conservative fallback');
+        ok(!index.publicApiCoverage().complete,'Retired repair remains incomplete');return true;
+      }
+      if(${JSON.stringify(bookkeeping)}==='interval'){
+        let entered,release;const reached=new Promise(done=>entered=done),held=new Promise(done=>release=done),repair=index.reconcileRestoredSnapshot;
+        index.reconcileRestoredSnapshot=async function(...args){entered();await held;return repair.apply(this,args);};
+        p.pruneMissingDirtyMarkdownPaths=()=>{};p.hasVisibleKplexSurface=()=>true;p.scheduleRebuild=()=>{};
+        const finishing=p.finishStartupIndexPreparation();await reached;
+        let settled=false;const catchup=M.StartupSourceCoordinator.prototype.performRebuild.call(p,false,false,'interval',false).finally(()=>settled=true);
+        // Attach a rejection observer immediately; an old competing full builder must fail the
+        // test, without leaving an unhandled promise while its actual owner is held.
+        catchup.catch(()=>{});
+        try{await new Promise(done=>setTimeout(done,30));ok(!settled,'Periodic catch-up must join the held initial repair');}
+        finally{release();await finishing;await catchup;}
+      }else await p.finishStartupIndexPreparation();
+    }
+    await source.flush();
     ok(p.initialIndexComplete&&index.publicApiCoverage().complete,'Source audit eventually closes real current graph');
+    if(!p.indexDirty){
+      const persistence=index.getSnapshotPersistenceDiagnostics();
+      ok(!persistence.pending,'A coherent completed startup must not leave a delayed cache save');
+      ok(['running','complete'].includes(persistence.writer.outcome),'Startup starts its required write immediately');
+    }
+    equal(index.getSemanticPreparationDiagnostics().fullBuilds,0,'No full source-graph compilation is hidden behind startup adoption');
+    if(${Boolean(discovery)}){equal(p.dirtyMarkdownPaths.size,0,'Covered native discovery does not queue every note again');ok(!p.indexBacklogReasons.has('vault:create')&&!p.indexBacklogReasons.has('vault:create-markdown'),'No discovery-only structural rebuild remains');ok(!p.indexDirty,'Startup is genuinely settled after finite repair');}
+    if(!${legacy})equal(p.startupDiagnostics.snapshot().sessionWork.sourceInventoryPasses,0,'Only the changed owner and its dependents are repaired');
     oracle=await fullCenterIndex(M,f,await hostOracle(f,[...f.files.keys()],semantic,view,true),semantic,view);
     for(const path of f.files.keys())equal(currentNeighborhoodView(index,path),currentNeighborhoodView(oracle,path),'Current full-compiler parity: '+path);
     return true;
-   }finally{unlock?.();if(preparation)await preparation.catch(()=>{});index?.destroy();initial?.destroy();oracle?.destroy();f.close();}
+   }finally{unlock?.();if(preparation)await preparation.catch(()=>{});cleanupFence();index?.destroy();initial?.destroy();oracle?.destroy();f.close();}
   })()`),true);
  }finally{await browser.cleanup();}
 });
@@ -79,6 +130,9 @@ test('warm placeholder edits publish before the initial source audit finishes', 
         ok(await f.cache.writeSnapshot({createdAt:Date.now(),urlAliasVersion:2,vaultSignature:M.computeVaultSignature(f.app),settingsSignature:M.computeIndexSettingsSignature(settings),discoveredFields:[]},
           [...initial.state.pages.values()].map(page=>M.persistedPageFromGraphPage(page)),[...initial.state.evidence.declarations()].map(item=>M.persistedDeclarationFromEvidence(item))),'Save genuine complete graph');
         initial.destroy();initial=null;f.acquisition.close();
+        // Exercise legacy/recovery priority deliberately: unchanged current certificates otherwise
+        // avoid the all-owner audit that this test must hold while the foreground edit commits.
+        await edit(await f.cache.open(),['meta'],tx=>tx.objectStore('meta').delete('source-host-observation:Audit.md'));
         const p=new M.StartupSourceCoordinator();Object.assign(p,{app:f.app,settings,layoutReady:true,
           startupIndexPolicy:{device:'desktop',beforeView:true,mode:'eager'},supportEvents:{record(){}},notifyIndexStatus(){},
           hasVisibleKplexSurface:()=>false,refreshBookmarkedEntryPoints:async()=>{},startupGraphSeedPaths:()=>['A.md'],registerReactiveIndexListeners(){},
@@ -173,7 +227,30 @@ test('eager warm graph admission completes before held optional URL replay',asyn
   }finally{await browser.cleanup();}
 });
 
-for (const damage of ['missing', 'chunks', 'warm', 'warm-equal-stat']) test(`eager coordinator completes ${damage} graph recovery before declaring startup ready`, async () => {
+for(const late of [false,true])test('cold progressive completion retires only published dirty observations (late='+late+')',async()=>{
+ const browser=await chromiumHarness(bundle);try{
+  await browser.evaluate(contributorBrowserInitialize);
+  assert.equal(await browser.evaluate(`(async()=>{
+   const M=sourceModules,f=await fixture('cold-progressive-covered-${late}');let index;
+   try{
+    f.app.vault.getName=()=> 'cold-progressive-covered-${late}';f.add('A.md','Friends:: [[B]]');f.add('B.md','');f.add('C.md','');
+    const settings={indexingMode:'eager',hierarchy:{hidden:[],parents:[],children:[],leftFriends:['Friends'],rightFriends:[],previous:[],next:[]},inferAllLinksAsFriends:false,inverseInfer:false,showFullTagName:true,tagStyleList:[],maxLabelLength:30,...(${centerGateSettings.toString()})({showFolderNodes:false}),lastActivePath:'A.md',pinnedNodes:[]};
+    const p=new M.StartupSourceCoordinator();Object.assign(p,{app:f.app,settings,layoutReady:true,indexPreparationAdmitted:true,indexDirty:true,preRestoreUncoveredChanges:true,rebuildTimer:null,notifyIndexStatus(){},hasVisibleKplexSurface:()=>false,refreshBookmarkedEntryPoints:async()=>{},startupGraphSeedPaths:()=>['A.md']});
+    index=new M.GraphIndex(p,f.app);p.index=index;index.scheduleOrphanCleanup=()=>{};
+    for(const path of f.files.keys())p.dirtyMarkdownPaths.add(path);p.indexBacklogReasons.add('vault:create');p.indexBacklogReasons.add('vault:create-markdown');
+    const run=index.rebuildProgressively.bind(index),published=[];
+    index.rebuildProgressively=(seeds,options)=>run(seeds,{...options,onCommitted(path){published.push(path);options.onCommitted(path);if(path==='B.md'){p.indexDirtyRevision++;p.indexBacklogReasons.add('metadata:changed');if(${late}){const file=f.files.get(path);f.metadata.set(path,{...f.metadata.get(path)});f.app.metadataCache.trigger('changed',file);p.dirtyMarkdownPaths.add(path);}}}});
+    await p.performRebuild(false,false,'startup:initial-index',true);
+    equal([...new Set(published)].sort(),['A.md','B.md','C.md'],'Only actual source publications emit completion receipts');
+    ok(p.initialIndexComplete&&index.isFullSnapshotHydrated(),'Progressive graph genuinely completes');
+    equal([...p.dirtyMarkdownPaths],${late ? "['B.md']" : '[]'},'Only a newer post-publication observation remains dirty');
+    equal(p.indexDirty,${late},'Bookkeeping alone cannot reopen a finished cold build');return true;
+   }finally{index?.destroy();f.close()}
+  })()`),true);
+ }finally{await browser.cleanup()}
+});
+
+for (const {damage,late,entry,bookkeeping} of [{damage:'missing'}, {damage:'chunks'}, {damage:'missing',late:true}, {damage:'missing',entry:'perform',late:true}, {damage:'missing',entry:'perform',bookkeeping:true}, {damage:'warm'}, {damage:'warm-equal-stat'}]) test(`eager coordinator completes ${damage} graph recovery before declaring startup ready${late?' while preserving a newer edit':''} (entry=${entry??'adopt'}, bookkeeping=${!!bookkeeping})`, async () => {
   const browser = await chromiumHarness(bundle);
   try {
     assert.equal(await browser.evaluate(contributorBrowserInitialize), true);
@@ -225,11 +302,16 @@ for (const damage of ['missing', 'chunks', 'warm', 'warm-equal-stat']) test(`eag
           return true;
         }
         ok(index.hasSourceBackedStartup(),'Recovery initially source-backed');
+        // A cold native discovery burst was already classified as uncovered by the failed
+        // snapshot owner. The source fallback must consume it, rather than patching it again.
+        for(const file of f.files.values())p.dirtyMarkdownPaths.add(file.path);
+        p.indexBacklogReasons.add('vault:create-markdown');p.indexBacklogReasons.add('vault:create');
+        p.preRestoreUncoveredChanges=true;p.indexDirty=true;
         let entered;const reached=new Promise(done=>entered=done),held=new Promise(done=>unlock=done);
         const build=M.GraphBuilder.prototype.build;
         M.GraphBuilder.prototype.build=async function(options){const result=await build.call(this,options);entered();await held;return result;};
         restore=()=>M.GraphBuilder.prototype.build=build;
-        const adoption=p.finishStartupIndexPreparation();
+        const adoption=${entry === 'perform' ? "p.performRebuild(false,false,'startup:initial-index',true)" : 'p.finishStartupIndexPreparation()'};
         // Bound the observation of the real private P4 compiler: the old coordinator returned
         // immediately after vocabulary adoption, so this is also the failing-before assertion.
         const enteredBuild=await Promise.race([reached.then(()=>true),adoption.then(()=>false)]);
@@ -239,8 +321,27 @@ for (const damage of ['missing', 'chunks', 'warm', 'warm-equal-stat']) test(`eag
         const before=index.getSourceAcquisitionCounters(),foreground=index.acquireSemanticDemand('Unvisited.md');
         try{await index.ensureSemanticScope('Unvisited.md');ok(index.get('Unvisited.md').neighbours.get('Ghost')?.isLeftFriend,'Unvisited current-node request completes before held P4 ingestion');}finally{foreground();}
         equal(index.getSourceAcquisitionCounters().vaultReads,before.vaultReads,'Foreground uses durable source facts');
+        if(${Boolean(late)}){
+          // The private graph is already compiled. A native metadata replacement delivered now
+          // must survive its older source receipt, while the two unchanged owners are retired.
+          const file=f.files.get('B.md');f.metadata.set(file.path,{...f.metadata.get(file.path)});
+          f.app.metadataCache.trigger('changed',file);
+          p.indexDirtyRevision++;p.indexBacklogReasons.add('metadata:changed');
+        }
+        if(${Boolean(bookkeeping)}){p.indexDirtyRevision++;p.indexBacklogReasons.add('metadata:changed');}
         unlock();await adoption;restore();restore=null;
         ok(p.initialIndexComplete,'Eager startup completes');ok(index.isFullSnapshotHydrated(),'Complete graph published');
+        if(${Boolean(late)}){
+          equal([...p.dirtyMarkdownPaths],['B.md'],'Only the newer source observation remains queued');
+          ok(p.indexDirty&&p.indexBacklogReasons.has('metadata:changed'),'Newer edit retains ordinary catch-up');
+          return true;
+        }
+        equal(p.dirtyMarkdownPaths.size,0,'Published source fallback consumes covered native discovery paths');
+        ok(!p.indexDirty&&!p.preRestoreUncoveredChanges,'Recovery does not leave another whole-vault patch backlog');
+        if(${Boolean(bookkeeping)}){
+          const persistence=index.getSnapshotPersistenceDiagnostics();
+          ok(!persistence.pending&&['running','complete'].includes(persistence.writer.outcome),'A newly completed startup writes immediately after coordinator bookkeeping');
+        }
         equal(p.startupDiagnostics.snapshot().sessionWork.sourceInventoryPasses,inventoryPasses,'Cached graph compilation must not force another source inventory');
         ok(!index.sourceAcquisition.requested,'Completed source authority is retained instead of queued for a redundant rescan');
         equal(p.startupDiagnostics.snapshot().sessionWork.nodeCatalogStarts,0,'Eager graph completion must not repeat a whole-vault node-only pass');

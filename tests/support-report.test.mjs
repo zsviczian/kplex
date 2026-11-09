@@ -19,6 +19,8 @@ function payload(text) {
   assert(text.endsWith("\n```\n"));
   return JSON.parse(text.slice(text.indexOf("```json\n") + 8, -5));
 }
+/** Identity is canonical at the report root rather than duplicated inside current activity. */
+function exportedActivity(capture) { const {build, ...settings}=capture.settings;return {...capture,settings}; }
 /** Supply a realistic aggregate index with opaque strings only in deliberate hostile extra fields. */
 function indexFixture() {
   return { formatVersion: 1, generatedAt: "2026-10-10T11:00:00.000Z", plugin: { id: "k-plex", version: "0.1.0" }, platform: "desktop",
@@ -43,8 +45,8 @@ function inputFixture() {
 
 test('support text embeds one compact shared activity object without changing existing fields',()=>{
   const {capture}=activityFixture(),input=inputFixture(),text=createSupportReport(input,capture),report=payload(text);
-  assert.deepEqual(report.indexingActivity,capture);assert.equal(report.index.status.indexedFiles,4);assert.equal(report.startup.source.checked,73);
-  assert(text.includes('  "indexingActivity": '+JSON.stringify(capture)+'\n}'));assert.equal(createSupportReport(input,capture),text);
+  assert.deepEqual(report.indexingActivity,exportedActivity(capture));assert.equal(report.index.status.indexedFiles,4);assert.equal(report.startup.source.checked,73);
+  assert(text.includes('  "indexingActivity": '+JSON.stringify(exportedActivity(capture))+',\n'));assert.equal(createSupportReport(input,capture),text);
   assert.equal(Buffer.byteLength(text),text.length);assert.equal(report.index.indexingActivity,undefined,'Activity has one top-level owner, not a duplicate parsed index field');
 });
 
@@ -56,7 +58,7 @@ test('new activity inputs reject accessors/proxies/toJSON and retired/parsed cap
   for(let index=0;index<8;index++)recorder.capture();assert.equal(payload(createSupportReport(inputFixture(),capture)).indexingActivity,null);assert.equal(calls,0);
 });
 
-test('maximum environment/event/startup pressure preserves the shared activity core under32KiB',()=>{
+test('maximum environment/event/startup pressure preserves the shared activity core under48KiB',()=>{
   const {capture}=activityFixture(),input=inputFixture(),max=Number.MAX_SAFE_INTEGER;
   input.startup.enabled=true;input.startup.phases=Array.from({length:32},()=>({lane:'source',phase:'dependency-final-validation',pass:max,processed:max,total:max,startedMs:max,endedMs:max,uniqueOwners:max,counters:{physicalRevisionComparisons:max,headPageOwners:max,inventoryFiles:max,inventoryFolders:max}}));
   input.startup.overlaps=Array.from({length:32},()=>({first:'dependency-final-validation',second:'resolution-reconciliation',owners:max}));
@@ -65,8 +67,8 @@ test('maximum environment/event/startup pressure preserves the shared activity c
   input.environment.activePlugins=Array.from({length:700},(_,index)=>({kind:'community',id:'plugin-'+index,name:'漢'.repeat(128),version:'12345.12345.12345'}));
   input.indexReport.decisions=Array.from({length:20},()=>({at:max,stage:'reconcile',reason:'complete-restored',added:max,removed:max,modified:max,completedMarkdownFiles:max,durationMs:max}));
   const text=createSupportReport(input,capture),report=payload(text);
-  assert(Buffer.byteLength(text)<=SUPPORT_REPORT_BYTE_LIMIT);assert.deepEqual(report.indexingActivity,capture);assert.equal(report.indexingActivity.lastGlobal[5],capture.lastGlobal[5]);assert.deepEqual(report.indexingActivity.totals,capture.totals);
-  assert.equal(report.events.length,0);assert(report.truncation.activePluginsOmitted>0);assert(!/[^\u0000-\u007f]/.test(text));
+  assert(Buffer.byteLength(text)<=SUPPORT_REPORT_BYTE_LIMIT);assert.deepEqual(report.indexingActivity,exportedActivity(capture));assert.equal(report.indexingActivity.lastGlobal[5],capture.lastGlobal[5]);assert.deepEqual(report.indexingActivity.totals,capture.totals);
+  assert.equal(report.session.events.length,0);assert(report.truncation.activePluginsOmitted>0);assert(!/[^\u0000-\u007f]/.test(text));
 });
 
 test("session work counts survive disabled detailed timings without exporting arbitrary fields", /** Only finite nonnegative counts enter the public report. */ () => {
@@ -106,11 +108,11 @@ test('snapshot attempt attribution survives only through finite allowlisted scal
 
 test("support output preserves useful aggregate index and partial startup facts, with explicit unknown evidence", /** Ordinary facts survive the privacy boundary without inventing readiness or telemetry. */ () => {
   const report = payload(createSupportReport(inputFixture()));
-  assert.equal(report.formatVersion, 1); assert.equal(report.index.status.indexedFiles, 4); assert.equal(report.index.status.totalFiles, 73);
+  assert.equal(report.formatVersion, 2); assert.equal(report.index.status.indexedFiles, 4); assert.equal(report.index.status.totalFiles, 73);
   assert.equal(report.index.graph.authoritative, false); assert.equal(report.index.sources.lastReason, "pending-metadata");
   assert.deepEqual(report.index.decisions[0].changedKeys, ["datePropertyRelations"]);
   assert.equal(report.startup.progress.source.processed, 4); assert.equal(report.startup.detailedTelemetry, "disabled"); assert.deepEqual(report.startup.phases, []);
-  assert.equal(report.eventsCaptureStatus, "active"); assert.equal(report.rawConsoleCaptureStatus, "unsupported");
+  assert.equal(report.session.eventsCaptureStatus, "active"); assert.equal(report.session.rawConsoleCaptureStatus, "unsupported");
   assert.equal(report.environment.hostVersion, "unavailable"); assert.equal(report.environment.enabledPluginCount, null);
   assert.deepEqual(report.indexingPreferences, { indexingMode: "on-demand", urlIndexingMode: "background", indexingThrottle: "responsive", excalidrawFitOnNodeOpen: null });
 });
@@ -131,7 +133,7 @@ test("hostile input cannot disclose paths, note titles, metadata, URLs, accounts
   const text = createSupportReport(input), report = payload(text);
   for (const secret of secrets) assert(!text.includes(secret), secret);
   assert.equal(report.index.decisions[1].reason, "unrecognized"); assert.equal(report.environment.locale, "unavailable");
-  assert.equal(report.index.sources.lastReason, "unavailable"); assert.equal(report.events.length, 3);
+  assert.equal(report.index.sources.lastReason, "unavailable"); assert.equal(report.session.events.length, 3);
   assert.equal(report.indexingPreferences.indexingMode, "unavailable");
   const serializedIndex = indexFixture(); serializedIndex.privatePayload = secrets; serializedIndex.decisions.push({ at: 10, stage: "build", reason: secrets[7] });
   const serialized = { ...input, indexReport: JSON.stringify(serializedIndex) };
@@ -153,11 +155,11 @@ test("unknown and malformed evidence stays explicit; disabled and disposed captu
   for (const status of ["disabled", "disposed", "unavailable"]) {
     input.session.eventsCaptureStatus = status; const report = payload(createSupportReport(input));
     assert.equal(report.index.availability, "unavailable"); assert.equal(report.startup.detailedTelemetry, "unavailable");
-    assert.equal(report.eventsCaptureStatus, status); assert.deepEqual(report.events, []);
+    assert.equal(report.session.eventsCaptureStatus, status); assert.deepEqual(report.session.events, []);
   }
   input.indexReport = "x".repeat(100000); assert.equal(payload(createSupportReport(input)).index.availability, "unavailable");
   input.environment = { pluginVersion: { toString: /** Untrusted coercion must remain unused. */ () => "private" }, obsidianApiVersion: Infinity, theme: "secret" };
-  input.capturedAt = "private-date"; const report = payload(createSupportReport(input)); assert.equal(report.capturedAt, "unavailable"); assert.equal(report.environment.pluginVersion, "unavailable");
+  input.capturedAt = "private-date"; const report = payload(createSupportReport(input)); assert.equal(report.generatedAt, "unavailable"); assert.equal(report.plugin.manifestVersion, "unavailable");
 });
 test("recorder copies immutable scalar events and preserves monotonic occurrence time", /** Mutating producers or snapshots cannot rewrite retained evidence. */ () => {
   let now = 100; const recorder = new SessionEventRecorder(/** Inject deterministic occurrence clock. */ () => now);
@@ -210,15 +212,15 @@ test("maximum hostile-safe report truncates oldest events deterministically befo
   const text = createSupportReport(input), report = payload(text); assert.equal(createSupportReport(input), text);
   assert(Buffer.byteLength(text) <= SUPPORT_REPORT_BYTE_LIMIT); assert(report.truncation.oldestEventsOmitted > 0);
   assert.equal(report.truncation.oldestStartupPhasesOmitted, 0); assert.equal(report.truncation.oldestStartupOverlapsOmitted, 0);
-  assert.equal(report.events.length + report.truncation.oldestEventsOmitted, 96);
-  if (report.events.length) { assert.equal(report.events[0].atMs, report.truncation.oldestEventsOmitted); assert.equal(report.events.at(-1).atMs, 95); }
+  assert.equal(report.session.events.length + report.truncation.oldestEventsOmitted, 96);
+  if (report.session.events.length) { assert.equal(report.session.events[0].atMs, report.truncation.oldestEventsOmitted); assert.equal(report.session.events.at(-1).atMs, 95); }
   assert.equal(input.session.events.length, 96, "Formatting must not mutate retained host snapshots");
 });
 test("large sparse arrays and dynamic counters are projected with fixed work and finite keys", /** Ignore huge collections instead of enumerating a discovered host inventory. */ () => {
   const input = inputFixture(); input.startup.enabled = true;
   input.startup.phases = []; input.startup.phases.length = 100000000; input.startup.phases[99999999] = { lane: "source", phase: "source-inventory", counters: { secret: 4 } };
   input.session.events = []; input.session.events.length = 100000000; input.session.events[99999999] = { code: "plugin-start", atMs: 7 };
-  const report = payload(createSupportReport(input)); assert.equal(report.startup.phases.length, 32); assert.equal(report.events.length, 1);
+  const report = payload(createSupportReport(input)); assert.equal(report.startup.phases.length, 32); assert.equal(report.session.events.length, 1);
   assert.equal(report.truncation.oldestStartupPhasesOmitted, 100000000 - 32); assert.equal(report.truncation.oldestEventsOmitted, 100000000 - 96);
   assert(!JSON.stringify(report).includes("secret")); assert(Buffer.byteLength(createSupportReport(input)) <= SUPPORT_REPORT_BYTE_LIMIT);
 });
@@ -301,7 +303,7 @@ test("large active-plugin metadata trims deterministic prefixes after events and
     customThemeAvailability: "available", customThemeName: "テーマ", cssSnippetsAvailability: "available", enabledCssSnippetCount: 1, availableCssSnippetCount: 2 });
   const text = createSupportReport(input), report = payload(text), environment = report.environment;
   assert(Buffer.byteLength(text) <= SUPPORT_REPORT_BYTE_LIMIT); assert.equal(Buffer.byteLength(text), text.length); assert.equal(createSupportReport(input), text);
-  assert.equal(report.events.length, 0); assert.equal(report.truncation.oldestEventsOmitted, input.session.events.length);
+  assert.equal(report.session.events.length, 0); assert.equal(report.truncation.oldestEventsOmitted, input.session.events.length);
   assert(environment.activePlugins.length > 0 && environment.activePlugins.length < 512);
   assert.equal(environment.activePluginsOmitted, 700 - environment.activePlugins.length); assert.equal(report.truncation.activePluginsOmitted, environment.activePluginsOmitted);
   assert.equal(environment.activePlugins[0].id, "plugin-0000"); assert.equal(environment.activePlugins.at(-1).id, `plugin-${String(environment.activePlugins.length - 1).padStart(4, "0")}`);

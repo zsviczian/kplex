@@ -15,6 +15,29 @@ import ts from "typescript";
 import {build} from "esbuild";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
+
+test('selected-source comparison diagnostics export fixed codes and never invoke private getters',async()=>{
+  const built=await build({entryPoints:[join(root,'src/application/indexRecoveryDiagnostics.ts')],bundle:true,write:false,platform:'node',format:'cjs'});
+  const module={exports:{}};new Function('module','exports',built.outputFiles[0].text)(module,module.exports);
+  const project=module.exports.projectIndexRecoveryDiagnostics;
+  assert.deepEqual(project({source:{metadataComparison:{outcome:'different',family:'resolution',path:'Private/Note.md'}}}).source.metadataComparison,
+    {outcome:'different',family:'resolution'});
+  let reads=0;const malformed={outcome:'private exception text'};
+  Object.defineProperty(malformed,'family',{get(){reads++;throw Error('Private value');}});
+  assert.deepEqual(project({source:{metadataComparison:malformed}}).source.metadataComparison,{outcome:'unavailable',family:'unavailable'});
+  assert.equal(reads,0);
+  assert.deepEqual(project({source:{environmentChange:{kind:'date-registry',fields:1,scoped:true,property:'Private field'}}}).source.environmentChange,
+    {kind:'date-registry',fields:1,scoped:true});
+  const environment={kind:'Private field',fields:-1};Object.defineProperty(environment,'scoped',{get(){reads++;throw Error('Private value')}});
+  assert.deepEqual(project({source:{environmentChange:environment}}).source.environmentChange,{kind:'unavailable',fields:null,scoped:null});
+  assert.equal(reads,0,'Environment diagnostics never invoke getters or expose dynamic field names');
+  assert.equal(project({source:{uncoveredResolverCause:'resolve-missing-native-file'}}).source.uncoveredResolverCause,'resolve-missing-native-file');
+  assert.equal(project({source:{uncoveredResolverCause:'Private note.md'}}).source.uncoveredResolverCause,'unavailable');
+  const url={policyPreparations:1,flushes:3,pendingPaths:0,maxPendingPaths:20,timerPending:false,privateUrl:'https://private.invalid/'};
+  assert.deepEqual(project({url}).url,{policyPreparations:1,flushes:3,pendingPaths:0,maxPendingPaths:20,timerPending:false});
+  Object.defineProperty(url,'policyPreparations',{get(){reads++;throw Error('Private value')}});
+  assert.equal(project({url}).url.policyPreparations,null);assert.equal(reads,0);
+});
 const indexPath = join(root, "src/index/GraphIndex.ts").replaceAll("\\", "/");
 const probePath = join(root, "tests/__indexDiagnosticsReportContract__.ts").replaceAll("\\", "/");
 const probe = `
@@ -69,7 +92,7 @@ test("missing diagnostic methods reproduce both reported TS2339 failures", () =>
 
 /** Load actual formatting/sanitizing owners with only the native Platform/version boundary stubbed. */
 async function reportRuntime(){
-  const built=await build({stdin:{resolveDir:root,contents:'export * from "./src/application/IndexingActivity"; export {createSupportReport} from "./src/application/supportReport"; export {createIndexDiagnosticsReport} from "./src/adapters/obsidian/indexDiagnosticsReport";'},bundle:true,write:false,platform:'node',format:'cjs',plugins:[{name:'native-report-boundary',setup(builder){builder.onResolve({filter:/^obsidian$/},()=>({path:'obsidian',namespace:'native-report'}));builder.onLoad({filter:/.*/,namespace:'native-report'},()=>({contents:'export const apiVersion="1.14.4"; export const Platform={isWin:true};',loader:'js'}));}}]});
+  const built=await build({stdin:{resolveDir:root,contents:'export * from "./src/application/IndexingActivity"; export {createSupportReport,createDiagnosticJson} from "./src/application/supportReport"; export {captureIndexDiagnostics,createIndexDiagnosticsReport} from "./src/adapters/obsidian/indexDiagnosticsReport";'},bundle:true,write:false,platform:'node',format:'cjs',plugins:[{name:'native-report-boundary',setup(builder){builder.onResolve({filter:/^obsidian$/},()=>({path:'obsidian',namespace:'native-report'}));builder.onLoad({filter:/.*/,namespace:'native-report'},()=>({contents:'export const apiVersion="1.14.4"; export const Platform={isWin:true};',loader:'js'}));}}]});
   const module={exports:{}};new Function('module','exports',built.outputFiles[0].text)(module,module.exports);return module.exports;
 }
 /** Native report ports expose retained scalar facts only and fail if formatting requests acquisition. */
@@ -79,15 +102,17 @@ function indexFacts(){return{size:7,getSavedSnapshotSummary:()=>({storage:'avail
 test('both actual exports preserve one identical branded activity object as compact ASCII',async()=>{
   const api=await reportRuntime(),d=new api.IndexingActivity(()=>0);d.cause('unscoped-resolved');const token=d.begin('host-inventory','global','unscoped-resolved');d.end(token,'complete');
   const capture=d.capture('on-demand','background','responsive','1.2.3+abcdef012345'),index=indexFacts(),status=()=>({upToDate:false,phase:'indexing',indexedFiles:3,totalFiles:7});
-  const native=api.createIndexDiagnosticsReport(index,status,'1.2.3',capture),parsed=JSON.parse(native);
-  const support=api.createSupportReport({capturedAt:'2026-10-17T00:00:00.000Z',indexReport:parsed,environment:{},indexingPreferences:{},startup:{},session:{}},capture);
+  const input={capturedAt:'2026-10-17T00:00:00.000Z',indexReport:api.captureIndexDiagnostics(index,status,'1.2.3'),environment:{},indexingPreferences:{},startup:{},session:{}};
+  const native=api.createDiagnosticJson(input,capture),parsed=JSON.parse(native);
+  const support=api.createSupportReport(input,capture);
   const report=JSON.parse(support.slice(support.indexOf('```json\n')+8,-5));
-  assert.deepEqual(parsed.indexingActivity,capture);assert.deepEqual(report.indexingActivity,parsed.indexingActivity);assert.equal(report.index.indexingActivity,undefined);
-  assert(native.includes('  "indexingActivity": '+JSON.stringify(capture)+'\n}'));assert(support.includes('  "indexingActivity": '+JSON.stringify(capture)+'\n}'));
-  assert.equal(Buffer.byteLength(native),native.length);assert(Buffer.byteLength(native)<=32768);assert(Buffer.byteLength(support)<=32768);
+  const {build,...settings}=capture.settings;
+  assert.deepEqual(parsed.indexingActivity,{...capture,settings});assert.deepEqual(report,parsed);assert.equal(report.index.indexingActivity,undefined);
+  assert.equal(support.slice(support.indexOf('```json\n')+8,-5),native);assert(native.includes('  "indexingActivity": '+JSON.stringify({...capture,settings})+',\n'));
+  assert.equal(Buffer.byteLength(native),native.length);assert(Buffer.byteLength(native)<=49152);assert(Buffer.byteLength(support)<=49152);
 });
 
-test('native report rejects new-summary proxies without traps and preserves activity on legacy size fallback',async()=>{
+test('native report rejects new-summary proxies without traps and ignores oversized unsupported raw fields',async()=>{
   const api=await reportRuntime(),d=new api.IndexingActivity(()=>0),capture=d.capture(),index=indexFacts(),status=()=>({upToDate:false,phase:'indexing',indexedFiles:0,totalFiles:7});
   let traps=0;const hostile=new Proxy({},{get(){traps++;throw Error('secret')},getOwnPropertyDescriptor(){traps++;throw Error('secret')},ownKeys(){traps++;throw Error('secret')}}),revoked=Proxy.revocable({},{});revoked.revoke();
   const serializer={toJSON(){traps++;throw Error('secret')}};
@@ -95,7 +120,8 @@ test('native report rejects new-summary proxies without traps and preserves acti
   assert.equal(traps,0);
   index.getSnapshotHydrationDiagnostics=()=>({phase:'metadata',futureUnsupportedField:'x'.repeat(40000)});
   const text=api.createIndexDiagnosticsReport(index,status,'1.2.3',capture),report=JSON.parse(text);
-  assert.equal(report.reportStatus,'size-limit');assert.deepEqual(report.indexingActivity,capture);assert(Buffer.byteLength(text)<=32768);
+  const {build,...settings}=capture.settings;
+  assert.equal(report.reportStatus,undefined);assert.equal(report.index.hydration.phase,'metadata');assert.deepEqual(report.indexingActivity,{...capture,settings});assert(Buffer.byteLength(text)<=49152);
 });
 
 test('center recovery aggregates survive both diagnostic exports without private payloads',async()=>{
@@ -103,9 +129,9 @@ test('center recovery aggregates survive both diagnostic exports without private
   const centerCheck={trigger:'initial',outcome:'repaired',sourceReadyBefore:false,sourceReadyAfter:false,activeBefore:true,coverageBefore:'preview',coverageAfter:'local',presented:[0,2,0,0,0],before:[0,2,0,0,0],after:[0,7,0,0,0],path:'PRIVATE-NOTE',content:'PRIVATE-CONTENT'};
   index.getIndexDiagnostics=()=>[{at:123,stage:'reconcile',reason:'center-watchdog:repaired',durationMs:12,centerCheck}];
   const native=api.createIndexDiagnosticsReport(index,()=>({upToDate:false,phase:'indexing',indexedFiles:3,totalFiles:7}),'1.2.3');
-  const parsed=JSON.parse(native),support=api.createSupportReport({capturedAt:'2026-10-18T00:00:00.000Z',indexReport:parsed,environment:{},indexingPreferences:{},startup:{},session:{}});
+  const parsed=JSON.parse(native),support=api.createSupportReport({capturedAt:'2026-10-18T00:00:00.000Z',indexReport:api.captureIndexDiagnostics(index,()=>({upToDate:false,phase:'indexing',indexedFiles:3,totalFiles:7}),'1.2.3'),environment:{},indexingPreferences:{},startup:{},session:{}});
   const report=JSON.parse(support.slice(support.indexOf('```json\n')+8,-5));
-  assert.deepEqual(parsed.decisions[0].centerCheck,report.index.decisions[0].centerCheck);assert.equal(report.index.decisions[0].reason,'center-watchdog:repaired');
+  assert.deepEqual(parsed.index.decisions[0].centerCheck,report.index.decisions[0].centerCheck);assert.equal(report.index.decisions[0].reason,'center-watchdog:repaired');
   assert.deepEqual(report.index.decisions[0].centerCheck.after,[0,7,0,0,0]);assert(!native.includes('PRIVATE'));assert(!support.includes('PRIVATE'));
 });
 
@@ -117,10 +143,21 @@ test('recovery blockers and writer error classes survive both exports without pr
  index.getIndexRecoveryDiagnostics=()=>({demandedCenters:1,incompleteCenters:1,activeCenterTasks:0,dependencyPendingCenters:1,foregroundLeases:0,
   waitingForSources:true,source,snapshot:{phase:'pages',outcome:'failed',errorName:'DataCloneError',elapsedMs:20,pageChunks:2,evidenceChunks:0,message:'PRIVATE-ERROR'}});
  const native=api.createIndexDiagnosticsReport(index,()=>({upToDate:false,phase:'updating',indexedFiles:3,totalFiles:3}),'1.2.3'),parsed=JSON.parse(native);
- const support=api.createSupportReport({capturedAt:'2026-11-04T14:11:32.000Z',indexReport:parsed,environment:{},indexingPreferences:{},startup:{},session:{}});
+ const support=api.createSupportReport({capturedAt:'2026-11-04T14:11:32.000Z',indexReport:api.captureIndexDiagnostics(index,()=>({upToDate:false,phase:'updating',indexedFiles:3,totalFiles:3}),'1.2.3'),environment:{},indexingPreferences:{},startup:{},session:{}});
  const report=JSON.parse(support.slice(support.indexOf('```json\n')+8,-5));
- assert.deepEqual(parsed.recovery,report.index.recovery);assert.equal(parsed.recovery.source.pass.scopeChanges,1);
- assert.equal(parsed.recovery.snapshot.errorName,'DataCloneError');assert.equal(parsed.recovery.waitingForSources,true);
+ assert.deepEqual(parsed.index.recovery,report.index.recovery);assert.equal(parsed.index.recovery.source.pass.scopeChanges,1);
+ assert.equal(parsed.index.cache.writer.errorName,'DataCloneError');assert.equal(parsed.index.recovery.waitingForSources,true);
  assert.equal(getters,0);assert(!native.includes('PRIVATE'));assert(!support.includes('PRIVATE'));
- assert(Buffer.byteLength(native)<=32768&&Buffer.byteLength(support)<=32768);
+ assert(Buffer.byteLength(native)<=49152&&Buffer.byteLength(support)<=49152);
+});
+
+test('fixed source failure and folder revalidation reasons survive the canonical projection',async()=>{
+ const api=await reportRuntime(),index=indexFacts();
+ index.getSourceRepositoryDiagnostics=()=>({lastReason:'activated',lastReadFailure:'superseded'});
+ index.getIndexDiagnostics=()=>[{at:123,stage:'reconcile',reason:'physical-folder-inventory-revalidated',modified:2827}];
+ const report=JSON.parse(api.createIndexDiagnosticsReport(index,()=>({upToDate:false,phase:'updating',indexedFiles:3,totalFiles:3}),'1.2.3'));
+ assert.equal(report.index.sources.lastReadFailure,'superseded');assert.equal(report.index.sources.lastReason,'activated');
+ assert.equal(report.index.decisions[0].reason,'physical-folder-inventory-revalidated');
+ index.getSourceRepositoryDiagnostics=()=>({lastReadFailure:'Private failure string'});
+ assert.equal(JSON.parse(api.createIndexDiagnosticsReport(index,()=>({upToDate:false,phase:'updating',indexedFiles:3,totalFiles:3}),'1.2.3')).index.sources.lastReadFailure,'unavailable');
 });

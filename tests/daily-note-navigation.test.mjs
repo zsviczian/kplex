@@ -46,6 +46,18 @@ test('formatted year folders and additional archive directories never borrow the
  }finally{f.restore()}
 });
 
+test('unresolved daily names propose the configured template destination with strict date matching',()=>{
+ const f=fixture();try{
+  assert.deepEqual(M.dailyNoteCreationTarget(f.app,'2026-11-07 Saturday'),{date:'2026-11-07',path:'Daily/2026-11-07 Saturday.md'});
+  assert.deepEqual(M.dailyNoteCreationTarget(f.app,'Archive/2026-11-07 Saturday.md'),{date:'2026-11-07',path:'Daily/2026-11-07 Saturday.md'});
+  for(const path of ['2026-11-07 Sunday','2026-02-30 Monday','Notes','2026-11-07 Saturday.excalidraw.md'])assert.equal(M.dailyNoteCreationTarget(f.app,path),null,path);
+  f.instance.options.format='YYYY/MM-DD';
+  assert.deepEqual(M.dailyNoteCreationTarget(f.app,'Daily/2024/02-29.md'),{date:'2024-02-29',path:'Daily/2024/02-29.md'});
+  assert.equal(M.dailyNoteCreationTarget(f.app,'02-29'),null,'An unresolved basename cannot borrow the current year');
+  f.app.internalPlugins.getPluginById=()=>({enabled:false,instance:f.instance});assert.equal(M.dailyNoteCreationTarget(f.app,'2024/02-29'),null);
+ }finally{f.restore()}
+});
+
 test('configured exact file wins duplicate dates and deleted native identities cannot become candidates',async()=>{
  const f=fixture();try{
   const old=f.add('Daily/2026/2026-11-07 Saturday.md'),preferred=f.add('Daily/2026-11-07 Saturday.md'),entries=await M.collectDailyNotes(f.app,()=>true);

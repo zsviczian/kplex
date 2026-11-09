@@ -58,6 +58,10 @@
   cursor: pointer;
 }
 
+.kplex-index-activities {
+  white-space: pre-line;
+}
+
 /* Keep the compact dot layout while giving mouse/touch users a larger invisible hit target. */
 .kplex-index-status::before {
   content: "";

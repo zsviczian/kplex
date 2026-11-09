@@ -2,7 +2,7 @@
  * Public support-report privacy projection. Only enumerated categories and bounded counters cross
  * this application boundary, together with explicitly requested plugin/theme metadata; native
  * diagnostics remain unknown input and are never serialized intact.
- * Existing host diagnostics commands keep their own schemas. No host/API reads or effectful callbacks
+ * Both host diagnostics commands share this projection. No host/API reads or effectful callbacks
  * are accepted, including own accessors and arbitrary toJSON implementations.
  */
 import { projectSupportCustomizations } from "./supportCustomizationProjection";
@@ -21,7 +21,8 @@ const DECISION_REASONS = ["source-backed-physical-baseline", "source-node-incide
   "storage-unavailable", "invalid-snapshot-metadata", "no-complete-snapshot", "source-backed-policy-baseline", "compatible", "signature-format-changed",
   "semantic-settings-changed", "signature-format-unknown", "retired-policy-reconcile", "retired-policy-no-affected-sources", "checkpoint-selected",
   "complete-snapshot-fresh", "complete-snapshot-stale", "startup-source-authority-pending", "hydration-incomplete", "restore-exception", "hydration-stalled", "snapshot-foreground-proof-mismatch",
-  "source-changed-during-reconcile", "per-file-reconcile-complete", "snapshot-write-cancelled", "checkpoint-saved", "complete-saved"] as const;
+  "source-changed-during-reconcile", "per-file-reconcile-complete", "physical-folder-inventory-revalidated",
+  "snapshot-write-cancelled", "checkpoint-saved", "complete-saved"] as const;
 const BUILD_PARTS = ["cold-progressive", "full-rebuild", "per-file-patch", "startup", "vault", "metadata", "kplex", "stale-snapshot", "no-snapshot",
   "partial-restore-incomplete", "post-initial-backlog", "initial-index", "create-during-rebuild", "create-markdown", "create", "delete-folder-failed", "delete",
   "rename-folder-failed", "rename-folder", "rename", "changed", "coalesced-backlog", "interval", "view-open", "direct", "unknown", "settings", "manual", "user-request"] as const;
@@ -116,6 +117,9 @@ export function projectSupportIndex(input: unknown) {
   };});
   return {
     availability: "available" as const, recovery: projectIndexRecoveryDiagnostics(supportField(source, "recovery")),
+    persistence: {pending: supportBoolean(supportField(supportField(source, "persistence"), "pending")),
+      active: supportBoolean(supportField(supportField(source, "persistence"), "active")),
+      dueInMs: supportDuration(supportField(supportField(source, "persistence"), "dueInMs"))},
     decisionsOmitted: Math.max(0, supportRowCount(supportField(source, "decisions")) - 20), formatVersion: supportCount(supportField(source, "formatVersion")),
     generatedAt: supportIsoTime(supportField(source, "generatedAt")), plugin: { id: "k-plex", version: supportVersion(supportField(plugin, "version")) },
     platform: supportCode(supportField(source, "platform"), ["ios", "android", "desktop"]),
@@ -135,6 +139,7 @@ export function projectSupportIndex(input: unknown) {
     sources: { ...supportCounters(sources, ["formatVersion", "databaseVersion", "factFormatVersion", "factCompilerVersion", "bodyParserVersion", "resolutionVersion", "activated",
       "unsaved", "empty", "chunksWritten", "bytesWritten", "familiesReused", "readFailures", "sequenceMin", "sequenceMax", "peakDecodeBytes"]),
       storage: supportCode(supportField(sources, "storage"), ["unchecked", "available", "unavailable"]), lastReason: supportCode(supportField(sources, "lastReason"), SOURCE_REASONS),
+      lastReadFailure: supportField(sources,"lastReadFailure") == null ? null : supportCode(supportField(sources,"lastReadFailure"), SOURCE_REASONS),
       familyFailures: supportCounters(supportField(sources, "familyFailures"), ["values", "body-urls", "metadata", "resolution"]) }, decisions,
   };
 }
@@ -180,9 +185,12 @@ export function projectSupportStartup(input: unknown) {
     row => ({ first: supportCode(supportField(row, "first"), SUPPORT_PHASES), second: supportCode(supportField(row, "second"), SUPPORT_PHASES), owners: supportCount(supportField(row, "owners")) })) : [];
   const milestones: Record<string, number | null> = {};
   if (enabled === true) for (const code of MILESTONES) milestones[code] = supportMilliseconds(supportField(supportField(input, "milestones"), code));
-  const source = supportField(input, "source"), semantic = supportField(input, "semantic");
+  const source = supportField(input, "source"), semantic = supportField(input, "semantic"), admission = supportField(input, "admission");
   return { availability: input !== null && typeof input === "object" ? "available" : "unavailable",
     detailedTelemetry: enabled === true ? "enabled" : enabled === false ? "disabled" : "unavailable", frozen: supportBoolean(supportField(input, "frozen")),
+    admission: {device: supportCode(supportField(admission, "device"), ["phone", "tablet", "desktop"]),
+      beforeView: supportBoolean(supportField(admission, "beforeView")), admitted: supportBoolean(supportField(admission, "admitted")),
+      mode: supportCode(supportField(admission, "mode"), ["eager", "on-demand"])},
     sessionWork: supportCounters(supportField(input, "sessionWork"),
       ["sourceInventoryPasses", "fullBuildStarts", "nodeCatalogStarts", "completeSnapshotSaves", "checkpointSaves"]),
     progress: { source: supportField(progress, "source") == null ? null : supportStartupPhase(supportField(progress, "source"), false, "source"),

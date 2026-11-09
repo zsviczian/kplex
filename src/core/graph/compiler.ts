@@ -261,14 +261,17 @@ export class NormalizedGraphCompiler {
   private nextResolverKey = 0;
   private nextSyntheticId = 0;
 
-  /** Capture reference selection once; node projection skips evidence without changing materialization. */
+  /** Capture reference selection once; a caller may share an immutable selector from the same
+   * explicitly fenced policy lifetime. Per-source reads, payloads and graph state remain private.
+   * Node projection skips evidence without changing materialization. */
   constructor(
     private readonly settings: GraphCompilerSettings,
     private readonly runtime: GraphCompilerRuntime,
     private readonly projection: "graph" | "nodes" = "graph",
+    referencePolicy?: ReferencePolicySelector,
   ) {
     this.sliceStartedAt = runtime.now();
-    this.referenceSelector = new ReferencePolicySelector(settings);
+    this.referenceSelector = referencePolicy ?? new ReferencePolicySelector(settings);
   }
 
   /** Open a producer-local cursor/decoder under the compiler's captured reference policy. */
