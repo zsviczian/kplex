@@ -56,6 +56,15 @@ return an obsolete TFile absent from that catalog and without cached metadata.
 Such a header must not keep every current note in repeated recovery. Its derived
 facts retire under a fresh native-membership fence; no physical note is removed.
 
+Date-registry drift can reuse a closed field-membership root while its captured
+inventory-scope revision remains current. Existing field lookups identify candidate
+owners, and the normal per-source producer validates new Date facts. Updating the
+observed registry never grants semantic readiness: source repair and the existing
+count-journal finality fence must finish first. An empty field impact requires the
+same authenticated lookup. Daily Notes configuration, changed inventory scope,
+missing/corrupt proof, retirement and concurrent environment changes retain ordinary
+recovery; no additional index, scheduler or relationship classifier is introduced.
+
 Native enumeration reordering alone updates the existing owner-coordinate CAS;
 it does not count toward the 256 changed-source limit. A finite graph repair also
 queries the existing local dependency index for affected old/current aliases.

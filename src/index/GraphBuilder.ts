@@ -43,6 +43,7 @@ import { perfNow } from "../util/perf";
 import { NormalizedGraphCompiler, type CompiledGraphNode, type CompiledRelationEvidence, type GraphCompilerSourceRead, type PortableGraphCompilation, type PortableNodeCompilation } from "../core/graph/compiler";
 import { graphCompilerSettingsFromLegacy } from "../adapters/obsidian/graphContracts";
 import { NormalizedSourcePatchPreparer, type PreparedSourcePatch, type SourcePatchReadPort } from "../core/graph/patch";
+import type { ReferencePolicySelector } from "../core/graph/sourcePolicy";
 import { nodeId, type NodeId } from "../core/graph/model";
 import { entityFactForFile, ObsidianStructuralPatchSourceCollector, ObsidianStructuralSourceCollector } from "../adapters/obsidian/structuralSourceCollector";
 import { ObsidianHostLinkSourceCollector, readHostLinkSignatureEntries } from "../adapters/obsidian/hostLinkSourceCollector";
@@ -805,11 +806,14 @@ export class GraphBuilder {
    * existing inline/property grammar is restricted to external targets; unrelated note relations and source inventory are not acquired here.
    * Private copy-on-write staging is committed only after exact native file/lifetime checks.
    * Evidence and adjacency adoption require independent live privacy checks during that commit.
+   * An optional immutable reference selector must belong to the same caller-fenced policy epoch;
+   * only configured-field preparation is shared, never source payloads or publication authority.
    * This isolated lane opts into cooperatively activated target/kind facts before origin reconciliation.
    * @returns Paths affected by the synchronous publication, or null after supersession.
    */
   async patchUrlReferences(state: GraphState, file: TFile, body: ParsedBodyMetadata, publisher: PatchFilePublisher, cachedFrontmatter?: Record<string, unknown>,
-    canAdoptEvidence?: (evidence: RelationEvidenceStore) => boolean, canAdoptAdjacency?: UrlAdjacencyPrivacy): Promise<Set<string> | null> {
+    canAdoptEvidence?: (evidence: RelationEvidenceStore) => boolean, canAdoptAdjacency?: UrlAdjacencyPrivacy,
+    referencePolicy?: ReferencePolicySelector): Promise<Set<string> | null> {
     const revision = this.captureFileRevision(file), sourcePath = revision.path;
     if (!this.isCurrent() || !(await this.compactPublishedPatchLayers(state))) return null;
     const staged = this.createPatchState(state, true, true, Boolean(canAdoptAdjacency));
@@ -817,7 +821,7 @@ export class GraphBuilder {
       if (!staged.pages.has(sourcePath)) this.addPage(staged, this.createPage({ path: sourcePath, name: file.basename, file }));
       const source = entityFactForFile(file);
       const preparer = new NormalizedSourcePatchPreparer(nodeId(sourcePath), this.fullCompilerSettings(),
-        this.patchCompilerRuntime(), this.patchReadPort(staged));
+        this.patchCompilerRuntime(), this.patchReadPort(staged), referencePolicy);
       const boundary = { generation: sourceGeneration(`url-owner:${sourcePath}:${revision.mtime}`),
         snapshotRevision: sourceSnapshotRevision(`url-owner:${sourcePath}:${revision.mtime}`) };
       const read = preparer.beginRead(boundary);

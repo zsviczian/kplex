@@ -26,6 +26,15 @@ test('selected-source comparison diagnostics export fixed codes and never invoke
   Object.defineProperty(malformed,'family',{get(){reads++;throw Error('Private value');}});
   assert.deepEqual(project({source:{metadataComparison:malformed}}).source.metadataComparison,{outcome:'unavailable',family:'unavailable'});
   assert.equal(reads,0);
+  assert.deepEqual(project({source:{environmentChange:{kind:'date-registry',fields:1,scoped:true,property:'Private field'}}}).source.environmentChange,
+    {kind:'date-registry',fields:1,scoped:true});
+  const environment={kind:'Private field',fields:-1};Object.defineProperty(environment,'scoped',{get(){reads++;throw Error('Private value')}});
+  assert.deepEqual(project({source:{environmentChange:environment}}).source.environmentChange,{kind:'unavailable',fields:null,scoped:null});
+  assert.equal(reads,0,'Environment diagnostics never invoke getters or expose dynamic field names');
+  const url={policyPreparations:1,flushes:3,pendingPaths:0,maxPendingPaths:20,timerPending:false,privateUrl:'https://private.invalid/'};
+  assert.deepEqual(project({url}).url,{policyPreparations:1,flushes:3,pendingPaths:0,maxPendingPaths:20,timerPending:false});
+  Object.defineProperty(url,'policyPreparations',{get(){reads++;throw Error('Private value')}});
+  assert.equal(project({url}).url.policyPreparations,null);assert.equal(reads,0);
 });
 const indexPath = join(root, "src/index/GraphIndex.ts").replaceAll("\\", "/");
 const probePath = join(root, "tests/__indexDiagnosticsReportContract__.ts").replaceAll("\\", "/");

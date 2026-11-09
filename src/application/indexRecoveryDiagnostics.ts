@@ -15,8 +15,9 @@ export function projectSnapshotWriteDiagnostics(snapshot: unknown) {
 /** Project one bounded receipt without invoking getters, serializers or host operations. */
 export function projectIndexRecoveryDiagnostics(input: unknown) {
   if (input === null || input === undefined) return null;
-  const source = supportField(input, "source"), pass = supportField(source, "pass"), snapshot = supportField(input, "snapshot");
+  const source = supportField(input, "source"), pass = supportField(source, "pass"), snapshot = supportField(input, "snapshot"), url = supportField(input, "url");
   const invalidation = supportField(source, "invalidation"), comparison = supportField(source, "metadataComparison");
+  const environment = supportField(source, "environmentChange");
   const boolean = (object: unknown, key: string): boolean | null => {
     const value = supportField(object, key); return typeof value === "boolean" ? value : null;
   };
@@ -32,11 +33,15 @@ export function projectIndexRecoveryDiagnostics(input: unknown) {
       metadataComparison: comparison === null || comparison === undefined ? null : {
         outcome: supportCode(supportField(comparison, "outcome"), ["equal", "different", "unavailable"]),
         family: supportCode(supportField(comparison, "family"), ["values", "metadata", "resolution", "body-urls"])},
+      environmentChange: environment === null || environment === undefined ? null : {
+        kind: supportCode(supportField(environment, "kind"), ["date-registry", "daily-notes", "unknown"]),
+        fields: supportCount(supportField(environment, "fields")), scoped: boolean(environment, "scoped")},
       ...Object.fromEntries(["dependenciesReady", "localAuthorityReady", "restartChecked", "warmAuthority", "environmentPending", "resolutionUncertain", "resolutionBackpressure", "inventoryActive"].map(key => [key, boolean(source, key)])),
       pass: pass === null || pass === undefined ? null : {
         phase: supportCode(supportField(pass, "phase"), ["queued", "native-resolution", "known-impacts", "local-maintenance", "coordinates", "sources", "dependencies", "resolution", "final-proof"]),
         outcome: supportCode(supportField(pass, "outcome"), ["running", "complete", "incomplete", "cancelled", "failed"]),
         elapsedMs: supportDuration(supportField(pass, "elapsedMs")),
         ...counters(pass, ["visited", "total", "sourceChanges", "scopeChanges", "hostChanges"])}},
+    url: {...counters(url, ["policyPreparations", "flushes", "pendingPaths", "maxPendingPaths"]), timerPending: boolean(url, "timerPending")},
     snapshot: projectSnapshotWriteDiagnostics(snapshot)};
 }

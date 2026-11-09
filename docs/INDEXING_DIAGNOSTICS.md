@@ -143,6 +143,25 @@ of these index reuse records and cannot grant index readiness.
 Restart certificate reads use bounded sixteen-owner waves in one readonly transaction;
 validation, ordering and the number of records read remain unchanged.
 
+`index.recovery.source.environmentChange` retains the latest fixed environment reason
+(`date-registry`, `daily-notes` or `unknown`), changed-field count and whether field scope
+was proven. It contains no property names or settings values. A Date-only registry change
+uses the existing closed field-membership derivative to repair affected owners, including
+an explicitly proven empty impact for a retired field. It does not repeat a vault-wide
+source inventory. Daily Notes interpretation changes, an invalidated inventory scope or
+unavailable dependency proof retain ordinary broad recovery. Subsequent file events do
+not overwrite this separate reason receipt.
+
+`index.recovery.url` includes the number of captured reference-policy preparations and the
+existing URL publication counters. Replay keeps all owner, alias, metadata and origin state;
+it shares only immutable configured-field selection within one semantic policy revision.
+An ontology or image-property change retires that selection, and all existing file/cache,
+policy, cancellation and atomic-publication guards still apply. This avoids rebuilding the
+same configured-field lookup for every restored URL owner without skipping URL discovery.
+A synthetic replay of 2,500 owners, 20,000 URLs and 427 paired ontology fields measured
+4,805 ms before reuse and 2,630 ms afterward, with one captured policy. This isolates CPU
+work with fixture data and pacing disabled; it does not measure production startup or I/O.
+
 Graph usability and the activity indicator are separate. A usable graph may still
 have metadata validation, URL restoration or cache persistence running. The
 indicator retains its updating appearance for that active work and turns green
@@ -372,9 +391,10 @@ Treat these other states explicitly:
 - `omitted.rotated` describes completed-pass ring eviction. `omitted.reportRecent`,
   `omitted.reportPhaseLanes` and `omitted.reportHours` describe copy-size omissions, which do
   not alter retained history. Neither category resets lifetime totals or `lastGlobal`.
-- Reloading K-Plex starts a fresh lifetime: totals restart, old pass rows disappear and
-  `lastGlobal` is initially `null`. An old copied report remains a historical document;
-  without a persistent session identifier, do not subtract reports across a reload.
+- Reloading K-Plex starts a fresh current lifetime: totals restart, current pass rows disappear
+  and `lastGlobal` is initially `null`. Compact previous-session summaries remain separately
+  available in `indexingHistory`; they never merge with the new lifetime's counters. Do not
+  subtract current-session counters across a reload or treat historical totals as current work.
 
 ## Validation gates
 

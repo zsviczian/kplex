@@ -55,6 +55,8 @@
  * structural/file publication accounting and saved semantic proofs; the old candidate stays rejected.
  * Eager startup admits independent URL replay after the primary graph and shares its long-lived
  * inventory lease with P4 source maintenance. Local-mode URL discovery retains its existing lane.
+ * URL owners share only immutable configured-field selection within a semantic policy revision;
+ * native observations, payload cursors, aliases, compiler state and publication remain per owner.
  * Fresh warm source headers admit urgent local maintenance ahead of the independent metadata audit;
  * exact source receipts and existing per-file publication retain graph completeness and event fences.
  * A compatible changed-vault cache hydrates as explicitly cached presentation before its source
@@ -149,6 +151,7 @@ import type { NodeId } from "../core/graph/model";
 import {PublicApiError,PUBLIC_API_LIMITS as publicLimits,type PublicCoverage,type PublicNode,type PublicPage,type PublicRelationship,type PublicEvidence,type PublicIndexStatus} from '../application/publicApiContracts';
 import { estimateReferenceRecordBytes, sourceRevision, type SourceEntityFact, type SourceEntityRef } from "../core/graph/source";
 import { RelationEvidenceStore, emptyRelation, applyOntologyPrecedence, applyEvidenceDecisionsToRelation } from "../core/graph/evidence";
+import { ReferencePolicySelector } from "../core/graph/sourcePolicy";
 import { Platform, TFile, TFolder, normalizePath, type App, type CachedMetadata } from "obsidian";
 import type KplexPlugin from "../main";
 import type { KplexSettings } from "../settings";
@@ -492,6 +495,9 @@ export class GraphIndex {
   private readonly urlPublishedTargets = new Map<string, GraphPage>();
   private urlAdjacencyPrivate = true;
   private urlWorkingRevision = 0;
+  /** Read-only configured-field selection is shared only within this semantic policy revision. */
+  private urlReferencePolicy: {revision: number; selector: ReferencePolicySelector} | null = null;
+  private urlPolicyPreparations = 0;
   private publishedUrlOwners = new Map<string, Readonly<{ file: TFile; mtime: number; size: number; event: number; metadata: CachedMetadata | null }>>();
   private publishedUrlComplete = false;
   private publishedUrlCachedMetadata = false;
@@ -2285,7 +2291,7 @@ export class GraphIndex {
     const foregroundLeases = scheduler.active[0] + scheduler.active[1] + scheduler.active[2];
     return {demandedCenters, incompleteCenters, activeCenterTasks, dependencyPendingCenters, foregroundLeases,
       waitingForSources: incompleteCenters > 0 && !source.dependenciesReady && activeCenterTasks === 0,
-      source, snapshot: this.indexedDb.getSnapshotWriteDiagnostics()};
+      source, url: this.getUrlPublicationDiagnostics(), snapshot: this.indexedDb.getSnapshotWriteDiagnostics()};
   }
   /** Aggregate acquisition counters for restart/selective-repair validation; never source contents. */
   getSourceAcquisitionCounters() { return this.sourceAcquisition.getCounters(); }
@@ -4584,6 +4590,7 @@ export class GraphIndex {
   /** Invalidate in-flight semantic work and advance the demanded policy without scheduling a rebuild. */
   invalidateSemanticPolicy(): void {
     this.semanticPolicyRevision += 1;
+    this.urlReferencePolicy = null;
     this.onDemandIndexed.clear();
     this.onDemandHostScopes.clear(); this.retainedLocalScopes.clear();
     this.onDemandCachedScopes.clear();
@@ -4985,6 +4992,11 @@ export class GraphIndex {
               await this.workScheduler.checkpoint(priority);
               progress();
             });
+          if (this.urlReferencePolicy?.revision !== policy) {
+            this.urlReferencePolicy = {revision: policy, selector: new ReferencePolicySelector(graphCompilerSettingsFromLegacy(this.plugin.settings))};
+            this.urlPolicyPreparations++;
+          }
+          const referencePolicy = this.urlReferencePolicy.selector;
           const adjacencyPrivacy = this.captureUrlAdjacencyPrivacy();
           const aliases = await this.prepareUrlAliasOwners(revision.path, urls, current, priority, progress, frontmatter);
           if (!aliases) { if (alive()) continue; return; }
@@ -4998,7 +5010,7 @@ export class GraphIndex {
             this.publishUrlAliasOwners(revision.path, aliases);
             this.queueUrlPublication(commit.touchedPagePaths, revision.path, !background);
           }, frontmatter, /** Only the current unpublished URL layer is exclusively writable at commit. */
-          evidence => evidence !== this.publishedUrlState.evidence, adjacencyPrivacy);
+          evidence => evidence !== this.publishedUrlState.evidence, adjacencyPrivacy, referencePolicy);
           if (touched || current()) return;
           await this.workScheduler.checkpoint(priority);
         }
@@ -5010,9 +5022,9 @@ export class GraphIndex {
   }
 
   /** Aggregate URL batching diagnostics are session-local and contain no owner or vault content. */
-  getUrlPublicationDiagnostics(): Readonly<{ flushes: number; pendingPaths: number; maxPendingPaths: number; timerPending: boolean }> {
+  getUrlPublicationDiagnostics(): Readonly<{ flushes: number; pendingPaths: number; maxPendingPaths: number; timerPending: boolean; policyPreparations: number }> {
     return { flushes: this.urlPresentationFlushes, pendingPaths: this.pendingUrlPaths.size,
-      maxPendingPaths: this.maxPendingUrlPaths, timerPending: this.urlFlushTimer !== null };
+      maxPendingPaths: this.maxPendingUrlPaths, timerPending: this.urlFlushTimer !== null, policyPreparations: this.urlPolicyPreparations };
   }
 
   /** Collect working commits without exposing intermediate adjacency on unrelated renders.
@@ -5480,6 +5492,7 @@ export class GraphIndex {
     // unrelated host reference is collected. Published page objects themselves are not mutated.
     this.state = createGraphState();
     this.urlWorkingRevision++; this.urlAdjacencyPrivate = false; this.urlPublishedTargets.clear();
+    this.urlReferencePolicy = null;
     this.urlState = createGraphState(); this.publishedUrlState = createGraphState(); this.publishedUrlOwners.clear();
     this.urlOwners.clear(); this.urlOwnerEvents.clear(); this.urlOwnerBodies.clear(); this.urlOwnerFrontmatter.clear();
     this.urlMetadataCaches.clear(); this.urlCachedMetadataOwners.clear(); this.urlOwnerFailures.clear();

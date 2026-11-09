@@ -7,6 +7,8 @@
  * references have a different lifetime from host target resolution. This adapter uses the existing
  * parser/Date collector/host resolver, never semantic settings or custom path guessing. It owns its
  * event fence independently of graph no-op suppression, plus a single cooperative inventory task.
+ * Date-registry changes use the existing closed field-membership projection for affected owners;
+ * Daily Notes interpretation drift and unprovable local scope retain ordinary broad recovery.
  * Complete eager graphs consume its coalesced affected-owner journal through exact publication receipts.
  * Fresh complete warm graphs authenticate persisted dependency headers once. Their local edits may
  * then close through the same per-source owner at foreground priority while the metadata audit runs.
@@ -250,6 +252,10 @@ export class ObsidianSourceAcquisition {
   private deferredResolutionRetryDelay = DEFERRED_RESOLUTION_RETRY_MIN_MS;
   /** Date/Daily Notes drift closes semantic writes without advancing the reversible legacy host revision. */
   private environmentMaintenancePending = false;
+  /** Inventory-scope receipt for the closed field root; grants no Date semantics or write readiness. */
+  private environmentLocalAuthority: number | null = null;
+  /** Last environment observation contains codes/counts only, surviving later ordinary file events. */
+  private environmentChange: {kind: "date-registry" | "daily-notes" | "unknown"; fields: number; scoped: boolean} | null = null;
   /** One path-free active/last inventory receipt; capture never schedules or inspects sources. */
   private recoveryPass: {phase: string; outcome: string; startedAt: number; elapsedMs: number;
     visited: number; total: number; sourceRevision: number; scopeRevision: number; hostRevision: number;
@@ -332,6 +338,7 @@ export class ObsidianSourceAcquisition {
       pendingResolution: this.pendingResolutionKeys.size, knownImpactTasks: this.knownImpactTasks,
       inventoryActive: this.inventory !== null, maintenanceRevision: this.maintenanceRevision,
       invalidation: {...this.recoveryInvalidation},
+      environmentChange: this.environmentChange ? {...this.environmentChange} : null,
       metadataComparison: this.metadataComparison ? {...this.metadataComparison} : null,
       pass: pass ? {...pass, elapsedMs: pass.outcome === "running" ? Math.max(0, Date.now() - pass.startedAt) : pass.elapsedMs,
         sourceChanges: pass.outcome === "running" ? Math.max(0, this.inventoryRevision - pass.sourceRevision) : pass.sourceChanges,
@@ -685,6 +692,7 @@ export class ObsidianSourceAcquisition {
     // environment observations are coalesced until reconciliation starts, so a native burst causes
     // one cached-fact pass rather than a per-event vault scan.
     if (global) {
+      this.environmentLocalAuthority = null;
       this.activityGlobalReason ??= activityReason;
       try { this.startupDiagnostics?.activityCause?.(activityReason); } catch { /* Optional diagnostics never fence sources. */ }
       if (!this.uncertainResolution) {
@@ -693,6 +701,20 @@ export class ObsidianSourceAcquisition {
       }
     } else if (kind === "environment") {
       if (!this.environmentMaintenancePending) {
+        const local = this.localDependencyAuthorityReady && this.restartInventoryChecked
+          && !this.uncertainResolution && !this.resolutionBackpressure;
+        this.environmentLocalAuthority = null;
+        this.environmentChange = {kind: "unknown", fields: 0, scoped: false};
+        try {
+          const daily = this.dailyNotesObservation !== null
+            && this.dailyNotesObservation !== JSON.stringify(this.metadataHost.dailyNotesSettings());
+          let fields = 0;
+          for (const [field, previous] of this.environmentFields) if (this.metadataHost.isDateProperty(field) !== previous) fields++;
+          // Classification selects the functional repair path. Its code/count receipt merely
+          // observes that choice; unavailable optional host APIs retain ordinary broad recovery.
+          if (!daily && fields > 0 && local) this.environmentLocalAuthority = this.inventoryScopeRevision + 1;
+          this.environmentChange = {kind: daily ? "daily-notes" : fields ? "date-registry" : "unknown", fields, scoped: false};
+        } catch { /* Keep the environment fenced without an unprovable local scope. */ }
         this.activityGlobalReason ??= "environment";
         try { this.startupDiagnostics?.activityCause?.("environment"); } catch { /* Preserve environment validation independently. */ }
         this.environmentMaintenancePending = true; this.inventoryRevision += 1; this.inventoryScopeRevision += 1;
@@ -1294,6 +1316,40 @@ export class ObsidianSourceAcquisition {
       && this.dailyNotesObservation !== JSON.stringify(this.metadataHost.dailyNotesSettings())) return true;
     for (const [field, wasDate] of this.environmentFields) if (this.metadataHost.isDateProperty(field) !== wasDate) return true;
     return false;
+  }
+
+  /**
+   * Repair Date-registry drift through existing authenticated field memberships. Daily Notes
+   * interpretation is part of every stored validity descriptor and retains broad recovery.
+   * The captured closed root identifies affected owners; it never certifies their old semantics.
+   * Pending/corrupt counts, a changed environment or retirement retain ordinary recovery. Update
+   * the observed registry only after all selected owners are dirty and the final host fence holds.
+   */
+  private async scopeDateEnvironment(current: () => boolean): Promise<boolean> {
+    if (!this.environmentMaintenancePending || this.environmentLocalAuthority !== this.inventoryScopeRevision || this.uncertainResolution
+      || this.dailyNotesObservation === null || !current()) return false;
+    const daily = this.dailyNotesObservation;
+    if (JSON.stringify(this.metadataHost.dailyNotesSettings()) !== daily) return false;
+    const observed = new Map(this.environmentFields);
+    const next = new Map([...observed.keys()].map(field => [field, this.metadataHost.isDateProperty(field)]));
+    const changed = [...observed.keys()].filter(field => observed.get(field) !== next.get(field));
+    if (!changed.length) return false;
+    /** Check the complete captured vocabulary only at await boundaries, keeping lookup guards O(1). */
+    const environmentCurrent = (): boolean => current() && this.environmentFields.size === observed.size
+      && this.dailyNotesObservation === daily && JSON.stringify(this.metadataHost.dailyNotesSettings()) === daily
+      && [...observed].every(([field, previous]) => this.environmentFields.get(field) === previous
+        && this.metadataHost.isDateProperty(field) === next.get(field));
+    const keys = [...new Set(changed.map(field => sourceLocalDependencyKey("field", normalizeFieldName(field))))];
+    if (!environmentCurrent()) return false;
+    const reason = await this.markResolutionDependents(keys, new Set(), current);
+    if (reason !== "ready" || !environmentCurrent()) return false;
+    for (const field of changed) this.environmentFields.set(field, next.get(field)!);
+    this.environmentMaintenancePending = false;this.environmentLocalAuthority = null;
+    this.environmentChange = {kind: "date-registry", fields: changed.length, scoped: true};
+    this.localDependencyAuthorityReady = true;this.localDependenciesReady = false;
+    // Even an empty impact closes through the existing journal/count finality check.
+    this.localInventoryCompletionPending = true;
+    return true;
   }
 
   /** Reuse a moved source's established order; new sources append without renumbering unrelated owners. */
@@ -2595,14 +2651,22 @@ export class ObsidianSourceAcquisition {
         if (!current()) return false;
         if (!this.restartInventoryChecked) await this.restoreRestartHostObservations(current);
         if (!current()) return false;
+        if (this.environmentMaintenancePending) await this.scopeDateEnvironment(current);
+        if (!current()) return false;
         if (this.localDependencyAuthorityReady && this.restartInventoryChecked
           && !this.uncertainResolution && !this.environmentMaintenancePending) {
           recovery.phase = "local-maintenance";
           try { activityToken = this.startupDiagnostics?.beginActivity?.("local-maintenance", "local",
-            this.pendingKnownFiles.size ? "known-file" : "known-topology", this.counters) ?? 0; }
+            this.activityGlobalReason ?? (this.pendingKnownFiles.size ? "known-file" : "known-topology"), this.counters) ?? 0; }
           catch { /* The local work owner is authoritative even if accounting fails. */ }
+          this.activityGlobalReason = null;
           const ready = await this.reconcileKnownImpacts(current);
-          if (ready) {this.startupDiagnostics?.phase("source", "complete");this.startupDiagnostics?.mark("source-authority");}
+          if (ready) {
+            // Field/referrer lookup can coalesce a request into this same task. Its final current
+            // proof consumed that work; later native events still set requested after this boundary.
+            this.requested = false;
+            this.startupDiagnostics?.phase("source", "complete");this.startupDiagnostics?.mark("source-authority");
+          }
           return ready;
         }
         broad = true;
@@ -2616,6 +2680,7 @@ export class ObsidianSourceAcquisition {
         // advances maintenance exactly once without forcing an otherwise unnecessary host revision.
         let environmentMaintenanceFenced = this.uncertainResolution || this.environmentMaintenancePending;
         this.uncertainResolution = false; this.environmentMaintenancePending = false;
+        this.environmentLocalAuthority = null;
         const movedPaths = new Set<string>();
         this.startupDiagnostics?.recordWork("sourceInventoryPasses");
         this.startupDiagnostics?.phase("source", "source-inventory");

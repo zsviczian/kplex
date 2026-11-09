@@ -67,6 +67,23 @@ function fingerprintInputs(meta) {
     inlineFields: new Set(), isDateProperty: () => false };
 }
 
+test('shared immutable selection keeps concurrent compiler payloads independent and fresh compilers see later policy',async()=>{
+  const settings=policy({parents:['Resource']}),selector=new c.ReferencePolicySelector(settings);
+  const first=await collect(metadata({Resource:'[First payload](https://policy.example/first)'}),{file:new TFile('First.md')});
+  const second=await collect(metadata({Resource:'[Second payload](https://policy.example/second)'}),{file:new TFile('Second.md')});
+  const a=new c.NormalizedGraphCompiler(settings,runtime(),'graph',selector),b=new c.NormalizedGraphCompiler(settings,runtime(),'graph',selector);
+  settings.hierarchy.parents.length=0;settings.hierarchy.children.push('Resource');
+  await Promise.all([feed(a,[entityFact(ref(first.file)),...first.records],'first-shared'),feed(b,[entityFact(ref(second.file)),...second.records],'second-shared')]);
+  const [ag,bg]=await Promise.all([a.finish(),b.finish()]);assert(ag&&bg);
+  for(const [graph,source,payload,foreign]of [[ag,'First.md','First payload','Second payload'],[bg,'Second.md','Second payload','First payload']]){
+    const records=declarations(graph).filter(row=>row.declaredById===source);assert.equal(records.length,1);assert.deepEqual(records.map(row=>[row.declaredRole,row.declaredById]),[['parent',source]]);
+    const text=JSON.stringify(records);assert(text.includes(payload));assert(!text.includes(foreign),'No cross-read lexical payload');
+  }
+  const fresh=await compile([entityFact(ref(first.file)),...first.records],settings);
+  const current=declarations(fresh).filter(row=>row.declaredById===first.file.path);assert.equal(current.length,1);
+  assert(current.every(row=>row.declaredRole==='child'),'Default mutable callers still capture their new policy');
+});
+
 test("same unassigned frontmatter/inline facts replay parent, friend, challenger and deactivation in full/patch", async () => {
   const meta = metadata({ Latent: { values: ["[[One#H]]", "[[Two]]", "[[One#Other]]"] }, Empty: null },
     "Latent Inline:: [[Three]]\nLatent Inline:: [[Three]]");
