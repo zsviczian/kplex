@@ -67,7 +67,7 @@ export async function planRetiredExclusionReconciliation(
         affected.add(file.path);
         continue;
       }
-      if (Object.keys(metadata.frontmatter).some((field) => host.isDateProperty(field))) {
+      if (Object.keys(metadata.frontmatter).some((field) => host.isDateProperty(field, metadata.frontmatter[field]))) {
         const collector = new ObsidianMetadataSourceCollector(host, {
           isCurrent: current, sourceRevision, checkpoint: () => Promise.resolve(current()),
         }, file, metadata, settings, "relations");

@@ -20,7 +20,12 @@ async function scenario(app,c){
   const core=app.internalPlugins.getPluginById('daily-notes')?.instance;f.check(core?.getDailyNote,'Enabled core Daily Notes required');
   const options=core.options;f.restores.push(()=>{core.options=options});
   const date='2032-03-05',name=window.moment(date).format('YYYY-MM-DD dddd');
-  const source=await f.note('Daily placeholder origin','An unresolved day: [['+name+']]\nUnrelated: [[Not a daily note]]\n');
+  const inferenceField='Kplex daily inference',types=app.metadataTypeManager;
+  f.check(types?.getTypeInfo&&types.getAssignedWidget(inferenceField)===null,'Unassigned native inference fixture');
+  const dateFrontmatter='---\n'+JSON.stringify(inferenceField)+': "2000-01-01"\n---\n';
+  const source=await f.note('Daily placeholder origin',dateFrontmatter+'An unresolved day: [['+name+']]\nUnrelated: [[Not a daily note]]\n');
+  const unrelatedDateHolders=new Set();for(let n=0;n<40;n++)unrelatedDateHolders.add((await f.note('Unrelated Date holder '+n,dateFrontmatter)).path);
+  f.check(types.getPropertyInfo(inferenceField).widget==='date','Native field hint starts as Date');
   const leaf=await f.canvas(source);await f.ready();const doc=leaf.view.contentEl.ownerDocument;
   const unrelated=app.workspace.getLeaf('tab');f.leaves.push(unrelated);await unrelated.openFile(source,{active:false});
   // Allocating a tab selects its group even when openFile is inactive. Keep the actual canvas
@@ -32,13 +37,21 @@ async function scenario(app,c){
   f.restores.push(()=>{for(const ref of app.workspace[key]?.refs??[])app.metadataCache.offref(ref);delete app.workspace[key]});
   // Reproduce the supplied template's active-editor callback, retaining only booleans for assertions.
   const callback='<%* const path=tp.file.path(true); let ref; ref=app.metadataCache.on("changed",file=>{if(file.path!==path)return;app.metadataCache.offref(ref);app.workspace.'+key+'.calls.push({matched:app.workspace.getActiveFile()===file});app.commands.executeCommandById("obsidian-excalidraw-plugin:toggle-excalidraw-view");});app.workspace.'+key+'.refs.push(ref); %>';
-  const drawing=await f.note('Daily drawing template',(await ex.getBlankDrawing())+'\n'+callback+'\nRendered day: <% tp.file.title %>\n');
+  const blank=await ex.getBlankDrawing(),newline=blank.startsWith('---\r\n')?'\r\n':'\n';f.check(blank.startsWith('---'+newline),'Drawing template frontmatter');
+  const drawingBody='---'+newline+JSON.stringify(inferenceField)+': "[[Kplex inference text]]"'+newline+blank.slice(3+newline.length);
+  const drawing=await f.note('Daily drawing template',drawingBody+'\n'+callback+'\nRendered day: <% tp.file.title %>\n');
   const plain=await f.note('Daily Markdown template','---\nsentinel: <% tp.file.title %>\n---\nPlain daily body\n');
   core.options={...options,folder:dailyFolder.path,format:'YYYY-MM-DD dddd',template:drawing.path};
   tpl.settings={...settings,templates_folder:f.folder+'/Templates',ignore_folders_on_creation:[],folder_templates:[],file_templates:[]};
   app.saveLocalStorage('templater-local-settings',{...local,trigger_on_file_creation:true});
   const created=app.vault.on('create',file=>{if(file.extension&&file.path.startsWith(dailyFolder.path+'/'))f.files.push(file)});f.restores.push(()=>app.vault.offref(created));
-  await f.ready();const fullBuilds=p.index.getSemanticPreparationDiagnostics().fullBuilds;
+  unrelatedDateHolders.add((await f.note('Inference baseline Date',dateFrontmatter)).path);
+  await f.until(()=>types.getPropertyInfo(inferenceField).widget==='date','Native Date hint restored before measured creation');
+  await p.index.sourceAcquisition.flush();await f.ready();const fullBuilds=p.index.getSemanticPreparationDiagnostics().fullBuilds;
+  const inventories=p.startupDiagnostics.snapshot().sessionWork.sourceInventoryPasses;
+  const environmentBefore=JSON.stringify(p.index.sourceAcquisition.getRecoveryDiagnostics().environmentChange),acquisition=p.index.sourceAcquisition,originalAcquire=acquisition.acquire,acquireDescriptor=Object.getOwnPropertyDescriptor(acquisition,'acquire'),unrelatedAcquired=new Set();
+  const observedAcquire=function(file,...args){if(unrelatedDateHolders.has(file.path))unrelatedAcquired.add(file.path);return originalAcquire.call(this,file,...args)};
+  acquisition.acquire=observedAcquire;f.restores.push(()=>{if(acquisition.acquire===observedAcquire){if(acquireDescriptor)Object.defineProperty(acquisition,'acquire',acquireDescriptor);else delete acquisition.acquire}});
   const button=(content,key)=>[...content.querySelectorAll('button')].find(item=>item.getAttribute('aria-label')===p.translator(key)||item.textContent===p.translator(key));
   const modal=()=>[...doc.querySelectorAll('.modal')].find(item=>button(item,'ghost.createDailyNote'));
   const completeInSidecar=async(content)=>{
@@ -61,11 +74,18 @@ async function scenario(app,c){
   f.check(!modal(),'Non-date placeholder offered daily creation');
   await f.click(button(doc.querySelector('.modal'),'common.cancel'));
   const ghost=p.index.get(name);f.check(ghost&&!ghost.file,'Daily placeholder');
-  await p.createGhostNote(ghost,false,false,leaf);await f.until(()=>modal(),'Daily materialization option');
+  p.notifyNavigation(ghost.path,leaf);await f.until(()=>p.documentSession(leaf)?.centerPath===ghost.path,'Daily placeholder centered');
+  const thought=()=>[...leaf.view.containerEl.querySelectorAll('.kplex-thought[data-kplex-path]')].find(node=>node.getAttribute('data-kplex-path')===ghost.path);
+  await f.until(()=>thought()?.querySelector('.kplex-thought-label'),'Daily placeholder label mounted');
+  await f.doubleClick(thought().querySelector('.kplex-thought-label'));await f.until(()=>modal(),'Double-click daily materialization option');
   const content=modal();f.check(content.textContent.includes(dailyFolder.path+'/'+name+'.md'),'Daily action destination is visible');
   await completeInSidecar(content);await f.click(button(content,'ghost.createDailyNote'));
-  await verify(dailyFolder.path+'/'+name+'.md');
+  const createdDaily=await verify(dailyFolder.path+'/'+name+'.md');
   f.check(p.index.get(ghost.path)?.file||p.index.get(dailyFolder.path+'/'+name+'.md')?.file,'Placeholder materialized');
+  await app.vault.delete(createdDaily);await f.ready();
+  await f.until(()=>p.documentSession(leaf)?.centerPath===name,'Deleted daily center follows its unresolved spelling');
+  const deleted=p.index.get(name);f.check(deleted&&!deleted.file&&deleted.neighbours.has(source.path),'Deleted daily placeholder retains its parent');
+  f.check(p.index.get(source.path).neighbours.has(name),'Surviving parent retains its deleted daily child');
   // Calendar uses its actual confirmation shell and the same native creator, not a fake template.
   const calendarDate='2032-03-06',surface=f.surface(leaf);
   await p.navigateDailyNote(calendarDate,[],leaf,surface,()=>true);const calendar=[...p.actionDialogs.keys()].find(item=>item.path?.includes('2032-03-06'));f.check(calendar,'Calendar confirmation');dialogs.push(calendar);
@@ -81,8 +101,11 @@ async function scenario(app,c){
   await completeInSidecar(plainPrompt.contentEl);await f.click(button(plainPrompt.contentEl,'pins.createAction'));
   await verify(dailyFolder.path+'/'+window.moment(plainDate).format('YYYY-MM-DD dddd')+'.md',false);
   f.check(p.index.getSemanticPreparationDiagnostics().fullBuilds===fullBuilds,'Daily creation triggered a full graph rebuild');
+  f.check(p.startupDiagnostics.snapshot().sessionWork.sourceInventoryPasses===inventories,'Daily creation/deletion triggered a vault-wide source inventory');
+  f.check(unrelatedAcquired.size===0,'Native inferred-widget changes rechecked unrelated Date holders: '+unrelatedAcquired.size);
+  f.check(JSON.stringify(p.index.sourceAcquisition.getRecoveryDiagnostics().environmentChange)===environmentBefore,'Native inferred-widget changes were treated as a global assignment change');
   f.check(p.index.publicApiCoverage().scope==='global'&&!p.index.publicApiCoverage().pending,'Settled daily creation must retain complete global coverage');
-  return{samples,ordinaryPlaceholderUnchanged:true,callbackCount:app.workspace[key].calls.length,additionalFullBuilds:0,templaterVersion:tpl.manifest.version};
+  return{samples,ordinaryPlaceholderUnchanged:true,trustedDoubleClick:true,deletedPlaceholderReconnected:true,unrelatedDateHolders:unrelatedDateHolders.size,unrelatedDateAcquisitions:unrelatedAcquired.size,callbackCount:app.workspace[key].calls.length,additionalFullBuilds:0,additionalSourceInventories:0,templaterVersion:tpl.manifest.version};
  }catch(error){
   const p=f.p;c.progress={...c.progress,dailyFailure:{source:p.index.sourceAcquisition.getRecoveryDiagnostics(),
    coordinator:{initial:p.initialIndexComplete,dirty:p.indexDirty,paths:[...p.dirtyMarkdownPaths],reasons:[...p.indexBacklogReasons],rebuildTask:Boolean(p.rebuildTask)},

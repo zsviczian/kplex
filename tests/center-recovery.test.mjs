@@ -29,6 +29,8 @@ findRecovery(plexSource);assert(recoveryEffect,'Actual PlexGraph recovery owner 
 const bundle=await build({stdin:{resolveDir:process.cwd(),loader:'tsx',contents:`
 export {startCenterWatchdog} from './src/ui/components/centerWatchdog';export {sanitizeCenterRecoveryDiagnostic} from './src/core/contracts/centerRecovery';
 import {startCenterWatchdog} from './src/ui/components/centerWatchdog';
+import {deletedFileNavigationTarget} from './src/adapters/obsidian/deletedFileNavigation';
+export {deletedFileNavigationTarget};
 import {classicViewDefinition as classic} from './src/core/plex/views/classic/definition';
 import React,{useState,useEffect,useLayoutEffect,useRef} from 'react';import {createRoot} from 'react-dom/client';import {flushSync} from 'react-dom';
 import {HorizontalDragScroll} from './src/ui/components/HorizontalDragScroll';
@@ -96,8 +98,47 @@ export async function reproduce(channel){
  function Publisher(){useLayoutEffect(()=>{children=7;for(const fn of events[channel])fn()},[]);return null}
  function Surface(){const [revision,forceRender]=useState(0);renders++;const activePathRef={current:'Center.md'},activeFileRef={current:file},activePageRef={current:page};const hostLeaf={},activatePendingDocumentFollow=()=>{},activatePendingDocumentUrl=()=>{},setActivePath=()=>{throw Error('Unexpected navigation')};useEffect(${publicationEffect},[]);return <><Publisher/><div data-revision={revision}>{children}</div></>}
  const element=document.body.appendChild(document.createElement('div')),root=createRoot(element);flushSync(()=>root.render(<Surface/>));await new Promise(resolve=>setTimeout(resolve,40));const count=Number(element.querySelector('div').textContent);flushSync(()=>root.unmount());element.remove();return {count,renders,sourceCalls,listeners:events.semantic.size+events.presentation.size};
-}`},bundle:true,write:false,format:'iife',globalName:'sourceModules',platform:'browser'});
+}
+export async function deletedCenterHandover(mode){
+ const file={path:'Daily/Thursday.md',basename:'Thursday',extension:'md'},old={path:file.path,file:null,neighbours:new Map([['Wednesday',{}]])};
+ const ghost={path:'Thursday',file:null,neighbours:new Map([['Wednesday',{}]])},pages=new Map([[file.path,old]]),events=new Set();
+ const native=mode==='replacement'?{}:null;
+ const plugin={index:{get:path=>pages.get(path),subscribe:fn=>{events.add(fn);return()=>events.delete(fn)}},app:{vault:{getFileByPath:()=>native}},isKplexLeafVisible:()=>true,isManagedCreatedFile:()=>false};
+ const hostLeaf={},activatePendingDocumentFollow=()=>{},activatePendingDocumentUrl=()=>{};
+ function Surface(){
+  const [active,setActivePath]=useState(file.path),[revision,forceRender]=useState(0),activePathRef=useRef(file.path),activeFileRef=useRef(file),activePageRef=useRef(old);
+  useEffect(${publicationEffect},[]);
+  useEffect(()=>{activeFileRef.current=pages.get(active).file},[active,revision]);return <div>{active}</div>;
+ }
+ const element=document.body.appendChild(document.createElement('div')),root=createRoot(element),settle=()=>new Promise(resolve=>setTimeout(resolve,25));
+ try{
+  flushSync(()=>root.render(<Surface/>));await settle();const pending=element.textContent;
+  if(mode!=='surviving-full-path')old.neighbours.clear();pages.set(ghost.path,ghost);
+  if(mode==='ambiguous')pages.set('Daily/Thursday',{...ghost,path:'Daily/Thursday'});
+  if(mode==='materialized-candidate')ghost.file={};
+  if(mode==='url-center')old.url='https://example.test/Thursday.md';
+  if(mode==='folder-center')old.isFolder=true;
+  if(mode==='tag-center')old.isTag=true;
+  for(const emit of events)emit();await settle();
+  return {pending,settled:element.textContent};
+ }finally{flushSync(()=>root.unmount());element.remove();if(events.size)throw Error('Deletion publication listener leaked')}
+}
+`},bundle:true,write:false,format:'iife',globalName:'sourceModules',platform:'browser'});
 for(const channel of ['semantic','presentation'])test('App catches '+channel+' publication between initial render and subscription',async()=>{const browser=await chromiumHarness(bundle.outputFiles[0].text);try{const result=await browser.evaluate(`sourceModules.reproduce(${JSON.stringify(channel)})`);assert.equal(result.count,7,'Stationary center must catch child publication without navigation or watchdog');assert.equal(result.sourceCalls,0);assert.equal(result.listeners,0)}finally{await browser.cleanup()}});
+
+for(const mode of ['unresolved','ambiguous','replacement','surviving-full-path','materialized-candidate','url-center','folder-center','tag-center'])test('Deleted center handover: '+mode,async()=>{
+ const browser=await chromiumHarness(bundle.outputFiles[0].text);try{
+  const result=await browser.evaluate(`sourceModules.deletedCenterHandover(${JSON.stringify(mode)})`);
+  assert.equal(result.pending,'Daily/Thursday.md','Keep incoming connections while source repair is pending');
+  assert.equal(result.settled,mode==='unresolved'?'Thursday':'Daily/Thursday.md','Only one published unresolved successor can replace the deleted center');
+ }finally{await browser.cleanup()}
+});
+
+for(const path of ['https://example.test/Thursday.md','obsidian://Thursday.md','folder:Daily/Thursday.md','tag:Daily/Thursday.md'])test('Unpublished non-file identity is not redirected: '+path,async()=>{
+ const browser=await chromiumHarness(bundle.outputFiles[0].text);try{
+  assert.equal(await browser.evaluate(`(()=>{const ghost={path:'Thursday',neighbours:new Map([['Wednesday',{}]])};return sourceModules.deletedFileNavigationTarget({vault:{getFileByPath:()=>null}},${JSON.stringify(path)},key=>key==='Thursday'?ghost:undefined)})()`),null);
+ }finally{await browser.cleanup()}
+});
 
 test('actual startup history retains all slots before native tree availability and never shows a provisional root',async()=>{
  const browser=await chromiumHarness(bundle.outputFiles[0].text);try{

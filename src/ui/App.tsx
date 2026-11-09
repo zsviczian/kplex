@@ -57,6 +57,7 @@ import type {PublicCanvasRegistration} from '../application/PublicCanvasRegistry
 import {PublicApiError} from '../application/publicApiContracts';
 import {publicCanvasState, type PublicScenePublication} from './publicCanvasScene';
 import type { GraphPage } from "../types";
+import {deletedFileNavigationTarget} from "../adapters/obsidian/deletedFileNavigation";
 import type { PresentationEnvironment } from "../core/contracts/presentationEnvironment";
 import { isGraphTabCommandAvailable } from "../core/plex/viewPresentation";
 import { type ActionContext } from "../application/ActionManager";
@@ -625,6 +626,14 @@ export function KplexApp({ plugin, surface, hostLeaf, translate, environment, on
       const trackedFile = activeFileRef.current;
       const currentPage = plugin.index.get(activePathRef.current);
       const trackedPage = activePageRef.current;
+      const trackedFilePresent = trackedFile && plugin.app.vault.getFileByPath(trackedFile.path) === trackedFile;
+      const placeholder = deletedFileNavigationTarget(plugin.app, activePathRef.current, path => plugin.index.get(path));
+      if (placeholder) {
+        activePathRef.current = placeholder.path;
+        activePageRef.current = placeholder;
+        activeFileRef.current = null;
+        setActivePath(placeholder.path);
+      }
       // A centered ghost has no native file to track until materialization mutates that exact
       // accepted page. Follow only its identity remap; replacement objects and other Plex centers
       // cannot authorize navigation, history changes or document synchronization on this surface.
@@ -643,7 +652,7 @@ export function KplexApp({ plugin, surface, hostLeaf, translate, environment, on
         plugin.index.insertCreatedFile(trackedFile);
         return;
       }
-      if (trackedFile && trackedFile.path !== activePathRef.current && plugin.index.get(trackedFile.path)) {
+      if (trackedFilePresent && trackedFile.path !== activePathRef.current && plugin.index.get(trackedFile.path)) {
         activePathRef.current = trackedFile.path;
         setActivePath(trackedFile.path);
       }

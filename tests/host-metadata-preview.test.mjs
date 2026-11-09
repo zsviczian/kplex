@@ -1248,3 +1248,28 @@ test('bounded placeholder preview survives release of its original native center
   releaseNew();assert.equal(index.get(placeholder),undefined,'Releasing the last owner retires the preview');
  }finally{index.destroy();f.preview.dispose();globalThis.window=originalWindow}
 });
+
+/** A foreground owner must retain surviving inbound evidence when its center is deleted. */
+test('deletion dematerializes prepared centers without disconnecting their surviving parent',async()=>{
+ const f=fixture(),originalWindow=globalThis.window;
+ globalThis.window={performance,setTimeout,clearTimeout,setInterval,clearInterval};
+ f.app.vault.getName=()=> 'prepared-center-deletion';
+ const plugin={settings:{...settings,excludeFilepaths:[],showVirtualNodes:true},getIndexSourceRevision:()=>0};
+ const index=new GraphIndex(plugin,f.app);index.scheduleSnapshotPersist=()=>{};
+ try{
+  const path='Notes/Child.md';
+  const canonical=await f.preview.build(f.centerPath),prepared=await f.preview.build(path);
+  assert(canonical&&prepared);index.state=canonical.state;
+  const center=prepared.state.pages.get(path);
+  assert(center.neighbours.has(f.centerPath),'Prepared child starts with its incoming parent');
+  index.semanticScopes.set(path,{centerPath:path,policyRevision:index.semanticPolicyRevision,
+   maintenanceRevision:index.sourceAcquisition.getMaintenanceRevision(),sourceRevision:0,
+   completePaths:new Set([path]),pagesByPath:prepared.state.pages,suppressedPaths:new Set(),
+   settings:prepared.settings,evidence:prepared.state.evidence,coverageSignature:index.semanticCoverageSignature()});
+  f.files.delete(path);index.dematerializeFile(path);
+  assert.equal(center.file,null,'The already published center becomes a placeholder');
+  assert(center.neighbours.has(f.centerPath),'Surviving incoming declaration stays visible from the deleted center');
+  assert(prepared.state.pages.get(f.centerPath).neighbours.has(path),'The same declaration stays visible from its parent');
+  assert.equal(prepared.state.evidence.declarationsTouching(path).some(item=>item.declaredByPath===path),false,'Deleted owner declarations are removed');
+ }finally{index.destroy();f.preview.dispose();globalThis.window=originalWindow}
+});

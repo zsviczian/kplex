@@ -6,6 +6,77 @@ import {chromiumHarness} from './support/browserTypeScript.mjs';
 import {centerGateSettings} from './support/requestedCenterGateFixture.mjs';
 const bundle=await contributorBrowserBundle(['src/index/GraphIndex.ts','src/index/GraphBuilder.ts','src/index/IndexSnapshot.ts']);
 
+test('a new text-valued note cannot change Date inference or recheck unrelated holders',async()=>{
+ const browser=await chromiumHarness(bundle);try{
+  await browser.evaluate(contributorBrowserInitialize);
+  assert(await browser.evaluate(`(async()=>{
+   const f=await fixture('date-inference-create');let hint='date';
+   f.app.metadataTypeManager={getAssignedWidget:()=>null,getPropertyInfo:()=>({widget:hint}),getTypeInfo:(_field,value)=>({inferred:{type:value==='2026-11-08'?'date':'text'}})};
+   try{
+    const owner=f.add('Affected.md','',{Due:'2026-11-08'});for(let n=0;n<40;n++)f.add('Unrelated'+n+'.md','',{Due:'2026-11-08'});
+    await f.acquire();ok(await f.acquisition.reconcile(),'Closed inferred-Date sources');f.work.reset();f.reads.length=0;f.parses.length=0;
+    hint='text';const created=f.add('New daily.md','',{Due:'[[Other]]'});f.app.vault.trigger('create',created);
+    ok(await f.acquisition.flush(),'Known creation converges without a global type change');
+    equal(f.work.headPages,0,'No source inventory');ok(f.work.inspections.every(path=>path===created.path),'Existing Date holders are not inspected');
+    ok(f.work.writes.every(path=>path==='replace:'+created.path),'Existing Date holders are not rewritten');
+    equal(f.acquisition.getRecoveryDiagnostics().environmentChange,null,'An inferred hint is not a Date-registry event');
+    const records=[];equal(await f.repository.visit(owner.path,'resolution',rows=>{records.push(...rows);return true}),'ready','Existing owner remains readable');
+    equal(records.filter(row=>row.kind==='date-property').length,1,'Original Date inference remains valid');
+    return true;
+   }finally{f.close()}
+  })()`));
+ }finally{await browser.cleanup()}
+});
+
+test('explicit Text and Date assignments and unsetting them update inferred-Date graph edges',async()=>{
+ const browser=await chromiumHarness(bundle);try{
+  await browser.evaluate(contributorBrowserInitialize);
+  assert(await browser.evaluate(`(async()=>{
+   const f=await fixture('date-inference-assignment');let index,release;const assigned=new Map();
+   f.app.metadataTypeManager={getAssignedWidget:field=>assigned.get(field)??null,getPropertyInfo:()=>({widget:'text'}),getTypeInfo:(_field,value)=>({inferred:{type:value==='2026-11-08'?'date':'text'}})};
+   try{
+    const owner=f.add('A.md','',{Due:'2026-11-08'}),target=f.add('Daily/2026-11-08.md','');
+    f.app.vault.getName=()=> 'date-inference-assignment';f.app.vault.getAbstractFileByPath=path=>f.files.get(path)??(path===''||path==='/'?f.app.vault.getRoot():null);
+    const settings={...(${centerGateSettings.toString()})({showFolderNodes:false}),indexingMode:'eager',hierarchy:{hidden:[],parents:['Due'],children:[],leftFriends:[],rightFriends:[],previous:[],next:[],exclusions:[]},tagStyleList:[],showFullTagName:true,inferAllLinksAsFriends:false,inverseInfer:false,lastActivePath:owner.path,pinnedNodes:[]};
+    index=new sourceModules.GraphIndex({app:f.app,settings,getIndexSourceRevision:()=>0},f.app);index.scheduleOrphanCleanup=()=>{};
+    ok(await index.rebuild(),'Initial inferred-Date graph');await index.sourceAcquisition.flush();index.cancelPendingPersistence();release=index.acquireSemanticDemand(owner.path);await index.ensureSemanticScope(owner.path);
+    const parents=()=>index.getNeighborhood(owner.path).parents.map(row=>row.page.path);equal(parents(),[target.path],'Per-value inference creates the Date relationship');f.reads.length=0;f.parses.length=0;
+    for(const mode of ['text',null,'date','text',null]){
+     if(mode===null)assigned.delete('Due');else assigned.set('Due',mode);
+     index.sourceAcquisition.markContributorHostChange('environment');ok(await index.sourceAcquisition.flush(),'Assignment scope closes');await index.ensureSemanticScope(owner.path);
+     for(let n=0;n<100&&index.hasActiveSemanticPreparation();n++)await new Promise(resolve=>setTimeout(resolve,10));
+     equal(parents(),mode==='text'?[]:[target.path],'Explicit Text wins; unsetting it restores local Date inference');
+     ok(index.sourceAcquisition.getRecoveryDiagnostics().environmentChange.scoped,'Actual assignment changes stay field-scoped');
+    }
+    equal(f.reads,[],'No Markdown reads for type changes');equal(f.parses,[],'No body reparsing');return true;
+   }finally{release?.();index?.destroy();f.close()}
+  })()`));
+ }finally{await browser.cleanup()}
+});
+
+for(const order of ['before-create','after-create'])test('Date registry repair stays scoped when '+order+' overlaps a known note creation',async()=>{
+ const browser=await chromiumHarness(bundle);try{
+  await browser.evaluate(contributorBrowserInitialize);
+  assert(await browser.evaluate(`(async()=>{
+   const f=await fixture('date-environment-create-${order}');
+   try{
+    f.add('Affected.md','',{Due:'2026-11-08'});for(let n=0;n<40;n++)f.add('Unrelated'+n+'.md','',{Title:'Unchanged'});
+    await f.acquire();ok(await f.acquisition.reconcile(),'Closed source and dependency inventory');f.work.reset();f.reads.length=0;f.parses.length=0;
+    const date=()=>{f.app.dateFields.add('Due');f.acquisition.markContributorHostChange('environment')};
+    if('${order}'==='before-create')date();
+    const created=f.add('New daily.md','',{Due:'2026-11-09'});f.app.vault.trigger('create',created);
+    if('${order}'==='after-create')date();
+    ok(await f.acquisition.flush(),'Creation and Date interpretation converge');
+    equal(f.work.headPages,0,'Known creation does not turn Date repair into a vault inventory');
+    ok(f.work.inspections.every(path=>path==='Affected.md'||path===created.path),'Only affected and created owners are inspected');
+    ok(f.acquisition.hasSemanticDependencies(),'Both owners close without leaving relationship authority incomplete');
+    equal(f.acquisition.getRecoveryDiagnostics().environmentChange,{kind:'date-registry',fields:1,scoped:true},'Date repair remains scoped');
+    return true;
+   }finally{f.close()}
+  })()`));
+ }finally{await browser.cleanup()}
+});
+
 test('scoped Date changes publish and remove configured graph relationships without a Markdown edit',async()=>{
  const browser=await chromiumHarness(bundle);try{
   await browser.evaluate(contributorBrowserInitialize);

@@ -8817,12 +8817,45 @@ export class GraphIndex {
    */
   dematerializeFile(path: string): GraphPage | null {
     this.retireHostEndpoint(path);
-    const page = this.state.pages.get(path) ?? this.state.pages.get(this.state.lowercasePathMap.get(path.toLowerCase()) ?? path);
-    if (!page || page.isFolder || page.isTag || page.url) return page ?? null;
+    const canonical = this.state.pages.get(path) ?? this.state.pages.get(this.state.lowercasePathMap.get(path.toLowerCase()) ?? path);
+    if (canonical?.isFolder || canonical?.isTag || canonical?.url) return canonical;
+    path = canonical?.path ?? path;
+    const affected = new Set<string>([path]);
+    const owners: Array<Readonly<{pages: ReadonlyMap<string, GraphPage>; evidence: RelationEvidenceStore}>> = [this.state,
+      ...[...this.semanticScopes.values()].map(/** Semantic publications retain their own evidence and page identities. */ scope => ({pages: scope.pagesByPath, evidence: scope.evidence})),
+      ...this.onDemandCachedScopes.values(), ...this.onDemandHostScopes.values(),
+      ...[...this.retainedLocalScopes.values()].map(/** A retained read is updated without renewing its write certificate. */ scope => scope.state)];
+    let page: GraphPage | null = null;
+    const seen = new Set<ReadonlyMap<string, GraphPage>>();
+    for (const owner of owners) {
+      if (seen.has(owner.pages)) continue;
+      seen.add(owner.pages);
+      page ??= owner.pages.get(path) ?? null;
+      this.dematerializePublishedFile(owner, path, affected);
+    }
+    if (!page) return null;
 
-    const affected = new Set<string>([page.path]);
+    this.fieldCache.delete(path);
+    this.semanticFingerprints.delete(path);
+    this.restoredModifiedMarkdownPaths = this.restoredModifiedMarkdownPaths.filter((candidate) => candidate !== path);
+    this.invalidatePatchedPages(affected);
+    this.patchSearchIndex(affected);
+    this.suggestionCatalogCache = null;
+    this.relationViewCache = new WeakMap<GraphPage, CachedRelationView>();
+    this.emit();
+    this.scheduleSnapshotPersist(SNAPSHOT_EDIT_IDLE_MS);
+    return page;
+  }
+
+  /** Keep deletion within each already published read owner's page/evidence boundary. */
+  private dematerializePublishedFile(state: Readonly<{pages: ReadonlyMap<string, GraphPage>; evidence: RelationEvidenceStore}>, path: string, affected: Set<string>): void {
+    const page = state.pages.get(path);
+    if (!page || page.isFolder || page.isTag || page.url) return;
+    const touched = new Set<string>([path]);
     const membershipParents = new Set<string>();
-    for (const item of this.state.evidence.declarationsTouching(page.path)) {
+    for (const item of state.evidence.declarationsTouching(path)) {
+      touched.add(item.declaredByPath);
+      touched.add(item.declaredTargetPath);
       affected.add(item.declaredByPath);
       affected.add(item.declaredTargetPath);
       if ((item.sourceKind === "file-tree" || item.sourceKind === "tag-tree") && item.declaredTargetPath === page.path) {
@@ -8830,7 +8863,7 @@ export class GraphIndex {
       }
     }
 
-    this.state.evidence.removeDeclarationsTouching(page.path, (item) => {
+    state.evidence.removeDeclarationsTouching(page.path, (item) => {
       if (item.declaredByPath === page.path && FILE_CONTENT_EVIDENCE.has(item.sourceKind)) return true;
       if ((item.sourceKind === "file-tree" || item.sourceKind === "tag-tree") && item.declaredTargetPath === page.path) return true;
       return false;
@@ -8840,7 +8873,7 @@ export class GraphIndex {
     // map entries eagerly as well as their evidence so the current scene cannot render the deleted
     // ghost under its former folder while the affected pair resolver catches up.
     for (const parentPath of membershipParents) {
-      this.get(parentPath)?.neighbours.delete(page.path);
+      state.pages.get(parentPath)?.neighbours.delete(page.path);
       page.neighbours.delete(parentPath);
     }
 
@@ -8854,25 +8887,14 @@ export class GraphIndex {
     page.styleTags = [];
     page.neighbours.clear();
 
-    for (const rawPath of affected) {
+    for (const rawPath of touched) {
       if (rawPath === page.path) continue;
-      const target = this.get(rawPath);
+      const target = state.pages.get(rawPath);
       if (!target) continue;
       target.neighbours.delete(page.path);
-      resolveEvidencePair(this.state.pages, this.state.evidence, page.path, target.path);
-      resolveEvidencePair(this.state.pages, this.state.evidence, target.path, page.path);
+      resolveEvidencePair(state.pages, state.evidence, page.path, target.path);
+      resolveEvidencePair(state.pages, state.evidence, target.path, page.path);
     }
-
-    this.fieldCache.delete(page.path);
-    this.semanticFingerprints.delete(page.path);
-    this.restoredModifiedMarkdownPaths = this.restoredModifiedMarkdownPaths.filter((candidate) => candidate !== page.path);
-    this.invalidatePatchedPages(affected);
-    this.patchSearchIndex(affected);
-    this.suggestionCatalogCache = null;
-    this.relationViewCache = new WeakMap<GraphPage, CachedRelationView>();
-    this.emit();
-    this.scheduleSnapshotPersist(SNAPSHOT_EDIT_IDLE_MS);
-    return page;
   }
 
   /**

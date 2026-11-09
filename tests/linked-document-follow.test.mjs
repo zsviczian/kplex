@@ -14,11 +14,11 @@ const actionBuild=await build({entryPoints:['src/application/ActionManager.ts'],
 const {ActionManager}=await import('data:text/javascript;base64,'+Buffer.from(actionBuild.outputFiles[0].text).toString('base64'));
 const actionNodeRef = page => ({identity:page.path,path:page.path,kind:page.file?"file":"ghost"});
 import {loadPortableModules} from "./support/portableTypeScript.mjs";
-const {exports: {DoubleTapGesture, isObsidianUri}} = loadPortableModules(["src/ui/components/DoubleTapGesture.ts", "src/adapters/obsidian/urlIdentity.ts", "src/core/graph/model.ts"]);
+const {exports: {DoubleTapGesture, isObsidianUri, deletedFileNavigationTarget}} = loadPortableModules(["src/ui/components/DoubleTapGesture.ts", "src/adapters/obsidian/urlIdentity.ts", "src/core/graph/model.ts", "src/adapters/obsidian/deletedFileNavigation.ts"]);
 
 /** Extract a real plugin method or App follow callback without invoking native plugin startup. */
 function production(name, dependencies = {}, filename = "src/main.ts") {
-  dependencies = {isEmbeddedMarkdownLeaf: leaf => Boolean(leaf?.embedded), nativeLeafId: (_workspace, leaf) => leaf?.id ?? null, isObsidianUri, ...dependencies};
+  dependencies = {isEmbeddedMarkdownLeaf: leaf => Boolean(leaf?.embedded), nativeLeafId: (_workspace, leaf) => leaf?.id ?? null, isObsidianUri, deletedFileNavigationTarget, ...dependencies};
   if (name === "activate" && filename === "src/ui/App.tsx") {
     dependencies.pendingEditorNavigation ??= {current:null};
     if (dependencies.documentSession) {dependencies.documentSession.plexView ??= {};dependencies.documentSession.plexView.editors ??= {bindings:[]};}
@@ -932,14 +932,19 @@ test('partial native follow records its accepted Footprint once, and an ownershi
 test('partial startup cannot replace the saved center with an earlier available history tag', () => {
   const pages = new Map([['tag:#Fiction', {path: 'tag:#Fiction'}], ['folder:/', {path: 'folder:/'}]]);
   const plugin = {settings: {lastActivePath: 'Center.md', navigationHistory: ['tag:#Fiction', 'Center.md']},
-    index: {get: path => pages.get(path)}, initialIndexComplete: false,
+    app: {vault: {getFileByPath: () => null}}, index: {get: path => pages.get(path)}, initialIndexComplete: false,
     isNavigationFallbackReady() {return this.initialIndexComplete;}};
   const fallback = production('resolveNavigationFallbackPath');
   assert.equal(fallback.call(plugin, 'Center.md'), null, 'Absence from a partial publication is not proof of deletion');
-  pages.set('Center.md', {path: 'Center.md'});
+  pages.set('Center.md', {path: 'Center.md', neighbours: new Map()});
   assert.equal(fallback.call(plugin, 'Center.md'), 'Center.md');
   pages.delete('Center.md'); plugin.initialIndexComplete = true;
   assert.equal(fallback.call(plugin, 'Center.md'), 'tag:#Fiction', 'A genuinely missing center still recovers after readiness');
+  pages.set('Daily/Thursday.md', {path: 'Daily/Thursday.md', neighbours: new Map()});
+  pages.set('Thursday', {path: 'Thursday', neighbours: new Map([['Wednesday',{}]])});
+  assert.equal(fallback.call(plugin, 'Daily/Thursday.md'), 'Thursday', 'Restart follows a deleted daily note to its published unresolved spelling');
+  plugin.initialIndexComplete=false;
+  assert.equal(fallback.call(plugin, 'Daily/Thursday.md'), 'Thursday', 'A bounded available placeholder does not wait for global startup');
 });
 
 /** Actual F4/App/graph activation callbacks distinguish explicit destination changes from independent occurrence attention. */

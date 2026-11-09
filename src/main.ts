@@ -67,6 +67,7 @@ import {createPeriodicPinRuntime} from "./adapters/obsidian/periodicPins";
 import {createConfiguredDailyNote} from "./adapters/obsidian/dailyNotes";
 import {readDailyPinSettings} from "./adapters/obsidian/dailyNotes";
 import {collectDailyNotes, dailyNoteDate, dailyNotePath, dailyNoteCreationTarget, dailyEntryForDate, dailyNotesSettingsCurrent, type DailyNoteEntry} from "./adapters/obsidian/dailyNoteNavigation";
+import {deletedFileNavigationTarget} from "./adapters/obsidian/deletedFileNavigation";
 import {calendarDay, calendarDayKey, adjacentJournalEntry, missingJournalDirections, type JournalDirection} from "./core/plex/calendarDates";
 import {DailyNoteCalendarModal} from "./ui/DailyNoteCalendarModal";
 import {FileCreationAutomation} from "./adapters/obsidian/fileCreationAutomation";
@@ -709,9 +710,12 @@ export default class KplexPlugin extends Plugin {
     }
 
     const preferred = candidates[0];
-    if (preferred && !this.isNavigationFallbackReady()) return this.index.get(preferred)?.path ?? null;
+    if (preferred && !this.isNavigationFallbackReady()) return deletedFileNavigationTarget(this.app, preferred, path => this.index.get(path))?.path
+      ?? this.index.get(preferred)?.path ?? null;
 
     for (const path of candidates) {
+      const placeholder = deletedFileNavigationTarget(this.app, path, candidate => this.index.get(candidate));
+      if (placeholder) return placeholder.path;
       if (this.index.get(path)) return path;
     }
     return this.index.get("folder:/")?.path ?? null;

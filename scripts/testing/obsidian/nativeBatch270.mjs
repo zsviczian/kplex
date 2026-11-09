@@ -32,6 +32,12 @@ export function nativeBatch270(app,c){
   try{native.webContents.sendInputEvent({type:'mouseMove',...xy});native.webContents.sendInputEvent({type:'mouseDown',...xy,button:'left',clickCount:1});native.webContents.sendInputEvent({type:'mouseUp',...xy,button:'left',clickCount:1});await until(()=>trusted,'Trusted native click',5000);}
   finally{doc.removeEventListener('click',observe,true);}
  };
+ /** Exercise mouse opening through React's actual double-click route, including native zoom. */
+ const doubleClick=async element=>{const doc=element.ownerDocument,native=await focus(doc),css=point(element),zoom=native.webContents.getZoomFactor(),xy={x:Math.round(css.x*zoom),y:Math.round(css.y*zoom)};let trusted=false;
+  const observe=event=>{if(element.contains(event.target))trusted=event.isTrusted};doc.addEventListener('dblclick',observe,true);
+  try{native.webContents.sendInputEvent({type:'mouseMove',...xy});for(const clickCount of [1,2]){native.webContents.sendInputEvent({type:'mouseDown',...xy,button:'left',clickCount});native.webContents.sendInputEvent({type:'mouseUp',...xy,button:'left',clickCount});await wait(60);}await until(()=>trusted,'Trusted native double-click',5000);}
+  finally{doc.removeEventListener('dblclick',observe,true);}
+ };
  /** Enter carries a char stage so native button/menu defaults match a physical keyboard. */
  const key=async(doc,keyCode,modifiers=[],target)=>{const native=await focus(doc);if(target){check(target.isConnected&&target.ownerDocument===doc,'Current key target');target.focus({preventScroll:true});check(doc.activeElement===target,'Native key target focus');}let event;
   const observe=value=>{event=value};doc.defaultView.addEventListener('keydown',observe,true);
@@ -81,9 +87,12 @@ export function nativeBatch270(app,c){
   if(directory&&app.vault.getFolderByPath(folder)===directory&&!directory.children.length)await clean('owned folder',()=>app.vault.delete(directory,true));
   await clean('settings',async()=>{plugin.settings=settings;await plugin.saveSettings(false,false);await plugin.settingsWriteQueue;});
   await clean('layout',()=>workspace.changeLayout(layout));await clean('sessions',()=>c.sessions(plugin).restore(saved));await clean('pending writer',()=>plugin.settingsWriteQueue);
+  // GraphIndex captures its mode at construction. Restoring JSON alone leaves a different
+  // runtime behind for the next native case, even though its settings bytes look correct.
+  await clean('indexing mode',async()=>{if(plugin.index.isOnDemandMode()!==(settings.indexingMode==='on-demand'))await reload();});
   await wait(2000);await clean('settings bytes',()=>app.vault.adapter.write(plugin.manifest.dir+'/data.json',c.originalData));await clean('enabled bytes',()=>app.vault.adapter.write(app.vault.configDir+'/community-plugins.json',c.originalEnabled));
   await clean('geometry',()=>{main.setMinimumSize(...minimum);main.setBounds(bounds);if(maximized)main.maximize();});
   check(JSON.stringify(app.vault.getFiles().map(file=>file.path).sort())===JSON.stringify(inventory),'Native fixture inventory differs');if(errors.length)throw Error(errors.join('; '));
  };
- return{get p(){return plugin},workspace,folder,files,leaves,restores,check,wait,until,owner,focus,point,click,key,drag,initialize,note,ready,canvas,surface,reload,cleanup};
+ return{get p(){return plugin},workspace,folder,files,leaves,restores,check,wait,until,owner,focus,point,click,doubleClick,key,drag,initialize,note,ready,canvas,surface,reload,cleanup};
 }

@@ -283,8 +283,8 @@ export class ObsidianSourceAcquisition {
   private readonly bodySelections = new WeakMap<ParsedBodyMetadata, SourceInspection>();
   private nextSourceOrder = 0;
   private nextMarkdownOrder = 0;
-  /** Cheap idle preflight: field vocabulary is collected while sources are already being visited. */
-  private readonly environmentFields = new Map<string, boolean>();
+  /** Stable global assignments: null is unassigned, false explicitly non-Date. */
+  private readonly environmentFields = new Map<string, boolean | null>();
   private dailyNotesObservation: string | null = null;
   /** Prevent a changed source from replacing old durable alias/path evidence before fan-out capture. */
   private knownImpactTasks = 0;
@@ -693,6 +693,8 @@ export class ObsidianSourceAcquisition {
    * This qualification grants neither source validity nor completed inventory authority.
    */
   private markContributorHostChange(kind: ContributorHostChange["kind"], global = kind === "resolution", activityReason: ActivityReason = "unknown", knownSource = false, knownFile = knownSource): void {
+    const retainDateScope = !global && kind !== "environment" && knownFile
+      && this.environmentLocalAuthority === this.inventoryScopeRevision;
     this.recoveryInvalidation.kind = kind;
     this.recoveryInvalidation.reason = kind === "environment" ? "environment" : activityReason === "unknown" && knownFile ? "known-file" : activityReason;
     this.recoveryInvalidation.global = global; this.recoveryInvalidation.knownFile = knownFile;
@@ -721,7 +723,7 @@ export class ObsidianSourceAcquisition {
           const daily = this.dailyNotesObservation !== null
             && this.dailyNotesObservation !== JSON.stringify(this.metadataHost.dailyNotesSettings());
           let fields = 0;
-          for (const [field, previous] of this.environmentFields) if (this.metadataHost.isDateProperty(field) !== previous) fields++;
+          for (const [field, previous] of this.environmentFields) if (this.metadataHost.datePropertyAssignment(field) !== previous) fields++;
           // Classification selects the functional repair path. Its code/count receipt merely
           // observes that choice; unavailable optional host APIs retain ordinary broad recovery.
           if (!daily && fields > 0 && local) this.environmentLocalAuthority = this.inventoryScopeRevision + 1;
@@ -735,7 +737,13 @@ export class ObsidianSourceAcquisition {
     } else {
       this.catalogObservation += 1;
       this.inventoryRevision += 1; this.maintenanceRevision += 1; this.localDependenciesReady = false;
-      if (!knownSource) this.inventoryScopeRevision += 1;
+      if (!knownSource) {
+        this.inventoryScopeRevision += 1;
+        // Exact native create/rename/delete events already queue their owners and referrers.
+        // They cannot erase a pending Date-field lookup; its durable root and final host fences
+        // still have to close, including those independently queued file changes.
+        if (retainDateScope) this.environmentLocalAuthority = this.inventoryScopeRevision;
+      }
     }
     const from = this.contributorObservation++;
     // The repository owns retries/unload and never clears a newer coalesced observation on completion.
@@ -1324,9 +1332,9 @@ export class ObsidianSourceAcquisition {
     this.dailyNotesObservation = daily;
     for (const field of Object.keys(cache.frontmatter ?? {})) {
       if (field === "position") continue;
-      const isDate = this.metadataHost.isDateProperty(field);
-      if (this.environmentFields.has(field) && this.environmentFields.get(field) !== isDate) return false;
-      this.environmentFields.set(field, isDate);
+      const assignment = this.metadataHost.datePropertyAssignment(field);
+      if (this.environmentFields.has(field) && this.environmentFields.get(field) !== assignment) return false;
+      this.environmentFields.set(field, assignment);
     }
     return true;
   }
@@ -1335,7 +1343,7 @@ export class ObsidianSourceAcquisition {
   private environmentObservationChanged(): boolean {
     if (this.dailyNotesObservation !== null
       && this.dailyNotesObservation !== JSON.stringify(this.metadataHost.dailyNotesSettings())) return true;
-    for (const [field, wasDate] of this.environmentFields) if (this.metadataHost.isDateProperty(field) !== wasDate) return true;
+    for (const [field, assignment] of this.environmentFields) if (this.metadataHost.datePropertyAssignment(field) !== assignment) return true;
     return false;
   }
 
@@ -1352,19 +1360,19 @@ export class ObsidianSourceAcquisition {
     const daily = this.dailyNotesObservation;
     if (JSON.stringify(this.metadataHost.dailyNotesSettings()) !== daily) return false;
     const observed = new Map(this.environmentFields);
-    const next = new Map([...observed.keys()].map(field => [field, this.metadataHost.isDateProperty(field)]));
+    const next = new Map([...observed.keys()].map(field => [field, this.metadataHost.datePropertyAssignment(field)]));
     const changed = [...observed.keys()].filter(field => observed.get(field) !== next.get(field));
     if (!changed.length) return false;
     /** Check the complete captured vocabulary only at await boundaries, keeping lookup guards O(1). */
     const environmentCurrent = (): boolean => current() && this.environmentFields.size === observed.size
       && this.dailyNotesObservation === daily && JSON.stringify(this.metadataHost.dailyNotesSettings()) === daily
       && [...observed].every(([field, previous]) => this.environmentFields.get(field) === previous
-        && this.metadataHost.isDateProperty(field) === next.get(field));
+        && this.metadataHost.datePropertyAssignment(field) === next.get(field));
     const keys = [...new Set(changed.map(field => sourceLocalDependencyKey("field", normalizeFieldName(field))))];
     if (!environmentCurrent()) return false;
     const reason = await this.markResolutionDependents(keys, new Set(), current);
     if (reason !== "ready" || !environmentCurrent()) return false;
-    for (const field of changed) this.environmentFields.set(field, next.get(field)!);
+    for (const field of changed) this.environmentFields.set(field, next.get(field) ?? null);
     this.environmentMaintenancePending = false;this.environmentLocalAuthority = null;
     this.environmentChange = {kind: "date-registry", fields: changed.length, scoped: true};
     this.localDependencyAuthorityReady = true;this.localDependenciesReady = false;
@@ -1614,10 +1622,10 @@ export class ObsidianSourceAcquisition {
   private current(capture: Capture, caller: () => boolean): boolean {
     return !this.closed && caller() && this.hostRevision === capture.hostRevision && this.currentFileInput(capture);
   }
-  /** Hash only Date-registry observations and Daily Notes interpretation configuration, not K-Plex settings. */
+  /** Hash this source's Date interpretation and Daily Notes configuration, not other notes' hints. */
   private environment(cache: CachedMetadata): string {
     return JSON.stringify({ daily: this.metadataHost.dailyNotesSettings(), dates: Object.keys(cache.frontmatter ?? {})
-      .filter((name) => name !== "position" && this.metadataHost.isDateProperty(name)).sort() });
+      .filter((name) => name !== "position" && this.metadataHost.isDateProperty(name, cache.frontmatter?.[name])).sort() });
   }
   /**
    * Capture host inputs not represented by neutral source facts. Current-session memory/disk replay

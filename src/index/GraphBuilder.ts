@@ -346,7 +346,7 @@ export class GraphBuilder {
       resolved, unresolved,
       frontmatterFields: this.semanticFrontmatterFields,
       inlineFields: this.semanticInlineFields,
-      isDateProperty: (field) => this.metadataSourceHost.isDateProperty(field),
+      isDateProperty: (field) => this.metadataSourceHost.isDateProperty(field, cache?.frontmatter?.[field]),
     };
   }
 

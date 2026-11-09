@@ -530,6 +530,7 @@ for (const file of [
   "src/adapters/obsidian/ontologySourceCollector.ts",
   "src/adapters/obsidian/dailyNotes.ts",
   "src/adapters/obsidian/dailyNoteNavigation.ts",
+  "src/adapters/obsidian/deletedFileNavigation.ts",
   "src/core/plex/calendarDates.ts",
   "src/ui/DailyNoteCalendarModal.ts",
   "src/ui/features/CalendarDatePicker.tsx",
