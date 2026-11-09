@@ -81,6 +81,7 @@ async function scenario(app,c){
   await completeInSidecar(plainPrompt.contentEl);await f.click(button(plainPrompt.contentEl,'pins.createAction'));
   await verify(dailyFolder.path+'/'+window.moment(plainDate).format('YYYY-MM-DD dddd')+'.md',false);
   f.check(p.index.getSemanticPreparationDiagnostics().fullBuilds===fullBuilds,'Daily creation triggered a full graph rebuild');
+  f.check(p.index.publicApiCoverage().scope==='global'&&!p.index.publicApiCoverage().pending,'Settled daily creation must retain complete global coverage');
   return{samples,ordinaryPlaceholderUnchanged:true,callbackCount:app.workspace[key].calls.length,additionalFullBuilds:0,templaterVersion:tpl.manifest.version};
  }catch(error){
   const p=f.p;c.progress={...c.progress,dailyFailure:{source:p.index.sourceAcquisition.getRecoveryDiagnostics(),

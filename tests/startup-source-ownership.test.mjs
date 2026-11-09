@@ -144,6 +144,16 @@ function fixture({ reasons = ['startup:stale-snapshot'], dirty = [], sourceBacke
   };
 }
 
+test('a drained coalesced file backlog acknowledges current graph coverage without another patch or build',async()=>{
+ const f=fixture({complete:true,sourceBacked:false,reasons:['metadata:changed','coalesced-backlog'],dirty:[]});
+ try{let acknowledged=0;f.p.index.acknowledgeHostPresentation=()=>acknowledged++;
+  await f.p.performRebuild(false,false,'coalesced-backlog',false);
+  assert.equal(acknowledged,1,'Completed per-file receipts must close the later coordinator epoch');
+  assert.equal(f.p.indexDirty,false);assert.equal(f.p.indexBacklogReasons.size,0);
+  assert.deepEqual(f.counts,{full:0,local:0},'No semantic replay or full writer is admitted');
+ }finally{f.close()}
+});
+
 /** Deliver native-shaped events through the unmodified registered production callbacks. */
 function eventFixture(options = {}) {
   const f = fixture({...options, published: true}), {p} = f;

@@ -1848,6 +1848,9 @@ export default class KplexPlugin extends Plugin {
       if (!force && !showNotice && this.index.size > 0 && !structuralDirty && this.dirtyMarkdownPaths.size === 0) {
         this.indexDirty = false;
         this.indexBacklogReasons.clear();
+        // Earlier per-file receipts can drain a burst after its coordinator revision advanced.
+        // Close that epoch through the existing source/maintenance fences, without replaying it.
+        this.index.acknowledgeHostPresentation();
         this.notifyIndexStatus();
         return;
       }
