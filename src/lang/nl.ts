@@ -462,6 +462,7 @@ const dutchTranslations = {
   "colors.adoptConfirm": "Themakleuren gebruiken",
   "colors.standardColors": "Standaardkleuren",
   "colors.semanticColors": "Semantische kleuren",
+  "colors.semanticColorsHelp": "Gedeelde kleuren voor knoop- en verbindingsstijlen die een semantische kleur kiezen, en voor de richtingstint. Open {views} → {compass} → {tint} en schakel {toggle} in om de achtergrondtint te tonen.",
   "colors.semantic.origin": "Ouders · Noord",
   "colors.semantic.development": "Kinderen · Zuid",
   "colors.semantic.support": "Vrienden en vorige · West",

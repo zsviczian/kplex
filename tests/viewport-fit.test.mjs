@@ -6,13 +6,13 @@ import test from 'node:test';
 import {readFileSync} from 'node:fs';
 import ts from 'typescript';
 import {loadPortableModules} from './support/portableTypeScript.mjs';
-const {exports: {centeredViewportFit, sameFitCamera, EmbeddedDrawingFit, centerArrivalFrames, hasClickModifier, edgeViewportEndpoints, branchDisclosureReserve, edgeViewportClip, revealRowScrollTop, editorToolbarInsets, CameraMotion, wheelCamera}} = loadPortableModules([
+const {exports: {centeredViewportFit, restoredViewportCamera, sameFitCamera, EmbeddedDrawingFit, centerArrivalFrames, hasClickModifier, edgeViewportEndpoints, branchDisclosureReserve, edgeViewportClip, revealRowScrollTop, editorToolbarInsets, CameraMotion, wheelCamera}} = loadPortableModules([
   'src/ui/components/wheelCamera.ts', 'src/ui/components/viewportFit.ts', 'src/adapters/obsidian/EmbeddedDrawingFit.ts', 'src/ui/components/centerArrival.ts', 'src/ui/components/modifierClick.ts', 'src/ui/plexViews/areaVisibility.ts', 'src/ui/plexViews/branchDisclosure.ts', 'src/ui/components/CameraMotion.ts']);
 const source=ts.createSourceFile('graph.tsx',readFileSync('src/ui/PlexGraph.tsx','utf8'),ts.ScriptTarget.Latest,true,ts.ScriptKind.TSX);
 
 /** Run production callbacks with explicit finite composition dependencies, without a second policy. */
 function callback(name, dependencies) {
-  dependencies = {wheelCamera, ...dependencies};
+  dependencies = {wheelCamera, restoredViewportCamera, ...dependencies};
   let selected;
   /** Select the actual declaration or layout callback, preserving its complete body. */
   const visit=node=>{
@@ -23,6 +23,8 @@ function callback(name, dependencies) {
       &&node.arguments[0]?.getText(source).includes('const pending = pendingBranchReveal.current'))selected=node.arguments[0].getText(source);
     if(name==='sidecar'&&ts.isCallExpression(node)&&node.expression.getText(source)==='useEffect'
       &&node.arguments[0]?.getText(source).includes('previousSidecarOpen.current === sidecarOpen'))selected=node.arguments[0].getText(source);
+    if(name==='restoreCamera'&&ts.isCallExpression(node)&&node.expression.getText(source)==='useLayoutEffect'
+      &&node.arguments[0]?.getText(source).includes('const restored = viewSession.readTransient'))selected=node.arguments[0].getText(source);
     if(name==='reframeSidecarViewport'&&ts.isBinaryExpression(node)&&node.left.getText(source)==='reframeSidecarViewport.current')selected=node.right.getText(source);
     if(name==='hierarchyInitialFrame'&&ts.isCallExpression(node)&&node.expression.getText(source)==='useLayoutEffect'
       &&node.arguments[0]?.getText(source).includes('hierarchyInitialFrame.current'))selected=node.arguments[0].getText(source);
@@ -215,6 +217,30 @@ test('manual input during an initially empty neighborhood remains authoritative 
   const ctx=graphFixture(),nodes=ctx.scene.nodes;ctx.scene.nodes=[];ctx.layout();ctx.pathChangedThisRender=false;
   ctx.applyCamera({x:123,y:91,scale:0.7});ctx.scene.nodes=nodes;ctx.render();ctx.layout();
   assert.deepEqual(ctx.camera.current,{x:123,y:91,scale:0.7});assert.equal(ctx.automaticFit.current,null);
+});
+
+test('revisiting a note after pane resizing preserves its zoom and pan relative to the viewport center',()=>{
+  for(const [width,height]of [[800,600],[2400,900],[1600,400],[1600,900]]) {
+    const restored={camera:{x:910,y:380,scale:1.7},viewport:{width:1600,height:900},unfolded:[],selected:null};
+    const ctx=graphFixture();Object.assign(ctx.viewport.current,{clientWidth:width,clientHeight:height});
+    Object.assign(ctx,{viewSession:{readTransient:()=>restored,own:()=>()=>{}},viewDefinition:{id:'classic'},nodeId:x=>x,
+      suppressAutoFitUntil:{current:0},setUnfoldedGroups:()=>{},selection:{select:()=>{}}});
+    callback('restoreCamera',ctx)();
+    assert.equal(ctx.camera.current.x-width/2,110,'Horizontal manual offset survives a narrower or wider pane');
+    assert.equal(ctx.camera.current.y-height/2,-70,'Vertical manual offset survives a taller or shorter pane');
+    assert.equal(ctx.camera.current.scale,1.7,'Restoration never refits the saved zoom');
+    assert.equal(ctx.preserveCameraOnNextLayout.current,true);
+    assert.equal(ctx.automaticFit.current,null,'Saved manual intent retains ownership');
+  }
+});
+
+test('camera restoration leaves legacy entries and unusable viewport dimensions unchanged',()=>{
+  const camera={x:910,y:380,scale:1.7},viewport={width:800,height:600};
+  assert.deepEqual(restoredViewportCamera(camera,undefined,viewport),camera);
+  for(const invalid of [{width:0,height:600},{width:800,height:0},{width:Infinity,height:600},{width:800,height:NaN}]) {
+    assert.deepEqual(restoredViewportCamera(camera,invalid,viewport),camera);
+    assert.deepEqual(restoredViewportCamera(camera,viewport,invalid),camera);
+  }
 });
 
 test('Sidecar open/close frames the latest focal node at every pane orientation, fitting only when autozoom is enabled',()=>{

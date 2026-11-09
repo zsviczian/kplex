@@ -181,9 +181,10 @@ test('compatible legacy central editors, per-view heights and transient geometry
   assert.equal(a.setAreaHeight('groveHeight',170),true);assert.equal(current(),true,'Preference changes do not retire the view');
   for(const key of ['__proto__','constructor','prototype']) assert.equal(a.setAreaHeight(key,150),false);
   assert.equal(a.setAreaHeight('bad',Infinity),false);
-  const transient={attention:'Focus.md',camera:{x:40,y:-10,scale:0.8},selected:'repeat-above',unfolded:['one']};
-  a.retainTransient('test.situated',transient);transient.camera.x=999;
+  const transient={attention:'Focus.md',camera:{x:40,y:-10,scale:0.8},viewport:{width:800,height:600},selected:'repeat-above',unfolded:['one']};
+  a.retainTransient('test.situated',transient);transient.camera.x=999;transient.viewport.width=999;
   assert.equal(a.readTransient('test.situated','Focus.md').camera.x,40,'Caller mutation cannot alter the retained camera');
+  assert.deepEqual(a.readTransient('test.situated','Focus.md').viewport,{width:800,height:600},'Viewport belongs to the saved camera, not a mutable DOM measurement');
   a.select(legacy.id);assert.deepEqual(a.getAreaHeights(),{});a.select('test.situated');assert.deepEqual(a.getAreaHeights(),{groveHeight:170});
   const saved=JSON.parse(JSON.stringify(a.getState()));assert.equal(JSON.stringify(saved).includes('repeat-above'),false);
   const b=new M.PlexViewSession(registry,()=>{});b.restore(saved);assert.deepEqual(b.getAreaHeights(),{groveHeight:170});assert.equal(b.readTransient('test.situated','Focus.md'),undefined);
@@ -246,11 +247,20 @@ test('native picker focus return can advance interaction while view, document an
 
 test('recent presentation history has finite entry and byte budgets and remains session-only',()=>{
  const session=new M.PlexViewSession(M.builtInPlexViews,()=>{}),camera={x:123,y:-456,scale:1.7};
- for(let i=0;i<1000;i++)session.retainTransient('classic',{attention:'note'+i,camera,selected:null,unfolded:[],sections:{expanded:true,unfolded:['fold'+i]}});
+ for(let i=0;i<1000;i++)session.retainTransient('classic',{attention:'note'+i,camera,viewport:{width:800,height:600},selected:null,unfolded:[],sections:{expanded:true,unfolded:['fold'+i]}});
  assert.equal(session.readTransient('classic','note0'),undefined);assert.deepEqual(session.readTransient('classic','note999').sections,{expanded:true,unfolded:['fold999']});
  const entries=session.transient;assert(entries.size<=64);assert([...entries].reduce((n,[k,v])=>n+k.length+JSON.stringify(v).length,0)<=65536);
  const restored=new M.PlexViewSession(M.builtInPlexViews,()=>{});restored.restore(session.getState());assert.equal(restored.readTransient('classic','note999'),undefined);
  const huge=Array.from({length:256},(_,i)=>String(i)+'x'.repeat(4090));
  for(let i=0;i<100;i++)session.retainTransient('classic',{attention:'large'+i,camera,selected:null,unfolded:huge,sections:{expanded:true,unfolded:huge}});
  assert([...entries].reduce((n,[k,v])=>n+k.length+JSON.stringify(v).length,0)<=65536);session.dispose();restored.dispose();
+});
+
+test('transient camera history discards invalid viewport dimensions without losing the camera',()=>{
+ const session=new M.PlexViewSession(M.builtInPlexViews,()=>{}),camera={x:12,y:34,scale:0.8};
+ for(const viewport of [{width:0,height:600},{width:800,height:-1},{width:NaN,height:600},{width:800,height:Infinity}]) {
+  session.retainTransient('classic',{attention:'A.md',camera,viewport,selected:null,unfolded:[]});
+  const restored=session.readTransient('classic','A.md');assert.deepEqual(restored.camera,camera);assert.equal(restored.viewport,undefined);
+ }
+ session.dispose();
 });

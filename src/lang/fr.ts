@@ -462,6 +462,7 @@ const frenchTranslations = {
   "colors.adoptConfirm": "Utiliser les couleurs du thème",
   "colors.standardColors": "Couleurs standards",
   "colors.semanticColors": "Couleurs sémantiques",
+  "colors.semanticColorsHelp": "Couleurs partagées par les styles de nœuds et de liens qui choisissent une couleur sémantique, ainsi que par la teinte directionnelle. Pour activer la teinte de fond, ouvrez {views} → {compass} → {tint} et activez {toggle}.",
   "colors.semantic.origin": "Parents · Nord",
   "colors.semantic.development": "Enfants · Sud",
   "colors.semantic.support": "Amis et précédents · Ouest",

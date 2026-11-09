@@ -462,6 +462,7 @@ const germanTranslations = {
   "colors.adoptConfirm": "Theme-Farben verwenden",
   "colors.standardColors": "Standardfarben",
   "colors.semanticColors": "Semantische Farben",
+  "colors.semanticColorsHelp": "Gemeinsame Farben für Knoten- und Verbindungsstile, die eine semantische Farbe verwenden, sowie für die Richtungstönung. Für die Hintergrundtönung {views} → {compass} → {tint} öffnen und {toggle} aktivieren.",
   "colors.semantic.origin": "Eltern · Norden",
   "colors.semantic.development": "Kinder · Süden",
   "colors.semantic.support": "Freunde und Vorherige · Westen",

@@ -462,6 +462,7 @@ const japaneseTranslations = {
   "colors.adoptConfirm": "テーマの色を使用",
   "colors.standardColors": "標準の色",
   "colors.semanticColors": "意味別の色",
+  "colors.semanticColorsHelp": "意味別の色を選択したノードやリンクのスタイルと、方向別の色付けで使う共通の色です。背景の色付けを有効にするには、{views} → {compass} → {tint} を開き、{toggle} をオンにします。",
   "colors.semantic.origin": "親・北",
   "colors.semantic.development": "子・南",
   "colors.semantic.support": "友達・前・西",

@@ -3,6 +3,22 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {colorEditorScenario as scenario} from "./support/colorEditorBrowser.mjs";
 
+test("saved styles refresh their count on a connected native subpage after the tab root detaches",async()=>{
+ assert.equal(await scenario(`(async()=>{
+  const p=await createAppearanceHost({});p.manifest={id:'k-plex'};p.viewSettingsRegistry=sourceModules.builtInCanvasViewSettings;
+  const tab=new sourceModules.KplexSettingTab({workspace:{on:()=>({}),offref:()=>{}}},p);
+  tab.containerEl.remove();const page=document.body.createDiv({cls:'setting-page-content'});let refreshed=0,managerRefresh=0;
+  tab.update=()=>refreshed++;
+  await tab.commitStyleChange(d=>{d.noteTypeStyles.Book={icon:'book-open'}},()=>true,p.captureAppearanceOwner(),()=>managerRefresh++);
+  if(refreshed!==1||managerRefresh!==1)throw Error('Saved style did not refresh the still-visible native page and its manager');
+  const all=[],walk=items=>{for(const row of items){all.push(row);walk(row.items??[])}};walk(tab.getSettingDefinitions());
+  const summary=all.find(row=>row.name===p.translator('styles.nodeTitle'));
+  if(summary.desc!==p.translator('styles.settingsSummary',{count:1}))throw Error('Summary did not read the saved style inventory');
+  page.remove();await tab.commitStyleChange(d=>{d.noteTypeStyles.Movie={icon:'clapperboard'}},()=>true,p.captureAppearanceOwner());
+  if(refreshed!==1)throw Error('A retired Settings page refreshed');tab.disposeActionSettings();return true;
+ })()`),true);
+});
+
 test("0.2.0 upgrade persists appearance, selection and marker together; failure and restart never replace the backup", async () => {
  assert.equal(await scenario(`(async()=>{
   const p=await createAppearanceHost({backgroundColor:'#123456',noteTypeStyles:{Project:{textColor:'#abcdef',fontSize:25}}}),before=structuredClone(p.settings),backup=structuredClone(p.settings.appearanceThemes.themes),store=p.saveData;
