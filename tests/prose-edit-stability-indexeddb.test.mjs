@@ -6,6 +6,47 @@ import {chromiumHarness} from './support/browserTypeScript.mjs';
 import {centerGateSettings} from './support/requestedCenterGateFixture.mjs';
 const bundle=await contributorBrowserBundle(['src/index/GraphIndex.ts','src/index/GraphBuilder.ts','src/index/IndexSnapshot.ts']);
 
+test('late startup resolution repair activates its replacement snapshot without an edit-idle delay',async()=>{
+ const browser=await chromiumHarness(bundle);try{
+  await browser.evaluate(contributorBrowserInitialize);
+  assert(await browser.evaluate(`(async()=>{
+   const M=sourceModules,f=await fixture('late-startup-source-save');let index,release;
+   try{
+    const owner=f.add('A.md','Parent:: [[B]]');f.add('B.md','');const target=f.add('C.md','');
+    f.metadata.get(owner.path).links=[{link:'B',position:{start:{line:0,col:9,offset:9},end:{line:0,col:14,offset:14}}}];
+    f.app.metadataCache.resolvedLinks[owner.path]={'B.md':1};
+    f.app.vault.getName=()=> 'late-startup-source-save';
+    f.app.vault.getAbstractFileByPath=path=>f.files.get(path)??(path===''||path==='/'?f.app.vault.getRoot():null);
+    const settings={...(${centerGateSettings.toString()})({showFolderNodes:false}),indexingMode:'eager',
+     hierarchy:{hidden:[],parents:['Parent'],children:[],leftFriends:[],rightFriends:[],previous:[],next:[],exclusions:[]},tagStyleList:[],showFullTagName:true,
+     inferAllLinksAsFriends:false,inverseInfer:false,lastActivePath:'',pinnedNodes:[]};
+    const plugin={app:f.app,settings,getIndexSourceRevision:()=>0};
+    index=new M.GraphIndex(plugin,f.app);index.scheduleOrphanCleanup=()=>{};
+    ok(await index.rebuild(),'Seed full graph');await index.sourceAcquisition.flush();index.cancelPendingPersistence();
+    ok(await index.persistIndexedDbSnapshot(index.snapshotPersistGeneration),'Seed saved generation');const saved=index.getSavedSnapshotSummary().active.createdAt;index.destroy();
+    const resolve=f.app.metadataCache.getFirstLinkpathDest;
+    f.app.metadataCache.getFirstLinkpathDest=(literal,...args)=>literal==='B'?target:resolve(literal,...args);
+    f.app.metadataCache.resolvedLinks[owner.path]={[target.path]:1};
+    index=new M.GraphIndex(plugin,f.app);index.scheduleOrphanCleanup=()=>{};
+    const acquisition=index.sourceAcquisition,observe=acquisition.restoreRestartHostObservations;
+    let enter;const gate=new Promise(done=>release=done),entered=new Promise(done=>enter=done);
+    acquisition.restoreRestartHostObservations=async function(...args){enter();await gate;return observe.apply(this,args)};
+    ok((await index.restorePersistedSnapshot([],{deferEagerVocabulary:true})).restored,'Warm complete graph');await index.waitForSnapshotHydration();
+    await Promise.race([entered,new Promise((_,reject)=>setTimeout(()=>reject(Error('Source startup owner did not enter')),3000))]);
+    let writes=0;const persist=index.persistIndexedDbSnapshot;index.persistIndexedDbSnapshot=function(...args){writes++;return persist.apply(this,args)};
+    index.finishStartupSnapshot();equal(writes,0,'Independent source validation is not yet closed');
+    release();ok(await acquisition.flush(),'Late native resolution repair closes');
+    for(let n=0;n<300&&(writes===0||index.getSnapshotPersistenceDiagnostics().active||index.getSnapshotPersistenceDiagnostics().pending);n++)await new Promise(done=>setTimeout(done,10));
+    equal(writes,1,'The source/graph completion callback starts the actual cache writer');
+    ok(!index.getSnapshotPersistenceDiagnostics().pending&&!index.getSnapshotPersistenceDiagnostics().active,'No delayed startup cache debt');
+    ok(index.getSavedSnapshotSummary().active.createdAt!==saved,'Replacement generation actually activated');
+    ok(index.get('A.md').neighbours.get(target.path)?.isParent,'The saved repair contains the current ontology target');
+    equal(index.sourceAcquisition.getCounters().vaultReads,0,'Cached repair does not read Markdown');equal(index.sourceAcquisition.getCounters().parses,0,'No body parse');return true;
+   }finally{release?.();index?.destroy();f.close();}
+  })()`));
+ }finally{await browser.cleanup();}
+});
+
 test('an unchanged metadata patch preserves the saved warm cache without scheduling another whole snapshot',async()=>{
   const browser=await chromiumHarness(bundle);
   try{

@@ -718,6 +718,8 @@ export class GraphIndex {
   private snapshotPersistDueAt: number | null = null;
   private orphanCleanupTimer: number | null = null;
   private snapshotPersistGeneration = 0;
+  /** The coordinator requests once; independent source/graph closure may complete afterward. */
+  private startupSnapshotRequested = false;
   private startupSnapshotFinished = false;
   private bodyWarmGeneration = 0;
   private readonly indexedDb: KplexIndexedDbCache;
@@ -1684,6 +1686,7 @@ export class GraphIndex {
    * ordinary catch-up stays background and all work yields to canvas mutations. */
   private retryEagerGraphMaintenance(): void {
     if (this.acknowledgeEagerGraphMaintenance()) this.emitPresentation();
+    if (this.startupSnapshotRequested) this.finishStartupSnapshot();
     const changes = this.sourceAcquisition.pendingGraphSources();
     if (this.eagerGraphMaintenanceTask || !changes?.size || this.diagnosticsClosed || this.persistentCachePurged
       || this.building || this.pendingStructuralTasks || this.isOnDemandMode() || this.sourceBackedSemantics
@@ -1738,6 +1741,7 @@ export class GraphIndex {
       if (!this.diagnosticsClosed && (source !== this.plugin.getIndexSourceRevision()
         || maintenance !== this.sourceAcquisition.getMaintenanceRevision()
         || observed !== this.sourceAcquisition.beginGraphPublication())) this.retryEagerGraphMaintenance();
+      if (this.startupSnapshotRequested) this.finishStartupSnapshot();
     });
     this.eagerGraphMaintenanceTask = task;
     if (urgent) this.plugin.notifyStartupProgress?.(true);
@@ -7398,9 +7402,17 @@ export class GraphIndex {
    * Consume existing cache debt now; unchanged restored snapshots need no write. Later edits
    * retain ordinary coalescing, and partial/source-backed views cannot flush a complete cache. */
   finishStartupSnapshot(): void {
-    if (this.startupSnapshotFinished || !this.fullSnapshotHydrated || !this.fullSnapshotFresh || this.building
+    if (this.startupSnapshotFinished) return;
+    this.startupSnapshotRequested = true;
+    if (!this.fullSnapshotHydrated || !this.fullSnapshotFresh || this.building
       || this.snapshotHydrationTask || this.onDemandPartialState || this.sourceBackedSemantics
-      || this.persistentCachePurged || this.diagnosticsClosed) return;
+      || this.persistentCachePurged || this.diagnosticsClosed || this.eagerGraphMaintenanceTask || this.pendingStructuralTasks
+      || this.fullSemanticPolicyRevision !== this.semanticPolicyRevision
+      || this.fullSemanticSourceRevision !== this.plugin.getIndexSourceRevision()
+      || this.sourceAcquisition.isInventoryEnabled() && (!this.sourceAcquisition.hasSemanticDependencies()
+        || this.sourceAcquisition.pendingGraphSources()?.size
+        || this.fullSemanticMaintenanceRevision !== this.sourceAcquisition.getMaintenanceRevision())) return;
+    this.startupSnapshotRequested = false;
     this.startupSnapshotFinished = true;
     if (this.snapshotPersistTimer === null) return;
     window.clearTimeout(this.snapshotPersistTimer);

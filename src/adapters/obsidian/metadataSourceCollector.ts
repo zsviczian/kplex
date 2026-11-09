@@ -100,8 +100,9 @@ export function createObsidianMetadataSourceHost(app: App): ObsidianMetadataSour
     resolvedLinkCount: (sourcePath, targetPath) => app.metadataCache.resolvedLinks[sourcePath]?.[targetPath] ?? 0,
     isDateProperty: (fieldName) => {
       const manager = (app as AppWithMetadataTypes).metadataTypeManager;
-      const info = manager?.getPropertyInfo?.(fieldName);
-      const widget = info?.widget ?? manager?.getAssignedWidget?.(fieldName);
+      // The native property-info cache supplies synthetic Text for an unknown property and can
+      // lag a type edit. An explicit native assignment wins; inferred/older hosts still fall back.
+      const widget = manager?.getAssignedWidget?.(fieldName) ?? manager?.getPropertyInfo?.(fieldName)?.widget;
       return widget === "date";
     },
     dailyNotesSettings: /** Shared optional host capability retains the source adapter's exact rules. */ () => readDailyNotesSettings(app),

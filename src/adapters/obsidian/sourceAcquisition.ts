@@ -908,11 +908,16 @@ export class ObsidianSourceAcquisition {
       this.localDependenciesReady = false;
     } else this.localDependenciesReady = true;
     if (coordinateChanges.size) this.startupDiagnostics?.phase("source", "dependency-completion", coordinateChanges.size);
-    for (const file of coordinateChanges) if (!changed.has(file)) {
-      const result = await this.repository.ensureLocalDependencies(file.path, structural.get(file.path)!, markdownOrders.get(file.path)!, current);
-      if (result !== "ready" || !current()) return false;
+    const coordinateFiles = [...coordinateChanges].filter(file => !changed.has(file));
+    for (let offset = 0; offset < coordinateFiles.length; offset += 16) {
+      // Only independent coordinate CAS operations overlap. Keep the existing per-owner head,
+      // repair, overlay and cancellation fences and the complete count-journal finality check.
+      const wave = coordinateFiles.slice(offset, offset + 16);
+      const results = await Promise.allSettled(wave.map(file => this.repository.ensureLocalDependencies(
+        file.path, structural.get(file.path)!, markdownOrders.get(file.path)!, current)));
+      if (!current() || results.some(result => result.status !== "fulfilled" || result.value !== "ready")) return false;
       this.localInventoryCompletionPending = true;this.localDependenciesReady = false;
-      this.startupDiagnostics?.processed("source", file.path);
+      for (const file of wave) this.startupDiagnostics?.processed("source", file.path);
     }
     this.dailyNotesObservation = daily;this.restartInventoryChecked = true;
     this.localDependencyAuthorityReady = true;this.urlAliasInventoryComplete = true;

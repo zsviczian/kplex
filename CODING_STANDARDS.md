@@ -93,6 +93,9 @@ or making one expensive step faster does not establish that the workflow is fixe
    A coherent completed initial graph must start its required snapshot save without an edit-idle
    wait. Reuse an unchanged saved generation; never flush an incomplete/source-backed view as a
    complete snapshot. Later edits may coalesce normally without postponing existing cache debt.
+   Hold independent startup-source validation past complete graph hydration, then let it enqueue
+   an actual late graph repair. Its first required cache save must activate without an edit-idle
+   delay. Recheck policy, source, maintenance and structural ownership before consuming that handoff.
 6. **Validate the whole workload.** Measure all startup/background passes and
    their admissions, reads, parses, repairs, rebuilds and writes, including work
    continuing after first paint. Exercise idle/wake, foreground interaction during

@@ -64,9 +64,15 @@ count-journal finality fence must finish first. An empty field impact requires t
 same authenticated lookup. Daily Notes configuration, changed inventory scope,
 missing/corrupt proof, retirement and concurrent environment changes retain ordinary
 recovery; no additional index, scheduler or relationship classifier is introduced.
+Explicit native property-type assignments take precedence over inferred property info.
+Obsidian supplies a default Text descriptor before a property-info entry exists; that
+default must not erase an explicit Date assignment during restart. Older hosts and
+unassigned properties retain the existing property-info fallback.
 
-Native enumeration reordering alone updates the existing owner-coordinate CAS;
-it does not count toward the 256 changed-source limit. A finite graph repair also
+Native enumeration reordering alone updates the existing owner-coordinate CAS in
+bounded sixteen-owner IO waves, settling every member before returning or retiring.
+Per-owner checks and complete count-journal finality remain unchanged. This work
+does not count toward the 256 changed-source limit. A finite graph repair also
 queries the existing local dependency index for affected old/current aliases.
 That lookup is read-only: sources may already have been repaired in a previous
 lifetime while the complete graph snapshot is older. The startup journal alone

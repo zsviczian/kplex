@@ -5,6 +5,48 @@ import {contributorBrowserBundle,contributorBrowserInitialize} from './support/c
 import {chromiumHarness} from './support/browserTypeScript.mjs';
 const bundle=await contributorBrowserBundle();
 
+for(const type of ['date','text'])test('explicit '+type+' assignment survives incomplete or stale native property info on restart',async()=>{
+ const browser=await chromiumHarness(bundle);try{
+  await browser.evaluate(contributorBrowserInitialize);
+  assert(await browser.evaluate(`(async()=>{
+   const name='restart-assigned-type-${type}',first=await fixture(name);
+   first.add('A.md','',{Due:'2026-11-08'});if('${type}'==='date')first.app.dateFields.add('Due');
+   first.app.metadataTypeManager.getAssignedWidget=field=>field==='Due'?'${type}':null;
+   await first.acquire();ok(await first.acquisition.reconcile(),'Accepted source under the explicit native type');first.close();
+   const f=await fixture(name);f.add('A.md','',{Due:'2026-11-08'});if('${type}'==='text')f.app.dateFields.add('Due');
+   f.app.metadataTypeManager.getAssignedWidget=field=>field==='Due'?'${type}':null;
+   try{ok(await f.acquisition.reconcile(),'Native assignment preserves the unchanged source');
+    equal(f.acquisition.getCounters().checked,0,'No invented source change from a default/stale info widget');
+    equal(f.work.writes,[],'No source activation');equal(f.work.visits,[],'No fact replay');equal(f.reads,[],'No note reads');equal(f.parses,[],'No body parsing');return true;
+   }finally{f.close();}
+  })()`));
+ }finally{await browser.cleanup();}
+});
+
+for(const cancel of [false,true])test('native enumeration coordinate updates use bounded settled IO waves'+(cancel?' with cancellation':''),async()=>{
+ const browser=await chromiumHarness(bundle);try{
+  await browser.evaluate(contributorBrowserInitialize);
+  assert(await browser.evaluate(`(async()=>{
+   const name='restart-coordinate-waves-${cancel}',first=await fixture(name),paths=Array.from({length:48},(_,n)=>'Owner'+n+'.md');
+   for(const path of paths)first.add(path,'');await first.acquire();ok(await first.acquisition.reconcile(),'Closed accepted observations');first.close();
+   const f=await fixture(name);for(const path of [...paths].reverse())f.add(path,'');
+   let active=0,peak=0;const ensure=f.repository.ensureLocalDependencies.bind(f.repository);
+   f.repository.ensureLocalDependencies=async(...args)=>{active++;peak=Math.max(peak,active);try{
+    if(${cancel}&&active===2)f.acquisition.close();await new Promise(resolve=>setTimeout(resolve,0));return await ensure(...args);
+   }finally{active--}};
+   try{
+    const ready=await f.acquisition.reconcile();equal(active,0,'All accepted coordinate requests settle before returning');
+    ok(peak>1&&peak<=16,'Coordinate-only IO overlaps within a sixteen-owner bound');
+    equal(ready,!${cancel},'Retired native scope cannot publish readiness');equal(f.acquisition.hasSemanticDependencies(),!${cancel},'Authority follows current complete scope');
+    equal(f.reads,[],'No vault reads');equal(f.parses,[],'No parsing');equal(f.work.visits,[],'No source-family authentication');equal(f.work.writes,[],'No source activations');
+    if(!${cancel}){const db=await f.cache.open();let ordinal=0,last=-1;
+     for(const path of f.files.keys()){const row=await value(db.transaction('sourceLocalDependencyOwners').objectStore('sourceLocalDependencyOwners').get(path));equal(row.markdownOrder,ordinal++,'Current native Markdown order');ok(row.order>last,'Current structural order preserved');last=row.order;}
+    }return true;
+   }finally{f.repository.ensureLocalDependencies=ensure;f.close();}
+  })()`));
+ }finally{await browser.cleanup();}
+});
+
 test('restart header certificates use bounded concurrent reads in one coherent transaction',async()=>{
  const browser=await chromiumHarness(bundle);try{
   await browser.evaluate(contributorBrowserInitialize);

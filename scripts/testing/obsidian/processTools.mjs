@@ -67,12 +67,12 @@ export function runLocalBuild(projectRoot) {
   if (result.status !== 0) throw new Error(`npm run build:local failed (${result.status})`);
 }
 
-/** Run the complete serial suite. Its established large IndexedDB case alone allows 14 minutes;
- * the aggregate deadline must also cover the other portable/browser suites on slower hosts.
- * Individual test deadlines and native CLI deadlines remain unchanged. */
+/** Run the complete serial suite. Measured Windows stages total about 50 minutes, including
+ * the established large IndexedDB case's 14-minute allowance. This 75-minute transport ceiling
+ * covers the full command; individual test, native CLI and performance deadlines stay unchanged. */
 export function runPortableVerification(projectRoot) {
   const { file, args } = npmInvocation();
-  const result = spawnSync(file, args, { cwd: projectRoot, stdio: "inherit", timeout: 2_100_000 });
+  const result = spawnSync(file, args, { cwd: projectRoot, stdio: "inherit", timeout: 4_500_000 });
   if (result.error) throw result.error;
   if (result.status !== 0) throw new Error(`npm run verify failed (${result.status})`);
 }

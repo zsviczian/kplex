@@ -386,8 +386,9 @@ try {
       vault: { getFileByPath(path) { return path === target.path ? target : null; } },
       metadataCache: { resolvedLinks: { "Source.md": { [target.path]: 3 } }, getFirstLinkpathDest(linkpath) { return linkpath === "Target" ? target : null; } },
       metadataTypeManager: {
-        getPropertyInfo(name) { return name === "Date" ? { widget: "date" } : null; },
-        getAssignedWidget(name) { return name === "Fallback Date" ? "date" : null; },
+        // Obsidian returns a text descriptor even before this property's inferred info exists.
+        getPropertyInfo(name) { return {widget:name === "Date" || name === "Explicit Text" ? "date" : "text"}; },
+        getAssignedWidget(name) { return name === "Fallback Date" ? "date" : name === "Explicit Text" ? "text" : null; },
       },
       internalPlugins: {
         getPluginById(id) { return id === "daily-notes" ? { enabled: true, instance: { options: { folder: "/Daily//", format: "YYYY/MM/DD" } } } : null; },
@@ -403,6 +404,7 @@ try {
     const host = createObsidianMetadataSourceHost(app);
     assert.equal(host.isDateProperty("Date"), true);
     assert.equal(host.isDateProperty("Fallback Date"), true);
+    assert.equal(host.isDateProperty("Explicit Text"), false, "Explicit Text beats stale inferred Date information");
     assert.deepEqual(host.dailyNotesSettings(), { folder: "Daily", format: "YYYY/MM/DD" });
     assert.equal(host.formatDailyDate("2026-09-18", "YYYY/MM/DD"), "2026/09/18");
     assert.equal(host.formatDailyDate("bad", "YYYY/MM/DD"), null);

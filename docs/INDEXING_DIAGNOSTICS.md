@@ -119,6 +119,9 @@ snapshot immediately, including a save queued by an early foreground patch. It a
 wait and does not block navigation on storage. An unchanged restored snapshot needs no rewrite;
 partial/source-backed views cannot flush a complete generation. Ordinary later edits retain the
 existing five-minute coalescing bound because a complete large-vault snapshot is expensive.
+Hydration can finish before independent startup source validation. The one-time save handoff
+remains requested until that owner and its pending graph repairs close; existing source/graph
+completion callbacks consume the debt. A later startup repair must not inherit the edit-idle wait.
 An unchanged metadata patch with unchanged physical stamps and no new discovered fields does
 not schedule another snapshot or cancel a valid writer. Physical-only edits, including an
 equal-mtime size change, still require persistence. The retained deadline also spans an active writer. A newer patch still cancels obsolete output,
@@ -142,6 +145,14 @@ of these index reuse records and cannot grant index readiness.
 
 Restart certificate reads use bounded sixteen-owner waves in one readonly transaction;
 validation, ordering and the number of records read remain unchanged.
+Native enumeration reordering also updates existing owner-coordinate CAS records in bounded
+sixteen-owner waves. All existing per-owner checks and the final count-journal proof remain;
+the work neither reacquires source facts nor changes the current native ordering.
+
+Repeated hydration guards reuse the exact format-4 settings-signature bytes for the same
+immutable paired ontology projection and scalar policy. The ontology owner retires that
+projection on committed changes. Legacy mutable hierarchies and malformed scalar shapes retain
+uncached encoding; signature formats and snapshot compatibility do not change.
 
 `index.recovery.source.environmentChange` retains the latest fixed environment reason
 (`date-registry`, `daily-notes` or `unknown`), changed-field count and whether field scope

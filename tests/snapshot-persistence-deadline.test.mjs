@@ -14,7 +14,9 @@ function fixture(){let now=0,serial=0;const timers=new Map(),writes=[];
   const notifications=[];
   const index={snapshotPersistTimer:null,snapshotPersistDueAt:null,snapshotPersistGeneration:0,orphanCleanupTimer:null,
     fullSnapshotHydrated:true,fullSnapshotFresh:true,
-    plugin:{notifyStartupProgress(){notifications.push(index.snapshotPersistTimer===null?'writer':'scheduled');}},
+    semanticPolicyRevision:1,fullSemanticPolicyRevision:1,fullSemanticSourceRevision:0,fullSemanticMaintenanceRevision:0,
+    sourceAcquisition:{isInventoryEnabled:()=>false,hasSemanticDependencies:()=>true,pendingGraphSources:()=>new Map(),getMaintenanceRevision:()=>0},
+    plugin:{getIndexSourceRevision:()=>0,notifyStartupProgress(){notifications.push(index.snapshotPersistTimer===null?'writer':'scheduled');}},
     async persistIndexedDbSnapshot(run){writes.push(run);return true;}};
   for(const name of ['scheduleSnapshotPersist','cancelPendingPersistence','startSnapshotPersist'])index[name]=load('src/index/GraphIndex.ts',name,{window,Platform:{isMobile:false,isIosApp:false}});
   return{index,timers,writes,notifications,setNow:value=>{now=value},fire:()=>{const entry=[...timers.values()][0];assert(entry);now=entry.at;timers.clear();entry.callback();},window};}
@@ -41,6 +43,25 @@ test('unchanged cached startup needs no new write and an incomplete graph cannot
   const partial=fixture();partial.index.finishStartupSnapshot=load('src/index/GraphIndex.ts','finishStartupSnapshot',{window:partial.window});
   partial.index.fullSnapshotFresh=false;partial.index.scheduleSnapshotPersist(300000);partial.index.finishStartupSnapshot();
   assert.equal(partial.writes.length,0,'Source repair must finish before initial persistence');assert.equal(partial.timers.size,1);
+});
+
+test('startup source validation cannot consume the one-time handoff before its late graph repair schedules a save',async()=>{
+  const f=fixture();let ready=false;
+  f.index.sourceAcquisition={isInventoryEnabled:()=>true,hasSemanticDependencies:()=>ready,pendingGraphSources:()=>new Map(),getMaintenanceRevision:()=>0};
+  f.index.finishStartupSnapshot=load('src/index/GraphIndex.ts','finishStartupSnapshot',{window:f.window});
+  f.index.finishStartupSnapshot(); // Hydration is complete; source validation still owns startup.
+  f.setNow(2000);f.index.scheduleSnapshotPersist(300000);ready=true;f.index.finishStartupSnapshot();
+  assert.equal(f.writes.length,1,'The late startup repair must write at source/graph closure');
+  assert.equal(f.timers.size,0,'No edit-idle wait for the startup repair');
+  await new Promise(setImmediate);
+});
+
+for(const blocker of ['structural','policy','source','maintenance'])test('startup persistence retains its request while '+blocker+' ownership is not coherent',()=>{
+  const f=fixture();f.index.finishStartupSnapshot=load('src/index/GraphIndex.ts','finishStartupSnapshot',{window:f.window});
+  f.index.sourceAcquisition.isInventoryEnabled=()=>true;f.index.scheduleSnapshotPersist(300000);
+  const key={structural:'pendingStructuralTasks',policy:'fullSemanticPolicyRevision',source:'fullSemanticSourceRevision',maintenance:'fullSemanticMaintenanceRevision'}[blocker],before=f.index[key];
+  f.index[key]=blocker==='structural'?1:-1;f.index.finishStartupSnapshot();assert.equal(f.writes.length,0,'No mixed or partial snapshot');assert(f.index.startupSnapshotRequested);
+  f.index[key]=before;f.index.finishStartupSnapshot();assert.equal(f.writes.length,1,'Coherent closure consumes the retained handoff');
 });
 
 test('ready text is absent while cached web links and a delayed save are still pending',()=>{
