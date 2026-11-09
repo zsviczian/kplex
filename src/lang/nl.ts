@@ -742,6 +742,8 @@ const dutchTranslations = {
   "references.sourceLine": "{source} · regel {line}",
   "ghost.createTitle": "‘{name}’ maken",
   "ghost.createHelpWithExcalidraw": "Kies waar deze notitie moet worden gemaakt en of het Markdown of een Excalidraw-tekening moet zijn.",
+  "ghost.createDailyNote": "Dagnotitie",
+  "ghost.dailyNoteHelp": "Dagnotitie gebruikt je dagelijkse sjabloon en maakt {path}.",
   "ghost.createHelp": "Kies waar deze notitie moet worden gemaakt.",
   "ghost.locationConflictHelp": "De bovenliggende notities verwijzen naar verschillende mappen voor nieuwe notities. Kies welke locatie moet worden gebruikt.",
   "noteType.title": "Notitietype instellen",

@@ -124,6 +124,15 @@ SI3 source storage has two focused lanes: `npm run test:sources` exercises produ
 
 After exact-build staging, `npm run verify:obsidian:pins-calendar-journal` uses the three explicit disposable `kplex-test-small` target variables below and `KPLEX_HOST_REPORT_DIR`. It exercises pin editing and scrolling, the native Daily Notes calendar, confirmed past-date creation through Core templates, nearest journal links in Compass/Mindmap/Facets, independent ontology memory, narrow light/dark presentation and popout navigation. The driver owns its temporary notes and restores Daily Notes options, settings bytes, appearance, workspace and geometry. Core Daily Notes must be enabled in this disposable vault. It uses Obsidian's DOM menu backend for observable trusted Electron input; macOS, physical touch and OS date-picker behavior remain separate acceptance.
 
+For daily-template materialization, run `node scripts/testing/obsidian/dailyNoteMaterialization.mjs`
+under the same shared application lock, exact-build staging and explicit Small variables.
+Stage and enable real Templater and Excalidraw first; the caller restores that executable
+staging afterward. The scenario checks the native placeholder option and its displayed
+destination, actual template evaluation, calendar and Today confirmation, exact-file drawing
+opening and plain Markdown preservation, with zero additional full graph builds. It restores
+its notes, template callbacks, native options, settings and workspace; it does not run the
+production DNP template or establish physical mobile/Mac acceptance.
+
 Install a CLI-capable Obsidian desktop installer, enable **Settings → General → Advanced → Command line interface**, and complete registration. Keep Obsidian running and the test vault open. Restart the terminal (and an already-running IDE/agent session) after registration so it sees the updated PATH. See [Obsidian's CLI installation and troubleshooting](https://help.obsidian.md/cli).
 
 Use `kplex-test-small` for functional checks and `kplex-test` for scale work. Names alone do not establish a large fixture: record its actual file counts. Both must be disposable vaults, separate from personal notes. Existing prepared vaults need no recloning or configuration reset.

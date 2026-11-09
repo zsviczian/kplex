@@ -19,18 +19,31 @@ function parseDailyDate(value: string, format: string): string | null {
   const date = parsed.format("YYYY-MM-DD"); return calendarDay(date) ? date : null;
 }
 
+/** Interpret only a strict configured date path or an explicitly year-bearing basename. */
+function dateFromDailyPath(path: string, settings: DailyNotesSettings): string | null {
+  const relative = path.endsWith(".md") ? path.slice(0, -3) : path;
+  const formats = settings.format.split("/"), suffix = formats[formats.length - 1];
+  return parseDailyDate(relative, settings.format)
+    ?? parseDailyDate(relative.split("/").slice(-formats.length).join("/"), settings.format)
+    ?? (/Y/.test(suffix.replace(/\[[^\]]*\]/g, "")) ? parseDailyDate(relative.split("/").pop() ?? "", suffix) : null);
+}
+
+/** Offer native daily-template creation for an unresolved date without reading or creating files.
+ * Core Daily Notes owns the canonical destination; the materialization dialog shows it explicitly. */
+export function dailyNoteCreationTarget(app: App, path: string, settings = readDailyPinSettings(app)): Readonly<{date: string; path: string}> | null {
+  if (!settings) return null;
+  const date = dateFromDailyPath(path, settings), destination = date && dailyNotePath(app, date, settings);
+  return date && destination ? {date, path: destination} : null;
+}
+
 /** Resolve a current Markdown daily note under the configured folder, including additional subfolders. */
 export function dailyNoteDate(app: App, file: TFile, settings = readDailyPinSettings(app)): string | null {
   if (!settings || file.extension !== "md" || app.vault.getFileByPath(file.path) !== file) return null;
   const prefix = settings.folder ? `${settings.folder}/` : "";
   if (!file.path.startsWith(prefix)) return null;
-  const relative = file.path.slice(prefix.length, -3);
-  const formats = settings.format.split("/"), suffix = formats[formats.length - 1];
   // Extra archive directories may precede the configured date path. A basename fallback must
   // retain an explicit year: parsing MM-DD alone would silently borrow the current year.
-  return parseDailyDate(relative, settings.format)
-    ?? parseDailyDate(relative.split("/").slice(-formats.length).join("/"), settings.format)
-    ?? (/Y/.test(suffix.replace(/\[[^\]]*\]/g, "")) ? parseDailyDate(file.basename, suffix) : null);
+  return dateFromDailyPath(file.path.slice(prefix.length), settings);
 }
 
 /** Project an arbitrary selected day through the same folder/format owner used by periodic pins. */

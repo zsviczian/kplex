@@ -743,6 +743,8 @@ const spanishTranslations = {
   "references.sourceLine": "{source} · línea {line}",
   "ghost.createTitle": "Crear «{name}»",
   "ghost.createHelpWithExcalidraw": "Elige dónde crear esta nota y si debe ser Markdown o un dibujo de Excalidraw.",
+  "ghost.createDailyNote": "Nota diaria",
+  "ghost.dailyNoteHelp": "Nota diaria usa tu plantilla diaria y crea {path}.",
   "ghost.createHelp": "Elige dónde crear esta nota.",
   "ghost.locationConflictHelp": "Sus notas padre se resuelven en carpetas distintas para notas nuevas. Elige la ubicación que se debe usar.",
   "noteType.title": "Establecer tipo de nota",

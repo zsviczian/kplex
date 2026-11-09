@@ -743,6 +743,8 @@ const frenchTranslations = {
   "references.sourceLine": "{source} · ligne {line}",
   "ghost.createTitle": "Créer « {name} »",
   "ghost.createHelpWithExcalidraw": "Choisissez où créer cette note et si elle doit être une note Markdown ou un dessin Excalidraw.",
+  "ghost.createDailyNote": "Note quotidienne",
+  "ghost.dailyNoteHelp": "Note quotidienne utilise votre modèle quotidien et crée {path}.",
   "ghost.createHelp": "Choisissez où créer cette note.",
   "ghost.locationConflictHelp": "Ses notes parentes conduisent à des dossiers différents pour les nouvelles notes. Choisissez l’emplacement à utiliser.",
   "noteType.title": "Définir le type de note",

@@ -66,7 +66,7 @@ import {CreatePeriodicNoteModal} from "./ui/CreatePeriodicNoteModal";
 import {createPeriodicPinRuntime} from "./adapters/obsidian/periodicPins";
 import {createConfiguredDailyNote} from "./adapters/obsidian/dailyNotes";
 import {readDailyPinSettings} from "./adapters/obsidian/dailyNotes";
-import {collectDailyNotes, dailyNoteDate, dailyNotePath, dailyEntryForDate, dailyNotesSettingsCurrent, type DailyNoteEntry} from "./adapters/obsidian/dailyNoteNavigation";
+import {collectDailyNotes, dailyNoteDate, dailyNotePath, dailyNoteCreationTarget, dailyEntryForDate, dailyNotesSettingsCurrent, type DailyNoteEntry} from "./adapters/obsidian/dailyNoteNavigation";
 import {calendarDay, calendarDayKey, adjacentJournalEntry, missingJournalDirections, type JournalDirection} from "./core/plex/calendarDates";
 import {DailyNoteCalendarModal} from "./ui/DailyNoteCalendarModal";
 import {FileCreationAutomation} from "./adapters/obsidian/fileCreationAutomation";
@@ -385,6 +385,7 @@ export default class KplexPlugin extends Plugin {
   /** Paths suppress the synchronous vault:create rebuild; object identity protects optimistic UI. */
   private readonly managedCreatedPaths = new Map<string, number>();
   private readonly managedCreatedFiles = new WeakSet<TFile>();
+  private readonly createdDailyNotes = new WeakSet<TFile>();
   /** Markdown files whose metadata/body changed since the last published graph. */
   private readonly dirtyMarkdownPaths = new Set<string>();
   /** Rename-only metadata notifications are semantic no-ops when mtime/size are unchanged. */
@@ -3850,6 +3851,7 @@ export default class KplexPlugin extends Plugin {
       const leaf = this.app.workspace.getLeaf("window");
       this.lastDocumentLeaf = leaf;
       await leaf.openFile(file, { active: true });
+      await this.finishDailyNoteOpening(leaf, file);
       await this.app.workspace.revealLeaf(leaf);
     } catch {
       new Notice(this.translator("notice.popoutUnavailable"), 2200);
@@ -4953,6 +4955,7 @@ export default class KplexPlugin extends Plugin {
       {line: Math.max(0, Math.floor(intent.line ?? 0))});
     else if (intent || !this.leafDisplaysPage(leaf, page)) await leaf.openFile(page.file, {active: intent?.active ?? false,
       ...(intent?.subpath ? {eState: {subpath: intent.subpath}} : {})});
+    if (!intent?.markdown) await this.finishDailyNoteOpening(leaf, page.file, stillCurrent);
     if (stillCurrent && (!stillCurrent() || !this.leafDisplaysPage(leaf, page))) return;
     session.preferences.sidecarLastFilePath = page.file.path;session.preferences.sidecarLastUrl = "";
     const state = leaf.getViewState();
@@ -5298,7 +5301,7 @@ export default class KplexPlugin extends Plugin {
       /** Core Daily Notes and the shared automation receipt own template expansion for the chosen date. */ async accepted => {
         const valid = (): boolean => accepted() && current() && dailyNotesSettingsCurrent(this.app, settings) && dailyNotePath(this.app, date) === path;
         if (!valid()) return null;
-        const file = await this.fileCreationAutomation.create(() => createConfiguredDailyNote(this.app, path, valid, day.getTime()));
+        const file = await this.createDailyNoteFile(path, valid, day.getTime());
         if (!file && valid()) throw new Error(this.translator("pins.createFailed"));
         return file && valid() ? this.index.insertCreatedFile(file) : null;
       });
@@ -5359,9 +5362,9 @@ export default class KplexPlugin extends Plugin {
     const row = this.readSavedPins().find(/** A fixed pin never gains periodic creation capability. */ item => item.id === id);
     if (!current() || !row?.period || row.state !== "missing" || row.path !== path || !path.endsWith(".md")) return null;
     if (row.period === "day" && this.settings.periodicPinSettings.day.useDailyNotes) {
-      const file = await this.fileCreationAutomation.create(() => createConfiguredDailyNote(this.app, path, /** Native creation and post-write effects retain the clicked pin's consent. */ () => !this.unloading && current()
+      const file = await this.createDailyNoteFile(path, /** Native creation and post-write effects retain the clicked pin's consent. */ () => !this.unloading && current()
         && this.settings.periodicPinSettings.day.useDailyNotes
-        && this.readSavedPins().some(item => item.id === id && item.period === "day" && item.path === path && (item.state === "missing" || item.state === "ready"))));
+        && this.readSavedPins().some(item => item.id === id && item.period === "day" && item.path === path && (item.state === "missing" || item.state === "ready")));
       if (!file && current()) throw new Error(this.translator("pins.createFailed"));
       return file ? this.index.insertCreatedFile(file) : null;
     }
@@ -8103,7 +8106,30 @@ export default class KplexPlugin extends Plugin {
     } else leaf = workspace.getLeaf("tab");
     this.lastDocumentLeaf = leaf;
     await leaf.openFile(file, {active: true});
+    await this.finishDailyNoteOpening(leaf, file);
     await workspace.revealLeaf(leaf);
+  }
+
+  /** Calendar, symbolic pins and placeholders share the native template/automation owner. */
+  private async createDailyNoteFile(path: string, current: () => boolean, time = Date.now()): Promise<TFile | null> {
+    const file = await this.fileCreationAutomation.create(() => createConfiguredDailyNote(this.app, path, current, time));
+    if (file) this.createdDailyNotes.add(file);
+    return file;
+  }
+
+  /** A template's active-editor command can run before any editor opens. Honor a newly created
+   * daily drawing through Excalidraw's public exact-view API, never through that global command.
+   * Explicit Markdown source inspection and pre-existing daily notes retain their chosen mode. */
+  private async finishDailyNoteOpening(leaf: WorkspaceLeaf, file: TFile, current: () => boolean = () => true): Promise<void> {
+    if (!this.createdDailyNotes.has(file) || this.unloading || !current() || this.app.vault.getFileByPath(file.path) !== file) return;
+    const view = leaf.view;
+    if (!(view instanceof FileView) || view.file !== file) return;
+    if (view.getViewType() === "excalidraw") {this.createdDailyNotes.delete(file);return;}
+    if (view.getViewType() !== "markdown") return;
+    const ea = (window as unknown as {ExcalidrawAutomate?: {isExcalidrawFile?: (file: TFile) => boolean; toggleViewMode?: (view: FileView) => Promise<unknown>}}).ExcalidrawAutomate;
+    if (!ea?.isExcalidrawFile?.(file) || typeof ea.toggleViewMode !== "function") return;
+    await ea.toggleViewMode(view);
+    if (leaf.view instanceof FileView && leaf.view.file === file && leaf.view.getViewType() === "excalidraw") this.createdDailyNotes.delete(file);
   }
 
   /** Yield only while an explicit editor request waits for its committed scene; unload settles every wait. */
@@ -8238,6 +8264,7 @@ export default class KplexPlugin extends Plugin {
     hostLeaf?: WorkspaceLeaf,
     templatePath?: string,
     afterSaving: CreationAfterSavingAction = "return",
+    dailyDate?: string,
   ): Promise<boolean> {
     const retainedPlan = retainedFile ? continuation.relocation : undefined;
     const oldPath = retainedPlan?.oldPath ?? page.path;
@@ -8262,15 +8289,18 @@ export default class KplexPlugin extends Plugin {
       this.translator("ghost.relocationUnsupported"));
     if (this.unloading || retainedFile && this.app.vault.getFileByPath(retainedFile.path) !== retainedFile) throw new Error(changed);
     if (retainedFile && (retainedFile.parent?.path === "/" ? "" : retainedFile.parent?.path) !== destination.folderPath) throw new Error(changed);
-    const file = retainedFile ?? await this.createNewFileInFolder(stem, kind, destination.folderPath, undefined, templatePath);
+    const day = dailyDate ? calendarDay(dailyDate) : null;
+    const file = retainedFile ?? (day ? await this.createDailyNoteFile(`${destination.folderPath ? destination.folderPath + "/" : ""}${stem}.md`, current, day.getTime())
+      : await this.createNewFileInFolder(stem, kind, destination.folderPath, undefined, templatePath));
     if (!file) return false;
     try {
       await this.waitForCreatedFileAutomation(file);
+      if (dailyDate) this.createdDailyNotes.add(file);
       if ((file.parent?.path === "/" ? "" : file.parent?.path) !== destination.folderPath) throw new Error(changed);
       if (relocation) await applyPlaceholderRelocation(this.app, relocation, file, /** Native replacement identities never inherit a dismissed placeholder's write authority. */ () => !this.unloading
         && !this.app.metadataCache.getFirstLinkpathDest(oldPath, sources[0]?.path ?? ""), changed);
       await this.writeCreatedNodeDisplayName(file, rawDisplayName);
-      await this.rememberNewNodeDefaultType(kind);
+      if (!dailyDate) await this.rememberNewNodeDefaultType(kind);
       const target = relocation?.target;
       if (target && (target.file !== file || file.path !== target.path || this.app.vault.getFileByPath(target.path) !== file)) throw new Error(changed);
       const wasCenter = (hostLeaf ? this.documentSession(hostLeaf)?.centerPath : this.settings.lastActivePath) === oldPath;
@@ -8316,6 +8346,8 @@ export default class KplexPlugin extends Plugin {
       : "markdown";
 
     const continuation: { relocation?: PlaceholderRelocation } = {};
+    const dailySettings = readDailyPinSettings(this.app), daily = dailyNoteCreationTarget(this.app, page.path, dailySettings);
+    const dailyFolder = daily ? daily.path.slice(0, Math.max(0, daily.path.lastIndexOf("/"))) : "";
     new MaterializeGhostModal(
       this.app,
       validation.stem,
@@ -8327,6 +8359,14 @@ export default class KplexPlugin extends Plugin {
       chooseFolder,
       this.drawingTemplateOptions(),
       this.createdNoteCompletionControl(hostLeaf, {another: false, follow: false}),
+      daily && dailySettings ? {path: daily.path, create: (retainedFile, current, afterSaving) => {
+        const valid = (): boolean => current() && ownerCurrent() && dailyNotesSettingsCurrent(this.app, dailySettings)
+          && dailyNoteCreationTarget(this.app, page.path)?.path === daily.path;
+        if (!valid()) return Promise.resolve(false);
+        const name = daily.path.slice(daily.path.lastIndexOf("/") + 1, -3);
+        return this.materializeGhostPage(page, name, "markdown", dailyFolder ?? "", rawLeafName, retainedFile, continuation,
+          valid, preserveCenter, hostLeaf, undefined, afterSaving, daily.date);
+      }} : undefined,
     ).open();
   }
 

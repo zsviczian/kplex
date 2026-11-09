@@ -742,6 +742,8 @@ const germanTranslations = {
   "references.sourceLine": "{source} · Zeile {line}",
   "ghost.createTitle": "„{name}“ erstellen",
   "ghost.createHelpWithExcalidraw": "Wählen Sie, wo diese Notiz erstellt werden soll und ob sie Markdown oder eine Excalidraw-Zeichnung sein soll.",
+  "ghost.createDailyNote": "Tagesnotiz",
+  "ghost.dailyNoteHelp": "Tagesnotiz verwendet deine Tagesvorlage und erstellt {path}.",
   "ghost.createHelp": "Wählen Sie, wo diese Notiz erstellt werden soll.",
   "ghost.locationConflictHelp": "Die übergeordneten Notizen ergeben unterschiedliche Ordner für neue Notizen. Wählen Sie den zu verwendenden Speicherort.",
   "noteType.title": "Notiztyp festlegen",

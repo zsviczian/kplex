@@ -741,6 +741,8 @@ const traditionalChineseTranslations = {
   "references.sourceLine": "{source} · 第 {line} 行",
   "ghost.createTitle": "建立「{name}」",
   "ghost.createHelpWithExcalidraw": "選擇此筆記的建立位置，以及要使用 Markdown 還是 Excalidraw 繪圖。",
+  "ghost.createDailyNote": "每日筆記",
+  "ghost.dailyNoteHelp": "每日筆記會使用您的每日範本並建立 {path}。",
   "ghost.createHelp": "選擇此筆記的建立位置。",
   "ghost.locationConflictHelp": "其父筆記會解析到不同的新筆記資料夾。請選擇要使用的位置。",
   "noteType.title": "設定筆記類型",

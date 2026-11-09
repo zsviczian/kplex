@@ -741,6 +741,8 @@ const japaneseTranslations = {
   "references.sourceLine": "{source} · {line} 行目",
   "ghost.createTitle": "「{name}」を作成",
   "ghost.createHelpWithExcalidraw": "このノートの作成場所と、Markdown にするか Excalidraw 図面にするかを選択します。",
+  "ghost.createDailyNote": "デイリーノート",
+  "ghost.dailyNoteHelp": "デイリーテンプレートを使用して {path} を作成します。",
   "ghost.createHelp": "このノートを作成する場所を選択します。",
   "ghost.locationConflictHelp": "親ノートから異なる新規ノート用フォルダーが決定されています。使用する場所を選択してください。",
   "noteType.title": "ノートタイプを設定",

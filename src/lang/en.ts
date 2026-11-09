@@ -1538,6 +1538,16 @@ export const englishCatalog = {
     context: "Legacy K-Plex user-facing copy migrated during the full English catalog pass.",
     params: ["name"], referenceParams: ["name"],
   },
+  "ghost.createDailyNote": {
+    message: "Daily note",
+    context: "Explicit placeholder creation action using the configured core Daily Notes template and folder.",
+    params: [],
+  },
+  "ghost.dailyNoteHelp": {
+    message: "Daily note uses your daily template and creates {path}.",
+    context: "Shows the exact configured daily-note destination before the user chooses the Daily note action.",
+    params: ["path"], referenceParams: ["path"],
+  },
   "ghost.createHelpWithExcalidraw": {
     message: "Choose where to create this note and whether it should be Markdown or an Excalidraw drawing.",
     context: "Legacy K-Plex user-facing copy migrated during the full English catalog pass.",

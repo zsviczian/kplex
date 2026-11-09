@@ -744,6 +744,8 @@ const russianTranslations = {
   "references.sourceLine": "{source} · строка {line}",
   "ghost.createTitle": "Создать «{name}»",
   "ghost.createHelpWithExcalidraw": "Выберите, где создать эту заметку и будет ли это Markdown-заметка или рисунок Excalidraw.",
+  "ghost.createDailyNote": "Ежедневная заметка",
+  "ghost.dailyNoteHelp": "Ежедневная заметка использует ваш ежедневный шаблон и создаёт {path}.",
   "ghost.createHelp": "Выберите, где создать эту заметку.",
   "ghost.locationConflictHelp": "Родительские заметки указывают на разные папки для новых заметок. Выберите нужное расположение.",
   "noteType.title": "Задать тип заметки",
