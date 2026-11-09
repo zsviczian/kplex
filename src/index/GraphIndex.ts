@@ -5472,6 +5472,7 @@ export class GraphIndex {
     this.urlFlushTimer = null; this.pendingUrlPaths.clear(); this.pendingUrlOwners.clear();
     this.retainedLocalScopes.clear();
     this.pendingBodyReadOwners = new WeakMap();
+    this.retireRestoredPatchPlan();
     this.eagerPreviewArbitration?.release();
     this.workScheduler.close();
     this.hostPreview.dispose();
@@ -5741,7 +5742,7 @@ export class GraphIndex {
     this.acceptPresentation(prepared);
     this.fullSnapshotHydrated = false;
     this.previewSnapshotPublished = true;
-    this.restoredPatchPlanAvailable = false;
+    this.retireRestoredPatchPlan();
     // A complete saved neighbor list may carry a cached numeric count before broad hydration.
     // A clipped first-hop cover cannot assert a total for its partial neighboring pages.
     if (cachedCurrent?.()) for (const saved of savedByPath.values()) {
@@ -5939,7 +5940,7 @@ export class GraphIndex {
         this.fullSnapshotFresh = false;
         this.restoredModifiedMarkdownPaths = [];
         this.restoredStructuralMismatch = true;
-        this.restoredPatchPlanAvailable = false;
+        this.retireRestoredPatchPlan();
         return { restored: false, fresh: false, createdAt: meta.createdAt };
       }
 
@@ -5983,7 +5984,7 @@ export class GraphIndex {
         this.fullSnapshotHydrated = false;
         this.fullSnapshotFresh = false;
         this.previewSnapshotPublished = true;
-        this.restoredPatchPlanAvailable = false;
+        this.retireRestoredPatchPlan();
         this.setSnapshotHydrationPhase(run, "preview-search");
         const prepared = await this.preparePresentationPublication(pagePreview, isCurrent, () => this.touchSnapshotHydrationProgress(run), false, false, true, INDEX_WORK_PRIORITY.background, retainRestoreWork);
         if (!prepared || !isCurrent() || !prepared.facets.isCurrent()) return { restored: false, fresh: false, createdAt: meta.createdAt };
@@ -6192,7 +6193,7 @@ export class GraphIndex {
     this.sourceBackedStartup = false;
     this.warmSourceRecoveryAvailable = false;
     this.sourceNodeVocabularyPublished = false;
-    this.restoredPatchPlanAvailable = false;
+    this.retireRestoredPatchPlan();
     this.restoredAddedMarkdownPaths = [];
     this.restoredRemovedMarkdownPaths = [];
     this.restoredVaultSignature = null;
@@ -6741,6 +6742,13 @@ export class GraphIndex {
     return this.restoredPatchPlanAvailable && !this.restoredStructuralMismatch;
   }
 
+  /** Retire the plan and its captured inventory proof together; unavailable plans retain no closure. */
+  private retireRestoredPatchPlan(): void {
+    this.restoredPatchPlanAvailable = false;
+    this.restoredPatchPolicyCurrent = null;
+    this.restoredPatchNeedsSourceClosure = false;
+  }
+
   /** Source revision covered by the physical inventory captured during restore. */
   getRestoreInventorySourceRevision(): number | null {
     return this.restoreInventorySourceRevision;
@@ -6998,9 +7006,7 @@ export class GraphIndex {
         this.restoredModifiedMarkdownPaths = [];
         this.restoredAddedMarkdownPaths = [];
         this.restoredRemovedMarkdownPaths = [];
-        this.restoredPatchPlanAvailable = false;
-        this.restoredPatchPolicyCurrent = null;
-        this.restoredPatchNeedsSourceClosure = false;
+        this.retireRestoredPatchPlan();
         this.sourceBackedSemantics = false;
         this.sourceBackedStartup = false;
         this.cachedSnapshotPages = new WeakSet();
@@ -7636,7 +7642,7 @@ export class GraphIndex {
         this.previewSnapshotPublished = false;
         this.restoredModifiedMarkdownPaths = [];
         this.restoredStructuralMismatch = false;
-        this.restoredPatchPlanAvailable = false;
+        this.retireRestoredPatchPlan();
         this.activeSnapshotGeneration = null;
         this.titleCache.clear();
         this.nodeVisualCache.clear();

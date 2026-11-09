@@ -35,6 +35,31 @@ const initialize = `(() => {
   return true;
 })()`;
 
+for(const disposal of [false,true])test(`retired startup repair proof releases captured inventory (dispose ${disposal})`,async()=>{
+ const browser=await chromiumHarness(bundle);try{
+  await browser.evaluate(contributorBrowserInitialize);await browser.evaluate(initialize);
+  assert(await browser.evaluate(`(async()=>{
+   const M=sourceModules,{f,settings}=await startupSeed('retired-repair-proof-${disposal}');let index,release,task;
+   try{
+    index=new M.GraphIndex({app:f.app,settings,getIndexSourceRevision:()=>0},f.app);index.scheduleOrphanCleanup=()=>{};
+    ok((await index.restorePersistedSnapshot(['A.md'],{deferEagerVocabulary:true,deferEagerUrlRestore:true})).restored,'Real saved graph selected');
+    await index.waitForSnapshotHydration();await index.sourceAcquisition.flush();
+    equal(typeof index.restoredPatchPolicyCurrent,'function','A genuine inventory-bound repair proof exists');
+    if(${disposal})index.destroy();
+    else{
+     let enter;const entered=new Promise(done=>enter=done),gate=new Promise(done=>release=done),catalog=index.indexedDb.readSnapshotCatalog;
+     index.indexedDb.readSnapshotCatalog=async function(...args){enter();await gate;return catalog.apply(this,args);};
+     task=index.restoreIndexedDbSnapshot(['A.md'],true);await deadline(entered,'Replacement restore');
+    }
+    equal(index.hasIncrementalRestorePatch(),false,'The retired plan cannot be selected');
+    equal(index.restoredPatchPolicyCurrent,null,'No old inventory proof remains attached');
+    equal(index.restoredPatchNeedsSourceClosure,false,'Retired source-closure bookkeeping is released together');
+    return true;
+   }finally{index?.destroy();release?.();await task;f.close();}
+  })()`));
+ }finally{await browser.cleanup();}
+});
+
 for(const scenario of ['unchanged','resolution-change','missing-receipt','metadata-race','disposed','failed-maintenance']){
  const changed=scenario==='resolution-change';
  test('initial resolver observation '+scenario+' ahead of a held restart audit',async()=>{

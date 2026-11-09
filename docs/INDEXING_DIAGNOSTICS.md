@@ -100,12 +100,12 @@ extra rebuild. There is no bundle self-hash or post-compilation identity inserti
 
 Representative supplied diagnostic samples combined with 80 installed plugins,
 32 session events, startup rows and 16 prior sessions produced Markdown exports
-of 48,865, 48,858 and 48,730 bytes, within the 49,152-byte combined limit.
+of 49,092, 49,085 and 48,957 bytes, within the 49,152-byte combined limit.
 They retained four, two and two prior sessions with explicit omission counts;
 the corresponding persisted histories remained 28.5–32.4 KB. Export omissions
 did not remove persisted sessions.
 
-Amplified checks measured about 1.12 ms per statistical checkpoint, approximately
+Amplified checks measured about 1.17 ms of process CPU per statistical checkpoint, approximately
 124 KB retained heap per controller with 16 prior sessions (including its recorder
 and closures), and 0.575 ms mean / 0.9 ms p95 for 100 real Chromium IndexedDB
 writes of a 32,668-byte history. A simulated idle day performed 288 safeguard
