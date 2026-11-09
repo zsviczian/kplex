@@ -384,7 +384,7 @@ test("placeholder references preserve the chosen folder and the filename/default
 /** Only the explicit modifier path adds the folder picker; ordinary Markdown materialization keeps its existing fast path. */
 test("explicit folder choice opens the reused picker with the calculated placeholder destination", async () => {
   const opened = [], materialized = [], ghost = { path: "Projects/Next", name: "Next", file: null };
-  const create = production("createGhostNote", { MaterializeGhostModal: class {
+  const create = production("createGhostNote", {readDailyPinSettings:()=>null,dailyNoteCreationTarget:()=>null, MaterializeGhostModal: class {
     constructor(...args) { this.args = args; } open() { opened.push(this.args); }
   } }, "src/main.ts");
   const context = { createdNoteCompletionControl: () => ({value:"return",choices:["return","tab"],onChange(){}}), drawingTemplateOptions: () => null, app: {}, settings: {}, documentSession:()=>null, validateRelatedNoteName: () => ({ stem: "Next", valid: true, existing: null }),

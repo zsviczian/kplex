@@ -23,6 +23,9 @@ async function scenario(app,c){
   const source=await f.note('Daily placeholder origin','An unresolved day: [['+name+']]\nUnrelated: [[Not a daily note]]\n');
   const leaf=await f.canvas(source);await f.ready();const doc=leaf.view.contentEl.ownerDocument;
   const unrelated=app.workspace.getLeaf('tab');f.leaves.push(unrelated);await unrelated.openFile(source,{active:false});
+  // Allocating a tab selects its group even when openFile is inactive. Keep the actual canvas
+  // visible: hidden-canvas pause is intentional and cannot establish an indexing failure.
+  await app.workspace.revealLeaf(leaf);f.check(p.hasVisibleKplexSurface(),'Visible daily creation canvas');
   dailyFolder=await app.vault.createFolder(f.folder+'/Daily');
   const key='__kplexDailyTemplateFixture';f.check(!(key in app.workspace),'Owned template callback key');
   app.workspace[key]={refs:[],calls:[]};
@@ -79,6 +82,13 @@ async function scenario(app,c){
   await verify(dailyFolder.path+'/'+window.moment(plainDate).format('YYYY-MM-DD dddd')+'.md',false);
   f.check(p.index.getSemanticPreparationDiagnostics().fullBuilds===fullBuilds,'Daily creation triggered a full graph rebuild');
   return{samples,ordinaryPlaceholderUnchanged:true,callbackCount:app.workspace[key].calls.length,additionalFullBuilds:0,templaterVersion:tpl.manifest.version};
+ }catch(error){
+  const p=f.p;c.progress={...c.progress,dailyFailure:{source:p.index.sourceAcquisition.getRecoveryDiagnostics(),
+   coordinator:{initial:p.initialIndexComplete,dirty:p.indexDirty,paths:[...p.dirtyMarkdownPaths],reasons:[...p.indexBacklogReasons],rebuildTask:Boolean(p.rebuildTask)},
+   scheduler:p.index.getWorkPriorityDiagnostics(),activeScopes:[...p.index.semanticPreparationTasks.keys()],
+   graph:{building:p.index.building,pendingStructural:p.index.pendingStructuralTasks,eagerMaintenance:Boolean(p.index.eagerGraphMaintenanceTask),pendingSources:[...p.index.sourceAcquisition.pendingGraphSources().keys()]},
+   scopes:[...p.index.semanticScopes].map(([path,value])=>({path,state:value.state})),stage:samples.length}};
+  throw error;
  }finally{
   for(const dialog of dialogs)dialog.close();
   try{await f.cleanup();}finally{
