@@ -39,7 +39,10 @@ async function scenario(app,c) {
     for(const leaf of app.workspace.getLeavesOfType('markdown'))leaf.detach();
     await p.saveSettings(false,false);await p.settingsWriteQueue;
     await until(()=>{
-      c.progress={phase:'baseline',status:p.getIndexStatus(),sourceProgress:p.startupDiagnostics.progress('source'),sourceReady:p.index.sourceAcquisition.hasSemanticDependencies()};
+      c.progress={phase:'baseline',status:p.getIndexStatus(),sourceProgress:p.startupDiagnostics.progress('source'),sourceReady:p.index.sourceAcquisition.hasSemanticDependencies(),
+        initialComplete:p.initialIndexComplete,building:p.index.building,coverage:p.index.publicApiCoverage(),full:p.index.isFullSnapshotHydrated(),
+        sourceState:p.index.sourceAcquisition.getRecoveryDiagnostics(),fresh:p.index.fullSnapshotFresh,
+        revisions:{graphPolicy:p.index.fullSemanticPolicyRevision,policy:p.index.semanticPolicyRevision,graphSource:p.index.fullSemanticSourceRevision,source:p.getIndexSourceRevision(),graphMaintenance:p.index.fullSemanticMaintenanceRevision,maintenance:p.index.sourceAcquisition.getMaintenanceRevision(),pendingGraphSources:p.index.sourceAcquisition.pendingGraphSources()?.size??null}};
       return p.initialIndexComplete&&!p.index.building&&p.index.sourceAcquisition.hasSemanticDependencies()
         &&p.index.publicApiCoverage().scope==='global'&&!p.index.publicApiCoverage().pending;
     },'Initial eager graph did not complete');
@@ -47,6 +50,8 @@ async function scenario(app,c) {
 
     // Wait for the production persistence owner, rather than creating the test's own full baseline.
     await until(()=>p.index.activeSnapshotGeneration&&p.index.snapshotPersistTimer===null
+      &&!p.index.getSnapshotPersistenceDiagnostics().active&&!p.indexDirty&&!p.rebuildTask
+      &&p.index.sourceAcquisition.hasSemanticDependencies()&&!p.index.hasActiveSourcePreparation()
       &&(!p.index.getSemanticPreparationDiagnostics().fullBuilds||p.startupDiagnostics.snapshot().sessionWork.completeSnapshotSaves>0),'Complete snapshot was not persisted');
     await p.settingsWriteQueue;await app.plugins.disablePlugin('k-plex');disabled=true;
     cacheName='k-plex-index-v1-'+[...new TextEncoder().encode(app.vault.getName())].map(v=>v.toString(16).padStart(2,'0')).join('').slice(0,96);
@@ -81,6 +86,8 @@ async function scenario(app,c) {
         &&p.index.publicApiCoverage().scope==='global'&&!p.index.publicApiCoverage().pending;
     },'Damaged-cache eager startup never completed global relationships');
     const hydration=p.index.getSnapshotHydrationDiagnostics(),source=p.index.getSourceAcquisitionCounters(),semantic=p.index.getSemanticPreparationDiagnostics();
+    c.progress={...c.progress,recoveryEvidence:{hydration,source,semantic,nativeBodyReads,
+      decisions:p.index.getIndexDiagnostics().map(({at,stage,reason})=>({at,stage,reason}))}};
     check(hydration.firstFailure?.reason==='missing-chunk','Test did not enter actual missing-chunk recovery');
     check(p.index.isFullSnapshotHydrated()&&!p.index.hasSourceBackedStartup(),'Vocabulary-only recovery cannot pass');
     check(semantic.fullBuilds===1,'Eager recovery must compile global relationships once');
