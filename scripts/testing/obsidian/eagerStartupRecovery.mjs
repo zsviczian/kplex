@@ -7,6 +7,7 @@ import {readFileSync} from 'node:fs';
 import {join,relative,resolve} from 'node:path';
 import {validateTarget} from './runner.mjs';
 import {runControlledProbe} from './controlledProbe.mjs';
+import {nativeDocumentSessions} from './nativeDocumentSessions.mjs';
 
 /** Remove one actual active page chunk while the plugin is disabled, then observe normal startup. */
 async function scenario(app,c) {
@@ -30,6 +31,13 @@ async function scenario(app,c) {
     let p=app.plugins.plugins['k-plex'];check(p&&!p.index.isOnDemandMode(),'Eager Small required');
     focus();
     if(!app.workspace.getLeavesOfType('k-plex-react-view').length)app.commands.executeCommandById('k-plex:kplex-start');
+    // Native editor/embedded-preview restoration legitimately reads its displayed file. Isolate
+    // graph recovery from those readers without filtering the strict Vault-level read counter.
+    // The original layout and exact configuration bytes are restored by the existing finally.
+    await c.sessions(p).off();p.settings.embedCentralNode=false;
+    for(const leaf of app.workspace.getLeavesOfType('k-plex-react-view'))leaf.view.centerPresentation.update({embedCentralNode:false});
+    for(const leaf of app.workspace.getLeavesOfType('markdown'))leaf.detach();
+    await p.saveSettings(false,false);await p.settingsWriteQueue;
     await until(()=>{
       c.progress={phase:'baseline',status:p.getIndexStatus(),sourceProgress:p.startupDiagnostics.progress('source'),sourceReady:p.index.sourceAcquisition.hasSemanticDependencies()};
       return p.initialIndexComplete&&!p.index.building&&p.index.sourceAcquisition.hasSemanticDependencies()
@@ -131,5 +139,5 @@ const reportDir=resolve(process.env.KPLEX_HOST_REPORT_DIR??'');
 const reportFromVault=relative(target.vault,reportDir);
 if(!process.env.KPLEX_HOST_REPORT_DIR||!reportFromVault.startsWith('..')&&!reportFromVault.includes(':'))throw Error('Report and cache backup must be outside the disposable vault');
 await runControlledProbe('eager-startup-recovery',scenario,
-  'c.vaultPath='+JSON.stringify(target.vault)+';c.backupPath='+JSON.stringify(join(reportDir,'derived-snapshot-backup.json'))+';c.configRelative='+JSON.stringify(relative(target.vault,target.config).replaceAll('\\','/'))+';c.originalData='+JSON.stringify(readFileSync(join(target.pluginDir,'data.json'),'utf8'))+';c.originalEnabled='+JSON.stringify(readFileSync(join(target.config,'community-plugins.json'),'utf8'))+';',
+  'c.sessions='+nativeDocumentSessions.toString()+';c.vaultPath='+JSON.stringify(target.vault)+';c.backupPath='+JSON.stringify(join(reportDir,'derived-snapshot-backup.json'))+';c.configRelative='+JSON.stringify(relative(target.vault,target.config).replaceAll('\\','/'))+';c.originalData='+JSON.stringify(readFileSync(join(target.pluginDir,'data.json'),'utf8'))+';c.originalEnabled='+JSON.stringify(readFileSync(join(target.config,'community-plugins.json'),'utf8'))+';',
   ['src/main.ts','src/adapters/obsidian/sourceAcquisition.ts'],{maximumMs:360000});

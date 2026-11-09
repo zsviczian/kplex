@@ -101,12 +101,6 @@
   animation: kplex-index-status-blink 1s ease-in-out infinite;
 }
 
-.kplex-index-status.is-cache-pending,
-.kplex-topbar button.kplex-index-status.is-cache-pending {
-  background: var(--color-orange);
-  box-shadow: var(--shadow-s);
-}
-
 .kplex-index-status-empty {
   position: absolute;
   top: 18px;

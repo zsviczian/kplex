@@ -100,14 +100,14 @@ extra rebuild. There is no bundle self-hash or post-compilation identity inserti
 
 Representative supplied diagnostic samples combined with 80 installed plugins,
 32 session events, startup rows and 16 prior sessions produced Markdown exports
-of 49,092, 49,085 and 48,957 bytes, within the 49,152-byte combined limit.
-They retained four, two and two prior sessions with explicit omission counts;
+of 47,517, 47,338 and 49,028 bytes, within the 49,152-byte combined limit.
+They retained three, one and two prior sessions with explicit omission counts;
 the corresponding persisted histories remained 28.5–32.4 KB. Export omissions
 did not remove persisted sessions.
 
-Amplified checks measured about 1.17 ms of process CPU per statistical checkpoint, approximately
+Amplified checks measured about 1.2 ms of process CPU per statistical checkpoint, approximately
 124 KB retained heap per controller with 16 prior sessions (including its recorder
-and closures), and 0.575 ms mean / 0.9 ms p95 for 100 real Chromium IndexedDB
+and closures), and 0.83 ms mean / 1.3 ms p95 for 100 real Chromium IndexedDB
 writes of a 32,668-byte history. A simulated idle day performed 288 safeguard
 wakes with zero writes; a million coarse dirty notifications also performed zero
 writes. These are isolated diagnostic measurements, not whole-vault startup CPU
@@ -116,6 +116,13 @@ or physical-mobile measurements. Native indexing/restart acceptance is separate.
 ## Restart acceptance
 
 Usable graph readiness and durable complete-cache activation are distinct. Reports expose both.
+The indicator stays green when the usable graph is ready and only a scheduled cache save remains;
+the tooltip discloses unsaved cache state. Active validation, URL work and actual writes remain busy.
+URL completion explicitly refreshes status even when its final sweep publishes no graph changes.
+`index.recovery.source.uncoveredResolverCause` preserves a fixed native event category after
+later known edits; it never includes a file identity. `index.sources.lastReadFailure` preserves the
+latest fixed reader outcome across successful activations. A cancellation/supersession category
+is distinct from damaged stored data. Physical-folder revalidation retains its literal reason code.
 Intervening note-patch batches retain an earlier pending cache-save deadline; closing the last
 Plex preserves a completed graph's save, while partial graphs retain cancellation. Reloading before
 a write commits can still require recovery: no unload-time synchronous full-vault flush is added.

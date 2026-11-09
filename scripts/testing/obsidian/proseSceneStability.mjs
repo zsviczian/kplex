@@ -40,6 +40,7 @@ async function scenario(app,c){
    f.restores.push(()=>{parser.parse=parse;});
    for(const view of ['classic','mindmap','wuxing']){
     f.check(await session.plexView.requestSelection(view),'Selected native view '+view);await f.ready();await f.wait(750);
+    const inventoryBefore=p.startupDiagnostics.snapshot().sessionWork.sourceInventoryPasses;
     const nodes=()=>[...root.querySelectorAll('.kplex-thought[data-kplex-path]')];
     const baseline=nodes().map(element=>({element,path:element.dataset.kplexPath,rect:element.getBoundingClientRect().toJSON()}));
     f.check(baseline.some(row=>row.path===target.path),'Parent node visible in '+view);
@@ -70,7 +71,9 @@ async function scenario(app,c){
      }
      f.check(editor.contains(doc.activeElement),'Sidecar editor focus preserved');
      f.check(!violations.length,'Prose-only scene changed '+mode+' '+view+': '+JSON.stringify(violations));
-     results.push({mode,view,incomingContributor:!!c.incoming,saves:3,samples,nodeCount:baseline.length,edgeCount:edges.length,sceneStable:true});
+     const globalInventories=p.startupDiagnostics.snapshot().sessionWork.sourceInventoryPasses-inventoryBefore;
+     f.check(globalInventories===0,'Plain Markdown autosaves admitted a global source inventory');
+     results.push({mode,view,incomingContributor:!!c.incoming,saves:3,samples,nodeCount:baseline.length,edgeCount:edges.length,sceneStable:true,globalInventories});
     }finally{observer.disconnect();observer=null;frameWindow.cancelAnimationFrame(frame);frame=null;}
    }
    // Genuine link edits must still converge naturally; no direct index patch or forced refresh.

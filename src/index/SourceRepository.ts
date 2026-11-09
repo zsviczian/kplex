@@ -293,6 +293,8 @@ export type SourceRepositoryDiagnostics = {
   sequenceMax: number;
   peakDecodeBytes: number;
   lastReason: SourceReason;
+  /** Successful later reads/activations must not erase the last fixed reader-failure category. */
+  lastReadFailure: SourceReason | null;
   familyFailures: Record<SourceFamily, number>;
 };
 /** Sanitize reports independently of private state; extra fields and arbitrary reasons disappear. */
@@ -303,7 +305,7 @@ export function sanitizeSourceRepositoryDiagnostics(value: unknown): SourceRepos
     factCompilerVersion: SOURCE_FACT_COMPILER_VERSION, bodyParserVersion: SOURCE_BODY_PARSER_VERSION,
     resolutionVersion: SOURCE_RESOLUTION_VERSION, storage: "unchecked", activated: 0, unsaved: 0,
     empty: 0, chunksWritten: 0, bytesWritten: 0, familiesReused: 0, readFailures: 0,
-    sequenceMin: 0, sequenceMax: 0, peakDecodeBytes: 0, lastReason: "missing",
+    sequenceMin: 0, sequenceMax: 0, peakDecodeBytes: 0, lastReason: "missing", lastReadFailure: null,
     familyFailures: { values: 0, "body-urls": 0, metadata: 0, resolution: 0 },
   };
   if (input.storage === "available" || input.storage === "unavailable") result.storage = input.storage;
@@ -312,6 +314,7 @@ export function sanitizeSourceRepositoryDiagnostics(value: unknown): SourceRepos
   }
   const reason = SOURCE_REASONS.find((reason) => reason === input.lastReason);
   if (reason) result.lastReason = reason;
+  result.lastReadFailure = SOURCE_REASONS.find(reason => reason === input.lastReadFailure) ?? null;
   if (sourceObject(input.familyFailures)) {
     for (const family of SOURCE_FAMILIES) if (sourceCount(input.familyFailures[family])) result.familyFailures[family] = input.familyFailures[family];
   }
@@ -948,6 +951,7 @@ export class NeutralSourceRepository {
   /** Record only finite family/reason counters; corruption never clears another source's head. */
   private fail(reason: SourceReason, family?: SourceFamily): SourceReason {
     this.diagnostics.lastReason = reason;
+    this.diagnostics.lastReadFailure = reason;
     this.diagnostics.readFailures += 1;
     if (family) this.diagnostics.familyFailures[family] += 1;
     return reason;

@@ -84,6 +84,7 @@ import { selectedSourceFailure, type SelectedSourceResult, type SelectedSourceRe
 import type { ParsedBodyMetadata, ParsedFileMetadata } from "../../core/parser/metadata";
 import { mergeFileMetadata } from "../../index/fieldParser";
 import {normalizeFieldName} from "../../core/contracts/fieldName";
+import type {UncoveredResolverCause} from "../../application/indexRecoveryDiagnostics";
 import {sourceFingerprintCooperative} from "../../index/SourceFingerprint";
 import {readHostLinkSignatureEntries} from "./hostLinkSourceCollector";
 import type { BodyCacheRequest, BodyCacheStamp, KplexIndexedDbCache } from "../../index/IndexedDbCache";
@@ -217,6 +218,8 @@ export class ObsidianSourceAcquisition {
   private restartInventoryChecked = false;
   /** Last selected-source comparison contains fixed codes only, never the owner's identity. */
   private metadataComparison: Readonly<{outcome: "equal" | "different" | "unavailable"; family: SourceFamily | null}> | null = null;
+  /** Preserve the last unqualified native event across later ordinary known-file observations. */
+  private uncoveredResolverCause: UncoveredResolverCause | null = null;
   /** Derived legacy URL owner incidence, independent of primary semantic authority/readiness. */
   private readonly pendingUrlAliasSources = new Set<string>();
   private urlAliasInventoryComplete = false;
@@ -340,6 +343,7 @@ export class ObsidianSourceAcquisition {
       invalidation: {...this.recoveryInvalidation},
       environmentChange: this.environmentChange ? {...this.environmentChange} : null,
       metadataComparison: this.metadataComparison ? {...this.metadataComparison} : null,
+      uncoveredResolverCause: this.uncoveredResolverCause,
       pass: pass ? {...pass, elapsedMs: pass.outcome === "running" ? Math.max(0, Date.now() - pass.startedAt) : pass.elapsedMs,
         sourceChanges: pass.outcome === "running" ? Math.max(0, this.inventoryRevision - pass.sourceRevision) : pass.sourceChanges,
         scopeChanges: pass.outcome === "running" ? Math.max(0, this.inventoryScopeRevision - pass.scopeRevision) : pass.scopeChanges,
@@ -479,7 +483,9 @@ export class ObsidianSourceAcquisition {
         changed(file, false, undefined, false, "source", undefined, undefined,
           !this.restartInventoryChecked && (this.enabled || this.inventory !== null));
       } else {
-        this.noteResolverWaveCause(false);
+        this.noteResolverWaveCause(false, !(file instanceof TFile) ? file == null ? "resolve-no-owner" : "resolve-non-file"
+          : file.extension !== "md" ? "resolve-non-markdown"
+          : this.app.vault.getFileByPath(file.path) === null ? "resolve-missing-native-file" : "resolve-replaced-native-file");
         changed(undefined, false, undefined, false, "resolution");
       }
     });
@@ -571,6 +577,7 @@ export class ObsidianSourceAcquisition {
   /** Retirement poisons this unresolved wave; a following known file cannot erase the missing proof. */
   private retireEmptyFolderCreateWave(): void {
     if (!this.emptyFolderCreateWave) return;
+    this.uncoveredResolverCause = "retired-folder-proof";
     for (const witness of this.emptyFolderCreateWave.folders.values()) witness.invalidate?.();
     this.emptyFolderCreateWave = null;
     this.uncoveredResolverWave = true;
@@ -631,11 +638,12 @@ export class ObsidianSourceAcquisition {
    * Coalesce all causes since the previous resolver close into constant-size causal state. TFile
    * events are source-local proof; a bounded independently qualified folder wave can accompany
    * them. The raw modification timer remains finite; native topology covers one resolver close.
+   * The optional fixed cause observes an uncovered event; it never qualifies or suppresses one.
    */
-  private noteResolverWaveCause(covered: boolean): void {
+  private noteResolverWaveCause(covered: boolean, cause: UncoveredResolverCause = "unqualified-native-event"): void {
     if (this.emptyFolderCreateWave) this.emptyFolderCreateWave.lastCauseAt = window.performance.now();
     if (covered) this.knownResolverWave = true;
-    else { this.uncoveredResolverWave = true; this.uncoveredResolverSinceClose = true; }
+    else { this.uncoveredResolverCause = cause; this.uncoveredResolverWave = true; this.uncoveredResolverSinceClose = true; }
     const generation = ++this.resolverWaveGeneration;
     if (this.resolverWaveTimer !== null) window.clearTimeout(this.resolverWaveTimer);
     this.resolverWaveTimer = window.setTimeout(() => {
@@ -646,6 +654,7 @@ export class ObsidianSourceAcquisition {
       this.uncoveredResolverWave = false;
       const wave = this.emptyFolderCreateWave;
       if (wave && !this.emptyFolderMembershipComplete(wave)) {
+        this.uncoveredResolverCause = "folder-membership-incomplete";
         for (const witness of wave.folders.values()) witness.invalidate?.();
         this.uncoveredResolverSinceClose = true;
       }
@@ -659,7 +668,7 @@ export class ObsidianSourceAcquisition {
     const folderCovered = !this.emptyFolderCreateWave || this.emptyFolderWaveComplete(this.emptyFolderCreateWave);
     const covered = (this.knownResolverWave || this.nativeResolvedWave || this.nativeTopologyWave || Boolean(this.emptyFolderCreateWave))
       && !this.uncoveredResolverWave && !this.uncoveredResolverSinceClose && folderCovered;
-    if (!folderCovered) this.uncoveredResolverWave = true;
+    if (!folderCovered) {this.uncoveredResolverCause = "incomplete-folder-proof";this.uncoveredResolverWave = true;}
     this.resolverActivityReason = covered ? (this.emptyFolderCreateWave ? "qualified-folder" : "known-resolver")
       : this.uncoveredResolverWave || this.uncoveredResolverSinceClose ? "uncovered-non-file"
       : this.resolverWaveExpired ? "expired-resolver" : this.resolverCloseObserved ? "extra-resolved" : "unscoped-resolved";

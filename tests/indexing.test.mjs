@@ -1240,6 +1240,11 @@ const indexingStatusContext = {
     "A completed source pass cannot claim ongoing validation");
   context.initialIndexComplete = true;context.indexDirty = false;
   assert.equal(KplexPlugin.prototype.getIndexStatus.call(context).label, "index.statusReady");
+  context.index.getSnapshotPersistenceDiagnostics=()=>({pending:true,active:false,dueInMs:300000});
+  const pendingCache=KplexPlugin.prototype.getIndexStatus.call(context);
+  assert.equal(pendingCache.activeWork,false,'A scheduled cache save is not active indexing');
+  assert.equal(pendingCache.label,'index.statusReady\nindex.statusCacheSavePending','Ready graph and unsaved cache are disclosed together');
+  delete context.index.getSnapshotPersistenceDiagnostics;
   context.computeIndexStatusFacts = KplexPlugin.prototype.computeIndexStatusFacts;
   context.index.getSourceAcquisitionCounters = () => ({ vaultReads: 0, parses: 0 });
   context.index.getSemanticPreparationDiagnostics = () => ({ fullBuilds: 0 });

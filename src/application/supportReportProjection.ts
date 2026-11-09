@@ -21,7 +21,8 @@ const DECISION_REASONS = ["source-backed-physical-baseline", "source-node-incide
   "storage-unavailable", "invalid-snapshot-metadata", "no-complete-snapshot", "source-backed-policy-baseline", "compatible", "signature-format-changed",
   "semantic-settings-changed", "signature-format-unknown", "retired-policy-reconcile", "retired-policy-no-affected-sources", "checkpoint-selected",
   "complete-snapshot-fresh", "complete-snapshot-stale", "startup-source-authority-pending", "hydration-incomplete", "restore-exception", "hydration-stalled", "snapshot-foreground-proof-mismatch",
-  "source-changed-during-reconcile", "per-file-reconcile-complete", "snapshot-write-cancelled", "checkpoint-saved", "complete-saved"] as const;
+  "source-changed-during-reconcile", "per-file-reconcile-complete", "physical-folder-inventory-revalidated",
+  "snapshot-write-cancelled", "checkpoint-saved", "complete-saved"] as const;
 const BUILD_PARTS = ["cold-progressive", "full-rebuild", "per-file-patch", "startup", "vault", "metadata", "kplex", "stale-snapshot", "no-snapshot",
   "partial-restore-incomplete", "post-initial-backlog", "initial-index", "create-during-rebuild", "create-markdown", "create", "delete-folder-failed", "delete",
   "rename-folder-failed", "rename-folder", "rename", "changed", "coalesced-backlog", "interval", "view-open", "direct", "unknown", "settings", "manual", "user-request"] as const;
@@ -138,6 +139,7 @@ export function projectSupportIndex(input: unknown) {
     sources: { ...supportCounters(sources, ["formatVersion", "databaseVersion", "factFormatVersion", "factCompilerVersion", "bodyParserVersion", "resolutionVersion", "activated",
       "unsaved", "empty", "chunksWritten", "bytesWritten", "familiesReused", "readFailures", "sequenceMin", "sequenceMax", "peakDecodeBytes"]),
       storage: supportCode(supportField(sources, "storage"), ["unchecked", "available", "unavailable"]), lastReason: supportCode(supportField(sources, "lastReason"), SOURCE_REASONS),
+      lastReadFailure: supportField(sources,"lastReadFailure") == null ? null : supportCode(supportField(sources,"lastReadFailure"), SOURCE_REASONS),
       familyFailures: supportCounters(supportField(sources, "familyFailures"), ["values", "body-urls", "metadata", "resolution"]) }, decisions,
   };
 }

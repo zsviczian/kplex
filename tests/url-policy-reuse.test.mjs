@@ -6,6 +6,20 @@ import {urlPublicationFixture} from './support/urlPublicationFixture.mjs';
 const bundle=await contributorBrowserBundle(['src/index/GraphIndex.ts','src/index/GraphBuilder.ts']);
 const target='https://policy.example/shared';
 
+test('web-link completion notifies status even when no URL publication is pending',async()=>{
+ const f=urlPublicationFixture(bundle),i=f.index,notifications=[];let enter,release,task;
+ const entered=new Promise(resolve=>enter=resolve),gate=new Promise(resolve=>release=resolve);
+ i.restoreUrlIndex=async()=>{enter();await gate;};
+ i.plugin.notifyStartupProgress=terminal=>notifications.push({terminal,active:i.getUrlIndexProgress().active});
+ try{
+  task=i.startBackgroundUrlIndex();await entered;
+  assert.equal(i.getUrlIndexProgress().active,true);assert.equal(i.pendingUrlPaths.size,0);
+  release();await task;
+  assert.equal(i.getUrlIndexProgress().active,false);
+  assert.deepEqual(notifications.at(-1),{terminal:true,active:false},'The UI receives terminal status without another graph/file event');
+ }finally{release();await task;f.close();}
+});
+
 for(const dispose of [false,true])test(`web-link startup duration includes held cached restoration (dispose ${dispose})`,async()=>{
  const f=urlPublicationFixture(bundle),i=f.index,marks=[];let now=7,enter,release,task;
  const entered=new Promise(resolve=>enter=resolve),gate=new Promise(resolve=>release=resolve);

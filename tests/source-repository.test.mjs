@@ -160,7 +160,7 @@ test("elapsed flush and a durable stop include active producers; empty acquisiti
 
 test("diagnostics allowlist strips paths, settings, property values, raw exceptions and arbitrary reasons", () => {
   const result = sanitizeSourceRepositoryDiagnostics({ storage: "available", activated: 3, unsaved: 2, path: "secret.md", body: "content",
-    lastReason: "secret.md: private exception", familyFailures: { values: 4, "secret field": 500 }, sequenceMax: NaN,
+    lastReason: "secret.md: private exception", lastReadFailure: "secret.md: private exception", familyFailures: { values: 4, "secret field": 500 }, sequenceMax: NaN,
     factFormatVersion: "SECRET", settings: { ontology: "private" } });
   assert.equal(result.activated, 3); assert.equal(result.unsaved, 2); assert.equal(result.familyFailures.values, 4);
   assert(!JSON.stringify(result).match(/secret|SECRET|private|ontology|content/));

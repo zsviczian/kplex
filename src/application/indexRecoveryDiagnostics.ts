@@ -3,6 +3,12 @@
 import {supportField, supportCode, supportCount, supportDuration} from "./SessionEventRecorder";
 import {ACTIVITY_REASONS} from "./IndexingActivity";
 
+/** Native event categories only; no file identity, path, property or raw exception is retained. */
+export const UNCOVERED_RESOLVER_CAUSES = ["unqualified-native-event", "resolve-no-owner", "resolve-non-file",
+  "resolve-non-markdown", "resolve-missing-native-file", "resolve-replaced-native-file", "retired-folder-proof",
+  "incomplete-folder-proof", "folder-membership-incomplete"] as const;
+export type UncoveredResolverCause = typeof UNCOVERED_RESOLVER_CAUSES[number];
+
 /** Shared closed vocabulary for live and historical cache-writer receipts, excluding raw errors. */
 export function projectSnapshotWriteDiagnostics(snapshot: unknown) {
   return {phase: supportCode(supportField(snapshot, "phase"), ["idle", "open", "pages", "evidence", "activate"]),
@@ -33,6 +39,8 @@ export function projectIndexRecoveryDiagnostics(input: unknown) {
       metadataComparison: comparison === null || comparison === undefined ? null : {
         outcome: supportCode(supportField(comparison, "outcome"), ["equal", "different", "unavailable"]),
         family: supportCode(supportField(comparison, "family"), ["values", "metadata", "resolution", "body-urls"])},
+      uncoveredResolverCause: supportField(source,"uncoveredResolverCause") == null ? null
+        : supportCode(supportField(source,"uncoveredResolverCause"), UNCOVERED_RESOLVER_CAUSES),
       environmentChange: environment === null || environment === undefined ? null : {
         kind: supportCode(supportField(environment, "kind"), ["date-registry", "daily-notes", "unknown"]),
         fields: supportCount(supportField(environment, "fields")), scoped: boolean(environment, "scoped")},

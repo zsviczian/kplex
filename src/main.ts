@@ -4380,7 +4380,7 @@ export default class KplexPlugin extends Plugin {
       || urlProgress.active || persistence?.active);
     // Read authority is independent of background completion. Describe the remaining work here;
     // an unqualified ready line beside loading/saving makes the indicator contradict itself.
-    if (phase === "ready" && progressLabel === label && (activeWork || cacheSavePending || urlLabel)) {
+    if (phase === "ready" && progressLabel === label && (activeWork || urlLabel)) {
       labels.shift();
       if (!labels.length) labels.push(this.translator("index.statusUpdating"));
     }

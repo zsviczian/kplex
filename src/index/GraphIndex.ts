@@ -5223,7 +5223,13 @@ export class GraphIndex {
       this.plugin.startupDiagnostics?.mark("url-background-complete");
       this.flushUrlPublication(true);
       return this.urlDiscoveryComplete;
-    }).finally(() => { this.urlDiscoveryRunning = false; this.flushUrlPublication(); });
+    }).finally(() => {
+      this.urlDiscoveryRunning = false;
+      this.flushUrlPublication();
+      // An empty final sweep publishes no graph event. Clear its busy indicator immediately,
+      // through the status owner, rather than waiting for an unrelated edit or navigation.
+      if (!this.diagnosticsClosed) this.plugin.notifyStartupProgress?.(true);
+    });
     this.urlBackgroundTask = task;
     return task;
   }

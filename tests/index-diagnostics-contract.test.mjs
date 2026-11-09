@@ -31,6 +31,8 @@ test('selected-source comparison diagnostics export fixed codes and never invoke
   const environment={kind:'Private field',fields:-1};Object.defineProperty(environment,'scoped',{get(){reads++;throw Error('Private value')}});
   assert.deepEqual(project({source:{environmentChange:environment}}).source.environmentChange,{kind:'unavailable',fields:null,scoped:null});
   assert.equal(reads,0,'Environment diagnostics never invoke getters or expose dynamic field names');
+  assert.equal(project({source:{uncoveredResolverCause:'resolve-missing-native-file'}}).source.uncoveredResolverCause,'resolve-missing-native-file');
+  assert.equal(project({source:{uncoveredResolverCause:'Private note.md'}}).source.uncoveredResolverCause,'unavailable');
   const url={policyPreparations:1,flushes:3,pendingPaths:0,maxPendingPaths:20,timerPending:false,privateUrl:'https://private.invalid/'};
   assert.deepEqual(project({url}).url,{policyPreparations:1,flushes:3,pendingPaths:0,maxPendingPaths:20,timerPending:false});
   Object.defineProperty(url,'policyPreparations',{get(){reads++;throw Error('Private value')}});
@@ -147,4 +149,15 @@ test('recovery blockers and writer error classes survive both exports without pr
  assert.equal(parsed.index.cache.writer.errorName,'DataCloneError');assert.equal(parsed.index.recovery.waitingForSources,true);
  assert.equal(getters,0);assert(!native.includes('PRIVATE'));assert(!support.includes('PRIVATE'));
  assert(Buffer.byteLength(native)<=49152&&Buffer.byteLength(support)<=49152);
+});
+
+test('fixed source failure and folder revalidation reasons survive the canonical projection',async()=>{
+ const api=await reportRuntime(),index=indexFacts();
+ index.getSourceRepositoryDiagnostics=()=>({lastReason:'activated',lastReadFailure:'superseded'});
+ index.getIndexDiagnostics=()=>[{at:123,stage:'reconcile',reason:'physical-folder-inventory-revalidated',modified:2827}];
+ const report=JSON.parse(api.createIndexDiagnosticsReport(index,()=>({upToDate:false,phase:'updating',indexedFiles:3,totalFiles:3}),'1.2.3'));
+ assert.equal(report.index.sources.lastReadFailure,'superseded');assert.equal(report.index.sources.lastReason,'activated');
+ assert.equal(report.index.decisions[0].reason,'physical-folder-inventory-revalidated');
+ index.getSourceRepositoryDiagnostics=()=>({lastReadFailure:'Private failure string'});
+ assert.equal(JSON.parse(api.createIndexDiagnosticsReport(index,()=>({upToDate:false,phase:'updating',indexedFiles:3,totalFiles:3}),'1.2.3')).index.sources.lastReadFailure,'unavailable');
 });

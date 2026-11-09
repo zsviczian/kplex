@@ -194,7 +194,7 @@ function IndexStatusIndicator({
     <button
       ref={controlRef}
       type="button"
-      className={`kplex-index-status${status.upToDate && !status.activeWork ? status.cacheSavePending ? " is-cache-pending" : " is-ready" : status.phase === "incomplete" ? " is-incomplete" : " is-updating"}`}
+      className={`kplex-index-status${status.upToDate && !status.activeWork ? " is-ready" : status.phase === "incomplete" ? " is-incomplete" : " is-updating"}`}
       aria-labelledby={nameId}
       data-kplex-tooltip="callout"
       aria-expanded={open}
