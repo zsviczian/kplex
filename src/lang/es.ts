@@ -1568,7 +1568,7 @@ const spanishTranslations = {
   "notice.indexDiagnosticsCopied": "Diagnóstico del índice copiado al portapapeles.",
   "notice.indexDiagnosticsCopyFailed": "No se pudo copiar el diagnóstico del índice.",
   "index.statusSavingCache": "Estado: guardando el índice en la caché",
-  "index.statusCacheSavePending": "Guardado de la caché de reinicio programado (en cinco minutos)",
+  "index.statusCacheSavePending": "Guardado de caché programado",
   "settings.ui.max.label.length": "Maximum label length",
   "settings.ui.max.label.length.help": "Máximo de caracteres antes de truncar el título de un nodo, independientemente de la densidad horizontal. El ancho y el ajuste de líneas pueden limitar los caracteres visibles.",
   "settings.ui.maximum.node.width": "Maximum node width",

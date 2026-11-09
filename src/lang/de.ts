@@ -1564,7 +1564,7 @@ const germanTranslations = {
   "notice.indexDiagnosticsCopied": "Indexdiagnose in die Zwischenablage kopiert.",
   "notice.indexDiagnosticsCopyFailed": "Indexdiagnose konnte nicht kopiert werden.",
   "index.statusSavingCache": "Status: Index wird im Cache gespeichert",
-  "index.statusCacheSavePending": "Speichern des Neustart-Caches geplant (innerhalb von fünf Minuten)",
+  "index.statusCacheSavePending": "Cache-Speicherung geplant",
   "settings.ui.max.label.length": "Maximum label length",
   "settings.ui.max.label.length.help": "Maximale Zeichenanzahl vor dem Kürzen eines Knotentitels, unabhängig von der horizontalen Dichte. Breite und Zeilenumbruch können die sichtbare Zeichenanzahl weiter begrenzen.",
   "settings.ui.maximum.node.width": "Maximum node width",

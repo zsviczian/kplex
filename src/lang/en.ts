@@ -1943,7 +1943,7 @@ export const englishCatalog = {
     params: [],
   },
   "index.statusCacheSavePending": {
-    message: "Restart cache save scheduled (within five minutes)",
+    message: "Cache save scheduled",
     context: "Index indicator for a coalesced restart-cache save. Ordinary edits wait at most five minutes; startup repairs use the shorter startup delay. No active indexing is implied.",
     params: [],
   },

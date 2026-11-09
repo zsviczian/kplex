@@ -1560,7 +1560,7 @@ const japaneseTranslations = {
   "notice.indexDiagnosticsCopied": "インデックス診断情報をクリップボードにコピーしました。",
   "notice.indexDiagnosticsCopyFailed": "インデックス診断情報をコピーできませんでした。",
   "index.statusSavingCache": "状態: インデックスをキャッシュに保存中",
-  "index.statusCacheSavePending": "再起動用キャッシュの保存を予定しています（5分以内）",
+  "index.statusCacheSavePending": "キャッシュの保存を予定しています",
   "settings.ui.max.label.length": "Maximum label length",
   "settings.ui.max.label.length.help": "水平密度に関係なく、ノードタイトルを省略するまでの最大文字数です。幅や折り返しによって、表示される文字数はさらに少なくなる場合があります。",
   "settings.ui.maximum.node.width": "Maximum node width",

@@ -1560,7 +1560,7 @@ const traditionalChineseTranslations = {
   "notice.indexDiagnosticsCopied": "已將索引診斷資訊複製到剪貼簿。",
   "notice.indexDiagnosticsCopyFailed": "無法複製索引診斷資訊。",
   "index.statusSavingCache": "狀態：正在將索引儲存至快取",
-  "index.statusCacheSavePending": "已排程儲存重新啟動快取（五分鐘內）",
+  "index.statusCacheSavePending": "已排程儲存快取",
   "settings.ui.max.label.length": "Maximum label length",
   "settings.ui.max.label.length.help": "截斷節點標題前的最大字元數，不受水平密度影響。寬度與換行仍可能限制可見字元數。",
   "settings.ui.maximum.node.width": "Maximum node width",

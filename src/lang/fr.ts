@@ -1568,7 +1568,7 @@ const frenchTranslations = {
   "notice.indexDiagnosticsCopied": "Diagnostic de l’index copié dans le presse-papiers.",
   "notice.indexDiagnosticsCopyFailed": "Impossible de copier le diagnostic de l’index.",
   "index.statusSavingCache": "État : enregistrement de l’index dans le cache",
-  "index.statusCacheSavePending": "Enregistrement du cache de redémarrage prévu (dans les cinq minutes)",
+  "index.statusCacheSavePending": "Enregistrement du cache prévu",
   "settings.ui.max.label.length": "Maximum label length",
   "settings.ui.max.label.length.help": "Nombre maximal de caractères avant de tronquer le titre d’un nœud, indépendamment de la densité horizontale. La largeur et le retour à la ligne peuvent limiter les caractères visibles.",
   "settings.ui.maximum.node.width": "Maximum node width",

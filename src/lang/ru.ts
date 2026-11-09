@@ -1572,7 +1572,7 @@ const russianTranslations = {
   "notice.indexDiagnosticsCopied": "Диагностика индекса скопирована в буфер обмена.",
   "notice.indexDiagnosticsCopyFailed": "Не удалось скопировать диагностику индекса.",
   "index.statusSavingCache": "Статус: сохранение индекса в кэш",
-  "index.statusCacheSavePending": "Сохранение кэша для перезапуска запланировано (в течение пяти минут)",
+  "index.statusCacheSavePending": "Сохранение кэша запланировано",
   "settings.ui.max.label.length": "Maximum label length",
   "settings.ui.max.label.length.help": "Максимальное число символов до сокращения заголовка узла, независимо от горизонтальной плотности. Ширина и перенос строк могут дополнительно ограничить видимый текст.",
   "settings.ui.maximum.node.width": "Maximum node width",
