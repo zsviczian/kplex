@@ -35,7 +35,7 @@ async function scenario(app,c){
   const drawing=await f.note('Daily drawing template',(await ex.getBlankDrawing())+'\n'+callback+'\nRendered day: <% tp.file.title %>\n');
   const plain=await f.note('Daily Markdown template','---\nsentinel: <% tp.file.title %>\n---\nPlain daily body\n');
   core.options={...options,folder:dailyFolder.path,format:'YYYY-MM-DD dddd',template:drawing.path};
-  tpl.settings={...settings,templates_folder:f.folder,ignore_folders_on_creation:[],folder_templates:[],file_templates:[]};
+  tpl.settings={...settings,templates_folder:f.folder+'/Templates',ignore_folders_on_creation:[],folder_templates:[],file_templates:[]};
   app.saveLocalStorage('templater-local-settings',{...local,trigger_on_file_creation:true});
   const created=app.vault.on('create',file=>{if(file.extension&&file.path.startsWith(dailyFolder.path+'/'))f.files.push(file)});f.restores.push(()=>app.vault.offref(created));
   await f.ready();const fullBuilds=p.index.getSemanticPreparationDiagnostics().fullBuilds;
