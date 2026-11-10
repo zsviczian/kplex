@@ -179,6 +179,25 @@ export function ThoughtNode({
     visual?.mode === "replace" ? "is-node-image-only" : "",
   ].filter(Boolean).join(" ");
 
+  const labelElement = <span className={`kplex-thought-label${settings.wrapNodeLabels ? " is-two-line" : ""}`}>
+      {node.page.transient?.kind === "section"
+        ? <span className="kplex-section-heading-mark" aria-hidden="true">{(() => {
+          const level = node.page.transient?.level ?? 1;
+          return level <= 3 ? "#".repeat(level) : `H${level}`;
+        })()}</span>
+        : <>
+          {visual?.mode === "thumbnail" && <span className="kplex-node-visual is-thumbnail" title={visual.alt}>
+            <img src={visual.src} alt="" loading="lazy" decoding="async" draggable={false} />
+          </span>}
+          {!visual || visual.mode !== "replace" ? (style.icon && <ObsidianIcon name={style.icon} size={node.role === "center" ? 18 : 13} className="kplex-node-icon" />) : null}
+        </>}
+      {visual?.mode === "replace"
+        ? <span className="kplex-node-visual is-replace" title={visual.alt}>
+          <img src={visual.src} alt={visual.alt} loading="lazy" decoding="async" draggable={false} />
+        </span>
+        : <span className="kplex-thought-text" title={label}>{display}</span>}
+    </span>;
+
   return <div
     className={classes}
     style={nodeCss}
@@ -223,6 +242,7 @@ export function ThoughtNode({
     aria-labelledby={group ? undefined : accessibleNameId}
   >
     <span id={accessibleNameId} className="kplex-accessible-name">{group ? node.label : translate("node.accessibleLabel", { label: node.label, path: node.page.path })}
+      {node.propertyLines?.map(row => ` ${row.field}: ${row.text}.`).join("")}
       {node.viewBadge ? ` ${node.viewBadge.label}. ${node.viewBadge.description ?? node.viewDescription ?? ""}` : node.viewDescription ? ` ${node.viewDescription}` : ""}
       {branchStatus ? ` ${branchStatus}. ${branchStatusHint ?? ""}` : ""}</span>
     {node.viewBadge && <MeasuredNodeBadge badge={node.viewBadge} colorRevision={badgeColorRevision} />}
@@ -232,24 +252,9 @@ export function ThoughtNode({
       onClick={(e: MouseEvent<HTMLDivElement>) => e.stopPropagation()}
       onDoubleClick={(e: MouseEvent<HTMLDivElement>) => e.stopPropagation()}
       onContextMenu={(e: MouseEvent<HTMLDivElement>) => e.stopPropagation()}
-    >{content}</div> : <span className={`kplex-thought-label${settings.wrapNodeLabels ? " is-two-line" : ""}`}>
-      {node.page.transient?.kind === "section"
-        ? <span className="kplex-section-heading-mark" aria-hidden="true">{(() => {
-          const level = node.page.transient?.level ?? 1;
-          return level <= 3 ? "#".repeat(level) : `H${level}`;
-        })()}</span>
-        : <>
-          {visual?.mode === "thumbnail" && <span className="kplex-node-visual is-thumbnail" title={visual.alt}>
-            <img src={visual.src} alt="" loading="lazy" decoding="async" draggable={false} />
-          </span>}
-          {!visual || visual.mode !== "replace" ? (style.icon && <ObsidianIcon name={style.icon} size={node.role === "center" ? 18 : 13} className="kplex-node-icon" />) : null}
-        </>}
-      {visual?.mode === "replace"
-        ? <span className="kplex-node-visual is-replace" title={visual.alt}>
-          <img src={visual.src} alt={visual.alt} loading="lazy" decoding="async" draggable={false} />
-        </span>
-        : <span className="kplex-thought-text" title={label}>{display}</span>}
-    </span>}
+    >{content}</div> : (node.propertyLines?.length ? <span className="kplex-thought-caption">{labelElement}<span className="kplex-node-properties">
+      {node.propertyLines.map(row => <span key={row.field} className="kplex-node-property" title={`${row.field}: ${row.text}`}>{row.text}</span>)}
+    </span></span> : labelElement)}
     {cornerAction && <button
       type="button"
       className="kplex-thought-corner-action"

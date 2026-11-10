@@ -122,6 +122,17 @@ SI3 source storage has two focused lanes: `npm run test:sources` exercises produ
 
 ### Desktop CLI setup (Windows and macOS)
 
+After exact identified local-build staging, `npm run verify:obsidian:note-types`
+validates the tag-backed note-type workflow in the explicitly configured disposable
+`kplex-test-small` vault. It covers native selector/type/tag changes, exact old-tag
+removal, Clear with inline fallback, the integrated style/details form in both
+themes and a narrow window, all three canvas views, native File properties,
+reviewed repairs with exclusions, partial failure, stale previews, cancellation,
+warm plugin reload and a popout modal. It restores owned files, settings bytes,
+workspace, appearance, native writer wrappers and enabled-plugin bytes. Physical
+mobile keyboards and macOS remain separate acceptance. Reports and authentic
+screenshots use managed ignored validation storage; no production vault is a target.
+
 After exact-build staging, `npm run verify:obsidian:pins-calendar-journal` uses the three explicit disposable `kplex-test-small` target variables below and `KPLEX_HOST_REPORT_DIR`. It exercises pin editing and scrolling, the native Daily Notes calendar, confirmed past-date creation through Core templates, nearest journal links in Compass/Mindmap/Facets, independent ontology memory, narrow light/dark presentation and popout navigation. The driver owns its temporary notes and restores Daily Notes options, settings bytes, appearance, workspace and geometry. Core Daily Notes must be enabled in this disposable vault. It uses Obsidian's DOM menu backend for observable trusted Electron input; macOS, physical touch and OS date-picker behavior remain separate acceptance.
 
 For daily-template materialization, run `node scripts/testing/obsidian/dailyNoteMaterialization.mjs`

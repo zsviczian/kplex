@@ -20,7 +20,7 @@ export function normalizePath(value){return value.replace(/\\\\/g,'/').replace(/
 export function parseFrontMatterTags(fm){return (Array.isArray(fm.tags)?fm.tags:typeof fm.tags==='string'?fm.tags.split(/[ ,]+/):[]).filter(Boolean).map(t=>t.startsWith('#')?t:'#'+t)};
 `;
 writeFileSync(join(temp,'host.mjs'),stub);
-await build({stdin:{contents:`export * from './src/adapters/obsidian/physicalNodeMove';export * from './src/adapters/obsidian/tagMembership';export * from './src/adapters/obsidian/tagNoteType';export * from './src/core/graph/presentation';export * from './src/index/style';export * from './src/ui/StructuralNodeDropActions';export * from './src/ui/structuralConnectionActions';export * from './src/ui/plexViews/scene';export * from './src/ui/MoveToFolderModal';export * from './src/ui/nodeListPresentation';export * from '${join(temp,'host.mjs').replaceAll('\\','/')}';`,resolveDir:root},outfile:join(temp,'test.mjs'),bundle:true,format:'esm',platform:'node',plugins:[{name:'finite-host',setup(b){b.onResolve({filter:/^obsidian$/},()=>({path:join(temp,'host.mjs')}))}}]});
+await build({stdin:{contents:`export * from './src/adapters/obsidian/physicalNodeMove';export * from './src/adapters/obsidian/tagMembership';export * from './src/adapters/obsidian/tagNoteType';export * from './src/adapters/obsidian/noteTypeProperties';export * from './src/adapters/obsidian/noteTypeReview';export * from './src/adapters/obsidian/fileProperties';export * from './src/core/graph/presentation';export * from './src/index/style';export * from './src/ui/StructuralNodeDropActions';export * from './src/ui/structuralConnectionActions';export * from './src/ui/plexViews/scene';export * from './src/ui/MoveToFolderModal';export * from './src/ui/nodeListPresentation';export * from '${join(temp,'host.mjs').replaceAll('\\','/')}';`,resolveDir:root},outfile:join(temp,'test.mjs'),bundle:true,format:'esm',platform:'node',plugins:[{name:'finite-host',setup(b){b.onResolve({filter:/^obsidian$/},()=>({path:join(temp,'host.mjs')}))}}]});
 const api=await import(pathToFileURL(join(temp,'test.mjs')));
 /** Native incarnations and parent ownership are independent of the graph's facade identities. */
 function fixture(){
@@ -35,6 +35,77 @@ function fixture(){
 function page(values={}){return {path:'opaque',isFolder:false,isTag:false,file:null,url:null,...values}}
 const translate=(key,args={})=>key+JSON.stringify(args);
 const tick=()=>new Promise(resolve=>setImmediate(resolve));
+
+test('explicit note-type edits validate tag tokens and atomically preserve or remove only the exact old tag',()=>{
+ for(const tag of ['person','#Person','person/friend','note-type','_kind','中文','🧠','👋🏽','topic/123','123/456','١٢٣','Ⅳ','a£b','a∑b'])assert(api.noteTypeAsTag(tag),tag);
+ for(const tag of ['Big idea','a//b','/a','a/','##a','a#b','[[a]]','123','a.b','a+b','a^b','a$b','a:b','a\\b','👩‍🔬',''])assert.equal(api.noteTypeAsTag(tag),null,tag);
+ const original={'NOTE TYPE':'#person',tags:['person','person/friend','work'],other:{keep:0}},opening=api.noteTypeSelection(original,'Note type');
+ for(const remove of [false,true]){const fm=structuredClone(original);assert(api.setNoteType(fm,'Note type',opening,'#project',remove,'invalid'));assert.equal(fm['NOTE TYPE'],'project');assert.deepEqual(fm.tags,remove?['person/friend','work','project']:['person','person/friend','work','project']);assert.deepEqual(fm.other,original.other);}
+ for(const remove of [false,true]){const fm=structuredClone(original);api.setNoteType(fm,'Note type',opening,null,remove,'invalid');assert(!('NOTE TYPE'in fm));assert.deepEqual(fm.tags,remove?['person/friend','work']:original.tags);}
+ for(const change of [fm=>{fm['NOTE TYPE']='newer'},fm=>{fm.tags={unsupported:true}}]){const fm=structuredClone(original);change(fm);const before=structuredClone(fm);assert.throws(()=>api.setNoteType(fm,'Note type',opening,'project',false,'invalid'));assert.deepEqual(fm,before);}
+ const invalid={'Note type':'Big idea',tags:['research']};api.setNoteType(invalid,'Note type',api.noteTypeSelection(invalid,'Note type'),'big-idea',false,'invalid');assert.deepEqual(invalid,{'Note type':'big-idea',tags:['research','big-idea']});
+});
+
+test('optional defaults add only absent normalized YAML keys including hidden fields, preserving empty/false/zero values',()=>{
+ const fm={'Note type':'#person',tags:['person'],Title:null,active:false,score:0,body:'kept'},opening=api.noteTypeSelection(fm,'Note type');
+ assert(api.initializeNoteProperties(fm,'Note type',opening,[{field:'title',visible:true},{field:'active',visible:true},{field:'score',visible:true},{field:'company',visible:false}],'invalid'));
+ assert.deepEqual(fm,{ 'Note type':'#person',tags:['person'],Title:null,active:false,score:0,body:'kept',company:null});assert.equal(Object.keys(fm).at(-1),'company');
+ assert.equal(api.initializeNoteProperties(fm,'Note type',opening,[{field:'company',visible:false}],'invalid'),false);
+ const untagged={'Note type':'person',tags:['person/friend']};assert.throws(()=>api.initializeNoteProperties(untagged,'Note type',api.noteTypeSelection(untagged,'Note type'),[{field:'title',visible:true}],'invalid'));assert(!('title'in untagged));
+});
+
+test('review classifies invalid values, exact missing YAML tags, optional defaults and manual structures without body reads',async()=>{
+ const f=fixture(),metadata=new Map(),files=[];const add=(name,fm)=>{const file=f.file(name);file.stat={mtime:1,size:30};files.push(file);metadata.set(file,{frontmatter:fm});return file};
+ add('Invalid.md',{'Note type':'Big idea',tags:['research']});add('Tag.md',{'Note type':'person',tags:['person/friend']});add('Defaults.md',{'Note type':'PERSON',tags:['person'],title:null});add('Manual.md',{'Note type':['a','b']});add('Duplicate.md',{'Note type':'person','note-type':'project'});add('Inline.md',{});const gap=add('Gap.md',{});metadata.delete(gap);
+ f.app.vault.getMarkdownFiles=()=>files;f.app.metadataCache.getFileCache=file=>metadata.get(file);f.app.vault.read=()=>{throw Error('Review read a body')};
+ const report=await api.reviewNoteTypes(f.app,'Note type',{person:[{field:'title',visible:true},{field:'company',visible:false}]},()=>true,async()=>{},()=>{});
+ assert.equal(report.scanned,7);assert.equal(report.unavailable,1);assert.equal(report.withoutYaml,1);assert.deepEqual(report.findings.map(row=>row.kind),['invalid','missing-tag','missing-properties','manual','manual']);assert.deepEqual(report.findings[2].missing,['company']);
+});
+
+test('review of 20,000 cached notes yields in bounded batches, never acquires sources, and retains truthful cancellation coverage',async()=>{
+ const files=Array.from({length:20000},(_,i)=>({path:'Scale/'+i+'.md',stat:{mtime:1,size:100}})),byPath=new Map(files.map(file=>[file.path,file]));let reads=0,yields=0;
+ const app={vault:{getMarkdownFiles:()=>files,getFileByPath:path=>byPath.get(path),read:()=>{throw Error('Body acquisition')}},metadataCache:{getFileCache:()=>{reads++;return{frontmatter:{'Note type':'person',tags:['person']}}}}};
+ let previousReads=0,maximumSlice=0;const report=await api.reviewNoteTypes(app,'Note type',{person:[{field:'title',visible:true}]},()=>true,async()=>{maximumSlice=Math.max(maximumSlice,reads-previousReads);previousReads=reads;yields++},()=>{});assert.equal(reads,20000);assert(yields>=312);assert(maximumSlice<=64);assert.equal(report.findings.length,20000);assert.equal(report.cancelled,false);
+ reads=0;yields=0;const partial=await api.reviewNoteTypes(app,'Note type',{},()=>yields<2,async()=>{yields++},()=>{});assert(reads>0&&reads<=128);assert.equal(partial.scanned,reads);assert.equal(partial.cancelled,true);
+});
+
+test('review repair keeps per-file atomicity, selected-file exclusions, stale skips and partial cancellation',async()=>{
+ const f=fixture(),data=new Map(),files=[];for(const name of ['One','Excluded','Stale','Broken','Later']){const file=f.file(name+'.md');file.stat={mtime:1,size:30};files.push(file);data.set(file,{'Note type':'Big idea',tags:['research']});}
+ f.app.vault.getMarkdownFiles=()=>files;f.app.metadataCache.getFileCache=file=>({frontmatter:data.get(file)});
+ const report=await api.reviewNoteTypes(f.app,'Note type',{},()=>true,async()=>{},()=>{});files[2].stat.mtime++;data.get(files[3]).tags={unsupported:true};let writes=0,live=true;
+ const ports={field:()=> 'Note type',properties:()=>({}),set:async(file,field,opening,value)=>{writes++;const next=structuredClone(data.get(file));api.setNoteType(next,field,opening,value,false,'invalid');data.set(file,next);return true},initialize:async()=>{throw Error('Unexpected initialization')}};
+ const outcomes=await api.repairNoteTypes(f.app,report.findings.filter(row=>row.file!==files[1]),'big-idea',ports,()=>live,()=>{});
+ assert.deepEqual(outcomes.map(row=>row.status),['changed','skipped','skipped','changed']);assert.equal(writes,2);assert.deepEqual(data.get(files[0]),{'Note type':'big-idea',tags:['research','big-idea']});assert.equal(data.get(files[1])['Note type'],'Big idea');assert.equal(data.get(files[3])['Note type'],'Big idea');
+ for(const file of files){file.stat.mtime=1;data.set(file,{'Note type':'Big idea',tags:[]});}
+ writes=0;const cancelled=await api.repairNoteTypes(f.app,report.findings,'big-idea',{...ports,set:async(...args)=>{const changed=await ports.set(...args);live=false;return changed}},()=>live,()=>{});assert.equal(writes,1);assert.deepEqual(cancelled.map(row=>row.status),['changed','pending','pending','pending','pending']);
+});
+
+test('context selector edits share the structural queue and revalidate identity/settings during the native mutation',async()=>{
+ const f=fixture();f.source.stat={mtime:1,size:10};let fm={'Note type':'person',tags:['person']},writes=0,field='Note type',release;
+ f.app.metadataCache.getFileCache=()=>({frontmatter:fm});const gate=new Promise(resolve=>release=resolve);
+ const owner=new api.StructuralNodeDropActions(f.app,translate,async(file,fields,mutate)=>{writes++;await gate;const next=structuredClone(fm);mutate(next);fm=next;},()=>field);
+ const opening=api.noteTypeSelection(fm,field),first=owner.editNoteType(f.source,field,opening,'project',false,()=>true),second=owner.editNoteType(f.source,field,opening,'book',false,()=>true);await tick();assert.equal(writes,1);release();await first;await assert.rejects(second,api.NoteTypeChangedError);assert.equal(fm['Note type'],'project');assert.deepEqual(fm.tags,['person','project']);
+ const replaced=new api.StructuralNodeDropActions(f.app,translate,async(file,fields,mutate)=>{f.nodes.set(file.path,{...file});mutate(fm);},()=>field);await assert.rejects(replaced.editNoteType(f.source,field,api.noteTypeSelection(fm,field),'book',false,()=>true));assert.equal(fm['Note type'],'project');
+});
+
+test('native File properties uses the default core action with the clicked physical note and is absent when disabled',async()=>{
+ const f=fixture(),calls=[];f.app.internalPlugins={plugins:{properties:{enabled:true,instance:{ensurePropertiesView:async file=>calls.push(file)}}}};
+ assert(api.canShowFileProperties(f.app));assert(await api.showFileProperties(f.app,f.source));assert.deepEqual(calls,[f.source]);
+ f.app.internalPlugins.plugins.properties.enabled=false;assert.equal(api.canShowFileProperties(f.app),false);assert.equal(await api.showFileProperties(f.app,f.source),false);
+ f.app.internalPlugins.plugins.properties.enabled=true;f.nodes.set(f.source.path,{...f.source});assert.equal(await api.showFileProperties(f.app,f.source),false);assert.equal(calls.length,1);
+});
+
+test('missing-tag and missing-default repairs preserve selector spelling and report native storage failures individually',async()=>{
+ const f=fixture(),files=['Tag','Defaults','Failure'].map(name=>{const file=f.file(name+'.md');file.stat={mtime:1,size:10};return file}),data=new Map([[files[0],{'NOTE TYPE':'#Person',tags:['person/friend'],keep:0}],[files[1],{'Note type':'person',tags:['person'],title:null}],[files[2],{'Note type':'Big idea',tags:[]}]]);
+ f.app.vault.getMarkdownFiles=()=>files;f.app.metadataCache.getFileCache=file=>({frontmatter:data.get(file)});const properties={person:[{field:'title',visible:true},{field:'company',visible:false}]};
+ const report=await api.reviewNoteTypes(f.app,'Note type',properties,()=>true,async()=>{},()=>{}),writes=[];
+ const outcomes=await api.repairNoteTypes(f.app,report.findings,'big-idea',{field:()=> 'Note type',properties:()=>properties,
+  ensureMembership:async(file,field,opening)=>{writes.push(file.path);return api.ensureNoteTypeMembership(data.get(file),field,opening,'invalid')},
+  initialize:async(file,field,opening,rows)=>{writes.push(file.path);return api.initializeNoteProperties(data.get(file),field,opening,rows,'invalid')},
+  set:async()=>{throw Error('Controlled native write failure')},
+ },()=>true,()=>{});
+ assert.deepEqual(outcomes.map(row=>row.status),['changed','changed','failed']);assert.equal(data.get(files[0])['NOTE TYPE'],'#Person');assert.deepEqual(data.get(files[0]).tags,['person/friend','Person']);assert.equal(data.get(files[0]).keep,0);assert.deepEqual(data.get(files[1]),{'Note type':'person',tags:['person'],title:null,company:null});assert.equal(writes.length,2);assert.equal(data.get(files[2])['Note type'],'Big idea');
+});
 /** Submit the native dialog's explicit data capability; rendering/gestures remain covered natively. */
 const acceptTag=owner=>[...owner.dialogs].at(-1).options.save('tag',api.noteTypeSelection({},'Note type'),undefined,()=>true);
 

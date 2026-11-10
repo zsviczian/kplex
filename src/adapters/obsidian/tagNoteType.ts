@@ -2,6 +2,7 @@
 import { normalizeFieldName } from "../../core/contracts/fieldName";
 import { unwrapNoteType } from "../../core/graph/presentation";
 import { appendTagMembership, removeTagMembership } from "./tagMembership";
+import {noteTypeTag} from "../../core/graph/tagPaths";
 
 export type TagAssignment = "tag" | "note-type";
 export type NoteTypeConflictChoice = "replace" | "keep";
@@ -18,9 +19,34 @@ export function noteTypeSelection(frontmatter: Record<string, unknown>, field: s
 
 /** A single tag token cannot contain YAML/Markdown/whitespace syntax; native tags are never links. */
 export function noteTypeAsTag(value: string | null): string | null {
-  if (!value) return null;
-  const tag = value.replace(/^#/, "");
-  return tag && !/[\s#,[\]{}()|\\:]/u.test(tag) && !/^\/|\/$|\/\//.test(tag) ? tag : null;
+  return noteTypeTag(value);
+}
+
+/** Explicit selector editing stages both fields before publication. Unrelated current tags
+ * survive; removing the old exact YAML membership requires the caller's reviewed opt-in. */
+export function setNoteType(frontmatter: Record<string, unknown>, field: string, opening: NoteTypeSelection,
+  value: string | null, removeOld: boolean, invalid: string): boolean {
+  const selected = noteTypeSelection(frontmatter, field), tag = value === null ? null : noteTypeAsTag(value);
+  if (!selected.supported || value !== null && !tag) throw new Error(invalid);
+  if (selected.token !== opening.token) throw new NoteTypeChangedError(selected);
+  const stage: Record<string, unknown> = {tags: frontmatter.tags};
+  let changed = tag ? appendTagMembership(stage, tag, invalid) : false;
+  const oldTag = noteTypeAsTag(selected.value);
+  if (removeOld && oldTag && oldTag.toLocaleLowerCase() !== tag?.toLocaleLowerCase()) changed = removeTagMembership(stage, oldTag, invalid) || changed;
+  if (tag !== null) changed = frontmatter[selected.key] !== tag || changed;
+  else changed = Object.prototype.hasOwnProperty.call(frontmatter, selected.key) === true || changed;
+  if (!changed) return false;
+  if (stage.tags !== frontmatter.tags) frontmatter.tags = stage.tags;
+  if (tag !== null) frontmatter[selected.key] = tag;else delete frontmatter[selected.key];
+  return true;
+}
+
+/** Missing-membership repair preserves the selector's exact existing representation and key spelling. */
+export function ensureNoteTypeMembership(frontmatter: Record<string, unknown>, field: string, opening: NoteTypeSelection, invalid: string): boolean {
+  const selected = noteTypeSelection(frontmatter, field), tag = noteTypeAsTag(selected.value);
+  if (!selected.supported || selected.token !== opening.token) throw new NoteTypeChangedError(selected);
+  if (!tag) throw new Error(invalid);
+  return appendTagMembership(frontmatter, tag, invalid);
 }
 
 /** A fresh conflicting property requires another explicit choice; never replace an unseen type. */

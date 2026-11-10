@@ -42,6 +42,7 @@ await build({
       export class TFile {} export class TFolder {}
       export const normalizePath=path=>path.replaceAll('\\\\','/');
       export const Platform = {};
+      export const parseFrontMatterTags=fm=>{const value=fm.tags;return Array.isArray(value)?value.map(tag=>'#'+tag.replace(/^#/,'')):typeof value==='string'?value.split(/[ ,]+/).filter(Boolean).map(tag=>'#'+tag.replace(/^#/,'')):null};
       /** Narrow form-shell double: production modal fields, listeners and save callbacks remain real. */
       class FormElement {
         constructor(tag = "div", options = {}) {
@@ -744,12 +745,13 @@ test("new node style explicitly selects a tag prefix and preserves the appearanc
   const name = byLabel("Note type"), icon = byLabel("Lucide icon"), prefix = byLabel("Label prefix");
   icon.value = "briefcase"; assert.equal(byLabel("Background").tag, "button");
   byLabel("Font size").value = "23"; await activate(byLabel("Font size"), "input");
-  assert.equal(prefix.parent.visible, false);
+  // Inputs now live in the shared native Setting control column; visibility belongs to its row.
+  assert.equal(prefix.parent.parent.visible, false);
   name.value = "project/active";
   select.value = "tag"; await activate(select, "change");
   assert.equal(name.value, "#project/active");
   assert.equal(name.attrs["aria-label"], "Tag");
-  assert.equal(name.placeholder, "#project"); assert.equal(prefix.parent.visible, true);
+  assert.equal(name.placeholder, "#project"); assert.equal(prefix.parent.parent.visible, true);
   prefix.value = "Work ";
   const suggest = TestSuggest.instances.findLast(instance => instance.input === name);
   assert(suggest.getSuggestions("").every(item => item.value.startsWith("#") && item.kind !== "property"));

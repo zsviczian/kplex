@@ -1,6 +1,6 @@
 # Tag-backed note types: practical implementation brief
 
-Status: draft specification for review and an implementation agent. No feature code has been changed in this branch.
+Status: implemented on the PR branch for review. The user-facing guide is [Note types and node details](NOTE_TYPES.md). This brief records the scope and acceptance requirements; current test results and platform limitations belong in the implementation handoff and PR.
 
 Related: [#209](https://github.com/zsviczian/kplex/issues/209), [#271](https://github.com/zsviczian/kplex/issues/271); supersedes the broad [draft PR #286](https://github.com/zsviczian/kplex/pull/286). [#284](https://github.com/zsviczian/kplex/issues/284) is declined; [#252](https://github.com/zsviczian/kplex/issues/252) remains separate.
 

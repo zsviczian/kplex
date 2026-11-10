@@ -22,6 +22,8 @@ export function styleSettingsHostSource(root) {
   };
   visit(source); assert.equal(methods.length, names.size);
   return `export {TextSettingDraft} from "./src/ui/components/textSettingDraft";
+    export * from './src/adapters/obsidian/tagNoteType';
+    export {NoteTypeModal} from './src/ui/NoteTypeModal';export {NoteTypeReviewModal} from './src/ui/NoteTypeReviewModal';export {NodeDetailsFields} from './src/ui/NodeDetailsFields';export * from './src/core/plex/nodeProperties';
     export {NewRelatedNoteModal} from './src/ui/NewRelatedNoteModal';
     export {CreateFolderNoteModal} from './src/ui/CreateFolderNoteModal';
     export {MoveNodeModal} from './src/ui/MoveNodeModal';
@@ -32,6 +34,7 @@ export function styleSettingsHostSource(root) {
     export {TFile,TFolder} from 'obsidian';
     export {OntologyFieldControl} from "./src/ui/OntologyFieldControl";
     import {SavedSettingsRefresh} from "./src/adapters/obsidian/savedSettingsRefresh";
+    import {nodePropertyType,nodePropertyRows,validNodeProperties} from './src/core/plex/nodeProperties';
     import {contentVisibilityPatch} from "./src/core/plex/contentVisibility";
     import {isPeriodicPin} from './src/core/plex/savedPins';
     import {resolveSavedPins} from './src/core/plex/periodicPins';

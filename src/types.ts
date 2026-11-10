@@ -148,6 +148,8 @@ export type NodeVisual = {
 };
 
 export type PositionedNode = {
+  /** Selected cached document fields, measured before layout; never part of semantic state. */
+  propertyLines?: readonly import("./core/plex/nodeProperties").NodePropertyLine[];
   /** Shared measured decoration, with no semantic gate/drop authority. */
   viewBadge?: Readonly<{label: string; description?: string; background?: import("./core/contracts/colorValue").ColorValue;
     width: number; height: number; fontSize: number; presentation?: "category" | "status"}>;

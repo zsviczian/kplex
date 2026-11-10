@@ -397,11 +397,13 @@ An image referenced only through the thumbnail/node-image fields is treated as p
 
 Image attachments such as JPG, PNG, GIF, WebP and SVG files can also be shown directly as nodes. Choose whether attachment nodes display **file name**, **thumbnail + file name** (default), or **image only** in the same settings section.
 
-### Property-value node styling
+### Note types, node styling and details
 
-One Markdown property selects a note's persistent visual style. By default that **Node style property** is **Note type**, but you can point it at another YAML or Dataview-style inline property in **Settings → K-Plex → Visual styling → Node styling**.
+A note type is a tag selected as a note's primary type and persistent node style. The **Note type property** defaults to **Note type**; its name can be changed in **Settings → K-Plex → Visual styling → Node styling**. Use `note type:: #person` in Markdown, or `Note type: person` with `person` in YAML `tags`. Nested tags such as `person/friend` are supported.
 
 Use **Node styles** to assign icon, background, text, border, border width, gate radius and font size to individual values of that property. Leave border width or gate radius empty to inherit the base style. The editor suggests values already found in the index as well as vault tags, and its Lucide icon field searches Obsidian's live icon registry. A leading `#` in a style value is normalized away, so `#project` and `project` address the same logical style.
+
+The same editor configures optional **Node details**: ordered YAML properties shown in smaller text under the existing node name, with individual visibility toggles and a live sample. Right-click a Markdown node to set its type, explicitly add missing configured properties, or open Obsidian's native File properties sidebar. **Review note types** previews grouped YAML inconsistencies and selected-file fixes. See [note types and optional properties](docs/NOTE_TYPES.md) for examples and the reviewed repair workflow.
 
 Imported ExcaliBrain `primaryTagField` data is retained for compatibility, but it is not exposed as a second K-Plex style selector. Explicit property-value styles take precedence over the generic central/sibling appearance, so a styled note keeps its custom colors when it becomes the center of the Plex.
 

@@ -11,6 +11,7 @@ export const normalizePath=value=>value.replaceAll('\\\\','/').replace(/\\/+/g,'
 export const parseLinktext=path=>({path,subpath:''});
 export class AbstractInputSuggest {constructor(app,input){this.app=app;this.input=input} setValue(value){this.input.value=value} close(){}}
 export class PluginSettingTab {update(){} constructor(app,plugin){this.app=app;this.plugin=plugin;this.containerEl=createDiv();document.body.append(this.containerEl)} hide(){}}
+export function parseFrontMatterTags(fm){const tags=fm.tags;return Array.isArray(tags)?tags.map(value=>'#'+String(value).replace(/^#/,'')):typeof tags==='string'?tags.split(/[ ,]+/).filter(Boolean).map(value=>'#'+value.replace(/^#/,'')):null;}
 export const getLanguage=()=>"en";
 export const getIcon=name=>{const icon=document.createElementNS('http://www.w3.org/2000/svg','svg');icon.setAttribute('data-icon',name);icon.setAttribute('viewBox','0 0 24 24');return icon};
 export class Notice {constructor(message){window.notices.push(message)}}

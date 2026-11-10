@@ -33,7 +33,7 @@
  * saved dictionaries, including explicit clears, never inherit replacement wording on reload.
  * Creation and linking remember separate after-saving actions, retaining the former shared choice on upgrade.
  */
-import {FormSetting as Setting, formField} from "./adapters/obsidian/KplexModal";
+import {FormSetting as Setting, formField, formSelect, formActions, labelIconButton} from "./adapters/obsidian/KplexModal";
 import {STARTUP_INDEX_DEFAULTS, sanitizeStartupIndexPreferences, type IndexingMode, type StartupIndexPreferences} from './core/plex/startupIndexPreferences';
 import {PIN_PERIODS, isPeriodicPin, loadSavedPins, type PinPeriod, type SavedPin} from "./core/plex/savedPins";
 import {DEFAULT_PERIODIC_PIN_SETTINGS, loadPeriodicPinSettings, type PeriodicPinConfiguration, type PeriodicPinSettings} from "./core/plex/periodicPins";
@@ -71,7 +71,7 @@ import {AbstractInputSuggest, App, Notice, PluginSettingTab, getIconIds, type Se
 import type KplexPlugin from "./main";
 import {builtInCanvasViewSettings, canvasViewControl, type CanvasViewSettingsRegistry} from "./ui/plexViews/settingsContributions";
 import {readViewConfiguration, readViewConfigurationAt, viewConfigurationUpdateDomain} from "./core/plex/views/configuration";
-import { RelationType, type Arrowhead, type Hierarchy, type LinkStyle, type NodeStyle, type Role } from "./types";
+import { RelationType, type Arrowhead, type Hierarchy, type LinkStyle, type NodeStyle, type Role, type GraphPage } from "./types";
 import { sanitizeGraphLensDefinitions, type GraphLensDefinition } from "./lens/GraphLens";
 import { collectionWindow } from "./ui/components/collectionWindow";
 import { createObsidianTranslator } from "./adapters/obsidian/localization";
@@ -86,6 +86,9 @@ import { effectiveTypography, sanitizeTypographyProfiles, sanitizeTypographyValu
 import type { LateralArrangement, PersistedLayoutDeviceClass } from "./core/plex/viewPresentation";
 import { sanitizeMarkdownZoomModes, type MarkdownZoomModes } from "./core/plex/markdownZoomPreferences";
 import { STYLE_SETTINGS_KEYS, appearanceColorReferences, appearanceHasUnsupportedColors } from "./core/contracts/appearance";
+import {loadNoteTypeProperties, nodePropertyRows, nodePropertyType, type NoteTypeProperties, type NodeProperty, type NodePropertiesEdit} from "./core/plex/nodeProperties";
+import {NodeDetailsFields, type NodeDetailsOptions} from "./ui/NodeDetailsFields";
+import {nodePropertyReader} from "./adapters/obsidian/nodeProperties";
 import {applyThemeAppearance, captureThemeAppearance, readAppearanceThemes, resetAppearanceColors, semanticColorSlots, DEFAULT_THEME_ID, type ColorResetScope, type AppearanceThemeLibrary, type AppearanceOwner} from "./core/plex/appearanceThemes";
 import { defaultColorPreferences, migrateColorPreferences, SEMANTIC_COLOR_SLOTS, type SemanticColorSlot, type SemanticColorPair, type ColorPreferencesV1 } from "./core/plex/colorPreferences";
 import { NODE_COLOR_FIELDS, LINK_COLOR_FIELDS, colorValuesEqual, colorIdentityText, colorRgbInput, type ColorValue } from "./core/contracts/colorValue";
@@ -366,6 +369,7 @@ export interface KplexSettings extends StartupIndexPreferences {
   childMaxHeight: number;
   noteTypeField: string;
   noteTypeStyles: Record<string, NodeStyle>;
+  noteTypeProperties: NoteTypeProperties;
   kplexInitialized: boolean;
   startInPopout: boolean;
   lastActivePath: string;
@@ -535,6 +539,7 @@ const LEGACY_DEFAULT_SETTINGS: KplexSettings = {
   childMaxHeight: 400,
   noteTypeField: "Note type",
   noteTypeStyles: {},
+  noteTypeProperties: {},
   kplexInitialized: false,
   startInPopout: false,
   lastActivePath: "",
@@ -790,6 +795,7 @@ export function migrateAndMergeSettings(raw: unknown): KplexSettings {
     tagNodeStyles: old.tagNodeStyles ?? {},
     tagStyleList: old.tagStyleList ?? [],
     noteTypeStyles: old.noteTypeStyles ?? {},
+    noteTypeProperties: loadNoteTypeProperties(old.noteTypeProperties),
     hierarchyLinkStyles: old.hierarchyLinkStyles ?? {},
     navigationHistory: old.navigationHistory ?? [],
     excludeFilepaths: old.excludeFilepaths ?? [],
@@ -1101,11 +1107,12 @@ class NodeStyleModal extends StyleEditorModal {
     private initialStyle: NodeStyle,
     private styleProperty: string,
     private valueSuggestions: Record<NodeStyleKind, NodeStyleValueSuggestion[]>,
-    private onSave: (name: string, style: NodeStyle, previousName: string | null, kind: NodeStyleKind, isCurrent: () => boolean) => Promise<StyleCommitResult>,
+    private onSave: (name: string, style: NodeStyle, previousName: string | null, kind: NodeStyleKind, isCurrent: () => boolean, properties?: readonly NodeProperty[]) => Promise<StyleCommitResult>,
     private onDelete?: (name: string, isCurrent: () => boolean) => Promise<StyleCommitResult>,
     private initialKind: NodeStyleKind = "property",
     private colorContext?: StyleColorContext,
     private onClosed?: () => void,
+    private detailsOptions?: NodeDetailsOptions,
   ) {
     super(app);
   }
@@ -1124,18 +1131,20 @@ class NodeStyleModal extends StyleEditorModal {
     const form = this.contentEl.createDiv({ cls: "kplex-style-form" });
     /** Associate each native control with its visible label and optional theme-styled explanation. */
     const field = (label: string, input: HTMLElement, description?: string) => {
-      const row = form.createDiv({ cls: "kplex-style-row" });
-      const info = row.createDiv({ cls: "setting-item-info" });
+      const setting = new Setting(form).setDesc(description ?? "");setting.settingEl.addClass("kplex-style-row");
+      const row = setting.settingEl;
       const inputId = `${idPrefix}-${fieldIndex++}`;
       input.setAttribute("id", inputId);
-      const labelEl = info.createEl("label", { text: label, attr: { for: inputId } });
+      const labelEl = setting.nameEl.createEl("label", { text: label, attr: { for: inputId } });
       input.setAttribute("aria-label", label);
       if (description) {
         const descriptionId = `${inputId}-help`;
-        info.createDiv({ text: description, cls: "setting-item-description", attr: { id: descriptionId } });
+        setting.descEl.setAttribute("id", descriptionId);
         input.setAttribute("aria-describedby", descriptionId);
       }
-      row.appendChild(input);
+      setting.controlEl.appendChild(input);
+      if (input.tagName === "INPUT") formField(setting);
+      else if (input.tagName === "SELECT") {input.addClass("dropdown");formSelect(setting);}
       return { row, labelEl };
     };
 
@@ -1160,6 +1169,7 @@ class NodeStyleModal extends StyleEditorModal {
     prefixInput.type = "text";
     prefixInput.value = this.initialStyle.prefix ?? "";
     const prefixField = field(this.translate("styles.labelPrefix"), prefixInput, this.translate("styles.labelPrefixHelp"));
+    const details = this.detailsOptions ? new NodeDetailsFields(form, this.translate, this.detailsOptions, () => nameInput.value, () => this.canEdit()) : null;
     /** Refresh matching copy and suggestions without resetting icon, colors, font or label prefix. */
     const updateKind = () => {
       help.setText(kind === "tag" ? this.translate("styles.legacyTagHelp")
@@ -1169,6 +1179,7 @@ class NodeStyleModal extends StyleEditorModal {
       nameInput.setAttribute("aria-label", label);
       nameInput.placeholder = this.translate(kind === "tag" ? "styles.tagPrefixPlaceholder" : "styles.propertyValuePlaceholder");
       prefixField.row.toggle(kind === "tag");
+      details?.element.toggle(kind === "property");details?.refreshPreview();
       nameInput.classList.remove("is-invalid");
     };
     typeInput.addEventListener("change", /** Change only the new style's matching family. */ () => {
@@ -1182,6 +1193,7 @@ class NodeStyleModal extends StyleEditorModal {
     });
     nameInput.addEventListener("input", /** Clear validation feedback when the user corrects a prefix/value. */ () => {
       nameInput.classList.remove("is-invalid");
+      details?.refreshPreview();
     });
     updateKind();
 
@@ -1216,20 +1228,20 @@ class NodeStyleModal extends StyleEditorModal {
     const borderWidth = dimension("strokeWidth", "filter.borderWidth", 0, 8);
     const gateRadius = dimension("gateRadius", "settings.ui.gate.radius", 2, 8);
 
-    const actions = this.contentEl.createDiv({ cls: "kplex-style-actions" });
+    const actions = formActions(this.contentEl).controlEl;
     if (this.initialName && this.onDelete) {
       const remove = actions.createEl("button", { cls: "mod-warning", text: this.translate("common.delete") });
-      appendIcon(remove, "trash-2");
+      labelIconButton(remove, this.translate("common.delete"), "trash-2");
       remove.addEventListener("click", /** Delete only the style whose fixed family is being edited. */ () => {
         this.runOperation(/** Capture the fixed family/name once while excluding repeated clicks. */ isCurrent => this.onDelete!(this.initialName!, isCurrent));
       });
     }
     const cancel = actions.createEl("button", { text: this.translate("common.cancel") });
-    appendIcon(cancel, "x");
+    labelIconButton(cancel, this.translate("common.cancel"), "x");
     cancel.addEventListener("click", /** Discard the unsaved form draft. */ () => this.close());
 
     const save = actions.createEl("button", { cls: "mod-cta", text: this.translate("common.save") });
-    appendIcon(save, "check");
+    labelIconButton(save, this.translate("common.save"), "check");
     save.addEventListener("click", /** Validate the active matching value and save the unchanged appearance draft. */ () => {
       const normalized = kind === "tag" ? normalizeTagStylePrefix(nameInput.value) : normalizeNodeStyleValue(nameInput.value);
       if (!normalized) {
@@ -1247,7 +1259,7 @@ class NodeStyleModal extends StyleEditorModal {
         ...(kind === "tag" && prefixInput.value !== (this.initialStyle.prefix ?? "") ? { prefix: prefixInput.value } : {}),
       };
       borderWidth.apply(style); gateRadius.apply(style);
-      this.runOperation(/** Submit the validated appearance draft within this exact modal lifetime. */ isCurrent => this.onSave(name, style, this.initialName, kind, isCurrent));
+      this.runOperation(/** Submit appearance and optional details together within this exact modal lifetime. */ isCurrent => this.onSave(name, style, this.initialName, kind, isCurrent, kind === "property" ? details?.read() : undefined));
     });
     this.focusAfterAttachment(nameInput);
   }
@@ -1822,11 +1834,13 @@ export class KplexSettingTab extends PluginSettingTab {
     const styles = kind === "tag" ? settings.tagNodeStyles : settings.noteTypeStyles;
     const openingExists = name !== null && Object.prototype.hasOwnProperty.call(styles, name) === true;
     const opening = structuredClone(name ? styles[name] ?? {} : {});
+    const openingProperties = nodePropertyRows(settings.noteTypeProperties, name ?? "");
+    const previewPages = new Map<string, GraphPage>();for (const page of this.kplexPlugin.index.allPages()) {const key = nodePropertyType(page.noteType);if (key && !previewPages.has(key)) previewPages.set(key, page);}
     const dialog = new NodeStyleModal(
       this.app, name, opening, settings.noteTypeField,
       this.nodeStyleValueSuggestions(),
       /** Save to the selected family, retaining existing imported tag order and unrelated styles. */
-      async (nextName, nextStyle, previousName, selectedKind, isCurrent) => this.commitStyleChange(/** Prepare only this queued edit; a disk failure cannot change live styles. */ currentSettings => {
+      async (nextName, nextStyle, previousName, selectedKind, isCurrent, properties) => this.commitStyleChange(/** Prepare only this queued edit; a disk failure cannot change live styles. */ currentSettings => {
         const target = selectedKind === "tag" ? currentSettings.tagNodeStyles : currentSettings.noteTypeStyles;
         const normalizedValue = selectedKind === "tag" ? normalizeTagStylePrefix(nextName) : normalizeNodeStyleValue(nextName);
         if (!normalizedValue) throw new Error("Invalid style name");
@@ -1842,7 +1856,7 @@ export class KplexSettingTab extends PluginSettingTab {
           currentSettings.tagStyleList = currentSettings.tagStyleList.map(/** Preserve each existing priority slot. */ (key) => key === previousName ? normalizedNext : key);
           if (!currentSettings.tagStyleList.includes(normalizedNext)) currentSettings.tagStyleList.push(normalizedNext);
         }
-      }, isCurrent, owner, afterChange),
+      }, isCurrent, owner, afterChange, properties && (nodePropertyType(nextName) || properties.length) ? {type: nextName, previousType: previousName, opening: openingProperties, rows: properties} : undefined),
       /** Delete from the fixed edited family without affecting an equally named other-family style. */
       async (removeName, isCurrent) => this.commitStyleChange(/** Delete within the latest queued family without restoring unrelated preferences. */ currentSettings => {
         const target = kind === "tag" ? currentSettings.tagNodeStyles : currentSettings.noteTypeStyles;
@@ -1850,6 +1864,11 @@ export class KplexSettingTab extends PluginSettingTab {
         if (kind === "tag") currentSettings.tagStyleList = currentSettings.tagStyleList.filter(/** Remove only the deleted prefix's matching slots. */ (key) => key !== removeName);
       }, isCurrent, owner, afterChange),
       kind, this.styleColorContext(owner), () => this.colorDialogs.delete(dialog),
+      {rows: openingProperties, preview: (type, rows) => {
+        const key = nodePropertyType(type), page = key ? previewPages.get(key) : undefined;
+        return {title: page ? this.kplexPlugin.index.titleFor(page) : this.kplexPlugin.translator("nodeProperties.previewTitle"),
+          lines: page && key ? nodePropertyReader(this.app, {[key]: rows})(page) : []};
+      }},
     );
     this.colorDialogs.add(dialog); dialog.open();
   }
@@ -2225,8 +2244,8 @@ export class KplexSettingTab extends PluginSettingTab {
   }
 
   /** Durable completion is authoritative; manager/settings failures become saved recovery hints and retired dialogs cannot refresh UI. */
-  private async commitStyleChange(edit: (draft: StyleSettingsDraft) => void, isCurrent: () => boolean, owner: AppearanceOwner, afterChange?: () => void): Promise<StyleCommitResult> {
-    const result = await this.kplexPlugin.updateStyleSettings(edit, owner);
+  private async commitStyleChange(edit: (draft: StyleSettingsDraft) => void, isCurrent: () => boolean, owner: AppearanceOwner, afterChange?: () => void, nodePropertiesEdit?: NodePropertiesEdit): Promise<StyleCommitResult> {
+    const result = await this.kplexPlugin.updateStyleSettings(edit, owner, {nodePropertiesEdit});
     if (!isCurrent()) return result;
     let refreshPending = result.refreshPending;
     for (const refresh of [afterChange, /** Declarative subpages detach the tab root while their actual Settings page stays mounted. */ () => { if (this.colorActionPage().isConnected) this.update(); }]) {
@@ -2269,7 +2288,7 @@ export class KplexSettingTab extends PluginSettingTab {
 
   private nodeStyleEntries(): NodeStyleEntry[] {
     return [
-      ...Object.keys(this.kplexPlugin.settings.noteTypeStyles).map((name): NodeStyleEntry => ({ name, kind: "property" })),
+      ...[...new Set([...Object.keys(this.kplexPlugin.settings.noteTypeStyles), ...Object.keys(this.kplexPlugin.settings.noteTypeProperties)])].map((name): NodeStyleEntry => ({ name, kind: "property" })),
       ...Object.keys(this.kplexPlugin.settings.tagNodeStyles).map((name): NodeStyleEntry => ({ name, kind: "tag" })),
     ].sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: "base" }));
   }
@@ -2700,6 +2719,7 @@ export class KplexSettingTab extends PluginSettingTab {
                   { name: translate("settings.ui.maximum.central.node.width"), desc: translate("settings.ui.maximum.central.node.width.help"), control: { type: "slider", key: "centralNodeStyle.maxWidth", min: 180, max: 1000, step: 10 } },
                   { name: translate("settings.ui.gate.radius"), desc: translate("settings.ui.radius.of.the.relationship.gates.around.nodes.in.pixels"), control: { type: "slider", key: "baseNodeStyle.gateRadius", min: 2, max: 8, step: 0.5 } },
                   { name: translate("settings.ui.style.property"), desc: translate("settings.ui.a.yaml.or.dataview.style.property.whose.value.can.select"), control: { type: "text", key: "noteTypeField" } },
+                  {name: translate("noteType.review"), desc: translate("noteType.reviewHelp"), action: () => {this.kplexPlugin.openNoteTypeReview();}},
                   {
                     name: translate("styles.nodeTitle"),
                     desc: translate("styles.settingsSummary", { count: nodeStyles.length }),
