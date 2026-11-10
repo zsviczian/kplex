@@ -108,18 +108,68 @@ Add a separate node context action, **Add missing note-type properties**, availa
 
 ## 4. Maintenance: Review note types
 
-Add a manual command and lightweight manager under the Note type settings: **Review note types**. It scans Markdown files *on demand* using Obsidian's metadata cache, in bounded/yielding batches. No recurring background scanner, independent graph index, full-index rebuild or per-note body read.
+Add a manual command and lightweight manager under Note type settings: **Review note types**. Discover problems *on demand*, using Obsidian's metadata cache in bounded/yielding batches. No recurring background scanner, new graph index, full-index rebuild, or render-time whole-vault/Markdown-body reads.
 
-Show a filtered list of YAML notes with these conditions:
+### Grouped overview and drill-down
 
-1. **Missing tag:** the configured note-type property contains a valid tag name, but the exact tag is absent from the note's YAML `tags` list (a child tag is not identical to its parent). Offer **Add missing tag**.
-2. **Invalid type value:** a non-empty type value cannot represent a valid single tag (e.g. `Big idea`, a malformed `person//friend`, an unsupported list/object or ambiguous duplicate selectors). Offer **Open note** / **Change note type** for an explicit correction; no automatic slugging, class conversion or data loss.
-3. **Unavailable metadata:** report skipped/pending files separately rather than claiming an empty clean result. Inline-only `note type:: #person` notes are valid and not flagged for lacking a YAML property.
+Model the dialog after the maintainer's wireframe, with three named sections and one row for each affected note-type value. Each row displays the **value**, **affected-note count**, **View notes** (eye) and **Fix…**. View notes expands to the affected file paths as clickable note links, with the exact issue/missing-field names and individual inclusion checkboxes. Group counts count distinct affected notes, not missing fields; overlapping findings may appear under more than one category.
 
-Use the current configured field name, native tag grammar and exact YAML membership checks. Preserve the distinction between a body tag discovered by Obsidian and an explicit YAML tag needed for consistent frontmatter. A valid `Note type: person` with only `person/friend` in YAML should be reported as missing the exact `person` entry.
+```text
+Note type errors
 
-Display file path, current type, problem and proposed edit, with an individual Fix action and an optional reviewed **Fix selected valid missing tags** operation. Never auto-fix invalid values. Before each write, re-read native frontmatter, check file identity/current field/tag status and skip changed or unsupported files. Provide progress, cancel for not-yet-written files, completion counts and a recheck action; changes already committed remain intact. Do not silently edit the user vault on opening the report.
+Invalid note type value
+  Big idea                     23 notes       [Fix…]  [View notes]
+  another invalid value        12 notes       [Fix…]  [View notes]
 
+Present as property but not as tag
+  person                       10 notes       [Fix…]  [View notes]
+  book                          3 notes       [Fix…]  [View notes]
+
+Notes missing configured properties
+  person                      213 notes       [Fix…]  [View notes]
+  book                         32 notes       [Fix…]  [View notes]
+```
+
+Use the configured note-type property name and Obsidian's supported tag grammar. Display all file paths in the drill-down; the overview remains compact even in a large vault. Provide search/filter, accurate scanned/skipped coverage, processing progress, cancel for pending files, per-file results and **Recheck**. Opening the dialog or clicking View never edits notes.
+
+### Category A — Invalid note-type value
+
+A non-empty YAML selector value is invalid when it cannot represent one valid tag, e.g. `Big idea`, `person//friend`, or an unsupported multi-valued/complex property. Group **single unambiguous string values** by their exact current value; duplicate selector fields, ambiguous arrays/objects, and unsupported structures appear under a **Needs manual inspection** sub-group and are excluded from automated bulk repair.
+
+**Fix…** for one invalid string value:
+1. Prompt for a replacement **valid tag name**, e.g. user types `big-idea` for `Big idea`; validate using the same tag grammar as Set note type. No silent slugging/guessing.
+2. Preview all impacted note paths, the old and new note-type value, and the **corresponding tag that will be added to YAML `tags`**. Permit deselecting individual files.
+3. On confirmation, for **each selected file in one native frontmatter mutation**, replace the configured YAML note-type property with the chosen canonical tag text **and ensure that same tag is present in YAML `tags`**. These two effects must succeed together or the file is skipped/failed without a partial edit. This is essential: formerly invalid type values generally have no matching tag entry, so changing the selector alone would recreate the same inconsistency.
+4. Preserve all other tags, existing properties and body text. Never remove unrelated/legacy tags as a side effect; don't change inline note-type fields or forcibly convert unsupported data. If `tags` already contains the replacement, don't duplicate it. If current YAML is unsupported, or its type changed since preview, skip it for individual inspection.
+
+Example, **one Fix action** for all selected notes:
+```yaml
+# Before
+Note type: Big idea
+tags: [research]
+
+# After user explicitly enters big-idea
+Note type: big-idea
+tags: [research, big-idea]
+```
+
+### Category B — Present as property but not as tag
+
+A valid YAML note-type selector value exists, but its **exact tag** is absent from the YAML `tags` property. Group by normalized type value; `person/friend` alone does **not** satisfy an explicit `person` tag. **Fix…** previews the affected files and adds the missing tag to each selected note's YAML `tags`, without changing the valid selector or other tags. This is an explicit **reviewed bulk fix** as well as an individual fix.
+
+### Category C — Notes missing configured properties
+
+For notes with a valid **tag-backed** note type, compare existing YAML frontmatter keys with the type's configured **default node-property list** from section 3. A field is *missing* only when the key is absent; empty, null, `0` and `false` count as present. **Show on node** controls rendering only and does **not** determine whether a configured property is eligible for initialization. Do not call these properties required fields or treat their absent values as schema violations.
+
+Group by note type. **View notes** shows each path and the names of missing fields. **Fix…** previews the set of fields to add and allows the user to select affected files. The batch action adds **only absent keys**, with the same empty editable YAML values supported by the individual **Add missing note-type properties** action. Preserve all existing values and unrelated YAML; never overwrite a field that appeared after preview. For notes that also need invalid-type/tag repair, resolve the type/tag issue first and offer to recheck before fixing properties.
+
+### Shared safety and performance
+
+- Every Fix is explicitly confirmed after a file-level preview; never repair on discovery. No automatic correction of invalid strings without user choosing a valid replacement.
+- Re-resolve exact `TFile` identity, configured field, note-type selection, expected original value, supported `tags`, existing/missing fields and vault state immediately before *each* native mutation. Recompute minimal needed edits and skip changed/ambiguous files; never restore older tags/fields from a stale snapshot.
+- For invalid-value repair, the new note-type selector and matching tag membership are **one atomic per-file frontmatter write**, not two independent asynchronous operations. A multi-file batch is sequential/bounded and **not** globally atomic: successful files remain changed if the user cancels or later files fail.
+- Metadata-cache-only detection cannot prove all body/inline variants: valid inline-only `note type:: #person` notes are not treated as missing YAML, and unknown cache coverage is reported instead of silently classified as clean. Never shadow unsupported inline selectors with new YAML without explicit review.
+- Bounded/yielding batched discovery; no duplicate tag insertions, no unintended full-index rebuild or change in ontology relationship semantics. Restore UI state and provide counts for fixed, unchanged, skipped, failed, and pending work.
 ## Out of scope and compatibility decision
 
 - No `class: Person` -> Base-parent mapping (#284), Fileclass integration, automatic Base navigation, new class system or type nodes. Existing tag nodes already provide browsing, search, pinning and drag-and-drop membership; see #271.
@@ -133,8 +183,9 @@ Display file path, current type, problem and proposed edit, with an individual F
 - [ ] Same tag / new tag / hierarchical tag / case variants; keep-or-remove old exact tag; preserve nested/body tags; Clear and inline-shadowing cases; stale dialog/concurrent edits; malformed tags and YAML; no partial/duplicate writes.
 - [ ] Existing tag drop, tag unlink, note-type demotion, tag center, pin and search unchanged; source/semantic graph and relationship evidence unaffected except actual tag-membership edits.
 - [ ] Property-detail display and add-missing-field action, with existing values untouched, no index/body work from display-only changes and correct layouts.
-- [ ] Review note types detects missing/invalid/ambiguous, skips inline-only, reports unknown cache coverage and only fixes explicitly approved valid missing tags; large-vault bounded work.
+- [ ] Review note types groups invalid values, missing tags and missing configured fields by value/type with counts, viewable note paths and per-note selection; invalid-value bulk Fix prompts for a valid replacement and atomically updates BOTH selector and matching tag per file; valid missing-tag Fix adds membership; missing-fields Fix adds absent empty keys only.
+- [ ] Bulk previews, revalidation, uncertain/changed-file skips, cancellation, per-file outcome counts, no duplicate/partial per-file metadata writes, no automatic invalid-value conversions, and bounded large-vault work. Inline-only notes remain valid and cache gaps remain visible.
 - [ ] All UI forms meet `UI_RULES.md`, light/dark, narrow/mobile, popout, focus, keyboard, Save/Cancel and localization requirements.
 - [ ] Run focused type/tag/property/geometry tests, applicable host integration, build and scanner checks. Because this touches actual note metadata and tag relationships, assess full indexing/restart gates per current AGENTS/CODING_STANDARDS/CONTRIBUTING; do not claim performance or host validation without measured evidence.
 
-Practical manual scenarios: (1) change a person note to project while preserving or removing the old YAML tag; (2) show `title` beneath an ID filename and add a missing configured field; (3) review and repair a small set of inconsistent YAML note types while leaving inline-only notes untouched.
+Practical manual scenarios: (1) change a person note to project while preserving or removing the old YAML tag; (2) show `title` beneath an ID filename and add a missing configured field; (3) bulk-replace invalid YAML `Note type: Big idea` with user-chosen `big-idea` **and add `big-idea` to each file's `tags` in the same write**; (4) bulk-add missing tags, then review and bulk-add configured empty properties to selected notes, while leaving inline-only notes untouched.
