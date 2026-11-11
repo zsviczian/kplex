@@ -25,8 +25,10 @@ test('Markdown export gives the native ontology dropdown remaining width and cen
  const node={id:'root',text:'[[Root]]',label:'Root',x:0,y:0,side:1,reference:false,expanded:true,canExpand:false,partial:false};
  p.app.vault.adapter={};
  const modal=new M.MindMapMarkdownModal(p.app,{snapshot:{root:'root',nodes:[node],links:[],omitted:0,limited:false},sourceScope:host,current:()=>true,closed:()=>{}});modal.open();
- for(const width of [680,350]){modal.modalEl.style.width=width+'px';
+ for(const locale of ['en','de'])for(const font of [14,18])for(const width of [680,350]){modal.modalEl.style.width=width+'px';document.body.style.setProperty('--font-ui-medium',font+'px');
  const row=modal.contentEl.querySelector('.kplex-form-select-row'),select=row.querySelector('select'),desc=row.querySelector('.setting-item-description');
+ row.querySelector('.setting-item-name').textContent=M.createTranslator(locale)('export.markdown.ontology');
+ const info=row.querySelector('.setting-item-info');check(info.scrollWidth<=info.clientWidth+1,'Export label overlaps the selector');
  const r=row.getBoundingClientRect(),s=select.getBoundingClientRect();check(Math.abs(r.right-s.right)<2&&s.width>=r.width*.6,'Export selector leaves unused width');
  check(desc.getBoundingClientRect().top>=s.bottom,'Export help squeezes the dropdown');
  const cancel=button(modal,'common.cancel'),glyph=cancel.querySelector('svg').getBoundingClientRect(),b=cancel.getBoundingClientRect();

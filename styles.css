@@ -4157,8 +4157,9 @@ button.kplex-sidecar-unfold-plex:focus-visible,
 .kplex-relationship-selection { width: 100%; min-width: 0; }
 .kplex-relationship-selection-detail { margin-top: var(--size-4-2); white-space: pre-line; overflow-wrap: anywhere; }
 .modal.kplex-modal .kplex-relationship-selection-detail { font-size: var(--font-ui-smaller, var(--font-ui-small)); }
-.modal.kplex-modal .kplex-form-select-row { display: grid; grid-template-columns: max-content minmax(0, 1fr); align-items: center; }
-.kplex-form-select-row > .setting-item-info { margin: 0; max-width: 200px; min-width: 0; }
+/* Bound label width so larger native UI fonts keep enough room for the selector. */
+.modal.kplex-modal .kplex-form-select-row { display: grid; grid-template-columns: fit-content(calc(40% - var(--kplex-control-gap))) minmax(0, 1fr); align-items: center; }
+.kplex-form-select-row > .setting-item-info { margin: 0; max-width: 200px; min-width: 0; overflow-wrap: anywhere; }
 .kplex-form-select-row > .setting-item-control { width: 100%; }
 .kplex-form-select-row > .setting-item-control > select { width: 100%; max-width: none; }
 .kplex-form-select-row > .setting-item-description { grid-column: 1 / -1; }
