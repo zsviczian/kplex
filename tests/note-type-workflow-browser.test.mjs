@@ -63,31 +63,31 @@ test('shared native suggestion anchoring follows modal and window geometry, then
  })()`),true);
 });
 
-test('tag-style conversion is explicit and reversible, preserves unknown appearance and priority peers, and saves one detached property list',async()=>{
+test('a migrated tag exposes properties and prefix in one editor and saves one unified definition',async()=>{
  assert.equal(await colorEditorScenario(`(async()=>{
-  const M=sourceModules,t=M.createTranslator('en'),source={icon:'user',prefix:'👤 ',fontSize:17,strokeWidth:2.5,gateRadius:7,backgroundColor:'#11223380',future:{token:7}},p=await createAppearanceHost({tagNodeStyles:{'#person':source,'#other':{icon:'box'}},tagStyleList:['#other','#person'],sentinel:{future:true}}),before=JSON.stringify(p.settings);p.writes=[];
-  const tab=new M.KplexSettingTab({workspace:{on:()=>({}),offref(){}}},p);tab.openNodeStyleEditor('tag','#person');let modal=M.TestModal.instances.at(-1),button=key=>[...modal.contentEl.querySelectorAll('button')].find(button=>button.getAttribute('aria-label')===t(key));
-  if(!modal.contentEl.querySelector('.kplex-node-details-editor').hidden&&getComputedStyle(modal.contentEl.querySelector('.kplex-node-details-editor')).display!=='none')throw Error('Legacy tag exposes independent type fields');
-  button('styles.convertToNoteType').click();if(getComputedStyle(modal.contentEl.querySelector('.kplex-node-details-editor')).display==='none'||!modal.contentEl.textContent.includes('On Save'))throw Error('Conversion preview hidden');
-  button('styles.keepTagStyle').click();if(JSON.stringify(p.settings)!==before||p.writes.length)throw Error('Preview changed settings');button('styles.convertToNoteType').click();button('nodeProperties.add').click();const field=modal.contentEl.querySelector('.kplex-node-detail-row input');field.value='company';field.dispatchEvent(new Event('input'));button('common.save').click();await new Promise(resolve=>setTimeout(resolve,60));
-  if(p.writes.length!==1||JSON.stringify(p.settings.noteTypeStyles.person)!==JSON.stringify(source)||Object.hasOwn(p.settings.tagNodeStyles,'#person')||JSON.stringify(p.settings.tagStyleList)!==JSON.stringify(['#other'])||p.settings.noteTypeProperties.person[0].field!=='company'||!p.writes[0].sentinel.future)throw Error('Conversion did not preserve/move atomically');
-  const reloaded=M.migrateAndMergeSettings(JSON.parse(JSON.stringify(p.writes[0])));if(reloaded.noteTypeStyles.person.future.token!==7||reloaded.noteTypeProperties.person[0].field!=='company')throw Error('Conversion lost on reload');return true;
+  const M=sourceModules,t=M.createTranslator('en'),p=await createAppearanceHost({tagNodeStyles:{'#person':{prefix:'Person ',backgroundColor:'#112233',future:{keep:7}}},tagStyleList:['#person'],noteTypeStyles:{Person:{icon:'user',backgroundColor:'#445566'}},sentinel:{future:true}});p.writes=[];
+  const tab=new M.KplexSettingTab({workspace:{on:()=>({}),offref(){}}},p);tab.openNodeStyleEditor('#person');const modal=M.TestModal.instances.at(-1),button=key=>[...modal.contentEl.querySelectorAll('button')].find(button=>button.getAttribute('aria-label')===t(key));
+  if(modal.contentEl.querySelector('select')||getComputedStyle(modal.contentEl.querySelector('.kplex-node-details-editor')).display==='none')throw Error('Split families survived in UI');
+  if(modal.contentEl.querySelector('input[aria-label="Label prefix"]').value!=='Person ')throw Error('Migrated prefix hidden');
+  button('nodeProperties.add').click();const field=modal.contentEl.querySelector('.kplex-node-detail-row input');field.value='company';field.dispatchEvent(new Event('input'));button('common.save').click();await new Promise(resolve=>setTimeout(resolve,60));
+  const style=p.settings.tagNodeStyles['#person'];if(p.writes.length!==1||style.backgroundColor!=='#445566'||style.prefix!=='Person '||style.future.keep!==7||p.settings.noteTypeProperties.person[0].field!=='company'||!p.writes[0].sentinel.future||Object.hasOwn(p.writes[0],'noteTypeStyles'))throw Error('Unified save not atomic');
+  const reloaded=M.migrateAndMergeSettings(p.writes[0]);if(reloaded.tagNodeStyles['#person'].icon!=='user'||reloaded.noteTypeProperties.person[0].field!=='company')throw Error('Unified style lost on reload');return true;
  })()`),true);
 });
 
-test('direct type configuration opens its exact existing style and property list rather than the legacy tag-prefix family',async()=>{
+test('direct type configuration opens the same unified tag and its property list',async()=>{
  assert.equal(await colorEditorScenario(`(async()=>{
-  const M=sourceModules,p=await createAppearanceHost({noteTypeStyles:{Person:{icon:'user'}},tagNodeStyles:{'#person':{icon:'tag'}},noteTypeProperties:{person:[{field:'company',visible:false}]}}),tab=new M.KplexSettingTab({workspace:{on:()=>({}),offref(){}}},p);p.writes=[];
-  if(!tab.openNoteTypeEditor('#person',document.body))throw Error('Valid selected type refused');const modal=M.TestModal.instances.at(-1);await new Promise(resolve=>setTimeout(resolve,20));
-  const field=modal.contentEl.querySelector('.kplex-node-detail-row input[type=text]');if(field.value!=='company'||document.activeElement!==field||modal.contentEl.querySelector('select').value!=='property'||modal.contentEl.querySelector('input[type=text]').value!=='Person'||p.writes.length)throw Error('Opened wrong type, key, focus or properties');modal.close();if(tab.openNoteTypeEditor('Big idea',document.body))throw Error('Invalid type opened');return true;
+  const M=sourceModules,p=await createAppearanceHost({noteTypeStyles:{Person:{icon:'user'}},tagNodeStyles:{'#person':{prefix:'Person '}},noteTypeProperties:{person:[{field:'company',visible:false}]}}),tab=new M.KplexSettingTab({workspace:{on:()=>({}),offref(){}}},p);p.writes=[];
+  if(!tab.openNoteTypeEditor('#person',document.body))throw Error('Valid type refused');const modal=M.TestModal.instances.at(-1);await new Promise(resolve=>setTimeout(resolve,20));
+  const field=modal.contentEl.querySelector('.kplex-node-detail-row input');if(field.value!=='company'||document.activeElement!==field||modal.contentEl.querySelector('select')||modal.contentEl.querySelector('input[type=text]').value!=='#person'||p.writes.length)throw Error('Wrong tag, focus or properties');modal.close();return true;
  })()`),true);
 });
 
-test('conversion cancel, existing destination, stale source and disk failure preserve both style families',async()=>{
+test('unified tag rename collisions, stale sources, cancelled drafts and disk failure retain saved definitions',async()=>{
  assert.equal(await colorEditorScenario(`(async()=>{
   const M=sourceModules,t=M.createTranslator('en');for(const reason of ['cancel','collision','stale','disk']){
-   const p=await createAppearanceHost({tagNodeStyles:{'#person':{icon:'user'}},tagStyleList:['#person'],noteTypeStyles:reason==='collision'?{Person:{icon:'box'}}:{}}),tab=new M.KplexSettingTab({workspace:{on:()=>({}),offref(){}}},p);p.writes=[];tab.openNodeStyleEditor('tag','#person');const modal=M.TestModal.instances.at(-1),button=key=>[...modal.contentEl.querySelectorAll('button')].find(button=>button.getAttribute('aria-label')===t(key));button('styles.convertToNoteType').click();
-   if(reason==='stale')delete p.settings.tagNodeStyles['#person'];if(reason==='disk')p.saveData=async()=>{throw Error('Owned disk failure')};const before=JSON.stringify(p.settings);button(reason==='cancel'?'common.cancel':'common.save').click();await new Promise(resolve=>setTimeout(resolve,40));if(JSON.stringify(p.settings)!==before||p.writes.length)throw Error('Failed/cancelled conversion mutated settings: '+reason);modal.close();
+   const p=await createAppearanceHost({tagNodeStyles:{'#person':{icon:'user'},'#other':{icon:'box'}},tagStyleList:['#person','#other']}),tab=new M.KplexSettingTab({workspace:{on:()=>({}),offref(){}}},p);p.writes=[];tab.openNodeStyleEditor('#person');const modal=M.TestModal.instances.at(-1),button=key=>[...modal.contentEl.querySelectorAll('button')].find(button=>button.getAttribute('aria-label')===t(key));
+   if(reason==='collision')modal.contentEl.querySelector('input[type=text]').value='#OTHER';if(reason==='stale')delete p.settings.tagNodeStyles['#person'];if(reason==='disk')p.saveData=async()=>{throw Error('Owned disk failure')};const before=JSON.stringify(p.settings);button(reason==='cancel'?'common.cancel':'common.save').click();await new Promise(resolve=>setTimeout(resolve,40));if(JSON.stringify(p.settings)!==before||p.writes.length)throw Error('Failed/cancelled unified save mutated settings: '+reason);modal.close();
   }return true;
  })()`),true);
 });
@@ -115,11 +115,11 @@ test('inline inspection finishing during a rejected save leaves Clear available 
 test('one durable Save commits style/details outside theme records, preserving unrelated settings and rejecting stale or failed writes',async()=>{
  assert.equal(await colorEditorScenario(`(async()=>{
   const M=sourceModules,p=await createAppearanceHost({noteTypeProperties:{other:[{field:'status',visible:true}]},sentinel:{future:7}});p.writes=[];
-  const edit={type:'#Person',opening:[],rows:[{field:'title',visible:true}]};await p.updateStyleSettings(draft=>{draft.noteTypeStyles.person={icon:'user'}},p.captureAppearanceOwner(),{nodePropertiesEdit:edit});
-  if(p.writes.length!==1||p.writes[0].noteTypeProperties.person[0].field!=='title'||p.settings.noteTypeStyles.person.icon!=='user'||p.writes[0].sentinel.future!==7||!p.writes[0].noteTypeProperties.other)throw Error('Save not atomic/preserving');
+  const edit={type:'#Person',opening:[],rows:[{field:'title',visible:true}]};await p.updateStyleSettings(draft=>{draft.tagNodeStyles["#person"]={icon:'user'}},p.captureAppearanceOwner(),{nodePropertiesEdit:edit});
+  if(p.writes.length!==1||p.writes[0].noteTypeProperties.person[0].field!=='title'||p.settings.tagNodeStyles["#person"].icon!=='user'||p.writes[0].sentinel.future!==7||!p.writes[0].noteTypeProperties.other)throw Error('Save not atomic/preserving');
   if(JSON.stringify(p.writes[0].appearanceThemes).includes('noteTypeProperties'))throw Error('Defaults leaked into themes');
   await p.updateStyleSettings(()=>{},p.captureAppearanceOwner(),{nodePropertiesEdit:{type:'__proto__',opening:[],rows:[{field:'title',visible:true}]}});if(!Object.hasOwn(p.settings.noteTypeProperties,'__proto__')||JSON.parse(JSON.stringify(p.settings)).noteTypeProperties['__proto__'][0].field!=='title')throw Error('Authored tag lost as inherited dictionary key');
-  const before=JSON.stringify(p.settings);p.saveData=async()=>{throw Error('Controlled disk failure')};let failed=false;try{await p.updateStyleSettings(draft=>{draft.noteTypeStyles.person={icon:'tag'}},p.captureAppearanceOwner(),{nodePropertiesEdit:{...edit,type:'person',opening:edit.rows,rows:[]}})}catch{failed=true}if(!failed||JSON.stringify(p.settings)!==before)throw Error('Failed save published');
+  const before=JSON.stringify(p.settings);p.saveData=async()=>{throw Error('Controlled disk failure')};let failed=false;try{await p.updateStyleSettings(draft=>{draft.tagNodeStyles["#person"]={icon:'tag'}},p.captureAppearanceOwner(),{nodePropertiesEdit:{...edit,type:'person',opening:edit.rows,rows:[]}})}catch{failed=true}if(!failed||JSON.stringify(p.settings)!==before)throw Error('Failed save published');
   p.saveData=async()=>{};failed=false;try{await p.updateStyleSettings(()=>{},p.captureAppearanceOwner(),{nodePropertiesEdit:edit})}catch{failed=true}if(!failed)throw Error('Stale property draft accepted');
   return true;
  })()`),true);

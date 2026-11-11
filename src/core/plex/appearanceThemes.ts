@@ -3,6 +3,7 @@
  * lens behavior and all workflow settings stay with their existing owners. Operations prepare
  * detached values only: the host's single settings queue owns persistence and publication.
  */
+import {migrateTagStyles} from "../contracts/tagStyle";
 import {appearanceColorReferences, appearanceHasUnsupportedColors} from "../contracts/appearance";
 import {NODE_COLOR_FIELDS, LINK_COLOR_FIELDS, type ColorValue} from "../contracts/colorValue";
 import {adoptStandardThemeColors, STANDARD_NODE_COLOR_STYLES, STANDARD_LINK_COLOR_STYLES} from "./colorEditing";
@@ -14,11 +15,11 @@ export const BASE_THEME_STYLE_KEYS = [...STANDARD_NODE_COLOR_STYLES, ...STANDARD
 type StyleRecord = Record<string, unknown>;
 type LensColors = {node?: Partial<Record<typeof NODE_COLOR_FIELDS[number], ColorValue>>; edge?: Partial<Record<typeof LINK_COLOR_FIELDS[number], ColorValue>>};
 export type ThemeBase = Record<typeof BASE_THEME_STYLE_KEYS[number], StyleRecord> & {backgroundColor?: ColorValue; standardStyleDefaults: "native" | "legacy"};
-export type ThemeSemantic = {noteTypeStyles: Record<string, StyleRecord>; tagNodeStyles: Record<string, StyleRecord>;
+export type ThemeSemantic = {tagNodeStyles: Record<string, StyleRecord>;
   tagStyleList: string[]; hierarchyLinkStyles: Record<string, StyleRecord>; colorPreferences: ColorPreferencesV1; lensColors: Record<string, LensColors>};
 export type ThemeAppearance = {base: ThemeBase; semantic: ThemeSemantic};
 export type AppearanceTheme = {id: string; name: string; appearance: ThemeAppearance};
-export type AppearanceThemeLibrary = {version: 1; migrationComplete: true; selectedId: string; themes: AppearanceTheme[]; migrationNotice: boolean; nativeBaseMigration?: 1};
+export type AppearanceThemeLibrary = {version: 2; migrationComplete: true; selectedId: string; themes: AppearanceTheme[]; migrationNotice: boolean; nativeBaseMigration?: 1};
 export type ThemeAppearanceInput = ThemeBase & Omit<ThemeSemantic, "lensColors"> & {graphLenses: Array<{id: string; style?: {node?: StyleRecord; edge?: StyleRecord}}>};
 export type ThemeNames = {default: string; user: string; nativeBase: string; custom: string};
 export type ColorResetScope = "base" | "semantic" | "all";
@@ -59,7 +60,7 @@ export function captureThemeAppearance(source: ThemeAppearanceInput): ThemeAppea
     const node = colorFields(lens.style?.node, NODE_COLOR_FIELDS), edge = colorFields(lens.style?.edge, LINK_COLOR_FIELDS);
     if (Object.keys(node).length || Object.keys(edge).length) Object.defineProperty(lensColors, lens.id, {value: {node, edge}, enumerable: true, configurable: true, writable: true});
   }
-  return {base, semantic: {noteTypeStyles: copyThemeValue(source.noteTypeStyles), tagNodeStyles: copyThemeValue(source.tagNodeStyles),
+  return {base, semantic: {tagNodeStyles: copyThemeValue(source.tagNodeStyles),
     tagStyleList: [...source.tagStyleList], hierarchyLinkStyles: copyThemeValue(source.hierarchyLinkStyles), colorPreferences: copyThemeValue(source.colorPreferences), lensColors}};
 }
 
@@ -68,7 +69,7 @@ export function applyThemeAppearance(target: ThemeAppearanceInput, appearance: T
   for (const key of BASE_THEME_STYLE_KEYS) target[key] = copyThemeValue(appearance.base[key]);
   target.backgroundColor = copyThemeValue(appearance.base.backgroundColor);
   target.standardStyleDefaults = appearance.base.standardStyleDefaults;
-  for (const key of ["noteTypeStyles", "tagNodeStyles", "tagStyleList", "hierarchyLinkStyles", "colorPreferences"] as const)
+  for (const key of ["tagNodeStyles", "tagStyleList", "hierarchyLinkStyles", "colorPreferences"] as const)
     Object.assign(target, {[key]: copyThemeValue(appearance.semantic[key])});
   for (const lens of target.graphLenses) {
     const projection = Object.prototype.hasOwnProperty.call(appearance.semantic.lensColors, lens.id) ? appearance.semantic.lensColors[lens.id] : undefined;
@@ -85,9 +86,9 @@ export function applyThemeAppearance(target: ThemeAppearanceInput, appearance: T
 /** Build deterministic migration choices once; imported appearance follows the existing-user path. */
 export function createAppearanceThemes(current: ThemeAppearanceInput, factory: ThemeAppearanceInput, existing: boolean, names: ThemeNames, notifyMigration = existing): AppearanceThemeLibrary {
   const defaults: AppearanceTheme = {id: DEFAULT_THEME_ID, name: names.default, appearance: captureThemeAppearance(factory)};
-  if (!existing) return {version: 1, migrationComplete: true, selectedId: DEFAULT_THEME_ID, themes: [defaults], migrationNotice: false};
+  if (!existing) return {version: 2, migrationComplete: true, selectedId: DEFAULT_THEME_ID, themes: [defaults], migrationNotice: false};
   const native = copyThemeValue(current); adoptStandardThemeColors(native);
-  return {version: 1, migrationComplete: true, selectedId: "user", migrationNotice: notifyMigration, themes: [
+  return {version: 2, migrationComplete: true, selectedId: "user", migrationNotice: notifyMigration, themes: [
     {id: "user", name: names.user, appearance: captureThemeAppearance(current)},
     {id: "native-base", name: names.nativeBase, appearance: captureThemeAppearance(native)}, defaults]};
 }
@@ -123,26 +124,35 @@ export function adoptNativeBaseOnUpgrade(library: AppearanceThemeLibrary, curren
 
 /** Reject lossy/future containers as a whole; the host preserves the untouched raw field read-only. */
 export function readAppearanceThemes(raw: unknown): AppearanceThemeLibrary | undefined {
-  if (!record(raw) || raw.version !== 1 || raw.migrationComplete !== true || !Array.isArray(raw.themes) || !raw.themes.length
+  if (!record(raw) || (raw.version !== 1 && raw.version !== 2) || raw.migrationComplete !== true || !Array.isArray(raw.themes) || !raw.themes.length
     || raw.themes.length > MAX_APPEARANCE_THEMES || typeof raw.selectedId !== "string" || typeof raw.migrationNotice !== "boolean"
     || (raw.nativeBaseMigration !== undefined && raw.nativeBaseMigration !== 1)) return undefined;
+  raw = copyThemeValue(raw);
+  if (!record(raw)) return undefined;
   const ids = new Set<string>(), names = new Set<string>();
-  for (const entry of raw.themes) {
+  for (const entry of raw.themes as unknown[]) {
+    if (raw.version === 1 && record(entry) && record(entry.appearance) && record(entry.appearance.semantic)) {
+      const semantic = entry.appearance.semantic;
+      if (!record(semantic.noteTypeStyles) || !Object.values(semantic.noteTypeStyles).every(record)
+        || !record(semantic.tagNodeStyles) || !Object.values(semantic.tagNodeStyles).every(record)
+        || !Array.isArray(semantic.tagStyleList) || !semantic.tagStyleList.every(name => typeof name === "string")) return undefined;
+      Object.assign(semantic, migrateTagStyles(semantic.tagNodeStyles, semantic.tagStyleList, semantic.noteTypeStyles));delete semantic.noteTypeStyles;
+    }
     if (!record(entry) || typeof entry.id !== "string" || !entry.id || entry.id.length > 100 || ids.has(entry.id)
       || typeof entry.name !== "string" || !entry.name.trim() || entry.name.length > 100 || names.has(entry.name.trim().toLocaleLowerCase())
       || !record(entry.appearance) || !validAppearance(entry.appearance)) return undefined;
     ids.add(entry.id); names.add(entry.name.trim().toLocaleLowerCase());
   }
-  return ids.has(DEFAULT_THEME_ID) && ids.has(raw.selectedId) ? copyThemeValue(raw) as AppearanceThemeLibrary : undefined;
+  return ids.has(DEFAULT_THEME_ID) && typeof raw.selectedId === "string" && ids.has(raw.selectedId) ? {...raw, version: 2} as AppearanceThemeLibrary : undefined;
 }
 
 /** Validate finite style containers and supported sources without sampling or flattening source identities. */
 function validAppearance(value: Record<string, unknown>): boolean {
   const base = value.base, semantic = value.semantic;
-  if (!record(base) || !record(semantic) || !BASE_THEME_STYLE_KEYS.every(/** All supported standard records must exist. */ key => record(base[key]))
-    || !["native", "legacy"].includes(String(base.standardStyleDefaults)) || !record(semantic.noteTypeStyles) || !record(semantic.tagNodeStyles)
+  if (!record(base) || !record(semantic) || Object.prototype.hasOwnProperty.call(semantic, "noteTypeStyles") || !BASE_THEME_STYLE_KEYS.every(/** All supported standard records must exist. */ key => record(base[key]))
+    || !["native", "legacy"].includes(String(base.standardStyleDefaults)) || !record(semantic.tagNodeStyles)
     || !record(semantic.hierarchyLinkStyles) || !Array.isArray(semantic.tagStyleList) || !semantic.tagStyleList.every(/** Ordering consists of literal tag matching keys. */ item => typeof item === "string") || !record(semantic.lensColors)) return false;
-  for (const key of ["noteTypeStyles", "tagNodeStyles", "hierarchyLinkStyles"] as const) {
+  for (const key of ["tagNodeStyles", "hierarchyLinkStyles"] as const) {
     const styles = semantic[key]; if (!record(styles) || !Object.values(styles).every(record)) return false;
   }
   const migrated = migrateColorPreferences(semantic.colorPreferences);
@@ -233,7 +243,7 @@ export function recordThemeAppearance(library: AppearanceThemeLibrary, appearanc
 /** List the exact finite semantic color scope without counting palette definitions or non-color fields. */
 export function semanticColorSlots(source: ThemeAppearanceInput): string[] {
   const slots: string[] = [];
-  for (const key of ["noteTypeStyles", "tagNodeStyles", "hierarchyLinkStyles"] as const)
+  for (const key of ["tagNodeStyles", "hierarchyLinkStyles"] as const)
     for (const [name, style] of Object.entries(source[key])) for (const field of key === "hierarchyLinkStyles" ? LINK_COLOR_FIELDS : NODE_COLOR_FIELDS)
       if (style[field] !== undefined) slots.push(`${key}.${name}.${field}`);
   for (const key of Object.keys(source.colorPreferences.semantic)) slots.push(`semantic.${key}`);
@@ -247,7 +257,7 @@ export function semanticColorSlots(source: ThemeAppearanceInput): string[] {
 export function resetAppearanceColors(source: ThemeAppearanceInput, scope: ColorResetScope): void {
   if (scope === "base" || scope === "all") adoptStandardThemeColors(source);
   if (scope === "base") return;
-  for (const key of ["noteTypeStyles", "tagNodeStyles", "hierarchyLinkStyles"] as const)
+  for (const key of ["tagNodeStyles", "hierarchyLinkStyles"] as const)
     for (const style of Object.values(source[key])) for (const field of key === "hierarchyLinkStyles" ? LINK_COLOR_FIELDS : NODE_COLOR_FIELDS) delete style[field];
   source.colorPreferences.semantic = {}; source.colorPreferences.compass.fills = {};
   for (const lens of source.graphLenses) for (const [part, fields] of [["node", NODE_COLOR_FIELDS], ["edge", LINK_COLOR_FIELDS]] as const)

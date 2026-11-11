@@ -24,7 +24,7 @@ async function scenario(app,c) {
     p.settings.appearanceThemes=structuredClone(p.settings.appearanceThemes);
     delete p.settings.appearanceThemes.nativeBaseMigration;
     const previous=structuredClone(p.settings.appearanceThemes),previousId=previous.selectedId;
-    const semantics=JSON.stringify([p.settings.noteTypeStyles,p.settings.tagNodeStyles,p.settings.tagStyleList,p.settings.hierarchyLinkStyles,p.settings.colorPreferences,p.settings.graphLenses]);
+    const semantics=JSON.stringify([p.settings.tagNodeStyles,p.settings.tagStyleList,p.settings.hierarchyLinkStyles,p.settings.colorPreferences,p.settings.graphLenses]);
     let writes=0;originalSave=p.saveData;
     p.saveData=function(...args){writes++;return originalSave.apply(this,args)};
     await p.updateStyleSettings(()=>{},p.captureAppearanceOwner(),{initializeThemes:{existing:true,adoptNativeBase:true,notifyMigration:true}});
@@ -32,7 +32,7 @@ async function scenario(app,c) {
     check(writes===1&&p.settings.appearanceThemes.nativeBaseMigration===1,'Upgrade did not use one durable operation');
     check(p.settings.standardStyleDefaults==='native'&&p.settings.appearanceThemes.selectedId!=='default','Native base not selected');
     check(JSON.stringify(p.settings.appearanceThemes.themes.slice(0,previous.themes.length))===JSON.stringify(previous.themes),'Prior theme was overwritten');
-    check(JSON.stringify([p.settings.noteTypeStyles,p.settings.tagNodeStyles,p.settings.tagStyleList,p.settings.hierarchyLinkStyles,p.settings.colorPreferences,p.settings.graphLenses])===semantics,'Semantic appearance changed');
+    check(JSON.stringify([p.settings.tagNodeStyles,p.settings.tagStyleList,p.settings.hierarchyLinkStyles,p.settings.colorPreferences,p.settings.graphLenses])===semantics,'Semantic appearance changed');
     const notification=document.querySelector('.kplex-notification-modal');
     check(notification?.getClientRects().length&&notification.textContent.includes(p.translator('themes.nativeBaseAdopted'))&&notification.querySelector('.modal-title')?.textContent===p.translator('themes.nativeBaseTitle'),'Committed upgrade notification modal missing');
     check(![...document.querySelectorAll('.notice')].some(el=>el.textContent.includes(p.translator('themes.nativeBaseAdopted'))),'Competing brief upgrade popup displayed');

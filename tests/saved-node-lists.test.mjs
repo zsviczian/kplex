@@ -25,10 +25,9 @@ import{savedPinEntries,moveSavedPin}from'./src/core/plex/savedPins';
 export {nodeListPresentation};
 import{nodePaint,nodePaintFallbacks,resolveNodeStyle}from'./src/index/style';
 const settings={baseNodeStyle:{backgroundColor:'#222222',textColor:'#eeeeee',borderColor:'#444444'},
- tagStyleList:['topic'],tagNodeStyles:{topic:{backgroundColor:'#114477',textColor:'#ffffff',borderColor:'#1199ff',prefix:'T ',icon:'tag',strokeStyle:'dotted',strokeWidth:2}},
- noteTypeStyles:{Guide:{backgroundColor:'#774411',borderColor:'#ff9911',prefix:'G ',icon:'book',strokeStyle:'dashed'}},
+ tagStyleList:['#topic','#Guide'],tagNodeStyles:{'#topic':{backgroundColor:'#114477',textColor:'#ffffff',borderColor:'#1199ff',prefix:'T ',icon:'tag',strokeStyle:'dotted',strokeWidth:2},'#Guide':{backgroundColor:'#774411',borderColor:'#ff9911',prefix:'G ',icon:'book',strokeStyle:'dashed'}},
  folderNodeStyle:{backgroundColor:'#227722'},tagNodeStyle:{backgroundColor:'#772277'},virtualNodeStyle:{fillStyle:'hachure'},urlNodeStyle:{textColor:'#00ffff'},attachmentNodeStyle:{backgroundColor:'#777722'}};
-const pages=Array.from({length:16},(_,i)=>({path:'Note-'+i+'.md',name:'Note '+i,file:{extension:'md'},isFolder:false,isTag:false,url:null,primaryStyleTag:i===1||i===2?'topic':null,styleTags:['topic'],noteType:i===2?'Guide':null}));
+const pages=Array.from({length:16},(_,i)=>({path:'Note-'+i+'.md',name:'Note '+i,file:{extension:'md'},isFolder:false,isTag:false,url:null,primaryStyleTag:i===1||i===2?'#topic':null,styleTags:['#topic'],noteType:i===2?'Guide':null}));
 pages[3]={...pages[3],file:null,isFolder:true,path:'folder:Notes'};pages[4]={...pages[4],file:null,isTag:true,path:'tag:topic/child'};
 pages[5]={...pages[5],file:null};pages[6]={...pages[6],file:{extension:'pdf'}};pages[7]={...pages[7],file:null,url:'https://example.com'};
 window.clicks=[];const actions={dispatch:request=>clicks.push(request.id)},actionNodeRef=page=>({identity:page.path}),translate=key=>key;
@@ -38,7 +37,7 @@ const movePin=move=>{const next=moveSavedPin(plugin.settings.pinnedNodes,move);i
 const ObsidianIcon=({name})=><span className='kplex-icon' data-icon={name}/>;
 let host,root;function Surface(){const pinnedPages=savedPinEntries(plugin.settings.pinnedNodes).map(row=>{const p=plugin.index.get(row.entry),v=nodeListPresentation(p,p.name,settings);return {id:row.id,path:row.entry,...v,active:row.entry===activePath,available:true}});return <>{${pins}}{${history}}</>};
 window.mount=()=>{if(!root){host=document.body.appendChild(document.createElement('div'));host.className='kplex-main-column';host.style.width='450px';root=createRoot(host)}flushSync(()=>root.render(<Surface/>))};window.unmount=()=>flushSync(()=>root.unmount());
-window.repaint=()=>{settings.noteTypeStyles.Guide.backgroundColor='#336699';delete settings.noteTypeStyles.Guide.prefix;window.mount()};
+window.repaint=()=>{settings.tagNodeStyles["#Guide"].backgroundColor='#336699';delete settings.tagNodeStyles["#Guide"].prefix;window.mount()};
 window.expected=()=>nodePaint(resolveNodeStyle(pages[2],null,'child',settings),nodePaintFallbacks({page:pages[2],role:'child'}));
 window.project=()=>pages.slice(0,8).map(p=>nodeListPresentation(p,p.name,settings));
 window.checkOwnerDocument=()=>{const frame=document.body.appendChild(document.createElement('iframe')),doc=frame.contentDocument,counts={add:0,remove:0};

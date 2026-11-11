@@ -7,11 +7,8 @@
 import { buildLocaleCatalog, type LocaleTranslationMap } from "./catalog";
 
 const dutchTranslations = {
+  "styles.nameConflict": "Er bestaat al een stijl voor {name}. Kies een andere tag.",
   "noteType.settings": "Notitietype instellen",
-  "styles.convertToNoteType": "Omzetten naar notitietype",
-  "styles.keepTagStyle": "Tagstijl behouden",
-  "styles.convertHelp": "Vervang bij opslaan de tagprefixstijl {from} door de notitietypestijl {to}. Notities worden niet gewijzigd.",
-  "styles.conversionConflict": "Er bestaat al een notitietypestijl voor {name}. Kies een andere naam.",
   "noteType.invalidTag": "Voer één geldige tag in, zoals person of person/friend. Spaties zijn niet toegestaan.",
   "noteType.changed": "Deze notitie of het type is gewijzigd. Open het venster opnieuw.",
   "noteType.tag": "Notitietypetag",
@@ -699,7 +696,7 @@ const dutchTranslations = {
   "styles.editNode": "Knooppuntstijl bewerken",
   "styles.addNode": "Knooppuntstijl toevoegen",
   "styles.legacyTagHelp": "Geeft notities een stijl waarvan de primaire stijltag met dit voorvoegsel begint. De eerste overeenkomende tagstijl heeft voorrang.",
-  "styles.propertyHelp": "Stijl de tag die door {property} wordt gekozen. Andere tags behouden hun betekenis; oudere eigenschapsstijlen blijven leesbaar.",
+  "styles.propertyHelp": "Geef notities met deze tag of een overeenkomend tagvoorvoegsel deze stijl. Als {property} deze selecteert, krijgt de stijl voorrang. Standaardeigenschappen en zichtbare velden gelden voor dat geselecteerde notitietype.",
   "styles.typeHelp": "Kies een notitietype of een oudere tagprefixstijl.",
   "styles.labelPrefixHelp": "Tekst vóór de weergegeven knooppunttitel.",
   "styles.lucideHelp": "Naam van het pictogram naast de knooppunttitel, zoals book-open.",
@@ -714,7 +711,7 @@ const dutchTranslations = {
   "styles.labelPrefix": "Labelvoorvoegsel",
   "styles.legacyTag": "Tagstijl",
   "styles.propertyValue": "Notitietype",
-  "styles.managerHelp": "Beheer stijlen en optionele details voor de notitietypetags gekozen door {property}. Oudere tagprefixstijlen blijven apart.",
+  "styles.managerHelp": "Beheer tagstijlen en optionele notitietype-eigenschappen. De door {property} geselecteerde tag krijgt stijlvoorrang.",
   "styles.resultCount": "{count} stijlen · {results} resultaten",
   "styles.noMatches": "Geen knooppuntstijlen komen overeen met deze zoekopdracht.",
   "styles.noneConfigured": "Er zijn nog geen aangepaste knooppuntstijlen geconfigureerd.",

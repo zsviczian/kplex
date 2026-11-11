@@ -7,11 +7,8 @@
 import { buildLocaleCatalog, type LocaleTranslationMap } from "./catalog";
 
 const russianTranslations = {
+  "styles.nameConflict": "Стиль для {name} уже существует. Выберите другой тег.",
   "noteType.settings": "Настроить тип заметки",
-  "styles.convertToNoteType": "Преобразовать в тип заметки",
-  "styles.keepTagStyle": "Сохранить стиль тега",
-  "styles.convertHelp": "При сохранении стиль префикса тега {from} будет заменён стилем типа заметки {to}. Заметки не изменяются.",
-  "styles.conversionConflict": "Стиль типа заметки для {name} уже существует. Выберите другое имя.",
   "noteType.invalidTag": "Введите один допустимый тег, например person или person/friend. Пробелы недопустимы.",
   "noteType.changed": "Заметка или её тип изменились. Откройте диалог заново.",
   "noteType.tag": "Тег типа заметки",
@@ -699,7 +696,7 @@ const russianTranslations = {
   "styles.editNode": "Изменить стиль узла",
   "styles.addNode": "Добавить стиль узла",
   "styles.legacyTagHelp": "Применяет стиль к заметкам, основной тег стиля которых начинается с этого префикса. Первый подходящий стиль тега имеет приоритет.",
-  "styles.propertyHelp": "Стиль тега, выбранного через {property}. Другие теги сохраняют смысл; старые стили по свойству остаются доступными.",
+  "styles.propertyHelp": "Оформляет заметки с этим тегом или совпадающим префиксом тега. Если он выбран в {property}, этот стиль имеет приоритет. Свойства по умолчанию и отображаемые поля относятся к выбранному типу заметки.",
   "styles.typeHelp": "Выберите тип заметки или старый стиль по префиксу тега.",
   "styles.labelPrefixHelp": "Текст перед отображаемым заголовком узла.",
   "styles.lucideHelp": "Имя значка рядом с заголовком узла, например book-open.",
@@ -714,7 +711,7 @@ const russianTranslations = {
   "styles.labelPrefix": "Префикс подписи",
   "styles.legacyTag": "Стиль тега",
   "styles.propertyValue": "Тип заметки",
-  "styles.managerHelp": "Управление стилями и необязательными данными тегов типа, выбранных через {property}. Старые стили по префиксу тегов остаются отдельными.",
+  "styles.managerHelp": "Управление стилями тегов и дополнительными свойствами типов заметок. Тег, выбранный в {property}, имеет приоритет оформления.",
   "styles.resultCount": "Стилей: {count} · результатов: {results}",
   "styles.noMatches": "Нет стилей узлов, соответствующих этому поиску.",
   "styles.noneConfigured": "Пользовательские стили узлов пока не настроены.",

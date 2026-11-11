@@ -7,11 +7,8 @@
 import { buildLocaleCatalog, type LocaleTranslationMap } from "./catalog";
 
 const spanishTranslations = {
+  "styles.nameConflict": "Ya existe un estilo para {name}. Elige otra etiqueta.",
   "noteType.settings": "Configurar tipo de nota",
-  "styles.convertToNoteType": "Convertir en tipo de nota",
-  "styles.keepTagStyle": "Conservar estilo de etiqueta",
-  "styles.convertHelp": "Al guardar, reemplaza el estilo de prefijo {from} por el estilo de tipo de nota {to}. Las notas no cambian.",
-  "styles.conversionConflict": "Ya existe un estilo de tipo de nota para {name}. Elige otro nombre.",
   "noteType.invalidTag": "Introduce una etiqueta válida, como person o person/friend. No se permiten espacios.",
   "noteType.changed": "Esta nota o su tipo cambió. Vuelve a abrir el diálogo.",
   "noteType.tag": "Etiqueta del tipo de nota",
@@ -699,7 +696,7 @@ const spanishTranslations = {
   "styles.editNode": "Editar estilo de nodo",
   "styles.addNode": "Añadir estilo de nodo",
   "styles.legacyTagHelp": "Aplica estilo a las notas cuya etiqueta de estilo principal empiece por este prefijo. El primer estilo de etiqueta coincidente tiene prioridad.",
-  "styles.propertyHelp": "Aplicar estilo a la etiqueta seleccionada por {property}. Las demás etiquetas conservan su significado; se mantienen los estilos antiguos por propiedad.",
+  "styles.propertyHelp": "Aplica este estilo a notas con esta etiqueta o un prefijo coincidente. Si {property} la selecciona, este estilo tiene prioridad. Las propiedades predeterminadas y los campos visibles corresponden a ese tipo de nota seleccionado.",
   "styles.typeHelp": "Elige un tipo de nota o un estilo antiguo por prefijo de etiqueta.",
   "styles.labelPrefixHelp": "Texto colocado antes del título del nodo mostrado.",
   "styles.lucideHelp": "Nombre del icono mostrado junto al título del nodo, como book-open.",
@@ -714,7 +711,7 @@ const spanishTranslations = {
   "styles.labelPrefix": "Prefijo de etiqueta visible",
   "styles.legacyTag": "Estilo de etiqueta",
   "styles.propertyValue": "Tipo de nota",
-  "styles.managerHelp": "Gestiona estilos y detalles opcionales de los tipos elegidos por {property}. Los estilos antiguos por prefijo de etiqueta siguen separados.",
+  "styles.managerHelp": "Gestiona estilos de etiquetas y propiedades opcionales de tipos de nota. La etiqueta seleccionada por {property} tiene prioridad.",
   "styles.resultCount": "{count} estilos · {results} resultados",
   "styles.noMatches": "Ningún estilo de nodo coincide con esta búsqueda.",
   "styles.noneConfigured": "Aún no hay estilos de nodo personalizados configurados.",

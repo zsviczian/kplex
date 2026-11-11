@@ -67,12 +67,12 @@ test('startup preferences migrate independently and external device edits remain
 test('two running instances preserve received theme contents through unrelated writes and quiesce in both directions',async()=>{
  assert.equal(await scenario(`
  const a=await create(),b=await create();
- await a.updateStyleSettings(d=>{d.noteTypeStyles.Project.gateRadius=12});const first=copy(disk);await receive(b,first);
- check(b.settings.noteTypeStyles.Project.gateRadius===12,'Same-ID active appearance was not received');check(b.writes.length===0,'Receipt echoed a save');
- b.settings.hoverHighlightRequiresAlt=false;await b.saveSettings();check(selected(disk).appearance.semantic.noteTypeStyles.Project.gateRadius===12,'Unrelated B save restored old theme');
- await receive(a,disk);check(a.settings.hoverHighlightRequiresAlt===false&&a.settings.noteTypeStyles.Project.gateRadius===12,'A did not converge');
- await b.updateStyleSettings(d=>{d.noteTypeStyles.Project.strokeWidth=4});await receive(a,disk);a.settings.confirmFileDelete=false;await a.saveSettings();await receive(b,disk);
- check(b.settings.noteTypeStyles.Project.strokeWidth===4&&b.settings.confirmFileDelete===false,'Reverse direction lost a received field');
+ await a.updateStyleSettings(d=>{d.tagNodeStyles["#Project"].gateRadius=12});const first=copy(disk);await receive(b,first);
+ check(b.settings.tagNodeStyles["#Project"].gateRadius===12,'Same-ID active appearance was not received');check(b.writes.length===0,'Receipt echoed a save');
+ b.settings.hoverHighlightRequiresAlt=false;await b.saveSettings();check(selected(disk).appearance.semantic.tagNodeStyles["#Project"].gateRadius===12,'Unrelated B save restored old theme');
+ await receive(a,disk);check(a.settings.hoverHighlightRequiresAlt===false&&a.settings.tagNodeStyles["#Project"].gateRadius===12,'A did not converge');
+ await b.updateStyleSettings(d=>{d.tagNodeStyles["#Project"].strokeWidth=4});await receive(a,disk);a.settings.confirmFileDelete=false;await a.saveSettings();await receive(b,disk);
+ check(b.settings.tagNodeStyles["#Project"].strokeWidth===4&&b.settings.confirmFileDelete===false,'Reverse direction lost a received field');
  const counts=[a.writes.length,b.writes.length];await receive(a,disk);await receive(b,disk);await new Promise(r=>setTimeout(r,50));check(JSON.stringify(counts)===JSON.stringify([a.writes.length,b.writes.length]),'Autonomous ping-pong');
  check(a.work.semantic===0&&b.work.semantic===0&&a.work.invalidate===0&&b.work.invalidate===0,'Presentation/workflow reception requested semantics');
  `),true);
@@ -83,18 +83,18 @@ test('equivalent keys and own echoes are no-ops; genuine remote A to B to A reti
  const p=await create(),a=copy(disk),opening=p.captureAppearanceOwner();let updates=0;p.subscribeAppearanceThemes(()=>updates++);
  const reverse=value=>Array.isArray(value)?value.map(reverse):value&&typeof value==='object'?Object.fromEntries(Object.keys(value).reverse().map(key=>[key,reverse(value[key])])):value;
  await receive(p,reverse(a));check(updates===0&&p.work.presentation===0&&p.writes.length===0,'Key order manufactured a change');
- const b=copy(a);selected(b).appearance.semantic.noteTypeStyles.Project.gateRadius=9;await receive(p,b);check(!p.isAppearanceOwnerCurrent(opening),'Same-ID remote edit did not retire editor');
- await receive(p,a);check(!p.isAppearanceOwnerCurrent(opening)&&p.settings.noteTypeStyles.Project.gateRadius===undefined&&updates===2,'A-B-A was blacklisted or revived editor');
- let rejected=false;try{await p.updateStyleSettings(d=>{d.noteTypeStyles.Project.fontSize=44},opening)}catch{rejected=true}check(rejected&&p.writes.length===0,'Old draft wrote after A-B-A');
+ const b=copy(a);selected(b).appearance.semantic.tagNodeStyles["#Project"].gateRadius=9;await receive(p,b);check(!p.isAppearanceOwnerCurrent(opening),'Same-ID remote edit did not retire editor');
+ await receive(p,a);check(!p.isAppearanceOwnerCurrent(opening)&&p.settings.tagNodeStyles["#Project"].gateRadius===undefined&&updates===2,'A-B-A was blacklisted or revived editor');
+ let rejected=false;try{await p.updateStyleSettings(d=>{d.tagNodeStyles["#Project"].fontSize=44},opening)}catch{rejected=true}check(rejected&&p.writes.length===0,'Old draft wrote after A-B-A');
  const owner=p.captureAppearanceOwner(),metadata=copy(a);metadata.appearanceThemes.themes.find(theme=>theme.id==='native-base').name='Renamed inactive';await receive(p,metadata);
- check(p.isAppearanceOwnerCurrent(owner),'Inactive metadata retired active draft');await p.updateStyleSettings(d=>{d.noteTypeStyles.Project.fontSize=28},owner);check(disk.appearanceThemes.themes.find(theme=>theme.id==='native-base').name==='Renamed inactive','Active save lost received inactive metadata');
+ check(p.isAppearanceOwnerCurrent(owner),'Inactive metadata retired active draft');await p.updateStyleSettings(d=>{d.tagNodeStyles["#Project"].fontSize=28},owner);check(disk.appearanceThemes.themes.find(theme=>theme.id==='native-base').name==='Renamed inactive','Active save lost received inactive metadata');
  `),true);
 });
 
 test('unstarted writes reconcile disk without a callback and preserve submission order including undo',async()=>{
  assert.equal(await scenario(`
- const p=await create(),remote=copy(disk);selected(remote).appearance.semantic.noteTypeStyles.Project.textColor='#abcdef';disk=remote;
- p.settings.showCrossLinks=false;await p.saveSettings();check(selected(disk).appearance.semantic.noteTypeStyles.Project.textColor==='#abcdef','Preflight missed unnotified disk replacement');
+ const p=await create(),remote=copy(disk);selected(remote).appearance.semantic.tagNodeStyles["#Project"].textColor='#abcdef';disk=remote;
+ p.settings.showCrossLinks=false;await p.saveSettings();check(selected(disk).appearance.semantic.tagNodeStyles["#Project"].textColor==='#abcdef','Preflight missed unnotified disk replacement');
  let release;const hold=new Promise(r=>release=r);p.settingsWriteQueue=hold;
  p.settings.confirmFileDelete=false;const first=p.saveSettings();p.settings.confirmFileDelete=true;const second=p.saveSettings();release();await Promise.all([first,second]);
  check(p.writes.at(-2).confirmFileDelete===false&&p.writes.at(-1).confirmFileDelete===true,'Queued undo was lost or future edit serialized early');
@@ -103,41 +103,41 @@ test('unstarted writes reconcile disk without a callback and preserve submission
 
 test('captured replacement during an in-flight write survives its completion and the next unrelated save',async()=>{
  assert.equal(await scenario(`
- const p=await create(),remote=copy(disk);selected(remote).appearance.semantic.noteTypeStyles.Project.gateRadius=15;
+ const p=await create(),remote=copy(disk);selected(remote).appearance.semantic.tagNodeStyles["#Project"].gateRadius=15;
  let entered,release;const began=new Promise(r=>entered=r),hold=new Promise(r=>release=r),store=p.saveData;let first=true;
  p.saveData=async value=>{if(first){first=false;entered();await hold}await store(value)};
  p.settings.confirmFileDelete=false;const saving=p.saveSettings();await began;disk=remote;p.onExternalSettingsChange();await p.settingsReconciliation.reading;
  p.settings.showCrossLinks=false;const next=p.saveSettings();release();await saving;await next;await drain(p);
- check(selected(disk).appearance.semantic.noteTypeStyles.Project.gateRadius===15&&disk.confirmFileDelete===false&&disk.showCrossLinks===false,'Observed remote or accepted local roots lost during write');
- check(p.settings.noteTypeStyles.Project.gateRadius===15,'Latest live remote appearance missing');check(p.writes.length===2,'Receipt emitted an extra write');
+ check(selected(disk).appearance.semantic.tagNodeStyles["#Project"].gateRadius===15&&disk.confirmFileDelete===false&&disk.showCrossLinks===false,'Observed remote or accepted local roots lost during write');
+ check(p.settings.tagNodeStyles["#Project"].gateRadius===15,'Latest live remote appearance missing');check(p.writes.length===2,'Receipt emitted an extra write');
  `),true);
 });
 
 test('unchanged failed-write read-back retains a genuine candidate captured during storage',async()=>{
  assert.equal(await scenario(`
- const p=await create(),original=copy(disk),remote=copy(disk);selected(remote).appearance.semantic.noteTypeStyles.Project.gateRadius=17;
+ const p=await create(),original=copy(disk),remote=copy(disk);selected(remote).appearance.semantic.tagNodeStyles["#Project"].gateRadius=17;
  let entered,release;const began=new Promise(r=>entered=r),hold=new Promise(r=>release=r),store=p.saveData;
  p.saveData=async()=>{entered();await hold;throw Error('controlled failed write')};
  p.settings.confirmFileDelete=false;const saving=p.saveSettings().then(()=>false,()=>true);await began;disk=remote;p.onExternalSettingsChange();await p.settingsReconciliation.reading;disk=original;release();
  check(await saving,'Failed write falsely accepted');await drain(p);p.saveData=store;p.settings.showCrossLinks=false;await p.saveSettings();
- check(selected(disk).appearance.semantic.noteTypeStyles.Project.gateRadius===17&&disk.showCrossLinks===false,'Unchanged read-back discarded captured incoming proof');
+ check(selected(disk).appearance.semantic.tagNodeStyles["#Project"].gateRadius===17&&disk.showCrossLinks===false,'Unchanged read-back discarded captured incoming proof');
  `),true);
 });
 
 test('a pending same-owner control conflicts explicitly instead of recreating a remotely removed style',async()=>{
  assert.equal(await scenario(`
  const p=await create();let release;const hold=new Promise(r=>release=r);p.settingsWriteQueue=hold;
- const owner=p.captureAppearanceOwner(),saving=p.updateStyleSettings(d=>{d.noteTypeStyles.Project.fontSize=40},owner).then(()=>false,()=>true);
- const remote=copy(disk);delete selected(remote).appearance.semantic.noteTypeStyles.Project;disk=remote;p.onExternalSettingsChange();await p.settingsReconciliation.reading;release();
- check(await saving,'Stale queued appearance was accepted');await drain(p);check(!p.settings.noteTypeStyles.Project&&p.writes.length===0,'Removed style resurrected');
+ const owner=p.captureAppearanceOwner(),saving=p.updateStyleSettings(d=>{d.tagNodeStyles["#Project"].fontSize=40},owner).then(()=>false,()=>true);
+ const remote=copy(disk);delete selected(remote).appearance.semantic.tagNodeStyles["#Project"];disk=remote;p.onExternalSettingsChange();await p.settingsReconciliation.reading;release();
+ check(await saving,'Stale queued appearance was accepted');await drain(p);check(!p.settings.tagNodeStyles["#Project"]&&p.writes.length===0,'Removed style resurrected');
  `),true);
 });
 
 test('malformed and missing replacements keep valid state, block overwrite, recover later and fence unload',async()=>{
  assert.equal(await scenario(`
- const p=await create(),valid=copy(disk);await receive(p,null);check(p.settings.noteTypeStyles.Project.fontSize===23&&p.writes.length===0,'Missing file installed defaults');
+ const p=await create(),valid=copy(disk);await receive(p,null);check(p.settings.tagNodeStyles["#Project"].fontSize===23&&p.writes.length===0,'Missing file installed defaults');
  p.settings.showCrossLinks=false;await p.saveSettings();check(p.writes.length===0&&window.notices.length>0,'Unaccepted file overwritten or refusal not explained');
- await receive(p,{...valid,hierarchy:42});check(p.settings.noteTypeStyles.Project.fontSize===23,'Malformed container installed');
+ await receive(p,{...valid,hierarchy:42});check(p.settings.tagNodeStyles["#Project"].fontSize===23,'Malformed container installed');
  await receive(p,valid);p.settings.showCrossLinks=false;await p.saveSettings();check(disk.showCrossLinks===false,'Valid receipt did not recover');
  let resolve;const held=new Promise(r=>resolve=r);p.loadData=()=>held;p.onExternalSettingsChange();p.unloading=true;p.settingsReconciliation.dispose();const before=p.settings;resolve(valid);await drain(p);check(p.settings===before,'Unloaded plugin revived');
  `),true);
@@ -186,10 +186,10 @@ test('action drafts queued before a remote replacement reject instead of restori
 
 test('startup receipts survive absent consumers without initializing themes or echoing a migration save',async()=>{
  assert.equal(await scenario(`
- const p=await create(),old=copy(disk);delete old.appearanceThemes;old.noteTypeStyles={Project:{fontSize:21}};const incoming=copy(old);incoming.noteTypeStyles.Project.fontSize=31;
+ const p=await create(),old=copy(disk);delete old.appearanceThemes;old.tagNodeStyles['#Project']={fontSize:21};const incoming=copy(old);incoming.tagNodeStyles["#Project"].fontSize=31;
  p.settingsReconciliation.dispose();p.settingsReconciliation=undefined;p.settings=sourceModules.migrateAndMergeSettings(old);p.savedSettingsPolicy=sourceModules.captureSettingsPolicy(p.settings);p.index=undefined;disk=incoming;
  p.onExternalSettingsChange();p.initializeSettingsReconciliation(old);await drain(p);
- check(p.settings.noteTypeStyles.Project.fontSize===31&&p.writes.length===0,'Startup lost a pending receipt or echoed it');
+ check(p.settings.tagNodeStyles["#Project"].fontSize===31&&p.writes.length===0,'Startup lost a pending receipt or echoed it');
  await p.updateStyleSettings(()=>{},p.captureAppearanceOwner(),{initializeThemes:{existing:true}});await p.persistSettingsSnapshot(true);
  check(p.settings.appearanceThemes===undefined&&p.writes.length===0,'Receipt caused theme creation or migration write-back');
  `),true);
@@ -206,40 +206,40 @@ test('an event-style stale scalar save reports refusal without an unhandled reje
 
 test('an imperative live mutation cannot alter the accepted baseline or turn a duplicate receipt into a remote conflict',async()=>{
  assert.equal(await scenario(`
- const p=await create(),legacy=copy(disk);delete legacy.appearanceThemes;legacy.noteTypeStyles.Project.fontSize=31;await receive(p,legacy);
- const owner=p.captureAppearanceOwner();p.settings.noteTypeStyles.Project.fontSize=39;await receive(p,legacy);
- check(p.settings.noteTypeStyles.Project.fontSize===39&&p.isAppearanceOwnerCurrent(owner),'Mutable live style leaked into accepted baseline');check(p.writes.length===0,'Duplicate receipt wrote');
+ const p=await create(),legacy=copy(disk);delete legacy.appearanceThemes;legacy.tagNodeStyles["#Project"].fontSize=31;await receive(p,legacy);
+ const owner=p.captureAppearanceOwner();p.settings.tagNodeStyles["#Project"].fontSize=39;await receive(p,legacy);
+ check(p.settings.tagNodeStyles["#Project"].fontSize===39&&p.isAppearanceOwnerCurrent(owner),'Mutable live style leaked into accepted baseline');check(p.writes.length===0,'Duplicate receipt wrote');
  `),true);
 });
 
 test('a same-ID receipt freezes the actual dirty style editor until discard, while a fresh editor sees the deletion',async()=>{
  assert.equal(await scenario(`
- const p=await create(),tab=new sourceModules.KplexSettingTab({workspace:{on:()=>({}),offref:()=>{}}},p);tab.openNodeStyleEditor('property','Project');
+ const p=await create(),tab=new sourceModules.KplexSettingTab({workspace:{on:()=>({}),offref:()=>{}}},p);tab.openNodeStyleEditor("#Project");
  const modal=sourceModules.TestModal.instances.at(-1),input=modal.contentEl.querySelector('input[aria-label="'+p.translator('styles.fontSize')+'"]');input.value='33';input.dispatchEvent(new Event('input',{bubbles:true}));
- const remote=copy(disk);delete selected(remote).appearance.semantic.noteTypeStyles.Project;await receive(p,remote);
+ const remote=copy(disk);delete selected(remote).appearance.semantic.tagNodeStyles["#Project"];await receive(p,remote);
  check(modal.modalEl.isConnected&&!modal.canEdit()&&input.value==='33','Received deletion discarded or left dirty draft writable');
- const before=p.writes.length;[...modal.contentEl.querySelectorAll('button')].find(button=>button.textContent===p.translator('common.save'))?.click();check(p.writes.length===before&&!p.settings.noteTypeStyles.Project,'Stale native style editor recreated removed rule');modal.close();
- tab.openNodeStyleEditor('property',null);const fresh=sourceModules.TestModal.instances.at(-1);check(fresh.canEdit(),'Fresh editor inherited stale epoch');fresh.close();tab.disposeActionSettings();
+ const before=p.writes.length;[...modal.contentEl.querySelectorAll('button')].find(button=>button.textContent===p.translator('common.save'))?.click();check(p.writes.length===before&&!p.settings.tagNodeStyles["#Project"],'Stale native style editor recreated removed rule');modal.close();
+ tab.openNodeStyleEditor(null);const fresh=sourceModules.TestModal.instances.at(-1);check(fresh.canEdit(),'Fresh editor inherited stale epoch');fresh.close();tab.disposeActionSettings();
  `),true);
 });
 
 test('same-device concurrent style edits merge fields and a received palette deletion stays deleted on later workflow saves',async()=>{
  assert.equal(await scenario(`
- const p=await create(),owner=p.captureAppearanceOwner();await Promise.all([p.updateStyleSettings(d=>{d.noteTypeStyles.Project.fontSize=30},owner),p.updateStyleSettings(d=>{d.noteTypeStyles.Project.strokeWidth=3},owner)]);
- check(p.settings.noteTypeStyles.Project.fontSize===30&&p.settings.noteTypeStyles.Project.strokeWidth===3,'Remote fencing broke local field merging');
- await p.updateStyleSettings(d=>{d.colorPreferences.palette.push({id:'temporary',name:'Temporary',light:'#123456',dark:'#abcdef'});d.noteTypeStyles.Project.textColor={kind:'palette',id:'temporary'}});
- const remote=copy(disk),active=selected(remote);active.appearance.semantic.colorPreferences.palette=[];delete active.appearance.semantic.noteTypeStyles.Project.textColor;remote.colorPreferences.palette=[];delete remote.noteTypeStyles.Project.textColor;
- await receive(p,remote);p.settings.confirmFileDelete=false;await p.saveSettings();check(disk.colorPreferences.palette.length===0&&selected(disk).appearance.semantic.colorPreferences.palette.length===0&&!disk.noteTypeStyles.Project.textColor,'Received palette/style deletion resurrected');
+ const p=await create(),owner=p.captureAppearanceOwner();await Promise.all([p.updateStyleSettings(d=>{d.tagNodeStyles["#Project"].fontSize=30},owner),p.updateStyleSettings(d=>{d.tagNodeStyles["#Project"].strokeWidth=3},owner)]);
+ check(p.settings.tagNodeStyles["#Project"].fontSize===30&&p.settings.tagNodeStyles["#Project"].strokeWidth===3,'Remote fencing broke local field merging');
+ await p.updateStyleSettings(d=>{d.colorPreferences.palette.push({id:'temporary',name:'Temporary',light:'#123456',dark:'#abcdef'});d.tagNodeStyles["#Project"].textColor={kind:'palette',id:'temporary'}});
+ const remote=copy(disk),active=selected(remote);active.appearance.semantic.colorPreferences.palette=[];delete active.appearance.semantic.tagNodeStyles["#Project"].textColor;remote.colorPreferences.palette=[];delete remote.tagNodeStyles["#Project"].textColor;
+ await receive(p,remote);p.settings.confirmFileDelete=false;await p.saveSettings();check(disk.colorPreferences.palette.length===0&&selected(disk).appearance.semantic.colorPreferences.palette.length===0&&!disk.tagNodeStyles["#Project"].textColor,'Received palette/style deletion resurrected');
  `),true);
 });
 
 test('exact read-back confirms a write that committed before rejecting; refresh failure never replays or reverts reception',async()=>{
  assert.equal(await scenario(`
  const p=await create(),store=p.saveData;let first=true;p.saveData=async value=>{await store(value);if(first){first=false;throw Error('Expected post-commit storage rejection')}};
- await p.updateStyleSettings(d=>{d.noteTypeStyles.Project.fontSize=34});check(p.settings.noteTypeStyles.Project.fontSize===34&&p.writes.length===1,'Confirmed durable style was reported unsaved or replayed');
- p.settings.confirmFileDelete=false;await p.saveSettings();check(disk.noteTypeStyles.Project.fontSize===34&&p.writes.length===2,'Next write conflicted with confirmed local read-back');
- const incoming=copy(disk);selected(incoming).appearance.semantic.noteTypeStyles.Project.fontSize=35;const count=p.writes.length;
+ await p.updateStyleSettings(d=>{d.tagNodeStyles["#Project"].fontSize=34});check(p.settings.tagNodeStyles["#Project"].fontSize===34&&p.writes.length===1,'Confirmed durable style was reported unsaved or replayed');
+ p.settings.confirmFileDelete=false;await p.saveSettings();check(disk.tagNodeStyles["#Project"].fontSize===34&&p.writes.length===2,'Next write conflicted with confirmed local read-back');
+ const incoming=copy(disk);selected(incoming).appearance.semantic.tagNodeStyles["#Project"].fontSize=35;const count=p.writes.length;
  p.index.refreshPresentationSettings=async()=>{throw Error('Expected receiving-view refresh failure')};await receive(p,incoming);await new Promise(r=>setTimeout(r,0));
- check(p.settings.noteTypeStyles.Project.fontSize===35&&p.writes.length===count,'Refresh failure rolled back or echoed reception');check(window.notices.includes(p.translator('settingsSync.refreshPending')),'Applied/pending refresh was not explained');
+ check(p.settings.tagNodeStyles["#Project"].fontSize===35&&p.writes.length===count,'Refresh failure rolled back or echoed reception');check(window.notices.includes(p.translator('settingsSync.refreshPending')),'Applied/pending refresh was not explained');
  `),true);
 });

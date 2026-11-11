@@ -7,11 +7,8 @@
 import { buildLocaleCatalog, type LocaleTranslationMap } from "./catalog";
 
 const japaneseTranslations = {
+  "styles.nameConflict": "{name} のスタイルは既に存在します。別のタグを選んでください。",
   "noteType.settings": "ノートタイプを設定",
-  "styles.convertToNoteType": "ノートタイプに変換",
-  "styles.keepTagStyle": "タグスタイルを維持",
-  "styles.convertHelp": "保存すると、タグ接頭辞スタイル {from} をノートタイプスタイル {to} に置き換えます。ノートは変更されません。",
-  "styles.conversionConflict": "{name} のノートタイプスタイルは既に存在します。別の名前を選んでください。",
   "noteType.invalidTag": "person や person/friend など、有効なタグを1つ入力してください。空白は使用できません。",
   "noteType.changed": "ノートまたはタイプが変更されました。ダイアログを開き直してください。",
   "noteType.tag": "ノートタイプのタグ",
@@ -699,7 +696,7 @@ const japaneseTranslations = {
   "styles.editNode": "ノードスタイルを編集",
   "styles.addNode": "ノードスタイルを追加",
   "styles.legacyTagHelp": "主要なスタイルタグがこの接頭辞で始まるノートにスタイルを適用します。最初に一致するタグスタイルが優先されます。",
-  "styles.propertyHelp": "{property} で選んだタグのスタイルです。他のタグの意味や従来のプロパティのみのスタイルは保持されます。",
+  "styles.propertyHelp": "このタグまたは一致するタグ接頭辞を持つノートに適用します。{property} で選択したタグのスタイルが優先されます。既定のプロパティと表示フィールドは、その選択したノートタイプに適用されます。",
   "styles.typeHelp": "ノートタイプまたは従来のタグ接頭辞スタイルを選びます。",
   "styles.labelPrefixHelp": "表示されるノードタイトルの前に付けるテキスト。",
   "styles.lucideHelp": "ノードタイトルの横に表示するアイコン名。例: book-open。",
@@ -714,7 +711,7 @@ const japaneseTranslations = {
   "styles.labelPrefix": "ラベル接頭辞",
   "styles.legacyTag": "タグスタイル",
   "styles.propertyValue": "ノートタイプ",
-  "styles.managerHelp": "{property} で選んだノートタイプのタグのスタイルと任意の詳細を管理します。従来のタグ接頭辞スタイルは別に保持されます。",
+  "styles.managerHelp": "タグのスタイルと任意のノートタイププロパティを管理します。{property} で選択したタグのスタイルが優先されます。",
   "styles.resultCount": "{count} 件のスタイル · {results} 件の結果",
   "styles.noMatches": "この検索に一致するノードスタイルはありません。",
   "styles.noneConfigured": "カスタムノードスタイルはまだ設定されていません。",

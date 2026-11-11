@@ -501,7 +501,7 @@ for (const file of [
   "src/core/graph/settings.ts",
   "src/core/graph/settingsPolicy.ts",
   "src/core/contracts/appearance.ts",
-  "src/core/contracts/colorValue.ts",
+  "src/core/contracts/colorValue.ts", "src/core/contracts/tagStyle.ts",
   "src/core/contracts/centerRecovery.ts",
   "src/core/plex/colorPreferences.ts",
   "src/core/plex/compassBackground.ts",
@@ -2919,19 +2919,19 @@ try {
   // A custom style selected by the Style property is an explicit user choice. It must remain
   // visible on the central note instead of being masked by the generic central-node appearance.
   const originalCentralStyle = settings.centralNodeStyle;
-  const originalNoteTypeStyles = settings.noteTypeStyles;
+  const originalNoteTypeStyles = settings.tagNodeStyles;
   const originalCenterNoteType = A.noteType;
   A.noteType = "testStyle";
   settings.centralNodeStyle = { backgroundColor: "#aaaaaaff", textColor: "#000000ff", fontSize: 30 };
-  settings.noteTypeStyles = { testStyle: { backgroundColor: "#ff00ffff", textColor: "#ffffffff" } };
+  settings.tagNodeStyles = { testStyle: { backgroundColor: "#ff00ffff", textColor: "#ffffffff" } };
   const styledCenter = resolveNodeStyle(A, null, "center", settings);
   assert.equal(styledCenter.backgroundColor, "#ff00ffff", "Property-value styles must override the generic central background");
   assert.equal(styledCenter.textColor, "#ffffffff", "Property-value styles must override the generic central text color");
   assert.equal(styledCenter.fontSize, 30, "Unspecified properties still inherit the central style");
-  settings.noteTypeStyles = { "#testStyle": { borderColor: "#123456ff" } };
+  settings.tagNodeStyles = { "#testStyle": { borderColor: "#123456ff" } };
   assert.equal(resolveNodeStyle(A, null, "center", settings).borderColor, "#123456ff", "Legacy/hash-prefixed style keys must normalize to the same logical value");
   settings.centralNodeStyle = originalCentralStyle;
-  settings.noteTypeStyles = originalNoteTypeStyles;
+  settings.tagNodeStyles = originalNoteTypeStyles;
   A.noteType = originalCenterNoteType;
 
   // Issues #7/#8: every semantic relationship between visible non-central notes is rendered as
@@ -2948,9 +2948,9 @@ try {
     device: "desktop", keyConvention: "macos", inputModes: { keyboard: true, pointer: true, touch: false },
     hostActions: { graphTab: true, sidepanel: true, popout: true },
   });
-  assert.equal(Object.hasOwn(preparedFacade, "noteTypeStyles"), false);
+  assert.equal(Object.hasOwn(preparedFacade, "tagNodeStyles"), false);
   const liveAreaSettings = withAreaHeightOverrides(preparedFacade, { parentMaxHeight: 440 });
-  assert.equal(liveAreaSettings.noteTypeStyles, preparedFacade.noteTypeStyles);
+  assert.equal(liveAreaSettings.tagNodeStyles, preparedFacade.tagNodeStyles);
   assert.equal(liveAreaSettings.hierarchyLinkStyles, preparedFacade.hierarchyLinkStyles);
   assert.equal(liveAreaSettings.parentMaxHeight, 440);
   assert.equal(preparedFacade.parentMaxHeight, settings.parentMaxHeight, "Resize must not mutate prepared settings");

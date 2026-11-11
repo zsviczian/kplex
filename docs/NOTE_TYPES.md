@@ -38,7 +38,9 @@ Open **Node styles** on the same Settings page, then edit or add the style for a
 
 For a direct shortcut, open **Set note type**, choose a valid type and click the **Configure note type** settings icon. It opens that selected type's properties and appearance without saving the note-type draft. Close the settings editor to return to that draft.
 
-Imported **Tag** styles match a primary tag prefix and have no note-type property list. In **Edit node style**, use **Convert to note type** beside **Style type** to preview conversion. **Node details** appears in the same dialog. Save moves the appearance to the selected note type and removes the old prefix entry; Cancel or **Keep tag style** preserves the original. An existing destination style is never overwritten. Conversion does not assign note types or change notes: the converted appearance applies to notes that already select that type.
+Each tag has one style, shown with its `#` prefix. Ordinary tags use it through the existing primary-tag and prefix-matching rules; selecting the tag as the note type gives that same style priority. Its matching prefix rule supplies inherited appearance, and explicit attributes in its exact style take precedence. Property lists still belong to the exact selected type. **Label prefix** and **Node details** are available in the same editor. Property defaults and displayed fields apply only when that tag is the selected note type.
+
+Existing tag and note-type styles migrate automatically, including saved themes. Where both define an attribute, the explicit note-type value wins; tag attributes fill the gaps. Prefixes, unknown style attributes and matching priority are retained. The old duplicate definitions are removed, and no notes are changed. A merged value also applies to ordinary tag use?for example, a former blue note-type background replaces a conflicting yellow tag background.
 
 For the example above, show `nickname` and `company`, or keep an ID filename such as `ER12345.md` and show its `title` property underneath. The main node label stays unchanged. Compass, Mind Map and Facets measure the extra lines before placing nodes and their gates.
 

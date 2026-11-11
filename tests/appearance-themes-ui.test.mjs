@@ -9,12 +9,12 @@ test("saved styles refresh their count on a connected native subpage after the t
   const tab=new sourceModules.KplexSettingTab({workspace:{on:()=>({}),offref:()=>{}}},p);
   tab.containerEl.remove();const page=document.body.createDiv({cls:'setting-page-content'});let refreshed=0,managerRefresh=0;
   tab.update=()=>refreshed++;
-  await tab.commitStyleChange(d=>{d.noteTypeStyles.Book={icon:'book-open'}},()=>true,p.captureAppearanceOwner(),()=>managerRefresh++);
+  await tab.commitStyleChange(d=>{d.tagNodeStyles["#Book"]={icon:'book-open'}},()=>true,p.captureAppearanceOwner(),()=>managerRefresh++);
   if(refreshed!==1||managerRefresh!==1)throw Error('Saved style did not refresh the still-visible native page and its manager');
   const all=[],walk=items=>{for(const row of items){all.push(row);walk(row.items??[])}};walk(tab.getSettingDefinitions());
   const summary=all.find(row=>row.name===p.translator('styles.nodeTitle'));
   if(summary.desc!==p.translator('styles.settingsSummary',{count:1}))throw Error('Summary did not read the saved style inventory');
-  page.remove();await tab.commitStyleChange(d=>{d.noteTypeStyles.Movie={icon:'clapperboard'}},()=>true,p.captureAppearanceOwner());
+  page.remove();await tab.commitStyleChange(d=>{d.tagNodeStyles["#Movie"]={icon:'clapperboard'}},()=>true,p.captureAppearanceOwner());
   if(refreshed!==1)throw Error('A retired Settings page refreshed');tab.disposeActionSettings();return true;
  })()`),true);
 });
@@ -29,7 +29,7 @@ test("0.2.0 upgrade persists appearance, selection and marker together; failure 
   if(!failed||JSON.stringify(p.settings)!==JSON.stringify(before))throw Error('Failed migration published appearance or completion');
   p.saveData=store;const notices=window.notices.length,dialogs=sourceModules.TestModal.instances.length;await upgrade();
   const library=p.settings.appearanceThemes,stored=p.writes.at(-1);
-  if(library.selectedId!=='native-base'||library.nativeBaseMigration!==1||stored.appearanceThemes.selectedId!==library.selectedId||stored.standardStyleDefaults!=='native'||p.settings.noteTypeStyles.Project.fontSize!==25)throw Error('Migration not atomic or semantics lost');
+  if(library.selectedId!=='native-base'||library.nativeBaseMigration!==1||stored.appearanceThemes.selectedId!==library.selectedId||stored.standardStyleDefaults!=='native'||p.settings.tagNodeStyles["#Project"].fontSize!==25)throw Error('Migration not atomic or semantics lost');
   if(JSON.stringify(library.themes)!==JSON.stringify(backup))throw Error('Original themes overwritten');
   const notification=sourceModules.TestModal.instances.at(-1);
   if(sourceModules.TestModal.instances.length!==dialogs+1||!notification.modalEl.isConnected||!notification.modalEl.classList.contains('kplex-notification-modal')||notification.titleEl.textContent!==p.translator('themes.nativeBaseTitle')||!notification.contentEl.textContent.includes(p.translator('themes.nativeBaseAdopted'))||window.notices.length!==notices)throw Error('Missing native migration modal or competing brief popup');
@@ -46,7 +46,7 @@ test("0.2.0 upgrade persists appearance, selection and marker together; failure 
   await imported.updateStyleSettings(()=>{},imported.captureAppearanceOwner(),{initializeThemes:{existing:true,notifyMigration:false}});
   if(imported.settings.appearanceThemes.migrationNotice||window.notices.length!==noticeCount)throw Error('First-run import displayed the earlier migration message');
   await imported.updateStyleSettings(()=>{},imported.captureAppearanceOwner(),{initializeThemes:{existing:true,adoptNativeBase:true,notifyMigration:false}});
-  if(imported.settings.appearanceThemes.migrationNotice||window.notices.length!==noticeCount||imported.settings.noteTypeStyles.Project.fontSize!==27)throw Error('First-run import lost appearance or displayed an upgrade notice');
+  if(imported.settings.appearanceThemes.migrationNotice||window.notices.length!==noticeCount||imported.settings.tagNodeStyles["#Project"].fontSize!==27)throw Error('First-run import lost appearance or displayed an upgrade notice');
   const future=await createAppearanceHost({appearanceThemes:{version:999,opaque:['keep']}}),raw=JSON.stringify(future.settings.appearanceThemesFuture);
   await future.updateStyleSettings(()=>{},future.captureAppearanceOwner(),{initializeThemes:{existing:true,adoptNativeBase:true}});
   if(JSON.stringify(future.settings.appearanceThemesFuture)!==raw||future.settings.appearanceThemes)throw Error('Future data migrated lossily');
@@ -78,18 +78,18 @@ test("node-style dimensions inherit, clear, merge concurrently, preserve legacy 
  assert.equal(await scenario(`(async()=>{
   const p=await createAppearanceHost({baseNodeStyle:{strokeWidth:2,gateRadius:6},noteTypeStyles:{Project:{borderColor:{kind:'theme',variable:'--text-normal'},icon:'star',strokeWidth:1.25,gateRadius:12}}}),t=p.translator;
   const tab=new sourceModules.KplexSettingTab({workspace:{on:()=>({}),offref:()=>{}}},p);
-  const open=()=>{tab.openNodeStyleEditor('property','Project');return sourceModules.TestModal.instances.at(-1)};
+  const open=()=>{tab.openNodeStyleEditor("#Project");return sourceModules.TestModal.instances.at(-1)};
   const save=modal=>[...modal.contentEl.querySelectorAll('button')].find(el=>el.textContent===t('common.save')).click();
   const field=(modal,key)=>modal.contentEl.querySelector('input[aria-label="'+t(key)+'"]');
-  let modal=open(),before=p.writes.length;save(modal);await waitFor(()=>!modal.modalEl.isConnected);if(p.writes.length!==before||p.settings.noteTypeStyles.Project.strokeWidth!==1.25||p.settings.noteTypeStyles.Project.gateRadius!==12)throw Error('Unchanged legacy dimensions normalized');
+  let modal=open(),before=p.writes.length;save(modal);await waitFor(()=>!modal.modalEl.isConnected);if(p.writes.length!==before||p.settings.tagNodeStyles["#Project"].strokeWidth!==1.25||p.settings.tagNodeStyles["#Project"].gateRadius!==12)throw Error('Unchanged legacy dimensions normalized');
   modal=open();if(field(modal,'filter.borderWidth').type!=='range'||field(modal,'settings.ui.gate.radius').type!=='range'||!field(modal,'filter.borderWidth').parentElement.querySelector('output'))throw Error('Native slider or visible dimension value absent');
-  input(field(modal,'filter.borderWidth'),'0');input(field(modal,'settings.ui.gate.radius'),'8');await p.updateStyleSettings(d=>{d.noteTypeStyles.Project.fontSize=29});save(modal);await waitFor(()=>!modal.modalEl.isConnected);
-  const style=p.settings.noteTypeStyles.Project;if(style.strokeWidth!==0||style.gateRadius!==8||style.fontSize!==29||style.icon!=='star'||style.borderColor.variable!=='--text-normal')throw Error('Dimension save lost zero or concurrent fields');
-  const restarted=sourceModules.migrateAndMergeSettings(p.writes.at(-1));if(restarted.noteTypeStyles.Project.strokeWidth!==0||restarted.noteTypeStyles.Project.gateRadius!==8)throw Error('Dimensions lost on restart');
+  input(field(modal,'filter.borderWidth'),'0');input(field(modal,'settings.ui.gate.radius'),'8');await p.updateStyleSettings(d=>{d.tagNodeStyles["#Project"].fontSize=29});save(modal);await waitFor(()=>!modal.modalEl.isConnected);
+  const style=p.settings.tagNodeStyles["#Project"];if(style.strokeWidth!==0||style.gateRadius!==8||style.fontSize!==29||style.icon!=='star'||style.borderColor.variable!=='--text-normal')throw Error('Dimension save lost zero or concurrent fields');
+  const restarted=sourceModules.migrateAndMergeSettings(p.writes.at(-1));if(restarted.tagNodeStyles["#Project"].strokeWidth!==0||restarted.tagNodeStyles["#Project"].gateRadius!==8)throw Error('Dimensions lost on restart');
   const inherit=(modal,key)=>field(modal,key).parentElement.querySelector('button[aria-label="'+t('styles.inheritDimension',{name:t(key)})+'"]').click();
-  modal=open();inherit(modal,'filter.borderWidth');inherit(modal,'settings.ui.gate.radius');const store=p.saveData;p.saveData=async()=>{throw Error('Expected dimension disk failure')};save(modal);await waitFor(()=>modal.modalEl.getAttribute('aria-busy')==='false');if(!modal.modalEl.isConnected||p.settings.noteTypeStyles.Project.gateRadius!==8||!field(modal,'filter.borderWidth').parentElement.querySelector('output').textContent.includes(t('colors.inherit')))throw Error('Failed write lost durable state/draft');p.saveData=store;save(modal);await waitFor(()=>!modal.modalEl.isConnected);
-  if('strokeWidth' in p.settings.noteTypeStyles.Project||'gateRadius' in p.settings.noteTypeStyles.Project)throw Error('Empty dimensions did not restore inheritance');
-  modal=open();input(field(modal,'filter.borderWidth'),'9');if(field(modal,'filter.borderWidth').value!=='8')throw Error('Native range failed to constrain the maximum');save(modal);await waitFor(()=>!modal.modalEl.isConnected);if(p.settings.noteTypeStyles.Project.strokeWidth!==8)throw Error('Bounded slider value lost');tab.disposeActionSettings();return true;
+  modal=open();inherit(modal,'filter.borderWidth');inherit(modal,'settings.ui.gate.radius');const store=p.saveData;p.saveData=async()=>{throw Error('Expected dimension disk failure')};save(modal);await waitFor(()=>modal.modalEl.getAttribute('aria-busy')==='false');if(!modal.modalEl.isConnected||p.settings.tagNodeStyles["#Project"].gateRadius!==8||!field(modal,'filter.borderWidth').parentElement.querySelector('output').textContent.includes(t('colors.inherit')))throw Error('Failed write lost durable state/draft');p.saveData=store;save(modal);await waitFor(()=>!modal.modalEl.isConnected);
+  if('strokeWidth' in p.settings.tagNodeStyles["#Project"]||'gateRadius' in p.settings.tagNodeStyles["#Project"])throw Error('Empty dimensions did not restore inheritance');
+  modal=open();input(field(modal,'filter.borderWidth'),'9');if(field(modal,'filter.borderWidth').value!=='8')throw Error('Native range failed to constrain the maximum');save(modal);await waitFor(()=>!modal.modalEl.isConnected);if(p.settings.tagNodeStyles["#Project"].strokeWidth!==8)throw Error('Bounded slider value lost');tab.disposeActionSettings();return true;
  })()`),true);
 });
 
@@ -107,13 +107,13 @@ test("an open native color chooser cannot complete into a theme draft after A to
 test("unsupported future theme libraries expose existing appearance editors read-only and survive unrelated persistence", async () => {
  assert.equal(await scenario(`(async()=>{
   const future={version:999,themes:[{opaque:{keep:['future',42]}}]},p=await createAppearanceHost({appearanceThemes:future,noteTypeStyles:{Project:{fontSize:25,textColor:'#12345680'}}}),t=p.translator;
-  const tab=new sourceModules.KplexSettingTab({workspace:{on:()=>({}),offref:()=>{}}},p),before=p.writes.length;tab.openNodeStyleEditor('property','Project');
+  const tab=new sourceModules.KplexSettingTab({workspace:{on:()=>({}),offref:()=>{}}},p),before=p.writes.length;tab.openNodeStyleEditor("#Project");
   const modal=sourceModules.TestModal.instances.at(-1);await new Promise(r=>setTimeout(r,0));
   if(!modal.contentEl.textContent.includes(t('themes.unavailable'))||modal.canEdit())throw Error('Future library editable or unexplained');
   const controls=[...modal.contentEl.querySelectorAll('input,select,button')],close=controls.find(x=>x.textContent===t('styles.operation.close'));
   if(!close||close.disabled||controls.some(x=>x!==close&&!x.disabled)||p.writes.length!==before)throw Error('Read-only controls or opening write wrong');
   modal.runOperation(async()=>{throw Error('Future operation submitted')});if(p.writes.length!==before)throw Error('Future editor wrote');close.click();
-  p.settings.showFullTagNames=true;await p.persistSettingsSnapshot();if(JSON.stringify(p.writes.at(-1).appearanceThemes)!==JSON.stringify(future)||p.writes.at(-1).appearanceThemesFuture!==undefined||p.settings.noteTypeStyles.Project.fontSize!==25)throw Error('Future payload overwritten by workflow save');
+  p.settings.showFullTagNames=true;await p.persistSettingsSnapshot();if(JSON.stringify(p.writes.at(-1).appearanceThemes)!==JSON.stringify(future)||p.writes.at(-1).appearanceThemesFuture!==undefined||p.settings.tagNodeStyles["#Project"].fontSize!==25)throw Error('Future payload overwritten by workflow save');
   tab.disposeActionSettings();if(p.appearanceThemeListeners.size||window.migrationListeners)throw Error('Read-only editor leaked');return true;
  })()`),true);
 });
@@ -153,7 +153,7 @@ test("theme manager rows never activate; factory is immutable and create/cancel/
   button(manager,'themes.create').click();editor=latest();const name=editor.contentEl.querySelector('input');input(name,'User theme');if(!button(editor,'themes.create').disabled||name.getAttribute('aria-invalid')!=='true')throw Error('Duplicate name accepted');
   input(name,'Fresh copy');input(editor.contentEl.querySelector('select'),'defaults','change');const snapshot=structuredClone(p.settings),store=p.saveData;p.saveData=async()=>{throw Error('Expected create storage fault')};
   button(editor,'themes.create').click();await waitFor(()=>editor.modalEl.getAttribute('aria-busy')==='false');if(JSON.stringify(p.settings)!==JSON.stringify(snapshot)||!editor.modalEl.isConnected||name.value!=='Fresh copy')throw Error('Failed create changed state/draft');
-  p.saveData=store;button(editor,'themes.create').click();await waitFor(()=>!editor.modalEl.isConnected);if(manager.modalEl.isConnected||p.settings.appearanceThemes.themes.length!==4||p.settings.appearanceThemes.selectedId==='user'||Object.keys(p.settings.noteTypeStyles).length||p.settings.backgroundColor!==undefined)throw Error('Factory create was not atomic/independent');
+  p.saveData=store;button(editor,'themes.create').click();await waitFor(()=>!editor.modalEl.isConnected);if(manager.modalEl.isConnected||p.settings.appearanceThemes.themes.length!==4||p.settings.appearanceThemes.selectedId==='user'||Object.keys(p.settings.tagNodeStyles).length||p.settings.backgroundColor!==undefined)throw Error('Factory create was not atomic/independent');
   const selected=p.settings.appearanceThemes.selectedId;await p.updateStyleSettings(d=>{d.baseNodeStyle.textColor='#222222'});if(p.settings.appearanceThemes.themes.find(x=>x.id==='user').appearance.base.baseNodeStyle.textColor==='#222222'||p.settings.appearanceThemes.selectedId!==selected)throw Error('Created copy shared mutable state');
   tab.disposeActionSettings();await new Promise(r=>setTimeout(r,20));if(p.appearanceThemeListeners.size||document.querySelector('iframe[sandbox]'))throw Error('Manager/editor leaked preview/owner');return true;
  })()`),true);
@@ -183,7 +183,7 @@ test("scoped reset previews never write, preserve named entries and non-color ru
   tab.openThemeColorReset('base');let modal=latest();const before=p.writes.length;if(modal.contentEl.querySelector('select').value!=='base'||!modal.contentEl.textContent.includes(t('themes.baseWarning')))throw Error('Base default/warning missing');
   for(const scope of ['semantic','all','base'])input(modal.contentEl.querySelector('select'),scope,'change');if(p.writes.length!==before)throw Error('Scope preview wrote');button(modal,'common.cancel').click();
   tab.openThemeColorReset('semantic');modal=latest();if(!modal.contentEl.textContent.includes('Project')||!modal.contentEl.textContent.includes('Global')||modal.contentEl.textContent.includes(t('themes.baseWarning')))throw Error('Semantic scope unclear');
-  button(modal,'themes.reset').click();await waitFor(()=>!modal.modalEl.isConnected);if(!p.settings.backgroundColor||p.settings.baseNodeStyle.textColor.variable!=='--kplex-semantic-origin'||p.settings.colorPreferences.palette.length!==1||p.settings.noteTypeStyles.Project.icon!=='star'||p.settings.noteTypeStyles.Project.textColor!==undefined||Object.keys(p.settings.colorPreferences.compass.fills).length||!p.settings.colorPreferences.compass.enabled||p.settings.colorPreferences.compass.intensity!==11||p.settings.graphLenses[0].style.node.strokeWidth!==3||p.settings.graphLenses[0].enabled)throw Error('Semantic reset crossed scope');
+  button(modal,'themes.reset').click();await waitFor(()=>!modal.modalEl.isConnected);if(!p.settings.backgroundColor||p.settings.baseNodeStyle.textColor.variable!=='--kplex-semantic-origin'||p.settings.colorPreferences.palette.length!==1||p.settings.tagNodeStyles["#Project"].icon!=='star'||p.settings.tagNodeStyles["#Project"].textColor!==undefined||Object.keys(p.settings.colorPreferences.compass.fills).length||!p.settings.colorPreferences.compass.enabled||p.settings.colorPreferences.compass.intensity!==11||p.settings.graphLenses[0].style.node.strokeWidth!==3||p.settings.graphLenses[0].enabled)throw Error('Semantic reset crossed scope');
   tab.openThemeColorReset('base');modal=latest();await p.updateStyleSettings(d=>{d.baseNodeStyle.borderColor='#abcdef'});const count=p.writes.length;button(modal,'themes.reset').click();await waitFor(()=>modal.modalEl.getAttribute('aria-busy')==='false');if(!modal.modalEl.isConnected||p.writes.length!==count||p.settings.baseNodeStyle.borderColor!=='#abcdef')throw Error('Unreviewed source reset');button(modal,'common.cancel').click();
   tab.openColorAdoption();modal=latest();if(modal.contentEl.querySelector('select'))throw Error('Base shortcut became competing scope editor');button(modal,'colors.adoptConfirm').click();await waitFor(()=>!modal.modalEl.isConnected);if(p.settings.backgroundColor!==undefined||p.settings.baseNodeStyle.textColor!==undefined||p.settings.colorPreferences.palette.length!==1||p.settings.baseNodeStyle.fontSize!==25)throw Error('Base shortcut reset scope wrong');
   tab.disposeActionSettings();return true;
@@ -245,7 +245,7 @@ test("named-color deletion remaps only the active theme across base, semantic, C
   tab.openColorPalette();const palette=sourceModules.TestModal.instances.at(-1);palette.deletePair(p.settings.colorPreferences.palette[0]);const modal=sourceModules.TestModal.instances.at(-1);
   const select=modal.contentEl.querySelector('select');input(select,'named','change');modal.contentEl.querySelector('.kplex-color-source-editor button').click();const chooser=sourceModules.TestModal.instances.at(-1);chooser.selectSuggestion(chooser.getSuggestions('').find(item=>item.value.id===p.settings.colorPreferences.palette[1].id),new MouseEvent('click'));
   [...modal.contentEl.querySelectorAll('button')].find(x=>x.textContent===t('common.delete')).click();await waitFor(()=>!modal.modalEl.isConnected);
-  if(p.settings.backgroundColor.id!=='replacement'||p.settings.baseNodeStyle.textColor.id!=='replacement'||p.settings.noteTypeStyles.Project.textColor.id!=='replacement'||p.settings.colorPreferences.semantic.origin.id!=='replacement'||p.settings.colorPreferences.compass.fills.north.id!=='replacement'||p.settings.graphLenses[0].style.node.textColor.id!=='replacement'||p.settings.colorPreferences.palette.some(x=>x.id==='shared'))throw Error('Active consumers/palette not atomically replaced');
+  if(p.settings.backgroundColor.id!=='replacement'||p.settings.baseNodeStyle.textColor.id!=='replacement'||p.settings.tagNodeStyles["#Project"].textColor.id!=='replacement'||p.settings.colorPreferences.semantic.origin.id!=='replacement'||p.settings.colorPreferences.compass.fills.north.id!=='replacement'||p.settings.graphLenses[0].style.node.textColor.id!=='replacement'||p.settings.colorPreferences.palette.some(x=>x.id==='shared'))throw Error('Active consumers/palette not atomically replaced');
   if(JSON.stringify(p.settings.appearanceThemes.themes.find(x=>x.id==='user'))!==JSON.stringify(inactive))throw Error('Inactive palette changed');
   const active=p.settings.appearanceThemes.themes.find(x=>x.id===p.settings.appearanceThemes.selectedId);if(active.appearance.base.backgroundColor.id!=='replacement'||active.appearance.semantic.colorPreferences.palette.length!==1)throw Error('Selected saved projection not synchronized');
   palette.retire();await p.updateAppearanceThemes({kind:'select',id:'user'});if(p.settings.backgroundColor.id!=='shared'||p.settings.colorPreferences.palette.length!==2||p.settings.graphLenses[0].style.node.textColor.id!=='shared'||p.settings.graphLenses[0].style.node.strokeWidth!==3||p.settings.graphLenses[0].enabled)throw Error('Theme-local palette/lens identity lost');tab.disposeActionSettings();return true;
@@ -286,15 +286,15 @@ test("durable style Save releases its modal while one optional refresh is held a
   const p=await createAppearanceHost({noteTypeStyles:{Project:{strokeWidth:1}}}),t=p.translator;
   const tab=new sourceModules.KplexSettingTab({workspace:{on:()=>({}),offref:()=>{}}},p);let release,refreshes=0;
   const refresh=p.index.refreshPresentationSettings;p.index.refreshPresentationSettings=async()=>{refreshes++;await new Promise(resolve=>release=resolve);await refresh()};
-  tab.openNodeStyleEditor('property','Project');const modal=sourceModules.TestModal.instances.at(-1);
+  tab.openNodeStyleEditor("#Project");const modal=sourceModules.TestModal.instances.at(-1);
   input(modal.contentEl.querySelector('input[aria-label="'+t('filter.borderWidth')+'"]'),'2');
   [...modal.contentEl.querySelectorAll('button')].find(el=>el.textContent===t('common.save')).click();
-  await waitFor(()=>p.settings.noteTypeStyles.Project.strokeWidth===2);await new Promise(r=>setTimeout(r,300));
+  await waitFor(()=>p.settings.tagNodeStyles["#Project"].strokeWidth===2);await new Promise(r=>setTimeout(r,300));
   if(modal.modalEl.isConnected)throw Error('Durable editor remains trapped by optional refresh');
-  const writes=p.writes.length;for(let n=0;n<12;n++)await p.updateStyleSettings(d=>{d.noteTypeStyles.Project.strokeWidth=3+n});
+  const writes=p.writes.length;for(let n=0;n<12;n++)await p.updateStyleSettings(d=>{d.tagNodeStyles["#Project"].strokeWidth=3+n});
   if(p.writes.length!==writes+12||refreshes!==1)throw Error('Held optional work blocked writes or accumulated refresh tasks');
   const end=refreshes;release();p.index.refreshPresentationSettings=refresh;await new Promise(r=>setTimeout(r,30));
-  if(p.settings.noteTypeStyles.Project.strokeWidth!==14||refreshes!==end)throw Error('Late refresh changed durable state');return true;
+  if(p.settings.tagNodeStyles["#Project"].strokeWidth!==14||refreshes!==end)throw Error('Late refresh changed durable state');return true;
  })()`),true);
 });
 

@@ -2,6 +2,7 @@
  * Resolves K-Plex node/connector appearance without mutating graph semantics or saved settings.
  * Imported style dictionaries retain their original keys and alpha channels at this presentation seam.
  */
+import {matchesStyleTag, tagStyleKey} from "../core/contracts/tagStyle";
 import type { KplexSettings } from "../settings";
 import type { GraphPage, LinkStyle, Neighbour, NodeStyle, PositionedNode, Role } from "../types";
 import { RelationType } from "../types";
@@ -17,32 +18,32 @@ export const alphaHexToCss = (color?: ColorValue, fallback = "transparent"): str
 
 
 /** Resolve imported tag-style precedence without changing the stored dictionary spelling/order. */
-function tagStyle(page: GraphPage, settings: KplexSettings): NodeStyle {
+function tagStyle(page: GraphPage, settings: KplexSettings, selected: NodeStyle): NodeStyle {
   if (!page.primaryStyleTag) return {};
-  const key = settings.tagStyleList.find((tag) => page.primaryStyleTag?.startsWith(tag));
+  const key = settings.tagStyleList.find((tag) => matchesStyleTag(page.primaryStyleTag!, tag));
   if (!key) return {};
   const primary = settings.tagNodeStyles[key] ?? {};
   if (!settings.displayAllStylePrefixes) return primary;
   const prefixes = new Set<string>();
   if (primary.prefix) prefixes.add(primary.prefix);
   for (const tag of page.styleTags) {
-    const match = settings.tagStyleList.find((candidate) => tag.startsWith(candidate));
+    const match = settings.tagStyleList.find((candidate) => matchesStyleTag(tag, candidate));
     const prefix = match ? settings.tagNodeStyles[match]?.prefix : undefined;
     if (prefix) prefixes.add(prefix);
   }
+  if (selected.prefix) prefixes.add(selected.prefix);
   return prefixes.size ? { ...primary, prefix: [...prefixes].join("") } : primary;
 }
 
-/** Resolve the explicit K-Plex property-value style for the already-indexed node facets. */
+/** Read the selected tag directly, then its case-equivalent or existing prefix rule. */
 function noteTypeStyle(page: GraphPage, settings: KplexSettings): NodeStyle {
   if (!page.noteType) return {};
-  const normalizedPageType = page.noteType.trim().replace(/^#/, "");
-  const direct = settings.noteTypeStyles[normalizedPageType] ?? settings.noteTypeStyles[page.noteType];
-  if (direct) return direct;
-  const key = Object.keys(settings.noteTypeStyles).find((name) =>
-    name.trim().replace(/^#/, "").toLowerCase() === normalizedPageType.toLowerCase()
-  );
-  return key ? settings.noteTypeStyles[key] ?? {} : {};
+  const name = tagStyleKey(page.noteType);
+  const key = Object.prototype.hasOwnProperty.call(settings.tagNodeStyles, name) ? name
+    : Object.keys(settings.tagNodeStyles).find(key => key.toLowerCase() === name.toLowerCase());
+  const prefix = settings.tagStyleList.find(prefix => matchesStyleTag(name, prefix));
+  if (!key || key === prefix) return settings.tagNodeStyles[key ?? prefix ?? ""] ?? {};
+  return {...(prefix ? settings.tagNodeStyles[prefix] : {}), ...settings.tagNodeStyles[key]};
 }
 
 /** Layer defaults, semantic kind, role and explicit property/tag overrides for one rendered node. */
@@ -55,6 +56,7 @@ export function resolveNodeStyle(page: GraphPage, relation: Neighbour | null, ro
   if (page.isTag) {
     return { ...settings.baseNodeStyle, ...central, ...sibling, ...settings.tagNodeStyle };
   }
+  const selected = noteTypeStyle(page, settings), tags = tagStyle(page, settings, selected);
   return {
     ...settings.baseNodeStyle,
     ...(relation?.relationType === RelationType.INFERRED ? settings.inferredNodeStyle : {}),
@@ -67,8 +69,9 @@ export function resolveNodeStyle(page: GraphPage, relation: Neighbour | null, ro
     // generic role treatment. This is especially important for the central node: previously the
     // central background/text colors masked a perfectly valid Note type style, making the editor
     // appear broken even though the index had parsed the property correctly.
-    ...tagStyle(page, settings),
-    ...noteTypeStyle(page, settings),
+    ...tags,
+    ...selected,
+    ...(settings.displayAllStylePrefixes && tags.prefix ? {prefix: tags.prefix} : {}),
     embedHeight: settings.centerEmbedHeight,
     embedWidth: settings.centerEmbedWidth
   };

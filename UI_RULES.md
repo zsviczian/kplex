@@ -135,8 +135,9 @@ Obsidian APIs in portable components.
   `formOptionGroup`, color and dimension controls. Do not recreate these rows as
   label/input grids or add editor-specific skins to compensate for a missing
   native stylesheet in a test fixture. Type-property configuration must be
-  reachable from Set note type; tag-prefix conversion is an explicit, reversible
-  choice in Edit node style, with its effect visible before Save.
+  reachable from Set note type. Edit node style exposes one tag definition, its
+  label prefix and optional note-type properties together. Do not introduce separate
+  tag/type style families, conversion actions or hidden contextual overrides.
 
 ## Required review evidence
 

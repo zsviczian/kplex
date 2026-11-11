@@ -499,7 +499,8 @@ export default class KplexPlugin extends Plugin {
     if (initializedChanged) {
       this.settings.kplexInitialized = true;
     }
-    if (hasOwnData && (initializedChanged || actionMigration.migrated)) {
+    if (hasOwnData && (initializedChanged || actionMigration.migrated || Object.prototype.hasOwnProperty.call(ownRecord, "noteTypeStyles")
+      || (ownRecord?.appearanceThemes as {version?: unknown} | undefined)?.version === 1 && this.settings.appearanceThemes?.version === 2)) {
       try {await this.persistSettingsSnapshot(true);} catch {this.reportExternalSettingsFailure();}
     }
 

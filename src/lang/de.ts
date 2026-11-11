@@ -7,11 +7,8 @@
 import { buildLocaleCatalog, type LocaleTranslationMap } from "./catalog";
 
 const germanTranslations = {
+  "styles.nameConflict": "Ein Stil für {name} existiert bereits. Wähle einen anderen Tag.",
   "noteType.settings": "Notiztyp konfigurieren",
-  "styles.convertToNoteType": "In Notiztyp umwandeln",
-  "styles.keepTagStyle": "Tag-Stil beibehalten",
-  "styles.convertHelp": "Beim Speichern wird der Tag-Präfix-Stil {from} durch den Notiztyp-Stil {to} ersetzt. Notizen werden nicht geändert.",
-  "styles.conversionConflict": "Ein Notiztyp-Stil für {name} ist bereits vorhanden. Wähle einen anderen Namen.",
   "noteType.invalidTag": "Ein gültiges Tag eingeben, etwa person oder person/friend. Leerzeichen sind nicht erlaubt.",
   "noteType.changed": "Diese Notiz oder ihr Typ wurde geändert. Dialog erneut öffnen.",
   "noteType.tag": "Notiztyp-Tag",
@@ -699,7 +696,7 @@ const germanTranslations = {
   "styles.editNode": "Knotenstil bearbeiten",
   "styles.addNode": "Knotenstil hinzufügen",
   "styles.legacyTagHelp": "Formatiert Notizen, deren primäres Stil-Tag mit diesem Präfix beginnt. Der erste passende Tag-Stil hat Vorrang.",
-  "styles.propertyHelp": "Das durch {property} ausgewählte Tag gestalten. Andere Tags behalten ihre Bedeutung; alte Eigenschaftsstile bleiben lesbar.",
+  "styles.propertyHelp": "Gestalte Notizen mit diesem Tag oder passendem Tag-Präfix. Wenn {property} ihn auswählt, hat dieser Stil Vorrang. Eigenschaftsvorgaben und angezeigte Felder gelten für diesen ausgewählten Notiztyp.",
   "styles.typeHelp": "Einen Notiztyp oder einen alten Tag-Präfix-Stil wählen.",
   "styles.labelPrefixHelp": "Text vor dem angezeigten Knotentitel.",
   "styles.lucideHelp": "Symbolname neben dem Knotentitel, zum Beispiel book-open.",
@@ -714,7 +711,7 @@ const germanTranslations = {
   "styles.labelPrefix": "Beschriftungspräfix",
   "styles.legacyTag": "Tag-Stil",
   "styles.propertyValue": "Notiztyp",
-  "styles.managerHelp": "Stile und optionale Details für die durch {property} gewählten Notiztyp-Tags verwalten. Alte Tag-Präfix-Stile bleiben getrennt.",
+  "styles.managerHelp": "Verwalte Tag-Stile und optionale Notiztyp-Eigenschaften. Der von {property} ausgewählte Tag hat Stilvorrang.",
   "styles.resultCount": "{count} Stile · {results} Ergebnisse",
   "styles.noMatches": "Keine Knotenstile entsprechen dieser Suche.",
   "styles.noneConfigured": "Noch keine benutzerdefinierten Knotenstile konfiguriert.",

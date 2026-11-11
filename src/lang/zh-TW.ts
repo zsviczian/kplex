@@ -7,11 +7,8 @@
 import { buildLocaleCatalog, type LocaleTranslationMap } from "./catalog";
 
 const traditionalChineseTranslations = {
+  "styles.nameConflict": "{name} 的樣式已存在。請選擇其他標籤。",
   "noteType.settings": "設定筆記類型",
-  "styles.convertToNoteType": "轉換為筆記類型",
-  "styles.keepTagStyle": "保留標籤樣式",
-  "styles.convertHelp": "儲存時，將標籤前綴樣式 {from} 替換為筆記類型樣式 {to}。筆記內容不會變更。",
-  "styles.conversionConflict": "{name} 的筆記類型樣式已存在。請選擇其他名稱。",
   "noteType.invalidTag": "請輸入一個有效標籤，例如 person 或 person/friend。不可包含空格。",
   "noteType.changed": "筆記或其類型已變更。請重新開啟對話框。",
   "noteType.tag": "筆記類型標籤",
@@ -699,7 +696,7 @@ const traditionalChineseTranslations = {
   "styles.editNode": "編輯節點樣式",
   "styles.addNode": "新增節點樣式",
   "styles.legacyTagHelp": "為主要樣式標籤以此前綴開頭的筆記套用樣式。第一個符合的標籤樣式具有優先權。",
-  "styles.propertyHelp": "為 {property} 選定的標籤設定樣式。保留其他標籤的意義與舊版僅有屬性的樣式。",
+  "styles.propertyHelp": "套用至包含此標籤或相符標籤前綴的筆記。由 {property} 選取時，此樣式優先。預設屬性與顯示欄位適用於該選取的筆記類型。",
   "styles.typeHelp": "選擇筆記類型或舊版主要標籤前綴樣式。",
   "styles.labelPrefixHelp": "顯示在節點標題前的文字。",
   "styles.lucideHelp": "顯示在節點標題旁的圖示名稱，例如 book-open。",
@@ -714,7 +711,7 @@ const traditionalChineseTranslations = {
   "styles.labelPrefix": "標籤文字前綴",
   "styles.legacyTag": "標籤樣式",
   "styles.propertyValue": "筆記類型",
-  "styles.managerHelp": "管理由 {property} 選定的筆記類型標籤之樣式與選用詳細資訊。舊版標籤前綴樣式維持獨立。",
+  "styles.managerHelp": "管理標籤樣式與選用的筆記類型屬性。由 {property} 選取的標籤具有樣式優先權。",
   "styles.resultCount": "{count} 個樣式 · {results} 個結果",
   "styles.noMatches": "沒有節點樣式符合此搜尋。",
   "styles.noneConfigured": "尚未設定自訂節點樣式。",

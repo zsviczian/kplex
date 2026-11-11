@@ -81,7 +81,7 @@ test("view overlay preserves inherited root dictionaries, own style fields and e
   const prepared = Object.assign(Object.create(root), { baseNodeStyle: { ...root.baseNodeStyle } });
   for (const surface of ["leaf", "sidepanel", "popout"]) {
     const effective = m.effectiveViewSettings(prepared, surface, env("desktop"));
-    assert.equal(Object.getPrototypeOf(effective), prepared); assert.equal(effective.noteTypeStyles, root.noteTypeStyles);
+    assert.equal(Object.getPrototypeOf(effective), prepared); assert.equal(effective.tagNodeStyles, root.tagNodeStyles);
     assert.equal(effective.baseNodeStyle.maxWidth, 450); assert.equal(effective.wrapNodeLabels, false);
     assert.equal(Object.hasOwn(effective.baseNodeStyle, "fontSize"), true);
     const node = { path: "Node.md", file: { extension: "md" }, styleTags: [], noteType: "special" };

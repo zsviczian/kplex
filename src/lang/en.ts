@@ -9,11 +9,8 @@
  * parameters remain unquoted regardless of their names. Locale catalogs inherit this classification.
  */
 export const englishCatalog = {
+  "styles.nameConflict": {"message":"A style for {name} already exists. Choose another tag.","context":"Unified tag appearance and selected note-type priority.","params":["name"],"referenceParams":["name"]},
   "noteType.settings": {"message":"Configure note type","context":"Direct note-type configuration and explicit, reversible tag-style conversion before saving.","params":[],"referenceParams":[]},
-  "styles.convertToNoteType": {"message":"Convert to note type","context":"Direct note-type configuration and explicit, reversible tag-style conversion before saving.","params":[],"referenceParams":[]},
-  "styles.keepTagStyle": {"message":"Keep tag style","context":"Direct note-type configuration and explicit, reversible tag-style conversion before saving.","params":[],"referenceParams":[]},
-  "styles.convertHelp": {"message":"On Save, replace tag-prefix style {from} with note-type style {to}. Notes are not changed.","context":"Direct note-type configuration and explicit, reversible tag-style conversion before saving.","params":["from","to"],"referenceParams":["from","to"]},
-  "styles.conversionConflict": {"message":"A note-type style for {name} already exists. Choose another name.","context":"Direct note-type configuration and explicit, reversible tag-style conversion before saving.","params":["name"],"referenceParams":["name"]},
   "noteType.invalidTag": {"message":"Enter one valid tag, for example person or person/friend. Spaces and multiword values are not tags.","context":"Tag-backed note types, optional node details and explicitly reviewed native YAML maintenance.","params":[],"referenceParams":[]},
   "noteType.changed": {"message":"This note or its type changed. Reopen the dialog to review it.","context":"Tag-backed note types, optional node details and explicitly reviewed native YAML maintenance.","params":[],"referenceParams":[]},
   "noteType.tag": {"message":"Note type tag","context":"Tag-backed note types, optional node details and explicitly reviewed native YAML maintenance.","params":[],"referenceParams":[]},
@@ -1125,7 +1122,7 @@ export const englishCatalog = {
     context: "K-Plex node style settings and imported style management.",
     params: [],
   },
-  "styles.propertyHelp": {"message":"Style the tag selected by {property}. Other tags keep their normal meaning; legacy property-only styles remain readable.","context":"Tag-backed note types, optional node details and explicitly reviewed native YAML maintenance.","params":["property"],"referenceParams":["property"]},
+  "styles.propertyHelp": {"message":"Style notes carrying this tag or a matching tag prefix. When selected by {property}, this style takes priority. Property defaults and displayed fields apply to that selected note type.","context":"Unified tag appearance and selected note-type priority.","params":["property"],"referenceParams":["property"]},
   "styles.typeHelp": {"message":"Choose a note type or a legacy primary-tag-prefix style.","context":"Tag-backed note types, optional node details and explicitly reviewed native YAML maintenance.","params":[],"referenceParams":[]},
   "styles.labelPrefixHelp": {
     message: "Text placed before the displayed node title.",
@@ -1168,11 +1165,7 @@ export const englishCatalog = {
     context: "Example tag prefix; users may type the prefix with or without its leading hashtag.",
     params: [],
   },
-  "styles.tagPrefix": {
-    message: "Tag",
-    context: "K-Plex node style settings and imported style management.",
-    params: [],
-  },
+  "styles.tagPrefix": {"message":"Tag","context":"Unified tag appearance and selected note-type priority.","params":[],"referenceParams":[]},
   "styles.labelPrefix": {
     message: "Label prefix",
     context: "K-Plex node style settings and imported style management.",
@@ -1184,7 +1177,7 @@ export const englishCatalog = {
     params: [],
   },
   "styles.propertyValue": {"message":"Note type","context":"Tag-backed note types, optional node details and explicitly reviewed native YAML maintenance.","params":[],"referenceParams":[]},
-  "styles.managerHelp": {"message":"Manage styles and optional details for note-type tags selected by {property}. Legacy tag-prefix styles remain separate.","context":"Tag-backed note types, optional node details and explicitly reviewed native YAML maintenance.","params":["property"],"referenceParams":["property"]},
+  "styles.managerHelp": {"message":"Manage tag styles and optional note-type properties. The tag selected by {property} takes styling priority.","context":"Unified tag appearance and selected note-type priority.","params":["property"],"referenceParams":["property"]},
   "styles.resultCount": {
     message: "{count} styles · {results} results",
     context: "K-Plex node style settings and imported style management.",
