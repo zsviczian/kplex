@@ -29,7 +29,7 @@ test('inline inspection reanchors the open native tag popup without reopening di
    const p={app:{vault:{getFileByPath:()=>file,cachedRead:()=>new Promise(resolve=>finishRead=resolve)},metadataCache:{getFileCache:()=>({frontmatter:{'Note type':'person',tags:['person']}})}},settings:{noteTypeField:'Note type'},translator:t,index:{allPages:()=>[]}};
    const modal=new M.NoteTypeModal(p,file,'person');modal.open();await new Promise(resolve=>setTimeout(resolve,10));
    const input=modal.contentEl.querySelector('input[type=text]'),suggestion=modal.suggestion;let native=Object.getPrototypeOf(suggestion);while(!Object.hasOwn(native,'setValue'))native=Object.getPrototypeOf(native);const original=native.open;let anchors=0;
-   native.open=function(){anchors++};input.focus();suggestion.open();
+   native.open=function(){anchors++};input.focus();suggestion.open();if(anchors)throw Error('Initial focus opened suggestions');input.dispatchEvent(new Event('input'));suggestion.open();
    if(state==='dismissed')suggestion.close();
    let other;if(state==='blurred'){other=document.body.appendChild(document.createElement('input'));other.focus()}
    if(state==='retired')modal.retire();
@@ -56,7 +56,7 @@ test('selector settings shortcut targets the valid draft type without saving it 
 test('shared native suggestion anchoring follows modal and window geometry, then retires observers on dismissal',async()=>{
  assert.equal(await colorEditorScenario(`(async()=>{
   const M=sourceModules,t=M.createTranslator('en'),file={path:'Person.md',extension:'md',stat:{mtime:1,size:10}},p={app:{vault:{getFileByPath:()=>file,cachedRead:async()=>''},metadataCache:{getFileCache:()=>({frontmatter:{'Note type':'person',tags:['person']}})}},settings:{noteTypeField:'Note type'},translator:t,index:{allPages:()=>[]}};
-  const modal=new M.NoteTypeModal(p,file,'person');modal.open();await new Promise(resolve=>setTimeout(resolve,30));const input=modal.contentEl.querySelector('input[type=text]'),suggestion=modal.suggestion;let native=Object.getPrototypeOf(suggestion);while(!Object.hasOwn(native,'setValue'))native=Object.getPrototypeOf(native);const original=native.open;let anchors=0;native.open=function(){anchors++};input.focus();suggestion.open();await new Promise(resolve=>setTimeout(resolve,25));const initial=anchors;
+  const modal=new M.NoteTypeModal(p,file,'person');modal.open();await new Promise(resolve=>setTimeout(resolve,30));const input=modal.contentEl.querySelector('input[type=text]'),suggestion=modal.suggestion;let native=Object.getPrototypeOf(suggestion);while(!Object.hasOwn(native,'setValue'))native=Object.getPrototypeOf(native);const original=native.open;let anchors=0;native.open=function(){anchors++};input.focus();input.dispatchEvent(new Event('input'));suggestion.open();await new Promise(resolve=>setTimeout(resolve,25));const initial=anchors;
   const originalLeft=input.getBoundingClientRect().left;input.style.transform='translateX(20px)';if(input.getBoundingClientRect().left===originalLeft)throw Error('Fixture did not move the anchor');window.dispatchEvent(new Event('resize'));await new Promise(resolve=>setTimeout(resolve,25));if(anchors!==initial+1)throw Error('Window movement did not reanchor');window.dispatchEvent(new Event('resize'));if(anchors!==initial+1)throw Error('Unchanged resize needlessly reopened');
   modal.modalEl.style.paddingTop='45px';await new Promise(resolve=>setTimeout(resolve,40));if(anchors!==initial+2)throw Error('Modal resize did not reanchor');
   suggestion.close();modal.modalEl.style.paddingTop='65px';window.dispatchEvent(new Event('resize'));await new Promise(resolve=>setTimeout(resolve,30));if(anchors!==initial+2)throw Error('Dismissed popup reopened');modal.close();native.open=original;return true;
@@ -101,6 +101,41 @@ test('compact details keep detached order/visibility, validate duplicate fields 
   if(fields.read()[0].field!=='company'||rows[0].field!=='title')throw Error('Draft ordering mutated source');
   const input=container.querySelector('input[type=text]');input.value='title';input.dispatchEvent(new Event('input'));let rejected=false;try{fields.read()}catch{rejected=true}if(!rejected||previews<2)throw Error('Duplicate or preview regression');
   return true;
+ })()`),true);
+});
+
+test('details preview identifies its source and never renders an unexplained title-only sample',async()=>{
+ assert.equal(await colorEditorScenario(`(()=>{
+  const M=sourceModules,t=M.createTranslator('en');let sample={title:'Selected person',path:'People/Selected.md',lines:[]},calls=0;const container=document.body.appendChild(createDiv());
+  new M.NodeDetailsFields(container,t,{rows:[],preview:()=>{calls++;return sample}},()=> 'person',()=>true);
+  const preview=container.querySelector('.kplex-node-details-preview');if(getComputedStyle(preview).display!=='none'||calls)throw Error('Empty definitions have a random preview');
+  container.querySelector('button').click();const input=container.querySelector('input');input.value='company';input.dispatchEvent(new Event('input'));
+  if(!preview.textContent.includes('People/Selected.md')||!preview.textContent.includes(t('nodeProperties.noPreviewValues'))||preview.querySelector('.kplex-thought-caption')||preview.hasAttribute('aria-label'))throw Error('Empty sample confused with a property');
+  sample={...sample,lines:[{field:'company',text:'Microsoft'}]};input.dispatchEvent(new Event('input'));if(preview.querySelector('.kplex-node-property').textContent!=='Microsoft')throw Error('Real values hidden');return true;
+ })()`),true);
+});
+
+test('Set note type shows selected defaults, adds only explicitly and confirms existing empty values',async()=>{
+ assert.equal(await colorEditorScenario(`(async()=>{
+  const M=sourceModules,t=M.createTranslator('en'),file={path:'Person.md',extension:'md',stat:{mtime:1,size:1}},fm={'Note type':'person',tags:['person'],email:null};let writes=0,saved;
+  const p={app:{vault:{getFileByPath:()=>file,cachedRead:async()=>''},metadataCache:{getFileCache:()=>({frontmatter:fm})}},settings:{noteTypeField:'Note type',noteTypeProperties:{person:[{field:'email',visible:true},{field:'company',visible:false}],book:[{field:'author',visible:true}]}},translator:t,index:{allPages:()=>[]},editNoteType:async(...args)=>{writes++;saved=args;return true}};
+  const modal=new M.NoteTypeModal(p,file,'person');modal.open();await new Promise(r=>setTimeout(r,20));const button=key=>[...modal.contentEl.querySelectorAll('button')].find(el=>el.getAttribute('aria-label')===t(key));
+  if(!modal.contentEl.textContent.includes('Defined properties: email, company')||!modal.contentEl.textContent.includes('Missing properties: company')||!button('nodeProperties.saveAndAdd')||writes)throw Error('Missing field state is hidden');
+  const input=modal.contentEl.querySelector('input');input.value='book';input.dispatchEvent(new Event('input'));if(!modal.contentEl.textContent.includes('Defined properties: author'))throw Error('Draft type did not update definitions');
+  button('nodeProperties.saveAndAdd').click();await new Promise(r=>setTimeout(r,30));if(writes!==1||saved[3]!=='book'||saved[7][0].field!=='author')throw Error('Explicit save/default snapshot missing');
+  fm.company=false;const complete=new M.NoteTypeModal(p,file,'person');complete.open();await new Promise(r=>setTimeout(r,20));if(!complete.contentEl.textContent.includes(t('nodeProperties.allPresent'))||[...complete.contentEl.querySelectorAll('button')].some(el=>el.getAttribute('aria-label')===t('nodeProperties.saveAndAdd')))throw Error('Null/false values not counted as present');complete.close();return true;
+ })()`),true);
+});
+
+test('single-note property initialization has one fixed target, clear effects and no bulk controls',async()=>{
+ assert.equal(await colorEditorScenario(`(async()=>{
+  const M=sourceModules,t=M.createTranslator('en'),file={path:'People/Person.md',extension:'md',stat:{mtime:1,size:1}},fm={'Note type':'person',tags:['person'],email:false};let writes=0;
+  const p={app:{vault:{getFileByPath:()=>file,getMarkdownFiles:()=>{throw Error('Unexpected vault scan')}},metadataCache:{getFileCache:()=>({frontmatter:fm})}},settings:{noteTypeField:'Note type',noteTypeProperties:{person:[{field:'email',visible:true},{field:'company',visible:false}]}},translator:t,
+   addNoteTypeProperties:async(target,field,opening,rows,current)=>{if(target!==file||!current())throw Error('Wrong target');writes++;fm.company=null;return true}};
+  const modal=new M.NoteTypeReviewModal(p,file);modal.open();await new Promise(r=>setTimeout(r,20));const button=key=>[...modal.contentEl.querySelectorAll('button')].find(el=>el.getAttribute('aria-label')===t(key));
+  if(modal.titleEl.textContent!==t('nodeProperties.initialize')||modal.contentEl.querySelector('input')||modal.contentEl.textContent.includes('Checked ')||!modal.contentEl.textContent.includes('Missing properties: company')||button('noteType.back')||writes)throw Error('Bulk workflow leaked into single note');
+  button('nodeProperties.initialize').click();await new Promise(r=>setTimeout(r,30));if(writes!==1||fm.email!==false||fm.company!==null||!modal.contentEl.textContent.includes(t('nodeProperties.added'))||button('nodeProperties.initialize'))throw Error('Single target write/result failed');modal.close();
+  const complete=new M.NoteTypeReviewModal(p,file);complete.open();await new Promise(r=>setTimeout(r,20));if(!complete.contentEl.textContent.includes(t('nodeProperties.allPresent')))throw Error('Complete note not confirmed');complete.close();return true;
  })()`),true);
 });
 
@@ -166,13 +201,13 @@ const bundle=await build({stdin:{resolveDir:process.cwd(),loader:'tsx',contents:
  };
 `},bundle:true,write:false,format:'iife',globalName:'sourceModules',platform:'browser',plugins:[nativeIconBoundary]});
 
-test('measured property text fits below the unchanged title, stays smaller/inert and respects editor hosting',async()=>{
+test('measured property text uses the 12px global default, fits below the unchanged title and respects editor hosting',async()=>{
  const b=await chromiumHarness(bundle.outputFiles[0].text);try{
   await b.evaluate(`(()=>{const css=document.createElement('style');css.textContent=${JSON.stringify(readFileSync('styles.css','utf8'))};document.head.append(css)})()`);
   for(const role of ['center','child','sibling'])for(const wrap of [false,true]){
    await b.evaluate(`render('${role}',${wrap})`);
-   const value=await b.evaluate(`(()=>{const node=document.querySelector('.kplex-thought'),label=node.querySelector('.kplex-thought-label'),lines=[...node.querySelectorAll('.kplex-node-property')],r=node.getBoundingClientRect();return{title:label.textContent,small:parseFloat(getComputedStyle(lines[0]).fontSize)<parseFloat(getComputedStyle(label).fontSize),fit:lines.every(l=>{const b=l.getBoundingClientRect();return b.bottom<=r.bottom&&b.left>=r.left&&b.right<=r.right}),literal:lines[1].textContent,scripts:node.querySelectorAll('script').length,ellipsis:getComputedStyle(lines[0]).textOverflow}})()`);
-   assert.equal(value.title,'ER12345');assert.equal(value.small,true);assert.equal(value.fit,true);assert.equal(value.literal,'<script>Microsoft</script>');assert.equal(value.scripts,0);assert.equal(value.ellipsis,'ellipsis');
+   const value=await b.evaluate(`(()=>{const node=document.querySelector('.kplex-thought'),label=node.querySelector('.kplex-thought-label'),lines=[...node.querySelectorAll('.kplex-node-property')],r=node.getBoundingClientRect();return{title:label.textContent,size:parseFloat(getComputedStyle(lines[0]).fontSize),small:parseFloat(getComputedStyle(lines[0]).fontSize)<parseFloat(getComputedStyle(label).fontSize),fit:lines.every(l=>{const b=l.getBoundingClientRect();return b.bottom<=r.bottom&&b.left>=r.left&&b.right<=r.right}),literal:lines[1].textContent,scripts:node.querySelectorAll('script').length,ellipsis:getComputedStyle(lines[0]).textOverflow}})()`);
+   assert.equal(value.title,'ER12345');assert.equal(value.size,12);if(role==='center')assert.equal(value.small,true);assert.equal(value.fit,true);assert.equal(value.literal,'<script>Microsoft</script>');assert.equal(value.scripts,0);assert.equal(value.ellipsis,'ellipsis');
   }
   await b.evaluate(`render('child',false,[],false)`);assert.equal(await b.evaluate(`!!document.querySelector('.kplex-thought-caption')`),false);
   await b.evaluate(`render('child',false,[{field:'title',text:'Hidden by editor'}],true)`);assert.equal(await b.evaluate(`!!document.querySelector('.kplex-node-properties')`),false);

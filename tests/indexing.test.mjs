@@ -2919,11 +2919,14 @@ try {
   // A custom style selected by the Style property is an explicit user choice. It must remain
   // visible on the central note instead of being masked by the generic central-node appearance.
   const originalCentralStyle = settings.centralNodeStyle;
-  const originalNoteTypeStyles = settings.tagNodeStyles;
+  const originalTagStyles = settings.tagNodeStyles;
   const originalCenterNoteType = A.noteType;
   A.noteType = "testStyle";
   settings.centralNodeStyle = { backgroundColor: "#aaaaaaff", textColor: "#000000ff", fontSize: 30 };
-  settings.tagNodeStyles = { testStyle: { backgroundColor: "#ff00ffff", textColor: "#ffffffff" } };
+  // Legacy unprefixed type definitions enter through the real migration boundary; runtime
+  // settings contain one canonical #tag dictionary, with no parallel legacy style registry.
+  const {migrateTagStyles} = require(join(temp, "src/core/contracts/tagStyle.js"));
+  settings.tagNodeStyles = migrateTagStyles({}, [], {testStyle: {backgroundColor: "#ff00ffff", textColor: "#ffffffff"}}).tagNodeStyles;
   const styledCenter = resolveNodeStyle(A, null, "center", settings);
   assert.equal(styledCenter.backgroundColor, "#ff00ffff", "Property-value styles must override the generic central background");
   assert.equal(styledCenter.textColor, "#ffffffff", "Property-value styles must override the generic central text color");
@@ -2931,7 +2934,7 @@ try {
   settings.tagNodeStyles = { "#testStyle": { borderColor: "#123456ff" } };
   assert.equal(resolveNodeStyle(A, null, "center", settings).borderColor, "#123456ff", "Legacy/hash-prefixed style keys must normalize to the same logical value");
   settings.centralNodeStyle = originalCentralStyle;
-  settings.tagNodeStyles = originalNoteTypeStyles;
+  settings.tagNodeStyles = originalTagStyles;
   A.noteType = originalCenterNoteType;
 
   // Issues #7/#8: every semantic relationship between visible non-central notes is rendered as

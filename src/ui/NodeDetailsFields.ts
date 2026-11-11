@@ -2,12 +2,13 @@
  * It owns a detached ordered draft and a cache-only preview; persistence belongs to the parent Save. */
 import {FormSetting as Setting, iconButton} from "../adapters/obsidian/KplexModal";
 import type {ButtonComponent} from "obsidian";
-import {MAX_NODE_PROPERTIES, validNodeProperties, type NodeProperty, type NodePropertyLine} from "../core/plex/nodeProperties";
+import {MAX_NODE_PROPERTIES, nodePropertyFontSize, validNodeProperties, type NodeProperty, type NodePropertyLine} from "../core/plex/nodeProperties";
 import type {Translator} from "../lang";
 
 export type NodeDetailsOptions = Readonly<{rows: readonly NodeProperty[];
   focusProperties?: boolean;
-  preview(type: string, rows: readonly NodeProperty[]): Readonly<{title: string; lines: readonly NodePropertyLine[]}>;
+  propertyFontSize?: number;
+  preview(type: string, rows: readonly NodeProperty[]): Readonly<{title: string; path?: string; lines: readonly NodePropertyLine[]}>;
 }>;
 
 export class NodeDetailsFields {
@@ -27,7 +28,7 @@ export class NodeDetailsFields {
       if (!this.current() || this.rows.length >= MAX_NODE_PROPERTIES) return;this.rows.push({field: "", visible: true});this.render();
       this.list.querySelectorAll<HTMLInputElement>("input[type=text]").item(this.rows.length - 1)?.focus();
     });});
-    this.preview = this.element.createDiv({cls: "kplex-node-details-preview", attr: {"aria-label": t("nodeProperties.preview")}});this.render();
+    this.preview = this.element.createDiv({cls: "kplex-node-details-preview"});this.render();
   }
 
   /** Return a validated detached snapshot only when the parent submits its full form. */
@@ -35,7 +36,12 @@ export class NodeDetailsFields {
 
   /** Type-name edits update this compact sample without rediscovering note types or source bodies. */
   refreshPreview(): void {
-    if (!this.preview || !this.current()) return;const sample = this.options.preview(this.type(), this.rows);this.preview.empty();
+    if (!this.preview || !this.current()) return;this.preview.empty();this.preview.toggle(this.rows.some(row => row.field.trim()));
+    if (!this.rows.some(row => row.field.trim())) return;
+    const sample = this.options.preview(this.type(), this.rows);
+    this.preview.createEl("p", {text: sample.title ? this.t("nodeProperties.previewSource", {path: sample.path ?? sample.title}) : this.t("nodeProperties.noPreviewNote"), cls: "setting-item-description"});
+    if (!sample.lines.length) {if (sample.title) this.preview.createEl("p", {text: this.t("nodeProperties.noPreviewValues"), cls: "setting-item-description"});return;}
+    this.preview.style.setProperty("--kplex-node-property-font-size", `${nodePropertyFontSize(this.options.propertyFontSize)}px`);
     const caption = this.preview.createSpan({cls: "kplex-thought-caption"});caption.createSpan({text: sample.title, cls: "kplex-thought-label"});
     const lines = caption.createSpan({cls: "kplex-node-properties"});for (const line of sample.lines) lines.createSpan({text: line.text, cls: "kplex-node-property"});
   }

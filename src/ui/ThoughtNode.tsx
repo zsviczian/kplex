@@ -16,6 +16,7 @@
  * isolation and caller-owned actions. This component owns neither traversal nor source loading.
  */
 import {physicalGateStats} from "./plexViews/measurement";
+import {nodePropertyFontSize} from "../core/plex/nodeProperties";
 import {thoughtCornerRadius} from "./plexViews/nodeConnections";
 import { useId, type CSSProperties, type DragEvent as ReactDragEvent, type MouseEvent, type PointerEvent as ReactPointerEvent, type ReactNode } from "react";
 import type { GateSide, NodeVisual, PositionedNode } from "../types";
@@ -155,6 +156,7 @@ export function ThoughtNode({
     borderStyle: isSection ? undefined : strokeStyle,
     borderRadius: isSection ? undefined : thoughtCornerRadius(style, node.role === "center"),
     fontSize: `${nodeLabelFontSize(style.fontSize ?? 18, node.role === "center", settings.baseFontSize)}px`,
+    "--kplex-node-property-font-size": `${nodePropertyFontSize(settings.propertyFontSize)}px`,
     "--kplex-gate-size": `${gateSize}px`,
     "--kplex-gate-stroke": paint.gateStroke,
     "--kplex-gate-fill": paint.gateFill,

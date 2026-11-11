@@ -88,6 +88,16 @@ test('context selector edits share the structural queue and revalidate identity/
  const replaced=new api.StructuralNodeDropActions(f.app,translate,async(file,fields,mutate)=>{f.nodes.set(file.path,{...file});mutate(fm);},()=>field);await assert.rejects(replaced.editNoteType(f.source,field,api.noteTypeSelection(fm,field),'book',false,()=>true));assert.equal(fm['Note type'],'project');
 });
 
+test('explicit selector/default save is one atomic native write and ordinary Save never adds defaults',async()=>{
+ const f=fixture();f.source.stat={mtime:1,size:10};let fm={'Note type':'person',tags:['person'],company:false},writes=0,observed;
+ const owner=new api.StructuralNodeDropActions(f.app,translate,async(file,fields,mutate)=>{writes++;observed=fields;const next=structuredClone(fm);mutate(next);fm=next;},()=> 'Note type');
+ const rows=[{field:'company',visible:true},{field:'email',visible:false}];
+ await owner.editNoteType(f.source,'Note type',api.noteTypeSelection(fm,'Note type'),'project',false,()=>true,{mtime:1,size:10},rows);
+ assert.equal(writes,1);assert.equal(fm['Note type'],'project');assert(fm.tags.includes('project'));assert.equal(fm.company,false);assert.equal(fm.email,null);assert(observed.has('email'));
+ delete fm.email;await owner.editNoteType(f.source,'Note type',api.noteTypeSelection(fm,'Note type'),'person',false,()=>true,{mtime:1,size:10});assert(!('email'in fm));
+ const before=structuredClone(fm);f.source.stat.mtime++;await assert.rejects(owner.editNoteType(f.source,'Note type',api.noteTypeSelection(fm,'Note type'),'project',false,()=>true,{mtime:1,size:10},rows),api.NoteTypeChangedError);assert.deepEqual(fm,before);
+});
+
 test('native File properties uses the default core action with the clicked physical note and is absent when disabled',async()=>{
  const f=fixture(),calls=[];f.app.internalPlugins={plugins:{properties:{enabled:true,instance:{ensurePropertiesView:async file=>calls.push(file)}}}};
  assert(api.canShowFileProperties(f.app));assert(await api.showFileProperties(f.app,f.source));assert.deepEqual(calls,[f.source]);
@@ -118,6 +128,15 @@ function graphCallback(name,dependencies,filename='src/ui/PlexGraph.tsx'){
  dependencies={semanticSceneEdge:api.semanticSceneEdge,viewSession:undefined,viewLifetime:0,...dependencies};
  return Function(...Object.keys(dependencies),compiled+';return selected')(...Object.values(dependencies));
 }
+
+test('a queued selector/default save rejects changed definitions instead of reporting a silent success',async()=>{
+ const defaults=[{field:'email',visible:true}],host={settings:{noteTypeProperties:{person:defaults}},translator:translate,unloading:false};let live;
+ host.structuralDropOwner=()=>({editNoteType:async(file,field,opening,value,remove,current)=>{live=current;return new Promise(resolve=>{host.finish=()=>resolve(current())})}});
+ const edit=graphCallback('editNoteType',{nodePropertyRows:(configuration,type)=>configuration[type]??[]},'src/main.ts');
+ const pending=edit.call(host,{},'Note type',{},'person',false,()=>true,undefined,defaults);assert(live());
+ host.settings.noteTypeProperties.person=[{field:'company',visible:true}];assert.throws(()=>host.finish(),/nodeProperties.changed/);
+ host.unloading=true;host.finish();assert.equal(await pending,false);
+});
 
 test('saved lists retain full tag paths and reuse every Find icon without index work',()=>{
  for(const [input,icon] of [[{isTag:true,path:'tag:Parent/Child'},'tags'],[{isFolder:true},'folder'],[{url:'https://example.com'},'globe'],[{},'file-question'],...[['md','file-text'],['png','image'],['mp4','video'],['mp3','audio-lines'],['pdf','file-text'],['zip','paperclip']].map(([extension,icon])=>[{file:{extension}},icon])]){

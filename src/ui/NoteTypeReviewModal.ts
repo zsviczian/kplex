@@ -4,6 +4,8 @@ import type {TFile, ButtonComponent} from "obsidian";
 import {KplexModal, FormSetting as Setting, formActions, iconButton} from "../adapters/obsidian/KplexModal";
 import {reviewNoteTypes, inspectNoteType, repairNoteTypes, type NoteTypeFinding, type NoteTypeReport, type NoteTypeOutcome} from "../adapters/obsidian/noteTypeReview";
 import {noteTypeAsTag} from "../adapters/obsidian/tagNoteType";
+import {noteTypeSelection} from "../adapters/obsidian/tagNoteType";
+import {nodePropertyRows} from "../core/plex/nodeProperties";
 import {StyleManagerList} from "./StyleManagerList";
 import {collectionWindow} from "./components/collectionWindow";
 import {TagNameSuggest} from "./TagNameSuggest";
@@ -33,7 +35,7 @@ export class NoteTypeReviewModal extends KplexModal {
   constructor(private readonly plugin: KplexPlugin, private readonly file?: TFile, private onClosed?: () => void) {super(plugin.app);}
 
   /** Start exactly one on-demand metadata pass; mounting never mutates a document. */
-  onOpen(): void {this.alive = true;this.titleEl.setText(this.plugin.translator("noteType.review"));void this.scan();}
+  onOpen(): void {this.alive = true;this.titleEl.setText(this.plugin.translator(this.file ? "nodeProperties.initialize" : "noteType.review"));void this.scan();}
 
   /** Yield in the modal's actual window; close cancels and settles its sole pending timer. */
   private yieldToOwner(): Promise<void> {
@@ -61,6 +63,7 @@ export class NoteTypeReviewModal extends KplexModal {
   /** Native list mechanics bound mounted groups; preview state never submits automatically. */
   private render(): void {
     if (!this.alive) return;this.suggestion?.close();this.suggestion = undefined;this.confirmButton = undefined;this.contentEl.empty();this.manager = null;const t = this.plugin.translator;
+    if (this.file) {this.renderSingle();return;}
     this.contentEl.createEl("p", {text: t("noteType.reviewHelp"), cls: "setting-item-description"});
     this.status = this.contentEl.createDiv({cls: "setting-item-description", attr: {role: "status", "aria-live": "polite"}});
     if (this.report) this.status.setText(t("noteType.coverage", {scanned: this.report.scanned, total: this.report.total, unavailable: this.report.unavailable, withoutYaml: this.report.withoutYaml}));
@@ -71,6 +74,33 @@ export class NoteTypeReviewModal extends KplexModal {
     this.manager.action(t("noteType.recheck"), "refresh-cw", () => {void this.scan();}).disabled = this.running;
     this.renderGroups();
     formActions(this.contentEl).addButton(button => iconButton(button, t(this.running ? "common.cancel" : "common.done"), "x").onClick(() => {if (this.running) this.cancelled = true;else this.close();}));
+  }
+
+  /** A note context action has one fixed target, without vault coverage, inclusion toggles or batch navigation. */
+  private renderSingle(): void {
+    const file = this.file;if (!file) return;const t = this.plugin.translator;
+    new Setting(this.contentEl).setName(file.path);
+    this.status = this.contentEl.createEl("p", {cls: "setting-item-description", attr: {role: "status", "aria-live": "polite"}});
+    const outcome = this.outcomes[0], rows = this.preview ?? [];
+    if (outcome) this.status.setText(t(outcome.status === "changed" ? "nodeProperties.added" : `noteType.result.${outcome.status}`));
+    else if (this.running) this.status.setText(t("styles.operation.saving"));
+    else if (this.scanFailed || this.report?.unavailable) this.status.setText(t("nodeProperties.unavailable"));
+    else if (rows.length) {
+      this.status.setText(t("noteType.defaultsPreview"));
+      this.contentEl.createEl("p", {text: t("nodeProperties.missing", {fields: rows[0].missing.join(", ")})});
+    } else {
+      const fm = this.app.metadataCache.getFileCache(file)?.frontmatter, selected = fm && noteTypeSelection(fm, this.plugin.settings.noteTypeField);
+      const configured = selected?.supported && nodePropertyRows(this.plugin.settings.noteTypeProperties, selected.value ?? "").length;
+      this.status.setText(t(this.report?.findings.length || !selected?.value ? "nodeProperties.saveTypeFirst" : configured ? "nodeProperties.allPresent" : "nodeProperties.noneDefined"));
+    }
+    formActions(this.contentEl)
+      .addButton(button => iconButton(button, t(rows.length && !outcome ? "common.cancel" : "common.done"), "x").setDisabled(this.running).onClick(() => this.close()))
+      .addButton(button => {
+        const retry = !!outcome && outcome.status !== "changed" && outcome.status !== "unchanged" || this.scanFailed || !!this.report?.unavailable;
+        if (retry) iconButton(button, t("noteType.recheck"), "refresh-cw").setDisabled(this.running).onClick(() => {void this.scan();});
+        else if (rows.length && !outcome) {this.confirmButton = iconButton(button, t("nodeProperties.initialize"), "list-plus").setCta().setDisabled(this.running).onClick(() => {void this.apply();});}
+        else button.buttonEl.remove();
+      });
   }
 
   /** Each affected value has a distinct-note count, inspect disclosure and explicit repair action. */

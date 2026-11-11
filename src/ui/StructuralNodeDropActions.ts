@@ -99,11 +99,13 @@ export class StructuralNodeDropActions {
   }
 
   /** Context editing and repair share the drop queue, exact native identity and saved-observation owner. */
-  editNoteType(file: TFile, field: string, opening: NoteTypeSelection, value: string | null, removeOld: boolean, current: () => boolean, stamp?: Readonly<{mtime: number; size: number}>): Promise<boolean> {
+  editNoteType(file: TFile, field: string, opening: NoteTypeSelection, value: string | null, removeOld: boolean, current: () => boolean, stamp?: Readonly<{mtime: number; size: number}>, defaults?: readonly NodeProperty[]): Promise<boolean> {
     return this.editTag(file, frontmatter => {
       if (this.noteTypeField() !== field || stamp && (file.stat.mtime !== stamp.mtime || file.stat.size !== stamp.size)) throw new NoteTypeChangedError(noteTypeSelection(frontmatter, field));
-      return setNoteType(frontmatter, field, opening, value, removeOld, this.translate("tagAssignment.invalid"));
-    }, current, undefined, new Set(["tags", field]));
+      const changed = setNoteType(frontmatter, field, opening, value, removeOld, this.translate("tagAssignment.invalid"));
+      const initialized = defaults ? initializeNoteProperties(frontmatter, field, noteTypeSelection(frontmatter, field), defaults, this.translate("noteType.changed")) : false;
+      return changed || initialized;
+    }, current, undefined, new Set(["tags", field, ...(defaults?.map(row => row.field) ?? [])]));
   }
 
   /** Missing-tag repair preserves the valid selector while retaining native stale-file guards. */

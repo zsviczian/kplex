@@ -5685,8 +5685,13 @@ export default class KplexPlugin extends Plugin {
   }
 
   /** Selector edits share the existing exact-file metadata queue with structural tag drops. */
-  editNoteType(file: TFile, field: string, opening: NoteTypeSelection, value: string | null, removeOld: boolean, current: () => boolean, stamp?: Readonly<{mtime: number; size: number}>): Promise<boolean> {
-    return this.structuralDropOwner().editNoteType(file, field, opening, value, removeOld, () => !this.unloading && current(), stamp);
+  editNoteType(file: TFile, field: string, opening: NoteTypeSelection, value: string | null, removeOld: boolean, current: () => boolean, stamp?: Readonly<{mtime: number; size: number}>, defaults?: readonly NodeProperty[]): Promise<boolean> {
+    const expected = defaults && JSON.stringify(defaults);
+    return this.structuralDropOwner().editNoteType(file, field, opening, value, removeOld, /** A changed configuration requires a fresh preview, never a silent successful no-op. */ () => {
+      if (this.unloading || !current()) return false;
+      if (expected !== undefined && expected !== JSON.stringify(nodePropertyRows(this.settings.noteTypeProperties, value ?? ""))) throw new Error(this.translator("nodeProperties.changed"));
+      return true;
+    }, stamp, defaults);
   }
 
   /** Missing-tag maintenance adds membership without canonicalizing or otherwise replacing the valid selector. */
@@ -5704,7 +5709,7 @@ export default class KplexPlugin extends Plugin {
   canInitializeNodeProperties(page: GraphPage): boolean {return !page.transient && page.file?.extension === "md" && nodePropertyRows(this.settings.noteTypeProperties, page.noteType ?? "").length > 0;}
 
   /** Open the selected type's existing native settings editor in the requesting document's theme scope. */
-  openNoteTypeSettings(value: string, sourceScope: HTMLElement): boolean {return !this.unloading && (this.settingsTab?.openNoteTypeEditor(value, sourceScope) ?? false);}
+  openNoteTypeSettings(value: string, sourceScope: HTMLElement, previewPath?: string): boolean {return !this.unloading && (this.settingsTab?.openNoteTypeEditor(value, sourceScope, previewPath) ?? false);}
 
   /** Native review shells remain plugin-owned even when launched from Settings or the Command Palette. */
   openNoteTypeReview(file?: TFile, onClosed?: () => void): NoteTypeReviewModal | null {

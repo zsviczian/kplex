@@ -1,5 +1,5 @@
 {
-  "ontology-precedence": "Frontmatter ontology takes precedence over conflicting body ontology; the overridden body evidence is retained for explanation.",
+  "ontology-precedence": "Relationships in document properties take precedence over conflicting relationships in the note text. The conflicting text remains listed for reference.",
   "bidirectional-inferred": "Ordinary links provide evidence in both directions, so the pair resolves to an inferred friend relationship.",
   "hidden": "The relationship is indexed but hidden from this source note's visible neighbourhood.",
   "date-property": "An Obsidian Date property maps to a Daily Notes target using its configured field role or the default Date role.",

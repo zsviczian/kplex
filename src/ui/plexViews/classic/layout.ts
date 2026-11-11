@@ -7,6 +7,7 @@ import {mirrorClassicCoordinates} from "../../../core/plex/views/classic/geometr
 import {nodeId} from "../../../core/graph/model";
 import type {PlexProjection} from "../../../core/plex/views/contracts";
 import {nodeSize, sectionNodeSize, countsForLayout, nodeLabelFontSize} from "../measurement";
+import {nodePropertyFontSize} from "../../../core/plex/nodeProperties";
 import type {NodeDetailsRead} from "../measurement";
 /**
  * Classic host binding: arrange semantic neighborhoods into presentation zones.
@@ -61,7 +62,7 @@ export type PlexScene = HostPlexScene;
  * inactive themes, workflow settings and lens behavior never enter this finite layout key. */
 export function sceneLayoutPolicyKey(settings: ClassicSceneSettings): string {
   return JSON.stringify([
-    settings.baseFontSize, settings.childColumns, settings.childMaxHeight, settings.compactingFactor,
+    settings.baseFontSize, settings.propertyFontSize, settings.childColumns, settings.childMaxHeight, settings.compactingFactor,
     settings.compactView, settings.friendMaxHeight, settings.graphDepth, settings.horizontalCompactingFactor,
     settings.lateralArrangement, settings.flipEastWest === true, settings.maxItemCount, settings.minLinkLength, settings.parentColumns,
     settings.parentMaxHeight, settings.siblingMaxHeight, settings.siblingRelativeSize, settings.wrapNodeLabels,
@@ -129,7 +130,8 @@ function makeNode(
   const size = scale === 1 ? baseSize : { width: baseSize.width * scale,
     // Sibling scaling keeps its width/proportions but cannot shrink the actual font's clip box.
     height: Math.max(baseSize.height * scale, Math.ceil(nodeLabelFontSize(style.fontSize ?? 18, false, settings.baseFontSize)
-      * (settings.wrapNodeLabels ? 2.8 : 1.6) + 8 + 2 * Math.max(0, style.strokeWidth ?? 1))) };
+      * (settings.wrapNodeLabels ? 2.8 : 1.6) + 8 + 2 * Math.max(0, style.strokeWidth ?? 1))
+      + (propertyLines?.length ? 4 + propertyLines.length * Math.ceil(nodePropertyFontSize(settings.propertyFontSize) * 1.4) : 0)) };
   const node: PositionedNode = {
     page: n.page,
     role,

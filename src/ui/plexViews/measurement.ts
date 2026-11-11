@@ -2,7 +2,7 @@
 import type {KplexSettings} from "../../settings";
 import type {GraphPage, NodeStyle, PositionedNode} from "../../types";
 import type {GraphIndex} from "../../index/GraphIndex";
-import type {NodePropertyLine} from "../../core/plex/nodeProperties";
+import {nodePropertyFontSize, type NodePropertyLine} from "../../core/plex/nodeProperties";
 export type NodeDetailsRead = Readonly<{detailsFor?: (page: GraphPage) => readonly NodePropertyLine[]}>;
 /** Bound dimensions to the existing supported presentation interval. */
 const clamp = (n: number, min: number, max: number) => Math.max(min, Math.min(max, n));
@@ -54,9 +54,10 @@ export function nodeSize(
   const singleLineHeight = Math.max(center ? 48 : 26, Math.ceil(renderedFont * 1.6 + verticalInsets));
   const twoLineHeight = Math.ceil(Math.max(fontSize * fontScale, renderedFont) * 2.4 + renderedFont * 0.4 + verticalInsets);
   const baseHeight = settings.wrapNodeLabels ? Math.max(singleLineHeight, twoLineHeight) : singleLineHeight;
-  const detailWidth = details.reduce((maximum, row) => Math.max(maximum, 32 + Math.min(512, row.text.length) * renderedFont * .85 * .55), 0);
+  const propertyFont = nodePropertyFontSize(settings.propertyFontSize);
+  const detailWidth = details.reduce((maximum, row) => Math.max(maximum, 32 + Math.min(512, row.text.length) * propertyFont * .55), 0);
   return {width: details.length ? clamp(Math.max(width, detailWidth), minWidth, maxWidth) : width,
-    height: baseHeight + (details.length ? 4 + details.length * Math.ceil(renderedFont * .85 * 1.4) : 0)};
+    height: baseHeight + (details.length ? 4 + details.length * Math.ceil(propertyFont * 1.4) : 0)};
 }
 
 /** Reserve the shared heading marker/padding and minimum readable label width. All section

@@ -88,7 +88,7 @@ import { effectiveTypography, sanitizeTypographyProfiles, sanitizeTypographyValu
 import type { LateralArrangement, PersistedLayoutDeviceClass } from "./core/plex/viewPresentation";
 import { sanitizeMarkdownZoomModes, type MarkdownZoomModes } from "./core/plex/markdownZoomPreferences";
 import { STYLE_SETTINGS_KEYS, appearanceColorReferences, appearanceHasUnsupportedColors } from "./core/contracts/appearance";
-import {loadNoteTypeProperties, nodePropertyRows, nodePropertyType, type NoteTypeProperties, type NodeProperty, type NodePropertiesEdit} from "./core/plex/nodeProperties";
+import {loadNoteTypeProperties, nodePropertyRows, nodePropertyType, nodePropertyFontSize, PROPERTY_FONT_SIZE, type NoteTypeProperties, type NodeProperty, type NodePropertiesEdit} from "./core/plex/nodeProperties";
 import {NodeDetailsFields, type NodeDetailsOptions} from "./ui/NodeDetailsFields";
 import {nodePropertyReader} from "./adapters/obsidian/nodeProperties";
 import {applyThemeAppearance, captureThemeAppearance, readAppearanceThemes, resetAppearanceColors, semanticColorSlots, DEFAULT_THEME_ID, type ColorResetScope, type AppearanceThemeLibrary, type AppearanceOwner} from "./core/plex/appearanceThemes";
@@ -299,6 +299,8 @@ export interface KplexSettings extends StartupIndexPreferences {
   wrapNodeLabels: boolean;
   /** Base regular-node label size in pixels; role and explicit style proportions are preserved. */
   baseFontSize: number;
+  /** Global property-line size in pixels, independent of per-tag title styles. */
+  propertyFontSize: number;
   /** Sparse device overrides inherit the shared typography defaults until explicitly customized. */
   typographyProfiles: TypographyProfiles;
   showFullTagName: boolean;
@@ -478,6 +480,7 @@ const LEGACY_DEFAULT_SETTINGS: KplexSettings = {
   wrapNodeLabels: false,
   typographyProfiles: {},
   baseFontSize: 12.4,
+  propertyFontSize: PROPERTY_FONT_SIZE.default,
   showFullTagName: false,
   maxItemCount: 100,
   renderSiblings: false,
@@ -809,6 +812,7 @@ export function migrateAndMergeSettings(raw: unknown): KplexSettings {
     compactingFactor: legacyProfile.compactingFactor,
     horizontalCompactingFactor: legacyProfile.horizontalCompactingFactor ?? legacyProfile.compactingFactor,
     baseFontSize: Math.max(8, Math.min(28, finite(old.baseFontSize, DEFAULT_SETTINGS.baseFontSize))),
+    propertyFontSize: nodePropertyFontSize(old.propertyFontSize),
     minLinkLength: finite(old.minLinkLength, DEFAULT_SETTINGS.minLinkLength),
     friendMaxHeight: Math.max(120, Math.min(900, Number(old.friendMaxHeight ?? old.siblingMaxHeight ?? DEFAULT_SETTINGS.friendMaxHeight))),
     siblingMaxHeight: Math.max(120, Math.min(900, Number(old.siblingMaxHeight ?? DEFAULT_SETTINGS.siblingMaxHeight))),
@@ -1768,14 +1772,14 @@ export class KplexSettingTab extends PluginSettingTab {
   }
 
   /** Open the selected primary type directly, preserving existing style-key spelling and the caller's window. */
-  openNoteTypeEditor(value: string, sourceScope: HTMLElement): boolean {
+  openNoteTypeEditor(value: string, sourceScope: HTMLElement, previewPath?: string): boolean {
     const type = nodePropertyType(value);if (!type) return false;
     const name = Object.keys(this.kplexPlugin.settings.tagNodeStyles).find(key => nodePropertyType(key) === type) ?? tagStyleKey(value);
-    this.openNodeStyleEditor(name, undefined, sourceScope, true);return true;
+    this.openNodeStyleEditor(name, undefined, sourceScope, true, previewPath);return true;
   }
 
   /** One tag editor owns appearance and optional type properties; Save is one queued operation. */
-  private openNodeStyleEditor(name: string | null, afterChange?: () => void, sourceScope?: HTMLElement, focusProperties = false): void {
+  private openNodeStyleEditor(name: string | null, afterChange?: () => void, sourceScope?: HTMLElement, focusProperties = false, previewPath?: string): void {
     const owner = this.kplexPlugin.captureAppearanceOwner(), settings = this.kplexPlugin.settings;
     const styles = settings.tagNodeStyles, openingExists = name !== null && Object.prototype.hasOwnProperty.call(styles, name) === true;
     const opening = structuredClone(name ? styles[name] ?? {} : {}), openingProperties = nodePropertyRows(settings.noteTypeProperties, name ?? "");
@@ -1798,9 +1802,9 @@ export class KplexSettingTab extends PluginSettingTab {
         delete currentSettings.tagNodeStyles[removeName];currentSettings.tagStyleList = currentSettings.tagStyleList.filter(key => key !== removeName);
       }, isCurrent, owner, afterChange),
       this.styleColorContext(owner, sourceScope), () => this.colorDialogs.delete(dialog),
-      {rows: openingProperties, focusProperties, preview: (type, rows) => {
-        const key = nodePropertyType(type), page = key ? previewPages.get(key) : undefined;
-        return {title: page ? this.kplexPlugin.index.titleFor(page) : this.kplexPlugin.translator("nodeProperties.previewTitle"), lines: page && key ? nodePropertyReader(this.app, {[key]: rows})(page) : []};
+      {rows: openingProperties, focusProperties, propertyFontSize: settings.propertyFontSize, preview: (type, rows) => {
+        const key = nodePropertyType(type), page = previewPath ? this.kplexPlugin.index.get(previewPath) : key ? previewPages.get(key) : undefined;
+        return {title: page ? this.kplexPlugin.index.titleFor(page) : "", path: page?.path, lines: page && key ? nodePropertyReader(this.app, {[key]: rows})({...page, noteType: type}) : []};
       }});
     this.colorDialogs.add(dialog);dialog.open();
   }
@@ -2614,6 +2618,7 @@ export class KplexSettingTab extends PluginSettingTab {
                 heading: translate("typography.sharedDefaults"),
                 items: [
                   { name: translate("typography.deviceField", { device: translate("typography.sharedDefaults"), field: translate("settings.ui.base.font.size") }), desc: translate("settings.ui.base.font.size.help"), control: { type: "slider", key: "baseFontSize", ...TYPOGRAPHY_LIMITS.baseFontSize } },
+                  { name: translate("nodeProperties.fontSize"), desc: translate("nodeProperties.fontSizeHelp"), control: { type: "slider", key: "propertyFontSize", min: PROPERTY_FONT_SIZE.min, max: PROPERTY_FONT_SIZE.max, step: PROPERTY_FONT_SIZE.step } },
                   { name: translate("typography.deviceField", { device: translate("typography.sharedDefaults"), field: translate("settings.ui.max.label.length") }), desc: translate("settings.ui.max.label.length.help"), control: { type: "slider", key: "baseNodeStyle.maxLabelLength", ...TYPOGRAPHY_LIMITS.maxLabelLength } },
                   { name: translate("typography.deviceField", { device: translate("typography.sharedDefaults"), field: translate("settings.ui.wrap.node.labels") }), desc: translate("settings.ui.wrap.node.labels.help"), control: { type: "toggle", key: "wrapNodeLabels" } },
                   { name: translate("typography.deviceField", { device: translate("typography.sharedDefaults"), field: translate("settings.ui.maximum.node.width") }), desc: translate("settings.ui.maximum.node.width.help"), control: { type: "slider", key: "baseNodeStyle.maxWidth", ...TYPOGRAPHY_LIMITS.maxWidth } },
@@ -3223,6 +3228,11 @@ export class KplexSettingTab extends PluginSettingTab {
     }
     if (key === "baseFontSize") {
       this.kplexPlugin.settings.baseFontSize = Math.max(8, Math.min(28, Number(value) || DEFAULT_SETTINGS.baseFontSize));
+      await this.kplexPlugin.saveSettings(false);
+      return;
+    }
+    if (key === "propertyFontSize") {
+      this.kplexPlugin.settings.propertyFontSize = nodePropertyFontSize(value);
       await this.kplexPlugin.saveSettings(false);
       return;
     }

@@ -7,6 +7,11 @@ export type NoteTypeProperties = Readonly<Record<string, readonly NodeProperty[]
 export type NodePropertyLine = Readonly<{field: string; text: string}>;
 export type NodePropertiesEdit = Readonly<{type: string; previousType?: string | null; opening: readonly NodeProperty[]; rows: readonly NodeProperty[]}>;
 export const MAX_NODE_PROPERTIES = 16;
+export const PROPERTY_FONT_SIZE = {min: 8, max: 20, step: 1, default: 12} as const;
+/** One global pixel size governs property painting and all view measurements. */
+export function nodePropertyFontSize(value: unknown): number {
+  return typeof value === "number" && Number.isFinite(value) ? Math.max(PROPERTY_FONT_SIZE.min, Math.min(PROPERTY_FONT_SIZE.max, value)) : PROPERTY_FONT_SIZE.default;
+}
 
 /** Match the same tag identity across casing and an optional leading hashtag. */
 export function nodePropertyType(value: string | null): string | null {return noteTypeTag(value)?.toLocaleLowerCase() ?? null;}

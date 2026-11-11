@@ -7,12 +7,26 @@ export abstract class KplexInputSuggest<T> extends AbstractInputSuggest<T> {
   private positionedPopupOpen = false;
   private releaseAnchor: (() => void) | null = null;
   private anchorRect: readonly number[] = [];
+  private activated = true;
+  private releaseActivation: (() => void) | null = null;
 
   /** The native suggester still owns its input events and complete popup lifetime. */
-  constructor(app: App, private readonly anchorInput: HTMLInputElement) {super(app, anchorInput);}
+  constructor(app: App, private readonly anchorInput: HTMLInputElement, startClosed = false) {
+    super(app, anchorInput);this.activated = !startClosed;
+    if (startClosed) {
+      const activate = (event: Event): void => {
+        if (event instanceof anchorInput.ownerDocument.defaultView!.KeyboardEvent && event.key !== "ArrowDown" && event.key !== "ArrowUp") return;
+        this.activated = true;
+        if (event.type !== "input") this.open();
+      };
+      anchorInput.addEventListener("input", activate, true);anchorInput.addEventListener("pointerdown", activate);anchorInput.addEventListener("keydown", activate, true);
+      this.releaseActivation = () => {anchorInput.removeEventListener("input", activate, true);anchorInput.removeEventListener("pointerdown", activate);anchorInput.removeEventListener("keydown", activate, true);};
+    }
+  }
 
   /** Bind only while visible, using the input's actual document and its realm constructors. */
   override open(): void {
+    if (!this.activated) return;
     if (!this.anchorInput.isConnected || this.anchorInput.disabled || this.anchorInput.ownerDocument.defaultView?.closed) return;
     this.positionedPopupOpen = true;super.open();this.anchorRect = this.readAnchor();
     if (this.releaseAnchor) return;
@@ -33,6 +47,9 @@ export abstract class KplexInputSuggest<T> extends AbstractInputSuggest<T> {
 
   /** Escape, blur, selection and form retirement must prevent any delayed observation from reopening it. */
   override close(): void {this.positionedPopupOpen = false;this.releaseAnchor?.();this.releaseAnchor = null;this.anchorRect = [];super.close();}
+
+  /** Form retirement also releases optional initial-focus activation listeners. */
+  dispose(): void {this.close();this.releaseActivation?.();this.releaseActivation = null;this.activated = false;}
 
   /** Public native open is idempotent and recalculates the anchor without synthesizing input or focus. */
   refreshPosition(): void {

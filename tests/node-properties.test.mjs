@@ -4,6 +4,16 @@ import {plexViewModules,classicFixture,viewPage} from './support/plexViewFixture
 const M=await plexViewModules(['src/core/plex/nodeProperties.ts','src/adapters/obsidian/nodeProperties.ts','src/core/graph/settingsPolicy.ts','src/ui/plexViews/prepareScene.ts','src/core/plex/views/mindmap/definition.ts','src/core/plex/views/wuxing/definition.ts']);
 const fields=[{field:'title',visible:true},{field:'private',visible:false},{field:'company',visible:true}];
 
+test('global property font size is bounded, persisted and presentation-only',()=>{
+ for(const [input,expected] of [[undefined,12],[NaN,12],['18',12],[2,8],[40,20],[9,9],[13,13]])assert.equal(M.migrateAndMergeSettings({propertyFontSize:input}).propertyFontSize,expected);
+ const small=M.migrateAndMergeSettings({propertyFontSize:8,sentinel:{keep:1}}),large=M.migrateAndMergeSettings({...small,propertyFontSize:20});
+ assert.equal(M.migrateAndMergeSettings(JSON.parse(JSON.stringify(large))).propertyFontSize,20);assert.deepEqual(large.sentinel,{keep:1});
+ const effects=M.classifySettingsChange(M.captureSettingsPolicy(small),M.captureSettingsPolicy(large));
+ assert.equal(effects.semanticInvalidation,false);assert.equal(effects.presentationFacets,false);assert.equal(effects.render,true);assert.deepEqual(effects.changedKeys,['propertyFontSize']);
+ const measure=(settings,details=[])=>M.nodeSize('Person',18,settings,true,30,400,1,details),details=[{field:'company',text:'Long company name'}];
+ assert.deepEqual(measure(small),measure(large));assert(measure(large,details).height>measure(small,details).height);assert(measure(large,details).width>=measure(small,details).width);
+});
+
 test('property configuration round-trips with unknown settings and never affects semantic policy',()=>{
  const settings=M.migrateAndMergeSettings({sentinel:{future:7},noteTypeProperties:{person:fields}});
  assert.deepEqual(settings.noteTypeProperties,{person:fields});assert.deepEqual(M.migrateAndMergeSettings(JSON.parse(JSON.stringify(settings))).sentinel,{future:7});

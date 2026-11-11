@@ -583,7 +583,7 @@ button.kplex-sidecar-unfold-plex,
 .kplex-thought-text { padding: .2em 0; box-sizing: content-box; }
 .kplex-thought-caption { display: flex; flex-direction: column; min-width: 0; width: 100%; gap: 4px; }
 .kplex-thought-caption > .kplex-thought-label { flex-shrink: 0; }
-.kplex-node-properties { display: flex; flex-direction: column; min-width: 0; font-size: .85em; line-height: 1.4; font-weight: normal; text-align: start; }
+.kplex-node-properties { display: flex; flex-direction: column; min-width: 0; font-size: var(--kplex-node-property-font-size, 12px); line-height: 1.4; font-weight: normal; text-align: start; }
 .kplex-node-property { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .kplex-node-details-editor { min-width: 0; }
 .kplex-node-detail-row .setting-item-info { display: none; }

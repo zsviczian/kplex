@@ -563,5 +563,5 @@ test("semantic relationship reasons preserve accepted explanation wording at the
       `${language} uses generic date-policy English until this new key is translated`);
   }
   assert.equal(suppressionReasonLabel("frontmatter-overrides-body-ontology", translate),
-    "Conflicting body ontology is overridden by frontmatter ontology for this note pair.");
+    "For these two notes, the relationship in document properties takes precedence over this conflicting relationship in the note text.");
 });

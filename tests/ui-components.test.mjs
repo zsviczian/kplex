@@ -1393,6 +1393,7 @@ console.error = (...args) => { warnings.push(args.map(String).join(" ")); origin
 // Native icons are the only thought-rendering host boundary; this scenario has no icon effects.
 const ObsidianIcon = () => null;
 import {physicalGateStats} from ${JSON.stringify(join(root,"src/ui/plexViews/measurement.ts"))};
+import {nodePropertyFontSize} from ${JSON.stringify(join(root,"src/core/plex/nodeProperties.ts"))};
 import {useGateCountPresentation} from ${JSON.stringify(join(root,'src/ui/useGateCountPresentation.ts'))};
 import {thoughtCornerRadius} from ${JSON.stringify(join(root,'src/ui/plexViews/nodeConnections.ts'))};
 ${uiDefinitions("src/ui/ThoughtNode.tsx", ["GATES", "ThoughtNode"])}
@@ -2287,6 +2288,7 @@ import {createTranslator} from ${JSON.stringify(join(root,'src/lang/index.ts'))}
 import {HoverPreview,bindHoverPreview} from ${JSON.stringify(join(root,'src/ui/components/hoverPreview.ts'))};
 const ObsidianIcon=()=>null;
 import {physicalGateStats} from ${JSON.stringify(join(root,"src/ui/plexViews/measurement.ts"))};
+import {nodePropertyFontSize} from ${JSON.stringify(join(root,"src/core/plex/nodeProperties.ts"))};
 import {useGateCountPresentation} from ${JSON.stringify(join(root,'src/ui/useGateCountPresentation.ts'))};
 import {thoughtCornerRadius} from ${JSON.stringify(join(root,'src/ui/plexViews/nodeConnections.ts'))};
 ${uiDefinitions('src/ui/ThoughtNode.tsx',['GATES','ThoughtNode'])}
@@ -2354,6 +2356,7 @@ import {physicalPositionLabel} from ${JSON.stringify(join(root,'src/ui/features/
 import {canDisplayNodeImage} from ${JSON.stringify(join(root,'src/core/plex/nodeImagePolicy.ts'))};
 const ObsidianIcon=()=>null;
 import {physicalGateStats} from ${JSON.stringify(join(root,"src/ui/plexViews/measurement.ts"))};
+import {nodePropertyFontSize} from ${JSON.stringify(join(root,"src/core/plex/nodeProperties.ts"))};
 import {useGateCountPresentation} from ${JSON.stringify(join(root,'src/ui/useGateCountPresentation.ts'))};
 import {thoughtCornerRadius} from ${JSON.stringify(join(root,'src/ui/plexViews/nodeConnections.ts'))};
 ${uiDefinitions('src/ui/ThoughtNode.tsx',['GATES','ThoughtNode'])}
@@ -2430,6 +2433,7 @@ ${uiDefinitions("src/ui/plexViews/measurement.ts", ["clamp", "nodeSize"])}
 import { physicalPositionLabel } from ${JSON.stringify(join(root, "src/ui/features/positionPresentation.ts"))};
 const ObsidianIcon=({className,size})=><span className={"kplex-icon "+className} style={{width:size,height:size}}/>;
 import {physicalGateStats} from ${JSON.stringify(join(root,"src/ui/plexViews/measurement.ts"))};
+import {nodePropertyFontSize} from ${JSON.stringify(join(root,"src/core/plex/nodeProperties.ts"))};
 import {useGateCountPresentation} from ${JSON.stringify(join(root,'src/ui/useGateCountPresentation.ts'))};
 import {thoughtCornerRadius} from ${JSON.stringify(join(root,'src/ui/plexViews/nodeConnections.ts'))};
 ${uiDefinitions("src/ui/ThoughtNode.tsx", ["GATES", "ThoughtNode"])}

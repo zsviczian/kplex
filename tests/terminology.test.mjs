@@ -16,6 +16,17 @@ const require = createRequire(import.meta.url);
 const ts = require("typescript");
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 
+test("interface copy names document properties without format jargon", () => {
+  const module = {exports: {}};
+  const source = readFileSync(join(root, "src/lang/en.ts"), "utf8");
+  const compiled = ts.transpileModule(source, {compilerOptions: {module: ts.ModuleKind.CommonJS}}).outputText;
+  runInNewContext(compiled, {exports: module.exports});
+  for (const [key, entry] of Object.entries(module.exports.englishCatalog)) {
+    const messages = typeof entry.message === "string" ? [entry.message] : Object.values(entry.plural);
+    for (const message of messages) assert.doesNotMatch(message.replace(/```yaml\b/gi, "```"), /\b(?:YAML|frontmatter)\b/i, key);
+  }
+});
+
 /** Only catalog entries explaining legacy data import may name the former product. */
 const migrationCopyKeys = new Set([
   "notice.excaliBrainSettingsImported",
