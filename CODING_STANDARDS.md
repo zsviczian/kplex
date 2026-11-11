@@ -222,6 +222,11 @@ Use **canvas** for the visual surface, **K-Plex canvas** where ambiguous, and **
 
 Use **nodes**, not "thoughts", in user-facing terminology. Legacy internal names can be migrated gradually, but new UI strings should say nodes.
 
+Use **document properties** in user-facing copy instead of YAML or frontmatter.
+Explain fields written in the note text separately, with a short example when useful.
+Keep technical API identifiers and code-example syntax intact; implementation comments
+and developer documentation may name the underlying format.
+
 ## Code-scanner compatibility
 
 Treat the Obsidian code scanner as a release gate, not as post-release cleanup. In particular:

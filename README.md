@@ -215,11 +215,11 @@ Drag a file or folder from Obsidian Files, or a resolved note link from Bases, o
 
 Drag a sibling into a Parent, Friend, Challenger or Child area to add a direct relationship to the center. Its other relationships, including the shared parent, remain intact.
 
-You can also drag an existing direct neighbor to another relationship area to reclassify it. K-Plex updates the graph immediately while the underlying note change is written. When K-Plex needs to create a new YAML/document property for a relationship, it adds that property at the bottom of the property list.
+You can also drag an existing direct neighbor to another relationship area to reclassify it. K-Plex updates the graph immediately while the underlying note change is written. When K-Plex needs to create a new document property for a relationship, it adds that property at the bottom of the property list.
 
 ### Connection details and unlinking
 
-A visible connection may come from YAML properties, body fields, ordinary links, folder/tag structure, URLs, dates, or other supported sources. A single connection can also be supported by several different source occurrences.
+A visible connection may come from document properties, body fields, ordinary links, folder/tag structure, URLs, dates, or other supported sources. A single connection can also be supported by several different source occurrences.
 
 ### Deleting notes and placeholders
 
@@ -309,7 +309,7 @@ A Markdown note can be expanded from the center into its heading hierarchy. This
 
 - Heading levels become a foldable tree.
 - Relationships found inside a section attach to that section.
-- YAML/frontmatter and content before the first heading stay attached to the central note.
+- Document properties and content before the first heading stay attached to the central note.
 - Folded sections project hidden descendant relationships onto the nearest visible section while retaining their original source for explanation.
 - Double-click / tap a section to open the source note at that heading.
 - Use **Fold all sections** and **Unfold all sections** for larger documents.
@@ -397,13 +397,17 @@ An image referenced only through the thumbnail/node-image fields is treated as p
 
 Image attachments such as JPG, PNG, GIF, WebP and SVG files can also be shown directly as nodes. Choose whether attachment nodes display **file name**, **thumbnail + file name** (default), or **image only** in the same settings section.
 
-### Property-value node styling
+### Note types, node styling and details
 
-One Markdown property selects a note's persistent visual style. By default that **Node style property** is **Note type**, but you can point it at another YAML or Dataview-style inline property in **Settings → K-Plex → Visual styling → Node styling**.
+A note type is a tag selected as a note's primary type and persistent node style. The **Note type property** defaults to **Note type**; its name can be changed in **Settings → K-Plex → Visual styling → Node styling**. Use `note type:: #person` in Markdown, or the document property `Note type` set to `person` with `person` in the `tags` document property. Nested tags such as `person/friend` are supported.
 
-Use **Node styles** to assign icon, background, text, border, border width, gate radius and font size to individual values of that property. Leave border width or gate radius empty to inherit the base style. The editor suggests values already found in the index as well as vault tags, and its Lucide icon field searches Obsidian's live icon registry. A leading `#` in a style value is normalized away, so `#project` and `project` address the same logical style.
+Use **Node styles** to configure one style per tag, displayed as `#person`: label prefix, icon, colors, border width, gate radius and font size. Ordinary matching tags contribute styling; the selected note type takes priority over conflicting attributes. Label prefixes from matching tags can remain additive. The editor suggests indexed tags and types, and searches Obsidian?s live icon registry. Reset optional dimensions to inherit the base style.
 
-Imported ExcaliBrain `primaryTagField` data is retained for compatibility, but it is not exposed as a second K-Plex style selector. Explicit property-value styles take precedence over the generic central/sibling appearance, so a styled note keeps its custom colors when it becomes the center of the Plex.
+The same editor defines optional **Node details**: ordered document properties shown in smaller text under the existing node name, with individual visibility toggles. Its preview identifies the source note and shows only existing values. The settings icon in **Set note type** opens the selected type's configuration and previews that note. **Set note type** lists the defined fields, offers **Save type and add missing properties** when needed, and confirms when all fields exist. Adding properties preserves existing values, including empty values. **Visual styling → Node styling → Property font size** controls the property text size for all nodes; the default is 12px. Imported styles use this same editor, with no separate style type or conversion step. Properties apply when the tag is selected as the note type.
+
+Right-click a Markdown node to set its type, explicitly add missing configured properties, or open Obsidian's native File properties sidebar. **Review note types** previews grouped inconsistencies in document properties and selected-file fixes. See [note types and optional properties](docs/NOTE_TYPES.md) for examples and the reviewed repair workflow.
+
+Imported ExcaliBrain `primaryTagField` data is retained for compatibility, but it is not exposed as a second K-Plex style selector. The selected note-type tag?s style takes precedence over the generic central/sibling appearance, so a styled note keeps its custom colors when it becomes the center of the Plex.
 
 Graph Lenses complement property-value styles when you want temporary, context-specific styling rather than a permanent visual identity.
 
@@ -445,7 +449,7 @@ K-Plex understands configurable relationship field names for:
 - Next
 - Hidden
 
-It supports YAML/frontmatter relationships and compatible Dataview-style body fields without requiring the Dataview plugin.
+It supports relationships in document properties and compatible Dataview-style body fields without requiring the Dataview plugin.
 
 Use **Settings → K-Plex → Ontology → Manage ontology** to search, assign and pair properties such as `replies to` and `replied by`. Both names stay visible when filtering by direction, and suggestions show their partners. Notes still use the individual property names; either note can declare the relationship. See [paired ontology fields](docs/ONTOLOGY_PAIRS.md) for configuration and authoring examples.
 

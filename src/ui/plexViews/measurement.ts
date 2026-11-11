@@ -2,6 +2,8 @@
 import type {KplexSettings} from "../../settings";
 import type {GraphPage, NodeStyle, PositionedNode} from "../../types";
 import type {GraphIndex} from "../../index/GraphIndex";
+import {nodePropertyFontSize, type NodePropertyLine} from "../../core/plex/nodeProperties";
+export type NodeDetailsRead = Readonly<{detailsFor?: (page: GraphPage) => readonly NodePropertyLine[]}>;
 /** Bound dimensions to the existing supported presentation interval. */
 const clamp = (n: number, min: number, max: number) => Math.max(min, Math.min(max, n));
 /** Keep the gate visually subordinate while preserving the legacy style radius. */
@@ -32,6 +34,7 @@ export function nodeSize(
   configuredMax = 30,
   configuredMaxWidth?: number,
   strokeWidth = 1,
+  details: readonly NodePropertyLine[] = [],
 ): { width: number; height: number } {
   const fontScale = (settings.baseFontSize ?? 12.4) / 12.4;
   const visibleLength = Math.min(label.length, effectiveLabelLimit(configuredMax, center));
@@ -50,7 +53,11 @@ export function nodeSize(
   // Match the text span's 1.2em lines plus 0.2em ink padding at each edge, including wrapped text.
   const singleLineHeight = Math.max(center ? 48 : 26, Math.ceil(renderedFont * 1.6 + verticalInsets));
   const twoLineHeight = Math.ceil(Math.max(fontSize * fontScale, renderedFont) * 2.4 + renderedFont * 0.4 + verticalInsets);
-  return { width, height: settings.wrapNodeLabels ? Math.max(singleLineHeight, twoLineHeight) : singleLineHeight };
+  const baseHeight = settings.wrapNodeLabels ? Math.max(singleLineHeight, twoLineHeight) : singleLineHeight;
+  const propertyFont = nodePropertyFontSize(settings.propertyFontSize);
+  const detailWidth = details.reduce((maximum, row) => Math.max(maximum, 32 + Math.min(512, row.text.length) * propertyFont * .55), 0);
+  return {width: details.length ? clamp(Math.max(width, detailWidth), minWidth, maxWidth) : width,
+    height: baseHeight + (details.length ? 4 + details.length * Math.ceil(propertyFont * 1.4) : 0)};
 }
 
 /** Reserve the shared heading marker/padding and minimum readable label width. All section

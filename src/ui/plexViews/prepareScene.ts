@@ -7,6 +7,7 @@ import type {PlexViewDefinition, PlexViewRead, PlexProjection, PlexMeasurement, 
 import {RelationType, type GraphPage, type PositionedNode, type PositionedEdge, type Role, type Neighbour} from "../../types";
 import {resolveNodeStyle, resolveLinkStyle} from "../../index/style";
 import {deferredNodeCounts, nodeSize, sectionNodeSize, nodeBadgeSize} from "./measurement";
+import type {NodeDetailsRead} from "./measurement";
 import {projectRelationGroups} from "./groupRelations";
 import type {Translator} from "../../lang";
 import type {HostPlexScene} from "./scene";
@@ -48,14 +49,15 @@ type SceneRead = Pick<GraphIndex, "get" | "neighbours" | "sortNeighbours" | "tit
 export type PreparedViewScene = Readonly<{scene: HostPlexScene; projection: PlexProjection | null; failure: boolean}>;
 
 /** A failed policy keeps only the current canonical attention/editor host. It neither reuses old graph payloads nor acquires sources. */
-export function attentionFallbackScene(source: Pick<GraphIndex, "get" | "titleFor">, attention: string, settings: KplexSettings,
+export function attentionFallbackScene(source: Pick<GraphIndex, "get" | "titleFor"> & NodeDetailsRead, attention: string, settings: KplexSettings,
   editorSize?: {width: number; height: number}): HostPlexScene {
   const page = source.get(attention);
   if (!page) return {nodes: [], edges: [], zoneAreas: {}, zoneViewports: {}, failed: true};
   const style = resolveNodeStyle(page, null, "center", settings), label = source.titleFor(page);
-  const size = editorSize ?? nodeSize(label, style.fontSize ?? 30, settings, true, style.maxLabelLength, style.maxWidth, style.strokeWidth);
+  const propertyLines = source.detailsFor?.(page);
+  const size = editorSize ?? nodeSize(label, style.fontSize ?? 30, settings, true, style.maxLabelLength, style.maxWidth, style.strokeWidth, propertyLines);
   return {nodes: [{page, role: "center", occurrenceId: "recovery-attention", physicalPorts: {}, x: 0, y: 0, ...size,
-    label, style, ...deferredNodeCounts()}], edges: [], zoneAreas: {}, zoneViewports: {}, failed: true,
+    label, style, ...(propertyLines?.length ? {propertyLines} : {}), ...deferredNodeCounts()}], edges: [], zoneAreas: {}, zoneViewports: {}, failed: true,
     entryOccurrence: "recovery-attention", editorOccurrence: "recovery-attention", frameOccurrence: "recovery-attention"};
 }
 
@@ -183,7 +185,7 @@ function validateProjection(projection: PlexProjection, maximum: number, definit
 }
 
 /** Pure policy failure stays local. The shell can recover without replacing native document/editor owners. */
-export function prepareViewScene(definition: PlexViewDefinition, read: PlexViewRead, source: Pick<GraphIndex, "get" | "titleFor">,
+export function prepareViewScene(definition: PlexViewDefinition, read: PlexViewRead, source: Pick<GraphIndex, "get" | "titleFor"> & NodeDetailsRead,
   attention: string, state: unknown, settings: KplexSettings, current: () => boolean,
   editorSize?: {width: number; height: number}, matches: (node: PositionedNode) => boolean = () => true,
   grouping?: {translate: Translator; unfolded: ReadonlySet<string>; areaHeights?: Readonly<Record<string, number>>; areaWidths?: Readonly<Record<string, number>>; layoutRoot?: NodeId; retainedScopes?: readonly NodeId[];
@@ -241,16 +243,18 @@ export function prepareViewScene(definition: PlexViewDefinition, read: PlexViewR
       const role = occurrence.role ?? (isRoot ? "center" : "child"), relation = occurrence.relation ? {page, role: occurrence.relation.role,
         relationType: occurrence.relation.relationType, typeDefinition: occurrence.relation.definition, linkDirection: occurrence.relation.direction} : null;
       const style = resolveNodeStyle(page, relation, role, settings), label = source.titleFor(page);
+      const propertyLines = occurrence.section ? undefined : source.detailsFor?.(page);
       const boundEditor = boundEditors.get(occurrence.id);
       const measuredSize = boundEditor?.binding.dimensions ?? (occurrence.id === legacyEditor && editorSize ? editorSize
         : nodeSize(`${style.prefix ?? ""}${label}`, style.fontSize ?? 18, settings, isRoot,
-          style.maxLabelLength, style.maxWidth, style.strokeWidth));
+          style.maxLabelLength, style.maxWidth, style.strokeWidth, propertyLines));
       const size = occurrence.section ? sectionNodeSize(measuredSize, style.maxWidth ?? settings.baseNodeStyle.maxWidth) : measuredSize;
       const translate = grouping?.translate;
       const description = occurrence.description && (translate ? canvasViewText(occurrence.description, translate) : "literal" in occurrence.description ? occurrence.description.literal : occurrence.description.key);
       const viewBadge = measuredViewBadge(occurrence.badge, settings, translate);
       const controlReserve = branchDisclosureReserve(occurrence.branch, grouping?.touchControls === true && definition.hierarchy?.controls === "measured");
       const node: PositionedNode = {page, occurrenceId: occurrence.id, areaId: occurrence.areaId, representation: occurrence.representation,
+        ...(propertyLines?.length ? {propertyLines} : {}),
         ...(viewBadge ? {viewBadge} : {}), ...(description ? {viewDescription: description} : {}),
         ...(controlReserve ? {controlReserve} : {}),
         role, relationType: relation?.relationType, typeDefinition: relation?.typeDefinition, linkDirection: relation?.linkDirection,

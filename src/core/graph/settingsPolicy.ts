@@ -11,12 +11,13 @@ export const HIERARCHY_ROLES = ["hidden", "parents", "children", "leftFriends", 
 export const PRESENTATION_KEYS = [
   "showFullTagName", "noteTypeField", "primaryTagField", "tagStyleList", "renderAlias", "nameFields", "nodeTitleScript",
   "baseNodeStyle", "centralNodeStyle", "inferredNodeStyle", "virtualNodeStyle", "siblingNodeStyle", "urlNodeStyle",
-  "attachmentNodeStyle", "folderNodeStyle", "tagNodeStyle", "tagNodeStyles", "noteTypeStyles", "displayAllStylePrefixes",
+  "attachmentNodeStyle", "folderNodeStyle", "tagNodeStyle", "tagNodeStyles", "displayAllStylePrefixes",
   "baseLinkStyle", "inferredLinkStyle", "folderLinkStyle", "tagLinkStyle", "hierarchyLinkStyles", "attachmentImageDisplay", "allowRemoteNodeImages",
   "colorPreferences", "standardStyleDefaults",
 ] as const;
 const SEMANTIC_KEYS = ["inferAllLinksAsFriends", "inverseInfer", "thumbnailProperty", "nodeImageProperty", "datePropertyRelations"] as const;
 const VIEW_KEYS = [
+  "noteTypeProperties", "propertyFontSize",
   "hierarchy.exclusions", "showFolderNodes", "showTagNodes", "showPageNodes", "showAttachments", "showURLNodes",
   "showVirtualNodes", "showInferredNodes", "renderSiblings", "showCrossLinks", "nodeSortOrder", "graphLenses", "excludeFilepaths",
   "backgroundColor", "connectorStyle", "graphDepth", "groupRelations", "compactingFactor", "horizontalCompactingFactor", "compactView", "maxItemCount",
@@ -149,7 +150,7 @@ export function classifySettingsChange(before: SettingsPolicy, after: SettingsPo
 export function isStyleOnlySettingsChange(effects: SettingsEffects): boolean {
   return effects.changedKeys.length > 0 && effects.changedKeys.every(
     /** Restrict the exception to the keys edited by the node and ontology style managers. */
-    key => key === "noteTypeStyles" || key === "tagNodeStyles" || key === "tagStyleList" || key === "hierarchyLinkStyles",
+    key => key === "tagNodeStyles" || key === "tagStyleList" || key === "hierarchyLinkStyles",
   );
 }
 

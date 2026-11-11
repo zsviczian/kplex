@@ -1,7 +1,7 @@
 /** Portable appearance field inventory shared by the existing settings queue and paint-only classification. No host/storage effects. */
 import {NODE_COLOR_FIELDS, LINK_COLOR_FIELDS, copyColorValue, type ColorValue} from "./colorValue";
 
-export const STYLE_SETTINGS_KEYS = ["noteTypeStyles", "tagNodeStyles", "tagStyleList", "hierarchyLinkStyles",
+export const STYLE_SETTINGS_KEYS = ["tagNodeStyles", "tagStyleList", "hierarchyLinkStyles",
   "baseNodeStyle", "centralNodeStyle", "inferredNodeStyle", "virtualNodeStyle", "siblingNodeStyle", "urlNodeStyle",
   "attachmentNodeStyle", "folderNodeStyle", "tagNodeStyle", "baseLinkStyle", "inferredLinkStyle", "folderLinkStyle",
   "tagLinkStyle", "standardStyleDefaults", "backgroundColor", "colorPreferences", "graphLenses"] as const;
@@ -31,7 +31,7 @@ function emptyRecord(value: unknown): boolean { return record(value) && Object.k
  */
 export function appearanceWithoutColors(key: string, value: unknown): unknown {
   if (key === "standardStyleDefaults" || key === "backgroundColor" || key === "colorPreferences") return undefined;
-  if (key === "noteTypeStyles" || key === "tagNodeStyles" || key === "hierarchyLinkStyles") {
+  if (key === "tagNodeStyles" || key === "hierarchyLinkStyles") {
     if (value === undefined) return {};
     if (!record(value)) return value;
     const fields = key === "hierarchyLinkStyles" ? LINK_COLOR_FIELDS : NODE_COLOR_FIELDS;
@@ -69,7 +69,7 @@ export function mapAppearanceColors(settings: Partial<Record<typeof STYLE_SETTIN
   for (const key of STYLE_SETTINGS_KEYS) {
     if (key.endsWith("NodeStyle")) style(settings[key], NODE_COLOR_FIELDS);
     else if (key.endsWith("LinkStyle")) style(settings[key], LINK_COLOR_FIELDS);
-    else if (["noteTypeStyles", "tagNodeStyles", "hierarchyLinkStyles"].includes(key) && record(settings[key]))
+    else if (["tagNodeStyles", "hierarchyLinkStyles"].includes(key) && record(settings[key]))
       for (const value of Object.values(settings[key])) style(value, key === "hierarchyLinkStyles" ? LINK_COLOR_FIELDS : NODE_COLOR_FIELDS);
   }
   if (settings.backgroundColor !== undefined) inspect?.(settings.backgroundColor);

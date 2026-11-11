@@ -366,7 +366,7 @@ test('durable and compatibility style saves retain real on-demand authority with
     const publication=index.publicationRevision,policy=index.semanticPolicyRevision,token=index.onDemandIndexed.get('A.md');let presentations=0;restores.push(index.subscribePresentation(()=>presentations++));
     await index.withForegroundPriority(async()=>{
       let timer;try{await Promise.race([(async()=>{
-        equal(await host.updateStyleSettings(draft=>{draft.noteTypeStyles.Project={icon:'box'};}),{refreshPending:false},'Actual durable style commit');
+        equal(await host.updateStyleSettings(draft=>{draft.tagNodeStyles["#Project"]={icon:'box'};}),{refreshPending:false},'Actual durable style commit');
         await host.updateStyleSettings(draft=>{draft.tagNodeStyles['#work']={icon:'info'};draft.tagStyleList.push('#work');});
         host.settings.hierarchyLinkStyles.parent={strokeWidth:3};await host.saveSettings(false);
       })(),new Promise((_,reject)=>timer=setTimeout(()=>reject(new Error('Style save awaited unrelated semantic work')),3000))]);}finally{clearTimeout(timer);}

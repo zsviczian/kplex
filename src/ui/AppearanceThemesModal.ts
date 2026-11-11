@@ -32,7 +32,7 @@ export type AppearanceThemesOptions = Readonly<{
 function themeSummary(theme: AppearanceTheme, context: StyleColorContext): ColorSwatchItem[] {
   const t = context.translate, base = theme.appearance.base, semantic = theme.appearance.semantic;
   const rules: ColorSwatchItem[] = [];
-  for (const group of [semantic.noteTypeStyles, semantic.tagNodeStyles, semantic.hierarchyLinkStyles]) {
+  for (const group of [semantic.tagNodeStyles, semantic.hierarchyLinkStyles]) {
     for (const [name, style] of Object.entries(group)) {
       const value = sanitizeColorValue(style.backgroundColor ?? style.strokeColor ?? style.textColor ?? style.borderColor);
       if (value !== undefined) rules.push({label: name, value, fallback: NATIVE_NODE_PAINT.foreground});
@@ -95,7 +95,7 @@ export class AppearanceThemesManagerModal extends StyleEditorModal {
       const copy = row.createDiv({cls: "kplex-style-manager-copy"}), heading = copy.createDiv({cls: "kplex-style-manager-heading"});
       heading.createSpan({text: theme.name, cls: "kplex-style-manager-name"});
       if (theme.id === library.selectedId) {heading.createSpan({text: this.translate("themes.active"), cls: "kplex-style-manager-badge"}); row.setAttribute("aria-current", "true");}
-      copy.createDiv({text: this.translate("themes.summary", {nodes: Object.keys(theme.appearance.semantic.noteTypeStyles).length + Object.keys(theme.appearance.semantic.tagNodeStyles).length,
+      copy.createDiv({text: this.translate("themes.summary", {nodes: Object.keys(theme.appearance.semantic.tagNodeStyles).length,
         links: Object.keys(theme.appearance.semantic.hierarchyLinkStyles).length, pairs: theme.appearance.semantic.colorPreferences.palette.length}), cls: "kplex-style-manager-summary"});
       this.colors.add(copy.createDiv(), /** This row uses its own named pairs and semantic assignments. */ () => items, context.preferences);
     }

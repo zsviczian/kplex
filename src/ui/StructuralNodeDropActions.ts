@@ -4,7 +4,9 @@ import type { GraphPage } from "../types";
 import type { Translator } from "../lang";
 import { graphTagValue, hasYamlTagMembership } from "../adapters/obsidian/tagMembership";
 import { preparePhysicalMove, commitPhysicalMove } from "../adapters/obsidian/physicalNodeMove";
-import { assignTag, demoteNoteType, noteTypeSelection, unlinkTagAssignment, type TagAssignment } from "../adapters/obsidian/tagNoteType";
+import { assignTag, demoteNoteType, noteTypeSelection, unlinkTagAssignment, setNoteType, ensureNoteTypeMembership, NoteTypeChangedError, type NoteTypeSelection, type TagAssignment } from "../adapters/obsidian/tagNoteType";
+import {initializeNoteProperties} from "../adapters/obsidian/noteTypeProperties";
+import type {NodeProperty} from "../core/plex/nodeProperties";
 import { SavedRelationshipPendingError } from "../adapters/obsidian/relationshipMetadataWrite";
 import { MoveToFolderModal } from "./MoveToFolderModal";
 import { TagAssignmentModal } from "./TagAssignmentModal";
@@ -94,6 +96,32 @@ export class StructuralNodeDropActions {
       },
     });
     this.dialogs.add(dialog); dialog.open(); return true;
+  }
+
+  /** Context editing and repair share the drop queue, exact native identity and saved-observation owner. */
+  editNoteType(file: TFile, field: string, opening: NoteTypeSelection, value: string | null, removeOld: boolean, current: () => boolean, stamp?: Readonly<{mtime: number; size: number}>, defaults?: readonly NodeProperty[]): Promise<boolean> {
+    return this.editTag(file, frontmatter => {
+      if (this.noteTypeField() !== field || stamp && (file.stat.mtime !== stamp.mtime || file.stat.size !== stamp.size)) throw new NoteTypeChangedError(noteTypeSelection(frontmatter, field));
+      const changed = setNoteType(frontmatter, field, opening, value, removeOld, this.translate("tagAssignment.invalid"));
+      const initialized = defaults ? initializeNoteProperties(frontmatter, field, noteTypeSelection(frontmatter, field), defaults, this.translate("noteType.changed")) : false;
+      return changed || initialized;
+    }, current, undefined, new Set(["tags", field, ...(defaults?.map(row => row.field) ?? [])]));
+  }
+
+  /** Missing-tag repair preserves the valid selector while retaining native stale-file guards. */
+  ensureTypeMembership(file: TFile, field: string, opening: NoteTypeSelection, current: () => boolean, stamp: Readonly<{mtime: number; size: number}>): Promise<boolean> {
+    return this.editTag(file, frontmatter => {
+      if (this.noteTypeField() !== field || file.stat.mtime !== stamp.mtime || file.stat.size !== stamp.size) throw new NoteTypeChangedError(noteTypeSelection(frontmatter, field));
+      return ensureNoteTypeMembership(frontmatter, field, opening, this.translate("tagAssignment.invalid"));
+    }, current, undefined, new Set([field, "tags"]));
+  }
+
+  /** Explicit optional-default initialization uses that same queue and never introduces tag/type selectors. */
+  addNoteProperties(file: TFile, field: string, opening: NoteTypeSelection, rows: readonly NodeProperty[], current: () => boolean): Promise<boolean> {
+    return this.editTag(file, frontmatter => {
+      if (this.noteTypeField() !== field) throw new NoteTypeChangedError(noteTypeSelection(frontmatter, field));
+      return initializeNoteProperties(frontmatter, field, opening, rows, this.translate("noteType.changed"));
+    }, current, undefined, new Set([field, "tags", ...rows.map(row => row.field)]));
   }
 
   /** Unlink uses the same per-file queue as drop assignment and never edits inline Markdown tags. */

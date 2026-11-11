@@ -16,6 +16,17 @@ const require = createRequire(import.meta.url);
 const ts = require("typescript");
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 
+test("interface copy names document properties without format jargon", () => {
+  const module = {exports: {}};
+  const source = readFileSync(join(root, "src/lang/en.ts"), "utf8");
+  const compiled = ts.transpileModule(source, {compilerOptions: {module: ts.ModuleKind.CommonJS}}).outputText;
+  runInNewContext(compiled, {exports: module.exports});
+  for (const [key, entry] of Object.entries(module.exports.englishCatalog)) {
+    const messages = typeof entry.message === "string" ? [entry.message] : Object.values(entry.plural);
+    for (const message of messages) assert.doesNotMatch(message.replace(/```yaml\b/gi, "```"), /\b(?:YAML|frontmatter)\b/i, key);
+  }
+});
+
 /** Only catalog entries explaining legacy data import may name the former product. */
 const migrationCopyKeys = new Set([
   "notice.excaliBrainSettingsImported",
@@ -231,9 +242,9 @@ test("commands are registered once with canonical IDs and unchanged availability
     registerPluginCommands(plugin, device);
     assert.equal(new Set(commands.map((command) => command.id)).size, commands.length);
     assert(commands.every((command) => command.id.startsWith("kplex-")));
-    assert.equal(commands.length, 34, "Preserved commands and the new Markdown and PNG export commands must publish");
+    assert.equal(commands.length, 35, "Preserved commands, exports and the new note-type review command must publish");
     plugin.actionPublisher.sync(plugin.settings.actionPreferences);
-    assert.equal(commands.length, 34, "Repeated reconciliation must not duplicate stable IDs");
+    assert.equal(commands.length, 35, "Repeated reconciliation must not duplicate stable IDs");
     assert.equal(commands.filter(command => typeof command.editorCheckCallback === "function").length, 9);
     assert(commands.every(command => command.hotkeys === undefined), "Local defaults must not become global host hotkeys");
     const byId = (id) => {

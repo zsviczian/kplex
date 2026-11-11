@@ -11,6 +11,16 @@ export function canonicalTagParts(rawTag: string): string[] {
     part => part.trim()).filter(Boolean);
 }
 
+/** Validate a singular user-entered tag without inventing a slug or flattening a hierarchy.
+ * Native authoring accepts Unicode letters, marks, numbers and symbols, but not a bare
+ * ASCII number. Require nonempty hierarchy segments even where the native lexer is permissive.
+ * One optional leading hashtag is cosmetic. */
+export function noteTypeTag(value: string | null): string | null {
+  const tag = value?.trim().replace(/^#/, "") ?? "";
+  return tag && /^[\p{L}\p{M}\p{N}\p{S}_/-]+$/u.test(tag) && !/[+$^|<=>~`]/.test(tag) && !/^[0-9]+$/.test(tag)
+    && !/^\/|\/$|\/\//.test(tag) ? tag : null;
+}
+
 /** Normalize a host tag spelling and enumerate each complete ancestor through its leaf in order. */
 export function* canonicalTagPaths(rawTag: string): IterableIterator<string> {
   let path = "";

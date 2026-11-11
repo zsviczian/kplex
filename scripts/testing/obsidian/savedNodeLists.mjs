@@ -25,7 +25,7 @@ async function scenario(app,c){
   p.settings.navigationHistory=chosen.map(page=>page.path);p.settings.pinnedNodes=chosen.slice(0,2).map(page=>page.path);
   await p.saveSettings(false,false);
   const style={backgroundColor:'#123456',textColor:'#ffffff',borderColor:'#fedcba',strokeWidth:2,strokeStyle:'dashed',icon:'star',prefix:'N '};
-  await p.updateStyleSettings(draft=>{draft.noteTypeStyles[typed.noteType]=style;});
+  await p.updateStyleSettings(draft=>{draft.tagNodeStyles["#"+typed.noteType.replace(/^#/,"")]=style;});
   const anchors=[];workspace.iterateRootLeaves(leaf=>{if(leaf.view.containerEl.ownerDocument===document&&leaf.view.containerEl.getBoundingClientRect().width>0)anchors.push(leaf)});
   check(anchors[0],'Main-window tab anchor absent');await workspace.revealLeaf(anchors[0]);workspace.setActiveLeaf(anchors[0],{focus:true});
   host=workspace.getLeaf('tab');await host.setViewState({type:'k-plex-react-view',active:true});await host.view.waitUntilReady();
@@ -55,7 +55,7 @@ async function scenario(app,c){
   await new Promise(resolve=>window.setTimeout(resolve,80));
   check(host.view.documentSession.centerPath===center&&!list.classList.contains('is-mouse-scrolling'),'History drag navigated or retained capture');
   cases.push({id:'native-mouse-history-scroll-without-navigation',scrollLeft:list.scrollLeft});
-  await p.updateStyleSettings(draft=>{draft.noteTypeStyles[typed.noteType]={...style,backgroundColor:'#654321'};});
+  await p.updateStyleSettings(draft=>{draft.tagNodeStyles["#"+typed.noteType.replace(/^#/,"")]={...style,backgroundColor:'#654321'};});
   await until(()=>getComputedStyle(pin().parentElement).backgroundColor==='rgb(101, 67, 33)'&&getComputedStyle(history()).backgroundColor==='rgb(101, 67, 33)','Saved rows did not follow paint publication');
   check(host.view.documentSession.centerPath===center,'Paint publication navigated');
   cases.push({id:'native-saved-rows-live-paint-publication-without-navigation'});

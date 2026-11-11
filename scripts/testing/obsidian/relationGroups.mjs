@@ -39,7 +39,7 @@ async function scenario(app,c) {
       showPageNodes:true,showAttachments:true,showURLNodes:true,showVirtualNodes:true,showTagNodes:true,showFolderNodes:true,showInferredNodes:true,
       noteTypeField:'Note type',allowRemoteNodeImages:false});
     p.settings.hierarchy={...p.settings.hierarchy,children:[...p.settings.hierarchy.children,field],leftFriends:[...p.settings.hierarchy.leftFriends,left],rightFriends:[...p.settings.hierarchy.rightFriends,right]};
-    p.settings.noteTypeStyles={...p.settings.noteTypeStyles,[book]:{backgroundColor:'#123456',textColor:'#abcdef',icon:'book'}};
+    p.settings.tagNodeStyles={...p.settings.tagNodeStyles,["#"+book]:{backgroundColor:'#123456',textColor:'#abcdef',icon:'book'}};
     p.settings.attachmentNodeStyle={...p.settings.attachmentNodeStyle,backgroundColor:'#654321'};
     await p.saveSettings(false,false);await p.updateLayoutProfile('leaf',{lateralArrangement:'split'});
     check(!app.vault.getFolderByPath(prefix)&&!app.vault.getFileByPath(prefix),'Fixture collision');

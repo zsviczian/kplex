@@ -1393,6 +1393,7 @@ console.error = (...args) => { warnings.push(args.map(String).join(" ")); origin
 // Native icons are the only thought-rendering host boundary; this scenario has no icon effects.
 const ObsidianIcon = () => null;
 import {physicalGateStats} from ${JSON.stringify(join(root,"src/ui/plexViews/measurement.ts"))};
+import {nodePropertyFontSize} from ${JSON.stringify(join(root,"src/core/plex/nodeProperties.ts"))};
 import {useGateCountPresentation} from ${JSON.stringify(join(root,'src/ui/useGateCountPresentation.ts'))};
 import {thoughtCornerRadius} from ${JSON.stringify(join(root,'src/ui/plexViews/nodeConnections.ts'))};
 ${uiDefinitions("src/ui/ThoughtNode.tsx", ["GATES", "ThoughtNode"])}
@@ -2287,6 +2288,7 @@ import {createTranslator} from ${JSON.stringify(join(root,'src/lang/index.ts'))}
 import {HoverPreview,bindHoverPreview} from ${JSON.stringify(join(root,'src/ui/components/hoverPreview.ts'))};
 const ObsidianIcon=()=>null;
 import {physicalGateStats} from ${JSON.stringify(join(root,"src/ui/plexViews/measurement.ts"))};
+import {nodePropertyFontSize} from ${JSON.stringify(join(root,"src/core/plex/nodeProperties.ts"))};
 import {useGateCountPresentation} from ${JSON.stringify(join(root,'src/ui/useGateCountPresentation.ts'))};
 import {thoughtCornerRadius} from ${JSON.stringify(join(root,'src/ui/plexViews/nodeConnections.ts'))};
 ${uiDefinitions('src/ui/ThoughtNode.tsx',['GATES','ThoughtNode'])}
@@ -2354,6 +2356,7 @@ import {physicalPositionLabel} from ${JSON.stringify(join(root,'src/ui/features/
 import {canDisplayNodeImage} from ${JSON.stringify(join(root,'src/core/plex/nodeImagePolicy.ts'))};
 const ObsidianIcon=()=>null;
 import {physicalGateStats} from ${JSON.stringify(join(root,"src/ui/plexViews/measurement.ts"))};
+import {nodePropertyFontSize} from ${JSON.stringify(join(root,"src/core/plex/nodeProperties.ts"))};
 import {useGateCountPresentation} from ${JSON.stringify(join(root,'src/ui/useGateCountPresentation.ts'))};
 import {thoughtCornerRadius} from ${JSON.stringify(join(root,'src/ui/plexViews/nodeConnections.ts'))};
 ${uiDefinitions('src/ui/ThoughtNode.tsx',['GATES','ThoughtNode'])}
@@ -2430,6 +2433,7 @@ ${uiDefinitions("src/ui/plexViews/measurement.ts", ["clamp", "nodeSize"])}
 import { physicalPositionLabel } from ${JSON.stringify(join(root, "src/ui/features/positionPresentation.ts"))};
 const ObsidianIcon=({className,size})=><span className={"kplex-icon "+className} style={{width:size,height:size}}/>;
 import {physicalGateStats} from ${JSON.stringify(join(root,"src/ui/plexViews/measurement.ts"))};
+import {nodePropertyFontSize} from ${JSON.stringify(join(root,"src/core/plex/nodeProperties.ts"))};
 import {useGateCountPresentation} from ${JSON.stringify(join(root,'src/ui/useGateCountPresentation.ts'))};
 import {thoughtCornerRadius} from ${JSON.stringify(join(root,'src/ui/plexViews/nodeConnections.ts'))};
 ${uiDefinitions("src/ui/ThoughtNode.tsx", ["GATES", "ThoughtNode"])}
@@ -2513,6 +2517,7 @@ function colorPaintBrowserEntry() {
 import {occurrenceKey,edgeOccurrence,edgePhysicalOccurrence,semanticSceneEdge} from ${JSON.stringify(join(root,'src/ui/plexViews/scene.ts'))};
 import {classicViewDefinition,classicAreaDropRole,classicPorts} from ${JSON.stringify(join(root,'src/core/plex/views/classic/definition.ts'))};
 import * as classicLayout from ${JSON.stringify(join(root,'src/ui/layout.ts'))};
+import {nodePropertyReader} from ${JSON.stringify(join(root,'src/adapters/obsidian/nodeProperties.ts'))};
 const viewDefinition=classicViewDefinition,viewFailed=false,viewLifetime=0;
 const classicFixturePolicy=(layout=classicLayout.buildScene)=>({policyKey:classicLayout.sceneLayoutPolicyKey,geometryKey:classicLayout.neighborhoodSceneKey,
   layout,sections:classicLayout.buildSectionExpandedScene,bind:classicLayout.bindSceneNeighborhood,dropRole:classicAreaDropRole});
@@ -2537,6 +2542,7 @@ let sceneBefore,nodeBefore,inputBefore,cameraBefore;
 function NativeEditor(){useEffect(()=>{counters.mounts++},[]);return <input defaultValue='unsaved text'/>}
 function Scene({settings,paintSettings}){
  const activePath='Center.md';const preparedDefinitionScene=null,classic=useMemo(()=>classicFixturePolicy(buildScene),[]);
+ const readNodeProperties=useMemo(()=>nodePropertyReader({},{}),[]),nodePropertyRevision=0;
  ${uiDefinitions('src/ui/PlexGraph.tsx',['classicRead','scenePolicyKey','sceneGeometryKey','sceneGeometry','scene'])}
  window.lastColorScene=scene;
  const visualPages=useMemo(()=>scene.nodes.map(node=>node.page),[scene.nodes]);useEffect(()=>{counters.images++},[visualPages]);
@@ -2581,6 +2587,7 @@ function crosslinkPeekBrowserEntry(){
 import {occurrenceKey,edgeOccurrence,edgePhysicalOccurrence,semanticSceneEdge} from ${JSON.stringify(join(root,'src/ui/plexViews/scene.ts'))};
 import {classicViewDefinition,classicAreaDropRole,classicPorts} from ${JSON.stringify(join(root,'src/core/plex/views/classic/definition.ts'))};
 import * as classicLayout from ${JSON.stringify(join(root,'src/ui/layout.ts'))};
+import {nodePropertyReader} from ${JSON.stringify(join(root,'src/adapters/obsidian/nodeProperties.ts'))};
 const viewDefinition=classicViewDefinition,viewFailed=false,viewLifetime=0;
 const classicFixturePolicy=(layout=classicLayout.buildScene)=>({policyKey:classicLayout.sceneLayoutPolicyKey,geometryKey:classicLayout.neighborhoodSceneKey,
   layout,sections:classicLayout.buildSectionExpandedScene,bind:classicLayout.bindSceneNeighborhood,dropRole:classicAreaDropRole});
@@ -2616,6 +2623,7 @@ function Graph(){
  const preparedDefinitionScene=null;
  const viewport=useRef(null),hoverHighlight=useRef(null),hoverPreview=useRef(null),[hover,setHover]=useState(null),[crossLinkPeek,setCrossLinkPeek]=useState(null),[required,setRequired]=useState(true),[showCrossLinks,setShown]=useState(false),[hidden,setHidden]=useState([]);
  const viewSettings={hoverHighlightRequiresAlt:required},clearEdgeTooltip=()=>{};
+ const readNodeProperties=useMemo(()=>nodePropertyReader({},{}),[]),nodePropertyRevision=0;
  ${uiDefinitions('src/ui/PlexGraph.tsx',['classicRead','scenePolicyKey','sceneGeometryKey','sceneGeometry','scene','clearHoverIntent','scheduleHoverIntent'])}
  const visibleNodePaths=useMemo(()=>new Set(scene.nodes.filter(node=>!hidden.includes(node.page.path)).map(node=>node.page.path)),[scene.nodes,hidden]);
  const renderedNodeMap=useMemo(()=>new Map(scene.nodes.map(node=>[node.page.path,node])),[scene.nodes]);

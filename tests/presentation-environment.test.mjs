@@ -492,6 +492,7 @@ test("persisted layout keys and node-open leaf modes remain stable with canonica
       neighborhood: null, activePath: "Other.md", canExpandCentralSections: () => false,
       Menu: MenuDouble, captureSurfaceContinuation: continuationModule.exports.captureSurfaceContinuation, actionNodeRef: nodeModule.exports.actionNodeRef, actionSurfaceId: "owning-surface", sceneNodeKeys: new Map(),
       plugin: {app: {}, getFileOpenMenuState: () => ({focusOpenTab: true, adjacentPane: true, popoutWindow: false}), isPinned: () => false,
+        canShowNodeProperties: () => false, canInitializeNodeProperties: () => false,
         dailyNoteGapDirections: target => {assert.equal(target, page); return [];},
         actionManager: {readSnapshot: () => null, dispatch: request => {requests.push(request); return Promise.resolve({status: "completed"});}}, showKplexMenuAtPosition() {}},
       addNativeSubmenu: (menu, _title, _icon, populate) => populate(menu), translate: key => key,
@@ -614,7 +615,7 @@ test("URL expansion normalizes videos, preserves private Vimeo tokens and reject
 function compileGraphPresentation() {
   const temp = mkdtempSync(join(tmpdir(), "kplex-graph-presentation-"));
   for (const relative of ["src/index/GraphPresentation.ts", "src/adapters/obsidian/yieldToHostTask.ts",
-    "src/core/contracts/appearance.ts", "src/core/contracts/ontologyConfiguration.ts", "src/core/contracts/colorValue.ts", "src/core/contracts/fieldName.ts", "src/core/graph/presentation.ts", "src/core/graph/settings.ts", "src/core/graph/settingsPolicy.ts"]) {
+    "src/core/contracts/appearance.ts", "src/core/contracts/tagStyle.ts", "src/core/contracts/ontologyConfiguration.ts", "src/core/contracts/colorValue.ts", "src/core/contracts/fieldName.ts", "src/core/graph/presentation.ts", "src/core/graph/settings.ts", "src/core/graph/settingsPolicy.ts"]) {
     const output = join(temp, relative.replace(/\.ts$/, ".js"));
     mkdirSync(dirname(output), { recursive: true });
     writeFileSync(output, ts.transpileModule(readFileSync(join(root, relative), "utf8"), {

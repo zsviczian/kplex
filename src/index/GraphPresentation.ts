@@ -8,6 +8,7 @@
  * settings and cancellation fences independent of dispatch.
  * Revocable image permission remains live at rendering boundaries even while a policy save is pending.
  */
+import {matchesStyleTag} from "../core/contracts/tagStyle";
 import { yieldToHostTask } from "../adapters/obsidian/yieldToHostTask";
 import { getAllTags, type App, type CachedMetadata, type TFile } from "obsidian";
 import type { KplexSettings } from "../settings";
@@ -69,7 +70,7 @@ function presentationTags(page: GraphPage, cache: CachedMetadata | null): readon
 /** A matching frontmatter primary selector outranks all inline selectors and needs no body input. */
 function needsStyleBody(page: GraphPage, settings: KplexSettings, cache: CachedMetadata | null): boolean {
   const primaryField = normalizeFieldName(settings.primaryTagField);
-  const styleTags = presentationTags(page, cache).filter(tag => settings.tagStyleList.some(prefix => tag.startsWith(prefix)));
+  const styleTags = presentationTags(page, cache).filter(tag => settings.tagStyleList.some(prefix => matchesStyleTag(tag, prefix)));
   return Boolean(primaryField && styleTags.length
     && !primaryStyleTagFromValues(styleTags, fieldValues(cache?.frontmatter ?? {}, primaryField)));
 }
@@ -87,7 +88,7 @@ function needsFacetPreparation(page: GraphPage, settings: KplexSettings, selecti
   if (selection.noteType && (page.file?.extension === "md" || page.noteType !== null)) return true;
   return selection.styleTags && ((page.file?.extension === "md" && settings.tagStyleList.length > 0)
     || page.primaryStyleTag !== null || page.styleTags.length > 0 ||
-    page.tags.some((tag) => settings.tagStyleList.some((prefix) => tag.startsWith(prefix))));
+    page.tags.some((tag) => settings.tagStyleList.some((prefix) => matchesStyleTag(tag, prefix))));
 }
 
 /** Compute selected facets: ready empties clear prior values, while pending omits unknown fields. */

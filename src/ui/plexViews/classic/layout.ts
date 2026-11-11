@@ -7,6 +7,8 @@ import {mirrorClassicCoordinates} from "../../../core/plex/views/classic/geometr
 import {nodeId} from "../../../core/graph/model";
 import type {PlexProjection} from "../../../core/plex/views/contracts";
 import {nodeSize, sectionNodeSize, countsForLayout, nodeLabelFontSize} from "../measurement";
+import {nodePropertyFontSize} from "../../../core/plex/nodeProperties";
+import type {NodeDetailsRead} from "../measurement";
 /**
  * Classic host binding: arrange semantic neighborhoods into presentation zones.
  * Area resize bounds exist for empty groups independently of overflow viewports;
@@ -29,7 +31,7 @@ import type { GraphIndex } from "../../../index/GraphIndex";
 import { appearanceWithoutColors } from "../../../core/contracts/appearance";
 
 /** The Classic host adapter receives only cached presentation/incidence reads, never a mutable index or plugin. */
-export type ClassicSceneRead = Pick<GraphIndex, "titleFor" | "neighbours" | "neighbourCount" | "gateStats" | "visibleRelationshipsWithin">;
+export type ClassicSceneRead = Pick<GraphIndex, "titleFor" | "neighbours" | "neighbourCount" | "gateStats" | "visibleRelationshipsWithin"> & NodeDetailsRead;
 /** The orientation is an effective view configuration, never a second persisted global setting. */
 type ClassicSceneSettings = KplexSettings & Readonly<{flipEastWest?: boolean}>;
 /** Bound a geometry input to its supported presentation interval. */
@@ -60,7 +62,7 @@ export type PlexScene = HostPlexScene;
  * inactive themes, workflow settings and lens behavior never enter this finite layout key. */
 export function sceneLayoutPolicyKey(settings: ClassicSceneSettings): string {
   return JSON.stringify([
-    settings.baseFontSize, settings.childColumns, settings.childMaxHeight, settings.compactingFactor,
+    settings.baseFontSize, settings.propertyFontSize, settings.childColumns, settings.childMaxHeight, settings.compactingFactor,
     settings.compactView, settings.friendMaxHeight, settings.graphDepth, settings.horizontalCompactingFactor,
     settings.lateralArrangement, settings.flipEastWest === true, settings.maxItemCount, settings.minLinkLength, settings.parentColumns,
     settings.parentMaxHeight, settings.siblingMaxHeight, settings.siblingRelativeSize, settings.wrapNodeLabels,
@@ -72,11 +74,12 @@ export function sceneLayoutPolicyKey(settings: ClassicSceneSettings): string {
 /** Snapshot bounded ordinary-geometry inputs. Source clocks/provenance do not position nodes;
  * ordered membership, labels, winning styles and relations do. Settings, semantic crosslinks
  * and section projections retain their separate caller-owned invalidation. */
-export function neighborhoodSceneKey(neighborhood: Neighborhood | null, index: Pick<GraphIndex, "titleFor">, settings: KplexSettings): string {
+export function neighborhoodSceneKey(neighborhood: Neighborhood | null, index: Pick<GraphIndex, "titleFor"> & NodeDetailsRead, settings: KplexSettings): string {
   if (!neighborhood) return "";
   const node = (page: GraphPage, relation: Neighbour | null, role: Role | "center"): unknown => [
     page.path, page.isFolder, page.isTag, Boolean(page.file), page.url, page.noteType,
     page.transient?.kind === "group" ? page.name : index.titleFor(page),
+    index.detailsFor?.(page),
     page.transient?.groupMembers?.map(member => member.page.path),
     appearanceWithoutColors("baseNodeStyle", resolveNodeStyle(page, relation, role, settings)),
     relation?.relationType, relation?.typeDefinition, relation?.linkDirection,
@@ -122,11 +125,13 @@ function makeNode(
     gateRadius: (resolved.gateRadius ?? settings.baseNodeStyle.gateRadius ?? 5) * scale,
   };
   const label = n.page.transient?.kind === "group" ? n.page.name : index.titleFor(n.page);
-  const baseSize = nodeSize(`${resolved.prefix ?? ""}${label}`, resolved.fontSize ?? 18, settings, false, resolved.maxLabelLength ?? 30, resolved.maxWidth ?? settings.baseNodeStyle.maxWidth, resolved.strokeWidth);
+  const propertyLines = index.detailsFor?.(n.page);
+  const baseSize = nodeSize(`${resolved.prefix ?? ""}${label}`, resolved.fontSize ?? 18, settings, false, resolved.maxLabelLength ?? 30, resolved.maxWidth ?? settings.baseNodeStyle.maxWidth, resolved.strokeWidth, propertyLines);
   const size = scale === 1 ? baseSize : { width: baseSize.width * scale,
     // Sibling scaling keeps its width/proportions but cannot shrink the actual font's clip box.
     height: Math.max(baseSize.height * scale, Math.ceil(nodeLabelFontSize(style.fontSize ?? 18, false, settings.baseFontSize)
-      * (settings.wrapNodeLabels ? 2.8 : 1.6) + 8 + 2 * Math.max(0, style.strokeWidth ?? 1))) };
+      * (settings.wrapNodeLabels ? 2.8 : 1.6) + 8 + 2 * Math.max(0, style.strokeWidth ?? 1))
+      + (propertyLines?.length ? 4 + propertyLines.length * Math.ceil(nodePropertyFontSize(settings.propertyFontSize) * 1.4) : 0)) };
   const node: PositionedNode = {
     page: n.page,
     role,
@@ -138,6 +143,7 @@ function makeNode(
     ...size,
     style,
     label,
+    ...(propertyLines?.length ? {propertyLines} : {}),
     ...countsForLayout(n.page, index, deferCounts),
   };
   measureClassicEditor(node, center, editor);return node;
@@ -216,7 +222,8 @@ export function buildScene(
 ): PlexScene {
   const centerStyle = resolveNodeStyle(neighborhood.center, null, "center", settings);
   const centerLabel = index.titleFor(neighborhood.center);
-  const normalCenterSize = nodeSize(`${centerStyle.prefix ?? ""}${centerLabel}`, centerStyle.fontSize ?? 30, settings, true, centerStyle.maxLabelLength ?? 30, centerStyle.maxWidth ?? settings.centralNodeStyle.maxWidth ?? settings.baseNodeStyle.maxWidth, centerStyle.strokeWidth);
+  const propertyLines = index.detailsFor?.(neighborhood.center);
+  const normalCenterSize = nodeSize(`${centerStyle.prefix ?? ""}${centerLabel}`, centerStyle.fontSize ?? 30, settings, true, centerStyle.maxLabelLength ?? 30, centerStyle.maxWidth ?? settings.centralNodeStyle.maxWidth ?? settings.baseNodeStyle.maxWidth, centerStyle.strokeWidth, propertyLines);
   const centerSize = centerSizeOverride
     ? { width: Math.max(180, centerSizeOverride.width), height: Math.max(48, centerSizeOverride.height) }
     : normalCenterSize;
@@ -228,6 +235,7 @@ export function buildScene(
     ...centerSize,
     style: centerStyle,
     label: centerLabel,
+    ...(propertyLines?.length ? {propertyLines} : {}),
     ...countsForLayout(neighborhood.center, index, deferCounts),
   };
 

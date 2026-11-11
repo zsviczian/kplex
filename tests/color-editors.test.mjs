@@ -149,15 +149,15 @@ test("actual custom node source action preserves alpha through type switches and
  assert.equal(await scenario(`(async()=>{
   const t=sourceModules.createTranslator('en');let settings=structuredClone(sourceModules.DEFAULT_SETTINGS),writes=0;
   const app={workspace:{on:()=>({}),offref:()=>{}}},plugin={settings,translator:t,index:{subscribePresentation:()=>()=>{},allPages:()=>[],unassignedOntologyFields:()=>[]},updateStyleSettings:async edit=>{const next=structuredClone(settings);edit(next);settings=next;plugin.settings=next;writes++;return{refreshPending:false}}};
-  const tab=new sourceModules.KplexSettingTab(app,attachThemeOwners(plugin));tab.update=()=>{};tab.openNodeStyleEditor('property',null);const parent=sourceModules.TestModal.instances.at(-1);
-  input(parent.contentEl.querySelector('input[aria-label="Note type"]'),'Project');parent.contentEl.querySelector('button[aria-label="Background"]').click();const source=sourceModules.TestModal.instances.at(-1);
+  const tab=new sourceModules.KplexSettingTab(app,attachThemeOwners(plugin));tab.update=()=>{};tab.openNodeStyleEditor(null);const parent=sourceModules.TestModal.instances.at(-1);
+  input(parent.contentEl.querySelector('input[aria-label="Tag"]'),'Project');parent.contentEl.querySelector('button[aria-label="Background"]').click();const source=sourceModules.TestModal.instances.at(-1);
   input(source.contentEl.querySelector('.kplex-color-source-editor select'),'fixed','change');input(source.contentEl.querySelector('fieldset input[type=text]'),'rgba(12,34,56,.123456789)');
   [...source.contentEl.querySelectorAll('button')].find(b=>b.textContent==='Use color').click();await waitFor(()=>!source.modalEl.isConnected);if(writes)throw Error('Child wrote settings');
-  input(parent.contentEl.querySelector('select'),'tag','change');if(parent.contentEl.querySelector('button[aria-label="Background"]').textContent!=='rgba(12,34,56,.123456789)')throw Error('Type switch lost source');
+  if(parent.contentEl.querySelector('select'))throw Error('Obsolete style type selector');if(parent.contentEl.querySelector('button[aria-label="Background"]').textContent!=='rgba(12,34,56,.123456789)')throw Error('Type switch lost source');
   [...parent.contentEl.querySelectorAll('button')].find(b=>b.textContent==='Save').click();await waitFor(()=>writes===1);if(settings.tagNodeStyles['#Project'].backgroundColor!=='rgba(12,34,56,.123456789)')throw Error('Parent lost exact alpha');
-  settings.noteTypeStyles.Alpha={textColor:'#FFEEDD66'};tab.openNodeStyleEditor('property','Alpha');const imported=sourceModules.TestModal.instances.at(-1);imported.contentEl.querySelector('button[aria-label="Text"]').click();const rgb=sourceModules.TestModal.instances.at(-1);
+  settings.tagNodeStyles["#Alpha"]={textColor:'#FFEEDD66'};tab.openNodeStyleEditor("#Alpha");const imported=sourceModules.TestModal.instances.at(-1);imported.contentEl.querySelector('button[aria-label="Text"]').click();const rgb=sourceModules.TestModal.instances.at(-1);
   input(rgb.contentEl.querySelector('input[type=color]'),'#010203');[...rgb.contentEl.querySelectorAll('button')].find(b=>b.textContent==='Use color').click();await waitFor(()=>!rgb.modalEl.isConnected);[...imported.contentEl.querySelectorAll('button')].find(b=>b.textContent==='Save').click();await waitFor(()=>writes===2);
-  if(sourceModules.parseLiteralColor(settings.noteTypeStyles.Alpha.textColor).alpha!==102/255||!settings.noteTypeStyles.Alpha.textColor.startsWith('#010203'))throw Error('Imported RGB edit lost alpha');tab.disposeActionSettings();return true;
+  if(sourceModules.parseLiteralColor(settings.tagNodeStyles["#Alpha"].textColor).alpha!==102/255||!settings.tagNodeStyles["#Alpha"].textColor.startsWith('#010203'))throw Error('Imported RGB edit lost alpha');tab.disposeActionSettings();return true;
  })()`),true);
 });
 
@@ -228,9 +228,9 @@ test("appearance subscriptions ignore ordinary source events, recognize legacy i
 test("nested native source editors retain origin-only CSS and live palette previews refresh without writes or repeated sampling",async()=>{
  assert.equal(await scenario(`(async()=>{
   const t=sourceModules.createTranslator('en'),settings=structuredClone(sourceModules.DEFAULT_SETTINGS),listeners=new Set();let writes=0,samples=0;
-  settings.colorPreferences.palette=[{id:'pair',name:'Opening name',light:'#123456',dark:'#334455'}];settings.noteTypeStyles.Type={backgroundColor:{kind:'palette',id:'pair'}};
+  settings.colorPreferences.palette=[{id:'pair',name:'Opening name',light:'#123456',dark:'#334455'}];settings.tagNodeStyles["#Type"]={backgroundColor:{kind:'palette',id:'pair'}};
   const app={workspace:{on:()=>({}),offref:()=>{}}},plugin={settings,translator:t,index:{subscribePresentation:callback=>{listeners.add(callback);return()=>listeners.delete(callback)},allPages:()=>[],unassignedOntologyFields:()=>[]},updateStyleSettings:async()=>{writes++;throw Error('Unexpected write')}};
-  const tab=new sourceModules.KplexSettingTab(app,attachThemeOwners(plugin));tab.containerEl.style.setProperty('--Local-only','#789abc');tab.openNodeStyleEditor('property','Type');const parent=sourceModules.TestModal.instances.at(-1);
+  const tab=new sourceModules.KplexSettingTab(app,attachThemeOwners(plugin));tab.containerEl.style.setProperty('--Local-only','#789abc');tab.openNodeStyleEditor("#Type");const parent=sourceModules.TestModal.instances.at(-1);
   parent.contentEl.querySelector('button[aria-label="Background"]').click();let child=sourceModules.TestModal.instances.at(-1);
   input(child.contentEl.querySelector('.kplex-color-source-editor select'),'theme','change');chooseThemeColor(child,null);const variable=[...child.contentEl.querySelectorAll('label')].find(label=>label.textContent.includes('CSS variable name')).querySelector('input');input(variable,'--Local-only');variable.dispatchEvent(new Event('blur'));
   if([...child.contentEl.querySelectorAll('button')].find(b=>b.textContent==='Use color').disabled)throw Error('Origin-only CSS lost through native modal');child.retire();
@@ -247,12 +247,12 @@ test("nested native source editors retain origin-only CSS and live palette previ
 test("actual style-manager swatches preserve alpha and named/theme identity in their native document",async()=>{
  assert.equal(await scenario(`(async()=>{
   const t=sourceModules.createTranslator('en'),settings=structuredClone(sourceModules.DEFAULT_SETTINGS),listeners=new Set();
-  settings.colorPreferences.palette=[{id:'pair',name:'Visible name',light:'#12345600',dark:'#44556680'}];settings.noteTypeStyles.Type={backgroundColor:{kind:'palette',id:'pair'},borderColor:{kind:'theme',variable:'--text-normal'}};
+  settings.colorPreferences.palette=[{id:'pair',name:'Visible name',light:'#12345600',dark:'#44556680'}];settings.tagNodeStyles["#Type"]={backgroundColor:{kind:'palette',id:'pair'},borderColor:{kind:'theme',variable:'--text-normal'}};
   const app={workspace:{on:()=>({}),offref:()=>{}}},plugin={settings,translator:t,index:{subscribePresentation:callback=>{listeners.add(callback);return()=>listeners.delete(callback)},allPages:()=>[],unassignedOntologyFields:()=>[]}};
   const tab=new sourceModules.KplexSettingTab(app,attachThemeOwners(plugin));tab.openNoteTypeStylesManager();const manager=sourceModules.TestModal.instances.at(-1),reader=new sourceModules.ColorSampleReader(document);
   const read=()=>{const swatch=manager.contentEl.querySelector('.kplex-style-manager-node-swatch');return reader.read(swatch,getComputedStyle(swatch).getPropertyValue('--kplex-style-node-bg'))};
   if(!manager.contentEl.textContent.includes('Visible name')||Math.abs(read().alpha-.5)>.003)throw Error('Named swatch became opaque fallback');
-  document.body.className='theme-light';await waitFor(()=>read()?.alpha===0);if(settings.noteTypeStyles.Type.backgroundColor.id!=='pair')throw Error('Mode flattened saved reference');
+  document.body.className='theme-light';await waitFor(()=>read()?.alpha===0);if(settings.tagNodeStyles["#Type"].backgroundColor.id!=='pair')throw Error('Mode flattened saved reference');
   const search=manager.contentEl.querySelector('input[type=search]');input(search,'No match');if(manager.contentEl.querySelector('.kplex-style-manager-node-swatch')||manager.contentEl.style.getPropertyValue(sourceModules.paletteColorProperty('pair')))throw Error('Empty list retained binding');
   input(search,'');const action=manager.contentEl.querySelector('.kplex-style-manager-row');manager.retire();const count=sourceModules.TestModal.instances.length;action.click();if(sourceModules.TestModal.instances.length!==count)throw Error('Retired row opened an editor');tab.disposeActionSettings();reader.dispose();if(listeners.size||window.migrationListeners)throw Error('Manager lifetime leaked');return true;
  })()`),true);
@@ -530,7 +530,7 @@ test("theme switches retain dirty native drafts read-only through A→B→A, and
   await p.updateAppearanceThemes({kind:'select',id:'user'});if(!save.disabled)throw Error('A→B→A revived editor');
   [...modal.contentEl.querySelectorAll('button')].find(el=>el.textContent===t('themes.discardDraft')).click();
   if(modal.modalEl.isConnected||p.appearanceThemeListeners.size)throw Error('Discard leaked owner');
-  const openers=[()=>tab.openNodeStyleEditor('property','Project'),()=>tab.openOntologyLinkStyleEditor('Parent'),()=>tab.openStandardColor('baseNodeStyle','textColor'),
+  const openers=[()=>tab.openNodeStyleEditor("#Project"),()=>tab.openOntologyLinkStyleEditor('Parent'),()=>tab.openStandardColor('baseNodeStyle','textColor'),
    ()=>tab.openSemanticColor('origin'),()=>tab.openCompassSettings(),()=>{tab.openColorPalette();sourceModules.TestModal.instances.at(-1).editPair(p.settings.colorPreferences.palette[0])}];
   for(const open of openers){await open();modal=sourceModules.TestModal.instances.at(-1);if(!modal.modalEl.isConnected)throw Error('Editor missing');
    await p.updateAppearanceThemes({kind:'select',id:'native-base'});

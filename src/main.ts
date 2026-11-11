@@ -130,6 +130,10 @@ import { extractLinksFromValue, iterateResolvedLinksFromValue } from "./index/fi
 import type { RelationEvidence } from "./index/RelationEvidence";
 import { AddToOntologyModal, type OntologyAssignmentRole } from "./ui/AddToOntologyModal";
 import { NoteTypeModal } from "./ui/NoteTypeModal";
+import {NoteTypeReviewModal} from "./ui/NoteTypeReviewModal";
+import {validNodeProperties, nodePropertyRows, nodePropertyType, type NodeProperty, type NodePropertiesEdit} from "./core/plex/nodeProperties";
+import type {NoteTypeSelection} from "./adapters/obsidian/tagNoteType";
+import {canShowFileProperties, showFileProperties} from "./adapters/obsidian/fileProperties";
 import { activeLayoutProfile, effectiveViewSettings, layoutProfileKey } from "./ui/viewProfile";
 import { mergeTypographyOverride, resetTypographyOverride as resetDeviceTypography, type TypographyField, type TypographyValues } from "./core/plex/typographyPreferences";
 import { persistedLayoutDeviceClass, type PersistedLayoutDeviceClass } from "./core/plex/viewPresentation";
@@ -232,6 +236,8 @@ type RecentIndexedNavigationTarget = {
 
 /** Finite appearance intents cross the same settings queue; initialization/import never add another writer. */
 type StyleCommitOptions = Readonly<{themeAction?: appearanceThemes.AppearanceThemeAction; legacyImport?: unknown; initializeThemes?: {existing: boolean; adoptNativeBase?: boolean; notifyMigration?: boolean};
+  /** Optional node details share a durable Save with appearance, while remaining outside themes. */
+  nodePropertiesEdit?: NodePropertiesEdit;
   /** Optional registered-view leaf joins the same atomic appearance/dependency snapshot. */
   canvasViewEdit?: Readonly<{id: string; address: ViewConfigurationAddress; value: unknown; expected: ViewConfigurationExpected; current: () => boolean}>;
   /** Imperative compatibility callers may replace a coherent root/library pair that still differs from disk. */
@@ -493,7 +499,8 @@ export default class KplexPlugin extends Plugin {
     if (initializedChanged) {
       this.settings.kplexInitialized = true;
     }
-    if (hasOwnData && (initializedChanged || actionMigration.migrated)) {
+    if (hasOwnData && (initializedChanged || actionMigration.migrated || Object.prototype.hasOwnProperty.call(ownRecord, "noteTypeStyles")
+      || (ownRecord?.appearanceThemes as {version?: unknown} | undefined)?.version === 1 && this.settings.appearanceThemes?.version === 2)) {
       try {await this.persistSettingsSnapshot(true);} catch {this.reportExternalSettingsFailure();}
     }
 
@@ -2611,12 +2618,16 @@ export default class KplexPlugin extends Plugin {
    */
   async updateStyleSettings(edit: (draft: StyleSettingsDraft) => void, owner = this.captureAppearanceOwner(), options: StyleCommitOptions = {}): Promise<StyleCommitResult> {
     if (!this.isAppearanceOwnerCurrent(owner)) throw new Error("Appearance editor belongs to an earlier theme activation");
-    let persisted = false, refresh = false, semantic = false, refreshPending = false;
+    let persisted = false, refresh = false, semantic = false, refreshPending = false, detailsChanged = false;
     try { await this.enqueueSettingsWrite(/** Prepare only when this operation owns the existing settings disk queue. */ async () => {
       if (options.initializeThemes && this.externalSettingsReceived) return;
       if (!this.isAppearanceOwnerCurrent(owner)) throw new Error("Appearance editor belongs to an earlier theme activation");
       const source = this.settingsForWrite();
       const viewEdit = options.canvasViewEdit, viewDefinition = viewEdit && (this.viewSettingsRegistry ?? builtInCanvasViewSettings).definition(viewEdit.id);
+      const details = options.nodePropertiesEdit, detailsType = details && nodePropertyType(details.type), previousType = details && nodePropertyType(details.previousType ?? details.type);
+      if (details && (!detailsType || !previousType || !validNodeProperties(details.rows) || details.rows.length > 0 && detailsType.length > 128
+        || JSON.stringify(nodePropertyRows(source.noteTypeProperties, previousType)) !== JSON.stringify(details.opening)
+        || previousType !== detailsType && nodePropertyRows(source.noteTypeProperties, detailsType).length > 0)) throw new Error(this.translator("nodeProperties.changed"));
       if (viewEdit && (!viewDefinition || !viewEdit.current())) throw new Error(this.translator("settingsSync.conflict"));
       if (source.appearanceThemesFuture !== undefined && !options.initializeThemes) throw new Error("Newer appearance themes are read-only");
       const importing = "legacyImport" in options && !(options.initializeThemes && this.externalSettingsReceived);
@@ -2660,6 +2671,15 @@ export default class KplexPlugin extends Plugin {
       }
       const next = {...working};
       for (const key of STYLE_SETTINGS_KEYS) Object.assign(next, {[key]: draft[key]});
+      if (details && detailsType && previousType) {
+        const rows = details.rows.map(row => ({field: row.field.trim(), visible: row.visible}));
+        // Opening and saving an unchanged appearance must not invent an empty defaults record.
+        if (JSON.stringify(rows) !== JSON.stringify(nodePropertyRows(source.noteTypeProperties, previousType))
+          || previousType !== detailsType && Object.prototype.hasOwnProperty.call(source.noteTypeProperties, previousType)) {
+          const configuration = {...source.noteTypeProperties};if (previousType !== detailsType) delete configuration[previousType];
+          Object.defineProperty(configuration, detailsType, {value: rows, enumerable: true, configurable: true, writable: true});next.noteTypeProperties = configuration;
+        }
+      }
       if (viewEdit && viewDefinition) {
         next.canvasViewSettings = editViewConfigurationAt(viewDefinition, source.canvasViewSettings, viewEdit.address, {kind: "set", value: viewEdit.value}, viewEdit.expected);
         (this.viewSettingsRegistry ?? builtInCanvasViewSettings).validatePaletteReferences(viewDefinition, source.canvasViewSettings, next.canvasViewSettings, draft.colorPreferences.palette);
@@ -2667,6 +2687,7 @@ export default class KplexPlugin extends Plugin {
       if (library) next.appearanceThemes = library;
       if (options.initializeThemes) next.kplexInitialized = true;
       const policy = captureSettingsPolicy(next), effects = classifySettingsChange(before, policy);
+      detailsChanged = effects.changedKeys.includes("noteTypeProperties");
       const libraryChanged = !appearanceThemes.themeValuesEqual(source.appearanceThemes, library);
       if (effects.changedKeys.includes("graphLenses") && source.graphLensesColorFuture !== undefined) throw new Error("Newer lens colors are read-only");
       if (effects.changedKeys.includes("colorPreferences")) {
@@ -2684,6 +2705,7 @@ export default class KplexPlugin extends Plugin {
       persisted = true;
       if (this.unloading) return;
       const current = captureSettingsPolicy(this.settings), values = {...(this.savedSettingsPolicy ?? current).values};
+      if (details && current.values.noteTypeProperties === before.values.noteTypeProperties) this.settings.noteTypeProperties = next.noteTypeProperties;
       for (const key of STYLE_SETTINGS_KEYS) {
         if (!effects.changedKeys.includes(key) || current.values[key] !== before.values[key]) continue;
         Object.assign(this.settings, {[key]: draft[key]});
@@ -2720,6 +2742,7 @@ export default class KplexPlugin extends Plugin {
       try {this.showAppearanceMigrationNotification();}
       catch (error) {console.error("K-Plex native base migration notification failed", error); refreshPending = true;}
     }
+    if (!this.unloading && detailsChanged) try {this.index.notifyPresentation();} catch (error) {console.error("K-Plex saved node details refresh failed", error);refreshPending = true;}
     if (this.unloading || !refresh) return {refreshPending};
     const completion = await this.refreshSavedSettings(semantic);
     return {refreshPending: refreshPending || completion.refreshPending};
@@ -2826,6 +2849,7 @@ export default class KplexPlugin extends Plugin {
     operation("surface.open-sidepanel", completed(() => this.activateSidepanel()));
     operation("index.rebuild", completed(() => this.rebuildIndex(true)));
     operation("index.copy-diagnostics", completed(() => this.copyIndexDiagnostics()));
+    operation("note-type.review", completed(() => {this.openNoteTypeReview();}));
     operation("view.sidecar.collapse-plex", /** All surfaces use the graph-independent host toggle and captured pair. */ context => this.executePlexFoldAction(context),
       /** A pure ambiguous check advertises the existing picker without opening it. */ context => context.sidecarFold?.state === "ambiguous"
         ? { state: "preparable", reasonKey: "sidecar.chooseFoldPair" } : context.sidecarFold ? enabled : { state: "disabled", reasonKey: "sidecar.foldUnavailable" });
@@ -5655,8 +5679,50 @@ export default class KplexPlugin extends Plugin {
   /** Open the existing note-type editor and expose only its lifecycle handle to the surface owner. */
   openNoteTypeModal(page: GraphPage, onClosed?: () => void): NoteTypeModal | null {
     if (!page.file || page.file.extension !== "md") return null;
-    const modal = new NoteTypeModal(this, page.file, page.noteType, onClosed);
+    const modal = new NoteTypeModal(this, page.file, page.noteType, () => {this.actionDialogs.delete(lifetime);onClosed?.();});
+    const lifetime = {close: () => modal.retire()};this.actionDialogs.set(lifetime, {});
     modal.open(); return modal;
+  }
+
+  /** Selector edits share the existing exact-file metadata queue with structural tag drops. */
+  editNoteType(file: TFile, field: string, opening: NoteTypeSelection, value: string | null, removeOld: boolean, current: () => boolean, stamp?: Readonly<{mtime: number; size: number}>, defaults?: readonly NodeProperty[]): Promise<boolean> {
+    const expected = defaults && JSON.stringify(defaults);
+    return this.structuralDropOwner().editNoteType(file, field, opening, value, removeOld, /** A changed configuration requires a fresh preview, never a silent successful no-op. */ () => {
+      if (this.unloading || !current()) return false;
+      if (expected !== undefined && expected !== JSON.stringify(nodePropertyRows(this.settings.noteTypeProperties, value ?? ""))) throw new Error(this.translator("nodeProperties.changed"));
+      return true;
+    }, stamp, defaults);
+  }
+
+  /** Missing-tag maintenance adds membership without canonicalizing or otherwise replacing the valid selector. */
+  ensureNoteTypeTag(file: TFile, field: string, opening: NoteTypeSelection, current: () => boolean, stamp: Readonly<{mtime: number; size: number}>): Promise<boolean> {
+    return this.structuralDropOwner().ensureTypeMembership(file, field, opening, () => !this.unloading && current(), stamp);
+  }
+
+  /** The native core Properties action remains unavailable for synthetic or non-Markdown nodes. */
+  canShowNodeProperties(page: GraphPage): boolean {return !page.transient && page.file?.extension === "md" && canShowFileProperties(this.app);}
+
+  /** Supply the clicked file directly to the same action used by Obsidian's Show file properties command. */
+  async showNodeProperties(page: GraphPage): Promise<void> {if (this.canShowNodeProperties(page) && page.file) await showFileProperties(this.app, page.file);}
+
+  /** Physical Markdown notes with configured type defaults can request an explicit initialization preview. */
+  canInitializeNodeProperties(page: GraphPage): boolean {return !page.transient && page.file?.extension === "md" && nodePropertyRows(this.settings.noteTypeProperties, page.noteType ?? "").length > 0;}
+
+  /** Open the selected type's existing native settings editor in the requesting document's theme scope. */
+  openNoteTypeSettings(value: string, sourceScope: HTMLElement, previewPath?: string): boolean {return !this.unloading && (this.settingsTab?.openNoteTypeEditor(value, sourceScope, previewPath) ?? false);}
+
+  /** Native review shells remain plugin-owned even when launched from Settings or the Command Palette. */
+  openNoteTypeReview(file?: TFile, onClosed?: () => void): NoteTypeReviewModal | null {
+    if (this.unloading || file && (file.extension !== "md" || this.app.vault.getFileByPath(file.path) !== file)) return null;
+    const modal = new NoteTypeReviewModal(this, file, () => {this.actionDialogs.delete(modal);onClosed?.();});
+    this.actionDialogs.set(modal, {});modal.open();return modal;
+  }
+
+  /** Optional defaults share the tag/drop queue; recheck configured fields before the native callback. */
+  addNoteTypeProperties(file: TFile, field: string, opening: NoteTypeSelection, rows: readonly NodeProperty[], current: () => boolean): Promise<boolean> {
+    const expected = JSON.stringify(rows);
+    return this.structuralDropOwner().addNoteProperties(file, field, opening, rows, () => !this.unloading && current()
+      && expected === JSON.stringify(nodePropertyRows(this.settings.noteTypeProperties, opening.value ?? "")));
   }
 
   /** Open the native field selector and expose its close boundary to an optional action session. */

@@ -194,7 +194,7 @@ assert(!ontologyPageSource.includes('settings.ui.relationship.specific.styles'),
 assert(settingsSource.includes('text: this.translate("styles.customStyles")'), "Relationship link styles must default to a compact localized custom-only view");
 assert(settingsSource.includes('placeholder: this.translate("styles.searchRelationshipPlaceholder")'), "Ontology link styles must use a localized search placeholder");
 assert(settingsSource.includes('placeholder: this.translate("styles.searchNodePlaceholder")'), "Property-value node styles must use a localized search placeholder");
-assert(settingsSource.includes("class NodeStyleValueSuggest extends AbstractInputSuggest"), "Node style values must use an Obsidian input suggester");
+assert(settingsSource.includes("class NodeStyleValueSuggest extends KplexInputSuggest"), "Node style values must use the shared native input-suggestion owner");
 assert(settingsSource.includes("getIconIds()"), "Lucide icon names must come from Obsidian's live icon registry");
 assert(settingsSource.includes('private displayScope: "custom" | "all"'), "Ontology style filtering must not shadow Modal.scope");
 assert(settingDefinitionsSource.includes('name: translate("settings.ui.discovered.fields")'), "Ontology discovery must live on a localized compact subpage");
@@ -419,6 +419,15 @@ for (const file of [
   "src/lang/zh-TW.ts",
   "src/lang/index.ts",
   "src/types.ts",
+  "src/core/plex/nodeProperties.ts",
+  "src/adapters/obsidian/nodeProperties.ts",
+  "src/adapters/obsidian/noteTypeProperties.ts",
+  "src/adapters/obsidian/noteTypeReview.ts",
+  "src/adapters/obsidian/tagNoteType.ts",
+  "src/adapters/obsidian/fileProperties.ts",
+  "src/ui/NodeDetailsFields.ts",
+  "src/ui/NoteTypeReviewModal.ts",
+  "src/ui/TagNameSuggest.ts",
   "src/application/PlexFootprints.ts",
   "src/application/PublicApi.ts",
   "src/application/PublicApiConfiguration.ts",
@@ -492,7 +501,7 @@ for (const file of [
   "src/core/graph/settings.ts",
   "src/core/graph/settingsPolicy.ts",
   "src/core/contracts/appearance.ts",
-  "src/core/contracts/colorValue.ts",
+  "src/core/contracts/colorValue.ts", "src/core/contracts/tagStyle.ts",
   "src/core/contracts/centerRecovery.ts",
   "src/core/plex/colorPreferences.ts",
   "src/core/plex/compassBackground.ts",
@@ -536,6 +545,7 @@ for (const file of [
   "src/ui/features/CalendarDatePicker.tsx",
   "src/ui/components/FormField.tsx",
   "src/adapters/obsidian/KplexModal.ts",
+  "src/adapters/obsidian/KplexInputSuggest.ts",
   "src/ui/mobileModalViewport.ts",
   "src/adapters/obsidian/periodicPins.ts",
   "src/adapters/obsidian/metadataSourceCollector.ts",
@@ -2909,19 +2919,22 @@ try {
   // A custom style selected by the Style property is an explicit user choice. It must remain
   // visible on the central note instead of being masked by the generic central-node appearance.
   const originalCentralStyle = settings.centralNodeStyle;
-  const originalNoteTypeStyles = settings.noteTypeStyles;
+  const originalTagStyles = settings.tagNodeStyles;
   const originalCenterNoteType = A.noteType;
   A.noteType = "testStyle";
   settings.centralNodeStyle = { backgroundColor: "#aaaaaaff", textColor: "#000000ff", fontSize: 30 };
-  settings.noteTypeStyles = { testStyle: { backgroundColor: "#ff00ffff", textColor: "#ffffffff" } };
+  // Legacy unprefixed type definitions enter through the real migration boundary; runtime
+  // settings contain one canonical #tag dictionary, with no parallel legacy style registry.
+  const {migrateTagStyles} = require(join(temp, "src/core/contracts/tagStyle.js"));
+  settings.tagNodeStyles = migrateTagStyles({}, [], {testStyle: {backgroundColor: "#ff00ffff", textColor: "#ffffffff"}}).tagNodeStyles;
   const styledCenter = resolveNodeStyle(A, null, "center", settings);
   assert.equal(styledCenter.backgroundColor, "#ff00ffff", "Property-value styles must override the generic central background");
   assert.equal(styledCenter.textColor, "#ffffffff", "Property-value styles must override the generic central text color");
   assert.equal(styledCenter.fontSize, 30, "Unspecified properties still inherit the central style");
-  settings.noteTypeStyles = { "#testStyle": { borderColor: "#123456ff" } };
+  settings.tagNodeStyles = { "#testStyle": { borderColor: "#123456ff" } };
   assert.equal(resolveNodeStyle(A, null, "center", settings).borderColor, "#123456ff", "Legacy/hash-prefixed style keys must normalize to the same logical value");
   settings.centralNodeStyle = originalCentralStyle;
-  settings.noteTypeStyles = originalNoteTypeStyles;
+  settings.tagNodeStyles = originalTagStyles;
   A.noteType = originalCenterNoteType;
 
   // Issues #7/#8: every semantic relationship between visible non-central notes is rendered as
@@ -2938,9 +2951,9 @@ try {
     device: "desktop", keyConvention: "macos", inputModes: { keyboard: true, pointer: true, touch: false },
     hostActions: { graphTab: true, sidepanel: true, popout: true },
   });
-  assert.equal(Object.hasOwn(preparedFacade, "noteTypeStyles"), false);
+  assert.equal(Object.hasOwn(preparedFacade, "tagNodeStyles"), false);
   const liveAreaSettings = withAreaHeightOverrides(preparedFacade, { parentMaxHeight: 440 });
-  assert.equal(liveAreaSettings.noteTypeStyles, preparedFacade.noteTypeStyles);
+  assert.equal(liveAreaSettings.tagNodeStyles, preparedFacade.tagNodeStyles);
   assert.equal(liveAreaSettings.hierarchyLinkStyles, preparedFacade.hierarchyLinkStyles);
   assert.equal(liveAreaSettings.parentMaxHeight, 440);
   assert.equal(preparedFacade.parentMaxHeight, settings.parentMaxHeight, "Resize must not mutate prepared settings");

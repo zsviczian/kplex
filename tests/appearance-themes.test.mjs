@@ -2,8 +2,34 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {loadPortableModules} from "./support/portableTypeScript.mjs";
-const {exports: m} = loadPortableModules(["src/core/plex/appearanceThemes.ts", "src/core/plex/colorPreferences.ts", "src/core/plex/colorEditing.ts"]);
+const {exports: m} = loadPortableModules(["src/core/plex/appearanceThemes.ts", "src/core/plex/colorPreferences.ts", "src/core/plex/colorEditing.ts", "src/core/contracts/tagStyle.ts"]);
 const names = {default: "Default theme", user: "User theme", nativeBase: "Default base + my semantic colors", custom: "Custom theme"};
+
+test("legacy tag/type styles migrate every theme once, resolving explicit conflicts without hidden dictionaries", () => {
+ const source=fixture(), library=m.createAppearanceThemes(source,factory(),true,names);library.version=1;
+ for(const [i,theme] of library.themes.entries()) {
+  theme.appearance.semantic.tagNodeStyles={'#person':{backgroundColor:'#ffff00',prefix:'Person ',extension:{keep:i}},'#work':{icon:'briefcase'}};
+  theme.appearance.semantic.tagStyleList=['#work','#person'];
+  theme.appearance.semantic.noteTypeStyles={Person:{backgroundColor:'#0000ff',fontSize:20+i},project:{icon:'box'}};
+ }
+ const original=structuredClone(library), migrated=m.readAppearanceThemes(library);assert(migrated);assert.equal(migrated.version,2);assert.deepEqual(library,original);
+ for(const[i,theme]of migrated.themes.entries()){
+  const semantic=theme.appearance.semantic;assert(!Object.hasOwn(semantic,'noteTypeStyles'));
+  assert.deepEqual(semantic.tagStyleList,['#work','#person','#project']);
+  assert.deepEqual(semantic.tagNodeStyles['#person'],{backgroundColor:'#0000ff',prefix:'Person ',extension:{keep:i},fontSize:20+i});
+ }
+ assert.deepEqual(m.readAppearanceThemes(JSON.parse(JSON.stringify(migrated))),migrated,'Second load is idempotent');
+ const broken=structuredClone(original);broken.themes[0].appearance.semantic.tagNodeStyles['#future']=null;
+ assert.equal(m.readAppearanceThemes(broken),undefined,'Unsupported legacy data cannot be normalized into a valid theme');
+});
+
+test("unified dictionary preserves explicit false/zero/empty values, own keys and first tag priority",()=>{
+ const tags=JSON.parse('{"#person":{"prefix":"Person ","fontSize":18,"future":{"token":7}},"#work":{"icon":"box"},"#__proto__":{"icon":"user"}}');
+ const before=JSON.stringify(tags), result=m.migrateTagStyles(tags,['#work','#person','#person'],{Person:{prefix:'',fontSize:0,enabled:false}});
+ assert.equal(JSON.stringify(tags),before);assert.deepEqual(result.tagStyleList,['#work','#person','#__proto__']);
+ assert.deepEqual(result.tagNodeStyles['#person'],{prefix:'',fontSize:0,future:{token:7},enabled:false});assert(Object.hasOwn(result.tagNodeStyles,'#__proto__'));
+ assert.deepEqual(m.migrateTagStyles(result.tagNodeStyles,result.tagStyleList),result);
+});
 
 test("automatic theme names stay unique within the serialized limit and library capacity cannot create an unreadable restart", () => {
  const f=fixture(),library=m.createAppearanceThemes(f,f,true,names),name='x'.repeat(100);
@@ -16,7 +42,7 @@ test("automatic theme names stay unique within the serialized limit and library 
 /** Include references shared by all consumers, global lens behavior, geometry and unrelated workflow. */
 function fixture() {
   const source = {standardStyleDefaults: "native", colorPreferences: m.defaultColorPreferences(), tagStyleList: ["z", "a"],
-    noteTypeStyles: {Concept: {icon: "star", fontSize: 22, textColor: {kind: "palette", id: "shared"}}},
+    legacyTypes: {Concept: {icon: "star", fontSize: 22, textColor: {kind: "palette", id: "shared"}}},
     tagNodeStyles: {z: {backgroundColor: "#11223380", maxWidth: 400}, a: {borderColor: "#abcdef"}},
     hierarchyLinkStyles: {Parent: {strokeColor: "#123456", strokeStyle: "dashed"}},
     graphLenses: [{id: "lens-A", expression: "tag:#z", enabled: false, mode: "highlight", style: {node: {textColor: {kind: "palette", id: "shared"}, strokeWidth: 2}, edge: {strokeColor: "#654321", showLabel: true}}}],
@@ -26,12 +52,12 @@ function fixture() {
   source.colorPreferences.palette = [{id: "shared", name: "Shared", light: "#12345680", dark: "#abcdef00"}];
   source.colorPreferences.semantic.origin = {kind: "palette", id: "shared"};
   source.colorPreferences.compass = {enabled: true, intensity: 12, fills: {north: {kind: "palette", id: "shared"}}};
-  return source;
+  Object.assign(source, m.migrateTagStyles(source.tagNodeStyles, source.tagStyleList, source.legacyTypes));delete source.legacyTypes;return source;
 }
 /** Factory fixtures carry native references, built-in semantics and no user dictionaries/palette/lenses. */
 function factory() {
   const source = fixture(); m.resetAppearanceColors(source, "all");
-  source.noteTypeStyles = {}; source.tagNodeStyles = {}; source.tagStyleList = []; source.hierarchyLinkStyles = {};
+  source.tagNodeStyles = {}; source.tagStyleList = []; source.hierarchyLinkStyles = {};
   source.colorPreferences = m.defaultColorPreferences(); source.graphLenses = []; return source;
 }
 
@@ -43,12 +69,12 @@ test("migration creates three detached choices and fresh installation only facto
   assert.deepEqual(library.themes[1].appearance, m.captureThemeAppearance(adopted));
   assert.deepEqual(current, before); assert.deepEqual(m.readAppearanceThemes(JSON.parse(JSON.stringify(library))), library);
   library.themes[1].appearance.semantic.colorPreferences.palette[0].light = "#000000";
-  library.themes[1].appearance.semantic.noteTypeStyles.Concept.fontSize = 99;
+  library.themes[1].appearance.semantic.tagNodeStyles["#Concept"].fontSize = 99;
   assert.equal(library.themes[0].appearance.semantic.colorPreferences.palette[0].light, "#12345680");
-  assert.equal(current.noteTypeStyles.Concept.fontSize, 22);
+  assert.equal(current.tagNodeStyles["#Concept"].fontSize, 22);
   const fresh = m.createAppearanceThemes(current, factory(), false, names);
   assert.deepEqual(fresh.themes.map(theme => theme.id), ["default"]); assert.equal(fresh.selectedId, "default"); assert.equal(fresh.migrationNotice, false);
-  assert.deepEqual(fresh.themes[0].appearance.semantic.noteTypeStyles, {}); assert.deepEqual(fresh.themes[0].appearance.semantic.colorPreferences.palette, []);
+  assert.deepEqual(fresh.themes[0].appearance.semantic.tagNodeStyles, {}); assert.deepEqual(fresh.themes[0].appearance.semantic.colorPreferences.palette, []);
 });
 
 test("0.2.0 adopts native base once, reusing only an exact migration copy and retaining every prior theme", () => {
@@ -59,16 +85,16 @@ test("0.2.0 adopts native base once, reusing only an exact migration copy and re
   assert.deepEqual(m.readAppearanceThemes(JSON.parse(JSON.stringify(migrated))), migrated);
   const returned = m.selectAppearanceTheme(migrated, "user");
   assert.equal(m.adoptNativeBaseOnUpgrade(returned, current, true, names), returned);
-  current.noteTypeStyles.Concept.fontSize = 31;
+  current.tagNodeStyles["#Concept"].fontSize = 31;
   const updated = m.adoptNativeBaseOnUpgrade(library, current, true, names);
   assert.notEqual(updated.selectedId, "native-base"); assert.equal(updated.themes.length, 4);
   assert.deepEqual(updated.themes.slice(0, 3), before.themes, "Never replace a saved native-base theme with newer semantics");
   const selected = updated.themes.find(t => t.id === updated.selectedId);
   assert.deepEqual(selected.appearance.semantic, m.captureThemeAppearance(current).semantic);
   assert.equal(selected.appearance.base.standardStyleDefaults, "native");
-  selected.appearance.semantic.noteTypeStyles.Concept.fontSize = 99;
-  assert.equal(current.noteTypeStyles.Concept.fontSize, 31);
-  assert.equal(before.themes[0].appearance.semantic.noteTypeStyles.Concept.fontSize, 22);
+  selected.appearance.semantic.tagNodeStyles["#Concept"].fontSize = 99;
+  assert.equal(current.tagNodeStyles["#Concept"].fontSize, 31);
+  assert.equal(before.themes[0].appearance.semantic.tagNodeStyles["#Concept"].fontSize, 22);
 });
 
 test("0.2.0 fresh installs retain Default only; imported appearance is backed up before adoption", () => {
@@ -97,7 +123,7 @@ test("theme capture/apply copies complete styles and only lens colors, never beh
   assert.equal(target.graphLenses[0].style.node.strokeWidth, 9); assert.equal(target.graphLenses[1].style.node.backgroundColor, undefined);
   assert.equal(target.graphLenses[1].style.node.strokeWidth, 7);
   target.graphLenses.shift(); m.applyThemeAppearance(target, appearance); assert.equal(target.graphLenses.length, 1); assert.equal(target.graphLenses[0].id, "new-lens");
-  target.noteTypeStyles.Concept.icon = "circle"; assert.equal(appearance.semantic.noteTypeStyles.Concept.icon, "star");
+  target.tagNodeStyles["#Concept"].icon = "circle"; assert.equal(appearance.semantic.tagNodeStyles["#Concept"].icon, "star");
 });
 
 test("scoped resets preserve palette, exact non-color style records, ordering, global settings and Compass controls", () => {
@@ -105,7 +131,7 @@ test("scoped resets preserve palette, exact non-color style records, ordering, g
     const source = fixture(), before = structuredClone(source); source.baseNodeStyle.borderColor = {kind: "theme", variable: "--kplex-semantic-origin"};
     const base = m.captureThemeAppearance(source).base; m.resetAppearanceColors(source, scope);
     assert.deepEqual(source.colorPreferences.palette, before.colorPreferences.palette); assert.equal(source.colorPreferences.compass.enabled, true); assert.equal(source.colorPreferences.compass.intensity, 12);
-    assert.deepEqual(source.tagStyleList, before.tagStyleList); assert.equal(source.noteTypeStyles.Concept.icon, "star"); assert.equal(source.tagNodeStyles.z.maxWidth, 400);
+    assert.deepEqual(source.tagStyleList, before.tagStyleList); assert.equal(source.tagNodeStyles["#Concept"].icon, "star"); assert.equal(source.tagNodeStyles["#z"].maxWidth, 400);
     assert.equal(source.hierarchyLinkStyles.Parent.strokeStyle, "dashed"); assert.equal(source.graphLenses[0].style.node.strokeWidth, 2);
     assert.deepEqual(source.hierarchy, before.hierarchy); assert.deepEqual(source.typographyProfiles, before.typographyProfiles);
     if (scope === "base") { assert.deepEqual(m.captureThemeAppearance(source).semantic, m.captureThemeAppearance(before).semantic); assert.equal(source.backgroundColor, undefined); }
@@ -127,7 +153,7 @@ test("default copy-on-write requires an actual appearance change and unique name
 
 test("future schemas, unsupported colors, missing palette identities and incomplete containers cannot masquerade as authentic backups", () => {
   const library = m.createAppearanceThemes(fixture(), factory(), true, names);
-  for (const mutate of [x => x.version = 2, x => x.themes[0].appearance.semantic.colorPreferences.version = 2,
+  for (const mutate of [x => x.version = 3, x => x.themes[0].appearance.semantic.colorPreferences.version = 2,
     x => x.themes[0].appearance.base.baseNodeStyle.textColor = {kind: "future", value: 3},
     x => x.themes[0].appearance.semantic.colorPreferences.palette = [], x => delete x.themes[0].appearance.base.baseNodeStyle,
     x => x.themes[1].id = "user", x => x.selectedId = "missing"]) {
@@ -142,7 +168,7 @@ test("create/rename/delete/select preserve independent contents and immutable fa
   created.themes[3].appearance.semantic.colorPreferences.palette[0].name = "Private copy";
   assert.deepEqual(library, original); assert.equal(created.themes[0].appearance.semantic.colorPreferences.palette[0].name, "Shared");
   const factoryCopy = m.addAppearanceTheme(library, "factory-copy", "Factory copy", true);
-  assert.deepEqual(factoryCopy.themes[3].appearance.semantic.noteTypeStyles, {}); assert.equal(factoryCopy.themes[3].appearance.semantic.colorPreferences.palette.length, 0);
+  assert.deepEqual(factoryCopy.themes[3].appearance.semantic.tagNodeStyles, {}); assert.equal(factoryCopy.themes[3].appearance.semantic.colorPreferences.palette.length, 0);
   const renamed = m.renameAppearanceTheme(library, "native-base", "Renamed"); assert.equal(renamed.selectedId, "user"); assert.deepEqual(renamed.themes[0], library.themes[0]);
   const inactive = m.deleteAppearanceTheme(renamed, "native-base"); assert.equal(inactive.selectedId, "user"); assert.deepEqual(inactive.themes[0].appearance, library.themes[0].appearance);
   const active = m.deleteAppearanceTheme(inactive, "user"); assert.equal(active.selectedId, "default"); assert.deepEqual(active.themes, [library.themes[2]]);

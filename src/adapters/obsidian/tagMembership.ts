@@ -4,6 +4,14 @@ import { canonicalTagParts } from "../../core/graph/tagPaths";
 import { tagDisplayName } from "../../core/graph/presentation";
 import type { GraphPage } from "../../types";
 
+/** Unsupported YAML remains inspection-only; shared membership writers never coerce it away. */
+function supportedTagValue(value: unknown): value is string | string[] | null | undefined {
+  return value == null || typeof value === "string" || Array.isArray(value) && value.every(item => typeof item === "string");
+}
+
+/** Cache reviews and native writers share the same conservative supported-value guard. */
+export function supportsYamlTags(frontmatter: Record<string, unknown>): boolean {return supportedTagValue(frontmatter.tags);}
+
 /** Only existing tag facets provide a tag coordinate; this never interprets neutral node IDs. */
 export function graphTagValue(page: GraphPage): string | null {
   if (!page.isTag || page.transient) return null;
@@ -21,7 +29,7 @@ export function hasYamlTagMembership(frontmatter: Record<string, unknown>, tag: 
 /** Append exact membership idempotently without deleting/replacing unsupported user data. */
 export function appendTagMembership(frontmatter: Record<string, unknown>, tag: string, invalidValue: string): boolean {
   const value = frontmatter.tags;
-  if (value !== undefined && value !== null && typeof value !== "string" && (!Array.isArray(value) || !value.every(item => typeof item === "string"))) throw new Error(invalidValue);
+  if (!supportedTagValue(value)) throw new Error(invalidValue);
   const existing = parseFrontMatterTags({ tags: value }) ?? [];
   const normalized = tag.toLocaleLowerCase();
   if (existing.some(item => item.replace(/^#/, "").toLocaleLowerCase() === normalized)) return false;

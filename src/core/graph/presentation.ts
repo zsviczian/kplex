@@ -4,6 +4,8 @@
  * Primary selector proof and style fallback share the same historical matching/order rules.
  */
 
+import {matchesStyleTag} from "../contracts/tagStyle";
+
 /** Normalize the first selected property value exactly as the historical compiler did. */
 export function unwrapNoteType(value: unknown): string | null {
   const first: unknown = Array.isArray(value) ? value[0] : value;
@@ -18,14 +20,14 @@ export function unwrapNoteType(value: unknown): string | null {
 /** Find the first declared primary selector matching current style tags; null means no selector proof. */
 export function primaryStyleTagFromValues(styleTags: readonly string[], primaryValues: readonly unknown[]): string | null {
   const primaryTags = primaryValues.flatMap((value) => typeof value === "string" ? value.match(/#[^\s\])$"'\\]+/g) ?? [] : []);
-  return primaryTags.find((tag) => styleTags.some((styleTag) => styleTag.startsWith(tag))) ?? null;
+  return primaryTags.find((tag) => styleTags.some((styleTag) => matchesStyleTag(styleTag, tag))) ?? null;
 }
 
 /** Keep raw tag membership order, primary-selector preference and first prefix-match precedence. */
 export function selectStyleTags(tags: readonly string[], prefixes: readonly string[], primaryValues: readonly unknown[]): {
   primaryStyleTag: string | null; styleTags: string[];
 } {
-  const styleTags = tags.filter((tag) => prefixes.some((prefix) => tag.startsWith(prefix)));
+  const styleTags = tags.filter((tag) => prefixes.some((prefix) => matchesStyleTag(tag, prefix)));
   const primaryStyleTag = primaryStyleTagFromValues(styleTags, primaryValues) ?? styleTags[0] ?? null;
   return { primaryStyleTag, styleTags: styleTags.filter((tag) => tag !== primaryStyleTag) };
 }

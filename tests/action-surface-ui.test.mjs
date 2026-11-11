@@ -56,40 +56,11 @@ test("connection inspection preserves sequence roles instead of reinterpreting t
   for (const role of ["previous", "next", "hidden", "center"]) assert.equal(resolve(role), null);
 });
 
-/** Isolate the production native property writer without replacing its asynchronous or identity policy. */
-function productionNoteTypeSave(Notice) {
-  const filename = "src/ui/NoteTypeModal.ts";
-  const source = ts.createSourceFile(filename, readFileSync(new URL(`../${filename}`, import.meta.url), "utf8"), ts.ScriptTarget.Latest, true);
-  const declaration = source.statements.find(ts.isClassDeclaration);
-  const method = declaration.members.find(node => ts.isMethodDeclaration(node) && node.name.getText(source) === "save");
-  assert(method, "the note-type dialog must keep its existing property writer");
-  const text = method.getText(source);
-  const code = ts.transpileModule(`const save = async function ${text.slice(text.indexOf("("))};`, { compilerOptions: { target: ts.ScriptTarget.ES2021 } }).outputText;
-  return Function("Notice", `${code}\nreturn save;`)(Notice);
-}
-
-test("note-type dialog serializes Save/Clear and refuses deleted or replaced native files", async () => {
-  const notices = [], file = { path: "Original.md" }; let current = file, writes = 0, rebuilds = 0, closed = 0, release;
-  const pending = new Promise(resolve => { release = resolve; });
-  const fields = {};
-  const context = { opened: true, busy: false, file, close: () => { closed++; context.opened = false; }, plugin: {
-    translator: key => key, settings: { noteTypeField: "Kind" }, rebuildIndex: async () => { rebuilds++; },
-    app: { vault: { getFileByPath: () => current }, fileManager: { processFrontMatter: async (target, mutate) => {
-      assert.equal(target, file); writes++; await pending; mutate(fields);
-    } } },
-  } };
-  const save = productionNoteTypeSave(class { constructor(message) { notices.push(message); } });
-  const first = save.call(context, "Concept"); await save.call(context, "");
-  assert.equal(writes, 1, "concurrent Clear cannot schedule another native mutation");
-  release(); await first;
-  assert.deepEqual(fields, { Kind: "Concept" }); assert.equal(rebuilds, 1); assert.equal(closed, 1);
-  context.opened = true; current = { path: file.path }; await save.call(context, "Replacement");
-  assert.equal(writes, 1, "a replacement at the same path remains untouched");
-  assert.deepEqual(notices, ["addRelated.endpointChanged"]);
-  current = file; context.plugin.app.fileManager.processFrontMatter = async (_target, mutate) => { current = { path: file.path }; mutate(fields); };
-  await save.call(context, "During-read replacement");
-  assert.deepEqual(fields, { Kind: "Concept" }); assert.equal(rebuilds, 1); assert.equal(context.busy, false);
-  assert.deepEqual(notices, ["addRelated.endpointChanged", "actions.failed"]);
+/** Selector persistence now belongs to the shared drop queue; browser and structural tests
+ * cover duplicate Save/Clear, replacement during native read, stale edits and retry there. */
+test("note-type shell delegates native writes without requesting a full rebuild",()=>{
+ const source=readFileSync(new URL('../src/ui/NoteTypeModal.ts',import.meta.url),'utf8');
+ assert.match(source,/this\.plugin\.editNoteType/);assert.doesNotMatch(source,/rebuildIndex|processFrontMatter/);
 });
 
 /** Compile the App's real menu capture/refresh pair inside its bounded launch callback. */

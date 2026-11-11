@@ -9,8 +9,9 @@ export class TFile{};export class TFolder{};
 export class TextAreaComponent {constructor(container){this.inputEl=container.createEl('textarea')}}
 export const normalizePath=value=>value.replaceAll('\\\\','/').replace(/\\/+/g,'/').replace(/^\\/+|\\/+$/g,'')||'/';
 export const parseLinktext=path=>({path,subpath:''});
-export class AbstractInputSuggest {constructor(app,input){this.app=app;this.input=input} setValue(value){this.input.value=value} close(){}}
+export class AbstractInputSuggest {constructor(app,input){this.app=app;this.input=input} setValue(value){this.input.value=value} open(){} close(){}}
 export class PluginSettingTab {update(){} constructor(app,plugin){this.app=app;this.plugin=plugin;this.containerEl=createDiv();document.body.append(this.containerEl)} hide(){}}
+export function parseFrontMatterTags(fm){const tags=fm.tags;return Array.isArray(tags)?tags.map(value=>'#'+String(value).replace(/^#/,'')):typeof tags==='string'?tags.split(/[ ,]+/).filter(Boolean).map(value=>'#'+value.replace(/^#/,'')):null;}
 export const getLanguage=()=>"en";
 export const getIcon=name=>{const icon=document.createElementNS('http://www.w3.org/2000/svg','svg');icon.setAttribute('data-icon',name);icon.setAttribute('viewBox','0 0 24 24');return icon};
 export class Notice {constructor(message){window.notices.push(message)}}
@@ -65,6 +66,9 @@ export const initializeColorDom = `(()=>{
  window.waitFor=async check=>{for(let i=0;i<200;i++){if(check())return;await new Promise(r=>setTimeout(r,10))}throw Error('Timed out waiting for editor');};
  document.body.className='theme-dark';
  const sheet=new CSSStyleSheet();sheet.replaceSync('body{--font-interface:system-ui,sans-serif;--font-ui-medium:14px;--font-ui-small:13px;--font-ui-smaller:12px;--font-normal:400;--input-radius:5px;--input-height:36px;--border-width:1px;--text-normal:#eeeeee;--text-muted:#999999;--background-primary:#181818;--background-secondary:#282828;--background-modifier-border:#666666;--color-purple:#aa55ee;--color-green:#33aa66;--color-cyan:#22bbcc;--color-orange:#dd8833;--graph-line:#777777;--interactive-accent:#8888ff}body.theme-light{--background-primary:#ffffff;--background-secondary:#eeeeee;--text-normal:#222222;--text-muted:#555555}body>.modal{width:min(700px,94vw);box-sizing:border-box;margin:24px auto;padding:20px;background:var(--background-primary)}');document.adoptedStyleSheets=[sheet];
+ // Native Setting geometry from Obsidian 1.14.5 app.css. Plugin CSS must not supply a parallel grid
+ // merely because this finite browser host lacks Obsidian's stylesheet; native lanes verify the real skin.
+ const nativeSettings=new CSSStyleSheet();nativeSettings.replaceSync('body{--size-4-1:4px;--size-4-2:8px;--size-4-3:12px;--size-4-4:16px;--line-height-tight:1.3}.setting-item{position:relative;display:flex;align-items:flex-start;row-gap:var(--size-4-3)}.setting-item-info{flex:1 1 auto;min-width:0}.setting-item-control{flex:1 1 auto;text-align:end;display:flex;justify-content:flex-end;align-items:center;gap:var(--size-4-2)}.setting-item-description{color:var(--text-muted);font-size:var(--font-ui-smaller);padding-top:var(--size-4-1);line-height:var(--line-height-tight)}');document.adoptedStyleSheets=[...document.adoptedStyleSheets,nativeSettings];
  window.scope=createDiv();scope.className='kplex-app';document.body.append(scope);window.preferences=sourceModules.defaultColorPreferences();
  return true;
 })()`;

@@ -55,11 +55,11 @@ test("the four semantic slots reject direct and indirect cycles without treating
 test("paint classification retains every non-color policy and reads configured sources without mutation", () => {
  const base={hierarchy:{hidden:[],parents:[],children:[],leftFriends:[],rightFriends:[],previous:[],next:[],exclusions:[]},inferAllLinksAsFriends:true,inverseInfer:false,
   showFullTagName:false,noteTypeField:'Note type',primaryTagField:'Style',tagStyleList:[],baseNodeStyle:{fontSize:18},baseLinkStyle:{strokeWidth:1},
-  colorPreferences:m.defaultColorPreferences(),noteTypeStyles:{},tagNodeStyles:{},hierarchyLinkStyles:{},graphLenses:[]};
+  colorPreferences:m.defaultColorPreferences(),tagNodeStyles:{},hierarchyLinkStyles:{},graphLenses:[]};
  const before=m.captureSettingsPolicy(base);
  for(const edit of [s=>s.backgroundColor={kind:'theme',variable:'--background-primary'},s=>s.baseNodeStyle.textColor='#abcdef00',
   s=>s.colorPreferences.palette.push({id:'stable',name:'Name',light:'#123456',dark:'#abcdef'}),
-  s=>s.noteTypeStyles.Type={textColor:{kind:'palette',id:'stable'}}]){
+  s=>s.tagNodeStyles["#Type"]={textColor:{kind:'palette',id:'stable'}}]){
    const next=structuredClone(base);edit(next);const effects=m.classifySettingsChange(before,m.captureSettingsPolicy(next));assert.equal(effects.paintOnly,true);assert.equal(effects.semanticInvalidation,false);assert.equal(effects.presentationFacets,false);assert.equal(effects.searchTerms,false);
  }
  for(const edit of [s=>s.baseNodeStyle.fontSize=21,s=>s.baseNodeStyle.prefix='x',s=>s.tagStyleList.push('#x'),s=>s.graphLenses.push({id:'a',name:'Name',mode:'style',scope:'node',enabled:true,expression:'node.label contains x',style:{node:{textColor:'#123456'}}})]){
@@ -82,7 +82,7 @@ test("opaque future/null identities compare safely without coercion or accidenta
 
 test("named pair edits merge only changed fields and deletion rewrites every configured consumer atomically",()=>{
  const settings={baseNodeStyle:{textColor:{kind:'palette',id:'a'},fontSize:19},baseLinkStyle:{strokeColor:{kind:'palette',id:'a'}},
-  noteTypeStyles:{Type:{borderColor:{kind:'palette',id:'a'},extension:{id:'a'}}},tagNodeStyles:{},hierarchyLinkStyles:{},
+  tagNodeStyles:{'#Type':{borderColor:{kind:'palette',id:'a'},extension:{id:'a'}}},hierarchyLinkStyles:{},
   backgroundColor:{kind:'palette',id:'a'},graphLenses:[{style:{node:{backgroundColor:{kind:'palette',id:'a'}},edge:{textColor:{kind:'palette',id:'a'}}}}],colorPreferences:m.defaultColorPreferences()};
  settings.colorPreferences.palette=[{id:'a',name:'A',light:'#11223300',dark:'rgba(1,2,3,.123456789)'},{id:'b',name:'B',light:'#ffffff',dark:'#000000'}];
  settings.colorPreferences.semantic.origin={kind:'palette',id:'a'};settings.colorPreferences.compass.fills.north={kind:'palette',id:'a'};
@@ -92,7 +92,7 @@ test("named pair edits merge only changed fields and deletion rewrites every con
  assert.deepEqual(settings.colorPreferences.palette[0],{...opening,name:'Renamed',dark:'#55667780',extension:true});
  m.deleteNamedColor(settings,'a',{kind:'palette',id:'b'});
  assert.equal(m.namedColorUsage(settings).get('a'),undefined);assert.equal(m.namedColorUsage(settings).get('b'),8);
- assert.deepEqual(settings.noteTypeStyles.Type.extension,{id:'a'});assert.equal(settings.baseNodeStyle.fontSize,19);
+ assert.deepEqual(settings.tagNodeStyles["#Type"].extension,{id:'a'});assert.equal(settings.baseNodeStyle.fontSize,19);
  assert.throws(()=>m.saveNamedColor(settings,opening,{...opening,name:'Restore'}));
 });
 
@@ -112,7 +112,7 @@ test("explicit standard adoption changes only listed color slots and detached pa
  const edited={...initial,fontSize:23},latest={...initial,textColor:{kind:'palette',id:'replacement'}};
  assert.deepEqual(m.mergeStyleDraft(initial,edited,latest,m.NODE_COLOR_FIELDS),{...edited,textColor:latest.textColor});
  const prefs=m.defaultColorPreferences(),settings={baseNodeStyle:initial,centralNodeStyle:{textColor:'#abcdef',maxWidth:370},baseLinkStyle:{strokeColor:'#ffffff',strokeWidth:2},backgroundColor:'transparent',
-  noteTypeStyles:{Type:{textColor:'#445566'}},graphLenses:[{style:{node:{textColor:'#556677'}}}],colorPreferences:prefs,unrelated:'kept'};
+  tagNodeStyles:{'#Type':{textColor:'#445566'}},graphLenses:[{style:{node:{textColor:'#556677'}}}],colorPreferences:prefs,unrelated:'kept'};
  const before=structuredClone(settings);assert.deepEqual(m.standardColorSlots(settings),['backgroundColor','baseNodeStyle.backgroundColor','baseNodeStyle.textColor','centralNodeStyle.textColor','baseLinkStyle.strokeColor']);
  m.adoptStandardThemeColors(settings);assert.equal(settings.standardStyleDefaults,'native');assert.equal(m.standardColorSlots(settings).length,0);
  assert.deepEqual(settings.baseNodeStyle,{fontSize:20});assert.deepEqual(settings.centralNodeStyle,{maxWidth:370});assert.deepEqual(settings.baseLinkStyle,{strokeWidth:2});

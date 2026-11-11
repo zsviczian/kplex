@@ -143,7 +143,7 @@ function start(referenceOnly = false, referenceProperties = false, sidecarGateOn
     release: null,
   });
   const key = "__kplex146_style",
-    other = key + "_renamed";
+    other = key + "_renamed", tagKey = "#" + key + "_tag";
   /** Fail a bounded probe or retire its exact controller without leaving delayed operations alive. */
   const check = (condition, message) => {
     if (c.cancelled || !condition)
@@ -410,12 +410,7 @@ function start(referenceOnly = false, referenceProperties = false, sidecarGateOn
         ...manager.querySelectorAll(".kplex-style-manager-row"),
       ].find(
         /** Resolve the exact family when names collide. */ (row) =>
-          row.querySelector(".kplex-style-manager-name")?.textContent ===
-            name &&
-          row.querySelector(".kplex-style-manager-badge")?.textContent ===
-            p.translator(
-              kind === "tag" ? "styles.legacyTag" : "styles.propertyValue"
-            )
+          row.querySelector(".kplex-style-manager-name")?.textContent === (name.startsWith("#") ? name : "#" + name)
       );
       check(row, "Exact style row unavailable");
       row.click();
@@ -423,14 +418,8 @@ function start(referenceOnly = false, referenceProperties = false, sidecarGateOn
     await until(editor, "Editor did not mount");
     const root = editor();
     c.modals.push(root);
-    const select = root.querySelector("select");
-    if (!name && select.value !== kind) {
-      select.value = kind;
-      select.dispatchEvent(
-        new root.ownerDocument.defaultView.Event("change", { bubbles: true })
-      );
-    }
-    check(root.querySelector('input[aria-label="' + p.translator(kind === "tag" ? "styles.tagPrefix" : "styles.propertyValue") + '"]'), "Native name field missing for " + kind);
+    check(!root.querySelector("select"), "Obsolete style family selector remains");
+    check(root.querySelector('input[aria-label="' + p.translator("styles.tagPrefix") + '"]'), "Native tag field missing");
     return root;
   };
   /** Close only the owned manager shells after the editor has reached a durable outcome. */
@@ -678,7 +667,7 @@ function start(referenceOnly = false, referenceProperties = false, sidecarGateOn
         const label=[...tab.containerEl.ownerDocument.querySelectorAll('.setting-item-name')].find(el=>el.getClientRects().length&&el.textContent===p.translator('styles.nodeTitle'));check(label,'Actual Node styles action absent');
         const row=label.closest('.setting-item');(row.querySelector('button')??row).click();
         let root=await open('property',null,true);
-        root.querySelector('input[aria-label="'+p.translator('styles.propertyValue')+'"]').value=key;
+        root.querySelector('input[aria-label="'+p.translator('styles.tagPrefix')+'"]').value=key;
         await awaitQuiet('Reference fixture work did not drain');
         const before={...c.counts};record('reference-child','start');
         root.querySelector('button[aria-label="'+p.translator('styles.border')+'"]').click();
@@ -694,7 +683,7 @@ function start(referenceOnly = false, referenceProperties = false, sidecarGateOn
         await until(()=>!query.isConnected,'Native heading choice did not close');
         await until(()=>!button(child,'colors.useColor').disabled,'Heading theme color cannot be selected');button(child,'colors.useColor').click();
         await until(()=>!child.isConnected,'Reference chooser did not close');
-        check(c.counts.writes===before.writes&&!p.settings.noteTypeStyles[key],'Child draft changed durable/live graph styling');record('reference-child','end');
+        check(c.counts.writes===before.writes&&!p.settings.tagNodeStyles["#" + key],'Child draft changed durable/live graph styling');record('reference-child','end');
         const dimensions={strokeWidth:3,gateRadius:8};
         for(const [label,value] of [['filter.borderWidth',dimensions.strokeWidth],['settings.ui.gate.radius',dimensions.gateRadius]]){
           const field=root.querySelector('input[aria-label="'+p.translator(label)+'"]');check(field,'Native size input absent');
@@ -713,7 +702,7 @@ function start(referenceOnly = false, referenceProperties = false, sidecarGateOn
             p.index.refreshPresentationSettings=/** Model a held optional host continuation after durable Save. */ async function(...args){held=true;await new Promise(/** Cleanup releases the exact optional continuation even after a failed assertion. */ resolve=>releaseRefresh=resolve);return refresh.apply(this,args)};
             record('overlap-parent-save','start');button(root,'common.save').click();
             await until(()=>held,'Saved operation did not enter held optional refresh');await wait(300);
-            const observed={editorPending:root.isConnected,heartbeats,durable:Boolean((await stored()).noteTypeStyles[key]),earlierPreparationHeld:Boolean(releasePrevious),writes:c.counts.writes-before.writes};
+            const observed={editorPending:root.isConnected,heartbeats,durable:Boolean((await stored()).tagNodeStyles["#" + key]),earlierPreparationHeld:Boolean(releasePrevious),writes:c.counts.writes-before.writes};
             check(observed.durable&&heartbeats>0,'Hold must distinguish durable Save from a starved renderer');
             passed('controlled overlap and held optional refresh observation',observed);
             if(liveness==='assert')check(!root.isConnected,'Durably saved editor remains trapped by optional refresh');
@@ -721,13 +710,13 @@ function start(referenceOnly = false, referenceProperties = false, sidecarGateOn
           await until(()=>!root.isConnected,'Released overlap Save did not close');record('overlap-parent-save','end');
         }else{record('reference-parent-save','start');await save(root);record('reference-parent-save','end');}
         const expected={kind:'theme',variable:'--h1-color'};
-        check(JSON.stringify(p.settings.noteTypeStyles[key]?.borderColor)===JSON.stringify(expected),'Reference did not publish');
-        check(JSON.stringify((await stored()).noteTypeStyles[key]?.borderColor)===JSON.stringify(expected),'Reference did not persist');
+        check(JSON.stringify(p.settings.tagNodeStyles["#" + key]?.borderColor)===JSON.stringify(expected),'Reference did not publish');
+        check(JSON.stringify((await stored()).tagNodeStyles["#" + key]?.borderColor)===JSON.stringify(expected),'Reference did not persist');
         app.setting.close();await wait(400);
         if (referenceSidecar) check(p.isSidecarOpen(plex), "Style Save/Settings close lost Sidecar ownership");
         check([...document.querySelectorAll('.kplex-role-center')].some(el=>el.dataset.kplexPath===path),'Style Save lost central graph');
         check(c.counts.semantics===before.semantics&&c.counts.acquisitions===before.acquisitions,'Reference/size Save requested semantic/source work');
-        const style=p.settings.noteTypeStyles[key],durable=(await stored()).noteTypeStyles[key];
+        const style=p.settings.tagNodeStyles["#" + key],durable=(await stored()).tagNodeStyles["#" + key];
         check(style.strokeWidth===3&&style.gateRadius===8&&durable.strokeWidth===3&&durable.gateRadius===8,'Native dimensions not persisted');
         await until(()=>{const center=[...document.querySelectorAll('.kplex-role-center')].find(el=>el.dataset.kplexPath===path);return center&&getComputedStyle(center).borderWidth==='3px'&&center.style.getPropertyValue('--kplex-gate-size')==='8.4px'},'Native dimension paint absent');
         passed('actual Settings Node styles Border h1 reference child draft and parent Save',{source:expected,dimensions,counts:{writes:c.counts.writes-before.writes,presentations:c.counts.presentations-before.presentations,semantics:c.counts.semantics-before.semantics,acquisitions:c.counts.acquisitions-before.acquisitions},properties:referenceProperties,sidecar:referenceSidecar,excalidrawSidecar,companionVersion:excalidrawSidecar?app.plugins.plugins['obsidian-excalidraw-plugin']?.manifest?.version:undefined,testOwnedHeadingToken:c.testHeadingToken,context:'Actual Visual styling / Node styling subpages'});
@@ -737,7 +726,7 @@ function start(referenceOnly = false, referenceProperties = false, sidecarGateOn
         await reloaded.activateView();
         await until(()=>[...document.querySelectorAll('.kplex-role-center')].some(el=>el.dataset.kplexPath===path),'Restart did not restore stationary center');
         await until(()=>[...document.querySelectorAll('.kplex-role-parent')].some(el=>el.dataset.kplexPath===parentPath),'Restart did not complete stationary Parent without navigation');
-        check(reloaded.settings.noteTypeStyles[key]?.strokeWidth===3&&reloaded.settings.noteTypeStyles[key]?.gateRadius===8&&reloaded.settings.noteTypeStyles[key]?.borderColor?.variable===heading,'Native reload lost reference or sizes');
+        check(reloaded.settings.tagNodeStyles["#" + key]?.strokeWidth===3&&reloaded.settings.tagNodeStyles["#" + key]?.gateRadius===8&&reloaded.settings.tagNodeStyles["#" + key]?.borderColor?.variable===heading,'Native reload lost reference or sizes');
         passed('native plugin restart restores stationary central relationship and saved reference/dimensions without history navigation',{properties:referenceProperties,scope:'Small disposable vault; normal startup, not a long-validation timing comparison'});
         await until(()=>reloaded.index.getIndexDiagnostics().some(row=>row.at>=restartAt&&row.centerCheck?.trigger==='initial'&&row.centerCheck.outcome!=='checking'),'Actual visible-center watchdog timer did not leave a diagnostic');
         const receipt=reloaded.index.getIndexDiagnostics().filter(row=>row.at>=restartAt&&row.centerCheck?.trigger==='initial'&&row.centerCheck.outcome!=='checking').at(-1);
@@ -788,17 +777,17 @@ function start(referenceOnly = false, referenceProperties = false, sidecarGateOn
       const before = { ...c.counts };
       c.noViewBefore = before;
       let root = await open("property");
-      root.querySelector('input[aria-label="' + p.translator("styles.propertyValue") + '"]').value = other;
+      root.querySelector('input[aria-label="' + p.translator("styles.tagPrefix") + '"]').value = other;
       await editColor(root, "styles.background", "#123456");
       button(root, "common.cancel").click();
       await until(/** A cancelled draft owns no storage or live publication. */ () => !root.isConnected, "Draft Cancel did not close");
       closeManagers();
-      check(!p.settings.noteTypeStyles[other] && !(await stored()).noteTypeStyles[other] && c.counts.writes === before.writes,
+      check(!p.settings.tagNodeStyles["#" + other] && !(await stored()).tagNodeStyles["#" + other] && c.counts.writes === before.writes,
         "Cancelled draft changed styles or reached persistence");
       passed("unsaved name/color draft Cancel leaves live and durable styles unchanged");
       root = await open("property");
       root.querySelector(
-        'input[aria-label="' + p.translator("styles.propertyValue") + '"]'
+        'input[aria-label="' + p.translator("styles.tagPrefix") + '"]'
       ).value = key;
       c.holdDisk = true;
       button(root, "common.save").click();
@@ -842,7 +831,7 @@ function start(referenceOnly = false, referenceProperties = false, sidecarGateOn
         root.isConnected && root.getAttribute("aria-busy") === "true",
         "Pending form closed"
       );
-      check(!p.settings.noteTypeStyles[key], "Pending style published early");
+      check(!p.settings.tagNodeStyles["#" + key], "Pending style published early");
       check(
         [...root.querySelectorAll("input,select,button")].every(
           (control) => control.disabled
@@ -862,7 +851,7 @@ function start(referenceOnly = false, referenceProperties = false, sidecarGateOn
       );
       closeManagers();
       check(
-        (await stored()).noteTypeStyles[key],
+        (await stored()).tagNodeStyles["#" + key],
         "Property style was not durable"
       );
       passed("no-view create, duplicate clicks and pending Cancel/Escape", {
@@ -872,8 +861,8 @@ function start(referenceOnly = false, referenceProperties = false, sidecarGateOn
       await p.updateStyleSettings(
         /** Seed imported RGBA spelling; the native color picker exposes only normalized RGB. */
         (draft) => {
-          draft.noteTypeStyles[key] = {
-            ...draft.noteTypeStyles[key],
+          draft.tagNodeStyles["#" + key] = {
+            ...draft.tagNodeStyles["#" + key],
             backgroundColor: "#AABBCC80",
             textColor: "#FFEEDD66",
           };
@@ -883,7 +872,7 @@ function start(referenceOnly = false, referenceProperties = false, sidecarGateOn
       check(root.querySelector('button[aria-label="' + p.translator("styles.background") + '"]').textContent === "#AABBCC80", "Opening source action normalized saved spelling");
       await editColor(root, "styles.text", "#010203", true);
       await save(root);
-      const rgba = (await stored()).noteTypeStyles[key];
+      const rgba = (await stored()).tagNodeStyles["#" + key];
       check(
         rgba.backgroundColor === "#AABBCC80" &&
           rgba.textColor === "#01020366" &&
@@ -900,7 +889,7 @@ function start(referenceOnly = false, referenceProperties = false, sidecarGateOn
       button(root, "common.save").click();
       await until(/** A rejected Save must stay editable and disclose that nothing was saved. */ () =>
         root.querySelector('[role="status"]')?.textContent === p.translator("styles.operation.notSaved"), "Rejected Save had no feedback");
-      check(root.isConnected && p.settings.noteTypeStyles[key].icon === rgba.icon && (await stored()).noteTypeStyles[key].icon === rgba.icon,
+      check(root.isConnected && p.settings.tagNodeStyles["#" + key].icon === rgba.icon && (await stored()).tagNodeStyles["#" + key].icon === rgba.icon,
         "Rejected Save changed live or durable style");
       c.diskFailure = false;
       button(root, "common.cancel").click();
@@ -911,25 +900,25 @@ function start(referenceOnly = false, referenceProperties = false, sidecarGateOn
       root = await open("tag");
       root.querySelector(
         'input[aria-label="' + p.translator("styles.tagPrefix") + '"]'
-      ).value = key;
+      ).value = tagKey;
       await save(root);
       check(
-        (await stored()).tagNodeStyles["#" + key] &&
-          p.settings.noteTypeStyles[key],
-        "Tag/property families collided"
+        (await stored()).tagNodeStyles[tagKey] &&
+          p.settings.tagNodeStyles["#" + key],
+        "Separate tag definitions collided"
       );
-      passed("create both style families durably");
+      passed("create independent tag styles durably");
       root = await open("property", key);
       root.querySelector(
-        'input[aria-label="' + p.translator("styles.propertyValue") + '"]'
+        'input[aria-label="' + p.translator("styles.tagPrefix") + '"]'
       ).value = other;
       await save(root);
       check(
-        !p.settings.noteTypeStyles[key] &&
-          (await stored()).noteTypeStyles[other],
+        !p.settings.tagNodeStyles["#" + key] &&
+          (await stored()).tagNodeStyles["#" + other],
         "Property rename was not durable"
       );
-      passed("rename updates the correct manager family");
+      passed("rename updates the correct tag definition");
 
       root = await open("property", other);
       c.diskFailure = true;
@@ -942,8 +931,8 @@ function start(referenceOnly = false, referenceProperties = false, sidecarGateOn
       );
       check(
         root.isConnected &&
-          p.settings.noteTypeStyles[other] &&
-          (await stored()).noteTypeStyles[other],
+          p.settings.tagNodeStyles["#" + other] &&
+          (await stored()).tagNodeStyles["#" + other],
         "Rejected delete changed durable/live styles"
       );
       c.diskFailure = false;
@@ -954,16 +943,16 @@ function start(referenceOnly = false, referenceProperties = false, sidecarGateOn
       );
       closeManagers();
       check(
-        !(await stored()).noteTypeStyles[other] &&
-          p.settings.tagNodeStyles["#" + key],
-        "Delete affected the other family"
+        !(await stored()).tagNodeStyles["#" + other] &&
+          p.settings.tagNodeStyles[tagKey],
+        "Delete affected the other tag definition"
       );
       passed(
-        "failed delete retains draft/live/disk; one retry deletes its family"
+        "failed delete retains draft/live/disk; one retry deletes its tag definition"
       );
 
       for (const failure of ["presentationFailure", "managerFailure"]) {
-        root = await open("tag", "#" + key);
+        root = await open("tag", tagKey);
         root.querySelector(
           'input[aria-label="' + p.translator("styles.lucideIcon") + '"]'
         ).value = failure === "managerFailure" ? "info" : "box";
@@ -971,7 +960,7 @@ function start(referenceOnly = false, referenceProperties = false, sidecarGateOn
         await save(root);
         c[failure] = false;
         check(
-          (await stored()).tagNodeStyles["#" + key].icon ===
+          (await stored()).tagNodeStyles[tagKey].icon ===
             (failure === "managerFailure" ? "info" : "box"),
           "Saved refresh fault lost durable data"
         );
@@ -1032,13 +1021,13 @@ function start(referenceOnly = false, referenceProperties = false, sidecarGateOn
       const activeBefore = { ...c.counts },
         semanticRevision = p.index.semanticPolicyRevision,
         publicationRevision = p.index.publicationRevision;
-      root = await open("tag", "#" + key);
+      root = await open("tag", tagKey);
       root.querySelector(
         'input[aria-label="' + p.translator("styles.labelPrefix") + '"]'
       ).value = "Style ";
       await save(root);
       check(
-        (await stored()).tagNodeStyles["#" + key].prefix === "Style ",
+        (await stored()).tagNodeStyles[tagKey].prefix === "Style ",
         "Active style edit not durable"
       );
       root = await open("tag");
@@ -1067,18 +1056,18 @@ function start(referenceOnly = false, referenceProperties = false, sidecarGateOn
       );
 
       root = await open("property");
-      root.querySelector('input[aria-label="' + p.translator("styles.propertyValue") + '"]').value = key;
+      root.querySelector('input[aria-label="' + p.translator("styles.tagPrefix") + '"]').value = key;
       await save(root);
-      const retainedProperty = JSON.stringify(p.settings.noteTypeStyles[key]);
-      root = await open("tag", "#" + key);
+      const retainedProperty = JSON.stringify(p.settings.tagNodeStyles["#" + key]);
+      root = await open("tag", tagKey);
       button(root, "common.delete").click();
       await until(/** Deleting a tag style must leave the identically named property family untouched. */ () => !root.isConnected, "Tag Delete did not close");
       closeManagers();
-      check(!(await stored()).tagNodeStyles["#" + key] && JSON.stringify(p.settings.noteTypeStyles[key]) === retainedProperty,
-        "Tag Delete affected the property family or failed persistence");
-      passed("tag Delete persists and preserves identically named property style");
+      check(!(await stored()).tagNodeStyles[tagKey] && JSON.stringify(p.settings.tagNodeStyles["#" + key]) === retainedProperty,
+        "Tag Delete affected the other tag or failed persistence");
+      passed("tag Delete persists and preserves another tag style");
       root = await open("tag");
-      root.querySelector('input[aria-label="' + p.translator("styles.tagPrefix") + '"]').value = key;
+      root.querySelector('input[aria-label="' + p.translator("styles.tagPrefix") + '"]').value = tagKey;
       root.querySelector('input[aria-label="' + p.translator("styles.labelPrefix") + '"]').value = "Style ";
       await save(root);
 
@@ -1118,11 +1107,11 @@ function start(referenceOnly = false, referenceProperties = false, sidecarGateOn
         "Style editor escaped its owning Settings document"
       );
       root.querySelector(
-        'input[aria-label="' + p.translator("styles.propertyValue") + '"]'
+        'input[aria-label="' + p.translator("styles.tagPrefix") + '"]'
       ).value = key + "_settings";
       await save(root);
       check(
-        (await stored()).noteTypeStyles[key + "_settings"],
+        (await stored()).tagNodeStyles["#" + key + "_settings"],
         "Owning Settings save was not durable"
       );
       passed(
@@ -1133,14 +1122,14 @@ function start(referenceOnly = false, referenceProperties = false, sidecarGateOn
       c.ownsSettings = false;
 
       const compatibilityBefore = {semantics: c.counts.semantics, acquisitions: c.counts.acquisitions, sourceReads: c.counts.sourceReads};
-      p.settings.noteTypeStyles[key].textColor = "#12345678";
+      p.settings.tagNodeStyles["#" + key].textColor = "#12345678";
       let compatibilityRejected = false;
       c.diskFailure = true;
       try {await p.saveSettings(false, false);} catch {compatibilityRejected = true;} finally {c.diskFailure = false;}
       check(compatibilityRejected, "Compatibility storage fault was not observed");
       await p.saveSettings(false, false);
       const retried = await stored(), selected = retried.appearanceThemes.themes.find(theme => theme.id === retried.appearanceThemes.selectedId);
-      check(retried.noteTypeStyles[key].textColor === "#12345678" && selected.appearance.semantic.noteTypeStyles[key].textColor === "#12345678",
+      check(retried.tagNodeStyles["#" + key].textColor === "#12345678" && selected.appearance.semantic.tagNodeStyles["#" + key].textColor === "#12345678",
         "Retried compatibility save left the active theme out of sync");
       check(Object.entries(compatibilityBefore).every(([name, count]) => c.counts[name] === count), "Compatibility color retry requested semantic/source work");
       passed("failed imperative appearance save retries with a coherent durable selected theme and no source work");
@@ -1150,11 +1139,11 @@ function start(referenceOnly = false, referenceProperties = false, sidecarGateOn
       await app.plugins.enablePlugin("k-plex");
       const reloaded = app.plugins.plugins["k-plex"];
       check(
-        reloaded.settings.tagNodeStyles["#" + key].prefix ===
-          data.tagNodeStyles["#" + key].prefix,
+        reloaded.settings.tagNodeStyles[tagKey].prefix ===
+          data.tagNodeStyles[tagKey].prefix,
         "Reload lost committed style"
       );
-      check(reloaded.settings.noteTypeStyles[key].textColor === "#12345678", "Reload lost retried compatibility color");
+      check(reloaded.settings.tagNodeStyles["#" + key].textColor === "#12345678", "Reload lost retried compatibility color");
       // Cleanup reacquires the new lifetime; it cannot restore wrappers or settings onto the retired plugin.
       for (const restore of c.restores.reverse()) restore();
       c.restores = [];

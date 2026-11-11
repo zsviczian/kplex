@@ -119,7 +119,7 @@ export async function runSettingsIndependence(c) {
     await scenario("immutable classifier and signature-only semantics", async () => {
       const original = structuredClone(settings), before = policy.captureSettingsPolicy(original);
       original.tagStyleList.reverse(); original.baseNodeStyle.maxLabelLength = 11;
-      original.noteTypeStyles.Secret = { backgroundColor: "#001122ff" };
+      original.tagNodeStyles["#Secret"] = { backgroundColor: "#001122ff" };
       const effects = policy.classifySettingsChange(before, policy.captureSettingsPolicy(original));
       assert.equal(effects.semanticInvalidation, false); assert.equal(effects.presentationFacets, true);
       assert.equal(effects.searchTerms, false); assert(effects.changedKeys.includes("tagStyleList"));
@@ -218,18 +218,18 @@ export async function runSettingsIndependence(c) {
         assert(p.index.search("Alpha Hub", 12).includes(page), "Aliases stay alternate search terms");
         await tab.setControlValue("noteTypeField", "tags");
         await tab.setControlValue("primaryTagField", "tags");
-        tab.openNodeStyleEditor("tag", "#project");
-        await obsidianTestApi.Modal.latest.onSave("#body", { backgroundColor: "#102030ff" }, "#project", "tag", () => true);
+        tab.openNodeStyleEditor("#project");
+        await obsidianTestApi.Modal.latest.onSave("#body", { backgroundColor: "#102030ff" }, "#project", () => true);
         assert.deepEqual(p.settings.tagStyleList, ["#body", "#person"]);
         assert.equal(page.primaryStyleTag, "#body-tag");
         assert.equal(policy.compareIndexSettingsSignature(warmRecord.meta.settingsSignature, p.settings).compatible, true);
-        tab.openNodeStyleEditor("tag", "#body"); await obsidianTestApi.Modal.latest.onDelete("#body", () => true);
+        tab.openNodeStyleEditor("#body"); await obsidianTestApi.Modal.latest.onDelete("#body", () => true);
         assert.deepEqual(p.settings.tagStyleList, ["#person"]);
-        tab.openNodeStyleEditor("tag", null); await obsidianTestApi.Modal.latest.onSave("#body", { fontSize: 20 }, null, "tag", () => true);
+        tab.openNodeStyleEditor(null); await obsidianTestApi.Modal.latest.onSave("#body", { fontSize: 20 }, null, () => true);
         assert.deepEqual(p.settings.tagStyleList, ["#person", "#body"]);
         await tab.setControlValue("tagStyleList", ["#body", "#person"]);
-        tab.openNodeStyleEditor("property", null); await obsidianTestApi.Modal.latest.onSave("fixture", { fontSize: 24 }, null, "property", () => true);
-        assert.equal(p.settings.noteTypeStyles.fixture.fontSize, 24);
+        tab.openNodeStyleEditor(null); await obsidianTestApi.Modal.latest.onSave("fixture", { fontSize: 24 }, null, () => true);
+        assert.equal(p.settings.tagNodeStyles["#fixture"].fontSize, 24);
       });
       assert.equal(p.scheduled, 0); assert.equal(semantic, 0); assert(presentation >= 8);
       assert.equal(p.index.pages, identity); assert.equal(p.index.get(page.path), page);
