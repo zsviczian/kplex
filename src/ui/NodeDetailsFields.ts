@@ -6,6 +6,7 @@ import {MAX_NODE_PROPERTIES, validNodeProperties, type NodeProperty, type NodePr
 import type {Translator} from "../lang";
 
 export type NodeDetailsOptions = Readonly<{rows: readonly NodeProperty[];
+  focusProperties?: boolean;
   preview(type: string, rows: readonly NodeProperty[]): Readonly<{title: string; lines: readonly NodePropertyLine[]}>;
 }>;
 

@@ -7,6 +7,11 @@
 import { buildLocaleCatalog, type LocaleTranslationMap } from "./catalog";
 
 const frenchTranslations = {
+  "noteType.settings": "Configurer le type de note",
+  "styles.convertToNoteType": "Convertir en type de note",
+  "styles.keepTagStyle": "Conserver le style de tag",
+  "styles.convertHelp": "À l’enregistrement, remplacer le style de préfixe {from} par le style de type de note {to}. Les notes restent inchangées.",
+  "styles.conversionConflict": "Un style de type de note pour {name} existe déjà. Choisissez un autre nom.",
   "noteType.invalidTag": "Saisissez un tag valide, par exemple person ou person/friend. Les espaces ne sont pas autorisés.",
   "noteType.changed": "Cette note ou son type a changé. Rouvrez la boîte de dialogue.",
   "noteType.tag": "Tag du type de note",

@@ -16,7 +16,7 @@ import { assertMigratedExcaliBrainSettings, localPreferenceKeys } from "./suppor
 // The production completion adapter owns native timers. This Node-only form fixture supplies
 // real task timers rather than a synchronous fake or a production no-window compatibility branch.
 const openingWindow = globalThis.window;
-globalThis.window = {crypto: globalThis.crypto, setTimeout, clearTimeout};
+globalThis.window = {crypto: globalThis.crypto, setTimeout, clearTimeout, Event};
 process.on("exit", /** Retire only this isolated test process's host boundary. */ () => {globalThis.window = openingWindow;});
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
@@ -728,7 +728,7 @@ function styleEditorFixture(settings = structuredClone(defaults)) {
 function openStyle(tab, kind, name = null) {
   const priorWindow = globalThis.window;
   try {
-    globalThis.window = { setTimeout(callback) { callback(); return 0; }, clearTimeout() {} };
+    globalThis.window = { ...priorWindow, setTimeout(callback) { callback(); return 0; }, clearTimeout() {} };
     tab.openNodeStyleEditor(kind, name);
     return TestModal.latest;
   } finally { globalThis.window = priorWindow; }

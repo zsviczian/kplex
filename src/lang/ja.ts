@@ -7,6 +7,11 @@
 import { buildLocaleCatalog, type LocaleTranslationMap } from "./catalog";
 
 const japaneseTranslations = {
+  "noteType.settings": "ノートタイプを設定",
+  "styles.convertToNoteType": "ノートタイプに変換",
+  "styles.keepTagStyle": "タグスタイルを維持",
+  "styles.convertHelp": "保存すると、タグ接頭辞スタイル {from} をノートタイプスタイル {to} に置き換えます。ノートは変更されません。",
+  "styles.conversionConflict": "{name} のノートタイプスタイルは既に存在します。別の名前を選んでください。",
   "noteType.invalidTag": "person や person/friend など、有効なタグを1つ入力してください。空白は使用できません。",
   "noteType.changed": "ノートまたはタイプが変更されました。ダイアログを開き直してください。",
   "noteType.tag": "ノートタイプのタグ",

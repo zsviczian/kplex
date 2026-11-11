@@ -21,6 +21,77 @@ test('selector draft validates tags, keeps old tags by default, discloses inline
  })()`),true);
 });
 
+test('inline inspection reanchors the open native tag popup without reopening dismissed, blurred or retired suggestions',async()=>{
+ assert.equal(await colorEditorScenario(`(async()=>{
+  const M=sourceModules,t=M.createTranslator('en');
+  for(const state of ['open','dismissed','blurred','retired']){
+   const file={path:'Person.md',extension:'md',stat:{mtime:1,size:50}};let finishRead;
+   const p={app:{vault:{getFileByPath:()=>file,cachedRead:()=>new Promise(resolve=>finishRead=resolve)},metadataCache:{getFileCache:()=>({frontmatter:{'Note type':'person',tags:['person']}})}},settings:{noteTypeField:'Note type'},translator:t,index:{allPages:()=>[]}};
+   const modal=new M.NoteTypeModal(p,file,'person');modal.open();await new Promise(resolve=>setTimeout(resolve,10));
+   const input=modal.contentEl.querySelector('input[type=text]'),suggestion=modal.suggestion;let native=Object.getPrototypeOf(suggestion);while(!Object.hasOwn(native,'setValue'))native=Object.getPrototypeOf(native);const original=native.open;let anchors=0;
+   native.open=function(){anchors++};input.focus();suggestion.open();
+   if(state==='dismissed')suggestion.close();
+   let other;if(state==='blurred'){other=document.body.appendChild(document.createElement('input'));other.focus()}
+   if(state==='retired')modal.retire();
+   finishRead('No inline selector.');await new Promise(resolve=>setTimeout(resolve,30));
+   if(anchors!==(state==='open'?2:1))throw Error('Unexpected native anchor refresh for '+state+': '+anchors);
+   if(state==='blurred'&&document.activeElement!==other)throw Error('Refresh stole focus');
+   native.open=original;other?.remove();modal.close();
+  }
+  return true;
+ })()`),true);
+});
+
+test('selector settings shortcut targets the valid draft type without saving it or losing its owner document',async()=>{
+ assert.equal(await colorEditorScenario(`(async()=>{
+  const M=sourceModules,t=M.createTranslator('en'),file={path:'Person.md',extension:'md',stat:{mtime:1,size:10}};let selected,scope,writes=0;
+  const p={app:{vault:{getFileByPath:()=>file,cachedRead:async()=>''},metadataCache:{getFileCache:()=>({frontmatter:{'Note type':'person',tags:['person']}})}},settings:{noteTypeField:'Note type'},translator:t,index:{allPages:()=>[]},editNoteType:()=>{writes++},openNoteTypeSettings:(type,element)=>{selected=type;scope=element}};
+  const modal=new M.NoteTypeModal(p,file,'person');modal.open();await new Promise(resolve=>setTimeout(resolve,20));
+  const settings=[...modal.contentEl.querySelectorAll('button')].find(button=>button.getAttribute('aria-label')===t('noteType.settings')),input=modal.contentEl.querySelector('input[type=text]');
+  input.value='Big idea';input.dispatchEvent(new Event('input'));if(!settings.disabled)throw Error('Invalid type can configure');
+  input.value='#project';input.dispatchEvent(new Event('input'));settings.click();if(selected!=='project'||scope!==modal.modalEl.ownerDocument.body||writes||!modal.modalEl.isConnected||input.value!=='#project')throw Error('Settings shortcut lost the draft or wrote the note');modal.close();return true;
+ })()`),true);
+});
+
+test('shared native suggestion anchoring follows modal and window geometry, then retires observers on dismissal',async()=>{
+ assert.equal(await colorEditorScenario(`(async()=>{
+  const M=sourceModules,t=M.createTranslator('en'),file={path:'Person.md',extension:'md',stat:{mtime:1,size:10}},p={app:{vault:{getFileByPath:()=>file,cachedRead:async()=>''},metadataCache:{getFileCache:()=>({frontmatter:{'Note type':'person',tags:['person']}})}},settings:{noteTypeField:'Note type'},translator:t,index:{allPages:()=>[]}};
+  const modal=new M.NoteTypeModal(p,file,'person');modal.open();await new Promise(resolve=>setTimeout(resolve,30));const input=modal.contentEl.querySelector('input[type=text]'),suggestion=modal.suggestion;let native=Object.getPrototypeOf(suggestion);while(!Object.hasOwn(native,'setValue'))native=Object.getPrototypeOf(native);const original=native.open;let anchors=0;native.open=function(){anchors++};input.focus();suggestion.open();await new Promise(resolve=>setTimeout(resolve,25));const initial=anchors;
+  const originalLeft=input.getBoundingClientRect().left;input.style.transform='translateX(20px)';if(input.getBoundingClientRect().left===originalLeft)throw Error('Fixture did not move the anchor');window.dispatchEvent(new Event('resize'));await new Promise(resolve=>setTimeout(resolve,25));if(anchors!==initial+1)throw Error('Window movement did not reanchor');window.dispatchEvent(new Event('resize'));if(anchors!==initial+1)throw Error('Unchanged resize needlessly reopened');
+  modal.modalEl.style.paddingTop='45px';await new Promise(resolve=>setTimeout(resolve,40));if(anchors!==initial+2)throw Error('Modal resize did not reanchor');
+  suggestion.close();modal.modalEl.style.paddingTop='65px';window.dispatchEvent(new Event('resize'));await new Promise(resolve=>setTimeout(resolve,30));if(anchors!==initial+2)throw Error('Dismissed popup reopened');modal.close();native.open=original;return true;
+ })()`),true);
+});
+
+test('tag-style conversion is explicit and reversible, preserves unknown appearance and priority peers, and saves one detached property list',async()=>{
+ assert.equal(await colorEditorScenario(`(async()=>{
+  const M=sourceModules,t=M.createTranslator('en'),source={icon:'user',prefix:'👤 ',fontSize:17,strokeWidth:2.5,gateRadius:7,backgroundColor:'#11223380',future:{token:7}},p=await createAppearanceHost({tagNodeStyles:{'#person':source,'#other':{icon:'box'}},tagStyleList:['#other','#person'],sentinel:{future:true}}),before=JSON.stringify(p.settings);p.writes=[];
+  const tab=new M.KplexSettingTab({workspace:{on:()=>({}),offref(){}}},p);tab.openNodeStyleEditor('tag','#person');let modal=M.TestModal.instances.at(-1),button=key=>[...modal.contentEl.querySelectorAll('button')].find(button=>button.getAttribute('aria-label')===t(key));
+  if(!modal.contentEl.querySelector('.kplex-node-details-editor').hidden&&getComputedStyle(modal.contentEl.querySelector('.kplex-node-details-editor')).display!=='none')throw Error('Legacy tag exposes independent type fields');
+  button('styles.convertToNoteType').click();if(getComputedStyle(modal.contentEl.querySelector('.kplex-node-details-editor')).display==='none'||!modal.contentEl.textContent.includes('On Save'))throw Error('Conversion preview hidden');
+  button('styles.keepTagStyle').click();if(JSON.stringify(p.settings)!==before||p.writes.length)throw Error('Preview changed settings');button('styles.convertToNoteType').click();button('nodeProperties.add').click();const field=modal.contentEl.querySelector('.kplex-node-detail-row input');field.value='company';field.dispatchEvent(new Event('input'));button('common.save').click();await new Promise(resolve=>setTimeout(resolve,60));
+  if(p.writes.length!==1||JSON.stringify(p.settings.noteTypeStyles.person)!==JSON.stringify(source)||Object.hasOwn(p.settings.tagNodeStyles,'#person')||JSON.stringify(p.settings.tagStyleList)!==JSON.stringify(['#other'])||p.settings.noteTypeProperties.person[0].field!=='company'||!p.writes[0].sentinel.future)throw Error('Conversion did not preserve/move atomically');
+  const reloaded=M.migrateAndMergeSettings(JSON.parse(JSON.stringify(p.writes[0])));if(reloaded.noteTypeStyles.person.future.token!==7||reloaded.noteTypeProperties.person[0].field!=='company')throw Error('Conversion lost on reload');return true;
+ })()`),true);
+});
+
+test('direct type configuration opens its exact existing style and property list rather than the legacy tag-prefix family',async()=>{
+ assert.equal(await colorEditorScenario(`(async()=>{
+  const M=sourceModules,p=await createAppearanceHost({noteTypeStyles:{Person:{icon:'user'}},tagNodeStyles:{'#person':{icon:'tag'}},noteTypeProperties:{person:[{field:'company',visible:false}]}}),tab=new M.KplexSettingTab({workspace:{on:()=>({}),offref(){}}},p);p.writes=[];
+  if(!tab.openNoteTypeEditor('#person',document.body))throw Error('Valid selected type refused');const modal=M.TestModal.instances.at(-1);await new Promise(resolve=>setTimeout(resolve,20));
+  const field=modal.contentEl.querySelector('.kplex-node-detail-row input[type=text]');if(field.value!=='company'||document.activeElement!==field||modal.contentEl.querySelector('select').value!=='property'||modal.contentEl.querySelector('input[type=text]').value!=='Person'||p.writes.length)throw Error('Opened wrong type, key, focus or properties');modal.close();if(tab.openNoteTypeEditor('Big idea',document.body))throw Error('Invalid type opened');return true;
+ })()`),true);
+});
+
+test('conversion cancel, existing destination, stale source and disk failure preserve both style families',async()=>{
+ assert.equal(await colorEditorScenario(`(async()=>{
+  const M=sourceModules,t=M.createTranslator('en');for(const reason of ['cancel','collision','stale','disk']){
+   const p=await createAppearanceHost({tagNodeStyles:{'#person':{icon:'user'}},tagStyleList:['#person'],noteTypeStyles:reason==='collision'?{Person:{icon:'box'}}:{}}),tab=new M.KplexSettingTab({workspace:{on:()=>({}),offref(){}}},p);p.writes=[];tab.openNodeStyleEditor('tag','#person');const modal=M.TestModal.instances.at(-1),button=key=>[...modal.contentEl.querySelectorAll('button')].find(button=>button.getAttribute('aria-label')===t(key));button('styles.convertToNoteType').click();
+   if(reason==='stale')delete p.settings.tagNodeStyles['#person'];if(reason==='disk')p.saveData=async()=>{throw Error('Owned disk failure')};const before=JSON.stringify(p.settings);button(reason==='cancel'?'common.cancel':'common.save').click();await new Promise(resolve=>setTimeout(resolve,40));if(JSON.stringify(p.settings)!==before||p.writes.length)throw Error('Failed/cancelled conversion mutated settings: '+reason);modal.close();
+  }return true;
+ })()`),true);
+});
+
 test('compact details keep detached order/visibility, validate duplicate fields and refresh an inert live preview',async()=>{
  assert.equal(await colorEditorScenario(`(()=>{
   const M=sourceModules,t=M.createTranslator('en'),rows=[{field:'title',visible:true},{field:'company',visible:false}],container=createDiv();document.body.append(container);

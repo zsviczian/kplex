@@ -5702,6 +5702,9 @@ export default class KplexPlugin extends Plugin {
   /** Physical Markdown notes with configured type defaults can request an explicit initialization preview. */
   canInitializeNodeProperties(page: GraphPage): boolean {return !page.transient && page.file?.extension === "md" && nodePropertyRows(this.settings.noteTypeProperties, page.noteType ?? "").length > 0;}
 
+  /** Open the selected type's existing native settings editor in the requesting document's theme scope. */
+  openNoteTypeSettings(value: string, sourceScope: HTMLElement): boolean {return !this.unloading && (this.settingsTab?.openNoteTypeEditor(value, sourceScope) ?? false);}
+
   /** Native review shells remain plugin-owned even when launched from Settings or the Command Palette. */
   openNoteTypeReview(file?: TFile, onClosed?: () => void): NoteTypeReviewModal | null {
     if (this.unloading || file && (file.extension !== "md" || this.app.vault.getFileByPath(file.path) !== file)) return null;

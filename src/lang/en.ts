@@ -9,6 +9,11 @@
  * parameters remain unquoted regardless of their names. Locale catalogs inherit this classification.
  */
 export const englishCatalog = {
+  "noteType.settings": {"message":"Configure note type","context":"Direct note-type configuration and explicit, reversible tag-style conversion before saving.","params":[],"referenceParams":[]},
+  "styles.convertToNoteType": {"message":"Convert to note type","context":"Direct note-type configuration and explicit, reversible tag-style conversion before saving.","params":[],"referenceParams":[]},
+  "styles.keepTagStyle": {"message":"Keep tag style","context":"Direct note-type configuration and explicit, reversible tag-style conversion before saving.","params":[],"referenceParams":[]},
+  "styles.convertHelp": {"message":"On Save, replace tag-prefix style {from} with note-type style {to}. Notes are not changed.","context":"Direct note-type configuration and explicit, reversible tag-style conversion before saving.","params":["from","to"],"referenceParams":["from","to"]},
+  "styles.conversionConflict": {"message":"A note-type style for {name} already exists. Choose another name.","context":"Direct note-type configuration and explicit, reversible tag-style conversion before saving.","params":["name"],"referenceParams":["name"]},
   "noteType.invalidTag": {"message":"Enter one valid tag, for example person or person/friend. Spaces and multiword values are not tags.","context":"Tag-backed note types, optional node details and explicitly reviewed native YAML maintenance.","params":[],"referenceParams":[]},
   "noteType.changed": {"message":"This note or its type changed. Reopen the dialog to review it.","context":"Tag-backed note types, optional node details and explicitly reviewed native YAML maintenance.","params":[],"referenceParams":[]},
   "noteType.tag": {"message":"Note type tag","context":"Tag-backed note types, optional node details and explicitly reviewed native YAML maintenance.","params":[],"referenceParams":[]},

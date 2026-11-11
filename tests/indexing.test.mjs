@@ -194,7 +194,7 @@ assert(!ontologyPageSource.includes('settings.ui.relationship.specific.styles'),
 assert(settingsSource.includes('text: this.translate("styles.customStyles")'), "Relationship link styles must default to a compact localized custom-only view");
 assert(settingsSource.includes('placeholder: this.translate("styles.searchRelationshipPlaceholder")'), "Ontology link styles must use a localized search placeholder");
 assert(settingsSource.includes('placeholder: this.translate("styles.searchNodePlaceholder")'), "Property-value node styles must use a localized search placeholder");
-assert(settingsSource.includes("class NodeStyleValueSuggest extends AbstractInputSuggest"), "Node style values must use an Obsidian input suggester");
+assert(settingsSource.includes("class NodeStyleValueSuggest extends KplexInputSuggest"), "Node style values must use the shared native input-suggestion owner");
 assert(settingsSource.includes("getIconIds()"), "Lucide icon names must come from Obsidian's live icon registry");
 assert(settingsSource.includes('private displayScope: "custom" | "all"'), "Ontology style filtering must not shadow Modal.scope");
 assert(settingDefinitionsSource.includes('name: translate("settings.ui.discovered.fields")'), "Ontology discovery must live on a localized compact subpage");
@@ -545,6 +545,7 @@ for (const file of [
   "src/ui/features/CalendarDatePicker.tsx",
   "src/ui/components/FormField.tsx",
   "src/adapters/obsidian/KplexModal.ts",
+  "src/adapters/obsidian/KplexInputSuggest.ts",
   "src/ui/mobileModalViewport.ts",
   "src/adapters/obsidian/periodicPins.ts",
   "src/adapters/obsidian/metadataSourceCollector.ts",

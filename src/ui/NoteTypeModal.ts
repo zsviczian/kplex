@@ -22,6 +22,7 @@ export class NoteTypeModal extends StyleEditorModal {
   private removeOld = false;
   private input?: TextComponent;
   private saveButton?: ButtonComponent;
+  private settingsButton?: ButtonComponent;
   private removal?: Setting;
   private removalToggle?: ToggleComponent;
   private clearReady = false;
@@ -52,6 +53,10 @@ export class NoteTypeModal extends StyleEditorModal {
       .addToggle(toggle => {this.removalToggle = toggle;toggle.onChange(value => {this.removeOld = value;});});
     const inspection = this.contentEl.createEl("p", {text: t("noteType.inspectInline"), cls: "setting-item-description", attr: {role: "status"}});
     formActions(this.contentEl)
+      .addButton(button => {this.settingsButton = iconButton(button, t("noteType.settings"), "settings").onClick(() => {
+        const tag = noteTypeAsTag(this.value);if (!this.canEdit() || !tag) return;
+        this.suggestion?.close();this.plugin.openNoteTypeSettings(tag, this.modalEl.ownerDocument.body);
+      });})
       .addButton(button => iconButton(button, t("common.clear"), "eraser").onClick(() => {if (this.canEdit()) {this.value = "";this.input?.setValue("");this.removeOld = false;this.refresh();}}))
       .addButton(button => iconButton(button, t("common.cancel"), "x").onClick(() => this.close()))
       .addButton(button => {this.saveButton = iconButton(button, t("common.save"), "save").setCta().onClick(() => this.submit());});
@@ -59,6 +64,7 @@ export class NoteTypeModal extends StyleEditorModal {
     void this.inspectInline().then(values => {
       if (!this.inspectionLive) return;this.clearReady = values !== null;
       inspection.setText(values === null ? t("noteType.inlineUnknown") : values.length ? t("noteType.inlineFallback", {value: values.join(", ")}) : "");if (this.canEdit()) this.refresh();
+      this.suggestion?.refreshPosition();
     });
   }
 
@@ -80,6 +86,7 @@ export class NoteTypeModal extends StyleEditorModal {
     this.removal?.settingEl.toggle(this.oldInYaml && (clearing || tag?.toLocaleLowerCase() !== this.oldTag?.toLocaleLowerCase()));
     this.removalToggle?.setValue(this.removeOld);
     this.saveButton?.setDisabled(!this.opening.supported || (clearing ? !this.clearReady : !tag));
+    this.settingsButton?.setDisabled(!tag);
     this.input?.inputEl.setAttribute("aria-invalid", String(!clearing && !tag));
     this.validation?.setText(!this.opening.supported ? this.plugin.translator("tagAssignment.invalid") : !clearing && !tag ? this.plugin.translator("noteType.invalidTag") : "");
   }

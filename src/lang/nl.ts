@@ -7,6 +7,11 @@
 import { buildLocaleCatalog, type LocaleTranslationMap } from "./catalog";
 
 const dutchTranslations = {
+  "noteType.settings": "Notitietype instellen",
+  "styles.convertToNoteType": "Omzetten naar notitietype",
+  "styles.keepTagStyle": "Tagstijl behouden",
+  "styles.convertHelp": "Vervang bij opslaan de tagprefixstijl {from} door de notitietypestijl {to}. Notities worden niet gewijzigd.",
+  "styles.conversionConflict": "Er bestaat al een notitietypestijl voor {name}. Kies een andere naam.",
   "noteType.invalidTag": "Voer één geldige tag in, zoals person of person/friend. Spaties zijn niet toegestaan.",
   "noteType.changed": "Deze notitie of het type is gewijzigd. Open het venster opnieuw.",
   "noteType.tag": "Notitietypetag",

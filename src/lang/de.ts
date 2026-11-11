@@ -7,6 +7,11 @@
 import { buildLocaleCatalog, type LocaleTranslationMap } from "./catalog";
 
 const germanTranslations = {
+  "noteType.settings": "Notiztyp konfigurieren",
+  "styles.convertToNoteType": "In Notiztyp umwandeln",
+  "styles.keepTagStyle": "Tag-Stil beibehalten",
+  "styles.convertHelp": "Beim Speichern wird der Tag-Präfix-Stil {from} durch den Notiztyp-Stil {to} ersetzt. Notizen werden nicht geändert.",
+  "styles.conversionConflict": "Ein Notiztyp-Stil für {name} ist bereits vorhanden. Wähle einen anderen Namen.",
   "noteType.invalidTag": "Ein gültiges Tag eingeben, etwa person oder person/friend. Leerzeichen sind nicht erlaubt.",
   "noteType.changed": "Diese Notiz oder ihr Typ wurde geändert. Dialog erneut öffnen.",
   "noteType.tag": "Notiztyp-Tag",

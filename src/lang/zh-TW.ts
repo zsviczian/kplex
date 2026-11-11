@@ -7,6 +7,11 @@
 import { buildLocaleCatalog, type LocaleTranslationMap } from "./catalog";
 
 const traditionalChineseTranslations = {
+  "noteType.settings": "設定筆記類型",
+  "styles.convertToNoteType": "轉換為筆記類型",
+  "styles.keepTagStyle": "保留標籤樣式",
+  "styles.convertHelp": "儲存時，將標籤前綴樣式 {from} 替換為筆記類型樣式 {to}。筆記內容不會變更。",
+  "styles.conversionConflict": "{name} 的筆記類型樣式已存在。請選擇其他名稱。",
   "noteType.invalidTag": "請輸入一個有效標籤，例如 person 或 person/friend。不可包含空格。",
   "noteType.changed": "筆記或其類型已變更。請重新開啟對話框。",
   "noteType.tag": "筆記類型標籤",

@@ -7,6 +7,11 @@
 import { buildLocaleCatalog, type LocaleTranslationMap } from "./catalog";
 
 const russianTranslations = {
+  "noteType.settings": "Настроить тип заметки",
+  "styles.convertToNoteType": "Преобразовать в тип заметки",
+  "styles.keepTagStyle": "Сохранить стиль тега",
+  "styles.convertHelp": "При сохранении стиль префикса тега {from} будет заменён стилем типа заметки {to}. Заметки не изменяются.",
+  "styles.conversionConflict": "Стиль типа заметки для {name} уже существует. Выберите другое имя.",
   "noteType.invalidTag": "Введите один допустимый тег, например person или person/friend. Пробелы недопустимы.",
   "noteType.changed": "Заметка или её тип изменились. Откройте диалог заново.",
   "noteType.tag": "Тег типа заметки",

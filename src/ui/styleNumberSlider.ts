@@ -10,6 +10,7 @@ export function styleNumberSlider(parent: HTMLElement, translate: Translator, op
 }>): {read: () => number | undefined} {
   let value = options.initial;
   const row = new Setting(parent).setName(options.label);
+  row.settingEl.addClass("kplex-style-row");
   if (options.help) row.setDesc(options.help);
   let reset: ExtraButtonComponent;
   const refresh = (): void => {

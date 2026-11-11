@@ -7,6 +7,11 @@
 import { buildLocaleCatalog, type LocaleTranslationMap } from "./catalog";
 
 const spanishTranslations = {
+  "noteType.settings": "Configurar tipo de nota",
+  "styles.convertToNoteType": "Convertir en tipo de nota",
+  "styles.keepTagStyle": "Conservar estilo de etiqueta",
+  "styles.convertHelp": "Al guardar, reemplaza el estilo de prefijo {from} por el estilo de tipo de nota {to}. Las notas no cambian.",
+  "styles.conversionConflict": "Ya existe un estilo de tipo de nota para {name}. Elige otro nombre.",
   "noteType.invalidTag": "Introduce una etiqueta válida, como person o person/friend. No se permiten espacios.",
   "noteType.changed": "Esta nota o su tipo cambió. Vuelve a abrir el diálogo.",
   "noteType.tag": "Etiqueta del tipo de nota",

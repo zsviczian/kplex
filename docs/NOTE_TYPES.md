@@ -36,6 +36,10 @@ When changing a YAML type, **Remove old tag … from YAML tags** is off by defau
 
 Open **Node styles** on the same Settings page, then edit or add the style for a note type. Its **Node details** section contains the ordered property list, **Show on node** toggles and a live sample from a matching note. Appearance and details share one Save; Cancel discards both drafts.
 
+For a direct shortcut, open **Set note type**, choose a valid type and click the **Configure note type** settings icon. It opens that selected type's properties and appearance without saving the note-type draft. Close the settings editor to return to that draft.
+
+Imported **Tag** styles match a primary tag prefix and have no note-type property list. In **Edit node style**, use **Convert to note type** beside **Style type** to preview conversion. **Node details** appears in the same dialog. Save moves the appearance to the selected note type and removes the old prefix entry; Cancel or **Keep tag style** preserves the original. An existing destination style is never overwritten. Conversion does not assign note types or change notes: the converted appearance applies to notes that already select that type.
+
 For the example above, show `nickname` and `company`, or keep an ID filename such as `ER12345.md` and show its `title` property underneath. The main node label stays unchanged. Compass, Mind Map and Facets measure the extra lines before placing nodes and their gates.
 
 Configure up to 16 unique property names. Existing cached YAML text, numbers, booleans and simple lists are displayed; `0` and `false` remain visible. Missing/empty values add no blank line, and complex objects are omitted. Text is limited to 512 characters per line and 16 list items, with visual ellipsis and a hover description. Inline body properties are not part of this display. Type matching ignores case and an optional leading `#`.

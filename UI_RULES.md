@@ -8,6 +8,7 @@ label, actions and layout is not component reuse. Read this file before UI work.
 | UI concern | Required owner |
 | --- | --- |
 | Native modal shell | `src/adapters/obsidian/KplexModal.ts` (`KplexModal`) |
+| Tag/style/icon input suggestions | `KplexInputSuggest` in `src/adapters/obsidian/KplexInputSuggest.ts`; native popup skin and keyboard behavior, with owning-window anchor refresh and close cleanup |
 | Native settings rows and authored fields | `FormSetting` in that adapter; use `formField` for an integrated custom field |
 | Native footer / icon action | `formActions`, `iconButton`, `labelIconButton` in that adapter |
 | React footer | `FormActions` in `src/ui/components/FormField.tsx` |
@@ -130,6 +131,12 @@ Obsidian APIs in portable components.
   Managers/lists retain bounded search, scrolling and compact row actions.
 - Integrated controls must scope their styles to their actual setting row and use
   the same control typography and dimensions as modal forms.
+- Appearance forms use native `Setting` info/control columns and the existing
+  `formOptionGroup`, color and dimension controls. Do not recreate these rows as
+  label/input grids or add editor-specific skins to compensate for a missing
+  native stylesheet in a test fixture. Type-property configuration must be
+  reachable from Set note type; tag-prefix conversion is an explicit, reversible
+  choice in Edit node style, with its effect visible before Save.
 
 ## Required review evidence
 

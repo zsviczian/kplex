@@ -667,35 +667,14 @@ button.kplex-sidecar-unfold-plex,
 }
 .modal.kplex-style-editor-modal .modal-content { min-width: 0; overflow-x: hidden; }
 .kplex-style-editor > p {
-  max-width: 58ch;
-  margin: 0 0 14px;
-  color: var(--text-muted);
-  line-height: 1.45;
+  margin: 0 0 var(--kplex-form-gap, var(--size-4-4));
 }
 .kplex-style-form {
-  display: grid;
-  gap: 0;
-  border-top: 1px solid var(--background-modifier-border);
+  min-width: 0;
 }
 .kplex-style-row {
-  display: grid;
-  grid-template-columns: minmax(120px, .75fr) minmax(0, 1.25fr);
-  align-items: center;
-  gap: 16px;
   min-width: 0;
-  padding: 10px 0;
-  border-bottom: 1px solid var(--background-modifier-border);
 }
-.kplex-style-row label { min-width: 0; color: var(--text-normal); font-weight: 500; }
-.kplex-style-row input[type="text"],
-.kplex-style-row input[type="number"],
-.kplex-style-row select {
-  width: 100%;
-  min-width: 0;
-  box-sizing: border-box;
-}
-.kplex-style-row input[type="color"] { justify-self: start; width: 44px; height: 30px; padding: 2px; }
-.kplex-style-row input[type="checkbox"] { justify-self: start; }
 .kplex-style-actions {
   display: flex;
   justify-content: flex-end;
@@ -709,7 +688,6 @@ button.kplex-sidecar-unfold-plex,
 .kplex-input-suggestion-line .kplex-lucide { flex: 0 0 auto; width: 16px; height: 16px; color: var(--text-muted); }
 .kplex-input-suggestion-line span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 @media (max-width: 520px) {
-  .kplex-style-row { grid-template-columns: minmax(0, 1fr); gap: 6px; }
   .kplex-style-actions button { flex: 1 1 auto; }
 }
 
@@ -4191,9 +4169,10 @@ button.kplex-sidecar-unfold-plex:focus-visible,
   .kplex-form-select-row > .setting-item-info { max-width: none; }
 }
 /* Native Setting markup owns colors and finite choices; only their group geometry differs. */
-.kplex-style-row.setting-item { display: flex; }
 .kplex-style-color-row > .setting-item-control { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: var(--size-4-2); }
-.kplex-style-color-row button { max-width: 100%; white-space: normal; overflow-wrap: anywhere; }
+.kplex-style-color-row button { flex: 1 1 0; min-width: 0; max-width: 100%; white-space: normal; overflow-wrap: anywhere; }
+.kplex-style-row .kplex-number-value { flex: 0 0 7.5em; min-width: 0; white-space: nowrap; }
+.kplex-style-row .setting-item-control > input[type="range"] { flex: 1 1 0; min-width: 0; }
 .kplex-form-options .setting-item:not(.kplex-form-field) > .setting-item-info { flex: 1 1 50%; min-width: 0; margin: 0; }
 .kplex-form-options .setting-item:not(.kplex-form-field) > .setting-item-control { flex: 1 1 50%; min-width: 0; }
 .kplex-form-options .setting-item-control > select { width: 100%; max-width: none; }
