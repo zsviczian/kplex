@@ -12,7 +12,6 @@ The draft PR on this branch owns the detailed implementation and acceptance plan
 | Issue | Intended outcome |
 | --- | --- |
 | [#290](https://github.com/zsviczian/kplex/issues/290#issuecomment-6823099803) | Preserve explicit Challenger evidence when an unresolved target becomes a file. Reproduce first. |
-| [#299](https://github.com/zsviczian/kplex/issues/299#issuecomment-6823104567) | Permit an explicit relationship where only inferred evidence exists, without duplicate declarations. The reported cause remains unconfirmed. |
 | [#184](https://github.com/zsviczian/kplex/issues/184#issuecomment-6823118065) | Verify and fix singleton connector labels only if the current reproduction fails. |
 | [#124](https://github.com/zsviczian/kplex/issues/124) | Allow the existing command-palette tab action on phones; preserve the sidebar as the generic/default destination. |
 | [#118](https://github.com/zsviczian/kplex/issues/118) | Release Sidecar ownership on unpin/Off/Recent while retaining the same native document tab and adjacent group. |
@@ -26,6 +25,8 @@ Implement in independently reviewable stages: relationship regression fixtures; 
 Use the existing shared controls, native creation barrier, relationship writer and semantic owners. Retain exact-file identity, cancellation, settings compatibility and existing Excalidraw template selections. Template discovery must not execute templates or admit semantic indexing work. Define supported template execution and exactly-once precedence before writing the adapter; do not promise compatibility with arbitrary template plugins or restore the withdrawn note-type/template coupling.
 
 Reciprocal writes are opt-in, default off, and scoped to explicit K-Plex authoring operations. Do not mirror all vault relationships, manufacture missing targets, edit Markdown sections, or maintain a background synchronization service. Surface failures between the two file writes without claiming atomic rollback.
+
+**#299 is excluded by the maintainer's follow-up decision:** the maintainer could not reproduce it and considers the request ambiguous. Do not investigate or implement #299 in this bundle. Reconsider only after a clear reproduction and separate scope approval; the issue remains open.
 
 Excluded: #250's separate view-coverage investigation; #292, #198 and #77 follow-up reports; deferred #133 privacy, including node properties from #297; rejected #125 section authoring; unrelated draft #223; structural refactoring, broad indexing optimization and releases.
 
