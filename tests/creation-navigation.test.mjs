@@ -222,9 +222,25 @@ test('new-file tabs use the Plex group or the most recent main group from the si
  const plex={parent:plexParent,view:{getViewType:()=> 'plex'}},main={parent:mainParent},sidepanel={parent:otherParent,view:{getViewType:()=> 'sidepanel'}};
  const leaf={openFile:async(...args)=>calls.push(['open',...args])};
  const p={finishDailyNoteOpening:async(given,created)=>{assert.equal(given,leaf);assert.equal(created,file)},app:{workspace:{rootSplit:root,getMostRecentLeaf:given=>{assert.equal(given,root);return main},iterateAllLeaves:run=>[plex,{parent:plexParent},main,{parent:otherParent}].forEach(run),createLeafInParent:(parent,index)=>{calls.push(['create',parent,index]);return leaf},revealLeaf:async given=>{assert.equal(given,leaf)}}}};
+ p.createTabInPlexGroup=method('src/main.ts','createTabInPlexGroup',{KPLEX_SIDEPANEL_VIEW_TYPE:'sidepanel'});
  await open.call(p,file,plex);assert.deepEqual(calls[0],['create',plexParent,2]);assert.equal(p.lastDocumentLeaf,leaf);
  calls.length=0;await open.call(p,file,sidepanel);assert.deepEqual(calls[0],['create',mainParent,1]);
  assert.deepEqual(calls[1],['open',file,{active:true}]);
+});
+
+test('canvas tab modifiers allocate in the captured group even when another group is most recent',async()=>{
+ const create=method('src/main.ts','createPlexTab',{KPLEX_VIEW_TYPE:'plex',KPLEX_SIDEPANEL_VIEW_TYPE:'sidepanel'});
+ const host={parent:{},view:{getViewType:()=> 'plex'}},other={parent:{}},calls=[];
+ const leaf={setViewState:async state=>calls.push(['view',state])};
+ const p={rememberDocumentLeaf:()=>{},app:{workspace:{getMostRecentLeaf:()=>other,
+  iterateAllLeaves:run=>[host,{parent:host.parent},other].forEach(run),
+  createLeafInParent:(parent,index)=>{calls.push(['tab',parent,index]);return leaf},
+  createLeafBySplit:(...args)=>{calls.push(['split',...args]);return leaf},
+  getLeaf:target=>{calls.push(['fallback',target]);return leaf},revealLeaf:async given=>assert.equal(given,leaf)}}};
+ p.createTabInPlexGroup=method('src/main.ts','createTabInPlexGroup',{KPLEX_SIDEPANEL_VIEW_TYPE:'sidepanel'});
+ await create.call(p,'tab',host);assert.deepEqual(calls[0],['tab',host.parent,2]);
+ calls.length=0;await create.call(p,'split',host);assert.deepEqual(calls[0],['split',host,'vertical',false]);
+ calls.length=0;await create.call(p);assert.deepEqual(calls[0],['fallback','split'],'Existing command keeps adjacent-group default');
 });
 
 test('new daily drawings switch only their exact opened Markdown view through the public companion API',async()=>{

@@ -1817,9 +1817,9 @@ for (const mode of ['navigation','supersession','policy','missing-metadata','cor
           const db=await f.cache.open();initial.destroy();initial=null;f.acquisition.close();
           index=new M.GraphIndex({app:f.app,settings,getIndexSourceRevision:()=>0},f.app);index.scheduleOrphanCleanup=()=>{};
           const repo=index.indexedDb.sources,activate=repo.activate,prepare=index.prepareSemanticScope;
-          let introduced=false,activated=0,targetAttempts=0,layoutChanged=false,conflict=false;const target=mode==='missing-metadata'||mode==='corrupt'?'Limited.md':owners[2];
-          index.prepareSemanticScope=async function(...args){if(args[0]===target)targetAttempts++;const task=prepare.apply(this,args);
-            if(mode==='supersession'&&args[0]===target&&targetAttempts===2&&!layoutChanged){layoutChanged=true;settings.embedCentralNode=!settings.embedCentralNode;await this.refreshPresentationSettings();}return task;};
+          let introduced=false,activated=0,targetAttempts=0,targetOptionalAttempts=0,layoutChanged=false,conflict=false;const target=mode==='missing-metadata'||mode==='corrupt'?'Limited.md':owners[2];
+          index.prepareSemanticScope=async function(...args){const primary=args[0]===target&&args[3]===undefined;if(primary)targetAttempts++;else if(args[0]===target)targetOptionalAttempts++;const task=prepare.apply(this,args);
+            if(mode==='supersession'&&primary&&targetAttempts===2&&!layoutChanged){layoutChanged=true;settings.embedCentralNode=!settings.embedCentralNode;await this.refreshPresentationSettings();}return task;};
           repo.activate=async function(...args){
             const head=args[1];if(head.bodyParserVersion===M.SOURCE_BODY_PARSER_VERSION&&owners.includes(head.sourceId)){
               if(!introduced){introduced=true;
@@ -1856,7 +1856,7 @@ for (const mode of ['navigation','supersession','policy','missing-metadata','cor
           }else{
             ok(!index.hasPendingSemanticPreparation(),'Current requested scopes close during the migration');equal(activated,owners.length,'All old URL owners eventually acquire current grammar');ok(!index.hasPendingSearchVocabulary(),'Final vocabulary is atomically complete');
             if(mode==='supersession'){ok(layoutChanged,'Real presentation refresh supersedes the first stable-window task');ok(targetAttempts>=3,'The gate drains the existing automatic supersession retry');}
-            if(mode==='navigation')equal(targetAttempts,2,'One transient lane conflict is retried in the stable primary window');
+            if(mode==='navigation'){equal(targetAttempts,2,'One transient lane conflict is retried in the stable primary window');equal(targetOptionalAttempts,1,'One bounded URL-neighbor closure follows primary authority');}
           }
           equal([...index.state.evidence.declarations()].map(item=>M.persistedDeclarationFromEvidence(item)),evidence,'Optional repairs preserve every cached primary declaration');equal(index.getSemanticPreparationDiagnostics().fullBuilds,0,'Priority does not force a whole graph build');
           return true;

@@ -21,6 +21,19 @@ const implementation = (execute = () => ({status: "completed"})) => ({availabili
 /** Provide a shared center independently of whichever editor has focus. */
 const manager = (extra = {}) => new api.ActionManager({readCommandContext: () => ({sharedCenter: node("shared"), windowId: "main", focusRegion: "graph"}), ...extra});
 
+test('additional canvas placement is a finite invocation choice; existing commands keep their default',()=>{
+ for(const value of [undefined,{}, {placement:'tab'},{placement:'split'}])assert.equal(api.validActionArguments('surface.new-tab',value),true);
+ for(const value of [{placement:'window'},{placement:'sidepanel'},{placement:()=>{}},{placement:'tab',host:{}},[]])assert.equal(api.validActionArguments('surface.new-tab',value),false);
+});
+
+test('All, Previous and Next publish distinct default commands with center targeting',()=>{
+  for(const [role,id]of [['all','kplex-add-relationship'],['previous','kplex-add-previous'],['next','kplex-add-next']]){
+    const action=api.ACTION_BY_ID.get(`relationship.create-center.${role}`);
+    assert.equal(action.command.id,id);assert.equal(action.command.defaultPublished,true);assert.equal(action.target,'center');
+    assert.equal(api.validActionArguments(action.id,{continuation:'return'}),true);
+  }
+});
+
 test('explicit center activation is a finite invocation intent, preserving placeholder-open choices',()=>{
  assert.equal(api.validActionArguments('node.activate',undefined),true);
  assert.equal(api.validActionArguments('node.activate',{intent:'destination'}),true);
@@ -156,7 +169,7 @@ test("Markdown export accepts the exact native menu occurrence as well as the co
 test("catalog contains bounded variants, preserved IDs, the Markdown and PNG export publication defaults and session-only actions", () => {
   assert.equal(new Set(api.ACTION_CATALOG.map(item => item.id)).size, api.ACTION_CATALOG.length);
   assert.equal(new Set(api.ACTION_CATALOG.flatMap(item => item.command ? [item.command.id] : [])).size, api.ACTION_CATALOG.filter(item => item.command).length);
-  assert.equal(api.ACTION_CATALOG.filter(item => item.command?.defaultPublished).length, 35);
+  assert.equal(api.ACTION_CATALOG.filter(item => item.command?.defaultPublished).length, 38);
   assert.equal(api.ACTION_BY_ID.get("note-type.review").command.id, "kplex-review-note-types");
   assert.equal(api.ACTION_BY_ID.get("note-type.review").target, "none");
   assert.deepEqual(api.effectiveActionBindings(api.migrateActionPreferences(undefined).preferences, "note-type.review"), []);
@@ -342,8 +355,8 @@ test("public command diff preserves editor callbacks, omits global hotkeys and r
   const app = manager({implementations: {"index.rebuild": implementation(), "ontology.assign.parent": implementation()}});
   const publisher = api.createActionCommandPublisher({host: {addCommand: command => {added.push(command); return command;}, removeCommand: id => removed.push(id)}, manager: app, translate: key => key, makeRequest: id => ({id, source: "obsidian-command", ...(id.startsWith("ontology.") ? {target: {kind: "editor-field", editorInvocationId: "cursor"}} : {})}), releaseRequest: request => released.push(request.id)});
   const preferences = api.migrateActionPreferences(undefined).preferences;
-  publisher.sync(preferences); assert.equal(added.length, 35);
-  publisher.sync(preferences); assert.equal(added.length, 35);
+  publisher.sync(preferences); assert.equal(added.length, 38);
+  publisher.sync(preferences); assert.equal(added.length, 38);
   assert(added.every(command => command.hotkeys === undefined));
   const editor = added.find(command => command.id === "kplex-ontology-parent"); assert.equal(typeof editor.editorCheckCallback, "function"); assert.equal(editor.checkCallback, undefined);
   assert.equal(editor.editorCheckCallback(true, {}, {}), true); assert.deepEqual(released, ["ontology.assign.parent"]);
@@ -419,9 +432,9 @@ test("partial public registration failure reports actual state and stable-ID ret
   const app = manager();
   const publisher = api.createActionCommandPublisher({host: {addCommand: command => {counts.set(command.id, (counts.get(command.id) ?? 0) + 1); if (command.id === "kplex-actions" && fail) throw new Error("native failure"); return command;}, removeCommand: () => {}}, manager: app, translate: key => key, makeRequest: id => ({id, source: "obsidian-command"})});
   const preferences = api.migrateActionPreferences(undefined).preferences;
-  const first = publisher.sync(preferences); assert.equal(first.failures.length, 1); assert.equal(publisher.registeredIds().length, 34);
-  const actual = publisher.registeredIds(); actual.pop(); assert.equal(publisher.registeredIds().length, 34);
-  fail = false; assert.equal(publisher.sync(preferences).failures.length, 0); assert.equal(publisher.registeredIds().length, 35);
+  const first = publisher.sync(preferences); assert.equal(first.failures.length, 1); assert.equal(publisher.registeredIds().length, 37);
+  const actual = publisher.registeredIds(); actual.pop(); assert.equal(publisher.registeredIds().length, 37);
+  fail = false; assert.equal(publisher.sync(preferences).failures.length, 0); assert.equal(publisher.registeredIds().length, 38);
   assert.equal(counts.get("kplex-actions"), 2); assert.equal(counts.get("kplex-start"), 1);
   publisher.dispose(); app.dispose();
 });

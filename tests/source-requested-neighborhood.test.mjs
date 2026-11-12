@@ -37,7 +37,7 @@ const initialize = `(() => {
     ok(!('neighborhood'in result)&&!('siblings'in result),'No unproved lists');
     const parents=result.certificate.relations.parents.map(parent=>parent.id);
     equal(result.certificate.relations.coverage,'complete-visible-parent-relations','Accurate projected relation certificate');
-    equal(parents.length,expected.top.visibleCount,'Every visible parent certified before top-N');
+    equal(parents.length,['top','bottom','left','right'].reduce((total,gate)=>total+expected[gate].visibleCount,0),'Every visible direct witness certified before top-N');
     equal(neighborhoodView(M,result.preparation.compilation,scope.center,settings,parents),neighborhoodView(M,full,scope.center,settings,parents),'Full canonical center and certified-parent oracle');
   };
   window.fullNeighborhoodOracle=${fullNeighborhoodOracle.toString()};
@@ -178,7 +178,7 @@ test("real Chromium private requested-neighborhood closure and every terminal fe
           const scope={kind:'neighborhood',center:ghost},check=nGuard(f);
           const result=await nReader(f).prepare(scope,nPolicy(),runtime());nCompare(result,full,scope,nSettings);
           equal(result.work.passes,2,'Parent range still authenticated');equal(result.certificate.parents.map(ref=>ref.id),['P.md'],'Exact sole parent');
-          equal(neighborhoodView(M,result.preparation.compilation,ghost,nSettings).siblings,[],'No other child');check();return true;
+          equal(neighborhoodView(M,result.preparation.compilation,ghost,nSettings).siblings.map(row=>row.id),['folder:/'],'Only the parent folder is second-order; there is no other child');check();return true;
         }finally{f.close();}
       })()`), true);
     });
@@ -218,7 +218,7 @@ test("real Chromium private requested-neighborhood closure and every terminal fe
         assert.equal(await browser.evaluate(`(async()=>{
           const f=await nSeed('neighborhood-final-host-${scope}');
           try{
-            const scope=${JSON.stringify(scope)}==='empty'?nEmpty():{kind:'neighborhood',center:f.entities.get('folder:/').entity};
+            const scope=${JSON.stringify(scope)}==='empty'?nEmpty():{kind:'neighborhood',center:f.entities.get('folder:/').entity,siblingClosure:'deferred'};
             const original=f.discovery.revalidate.bind(f.discovery);let validations=0;
             f.discovery.revalidate=async certificate=>{const result=await original(certificate);
               if(++validations===2){equal(certificate.sources,[],'No source callback');f.app.daily.folder='Changed';}return result;};
@@ -390,7 +390,7 @@ test("real Chromium private requested-neighborhood closure and every terminal fe
         try{
           const before=await nSnapshot(f),check=nGuard(f),view=centerGatePolicy(centerGateSettings());
           nFailed(await nReader(f).prepareCenterGates(nEmpty(),nPolicy(),view,runtime()),'missing');
-          const scope={kind:'neighborhood',center:f.entities.get('folder:/').entity};
+          const scope={kind:'neighborhood',center:f.entities.get('folder:/').entity,siblingClosure:'deferred'};
           const result=await nReader(f).prepareCenterGates(scope,nPolicy(),view,runtime());
           equal(result.outcome,'ready','Existing empty root is a center');equal(Object.values(result.gates),Array(4).fill({hasAny:false,visibleCount:0}),'Proved empty counts');
           equal(result.work.gateEntityReads,0,'No manufactured physical file');
@@ -408,7 +408,7 @@ test("real Chromium private requested-neighborhood closure and every terminal fe
           const index=await fullCenterIndex(M,f,full,nSettings,view),expected=structuredClone(index.gateStats(index.get(ghost.semanticPath)));index.destroy();
           const before=await nSnapshot(f),check=nGuard(f);
           const result=await nReader(f).prepareCenterGates(scope,nPolicy(),centerGatePolicy(view),runtime());nGateCompare(result,full,scope,nSettings,expected);
-          equal(result.work.passes,2,'Negative parent range authenticated');equal(neighborhoodView(M,result.preparation.compilation,ghost,nSettings).siblings,[],'No other child');
+          equal(result.work.passes,2,'Negative parent range authenticated');equal(neighborhoodView(M,result.preparation.compilation,ghost,nSettings).siblings.map(row=>row.id),['folder:/'],'Only the parent folder is second-order; there is no other child');
           check();equal(await nSnapshot(f),before,'No source changes');return true;
         }finally{f.close();}
       })()`), true);
@@ -478,7 +478,7 @@ test("real Chromium private requested-neighborhood closure and every terminal fe
           for(const letter of ['X','Y','Z'])f.add(letter+'.md','',{Friends:'[[B]]'});
         });
         try{
-          const full=await fullNeighborhoodOracle(M,f,nSettings,runtime()),partialResult=await nReader(f).prepare(nRequest(),nPolicy(),runtime());
+          const full=await fullNeighborhoodOracle(M,f,nSettings,runtime()),partialResult=await nReader(f).prepare({...nRequest(),siblingClosure:'deferred'},nPolicy(),runtime());
           equal(partialResult.outcome,'ready','Relation cover ready');const partial=partialResult.preparation.compilation;
           ok(full.node('B.md').neighbours.size>partial.node('B.md').neighbours.size,'Partial degree is not complete');
           equal(partial.node('B.md').aliases,[],'Target aliases not acquired by incoming contributors');equal(full.node('B.md').aliases,['Zebra'],'Full target metadata');

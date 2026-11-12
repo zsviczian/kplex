@@ -10,7 +10,7 @@ export function HorizontalDragScroll({className, children}: {className: string; 
   return <div ref={ref} className={className}>{children}</div>;
 }
 
-/** Share scrolling on an existing list root; explicit drag handles retain their own gesture. */
+/** Share scrolling on an existing list root; explicit handles and native draggable bodies retain their gestures. */
 export function useHorizontalDragScroll(ref: RefObject<HTMLDivElement | null>, enabled = true, ignoreSelector?: string): void {
   useEffect(/** Bind to this mounted list's document, including native popout ownership. */ () => {
     const element = ref.current;
@@ -31,8 +31,8 @@ export function useHorizontalDragScroll(ref: RefObject<HTMLDivElement | null>, e
       finish();
       const target = event.target;
       // Native SVG icons can be adopted from another realm; use document identity, not instanceof.
-      if (ignoreSelector && target && "nodeType" in target && target.nodeType === 1 && "ownerDocument" in target && target.ownerDocument === doc
-        && (target as Element).closest(ignoreSelector)) return;
+      if (target && "nodeType" in target && target.nodeType === 1 && "ownerDocument" in target && target.ownerDocument === doc
+        && (target as Element).closest(["[draggable=true]", ignoreSelector].filter(Boolean).join(","))) return;
       if (event.altKey || event.ctrlKey || event.metaKey || event.shiftKey || element.scrollWidth <= element.clientWidth) return;
       gesture = {id: event.pointerId, x: event.clientX, y: event.clientY, left: element.scrollLeft, dragging: false};
     };

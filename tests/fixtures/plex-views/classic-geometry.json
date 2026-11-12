@@ -949,24 +949,6 @@
         "width": 112,
         "height": 30,
         "label": "next"
-      },
-      {
-        "path": "s1",
-        "role": "sibling",
-        "x": 1029.75,
-        "y": -110.15,
-        "width": 95.2,
-        "height": 26,
-        "label": "s1"
-      },
-      {
-        "path": "s2",
-        "role": "sibling",
-        "x": 1029.75,
-        "y": -59.85,
-        "width": 95.2,
-        "height": 26,
-        "label": "s2"
       }
     ],
     "edges": [
@@ -1165,24 +1147,6 @@
         "width": 112,
         "height": 30,
         "label": "next"
-      },
-      {
-        "path": "s1",
-        "role": "sibling",
-        "x": 1029.75,
-        "y": -25.15,
-        "width": 95.2,
-        "height": 26,
-        "label": "s1"
-      },
-      {
-        "path": "s2",
-        "role": "sibling",
-        "x": 1029.75,
-        "y": 25.15,
-        "width": 95.2,
-        "height": 26,
-        "label": "s2"
       }
     ],
     "edges": [
@@ -1381,24 +1345,6 @@
         "width": 112,
         "height": 30,
         "label": "next"
-      },
-      {
-        "path": "s1",
-        "role": "sibling",
-        "x": 521.9166666666666,
-        "y": -131.85000000000002,
-        "width": 95.2,
-        "height": 26,
-        "label": "s1"
-      },
-      {
-        "path": "s2",
-        "role": "sibling",
-        "x": 521.9166666666666,
-        "y": -97.75000000000003,
-        "width": 95.2,
-        "height": 26,
-        "label": "s2"
       }
     ],
     "edges": [
@@ -1597,24 +1543,6 @@
         "width": 112,
         "height": 30,
         "label": "next"
-      },
-      {
-        "path": "s1",
-        "role": "sibling",
-        "x": 654,
-        "y": -17.05,
-        "width": 95.2,
-        "height": 26,
-        "label": "s1"
-      },
-      {
-        "path": "s2",
-        "role": "sibling",
-        "x": 654,
-        "y": 17.05,
-        "width": 95.2,
-        "height": 26,
-        "label": "s2"
       }
     ],
     "edges": [
@@ -2645,24 +2573,6 @@
         "width": 112,
         "height": 30,
         "label": "next"
-      },
-      {
-        "path": "s1",
-        "role": "sibling",
-        "x": 703.75,
-        "y": -110.15,
-        "width": 95.2,
-        "height": 26,
-        "label": "s1"
-      },
-      {
-        "path": "s2",
-        "role": "sibling",
-        "x": 703.75,
-        "y": -59.85,
-        "width": 95.2,
-        "height": 26,
-        "label": "s2"
       }
     ],
     "edges": [
@@ -2853,24 +2763,6 @@
         "width": 112,
         "height": 30,
         "label": "next"
-      },
-      {
-        "path": "s1",
-        "role": "sibling",
-        "x": 703.75,
-        "y": -25.15,
-        "width": 95.2,
-        "height": 26,
-        "label": "s1"
-      },
-      {
-        "path": "s2",
-        "role": "sibling",
-        "x": 703.75,
-        "y": 25.15,
-        "width": 95.2,
-        "height": 26,
-        "label": "s2"
       }
     ],
     "edges": [
@@ -3061,24 +2953,6 @@
         "width": 112,
         "height": 30,
         "label": "next"
-      },
-      {
-        "path": "s1",
-        "role": "sibling",
-        "x": 291.91666666666663,
-        "y": -131.85000000000002,
-        "width": 95.2,
-        "height": 26,
-        "label": "s1"
-      },
-      {
-        "path": "s2",
-        "role": "sibling",
-        "x": 291.91666666666663,
-        "y": -97.75000000000003,
-        "width": 95.2,
-        "height": 26,
-        "label": "s2"
       }
     ],
     "edges": [
@@ -3269,24 +3143,6 @@
         "width": 112,
         "height": 30,
         "label": "next"
-      },
-      {
-        "path": "s1",
-        "role": "sibling",
-        "x": 424,
-        "y": -17.05,
-        "width": 95.2,
-        "height": 26,
-        "label": "s1"
-      },
-      {
-        "path": "s2",
-        "role": "sibling",
-        "x": 424,
-        "y": 17.05,
-        "width": 95.2,
-        "height": 26,
-        "label": "s2"
       }
     ],
     "edges": [

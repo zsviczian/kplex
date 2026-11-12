@@ -281,7 +281,8 @@ test("20,015 independent owners publish complete cached center incidence with ex
         equal(index.relationshipStorageCandidates(hub,ids[1]),oracle.relationshipStorageCandidates(hub,ids[1]),'Editable storage input');
         equal(f.acquisition.getCounters(),counters,'Zero source work');equal(f.reads.length,0,'Zero reads');equal(f.parses.length,0,'Zero parses');
         equal(index.getSemanticPreparationDiagnostics().fullBuilds,before.fullBuilds,'Zero full builds');
-        equal(canonicalPasses,{direct:1,optional:rootComplete?1:0},'Only one direct pass and its admitted optional closure run');
+        const optionalExpected=count<=256;
+        equal(canonicalPasses,{direct:1,optional:optionalExpected?1:0},'Only one direct pass and its bounded all-role optional closure run');
         // Small fixtures admit one additional canonical parent pass. Keep the accepted 800 checks
         // per owner per pass; the 20,015-owner deferred-root case retains its original single bound.
         ok(ownerChecks<800*count*(canonicalPasses.direct+canonicalPasses.optional),'Linear complete reader work: '+ownerChecks);
@@ -293,7 +294,7 @@ test("20,015 independent owners publish complete cached center incidence with ex
         equal(index.getSemanticPreparationDiagnostics().published,revision,'Cancelled continuation cannot publish');
         equal(currentNeighborhoodView(index,hub),coherent,'Cancelled continuation exposes no prefix');
         release();
-        return {owners:count,ownerChecks,elapsedMs,peakHeap,replayPeak,combinedPeak,reservation,rootComplete,canonicalPasses,published:revision-before.published,cancellationYields:yields};
+        return {owners:count,ownerChecks,elapsedMs,peakHeap,replayPeak,combinedPeak,reservation,rootComplete,optionalExpected,canonicalPasses,published:revision-before.published,cancellationYields:yields};
       } finally {clearInterval(heapTimer);oracle?.destroy();index?.destroy();f.close();}
       })().then(result=>window.r3LargeStatus={done:true,result},error=>window.r3LargeStatus={done:true,error:error.stack??String(error)});
       return true;
@@ -309,7 +310,7 @@ test("20,015 independent owners publish complete cached center incidence with ex
     assert(!status.error, status.error);
     const report = status.result;
     assert.equal(report.owners, Number(process.env.KPLEX_R3_OWNERS ?? 20015));
-    assert.equal(report.published, report.rootComplete ? 2 : 1);
+    assert.equal(report.published, report.optionalExpected ? 2 : 1);
     assert(report.cancellationYields >= 2);
     console.log(JSON.stringify({ r3LargePublication: report }));
   } finally { await browser.cleanup(); }

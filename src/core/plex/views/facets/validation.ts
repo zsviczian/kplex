@@ -7,7 +7,7 @@ import {FACET_TEMPLATES} from "./templates";
 import {isFacetDiagnosticStatus, isFacetLayout} from "./presentation";
 import {validFacetFlow, facetFlowId} from "./flow";
 import {validMarkdownHelp} from "../../../contracts/markdownHelp";
-export const FACET_LIMITS = {presets: 16, entries: 32, categories: 7, aliases: 512, label: 80, expression: 2048} as const;
+export const FACET_LIMITS = {presets: 16, entries: 32, categories: 12, aliases: 512, label: 80, expression: 2048} as const;
 
 /** Stable keys do not depend on translated labels or mutable note fields. */
 export function facetId(value: unknown): value is string {return typeof value === "string" && value.length <= 48 && viewConfigurationEntryKey(value);}
@@ -26,7 +26,7 @@ function color(value: unknown): boolean {
 export function isFacetReplacement(value: unknown): value is FacetPresetReplacement {
   return record(value) && value.version === 1 && facetId(value.replacement);
 }
-/** Known presets contain exactly three through seven ordered categories. */
+/** Known presets contain three through twelve ordered categories. */
 export function isFacetPreset(value: unknown): value is FacetPreset {
   if (!record(value) || value.version !== 1 || !text(value.name, 100) || value.nameKey !== undefined && !text(value.nameKey, 128, false)
     || !["property", "type", "tag", "rules"].includes(String(value.source)) || !text(value.field, 128, false)
@@ -58,7 +58,7 @@ export function isFacetPreset(value: unknown): value is FacetPreset {
     if (!record(value.areaSizes) || Object.keys(value.areaSizes).some(/** Unknown dimension groups cannot create unbounded identities. */ key => key !== "categories" && key !== "diagnostics")) return false;
     for (const group of ["categories", "diagnostics"] as const) {
       const sizes = value.areaSizes[group];if (sizes === undefined) continue;
-      if (!record(sizes) || Object.keys(sizes).length > 7) return false;
+      if (!record(sizes) || Object.keys(sizes).length > (group === "categories" ? FACET_LIMITS.categories : 5)) return false;
       for (const [id, size] of Object.entries(sizes)) {
         if (!(group === "categories" ? value.order.includes(id) : id === "combined" || isFacetDiagnosticStatus(id)) || !record(size)
           || Object.keys(size).some(/** Size defaults contain only the two independently editable dimensions. */ key => key !== "width" && key !== "height")) return false;

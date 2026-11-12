@@ -108,7 +108,7 @@ export function isNodeLinkDragCurrent(source: NodeLinkDragSource | null): boolea
 export function draggedGraphPage(app: App, read: {get(path: string): GraphPage | undefined; getVaultSearchPage?(path: string): GraphPage | null | undefined}, event?: Pick<DragEvent, "dataTransfer">): GraphPage | null {
   const source = nodeLinkDragSource(app);
   if (source) {
-    const page = resolveActionPage(read, source.node);
+    const page = resolveActionPage({get: identity => read.get(identity) ?? read.getVaultSearchPage?.(identity) ?? undefined}, source.node);
     return page && (!page.file || app.vault.getFileByPath(page.file.path) === page.file) ? page : null;
   }
   const file = getDraggedFile(app);

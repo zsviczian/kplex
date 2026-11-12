@@ -1,4 +1,4 @@
-/** Deterministic measured3–7-region packing around one attention/editor envelope. Existing host
+/** Deterministic measured three-to-twelve-region packing around one attention/editor envelope. Existing host
  * owners retain clipping/reflow/resizing/camera. Guides remain decorative without endpoints. */
 import type {PlexProjection, PlexMeasurement, PlexViewLayout, PlexArea, PlexDecoration, ViewRect, CanvasViewText, PlexDecorationTextSize} from "../contracts";
 import type {FacetPreset, FacetCanvasState} from "./contracts";
@@ -8,6 +8,7 @@ import {facetCategoryLabel, facetHasWuXingPhases, facetRelativeLabel, FACET_WUXI
 import {facetAreaId, facetCombinedAreaId} from "./projection";
 import {facetPresetAssignments} from "./assignment";
 import {facetDiagnostics, facetLayout, facetLayoutOrder} from "./presentation";
+import {FACET_LIMITS} from "./validation";
 import {facetCategoryFrames} from "./layoutStrategies";
 import {layoutFacetFlows} from "./flow";
 
@@ -35,7 +36,7 @@ export function layoutFacets(projection: PlexProjection, measured: readonly Plex
   decorationMeasurements?: ReadonlyMap<string, PlexDecorationTextSize>): PlexViewLayout {
   const measurements = new Map(measured.map(row => [row.id, row])), attention = measurements.get(projection.entry);
   const assignments = new Set(editable ? facetPresetAssignments(presetId, preset).map(target => target.id) : []);
-  if (!attention || preset.order.length < 3 || preset.order.length > 7) throw new Error("Invalid Facets center/categories");
+  if (!attention || preset.order.length < 3 || preset.order.length > FACET_LIMITS.categories) throw new Error("Invalid Facets center/categories");
   const entry = projection.occurrences.find(row => row.id === projection.entry);
   const contained = !!entry?.areaId && preset.order.some(id => entry.areaId === facetAreaId(presetId, "category", id));
   /** Each area owns only its actual card envelopes; unrelated long notes cannot enlarge it. */

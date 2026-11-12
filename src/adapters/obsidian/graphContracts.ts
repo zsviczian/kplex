@@ -65,6 +65,7 @@ export function graphCompilerSettingsFromLegacy(settings: KplexSettings): GraphC
       rightFriends: [...hierarchy.rightFriends],
       previous: [...hierarchy.previous],
       next: [...hierarchy.next],
+      exclusions: [...(hierarchy.exclusions ?? [])],
     },
     thumbnailProperty: settings.thumbnailProperty,
     nodeImageProperty: settings.nodeImageProperty,

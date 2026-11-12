@@ -1,13 +1,20 @@
 /** Actual Compass geometry and shared binding admission, with cached finite relationships only. */
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import {plexViewModules,classicFixture} from './support/plexViewFixture.mjs';
+import {plexViewModules,classicFixture,viewPage} from './support/plexViewFixture.mjs';
 const M=await plexViewModules(['src/ui/plexViews/classic/occurrenceEditor.ts']);
 const makeEditor=(f,node)=>{const occurrenceId=M.classicEditorKey(node,f.neighborhood.center.path);return{page:node.page,binding:{id:'native-compass-1',viewId:'classic',occurrenceId,
  target:{nodeId:node.page.path,path:node.page.file.path,fileIdentity:'owned-file'},dimensions:{width:580,height:340},mode:'source',closing:false}}};
 
 for(const role of ['parent','child','left','right','sibling'])test('Compass '+role+' editor uses measured existing area geometry without changing the center',()=>{
- const f=classicFixture(M),settings={...f.settings,graphDepth:2},before=M.buildScene(f.neighborhood,f.index,settings,false,undefined,true),original=before.nodes.find(node=>node.role===role),editor=makeEditor(f,original);
+ const f=classicFixture(M);
+ if(role==='sibling'){
+  // Child witnesses already occupy expanded strips; use a lateral second-order witness here.
+  const peripheral=viewPage('peripheral'),read=f.index.neighbours;
+  f.index.neighbours=(page,requested)=>page.path==='l'&&requested==='right'?[{page:peripheral,role:'right',relationType:1,linkDirection:0}]:read(page,requested);
+  f.neighborhood=M.GraphIndex.prototype.getNeighborhood.call(f.index,'root');
+ }
+ const settings={...f.settings,graphDepth:2},before=M.buildScene(f.neighborhood,f.index,settings,false,undefined,true),original=before.nodes.find(node=>node.role===role),editor=makeEditor(f,original);
  const scene=M.buildScene(f.neighborhood,f.index,settings,false,undefined,true,editor),node=scene.nodes.find(row=>row.occurrenceId===editor.binding.occurrenceId);
  assert.equal(scene.boundEditors[0].binding,editor.binding);assert.equal(node.page,original.page);assert.equal(node.width,580);assert.equal(node.height,340);
  const root=scene.nodes.find(row=>row.role==='center'),oldRoot=before.nodes.find(row=>row.role==='center');assert.deepEqual(root,oldRoot);

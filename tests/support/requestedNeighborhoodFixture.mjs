@@ -96,7 +96,7 @@ export function neighborhoodView(M, compilation, center, settings, completeParen
       return relationType === null ? [] : [{ id: edge.target.id, role, relationType, direction: edge.direction }];
     }));
   const direct = roles(center.id);
-  const parents = direct.filter(edge => edge.role === "parent" && (completeParents === undefined || completeParents.includes(edge.id))).map(edge => edge.id).sort();
+  const parents = [...new Set(direct.filter(edge => completeParents === undefined || completeParents.includes(edge.id)).map(edge => edge.id))].sort();
   /** Preserve even hidden/suppressed declarations for a pair without an active visible relation. */
   const incidence = id => {
     const targets = new Set([...(compilation.node(id)?.neighbours.values() ?? [])].map(edge => edge.target.id));
@@ -118,7 +118,7 @@ export function neighborhoodView(M, compilation, center, settings, completeParen
   };
   const occupied = new Set([center.id, ...direct.map(edge => edge.id)]);
   const siblings = new Map();
-  for (const parent of parents) for (const child of roles(parent).filter(edge => edge.role === "child")) {
+  for (const parent of parents) for (const child of roles(parent)) {
     if (occupied.has(child.id)) continue;
     const witnesses = siblings.get(child.id) ?? [];
     witnesses.push({ parent, relationType: child.relationType, direction: child.direction });

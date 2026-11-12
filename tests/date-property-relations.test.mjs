@@ -34,6 +34,36 @@ async function compile(records,policy){const compiler=new c.NormalizedGraphCompi
 const declarations=graph=>[...graph.declarations()].map(({id,...rest})=>rest);
 const pair=graph=>graph.node(meeting.id).neighbours.get(daily.semanticPath);
 
+test('excluded created dates cannot suppress inline ontology or materialize a daily placeholder',async()=>{
+  const policy=settings({exclusions:['CREATED'],leftFriends:['reading']});
+  const records=[entity(meeting),entity(daily),date('created'),...reference('reading','inline')];
+  const graph=await compile(records,policy);
+  assert.equal(c.classifyRelation(pair(graph),'left',false),c.RelationType.DEFINED);
+  assert.equal(declarations(graph).some(item=>item.sourceKind==='date-property'),false);
+  assert(c.applyOntologyPrecedence(graph.evidenceBetween(meeting.id,daily.id)).every(item=>item.active));
+  const isolated=await compile([entity(meeting),date('created')],policy);
+  assert.equal(isolated.node(daily.id),undefined,'Exclusion is applied before target materialization');
+  const patch=new c.NormalizedSourcePatchPreparer(meeting.id,policy,runtime(),{entity:ref=>[meeting,daily].some(item=>item.id===ref.id)?entity(ref):undefined});
+  await feed(patch,records.filter(item=>item.kind!=='entity'));const result=await patch.finish();assert.equal(result.outcome,'prepared');
+  assert.deepEqual(declarations(result.patch.compilation),declarations(graph));
+});
+
+test('excluded Date policy invalidates old snapshots once and current signatures remain reusable',()=>{
+  const policy=host.migrateAndMergeSettings({hierarchy:{...empty(),exclusions:['created']},futureCompanion:{keep:true}});
+  const signature=c.encodeIndexSettingsSignature(policy),legacy=JSON.parse(signature);legacy.signatureVersion=4;delete legacy.hierarchy.exclusions;
+  const mismatch=c.compareIndexSettingsSignature(JSON.stringify(legacy),policy);
+  assert.equal(mismatch.compatible,false);assert.deepEqual(mismatch.changedKeys,['hierarchy.exclusions']);
+  assert.equal(c.compareIndexSettingsSignature(signature,policy).compatible,true);
+  const before=c.captureSettingsPolicy(policy),changed={...policy,hierarchy:{...policy.hierarchy,exclusions:[]}};
+  assert.equal(c.classifySettingsChange(before,c.captureSettingsPolicy(changed)).semanticInvalidation,true);
+  assert.deepEqual(host.migrateAndMergeSettings(policy).futureCompanion,{keep:true});
+});
+
+test('a conflicting raw legacy exclusion follows canonical explicit-role precedence',async()=>{
+  const graph=await compile([entity(meeting),entity(daily),date('created')],settings({parents:['CREATED'],exclusions:['created']}));
+  assert.equal(c.classifyRelation(pair(graph),'parent',false),c.RelationType.DEFINED);
+});
+
 test('all six default Date roles and inverse views beat reciprocal body links and generic inference flags',async()=>{
   const inverse={parent:'child',child:'parent',left:'left',right:'right',previous:'next',next:'previous'};
   for(const [role,reverseRole] of Object.entries(inverse))for(const inferAllLinksAsFriends of [false,true])for(const inverseInfer of [false,true])for(const link of [body(),body(meeting,daily)]){
@@ -172,17 +202,17 @@ test('six-role persistence, foreign import, semantic invalidation and historical
   // Historical signatures use the pre-pairing ontology inventory, matching the saved current fixture.
   const before=host.migrateAndMergeSettings({datePropertyRelations:"parent"});const impact=c.classifySettingsChange(c.captureSettingsPolicy(before),c.captureSettingsPolicy(current));assert(impact.semanticInvalidation);assert(impact.changedKeys.includes('datePropertyRelations'));assert.deepEqual(c.sanitizeChangedSettingKeys(['private','datePropertyRelations']),['datePropertyRelations']);
   assert.equal(host.graphCompilerSettingsFromLegacy(current).datePropertyRelations,'right');assert.equal(host.semanticIndexSettingsFromLegacy(current).datePropertyRelations,'right');
-  const signature=c.encodeIndexSettingsSignature(before),v4=JSON.parse(signature);assert.equal(v4.signatureVersion,4);
+  const signature=c.encodeIndexSettingsSignature(before),v4=JSON.parse(signature);assert.equal(v4.signatureVersion,5);
   const v3={...v4,signatureVersion:3,datePropertyRelations:'ontology'};
   const v2={...v4,signatureVersion:2};delete v2.datePropertyRelations;
   const legacy={schema:1,hierarchy:before.hierarchy,inferAllLinksAsFriends:before.inferAllLinksAsFriends,inverseInfer:before.inverseInfer,showFullTagName:before.showFullTagName,noteTypeField:before.noteTypeField,primaryTagField:before.primaryTagField,tagStyleList:before.tagStyleList,maxLabelLength:before.baseNodeStyle.maxLabelLength};
   for(const role of ['parent','child','left','right','previous','next']){
     const policy={...before,datePropertyRelations:role};assert.equal(c.compareIndexSettingsSignature(c.encodeIndexSettingsSignature(policy),policy).compatible,true);
     for(const saved of [v3,{...v3,datePropertyRelations:'inferred'},v2,legacy]){
-      const result=c.compareIndexSettingsSignature(JSON.stringify(saved),policy);assert.equal(result.reason,'semantic-settings-changed');assert.deepEqual(result.changedKeys,['datePropertyRelations']);
+      const result=c.compareIndexSettingsSignature(JSON.stringify(saved),policy);assert.equal(result.reason,'semantic-settings-changed');assert.deepEqual(result.changedKeys,['datePropertyRelations','hierarchy.exclusions']);
     }
   }
   const changed=c.compareIndexSettingsSignature(signature,current);assert.equal(changed.reason,'semantic-settings-changed');assert.deepEqual(changed.changedKeys,['datePropertyRelations']);
   const missing={...v4};delete missing.datePropertyRelations;
-  for(const saved of [{...v4,datePropertyRelations:'future'},{...v4,datePropertyRelations:'inferred'},missing,{...v4,signatureVersion:5},{...v3,datePropertyRelations:'parent'},{...v2,datePropertyRelations:'parent'},{...v4,privateKey:true}])assert.equal(c.compareIndexSettingsSignature(JSON.stringify(saved),before).reason,'signature-format-unknown');
+  for(const saved of [{...v4,datePropertyRelations:'future'},{...v4,datePropertyRelations:'inferred'},missing,{...v4,signatureVersion:6},{...v3,datePropertyRelations:'parent'},{...v2,datePropertyRelations:'parent'},{...v4,privateKey:true}])assert.equal(c.compareIndexSettingsSignature(JSON.stringify(saved),before).reason,'signature-format-unknown');
 });

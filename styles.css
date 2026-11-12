@@ -2920,6 +2920,7 @@ button.kplex-style-manager-row { height: fit-content; }
   white-space: normal;
 }
 .tooltip.kplex-control-tooltip.is-measuring { visibility: hidden; }
+.tooltip.kplex-control-tooltip.is-multiline { white-space: pre-line; text-align: left; }
 
 /* Consolidated filter / lens controls ------------------------------------- */
 .kplex-filter-visibility-grid {

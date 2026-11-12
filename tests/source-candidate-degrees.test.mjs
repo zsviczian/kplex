@@ -72,7 +72,7 @@ test("candidate degree is not the partial center/parent cover or a visible gate 
     } finally { index.destroy(); }
     const check = guardDegreeReuse(f);
     const neighborhood = new M.CachedRequestedNeighborhoodReader(f.port, f.discovery, f.capture, { entity: ref => f.entities.get(ref.id) });
-    const partial = await neighborhood.prepare({ kind: "neighborhood", center: ref("Center.md") }, policy(), runtime());
+    const partial = await neighborhood.prepare({ kind: "neighborhood", center: ref("Center.md"), siblingClosure: "deferred" }, policy(), runtime());
     assert.equal(partial.outcome, "ready");
     assert(partial.preparation.compilation.node(candidate.id).neighbours.size < full[0].rawDegree);
     const result = await f.makeDegreeReader().prepare(request(candidate), policy(), runtime());

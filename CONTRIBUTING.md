@@ -1359,6 +1359,26 @@ are reviewed. No third-party image source is contacted by either lane.
 
 ## Native rename identity acceptance
 
+For the second-order neighborhood and authoring batch, stage the identified local build in the
+existing disposable Small vault, then run `npm run verify:obsidian:neighborhood-authoring` with
+the three explicit test-vault variables, a managed `KPLEX_HOST_REPORT_DIR`, and
+`KPLEX_NEIGHBORHOOD_LANE` set to `commands-rename`, `saved-drags`, `semantics`, `facets`,
+`sidecar-popout`, or `toolbar-modifiers`.
+Run these lanes serially under their shared application-user-data lock. They exercise the three
+new command defaults, the configured-property Rename toggle, real native saved-node link payloads
+to relationships and a Markdown workspace pane, all six second-order witness roles, excluded
+`created` Date precedence, two plugin reloads, and twelve-category rendering/editor limits.
+The `sidecar-popout` lane checks that one trusted Sidecar-button click opens the central note
+and renders its content at all four edges in both the main window and a popout, preserving
+the selected source/preview mode without another central-node click.
+The `toolbar-modifiers` lane uses trusted modified pointer clicks to open tabs, groups,
+popouts and the sidebar from main/popout canvases, verifies direct plugin/area settings
+and the unmodified menu, and captures tooltip ownership/geometry in light/dark narrow layouts.
+The semantics lane requires enabled core Daily Notes and restores its options. Every lane restores
+its owned fixtures, workspace and configuration bytes. Native HTML drags use Chromium's intercepted
+payload through the shared driver; physical cross-window OS dragging, mobile touch, whole-app
+restart and large-vault restart acceptance remain separate.
+
 After exact-build staging, run `npm run verify:obsidian:rename` with the three explicit
 disposable `kplex-test-small` vault variables and a fresh `KPLEX_HOST_REPORT_DIR`.
 Run browser/native lanes serially. The driver checks synchronous retained incidence and

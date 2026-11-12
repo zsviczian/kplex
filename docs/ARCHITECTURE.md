@@ -48,7 +48,10 @@ so wording never requests semantic preparation or source recovery.
 
 `core/plex/views/` contains host-free projection/layout definitions and the static
 registry. Classic's ordered neighbourhood/sibling policy and measured geometry
-have one implementation; retained host APIs delegate to it. `ui/plexViews/`
+have one implementation; retained host APIs delegate to it. The second-order
+sibling area follows every displayed direct neighbor's real relationships;
+expanded child occurrences take display precedence. Optional cached incidence
+remains owner-count bounded and cannot delay direct-center authority. `ui/plexViews/`
 binds admitted canonical pages, lazy styles/counts and existing sections through
 narrow host reads. Definitions receive revision-scoped DTOs, finite preferences
 and measurements; they cannot access the plugin, GraphIndex, Vault or native leaves.

@@ -2387,7 +2387,25 @@ try {
     assert.deepEqual(edges[0].style, {}, "Unreviewed archived Note Type tag styling");
     edges[0].style = {strokeWidth: 2.4};
   }
-  assert.deepEqual(baseline, frozenBaseline, "Exact compatibility except approved URL, Date-role, label geometry and two Note Type stroke-width deltas");
+  // #282 deliberately replaces shared-parent siblings with all second-order witnesses.
+  // Keep the archived semantic graph, searches, direct areas/nodes/edges and non-sibling
+  // scroll geometry exact. Only the explicit peripheral fixture below may differ.
+  {
+  const secondOrder = JSON.parse(readFileSync(join(root, "tests/fixtures/excalibrain-indexing/second-order-presentation.json"), "utf8"));
+  for (const [path, siblings] of Object.entries(secondOrder.siblingsByCenter)) frozenBaseline.neighborhoods[path].siblings = siblings;
+  const siblingPaths = new Set(secondOrder.siblingNodes.map(node => node.path));
+  assert(frozenBaseline.scene.nodes.filter(node => node.role === "sibling").every(node => siblingPaths.has(node.path)), "Existing peripheral identities remain covered");
+  frozenBaseline.scene.nodes = [...frozenBaseline.scene.nodes.filter(node => node.role !== "sibling"), ...secondOrder.siblingNodes];
+  assert(secondOrder.peripheralEdges.every(edge => siblingPaths.has(edge.sourcePath) || siblingPaths.has(edge.targetPath)), "The delta cannot replace direct-area edges");
+  const secondOrderEdges = [...frozenBaseline.scene.edges.filter(edge => !siblingPaths.has(edge.sourcePath) && !siblingPaths.has(edge.targetPath)), ...secondOrder.peripheralEdges];
+  assert.equal(new Set(secondOrderEdges.map(edge => edge.id)).size, secondOrderEdges.length, "Every expected edge is unique");
+  assert.deepEqual([...secondOrder.edgeOrder].sort(), secondOrderEdges.map(edge => edge.id).sort(), "Ordering cannot omit or invent an edge");
+  const edgesById = new Map(secondOrderEdges.map(edge => [edge.id, edge]));
+  frozenBaseline.scene.edges = secondOrder.edgeOrder.map(id => edgesById.get(id));
+  if (secondOrder.siblingViewport) frozenBaseline.scene.zoneViewports.sibling = secondOrder.siblingViewport;
+  else delete frozenBaseline.scene.zoneViewports.sibling;
+  }
+  assert.deepEqual(baseline, frozenBaseline, "Exact compatibility except the documented presentation deltas, including second-order siblings");
 
   // A new Markdown file may arrive after the last complete snapshot and before the five-minute
   // edit idle write. Warm startup must reuse that snapshot and ingest only the new source.

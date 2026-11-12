@@ -12,6 +12,36 @@ const bundle = await contributorBrowserBundle([
   "src/adapters/obsidian/metadataSourceCollector.ts", "src/adapters/obsidian/ontologySourceCollector.ts",
 ]);
 
+test('cached second-order enrichment includes child, friend, challenger and chronological witnesses without Markdown reads', {timeout:90_000},async()=>{
+  const browser=await chromiumHarness(bundle);
+  try{
+    assert.equal(await browser.evaluate(contributorBrowserInitialize),true);
+    assert.equal(await browser.evaluate(`(async()=>{
+      const M=sourceModules,f=await fixture('all-role-second-order');
+      const fullNeighborhoodOracle=${fullNeighborhoodOracle.toString()},centerGateSettings=${centerGateSettings.toString()},fullCenterIndex=${fullCenterIndex.toString()};
+      const roles=['Parent','Children','Friends','Opposes','Previous','Next'];
+      const settings={hierarchy:{hidden:[],parents:['Parent'],children:['Children'],leftFriends:['Friends'],rightFriends:['Opposes'],previous:['Previous'],next:['Next']},
+        inferAllLinksAsFriends:false,inverseInfer:false,showFullTagName:true,tagStyleList:[],maxLabelLength:30};
+      let index,release;
+      try{
+        f.add('A.md','',Object.fromEntries(roles.map((field,i)=>[field,'[[D'+i+'.md]]'])));
+        for(let i=0;i<roles.length;i++){f.add('D'+i+'.md','',{[roles[(i+1)%roles.length]]:'[[S'+i+'.md]]'});f.add('S'+i+'.md','');}
+        await f.acquire();equal(await f.repository.completeLocalDependencyInventory(),'ready','Local dependency authority');
+        f.acquisition.localDependenciesReady=f.acquisition.localDependencyAuthorityReady=true;
+        const full=await fullNeighborhoodOracle(M,f,settings,runtime());
+        index=await fullCenterIndex(M,f,full,settings,centerGateSettings({showFolderNodes:false,showTagNodes:false}));
+        index.sourceAcquisition.close();index.sourceAcquisition=f.acquisition;index.plugin.settings.lastActivePath='A.md';
+        const before={reads:f.reads.length,parses:f.parses.length};
+        release=index.acquireSemanticDemand('A.md');index.invalidateSemanticPolicy();await index.refreshSemanticSettings();
+        for(let n=0;index.getNeighborhood('A.md').siblings.length!==6&&n<400;n++)await new Promise(done=>setTimeout(done,10));
+        equal(index.getNeighborhood('A.md').siblings.map(row=>row.page.path).sort(),roles.map((_,i)=>'S'+i+'.md'),'Every displayed role supplies second-order nodes');
+        equal({reads:f.reads.length,parses:f.parses.length},before,'Existing neutral sources reused');
+        return true;
+      }finally{release?.();index?.destroy();f.close();}
+    })()`),true);
+  }finally{await browser.cleanup();}
+});
+
 test("direct center, inverse parent edge and mutation readiness publish before bounded optional siblings", { timeout: 90_000 }, async () => {
   const browser = await chromiumHarness(bundle);
   try {

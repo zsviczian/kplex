@@ -96,6 +96,8 @@ Obsidian APIs in portable components.
 - A button has exactly one tooltip owner and no HTML `title`. Native actions use an
   accessible name and Obsidian's tooltip. A K-Plex tooltip uses `TooltipButton` and
   `aria-labelledby`, avoiding Obsidian's separate `aria-label` tooltip path.
+- Multiline shortcut hints opt in with `data-kplex-tooltip-lines`; the shared tooltip
+  owner preserves and measures their lines. Keep ordinary tooltip wrapping unchanged.
 - Do not add a tooltip that repeats an already visible field label. Disabled actions
   retain an accessible explanation where needed.
   Preserve programmatic label association; removing an accessible name is not a

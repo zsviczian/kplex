@@ -366,7 +366,7 @@ Place a small badge immediately outside the central node's top-left edge:
 
 Implement this as a shared measured node decoration. It must follow editor expansion/resizing, participate in fitting and avoid gates and controls.
 
-Render an ordered, configurable category collection around the center. Support and test 3, 4, 5, 6 and 7 categories. Remove fixed-five assumptions from geometry, classification, configuration and tests.
+Render an ordered, configurable category collection around the center. Support and test three through twelve categories. Remove fixed-five assumptions from geometry, classification, configuration and tests.
 
 Keep empty categories visible. Place Conflicting and Unassigned in compact, reachable supplementary regions. Counts describe displayed local notes, excluding the center from peripheral counts.
 

@@ -88,6 +88,8 @@ function fixture() {
     settings: {documentSyncMode: "pinned", sidecarMarkdownMode: "preview"},
     app: {vault: {getFileByPath: /** Resolve only current canonical native file identities. */ path => files.get(path) ?? null}, workspace: {revealLeaf: /** Explicit Open may reveal without adding another navigation mutation. */ async () => {}}},
     sidecarLeaves: new Map([[host, leaf]]), passiveSidecarSyncRequests: new WeakMap(),
+    sidecarMovingHosts: new Set(),
+    async waitForWorkspaceLayout() {},
     syncKplexToLeafEnabled: /** Preserve the tested off/recent/pinned eligibility boundary. */ () => context.session.preferences.documentSyncMode !== "off",
     targetNoteLeaf: /** Supply an exact existing linked destination, with no inferred creation. */ () => context.target ?? leaf,
     validateSidecarLeaf: /** Resolve only this host's owned companion. */ owner => context.sidecarLeaves.get(owner) ?? null,
@@ -372,6 +374,53 @@ test("the next Sidecar target does not wait for an earlier settings write", /** 
   disk.resolve(); await Promise.all([first, next]);
   assert.equal(opens, 2, "Completed native opening must release the queue before disk persistence");
   assert.equal(state.leaf.file, state.other.file);
+});
+
+test('first owned popout Sidecar opens its note after native document adoption',async()=>{
+  const s=fixture(),layout=deferred();let adjacent=false,waits=0;
+  s.leaf.file=null;s.leaf.state={type:'empty'};s.context.sidecarMovingHosts.add(s.host);
+  s.context.adjacentPosition=()=>adjacent?'right':null;
+  s.context.waitForWorkspaceLayout=async()=>{waits++;await layout.promise;adjacent=true;};
+  const task=s.context.openPageInSidecarLeaf(s.leaf,s.page,undefined,s.host);
+  assert.equal(waits,1);assert.equal(s.opens.length,0,'Unsettled native view cannot open early');
+  layout.resolve();await task;
+  assert.equal(s.opens.length,1);assert.equal(s.leaf.file,s.page.file);assert.equal(s.leaf.state.state.mode,'preview');
+});
+
+test('navigation during first Sidecar layout opens only the newest queued note',async()=>{
+  const s=fixture(),layout=deferred();let adjacent=false;
+  s.leaf.file=null;s.leaf.state={type:'empty'};s.context.sidecarMovingHosts.add(s.host);
+  s.context.adjacentPosition=()=>adjacent?'right':null;
+  s.context.waitForWorkspaceLayout=async()=>{await layout.promise;adjacent=true;};
+  const first=s.context.openPageInSidecarLeaf(s.leaf,s.page,undefined,s.host);
+  const next=s.context.syncSidecarToPage(s.host,s.other);
+  layout.resolve();await Promise.all([first,next]);
+  assert.deepEqual(s.opens.map(open=>open.file),[s.other.file]);
+});
+
+test('retired first-open Sidecar layout cannot publish into a closed or replaced owner',async()=>{
+  for(const condition of ['unload','detach','host-view','rename','ownership']){
+    const s=fixture(),layout=deferred();let adjacent=false;
+    s.host.view={};s.leaf.file=null;s.leaf.state={type:'empty'};s.context.sidecarMovingHosts.add(s.host);
+    s.context.adjacentPosition=()=>adjacent?'right':null;
+    s.context.waitForWorkspaceLayout=async()=>{await layout.promise;adjacent=true;};
+    const task=s.context.openPageInSidecarLeaf(s.leaf,s.page,undefined,s.host);
+    if(condition==='unload')s.context.unloading=true;
+    if(condition==='detach')s.leaves.delete(s.leaf);
+    if(condition==='host-view')s.host.view={};
+    if(condition==='rename')s.page.file.path='Moved.md';
+    if(condition==='ownership')s.context.deleteSidecarOwner(s.host);
+    layout.resolve();await task;
+    assert.equal(s.opens.length,0,condition);
+    assert.equal(s.context.writes,0,condition);
+  }
+});
+
+test('nonadjacent ordinary companions cannot borrow the explicit split layout allowance',async()=>{
+  const s=fixture();let waits=0;
+  s.context.adjacentPosition=()=>null;s.context.waitForWorkspaceLayout=async()=>{waits++;};
+  await s.context.syncSidecarToPage(s.host,s.page);
+  assert.equal(waits,0);assert.equal(s.opens.length,0);
 });
 
 test("queued Sidecar work retires before opening on unload, detach, rename or explicit supersession", /** Recheck native ownership and canonical identity after the predecessor releases its queue slot. */ async () => {

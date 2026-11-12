@@ -7,12 +7,12 @@ import type {HostPlexScene} from "../scene";
 export type ClassicEditorLayout = Readonly<{binding: PlexEditorBinding; page: GraphPage}>;
 
 /** Section-owned note copies retain canonical identity; headings and groups never bind editors. */
-export function classicEditorIdentity(node: PositionedNode): string | null {
+export function classicEditorIdentity(node: Pick<PositionedNode, "page">): string | null {
   return !node.page.transient ? node.page.path : node.page.transient.kind === "section-target" ? node.page.transient.actualPath ?? null : null;
 }
 /** Role plus current center distinguishes duplicate notes in different Compass areas without
  * relying on array positions, coordinates or a second relationship classification. */
-export function classicEditorKey(node: PositionedNode, center: string): string | null {
+export function classicEditorKey(node: Pick<PositionedNode, "page" | "role">, center: string): string | null {
   const identity = classicEditorIdentity(node);
   const key = identity ? JSON.stringify(["classic-editor", center, node.role, identity]) : null;
   return key && key.length <= 4096 ? key : null;
