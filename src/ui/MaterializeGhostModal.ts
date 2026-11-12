@@ -37,6 +37,8 @@ export class MaterializeGhostModal extends Modal {
   private readonly translate = createObsidianTranslator();
   private selectedFolderPath: string;
   private templatePath: string | undefined;
+  private templateKind: GhostMaterializationKind | undefined;
+  private selectedKind: GhostMaterializationKind;
   private templateRoot: Root | null = null;
   private creating = false;
   private opened = false;
@@ -58,7 +60,7 @@ export class MaterializeGhostModal extends Modal {
     private readonly noteName: string,
     locations: readonly GhostMaterializationLocation[],
     private readonly excalidrawAvailable: boolean,
-    private readonly defaultKind: GhostMaterializationKind,
+    defaultKind: GhostMaterializationKind,
     private readonly onCreate: (kind: GhostMaterializationKind, folderPath: string, retainedFile?: TFile, current?: () => boolean, templatePath?: string, afterSaving?: CreationAfterSavingAction) => Promise<boolean>,
     private readonly focusFolder = false,
     private readonly templateChoices?: DrawingTemplateChoices | null,
@@ -67,19 +69,25 @@ export class MaterializeGhostModal extends Modal {
   ) {
     super(app);
     this.selectedFolderPath = locations[0]?.folderPath ?? "";
-    this.templatePath = templateChoices?.selected;
+    if(templateChoices&&!excalidrawAvailable)this.templateChoices={...templateChoices,files:templateChoices.files.filter(file=>file.kind==='markdown')};
+    const selected=this.templateChoices?.files.find(file=>file.path===this.templateChoices?.selected);
+    this.templatePath=this.templateChoices?selected?.path??"":undefined;
+    this.templateKind=selected?selected.kind??"excalidraw":undefined;
+    this.selectedKind=this.templateKind??(defaultKind==='excalidraw'&&excalidrawAvailable?'excalidraw':'markdown');
     this.afterSaving = completionControl?.value ?? "return";
   }
 
   /** Submit the validated creation request to the plugin and show localized failure feedback; the modal retains its existing busy/close lifecycle. */
   private async create(kind: GhostMaterializationKind, daily = false): Promise<void> {
-    if (this.creating || !this.opened || daily && !this.dailyNote || this.partialKind && (kind !== this.partialKind || daily !== this.partialDaily)) return;
+    if (this.creating || !this.opened || daily && !this.dailyNote || !daily && this.templatePath && this.templateKind!==kind
+      || this.partialKind && (kind !== this.partialKind || daily !== this.partialDaily)) return;
     const generation = this.generation;
     /** Closing and reopening the same shell never revives an earlier submission's UI authority. */
     const current = (): boolean => this.opened && this.generation === generation;
     this.creating = true;
     this.refreshControls();
     try {
+      if(!daily&&!this.partialFile&&this.templatePath)this.templateChoices?.validate?.(this.templatePath,kind);
       const completed = daily && this.dailyNote
         ? await this.dailyNote.create(this.partialFile ?? undefined, current, this.afterSaving)
         : await this.onCreate(kind, this.selectedFolderPath, this.partialFile ?? undefined, current, this.templatePath, this.afterSaving);
@@ -104,7 +112,11 @@ export class MaterializeGhostModal extends Modal {
   private refreshControls(): void {
     this.renderTemplate();
     this.renderCompletion();
-    for (const { button, kind, daily } of this.buttons) button.setDisabled(this.creating || this.partialKind !== null && (kind !== this.partialKind || Boolean(daily) !== this.partialDaily));
+    for (const { button, kind, daily } of this.buttons) {
+      button.setDisabled(this.creating || this.partialKind !== null && (kind !== this.partialKind || Boolean(daily) !== this.partialDaily)
+        || !daily && Boolean(this.templatePath) && kind!==this.templateKind);
+      button.buttonEl.classList.toggle('mod-cta',this.partialKind!==null?kind===this.partialKind&&Boolean(daily)===this.partialDaily:!daily&&kind===this.selectedKind);
+    }
     this.folderRoot?.render(createElement(MaterializationFolderInput, {
       value: this.selectedFolderPath, folders: this.folderPaths, translate: this.translate, autoFocus: this.focusFolder,
       openResultsOnFocus: false,
@@ -130,9 +142,12 @@ export class MaterializeGhostModal extends Modal {
   private renderTemplate(): void {
     if (!this.templateChoices) return;
     this.templateRoot?.render(createElement(DrawingTemplateSelect, {
-      choices: this.templateChoices, value: this.templatePath ?? "", translate: this.translate,
+      choices: this.templateChoices, value: this.templatePath ?? "", kind:this.selectedKind, translate: this.translate,
       disabled: this.creating || this.partialFile !== null,
-      onChange: path => { this.templatePath = path; this.renderTemplate(); },
+      onChange: /** Committed templates visibly agree with their creation action, never a typed query. */ (path,kind) => {
+        if(this.creating||this.partialFile)return;
+        this.templatePath=path;this.templateKind=path?kind:undefined;if(kind)this.selectedKind=kind;this.refreshControls();
+      },
     }));
   }
 
@@ -140,7 +155,6 @@ export class MaterializeGhostModal extends Modal {
   onOpen(): void {
     this.generation++;
     this.opened = true;
-    const effectiveDefault = this.defaultKind === "excalidraw" && this.excalidrawAvailable ? "excalidraw" : "markdown";
     this.titleEl.setText(this.translate("ghost.createTitle", { name: this.noteName }));
     this.contentEl.createEl("p", {
       text: this.translate(this.excalidrawAvailable ? "ghost.createHelpWithExcalidraw" : "ghost.createHelp"),
@@ -169,7 +183,7 @@ export class MaterializeGhostModal extends Modal {
       this.buttons.push({ button, kind: "markdown" });
       iconButton(button, this.translate("common.markdown"), "text-initial")
         .onClick(() => { void this.create("markdown"); });
-      if (effectiveDefault === "markdown") button.setCta();
+      if (this.selectedKind === "markdown") button.setCta();
     });
 
     if (this.excalidrawAvailable) {
@@ -177,7 +191,7 @@ export class MaterializeGhostModal extends Modal {
         this.buttons.push({ button, kind: "excalidraw" });
         iconButton(button, this.translate("common.excalidraw"), "palette")
           .onClick(() => { void this.create("excalidraw"); });
-        if (effectiveDefault === "excalidraw") button.setCta();
+        if (this.selectedKind === "excalidraw") button.setCta();
       });
     }
 
@@ -193,9 +207,10 @@ export class MaterializeGhostModal extends Modal {
       if (event.defaultPrevented || event.isComposing || event.repeat || event.getModifierState?.("AltGraph")
         || this.contentEl.querySelector('input[aria-expanded="true"]')) return undefined;
       event.preventDefault();
-      void this.create(this.partialKind ?? effectiveDefault, this.partialKind !== null && this.partialDaily);
+      void this.create(this.partialKind ?? this.selectedKind, this.partialKind !== null && this.partialDaily);
       return true;
     }));
+    this.refreshControls();
   }
 
   /** Escape dismisses an open folder list before closing the native creation form. */

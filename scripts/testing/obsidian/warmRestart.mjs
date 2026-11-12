@@ -273,8 +273,10 @@ async function restartAndObserve(before){
 
 try{
   report.driverSha256=hash(fileURLToPath(import.meta.url));
-  report.workingTreeSource=Object.fromEntries(['src/main.ts','src/adapters/obsidian/sourceAcquisition.ts','src/index/SourceRepository.ts','src/index/GraphIndex.ts','src/index/IndexedDbCache.ts','src/application/supportReportProjection.ts'].map(/** Identify local source independently of installed baseline/candidate artifact identity. */ path=>[path,hash(join(root,path))]));
-  const reported=cli('vault','info=path').replace(/^path\s+/,'');
+  report.workingTreeSource=Object.fromEntries(['src/main.ts','src/adapters/obsidian/sourceAcquisition.ts','src/index/SourceRepository.ts','src/index/GraphBuilder.ts','src/index/GraphIndex.ts','src/index/IndexedDbCache.ts','src/application/supportReportProjection.ts'].map(/** Identify local source independently of installed baseline/candidate artifact identity. */ path=>[path,hash(join(root,path))]));
+  // Obsidian 1.15 renamed the vault-info command. The selected renderer supplies the same
+  // canonical identity without depending on CLI display formatting, before any native writes.
+  const reported=evaluate('JSON.stringify({path:app.vault.adapter.getBasePath()})').path;
   if(realpathSync(reported)!==target.vault)throw Error('CLI selected a different vault');
   evaluate("(/** Select the named disposable window without changing background throttling. */ ()=>{const r=require('@electron/remote'),w=r.getCurrentWindow();r.app.show?.();r.app.focus({steal:true});w.restore();w.show();w.moveTop();w.focus();return JSON.stringify({focused:w.isFocused()})})()");
   report.artifacts=Object.fromEntries(['main.js','manifest.json','styles.css'].map(/** Retain exact installed identity before any operation. */ name=>[name,hash(join(target.pluginDir,name))]));

@@ -4,6 +4,8 @@
 import {KplexModal as Modal} from "../adapters/obsidian/KplexModal";
 import { DrawingTemplateSelect } from "./features/DrawingTemplateSelect";
 import { SavedRelationshipPendingError } from "../adapters/obsidian/relationshipMetadataWrite";
+import {ReciprocalRelationshipWriteError, reciprocalPreflight, reciprocalApprovalCurrent, type ReciprocalApproval} from "../adapters/obsidian/reciprocalRelationshipWrite";
+import {drawingAutomation} from "../adapters/obsidian/drawingTemplates";
 import {Notice, type TFile, type Scope, type WorkspaceLeaf} from "obsidian";
 import { createElement, useCallback, useEffect, useMemo, useRef, useState, useId } from "react";
 import {FormField, FormActions} from "./components/FormField";
@@ -121,11 +123,13 @@ function RelatedNoteComposer({
   const [savedPending, setSavedPending] = useState<GraphPage | null>(null);
   const [partialFile, setPartialFile] = useState<TFile | null>(session.importedFile ?? null);
   const [partialFailure, setPartialFailure] = useState<string | null>(null);
+  const [reciprocalRecovery, setReciprocalRecovery] = useState<{error: ReciprocalRelationshipWriteError; target: GraphPage; intent: CompletionIntent | CreationAfterSavingAction} | null>(null);
   const excalidrawAvailable = !session.importSource && plugin.isExcalidrawAvailable();
-  const [templateChoices] = useState(() => plugin.drawingTemplateOptions());
+  const [templateChoices] = useState(() => plugin.creationTemplateOptions());
   const [templatePath, setTemplatePath] = useState(() => templateChoices?.selected ?? "");
   const [defaultCreateType, setDefaultCreateType] = useState<"markdown" | "excalidraw">(() =>
-    plugin.settings.newNodeDefaultType === "excalidraw" && excalidrawAvailable ? "excalidraw" : "markdown",
+    excalidrawAvailable && (templateChoices.files.some(file => file.path === templateChoices.selected && file.kind === "excalidraw")
+      || plugin.settings.newNodeDefaultType === "excalidraw") ? "excalidraw" : "markdown",
   );
   const [folderOverride, setFolderOverride] = useState<string | null>(null);
   const folderPaths = useMemo(/** Capture only folder metadata once for this native dialog; no note/source work. */ () =>
@@ -186,6 +190,24 @@ function RelatedNoteComposer({
     setBrowseOntology(false);
   }, [initialRole, plugin, session]);
 
+  /** Validate both writable endpoints and the authored inverse before creating any physical file. */
+  const reciprocalCheck = (field: string, kind?: "markdown" | "excalidraw", target = selectedTarget) => {
+    if (!plugin.settings.alsoWriteInverseOntology) return {approval: {enabled: false} as ReciprocalApproval};
+    let writable = Boolean(eligibleRelationshipOwner(plugin.app, origin)) && !webUrl;
+    if (target) writable = writable && Boolean(eligibleRelationshipOwner(plugin.app, target)) && target.file !== origin.file;
+    else if (session.importSource) writable = writable && /\.md$/i.test(session.importSource.name);
+    else if (kind === "excalidraw") {
+      try {writable = writable && drawingAutomation()?.getDrawingFilePath?.(query, folderPath).endsWith(".md") === true;}
+      catch {writable = false;}
+    } else writable = writable && kind === "markdown";
+    return reciprocalPreflight(ontologyConfiguration(plugin.settings), plugin.settings.alsoWriteInverseOntology === true, field, role, writable);
+  };
+  /** The selected inverse and opt-in consent remain the same across template and settings awaits. */
+  const assertReciprocalApproval = (approval: ReciprocalApproval, field: string): void => {
+    if (!reciprocalApprovalCurrent(approval, ontologyConfiguration(plugin.settings), plugin.settings.alsoWriteInverseOntology === true, field, role))
+      throw new Error(plugin.translator("addRelated.endpointChanged"));
+  };
+
   /** Validate remembered ontology before mutation; completion revalidates captured endpoints afterward. */
   const prepareField = async (): Promise<string | null> => {
     if (session.importSource && !/\.md$/i.test(session.importSource.name) && !eligibleRelationshipOwner(plugin.app, origin)) {
@@ -218,6 +240,7 @@ function RelatedNoteComposer({
     if (action === "another") {
       setSelectedTarget(null); setQuery(""); setAlias(""); setNoteTyped(false);
       setPartialFile(null); setPartialFailure(null); setOntologyTyped(false); setBrowseOntology(false);
+      setReciprocalRecovery(null);
       session.focusName(); return;
     }
     session.closeForCompletion(action);
@@ -235,7 +258,15 @@ function RelatedNoteComposer({
   };
 
   /** Report saved versus failed outcomes once, retaining recoverable file identity after a partial creation. */
-  const reportFailure = (error: unknown, target?: GraphPage, file?: TFile): void => {
+  const reportFailure = (error: unknown, target?: GraphPage, file?: TFile, intent: CompletionIntent | CreationAfterSavingAction = continuation): void => {
+    if (error instanceof ReciprocalRelationshipWriteError) {
+      const endpoint = target ?? (file ? plugin.index.get(file.path) : null);
+      if (session.isSessionOpen() && endpoint) {
+        setReciprocalRecovery({error, target: captureRelatedEndpoint(endpoint), intent});
+        setPartialFile(endpoint.file);setPartialFailure(error.message);
+      }
+      new Notice(error.message, 6000);return;
+    }
     if (error instanceof SavedRelationshipPendingError) {
       const affected = target ?? (file ? plugin.index.get(file.path) : null);
       if (affected) {
@@ -267,15 +298,18 @@ function RelatedNoteComposer({
     const target = selectedTarget;
     if (!target || !beginWrite()) return;
     try {
+      const preflight = reciprocalCheck(ontology, undefined, target);
+      if (!preflight.approval) throw new Error(plugin.translator(preflight.reasonKey!));
       const field = await prepareField();
       if (!field || !session.isSessionOpen()) return;
+      assertReciprocalApproval(preflight.approval, field);
       const currentOrigin = refreshCapturedPage(plugin, origin), currentTarget = refreshCapturedPage(plugin, target);
       const result = session.additiveOnly
         ? await plugin.createRelationToPage(currentOrigin, role, currentTarget, field, undefined, true, storeOnTarget)
         : await plugin.createRelationToPage(currentOrigin, role, currentTarget, field, undefined, false, storeOnTarget);
       if (result.state === "unavailable") return;
       await complete(result.page, intent, false);
-    } catch (error) { reportFailure(error, target); }
+    } catch (error) { reportFailure(error, target, undefined, intent); }
     finally { busyRef.current = false; session.setWriting(false); if (session.isSessionOpen()) setBusy(false); }
   };
 
@@ -284,9 +318,14 @@ function RelatedNoteComposer({
     if (selectedTarget || webUrl || folderValidation.error || (!partialFile && (!nameValidation.valid || nameValidation.existing)) || !beginWrite()) return;
     let file: TFile | null = partialFile;
     try {
+      const preflight = reciprocalCheck(ontology, kind, null);
+      if (!preflight.approval) throw new Error(plugin.translator(preflight.reasonKey!));
+      if (!file && !session.importSource) templateChoices.validate?.(templatePath, kind);
       const field = await prepareField();
       if (!field || !session.isSessionOpen()) return;
+      assertReciprocalApproval(preflight.approval, field);
       const currentOrigin = refreshCapturedPage(plugin, origin);
+      if (!file && !session.importSource) templateChoices.validate?.(templatePath, kind);
       if (!file && session.importSource) {
         const destination = folderValidation.folderPath ? plugin.app.vault.getFolderByPath(folderValidation.folderPath) : plugin.app.vault.getRoot();
         if (!destination) throw new Error(plugin.translator("fileImport.existingFolder"));
@@ -298,13 +337,14 @@ function RelatedNoteComposer({
       }
       if (!file) file = await plugin.createNewRelatedFileForOrigin(currentOrigin, query, kind, alias, folderPath, templateChoices ? templatePath : undefined);
       if (!file) return;
+      assertReciprocalApproval(preflight.approval, field);
       if (!session.isSessionOpen()) return;
       if (plugin.app.vault.getFileByPath(file.path) !== file) throw new Error(plugin.translator("addRelated.endpointChanged"));
       // Retain recovery state only after a failure. A durable file is normal progress while linking.
       if (!partialFile && !session.importSource) { setDefaultCreateType(kind); void plugin.rememberNewNodeDefaultType(kind); }
       const result = await plugin.linkNewRelatedFile(refreshCapturedPage(plugin, origin), role, file, field, session.importSource ? "" : alias, session.importSource ? "" : query, Boolean(partialFile) && !session.importSource, storeOnTarget);
       await complete(result.page, intent, true, result.state);
-    } catch (error) { reportFailure(error, undefined, file ?? undefined); }
+    } catch (error) { reportFailure(error, undefined, file ?? undefined, intent); }
     finally { busyRef.current = false; session.setWriting(false); if (session.isSessionOpen()) setBusy(false); }
   };
 
@@ -312,6 +352,7 @@ function RelatedNoteComposer({
   const createPlaceholder = async (intent: CompletionIntent | CreationAfterSavingAction = continuation) => {
     if (storeOnTarget || selectedTarget || webUrl || folderValidation.error || !nameValidation.valid || nameValidation.existing || !beginWrite()) return;
     try {
+      if (plugin.settings.alsoWriteInverseOntology) throw new Error(plugin.translator("reciprocal.requiresMarkdown"));
       const field = await prepareField();
       if (!field || !session.isSessionOpen()) return;
       const page = await plugin.createPlaceholderRelatedPage(refreshCapturedPage(plugin, origin), role, nameValidation.stem, field, folderPath, alias);
@@ -324,6 +365,7 @@ function RelatedNoteComposer({
   const createWebLink = async (intent: CompletionIntent | CreationAfterSavingAction = continuation) => {
     if (selectedTarget || !webUrl || origin.file?.extension !== "md" || !beginWrite()) return;
     try {
+      if (plugin.settings.alsoWriteInverseOntology) throw new Error(plugin.translator("reciprocal.requiresMarkdown"));
       const field = await prepareField();
       if (!field || !session.isSessionOpen()) return;
       const page = await plugin.createWebLinkRelatedPage(refreshCapturedPage(plugin, origin), role, webUrl, alias, field);
@@ -332,8 +374,21 @@ function RelatedNoteComposer({
     finally { busyRef.current = false; session.setWriting(false); if (session.isSessionOpen()) setBusy(false); }
   };
 
+  /** Retry the retained two-file receipt directly; never repeat physical creation or a saved declaration. */
+  const retryReciprocal = async (): Promise<void> => {
+    const retained = reciprocalRecovery;if (!retained || !beginWrite()) return;
+    try {
+      await retained.error.receipt.retry();
+      const target = refreshCapturedPage(plugin, retained.target);
+      setReciprocalRecovery(null);setPartialFile(null);setPartialFailure(null);
+      await complete(target, retained.intent, false, retained.error.outcomes.some(item => item.state === "saved-pending") ? "saved-pending" : "saved-published");
+    } catch (error) {reportFailure(error, retained.target, undefined, retained.intent);}
+    finally {busyRef.current = false;session.setWriting(false);if (session.isSessionOpen()) setBusy(false);}
+  };
+
   /** One semantic submit route shared by native buttons, modal Scope and local form key delivery. */
   const submit = (override?: CompletionIntent, kind?: "markdown" | "excalidraw" | "placeholder"): void => {
+    if (reciprocalRecovery) {void retryReciprocal();return;}
     const requested = override ?? continuation;
     const intent = session.importSource && requested === "another" ? "return" : requested;
     if (kind === "placeholder") void createPlaceholder(intent);
@@ -365,8 +420,10 @@ function RelatedNoteComposer({
   };
 
   const createAvailable = !ontologySelectionInvalid && !savedPending && !partialFile && !selectedTarget && !webUrl && !folderValidation.error && nameValidation.valid && !nameValidation.existing;
-  const placeholderAvailable = !session.importSource && createAvailable && origin.file?.extension === "md";
-  const webLinkAvailable = !selectedTarget && Boolean(webUrl) && origin.file?.extension === "md";
+  const placeholderAvailable = !plugin.settings.alsoWriteInverseOntology && !session.importSource && createAvailable && origin.file?.extension === "md";
+  const webLinkAvailable = !plugin.settings.alsoWriteInverseOntology && !selectedTarget && Boolean(webUrl) && origin.file?.extension === "md";
+  const reciprocalReason = reciprocalCheck(ontology, selectedTarget ? undefined : defaultCreateType).reasonKey;
+  const selectedTemplateKind = templateChoices.files.find(file => file.path === templatePath)?.kind;
   const noteSearch = createElement(FuzzySearchInput<GraphPage>, {
     inputId: noteId, labelledBy: `${noteId}-label`,
     value: query,
@@ -446,7 +503,7 @@ function RelatedNoteComposer({
       className: `kplex-add-related-type-button${defaultCreateType === "markdown" ? " is-default mod-cta" : ""}`,
       "aria-label": session.importSource ? plugin.translator("fileImport.import") : plugin.translator(createAvailable ? "addRelated.createMarkdownLink" : "addRelated.createMarkdown"),
       "aria-keyshortcuts": "Control+Enter Meta+Enter",
-      disabled: !createAvailable || busy,
+      disabled: !createAvailable || busy || selectedTemplateKind === "excalidraw" || Boolean(reciprocalCheck(ontology, "markdown", null).reasonKey),
       "data-kplex-primary-action": defaultCreateType === "markdown" ? "true" : undefined,
       onClick: /** The Markdown button and session shortcut share submit validation. */ () => submit(undefined, "markdown"),
     },
@@ -462,7 +519,7 @@ function RelatedNoteComposer({
           className: `kplex-add-related-type-button${defaultCreateType === "excalidraw" ? " is-default mod-cta" : ""}`,
           "aria-label": plugin.translator(createAvailable ? "addRelated.createExcalidrawLink" : "addRelated.createExcalidraw"),
           "aria-keyshortcuts": "Control+Enter Meta+Enter",
-          disabled: !createAvailable || busy,
+          disabled: !createAvailable || busy || selectedTemplateKind === "markdown" || Boolean(reciprocalCheck(ontology, "excalidraw", null).reasonKey),
           "data-kplex-primary-action": defaultCreateType === "excalidraw" ? "true" : undefined,
           onClick: /** Explicit drawing creation changes only the requested creation type. */ () => submit(undefined, "excalidraw"),
         },
@@ -505,7 +562,7 @@ function RelatedNoteComposer({
           type: "button",
           className: "kplex-add-related-link-button kplex-icon-action mod-cta",
           "aria-label": plugin.translator("addRelated.linkTo", { title: plugin.index.titleFor(selectedTarget) }),
-          disabled: busy || Boolean(savedPending) || ontologySelectionInvalid,
+          disabled: busy || Boolean(savedPending) || ontologySelectionInvalid || Boolean(reciprocalReason),
           "data-kplex-primary-action": "true",
           onClick: /** Submit the same selected-target intent as the keyboard route. */ () => submit(),
         },
@@ -540,7 +597,13 @@ function RelatedNoteComposer({
       completion.onChange(value);
     },
   });
-  const recovery = savedPending ? createElement("div", { className: "kplex-add-related-recovery", role: "status" },
+  const recovery = reciprocalRecovery ? createElement("div", {className: "kplex-add-related-recovery", role: "alert"},
+    createElement("div", null, plugin.translator("reciprocal.partial")),
+    ...reciprocalRecovery.error.outcomes.map(outcome => createElement("div", {key: `${outcome.path}:${outcome.field}`}, plugin.translator("reciprocal.outcome", {
+      path: outcome.path, field: outcome.field, state: plugin.translator(outcome.state === "pending" ? "reciprocal.pending" : "reciprocal.saved"),
+    }))),
+    createElement("button", {type: "button", disabled: busy, onClick: /** Retry only the captured missing property writes. */ () => {void retryReciprocal();}}, plugin.translator("reciprocal.retry")),
+  ) : savedPending ? createElement("div", { className: "kplex-add-related-recovery", role: "status" },
     createElement("div", null, plugin.translator("addRelated.savedPending")),
     createElement("div", { className: "kplex-add-related-recovery-actions" },
       createElement("button", { type: "button", onClick: /** Reconcile saved content without reissuing its mutation. */ () => {
@@ -628,12 +691,14 @@ function RelatedNoteComposer({
     { className: "kplex-add-related-form" },
     controlRow,
     ontologySelectionInvalid ? createElement("div", {className: "kplex-add-related-create-hint is-error", role: "alert"}, plugin.translator("addRelated.chooseDirection")) : null,
+    reciprocalReason ? createElement("div", {className: "kplex-add-related-create-hint is-error", role: "alert"}, plugin.translator(reciprocalReason)) : null,
     session.importSource ? createElement("p", {className: "setting-item-description"}, plugin.translator("fileImport.incoming", {name: session.importSource.name})) : null,
     session.importSource ? null : direction,
     composeRow,
     folderRow,
     templateChoices && !session.importSource && !selectedTarget && !webUrl ? createElement(DrawingTemplateSelect, {
-      choices: templateChoices, value: templatePath, translate: plugin.translator, onChange: setTemplatePath,
+      choices: templateChoices, value: templatePath, kind: defaultCreateType, translate: plugin.translator,
+      onChange: /** A template's actual kind selects the visible creation action; typing alone never changes it. */ (path, kind) => {setTemplatePath(path);if (kind) setDefaultCreateType(kind);},
       disabled: busy || Boolean(savedPending) || Boolean(partialFile),
     }) : null,
     recovery,

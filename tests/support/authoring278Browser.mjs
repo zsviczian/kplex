@@ -21,6 +21,7 @@ p.index.search=(query,limit)=>[...files.values()].filter(f=>f.path.includes(quer
 p.index.insertCreatedFile=file=>page(file);
 p.index.invalidateSemanticPolicy=()=>{};p.index.refreshSemanticSettings=async()=>{};
 p.isExcalidrawAvailable=()=>false;p.drawingTemplateOptions=()=>null;
+p.creationTemplateOptions=()=>({files:[],selected:'',root:''});
 p.createFileWithAutomation=create=>create();p.waitForCreatedFileAutomation=async()=>{};
 p.createdNoteCompletionControl=()=>({value:'return',choices:['return','another'],onChange:()=>{}});
 p.createNewNodeInFolder=async(parent,name)=>{const file=addFile(parent.path.slice(7)+'/'+name+'.md');writes.push(['note',file.path]);return page(file)};

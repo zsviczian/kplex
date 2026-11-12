@@ -21,7 +21,7 @@ async function nativeScreenshot(c,native,name){
 }
 
 /** Enter actual native text while proving focus, trusted input and the resulting control value. */
-async function nativeText(f,element,value){
+export async function nativeText(f,element,value){
  const doc=element.ownerDocument,native=await f.focus(doc);element.focus();f.check(doc.activeElement===element,'Native text focus');let trusted=false;
  const observe=event=>{if(event.target===element)trusted=event.isTrusted};doc.addEventListener('input',observe,true);
  try{await f.key(doc,'A',[process.platform==='darwin'?'meta':'control'],element);await native.webContents.insertText(value);
@@ -498,28 +498,39 @@ async function forms(app,c){
      if(!row.getBoundingClientRect().height)continue;const style=doc.defaultView.getComputedStyle(row);
      f.check(parseFloat(style.paddingTop)===0&&parseFloat(style.paddingBottom)===0&&parseFloat(style.borderTopWidth)===0,label+' native row spacing bypassed shared form '+JSON.stringify({classes:row.className,paddingTop:style.paddingTop,paddingBottom:style.paddingBottom,border:style.borderTopWidth}));
     }
+    const longFields=[];
     for(const row of content.querySelectorAll('.kplex-form-field')){
      const input=row.querySelector('input[type=text],textarea');if(!input||!input.getBoundingClientRect().height)continue;
-     const field=input.getBoundingClientRect(),rowRect=row.getBoundingClientRect(),name=row.querySelector('.setting-item-info,label').getBoundingClientRect();
-     f.check(field.width>=rowRect.width*.9&&field.top>=name.bottom-1,label+' long field not full width/below label '+JSON.stringify({field:field.toJSON(),row:rowRect.toJSON()}));
+     // Native dropdown padding reserves its caret around the editable input. The shared Template
+     // chrome is the full-width control; its inner text area must remain visible and contained.
+     const chrome=input.closest('.kplex-template-picker.kplex-native-combobox'),owner=chrome&&row.contains(chrome)?chrome:input;
+     const field=owner.getBoundingClientRect(),inner=input.getBoundingClientRect(),rowRect=row.getBoundingClientRect(),name=row.querySelector('.setting-item-info,label').getBoundingClientRect();
+     f.check(field.width>=rowRect.width*.9&&field.top>=name.bottom-1,label+' long field not full width/below label '+JSON.stringify({owner:owner.className,field:field.toJSON(),inner:inner.toJSON(),row:rowRect.toJSON(),name:name.toJSON()}));
+     if(chrome)f.check(inner.width>0&&inner.height>0&&inner.left>=field.left-1&&inner.right<=field.right+1&&inner.top>=field.top-1&&inner.bottom<=field.bottom+1,label+' Template text input not visible/contained by native chrome '+JSON.stringify({chrome:field.toJSON(),inner:inner.toJSON()}));
+     longFields.push({owner:chrome?'template-native-combobox':'input',field:field.toJSON(),inner:inner.toJSON(),row:rowRect.toJSON(),label:name.toJSON(),fullWidth:true,labelAbove:true});
     }
     const options=[...content.querySelectorAll('.kplex-form-option select')].filter(input=>input.getBoundingClientRect().height);
     const optionStyles=options.map(input=>{const style=doc.defaultView.getComputedStyle(input);return {font:style.fontFamily,size:style.fontSize,height:input.getBoundingClientRect().height,left:input.getBoundingClientRect().left,width:input.getBoundingClientRect().width}});
     if(options.length>1)f.check(optionStyles.every(style=>JSON.stringify(style)===JSON.stringify(optionStyles[0])),label+' option rows differ '+JSON.stringify(optionStyles));
+    const templateChrome=[...content.querySelectorAll('.kplex-drawing-template > .kplex-template-picker.kplex-native-combobox')].filter(control=>control.getBoundingClientRect().height);
+    for(const chrome of templateChrome){const input=chrome.querySelector('input'),caption=chrome.parentElement.querySelector('label');f.check(chrome.classList.contains('dropdown')&&chrome.querySelectorAll('input').length===1&&input?.getAttribute('role')==='combobox'&&input.getAttribute('aria-autocomplete')==='list'&&input.getAttribute('aria-labelledby')===caption?.id&&caption?.htmlFor===input.id,label+' actual Template combobox chrome/shape/label ownership');}
+    const controls=[...options,...templateChrome],controlStyles=controls.map(control=>{const style=doc.defaultView.getComputedStyle(control),r=control.getBoundingClientRect();return{kind:control.matches('select')?'finite-select':'template-native-combobox',font:style.fontFamily,size:style.fontSize,height:r.height,left:r.left,right:r.right,width:r.width,bottom:r.bottom}});
+    if(controls.length>1)f.check(controlStyles.every(style=>style.font===controlStyles[0].font&&style.size===controlStyles[0].size&&Math.abs(style.height-controlStyles[0].height)<1&&Math.abs(style.right-controlStyles[0].right)<1),label+' finite option and Template native chrome typography/height/right edge differ '+JSON.stringify(controlStyles));
     const actions=[...content.querySelectorAll('.kplex-form-actions')].filter(row=>row.getBoundingClientRect().height);
     for(const action of actions){const top=action.getBoundingClientRect().top;
      for(const button of action.querySelectorAll('button')){const glyph=button.querySelector('svg'),r=button.getBoundingClientRect();f.check(button.getAttribute('aria-label')&&!button.hasAttribute('title')&&glyph&&glyph.getBoundingClientRect().width>=14&&r.top>=top+10,label+' footer glyph/tooltip/divider');}
-     for(const option of options)f.check(option.getBoundingClientRect().bottom<top,label+' dropdown intersects footer divider');
+     for(const control of controls)f.check(control.getBoundingClientRect().bottom<top,label+' native dropdown/Template chrome intersects footer divider');
     }
     const actualWidth=doc.defaultView.innerWidth,background=doc.defaultView.getComputedStyle(modal.modalEl).backgroundColor;
     f.check(Math.abs(actualWidth-width)<5,'Native viewport resize did not apply '+JSON.stringify({actualWidth,width}));
-    results.push({dialog:label,theme,width,actualWidth,background,bodyClasses:doc.body.className,contentWidth:rect.width,optionStyles,fullWidthFields:true,footerClear:true,window:c.importWindow});
+    results.push({dialog:label,theme,width,actualWidth,background,bodyClasses:doc.body.className,contentWidth:rect.width,optionStyles,controlStyles,longFields,fullWidthFields:true,footerClear:true,window:c.importWindow});
+    await c.nativeScreenshot(c,native,'form-'+label.toLowerCase().replaceAll(' ','-')+'-'+theme+'-'+width+'-'+c.importWindow);
     if(c.visualPhase==='forms'||c.visualPhase==='form:'+label){c.progress={phase:'Visual review',until:Date.now()+15000,dialog:label,theme,width,window:c.importWindow};await f.wait(15000)}
    }}finally{themes.forEach((theme,i)=>doc.body.classList.toggle(theme,original[i]));native.setMinimumSize(...minimum);native.setBounds(bounds);if(maximized)native.maximize()}
   };
-  p.settings.folderCreationTab='note';p.openCreateInFolderModal(p.index.get('folder:'+f.folder),leaf);let modal=[...p.actionDialogs.keys()].find(item=>item.allowSubfolders);dialogs.push(modal);await f.until(()=>modal?.contentEl.querySelectorAll('.kplex-form-option select').length===2,'Native template/completion choices');await audit(modal,'Create note');
+  p.settings.folderCreationTab='note';p.openCreateInFolderModal(p.index.get('folder:'+f.folder),leaf);let modal=[...p.actionDialogs.keys()].find(item=>item.allowSubfolders);dialogs.push(modal);await f.until(()=>modal?.contentEl.querySelectorAll('.kplex-form-option select').length===1&&modal.contentEl.querySelectorAll('.kplex-template-picker input[role=combobox]').length===1,'Native searchable template and completion choices');await audit(modal,'Create note');
   await f.click(modal.contentEl.querySelector('[role=tab][id$="tab-folder"]'));await f.until(()=>!modal.tabPanels.folder.hidden,'Native subfolder panel');await audit(modal,'Create subfolder');modal.close();
-  modal=p.openRelationModal({mode:'create',origin:p.index.get(seed.path),semanticRole:'child',hostLeaf:leaf,invocation:{continuation:'return'}});dialogs.push(modal);await f.until(()=>modal.contentEl.querySelectorAll('.kplex-form-option select').length===2,'Native relationship choices');await audit(modal,'Add relationship');
+  modal=p.openRelationModal({mode:'create',origin:p.index.get(seed.path),semanticRole:'child',hostLeaf:leaf,invocation:{continuation:'return'}});dialogs.push(modal);await f.until(()=>modal.contentEl.querySelectorAll('.kplex-form-option select').length===1&&modal.contentEl.querySelectorAll('.kplex-template-picker input[role=combobox]').length===1,'Native searchable relationship template choices');await audit(modal,'Add relationship');
   const edit=modal.contentEl.querySelector('.kplex-edit-selected-ontology');await f.click(edit);const ontology=modal.ontologyEditor.dialog;dialogs.push(ontology);await audit(ontology,'Ontology description');ontology.close();modal.close();
   app.setting.open();app.setting.openTabById('k-plex');app.setting.openPagePath('k-plex',[t('settings.ui.plex.behavior')]);
   await f.until(()=>app.setting.getCurrentPageEl()?.querySelector('textarea'),'Native excluded paths settings');
@@ -866,7 +877,7 @@ export async function runAuthoringCompass278(){
  const directory=lane==='imports'?join(process.env.KPLEX_HOST_REPORT_DIR,'Native278-directory'):null;if(directory){mkdirSync(directory);mkdirSync(join(directory,'Empty'));mkdirSync(join(directory,'Nested'));writeFileSync(join(directory,'Nested','Note.md'),'# Nested external note\n');writeFileSync(join(directory,'Root.bin'),new Uint8Array([0,255,13,10]));}
  const definitions='c.nativeScreenshot='+nativeScreenshot.toString()+';c.captureRoot='+JSON.stringify(process.env.KPLEX_HOST_REPORT_DIR)+';c.dailySwitchScript='+JSON.stringify(dailySwitchScript)+';c.sessions='+nativeDocumentSessions.toString()+';c.fixture='+nativeBatch270.toString()+';c.type='+nativeText.toString()+';c.pins='+nativePins270.toString()+';c.visualHold='+(process.env.KPLEX_278_VISUAL_HOLD==='true')+';c.visualPhase='+JSON.stringify(process.env.KPLEX_278_UX_VISUAL_PHASE??'')+';c.fixturePrefix="__kplex278_";c.importWindow='+JSON.stringify(process.env.KPLEX_278_IMPORT_WINDOW==='window'?'window':'tab')+';c.externalSources='+JSON.stringify(sources)+';c.externalDirectory='+JSON.stringify(directory)+';c.originalData='+JSON.stringify(readFileSync(join(target.pluginDir,'data.json'),'utf8'))+';c.originalEnabled='+JSON.stringify(readFileSync(join(target.config,'community-plugins.json'),'utf8'))+';';
  return runControlledProbe('authoring-compass-'+lane+'-278',scenario,definitions,
-  ['src/index/SourceRepository.ts','src/ui/StyleColorControls.ts','src/ui/plexViews/facets/FacetPresetEditor.ts','src/ui/export/MindMapMarkdownModal.ts','src/adapters/obsidian/fileCreationAutomation.ts','src/adapters/obsidian/KplexModal.ts','src/ui/components/FormField.tsx','src/ui/components/FormSelect.tsx','src/ui/features/RelationshipFieldControl.tsx','src/ui/features/gateRelationshipIntent.ts','src/application/indexRecoveryDiagnostics.ts','src/ui/RelationshipSelectionControl.tsx','src/adapters/obsidian/dailyNotes.ts','src/main.ts','src/adapters/obsidian/sourceAcquisition.ts','src/adapters/obsidian/externalFileImport.ts','src/adapters/obsidian/relationshipOwner.ts',
+  ['src/index/SourceRepository.ts','src/ui/StyleColorControls.ts','src/ui/plexViews/facets/FacetPresetEditor.ts','src/ui/export/MindMapMarkdownModal.ts','src/adapters/obsidian/fileCreationAutomation.ts','src/adapters/obsidian/KplexModal.ts','src/ui/components/FormField.tsx','src/ui/components/FormSelect.tsx','src/ui/components/FuzzySuggester.tsx','src/ui/features/DrawingTemplateSelect.tsx','src/ui/features/RelationshipFieldControl.tsx','src/ui/features/gateRelationshipIntent.ts','src/application/indexRecoveryDiagnostics.ts','src/ui/RelationshipSelectionControl.tsx','src/adapters/obsidian/dailyNotes.ts','src/main.ts','src/adapters/obsidian/sourceAcquisition.ts','src/adapters/obsidian/externalFileImport.ts','src/adapters/obsidian/relationshipOwner.ts',
    'src/ui/App.tsx','src/ui/PlexGraph.tsx','src/ui/NewRelatedNoteModal.ts','src/ui/SelectedOntologyEditor.ts','src/ui/CreateFolderNoteModal.ts','src/ui/CreatePeriodicNoteModal.ts','src/ui/MoveNodeModal.ts','src/ui/components/Tabs.tsx','src/adapters/obsidian/fileExplorerDrag.ts','src/adapters/obsidian/fileMenu.ts',
    'src/ui/RelationModal.ts','src/ui/RelationshipExplanationModal.ts','src/ui/ReverseRelationshipModal.ts','src/ui/ExternalFileImportBatchModal.ts',
    'src/ui/features/RelationshipDirectionControl.tsx','src/ui/components/ReorderableList.tsx','src/core/plex/views/classic/configuration.ts',

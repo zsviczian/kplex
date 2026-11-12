@@ -26,6 +26,9 @@ export function styleSettingsHostSource(root) {
     export {NoteTypeModal} from './src/ui/NoteTypeModal';export {NoteTypeReviewModal} from './src/ui/NoteTypeReviewModal';export {NodeDetailsFields} from './src/ui/NodeDetailsFields';export * from './src/core/plex/nodeProperties';
     export {NewRelatedNoteModal} from './src/ui/NewRelatedNoteModal';
     export {CreateFolderNoteModal} from './src/ui/CreateFolderNoteModal';
+    export {MaterializeGhostModal} from './src/ui/MaterializeGhostModal';
+    export {DrawingTemplateSelect} from './src/ui/features/DrawingTemplateSelect';
+    export {PartialRelatedFileError} from './src/adapters/obsidian/relatedFileOutcome';
     export {MoveNodeModal} from './src/ui/MoveNodeModal';
     export {CreatePeriodicNoteModal} from './src/ui/CreatePeriodicNoteModal';
     export {ReverseRelationshipModal} from './src/ui/ReverseRelationshipModal';

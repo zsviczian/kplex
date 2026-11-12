@@ -1,5 +1,56 @@
 # Native creation and Templater
 
+## Explicit templates
+
+The creation forms share one searchable **Template** control. It lists Markdown
+files from the configured vault-relative source folder alongside Excalidraw's
+public template catalogue. Type and full path distinguish duplicate names. Listing
+visits at most 4,096 Markdown-source folder entries; drawing choices retain the
+existing public companion catalogue. Listing reads no template content or graph sources;
+search and browse execute nothing. A selected entry retains its native file,
+revision and creation kind. The matching creation button is primary; incompatible
+creation buttons are disabled. Markdown-only operations cannot select a drawing.
+
+The execution contract is explicit selection before automatic creation templates:
+
+- **No K-Plex template** preserves existing external automation. An explicit blank
+  drawing preserves the existing blank-drawing choice and remembered drawing paths.
+- A selected Markdown template is read only when saving, with a 1 MiB limit. Plain
+  Markdown is copied as text. Core Templates variables `{{title}}`, `{{date}}` and
+  `{{time}}`, including date/time format arguments, use the chosen note and one
+  captured local clock; configured core date/time formats are respected.
+- Templater code requires the enabled native parser, running-configuration and
+  task-lifecycle methods.
+  Unsupported executable templates are refused before creating a file. Supported
+  execution calls the native parser once with the selected template and exact
+  created target, including the native active-file context. A template may rename
+  or move that same native file; a replacement file never inherits its write.
+  It does not duplicate folder/regex matching or concatenate an
+  automatic template. Native task completion follows the actual output write.
+- The existing creation receipt substitutes this explicit execution only for the
+  exact file returned by the accepted create operation. Unrelated creations keep
+  their automatic handler. A foreign creation winning the same path is delegated
+  back to its native handler. Concurrent owned creations keep independent receipts.
+  Templater creation handlers share a per-engine queue while these receipts are
+  active: its mutable parser context cannot safely evaluate two creations at once.
+  Native automatic handlers still run once and admitted work drains before the
+  temporary hook is restored. Reloading K-Plex joins that same admission queue
+  until the previous native work finishes; it does not start a competing parser.
+  This does not coordinate separate manual Templater
+  commands or work scheduled by a template after its native task completes.
+- Excalidraw templates stay behind the versioned public companion API; their
+  drawing paths never enter the plain Markdown creator. Configured Daily Notes
+  remain on their existing separate template flow.
+
+Before creation and after awaited work, native template/target identity, template
+revision, source-folder preference and operation lifetime are revalidated. Parser
+failures retain the created file and failed receipt; property writes cannot skip
+that barrier or execute the parser again on a retry. Concurrent text is never
+overwritten by delayed template output. Arbitrary active-editor commands and later
+timers in template scripts retain the limitations described below.
+
+## Automatic creation barrier
+
 K-Plex waits for automatic template processing before writing a new file's display
 name, aliases or relationship properties. The same barrier covers regular related
 notes, notes created inside folders, placeholder materialization, drawing creation,

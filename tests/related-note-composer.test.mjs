@@ -10,13 +10,19 @@ import test from "node:test";
 /** Compile the actual callback or method with injected capabilities, keeping production control flow intact. */
 function production(name, dependencies = {}, path = "src/ui/NewRelatedNoteModal.ts") {
   if (path !== "src/core/plex/createdNoteDestination.ts") dependencies = {resolveCreationAfterSaving, continuation: "return", ...dependencies};
-  dependencies = { session: {}, storeOnTarget: false, ontologySelectionInvalid: false, assignedRole: null, templateChoices: null, templatePath: "", folderValidation: { error: null }, folderPath: "", ...dependencies };
+  // Existing fixtures exercise default-off writes; opt-in cases inject the actual production checks.
+  dependencies = { session: {}, ontology: "", storeOnTarget: false, ontologySelectionInvalid: false, assignedRole: null,
+    templateChoices: {files: [], selected: "", root: ""}, templatePath: "", selectedTemplateKind: undefined,
+    reciprocalRecovery: null, reciprocalCheck: () => ({approval: {enabled: false}}), assertReciprocalApproval() {},
+    ReciprocalRelationshipWriteError: class extends Error {}, setReciprocalRecovery() {},
+    folderValidation: { error: null }, folderPath: "", ...dependencies };
   const source = ts.createSourceFile(path, readFileSync(new URL(`../${path}`, import.meta.url), "utf8"), ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
   let expression;
   /** Find one named production callback without evaluating the native Obsidian shell. */
   function visit(node) {
     if (ts.isVariableDeclaration(node) && node.name.getText(source) === name) expression = node.initializer.getText(source);
     if (ts.isFunctionDeclaration(node) && node.name?.text === name) expression = node.getText(source).replace(/^export\s+/, "");
+    if (ts.isClassDeclaration(node) && node.name?.text === name) expression = node.getText(source).replace(/^export\s+/, "");
     if (ts.isMethodDeclaration(node) && node.name.getText(source) === name) {
       const text = node.getText(source);
       expression = `${node.modifiers?.some(item => item.kind === ts.SyntaxKind.AsyncKeyword) ? "async " : ""}function ${name}${text.slice(text.indexOf("("))}`;
@@ -35,6 +41,103 @@ function page(path) { return { path, file: { path, extension: "md" }, neighbours
 
 /** Deferred writer allows two synchronous submits before any React busy-state update. */
 function deferred() { let resolve; const promise = new Promise(done => { resolve = done; }); return { promise, resolve }; }
+
+const reciprocalPath = "src/adapters/obsidian/reciprocalRelationshipWrite.ts";
+const normalizeFieldName = production("normalizeFieldName", {}, "src/core/contracts/fieldName.ts");
+const reciprocalOntologyFields = production("reciprocalOntologyFields", {normalizeFieldName}, reciprocalPath);
+const reciprocalPreflight = production("reciprocalPreflight", {reciprocalOntologyFields}, reciprocalPath);
+const reciprocalApprovalCurrent = production("reciprocalApprovalCurrent", {reciprocalOntologyFields}, reciprocalPath);
+const ReciprocalRelationshipWriteError = production("ReciprocalRelationshipWriteError", {}, reciprocalPath);
+const SavedRelationshipPendingError = production("SavedRelationshipPendingError", {}, "src/adapters/obsidian/relationshipMetadataWrite.ts");
+const createReciprocalWriteReceipt = production("createReciprocalWriteReceipt", {normalizeFieldName, ReciprocalRelationshipWriteError, SavedRelationshipPendingError}, reciprocalPath);
+
+/** Real composer checks and receipt policy, with finite native create/write callbacks. */
+function reciprocalComposerFixture() {
+  const origin = page("Origin.md"), created = page("Created.md"), events = [], failures = [];
+  const configuration = {roles: new Map([["child", "child"], ["parent", "parent"]]),
+    pairs: new Map([["child", {field: "Child", partner: "Parent"}]]), hierarchy: {leftFriends: [], rightFriends: []}};
+  const plugin = {settings: {alsoWriteInverseOntology: true}, translator: key => key,
+    app: {vault: {getFileByPath: path => path === origin.path ? origin.file : path === created.path ? created.file : null}},
+    createNewRelatedFileForOrigin: async (...args) => {events.push(["create", ...args]); return created.file;},
+    rememberNewNodeDefaultType: async kind => {events.push(["remember-kind", kind]);},
+    linkNewRelatedFile: async (...args) => {events.push(["link", ...args]); return {state: "saved-published", page: created};}};
+  const dependencies = {plugin, origin, selectedTarget: null, partialFile: null, webUrl: null, role: "child", ontology: "Child",
+    nameValidation: {valid: true, existing: false},
+    folderPath: "Folder", folderValidation: {error: null}, query: "Created", alias: "Readable name", templatePath: "Templates/Markdown.md",
+    templateChoices: {files: [{path: "Templates/Markdown.md", kind: "markdown"}], validate: (...args) => events.push(["validate", ...args])},
+    session: {isSessionOpen: () => true, setWriting() {}}, busyRef: {current: false}, savedPending: null, setBusy() {},
+    prepareField: async () => {events.push(["remember-field"]); return "Child";},
+    refreshCapturedPage: (_plugin, endpoint) => endpoint, setDefaultCreateType() {},
+    complete: async (...args) => {events.push(["complete", ...args]);}, reportFailure: (...args) => failures.push(args)};
+  const policy = { ...dependencies, ontologyConfiguration: () => configuration, reciprocalPreflight, reciprocalApprovalCurrent,
+    eligibleRelationshipOwner: (_app, endpoint) => endpoint.file?.extension === "md" ? endpoint.file : null,
+    drawingAutomation: () => ({getDrawingFilePath: () => "Created.excalidraw.md"})};
+  dependencies.reciprocalCheck = production("reciprocalCheck", policy);
+  dependencies.assertReciprocalApproval = production("assertReciprocalApproval", policy);
+  dependencies.beginWrite = production("beginWrite", dependencies);
+  return {dependencies, plugin, configuration, origin, created, events, failures,
+    create: kind => production("createNew", dependencies)(kind)};
+}
+
+test("new-note reciprocal preflight and captured Template validation precede physical creation", async () => {
+  for (const invalid of ["missing-pair", "unwritable-origin", "stale-template"]) {
+    const fixture = reciprocalComposerFixture();
+    if (invalid === "missing-pair") fixture.configuration.pairs.clear();
+    if (invalid === "unwritable-origin") fixture.origin.file.extension = "pdf";
+    if (invalid === "stale-template") fixture.dependencies.templateChoices.validate = () => {throw Error("Template replaced");};
+    await fixture.create("markdown");
+    assert.deepEqual(fixture.events, [], `${invalid} must not remember ontology, create a file or write a declaration`);
+    assert.equal(fixture.failures.length, 1);
+    assert.equal(fixture.failures[0][0].message, invalid === "missing-pair" ? "reciprocal.requiresInverse" : invalid === "unwritable-origin" ? "reciprocal.requiresMarkdown" : "Template replaced");
+  }
+  const fixture = reciprocalComposerFixture(); await fixture.create("markdown");
+  assert.deepEqual(fixture.events.map(row => row[0]), ["validate", "remember-field", "validate", "create", "remember-kind", "link", "complete"]);
+  assert.deepEqual(fixture.events.filter(row => row[0] === "validate"), [["validate", "Templates/Markdown.md", "markdown"], ["validate", "Templates/Markdown.md", "markdown"]]);
+  assert.deepEqual(fixture.events.find(row => row[0] === "create").slice(1), [fixture.origin, "Created", "markdown", "Readable name", "Folder", "Templates/Markdown.md"]);
+  assert.deepEqual(fixture.failures, []);
+});
+
+for (const boundary of ["remembered-field", "template-create"]) for (const change of ["inverse-pair", "preference"]) {
+  test(`new-note ${change} change during delayed ${boundary} cannot authorize relationship writes`, async () => {
+    const fixture = reciprocalComposerFixture(), hold = deferred(), entered = deferred();
+    if (boundary === "remembered-field") fixture.dependencies.prepareField = async () => {entered.resolve(); await hold.promise; return "Child";};
+    else fixture.plugin.createNewRelatedFileForOrigin = async (...args) => {fixture.events.push(["create", ...args]); entered.resolve(); await hold.promise; return fixture.created.file;};
+    const pending = fixture.create("markdown"); await entered.promise;
+    if (change === "inverse-pair") fixture.configuration.pairs.set("child", {field: "Child", partner: "Guardian"});
+    else fixture.plugin.settings.alsoWriteInverseOntology = false;
+    hold.resolve(); await pending;
+    assert.equal(fixture.events.filter(row => row[0] === "create").length, boundary === "template-create" ? 1 : 0);
+    assert(!fixture.events.some(row => ["link", "complete", "remember-kind"].includes(row[0])), "the captured approval cannot silently adopt changed consent or pairing");
+    assert.equal(fixture.failures.length, 1); assert.equal(fixture.failures[0][0].message, "addRelated.endpointChanged");
+    assert.equal(fixture.failures[0][2], boundary === "template-create" ? fixture.created.file : undefined, "a durable created file stays recoverable by exact identity");
+  });
+}
+
+test("new-note reciprocal recovery retries its retained receipt without creation, validation or a saved forward rewrite", async () => {
+  const fixture = reciprocalComposerFixture(), effects = [], commits = [], cleared = [], busyRef = {current: false};
+  let failInverse = true, retained;
+  const receipt = createReciprocalWriteReceipt({app: fixture.plugin.app,
+    first: {file: fixture.origin.file, target: fixture.created.file, field: "Child"},
+    second: {file: fixture.created.file, target: fixture.origin.file, field: "Parent"}, current: () => true,
+    write: async write => {effects.push([write.file.path, write.field]); if (write.file === fixture.created.file && failInverse) throw Error("Inverse write failed");},
+    failureMessage: () => "Partial relationship", unavailableMessage: () => "Endpoint changed"});
+  await assert.rejects(receipt.retry(), error => {retained = error; return error instanceof ReciprocalRelationshipWriteError;});
+  const dependencies = {reciprocalRecovery: {error: retained, target: fixture.created, intent: "tab"},
+    session: fixture.dependencies.session, busyRef, savedPending: null, setBusy() {}, plugin: fixture.plugin,
+    refreshCapturedPage: (_plugin, endpoint) => endpoint, setReciprocalRecovery: value => cleared.push(["receipt", value]),
+    setPartialFile: value => cleared.push(["file", value]), setPartialFailure: value => cleared.push(["reason", value]),
+    complete: async (...args) => commits.push(args), reportFailure: assert.fail};
+  dependencies.beginWrite = production("beginWrite", dependencies);
+  const retry = production("retryReciprocal", dependencies); failInverse = false;
+  await Promise.all([retry(), retry()]);
+  assert.deepEqual(effects, [["Origin.md", "Child"], ["Created.md", "Parent"], ["Created.md", "Parent"]]);
+  assert.deepEqual(fixture.events, [], "receipt recovery cannot revalidate a template, create a file or call the original link writer");
+  assert.deepEqual(cleared, [["receipt", null], ["file", null], ["reason", null]]);
+  assert.deepEqual(commits, [[fixture.created, "tab", false, "saved-published"]]); assert.equal(busyRef.current, false);
+  let submits = 0;
+  production("submit", {reciprocalRecovery: dependencies.reciprocalRecovery, retryReciprocal: async () => {submits++;}, createNew: assert.fail, linkExisting: assert.fail})();
+  assert.equal(submits, 1, "native submit must route directly to the receipt too");
+});
 
 test("All keeps a known field in its assigned direction and refuses unassigned new fields", async () => {
   const calls = [], notices = [], remembered = [];
@@ -222,7 +325,8 @@ test("modified submit gives open suggestions ownership and repeat never invokes 
 
 test("suggester modified Enter accepts one suggestion before submit, retaining IME and AltGraph ownership", () => {
   const selected = {}, chosen = [], submits = [];
-  const keyDown = production("onKeyDown", { preferSuggestionOnModifiedEnter: true, visibleResults: [selected], clampedSelectedIndex: 0, choose: value => chosen.push(value), onCtrlEnter: () => submits.push(true) }, "src/ui/components/FuzzySuggester.tsx");
+  const keyDown = production("onKeyDown", { combobox: false, disclosure: undefined, openDisclosure: assert.fail,
+    preferSuggestionOnModifiedEnter: true, visibleResults: [selected], clampedSelectedIndex: 0, choose: value => chosen.push(value), onCtrlEnter: () => submits.push(true) }, "src/ui/components/FuzzySuggester.tsx");
   const event = { key: "Enter", ctrlKey: true, metaKey: false, repeat: false, nativeEvent: { isComposing: true }, getModifierState: () => false, preventDefault() {}, stopPropagation() {} };
   keyDown(event); assert.equal(chosen.length, 0); event.nativeEvent.isComposing = false; keyDown(event);
   assert.deepEqual(chosen, [selected]); assert.deepEqual(submits, []);
@@ -309,7 +413,7 @@ test("creation forwards an explicit folder and alias once through the establishe
       createNewRelatedFileForOrigin: async (...args) => { writes.push(args); return created.file; },
       rememberNewNodeDefaultType: async () => {}, linkNewRelatedFile: async () => ({ state: "saved-pending", page: created }) } };
   await production("createNew", dependencies)("markdown");
-  assert.deepEqual(writes, [[origin, "Next", "markdown", "A readable name", "Projects", undefined]]);
+  assert.deepEqual(writes, [[origin, "Next", "markdown", "A readable name", "Projects", ""]]);
 });
 
 /** A malformed destination cannot acquire single-flight write ownership, remember ontology or touch storage. */
@@ -387,7 +491,7 @@ test("explicit folder choice opens the reused picker with the calculated placeho
   const create = production("createGhostNote", {readDailyPinSettings:()=>null,dailyNoteCreationTarget:()=>null, MaterializeGhostModal: class {
     constructor(...args) { this.args = args; } open() { opened.push(this.args); }
   } }, "src/main.ts");
-  const context = { createdNoteCompletionControl: () => ({value:"return",choices:["return","tab"],onChange(){}}), drawingTemplateOptions: () => null, app: {}, settings: {}, documentSession:()=>null, validateRelatedNoteName: () => ({ stem: "Next", valid: true, existing: null }),
+  const context = { createdNoteCompletionControl: () => ({value:"return",choices:["return","tab"],onChange(){}}), creationTemplateOptions: () => ({files:[],selected:"",root:""}), app: {}, settings: {}, documentSession:()=>null, validateRelatedNoteName: () => ({ stem: "Next", valid: true, existing: null }),
     ghostCreationLocations: () => [{ folderPath: "Projects", label: "Projects" }], isExcalidrawAvailable: () => false,
     materializeGhostPage: async (...args) => materialized.push(args) };
   await create.call(context, ghost, false);
@@ -443,7 +547,7 @@ test("failed placeholder persistence leaves the virtual index untouched", async 
 
 /** Folder identities are case-sensitive even though suggestion matching remains case-insensitive. */
 test("shared folder suggestions preserve case-distinct native paths without changing ontology deduplication", () => {
-  const rank = production("fuzzyFilterStrings", {}, "src/ui/FuzzySearchInput.tsx");
+  const rank = production("fuzzyFilterStrings", {}, "src/ui/components/fuzzyFilterStrings.ts");
   assert.deepEqual(rank(["Foo", "foo", "Foo"], ""), ["Foo"]);
   const render = production("FolderPathInput", {
     createElement: (type, props) => ({ type, props }), useMemo: evaluate => evaluate(),
@@ -470,7 +574,7 @@ test("native materialization focuses the shared folder field without changing qu
     setName() { return this; } setDesc() { return this; }
     setClass(value) { folderClasses.push(value); return this; }
     addButton(configure) {
-      const button = { setButtonText() { return this; }, setIcon() { return this; }, onClick() { return this; }, setCta() { return this; }, setDisabled() { return this; } };
+      const button = {buttonEl:{classList:{toggle(){}}},setButtonText() { return this; }, setIcon() { return this; }, onClick() { return this; }, setCta() { return this; }, setDisabled() { return this; } };
       configure(button); return this;
     }
   }

@@ -704,6 +704,8 @@ for (const file of [
   "src/adapters/obsidian/actionNode.ts",
   "src/adapters/obsidian/relatedFileOutcome.ts",
   "src/adapters/obsidian/fileCreationAutomation.ts",
+  "src/adapters/obsidian/creationTemplates.ts",
+  "src/adapters/obsidian/reciprocalRelationshipWrite.ts",
   "src/adapters/obsidian/placeholderRelocation.ts",
   "src/ui/actionPresentation.ts",
   "src/ui/layout.ts",
@@ -2481,6 +2483,24 @@ try {
     try {
       assert.equal(await freshBuild.rebuild(), true);
       assert.deepEqual(canonicalGraph(warmDelta), canonicalGraph(freshBuild), "Warm creation recovery must match a full build");
+      // A foreground producer can parse/compile a newly added note before the older snapshot
+      // finishes restoring. That reusable cache is not proof that its declarations exist in
+      // the restored canonical graph: the snapshot predates the note entirely.
+      const prewarmedDelta = makeWarmDelta();
+      try {
+        const compiledEntry = freshBuild.fieldCache.get(newPath);
+        assert(compiledEntry?.semanticSignature, "The independent foreground cache has a compiled signature");
+        prewarmedDelta.fieldCache.set(newPath, { ...compiledEntry });
+        await prewarmedDelta.restoreIndexedDbSnapshot(["Note A.md"]);
+        assert.equal((await prewarmedDelta.waitForSnapshotHydration()).restored, true);
+        assert.equal(prewarmedDelta.semanticFingerprints.has(newPath), false,
+          "The restored generation has no canonical semantic receipt for the added note");
+        assert.equal((await prewarmedDelta.reconcileRestoredSnapshot()).reconciled, true);
+        assert(prewarmedDelta.state.pages.get(newPath)?.neighbours.has("Note A.md"),
+          "An added note with a prewarmed cache must publish its authored relationship into the restored graph");
+        assert.deepEqual(canonicalGraph(prewarmedDelta), canonicalGraph(freshBuild),
+          "Prewarmed added-source recovery must match a full build");
+      } finally { prewarmedDelta.destroy(); }
     } finally { freshBuild.destroy(); }
   } finally {
     warmDelta.destroy();
@@ -5285,8 +5305,8 @@ try {
     const edgeJs = ts.transpileModule(plexGraphSource.slice(markerStart, markerEnd) + plexGraphSource.slice(edgeStart, edgeEnd), {
       compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.None, jsx: ts.JsxEmit.React },
     }).outputText;
-    const Edge = new Function("React", "LinkDirection", "edgePhysicalOccurrence", "gatesForEdge", "gatePoint", "edgeGeometry", "alphaHexToCss", "relationLabel", "NATIVE_LINK_STROKE", "NATIVE_LINK_TEXT", "DEFAULT_RENDERED_LINK_WIDTH", "edgeViewportEndpoints", "edgeViewportClip", `${edgeJs}; return Edge;`)(
-      { createElement: (type, props, ...children) => ({ type, props, children }) }, LinkDirection,
+    const Edge = new Function("React", "LinkDirection", "RelationType", "edgePhysicalOccurrence", "gatesForEdge", "gatePoint", "edgeGeometry", "alphaHexToCss", "relationLabel", "NATIVE_LINK_STROKE", "NATIVE_LINK_TEXT", "DEFAULT_RENDERED_LINK_WIDTH", "edgeViewportEndpoints", "edgeViewportClip", `${edgeJs}; return Edge;`)(
+      { createElement: (type, props, ...children) => ({ type, props, children }) }, LinkDirection, RelationType,
       require(join(temp, "src/ui/plexViews/scene.js")).edgePhysicalOccurrence,
       () => ({ source: "left", target: "right" }), () => ({ x: 0, y: 0 }),
       () => ({ d: "M0 0L1 1", midpoint: { x: 0, y: 0 } }), value => value, value => value,

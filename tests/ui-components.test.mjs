@@ -1124,6 +1124,9 @@ import { FuzzySuggester } from ${JSON.stringify(join(root, "src/ui/components/Fu
 import { SavedRelationshipPendingError } from ${JSON.stringify(join(root, "src/adapters/obsidian/relationshipMetadataWrite.ts"))};
 import { PartialRelatedFileError } from ${JSON.stringify(join(root, "src/adapters/obsidian/relatedFileOutcome.ts"))};
 import { CreationCompletionSelect } from ${JSON.stringify(join(root, "src/ui/features/CreationCompletionSelect.tsx"))};
+import { DrawingTemplateSelect } from ${JSON.stringify(join(root, "src/ui/features/DrawingTemplateSelect.tsx"))};
+import {ReciprocalRelationshipWriteError,reciprocalPreflight,reciprocalApprovalCurrent} from ${JSON.stringify(join(root,"src/adapters/obsidian/reciprocalRelationshipWrite.ts"))};
+import {drawingAutomation} from ${JSON.stringify(join(root,"src/adapters/obsidian/drawingTemplates.ts"))};
 import {FormField,FormActions} from ${JSON.stringify(join(root,"src/ui/components/FormField.tsx"))};
 import {RelationshipFieldControl} from ${JSON.stringify(join(root,"src/ui/features/RelationshipFieldControl.tsx"))};
 import {RelationshipDirectionControl} from ${JSON.stringify(join(root,"src/ui/features/RelationshipDirectionControl.tsx"))};
@@ -1134,7 +1137,7 @@ import {normalizeFieldName} from ${JSON.stringify(join(root,"src/core/contracts/
 import {ontologyFieldViews,ontologyFieldDetail,ontologyFuzzyMatches,ontologySelectionFields} from ${JSON.stringify(join(root,"src/ui/features/ontologyPresentation.ts"))};
 const FuzzySearchInput = (props) => createElement(FuzzySuggester, { ...props, icon: null });
 const ObsidianIcon = ({ name }) => createElement("span", null, name);
-${uiDefinitions("src/ui/FuzzySearchInput.tsx", ["fuzzyFilterStrings"])}
+${uiDefinitions("src/ui/components/fuzzyFilterStrings.ts", ["fuzzyFilterStrings"])}
 ${uiDefinitions("src/ui/FolderPathInput.tsx", ["FolderPathInput"])}
 const notices = []; class Notice { constructor(message) { notices.push(message); } }
 ${production}
@@ -1158,7 +1161,7 @@ ${production}
    settings: { editNewNodeAfterCreate: false, newNodeDefaultType: "markdown",ontologyPairingVersion:1,ontologyDescriptions:{review:"Historicterm meaningful synonym",parent:"Historicterm other role"},hierarchy:{hidden:[],parents:["parent"],children:["children","review","example"],leftFriends:[],rightFriends:[],previous:[],next:[],exclusions:[]} },
    createdNoteCompletionControl(_host,options={}){const context={desktop:true,sidepanel:false,another:options.another!==false,editable:options.editable!==false,follow:options.follow!==false},key=options.operation==='link'?'linkAfterSaving':'newNodeAfterSaving';return{choices:creationAfterSavingActions(context),value:effectiveCreationAfterSaving(sanitizeCreationAfterSaving(this.settings[key]??this.settings.newNodeAfterSaving,this.settings.editNewNodeAfterCreate),context),onChange:value=>{this.settings[key]=value}}},
    finishNewRelatedNode:async()=>{},
-   translator: (key) => key, drawingTemplateOptions: () => null, isExcalidrawAvailable: () => false, defaultOntologyField: role => role === "right" ? "Challenger" : role === "parent" ? "parent" : "children",
+   translator: (key) => key, creationTemplateOptions: () => ({files:[],selected:'',root:''}), isExcalidrawAvailable: () => false, defaultOntologyField: role => role === "right" ? "Challenger" : role === "parent" ? "parent" : "children",
    ontologyFieldsForRole: () => ["children", "review", "example"],
    allOntologyFields: () => ["children", "review", "example", "parent"],
    ontologyRoleForField: field => field === "parent" ? "parent" : ["children", "review", "example"].includes(field) ? "child" : null,
@@ -1170,11 +1173,12 @@ ${production}
    createRelationToPage: async (...args) => { if (savedPending) throw new SavedRelationshipPendingError("Saved; graph pending"); if (rejectCommit) throw new Error("not ready"); intents.push(args); return { state: "saved-published", page: target }; },
    requestNodeFlair: () => {},
   };
+  const renderErrors=[];window.addEventListener('error',event=>renderErrors.push(event.error?.stack??event.message),{once:true});
   const root = createRoot(host);
   flushSync(() => root.render(createElement(RelatedNoteComposer, { plugin, origin, session, initialRole: "child", onCommitted: outcome => { commits += 1; outcomes.push(outcome); }, onClose: () => { closes += 1; } })));
   const input = host.querySelector(".kplex-add-related-note-search input");
   const folder = host.querySelector(".kplex-folder-path-input input");
-  check(folder?.value === "Projects" && !folder.autofocus, "computed folder did not prefill independently of quick-name focus");
+  check(folder?.value === "Projects" && !folder.autofocus, "computed folder did not prefill independently of quick-name focus; render errors: "+renderErrors.join(' | '));
   flushSync(() => folder.focus()); flushSync(() => type(folder, "Projects/Id"));
   let folders = document.body.querySelector(".kplex-fuzzy-floating-results");
   check(folders?.textContent.includes("Projects/Ideas"), "actual shared folder autocomplete did not rank the native folder vocabulary");
@@ -2049,6 +2053,7 @@ try {
   check(!matchesOntologyFind("Related Note", "[[Related Note]]"), "Wiki-link destinations must not highlight connectors");
   check(!matchesOntologyFind("Comma Note", "[[Folder,Comma Note]], supports"), "Commas within a wiki destination must not become ontology fields");
   check(!matchesOntologyFind("al", relationLabel("challenger") ?? undefined), "A generic role hidden by actual rendering must not light its connector");
+  check(matchesOntologyFind("child", relationLabel("Child", true)), "A displayed authored singleton remains searchable");
   check(matchesOntologyFind("custom", relationLabel("Custom relation")), "Actual custom ontology text remains searchable");
   check(!matchesOntologyFind("parent", undefined), "An omitted rendered label must not light a connector");
   check(matchesOntologyFind("supports", "[[Related Note]], supports"), "Defined ontology remains searchable beside inferred links");
@@ -2601,7 +2606,7 @@ import {classicExpandedChildren} from ${JSON.stringify(join(root,'src/core/plex/
 import{ontologyConfiguration}from ${JSON.stringify(join(root,"src/core/contracts/ontologyConfiguration.ts"))};
 import{hasDirectionalCaption,directionalRelationCaption}from ${JSON.stringify(join(root,"src/core/plex/directionalRelationCaption.ts"))};
 import{HoverHighlight,bindHoverHighlight}from ${JSON.stringify(join(root,'src/ui/components/hoverHighlight.ts'))};
-import{LinkDirection}from ${JSON.stringify(join(root,'src/types.ts'))};
+import{LinkDirection,RelationType}from ${JSON.stringify(join(root,'src/types.ts'))};
 import{edgeViewportEndpoints,edgeViewportClip}from ${JSON.stringify(join(root,'src/ui/plexViews/areaVisibility.ts'))};
 import{buildScene as realBuildScene,sceneLayoutPolicyKey,neighborhoodSceneKey,bindSceneNeighborhood,appendVisibleCrossLinks,gateDiameter}from ${JSON.stringify(join(root,'src/ui/layout.ts'))};
 import{alphaHexToCss,resolveLinkStyle,DEFAULT_RENDERED_LINK_WIDTH,NATIVE_LINK_STROKE,NATIVE_LINK_TEXT,NATIVE_LINK_LABEL_FILL}from ${JSON.stringify(join(root,'src/index/style.ts'))};
@@ -2668,21 +2673,21 @@ import{ontologyConfiguration}from ${JSON.stringify(join(root,'src/core/contracts
 import{hasDirectionalCaption,directionalRelationCaption}from ${JSON.stringify(join(root,'src/core/plex/directionalRelationCaption.ts'))};
 import{classicPorts}from ${JSON.stringify(join(root,"src/core/plex/views/classic/definition.ts"))};
 import{gateDiameter}from ${JSON.stringify(join(root,"src/ui/layout.ts"))};
-import{LinkDirection}from ${JSON.stringify(join(root,'src/types.ts'))};
+import{LinkDirection,RelationType}from ${JSON.stringify(join(root,'src/types.ts'))};
 import{edgeViewportEndpoints,edgeViewportClip}from ${JSON.stringify(join(root,'src/ui/plexViews/areaVisibility.ts'))};
 import{alphaHexToCss,DEFAULT_RENDERED_LINK_WIDTH,NATIVE_LINK_STROKE,NATIVE_LINK_TEXT}from ${JSON.stringify(join(root,'src/index/style.ts'))};
 ${uiDefinitions('src/ui/PlexGraph.tsx',['GATE_GAP','GENERIC_RELATION_LABELS','gateKey','gatesForEdge','gatePoint','gateVector','cubicPoint','edgeGeometry','relationLabel','markerFor','Edge','EdgeLabel'])}
 const result=document.querySelector('#result'),check=(value,message)=>{if(!value)throw Error(message)},page=path=>({path,style:{},x:path==='A'?0:200,y:0,width:100,height:40,page:{path}});
 let reads=0;const decisions=[{active:true,evidence:{fieldName:'replies to',definition:'replies to',declaredByPath:'B',declaredTargetPath:'A'}}],index={explainRelationship(){reads++;return{decisions}}};
-function App({reverse=false,show=true,paired=true,transient=false,folded=false,definition='replies to',mini=false}){
+function App({reverse=false,show=true,paired=true,transient=false,folded=false,definition='replies to',mini=false,relationType=RelationType.DEFINED,captionOverride}){
  const settings={compactView:false,ontologyPairingVersion:1,hierarchy:{hidden:[],parents:[],children:[],leftFriends:[],rightFriends:[],previous:paired?['replies to/replied by']:['replies to'],next:paired?[]:['replied by'],exclusions:[]}};
  const sourcePath=transient?'section A':reverse?'B':'A',targetPath=transient?'target B':reverse?'A':'B';
  const sectionPage={path:'section A',transient:{kind:'section',sourcePath:'A'}},targetPage={path:'target B',transient:{kind:'section-target',sourcePath:'A',actualPath:'B'}};
  const sectionExpansion=transient?{sections:[{page:sectionPage}],explanations:new Map([[sourcePath+'\\u0000'+targetPath,{decisions}]])}:null;
  ${uiDefinitions('src/ui/PlexGraph.tsx',['connectionCaption'])}
- const style={showLabel:show,fontSize:12,strokeWidth:3},caption=connectionCaption(definition,show,sourcePath,targetPath,transient?(folded?undefined:sectionPage):{path:sourcePath},transient?targetPage:{path:targetPath});
- const nodes=new Map([[sourcePath,{...page('A'),page:{path:sourcePath}}],[targetPath,{...page('B'),page:{path:targetPath}}]]),edge={id:'pair',sourcePath,targetPath,role:'previous',relationType:1,typeDefinition:definition,caption,direction:1,style};
- return <svg>{mini?<EdgeLabel label={show?relationLabel(caption):null} midpoint={{x:100,y:50}} style={style} background='none'/>:<Edge viewportForNode={()=>undefined} edge={edge} nodes={nodes} inverseArrowDirection={true} connectorStyle='bezier' labelBackground='none' crossLinkOpacity={1} highlighted={false} dimmed={false}/>}</svg>;
+ const style={showLabel:show,fontSize:12,strokeWidth:3},caption=captionOverride??connectionCaption(definition,show,sourcePath,targetPath,transient?(folded?undefined:sectionPage):{path:sourcePath},transient?targetPage:{path:targetPath});
+ const nodes=new Map([[sourcePath,{...page('A'),page:{path:sourcePath}}],[targetPath,{...page('B'),page:{path:targetPath}}]]),edge={id:'pair',sourcePath,targetPath,role:'previous',relationType,typeDefinition:definition,caption,direction:1,style};
+ return <svg>{mini?<EdgeLabel label={show?relationLabel(caption,relationType===RelationType.DEFINED):null} midpoint={{x:100,y:50}} style={style} background='none'/>:<Edge viewportForNode={()=>undefined} edge={edge} nodes={nodes} inverseArrowDirection={true} connectorStyle='bezier' labelBackground='none' crossLinkOpacity={1} highlighted={false} dimmed={false}/>}</svg>;
 }
 try{const container=document.createElement('div');document.body.append(container);const root=createRoot(container),label=()=>container.querySelector('.kplex-edge-label')?.textContent;
  flushSync(()=>root.render(<App paired={false}/>));check(label()==='replies to'&&reads===0,'Unpaired caption requested evidence or changed wording');
@@ -2692,7 +2697,16 @@ try{const container=document.createElement('div');document.body.append(container
  flushSync(()=>root.render(<App definition='Unpaired field'/>));check(label()==='Unpaired field'&&reads===before,'Irrelevant definition requested pair evidence');
  flushSync(()=>root.render(<App transient/>));check(label()==='replied by'&&reads===before,'Transient preview ignored its existing decisions');
  flushSync(()=>root.render(<App transient folded/>));check(label()==='replied by'&&reads===before,'Folded section lost physical source perspective');
- flushSync(()=>root.render(<App mini/>));check(label()==='replied by','Expanded descendant shared label differs');flushSync(()=>root.unmount());result.dataset.status='passed';result.textContent='Directional caption rendering passed';
+ flushSync(()=>root.render(<App mini/>));check(label()==='replied by','Expanded descendant shared label differs');
+ for(const reverse of [false,true])for(const mini of [false,true]){
+  flushSync(()=>root.render(<App paired={false} reverse={reverse} mini={mini} definition='Child'/>));check(label()==='Child','Authored singleton field missing');
+  flushSync(()=>root.render(<App paired={false} reverse={reverse} mini={mini} definition='Child, Another field'/>));check(label()==='Child, Another field','Two physical field labels missing');
+  flushSync(()=>root.render(<App paired={false} reverse={reverse} mini={mini} definition='Child'/>));check(label()==='Child','Removing second field hid first field');
+  flushSync(()=>root.render(<App paired={false} reverse={reverse} mini={mini} definition='Child' show={false}/>));check(!label(),'Disabled authored singleton label remained visible');
+  flushSync(()=>root.render(<App paired={false} reverse={reverse} mini={mini} definition='Child' relationType={RelationType.INFERRED}/>));check(!label(),'Inferred generic role became a caption');
+  flushSync(()=>root.render(<App paired={false} reverse={reverse} mini={mini} definition='Child' captionOverride='Parent'/>));check(label()==='Parent','Authored caption override was suppressed');
+ }
+ flushSync(()=>root.unmount());result.dataset.status='passed';result.textContent='Directional caption rendering passed';
 }catch(error){result.dataset.status='failed';result.textContent=String(error.stack||error)}
 `;}
 test('directional captions reuse actual endpoint provenance, physical styles and shared expanded labels with bounded evidence reads',()=>runBrowserDom(directionalCaptionBrowserEntry(),'Directional caption rendering passed'));

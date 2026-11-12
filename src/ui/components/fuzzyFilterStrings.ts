@@ -1,0 +1,32 @@
+/** Rank short string vocabularies; native paths can retain case-distinct identities without changing case-insensitive matching. */
+export function fuzzyFilterStrings(values: readonly string[], query: string, limit = 24,
+  options: { caseSensitiveIdentity?: boolean } = {}): string[] {
+  const q = query.trim().toLocaleLowerCase();
+  const unique = [...new Map(values.map(/** Preserve exact folder identities while legacy vocabularies retain case-folded deduplication. */ value =>
+    [options.caseSensitiveIdentity ? value : value.toLocaleLowerCase(), value] as const)).values()];
+  if (!q) return unique.slice(0, limit);
+
+  const score = (value: string): number | null => {
+    const text = value.toLocaleLowerCase();
+    if (text === q) return 0;
+    if (text.startsWith(q)) return 1 + (text.length - q.length) / 1000;
+    const at = text.indexOf(q);
+    if (at >= 0) return 10 + at + (text.length - q.length) / 1000;
+    let cursor = 0;
+    let gaps = 0;
+    for (const char of q) {
+      const found = text.indexOf(char, cursor);
+      if (found < 0) return null;
+      gaps += found - cursor;
+      cursor = found + 1;
+    }
+    return 100 + gaps + text.length / 1000;
+  };
+
+  return unique
+    .map((value) => ({ value, score: score(value) }))
+    .filter((entry): entry is { value: string; score: number } => entry.score !== null)
+    .sort((a, b) => a.score - b.score || a.value.localeCompare(b.value, undefined, { sensitivity: "base", numeric: true }))
+    .slice(0, limit)
+    .map((entry) => entry.value);
+}

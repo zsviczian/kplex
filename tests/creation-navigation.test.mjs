@@ -122,20 +122,24 @@ test("a warm new Plex waits for its mounted navigation consumer before focusing 
   ready(); await work; assert.deepEqual(focused, [[file.path, leaf]]);
 });
 
-test("template dropdown retains complete paths for duplicate names and exposes an explicit blank choice", () => {
+test("searchable template field retains duplicate paths, kinds and a blank choice without committing query edits", () => {
   const changes = [];
   const {DrawingTemplateSelect} = moduleAt("src/ui/features/DrawingTemplateSelect.tsx", {
-    react: {createElement: (type, props, ...children) => ({type, props, children})},
-    "../components/FormSelect": {FormSelect: "shared-labelled-select"},
+    react: {createElement: (type, props, ...children) => ({type, props, children}),useId:()=> 'template-id',useMemo:run=>run(),useRef:value=>({current:value}),useState:value=>[value,()=>{}],useEffect:run=>run()},
+    "../components/FormField": {FormField: "shared-labelled-field"},
+    "../components/FuzzySuggester": {FuzzySuggester: "shared-search"},
+    "../components/fuzzyFilterStrings": moduleAt('src/ui/components/fuzzyFilterStrings.ts'),
   });
-  const tree = DrawingTemplateSelect({choices: {root: "Templates", selected: "Templates/B/Same.md", files: [{path: "Templates/A/Same.md"}, {path: "Templates/B/Same.md"}]},
-    value: "Templates/B/Same.md", disabled: false, translate: key => key, onChange: value => changes.push(value)});
-  assert.equal(tree.type, "shared-labelled-select");
-  const select = tree;
+  const tree = DrawingTemplateSelect({choices: {root: "Templates", selected: "Templates/B/Same.md", files: [{path: "Templates/A/Same.md",kind:'markdown'}, {path: "Templates/B/Same.md"}]},
+    value: "Templates/B/Same.md", disabled: false, translate: key => key, onChange: (...value) => changes.push(value)});
+  assert.equal(tree.type, "shared-labelled-field");
+  const select = tree.props.children;assert.equal(select.type,'shared-search');
   assert.equal(select.props.value, "Templates/B/Same.md");
-  assert.deepEqual(select.props.children.map(option => option.props.value), ["", "Templates/A/Same.md", "Templates/B/Same.md"]);
-  assert.deepEqual(select.props.children.slice(1).map(option => option.children[0]), ["A/Same.md", "B/Same.md"]);
-  select.props.onChange(""); assert.deepEqual(changes, [""]);
+  const results=select.props.getResults('');
+  assert.deepEqual(results.map(option=>option.path),["", "Templates/A/Same.md", "Templates/B/Same.md"]);
+  assert.deepEqual(results.slice(1).map(select.props.getDetail),['common.markdown · Templates/A/Same.md','common.excalidraw · Templates/B/Same.md']);
+  select.props.onChange('Some uncommitted query');assert.deepEqual(changes,[]);
+  select.props.onChoose(results[1]);select.props.onChoose(results[0]);assert.deepEqual(changes,[['Templates/A/Same.md','markdown'],['','excalidraw']]);
 });
 
 test("a rejected drawing write destroys its private workbench and retains the last successful template", async () => {

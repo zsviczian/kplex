@@ -15,14 +15,14 @@ import ts from "typescript";
 // The real convergence adapter is exercised with host events, not replaced by an immediate success.
 const metadataTemp = mkdtempSync(join(tmpdir(), "kplex-created-metadata-"));
 process.on("exit", () => rmSync(metadataTemp, { recursive: true, force: true }));
-await build({ stdin: { contents: 'export * from "./src/adapters/obsidian/relationshipMetadataWrite"; export {gateCreationRole,gateGroupRole} from "./src/ui/features/gateRelationshipIntent"; export { normalizeFieldName } from "./src/core/contracts/fieldName"; export { captureSurfaceContinuation } from "./src/ui/surfaceContinuation"; export { createTranslator } from "./src/lang/index";', resolveDir: fileURLToPath(new URL("..", import.meta.url)) },
+await build({ stdin: { contents: 'export * from "./src/adapters/obsidian/relationshipMetadataWrite"; export {ReciprocalRelationshipWriteError} from "./src/adapters/obsidian/reciprocalRelationshipWrite"; export {gateCreationRole,gateGroupRole} from "./src/ui/features/gateRelationshipIntent"; export { normalizeFieldName } from "./src/core/contracts/fieldName"; export { captureSurfaceContinuation } from "./src/ui/surfaceContinuation"; export { createTranslator } from "./src/lang/index";', resolveDir: fileURLToPath(new URL("..", import.meta.url)) },
   outfile: join(metadataTemp, "observer.mjs"), bundle: true, platform: "node", format: "esm" });
-const { gateCreationRole,gateGroupRole,writeRelationshipMetadata, SavedRelationshipPendingError: ActualSavedPendingError, normalizeFieldName: actualNormalizeFieldName, captureSurfaceContinuation, createTranslator }
+const { gateCreationRole,gateGroupRole,writeRelationshipMetadata, SavedRelationshipPendingError: ActualSavedPendingError, ReciprocalRelationshipWriteError, normalizeFieldName: actualNormalizeFieldName, captureSurfaceContinuation, createTranslator }
   = await import(pathToFileURL(join(metadataTemp, "observer.mjs")));
 
 /** Compile a production callback/method; class-field arrows capture the supplied owning instance. */
 function productionFunction(path, name, dependencies) {
-  dependencies={gateCreationRole,gateGroupRole,...dependencies};
+  dependencies={gateCreationRole,gateGroupRole,ReciprocalRelationshipWriteError,continuation:"return",...dependencies};
   const source = ts.createSourceFile(path, readFileSync(new URL(`../${path}`, import.meta.url), "utf8"), ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
   let expression;
   function visit(node) {
@@ -41,6 +41,20 @@ function productionFunction(path, name, dependencies) {
 const tagMembershipPair = productionFunction("src/ui/structuralConnectionActions.ts", "tagMembershipPair", {});
 const eligibleRelationshipOwner = productionFunction("src/adapters/obsidian/relationshipOwner.ts", "eligibleRelationshipOwner", {});
 const structuralDropKind = productionFunction("src/ui/StructuralNodeDropActions.ts", "structuralDropKind", {tagMembershipPair});
+
+/** A physical field called Child is authored ontology, not the renderer's synthetic role caption. */
+test('an authored singleton connector field survives adding and removing a second field',()=>{
+ const generic=productionFunction('src/ui/PlexGraph.tsx','GENERIC_RELATION_LABELS',{});
+ const label=productionFunction('src/ui/PlexGraph.tsx','relationLabel',{GENERIC_RELATION_LABELS:generic});
+ for(const field of ['Child','Parent','Challenger','Previous','Next']){
+  assert.equal(label(field,true),field,'Explicit singleton '+field+' is visible when labels are enabled');
+  assert.equal(label(field+', Custom field',true),field+', Custom field');
+  assert.equal(label(field,true),field,'Removing the second field retains the first');
+  assert.equal(label(field,false),null,'Inferred role wording remains suppressed');
+ }
+ for(const token of ['file-tree','folder-tree','tag-tree','inferred-link','sibling','attachment'])assert.equal(label(token,true),null,'Topology token '+token+' is not an ontology caption');
+ assert.equal(label('Custom field',true),'Custom field');assert.equal(label('  ',true),null);
+});
 
 /** Minimal Markdown-backed graph page retaining exact endpoint paths and canonical identity. */
 function page(path) { return { path, file: { path, extension: "md" }, neighbours: new Map() }; }

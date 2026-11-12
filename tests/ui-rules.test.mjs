@@ -40,8 +40,10 @@ test('shared native form boundary rejects direct and aliased runtime imports wit
   assert.deepEqual(rawHostControls('src/adapters/obsidian/KplexModal.ts','import {Modal, Setting} from "obsidian";'),[]);
 });
 
-test('template and completion fields compose the same labelled select and linking/import share one relationship row',()=>{
-  for(const file of ['CreationCompletionSelect','DrawingTemplateSelect'])assert(readFileSync(new URL('src/ui/features/'+file+'.tsx',root),'utf8').includes('createElement(FormSelect,'),file);
+test('template search and completion fields use shared labelled controls and linking/import share one relationship row',()=>{
+  assert(readFileSync(new URL('src/ui/features/CreationCompletionSelect.tsx',root),'utf8').includes('createElement(FormSelect,'));
+  const template=readFileSync(new URL('src/ui/features/DrawingTemplateSelect.tsx',root),'utf8');
+  for(const token of ['createElement(FormField,','FuzzySuggester','kplex-native-combobox'])assert(template.includes(token),token);
   for(const file of ['NewRelatedNoteModal.ts','RelationshipSelectionControl.tsx'])assert(readFileSync(new URL('src/ui/'+file,root),'utf8').includes('RelationshipFieldControl'),file);
   assert(readFileSync(new URL('AGENTS.md',root),'utf8').includes('[UI_RULES.md](UI_RULES.md)'));
   const viewportOwners=sourceFiles().filter(file=>readFileSync(file,'utf8').includes('fitMobileModalToViewport(')).map(file=>relative(fileURLToPath(root),fileURLToPath(file)).replaceAll('\\','/')).sort();

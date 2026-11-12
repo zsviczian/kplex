@@ -21,203 +21,126 @@ Obsidian is the production host; preserve the established portable semantic, ide
 
 ---
 
-# Neighborhood, authoring, Sidecar and toolbar shortcuts: Windows validation
+# PR #302: implementation and validation return
 
-Branch: `2026-11-11-plex-neighborhood-authoring`. Base/released tag `0.4.3` is
-`69a659e97799376395d609ea814b038cb782c2aa`. On 2026-11-12, after functional
-confirmation and disclosure of the validation limits below, the maintainer
-explicitly requested commit, push, merge to main, related issue closure with PR
-references, and fetching main. These GitHub actions are now authorized. Close
-#282 only after merge; no release/tag publication was requested.
+Implemented locally on branch `2026-11-12-authoring-workspace-bundle`.
+HEAD remains `e78cd1a60968d1f20a39358c8c18e8eb571cc120`; accepted base is
+`a560655902d00ed0ac23462d7c8d464ab0e165fd`. The starting tree was clean.
+The maintainer has authorized a local branch commit. No PR/issue writes, push, merge or release are authorized by that request.
+Earlier PR #301 publication authority was completed and does not extend to #302.
+Keep #302 draft and issues #290, #184, #124, #118, #33 and #252 open.
+The temporary `docs/agent-handoffs/authoring-workspace-bundle.md` scaffold is removed.
 
-The authorized work covers #282, #300, #298, #296, #295 and native pin/history
-body drags. The user clarified that Rename needs an opt-out toggle for updating
-an existing configured display-name property (title, aliases or another name
-field). The first supported existing configured field is selected; other aliases
-are preserved. No new title property or persisted toggle preference is invented.
+## Delivered behavior
 
-Implemented behavior:
-- Compass Siblings contains unique second-order neighbors of all displayed direct
-  roles, omitting direct/center and actually displayed expanded child occurrences.
-  Filtered, editor-owned and section strips retain their existing admission.
-- Optional On-demand witness incidence is selected from displayed direct nodes,
-  owner/count bounded and deferred behind direct-center publication.
-- Excluded Date properties are suppressed by the shared source policy before
-  materialization. Existing inline ontology remains authoritative. Signature v5
-  invalidates historical graphs with nonempty exclusions once; source facts and
-  unknown preferences remain intact.
-- Pin/history bodies use the existing native node-link adapter; pin grips retain
-  reorder ownership and list gaps retain mouse scrolling.
-- Facets accepts 3-12 categories in existing layouts; the thirteenth is refused.
-- Published Add relationship / Add previous / Add next commands select All /
-  Previous / Next in the shared composer.
-- Native Rename preserves FileManager link maintenance and exact file identity
-  across the subsequent optional metadata write, including partial-failure retry.
-- New copy is maintained in all eight locales; affected architecture/user docs
-  and executable regressions are updated.
+| Issue | Implementation |
+| --- | --- |
+| #290 | An explicit canonical semantic-fingerprint map is the sole proof that an owner's semantics were already applied. A prewarmed body cache cannot suppress restored/new-owner reconciliation. All production GraphBuilder callers pass the map; historical omitted-map standalone behavior remains. |
+| #184 | Explicit singleton connector captions include generic role words. Inferred/topology captions remain suppressed. Ordinary, expanded, export and Find readers retain the defined tier and pairing/showLabel rules. |
+| #124 | The existing explicit palette command opens a real workspace tab on phones. Generic Open retains the phone sidebar default. Desktop/tablet split policy, command IDs and mobile popout restrictions remain. |
+| #118 | Pinned Sidecar release through Off/Recent/unpin preserves the same native leaf, editor, history, selection and group. Recent does not immediately overwrite the released document with the canvas center. Late work cannot restore retired ownership. |
+| #33 | Default-off "Also write inverse ontology" uses configured inverse fields and the shared writer for explicit Markdown authoring. Exact-file consent and per-file outcomes support retry of only the missing approved write/publication. Existing declarations and created notes survive partial failure. Relink retains independent reverse evidence. |
+| #252 | One searchable Template combobox serves related-note, folder and placeholder creation. Optional bounded Markdown-folder discovery joins existing Excalidraw choices. Core substitutions, actual Templater completion/precedence, creation-kind restrictions, blank choices and remembered drawing selections are handled without browse-time execution. Daily Notes remains separate. |
 
-The user confirmed the six requested workflows and the popout Sidecar fix work.
-The additional toolbar enhancements are implemented on this branch:
-- New canvas: ordinary click retains a new group; Ctrl/Cmd-click creates a tab in
-  the invoking group; Ctrl/Cmd+Alt/Option-click creates an adjacent group;
-  Ctrl/Cmd+Alt/Option+Shift-click opens a desktop popout; Alt/Option-click opens
-  K-Plex in Obsidian's sidebar (the user's explicit clarification).
-- Settings: Ctrl/Cmd-click opens plugin settings, Alt/Option-click toggles the
-  existing surface-local area action, and ordinary click retains the menu.
-- Modifier hints use all eight locales and actual platform/keyboard facts.
-  Mobile popouts are neither dispatched nor advertised. Existing `surface.new-tab`
-  command defaults remain unchanged; its finite optional placement argument and
-  shared canvas/created-note group allocator preserve the initiating host.
-- Only multiline ToolButton labels opt into the shared tooltip owner's measured
-  line layout; ordinary hints retain their wrapping, timing and ownership.
+Shared native fields, keyboard/ARIA/focus behavior, all eight locales, README, UI rules,
+ontology documentation and template execution documentation are updated. No version bump,
+classifier, index scheduler, cache schema, section authoring, background reciprocal mirroring,
+provider framework or excluded issue (#299 etc.) was added.
 
-Toolbar validation passed 214/214 focused action/placement/localization/terminology
-and actual React-button cases, plus 14/14 final toolbar/shared-tooltip browser
-checks. Installed-type `build:local`, affected lint, core TypeScript and architecture
-checks passed. Windows Obsidian 1.15 native trusted input passed all destinations
-and plugin/area/menu choices from main and popout canvases, plus light/dark tooltip
-captures including a 420-pixel isolated popout. Screenshots were inspected.
-Independent cleanup confirmed the original saved workspace/configuration bytes,
-117 files / 98 Markdown, no fixtures, graph nodes, controllers or owned leaves,
-no open Settings dialog and no captured errors. All three installed/dist hashes
-match; current main.js SHA-256 is
-`8a6cb7a764822ae0e7ed30650ec5d0035c9985460beefd513f2bd79e447068b7`.
+### Templater reload correction
 
-Managed toolbar evidence: `2026-11-12-toolbar-modifiers-focused-final-1vwQrC`,
-`2026-11-12-toolbar-tooltip-final-KcOPI8`,
-`2026-11-12-toolbar-modifiers-native-final-upnLTH`, and
-`2026-11-12-toolbar-modifiers-final-audit-niiWLG`. Initial failed checks are retained:
-the first source run lacked reference metadata and fixture wiring; native harness
-attempts incorrectly short-circuited leaf inventory or shrank a multi-group main
-window until its button was offscreen. Corrected runs preserve trusted input,
-assertions and deadlines. The actual tooltip capture also prompted multiline
-formatting before the final build. Index/cache owners remain unchanged by these
-toolbar additions, so expensive indexing/restart suites were not repeated.
-Native macOS and physical mobile keyboard/touch acceptance remain unavailable.
+Native testing reproduced a real cross-bundle race on the earlier candidate: an old automatic
+parse held across K-Plex disable/enable could overlap a new explicit parse in the same Templater
+engine, corrupt the old output context and fail to restore the original handler.
 
-For the first-open popout Sidecar fix, the native baseline reproduced an
-attached empty split whose document still belonged to the main window, so the
-initial adjacency check silently rejected opening the note. `syncSidecarToPage`
-now publishes the owned request before awaiting existing workspace-layout
-settlement, then retains the normal adjacency, ownership, canonical-file and
-supersession fences. Ordinary nonadjacent companions retain their refusal.
+The final implementation shares transient native-owner receipts via the versioned
+`Symbol.for("k-plex:templater-creation-receipts")` registration. New bundles join draining
+work; final release restores the true original handler and removes its own marker.
+Third-party replacements, unsupported markers, locked slots and transactional installation
+failure are handled conservatively. The persistent hook retains no first-plugin callback
+factory. This remains scoped to K-Plex creation receipts.
 
-The Sidecar change passed 83/83 focused follow/attachment/fold regressions,
-`eslint src/main.ts`, and `build:local` against real Obsidian declarations.
-New cases cover first-open mode, latest queued navigation and retirement during
-layout. Exact-build Windows Obsidian 1.15.0 (installer 1.14.5) native input passed
-all eight main-window/popout and right/left/above/below combinations: one trusted
-button click displayed the actual note content in the selected source/preview
-mode. The CLI preflight now reads selected-runtime vault identity directly to
-support Obsidian 1.15's renamed vault-info command.
+## Validation outcome
 
-The pre-toolbar Sidecar checkpoint's main.js SHA-256 was:
-`079b3368c4123db72086c3ae3ffbfb1753d038bce75d14758a21968d584c8e72`.
-The independent final audit verified all three artifact hashes, the original saved
-workspace, 117 files / 98 Markdown, restored configuration bytes, no fixture
-files/graph nodes/controllers and no captured JavaScript errors. Managed evidence:
-`2026-11-12-sidecar-popout-focused-sYHlq9`,
-`2026-11-12-sidecar-popout-native-fixed-5Lo3Pv`, and
-`2026-11-12-sidecar-popout-final-audit-J0UJPa`. The failing native baseline/trace
-and recovered transport/artifact preflight failures remain recorded. This scoped
-navigation fix does not change index/cache policy; expensive indexing/restart
-gates were not repeated. macOS/mobile Sidecar acceptance remains unavailable.
+Runtime: Node **22.22.2**, actual installed Obsidian typings, Windows Obsidian **1.15.0**
+(installer **1.14.5**). Native writes used only the approved
+`C:/Obsidian/kplex-test-small` vault, serialized under the shared host lock.
 
-The original six-feature validation below used Node 22.22.2, real installed
-Obsidian declarations and Windows
-Obsidian 1.14.5 (runtime Node 24.22.0 / Electron 43.8.3 / Chrome 150). Both production
-build and build:local passed. Only disposable Small has the identified local build;
-no personal/production vault was deployed. That pre-Sidecar artifact's main.js SHA-256 was
-`ba5e0106470eda3c99cd1c8cdad51bd4c0b914f94fe2c7a733b14b5127b8b84c`.
+| Gate | Actual evidence |
+| --- | --- |
+| Released/base/candidate reproduction | Official 0.4.3 reproduces explicit relationship loss through materialization/reload; candidate preserves it. Base/release GraphBuilder fallback is identical. Full singleton/two-field/remove-second, both-center, Markdown/drawing and caption override matrix passes. Run: `302-release-candidate-native-final-iA2XGm`. |
+| Focused source checks | Final receipt/template/reciprocal group **83/83**, lint/type/syntax/whitespace checks pass. Independently evaluated module copies cover native-owner queue/lifetime boundaries. Run: `302-template-reload-real-final-EjFL1N`. |
+| Native template/reciprocal behavior | Actual Templater 2.27.0 and official Excalidraw 2.29.2; properties/body/core, automatic exactly once, explicit precedence, rename/move, concurrent creation, retained errors and reciprocal partial retry pass. Earlier-candidate reload race reproduced in `302-native-template-reload-baseline-UR4BBZ`; final artifact passes reload and full template matrices in `302-shared-receipt-native-final-ZkxTLl`. |
+| Native forms | Main/popout, light/dark, 440/1160 widths, native field heights, focus/keyboard, disclosure and no overflow pass; representative PNGs inspected. Run: `302-final-native-forms-rNagqf`. UI source is unchanged by the later receipt-only fix. |
+| Sidecar | 18 native cases cover main/popout, Off/Recent/unpin, folded/new/attached groups, late opens and same editor/history/selection/tab identity. Ordinary split-close controls distinguish native geometry behavior. Run: `302-native-sessions-comparative-n0pc0y`. |
+| Cache mutations / pending / retry | Genuine edit/rename/delete/property removal/restore/policy changes pass. Pending-save close/reopen and plugin reload activate a new generation without full build/body reads/parses. A real save error retains the old pointer; a later real edit and unchanged five-minute timer activate the replacement. Run: `302-native-cache-corrected-9SRn2C`. |
+| Application restart | Two unchanged **Reload app without saving** cycles reuse the generation with zero inventory/full-build/body-read/parse/replay/save admissions. Pending-save added-owner reload repairs and activates the new generation without a full build/body read/parse; final unchanged cycle reuses it. Electron process remained running. Run: `302-isolated-restart-phone-r7uvlI/restart`. |
+| Phone environment | Desktop mobile emulation in portrait 390x844 and landscape 844x390 passes actual palette tab opening, generic sidebar, independent canvases, tab switching, serialized restoration and close/reopen. Explicit local on-demand readiness is distinguished from global coverage. Run: `302-phone-deferred-final-srA8Mi`. |
+| Source recovery / events | Native startup recovery and three real event writes/two coalesced acquisitions pass with exact final facts. Runs: `302-native-final-gates-xUWmnI`, `302-native-event-foreground-final-E4QDuc`. |
+| Foreground / cleanup | Original six timed operations and first-flush assertion pass. Cleanup now independently restores native layout, root MRU, active sidebar, independently targeted File Properties, settings, inventory and exact config bytes. Native public state restoration declining the unbound Properties target uses the existing guarded native loader contract. Maintained runner **68/68**. Runs: `302-foreground-properties-loader-final-moC6BQ`, `302-foreground-mru-restored-final-qBdfH5`. |
+| Large vault | Full final pipeline passes the **20,015-owner** cached incidence/evidence/gates/degrees/no-I/O case in ~298 seconds and the independent skew/cancellation case with original bounds. |
+| Final native state | Final scoped plugin reload retires transient test owners naturally. Settled global coverage is complete; 98/98 Markdown notes ready, no active work or pending cache save. All 117 physical files, full layout/settings, original active/MRU and exact data/enabled/workspace bytes match. No fixture files/folders/nodes/dialogs/controllers remain. Run: `302-final-settled-native-audit-abEnAF`. |
 
-All raw evidence is managed under ignored `.test-work/validation` with the standard
-retention policy. No routine report was added under docs/validation.
+### Final aggregate and failed-check accounting
 
-Completed source gates:
-- Released tag and branch base coincide at 0.4.3. The original excluded-Date failure
-  was reproduced before the fix; native FileManager filename-only rename also
-  demonstrated that the existing display-name property stays unchanged.
-- Frozen indexing passed with an explicit executable peripheral-presentation delta.
-  Graph/evidence/search/direct lists and direct geometry remain identical.
-- Release/core/architecture/lint checks and 2,215 unit tests passed. Corrected UI
-  files passed 77/77. The full browser group ran 555 checks, with one Chromium
-  bundle-load failure; its unchanged 23-test file rerun passed. Earlier extracted
-  fixture binding, seven-category and expanded-sibling assumptions were corrected;
-  unchanged color/focus/camera/layout-reuse assertions pass.
-- Portable source tests passed 362/362. The full real-IndexedDB lane ran 1,032
-  checks (1,027 passed, five preserved failures). Corrected affected reruns passed:
-  five alias-priority cases, 204 On-demand/deferred/optional cases, and all four
-  high-degree cases, plus explicit 20-, 256- and 257-owner boundary runs.
-- The large case found a real redundant optional replay: direct 1 / optional 1.
-  The internal scope now retains its mandatory source-owner count and defers
-  optional replay above 256 owners, preserving existing small-cover admission.
-  Final 20,015-owner acceptance retained the strict single-pass/no-IO/work/memory
-  bounds: direct 1 / optional 0, 8,187,369 owner checks, 155,029.7ms measured cached
-  publication. This is a real-Chromium GraphIndex fixture, not a native large-vault
-  or production-latency result.
+The final **`npm run verify` invocation did not pass**:
+`302-full-verify-shared-receipts-jn7r4T`.
+Release metadata, architecture (9), core (135), lint, initial tests (2346/2346),
+UI browser (566/566), source units (362/362), and **1031/1032** final source-browser
+tests passed. One presentation test failed before its production bundle loaded:
+Chromium remained `ready: loading`, resource list empty, bundle error null.
+The rest of the batch completed; the npm failure chain skipped the build.
+Runtime sources remained unchanged throughout.
 
-Completed exact-build native gates:
-- Commands/rename, saved drags, semantics and Facets lanes all passed. Native title
-  and alias writes, opt-out, missing-property behavior, actual canvas captions,
-  light/wide and dark/narrow visuals and popout Escape were checked. Screenshots
-  were inspected. Both saved lists produced intercepted real Chromium link data
-  for relationship gates and split Markdown editors; one pin relationship was
-  actually saved. All six second-order roles, real created Date exclusion, two
-  plugin reloads/unknown-key preservation, twelve regions and the disabled
-  thirteenth category were verified.
-- Cache activation was natural, not forced. Two consecutive Reload app without
-  saving cycles reused the exact persisted generation, graph, settings, semantic
-  inputs and source heads. The second remained ready for 610 seconds across two
-  maintenance periods with zero reads/parses/repairs/inventories/rebuilds/catalog
-  starts/snapshot writes. Sampled foreground control remained valid.
-- Two additional reloads began with an actual ordinary save pending, for a backed-
-  up README edit and its reversal. Each reused exactly the one changed cached
-  owner with zero body reads, parses or rebuilds and naturally activated the
-  repaired complete snapshot. README bytes, mtime and ctime were restored.
-- The test-owned unreferenced virtual endpoint was explicitly removed through the
-  existing guarded API, then its ordinary five-minute save activated naturally.
-  A clean reload reused that cache without work. Snapshot write failure/retry,
-  no-op deadline preservation and native-metadata/source fences are additionally
-  covered by the passing real-IndexedDB/source suites.
-- Finally, two graceful whole-application exit/relaunch cycles used the existing
-  guarded Windows lifecycle helper. Every observed native process exited, and
-  both Browser and renderer lifetimes changed each time. Both startups reused
-  the exact persisted cache with zero source checks/reads/parses/repairs,
-  inventories, full builds, catalog starts or snapshot writes. These whole-process
-  results are separate from the renderer-reload results.
+Unchanged recovery: the entire `tests/graph-presentation-indexeddb.test.mjs` file
+passes **25/25**, and the actual **`npm run build` release command passes separately.
+No source, assertion or deadline was changed for this retry.
+Both are retained in **`302-final-unchanged-recovery-release-HSLmkF`**.
 
-Important failed invocations remain recorded, not described as clean aggregate
-passes. Earlier verify attempts stopped at typed callback errors and stale fixture/
-signature/command expectations. Later source failures included the demonstrated
-large replay, obsolete second-order expectations and a primary retry assertion
-that also counted the newly valid optional closure. Primary retries still require
-exactly two attempts, plus one distinct bounded optional closure. Native harness
-corrections added a paint wait and scrolled an offscreen history source into view.
-Two over-broad ad-hoc assertions were preserved: host enumeration order is separate
-from saved input identity, and unlinked virtual nodes require explicit cleanup.
-No production acceptance bound or deadline was relaxed.
+Earlier failed aggregates remain recorded:
+- `302-full-verify-TOJoky`: obsolete browser selector/lease/port fixtures; focused corrections pass.
+- `302-full-verify-corrected-zaJMH9`: extracted keyboard fixture lacked new combobox dependencies; corrected composer 63/63.
+- `302-full-verify-final-GiobI2`: retry-count fixture combined mandatory retries with optional sibling work, plus a Chromium bundle-admission timeout. Three diagnostics prove mandatory publication epochs [0,1] plus one optional B acquisition. The corrected test retains siblings, asserts both exact counts and actual optional ownership/idle completion under the original bound. The unchanged admission case passes separately. The final aggregate passes both those cases.
 
-Final independent audit after both whole-process restarts passed: 117 original
-files / 98 Markdown, one Small window, exact original data.json/community-plugins/
-types bytes and Daily Notes options, no owned graph nodes, controllers or debugger
-attachment, no JavaScript errors and no pending cache work. The original workspace
-was restored and saved through the public layout API; it survived full-process
-relaunch. All three installed artifacts still match dist hashes.
+A prior native foreground first-flush failure had insufficient evidence to attribute a cause;
+it remains retained. Passive bounded diagnostics and subsequent unchanged checks pass.
+Do not claim a production repair caused those reruns to pass.
 
-Key managed evidence labels: `neighborhood-admission-final-J2gytJ`,
-`neighborhood-native-stage-YPYpBn`, `neighborhood-native-rename-visible-Es9k6z`,
-`neighborhood-native-visible-drags-BoGvFm`, `neighborhood-native-semantics-JgC4aw`,
-`neighborhood-native-facets-55v9b6`, `neighborhood-native-restart-idle-poOb5n`,
-`neighborhood-native-clean-cache-npuzsP`, `neighborhood-native-whole-process-orwtY0`,
-and `neighborhood-final-audit-after-process-restarts-mnWeiW` (all dated 2026-11-11).
+### Independent cleanup classification
 
-Remaining acceptance: macOS, physical Android/iOS touch/keyboard interaction,
-minimum-host testing, actual OS sleep/resume and native large-vault restart/paint
-latency were not performed. Highest-probability manual risks are native drag versus
-list scrolling on touch and cross-window drags; repeat rename/IME and owning-window
-behavior separately on those platforms. Windows Small and a 20,015-owner browser
-fixture do not replace these gates. Full cross-platform release acceptance remains
-unfinished. The maintainer has requested merging after these limitations were
-reported; that authorization does not turn unperformed checks into passing results
-or authorize release publication. The PR must retain these limits and close #282
-only after merge.
+The pre-reload audit `302-final-independent-ghost-audit-uqAeed` found six intentionally
+retained unresolved identities: null native file/mtime, no canonical declarations, cached
+incomplete coverage and no physical/visible fixtures. Map presence alone was not a leak.
+A normal scoped plugin reload (`302-final-scoped-runtime-cleanup-25FR9r`) retired these
+test-derived owners without direct private-map/cache edits. Final settled audit:
+**`302-final-settled-native-audit-abEnAF`**.
+
+## Exact artifacts and source identity
+
+Final runtime input hash:
+`0cc02a8dcddf46d3d8b6280a10a4a31d8e9aa97589df41069f1c11c2e019ac4f`.
+Full input list is in the final recovery run. Runtime inputs remained unchanged through
+the aggregate, unchanged recovery and release build.
+
+Native-tested identified candidate remains byte-identical in `dist/` and Small:
+
+- main.js: `b156d0f9783a590ca34f4bea66ad0903f9e51f4ef320f53cf49ba51a289701a9`
+- styles.css: `64bc3673605884e465e76bc880a71e5b6667395110c54e8a642a813fab56a444`
+- manifest.json: `dd5c24bca596d39dcfeda4adaac6649fdaa3d2a3cfd905b315c63c64f28b2efb`
+
+Actual deterministic release main.js:
+`0ab17ce798871a72a2c0c0b9f643a361f50405095dfe7f25bd41fa9aadd536c5`;
+styles/manifest hashes match above. Frozen release artifacts are in the recovery run's
+`release-build/` directory. The identified candidate was restored after hashing; do not
+publish it as a release or mistake earlier native artifact 337b... for the final candidate.
+
+## Authorized local deployment
+
+The maintainer subsequently requested deployment to Zsolt's Brain. The exact native-tested candidate above was atomically installed there while the vault was closed; unchanged manifest was skipped. Installed hashes match, and data.json, community-plugin enablement and workspace.json remain byte-identical. K-Plex is enabled and will load this build on the next vault open. Build ID: `0.4.3+e78cd1a60968.dirty.local.20261112T172143017Z`. Receipt: `302-brain-deployment-a6jcZ1`. Previous artifacts are preserved in `.test-work/deployment-backups/zsolts-brain/2026-11-12T20-03-30.500Z-fc73a11e`. This deployment does not expand Git/PR/merge authority.
+
+## Remaining limits and next authority
+
+- Physical phone/touch and macOS acceptance were unavailable. Desktop mobile emulation and Windows native results do not replace those lanes. Highest-value remaining checks are real-phone palette/tab restoration and macOS popout Sidecar/template lifecycle.
+- Commit the validated changes locally on this branch as requested. Keep PR #302 draft pending maintainer review/platform acceptance; no push, issue closure, merge or release authority is implied.
+- Raw evidence remains in managed ignored `.test-work/validation/2026-11-12-*` runs with normal retention. No committed validation report was added.
+- Final validation pruning, validation gate, whitespace and source/artifact identity checks pass; receipts are in `302-finalization-D7EHFL`.

@@ -4132,6 +4132,9 @@ button.kplex-sidecar-unfold-plex:focus-visible,
   box-shadow: none;
 }
 .kplex-native-combobox > input[type="text"]:focus { box-shadow: none; }
+.kplex-template-picker > input[type="text"] { padding-inline: 0 24px; }
+/* The search shell's horizontal flex basis must not become height in a stacked form field. */
+.kplex-drawing-template > .kplex-template-picker { flex: 0 0 auto; }
 .kplex-native-combobox:focus-within { box-shadow: 0 0 0 3px var(--background-modifier-border-focus); }
 .kplex-native-combobox .kplex-search-icon { top: 50%; transform: translateY(-50%); }
 .kplex-native-combobox > .kplex-fuzzy-disclosure {

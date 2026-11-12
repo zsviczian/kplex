@@ -119,6 +119,15 @@ test("Wu Xing labels retain their actual Unicode translations", () => {
   assert.equal(localization.createTranslator("en")("wuxing.unavailable"),"Unclassified · Unavailable");
 });
 
+test('template, reciprocal and toolbar translations retain their authored Unicode characters',()=>{
+ for(const [locale,expected]of [['ja','テンプレート'],['zh-TW','範本'],['ru','шаблона'],['de','für'],['fr','modèle'],['es','bóveda'],['nl','vóór']]){
+  const translate=localization.createTranslator(locale);
+  const text=locale==='de'?translate('template.folder'):locale==='es'?translate('template.folderHelp'):locale==='nl'?translate('reciprocal.requiresInverse'):translate('template.none');
+  assert(text.includes(expected),locale);assert(!text.includes('\uFFFD'),locale);
+ }
+ for(const locale of ['ja','zh-TW','ru'])assert(!localization.createTranslator(locale)('toolbar.newTabGroup').includes('?'),locale);
+});
+
 /** Named reference metadata reflects each consumer's semantics, not a global parameter-name heuristic. */
 test("reference metadata distinguishes literal source target field names from descriptive labels", () => {
   const translate = localization.createTranslator("en"), source = require(join(portableTemp,"src/lang/en.js")).englishCatalog;

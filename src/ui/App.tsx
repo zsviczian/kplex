@@ -59,7 +59,7 @@ import {publicCanvasState, type PublicScenePublication} from './publicCanvasScen
 import type { GraphPage } from "../types";
 import {deletedFileNavigationTarget} from "../adapters/obsidian/deletedFileNavigation";
 import type { PresentationEnvironment } from "../core/contracts/presentationEnvironment";
-import { isGraphTabCommandAvailable } from "../core/plex/viewPresentation";
+import { isGraphSplitCommandAvailable } from "../core/plex/viewPresentation";
 import { type ActionContext } from "../application/ActionManager";
 import { type ActionId, type ActionOutcome, type NodeRef } from "../core/plex/actions";
 import { actionNodeRef, resolveActionPage } from "../adapters/obsidian/actionNode";
@@ -1696,7 +1696,7 @@ export function KplexApp({ plugin, surface, hostLeaf, translate, environment, on
             <span className="kplex-toolbar-divider" />
             <ToolButton icon={plugin.settings.graphDepth === 2 ? "list-chevrons-down-up" : "list-chevrons-up-down"} title={translate(plugin.settings.graphDepth === 2 ? "app.singleLevelView" : "app.expandedView")} on={plugin.settings.graphDepth === 2} onClick={() => runAction("view.depth.toggle")} />
             <ToolButton icon="group" title={translate("actions.view.groups.toggle")} on={plugin.settings.groupRelations} pressed={plugin.settings.groupRelations} onClick={() => runAction("view.groups.toggle")} />
-            {isGraphTabCommandAvailable(environment) && <ToolButton icon="plus" title={[translate("actions.surface.new-tab"), toolbarShortcutHints("canvas", environment, translate)].filter(Boolean).join("\n")} onClick={/** Modified openings retain this surface's action and host ownership. */ event => {
+            {isGraphSplitCommandAvailable(environment) && <ToolButton icon="plus" title={[translate("actions.surface.new-tab"), toolbarShortcutHints("canvas", environment, translate)].filter(Boolean).join("\n")} onClick={/** Modified openings retain this surface's action and host ownership. */ event => {
               const request = canvasToolbarRequest(event, environment); if (request) actions.dispatch(request);
             }} />}
             <ToolButton icon="settings" title={[translate("app.settingsMenu"), toolbarShortcutHints("settings", environment, translate)].filter(Boolean).join("\n")} on={areaSettingsMode} onClick={showSettingsMenu} />

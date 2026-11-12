@@ -8,6 +8,7 @@ import {
   useCallback,
   useEffect,
   useLayoutEffect,
+  useId,
   useMemo,
   useRef,
   useState,
@@ -71,6 +72,10 @@ export type FuzzySuggesterProps<T> = {
   disclosure?: { label: string; icon: ReactNode; onOpen: () => void };
   /** Keep the input/results open after choosing an item. Useful for repeated in-place find. */
   closeOnChoose?: boolean;
+  /** Committed-value pickers discard their separate search draft when native focus leaves the field. */
+  closeOnBlur?: boolean;
+  /** Editable value pickers can expose their popup as a single-select ARIA listbox. */
+  combobox?: boolean;
   /** Advance to the next result after choosing while the list stays open. */
   advanceOnChoose?: boolean;
 };
@@ -155,9 +160,12 @@ export function FuzzySuggester<T>({
   className = "",
   highlightMatches = true,
   closeOnChoose = true,
+  closeOnBlur = false,
+  combobox = false,
   advanceOnChoose = false,
   disclosure,
 }: FuzzySuggesterProps<T>) {
+  const popupId = useId();
   const [focused, setFocused] = useState(false);
   const [editedSinceFocus, setEditedSinceFocus] = useState(false);
   const [resultsDismissed, setResultsDismissed] = useState(false);
@@ -181,6 +189,7 @@ export function FuzzySuggester<T>({
       ? ownerDocument?.body ?? null
       : portalSelector ? shellRef.current?.closest<HTMLElement>(portalSelector) ?? null : null)
     : null;
+  const popupVisible = focused && visibleResults.length > 0 && (!floating || Boolean(portalRoot && overlayStyle));
 
   /** Dismiss a suggestion list without discarding the input or selected caller value. */
   const dismissResults = () => {
@@ -189,22 +198,36 @@ export function FuzzySuggester<T>({
     setSelectedIndex(0);
   };
 
-  /** Release focus and reset list visibility after choosing or an outside pointer. */
-  const close = () => {
-    setExplicitlyOpened(false);
-    setFocused(false);
-    setEditedSinceFocus(false);
+  /** Disclosure pointer and opt-in combobox keyboard opening share the caller's complete choices. */
+  const openDisclosure = () => {
+    if (!disclosure) return;
+    disclosure.onOpen();
+    inputRef.current?.focus({ preventScroll: true });
+    setFocused(true);
+    setExplicitlyOpened(true);
     setResultsDismissed(false);
     setSelectedIndex(0);
+  };
+
+  /** Retire the popup; committed-value combobox acceptance retains its editable DOM focus. */
+  const closeResults = (blurInput: boolean) => {
+    setExplicitlyOpened(false);
+    setFocused(!blurInput);
+    setEditedSinceFocus(false);
+    setResultsDismissed(!blurInput);
+    setSelectedIndex(0);
     const input = inputRef.current;
-    if (input && input.ownerDocument.activeElement === input) input.blur();
+    if (blurInput && input && input.ownerDocument.activeElement === input) input.blur();
     onFocusChange?.(false);
   };
+
+  /** Outside interaction and native blur retain their existing focus-release behavior. */
+  const close = () => closeResults(true);
 
   const choose = (item: T) => {
     onChoose(item);
     if (closeOnChoose) {
-      close();
+      closeResults(!combobox);
       return;
     }
     if (advanceOnChoose && visibleResults.length > 0) {
@@ -373,6 +396,11 @@ export function FuzzySuggester<T>({
       }
       return;
     }
+    if (combobox && disclosure && event.key === "ArrowDown" && !visibleResults.length) {
+      event.preventDefault();
+      openDisclosure();
+      return;
+    }
     if (event.key === "ArrowDown" && visibleResults.length) {
       event.preventDefault();
       setSelectedIndex((current) => Math.min(visibleResults.length - 1, current + 1));
@@ -409,13 +437,19 @@ export function FuzzySuggester<T>({
   };
 
   const list = focused && visibleResults.length > 0
-    ? <div ref={resultsRef} data-fuzzy-owner={resultsOwnerId} data-kplex-tooltip-scope className={`kplex-search-results${floating ? " kplex-fuzzy-floating-results" : " kplex-fuzzy-inline-results"}${resultsClassName ? ` ${resultsClassName}` : ""}`} style={floating ? overlayStyle ?? undefined : undefined}>
+    ? <div ref={resultsRef} id={combobox ? popupId : undefined} role={combobox ? "listbox" : undefined}
+      aria-labelledby={combobox ? labelledBy : undefined} aria-label={combobox && !labelledBy ? ariaLabel : undefined}
+      data-fuzzy-owner={resultsOwnerId} data-kplex-tooltip-scope className={`kplex-search-results${floating ? " kplex-fuzzy-floating-results" : " kplex-fuzzy-inline-results"}${resultsClassName ? ` ${resultsClassName}` : ""}`} style={floating ? overlayStyle ?? undefined : undefined}>
       {visibleResults.map((item, resultIndex) => {
         const label = getLabel(item);
         const detail = getDetail?.(item);
         const highlightQuery = highlightMatches ? matchingQuery ?? value : "";
         return <button
           key={getKey(item)}
+          id={combobox ? `${popupId}-option-${resultIndex}` : undefined}
+          role={combobox ? "option" : undefined}
+          aria-selected={combobox ? resultIndex === clampedSelectedIndex : undefined}
+          tabIndex={combobox ? -1 : undefined}
           data-kplex-fuzzy-index={resultIndex}
           className={`kplex-search-result${resultPrefix ? " has-prefix" : ""}${resultIndex === clampedSelectedIndex ? " is-selected" : ""}`}
           aria-label={detail ? `${label}\n${detail}` : label}
@@ -437,6 +471,7 @@ export function FuzzySuggester<T>({
     <input
       ref={inputRef}
       type="text"
+      role={combobox ? "combobox" : undefined}
       id={inputId}
       className="kplex-search"
       value={value}
@@ -453,31 +488,34 @@ export function FuzzySuggester<T>({
         setResultsDismissed(false);
         onFocusChange?.(true);
       }}
+      onBlur={closeOnBlur ? close : undefined}
       onKeyDown={onKeyDown}
       placeholder={placeholder}
       aria-label={labelledBy ? undefined : ariaLabel}
       aria-labelledby={labelledBy}
-      aria-expanded={focused && visibleResults.length > 0}
+      aria-expanded={combobox ? popupVisible : focused && visibleResults.length > 0}
+      aria-haspopup={combobox ? "listbox" : undefined}
+      aria-autocomplete={combobox ? "list" : undefined}
+      aria-controls={combobox && popupVisible ? popupId : undefined}
+      aria-activedescendant={combobox && popupVisible ? `${popupId}-option-${clampedSelectedIndex}` : undefined}
       autoComplete="off"
     />
     {disclosure ? <button
       type="button"
       className="kplex-fuzzy-disclosure"
+      tabIndex={combobox ? -1 : undefined}
       disabled={disabled}
       aria-label={disclosure.label}
-      aria-expanded={focused && visibleResults.length > 0}
+      aria-expanded={combobox ? popupVisible : focused && visibleResults.length > 0}
+      aria-haspopup={combobox ? "listbox" : undefined}
+      aria-controls={combobox && popupVisible ? popupId : undefined}
       onMouseDown={/** Keep focus in the text field while operating its disclosure. */ (event) => event.preventDefault()}
       onClick={/** Reveal the caller's complete choice collection without changing its text. */ () => {
         if (focused && explicitlyOpened && !resultsDismissed) {
           dismissResults();
           return;
         }
-        disclosure.onOpen();
-        inputRef.current?.focus({ preventScroll: true });
-        setFocused(true);
-        setExplicitlyOpened(true);
-        setResultsDismissed(false);
-        setSelectedIndex(0);
+        openDisclosure();
       }}
     >{disclosure.icon}</button> : null}
     {resultList}

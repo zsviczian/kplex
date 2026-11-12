@@ -431,6 +431,10 @@ export interface KplexSettings extends StartupIndexPreferences {
   newNodeDefaultType: NewNodeType;
   /** Null uses the first configured template; empty explicitly selects a blank drawing. */
   lastDrawingTemplatePath: string | null;
+  /** Optional source folder for explicit Markdown templates; discovery executes no content. */
+  markdownTemplateFolder: string;
+  /** Explicit authoring only; enabling this never rewrites or mirrors existing relationships. */
+  alsoWriteInverseOntology: boolean;
   /** Whether the one-time startup indexing guidance bubble has already been shown. */
   startupIndexInfoBubbleSeen: boolean;
   /** Whether K-Plex has already shown the first-use delete confirmation/preferences prompt. */
@@ -578,6 +582,8 @@ const LEGACY_DEFAULT_SETTINGS: KplexSettings = {
   linkAfterSaving: "return",
   newNodeDefaultType: "markdown",
   lastDrawingTemplatePath: null,
+  markdownTemplateFolder: "",
+  alsoWriteInverseOntology: false,
   startupIndexInfoBubbleSeen: false,
   deletePromptInitialized: false,
   confirmFileDelete: true,
@@ -873,6 +879,8 @@ export function migrateAndMergeSettings(raw: unknown): KplexSettings {
     linkAfterSaving: sanitizeCreationAfterSaving(old.linkAfterSaving ?? old.newNodeAfterSaving, old.editNewNodeAfterCreate === true),
     trackpadNavigation: old.trackpadNavigation === true,
     lastDrawingTemplatePath: typeof old.lastDrawingTemplatePath === "string" ? old.lastDrawingTemplatePath : null,
+    markdownTemplateFolder: typeof old.markdownTemplateFolder === "string" ? old.markdownTemplateFolder : "",
+    alsoWriteInverseOntology: old.alsoWriteInverseOntology === true,
     newNodeDefaultType: old.newNodeDefaultType === "excalidraw" ? "excalidraw" : "markdown",
     startupIndexInfoBubbleSeen: Boolean(old.startupIndexInfoBubbleSeen),
     deletePromptInitialized: Boolean(old.deletePromptInitialized),
@@ -2517,6 +2525,8 @@ export class KplexSettingTab extends PluginSettingTab {
             items: [
               { name: translate("settings.ui.infer.normal.links.as.friends"), control: { type: "toggle", key: "inferAllLinksAsFriends" } },
               { name: translate("settings.ui.inverse.inferred.parent.child.direction"), control: { type: "toggle", key: "inverseInfer" } },
+              { name: translate("reciprocal.setting"), desc: translate("reciprocal.settingHelp"), control: {type: "toggle", key: "alsoWriteInverseOntology"} },
+              { name: translate("template.folder"), desc: translate("template.folderHelp"), control: {type: "text", key: "markdownTemplateFolder"} },
               { name: translate("settings.datePropertyRelations.name"), desc: translate("settings.datePropertyRelations.description"),
                 control: { type: "dropdown", key: "datePropertyRelations", defaultValue: "parent", options: {
                   parent: translate("role.parent"), left: translate("role.friend"), child: translate("role.child"),
@@ -3156,6 +3166,16 @@ export class KplexSettingTab extends PluginSettingTab {
       this.kplexPlugin.settings.removeOntologyLinksOnDelete = value === true;
       // This preference only supplies defaults to the next deletion preview; it does not
       // change ontology interpretation, source authority or the currently displayed graph.
+      await this.kplexPlugin.saveSettings(false, false);
+      return;
+    }
+    if (key === "alsoWriteInverseOntology" || key === "markdownTemplateFolder") {
+      if (key === "alsoWriteInverseOntology") this.kplexPlugin.settings.alsoWriteInverseOntology = value === true;
+      else {
+        const path = String(value).trim().replaceAll("\\", "/");
+        this.kplexPlugin.settings.markdownTemplateFolder = path.replace(/^\/+|\/+$/g, "") || (path ? "/" : "");
+      }
+      // Creation preferences affect the next explicit action, never current semantics or source/cache authority.
       await this.kplexPlugin.saveSettings(false, false);
       return;
     }

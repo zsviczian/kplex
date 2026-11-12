@@ -14,7 +14,8 @@ label, actions and layout is not component reuse. Read this file before UI work.
 | React footer | `FormActions` in `src/ui/components/FormField.tsx` |
 | Labelled React authored field | `src/ui/components/FormField.tsx` |
 | Labelled React dropdown | `src/ui/components/FormSelect.tsx` |
-| Completion / drawing template | `CreationCompletionSelect` / `DrawingTemplateSelect`, both using `FormSelect` |
+| Creation completion | `CreationCompletionSelect`, using `FormSelect` |
+| Searchable creation template | `DrawingTemplateSelect`, using `FormField` + shared `FuzzySuggester` with native combobox chrome; one typed catalogue for Markdown and drawing templates |
 | Relationship direction, ontology search, disclosure and edit | `src/ui/features/RelationshipFieldControl.tsx`; do not rebuild an import-only variant |
 | Native/import ontology binding | `RelationshipSelectionControl`; connection properties and import use the same binding, with explicit vocabulary creation separate from applying a relationship |
 | Native finite dropdown with explanatory text | `formSelect` in the modal adapter; help spans the line below, and the control uses the space after its label |
@@ -69,8 +70,13 @@ Obsidian APIs in portable components.
   with its visible label above. Textareas are always full width, label above, and
   vertically resizable. Never squeeze authored text into half a Settings row.
 - Compact options such as a toggle or finite dropdown may be inline in Settings.
-  A form's dropdown rows share label/control widths, height and spacing. Drawing
-  template and After saving must use the same labelled-select component.
+  A form's dropdown rows share label/control widths, height and spacing. The
+  template chooser uses the shared searchable Template field; After saving uses the
+  shared labelled select. Both retain native dropdown typography, control height
+  and theme chrome while the searchable field keeps its label above the input.
+  Template opts into the shared combobox semantics: one labelled input controls
+  its listbox and active option. Arrow Down opens browsing from the closed field;
+  selection keeps input focus, and Escape/Tab retire popup references.
 - Use a consistent 8 px control gap and 16 px field/section gap through shared
   classes. Dividers belong between sections, not through a control or its focus ring.
   Do not use blank Settings rows as spacing.

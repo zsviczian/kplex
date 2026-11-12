@@ -4,7 +4,7 @@
  */
 import {FormSetting as Setting, KplexModal as Modal, formActions, labelIconButton} from "../adapters/obsidian/KplexModal";
 
-import { DrawingTemplateSelect } from "./features/DrawingTemplateSelect";
+import { DrawingTemplateSelect, type DrawingTemplateChoices } from "./features/DrawingTemplateSelect";
 import { graphFolder } from "../adapters/obsidian/graphFolder";
 import { SavedRelationshipPendingError } from "../adapters/obsidian/relationshipMetadataWrite";
 import {Notice, type ButtonComponent, type TFolder, type WorkspaceLeaf} from "obsidian";
@@ -33,6 +33,9 @@ export class CreateFolderNoteModal extends Modal {
   private releaseMigration: (() => void) | null = null;
   private templateRoot: Root | null = null;
   private templatePath: string | undefined;
+  private templateKind: GhostMaterializationKind | undefined;
+  private templateChoices: DrawingTemplateChoices | null = null;
+  private selectedKind: GhostMaterializationKind = "markdown";
   private renderTemplate: (() => void) | null = null;
   private creating = false;
   private opened = false;
@@ -53,7 +56,7 @@ export class CreateFolderNoteModal extends Modal {
   private readonly hostContainer: HTMLElement | null;
   private readonly invokingDocument: Document;
   private readonly invokingElement: HTMLElement | null;
-  private readonly createButtons: ButtonComponent[] = [];
+  private readonly createButtons: Array<{button: ButtonComponent; kind: GhostMaterializationKind}> = [];
 
   /** Capture folder incarnation and invoking surface before the native form takes focus. */
   constructor(
@@ -103,7 +106,10 @@ export class CreateFolderNoteModal extends Modal {
   private refreshButtons(): void {
     const validation = this.validateName();
     const enabled = this.canComplete() && this.opened && !this.creating && !this.pending && validation.valid && !validation.existing;
-    for (const button of this.createButtons) button.setDisabled(!enabled);
+    for (const {button,kind} of this.createButtons) {
+      button.setDisabled(!enabled || Boolean(this.templatePath) && kind !== this.templateKind);
+      button.buttonEl.classList.toggle("mod-cta",kind===this.selectedKind);
+    }
     this.renderCompletionControls();
     this.renderTemplate?.();
     this.folderButton?.setDisabled(this.creating || this.pending || !this.canComplete() || !this.folderName.trim());
@@ -124,7 +130,7 @@ export class CreateFolderNoteModal extends Modal {
 
   /** Submit the validated creation request to the plugin and show localized failure feedback; the modal retains its existing busy/close lifecycle. */
   private async create(kind: GhostMaterializationKind, intent: CompletionIntent | CreationAfterSavingAction = this.continuation): Promise<void> {
-    if (!this.canComplete() || this.creating || this.pending) return;
+    if (!this.canComplete() || this.creating || this.pending || this.templatePath && this.templateKind !== kind) return;
     const folder = this.nativeFolder;
     if (!folder || (folder === this.plugin.app.vault.getRoot() ? this.plugin.app.vault.getRoot() : this.plugin.app.vault.getFolderByPath(folder.path)) !== folder) {
       new Notice(this.plugin.translator("addRelated.endpointChanged")); return;
@@ -143,6 +149,7 @@ export class CreateFolderNoteModal extends Modal {
     this.creationNavigation = this.plugin.settings.lastActivePath;
     this.refreshButtons();
     try {
+      if(this.templatePath)this.templateChoices?.validate?.(this.templatePath,kind);
       const folderPath = folder.path === "/" || folder.path === "" ? "folder:/" : `folder:${folder.path}`;
       const page = await this.plugin.createNewNodeInFolder({ ...this.folder, path: folderPath }, this.noteName, kind, folder, this.templatePath);
       if (!page) return;
@@ -227,6 +234,7 @@ export class CreateFolderNoteModal extends Modal {
     const defaultKind: GhostMaterializationKind = this.plugin.settings.newNodeDefaultType === "excalidraw" && excalidrawAvailable
       ? "excalidraw"
       : "markdown";
+    this.selectedKind = defaultKind;
 
     this.titleEl.setText(this.allowSubfolders ? this.plugin.translator("folderActions.createTitle", {folder: this.folderLabel()}) : this.plugin.translator("folderNote.title"));
     this.modalEl.addClass("kplex-create-folder-note-modal");
@@ -274,36 +282,44 @@ export class CreateFolderNoteModal extends Modal {
     const completion = form.createDiv({cls: "kplex-creation-completion-row"});
     this.completionRoot = createRoot(completion);
 
-    const choices = this.plugin.drawingTemplateOptions();
+    const availableTemplates = this.plugin.creationTemplateOptions();
+    const choices = excalidrawAvailable ? availableTemplates : {...availableTemplates,files:availableTemplates.files.filter(file=>file.kind === "markdown")};
+    this.templateChoices=choices;
     if (choices) {
-      this.templatePath = choices.selected;
+      const selected=choices.files.find(file=>file.path===choices.selected);
+      this.templatePath = selected?.path ?? "";
+      this.templateKind = selected ? selected.kind ?? "excalidraw" : undefined;
+      if(this.templateKind)this.selectedKind=this.templateKind;
       this.templateRoot = createRoot(form.createDiv());
       this.renderTemplate = (): void => this.templateRoot?.render(createElement(DrawingTemplateSelect, {
-        choices, value: this.templatePath ?? "", translate: this.plugin.translator,
+        choices, value: this.templatePath ?? "", kind:this.selectedKind, translate: this.plugin.translator,
         disabled: this.creating || this.pending,
-        onChange: path => { this.templatePath = path; this.renderTemplate?.(); },
+        onChange: /** Explicit template choice owns output kind; a draft query never reaches this callback. */ (path,kind) => {
+          if(this.creating||this.pending)return;
+          this.templatePath=path;this.templateKind=path?kind:undefined;if(kind)this.selectedKind=kind;this.refreshButtons();
+        },
       }));
       this.renderTemplate();
     }
     form.appendChild(completion);
     const actions = formActions(form);
     actions.addButton((button) => {
-      this.createButtons.push(button);
+      this.createButtons.push({button,kind:"markdown"});
       button
         .setButtonText(this.plugin.translator("common.markdown"))
         .onClick(() => { void this.create("markdown"); });
       labelIconButton(button.buttonEl, this.plugin.translator("common.markdown"), "text-initial");
-      if (defaultKind === "markdown") button.setCta();
+      if (this.selectedKind === "markdown") button.setCta();
     });
 
     if (excalidrawAvailable) {
       actions.addButton((button) => {
-        this.createButtons.push(button);
+        this.createButtons.push({button,kind:"excalidraw"});
         button
           .setButtonText(this.plugin.translator("common.excalidraw"))
           .onClick(() => { void this.create("excalidraw"); });
         labelIconButton(button.buttonEl, this.plugin.translator("common.excalidraw"), "palette");
-        if (defaultKind === "excalidraw") button.setCta();
+        if (this.selectedKind === "excalidraw") button.setCta();
       });
     }
 
@@ -312,13 +328,14 @@ export class CreateFolderNoteModal extends Modal {
     this.refreshButtons();
     /** Submit protocol excludes composition, AltGraph and held keys before scheduling any file creation. */
     const submit = (event: KeyboardEvent, intent?: CompletionIntent): false | undefined => {
-      if (event.isComposing || event.key === "Dead" || event.getModifierState?.("AltGraph")) return;
+      if (event.defaultPrevented || event.isComposing || event.key === "Dead" || event.getModifierState?.("AltGraph")
+        || this.contentEl.querySelector('input[aria-expanded="true"]')) return;
       if (this.allowSubfolders && this.folderTab === "folder") {event.preventDefault(); if (!event.repeat) void this.createSubfolder(); return false;}
       const validation = this.validateName();
       if (!validation.valid || validation.existing || this.creating || this.pending) return false;
       event.preventDefault();
       event.stopPropagation();
-      if (!event.repeat) void this.create(defaultKind, intent);
+      if (!event.repeat) void this.create(this.selectedKind, intent);
       return false;
     };
     this.scope.register(["Mod"], "Enter", event => submit(event));

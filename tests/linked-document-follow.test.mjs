@@ -152,6 +152,58 @@ test("two Plex pairs navigate and change sync mode independently without mutatin
   assert.equal(a.session.preferences.sidecarLastFilePath,a.page.file.path);assert.equal(b.session.preferences.sidecarLastFilePath,"");
 });
 
+/** Releasing a companion changes synchronization ownership, never its native editor/history state. */
+for(const mode of ["off","recent"])test(`Sidecar Pinned -> ${mode} releases the same document without an immediate reopen`,async()=>{
+  const {a,b,context}=twoPlexFixture(),editor={text:'Unsaved draft',selection:{line:2,ch:4}},history=['First.md','B.md'];
+  context.targetNoteLeaf=production('targetNoteLeaf');
+  a.leaf.editor=editor;a.leaf.history=history;const group=a.leaf.parent={tabs:[a.leaf]},before=a.leaf.getViewState();
+  a.session.preferences.sidecarOpen=true;a.session.targetId='native-document';let detached=0;
+  a.leaf.detach=()=>{detached++;};
+  await context.setDocumentSyncMode(a.host,mode,a.page);
+  assert.equal(a.opens.length,0,'Changing link mode must not replace the released document with the current center');
+  assert.equal(a.leaf.file,a.other.file);assert.equal(a.leaf.getViewState(),before);
+  assert.equal(a.leaf.editor,editor);assert.equal(a.leaf.history,history);assert.equal(a.leaf.parent,group);assert.equal(detached,0);
+  assert.equal(context.sidecarLeaves.has(a.host),false);assert.equal(a.session.linkedDocumentLeaf,null);assert.equal(a.session.targetId,null);
+  assert.equal(a.session.preferences.sidecarOpen,false);assert.equal(a.session.preferences.documentSyncMode,mode);
+  assert.equal(context.sidecarLeaves.get(b.host),b.leaf,'Another canvas retains its own companion');
+  if(mode==='recent'){
+    await context.syncPageToDocumentLeaf(a.page,a.host);
+    assert.equal(a.opens.length,1);assert.equal(a.leaf.file,a.page.file,'Later accepted navigation resumes ordinary Recent following');
+    assert.equal(context.sidecarLeaves.has(a.host),false,'Ordinary following does not reclaim Sidecar ownership');
+  }
+});
+
+/** The ordinary Recent opt-in still synchronizes when there is no managed companion to release. */
+test('changing an ordinary document link to Recent retains the existing immediate-sync behavior',async()=>{
+  const s=fixture();s.context.deleteSidecarOwner(s.host);
+  await s.context.setDocumentSyncMode(s.host,'recent',s.page);
+  assert.equal(s.opens.length,1);assert.equal(s.leaf.file,s.page.file);
+});
+
+/** Non-cancellable native completion may finish, but cannot reacquire a released companion or representation. */
+for(const mode of ['off','recent'])test(`pending Sidecar open cannot revive ownership after ${mode} release`,async()=>{
+  const s=fixture(),pause=deferred();s.leaf.pause=pause.promise;s.leaf.publishAfterAwait=true;
+  const opening=s.context.syncSidecarToPage(s.host,s.page);await s.context.setDocumentSyncMode(s.host,mode);
+  const revision=s.session.revision,writes=s.context.writes;pause.resolve();await opening;
+  assert.equal(s.context.sidecarLeaves.has(s.host),false);assert.equal(s.session.revision,revision);assert.equal(s.context.writes,writes);
+  assert.equal(s.session.preferences.documentSyncMode,mode);assert.equal(s.session.preferences.sidecarOpen,false);assert.equal(s.modes.length,0);
+});
+
+/** Persisted mode/claim state from every release route cannot restore a managed companion on reopen. */
+for(const route of ['off','recent','unpin'])test(`restoring a ${route}-released Sidecar leaves the ordinary document unclaimed`,async()=>{
+  const s=fixture();s.host.view={getViewType:()=> 'kplex'};s.session.targetId='native-document';s.session.preferences.sidecarOpen=true;
+  if(route==='unpin'){
+    s.context.collapsedPlexHosts=new Map();s.context.restoreCollapsedPlex=()=>{};s.context.releaseSidecar=production('releaseSidecar');
+    await production('detachSidecar').call(s.context,s.host);
+  }else await s.context.setDocumentSyncMode(s.host,route);
+  const restored=new KplexDocumentSession(s.context.settings,'host',()=>{});restored.restore(JSON.parse(JSON.stringify(s.session.getState())));
+  s.context.documentSession=host=>host===s.host?restored:null;s.context.seedLegacyDocumentSession=()=>{};
+  s.context.app.workspace.getLeafById=()=>assert.fail('A released target cannot be adopted from its saved identity');
+  await production('restorePersistedSidecar',{KPLEX_SIDEPANEL_VIEW_TYPE:'sidepanel'}).call(s.context,s.host);
+  assert.equal(s.context.sidecarLeaves.has(s.host),false);assert.equal(restored.linkedDocumentLeaf,null);assert.equal(restored.preferences.sidecarOpen,false);
+  assert.equal(restored.preferences.documentSyncMode,route==='recent'?'recent':'off');assert(s.leaves.has(s.leaf));
+});
+
 test("native follow admits exact target leaves even when two panes display the very same TFile",()=>{
   const {a,b,context}=twoPlexFixture();context.startupInitializing=false;a.leaf.file=a.page.file;b.leaf.file=a.page.file;
   assert.equal(context.shouldFollowDocumentFile(a.page.file,a.host,a.leaf),true);
