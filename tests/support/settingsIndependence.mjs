@@ -125,8 +125,8 @@ export async function runSettingsIndependence(c) {
       assert.equal(effects.searchTerms, false); assert(effects.changedKeys.includes("tagStyleList"));
       assert.equal(computeIndexSettingsSignature(original), computeIndexSettingsSignature(settings));
       const decoded = JSON.parse(computeIndexSettingsSignature(settings));
-      assert.equal(decoded.signatureVersion, 4); assert.equal(decoded.datePropertyRelations, "parent"); assert(!("noteTypeField" in decoded));
-      assert(!("exclusions" in decoded.hierarchy));
+      assert.equal(decoded.signatureVersion, 5); assert.equal(decoded.datePropertyRelations, "parent"); assert(!("noteTypeField" in decoded));
+      assert.deepEqual(decoded.hierarchy.exclusions, settings.hierarchy.exclusions, "Excluded Date fields participate in cached policy");
       for (const key of ["inferAllLinksAsFriends", "inverseInfer", "thumbnailProperty", "nodeImageProperty"]) {
         const changed = structuredClone(settings);
         changed[key] = typeof changed[key] === "boolean" ? !changed[key] : "private-selector";

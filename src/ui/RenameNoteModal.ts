@@ -6,6 +6,7 @@ import {formActions, iconButton, FormSetting as Setting, KplexModal as Modal} fr
 
 import {Notice, type TFile, normalizePath} from "obsidian";
 import type KplexPlugin from "../main";
+import {renameDisplayField, renameNoteWithDisplayName} from "../adapters/obsidian/renameNote";
 
 /** Preserve compound Excalidraw suffixes while exposing only the editable filename stem. */
 function fileSuffix(file: TFile): string {
@@ -37,6 +38,8 @@ export class RenameNoteModal extends Modal {
     const suffix = fileSuffix(this.file);
     let value = editableStem(this.file, suffix);
     let input: HTMLInputElement | null = null;
+    const displayField = renameDisplayField(this.plugin.app, this.file, this.plugin.settings.nameFields);
+    let updateDisplayName = displayField !== null;
 
     /** Revalidate captured file identity and serialize submissions while native I/O is in flight. */
     const rename = async (): Promise<void> => {
@@ -61,11 +64,7 @@ export class RenameNoteModal extends Modal {
 
       const folder = this.file.parent?.path && this.file.parent.path !== "/" ? this.file.parent.path : "";
       const newPath = normalizePath(folder ? `${folder}/${stem}${suffix}` : `${stem}${suffix}`);
-      if (newPath === this.file.path) {
-        this.close();
-        return;
-      }
-      if (this.plugin.app.vault.getAbstractFileByPath(newPath)) {
+      if (newPath !== this.file.path && this.plugin.app.vault.getAbstractFileByPath(newPath)) {
         new Notice(this.plugin.translator("file.existsAt", { path: newPath }), 3000);
         input?.focus();
         return;
@@ -73,7 +72,8 @@ export class RenameNoteModal extends Modal {
 
       this.busy = true;
       try {
-        await this.plugin.app.fileManager.renameFile(this.file, newPath);
+        await renameNoteWithDisplayName(this.plugin.app, this.file, newPath, stem, updateDisplayName ? displayField : null,
+          /** Native identity failures use the existing localized endpoint guidance. */ () => new Error(this.plugin.translator("addRelated.endpointChanged")));
         this.close();
       } catch (error) {
         new Notice(this.plugin.translator("rename.failed", { error: error instanceof Error ? error.message : String(error) }), 5000);
@@ -98,6 +98,12 @@ export class RenameNoteModal extends Modal {
         }, 0) };
       });
     nameSetting.settingEl.addClass("kplex-rename-note-name-setting");
+
+    if (displayField) new Setting(this.contentEl)
+      .setName(this.plugin.translator("rename.updateDisplayName", {property: displayField}))
+      .setDesc(this.plugin.translator("rename.updateDisplayNameHelp"))
+      .addToggle(/** Each invocation owns its opt-out; opening the form writes no settings or metadata. */ toggle =>
+        toggle.setValue(updateDisplayName).onChange(value => {updateDisplayName = value;}));
 
     formActions(this.contentEl)
       .addButton((button) => iconButton(button,this.plugin.translator("common.rename"),"pencil").setCta().onClick(() => void rename()))

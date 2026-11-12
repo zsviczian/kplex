@@ -93,6 +93,7 @@ export function captureCachedSemanticSettings(settings: GraphCompilerSettings): 
     hidden: [...settings.hierarchy.hidden], parents: [...settings.hierarchy.parents], children: [...settings.hierarchy.children],
     leftFriends: [...settings.hierarchy.leftFriends], rightFriends: [...settings.hierarchy.rightFriends],
     previous: [...settings.hierarchy.previous], next: [...settings.hierarchy.next],
+    exclusions: [...(settings.hierarchy.exclusions ?? [])],
   }, tagStyleList: [...settings.tagStyleList] };
 }
 

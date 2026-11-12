@@ -120,6 +120,13 @@ The core **Page Preview** settings have one **K-Plex** entry for tabs, sidebar a
 
 Use the toolbar **+** or **K-Plex: New canvas tab** command to open another canvas in an adjacent tab group. Each view keeps its own central editor/normal-node choice and Markdown reading/editing mode, including when its workspace tab is restored.
 
+The **+** button also follows Obsidian's navigation modifiers: **Ctrl/Cmd+click** opens
+a tab in the same group, **Ctrl/Cmd+Alt/Option+click** opens a new tab group, and
+**Ctrl/Cmd+Alt/Option+Shift+click** opens a popout window on desktop. **Alt/Option+click**
+opens K-Plex in Obsidian's sidebar. On the **Settings menu** button, **Ctrl/Cmd+click**
+opens plugin settings and **Alt/Option+click** toggles area settings. The tooltips
+show the shortcuts for your platform when a keyboard is available.
+
 Drag a note, attachment, URL or placeholder node into a Markdown editor to insert its link, or into another K-Plex view to navigate or start a relationship. Tags are inserted as `#tag` text and can also be dragged between canvases for navigation. Desktop node dragging uses Obsidian's native link handling; gates retain their connection gestures.
 
 History and pins show type icons and full tag paths. Drag a Markdown note onto a tag in either list to add that tag to the note's **tags** property.
@@ -213,7 +220,11 @@ When folder nodes are visible, drag outward from a folder's gate and choose **Cr
 
 Drag a file or folder from Obsidian Files, or a resolved note link from Bases, onto the central node to navigate to it. Folder context menus in Obsidian Files also offer **Open in K-Plex**. Drop it into a Parent, Friend, Challenger or Child area to open the linking dialog with that relationship type. The area for a valid relationship drop lights up while you drag.
 
-Drag a sibling into a Parent, Friend, Challenger or Child area to add a direct relationship to the center. Its other relationships, including the shared parent, remain intact.
+The Siblings area shows second-order neighbors: nodes connected to any displayed direct neighbor. Nodes already shown in another area or an expanded child strip are omitted. Drag a sibling into a Parent, Friend, Challenger or Child area to add a direct relationship to the center. Its existing relationships remain intact.
+
+Pinned nodes and history entries can also be dragged into relationship areas or into other Obsidian workspace panes. Use a pin's grip to reorder it. Lists still scroll with touch, the wheel, or a mouse drag in the gaps between entries.
+
+The Command Palette offers **Add relationship**, **Add previous**, and **Add next**. They open the same composer with **All**, **Previous**, or **Next** selected. When renaming a note, an optional toggle updates its existing configured display-name property along with the filename; other aliases are preserved.
 
 You can also drag an existing direct neighbor to another relationship area to reclassify it. K-Plex updates the graph immediately while the underlying note change is written. When K-Plex needs to create a new document property for a relationship, it adds that property at the bottom of the property list.
 

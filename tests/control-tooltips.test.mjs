@@ -27,6 +27,15 @@ async function fixture(host){
  })()`);
 }
 
+test('explicit multiline toolbar hints retain line breaks and one measured tooltip',async()=>{
+ const host=await chromiumHarness(result.outputFiles[0].text);
+ try{await fixture(host);
+  const data=await host.evaluate(`(async()=>{const button=document.querySelector('#top');button.setAttribute('data-kplex-tooltip-lines','');button.setAttribute('aria-label','New canvas tab\\nControl+Click: New tab\\nAlt+Click: Sidebar');fire('#top','pointerover');await pause(720);const tooltip=document.querySelector('.kplex-control-tooltip'),r=tooltip.getBoundingClientRect();return{count:document.querySelectorAll('.kplex-control-tooltip').length,text:tooltip.firstChild.textContent,space:getComputedStyle(tooltip).whiteSpace,align:getComputedStyle(tooltip).textAlign,height:r.height,width:r.width,left:r.left,right:r.right,viewport:innerWidth}})()`);
+  assert.equal(data.count,1);assert.equal(data.space,'pre-line');assert.equal(data.align,'left');assert.equal(data.text.split('\n').length,3);
+  assert(data.height>50&&data.left>=8&&data.right<=data.viewport-8);
+ }finally{await host.cleanup()}
+});
+
 test('every hover waits even after a warm hint; top fits below and bottom flips above without overlap',/** Check elapsed boundaries and actual theme-transformed rectangles. */async()=>{
  const host=await chromiumHarness(result.outputFiles[0].text);
  try{await fixture(host);

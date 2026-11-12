@@ -124,6 +124,7 @@ export function installKplexLongPressTooltips(doc: Document): () => void {
     if (!text || !element.isConnected || !element.getClientRects().length) return;
     removeTooltip();
     tooltip = doc.body.createDiv({ cls: "tooltip kplex-control-tooltip is-measuring", attr: { role: "tooltip" }, text });
+    if (element.hasAttribute("data-kplex-tooltip-lines")) tooltip.addClass("is-multiline");
     if (!hover) tooltip.addClass("kplex-long-press-tooltip");
     const buttonRect = element.getBoundingClientRect();
     const boundary = element.closest("[data-kplex-tooltip-boundary]")?.getBoundingClientRect();

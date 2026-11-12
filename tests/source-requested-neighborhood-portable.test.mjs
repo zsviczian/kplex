@@ -104,7 +104,8 @@ test("neighborhood dormant assignment/movement, inference and hidden conflicts e
     const full = [];
     for (const config of variants) full.push(await fullNeighborhoodOracle(M, f, config, runtime()));
     const expected = full.map((value, index) => neighborhoodView(M, value, request().center, variants[index]));
-    assert(!expected[0].parents.includes("P.md")); assert(expected[1].parents.includes("P.md"));
+    const hasParent = value => value.direct.map(JSON.parse).some(row => row.id === "P.md" && row.role === "parent");
+    assert(!hasParent(expected[0])); assert(hasParent(expected[1]));
     assert.notDeepEqual(expected[1], expected[2]);
     assert(expected[1].siblings.some(sibling => sibling.id === "T.md" && sibling.witnesses.some(witness => witness.parent === "P.md")));
     assert(expected[1].parentIncidence.flatMap(parent => parent.pairs).some(pair =>
@@ -227,7 +228,7 @@ for (const scope of ["empty", "host-only"]) {
   test(`${scope} neighborhood retains a synchronous host fence after final revalidation`, async () => {
     const f = await fixture();
     try {
-      const requested = scope === "empty" ? empty() : { kind: "neighborhood", center: f.entities.get("folder:/").entity };
+      const requested = scope === "empty" ? empty() : { kind: "neighborhood", center: f.entities.get("folder:/").entity, siblingClosure: "deferred" };
       const original = f.catalog.discovery.revalidate.bind(f.catalog.discovery); let validations = 0;
       f.catalog.discovery.revalidate = async certificate => {
         const result = await original(certificate);
@@ -333,7 +334,7 @@ test("a parent's complete range proves no other child; the center range alone is
     const result = await f.makeReader().prepare(scope, policy(), runtime());
     compare(result, full, scope, settings);
     assert.equal(result.work.passes, 2); assert.deepEqual(result.certificate.parents.map(ref => ref.id), ["P.md"]);
-    assert.deepEqual(neighborhoodView(M, result.preparation.compilation, ghost, settings).siblings, []);
+    assert.deepEqual(neighborhoodView(M, result.preparation.compilation, ghost, settings).siblings.map(row => row.id), ["folder:/"], "Only the parent's folder is second-order; no other child exists");
     check();
   } finally { f.close(); }
 });
@@ -419,7 +420,8 @@ async function compareGates(result, full, scope, semantic, expected, view, fixtu
   const partial = await fullCenterIndex(M, fixture, result.preparation.compilation, semantic, view);
   try {
     // Actual full GraphIndex visibility, before top-N, independently defines this scene's cover.
-    const parents = index.neighbours(index.get(scope.center.semanticPath), "parent").map(item => item.page.path).sort();
+    const parents = [...new Set(["parent", "child", "left", "right", "previous", "next"].flatMap(role =>
+      index.neighbours(index.get(scope.center.semanticPath), role).map(item => item.page.path)))].sort();
     const certified = result.certificate.relations.parents.map(parent => {
       const node = result.preparation.compilation.node(parent.id);
       assert(node, "Every opaque certified ID binds in its own compilation");
@@ -506,7 +508,7 @@ test("no-other-child and empty existing center have proved gates; a negative rel
     const result = await reader.prepareCenterGates(scope, policy(), centerGatePolicy(view), runtime());
     await compareGates(result, full, scope, settings, expected, view, f);
     assert.equal(result.gates.bottom.visibleCount, 0); assert.equal(result.gates.bottom.hasAny, false);
-    assert.deepEqual(neighborhoodView(M, result.preparation.compilation, ghost, settings).siblings, []);
+    assert.deepEqual(neighborhoodView(M, result.preparation.compilation, ghost, settings).siblings.map(row => row.id), ["folder:/"], "Only the parent's folder is second-order; no other child exists");
     rejected(await reader.prepareCenterGates(empty(), policy(), centerGatePolicy(view), runtime()), "missing");
     check();
   } finally { f.close(); }
@@ -620,7 +622,7 @@ test("full GraphIndex demonstrates why partial candidate metadata and degrees ca
   });
   try {
     const full = await fullNeighborhoodOracle(M, f, settings, runtime());
-    const privateResult = await f.makeReader().prepare(request(), policy(), runtime());
+    const privateResult = await f.makeReader().prepare({...request(), siblingClosure: "deferred"}, policy(), runtime());
     assert.equal(privateResult.outcome, "ready");
     const partial = privateResult.preparation.compilation;
     assert(full.node("B.md").neighbours.size > partial.node("B.md").neighbours.size, "Third-party degree is outside center/parent incidence");

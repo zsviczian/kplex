@@ -122,6 +122,7 @@ function registerPluginCommands(plugin, device) {
   plugin.settings = {lastActivePath: "", actionPreferences: api.migrateActionPreferences({}).preferences};
   plugin.actionSurfaceHosts = new Map(); plugin.actionEditors = new Map(); plugin.actionDialogs = new Map(); plugin.actionInvocationSequence = 0;
   plugin.sidecarLeaves=new Map();
+  plugin.actionHostLeaf = id => id ? plugin.actionSurfaceHosts.get(id)?.leaf : undefined;
   plugin.actionWindowId = () => "main";
   plugin.index = {get: () => null};
   runInNewContext(`${result.outputText}\ninitializeActions.call(plugin);`, {
@@ -242,9 +243,9 @@ test("commands are registered once with canonical IDs and unchanged availability
     registerPluginCommands(plugin, device);
     assert.equal(new Set(commands.map((command) => command.id)).size, commands.length);
     assert(commands.every((command) => command.id.startsWith("kplex-")));
-    assert.equal(commands.length, 35, "Preserved commands, exports and the new note-type review command must publish");
+    assert.equal(commands.length, 38, "Preserved commands, exports and the new note-type review command must publish");
     plugin.actionPublisher.sync(plugin.settings.actionPreferences);
-    assert.equal(commands.length, 35, "Repeated reconciliation must not duplicate stable IDs");
+    assert.equal(commands.length, 38, "Repeated reconciliation must not duplicate stable IDs");
     assert.equal(commands.filter(command => typeof command.editorCheckCallback === "function").length, 9);
     assert(commands.every(command => command.hotkeys === undefined), "Local defaults must not become global host hotkeys");
     const byId = (id) => {

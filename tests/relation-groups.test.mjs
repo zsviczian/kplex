@@ -146,6 +146,6 @@ test('real layout and React show class styling, external counts, independent doc
       const output={text:el.querySelector('.kplex-thought-text').textContent,count:count.textContent,outside:badge.bottom>rect.bottom&&badge.right>rect.right,color:getComputedStyle(el).backgroundColor,icon:group.style.icon,categoryStyles,pathRoundTrip:el.dataset.kplexPath===group.page.path,gates:el.querySelectorAll('[data-kplex-gate]').length,aria:el.getAttribute('aria-label'),other:frame.contentDocument.querySelector('.kplex-group-count').textContent,activations,siblingEdges:scene.edges.filter(edge=>edge.id.startsWith('sibling-parent:')).length,unfolded:U.buildScene(input,index,{...settings,graphDepth:1},false,undefined,true).nodes.filter(node=>node.role==='child').length};
       U.flushSync(()=>{root.unmount();other.unmount()});rootEl.remove();frame.remove();css.remove();return output;
     })()`);
-    assert.deepEqual(result,{text:'Book',count:'2',outside:true,color:'rgb(18, 52, 86)',icon:'book',categoryStyles:true,pathRoundTrip:true,gates:0,aria:'Book (2)',other:'2',activations:1,siblingEdges:1,unfolded:2});
+    assert.deepEqual(result,{text:'Book',count:'2',outside:true,color:'rgb(18, 52, 86)',icon:'book',categoryStyles:true,pathRoundTrip:true,gates:0,aria:'Book (2)',other:'2',activations:1,siblingEdges:2,unfolded:2});
   } finally {await host.cleanup()}
 });

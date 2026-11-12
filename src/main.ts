@@ -2842,7 +2842,10 @@ export default class KplexPlugin extends Plugin {
       async () => { await run(); return { status: "completed" }; };
     operation("surface.open-tab", completed(() => this.activateView()),
       /** Preserve device-specific command visibility. */ () => isGraphTabCommandAvailable(readObsidianPresentationEnvironment(window.activeWindow ?? window)) ? enabled : { state: "disabled", reasonKey: "actions.deviceUnavailable" });
-    operation("surface.new-tab", completed(() => this.createPlexTab()),
+    operation("surface.new-tab", async context => {
+      await this.createPlexTab(context.request.id === "surface.new-tab" ? context.request.args?.placement : undefined, this.actionHostLeaf(context.surfaceId));
+      return {status: "completed"};
+    },
       /** Additional tabs share the existing desktop/tablet surface policy. */ () => isGraphTabCommandAvailable(readObsidianPresentationEnvironment(window.activeWindow ?? window)) ? enabled : { state: "disabled", reasonKey: "actions.deviceUnavailable" });
     operation("surface.open-popout", completed(() => this.activateViewInPopout()),
       /** Phone/tablet surfaces do not publish an available desktop popout operation. */ () => isPopoutCommandAvailable(readObsidianPresentationEnvironment(window.activeWindow ?? window)) ? enabled : { state: "disabled", reasonKey: "actions.deviceUnavailable" });
@@ -2880,13 +2883,14 @@ export default class KplexPlugin extends Plugin {
       const host = this.actionHostLeaf(context.surfaceId);
       await this.focusInKplex(file.path, host); return { status: "completed" };
     }, /** Read the public active-file fact without transferring focus. */ () => this.app.workspace.getActiveFile() ? enabled : { state: "disabled", reasonKey: "actions.target-unavailable" });
-    for (const role of ACTION_RELATION_ROLES) for (const family of ["center", "selected"] as const) {
-      operation(`relationship.create-${family}.${role}`, /** Freeze resolved origin and transfer exclusivity to the existing composer. */ context => {
+    for (const [family, role] of [["center", "all"] as const, ...ACTION_RELATION_ROLES.flatMap(role => (["center", "selected"] as const).map(family => [family, role] as const))]) {
+      operation(role === "all" ? "relationship.create-center.all" : `relationship.create-${family}.${role}`, /** Freeze resolved origin and transfer exclusivity to the existing composer. */ context => {
         const origin = pageFor(context);
         if (!origin) return { status: "unavailable", reasonKey: "actions.target-unavailable" };
         const sessionId = `composer-${++this.actionInvocationSequence}`;
         const hostLeaf = this.actionHostLeaf(context.surfaceId);
         const invocation: RelatedNoteInvocation = {
+          initialRoleFilter: role === "all" ? "all" : undefined,
           continuation: context.request.args && "continuation" in context.request.args ? context.request.args.continuation : undefined,
           /** Closing/migrating a graph retires late navigation without changing committed disk work. */
           current: () => !this.unloading && (!context.surfaceId || context.generation === undefined
@@ -2898,7 +2902,7 @@ export default class KplexPlugin extends Plugin {
         };
         const dialog = origin.isFolder
           ? new CreateFolderNoteModal(this, origin, hostLeaf, invocation)
-          : new NewRelatedNoteModal(this, origin, role, undefined, hostLeaf, undefined, invocation);
+          : new NewRelatedNoteModal(this, origin, role === "all" ? "child" : role, undefined, hostLeaf, undefined, invocation);
         this.actionDialogs.set(dialog, { surfaceId: context.surfaceId, generation: context.generation });
         try { dialog.open(); } catch (error) { dialog.close(); this.actionDialogs.delete(dialog); throw error; }
         return { status: "opened", sessionId };
@@ -5178,8 +5182,9 @@ export default class KplexPlugin extends Plugin {
     if (this.unloading || !this.leafIsAttached(hostLeaf)) return;
     const managed = this.validateSidecarLeaf(hostLeaf);
     const leaf = destination ?? managed;
+    const settling = managed === leaf && this.sidecarMovingHosts.has(hostLeaf);
     if (!leaf || !this.leafIsAttached(leaf) || managed === leaf && !this.adjacentPosition(hostLeaf, leaf)
-      || this.isManagedSidecarLeaf(leaf) && managed !== leaf) return;
+      && !settling || this.isManagedSidecarLeaf(leaf) && managed !== leaf) return;
     const hostView = hostLeaf.view, revision = session.revision;
     const file = page.file;
     const filePath = file?.path;
@@ -5213,6 +5218,9 @@ export default class KplexPlugin extends Plugin {
       && (!file || (file.path === filePath && this.app.vault.getFileByPath(filePath ?? "") === file));
     try {
       if (previous?.leaf === leaf && previous.pending) await previous.nativeCompletion;
+      // A popout's newly split empty view can still belong to the main document. Publish the
+      // request first so newer navigation can retire it, then require settled adjacency below.
+      if (settling && !this.adjacentPosition(hostLeaf, leaf)) await this.waitForWorkspaceLayout(hostLeaf);
       if (!stillCurrent()) return;
       // A -> B -> A can return to the opening file after retiring A's original mode work.
       // Finish that owned initial representation without reopening; unrelated same-file
@@ -5407,10 +5415,12 @@ export default class KplexPlugin extends Plugin {
     return file ? this.index.insertCreatedFile(file) : null;
   }
 
-  /** Create an adjacent Plex tab group, without reusing an existing tab or startup surface preference. */
-  async createPlexTab(): Promise<void> {
+  /** Create an additional Plex tab at the captured host; commands retain the adjacent-group default. */
+  async createPlexTab(placement: "split" | "tab" = "split", hostLeaf?: WorkspaceLeaf): Promise<void> {
     this.rememberDocumentLeaf(this.app.workspace.getMostRecentLeaf());
-    const leaf = this.app.workspace.getLeaf("split");
+    const leaf = placement === "tab" ? this.createTabInPlexGroup(hostLeaf)
+      : hostLeaf && hostLeaf.view.getViewType() !== KPLEX_SIDEPANEL_VIEW_TYPE
+        ? this.app.workspace.createLeafBySplit(hostLeaf, "vertical", false) : this.app.workspace.getLeaf("split");
     await leaf.setViewState({ type: KPLEX_VIEW_TYPE, active: true });
     await this.app.workspace.revealLeaf(leaf);
   }
@@ -8166,8 +8176,8 @@ export default class KplexPlugin extends Plugin {
       }};
   }
 
-  /** Open a new native tab in the invoking Plex group, or the most recent main group for a sidebar. */
-  private async openCreatedNoteInTab(file: TFile, hostLeaf?: WorkspaceLeaf): Promise<void> {
+  /** Canvas and created-note tabs share the invoking group, or the most recent main group for a sidebar. */
+  private createTabInPlexGroup(hostLeaf?: WorkspaceLeaf): WorkspaceLeaf {
     const workspace = this.app.workspace;
     const anchor = hostLeaf && hostLeaf.view.getViewType() !== KPLEX_SIDEPANEL_VIEW_TYPE
       ? hostLeaf : workspace.getMostRecentLeaf(workspace.rootSplit);
@@ -8177,6 +8187,12 @@ export default class KplexPlugin extends Plugin {
       workspace.iterateAllLeaves(/** Count native siblings without inspecting or activating their views. */ candidate => {if (candidate.parent === anchor.parent) count++;});
       leaf = workspace.createLeafInParent(anchor.parent, count);
     } else leaf = workspace.getLeaf("tab");
+    return leaf;
+  }
+
+  /** Open a new native tab in the invoking Plex group, or the most recent main group for a sidebar. */
+  private async openCreatedNoteInTab(file: TFile, hostLeaf?: WorkspaceLeaf): Promise<void> {
+    const workspace = this.app.workspace, leaf = this.createTabInPlexGroup(hostLeaf);
     this.lastDocumentLeaf = leaf;
     await leaf.openFile(file, {active: true});
     await this.finishDailyNoteOpening(leaf, file);

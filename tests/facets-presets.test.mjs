@@ -295,9 +295,9 @@ test('one explicit source uses bounded cached fields and distinguishes checking,
 });
 
 /** Direct admitted canonical facts with no acquisition, body, write, or corpus capability. */
-function scene(presetId='wuxing',count=8){
+function scene(presetId='wuxing',count=8,presetOverride){
  // These existing geometry/status assertions characterize the retained separate-area mode.
- const preset={...({...archivedFacetPresets,...M.FACET_TEMPLATES})[presetId],diagnostics:{combined:false}},nodes=new Map(Array.from({length:count+1},(_,i)=>['N'+i,{...node,id:'N'+i}]));
+ const preset={...(presetOverride??({...archivedFacetPresets,...M.FACET_TEMPLATES})[presetId]),diagnostics:{combined:false}},nodes=new Map(Array.from({length:count+1},(_,i)=>['N'+i,{...node,id:'N'+i}]));
  const work={fields:[],relations:0};const read={coverage:'cached',isCurrent:()=>true,node:id=>nodes.get(id)??null,compare:(a,b)=>a.id.localeCompare(b.id),
   relations:(id,role)=>{work.relations++;return{items:id==='N0'&&role==='child'?[...nodes.values()].slice(1).map(node=>({node,role,relationType:1,direction:1})):[],coverage:'cached',truncated:false}},
   properties:{read:(id,field)=>{work.fields.push([id,field]);return{status:'available',value:id==='N0'?preset.categories[preset.order[0]].values[0]:preset.categories[preset.order[Number(id.slice(1))%preset.order.length]].values[0]}},availability:()=> 'available'},
@@ -308,6 +308,23 @@ function scene(presetId='wuxing',count=8){
   expandedWidth:600,expandedReserve:0,mini:null,envelope:null,...(row.id===projection.entry?{badge:{width:120,height:24}}:{})}));
  return{preset,projection,measured,work,layout:(heights={})=>M.layoutFacets(projection,measured,presetId,preset,heights)};
 }
+
+test('twelve categories survive configuration admission and render in each compatible layout',()=>{
+ const order=Array.from({length:12},(_,i)=>'category'+i);
+ const preset={...M.FACET_TEMPLATES.wuxing,name:'Twelve',interpretation:undefined,flows:undefined,order,start:order[0],
+  categories:Object.fromEntries(order.map(id=>[id,{label:id,values:[id],color:'#cccccc'}])),
+  areaSizes:{categories:Object.fromEntries(order.map(id=>[id,{width:300,height:240}]))}};
+ delete preset.interpretation;delete preset.flows;
+ assert.equal(M.isFacetPreset(preset),true);
+ for(const layout of ['circular','horizontal','vertical','concentric']){
+  const f=scene('twelve',12,{...preset,layout}),result=f.layout();
+  assert.equal(f.projection.occurrences.length,13);assert.equal(result.areas.filter(a=>order.some(id=>a.id===M.facetAreaId('twelve','category',id))).length,12);
+  const regions=result.decorations.filter(mark=>mark.kind==='region');assert.equal(regions.length,14);
+  assert.deepEqual([...f.layout().positions],[...result.positions]);
+ }
+ const invalid={...preset,order:[...order,'thirteenth'],categories:{...preset.categories,thirteenth:{label:'More',values:['more'],color:'#cccccc'}}};
+ assert.equal(M.isFacetPreset(invalid),false,'The thirteenth category is rejected, never silently truncated');
+});
 
 test('Facets centers attention once, classifies unique direct neighbors once and retains canonical connectors',()=>{
  const f=scene('wuxing',12),p=f.projection;assert.equal(p.occurrences.filter(row=>row.nodeId==='N0').length,1);

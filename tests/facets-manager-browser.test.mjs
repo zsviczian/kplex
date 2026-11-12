@@ -181,8 +181,8 @@ test('manager preset reordering retains unknown order intent and persists throug
 test('create and duplicate preserve stable originals, category count bounds and explicit cancellation',async()=>{
  assert.equal(await scenario(`
  const m=manager();button(m,t('facets.create')).click();let e=last();
- for(let i=0;i<4;i++)button(e,t('facets.addCategory')).click();check(e.contentEl.querySelectorAll('h3').length===7,'Seven categories admitted');
- check(button(e,t('facets.addCategory')).disabled,'Eighth category unavailable');close(e);equal(p.writes,[],'Cancel discards new identity and category draft');
+ for(let i=0;i<12;i++)button(e,t('facets.addCategory')).click();check(e.contentEl.querySelectorAll('h3').length===12,'Twelve categories admitted');
+ check(button(e,t('facets.addCategory')).disabled,'Thirteenth category unavailable');close(e);equal(p.writes,[],'Cancel discards new identity and category draft');
  e=edit(m,'PARA');button(e,t('facets.duplicate')).click();const duplicate=last();input(fields(duplicate,t('facets.name'))[0],'Project state');await save(duplicate);
  const entries=disk.canvasViewSettings.wuxing.values.presets,ids=Object.keys(entries).filter(id=>id.startsWith('preset-'));check(Object.keys(entries).length===3&&ids.length===1,'Duplicate gets one independent stable ID');
  equal(entries[ids[0]].order,ARCHIVE.para.order,'Duplicate retains category IDs within independent preset');

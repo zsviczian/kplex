@@ -6,7 +6,7 @@ import ts from 'typescript';
 import {build} from 'esbuild';
 import {chromiumHarness} from './support/browserTypeScript.mjs';
 const source=ts.createSourceFile('src/ui/App.tsx',readFileSync('src/ui/App.tsx','utf8'),ts.ScriptTarget.Latest,true,ts.ScriptKind.TSX);
-let publicationEffect, historyBar, startupWaiting, startupPage, loadingSurface;
+let publicationEffect, historyBar, startupWaiting, startupPage, loadingSurface, beginSavedDrag, endSavedDrag;
 function visit(node){if(ts.isCallExpression(node)&&node.expression.getText(source)==='useEffect'&&node.arguments[0]?.getFullText(source).includes('Publications settle a pending native identity'))publicationEffect=node.arguments[0].getText(source);ts.forEachChild(node,visit)}
 visit(source);assert(publicationEffect,'Actual App publication owner exists');
 /** Exercise the real saved-row rendering and startup page selection rather than a parallel UI. */
@@ -15,12 +15,14 @@ function findStartup(node){
  if(ts.isVariableDeclaration(node)&&node.initializer){
   const name=node.name.getText(source);
   if(name==='historyBar')historyBar=node.initializer.getText(source);
+  if(name==='beginSavedNodeDrag')beginSavedDrag=node.initializer.getText(source);
+  if(name==='endSavedNodeDrag')endSavedDrag=node.initializer.getText(source);
   if(name==='waitingForStartupCenter')startupWaiting=node.initializer.getText(source);
   if(name==='page'&&node.initializer.getText(source).includes('fallbackPath'))startupPage=node.initializer.getText(source);
  }
  ts.forEachChild(node,findStartup);
 }
-findStartup(source);assert(historyBar&&startupWaiting&&startupPage&&loadingSurface);
+findStartup(source);assert(historyBar&&startupWaiting&&startupPage&&loadingSurface&&beginSavedDrag&&endSavedDrag);
 const plexSource=ts.createSourceFile('src/ui/PlexGraph.tsx',readFileSync('src/ui/PlexGraph.tsx','utf8'),ts.ScriptTarget.Latest,true,ts.ScriptKind.TSX);
 let recoveryEffect;
 /** Extract the production view lifetime rather than recreating its attempted/completed flags. */
@@ -34,6 +36,7 @@ export {deletedFileNavigationTarget};
 import {classicViewDefinition as classic} from './src/core/plex/views/classic/definition';
 import React,{useState,useEffect,useLayoutEffect,useRef} from 'react';import {createRoot} from 'react-dom/client';import {flushSync} from 'react-dom';
 import {HorizontalDragScroll} from './src/ui/components/HorizontalDragScroll';
+import {canDragNodeLink,startNodeLinkDrag,finishNodeLinkDrag} from './src/adapters/obsidian/nodeLinkDrag';
 /** Saved rows precede native tree availability; later publication upgrades the same exact slots. */
 export async function startupHistory(){
  const paths=Array.from({length:14},(_,i)=>'Notes/Note-'+i+'.md'),pages=new Map(),clicks=[];
@@ -41,6 +44,7 @@ export async function startupHistory(){
  const activePath=paths.at(-1),paintSettings={},translate=key=>key,actions={dispatch:request=>clicks.push(request.target.node.identity)};
  const actionNodeRef=page=>({identity:page.path}),nodeListPresentation=(page,title)=>({label:title,icon:'file-text'}),ObsidianIcon=()=>null;
  const rootRef={current:null},canvasNameId='test-canvas',indexStatus={},indexStatusRef={current:null},indexStatusInfoOpen=false,indexStatusMessage=null;
+ const savedNodeDrag={current:null},endSavedNodeDrag=${endSavedDrag},beginSavedNodeDrag=${beginSavedDrag};
  const IndexStatusIndicator=()=>null,InfoBubble=()=>null,displayState={zen:false},supportButton=null;
  const handlePlexDragOver=()=>{},handlePlexDrop=()=>{},showIndexStatusOnHover=()=>{},hideIndexStatusAfterHover=()=>{},openVaultStats=()=>{},dismissIndexStatusInfo=()=>{};
  const element=document.body.appendChild(document.createElement('div')),root=createRoot(element);

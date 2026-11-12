@@ -1,7 +1,7 @@
 /** Built-in Classic topology/geometry policy. Legacy host adapters bind styles and synthetic sections separately. */
 import type {Role} from "../../../graph/relations";
 import type {PlexViewDefinition, PlexOccurrence, PlexViewEdge, PlexArea} from "../contracts";
-import {projectClassicNeighborhood} from "./projection";
+import {CLASSIC_NEIGHBOR_ROLES, projectClassicNeighborhood} from "./projection";
 import {layoutClassic, siblingScale, type ClassicGeometryPreferences} from "./geometry";
 import {classicConfigurationSchema, classicFlipped} from "./configuration";
 
@@ -69,14 +69,15 @@ export const classicViewDefinition: PlexViewDefinition = {
         sourceNode: center.id, targetNode: row.page.id, sourcePort: ports.source, targetPort: ports.target, relation: row.value});
     });
     add(n.parents, "parent"); add(n.children, "child"); add(n.leftFriends, "left"); add(n.rightFriends, "right"); add(n.siblings, "sibling");
-    for (const parent of occurrences.filter(row => row.role === "parent")) {
+    for (const parent of occurrences.filter(row => row.role && row.role !== "sibling")) {
       if (!parent.nodeId) continue;
       const parentNode = input.read.node(parent.nodeId); if (!parentNode) continue;
-      const children = relation(parentNode, "child");
+      const children = CLASSIC_NEIGHBOR_ROLES.flatMap(role => relation(parentNode, role));
       for (const sibling of occurrences.filter(row => row.role === "sibling")) {
         const witness = children.find(row => row.page.id === sibling.nodeId);
-        if (witness) edges.push({id: JSON.stringify([parent.id, sibling.id]), kind: "semantic", source: parent.id, target: sibling.id,
-          sourceNode: parent.nodeId, targetNode: witness.page.id, sourcePort: "bottom", targetPort: "top", relation: witness.value});
+        const ports = witness ? classicPorts(witness.role, flipped) : null;
+        if (witness && ports) edges.push({id: JSON.stringify([parent.id, sibling.id]), kind: "semantic", source: parent.id, target: sibling.id,
+          sourceNode: parent.nodeId, targetNode: witness.page.id, sourcePort: ports.source, targetPort: ports.target, relation: witness.value});
       }
     }
     return {attention: center.id, layoutRoot: center.id, entry: "attention", editor: "attention", frame: "attention",

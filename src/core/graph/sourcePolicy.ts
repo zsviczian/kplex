@@ -25,6 +25,7 @@ export type ReferencePolicy = Readonly<{
     rightFriends: readonly string[];
     previous: readonly string[];
     next: readonly string[];
+    exclusions?: readonly string[];
   }>;
   thumbnailProperty?: string;
   nodeImageProperty?: string;
@@ -62,9 +63,11 @@ export type SelectedSourceRecord = Exclude<NormalizedSourceRecord,
 export class ReferencePolicySelector {
   private readonly assignmentsByField = new Map<string, ReferenceAssignment[]>();
   private readonly images = new Set<string>();
+  private readonly excludedDates: ReadonlySet<string>;
 
   /** Copy finite settings inputs; later in-place caller mutations cannot alter an open source read. */
   constructor(policy: ReferencePolicy) {
+    this.excludedDates = new Set((policy.hierarchy.exclusions ?? []).map(normalizeFieldName));
     const groups: ReadonlyArray<readonly [readonly string[], EvidenceRole]> = [
       [policy.hierarchy.hidden, "hidden"], [policy.hierarchy.parents, "parent"],
       [policy.hierarchy.children, "child"], [policy.hierarchy.leftFriends, "left"],
@@ -109,6 +112,13 @@ export class ReferencePolicySelector {
   assignmentsForField(fieldName: string): readonly ReferenceAssignment[] {
     return this.assignmentsByField.get(normalizeFieldName(fieldName)) ?? [];
   }
+
+  /** Metadata-only fields opt out of fallback Daily Notes inference. A conflicting raw legacy
+   * exclusion cannot override an explicit ontology assignment retained by the canonical owner. */
+  excludesDate(fieldName: string): boolean {
+    const normalized = normalizeFieldName(fieldName);
+    return this.excludedDates.has(normalized) && !this.assignmentsByField.has(normalized);
+  }
 }
 
 type ActiveValue = {
@@ -143,6 +153,8 @@ export class ReferenceSourcePolicyRead {
 
   /** Validate source/value/chunk order, then select before exposing a target to any graph consumer. */
   accept(record: NormalizedSourceRecord): SourceSelectionResult {
+    // Drop before either full compilation or patch seeding can materialize a daily placeholder.
+    if (record.kind === "date-property" && this.selector.excludesDate(record.provenance?.fieldName ?? "")) return {accepted: true};
     if (record.kind === "reference-value") {
       if (!this.canComplete() || !record.normalizedFieldName || !Number.isSafeInteger(record.ordinal) || record.ordinal < 0) return { accepted: false };
       this.active = { value: record, selection: this.selector.select(record), chunks: [],

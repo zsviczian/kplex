@@ -2,6 +2,7 @@ import {classicEditorKey, measureClassicEditor, bindClassicEditor, type ClassicE
 import { classicAreaForRole as scrollZoneForRole, horizontalDensity, spacingPolicy, layoutColumns, siblingScale, lateralAreaGap} from "../../../core/plex/views/classic/geometry";
 export {scrollZoneForRole, horizontalDensity, spacingPolicy, layoutColumns, siblingScale, lateralAreaGap};
 import {classicViewDefinition} from "../../../core/plex/views/classic/definition";
+import {excludeClassicSiblingOccurrences} from "../../../core/plex/views/classic/projection";
 import {classicPorts, classicNodePorts} from "../../../core/plex/views/classic/definition";
 import {mirrorClassicCoordinates} from "../../../core/plex/views/classic/geometry";
 import {nodeId} from "../../../core/graph/model";
@@ -31,7 +32,10 @@ import type { GraphIndex } from "../../../index/GraphIndex";
 import { appearanceWithoutColors } from "../../../core/contracts/appearance";
 
 /** The Classic host adapter receives only cached presentation/incidence reads, never a mutable index or plugin. */
-export type ClassicSceneRead = Pick<GraphIndex, "titleFor" | "neighbours" | "neighbourCount" | "gateStats" | "visibleRelationshipsWithin"> & NodeDetailsRead;
+export type ClassicSceneRead = Pick<GraphIndex, "titleFor" | "neighbours" | "neighbourCount" | "gateStats" | "visibleRelationshipsWithin"> & NodeDetailsRead & {
+  /** The mounted renderer may narrow duplicate suppression to its actual visible descendant strips. */
+  expandedChildren?: (row: Neighbour, displayedRole: Role, center: GraphPage) => readonly Neighbour[];
+};
 /** The orientation is an effective view configuration, never a second persisted global setting. */
 type ClassicSceneSettings = KplexSettings & Readonly<{flipEastWest?: boolean}>;
 /** Bound a geometry input to its supported presentation interval. */
@@ -219,7 +223,19 @@ export function buildScene(
   deferCounts = false,
   editor?: ClassicEditorLayout,
   bindEditor = true,
+  expandedStrips = true,
 ): PlexScene {
+  if (settings.graphDepth === 2 && expandedStrips) {
+    const occupied = new Set<string>();
+    for (const [rows, role] of [[neighborhood.parents, "parent"], [neighborhood.children, "child"],
+      [neighborhood.leftFriends, "left"], [neighborhood.rightFriends, "right"]] as const) for (const row of rows) {
+      if (row.page.transient?.kind === "group" || editor && row.page.file === editor.page.file && classicEditorKey({page: row.page, role}, neighborhood.center.path) === editor.binding.occurrenceId) continue;
+      const children = index.expandedChildren?.(row, role, neighborhood.center)
+        ?? index.neighbours(row.page, "child").filter(child => child.page.path !== neighborhood.center.path).slice(0, settings.maxItemCount);
+      for (const child of children) occupied.add(child.page.path);
+    }
+    neighborhood = excludeClassicSiblingOccurrences(neighborhood, page => page.path, occupied);
+  }
   const centerStyle = resolveNodeStyle(neighborhood.center, null, "center", settings);
   const centerLabel = index.titleFor(neighborhood.center);
   const propertyLines = index.detailsFor?.(neighborhood.center);
@@ -289,9 +305,8 @@ export function buildScene(
   from(neighborhood.leftFriends, "left");
   from(neighborhood.rightFriends, "right");
 
-  // Siblings exist only because they share one or more currently visible parents with the center.
-  // Those structural parent→sibling links are part of the sibling presentation itself and must
-  // remain visible even when optional cross-links are disabled.
+  // Second-order nodes retain their real witness links from every displayed direct neighbor,
+  // including when optional cross-links are disabled.
   appendSiblingParentLinks(nodes, edges, index, settings, neighborhood.center.path);
   if (showCrossLinks) appendVisibleCrossLinks(nodes, edges, index, settings, neighborhood.center.path);
 
@@ -311,6 +326,7 @@ function orientClassicScene(scene: PlexScene, flipped: boolean): PlexScene {
   return scene;
 }
 
+/** Connect peripheral second-order nodes through their actual displayed witness and role. */
 function appendSiblingParentLinks(
   nodes: PositionedNode[],
   edges: PositionedEdge[],
@@ -327,10 +343,9 @@ function appendSiblingParentLinks(
   if (!siblingPaths.size) return;
   const seen = new Set<string>();
   for (const parent of nodes) {
-    if (parent.role !== "parent" || parent.page.path === centerPath || parent.page.transient && parent.page.transient.kind !== "group") continue;
+    if (parent.role === "center" || parent.role === "sibling" || parent.page.path === centerPath || parent.page.transient && parent.page.transient.kind !== "group") continue;
     const sources = parent.page.transient?.groupMembers?.map(member => member.page) ?? [parent.page];
     for (const source of sources) for (const relation of index.visibleRelationshipsWithin(source, siblingPaths)) {
-      if (relation.role !== "child") continue;
       const targetPath = siblings.get(relation.page.path)!;
       const id = JSON.stringify([parent.page.path, targetPath]);
       if (seen.has(id)) continue;
@@ -341,7 +356,7 @@ function appendSiblingParentLinks(
         targetPath,
         ...(parent.page.transient?.kind === "group" || targetPath !== relation.page.path
           ? { explanationSourcePath: source.path, explanationTargetPath: relation.page.path } : {}),
-        role: "child",
+        role: relation.role,
         relationType: relation.relationType,
         typeDefinition: relation.typeDefinition,
         direction: relation.linkDirection,
@@ -452,7 +467,8 @@ export function buildSectionExpandedScene(
   // Add cross-links after section/runtime relationship nodes are appended, so the visibility rule
   // is truly based on the final scene rather than only on the unexpanded center neighbourhood.
   const unflipped = Object.assign(Object.create(settings) as ClassicSceneSettings, {flipEastWest: false});
-  const scene = buildScene(baseNeighborhood, index, unflipped, false, centerSizeOverride, deferCounts, editor, false);
+  // Section outlines replace miniature descendant strips, so they cannot suppress sibling rows.
+  const scene = buildScene(baseNeighborhood, index, unflipped, false, centerSizeOverride, deferCounts, editor, false, false);
   const byId = new Map(expansion.sections.map((section) => [section.id, section] as const));
   const roots = expansion.sections.filter((section) => !section.parentId);
   const visible: Array<{ section: import("../../../index/SectionExpansion").ExpandedSection; depth: number }> = [];

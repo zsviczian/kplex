@@ -2409,7 +2409,7 @@ test('folder candidate pools preserve eligible siblings beyond occupied direct z
   delete index.sourceAcquisition.enableInventory;index.plugin.startupDiagnostics.processed=()=>{};
   ok(await index.rebuild(),'Warm complete graph');index.acknowledgeHostPresentation();
   releases.push(index.acquireSemanticDemand('Notes/N00.md'));
-  const before=index.getNeighborhood('Notes/N00.md').siblings.map(row=>row.page.path);equal(before,['Notes/N10.md','Notes/N11.md'],'Canonical siblings exclude the center and its already occupied direct children');
+  const before=index.getNeighborhood('Notes/N00.md').siblings.map(row=>row.page.path);equal(before,['folder:/','Notes/N10.md','Notes/N11.md'],'Second-order siblings include the parent folder while excluding the center and occupied direct children');
   releases.push(index.acquireSemanticDemand('folder:Notes'));await index.publishHostMetadataPreview('folder:Notes');
   const after=index.getNeighborhood('Notes/N00.md').siblings.map(row=>row.page.path);
   equal(after,before,'Opening a capped folder center must not change an unrelated note sibling projection');return true;
@@ -2437,7 +2437,7 @@ test('native sibling candidate overscan preserves the full eligible display afte
   releases.pop()();settings.renderSiblings=true;await index.refreshPresentationSettings();
   ok(index.hostPreviewScopes.get('folder:Notes')===pool,'Another live folder surface retains the same prepared candidate pool');
   releases.push(index.acquireSemanticDemand('Notes/N000.md'));
-  equal(index.getNeighborhood('Notes/N000.md').siblings.map(row=>row.page.path),folder.children.slice(40,50).map(file=>file.path),'The four occupied zones cannot consume the eligible sibling display');
+  equal(index.getNeighborhood('Notes/N000.md').siblings.map(row=>row.page.path),['folder:/',...folder.children.slice(40,49).map(file=>file.path)],'The parent folder and eligible note siblings fill the bounded display beyond the four occupied zones');
   return true;
  }finally{releases.reverse().forEach(release=>release());o.close();}
 })()`));

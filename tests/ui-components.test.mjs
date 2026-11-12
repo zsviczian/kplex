@@ -1378,7 +1378,8 @@ const classicFixturePolicy=(layout=classicLayout.buildScene)=>({policyKey:classi
 const classic=classicFixturePolicy();
 
 import {canDragNodeLink,startNodeLinkDrag,finishNodeLinkDrag} from ${JSON.stringify(join(root,"src/adapters/obsidian/nodeLinkDrag.ts"))};
-import React, { useId, useMemo } from "react";
+import React, { useId, useMemo, useCallback } from "react";
+import {classicExpandedChildren} from ${JSON.stringify(join(root,'src/core/plex/views/classic/projection.ts'))};
 import { flushSync } from "react-dom";
 import { createRoot } from "react-dom/client";
 import { alphaHexToCss, resolveNodeStyle, currentNodeColorStyle, nodePaint, nodePaintFallbacks } from ${JSON.stringify(join(root, "src/index/style.ts"))};
@@ -1442,7 +1443,7 @@ function Scene({ scene: sourceScene, expanded }) {
   const sectionExpansion = null, expandedScrollTop = useMemo(() => ({}), []);
   const visibleNodePaths = useMemo(() => new Set(scene.nodes.map((item) => item.page.path)), [scene.nodes]);
   const renderedNodeMap = useMemo(() => new Map(scene.nodes.map((item) => [item.page.path, { ...item }])), [scene.nodes]);
-  ${uiDefinitions("src/ui/PlexGraph.tsx", ["areaForNode", "isEditorOccurrence", "navigationNode", "isDraggedNode", "paintedNodeStyles", "classicEditorCounts", "sceneNodeKeys", "expandedClusters", "nativeDragRelationship", "beginNativeNodeDrag", "endNativeNodeDrag", "renderNode", "renderExpandedCluster"])}
+  ${uiDefinitions("src/ui/PlexGraph.tsx", ["expandedChildRelations", "areaForNode", "isEditorOccurrence", "navigationNode", "isDraggedNode", "paintedNodeStyles", "classicEditorCounts", "sceneNodeKeys", "expandedClusters", "nativeDragRelationship", "beginNativeNodeDrag", "endNativeNodeDrag", "renderNode", "renderExpandedCluster"])}
   const miniKeys = expandedClusters.flatMap((cluster) => cluster.children.map((child) => child.key));
   check(new Set(miniKeys).size === miniKeys.length, "expanded connector keys collide during rename");
   return <><div className="kplex-nodes">{scene.nodes.map((item) => renderNode(item, { ...item }))}</div><div>{expandedClusters.map(renderExpandedCluster)}</div></>;
@@ -2523,7 +2524,8 @@ const classicFixturePolicy=(layout=classicLayout.buildScene)=>({policyKey:classi
   layout,sections:classicLayout.buildSectionExpandedScene,bind:classicLayout.bindSceneNeighborhood,dropRole:classicAreaDropRole});
 const classic=classicFixturePolicy();
 
-import React, {useMemo,useEffect,useState} from 'react';
+import React, {useMemo,useEffect,useState,useCallback} from 'react';
+import {classicExpandedChildren} from ${JSON.stringify(join(root,'src/core/plex/views/classic/projection.ts'))};
 import {flushSync} from 'react-dom';import {createRoot} from 'react-dom/client';
 import {buildScene as realBuildScene,sceneLayoutPolicyKey,neighborhoodSceneKey,bindSceneNeighborhood} from ${JSON.stringify(join(root,'src/ui/layout.ts'))};
 import {currentNodeColorStyle,nodePaint,nodePaintFallbacks} from ${JSON.stringify(join(root,'src/index/style.ts'))};
@@ -2535,6 +2537,7 @@ const index={titleFor:p=>p.name,neighbourCount:()=>0,gateStats:()=>({}),neighbou
 let layoutNeighborhood={center:page('Center.md'),parents:[],children:[{page:page('Child.md'),role:'child',relationType:1}],leftFriends:[],rightFriends:[],siblings:[]};
 let semanticRevision=0;
 const layoutSectionExpansion=null,expandedSectionIds=new Set(),layoutRevision=0,showCrossLinks=false,globalFiltering=false,centralEditorSize=undefined,boundEditorBinding=undefined,boundEditorPage=null;
+const predicate=null,predicateEngine={},lenses={lenses:[]},predicateRevision=0;
 const profileSurface='tab',compiledGraphLenses={lenses:[],errors:[],usesFrontmatter:false},centerMode={embedCentralNode:false,centralNodeMarkdownMode:'source'};
 const plugin={settings:{baseNodeStyle:{fontSize:18,textColor:'#abcdef'},centralNodeStyle:{fontSize:30},baseLinkStyle:{},noteTypeStyles:{},tagNodeStyles:{},tagStyleList:[],hierarchyLinkStyles:{},graphLenses:[],
  compactingFactor:2,horizontalCompactingFactor:2,graphDepth:1,baseFontSize:12.4,compactView:false,maxItemCount:100,parentColumns:2,childColumns:5,parentMaxHeight:300,childMaxHeight:400,friendMaxHeight:350,siblingMaxHeight:250,siblingRelativeSize:50,minLinkLength:18,wrapNodeLabels:false},getViewSettings(){return {...this.settings}}};
@@ -2543,7 +2546,7 @@ function NativeEditor(){useEffect(()=>{counters.mounts++},[]);return <input defa
 function Scene({settings,paintSettings}){
  const activePath='Center.md';const preparedDefinitionScene=null,classic=useMemo(()=>classicFixturePolicy(buildScene),[]);
  const readNodeProperties=useMemo(()=>nodePropertyReader({},{}),[]),nodePropertyRevision=0;
- ${uiDefinitions('src/ui/PlexGraph.tsx',['classicRead','scenePolicyKey','sceneGeometryKey','sceneGeometry','scene'])}
+ ${uiDefinitions('src/ui/PlexGraph.tsx',['classicRead','expandedChildRelations','classicLayoutRead','scenePolicyKey','sceneGeometryKey','sceneGeometry','scene'])}
  window.lastColorScene=scene;
  const visualPages=useMemo(()=>scene.nodes.map(node=>node.page),[scene.nodes]);useEffect(()=>{counters.images++},[visualPages]);
  return <div className='camera' style={{transform:'translate(17px, 23px) scale(1.25)'}}>{scene.nodes.map(node=>{const paint=nodePaint(currentNodeColorStyle(node,paintSettings),nodePaintFallbacks(node));return <div key={node.page.path} data-path={node.page.path} style={{color:paint.foreground,left:node.x,top:node.y}}>{node.role==='center'?<NativeEditor/>:node.label}</div>})}</div>;
@@ -2594,6 +2597,7 @@ const classicFixturePolicy=(layout=classicLayout.buildScene)=>({policyKey:classi
 const classic=classicFixturePolicy();
 
 import React,{useCallback,useState,useMemo,useRef,useEffect} from 'react';import{flushSync}from'react-dom';import{createRoot}from'react-dom/client';
+import {classicExpandedChildren} from ${JSON.stringify(join(root,'src/core/plex/views/classic/projection.ts'))};
 import{ontologyConfiguration}from ${JSON.stringify(join(root,"src/core/contracts/ontologyConfiguration.ts"))};
 import{hasDirectionalCaption,directionalRelationCaption}from ${JSON.stringify(join(root,"src/core/plex/directionalRelationCaption.ts"))};
 import{HoverHighlight,bindHoverHighlight}from ${JSON.stringify(join(root,'src/ui/components/hoverHighlight.ts'))};
@@ -2614,7 +2618,7 @@ const settings={compactView:false,ontologyPairingVersion:1,hierarchy:{hidden:[],
 const layoutNeighborhood={center:pages.get('Center'),parents:[],children:['A','B','C','D','E'].map(path=>({page:pages.get(path),role:'child',relationType:1})),leftFriends:[],rightFriends:[],siblings:[]};
 const layoutSectionExpansion=null,expandedSectionIds=new Set(),layoutRevision=0,globalFiltering=false,centralEditorSize=undefined,boundEditorBinding=undefined,boundEditorPage=null,neighborhood=layoutNeighborhood,activePath='Center',hostLeaf={};let semanticRevision=0;
 const predicateCenter=neighborhood.center;
-const predicateEngine={},lenses={},paintLenses=lenses,paintSettings=settings,predicateRevision=0,graphLensEdgeStyle=()=>({}),connectDrag=null,nodeDrag=null,resizingArea=false,areaSettingsMode=false;
+const predicate=null,predicateEngine={},lenses={lenses:[]},paintLenses=lenses,paintSettings=settings,predicateRevision=0,graphLensEdgeStyle=()=>({}),connectDrag=null,nodeDrag=null,resizingArea=false,areaSettingsMode=false;
 const finding=true,findQuery='no search hit',matchesOntologyFind=()=>false;
 const listeners=new Set(),plugin={visible:true,subscribeKplexVisibility(fn){listeners.add(fn);return()=>listeners.delete(fn)},isKplexLeafVisible(){return this.visible}};
 let fixture;
@@ -2624,7 +2628,7 @@ function Graph(){
  const viewport=useRef(null),hoverHighlight=useRef(null),hoverPreview=useRef(null),[hover,setHover]=useState(null),[crossLinkPeek,setCrossLinkPeek]=useState(null),[required,setRequired]=useState(true),[showCrossLinks,setShown]=useState(false),[hidden,setHidden]=useState([]);
  const viewSettings={hoverHighlightRequiresAlt:required},clearEdgeTooltip=()=>{};
  const readNodeProperties=useMemo(()=>nodePropertyReader({},{}),[]),nodePropertyRevision=0;
- ${uiDefinitions('src/ui/PlexGraph.tsx',['classicRead','scenePolicyKey','sceneGeometryKey','sceneGeometry','scene','clearHoverIntent','scheduleHoverIntent'])}
+ ${uiDefinitions('src/ui/PlexGraph.tsx',['classicRead','expandedChildRelations','classicLayoutRead','scenePolicyKey','sceneGeometryKey','sceneGeometry','scene','clearHoverIntent','scheduleHoverIntent'])}
  const visibleNodePaths=useMemo(()=>new Set(scene.nodes.filter(node=>!hidden.includes(node.page.path)).map(node=>node.page.path)),[scene.nodes,hidden]);
  const renderedNodeMap=useMemo(()=>new Map(scene.nodes.map(node=>[node.page.path,node])),[scene.nodes]);
  const visibleOccurrenceIds=visibleNodePaths,admittedEdgeOccurrences=visibleNodePaths;

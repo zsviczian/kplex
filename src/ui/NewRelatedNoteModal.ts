@@ -36,6 +36,8 @@ export type RelatedNoteCommit = { state: "saved-published" | "saved-pending"; pa
 
 /** Ephemeral originating-surface capabilities; never persisted with action preferences. */
 export type RelatedNoteInvocation = {
+  /** Add relationship starts with the full vocabulary while keeping a concrete fallback role. */
+  initialRoleFilter?: "all";
   continuation?: CompletionIntent;
   current?: () => boolean;
   focusGraph?: () => void;
@@ -94,7 +96,7 @@ function RelatedNoteComposer({
 }) {
   const [,setVocabularyRevision]=useState(0);
   useEffect(/** Update clean selection annotations after saved configuration publications without replacing typed drafts. */ ()=>plugin.index.subscribePresentation?.(/** Bump only this composer's current rendering. */ ()=>setVocabularyRevision(value=>value+1)),[plugin]);
-  const [roleFilter, setRoleFilter] = useState<RelationshipRole | "all">(initialRole);
+  const [roleFilter, setRoleFilter] = useState<RelationshipRole | "all">(session.initialRoleFilter ?? initialRole);
   const [query, setQuery] = useState(/** Import names retain their extension and exact recovery file; historical endpoints keep the existing preselection. */ () => session.importedFile?.name ?? session.importSource?.name ?? (fixedTarget ? plugin.index.titleFor(fixedTarget) : ""));
   const [alias, setAlias] = useState("");
   const noteId = useId(), aliasId = useId();
@@ -178,7 +180,7 @@ function RelatedNoteComposer({
     : plugin.validateRelatedNoteName(query, folderValidation.folderPath), [plugin, session, query, folderValidation.folderPath]);
 
   useEffect(() => {
-    setRoleFilter(initialRole);
+    setRoleFilter(session.initialRoleFilter ?? initialRole);
     setOntology(session.initialOntology ?? plugin.defaultOntologyField(initialRole));
     setOntologyTyped(false);
     setBrowseOntology(false);
@@ -664,6 +666,7 @@ export class NewRelatedNoteModal extends Modal {
   readonly continuation: CompletionIntent;
   readonly additiveOnly: boolean;
   readonly initialOntology?: string;
+  readonly initialRoleFilter?: "all";
   readonly suggestionOwnerId = `related-composer-${++composerSequence}`;
   readonly importSource?: File;
   importedFile?: TFile;
@@ -690,6 +693,7 @@ export class NewRelatedNoteModal extends Modal {
     this.continuation = invocation.continuation ?? "configured";
     this.additiveOnly = invocation.additiveOnly === true;
     this.initialOntology = invocation.initialOntology;
+    this.initialRoleFilter = invocation.initialRoleFilter;
   }
 
   /** Retain an invocation's independent field memory through the existing serialized host writer. */

@@ -130,7 +130,7 @@
  * close subtree/native inputs independently of unrelated graph publications. Per-file commit
  * receipts retire coordinator backlog before subscriber notifications can deliver later edits.
  */
-import {classicSiblingCandidateLimit, projectClassicNeighborhood} from "../core/plex/views/classic/projection";
+import {CLASSIC_NEIGHBOR_ROLES, classicSiblingCandidateLimit, projectClassicNeighborhood} from "../core/plex/views/classic/projection";
 import {fixedPinPaths} from "../core/plex/savedPins";
 import type {TAbstractFile} from 'obsidian';
 import {ontologyConfiguration} from "../core/contracts/ontologyConfiguration";
@@ -288,6 +288,8 @@ type PreparedSemanticScope = Readonly<{
   /** Preserve this coherent read preference across native coordinate changes, never source authority. */
   retainedAfterRename?: boolean;
   retainedBytes: number;
+  /** Mandatory center owners are replayed by optional closure and need their own finite bound. */
+  sourceOwnerCount: number;
 }>;
 
 /** Exact canonical pair publication. Retained views survive invalidation; authority never does. */
@@ -3299,6 +3301,7 @@ export class GraphIndex {
     const optionalParentRefs = prepared.certificate.relations.parents.map(/** Retain only finite immutable identity facets for later optional admission. */
       parent => ({ ...parent }));
     const gates = prepared.gates, familyVisits = prepared.work.familyVisits;
+    const sourceOwnerCount = prepared.preparation.sources.length;
     const compiledBytes = prepared.preparation.memory?.compilation ?? 0;
     // Certificates, duplicate heads, structural input and owner captures are no longer needed.
     // Retain only the required compilation/gates before constructing a supplemental compilation.
@@ -3313,8 +3316,10 @@ export class GraphIndex {
     const visibleParents = parentIds.filter((id) => {
       const node = compilation.node(id), page = node ? this.preparedPageFromNode(node) : null;
       const relation = center.neighbours.get(id);
-      return Boolean(page && this.isVisiblePage(page) && relation
-        && (gateSettings.showInferredNodes || classifyRelation(relation, "parent", settings.inferAllLinksAsFriends) !== RelationType.INFERRED));
+      return Boolean(page && this.isVisiblePage(page) && relation && !relation.isHidden
+        && (gateSettings.showInferredNodes || CLASSIC_NEIGHBOR_ROLES.some(
+          /** Classification stays canonical; a defined witness remains visible when inference is hidden. */
+          role => classifyRelation(relation, role, settings.inferAllLinksAsFriends) === RelationType.DEFINED)));
     });
     const completeIds = new Set<NodeId>([center.id, ...visibleParents]);
     const requiredIds = new Set<NodeId>(completeIds);
@@ -3455,6 +3460,7 @@ export class GraphIndex {
       centerPath, policyRevision, demandRevision, sourceRevision, maintenanceRevision, presentationRevision, coverageSignature: gateSignature, settings, pagesByPath,
       completePaths: new Set([...completeIds].map((id) => pagesById.get(id)!.path)), evidence: legacyEvidence,
       retainedBytes: 2 * compiledBytes + physicalAliases.retainedBytes + requiredNodes.length * 512 + 512,
+      sourceOwnerCount,
       gates: { top: { ...gates.top }, bottom: { ...gates.bottom },
         left: { ...gates.left }, right: { ...gates.right } }, suppressedPaths,
     };
@@ -3500,6 +3506,15 @@ export class GraphIndex {
     if (!this.plugin.settings.renderSiblings || !parents.length
       || this.siblingEnrichmentScopes.get(scope) === presentationRevision) return;
     this.siblingEnrichmentScopes.set(scope, presentationRevision);
+    // Optional closure recompiles the complete center cover too. A small witness must not
+    // admit another broad replay when mandatory incidence exceeds the same finite owner bound.
+    if (scope.sourceOwnerCount > SOURCE_MAX_BATCH_RECORDS) return;
+    const center = scope.pagesByPath.get(scope.centerPath);
+    if (!center) return;
+    const direct = projectClassicNeighborhood(center, {identity: page => page.path,
+      neighbours: (page, role) => this.neighbours(page, role), sort: rows => this.sortNeighbours(rows)}, this.plugin.settings.maxItemCount, false);
+    const displayed = new Set([...direct.parents, ...direct.children, ...direct.leftFriends, ...direct.rightFriends].map(row => row.page.path));
+    const witnesses = parents.filter(parent => parent.semanticPath !== undefined && displayed.has(parent.semanticPath));
     const publicationRevision = this.publicationRevision;
     /** Keep only this exact still-demanded publication; supersession never retries optional work. */
     const current = (): boolean => !this.diagnosticsClosed && Boolean(this.plugin.settings.renderSiblings)
@@ -3519,7 +3534,7 @@ export class GraphIndex {
         async (): Promise<void> => {
           await this.workScheduler.checkpoint(INDEX_WORK_PRIORITY.visibleNeighborhood);
           if (!current()) return;
-          const admitted = await this.sourceAcquisition.admitRequestedSiblingParents(parents, 256, runtime);
+          const admitted = await this.sourceAcquisition.admitRequestedSiblingParents(witnesses, 256, runtime);
           if (!current() || !admitted.length) return;
           await this.workScheduler.checkpoint(INDEX_WORK_PRIORITY.visibleNeighborhood);
           if (!current()) return;

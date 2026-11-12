@@ -1,0 +1,1073 @@
+{
+  "siblingsByCenter": {
+    "Note A.md": [
+      {
+        "linkDirection": 2,
+        "path": "Daily/2026/09/20260918.md",
+        "relationType": 1,
+        "role": "sibling",
+        "typeDefinition": "date"
+      },
+      {
+        "linkDirection": 2,
+        "path": "Daily/2026/09/20260919.md",
+        "relationType": 1,
+        "role": "sibling",
+        "typeDefinition": "review-date"
+      },
+      {
+        "linkDirection": 2,
+        "path": "Daily/2026/09/20260920.md",
+        "relationType": 1,
+        "role": "sibling",
+        "typeDefinition": "follow-up-date"
+      },
+      {
+        "linkDirection": 2,
+        "path": "Daily/2026/10/20261001.md",
+        "relationType": 1,
+        "role": "sibling",
+        "typeDefinition": "milestone-date"
+      },
+      {
+        "linkDirection": 2,
+        "path": "folder:Daily",
+        "relationType": 1,
+        "role": "sibling",
+        "typeDefinition": "file-tree"
+      },
+      {
+        "linkDirection": 2,
+        "path": "https://source.com",
+        "relationType": 2,
+        "role": "sibling",
+        "typeDefinition": "url-origin"
+      },
+      {
+        "linkDirection": 2,
+        "path": "https://source.com/frontmatter",
+        "relationType": 1,
+        "role": "sibling",
+        "typeDefinition": "source"
+      },
+      {
+        "linkDirection": 2,
+        "path": "https://youtu.be",
+        "relationType": 2,
+        "role": "sibling",
+        "typeDefinition": "url-origin"
+      },
+      {
+        "linkDirection": 2,
+        "path": "tag:person",
+        "relationType": 1,
+        "role": "sibling",
+        "typeDefinition": "tag-tree"
+      },
+      {
+        "linkDirection": 2,
+        "path": "Section Tree.md",
+        "relationType": 1,
+        "role": "sibling",
+        "typeDefinition": "file-tree"
+      },
+      {
+        "linkDirection": 1,
+        "path": "tag:taxonomy/body",
+        "relationType": 1,
+        "role": "sibling",
+        "typeDefinition": "tag-tree"
+      },
+      {
+        "linkDirection": 2,
+        "path": "tag:taxonomy/frontmatter/leaf",
+        "relationType": 1,
+        "role": "sibling",
+        "typeDefinition": "tag-tree"
+      }
+    ],
+    "folder:/": [
+      {
+        "linkDirection": 2,
+        "path": "folder:Daily/2026",
+        "relationType": 1,
+        "role": "sibling",
+        "typeDefinition": "file-tree"
+      },
+      {
+        "linkDirection": 2,
+        "path": "Daily/2026/09/20260918.md",
+        "relationType": 1,
+        "role": "sibling",
+        "typeDefinition": "date"
+      },
+      {
+        "linkDirection": 2,
+        "path": "Daily/2026/09/20260919.md",
+        "relationType": 1,
+        "role": "sibling",
+        "typeDefinition": "review-date"
+      },
+      {
+        "linkDirection": 2,
+        "path": "Daily/2026/09/20260920.md",
+        "relationType": 1,
+        "role": "sibling",
+        "typeDefinition": "follow-up-date"
+      },
+      {
+        "linkDirection": 2,
+        "path": "Daily/2026/10/20261001.md",
+        "relationType": 1,
+        "role": "sibling",
+        "typeDefinition": "milestone-date"
+      },
+      {
+        "linkDirection": 2,
+        "path": "tag:body-tag",
+        "relationType": 1,
+        "role": "sibling",
+        "typeDefinition": "tag-tree"
+      },
+      {
+        "linkDirection": 2,
+        "path": "tag:fixture",
+        "relationType": 1,
+        "role": "sibling",
+        "typeDefinition": "tag-tree"
+      },
+      {
+        "linkDirection": 2,
+        "path": "https://nested.example/source",
+        "relationType": 1,
+        "role": "sibling",
+        "typeDefinition": "source"
+      },
+      {
+        "linkDirection": 2,
+        "path": "https://source.com/frontmatter",
+        "relationType": 1,
+        "role": "sibling",
+        "typeDefinition": "source"
+      },
+      {
+        "linkDirection": 2,
+        "path": "https://youtu.be/excalibrain-fixture-video",
+        "relationType": 2,
+        "role": "sibling"
+      },
+      {
+        "linkDirection": 2,
+        "path": "Nested Challenger",
+        "relationType": 1,
+        "role": "sibling",
+        "typeDefinition": "challenger"
+      },
+      {
+        "linkDirection": 2,
+        "path": "Nested Child",
+        "relationType": 1,
+        "role": "sibling",
+        "typeDefinition": "child"
+      },
+      {
+        "linkDirection": 2,
+        "path": "Nested Friend",
+        "relationType": 1,
+        "role": "sibling",
+        "typeDefinition": "friend"
+      },
+      {
+        "linkDirection": 2,
+        "path": "Nested Parent",
+        "relationType": 1,
+        "role": "sibling",
+        "typeDefinition": "parent"
+      },
+      {
+        "linkDirection": 2,
+        "path": "tag:person",
+        "relationType": 1,
+        "role": "sibling",
+        "typeDefinition": "tag-tree"
+      },
+      {
+        "linkDirection": 2,
+        "path": "tag:project",
+        "relationType": 1,
+        "role": "sibling",
+        "typeDefinition": "tag-tree"
+      },
+      {
+        "linkDirection": 2,
+        "path": "https://source.com/ontology-full-line",
+        "relationType": 1,
+        "role": "sibling",
+        "typeDefinition": "source"
+      },
+      {
+        "linkDirection": 2,
+        "path": "https://source.com/inferred",
+        "relationType": 2,
+        "role": "sibling"
+      },
+      {
+        "linkDirection": 2,
+        "path": "https://source.com/ontology-inline",
+        "relationType": 1,
+        "role": "sibling",
+        "typeDefinition": "source"
+      },
+      {
+        "linkDirection": 2,
+        "path": "tag:taxonomy/body/leaf",
+        "relationType": 1,
+        "role": "sibling",
+        "typeDefinition": "tag-tree"
+      },
+      {
+        "linkDirection": 2,
+        "path": "tag:taxonomy/frontmatter/leaf",
+        "relationType": 1,
+        "role": "sibling",
+        "typeDefinition": "tag-tree"
+      }
+    ],
+    "tag:project": [
+      {
+        "linkDirection": 1,
+        "path": "folder:/",
+        "relationType": 1,
+        "role": "sibling",
+        "typeDefinition": "file-tree"
+      },
+      {
+        "linkDirection": 2,
+        "path": "Daily/2026/10/20261001.md",
+        "relationType": 1,
+        "role": "sibling",
+        "typeDefinition": "milestone-date"
+      },
+      {
+        "linkDirection": 2,
+        "path": "tag:body-tag",
+        "relationType": 1,
+        "role": "sibling",
+        "typeDefinition": "tag-tree"
+      },
+      {
+        "linkDirection": 2,
+        "path": "Note B.md",
+        "relationType": 1,
+        "role": "sibling",
+        "typeDefinition": "parent"
+      },
+      {
+        "linkDirection": 2,
+        "path": "tag:fixture",
+        "relationType": 1,
+        "role": "sibling",
+        "typeDefinition": "tag-tree"
+      },
+      {
+        "linkDirection": 2,
+        "path": "https://youtu.be/excalibrain-fixture-video",
+        "relationType": 2,
+        "role": "sibling"
+      },
+      {
+        "linkDirection": 2,
+        "path": "Note D.md",
+        "relationType": 1,
+        "role": "sibling",
+        "typeDefinition": "friend"
+      },
+      {
+        "linkDirection": 2,
+        "path": "Note E.md",
+        "relationType": 1,
+        "role": "sibling",
+        "typeDefinition": "challenger"
+      },
+      {
+        "linkDirection": 2,
+        "path": "Note F.md",
+        "relationType": 2,
+        "role": "sibling"
+      },
+      {
+        "linkDirection": 2,
+        "path": "Note G.md",
+        "relationType": 1,
+        "role": "sibling"
+      },
+      {
+        "linkDirection": 3,
+        "path": "Note H.md",
+        "relationType": 2,
+        "role": "sibling"
+      },
+      {
+        "linkDirection": 2,
+        "path": "Note X.md",
+        "relationType": 1,
+        "role": "sibling",
+        "typeDefinition": "friend"
+      },
+      {
+        "linkDirection": 2,
+        "path": "Note Y.md",
+        "relationType": 2,
+        "role": "sibling"
+      },
+      {
+        "linkDirection": 2,
+        "path": "https://source.com/ontology-full-line",
+        "relationType": 1,
+        "role": "sibling",
+        "typeDefinition": "source"
+      },
+      {
+        "linkDirection": 2,
+        "path": "https://source.com/inferred",
+        "relationType": 2,
+        "role": "sibling"
+      },
+      {
+        "linkDirection": 2,
+        "path": "https://source.com/ontology-inline",
+        "relationType": 1,
+        "role": "sibling",
+        "typeDefinition": "source"
+      },
+      {
+        "linkDirection": 2,
+        "path": "tag:taxonomy/body/leaf",
+        "relationType": 1,
+        "role": "sibling",
+        "typeDefinition": "tag-tree"
+      }
+    ]
+  },
+  "siblingNodes": [
+    {
+      "gateStats": {
+        "bottom": {
+          "hasAny": true,
+          "visibleCount": 1
+        },
+        "left": {
+          "hasAny": false,
+          "visibleCount": 0
+        },
+        "right": {
+          "hasAny": false,
+          "visibleCount": 0
+        },
+        "top": {
+          "hasAny": true,
+          "visibleCount": 3
+        }
+      },
+      "height": 27,
+      "label": "20260918",
+      "linkDirection": 2,
+      "neighbourCount": 4,
+      "path": "Daily/2026/09/20260918.md",
+      "relationType": 1,
+      "role": "sibling",
+      "style": {
+        "embedHeight": 700,
+        "embedWidth": 550,
+        "fontSize": 17,
+        "gateRadius": 4.25,
+        "maxLabelLength": 30,
+        "padding": 10
+      },
+      "typeDefinition": "date",
+      "width": 98.94,
+      "x": 703.7750000000001,
+      "y": -211.45
+    },
+    {
+      "gateStats": {
+        "bottom": {
+          "hasAny": true,
+          "visibleCount": 1
+        },
+        "left": {
+          "hasAny": false,
+          "visibleCount": 0
+        },
+        "right": {
+          "hasAny": false,
+          "visibleCount": 0
+        },
+        "top": {
+          "hasAny": true,
+          "visibleCount": 3
+        }
+      },
+      "height": 27,
+      "label": "20260919",
+      "linkDirection": 2,
+      "neighbourCount": 4,
+      "path": "Daily/2026/09/20260919.md",
+      "relationType": 1,
+      "role": "sibling",
+      "style": {
+        "embedHeight": 700,
+        "embedWidth": 550,
+        "fontSize": 17,
+        "gateRadius": 4.25,
+        "maxLabelLength": 30,
+        "padding": 10
+      },
+      "typeDefinition": "review-date",
+      "width": 98.94,
+      "x": 703.7750000000001,
+      "y": -172.29999999999998
+    },
+    {
+      "gateStats": {
+        "bottom": {
+          "hasAny": true,
+          "visibleCount": 1
+        },
+        "left": {
+          "hasAny": false,
+          "visibleCount": 0
+        },
+        "right": {
+          "hasAny": false,
+          "visibleCount": 0
+        },
+        "top": {
+          "hasAny": false,
+          "visibleCount": 0
+        }
+      },
+      "height": 27,
+      "label": "20260920",
+      "linkDirection": 2,
+      "neighbourCount": 1,
+      "path": "Daily/2026/09/20260920.md",
+      "relationType": 1,
+      "role": "sibling",
+      "style": {
+        "embedHeight": 700,
+        "embedWidth": 550,
+        "fontSize": 17,
+        "gateRadius": 4.25,
+        "maxLabelLength": 30,
+        "padding": 10
+      },
+      "typeDefinition": "follow-up-date",
+      "width": 98.94,
+      "x": 703.7750000000001,
+      "y": -133.15
+    },
+    {
+      "gateStats": {
+        "bottom": {
+          "hasAny": true,
+          "visibleCount": 1
+        },
+        "left": {
+          "hasAny": false,
+          "visibleCount": 0
+        },
+        "right": {
+          "hasAny": false,
+          "visibleCount": 0
+        },
+        "top": {
+          "hasAny": false,
+          "visibleCount": 0
+        }
+      },
+      "height": 27,
+      "label": "20261001",
+      "linkDirection": 2,
+      "neighbourCount": 1,
+      "path": "Daily/2026/10/20261001.md",
+      "relationType": 1,
+      "role": "sibling",
+      "style": {
+        "embedHeight": 700,
+        "embedWidth": 550,
+        "fontSize": 17,
+        "gateRadius": 4.25,
+        "maxLabelLength": 30,
+        "padding": 10
+      },
+      "typeDefinition": "milestone-date",
+      "width": 98.94,
+      "x": 703.7750000000001,
+      "y": -93.99999999999999
+    },
+    {
+      "gateStats": {
+        "bottom": {
+          "hasAny": true,
+          "visibleCount": 1
+        },
+        "left": {
+          "hasAny": false,
+          "visibleCount": 0
+        },
+        "right": {
+          "hasAny": false,
+          "visibleCount": 0
+        },
+        "top": {
+          "hasAny": true,
+          "visibleCount": 1
+        }
+      },
+      "height": 27,
+      "label": "Daily",
+      "linkDirection": 2,
+      "neighbourCount": 2,
+      "path": "folder:Daily",
+      "relationType": 1,
+      "role": "sibling",
+      "style": {
+        "fontSize": 17,
+        "gateRadius": 4.25,
+        "maxLabelLength": 30,
+        "padding": 10
+      },
+      "typeDefinition": "file-tree",
+      "width": 95.2,
+      "x": 703.7750000000001,
+      "y": -54.849999999999994
+    },
+    {
+      "gateStats": {
+        "bottom": {
+          "complete": true,
+          "hasAny": true,
+          "visibleCount": 4
+        },
+        "left": {
+          "complete": true,
+          "hasAny": false,
+          "visibleCount": 0
+        },
+        "right": {
+          "complete": true,
+          "hasAny": false,
+          "visibleCount": 0
+        },
+        "top": {
+          "complete": true,
+          "hasAny": false,
+          "visibleCount": 0
+        }
+      },
+      "height": 27,
+      "label": "https://source.com",
+      "linkDirection": 2,
+      "neighbourCount": 4,
+      "path": "https://source.com",
+      "relationType": 2,
+      "role": "sibling",
+      "style": {
+        "embedHeight": 700,
+        "embedWidth": 550,
+        "fontSize": 17,
+        "gateRadius": 4.25,
+        "maxLabelLength": 30,
+        "padding": 10
+      },
+      "typeDefinition": "url-origin",
+      "width": 148.23999999999998,
+      "x": 703.7750000000001,
+      "y": -15.699999999999989
+    },
+    {
+      "gateStats": {
+        "bottom": {
+          "complete": true,
+          "hasAny": true,
+          "visibleCount": 1
+        },
+        "left": {
+          "complete": true,
+          "hasAny": false,
+          "visibleCount": 0
+        },
+        "right": {
+          "complete": true,
+          "hasAny": false,
+          "visibleCount": 0
+        },
+        "top": {
+          "complete": true,
+          "hasAny": true,
+          "visibleCount": 1
+        }
+      },
+      "height": 27,
+      "label": "https://source.com/frontmatter",
+      "linkDirection": 2,
+      "neighbourCount": 2,
+      "path": "https://source.com/frontmatter",
+      "relationType": 1,
+      "role": "sibling",
+      "style": {
+        "embedHeight": 700,
+        "embedWidth": 550,
+        "fontSize": 17,
+        "gateRadius": 4.25,
+        "maxLabelLength": 30,
+        "padding": 10
+      },
+      "typeDefinition": "source",
+      "width": 207.4,
+      "x": 703.7750000000001,
+      "y": 23.450000000000017
+    },
+    {
+      "gateStats": {
+        "bottom": {
+          "complete": true,
+          "hasAny": true,
+          "visibleCount": 1
+        },
+        "left": {
+          "complete": true,
+          "hasAny": false,
+          "visibleCount": 0
+        },
+        "right": {
+          "complete": true,
+          "hasAny": false,
+          "visibleCount": 0
+        },
+        "top": {
+          "complete": true,
+          "hasAny": false,
+          "visibleCount": 0
+        }
+      },
+      "height": 27,
+      "label": "https://youtu.be",
+      "linkDirection": 2,
+      "neighbourCount": 1,
+      "path": "https://youtu.be",
+      "relationType": 2,
+      "role": "sibling",
+      "style": {
+        "embedHeight": 700,
+        "embedWidth": 550,
+        "fontSize": 17,
+        "gateRadius": 4.25,
+        "maxLabelLength": 30,
+        "padding": 10
+      },
+      "typeDefinition": "url-origin",
+      "width": 138.38,
+      "x": 703.7750000000001,
+      "y": 62.60000000000002
+    },
+    {
+      "gateStats": {
+        "bottom": {
+          "hasAny": true,
+          "visibleCount": 1
+        },
+        "left": {
+          "hasAny": false,
+          "visibleCount": 0
+        },
+        "right": {
+          "hasAny": false,
+          "visibleCount": 0
+        },
+        "top": {
+          "hasAny": false,
+          "visibleCount": 0
+        }
+      },
+      "height": 27,
+      "label": "person",
+      "linkDirection": 2,
+      "neighbourCount": 1,
+      "path": "tag:person",
+      "relationType": 1,
+      "role": "sibling",
+      "style": {
+        "fontSize": 17,
+        "gateRadius": 4.25,
+        "maxLabelLength": 30,
+        "padding": 10
+      },
+      "typeDefinition": "tag-tree",
+      "width": 95.2,
+      "x": 703.7750000000001,
+      "y": 101.75
+    },
+    {
+      "gateStats": {
+        "bottom": {
+          "hasAny": true,
+          "visibleCount": 1
+        },
+        "left": {
+          "hasAny": true,
+          "visibleCount": 1
+        },
+        "right": {
+          "hasAny": true,
+          "visibleCount": 1
+        },
+        "top": {
+          "hasAny": true,
+          "visibleCount": 3
+        }
+      },
+      "height": 27,
+      "label": "Section Tree",
+      "linkDirection": 2,
+      "neighbourCount": 6,
+      "path": "Section Tree.md",
+      "relationType": 1,
+      "role": "sibling",
+      "style": {
+        "embedHeight": 700,
+        "embedWidth": 550,
+        "fontSize": 17,
+        "gateRadius": 4.25,
+        "maxLabelLength": 30,
+        "padding": 10
+      },
+      "typeDefinition": "file-tree",
+      "width": 118.66,
+      "x": 703.7750000000001,
+      "y": 140.89999999999998
+    },
+    {
+      "gateStats": {
+        "bottom": {
+          "hasAny": true,
+          "visibleCount": 1
+        },
+        "left": {
+          "hasAny": false,
+          "visibleCount": 0
+        },
+        "right": {
+          "hasAny": false,
+          "visibleCount": 0
+        },
+        "top": {
+          "hasAny": true,
+          "visibleCount": 1
+        }
+      },
+      "height": 27,
+      "label": "taxonomy/body",
+      "linkDirection": 1,
+      "neighbourCount": 2,
+      "path": "tag:taxonomy/body",
+      "relationType": 1,
+      "role": "sibling",
+      "style": {
+        "fontSize": 17,
+        "gateRadius": 4.25,
+        "maxLabelLength": 30,
+        "padding": 10
+      },
+      "typeDefinition": "tag-tree",
+      "width": 123.58999999999997,
+      "x": 703.7750000000001,
+      "y": 180.04999999999995
+    },
+    {
+      "gateStats": {
+        "bottom": {
+          "hasAny": true,
+          "visibleCount": 1
+        },
+        "left": {
+          "hasAny": false,
+          "visibleCount": 0
+        },
+        "right": {
+          "hasAny": false,
+          "visibleCount": 0
+        },
+        "top": {
+          "hasAny": true,
+          "visibleCount": 1
+        }
+      },
+      "height": 27,
+      "label": "taxonomy/frontmatter/leaf",
+      "linkDirection": 2,
+      "neighbourCount": 2,
+      "path": "tag:taxonomy/frontmatter/leaf",
+      "relationType": 1,
+      "role": "sibling",
+      "style": {
+        "fontSize": 17,
+        "gateRadius": 4.25,
+        "maxLabelLength": 30,
+        "padding": 10
+      },
+      "typeDefinition": "tag-tree",
+      "width": 182.75,
+      "x": 703.7750000000001,
+      "y": 219.19999999999993
+    }
+  ],
+  "peripheralEdges": [
+    {
+      "direction": 2,
+      "id": "sibling-parent:folder:/:folder:Daily",
+      "relationType": 1,
+      "role": "child",
+      "sourcePath": "folder:/",
+      "style": {},
+      "targetPath": "folder:Daily",
+      "typeDefinition": "file-tree"
+    },
+    {
+      "direction": 2,
+      "id": "sibling-parent:folder:/:Section Tree.md",
+      "relationType": 1,
+      "role": "child",
+      "sourcePath": "folder:/",
+      "style": {},
+      "targetPath": "Section Tree.md",
+      "typeDefinition": "file-tree"
+    },
+    {
+      "direction": 2,
+      "id": "sibling-parent:Note B.md:tag:person",
+      "relationType": 1,
+      "role": "parent",
+      "sourcePath": "Note B.md",
+      "style": {
+        "strokeWidth": 2.4
+      },
+      "targetPath": "tag:person",
+      "typeDefinition": "tag-tree"
+    },
+    {
+      "direction": 2,
+      "id": "sibling-parent:Note B.md:Daily/2026/09/20260918.md",
+      "relationType": 1,
+      "role": "parent",
+      "sourcePath": "Note B.md",
+      "style": {},
+      "targetPath": "Daily/2026/09/20260918.md",
+      "typeDefinition": "date"
+    },
+    {
+      "direction": 2,
+      "id": "sibling-parent:Note B.md:Daily/2026/09/20260919.md",
+      "relationType": 1,
+      "role": "parent",
+      "sourcePath": "Note B.md",
+      "style": {},
+      "targetPath": "Daily/2026/09/20260919.md",
+      "typeDefinition": "review-date"
+    },
+    {
+      "direction": 2,
+      "id": "sibling-parent:Note B.md:Daily/2026/09/20260920.md",
+      "relationType": 1,
+      "role": "parent",
+      "sourcePath": "Note B.md",
+      "style": {},
+      "targetPath": "Daily/2026/09/20260920.md",
+      "typeDefinition": "follow-up-date"
+    },
+    {
+      "direction": 2,
+      "id": "sibling-parent:Note B.md:https://source.com/frontmatter",
+      "relationType": 1,
+      "role": "parent",
+      "sourcePath": "Note B.md",
+      "style": {},
+      "targetPath": "https://source.com/frontmatter",
+      "typeDefinition": "source"
+    },
+    {
+      "direction": 1,
+      "id": "sibling-parent:tag:fixture:Daily/2026/09/20260918.md",
+      "relationType": 1,
+      "role": "child",
+      "sourcePath": "tag:fixture",
+      "style": {},
+      "targetPath": "Daily/2026/09/20260918.md",
+      "typeDefinition": "tag-tree"
+    },
+    {
+      "direction": 1,
+      "id": "sibling-parent:tag:fixture:Daily/2026/09/20260919.md",
+      "relationType": 1,
+      "role": "child",
+      "sourcePath": "tag:fixture",
+      "style": {},
+      "targetPath": "Daily/2026/09/20260919.md",
+      "typeDefinition": "tag-tree"
+    },
+    {
+      "direction": 2,
+      "id": "sibling-parent:https://source.com/ontology-full-line:https://source.com",
+      "relationType": 2,
+      "role": "parent",
+      "sourcePath": "https://source.com/ontology-full-line",
+      "style": {},
+      "targetPath": "https://source.com",
+      "typeDefinition": "url-origin"
+    },
+    {
+      "direction": 2,
+      "id": "sibling-parent:https://source.com/ontology-inline:https://source.com",
+      "relationType": 2,
+      "role": "parent",
+      "sourcePath": "https://source.com/ontology-inline",
+      "style": {},
+      "targetPath": "https://source.com",
+      "typeDefinition": "url-origin"
+    },
+    {
+      "direction": 1,
+      "id": "sibling-parent:tag:taxonomy/body/leaf:tag:taxonomy/body",
+      "relationType": 1,
+      "role": "parent",
+      "sourcePath": "tag:taxonomy/body/leaf",
+      "style": {},
+      "targetPath": "tag:taxonomy/body",
+      "typeDefinition": "tag-tree"
+    },
+    {
+      "direction": 2,
+      "id": "sibling-parent:https://youtu.be/excalibrain-fixture-video:https://youtu.be",
+      "relationType": 2,
+      "role": "parent",
+      "sourcePath": "https://youtu.be/excalibrain-fixture-video",
+      "style": {},
+      "targetPath": "https://youtu.be",
+      "typeDefinition": "url-origin"
+    },
+    {
+      "direction": 2,
+      "id": "sibling-parent:Note C.md:Daily/2026/10/20261001.md",
+      "relationType": 1,
+      "role": "parent",
+      "sourcePath": "Note C.md",
+      "style": {},
+      "targetPath": "Daily/2026/10/20261001.md",
+      "typeDefinition": "milestone-date"
+    },
+    {
+      "direction": 2,
+      "id": "sibling-parent:https://source.com/inferred:https://source.com",
+      "relationType": 2,
+      "role": "parent",
+      "sourcePath": "https://source.com/inferred",
+      "style": {},
+      "targetPath": "https://source.com",
+      "typeDefinition": "url-origin"
+    },
+    {
+      "direction": 2,
+      "id": "sibling-parent:Note D.md:tag:taxonomy/frontmatter/leaf",
+      "relationType": 1,
+      "role": "parent",
+      "sourcePath": "Note D.md",
+      "style": {},
+      "targetPath": "tag:taxonomy/frontmatter/leaf",
+      "typeDefinition": "tag-tree"
+    },
+    {
+      "direction": 1,
+      "id": "cross:https://source.com:https://source.com/frontmatter:child",
+      "isCrossLink": true,
+      "relationType": 2,
+      "role": "child",
+      "sourcePath": "https://source.com",
+      "style": {},
+      "targetPath": "https://source.com/frontmatter",
+      "typeDefinition": "url-origin"
+    }
+  ],
+  "edgeOrder": [
+    "parent:folder:/:0",
+    "parent:tag:body-tag:1",
+    "parent:Note B.md:2",
+    "parent:tag:fixture:3",
+    "parent:tag:project:4",
+    "parent:https://source.com/ontology-full-line:5",
+    "parent:https://source.com/ontology-inline:6",
+    "parent:tag:taxonomy/body/leaf:7",
+    "child:https://youtu.be/excalibrain-fixture-video:0",
+    "child:Note C.md:1",
+    "child:Note F.md:2",
+    "child:Note Y.md:3",
+    "child:https://source.com/inferred:4",
+    "left:Note D.md:0",
+    "left:Note G.md:1",
+    "left:Note H.md:2",
+    "left:Note X.md:3",
+    "right:Note E.md:0",
+    "sibling-parent:folder:/:folder:Daily",
+    "sibling-parent:folder:/:Section Tree.md",
+    "sibling-parent:Note B.md:tag:person",
+    "sibling-parent:Note B.md:Daily/2026/09/20260918.md",
+    "sibling-parent:Note B.md:Daily/2026/09/20260919.md",
+    "sibling-parent:Note B.md:Daily/2026/09/20260920.md",
+    "sibling-parent:Note B.md:https://source.com/frontmatter",
+    "sibling-parent:tag:fixture:Daily/2026/09/20260918.md",
+    "sibling-parent:tag:fixture:Daily/2026/09/20260919.md",
+    "sibling-parent:https://source.com/ontology-full-line:https://source.com",
+    "sibling-parent:https://source.com/ontology-inline:https://source.com",
+    "sibling-parent:tag:taxonomy/body/leaf:tag:taxonomy/body",
+    "sibling-parent:https://youtu.be/excalibrain-fixture-video:https://youtu.be",
+    "sibling-parent:Note C.md:Daily/2026/10/20261001.md",
+    "sibling-parent:https://source.com/inferred:https://source.com",
+    "sibling-parent:Note D.md:tag:taxonomy/frontmatter/leaf",
+    "cross:folder:/:Note B.md:child",
+    "cross:folder:/:Note C.md:child",
+    "cross:folder:/:Note D.md:child",
+    "cross:folder:/:Note E.md:child",
+    "cross:folder:/:Note F.md:child",
+    "cross:folder:/:Note G.md:child",
+    "cross:folder:/:Note H.md:child",
+    "cross:folder:/:Note X.md:child",
+    "cross:folder:/:Note Y.md:child",
+    "cross:Note B.md:tag:fixture:parent",
+    "cross:Note B.md:Note C.md:child",
+    "cross:tag:fixture:Note C.md:child",
+    "cross:tag:fixture:Note D.md:child",
+    "cross:tag:fixture:Note E.md:child",
+    "cross:tag:fixture:Note F.md:child",
+    "cross:tag:fixture:Note G.md:child",
+    "cross:tag:fixture:Note H.md:child",
+    "cross:tag:fixture:Note X.md:child",
+    "cross:tag:fixture:Note Y.md:child",
+    "cross:tag:project:Note C.md:child",
+    "cross:Note C.md:Note D.md:left",
+    "cross:Note F.md:Note D.md:previous",
+    "cross:Note F.md:Note E.md:next",
+    "cross:Note Y.md:Note X.md:child",
+    "cross:Note X.md:Note F.md:parent",
+    "cross:https://source.com:https://source.com/frontmatter:child"
+  ],
+  "siblingViewport": {
+    "contentHeight": 489.6499999999999,
+    "contentTop": -240.95,
+    "height": 250,
+    "initialScrollTop": 16,
+    "key": "sibling",
+    "left": 576.075,
+    "top": -224.95,
+    "width": 255.4000000000001
+  }
+}

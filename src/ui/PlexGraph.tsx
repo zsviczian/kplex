@@ -123,6 +123,7 @@ import { CentralNodeEditor } from "./CentralNodeEditor";
 import { PlexFind, matchesFindNode, matchesOntologyFind } from "./features/PlexFind";
 import { RelationshipExplanationModal } from "./RelationshipExplanationModal";
 import { RenameNoteModal } from "./RenameNoteModal";
+import {classicExpandedChildren} from "../core/plex/views/classic/projection";
 import { buildCentralSectionExpansion, canExpandCentralSections, projectCentralSectionExpansion, type CentralSectionExpansion } from "../index/SectionExpansion";
 import { GraphPredicateEngine, type CompiledGraphPredicate, type GraphPredicateEdgeContext } from "../lens/GraphPredicate";
 import { graphLensEdgeStyle, graphLensNodeStyle, matchesGraphLenses, type CompiledGraphLensSet } from "../lens/GraphLens";
@@ -1092,6 +1093,21 @@ export function PlexGraph({ viewDefinition = classicViewDefinition, viewSession,
     preserveCameraOnNextLayout.current = true;
     viewSession.editors.open(candidate);
   }, [pendingEditorIntent, viewSession, boundEditorBinding, renderRevision, semanticRevision, viewLifetime, settings]);
+  /** Share expanded child admission between actual strips and sibling duplicate suppression. */
+  const expandedChildRelations = useCallback((page: GraphPage, center: GraphPage): Neighbour[] => {
+    const filtering = predicate !== null || lenses.lenses.some(lens => lens.mode === "include" || lens.mode === "exclude");
+    return classicExpandedChildren(page, center, {identity: page => page.path, neighbours: (page, role) => index.neighbours(page, role)}, settings.maxItemCount,
+      child => !filtering || matchesVisibleCandidate(predicateEngine, index, predicate, lenses, child.page, index.titleFor(child.page), child.typeDefinition, center,
+        {role: child.role, relationType: child.relationType, linkDirection: child.linkDirection, sourcePath: page.path, targetPath: child.page.path}));
+  }, [index, settings.maxItemCount, predicateEngine, predicate, lenses, predicateRevision]);
+  const classicLayoutRead = useMemo(() => ({...classicRead,
+    /** Hidden direct witnesses have no displayed strips from which to suppress a sibling. */
+    expandedChildren: (row: Neighbour, role: Role, center: GraphPage): Neighbour[] => {
+      if (globalFiltering && !matchesVisibleCandidate(predicateEngine, index, predicate, lenses, row.page, index.titleFor(row.page), row.typeDefinition, center,
+        {role, relationType: row.relationType, linkDirection: row.linkDirection, sourcePath: center.path, targetPath: row.page.path})) return [];
+      return expandedChildRelations(row.page, center);
+    },
+  }), [classicRead, index, expandedChildRelations, globalFiltering, predicateEngine, predicate, lenses, predicateRevision]);
   const sceneGeometry = useMemo<HostPlexScene>(() => {
     try {
       if (preparedDefinitionScene) {
@@ -1104,11 +1120,15 @@ export function PlexGraph({ viewDefinition = classicViewDefinition, viewSession,
         return {...prepared, edges, crossLinksLimited: result.limited};
       }
       return layoutNeighborhood && classic ? layoutSectionExpansion
-        ? classic.sections(layoutSectionExpansion, classicRead, settings, expandedSectionIds, showCrossLinks, centralEditorSize, true, boundEditorBinding && boundEditorPage ? {binding: boundEditorBinding, page: boundEditorPage} : undefined)
-        : classic.layout(layoutNeighborhood, classicRead, settings, showCrossLinks && globalFiltering, centralEditorSize, true, boundEditorBinding && boundEditorPage ? {binding: boundEditorBinding, page: boundEditorPage} : undefined)
+        ? classic.sections(layoutSectionExpansion, classicLayoutRead, settings, expandedSectionIds, showCrossLinks, centralEditorSize, true, boundEditorBinding && boundEditorPage ? {binding: boundEditorBinding, page: boundEditorPage} : undefined)
+        : classic.layout(layoutNeighborhood, classicLayoutRead, settings, showCrossLinks && globalFiltering, centralEditorSize, true, boundEditorBinding && boundEditorPage ? {binding: boundEditorBinding, page: boundEditorPage} : undefined)
         : {nodes: [], edges: [], zoneAreas: {}, zoneViewports: {}};
     } catch { return attentionFallbackScene(index, activePath, settings, centralEditorSize); }
+  // Reader wrappers may change on equivalent source publications. Only expanded-strip filters
+  // add geometry inputs; ordinary paint/source wrappers retain the existing measured scene.
   }, [classic, preparedDefinitionScene, scenePolicyKey, sceneGeometryKey, semanticRevision, layoutSectionExpansion, layoutSectionExpansion ? settings : null,
+    settings.graphDepth === 2 && globalFiltering ? predicate : null, settings.graphDepth === 2 && globalFiltering ? lenses : null,
+    settings.graphDepth === 2 && globalFiltering ? predicateRevision : 0,
     expandedSectionIds, index, layoutRevision, showCrossLinks, globalFiltering, centralEditorSize, viewLifetime, boundEditorBinding, boundEditorPage, nodePropertyRevision]);
   const viewFailed = Boolean(sceneGeometry.failed);
   const scene = useMemo(() => viewFailed || layoutSectionExpansion || !classic ? sceneGeometry : classic.bind(sceneGeometry, layoutNeighborhood),
@@ -2735,27 +2755,7 @@ export function PlexGraph({ viewDefinition = classicViewDefinition, viewSession,
       const parent = renderedNodeMap.get(baseNode.page.path);
       if (!parent) continue;
 
-      const visibilityFiltering = predicate !== null || lenses.lenses.some((lens) => lens.mode === "include" || lens.mode === "exclude");
-      const relations = index.neighbours(baseNode.page, "child")
-        .filter((child) => child.page.path !== neighborhood.center.path)
-        .filter((child) => !visibilityFiltering || matchesVisibleCandidate(
-          predicateEngine,
-          index,
-          predicate,
-          lenses,
-          child.page,
-          index.titleFor(child.page),
-          child.typeDefinition,
-          neighborhood.center,
-          {
-            role: child.role,
-            relationType: child.relationType,
-            linkDirection: child.linkDirection,
-            sourcePath: baseNode.page.path,
-            targetPath: child.page.path,
-          },
-        ))
-        .slice(0, settings.maxItemCount);
+      const relations = expandedChildRelations(baseNode.page, neighborhood.center);
       if (!relations.length) continue;
 
       const miniScale = parent.role === "sibling" ? siblingScale(settings) : 1;
@@ -2813,7 +2813,7 @@ export function PlexGraph({ viewDefinition = classicViewDefinition, viewSession,
     }
 
     return clusters;
-  }, [sectionExpansion, settings.graphDepth, settings.compactingFactor, settings.horizontalCompactingFactor, settings.compactView, settings.minLinkLength, settings.childColumns, settings.maxItemCount, settings.siblingRelativeSize, neighborhood, scene.nodes, sceneNodeKeys, visibleNodePaths, renderedNodeMap, expandedScrollTop, index, layoutRevision, predicate, lenses, predicateRevision, predicateEngine]);
+  }, [expandedChildRelations, sectionExpansion, settings.graphDepth, settings.compactingFactor, settings.horizontalCompactingFactor, settings.compactView, settings.minLinkLength, settings.childColumns, settings.maxItemCount, settings.siblingRelativeSize, neighborhood, scene.nodes, sceneNodeKeys, visibleNodePaths, renderedNodeMap, expandedScrollTop, index, layoutRevision, predicate, lenses, predicateRevision, predicateEngine]);
 
   /** Pair wording consumes only existing exact-pair explanations; physical definitions remain
    * authoritative for filtering, styles and source mutations. Transient occurrences retain their

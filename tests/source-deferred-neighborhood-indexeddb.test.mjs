@@ -57,7 +57,7 @@ test("4,096 actual-IDB shared-tag and root members do not enter an ordinary note
           equal(result.certificate.relations.coverage,'complete-center-relations','No parent closure claim');
           equal(result.certificate.relations.siblingClosure,'deferred','Explicit optional sibling state');
           equal(result.certificate.relations.completeParents,[],'No false complete-parent incidence');
-          equal(result.certificate.relations.parents.map(parent=>parent.id).sort(),['folder:/','tag:excalidraw'],'Both structural parents remain direct relations');
+          equal(result.certificate.relations.parents.map(parent=>parent.id).sort(),['B.md','folder:/','tag:excalidraw'],'All direct witnesses include the two structural parents');
           equal(result.work.passes,1,'No structural parent discovery');
           equal(scopes,[['A.md']],'Only center queried');
           equal([...new Set(captured)].sort(),['A.md','B.md'],'Only complete direct declaring owners replayed');
@@ -71,7 +71,7 @@ test("4,096 actual-IDB shared-tag and root members do not enter an ordinary note
           equal(f.work.headPages,0,'No head scan');equal(f.work.writes,[],'No semantic source writes');
           f.work.reset();
           const admitted=await f.acquisition.admitRequestedSiblingParents(result.certificate.relations.parents,256,runtime());
-          equal(admitted,[],'Huge structural parents deferred by fenced owner/physical counts');
+          equal(admitted.map(item=>item.id),['B.md'],'Only the small ordinary witness is admitted; huge structural parents stay deferred');
           equal(f.work.visits,[],'Optional admission reads no source families');
           equal(f.work.inspections,[],'Optional admission inspects no heads');
           equal(f.work.headPages,0,'Optional admission enumerates no head pages');
@@ -80,7 +80,7 @@ test("4,096 actual-IDB shared-tag and root members do not enter an ordinary note
           for(const [hidden, parent] of [['showTagNodes','folder:/'],['showFolderNodes','tag:excalidraw']]) {
             const isolated=await reader.prepareCenterGates(request,policy,centerGatePolicy(centerGateSettings({[hidden]:false})),runtime());
             equal(isolated.outcome,'ready','High-degree '+parent+' remains usable');
-            equal(isolated.certificate.relations.parents.map(item=>item.id),[parent],'Isolated parent gate');
+            equal(isolated.certificate.relations.parents.map(item=>item.id),['B.md',parent],'Ordinary witness and isolated structural parent gate');
             equal(isolated.gates.top.visibleCount,1,'Exactly one visible structural parent');
             equal(isolated.preparation.sources.length,2,'No isolated parent fanout');
             equal(isolated.preparation.compilation.nodes.size,4,'Complete direct graph unchanged by presentation');

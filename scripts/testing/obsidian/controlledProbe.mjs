@@ -33,7 +33,8 @@ export async function runControlledProbe(name,scenario,definitions='',extraSourc
   const originalData=readFileSync(join(target.pluginDir,'data.json')),originalEnabled=readFileSync(join(target.config,'community-plugins.json'));
   const report={name,status:'failed',node:process.version,startedAt:new Date().toISOString(),maximumMs,driver:{transport:hash(fileURLToPath(import.meta.url)),scenario:createHash('sha256').update(scenario.toString()).digest('hex'),definitions:createHash('sha256').update(definitions).digest('hex')},artifacts:{},source:{},limitations:'Controlled native method observations, not actual paint or physical-device acceptance.'};
   try{
-    assert.equal(resolve(cli('vault','info=path').replace(/^path\s+/,'')),target.vault);report.obsidian=cli('version');
+    // Read the selected runtime directly: Obsidian 1.15 renamed the CLI vault-info command.
+    assert.equal(resolve(evaluate('JSON.stringify({path:app.vault.adapter.getBasePath()})').path),target.vault);report.obsidian=cli('version');
     const artifactDir=process.env.KPLEX_PROBE_ARTIFACT_DIR??join(root,'dist');
     assert(!process.env.KPLEX_PROBE_ARTIFACT_DIR||process.env.KPLEX_PROBE_BASELINE_REF,'Alternate artifact root requires baseline attribution');
     for(const file of ['main.js','manifest.json','styles.css']){const value=hash(join(artifactDir,file));assert.equal(hash(join(target.pluginDir,file)),value);report.artifacts[file]=value;}

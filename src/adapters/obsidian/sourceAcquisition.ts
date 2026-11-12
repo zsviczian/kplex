@@ -2163,6 +2163,7 @@ export class ObsidianSourceAcquisition {
       if (upperBound > maxOwners - owners) continue;
       owners += upperBound;
       admitted.push(candidate.parent);
+      if (admitted.length >= SOURCE_MAX_BATCH_RECORDS) break;
     }
     return current() ? admitted : [];
   }

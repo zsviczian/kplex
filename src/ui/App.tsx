@@ -78,6 +78,7 @@ import { effectiveActionBindings } from "../core/plex/actionPreferences";
 import { formatActionBinding } from "./actionPresentation";
 import { surfaceAction } from "./surfaceActionImplementation";
 import { hasClickModifier } from "./components/modifierClick";
+import {canvasToolbarRequest, settingsToolbarChoice, toolbarShortcutHints} from "./toolbarShortcuts";
 import { toolbarMenuAnchor } from "./menuAnchor";
 import type { DocumentSyncMode, KplexViewSurface, NodeSortOrder, SidecarMarkdownMode, SidecarPosition } from "../settings";
 import { SearchBox } from "./features/SearchBox";
@@ -96,7 +97,7 @@ import { getDraggedFile, getDraggedFolder } from "../adapters/obsidian/fileExplo
 import {isObsidianUri} from "../adapters/obsidian/urlIdentity";
 import {readViewConfiguration} from "../core/plex/views/configuration";
 import {externalFilesPayload} from "../adapters/obsidian/externalFileImport";
-import { draggedGraphPage, nodeLinkDragSource } from "../adapters/obsidian/nodeLinkDrag";
+import { canDragNodeLink, draggedGraphPage, finishNodeLinkDrag, nodeLinkDragSource, startNodeLinkDrag, type NodeLinkDragSource } from "../adapters/obsidian/nodeLinkDrag";
 import { registerFilePropertiesCenter, type FilePropertiesCenterLease } from "../adapters/obsidian/filePropertiesCenter";
 import { ActionButton } from "./components/ActionButton";
 import { DoubleTapGesture } from "./components/DoubleTapGesture";
@@ -242,6 +243,7 @@ function ToolButton({ icon, title, on, pressed, disabled, onClick }: {
   return <button
     className={`kplex-icon-button${on ? " is-on" : ""}`}
     aria-label={title}
+    data-kplex-tooltip-lines={title.includes("\n") || undefined}
     aria-pressed={pressed}
     disabled={disabled}
     onClick={onClick}
@@ -1056,6 +1058,9 @@ export function KplexApp({ plugin, surface, hostLeaf, translate, environment, on
 
   /** Open the owning-window native settings menu; area editing remains transient to this surface. */
   const showSettingsMenu = (event?: MouseEvent<HTMLButtonElement>) => {
+    const choice = event ? settingsToolbarChoice(event, environment) : "menu";
+    if (choice === "plugin") { plugin.openSettings(); return; }
+    if (choice === "areas") { runAction("view.areas.toggle"); return; }
     const menu = new Menu();
     menu.addItem((item) => item
       .setTitle(translate("app.pluginSettings"))
@@ -1435,6 +1440,30 @@ export function KplexApp({ plugin, surface, hostLeaf, translate, environment, on
     return /** Cleanup cannot remove a replacement mount's registration or preserve native closures. */ ()=>{release();publicPorts.current=null;publicScene.current=null;};
   },[plugin,documentSession]);
 
+  const savedNodeDrag = useRef<NodeLinkDragSource | null>(null);
+  /** Retire only this saved-list gesture; native dragend may already have released it. */
+  const endSavedNodeDrag = (): void => {
+    finishNodeLinkDrag(plugin.app, savedNodeDrag.current); savedNodeDrag.current = null;
+  };
+  useEffect(/** App teardown/window migration retires outbound saved links independently of graph readiness. */ () =>
+    () => {finishNodeLinkDrag(plugin.app, savedNodeDrag.current); savedNodeDrag.current = null;}, [plugin]);
+  /** Export the exact cached saved destination through the same native adapter as canvas nodes. */
+  const beginSavedNodeDrag = (path: string | null, label: string, event: ReactDragEvent<HTMLButtonElement>): void => {
+    const target = path ? plugin.index.get(path) ?? plugin.index.getVaultSearchPage(path) : null;
+    const root = rootRef.current, element = event.currentTarget, document = element.ownerDocument;
+    if (!target || !root) {event.preventDefault(); return;}
+    endSavedNodeDrag();
+    const source = startNodeLinkDrag(plugin.app, target, event.nativeEvent, root, "center", label, page?.file?.path ?? "", {
+      id: path ?? "",
+      /** Retire this occurrence when its row/gesture/document changes; canonical link copies remain adapter-owned. */
+      current: () => savedNodeDrag.current === source && rootRef.current === root && root.isConnected
+        && element.isConnected && element.ownerDocument === document && root.ownerDocument === document,
+    });
+    savedNodeDrag.current = source;
+    if (!source) event.preventDefault();
+    else event.stopPropagation();
+  };
+
   // History belongs to loaded settings, not semantic readiness. Preserve every saved slot on
   // both loading and graph surfaces; unresolved targets stay inert until their owner publishes.
   const historyBar = <footer className="kplex-history-bar">
@@ -1445,6 +1474,8 @@ export function KplexApp({ plugin, surface, hostLeaf, translate, environment, on
         const {label: title, icon, style} = item ? nodeListPresentation(item, plugin.index.titleFor(item), paintSettings) : {label: path, icon: "file-question", style: undefined};
         return <button key={`${path}:${indexValue}`} data-kplex-history-path={path} aria-label={`${title}\n${path}`} disabled={!item}
           className={path === activePath ? "is-active" : ""} style={style}
+          draggable={Boolean(item && canDragNodeLink(item))}
+          onDragStart={/** Dragging a history destination never changes navigation history. */ event => beginSavedNodeDrag(path, title, event)} onDragEnd={endSavedNodeDrag}
           onClick={/** Dispatch only this currently available saved identity; no fallback or note creation. */ () => {if (item) actions.dispatch({id: "node.activate", source: "toolbar", target: {kind: "explicit", node: actionNodeRef(item)}});}}>
           <ObsidianIcon name={icon} size={12} /><span className="kplex-history-text">{title}</span>
         </button>;
@@ -1502,7 +1533,9 @@ export function KplexApp({ plugin, surface, hostLeaf, translate, environment, on
         : translate("app.syncStatusPinnedUnavailable"));
   const pinnedPages: PinnedNodeRow[] = plugin.readSavedPins().map(/** Keep all canonical slots; only cached node styles are read. */ row => {
     const target = row.path ? plugin.index.get(row.path) : undefined;
-    return savedPinPresentation(row, target, target ? plugin.index.titleFor(target) : undefined, paintSettings, translate, page.path);
+    const dragTarget = target ?? (row.state === "ready" && row.path ? plugin.index.getVaultSearchPage(row.path) : null);
+    return {...savedPinPresentation(row, target, target ? plugin.index.titleFor(target) : undefined, paintSettings, translate, page.path),
+      draggable: row.state === "ready" && Boolean(dragTarget && canDragNodeLink(dragTarget))};
   });
   /** Surface feedback follows the existing writer; failed/cancelled moves never navigate. */
   const movePin = (move: SavedPinMove): void => {void plugin.movePinned(move).catch(/** Report failure without retrying stale intent. */ error => {
@@ -1663,12 +1696,15 @@ export function KplexApp({ plugin, surface, hostLeaf, translate, environment, on
             <span className="kplex-toolbar-divider" />
             <ToolButton icon={plugin.settings.graphDepth === 2 ? "list-chevrons-down-up" : "list-chevrons-up-down"} title={translate(plugin.settings.graphDepth === 2 ? "app.singleLevelView" : "app.expandedView")} on={plugin.settings.graphDepth === 2} onClick={() => runAction("view.depth.toggle")} />
             <ToolButton icon="group" title={translate("actions.view.groups.toggle")} on={plugin.settings.groupRelations} pressed={plugin.settings.groupRelations} onClick={() => runAction("view.groups.toggle")} />
-            {isGraphTabCommandAvailable(environment) && <ToolButton icon="plus" title={translate("actions.surface.new-tab")} onClick={() => runAction("surface.new-tab")} />}
-            <ToolButton icon="settings" title={translate("app.settingsMenu")} on={areaSettingsMode} onClick={showSettingsMenu} />
+            {isGraphTabCommandAvailable(environment) && <ToolButton icon="plus" title={[translate("actions.surface.new-tab"), toolbarShortcutHints("canvas", environment, translate)].filter(Boolean).join("\n")} onClick={/** Modified openings retain this surface's action and host ownership. */ event => {
+              const request = canvasToolbarRequest(event, environment); if (request) actions.dispatch(request);
+            }} />}
+            <ToolButton icon="settings" title={[translate("app.settingsMenu"), toolbarShortcutHints("settings", environment, translate)].filter(Boolean).join("\n")} on={areaSettingsMode} onClick={showSettingsMenu} />
           </div>
         </header>
 
         {(pinnedPages.length > 0 || plugin.settings.showDailyCalendar) && <PinnedNodeBar rows={pinnedPages} translate={translate} onMove={movePin} onMenu={pinMoveMenu}
+          onDragStart={/** Saved bodies share history's exact native link and lifetime owner. */ (row, event) => beginSavedNodeDrag(row.path, row.label, event)} onDragEnd={endSavedNodeDrag}
           onCalendar={plugin.settings.showDailyCalendar ? /** The native date picker retains this canvas and its current day. */ () => plugin.openDailyNoteCalendar(hostLeaf, actions.surfaceId, page.path) : undefined}
           onActivate={activateSavedPin} onRemove={/** Bookmark removal works without preparing a missing destination. */ id => {void plugin.removePinnedEntry(id).catch(/** Keep write failures visible. */ error => {
             console.error("K-Plex pin removal failed", error);new Notice(translate("pins.saveFailed"));

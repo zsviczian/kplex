@@ -6,7 +6,7 @@ import {StyleEditorModal, labelIconButton} from "../../StyleEditorModal";
 import {StyleColorControls} from "../../StyleColorControls";
 import type {CanvasViewManagerContext} from "../managerContracts";
 import type {FacetPreset, FacetCategory} from "../../../core/plex/views/facets/contracts";
-import {isFacetPreset} from "../../../core/plex/views/facets/validation";
+import {FACET_LIMITS, isFacetPreset} from "../../../core/plex/views/facets/validation";
 import {facetCategoryLabel, facetPresetLabel, facetHasWuXingPhases} from "../../../core/plex/views/facets/labels";
 import {FACET_TEMPLATES} from "../../../core/plex/views/facets/templates";
 import {canvasViewText} from "../labels";
@@ -136,8 +136,8 @@ export class FacetPresetEditor extends StyleEditorModal {
         }));
     }
     for (const [index, id] of this.draft.order.entries()) this.category(body, id, index);
-    new Setting(body).addButton(button => button.setButtonText(t("facets.addCategory")).setDisabled(this.draft.order.length >= 7).onClick(() => {
-      if (!this.canEdit() || this.draft.order.length >= 7) return;
+    new Setting(body).addButton(button => button.setButtonText(t("facets.addCategory")).setDisabled(this.draft.order.length >= FACET_LIMITS.categories).onClick(() => {
+      if (!this.canEdit() || this.draft.order.length >= FACET_LIMITS.categories) return;
       const id = `category-${this.modalEl.ownerDocument.defaultView?.crypto.randomUUID() ?? ""}`;if (id === "category-") return;
       this.draft = {...this.draft, order: [...this.draft.order, id], categories: {...this.draft.categories,
         [id]: {label: t("facets.newCategory"), values: [], color: {kind: "theme", variable: "--color-cyan"}}}};this.render();

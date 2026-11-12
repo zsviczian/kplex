@@ -1,7 +1,7 @@
 /**
  * Private clean-host neighborhood relation closure. Complete neutral center incidence is compiled
- * under one captured policy. Sibling reads close every or an explicitly admitted subset of parents;
- * direct-center reads deliberately defer parent incidence before top-N. A second combined range
+ * under one captured policy. Sibling reads close every or an explicitly admitted subset of direct neighbors;
+ * direct-center reads deliberately defer witness incidence before top-N. A second combined range
  * closes sibling witnesses in original contributor order. Both passes use the canonical cached
  * compiler, never a graph mirror.
  * Only final root/head/journal/host/policy/demand-fenced inputs escape. A separate private gate
@@ -13,6 +13,7 @@ import type { SourcePatchReadPort } from "../core/graph/patch";
 import type { NodeId } from "../core/graph/model";
 import { RelationType } from "../core/graph/relations";
 import { classifyRelation } from "../core/graph/resolver";
+import {CLASSIC_NEIGHBOR_ROLES} from "../core/plex/views/classic/projection";
 import type { SourceEntityRef } from "../core/graph/source";
 import type { CachedPairCapture } from "./CachedRequestedPair";
 import { captureCachedCenterGateSettings, projectCachedCenterGates, cachedCenterTargetVisibility,
@@ -29,9 +30,9 @@ import { selectedSourceFailure, type NeutralSourceRepository } from "./SourceRep
 export type CachedNeighborhoodRequest = Readonly<{
   kind: "neighborhood";
   center: SourceEntityRef;
-  /** Complete closes all parents, selected closes only admitted IDs, deferred closes just the center. */
+  /** Complete closes all direct neighbors, selected closes only admitted IDs, deferred closes just the center. */
   siblingClosure?: "complete" | "deferred" | "selected";
-  /** Opaque canonical parent IDs admitted separately for optional bounded sibling work. */
+  /** Opaque direct-witness IDs admitted separately for optional bounded sibling work. Historical field name retained. */
   siblingParents?: readonly NodeId[];
 }>;
 /** Both center directions are complete; only completeParents certify additional parent incidence. */
@@ -39,7 +40,7 @@ type CachedRelationCertificate<Coverage extends "complete-neighborhood-relations
   coverage: Coverage;
   center: SourceEntityRef;
   parents: readonly SourceEntityRef[];
-  /** Only these parent nodes have complete incidence; other parents remain exact direct targets. */
+  /** Only these direct witnesses have complete incidence; historical parent field names do not imply a semantic role. */
   completeParents: readonly SourceEntityRef[];
   siblingClosure: "complete" | "deferred" | "selected";
   policyRevision: string;
@@ -155,11 +156,12 @@ async function containsCover(combined: ContributorCertificate, initial: Contribu
 }
 
 /**
- * Project the canonical semantic parent frontier. Relation-only callers retain every parent;
- * gate callers retain every proved policy-visible parent, independently of top-N or sorting. Scan even non-parent incidence cooperatively. Null rejects an
+ * Project canonical direct witnesses for second-order presentation. The legacy certificate's
+ * `parents` fields now cover neighbors in every role; gate callers retain policy-visible witnesses.
+ * Scan incidence cooperatively. Null rejects an
  * oversized/cancelled frontier, never a ready prefix; the caller reports the exact lifetime reason.
  */
-async function parentsOf(compilation: PortableGraphCompilation, center: SourceEntityRef,
+async function witnessesOf(compilation: PortableGraphCompilation, center: SourceEntityRef,
   inferAllLinksAsFriends: boolean, runtime: GraphCompilerRuntime,
   visibility?: Readonly<{ settings: CachedCenterGateSettings; entities: SourcePatchReadPort }>): Promise<
     Readonly<{ outcome: "ready"; parents: readonly SourceEntityRef[] }>
@@ -174,12 +176,13 @@ async function parentsOf(compilation: PortableGraphCompilation, center: SourceEn
       started = runtime.now();
     }
     visited += 1;
-    if (relation.isHidden || classifyRelation(relation, "parent", inferAllLinksAsFriends) === null) continue;
+    if (relation.isHidden) continue;
+    const types = CLASSIC_NEIGHBOR_ROLES.map(role => classifyRelation(relation, role, inferAllLinksAsFriends)).filter(type => type !== null);
+    if (!types.length) continue;
     if (visibility) {
       const proof = cachedCenterTargetVisibility(relation.target, visibility.settings, visibility.entities);
       if (proof.outcome !== "ready") return proof;
-      if (!proof.visible || !visibility.settings.showInferredNodes
-        && classifyRelation(relation, "parent", inferAllLinksAsFriends) === RelationType.INFERRED) continue;
+      if (!proof.visible || !visibility.settings.showInferredNodes && !types.includes(RelationType.DEFINED)) continue;
     }
     parents.push(copyRef(relation.target));
   }
@@ -299,13 +302,13 @@ export class CachedRequestedNeighborhoodReader {
         }
         sourceReplays += prepared.work.length;
         for (const work of prepared.work) familyVisits += work.familyVisits;
-        const parentProjection = await parentsOf(prepared.compilation, center, capturedPolicy.settings.inferAllLinksAsFriends, scopedRuntime,
+        const parentProjection = await witnessesOf(prepared.compilation, center, capturedPolicy.settings.inferAllLinksAsFriends, scopedRuntime,
           visibility ? { settings: visibility, entities: this.entities } : undefined);
         if (!current()) return selectedSourceFailure(reason());
         if (parentProjection.outcome !== "ready") return selectedSourceFailure(parentProjection.reason);
         const parents = parentProjection.parents;
         const closureParents = siblingClosure === "complete" ? parents : siblingClosure === "selected"
-          ? parents.filter(/** Only the current canonical parent frontier can gain optional completeness. */
+          ? parents.filter(/** Only the current canonical direct frontier can gain optional completeness. */
             parent => selectedParents.has(parent.id)) : [];
         if (siblingClosure === "selected" && closureParents.length !== selectedParents.size) return selectedSourceFailure("unsupported-scope");
         if (frontier && !(await sameScope({ kind: "neighborhood", endpoints: parents },

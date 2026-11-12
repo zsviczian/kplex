@@ -58,6 +58,7 @@ export type GraphCompilerSettings = Readonly<{
     rightFriends: readonly string[];
     previous: readonly string[];
     next: readonly string[];
+    exclusions?: readonly string[];
   }>;
   thumbnailProperty?: string;
   nodeImageProperty?: string;

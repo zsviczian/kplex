@@ -9,7 +9,7 @@ const settings=()=>({ontologyPairingVersion:1,hierarchy:{hidden:[],parents:Array
 
 test('repeated current-policy guards serialize the immutable paired projection once',()=>{
  const value=settings(),stringify=JSON.stringify;let encodings=0;
- JSON.stringify=function(input,...args){if(input?.signatureVersion===4)encodings++;return stringify(input,...args)};
+ JSON.stringify=function(input,...args){if(input?.signatureVersion===5)encodings++;return stringify(input,...args)};
  try{const first=M.encodeIndexSettingsSignature(value);for(let n=0;n<10000;n++)assert.equal(M.encodeIndexSettingsSignature(value),first);
   assert.equal(encodings,1,'No repeated 427-field serialization during unchanged hydration');
  }finally{JSON.stringify=stringify;}
