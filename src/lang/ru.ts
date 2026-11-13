@@ -1977,6 +1977,10 @@ const russianTranslations = {
   "creation.type": "Создать как",
   "common.placeholder": "Заполнитель",
 
+  "creation.alias": "Псевдоним",
+  "creation.action": "Действие",
+  "creation.typeStatus": "Создать {name} как {type}.",
+
 } as const satisfies LocaleTranslationMap;
 
 export const russianCatalog = buildLocaleCatalog(russianTranslations);

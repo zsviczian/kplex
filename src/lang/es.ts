@@ -1973,6 +1973,10 @@ const spanishTranslations = {
   "creation.type": "Crear como",
   "common.placeholder": "Marcador de posición",
 
+  "creation.alias": "Alias",
+  "creation.action": "Acción",
+  "creation.typeStatus": "Crear {name} como {type}.",
+
 } as const satisfies LocaleTranslationMap;
 
 export const spanishCatalog = buildLocaleCatalog(spanishTranslations);

@@ -1965,6 +1965,10 @@ const traditionalChineseTranslations = {
   "creation.type": "建立為",
   "common.placeholder": "預留節點",
 
+  "creation.alias": "別名",
+  "creation.action": "動作",
+  "creation.typeStatus": "將 {name} 建立為 {type}。",
+
 } as const satisfies LocaleTranslationMap;
 
 export const traditionalChineseCatalog = buildLocaleCatalog(traditionalChineseTranslations);

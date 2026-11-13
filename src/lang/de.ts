@@ -1969,6 +1969,10 @@ const germanTranslations = {
   "creation.type": "Erstellen als",
   "common.placeholder": "Platzhalter",
 
+  "creation.alias": "Alias",
+  "creation.action": "Aktion",
+  "creation.typeStatus": "{name} als {type} erstellen.",
+
 } as const satisfies LocaleTranslationMap;
 
 export const germanCatalog = buildLocaleCatalog(germanTranslations);

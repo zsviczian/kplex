@@ -1973,6 +1973,10 @@ const frenchTranslations = {
   "creation.type": "Créer en tant que",
   "common.placeholder": "Espace réservé",
 
+  "creation.alias": "Alias",
+  "creation.action": "Action",
+  "creation.typeStatus": "Créer {name} en tant que {type}.",
+
 } as const satisfies LocaleTranslationMap;
 
 export const frenchCatalog = buildLocaleCatalog(frenchTranslations);

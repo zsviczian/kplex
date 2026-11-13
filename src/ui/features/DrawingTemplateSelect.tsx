@@ -1,5 +1,5 @@
 /** One searchable, non-executing, creation-kind-scoped template catalogue shared by native shells. */
-import {createElement, useEffect, useId, useMemo, useRef, useState} from "react";
+import {createElement, useEffect, useId, useMemo, useRef, useState, type ReactNode} from "react";
 import type {Translator} from "../../lang";
 import {FormField} from "../components/FormField";
 import {FuzzySuggester} from "../components/FuzzySuggester";
@@ -18,9 +18,9 @@ export interface DrawingTemplateChoices {
 }
 
 /** Typing searches only; choosing a captured catalogue entry commits its exact path and creation kind. */
-export function DrawingTemplateSelect({choices, value, kind, disabled, translate, onChange}: {
+export function DrawingTemplateSelect({choices, value, kind, disabled, translate, onChange, actions, resultsOwnerId}: {
   choices: DrawingTemplateChoices; value: string; kind?: TemplateChoiceKind; disabled?: boolean; translate: Translator;
-  onChange: (path: string, kind?: TemplateChoiceKind) => void;
+  onChange: (path: string, kind?: TemplateChoiceKind) => void; actions?: ReactNode; resultsOwnerId?: string;
 }) {
   const id=useId(),selected=choices.files.find(file=>file.path===value),currentKind=kind??selected?.kind??"excalidraw";
   const blankLabel=translate(currentKind==="markdown"?"template.none":"drawing.blank");
@@ -31,9 +31,9 @@ export function DrawingTemplateSelect({choices, value, kind, disabled, translate
   useEffect(/** External selections and locale changes replace only the committed display value. */ ()=>{
     committed.current=value||blankLabel;setQuery(committed.current);
   },[value,blankLabel]);
-  return createElement(FormField,{controlId:id,label:translate("drawing.template"),className:"kplex-drawing-template",children:
+  return createElement(FormField,{controlId:id,label:translate("drawing.template"),layout:"inline",actions,className:"kplex-drawing-template",children:
     createElement(FuzzySuggester<DrawingTemplateChoice>,{
-      inputId:id,labelledBy:`${id}-label`,ariaLabel:translate("drawing.template"),value:query,disabled,
+      inputId:id,labelledBy:`${id}-label`,ariaLabel:translate("drawing.template"),value:query,disabled,resultsOwnerId,
       onChange:/** Draft query edits never change the creation path or output kind. */ next=>setQuery(next),
       getResults:/** Rank a bounded view of the immutable, folder-scoped catalogue only while disclosed. */ raw=>{
         if(disabled)return [];
@@ -52,6 +52,7 @@ export function DrawingTemplateSelect({choices, value, kind, disabled, translate
       placeholder:translate("template.search"),className:`kplex-template-picker dropdown kplex-native-combobox${disabled?" mod-disabled":""}`,
       floating:true,floatingMode:"viewport",maxFloatingHeight:320,minFloatingWidth:360,openResultsOnFocus:false,closeOnBlur:true,combobox:true,preferSuggestionOnModifiedEnter:true,
       onFocusChange:/** Abandoned query text cannot impersonate the selected template. */ focused=>{if(!focused)setQuery(committed.current);},
+      onDismiss:/** Escape or disclosure closure restores the accepted path without faking native blur. */ ()=>setQuery(committed.current),
       disclosure:{label:translate("template.browse"),icon:null,onOpen:/** Browse all choices without changing the committed selection. */ ()=>setQuery("")},
     })});
 }

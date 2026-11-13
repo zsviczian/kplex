@@ -215,7 +215,9 @@ Use the pencil beside the selected ontology to edit that exact property, its pai
 
 Choose **Markdown**, **Excalidraw** or **Placeholder** in the creation tabs. Available
 types match the operation, and Excalidraw appears only with its companion installed.
-**After saving** stays above the tabs. Each real-file tab has its own searchable
+**Action** stays above the tabs and selects what happens after saving. Short labels
+leave long input fields; the Template picker and create button share a responsive
+row. Escape closes an open template list first. Each real-file tab has its own searchable
 **Template** picker and retains its selection when switching. Configure the Markdown
 source with the folder suggester under **Ontology → Relationship behavior → Markdown
 template folder**. **No K-Plex template** keeps normal

@@ -1965,6 +1965,10 @@ const japaneseTranslations = {
   "creation.type": "作成形式",
   "common.placeholder": "プレースホルダー",
 
+  "creation.alias": "別名",
+  "creation.action": "操作",
+  "creation.typeStatus": "{name} を {type} として作成します。",
+
 } as const satisfies LocaleTranslationMap;
 
 export const japaneseCatalog = buildLocaleCatalog(japaneseTranslations);

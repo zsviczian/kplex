@@ -1969,6 +1969,10 @@ const dutchTranslations = {
   "creation.type": "Maken als",
   "common.placeholder": "Tijdelijke aanduiding",
 
+  "creation.alias": "Alias",
+  "creation.action": "Actie",
+  "creation.typeStatus": "{name} als {type} maken.",
+
 } as const satisfies LocaleTranslationMap;
 
 export const dutchCatalog = buildLocaleCatalog(dutchTranslations);

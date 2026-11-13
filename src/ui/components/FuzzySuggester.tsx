@@ -64,6 +64,8 @@ export type FuzzySuggesterProps<T> = {
   onCtrlEnter?: () => void;
   openResultsOnFocus?: boolean;
   onFocusChange?: (focused: boolean) => void;
+  /** Explicit popup dismissal can retire a caller's search draft without changing native input focus or choosing a value. */
+  onDismiss?: () => void;
   /** Increment to imperatively focus this input and reopen its result list. */
   focusRequest?: number;
   className?: string;
@@ -156,6 +158,7 @@ export function FuzzySuggester<T>({
   onCtrlEnter,
   openResultsOnFocus = true,
   onFocusChange,
+  onDismiss,
   focusRequest,
   className = "",
   highlightMatches = true,
@@ -191,11 +194,12 @@ export function FuzzySuggester<T>({
     : null;
   const popupVisible = focused && visibleResults.length > 0 && (!floating || Boolean(portalRoot && overlayStyle));
 
-  /** Dismiss a suggestion list without discarding the input or selected caller value. */
+  /** Dismiss without changing focus or committing a value; callers may restore their accepted display. */
   const dismissResults = () => {
     setExplicitlyOpened(false);
     setResultsDismissed(true);
     setSelectedIndex(0);
+    onDismiss?.();
   };
 
   /** Disclosure pointer and opt-in combobox keyboard opening share the caller's complete choices. */
@@ -261,13 +265,13 @@ export function FuzzySuggester<T>({
     if (focusRequest) focusInput();
   }, [focusRequest, focusInput]);
 
-  useEffect(() => {
+  useEffect(/** Native modal dismissal uses the current optional draft-restoration capability and the same owned shell. */ () => {
     const shell = shellRef.current;
     if (!shell) return;
     const dismiss = () => dismissResults();
     shell.addEventListener("kplex-dismiss-suggestions", dismiss);
     return () => shell.removeEventListener("kplex-dismiss-suggestions", dismiss);
-  }, []);
+  }, [onDismiss]);
 
   useEffect(() => {
     if (!focused || !ownerDocument || !ownerWindow) return;

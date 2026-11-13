@@ -67,14 +67,17 @@ Obsidian APIs in portable components.
   Do not inherit note typography or introduce per-modal font families/sizes.
   A source/code editor may intentionally use Obsidian's monospace font; this is
   not a reason for its label, actions or neighboring controls to use code typography.
-- Long input (note/folder/file names, paths, queries, ontology names) is full width,
-  with its visible label above. Textareas are always full width, label above, and
-  vertically resizable. Never squeeze authored text into half a Settings row.
+- Long input (note/folder/file names, paths, queries, ontology names) uses the
+  available width. Compact creation forms use the shared inline FormField with
+  short labels and a growing input column. Other authored fields keep the label
+  above. Textareas are always full width, label above, and vertically resizable.
+  Never squeeze authored text into half a Settings row.
 - Compact options such as a toggle or finite dropdown may be inline in Settings.
   A form's dropdown rows share label/control widths, height and spacing. The
   template chooser uses the shared searchable Template field; After saving uses the
   shared labelled select. Both retain native dropdown typography, control height
-  and theme chrome while the searchable field keeps its label above the input.
+  and theme chrome. In creation-type panels Template shares an inline row with
+  the create action; narrow panels wrap its label above the input and action.
   Template opts into the shared combobox semantics: one labelled input controls
   its listbox and active option. Arrow Down opens browsing from the closed field;
   selection keeps input focus, and Escape/Tab retire popup references.
@@ -91,6 +94,9 @@ Obsidian APIs in portable components.
 - Keep tabs at the top of their content and preserve drafts when switching. Never
   hide a required common option behind an extra configure dialog.
 - Creation forms keep the shared After saving control above creation-type tabs.
+  Compact forms label this control Action. Name, Alias, Folder and Action share
+  the same short label column; fields consume the remaining width. Creation
+  status names only the active type, below the template/action row.
   Markdown and Excalidraw retain separate template choices. Explicit tab selection
   remembers the last tab even when the form is cancelled, without submitting.
   Unsupported remembered kinds project locally without replacing that preference.

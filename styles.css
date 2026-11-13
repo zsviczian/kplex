@@ -4194,3 +4194,29 @@ button.kplex-sidecar-unfold-plex:focus-visible,
   .kplex-form-options .setting-item:not(.kplex-form-field) > .setting-item-info,
   .kplex-form-options .setting-item:not(.kplex-form-field) > .setting-item-control { flex-basis: 100%; }
 }
+
+/* Compact authored rows keep a short visible label and all remaining width for the native input. */
+.kplex-modal .kplex-form-inline {
+  display: grid;
+  grid-template-columns: minmax(0, 5em) minmax(0, 1fr);
+  align-items: center;
+  gap: var(--kplex-control-gap);
+  min-width: 0;
+  width: 100%;
+}
+.kplex-form-inline > label { margin: 0; overflow-wrap: anywhere; }
+.kplex-modal .kplex-form-inline > :not(label):not(.kplex-field-actions) { min-width: 0; width: 100%; max-width: none; box-sizing: border-box; }
+.kplex-modal .kplex-form-inline.has-actions { grid-template-columns: minmax(0, 5em) minmax(0, 1fr) auto; }
+.kplex-field-actions { display: flex; align-items: center; justify-content: flex-end; min-width: 0; gap: var(--kplex-control-gap); }
+.kplex-field-actions .kplex-add-related-action-area { min-width: 0; height: auto; }
+.kplex-creation-types { container-type: inline-size; }
+.kplex-creation-type-panel { padding: 12px; }
+.kplex-creation-type-actions { display: flex; justify-content: flex-end; }
+.kplex-creation-status { margin-top: 8px; color: var(--text-muted); font-size: var(--font-ui-small); overflow-wrap: anywhere; }
+.kplex-creation-status .kplex-add-related-create-hint { margin-top: 0; }
+@container (max-width: 360px) {
+  .kplex-modal .kplex-drawing-template.has-actions { grid-template-columns: minmax(0, 1fr) auto; }
+  .kplex-drawing-template.has-actions > label { grid-column: 1 / -1; }
+  .kplex-drawing-template.has-actions > .kplex-template-picker { grid-column: 1; }
+  .kplex-drawing-template.has-actions > .kplex-field-actions { grid-column: 2; }
+}

@@ -7,7 +7,6 @@ import {formActions, iconButton, FormSetting as Setting, KplexModal as Modal, fo
 
 import type {DrawingTemplateChoices} from "./features/DrawingTemplateSelect";
 import {CreationTypeTabs, type CreationTypeTabControl} from "./features/CreationTypeTabs";
-import {FormActions} from "./components/FormField";
 import {ObsidianIcon} from "./ObsidianIcon";
 import { SavedRelationshipPendingError } from "../adapters/obsidian/relationshipMetadataWrite";
 import {Notice, type App, type ButtonComponent, type Scope, type TFile} from "obsidian";
@@ -142,7 +141,7 @@ export class MaterializeGhostModal extends Modal {
   /** Render the single shared After saving control; partial writes lock its value. */
   private renderCompletion(): void {
     if (!this.completionControl || !this.completionRoot) return;
-    this.completionRoot.render(createElement(CreationCompletionSelect, {...this.completionControl,
+    this.completionRoot.render(createElement(CreationCompletionSelect, {...this.completionControl, compact: true,
       value: this.afterSaving, translate: this.translate, disabled: this.creating || this.partialFile !== null,
       onChange: /** Persist only the explicit outcome chosen in this invocation. */ value => {
         this.afterSaving = value; this.completionControl?.onChange(value); this.renderCompletion();
@@ -161,16 +160,16 @@ export class MaterializeGhostModal extends Modal {
         this.selectedKind=kind;this.templatePath=this.templatePaths[kind];this.templateKind=this.templatePath?kind:undefined;this.refreshControls();
         this.creationTabControl?.onChange(kind);
       },
-      template: this.templateChoices ? {choices: this.templateChoices, value: this.templatePath ?? "",
+      template: this.templateChoices ? {choices: this.templateChoices, value: this.templatePath ?? "", resultsOwnerId: this.suggestionOwnerId,
         onChange: /** Explicit path acceptance updates only the active physical kind. */ path => {
           if(this.creating||this.partialFile)return;
           this.templatePath=path;this.templatePaths[this.selectedKind]=path;this.templateKind=path?this.selectedKind:undefined;this.refreshControls();
         }} : undefined,
-      children: createElement(FormActions, null, createElement("button", {type: "button", className: `kplex-icon-action${this.partialDaily ? "" : " mod-cta"}`,
+      actions: createElement("button", {type: "button", className: `kplex-icon-action${this.partialDaily ? "" : " mod-cta"}`,
         "aria-label": this.translate(this.selectedKind === "markdown" ? "addRelated.createMarkdown" : "addRelated.createExcalidraw"),
         disabled: this.creating || this.partialKind !== null && (this.partialDaily || this.partialKind !== this.selectedKind),
         onClick: /** Native Scope and pointer activation share exact-file recovery and creation fences. */ () => {void this.create(this.selectedKind);}},
-      createElement(ObsidianIcon, {name: this.selectedKind === "markdown" ? "text-initial" : "palette", size: 20}))),
+      createElement(ObsidianIcon, {name: this.selectedKind === "markdown" ? "text-initial" : "palette", size: 20})),
     }));
   }
 
@@ -212,17 +211,6 @@ export class MaterializeGhostModal extends Modal {
       return true;
     }));
     this.refreshControls();
-  }
-
-  /** Escape dismisses an open folder list before closing the native creation form. */
-  override onEscapeKey(event: KeyboardEvent): void {
-    if (event.defaultPrevented || event.isComposing) return;
-    event.preventDefault(); event.stopPropagation();
-    const expanded = this.contentEl.querySelector<HTMLInputElement>('input[aria-expanded="true"]');
-    const shell = expanded?.closest<HTMLElement>(".kplex-fuzzy-search");
-    if (!shell) { this.close(); return; }
-    const EventCtor = shell.ownerDocument.defaultView?.CustomEvent ?? CustomEvent;
-    shell.dispatchEvent(new EventCtor("kplex-dismiss-suggestions"));
   }
 
   /** Release the exact React suggestion owner and native key registrations on every close. */

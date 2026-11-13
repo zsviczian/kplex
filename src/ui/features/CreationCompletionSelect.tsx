@@ -13,11 +13,11 @@ export type CreatedNoteCompletionControl=Readonly<{
 }>;
 
 /** Render the remembered outcome with the existing After saving caption and no additional label. */
-export function CreationCompletionSelect({translate,value,choices,onChange,disabled=false,labelForChoice}:CreatedNoteCompletionControl&{
-  translate:Translator;disabled?:boolean;labelForChoice?:(choice:CreationAfterSavingAction)=>string;
+export function CreationCompletionSelect({translate,value,choices,onChange,disabled=false,labelForChoice,compact=false}:CreatedNoteCompletionControl&{
+  translate:Translator;disabled?:boolean;labelForChoice?:(choice:CreationAfterSavingAction)=>string;compact?:boolean;
 }){
   return createElement(FormSelect,{className:'kplex-creation-completion kplex-add-related-completion',
-    label:translate('addRelated.completionMode'),value,disabled,control:'creation-completion',
+    label:translate(compact?'creation.action':'addRelated.completionMode'),layout:compact?'inline':'option',value,disabled,control:'creation-completion',
       onChange:/** Reject unavailable/synthetic values and edits during native writes. */(value:string)=>{
         const choice=choices.find(/** Match the exact offered action. */item=>item===value);
         if(!disabled&&choice)onChange(choice);

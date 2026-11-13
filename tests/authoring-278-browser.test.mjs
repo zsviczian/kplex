@@ -39,6 +39,27 @@ test('Markdown export gives the native ontology dropdown remaining width and cen
 });
 import {authoringScenario} from './support/authoring278Browser.mjs';
 
+for(const width of [900,360])for(const locale of ['en','de'])test(`compact related creation keeps long controls and type-specific status at ${width}px in ${locale}`,async()=>{
+ assert.equal(await authoringScenario(`
+ p.translator=M.createTranslator(${JSON.stringify(locale)});p.isExcalidrawAvailable=()=>true;p.settings.newNodeCreationTab='markdown';
+ const modal=openComposer();await waitFor(()=>name(modal)&&modal.contentEl.querySelector('.kplex-creation-types'));
+ reactInput(name(modal),'A'.repeat(160));await waitFor(()=>modal.contentEl.querySelector('.kplex-creation-status'));
+ const rows=[...modal.contentEl.querySelectorAll('.kplex-create-name-pair .kplex-form-inline,.kplex-create-folder-row,.kplex-creation-completion')];
+ equal(rows.map(row=>row.querySelector('label').textContent),[p.translator('common.name'),p.translator('creation.alias'),p.translator('folderPicker.label'),p.translator('creation.action')],'Compact field labels');
+ for(const row of rows){const label=row.querySelector('label'),control=row.querySelector('input,select'),a=label.getBoundingClientRect(),b=control.getBoundingClientRect(),r=row.getBoundingClientRect();
+ check(a.right<b.left&&b.width>=r.width*.65,'A short inline label squeezed the input');check(control.id===label.htmlFor,'Compact row lost visible label association');}
+ const active=kind=>modal.contentEl.querySelector('.kplex-creation-types [role=tab][id$="tab-'+kind+'"]');
+ for(const kind of ['markdown','excalidraw','placeholder']){active(kind).click();await waitFor(()=>active(kind).getAttribute('aria-selected')==='true');
+ const status=modal.contentEl.querySelector('.kplex-creation-status');check(status.textContent===p.translator('creation.typeStatus',{name:'A'.repeat(160),type:p.translator('common.'+kind)}),'Creation status does not match selected type');
+ if(kind==='placeholder')check(!modal.contentEl.querySelector('.kplex-relationship-direction'),'Ineligible Placeholder exposed property-direction section');
+ else{const template=modal.contentEl.querySelector('.kplex-drawing-template'),picker=template.querySelector('.kplex-template-picker'),action=template.querySelector('.kplex-field-actions button'),a=picker.getBoundingClientRect(),b=action.getBoundingClientRect();
+ check(a.right<b.left&&Math.abs(a.top+a.height/2-b.top-b.height/2)<2,'Template and create action must share a row');check(a.width>=template.getBoundingClientRect().width*.55,'Template input is too short');}
+ }
+ check(modal.contentEl.scrollWidth<=modal.contentEl.clientWidth+1,'Compact form overflowed horizontally '+JSON.stringify({client:modal.contentEl.clientWidth,scroll:modal.contentEl.scrollWidth,overflow:[...modal.contentEl.querySelectorAll('*')].filter(el=>el.getBoundingClientRect().right>modal.contentEl.getBoundingClientRect().right+1).map(el=>({tag:el.tagName,class:el.className,width:el.getBoundingClientRect().width,right:el.getBoundingClientRect().right})).slice(0,12)}));check(modal.contentEl.querySelector('.kplex-add-related-form').getBoundingClientRect().height<620,'Compact form remains too tall');modal.close();
+ origin.file.extension='png';p.settings.newNodeCreationTab='markdown';const attachment=openComposer();await waitFor(()=>name(attachment));check(!attachment.contentEl.querySelector('.kplex-relationship-direction'),'An ineligible attachment exposed property direction');attachment.close();
+ `,{styles:true,width,height:900}),true);
+});
+
 test('connection reciprocal preflight explains missing inverse or writable note before enabling Save',async()=>{
  assert.equal(await authoringScenario(`
  p.settings.alsoWriteInverseOntology=true;let semanticWork=0;p.index.invalidateSemanticPolicy=()=>semanticWork++;p.index.refreshSemanticSettings=async()=>semanticWork++;
@@ -137,7 +158,7 @@ test('folder Template choice keeps creation kind, primary action and native keyb
  await waitFor(()=>modal.contentEl.querySelector('.kplex-drawing-template input'));const nameInput=modal.contentEl.querySelector('.kplex-create-folder-note-name-setting input');reactInput(nameInput,'Created');
  const kindTab=kind=>modal.contentEl.querySelector('.kplex-creation-types [role=tab][id$="tab-'+kind+'"]'),picker=()=>modal.contentEl.querySelector('.kplex-drawing-template input');
  await waitFor(()=>button(modal,'addRelated.createExcalidraw')?.classList.contains('mod-cta'));check(picker().value===remembered&&kindTab('excalidraw').getAttribute('aria-selected')==='true','Remembered drawing path/type lost');
- check(modal.contentEl.querySelectorAll('.kplex-creation-type-panel:not([hidden]) .kplex-form-actions button').length===1&&!button(modal,'common.cancel'),'Multiple create actions or footer cancellation survived');
+ check(modal.contentEl.querySelectorAll('.kplex-creation-type-panel:not([hidden]) .kplex-field-actions button').length===1&&!button(modal,'common.cancel'),'Multiple create actions or footer cancellation survived');
  kindTab('markdown').click();await waitFor(()=>picker().value===t('template.none'));picker().focus();reactInput(picker(),'Templates/Same');await waitFor(()=>document.querySelector('.kplex-search-results button'));check(!document.querySelector('.kplex-search-results').textContent.includes(remembered),'Markdown tab exposed a drawing');document.querySelector('.kplex-search-results button').click();
  await waitFor(()=>picker().value==='Templates/Same.md');kindTab('excalidraw').click();await waitFor(()=>picker().value===remembered);kindTab('markdown').click();await waitFor(()=>picker().value==='Templates/Same.md'&&!button(modal,'addRelated.createMarkdown').disabled);
  check(nameInput.value==='Created'&&selected.length===0&&validated.length===0&&p.settings.lastDrawingTemplatePath===remembered,'Tab/template selection changed common drafts or executed file work');
@@ -288,22 +309,22 @@ for(const width of [390,1000])for(const theme of ['theme-light','theme-dark'])fo
  await waitFor(()=>modal.contentEl.querySelectorAll('select').length===1&&modal.contentEl.querySelector('.kplex-drawing-template .kplex-native-combobox input')&&modal.contentEl.querySelector('[role="tab"][id$="tab-folder"]'));
  const form=modal.contentEl.getBoundingClientRect(),note=modal.nameInput.getBoundingClientRect();
  check(note.width>=form.width*.95,'Note name is not full width '+JSON.stringify({note:note.width,form:form.width}));
- const options=[...modal.contentEl.querySelectorAll('.kplex-form-option')],completion=options[0],template=modal.contentEl.querySelector('.kplex-drawing-template');check(options.length===1&&template.classList.contains('kplex-form-field'),'Completion must use FormSelect and searchable Template must use FormField');
+ const completion=modal.contentEl.querySelector('.kplex-creation-completion'),template=modal.contentEl.querySelector('.kplex-drawing-template');check(completion.classList.contains('kplex-form-inline')&&template.classList.contains('kplex-form-inline'),'Completion and Template must use the shared inline labelled field');
  const select=completion.querySelector('select'),combobox=template.querySelector('.kplex-native-combobox'),templateInput=combobox.querySelector('input'),browse=combobox.querySelector('.kplex-fuzzy-disclosure'),controls=[select,combobox],styles=controls.map(control=>getComputedStyle(control));
  equal(styles.map(style=>[style.fontFamily,style.fontSize,style.height]),[...Array(2)].map(()=>[styles[0].fontFamily,styles[0].fontSize,styles[0].height]),'Option typography or height differs');
  equal([getComputedStyle(templateInput).fontFamily,getComputedStyle(templateInput).fontSize],[styles[1].fontFamily,styles[1].fontSize],'Search input bypassed the native combobox typography owner');
  const rows=[completion,template],labels=rows.map(row=>row.querySelector('label')),labelStyles=labels.map(label=>getComputedStyle(label));equal(labelStyles.map(style=>[style.fontFamily,style.fontSize]),[...Array(2)].map(()=>[labelStyles[0].fontFamily,labelStyles[0].fontSize]),'Paired labels must match while native control typography stays host-owned');
  const bounds=controls.map(control=>control.getBoundingClientRect()),templateLabel=labels[1].getBoundingClientRect(),inputBounds=templateInput.getBoundingClientRect();
- check(labels[1].textContent===p.translator('drawing.template')&&labels[0].textContent===p.translator('addRelated.completionMode'),'Localized Template or completion caption missing');
+ check(labels[1].textContent===p.translator('drawing.template')&&labels[0].textContent===p.translator('creation.action'),'Localized Template or completion caption missing');
  check(select.classList.contains('dropdown')&&combobox.classList.contains('dropdown')&&templateInput.type==='text'&&templateInput.value==='Templates/Drawing.md','Template replaced searchable native chrome or lost committed path');
  const templateRow=template.getBoundingClientRect(),panel=template.closest('.kplex-creation-type-panel').getBoundingClientRect(),typeTabs=modal.contentEl.querySelector('.kplex-creation-types > [role=tablist]').getBoundingClientRect();
- check(templateLabel.bottom<=bounds[1].top&&Math.abs(bounds[1].left-templateRow.left)<1&&bounds[1].width>=templateRow.width*.95&&Math.abs(inputBounds.width-bounds[1].width)<1,'Searchable Template must be labelled above its full-width native combobox');
- check(Math.abs(bounds[0].right-form.right)<1&&Math.abs(bounds[1].right-templateRow.right)<1&&templateRow.left>panel.left&&templateRow.right<panel.right,'Each native control must fill its own form or inset type-panel container');
+ check(Math.abs(inputBounds.width-bounds[1].width)<1&&bounds[1].width>=templateRow.width*.55,'Template input must retain most of the available row width');if(typeTabs.width<=360)check(templateLabel.bottom<=bounds[1].top,'Narrow Template label must wrap above input/action');else check(templateLabel.right<bounds[1].left,'Wide Template label must share the input row');
+ check(Math.abs(bounds[0].right-form.right)<1&&bounds[1].right<templateRow.right&&templateRow.left>panel.left&&templateRow.right<panel.right,'Each native control must fill its own form or inset type-panel container');
  check(completion.getBoundingClientRect().bottom<=typeTabs.top,'After saving must precede the type tabs');
- if(${width}<=480)check(labels[0].getBoundingClientRect().bottom<=bounds[0].top&&bounds[0].width>=form.width*.95,'Narrow completion option did not stack full width');else check(labels[0].getBoundingClientRect().right<bounds[0].left&&Math.abs(completion.getBoundingClientRect().width-form.width)<1,'Wide completion option lost shared inline label/control columns');
+ check(labels[0].getBoundingClientRect().right<bounds[0].left&&bounds[0].width>=form.width*.65&&Math.abs(completion.getBoundingClientRect().width-form.width)<1,'Action must use a short inline label and a long native select');
  check(labels[0].htmlFor===select.id&&labels[1].htmlFor===templateInput.id&&templateInput.getAttribute('aria-labelledby')===labels[1].id&&!templateInput.hasAttribute('aria-label')&&browse.getAttribute('aria-label')===p.translator('template.browse'),'Native controls lost visible-label or disclosure accessibility ownership');
- const actions=modal.tabPanels.note.querySelector('.kplex-form-actions'),footer=actions.getBoundingClientRect();
- check(bounds.every(rect=>rect.bottom<footer.top-8),'A native control overlaps the footer divider');
+ const actions=template.querySelector('.kplex-field-actions'),actionBounds=actions.getBoundingClientRect();
+ check(bounds[1].right<actionBounds.left&&Math.abs(bounds[1].top-actionBounds.top)<2,'Create action must sit beside Template without overlap');
  check(!modal.contentEl.querySelector('button[title]'),'A native title can stack tooltips');
  for(const action of actions.querySelectorAll('button')){check(action.classList.contains('kplex-icon-action')&&action.getAttribute('aria-label')&&action.querySelector('svg'),'Footer action bypasses shared accessible icons');}
  check(actions.querySelectorAll('button').length===1&&!button(modal,'common.cancel'),'Selected type has multiple create actions or a footer Cancel');
@@ -519,7 +540,7 @@ test('creation type tabs preserve shared drafts, isolated template choices and k
  await waitFor(()=>tab('placeholder').getAttribute('aria-selected')==='true'&&!picker()&&!document.querySelector('[role=listbox]'));
  check(name(modal).value==='Unresolved draft'&&alias.value==='Shared alias'&&folderInput.value==='/'&&field(modal).value==='Child','Switching type changed common drafts');
  check(p.settings.newNodeDefaultType===originalDefault&&validated.length===0&&operations.length===0,'Tab/template browsing wrote preferences or files');
- const actions=modal.contentEl.querySelector('.kplex-creation-type-panel:not([hidden]) .kplex-form-actions');check(actions.querySelectorAll('button').length===1&&button(modal,'addRelated.createPlaceholder').dataset.kplexPrimaryAction==='true'&&!button(modal,'common.cancel'),'Placeholder tab did not own the sole default action');
+ const actions=modal.contentEl.querySelector('.kplex-creation-type-panel:not([hidden]) .kplex-creation-type-actions');check(actions.querySelectorAll('button').length===1&&button(modal,'addRelated.createPlaceholder').dataset.kplexPrimaryAction==='true'&&!button(modal,'common.cancel'),'Placeholder tab did not own the sole default action');
  modal.submitKey(new KeyboardEvent('keydown',{key:'Enter',ctrlKey:true,bubbles:true,cancelable:true}));await waitFor(()=>operations.length===1&&!modal.modalEl.isConnected);check(operations[0][2]==='Unresolved draft'&&operations[0][5]==='Shared alias'&&validated.length===0,'Keyboard Placeholder submission changed shared drafts or executed a template');
  p.isExcalidrawAvailable=()=>false;const limited=openComposer();await waitFor(()=>name(limited));check(!limited.contentEl.querySelector('[role=tab][id$="tab-excalidraw"]')&&limited.contentEl.querySelector('[role=tab][id$="tab-placeholder"]'),'Companion absence did not restrict only the drawing type');limited.close();check(!document.querySelector('[role=listbox]'),'Tab picker popup survived modal close');
  `,{styles:true,width:420}),true);
@@ -535,6 +556,7 @@ test('Placeholder availability follows stable endpoint policy and projects a new
  tab('placeholder').click();await waitFor(()=>button(modal,'addRelated.createPlaceholder'));
  check(button(modal,'addRelated.createPlaceholder').disabled&&tab('placeholder').getAttribute('aria-selected')==='true','An empty name hid a supported type instead of disabling its create action');
  reactInput(name(modal),'Retained name');reactInput(modal.contentEl.querySelector('.kplex-create-alias-input'),'Retained alias');await waitFor(()=>!button(modal,'addRelated.createPlaceholder').disabled);
+ check(!modal.contentEl.querySelector('.kplex-relationship-direction'),'Placeholder must hide the ineligible property-direction section');tab('markdown').click();await waitFor(()=>tab('markdown').getAttribute('aria-selected')==='true');
  modal.contentEl.querySelector('.kplex-relationship-direction button').click();
  await waitFor(()=>!tab('placeholder')&&tab('markdown').getAttribute('aria-selected')==='true'&&picker()?.value==='Templates/Retained.md');
  check(button(modal,'addRelated.createMarkdownLink')&&!button(modal,'addRelated.createPlaceholder'),'Projected tab, picker and default action disagree after flipping the property owner');
@@ -545,6 +567,33 @@ test('Placeholder availability follows stable endpoint policy and projects a new
  check(!button(modal,'addRelated.createPlaceholder')&&button(modal,'addRelated.createMarkdownLink'),'Inverse-policy transition left unsupported Placeholder as the default action');
  check(p.settings.newNodeDefaultType==='markdown'&&saves===0&&validations===0,'Availability projection persisted a type, created a file or evaluated a template');modal.close();
  p.settings.alsoWriteInverseOntology=false;origin.file.extension='png';const attachment=openComposer();await waitFor(()=>name(attachment));check(!attachment.contentEl.querySelector('[role=tab][id$="tab-placeholder"]')&&attachment.contentEl.querySelector('[role=tab][id$="tab-markdown"]'),'Non-Markdown origin offered virtual creation');attachment.close();
+ `,{styles:true,width:420}),true);
+});
+
+test('Template option pointer ownership preserves tab switching and native Escape dismisses the popup before each creation modal',async()=>{
+ assert.equal(await authoringScenario(`
+ p.isExcalidrawAvailable=()=>true;p.settings.newNodeDefaultType='markdown';
+ const choices={files:[{path:'Templates/Chosen.md',kind:'markdown'},{path:'Drawings/Chosen.md',kind:'excalidraw'}],selected:'',root:'',validate:()=>{throw Error('Popup interaction executed a template')}};
+ p.creationTemplateOptions=()=>choices;const parent={...origin,path:'folder:Folder',file:null,isFolder:true,name:'Folder'};
+ const factories=[()=>openComposer(),()=>{const modal=new M.CreateFolderNoteModal(p,parent,leaf);modal.open();return modal},()=>{const modal=new M.MaterializeGhostModal(p.app,'Draft',[{folderPath:'Folder',label:'Folder'}],true,'markdown',async()=>{throw Error('Popup interaction created a file')},false,choices,undefined,undefined,p.creationTypeTabControl());modal.open();return modal}];
+ for(const create of factories){
+  p.settings.newNodeCreationTab='markdown';const modal=create();await waitFor(()=>modal.contentEl.querySelector('.kplex-template-picker input'));
+  const input=()=>modal.contentEl.querySelector('.kplex-template-picker input'),tab=kind=>modal.contentEl.querySelector('.kplex-creation-types [role=tab][id$="tab-'+kind+'"]');
+  modal.contentEl.querySelector('.kplex-template-picker .kplex-fuzzy-disclosure').click();await waitFor(()=>document.querySelector('[role=listbox]'));
+  const popup=document.querySelector('[role=listbox]');check(popup.getAttribute('data-fuzzy-owner')===modal.suggestionOwnerId,'Template portal lost its exact native owner');
+  const option=[...popup.querySelectorAll('[role=option]')].find(item=>item.textContent.includes('Templates/Chosen.md'));option.dispatchEvent(new PointerEvent('pointerdown',{bubbles:true,cancelable:true}));option.dispatchEvent(new MouseEvent('mousedown',{bubbles:true,cancelable:true}));option.click();await waitFor(()=>input().value==='Templates/Chosen.md');
+  tab('excalidraw').click();await waitFor(()=>tab('excalidraw').getAttribute('aria-selected')==='true');tab('markdown').click();await waitFor(()=>tab('markdown').getAttribute('aria-selected')==='true'&&input().value==='Templates/Chosen.md');
+  check(!('isSessionOpen' in modal)||modal.isSessionOpen(),'Selecting an owned template invalidated the parent composer');check(!('canComplete' in modal)||modal.canComplete(),'Selecting an owned template invalidated native completion');
+  const browse=()=>modal.contentEl.querySelector('.kplex-template-picker .kplex-fuzzy-disclosure');
+  browse().click();await waitFor(()=>input().getAttribute('aria-expanded')==='true');browse().click();await waitFor(()=>input().getAttribute('aria-expanded')==='false'&&input().value==='Templates/Chosen.md');check(document.activeElement===input(),'Disclosure dismissal changed Template focus');
+  browse().click();await waitFor(()=>input().getAttribute('aria-expanded')==='true');input().dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',bubbles:true,cancelable:true}));await waitFor(()=>input().getAttribute('aria-expanded')==='false'&&input().value==='Templates/Chosen.md');check(document.activeElement===input()&&modal.modalEl.isConnected,'Direct React Escape changed focus or closed the modal');
+  browse().click();await waitFor(()=>input().getAttribute('aria-expanded')==='true');
+  const first=new KeyboardEvent('keydown',{key:'Escape',bubbles:true,cancelable:true});modal.onEscapeKey(first);await waitFor(()=>input().getAttribute('aria-expanded')==='false');
+  check(first.defaultPrevented&&modal.modalEl.isConnected&&!document.querySelector('[role=listbox]')&&document.activeElement===input(),'Native-first Escape closed the modal, kept a popup or moved focus');
+  check(input().value==='Templates/Chosen.md','Escape changed the committed template');
+  modal.onEscapeKey(new KeyboardEvent('keydown',{key:'Escape',bubbles:true,cancelable:true}));await waitFor(()=>!modal.modalEl.isConnected);check(!document.querySelector('[role=listbox]'),'Modal Escape left an owned portal');
+ }
+ check(writes.length===0&&links.length===0,'Popup interaction performed native creation or relationship writes');
  `,{styles:true,width:420}),true);
 });
 

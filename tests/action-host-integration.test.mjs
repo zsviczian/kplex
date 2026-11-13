@@ -398,7 +398,7 @@ test('changing automatic cleanup while deletion consent is open cancels the capt
 
 test('action settings navigate the native declarative page without acquiring a modal session', () => {
   const paths = []; let opens = 0;
-  const current = { manifest: { id: 'k-plex' }, translator: key => key,
+  const current = { manifest: { id: 'k-plex' }, translator: key => key, registerSettingsTab: () => true,
     app: { setting: { open: () => opens++, openPagePath: (id, path) => { paths.push([id, path]); return {}; } } },
     openSettings: assert.fail, settingsTab: null };
   current.openSettingsPage = method("openSettingsPage", contracts).bind(current);
@@ -411,7 +411,7 @@ test('action settings navigate the native declarative page without acquiring a m
 /** Void completion is native success; only an explicit refusal may reopen the root through fallback. */
 test('native settings path completion returning undefined preserves the selected subpage', () => {
   let paths = 0, roots = 0;
-  const current = { manifest: { id: 'k-plex' }, translator: key => key,
+  const current = { manifest: { id: 'k-plex' }, translator: key => key, registerSettingsTab: () => true,
     app: { setting: { open() {}, openPagePath: () => { paths++; } } },
     openSettings: () => roots++, settingsTab: null };
   current.openSettingsPage = method('openSettingsPage', contracts).bind(current);
@@ -421,7 +421,7 @@ test('native settings path completion returning undefined preserves the selected
 
 test('unsupported page navigation retains main settings recovery without a detached editor', () => {
   let opens = 0;
-  const current = { app: {}, translator:key=>key, manifest:{id:"k-plex"}, openSettings: () => opens++, settingsTab: { openSettingsPage: () => false } };
+  const current = { app: {}, translator:key=>key, manifest:{id:"k-plex"}, registerSettingsTab: () => true, openSettings: () => opens++, settingsTab: { openSettingsPage: () => false } };
   current.openSettingsPage = method("openSettingsPage", contracts).bind(current);
   assert.equal(method('openActionSettings').call(current), false); assert.equal(opens, 1);
 });

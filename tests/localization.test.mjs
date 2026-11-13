@@ -109,6 +109,71 @@ test("English catalog is strict, typed at source, and remains the fallback", () 
   assert.equal(localization.createTranslator("zz-ZZ")("command.openGraph"), "Open canvas", "unknown locale must fall back to English");
 });
 
+/** Fresh actual owners expose catalog traversal without relying on unstable wall-clock thresholds. */
+test("English startup skips unused bundled catalogs and repeated locale selection reuses a stable prepared translation", () => {
+  const ownerPath = join(portableTemp, "src/lang/index.js"), german = require(join(portableTemp, "src/lang/de.js"));
+  const original = german.germanCatalog;
+  let traversals = 0;
+  const authored = {...original["search.ariaLabel"], message: "Prepared translation", params: []};
+  german.germanCatalog = new Proxy(original, {
+    ownKeys(target) {traversals++; return Reflect.ownKeys(target);},
+    get(target, key) {return key === "search.ariaLabel" ? authored : Reflect.get(target, key);},
+  });
+  delete require.cache[require.resolve(ownerPath)];
+  try {
+    const fresh = require(ownerPath);
+    assert.equal(fresh.createTranslator("en")("command.openGraph"), "Open canvas");
+    assert.equal(fresh.createTranslator("zz-ZZ")("command.openGraph"), "Open canvas");
+    assert.equal(traversals, 0, "English and unknown locales must not traverse an unused built-in catalog");
+    const germanTranslator = fresh.createTranslator("de_DE");
+    assert.equal(germanTranslator("search.ariaLabel"), "Prepared translation");
+    assert(traversals > 0, "First use must validate the selected built-in catalog");
+    const preparedTraversals = traversals;
+    authored.message = "Later source mutation";
+    authored.params.push("invalid");
+    assert.equal(fresh.createTranslator("de-AT")("search.ariaLabel"), "Prepared translation", "Base-locale reuse retains its validated owned text and metadata");
+    assert.equal(germanTranslator("search.ariaLabel"), "Prepared translation");
+    assert.equal(traversals, preparedTraversals, "Repeated translator creation must not repeat complete catalog validation");
+    assert.equal(fresh.createTranslator("fr")("command.openGraph"), "Ouvrir le canevas", "Switching locales prepares the newly selected catalog");
+  } finally {
+    german.germanCatalog = original;
+    delete require.cache[require.resolve(ownerPath)];
+  }
+});
+
+test("failed bundled preparation does not publish a partial locale cache", () => {
+  const ownerPath = join(portableTemp, "src/lang/index.js"), german = require(join(portableTemp, "src/lang/de.js"));
+  const original = german.germanCatalog;
+  let unavailable = true;
+  german.germanCatalog = new Proxy(original, {ownKeys(target) {if (unavailable) throw Error("Catalog unavailable"); return Reflect.ownKeys(target);}});
+  delete require.cache[require.resolve(ownerPath)];
+  try {
+    const fresh = require(ownerPath);
+    assert.throws(() => fresh.createTranslator("de"), /Catalog unavailable/);
+    assert.equal(fresh.createTranslator("en")("command.openGraph"), "Open canvas");
+    unavailable = false;
+    assert.equal(fresh.createTranslator("de")("command.openGraph"), "Canvas öffnen");
+  } finally {
+    german.germanCatalog = original;
+    delete require.cache[require.resolve(ownerPath)];
+  }
+});
+
+test("explicit reused catalog maps retain live fallback and validate unused mutations on every construction", () => {
+  const entries = {"search.ariaLabel": {message: "First translation", context: "Mutable injected catalog regression.", params: []}};
+  const catalogs = {de: entries};
+  const first = localization.createTranslator("de-DE", catalogs);
+  assert.equal(first("search.ariaLabel"), "First translation");
+  entries["search.ariaLabel"] = {...entries["search.ariaLabel"], message: "Second translation"};
+  assert.equal(localization.createTranslator("de-DE", catalogs)("search.ariaLabel"), "Second translation");
+  assert.equal(first("search.ariaLabel"), "Second translation", "Caller-owned injected catalogs retain the existing live lookup behavior");
+  assert.equal(first("command.openGraph"), "Open canvas", "Missing injected keys still fall back to English");
+  entries["search.ariaLabel"].params.push("unexpected");
+  assert.throws(() => localization.createTranslator("de-DE", catalogs), /not used by every form/);
+  assert.throws(() => localization.createTranslator("en", catalogs), /not used by every form/, "Even an unused injected locale remains fully validated");
+  assert.throws(() => localization.validateCatalog("de", entries), /not used by every form/);
+});
+
 test("Wu Xing labels retain their actual Unicode translations", () => {
   for (const [locale, label] of Object.entries({en:"Water",de:"Wasser",es:"Agua",fr:"Eau",ja:"水",nl:"Water",ru:"Вода","zh-TW":"水"})) {
     const translate=localization.createTranslator(locale);

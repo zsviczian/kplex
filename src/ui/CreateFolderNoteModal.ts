@@ -6,7 +6,6 @@ import {FormSetting as Setting, KplexModal as Modal, formActions, labelIconButto
 
 import type {DrawingTemplateChoices} from "./features/DrawingTemplateSelect";
 import {CreationTypeTabs, type CreationTypeTabControl} from "./features/CreationTypeTabs";
-import {FormActions} from "./components/FormField";
 import {ObsidianIcon} from "./ObsidianIcon";
 import { graphFolder } from "../adapters/obsidian/graphFolder";
 import { SavedRelationshipPendingError } from "../adapters/obsidian/relationshipMetadataWrite";
@@ -117,7 +116,7 @@ export class CreateFolderNoteModal extends Modal {
   private renderCompletionControls(): void {
     if (!this.opened || !this.completionRoot) return;
     const completion = this.plugin.createdNoteCompletionControl(this.hostLeaf);
-    this.completionRoot.render(createElement(CreationCompletionSelect, {...completion,
+    this.completionRoot.render(createElement(CreationCompletionSelect, {...completion, compact: true,
       translate: this.plugin.translator, value: this.continuation, disabled: this.creating || this.pending,
       onChange: /** Remember an actual user selection across every creation dialog. */ value => {
         this.continuation = value; completion.onChange(value); this.renderCompletionControls();
@@ -138,14 +137,14 @@ export class CreateFolderNoteModal extends Modal {
         this.selectedKind=kind;this.templatePath=this.templatePaths[kind];this.templateKind=this.templatePath?kind:undefined;this.refreshButtons();
         this.creationTabControl?.onChange(kind);
       },
-      template: {choices: this.templateChoices, value: this.templatePath ?? "", onChange: /** Search text never reaches the committed per-kind draft. */ path => {
+      template: {choices: this.templateChoices, value: this.templatePath ?? "", resultsOwnerId: this.suggestionOwnerId, onChange: /** Search text never reaches the committed per-kind draft. */ path => {
         if(this.creating||this.pending)return;
         this.templatePath=path;this.templatePaths[this.selectedKind]=path;this.templateKind=path?this.selectedKind:undefined;this.refreshButtons();
       }},
-      children: createElement(FormActions, null, createElement("button", {type: "button", className: "mod-cta kplex-icon-action",
+      actions: createElement("button", {type: "button", className: "mod-cta kplex-icon-action",
         "aria-label": this.plugin.translator(this.selectedKind === "markdown" ? "addRelated.createMarkdown" : "addRelated.createExcalidraw"),
         disabled: !enabled, onClick: /** The button and native Scope submit the same selected-kind operation. */ () => {void this.create(this.selectedKind);}},
-      createElement(ObsidianIcon, {name: this.selectedKind === "markdown" ? "text-initial" : "palette", size: 20}))),
+      createElement(ObsidianIcon, {name: this.selectedKind === "markdown" ? "text-initial" : "palette", size: 20})),
     }));
   }
 
@@ -243,7 +242,7 @@ export class CreateFolderNoteModal extends Modal {
         this.ignoreInvokerFocus = false; return;
       }
       if (event.type === "pointerdown") this.ignoreInvokerFocus = false;
-      if (target && target !== this.invokingDocument.body && "nodeType" in target && !this.modalEl.contains(target as Node)) this.invalidated = true;
+      if (target && target !== this.invokingDocument.body && "nodeType" in target && !this.modalEl.contains(target as Node) && !this.ownsSuggestionTarget(target)) this.invalidated = true;
     };
     this.invokingDocument.addEventListener("pointerdown", outsideInteraction, true);
     this.invokingDocument.addEventListener("focusin", outsideInteraction, true);

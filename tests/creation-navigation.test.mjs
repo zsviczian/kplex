@@ -50,7 +50,7 @@ test("creation type feature uses shared tabs and type-scoped fields with stable 
     "../components/Tabs": {Tabs: "shared-tabs"}, "./DrawingTemplateSelect": {DrawingTemplateSelect: "shared-template"},
   });
   const props = {value: "markdown", types: ["markdown", "excalidraw", "placeholder"], translate: key => key,
-    onChange: type => changes.push(type), template: {choices: {files: [], selected: "", root: ""}, value: "Selected.md", onChange: path => changes.push(path)}, children: "selected-action"};
+    onChange: type => changes.push(type), template: {choices: {files: [], selected: "", root: ""}, value: "Selected.md", resultsOwnerId: "native-owner", onChange: path => changes.push(path)}, actions: "create-button", status: "selected-type-status", children: "selected-action"};
   const tree = CreationTypeTabs(props), [tabs, panels] = tree.props.children;
   assert.equal(tabs.type, "shared-tabs");assert.equal(tabs.props.label, "creation.type");
   assert.deepEqual(tabs.props.items, props.types.map(id => ({id,label:`common.${id}`})));
@@ -61,9 +61,12 @@ test("creation type feature uses shared tabs and type-scoped fields with stable 
     assert.equal(panel.props.hidden,index!==0);assert.equal(panel.props.children[1],index===0?"selected-action":null);
   }
   const picker=panels[0].props.children[0];assert.equal(picker.type,"shared-template");assert.equal(picker.props.kind,"markdown");
+  assert.equal(picker.props.actions,"create-button");assert.equal(picker.props.resultsOwnerId,"native-owner");
+  assert.equal(panels[0].props.children[3].props.role,"status");assert.equal(panels[0].props.children[3].props.children,"selected-type-status");
   picker.props.onChange("Exact.md");assert.deepEqual(changes,["excalidraw","Exact.md"]);
   const placeholder=CreationTypeTabs({...props,value:"placeholder",disabled:true});
   assert.equal(placeholder.props.children[1][2].props.children[0],null,"An unresolved node must never offer a physical template");
+  assert.equal(placeholder.props.children[1][2].props.children[2].props.children,"create-button","Placeholder keeps its create action without a template row");
   placeholder.props.children[0].props.onChange("markdown");assert.deepEqual(changes,["excalidraw","Exact.md"]);
   const constrained=CreationTypeTabs({...props,types:["markdown"]});assert.equal(constrained.props.children[0].props.items.length,1);
   constrained.props.children[0].props.onChange("excalidraw");assert.deepEqual(changes,["excalidraw","Exact.md"]);

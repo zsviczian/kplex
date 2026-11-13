@@ -21,6 +21,7 @@ export class Modal {
  setTitle(value){this.titleEl.textContent=value;return this;}
  open(){this.isOpen=true;document.body.append(this.modalEl);this.onOpen?.();if(window.focusOnNativeOpen)this.contentEl.querySelector('input,textarea,select,button')?.focus();}
  close(){this.isOpen=false;this.onClose?.();this.modalEl.remove();}
+ onEscapeKey(event){if(!event.defaultPrevented){event.preventDefault();this.close();}}
 }
 export class SuggestModal extends Modal {setPlaceholder(value){this.placeholder=value;return this} selectSuggestion(item,event){this.close();this.onChooseSuggestion(item,event)}}
 export class ColorComponent {

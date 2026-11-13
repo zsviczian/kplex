@@ -10,10 +10,10 @@ export type CreationType = "markdown" | "excalidraw" | "placeholder";
 export type CreationTypeTabControl = Readonly<{value: CreationType | null; onChange: (type: CreationType) => void}>;
 
 /** Only the selected kind mounts a picker, so a retired tab cannot retain a portalled list. */
-export function CreationTypeTabs({value, types, onChange, disabled = false, translate, template, children}: {
+export function CreationTypeTabs({value, types, onChange, disabled = false, translate, template, actions, status, children}: {
   value: CreationType; types: readonly CreationType[]; onChange: (type: CreationType) => void;
-  disabled?: boolean; translate: Translator; children?: ReactNode;
-  template?: {choices: DrawingTemplateChoices; value: string; onChange: (path: string) => void};
+  disabled?: boolean; translate: Translator; children?: ReactNode; actions?: ReactNode; status?: ReactNode;
+  template?: {choices: DrawingTemplateChoices; value: string; onChange: (path: string) => void; resultsOwnerId?: string};
 }) {
   const prefix = useId();
   return <section className="kplex-creation-types">
@@ -25,8 +25,10 @@ export function CreationTypeTabs({value, types, onChange, disabled = false, tran
       }}/>
     {types.map(/** Stable panel references coexist, but inactive controls and their portals retire. */ type => <div key={type} hidden={type !== value} className="kplex-creation-type-panel" id={`${prefix}-panel-${type}`} role="tabpanel" aria-labelledby={`${prefix}-tab-${type}`}>
       {type === value && template && type !== "placeholder" ? <DrawingTemplateSelect choices={template.choices} value={template.value} kind={type}
-        disabled={disabled} translate={translate} onChange={/** The active tab owns the output kind; choosing a template changes only its path. */ path => template.onChange(path)}/> : null}
+        disabled={disabled} translate={translate} actions={actions} resultsOwnerId={template.resultsOwnerId} onChange={/** The active tab owns the output kind; choosing a template changes only its path. */ path => template.onChange(path)}/> : null}
       {type === value ? children : null}
+      {type === value && actions && (!template || type === "placeholder") ? <div className="kplex-creation-type-actions">{actions}</div> : null}
+      {type === value && status ? <div className="kplex-creation-status" role="status">{status}</div> : null}
     </div>)}
   </section>;
 }

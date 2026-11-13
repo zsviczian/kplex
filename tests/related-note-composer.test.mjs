@@ -347,7 +347,8 @@ test("focus restoration refuses a retired or migrated owner and preserves the ex
 
 /** Portaled suggestions are an owned interaction even though their list sits directly under body. */
 test("composer recognizes only its exact portal session identity", () => {
-  const owns = production("ownsInteractionTarget").bind({ modalEl: { contains: () => false }, ontologyEditor: {owns: () => false}, suggestionOwnerId: "session-A" });
+  const ownsSuggestionTarget=production("ownsSuggestionTarget",{},"src/adapters/obsidian/KplexModal.ts").bind({suggestionOwnerId:"session-A"});
+  const owns = production("ownsInteractionTarget").bind({ modalEl: { contains: () => false }, ontologyEditor: {owns: () => false}, ownsSuggestionTarget });
   assert.equal(owns({ closest: selector => selector === '[data-fuzzy-owner="session-A"]' ? {} : null }), true);
   assert.equal(owns({ closest: () => null }), false);
   assert.equal(owns({}), false);
@@ -1149,7 +1150,7 @@ for(const surface of ["folder","ghost"])test(`${surface} creation tabs preserve 
   assert.equal(context.templatePath,"");rendered.props.template.onChange("Drawings/Note.md");rendered.props.onChange("markdown");
   assert.equal(context.templatePath,"Templates/Note.md");assert.equal(rendered.props.template.value,"Templates/Note.md");
   rendered.props.onChange("excalidraw");assert.equal(context.templatePath,"Drawings/Note.md");assert.deepEqual(effects,[]);
-  assert.equal(rendered.props.children.type,"shared-actions");const action=rendered.props.children.children[0];assert.equal(action.props["aria-label"],"addRelated.createExcalidraw");
+  const action=rendered.props.actions;assert.equal(action.type,"button");assert.equal(action.props["aria-label"],"addRelated.createExcalidraw");
   action.props.onClick();assert.deepEqual(effects,[["create","excalidraw"]]);
   context.creating=true;render.call(context);rendered.props.onChange("markdown");rendered.props.template.onChange("Replacement.md");
   assert.equal(context.selectedKind,"excalidraw");assert.equal(context.templatePath,"Drawings/Note.md");assert.equal(rendered.props.disabled,true);
@@ -1175,4 +1176,43 @@ test("remembered tabs outrank initial template defaults while unsupported kinds 
     assert.equal(physical,expected,"Related physical initialization must agree with template-kind authority and explicit tab precedence");
     assert.equal(production("requestedCreationType",{...dependencies,defaultCreateType:physical}),remembered==="placeholder"?"placeholder":expected);
   }
+});
+
+test("Template popup retains the native modal's exact suggestion ownership", () => {
+  const tree=production("DrawingTemplateSelect",{createElement:(type,props)=>({type,props}),useId:()=>"template-field",useMemo:read=>read(),useRef:value=>({current:value}),useState:value=>[value,()=>{}],useEffect:run=>run(),FormField:"field",FuzzySuggester:"suggester",fuzzyFilterStrings:()=>[]},"src/ui/features/DrawingTemplateSelect.tsx")({
+    choices:{files:[],selected:"",root:""},value:"",kind:"markdown",resultsOwnerId:"native-session-A",translate:key=>key,onChange:assert.fail});
+  assert.equal(tree.props.children.props.resultsOwnerId,"native-session-A","Body-portalled choices must carry the same exact interaction owner as their modal");
+});
+
+test("native modal Escape dismisses its open shared suggestions before native close", () => {
+  let expanded=true,focused=0;const dispatched=[];
+  const shell={ownerDocument:{defaultView:{CustomEvent:class{constructor(type){this.type=type;}}}},dispatchEvent:event=>{dispatched.push(event.type);expanded=false;}};
+  const input={closest:()=>shell,focus:()=>{focused++;}};
+  class NativeModal {
+    constructor(){this.closed=0;this.modalEl={addClass(){}};this.contentEl={addClass(){},querySelector:()=>expanded?input:null};}
+    onEscapeKey(event){if(!event.defaultPrevented){event.preventDefault();this.close();}}
+    close(){this.closed++;}
+  }
+  const Modal=production("KplexModal",{Modal:NativeModal,modalSuggestionSequence:0},"src/adapters/obsidian/KplexModal.ts"),modal=new Modal({});
+  assert.notEqual(modal.suggestionOwnerId,new Modal({}).suggestionOwnerId,"Separate native roots must never own each other's portalled choices");
+  const event=()=>({defaultPrevented:false,isComposing:false,preventDefault(){this.defaultPrevented=true;},stopPropagation(){this.stopped=true;}});
+  modal.onEscapeKey({...event(),isComposing:true});modal.onEscapeKey({...event(),defaultPrevented:true});assert.equal(modal.closed,0);assert.deepEqual(dispatched,[]);
+  const first=event();modal.onEscapeKey(first);assert.equal(modal.closed,0,"Native Scope must not dismiss the form before React receives the popup Escape");
+  assert.deepEqual(dispatched,["kplex-dismiss-suggestions"]);assert.equal(focused,1);assert.equal(first.defaultPrevented,true);assert.equal(first.stopped,true);
+  modal.onEscapeKey(event());assert.equal(modal.closed,1,"A second Escape without an open popup must retain native dismissal");
+});
+
+test("explicit Template dismissal restores committed display without changing focus or accepting a choice", () => {
+  let draft="Templates/Committed.md";const changes=[],flags=[];
+  const tree=production("DrawingTemplateSelect",{createElement:(type,props)=>({type,props}),useId:()=>"template-field",useMemo:read=>read(),useRef:value=>({current:value}),useState:value=>[value,next=>{draft=next;}],useEffect:run=>run(),FormField:"field",FuzzySuggester:"suggester",fuzzyFilterStrings:()=>[]},"src/ui/features/DrawingTemplateSelect.tsx")({
+    choices:{files:[],selected:"",root:""},value:draft,kind:"markdown",translate:key=>key,onChange:path=>changes.push(path)});
+  const picker=tree.props.children.props;let dismissals=0;
+  picker.disclosure.onOpen();assert.equal(draft,"");
+  const dismiss=production("dismissResults",{setExplicitlyOpened:value=>flags.push(["explicit",value]),setResultsDismissed:value=>flags.push(["dismissed",value]),setSelectedIndex:value=>flags.push(["index",value]),onDismiss:()=>{dismissals++;picker.onDismiss?.();},setFocused:assert.fail,onFocusChange:assert.fail,inputRef:{current:{blur:assert.fail}}},"src/ui/components/FuzzySuggester.tsx");
+  dismiss();assert.equal(draft,"Templates/Committed.md","Escape/disclosure dismissal must restore the accepted display while the input retains focus");
+  assert.deepEqual(changes,[]);assert.deepEqual(flags,[["explicit",false],["dismissed",true],["index",0]]);
+  const closeResults=production("closeResults",{setExplicitlyOpened(){},setFocused(){},setEditedSinceFocus(){},setResultsDismissed(){},setSelectedIndex(){},inputRef:{current:null},onFocusChange:picker.onFocusChange},"src/ui/components/FuzzySuggester.tsx");
+  production("choose",{onChoose:picker.onChoose,closeOnChoose:true,combobox:true,closeResults},"src/ui/components/FuzzySuggester.tsx")({path:"Templates/Accepted.md",kind:"markdown"});
+  assert.equal(draft,"Templates/Accepted.md");assert.deepEqual(changes,["Templates/Accepted.md"]);assert.equal(dismissals,1,"Acceptance must not run dismissal or restore an earlier committed path");
+  production("dismissResults",{setExplicitlyOpened(){},setResultsDismissed(){},setSelectedIndex(){},onDismiss:undefined},"src/ui/components/FuzzySuggester.tsx")();
 });

@@ -6,7 +6,10 @@ The creation forms share **Markdown** and **Excalidraw** tabs with a searchable
 **Template** control inside the selected tab. Each tab lists only its own kind
 and remembers its template choice while switching. Excalidraw is shown only when
 its companion is available; related-node creation also offers **Placeholder**.
-**After saving** stays above the tabs, and the native top-right close button
+**Action** selects what happens after saving and stays above the tabs. Short labels
+leave most of each row available for typing. The Template picker and create button
+share a row, with the label wrapping above on narrow screens. Escape closes an open
+template list before dismissing the form. The native top-right close button
 dismisses the form. Folder creation and materialization offer only real file types.
 The last explicitly selected type tab opens next time, including after cancelling.
 Forms that cannot offer that type show a supported fallback without erasing the

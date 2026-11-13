@@ -21,17 +21,20 @@ export type FolderPathInputProps = {
   preserveEmpty?: boolean;
   /** Integrated settings retain their visible field name instead of the generic destination label. */
   ariaLabel?: string;
+  /** A shared visible field label supplies the same input identity and accessible name. */
+  inputId?: string;
+  labelledBy?: string;
 };
 
 /** Keep normal quick-create focus in the name field; folders disclose only while deliberately edited. */
-export function FolderPathInput({ value, onChange, folders, translate, disabled, autoFocus, openResultsOnFocus = true, resultsOwnerId, preserveEmpty = false, ariaLabel }: FolderPathInputProps) {
+export function FolderPathInput({ value, onChange, folders, translate, disabled, autoFocus, openResultsOnFocus = true, resultsOwnerId, preserveEmpty = false, ariaLabel, inputId, labelledBy }: FolderPathInputProps) {
   // Vault-relative inventory paths omit a root slash. Keep that input spelling out of search
   // matching/highlighting while retaining the user's destination text for native validation.
   const query = value.replaceAll("\\", "/").replace(/^\/+/, "");
   const results = useMemo(/** Only an explicit folder interaction ranks the already captured paths. */ () =>
     fuzzyFilterStrings(folders, query, 24, { caseSensitiveIdentity: true }), [folders, query]);
   return createElement(FuzzySearchInput<string>, {
-    value: preserveEmpty ? value : value || "/", results,
+    value: preserveEmpty ? value : value || "/", results, inputId, labelledBy,
     onChange,
     onChoose: onChange,
     getKey: /** A folder's native case-sensitive path is its stable suggestion key. */ folder => folder,

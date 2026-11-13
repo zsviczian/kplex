@@ -30,12 +30,16 @@ async function creationTypes(app,c){
   const choose=async(content,file,forbidden)=>{const input=picker(content);f.check(input,'Active type Template field');await c.type(f,input,file.basename);
    await f.until(()=>[...input.ownerDocument.querySelectorAll('[role=option]')].some(option=>option.textContent.includes(file.path)),'Type-scoped template results');
    f.check(![...input.ownerDocument.querySelectorAll('[role=option]')].some(option=>option.textContent.includes(forbidden.path)),'Other template kind leaked into active list');
-   await f.key(input.ownerDocument,'Enter',[],input);await f.until(()=>picker(content)?.value===file.path,'Committed native template');
+   const option=[...input.ownerDocument.querySelectorAll('[role=option]')].find(option=>option.textContent.includes(file.path));await f.click(option);
+   await f.until(()=>picker(content)?.value===file.path,'Committed native pointer-selected template');
+   const disclosure=content.querySelector('.kplex-template-picker .kplex-fuzzy-disclosure');await f.click(disclosure);await f.until(()=>picker(content)?.getAttribute('aria-expanded')==='true','Native template popup reopened');
+   await f.key(input.ownerDocument,'Escape',[],picker(content));await f.until(()=>picker(content)?.getAttribute('aria-expanded')==='false','Escape closes only the template popup');
+   f.check(content.closest('.modal')?.isConnected&&picker(content).value===file.path,'Template popup Escape closed the modal or changed committed path');
   };
   /** Compare real native form geometry and chrome in both themes and desktop/popout widths. */
   const audit=async(modal,label)=>{
    const content=modal.contentEl,doc=content.ownerDocument,native=f.owner(doc),bounds=native.getBounds(),minimum=native.getMinimumSize(),maximized=native.isMaximized(),themes=['theme-light','theme-dark'],original=themes.map(theme=>doc.body.classList.contains(theme));
-   try{if(maximized)native.unmaximize();native.setMinimumSize(200,200);for(const [theme,width]of [['theme-light',1160],['theme-dark',440]]){
+   try{if(maximized)native.unmaximize();native.setMinimumSize(200,200);for(const [theme,width]of [['theme-light',1160],['theme-dark',360]]){
     themes.forEach(value=>doc.body.classList.toggle(value,value===theme));native.setContentSize(width,900);await f.focus(doc);await f.wait(200);
     f.check(content.scrollWidth<=content.clientWidth+2,label+' horizontal overflow');
     const types=content.querySelector('.kplex-creation-types'),tabs=types?.querySelector('[role=tablist]'),completion=content.querySelector('.kplex-creation-completion');
@@ -47,9 +51,10 @@ async function creationTypes(app,c){
     const input=picker(content),chrome=input?.closest('.kplex-template-picker'),select=completion.querySelector('select');
     if(chrome){const a=doc.defaultView.getComputedStyle(chrome),b=doc.defaultView.getComputedStyle(select);f.check(Math.abs(chrome.getBoundingClientRect().height-select.getBoundingClientRect().height)<1&&a.fontFamily===b.fontFamily&&a.fontSize===b.fontSize,label+' native dropdown typography/height mismatch');}
     for(const field of content.querySelectorAll('.kplex-form-field')){const control=field.querySelector('.kplex-template-picker,input[type=text],textarea');if(!control?.getBoundingClientRect().height)continue;f.check(control.getBoundingClientRect().width>=field.getBoundingClientRect().width*.9,label+' authored field not full width');}
-    const actions=types.querySelector('[role=tabpanel]:not([hidden]) .kplex-form-actions'),button=actions?.querySelector('button'),glyph=button?.querySelector('svg');
+    for(const field of content.querySelectorAll('.kplex-form-inline')){const control=field.querySelector('.kplex-template-picker,input[type=text],select');if(!control?.getBoundingClientRect().height)continue;f.check(control.getBoundingClientRect().width>=field.getBoundingClientRect().width*(field.classList.contains('has-actions') ? 0.55 : 0.65),label+' compact input lost available width');}
+    const actions=types.querySelector('[role=tabpanel]:not([hidden]) .kplex-field-actions,[role=tabpanel]:not([hidden]) .kplex-creation-type-actions'),button=actions?.querySelector('button'),glyph=button?.querySelector('svg');
     f.check(button&&glyph&&button.getAttribute('aria-label')&&!button.hasAttribute('title'),label+' create glyph/tooltip ownership');
-    if(chrome)f.check(chrome.getBoundingClientRect().bottom<actions.getBoundingClientRect().top,label+' control intersects footer divider');
+    if(chrome){const a=chrome.getBoundingClientRect(),b=button.getBoundingClientRect();f.check(a.right<b.left&&Math.abs(a.top+a.height/2-b.top-b.height/2)<2,label+' Template and create action do not share a row');}
     results.push({form:label,theme,width,destination:c.destination,nativeWindow:native.id,afterSavingAboveTabs:true,fullWidth:true,nativeChrome:true});
     if(c.captureRoot){const shot=await native.webContents.capturePage();require('node:fs').writeFileSync(c.captureRoot+'/'+label+'-'+theme+'-'+width+'-'+c.destination+'.png',shot.toPNG());}
    }}finally{themes.forEach((theme,index)=>doc.body.classList.toggle(theme,original[index]));native.setMinimumSize(...minimum);native.setBounds(bounds);if(maximized)native.maximize();}

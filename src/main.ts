@@ -278,6 +278,8 @@ export default class KplexPlugin extends Plugin {
   private appearanceMigrationDialog: NotificationModal | null = null;
   /** The host owns Settings navigation; the tab owns rendered shortcut controls and cleanup. */
   private settingsTab: KplexSettingTab | null = null;
+  private settingsTabRegistrationTimer: number | null = null;
+  private settingsTabRegistered = false;
   private periodicPinRuntime: PeriodicPinRuntime | null = null;
   private periodicPinTimer: number | null = null;
   private periodicPinSignature: string | null = null;
@@ -540,7 +542,6 @@ export default class KplexPlugin extends Plugin {
     this.registerDomEvent(this.app.workspace.containerEl.ownerDocument, "visibilitychange", /** Resume changes presentation only. */ () => this.refreshPeriodicPins());
     this.refreshPeriodicPins();
     this.settingsTab = new KplexSettingTab(this.app, this);
-    this.addSettingTab(this.settingsTab);
     this.registerEditorSuggest(new OntologySuggester(this));
     this.addRibbonIcon("brain-circuit", this.translator("ribbon.open"), () => void this.activateView());
 
@@ -628,6 +629,7 @@ export default class KplexPlugin extends Plugin {
 
 
     this.app.workspace.onLayoutReady(() => {
+      this.scheduleSettingsTabRegistration();
       void (async () => {
         if (this.unloading) return;
         this.installPreRestoreChangeFence();
@@ -677,6 +679,36 @@ export default class KplexPlugin extends Plugin {
 
       })();
     });
+  }
+
+  /** Definition building belongs after native readiness and outside its synchronous initiation task. */
+  private scheduleSettingsTabRegistration(): void {
+    const tab = this.settingsTab;
+    if (this.unloading || !tab || this.settingsTabRegistered || this.settingsTabRegistrationTimer !== null) return;
+    this.settingsTabRegistrationTimer = window.setTimeout(/** Register the captured live owner once; unload also cancels this main-window task. */ () => {
+      this.settingsTabRegistrationTimer = null;
+      if (this.unloading || this.settingsTab !== tab || this.settingsTabRegistered) return;
+      this.registerSettingsTab();
+    }, 0);
+  }
+
+  /** Explicit Settings intent may flush the queued task; failure remains retryable and is reported without escaping a timer. */
+  private registerSettingsTab(): boolean {
+    const tab = this.settingsTab;
+    if (this.unloading || !tab) return false;
+    if (this.settingsTabRegistered) return true;
+    if (this.settingsTabRegistrationTimer !== null) window.clearTimeout(this.settingsTabRegistrationTimer);
+    this.settingsTabRegistrationTimer = null;
+    try {
+      this.addSettingTab(tab);
+      if (this.unloading || this.settingsTab !== tab) return false;
+      this.settingsTabRegistered = true;
+      return true;
+    } catch (error) {
+      console.error("K-Plex settings registration failed", error);
+      if (!this.unloading) new Notice(this.translator("actions.failed"));
+      return false;
+    }
   }
 
   /**
@@ -743,6 +775,8 @@ export default class KplexPlugin extends Plugin {
     for (const resolve of this.layoutReadyWaiters) resolve();
     this.layoutReadyWaiters.clear();
     this.unloading = true;
+    if (this.settingsTabRegistrationTimer !== null) window.clearTimeout(this.settingsTabRegistrationTimer);
+    this.settingsTabRegistrationTimer = null;
     this.fileCreationAutomation.dispose();
     this.nodeLinkClipboard?.dispose();this.nodeLinkClipboard = undefined;
     for (const [timer, resolve] of this.createdEditorWaits) {window.clearTimeout(timer); resolve();}
@@ -2805,6 +2839,7 @@ export default class KplexPlugin extends Plugin {
 
   /** Reuse native page-path navigation with the existing owning-tab fallback for settings cross-links. */
   private openSettingsPage(...pageNames: string[]): boolean {
+    if (!this.registerSettingsTab()) return false;
     if (navigatePluginSettings(this.app, this.manifest.id, pageNames)) return true;
     this.openSettings();
     return pageNames.every(/** Traverse the exact localized native page path only after explicit navigation refusal. */ name => this.settingsTab?.openSettingsPage(name) ?? false);
@@ -5948,6 +5983,7 @@ export default class KplexPlugin extends Plugin {
 
   /** Open the native plugin settings tab, or display localized guidance when the host controller is unavailable. */
   openSettings(): void {
+    if (!this.registerSettingsTab()) return;
     // Obsidian currently has no public Plugin API method for programmatically opening a
     // specific settings tab. Keep the internal bridge isolated and guarded so the rest of
     // K-Plex only relies on the public API surface.

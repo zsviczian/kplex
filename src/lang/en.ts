@@ -5913,6 +5913,10 @@ export const englishCatalog = {
   "creation.type": {"message":"Create as","context":"Creation type tabs shared by note creation and placeholder materialization.","params":[]},
   "common.placeholder": {"message":"Placeholder","context":"Creation type tabs shared by note creation and placeholder materialization.","params":[]},
 
+  "creation.alias": {"message":"Alias","context":"Compact creation form labels and status for the selected type.","params":[]},
+  "creation.action": {"message":"Action","context":"Compact creation form labels and status for the selected type.","params":[]},
+  "creation.typeStatus": {"message":"Create {name} as {type}.","context":"Compact creation form labels and status for the selected type.","params":["name","type"],"referenceParams":["name"]},
+
 } as const;
 
 export type EnglishCatalog = typeof englishCatalog;

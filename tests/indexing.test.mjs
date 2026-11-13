@@ -130,7 +130,8 @@ assert(infoBubbleSource.includes("onAdvance?: () => void"), "Reusable info bubbl
 assert(infoBubbleSource.includes("dismissLabel?: string"), "Informational status bubbles must be able to omit an unnecessary action row");
 assert(newRelatedSource.includes('"aria-label": plugin.translator("addRelated.createPlaceholder")'), "Create-related UI must offer a localized placeholder-only action");
 assert(newRelatedSource.includes("plugin.createPlaceholderRelatedPage(refreshCapturedPage(plugin, origin), role"), "Placeholder action must create only a relationship-backed virtual node");
-assert(newRelatedSource.includes("void createNew(kind ?? defaultCreateType, intent)"), "Ctrl/Cmd+Enter must keep using the shared Markdown/Excalidraw default rather than the placeholder action");
+assert(newRelatedSource.includes('else if ((kind ?? creationType) === "placeholder") void createPlaceholder(intent)')
+  && newRelatedSource.includes('void createNew(kind === "markdown" || kind === "excalidraw" ? kind : defaultCreateType, intent)'), "Ctrl/Cmd+Enter must follow the selected creation tab, including Placeholder, through the shared submit owner");
 assert(newRelatedSource.includes('if (environment.device === "desktop")'), "Add-related drag affordance must stay desktop-only so phone/tablet modal policy remains unchanged");
 assert(newRelatedSource.includes("enableDraggableDialog({ modalEl: this.modalEl, handleEl: this.titleEl })"), "Add-related must drag through the native modal title shell rather than portable form content");
 assert(newRelatedSource.includes("this.releaseDesktopDrag?.()"), "Add-related modal close must release draggable shell resources");
@@ -139,7 +140,8 @@ assert(draggableDialogSource.includes('ownerWindow.addEventListener("pagehide", 
 assert(ghostModalSource.includes('this.scope.register(["Mod"], "Enter"'), "Ghost materialization must support the same Ctrl/Cmd+Enter default action as create-related");
 assert(ghostModalSource.includes('setName(this.translate("folderPicker.label"))') && ghostModalSource.includes('createElement(MaterializationFolderInput') && ghostModalSource.includes('setClass("kplex-materialize-folder-row")'), "Ghost destinations must reuse the localized full-width folder field");
 assert(!ghostModalSource.includes('"ghost.locationConflictHelp"') && !ghostModalSource.includes('"folderPicker.help"'), "The requested compact folder row must not restore the removed guidance");
-assert(ghostModalSource.includes('if (this.excalidrawAvailable)') && ghostModalSource.includes('iconButton(button, this.translate("common.excalidraw"), "palette")'), "Ghost materialization must offer the shared localized Excalidraw action only when the integration is available");
+assert(ghostModalSource.includes('createElement(CreationTypeTabs,') && ghostModalSource.includes('types: this.excalidrawAvailable ? ["markdown", "excalidraw"] : ["markdown"]')
+  && ghostModalSource.includes('this.selectedKind === "markdown" ? "text-initial" : "palette"'), "Ghost materialization must offer the shared localized Excalidraw tab/action only when the integration is available");
 assert(!appSource.includes('void plugin.openSidecar(hostLeaf, page);'), "React mount must not create a sidecar during startup restore; plugin-level restore owns re-association");
 assert(appSource.includes("plugin.isStartupInitializing() && plugin.settings.lastActivePath"), "A restored K-Plex view must keep its persisted center while Obsidian startup tab ordering is unstable");
 assert(appSource.includes('getDraggedFile(plugin.app)') && appSource.includes('onDragOver={handlePlexDragOver}') && appSource.includes('onDrop={handlePlexDrop}'), "K-Plex surfaces must accept supported Obsidian File Explorer file drops");
@@ -345,7 +347,8 @@ assert(thoughtNodeSource.includes('translate("node.gateFolderChild")'), "Folder 
 assert(plexGraphSource.includes("plugin.openStructuralNodeDrop(origin, target)"), "Dropping a physical node gate onto a folder must use native move confirmation");
 assert(mainSource.includes("createNewNodeInFolder(folder: GraphPage"), "Folder creation must materialize directly in the selected folder");
 assert(newRelatedSource.includes('createElement(RelationshipFieldControl,') && relationshipControlSource.includes('kplex-add-related-control-row kplex-relationship-field-control'), "Ontology and selected-field edit controls must use the shared first responsive row");
-assert(newRelatedSource.includes('className: "kplex-add-related-compose-row" }, nameEditor)') && newRelatedSource.includes('createElement(FormActions, {status},'), "Full-width authored name/alias fields must be followed by the common actions footer");
+assert(newRelatedSource.includes('className: "kplex-add-related-compose-row" }, nameEditor)') && newRelatedSource.includes('actions: actionArea, status,')
+  && newRelatedSource.includes('layout: "inline", controlId: noteId'), "Compact authored name/alias fields must use shared labelled rows followed by the selected type's shared template/action panel");
 assert(newRelatedSource.indexOf("controlRow,") < newRelatedSource.indexOf("composeRow,"), "Relationship controls must render above the focused name row");
 assert(newRelatedSource.includes('className: "kplex-create-alias-input"'), "Create-related UI must provide an optional alias field");
 assert(newRelatedSource.includes("plugin.createWebLinkRelatedPage(refreshCapturedPage(plugin, origin), role, webUrl, alias, field)"), "Create-related UI must recognize and persist web-link relationships");
@@ -544,6 +547,10 @@ for (const file of [
   "src/ui/DailyNoteCalendarModal.ts",
   "src/ui/features/CalendarDatePicker.tsx",
   "src/ui/components/FormField.tsx",
+  "src/ui/FolderPathInput.tsx",
+  "src/ui/FuzzySearchInput.tsx",
+  "src/ui/components/FuzzySuggester.tsx",
+  "src/ui/components/fuzzyFilterStrings.ts",
   "src/adapters/obsidian/KplexModal.ts",
   "src/adapters/obsidian/KplexInputSuggest.ts",
   "src/ui/mobileModalViewport.ts",
@@ -745,7 +752,7 @@ compile("src/ui/viewProfile.ts", "src/ui/viewProfileUnderTest.ts");
 const obsidianModuleDir = join(temp, "node_modules/obsidian");
 // Native preset contributions now import shared React condition controls. Forward the real
 // installed dependencies from this owned emitted-module fixture; only Obsidian remains finite.
-for (const [name, entry] of [["react/index.js", "react"], ["react/jsx-runtime.js", "react/jsx-runtime"], ["react-dom/client.js", "react-dom/client"], ["graphql/index.js", "graphql"]]) {
+for (const [name, entry] of [["react/index.js", "react"], ["react/jsx-runtime.js", "react/jsx-runtime"], ["react-dom/index.js", "react-dom"], ["react-dom/client.js", "react-dom/client"], ["graphql/index.js", "graphql"]]) {
   const target = join(temp, "node_modules", name);mkdirSync(dirname(target), {recursive: true});
   writeFileSync(target, `module.exports = require(${JSON.stringify(require.resolve(entry))});\n`);
 }
@@ -821,7 +828,7 @@ class FileView { constructor() { this.containerEl = null; } }
 class MarkdownView extends FileView {}
 class Menu {}
 class Notice { constructor() {} }
-class Modal { constructor(app) { this.app = app; this.modalEl = {addClass() {}, isConnected: false}; this.contentEl = {addClass() {}}; } open() { Modal.latest = this; } close() {} }
+class Modal { constructor(app) { this.app = app; this.modalEl = {addClass() {}, isConnected: false}; this.contentEl = {addClass() {}}; } open() { Modal.latest = this; } close() {} onEscapeKey(event) { if (!event.defaultPrevented) { event.preventDefault(); this.close(); } } }
 class Setting {}
 class App {}
 class AbstractInputSuggest {}
