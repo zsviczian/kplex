@@ -1,4 +1,4 @@
-/** One searchable, non-executing template catalogue shared by all native creation shells. */
+/** One searchable, non-executing, creation-kind-scoped template catalogue shared by native shells. */
 import {createElement, useEffect, useId, useMemo, useRef, useState} from "react";
 import type {Translator} from "../../lang";
 import {FormField} from "../components/FormField";
@@ -26,7 +26,7 @@ export function DrawingTemplateSelect({choices, value, kind, disabled, translate
   const blankLabel=translate(currentKind==="markdown"?"template.none":"drawing.blank");
   const committed=useRef(value||blankLabel),[query,setQuery]=useState(value||blankLabel);
   const files=useMemo(/** Capture only paths/kinds; no file contents or host APIs enter discovery. */ ()=>
-    new Map(choices.files.map(file=>[file.path,{path:file.path,kind:file.kind??"excalidraw"} as const])),[choices.files]);
+    new Map(choices.files.filter(file=>(file.kind??"excalidraw")===currentKind).map(file=>[file.path,{path:file.path,kind:file.kind??"excalidraw"} as const])),[choices.files,currentKind]);
   const paths=useMemo(()=>[...files.keys()],[files]);
   useEffect(/** External selections and locale changes replace only the committed display value. */ ()=>{
     committed.current=value||blankLabel;setQuery(committed.current);

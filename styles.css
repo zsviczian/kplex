@@ -4021,6 +4021,13 @@ button.kplex-sidecar-unfold-plex:focus-visible,
 .kplex-tabs { display: flex; flex-wrap: wrap; gap: 4px; border-bottom: 1px solid var(--background-modifier-border); margin-bottom: 16px; padding-bottom: 8px; }
 .kplex-tabs > [role="tab"] { flex: 1 1 140px; box-shadow: none; }
 .kplex-tabs > [aria-selected="true"] { color: var(--text-accent); background: var(--background-modifier-active-hover); outline: 1px solid var(--interactive-accent); }
+/* Creation kinds share one panel; native fields and actions retain their own control chrome. */
+.kplex-creation-types { min-width: 0; }
+.kplex-add-related-footer > .kplex-creation-types { margin-top: 16px; }
+.kplex-creation-types > .kplex-tabs { gap: 4px; margin-bottom: 0; padding-bottom: 0; border-bottom: 0; }
+.kplex-creation-types > .kplex-tabs > [role="tab"] { flex: 1 1 90px; min-width: 0; min-height: var(--input-height); height: auto; white-space: normal; overflow-wrap: anywhere; border-end-start-radius: 0; border-end-end-radius: 0; }
+.kplex-creation-type-panel { min-width: 0; padding: 16px; border: 1px solid var(--background-modifier-border); border-radius: 0 0 var(--radius-m) var(--radius-m); }
+.kplex-creation-type-panel > .kplex-form-actions { margin-bottom: 0; }
 .kplex-create-folder-note-modal [role="tabpanel"][hidden] { display: none; }
 .kplex-ownership-preview { padding: 12px 16px; margin-bottom: 12px; border: 1px solid var(--background-modifier-border); border-radius: var(--radius-m); }
 .kplex-ownership-preview.is-after { border-color: var(--interactive-accent); }

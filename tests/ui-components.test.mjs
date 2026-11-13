@@ -1124,7 +1124,7 @@ import { FuzzySuggester } from ${JSON.stringify(join(root, "src/ui/components/Fu
 import { SavedRelationshipPendingError } from ${JSON.stringify(join(root, "src/adapters/obsidian/relationshipMetadataWrite.ts"))};
 import { PartialRelatedFileError } from ${JSON.stringify(join(root, "src/adapters/obsidian/relatedFileOutcome.ts"))};
 import { CreationCompletionSelect } from ${JSON.stringify(join(root, "src/ui/features/CreationCompletionSelect.tsx"))};
-import { DrawingTemplateSelect } from ${JSON.stringify(join(root, "src/ui/features/DrawingTemplateSelect.tsx"))};
+import { CreationTypeTabs } from ${JSON.stringify(join(root, "src/ui/features/CreationTypeTabs.tsx"))};
 import {ReciprocalRelationshipWriteError,reciprocalPreflight,reciprocalApprovalCurrent} from ${JSON.stringify(join(root,"src/adapters/obsidian/reciprocalRelationshipWrite.ts"))};
 import {drawingAutomation} from ${JSON.stringify(join(root,"src/adapters/obsidian/drawingTemplates.ts"))};
 import {FormField,FormActions} from ${JSON.stringify(join(root,"src/ui/components/FormField.tsx"))};
@@ -1160,7 +1160,7 @@ ${production}
     getAllFolders: includeRoot => { check(includeRoot === true, "folder inventory must include the vault root"); folderEnumerations++; return [{ path: "/" }, { path: "Projects" }, { path: "Projects/Ideas" }]; } } },
    settings: { editNewNodeAfterCreate: false, newNodeDefaultType: "markdown",ontologyPairingVersion:1,ontologyDescriptions:{review:"Historicterm meaningful synonym",parent:"Historicterm other role"},hierarchy:{hidden:[],parents:["parent"],children:["children","review","example"],leftFriends:[],rightFriends:[],previous:[],next:[],exclusions:[]} },
    createdNoteCompletionControl(_host,options={}){const context={desktop:true,sidepanel:false,another:options.another!==false,editable:options.editable!==false,follow:options.follow!==false},key=options.operation==='link'?'linkAfterSaving':'newNodeAfterSaving';return{choices:creationAfterSavingActions(context),value:effectiveCreationAfterSaving(sanitizeCreationAfterSaving(this.settings[key]??this.settings.newNodeAfterSaving,this.settings.editNewNodeAfterCreate),context),onChange:value=>{this.settings[key]=value}}},
-   finishNewRelatedNode:async()=>{},
+   finishNewRelatedNode:async()=>{}, creationTypeTabControl:()=>({value:null,onChange(){}}),
    translator: (key) => key, creationTemplateOptions: () => ({files:[],selected:'',root:''}), isExcalidrawAvailable: () => false, defaultOntologyField: role => role === "right" ? "Challenger" : role === "parent" ? "parent" : "children",
    ontologyFieldsForRole: () => ["children", "review", "example"],
    allOntologyFields: () => ["children", "review", "example", "parent"],
@@ -1289,6 +1289,7 @@ ${production}
   plugin.openInDocumentLeaf = async file => check(file === created.file, "open changed physical file identity");
   flushSync(() => root.render(createElement(RelatedNoteComposer, { key: "drawing-recovery", plugin, origin, session, initialRole: "child" })));
   flushSync(() => type(host.querySelector(".kplex-add-related-note-search input"), "Drawing"));
+  flushSync(() => host.querySelector('[role="tab"][id$="tab-excalidraw"]').click());
   flushSync(() => host.querySelector('[aria-label="addRelated.createExcalidrawLink"]').click());
   await new Promise(resolve => setTimeout(resolve, 0)); flushSync(() => {});
   check(creations === 1 && links === 1 && rejectLink, "drawing did not reach held relationship step");

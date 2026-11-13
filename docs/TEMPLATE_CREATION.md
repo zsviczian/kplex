@@ -2,14 +2,27 @@
 
 ## Explicit templates
 
-The creation forms share one searchable **Template** control. It lists Markdown
-files from the configured vault-relative source folder alongside Excalidraw's
-public template catalogue. Type and full path distinguish duplicate names. Listing
+The creation forms share **Markdown** and **Excalidraw** tabs with a searchable
+**Template** control inside the selected tab. Each tab lists only its own kind
+and remembers its template choice while switching. Excalidraw is shown only when
+its companion is available; related-node creation also offers **Placeholder**.
+**After saving** stays above the tabs, and the native top-right close button
+dismisses the form. Folder creation and materialization offer only real file types.
+The last explicitly selected type tab opens next time, including after cancelling.
+Forms that cannot offer that type show a supported fallback without erasing the
+remembered choice. Before the first explicit selection, the existing physical-type
+and template defaults still apply.
+
+Set **Ontology → Relationship behavior → Markdown template folder** with the shared
+folder suggester. Typing offers matching vault folders; an empty value disables
+Markdown template discovery, while `/` selects the vault root. The Markdown tab
+lists files from that source; Excalidraw uses its public template catalogue.
+Full paths distinguish duplicate names. Listing
 visits at most 4,096 Markdown-source folder entries; drawing choices retain the
 existing public companion catalogue. Listing reads no template content or graph sources;
 search and browse execute nothing. A selected entry retains its native file,
-revision and creation kind. The matching creation button is primary; incompatible
-creation buttons are disabled. Markdown-only operations cannot select a drawing.
+revision and creation kind. The selected tab supplies its matching creation action.
+Markdown-only operations cannot select a drawing.
 
 The execution contract is explicit selection before automatic creation templates:
 

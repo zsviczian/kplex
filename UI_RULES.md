@@ -15,7 +15,8 @@ label, actions and layout is not component reuse. Read this file before UI work.
 | Labelled React authored field | `src/ui/components/FormField.tsx` |
 | Labelled React dropdown | `src/ui/components/FormSelect.tsx` |
 | Creation completion | `CreationCompletionSelect`, using `FormSelect` |
-| Searchable creation template | `DrawingTemplateSelect`, using `FormField` + shared `FuzzySuggester` with native combobox chrome; one typed catalogue for Markdown and drawing templates |
+| Creation type and template | `CreationTypeTabs`, composing `Tabs` and `DrawingTemplateSelect`; the active type shows only its own templates and restores its committed selection |
+| Searchable creation template | `DrawingTemplateSelect`, using `FormField` + shared `FuzzySuggester` with native combobox chrome |
 | Relationship direction, ontology search, disclosure and edit | `src/ui/features/RelationshipFieldControl.tsx`; do not rebuild an import-only variant |
 | Native/import ontology binding | `RelationshipSelectionControl`; connection properties and import use the same binding, with explicit vocabulary creation separate from applying a relationship |
 | Native finite dropdown with explanatory text | `formSelect` in the modal adapter; help spans the line below, and the control uses the space after its label |
@@ -89,6 +90,13 @@ Obsidian APIs in portable components.
   for `kplex-form-field`, with bounded label-to-input spacing in native review.
 - Keep tabs at the top of their content and preserve drafts when switching. Never
   hide a required common option behind an extra configure dialog.
+- Creation forms keep the shared After saving control above creation-type tabs.
+  Markdown and Excalidraw retain separate template choices. Explicit tab selection
+  remembers the last tab even when the form is cancelled, without submitting.
+  Unsupported remembered kinds project locally without replacing that preference.
+  Offer Placeholder only where virtual creation
+  is supported, and hide Excalidraw when its companion is unavailable. Use the
+  native modal's top-right close button instead of a second footer Cancel.
 
 ## Buttons, selectors and tooltips
 
@@ -137,6 +145,12 @@ Obsidian APIs in portable components.
   existing persistence configurators. Do not replace Settings with a parallel form.
 - Labelled long text and textarea settings use the shared full-width field treatment.
   Managers/lists retain bounded search, scrolling and compact row actions.
+- Folder-source settings reuse `FolderPathInput` and the existing settings writer.
+  An optional source preserves an empty disabled value; `/` explicitly selects
+  the vault root. Suggestions use the same native folder metadata as creation forms.
+  Mount its React field only after the native row is connected and shown: Settings
+  may construct a detached row in the main document before moving it into its own
+  window. Initial insertion and later migration must retain distinct lifetimes.
 - Integrated controls must scope their styles to their actual setting row and use
   the same control typography and dimensions as modal forms.
 - Appearance forms use native `Setting` info/control columns and the existing

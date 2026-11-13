@@ -4,7 +4,10 @@
  */
 import {FormSetting as Setting, KplexModal as Modal, formActions, labelIconButton} from "../adapters/obsidian/KplexModal";
 
-import { DrawingTemplateSelect, type DrawingTemplateChoices } from "./features/DrawingTemplateSelect";
+import type {DrawingTemplateChoices} from "./features/DrawingTemplateSelect";
+import {CreationTypeTabs, type CreationTypeTabControl} from "./features/CreationTypeTabs";
+import {FormActions} from "./components/FormField";
+import {ObsidianIcon} from "./ObsidianIcon";
 import { graphFolder } from "../adapters/obsidian/graphFolder";
 import { SavedRelationshipPendingError } from "../adapters/obsidian/relationshipMetadataWrite";
 import {Notice, type ButtonComponent, type TFolder, type WorkspaceLeaf} from "obsidian";
@@ -33,10 +36,11 @@ export class CreateFolderNoteModal extends Modal {
   private releaseMigration: (() => void) | null = null;
   private templateRoot: Root | null = null;
   private templatePath: string | undefined;
+  private templatePaths: Record<GhostMaterializationKind, string> = {markdown: "", excalidraw: ""};
   private templateKind: GhostMaterializationKind | undefined;
   private templateChoices: DrawingTemplateChoices | null = null;
   private selectedKind: GhostMaterializationKind = "markdown";
-  private renderTemplate: (() => void) | null = null;
+  private creationTabControl: CreationTypeTabControl | null = null;
   private creating = false;
   private opened = false;
   private completing = false;
@@ -56,7 +60,6 @@ export class CreateFolderNoteModal extends Modal {
   private readonly hostContainer: HTMLElement | null;
   private readonly invokingDocument: Document;
   private readonly invokingElement: HTMLElement | null;
-  private readonly createButtons: Array<{button: ButtonComponent; kind: GhostMaterializationKind}> = [];
 
   /** Capture folder incarnation and invoking surface before the native form takes focus. */
   constructor(
@@ -102,16 +105,10 @@ export class CreateFolderNoteModal extends Modal {
     return this.plugin.validateRelatedNoteName(this.noteName, folderPath === "/" ? "" : folderPath);
   }
 
-  /** Save/Clear controls remain unavailable during writes and saved publication-pending states. */
+  /** Creation controls remain unavailable during writes and saved publication-pending states. */
   private refreshButtons(): void {
-    const validation = this.validateName();
-    const enabled = this.canComplete() && this.opened && !this.creating && !this.pending && validation.valid && !validation.existing;
-    for (const {button,kind} of this.createButtons) {
-      button.setDisabled(!enabled || Boolean(this.templatePath) && kind !== this.templateKind);
-      button.buttonEl.classList.toggle("mod-cta",kind===this.selectedKind);
-    }
     this.renderCompletionControls();
-    this.renderTemplate?.();
+    this.renderTemplate();
     this.folderButton?.setDisabled(this.creating || this.pending || !this.canComplete() || !this.folderName.trim());
     this.renderTabs();
   }
@@ -125,6 +122,30 @@ export class CreateFolderNoteModal extends Modal {
       onChange: /** Remember an actual user selection across every creation dialog. */ value => {
         this.continuation = value; completion.onChange(value); this.renderCompletionControls();
       },
+    }));
+  }
+
+  /** Render one selected create action inside the shared type panel; native shell retains mutation ownership. */
+  private renderTemplate(): void {
+    if (!this.templateChoices) return;
+    const validation = this.validateName();
+    const enabled = this.canComplete() && this.opened && !this.creating && !this.pending && validation.valid && !validation.existing;
+    this.templateRoot?.render(createElement(CreationTypeTabs, {
+      value: this.selectedKind, types: this.plugin.isExcalidrawAvailable() ? ["markdown", "excalidraw"] : ["markdown"], translate: this.plugin.translator,
+      disabled: this.creating || this.pending,
+      onChange: /** Explicit tab selection restores its draft and remembers the choice independently of a successful create. */ kind => {
+        if(!this.opened||!this.canComplete()||this.creating||this.pending||kind === "placeholder")return;
+        this.selectedKind=kind;this.templatePath=this.templatePaths[kind];this.templateKind=this.templatePath?kind:undefined;this.refreshButtons();
+        this.creationTabControl?.onChange(kind);
+      },
+      template: {choices: this.templateChoices, value: this.templatePath ?? "", onChange: /** Search text never reaches the committed per-kind draft. */ path => {
+        if(this.creating||this.pending)return;
+        this.templatePath=path;this.templatePaths[this.selectedKind]=path;this.templateKind=path?this.selectedKind:undefined;this.refreshButtons();
+      }},
+      children: createElement(FormActions, null, createElement("button", {type: "button", className: "mod-cta kplex-icon-action",
+        "aria-label": this.plugin.translator(this.selectedKind === "markdown" ? "addRelated.createMarkdown" : "addRelated.createExcalidraw"),
+        disabled: !enabled, onClick: /** The button and native Scope submit the same selected-kind operation. */ () => {void this.create(this.selectedKind);}},
+      createElement(ObsidianIcon, {name: this.selectedKind === "markdown" ? "text-initial" : "palette", size: 20}))),
     }));
   }
 
@@ -235,6 +256,7 @@ export class CreateFolderNoteModal extends Modal {
       ? "excalidraw"
       : "markdown";
     this.selectedKind = defaultKind;
+    this.creationTabControl = this.plugin.creationTypeTabControl();
 
     this.titleEl.setText(this.allowSubfolders ? this.plugin.translator("folderActions.createTitle", {folder: this.folderLabel()}) : this.plugin.translator("folderNote.title"));
     this.modalEl.addClass("kplex-create-folder-note-modal");
@@ -254,8 +276,7 @@ export class CreateFolderNoteModal extends Modal {
         text.onChange(/** Draft edits never invalidate source/index state. */ value => {this.folderName = value; this.refreshButtons();});
       });
       formActions(folder).addButton(/** One native create follows final path and identity checks. */ button => {this.folderButton = button;
-        labelIconButton(button.buttonEl, this.plugin.translator("folderActions.create"), "folder-plus"); button.setCta().onClick(/** Submit the captured folder only. */ () => {void this.createSubfolder();});})
-        .addButton(/** Tab cancellation never creates a note or folder. */ button => {labelIconButton(button.buttonEl, this.plugin.translator("common.cancel"), "x"); button.onClick(/** Release the whole creation shell. */ () => this.close());});
+        labelIconButton(button.buttonEl, this.plugin.translator("folderActions.create"), "folder-plus"); button.setCta().onClick(/** Submit the captured folder only. */ () => {void this.createSubfolder();});});
     }
     const renameRef = this.plugin.app.vault.on("rename", /** Follow the exact captured physical folder; a replacement at its former path is a different origin. */ file => {
       if (file === this.nativeFolder && this.opened && this.folderDescription?.isConnected) {
@@ -290,40 +311,15 @@ export class CreateFolderNoteModal extends Modal {
       this.templatePath = selected?.path ?? "";
       this.templateKind = selected ? selected.kind ?? "excalidraw" : undefined;
       if(this.templateKind)this.selectedKind=this.templateKind;
+      this.templatePaths = {markdown: "", excalidraw: ""};
+      this.templatePaths[this.selectedKind] = this.templatePath;
+      if (this.creationTabControl.value === "markdown" || this.creationTabControl.value === "excalidraw") {
+        this.selectedKind = this.creationTabControl.value === "excalidraw" && excalidrawAvailable ? "excalidraw" : "markdown";
+        this.templatePath = this.templatePaths[this.selectedKind];this.templateKind = this.templatePath ? this.selectedKind : undefined;
+      }
       this.templateRoot = createRoot(form.createDiv());
-      this.renderTemplate = (): void => this.templateRoot?.render(createElement(DrawingTemplateSelect, {
-        choices, value: this.templatePath ?? "", kind:this.selectedKind, translate: this.plugin.translator,
-        disabled: this.creating || this.pending,
-        onChange: /** Explicit template choice owns output kind; a draft query never reaches this callback. */ (path,kind) => {
-          if(this.creating||this.pending)return;
-          this.templatePath=path;this.templateKind=path?kind:undefined;if(kind)this.selectedKind=kind;this.refreshButtons();
-        },
-      }));
       this.renderTemplate();
     }
-    form.appendChild(completion);
-    const actions = formActions(form);
-    actions.addButton((button) => {
-      this.createButtons.push({button,kind:"markdown"});
-      button
-        .setButtonText(this.plugin.translator("common.markdown"))
-        .onClick(() => { void this.create("markdown"); });
-      labelIconButton(button.buttonEl, this.plugin.translator("common.markdown"), "text-initial");
-      if (this.selectedKind === "markdown") button.setCta();
-    });
-
-    if (excalidrawAvailable) {
-      actions.addButton((button) => {
-        this.createButtons.push({button,kind:"excalidraw"});
-        button
-          .setButtonText(this.plugin.translator("common.excalidraw"))
-          .onClick(() => { void this.create("excalidraw"); });
-        labelIconButton(button.buttonEl, this.plugin.translator("common.excalidraw"), "palette");
-        if (this.selectedKind === "excalidraw") button.setCta();
-      });
-    }
-
-    actions.addButton(/** Cancel is one shared accessible icon action. */ button => {labelIconButton(button.buttonEl, this.plugin.translator("common.cancel"), "x"); button.onClick(() => this.close());});
 
     this.refreshButtons();
     /** Submit protocol excludes composition, AltGraph and held keys before scheduling any file creation. */
@@ -352,11 +348,11 @@ export class CreateFolderNoteModal extends Modal {
     if (!this.completing) this.restoreInvoker();
     this.opened = false;
     if (!this.completing) this.invalidated = true;
-    this.templateRoot?.unmount(); this.templateRoot = null; this.renderTemplate = null;
+    this.templateRoot?.unmount(); this.templateRoot = null;
     this.completionRoot?.unmount(); this.completionRoot = null;
     this.tabRoot?.unmount(); this.tabRoot = null; this.tabPanels = null; this.folderButton = null;
     this.contentEl.empty();
-    this.nameInput = null; this.folderDescription = null; this.createButtons.length = 0;
+    this.nameInput = null; this.folderDescription = null;
     this.invocation.onClosed?.();
   }
 }

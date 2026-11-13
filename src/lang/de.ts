@@ -1966,6 +1966,9 @@ const germanTranslations = {
   "pins.calendarHelp": "Wochendaten verwenden den Wochenbeginn. ISO-Wochenformate verwenden GGGG und WW; lokale Wochenformate gggg und ww. Um Neujahr kann das Wochenjahr vom Kalenderjahr abweichen.",
   "note.applyingTemplate": "Warten auf den Abschluss der Notizvorlage…",
   "note.templateIntegrationUnavailable": "K-Plex kann bei dieser Templater-Version nicht sicher warten. Es wurden keine Beziehungseigenschaften geschrieben.",
+  "creation.type": "Erstellen als",
+  "common.placeholder": "Platzhalter",
+
 } as const satisfies LocaleTranslationMap;
 
 export const germanCatalog = buildLocaleCatalog(germanTranslations);

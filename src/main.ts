@@ -172,6 +172,7 @@ import { createActionCommandPublisher, type ActionCommandPublisher } from "./ada
 import { actionNodeRef, resolveActionPage } from "./adapters/obsidian/actionNode";
 import {creationAfterSavingActions, effectiveCreationAfterSaving, effectiveCreatedNoteDestination, sanitizeCreationAfterSaving, type CreationAfterSavingAction, type CreatedNoteContext, type CreatedNoteDestination} from "./core/plex/createdNoteDestination";
 import type {CreatedNoteCompletionControl} from "./ui/features/CreationCompletionSelect";
+import type {CreationTypeTabControl} from "./ui/features/CreationTypeTabs";
 import { translateActionText } from "./ui/actionPresentation";
 import { ActionTargetPicker } from "./ui/ActionTargetPicker";
 import { PlexFoldSession, plexFoldIdentity, type PlexFoldCandidate } from "./ui/PlexFoldSession";
@@ -6675,6 +6676,17 @@ export default class KplexPlugin extends Plugin {
       }};
   }
 
+  /** Share explicit tab memory across creation forms, independently of successful physical creations. */
+  creationTypeTabControl(): CreationTypeTabControl {
+    return {value: this.settings.newNodeCreationTab,
+      onChange: /** Only an explicit supported tab selection writes through the existing serialized settings owner. */ kind => {
+        if (kind !== "markdown" && kind !== "excalidraw" && kind !== "placeholder" || this.settings.newNodeCreationTab === kind) return;
+        this.settings.newNodeCreationTab = kind;
+        void this.saveSettings(false, false);
+      }};
+  }
+
+  /** Successful physical creation retains its legacy default independently of the last selected tab. */
   async rememberNewNodeDefaultType(kind: "markdown" | "excalidraw"): Promise<void> {
     if (this.settings.newNodeDefaultType === kind) return;
     this.settings.newNodeDefaultType = kind;
@@ -8572,6 +8584,7 @@ export default class KplexPlugin extends Plugin {
         return this.materializeGhostPage(page, name, "markdown", dailyFolder ?? "", rawLeafName, retainedFile, continuation,
           valid, preserveCenter, hostLeaf, undefined, afterSaving, daily.date);
       }} : undefined,
+      this.creationTypeTabControl(),
     ).open();
   }
 

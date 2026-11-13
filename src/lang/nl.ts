@@ -1966,6 +1966,9 @@ const dutchTranslations = {
   "pins.calendarHelp": "Weekdatums gebruiken het begin van de week. ISO-weeknotaties gebruiken GGGG en WW; lokale weeknotaties gggg en ww. Rond Nieuwjaar kunnen deze afwijken van het kalenderjaar.",
   "note.applyingTemplate": "Wachten totdat het notitiesjabloon klaar is…",
   "note.templateIntegrationUnavailable": "K-Plex kan bij deze Templater-versie niet veilig wachten. Er zijn geen relatie-eigenschappen geschreven.",
+  "creation.type": "Maken als",
+  "common.placeholder": "Tijdelijke aanduiding",
+
 } as const satisfies LocaleTranslationMap;
 
 export const dutchCatalog = buildLocaleCatalog(dutchTranslations);

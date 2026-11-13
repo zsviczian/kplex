@@ -34,6 +34,9 @@
  * Creation and linking remember separate after-saving actions, retaining the former shared choice on upgrade.
  */
 import {FormSetting as Setting, formField, formSelect, formActions, formOptionGroup, labelIconButton} from "./adapters/obsidian/KplexModal";
+import {createElement} from "react";
+import {createRoot, type Root} from "react-dom/client";
+import {FolderPathInput} from "./ui/FolderPathInput";
 import {STARTUP_INDEX_DEFAULTS, sanitizeStartupIndexPreferences, type IndexingMode, type StartupIndexPreferences} from './core/plex/startupIndexPreferences';
 import {PIN_PERIODS, isPeriodicPin, loadSavedPins, type PinPeriod, type SavedPin} from "./core/plex/savedPins";
 import {DEFAULT_PERIODIC_PIN_SETTINGS, loadPeriodicPinSettings, type PeriodicPinConfiguration, type PeriodicPinSettings} from "./core/plex/periodicPins";
@@ -429,6 +432,8 @@ export interface KplexSettings extends StartupIndexPreferences {
   linkAfterSaving: CreationAfterSavingAction;
   /** Remember which create button Ctrl/Cmd+Enter should invoke next time. */
   newNodeDefaultType: NewNodeType;
+  /** Last explicitly selected creation tab, including cancelled forms; null preserves the former initial selection. */
+  newNodeCreationTab: NewNodeType | "placeholder" | null;
   /** Null uses the first configured template; empty explicitly selects a blank drawing. */
   lastDrawingTemplatePath: string | null;
   /** Optional source folder for explicit Markdown templates; discovery executes no content. */
@@ -581,6 +586,7 @@ const LEGACY_DEFAULT_SETTINGS: KplexSettings = {
   folderCreationTab: "note",
   linkAfterSaving: "return",
   newNodeDefaultType: "markdown",
+  newNodeCreationTab: null,
   lastDrawingTemplatePath: null,
   markdownTemplateFolder: "",
   alsoWriteInverseOntology: false,
@@ -882,6 +888,7 @@ export function migrateAndMergeSettings(raw: unknown): KplexSettings {
     markdownTemplateFolder: typeof old.markdownTemplateFolder === "string" ? old.markdownTemplateFolder : "",
     alsoWriteInverseOntology: old.alsoWriteInverseOntology === true,
     newNodeDefaultType: old.newNodeDefaultType === "excalidraw" ? "excalidraw" : "markdown",
+    newNodeCreationTab: old.newNodeCreationTab === "markdown" || old.newNodeCreationTab === "excalidraw" || old.newNodeCreationTab === "placeholder" ? old.newNodeCreationTab : null,
     startupIndexInfoBubbleSeen: Boolean(old.startupIndexInfoBubbleSeen),
     deletePromptInitialized: Boolean(old.deletePromptInitialized),
     confirmFileDelete: old.confirmFileDelete !== false,
@@ -1667,6 +1674,7 @@ export class KplexSettingTab extends PluginSettingTab {
   private colorDialogGeneration = 0;
   private readonly colorSwatchPages = new WeakMap<HTMLElement, ColorSwatchList>();
   private readonly colorSwatchOwners = new Set<ColorSwatchList>();
+  private readonly folderSettingReleases = new Set<() => void>();
   private ontologyFields?: Map<EditableHierarchyKey, OntologyFieldControl>;
   /** Failed immediate type writes retire only that native field's optimistic component, never its saved value. */
   private readonly viewControlRecoveries = new Map<string, number>();
@@ -1685,6 +1693,8 @@ export class KplexSettingTab extends PluginSettingTab {
   /** Release row subscriptions and transient input before navigation, unload or settings teardown. */
   disposeActionSettings(): void {
     this.colorDialogGeneration++;
+    for (const release of this.folderSettingReleases) release();
+    this.folderSettingReleases.clear();
     for (const owner of this.colorSwatchOwners) owner.dispose();
     this.colorSwatchOwners.clear();
     this.actionSettings?.dispose();
@@ -2857,6 +2867,7 @@ export class KplexSettingTab extends PluginSettingTab {
         searchable: item.searchable, visible: item.visible,
         render: /** Native controls preserve search/navigation styling while the shared draft owns submission. */ setting => this.ontologyField(hierarchyField).mount(setting, control.rows ?? 3),
       };
+      if (control.key === "markdownTemplateFolder" && control.type === "text") return this.folderPathControl(item, control);
       if ((control.type === "textarea" || control.type === "text") && !control.validate && !control.disabled
         && ["excludeFilepathsCsv", "nameFields", "noteTypeField", "thumbnailProperty", "nodeImageProperty"].includes(control.key))
         return this.authoredTextControl(item, control);
@@ -2907,6 +2918,70 @@ export class KplexSettingTab extends PluginSettingTab {
           else if (active && mounted && !mounted.pending) mounted.refresh();
         }, /** A closed/migrated settings window cannot retain scalar handlers. */ () => {active = false;mounted?.dispose();});
         return release;
+      }};
+  }
+
+  /** Reuse the destination suggester for optional source folders. Each mounted native row owns
+   * one folder inventory, React root and cleanup; the existing received-key writer owns all saves. */
+  private folderPathControl(item: SettingDefinition<DeclarativeSettingKey>, control: Extract<NonNullable<SettingDefinition<DeclarativeSettingKey>["control"]>, {type: "text"}>): SettingDefinition<DeclarativeSettingKey> {
+    const key = this.receivedControlKey(control.key);
+    return {name: item.name, desc: item.desc, aliases: item.aliases, searchable: item.searchable, visible: item.visible,
+      render: setting => {
+        formField(setting);
+        const host = setting.controlEl.createDiv(), folders = this.app.vault.getAllFolders(true).map(folder => folder.path || "/");
+        const initial = this.getControlValue(key) ?? control.defaultValue;
+        let value = typeof initial === "string" ? initial : "", active = true, generation = 0, root: Root | null = null;
+        let document = setting.settingEl.ownerDocument, releaseWindow = (): void => {}, releaseMigration: (() => void) | undefined, releaseInsertion: (() => void) | undefined;
+        /** Native page replacement, settings hide and window teardown share exactly one release. */
+        const dispose = (): void => {
+          if (!active) return;active = false;releaseInsertion?.();releaseInsertion = undefined;releaseWindow();releaseMigration?.();root?.unmount();root = null;this.folderSettingReleases.delete(dispose);
+        };
+        /** Controlled text stays editable while its accepted save settles independently. */
+        const render = (): void => {
+          const mount = generation, owner = document;
+          const current = (): boolean => active && mount === generation && setting.settingEl.isConnected && setting.settingEl.ownerDocument === owner && !owner.defaultView?.closed;
+          root?.render(createElement(FolderPathInput, {value, folders, translate: this.kplexPlugin.translator, preserveEmpty: true, ariaLabel: item.name,
+            onChange: next => {
+              if (!current() || !this.receivedControlCurrent(key)) return;
+              value = next;render();
+              void this.setControlValue(key, next).catch(/** Retain editable text and report a failed durable save only to its current row. */ error => {
+                console.error("K-Plex folder setting was not saved", error);
+                if (current()) new Notice(this.kplexPlugin.translator("actions.saveFailed", {error: error instanceof Error ? error.message : String(error)}));
+              });
+            }}));
+        };
+        /** A native Settings adoption replaces the root and its document-bound suggestion handlers. */
+        const mount = (): void => {
+          releaseInsertion?.();releaseInsertion = undefined;
+          root?.unmount();releaseWindow();document = setting.settingEl.ownerDocument;generation++;
+          const boundDocument = document, owner = document.defaultView;
+          /** A late source-window close cannot retire a field already adopted by another window. */
+          const closed = (): void => {
+            if (!active) return;
+            if (setting.settingEl.ownerDocument !== boundDocument) {if (setting.settingEl.ownerDocument !== document) mount();return;}
+            dispose();
+          };
+          owner?.addEventListener("pagehide", closed, {once: true});releaseWindow = () => owner?.removeEventListener("pagehide", closed);
+          root = createRoot(host);render();
+        };
+        /** Native Settings may construct this row in the main document before adopting it into
+         * its own window. No input may exist until the row is actually connected and shown. */
+        const shown = (): boolean => setting.settingEl.isConnected && (typeof setting.settingEl.isShown !== "function" || setting.settingEl.isShown());
+        const firstMount = (): void => {if (active && !root && shown()) mount();};
+        this.folderSettingReleases.add(dispose);
+        releaseMigration = setting.settingEl.onWindowMigrated?.(/** Initial adoption shares the insertion fence; later real adoption replaces the existing root. */ () => {
+          if (!active) return;
+          if (!root) firstMount();else if (setting.settingEl.ownerDocument !== document) mount();
+        });
+        if (!root) {
+          if (shown() || typeof setting.settingEl.onNodeInserted !== "function") mount();
+          else {
+            releaseInsertion = setting.settingEl.onNodeInserted(firstMount);
+            // A host may deliver insertion while registering; release its returned listener too.
+            if (root) {releaseInsertion();releaseInsertion = undefined;}
+          }
+        }
+        return dispose;
       }};
   }
 

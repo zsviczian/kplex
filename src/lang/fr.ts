@@ -1970,6 +1970,9 @@ const frenchTranslations = {
   "pins.calendarHelp": "Les dates hebdomadaires utilisent le début de la semaine. Les formats ISO utilisent GGGG et WW ; les formats locaux, gggg et ww. Près du Nouvel An, l’année peut différer de l’année civile.",
   "note.applyingTemplate": "En attente de la fin du modèle de note…",
   "note.templateIntegrationUnavailable": "K-Plex ne peut pas attendre cette version de Templater en toute sécurité. Aucune propriété de relation n’a été écrite.",
+  "creation.type": "Créer en tant que",
+  "common.placeholder": "Espace réservé",
+
 } as const satisfies LocaleTranslationMap;
 
 export const frenchCatalog = buildLocaleCatalog(frenchTranslations);

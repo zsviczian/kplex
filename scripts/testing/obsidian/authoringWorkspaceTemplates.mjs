@@ -53,7 +53,8 @@ async function templates(app,c){
   app.fileManager.processFrontMatter=async function(file,callback,options){if(file===origin||file.path.startsWith(output.path+'/'))writes.push(file.path);if(failInverse&&file===pairTarget&&file.path===heldPath)throw Error('Owned inverse failure302');return frontmatter.call(this,file,callback,options);};
   f.restores.push(()=>{releaseParser?.();if(parseDescriptor)Object.defineProperty(engine,'parse_template',parseDescriptor);else delete engine.parse_template;engine.constructor.on_file_creation=handler;if(frontmatterDescriptor)Object.defineProperty(app.fileManager,'processFrontMatter',frontmatterDescriptor);else delete app.fileManager.processFrontMatter;if(linkDescriptor)Object.defineProperty(nativePlugin,'linkNewRelatedFile',linkDescriptor);else delete nativePlugin.linkNewRelatedFile;});
   /** Every shell commits the same real searchable control with native keyboard input. */
-  const chooseTemplate=async(content,template)=>{const input=content.querySelector('.kplex-template-picker input');f.check(input,'Single native Template combobox');await c.type(f,input,template.basename);
+  const chooseTemplate=async(content,template)=>{const kind=template===drawing?'excalidraw':'markdown',tab=content.querySelector('.kplex-creation-types [role=tab][id$="-tab-'+kind+'"]');f.check(tab,'Template type tab');await f.click(tab);
+   await f.until(()=>tab.getAttribute('aria-selected')==='true','Selected template type');const input=content.querySelector('.kplex-template-picker input');f.check(input,'Single native Template combobox');await c.type(f,input,template.basename);
    await f.until(()=>[...content.ownerDocument.querySelectorAll('.kplex-search-results button')].some(option=>option.textContent.includes(template.path)),'Searchable kind/path template option');await f.key(content.ownerDocument,'Enter',[],input);};
   /** Capture metadata-only browsing work independently from physical creation and parser execution. */
   const before=p.index.getSourceAcquisitionCounters(),semantic=p.index.getSemanticPreparationDiagnostics(),catalogue=p.creationTemplateOptions();
@@ -130,7 +131,7 @@ async function templates(app,c){
   f.restores.push(()=>{if(folderModal?.modalEl.isConnected)folderModal.close();});
   await f.until(()=>folderModal?.nameInput&&folderModal.contentEl.querySelector('.kplex-template-picker input'),'Actual folder creation Template form');
   await c.type(f,folderModal.nameInput,'FolderResult');await chooseTemplate(folderModal.contentEl,plain);
-  const folderSave=[...folderModal.contentEl.querySelectorAll('.kplex-form-actions button')].find(button=>button.getAttribute('aria-label')===p.translator('common.markdown'));
+  const folderSave=[...folderModal.contentEl.querySelectorAll('.kplex-form-actions button')].find(button=>button.getAttribute('aria-label')===p.translator('addRelated.createMarkdown'));
   f.check(folderSave&&!folderSave.disabled,'Matching native folder creation action');await f.click(folderSave);
   await f.until(()=>!folderModal.modalEl.isConnected,'Native folder template completion');const folderFile=app.vault.getFileByPath(output.path+'/FolderResult.md');f.check(folderFile,'Created folder note');f.files.push(folderFile);
   f.check((await app.vault.read(folderFile)).includes('# FolderResult')&&!automaticAdmissions.includes(folderFile.path),'Folder form executed explicit template only');cases.push({case:'folder-form',explicitOnly:true});
@@ -140,7 +141,7 @@ async function templates(app,c){
   f.restores.push(async()=>{for(let attempt=0;attempt<3&&ghostEl.isConnected;attempt++)await f.key(doc,'Escape');f.check(!ghostEl.isConnected,'Owned placeholder modal retired');});
   const ghostFolder=ghostContent.querySelector('.kplex-folder-path-input input');f.check(ghostFolder,'Native placeholder destination');await f.until(()=>doc.activeElement===ghostFolder,'Native placeholder initial destination focus',5000);
   if(ghostFolder.value!==output.path)await c.type(f,ghostFolder,output.path);await f.key(doc,'Tab',[],ghostFolder);await chooseTemplate(ghostContent,plain);
-  const ghostSave=[...ghostContent.querySelectorAll('.kplex-form-actions button')].find(button=>button.getAttribute('aria-label')===p.translator('common.markdown'));
+  const ghostSave=[...ghostContent.querySelectorAll('.kplex-form-actions button')].find(button=>button.getAttribute('aria-label')===p.translator('addRelated.createMarkdown'));
   f.check(ghostSave&&!ghostSave.disabled,'Matching native placeholder creation action');await f.click(ghostSave);await f.until(()=>!ghostEl.isConnected,'Native placeholder template completion');
   const ghostFile=app.vault.getFileByPath(ghostPath+'.md');f.check(ghostFile,'Materialized native template target');f.files.push(ghostFile);
   f.check((await app.vault.read(ghostFile)).includes('# GhostResult')&&!automaticAdmissions.includes(ghostFile.path),'Placeholder form executed explicit template only');cases.push({case:'placeholder-form',explicitOnly:true});

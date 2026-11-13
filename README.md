@@ -213,9 +213,12 @@ The dialog names its captured origin. Navigating the canvas elsewhere while it i
 
 Use the pencil beside the selected ontology to edit that exact property, its pairing and description without losing your form drafts. **Reverse property owner** shows which Markdown note will store which property and link. For a new note, K-Plex creates the note before writing the chosen relationship. Attachments, web links and placeholders cannot receive document properties.
 
-The single **Template** picker searches Markdown templates from the folder configured
-under **Ontology** alongside your Excalidraw templates. Each choice shows its type and
-path, and selects the matching creation action. **No K-Plex template** keeps normal
+Choose **Markdown**, **Excalidraw** or **Placeholder** in the creation tabs. Available
+types match the operation, and Excalidraw appears only with its companion installed.
+**After saving** stays above the tabs. Each real-file tab has its own searchable
+**Template** picker and retains its selection when switching. Configure the Markdown
+source with the folder suggester under **Ontology → Relationship behavior → Markdown
+template folder**. **No K-Plex template** keeps normal
 external automation; an explicit choice takes precedence for that new note. Plain
 Markdown, core template variables and supported Templater code are processed before
 relationship properties are written. Daily Notes retains its separate configured flow.
@@ -224,6 +227,8 @@ relationship properties are written. Daily Notes retains its separate configured
 inverse property on the other Markdown note as well. It defaults off and never
 rewrites existing relationships. If only one file saves, the form retains that
 declaration and offers a retry of the unfinished write.
+
+The last selected creation-type tab opens next time, including after cancelling. A form that cannot offer the remembered type shows a supported fallback without replacing the preference.
 
 The folder field starts with Obsidian's calculated destination. Select an existing folder from its suggestions, type a new folder, or use `/` for the vault root. The same picker appears when you hold **Ctrl/Cmd** while double-clicking a placeholder. Moving a path-qualified placeholder to a different folder updates its saved references while keeping their aliases. If that save stops partway, the dialog retains the created file for retry.
 

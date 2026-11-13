@@ -5910,6 +5910,9 @@ export const englishCatalog = {
   "pins.calendarHelp": {"message":"Week dates use the start of the week. ISO week formats use GGGG and WW; locale week formats use gggg and ww. These may differ from the calendar year near New Year.","context":"Periodic saved pins, read-only date previews and missing-note guidance.","params":[],"referenceParams":[]},
   "note.applyingTemplate": {message: "Waiting for the note template to finish…", context: "Native file creation waits for optional Templater automation before property writes.", params: []},
   "note.templateIntegrationUnavailable": {message: "K-Plex cannot safely wait for this Templater version. No relationship properties were written.", context: "Native file creation waits for optional Templater automation before property writes.", params: []},
+  "creation.type": {"message":"Create as","context":"Creation type tabs shared by note creation and placeholder materialization.","params":[]},
+  "common.placeholder": {"message":"Placeholder","context":"Creation type tabs shared by note creation and placeholder materialization.","params":[]},
+
 } as const;
 
 export type EnglishCatalog = typeof englishCatalog;

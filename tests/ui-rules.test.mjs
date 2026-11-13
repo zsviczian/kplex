@@ -49,3 +49,18 @@ test('template search and completion fields use shared labelled controls and lin
   const viewportOwners=sourceFiles().filter(file=>readFileSync(file,'utf8').includes('fitMobileModalToViewport(')).map(file=>relative(fileURLToPath(root),fileURLToPath(file)).replaceAll('\\','/')).sort();
   assert.deepEqual(viewportOwners,['src/adapters/obsidian/KplexModal.ts','src/ui/mobileModalViewport.ts'],'Mobile keyboard accommodation belongs to the common native shell, not selected individual dialogs');
 });
+
+test('creation surfaces share type navigation and settings reuse the existing folder suggester',()=>{
+  const feature=readFileSync(new URL('src/ui/features/CreationTypeTabs.tsx',root),'utf8');
+  assert(feature.includes('import {Tabs} from "../components/Tabs"'));
+  assert(feature.includes('DrawingTemplateSelect'));
+  for(const file of ['NewRelatedNoteModal.ts','CreateFolderNoteModal.ts','MaterializeGhostModal.ts']){
+    const source=readFileSync(new URL('src/ui/'+file,root),'utf8');
+    assert(source.includes('createElement(CreationTypeTabs,'),file+' bypassed the shared type panel');
+    assert(!source.includes('createElement(DrawingTemplateSelect,'),file+' rebuilt type/template ownership');
+    assert(!source.includes('translate("common.cancel")')&&!source.includes('translator("common.cancel")'),file+' adds a second cancel action');
+  }
+  const settings=readFileSync(new URL('src/settings.ts',root),'utf8');
+  assert(settings.includes('createElement(FolderPathInput,'));
+  assert(settings.includes('control.key === "markdownTemplateFolder"'));
+});

@@ -2,7 +2,7 @@
  * Native Obsidian shell and shared React composer for related-note creation. The plugin owns mutations and separate link/create completion preferences; the modal owns operation-local choices, focus, suggestions, failure-only recovery and cleanup, and consumes localized copy. Recovery retains the exact durable file and displays the failure reason without enabling fresh creation.
  */
 import {KplexModal as Modal} from "../adapters/obsidian/KplexModal";
-import { DrawingTemplateSelect } from "./features/DrawingTemplateSelect";
+import {CreationTypeTabs, type CreationType} from "./features/CreationTypeTabs";
 import { SavedRelationshipPendingError } from "../adapters/obsidian/relationshipMetadataWrite";
 import {ReciprocalRelationshipWriteError, reciprocalPreflight, reciprocalApprovalCurrent, type ReciprocalApproval} from "../adapters/obsidian/reciprocalRelationshipWrite";
 import {drawingAutomation} from "../adapters/obsidian/drawingTemplates";
@@ -125,12 +125,24 @@ function RelatedNoteComposer({
   const [partialFailure, setPartialFailure] = useState<string | null>(null);
   const [reciprocalRecovery, setReciprocalRecovery] = useState<{error: ReciprocalRelationshipWriteError; target: GraphPage; intent: CompletionIntent | CreationAfterSavingAction} | null>(null);
   const excalidrawAvailable = !session.importSource && plugin.isExcalidrawAvailable();
+  const [creationTabControl] = useState(/** Capture the opening preference; only explicit tab selection invokes its host writer. */ () => plugin.creationTypeTabControl());
   const [templateChoices] = useState(() => plugin.creationTemplateOptions());
-  const [templatePath, setTemplatePath] = useState(() => templateChoices?.selected ?? "");
-  const [defaultCreateType, setDefaultCreateType] = useState<"markdown" | "excalidraw">(() =>
-    excalidrawAvailable && (templateChoices.files.some(file => file.path === templateChoices.selected && file.kind === "excalidraw")
-      || plugin.settings.newNodeDefaultType === "excalidraw") ? "excalidraw" : "markdown",
-  );
+  const [templatePaths, setTemplatePaths] = useState(/** A remembered path belongs only to its captured physical kind. */ () => {
+    const selected = templateChoices.files.find(file => file.path === templateChoices.selected);
+    return {markdown: selected?.kind === "markdown" ? selected.path : "", excalidraw: selected && (selected.kind ?? "excalidraw") === "excalidraw" ? selected.path : ""};
+  });
+  const [defaultCreateType, setDefaultCreateType] = useState<"markdown" | "excalidraw">(/** An explicit physical tab outranks template defaults; unavailable drawings project locally. */ () => {
+    if (creationTabControl.value === "markdown") return "markdown";
+    if (creationTabControl.value === "excalidraw") return excalidrawAvailable ? "excalidraw" : "markdown";
+    return excalidrawAvailable && (templateChoices.files.some(file => file.path === templateChoices.selected && (file.kind ?? "excalidraw") === "excalidraw")
+      || plugin.settings.newNodeDefaultType === "excalidraw") ? "excalidraw" : "markdown";
+  });
+  const [requestedCreationType, setCreationType] = useState<CreationType>(creationTabControl.value === "placeholder" ? "placeholder" : defaultCreateType);
+  // Support is independent of a temporarily empty/invalid name. A policy or direction change
+  // projects an unsupported virtual draft onto the existing physical default without saving it.
+  const placeholderSupported = !session.importSource && !plugin.settings.alsoWriteInverseOntology && origin.file?.extension === "md" && !storeOnTarget;
+  const creationType: CreationType = requestedCreationType === "placeholder" && !placeholderSupported ? defaultCreateType : requestedCreationType;
+  const templatePath = templatePaths[defaultCreateType];
   const [folderOverride, setFolderOverride] = useState<string | null>(null);
   const folderPaths = useMemo(/** Capture only folder metadata once for this native dialog; no note/source work. */ () =>
     plugin.app.vault.getAllFolders(true).map(folder => folder.path === "/" ? "/" : folder.path), [plugin]);
@@ -350,7 +362,7 @@ function RelatedNoteComposer({
 
   /** Save an unresolved target through the existing writer without materializing a file. */
   const createPlaceholder = async (intent: CompletionIntent | CreationAfterSavingAction = continuation) => {
-    if (storeOnTarget || selectedTarget || webUrl || folderValidation.error || !nameValidation.valid || nameValidation.existing || !beginWrite()) return;
+    if (!placeholderSupported || storeOnTarget || selectedTarget || webUrl || folderValidation.error || !nameValidation.valid || nameValidation.existing || !beginWrite()) return;
     try {
       if (plugin.settings.alsoWriteInverseOntology) throw new Error(plugin.translator("reciprocal.requiresMarkdown"));
       const field = await prepareField();
@@ -391,10 +403,10 @@ function RelatedNoteComposer({
     if (reciprocalRecovery) {void retryReciprocal();return;}
     const requested = override ?? continuation;
     const intent = session.importSource && requested === "another" ? "return" : requested;
-    if (kind === "placeholder") void createPlaceholder(intent);
-    else if (selectedTarget) void linkExisting(intent);
+    if (selectedTarget) void linkExisting(intent);
     else if (webLinkAvailable) void createWebLink(intent);
-    else if (createAvailable || partialFile) void createNew(kind ?? defaultCreateType, intent);
+    else if ((kind ?? creationType) === "placeholder") void createPlaceholder(intent);
+    else if (createAvailable || partialFile) void createNew(kind === "markdown" || kind === "excalidraw" ? kind : defaultCreateType, intent);
   };
   useEffect(/** Install only the live React commit's submit callback; stale renders cannot dispose a newer callback. */ () => session.registerSubmit(submit), [session, submit]);
 
@@ -420,9 +432,9 @@ function RelatedNoteComposer({
   };
 
   const createAvailable = !ontologySelectionInvalid && !savedPending && !partialFile && !selectedTarget && !webUrl && !folderValidation.error && nameValidation.valid && !nameValidation.existing;
-  const placeholderAvailable = !plugin.settings.alsoWriteInverseOntology && !session.importSource && createAvailable && origin.file?.extension === "md";
+  const placeholderAvailable = placeholderSupported && createAvailable;
   const webLinkAvailable = !plugin.settings.alsoWriteInverseOntology && !selectedTarget && Boolean(webUrl) && origin.file?.extension === "md";
-  const reciprocalReason = reciprocalCheck(ontology, selectedTarget ? undefined : defaultCreateType).reasonKey;
+  const reciprocalReason = reciprocalCheck(ontology, selectedTarget || creationType === "placeholder" ? undefined : defaultCreateType).reasonKey;
   const selectedTemplateKind = templateChoices.files.find(file => file.path === templatePath)?.kind;
   const noteSearch = createElement(FuzzySearchInput<GraphPage>, {
     inputId: noteId, labelledBy: `${noteId}-label`,
@@ -531,8 +543,10 @@ function RelatedNoteComposer({
     "button",
     {
       type: "button",
-      className: "kplex-add-related-type-button",
+      className: "kplex-add-related-type-button is-default mod-cta",
       "aria-label": plugin.translator("addRelated.createPlaceholder"),
+      "aria-keyshortcuts": "Control+Enter Meta+Enter",
+      "data-kplex-primary-action": "true",
       disabled: !placeholderAvailable || busy || storeOnTarget,
       onClick: /** Explicit unresolved creation retains the same captured session policy. */ () => submit(undefined, "placeholder"),
     },
@@ -580,14 +594,12 @@ function RelatedNoteComposer({
         ? webLinkButton
         : createElement(
             "div",
-            { className: `kplex-add-related-create-actions${excalidrawAvailable ? " has-three-actions" : ""}` },
-            markdownButton,
-            excalidrawButton,
-            placeholderButton,
+            { className: "kplex-add-related-create-actions" },
+            session.importSource || creationType === "markdown" ? markdownButton : creationType === "excalidraw" ? excalidrawButton : placeholderButton,
           ),
   );
 
-  const configuredCompletion = plugin.createdNoteCompletionControl(hostLeaf, {operation: linking ? "link" : "create", editable: Boolean(selectedTarget?.file || !selectedTarget && !webUrl)});
+  const configuredCompletion = plugin.createdNoteCompletionControl(hostLeaf, {operation: linking ? "link" : "create", editable: Boolean(selectedTarget?.file || !selectedTarget && !webUrl && creationType !== "placeholder")});
   const completion = session.importSource ? {...configuredCompletion, choices: configuredCompletion.choices.filter(/** One source file has one accepted import identity in this batch. */ choice => choice !== "another")} : configuredCompletion;
   const completionSelect = createElement(CreationCompletionSelect, {...completion,
     translate: plugin.translator, value: completion.choices.includes(continuation) ? continuation : "return",
@@ -680,11 +692,23 @@ function RelatedNoteComposer({
   const status = statusText && !partialFile && !savedPending
     ? createElement("div", { className: `kplex-add-related-create-hint${statusError ? " is-error" : ""}` }, statusText)
     : null;
+  const creation = !session.importSource && !selectedTarget && !webUrl;
   const footer = createElement("div", {className: "kplex-add-related-footer"}, completionSelect,
-    createElement(FormActions, {status},
-      createElement("button", {type: "button", className: "kplex-icon-action", "aria-label": plugin.translator("common.cancel"),
-        onClick: /** Dismissal retires this session while any accepted native write retains its owner. */ () => session.close()},
-      createElement(ObsidianIcon, {name: "x", size: 18})), actionArea));
+    creation ? createElement(CreationTypeTabs, {
+      value: creationType, types: ["markdown", ...(excalidrawAvailable ? ["excalidraw" as const] : []), ...(placeholderSupported ? ["placeholder" as const] : [])],
+      translate: plugin.translator, disabled: busy || Boolean(savedPending) || Boolean(partialFile),
+      onChange: /** Explicit selection retains independent template drafts and remembers the tab even if this form is cancelled. */ type => {
+        if (!session.isSessionOpen() || busyRef.current || savedPending || partialFile) return;
+        setCreationType(type);if (type !== "placeholder") setDefaultCreateType(type);
+        creationTabControl.onChange(type);
+      },
+      template: {choices: templateChoices, value: templatePath,
+        onChange: /** Only the current physical kind's committed path changes; other tab drafts remain intact. */ path => {
+          if (busyRef.current || savedPending || partialFile) return;
+          setTemplatePaths(paths => ({...paths, [defaultCreateType]: path}));
+        }},
+      children: createElement(FormActions, {status}, actionArea),
+    }) : createElement(FormActions, {status}, actionArea));
 
   return createElement(
     "div",
@@ -696,11 +720,6 @@ function RelatedNoteComposer({
     session.importSource ? null : direction,
     composeRow,
     folderRow,
-    templateChoices && !session.importSource && !selectedTarget && !webUrl ? createElement(DrawingTemplateSelect, {
-      choices: templateChoices, value: templatePath, kind: defaultCreateType, translate: plugin.translator,
-      onChange: /** A template's actual kind selects the visible creation action; typing alone never changes it. */ (path, kind) => {setTemplatePath(path);if (kind) setDefaultCreateType(kind);},
-      disabled: busy || Boolean(savedPending) || Boolean(partialFile),
-    }) : null,
     recovery,
     footer,
   );

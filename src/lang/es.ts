@@ -1970,6 +1970,9 @@ const spanishTranslations = {
   "pins.calendarHelp": "Las fechas semanales usan el inicio de la semana. Los formatos ISO usan GGGG y WW; los locales, gggg y ww. Cerca de Año Nuevo pueden diferir del año del calendario.",
   "note.applyingTemplate": "Esperando a que termine la plantilla de la nota…",
   "note.templateIntegrationUnavailable": "K-Plex no puede esperar de forma segura con esta versión de Templater. No se escribió ninguna propiedad de relación.",
+  "creation.type": "Crear como",
+  "common.placeholder": "Marcador de posición",
+
 } as const satisfies LocaleTranslationMap;
 
 export const spanishCatalog = buildLocaleCatalog(spanishTranslations);

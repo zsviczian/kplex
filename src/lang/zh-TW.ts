@@ -1962,6 +1962,9 @@ const traditionalChineseTranslations = {
   "pins.calendarHelp": "週日期使用每週起始日。ISO 週格式使用 GGGG 和 WW；地區週格式使用 gggg 和 ww。新年前後可能與日曆年份不同。",
   "note.applyingTemplate": "正在等待筆記範本完成…",
   "note.templateIntegrationUnavailable": "K-Plex 無法安全地等待此版本的 Templater。未寫入任何關係屬性。",
+  "creation.type": "建立為",
+  "common.placeholder": "預留節點",
+
 } as const satisfies LocaleTranslationMap;
 
 export const traditionalChineseCatalog = buildLocaleCatalog(traditionalChineseTranslations);

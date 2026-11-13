@@ -1974,6 +1974,9 @@ const russianTranslations = {
   "pins.calendarHelp": "Даты недель используют начало недели. Форматы ISO используют GGGG и WW, локальные — gggg и ww. Около Нового года год недели может отличаться от календарного.",
   "note.applyingTemplate": "Ожидание завершения шаблона заметки…",
   "note.templateIntegrationUnavailable": "K-Plex не может безопасно дождаться завершения этой версии Templater. Свойства связи не записаны.",
+  "creation.type": "Создать как",
+  "common.placeholder": "Заполнитель",
+
 } as const satisfies LocaleTranslationMap;
 
 export const russianCatalog = buildLocaleCatalog(russianTranslations);

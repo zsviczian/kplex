@@ -1962,6 +1962,9 @@ const japaneseTranslations = {
   "pins.calendarHelp": "週の日付には週の開始日を使います。ISO 週形式は GGGG と WW、ロケールの週形式は gggg と ww を使います。年末年始は暦年と異なる場合があります。",
   "note.applyingTemplate": "ノートのテンプレートが完了するのを待っています…",
   "note.templateIntegrationUnavailable": "このバージョンの Templater では安全に完了を待機できません。関係プロパティは書き込まれていません。",
+  "creation.type": "作成形式",
+  "common.placeholder": "プレースホルダー",
+
 } as const satisfies LocaleTranslationMap;
 
 export const japaneseCatalog = buildLocaleCatalog(japaneseTranslations);
