@@ -15,24 +15,32 @@ assert(scenario);
 function cleanupFixture(failAt, failDelete = false, outsideFolder = false, hiddenFolderChild = false) {
   const files = new Map(), folders = new Map(), calls = { disable: 0, enable: 0, layout: 0, data: 0, deletes: 0 };
   const layout = { main: { type: 'split' } };
+  const demand = [], forbidden = [], document = { hidden: false, hasFocus: () => true, querySelector: () => null };
+  let visible = false, viewReady = false;
+  const leaf = { view: { containerEl: { ownerDocument: document }, async waitUntilReady() { assert(visible); demand.push('view-ready'); viewReady = true; } } };
+  const noForcedWork = name => () => { forbidden.push(name); throw Error('Forced '+name); };
   const p = { initialIndexComplete: true, layoutReady: true, rebuildTimer: null, settingsWriteQueue: Promise.resolve(),
+    async activateView(surface) { assert.equal(surface, 'leaf', 'Fixture demand explicitly avoids popout preferences'); demand.push('activate-leaf'); visible = true; },
+    isKplexLeafVisible: value => visible && value === leaf,
     index: { isOnDemandMode: () => false, hasPendingSemanticPreparation: () => false,
-      sourceAcquisition: { hasSemanticDependencies: () => true, getActivityState: () => ({}) },
+      rebuild: noForcedWork('rebuild'), flushSourceRepository: noForcedWork('flushSourceRepository'),
+      sourceAcquisition: { hasSemanticDependencies: () => true, getActivityState: () => ({}), flush: noForcedWork('flush'), reconcile: noForcedWork('reconcile') },
       indexedDb: { getActivityState: () => ({ queuedBodies: 0, writerActive: false }) },
       getSourceRepositoryDiagnostics: () => ({ unsaved: 0 }), getUrlIndexProgress: () => ({ complete: true, active: false, failed: false }) } };
   let created = 0;
   const app = { plugins: { plugins: { 'k-plex': p },
     /** Restoration must continue even if removing an owned file fails. */ async disablePlugin() { calls.disable++; },
     /** Preserve the original equipped fixture instance after reload. */ async enablePlugin() { calls.enable++; } },
-    setting: { isOpen: false }, workspace: { getLayout: () => layout, onLayoutReady() {},
+    setting: { isOpen: false }, workspace: { getLayout: () => layout, onLayoutReady() {}, getLeavesOfType: type => type === 'k-plex-react-view' && visible ? [leaf] : [],
       /** The exact captured workspace, not a generated default, is restored. */ async changeLayout(value) { assert.equal(value, layout); calls.layout++; } },
     metadataCache: { getFileCache: () => ({}) }, vault: {
       getName: () => 'kplex-test-small', getFiles: () => [...files.values()],
       getFileByPath: path => files.get(path) ?? null, getFolderByPath: path => folders.get(path) ?? null,
       adapter: { getBasePath: () => 'C:\\Obsidian\\kplex-test-small',
         /** Count exact original configuration restoration independently of fixture removal. */ async write(path, value) { assert.equal(path, '.obsidian/plugins/k-plex/data.json'); assert.equal(value, 'original bytes'); calls.data++; } },
-      /** A synthetic folder retains actual parent membership for cleanup identity checks. */ async createFolder(path) { const folder = { path, children: [] }; folders.set(path, folder); return folder; },
+      /** A synthetic folder retains actual parent membership for cleanup identity checks. */ async createFolder(path) { assert(viewReady, 'Real view readiness must precede fixture writes'); demand.push('folder-write'); const folder = { path, children: [] }; folders.set(path, folder); return folder; },
       /** Fail at the specified real creation boundary, after earlier resources have been admitted. */ async create(path) {
+        assert(viewReady); demand.push('note-write');
         if (created++ === failAt) throw Error('Owned creation failure');
         const parent = folders.get(path.slice(0, path.lastIndexOf('/'))), file = { path, parent };
         files.set(path, file); parent.children.push(file); return file;
@@ -60,10 +68,20 @@ function cleanupFixture(failAt, failDelete = false, outsideFolder = false, hidde
       assert.equal(name, '@electron/remote'); return remote;
     },
     { setTimeout: callback => { queueMicrotask(callback); return 1; } },
-    { hidden: false, hasFocus: () => true, querySelector: () => null }, performance);
+    document, performance);
   const controller = { closed: false, vaultPath: 'C:\\Obsidian\\kplex-test-small', configRelative: '.obsidian', originalData: 'original bytes' };
-  return { app, controller, files, folders, calls, run };
+  return { app, controller, files, folders, calls, run, demand, forbidden };
 }
+
+test('Markdown-only setup establishes explicit normal canvas demand and readiness before native writes',async()=>{
+  const f = cleanupFixture(0);
+  assert.deepEqual(f.app.workspace.getLeavesOfType('k-plex-react-view'), [], 'Starting layout has no Plex demand');
+  await assert.rejects(f.run(f.app, f.controller), /Owned creation failure/);
+  assert.deepEqual(f.demand, ['activate-leaf', 'view-ready', 'folder-write', 'note-write']);
+  assert.deepEqual(f.forbidden, [], 'Actual scenario setup does not replace native demand with builder/flush work');
+  assert.equal(f.calls.layout, 1, 'Captured original layout is independently restored');
+  assert.equal(f.controller.progress.cleaned, true);
+});
 
 for (const at of [0, 1, 2]) test(`native setup failure after ${at} admitted notes restores fixture/configuration/workspace`, /** Run the real scenario finally path on partial setup. */ async () => {
   const f = cleanupFixture(at);
@@ -103,7 +121,8 @@ test('failure after warm hooks restores prototype registration and dependency wr
   const ensure = async () => 'ready';
   p.index.getSourceAcquisitionCounters = () => ({});
   p.index.sourceAcquisition.repository = { ensureLocalDependencies: ensure };
-  p.activateView = async () => { throw Error('Owned warm activation failure'); };
+  const activate = p.activateView;let activations = 0;
+  p.activateView = async (...args) => { if (activations++ === 0) return activate(...args); throw Error('Owned warm activation failure'); };
   let retired = 0;
   f.controller.probeFactory = () => ({ snapshot: () => ({ observed: true }), stop: () => { retired++; } });
   for (const owner of [f.app.vault, f.app.metadataCache]) {

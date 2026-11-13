@@ -10,13 +10,23 @@ import test from "node:test";
 /** Compile the actual callback or method with injected capabilities, keeping production control flow intact. */
 function production(name, dependencies = {}, path = "src/ui/NewRelatedNoteModal.ts") {
   if (path !== "src/core/plex/createdNoteDestination.ts") dependencies = {resolveCreationAfterSaving, continuation: "return", ...dependencies};
-  dependencies = { session: {}, storeOnTarget: false, ontologySelectionInvalid: false, assignedRole: null, templateChoices: null, templatePath: "", folderValidation: { error: null }, folderPath: "", ...dependencies };
+  // Existing fixtures exercise default-off writes; opt-in cases inject the actual production checks.
+  dependencies = { session: {}, ontology: "", storeOnTarget: false, ontologySelectionInvalid: false, assignedRole: null,
+    templateChoices: {files: [], selected: "", root: ""}, templatePath: "", selectedTemplateKind: undefined, creationType: "markdown", placeholderSupported: true,
+    reciprocalRecovery: null, reciprocalCheck: () => ({approval: {enabled: false}}), assertReciprocalApproval() {},
+    ReciprocalRelationshipWriteError: class extends Error {}, setReciprocalRecovery() {},
+    folderValidation: { error: null }, folderPath: "", ...dependencies };
   const source = ts.createSourceFile(path, readFileSync(new URL(`../${path}`, import.meta.url), "utf8"), ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
   let expression;
   /** Find one named production callback without evaluating the native Obsidian shell. */
   function visit(node) {
     if (ts.isVariableDeclaration(node) && node.name.getText(source) === name) expression = node.initializer.getText(source);
+    if (ts.isVariableDeclaration(node) && ts.isArrayBindingPattern(node.name)) {
+      const index=node.name.elements.findIndex(item=>ts.isBindingElement(item)&&item.name.getText(source)===name);
+      if(index>=0)expression=`(${node.initializer.getText(source)})[${index}]`;
+    }
     if (ts.isFunctionDeclaration(node) && node.name?.text === name) expression = node.getText(source).replace(/^export\s+/, "");
+    if (ts.isClassDeclaration(node) && node.name?.text === name) expression = node.getText(source).replace(/^export\s+/, "");
     if (ts.isMethodDeclaration(node) && node.name.getText(source) === name) {
       const text = node.getText(source);
       expression = `${node.modifiers?.some(item => item.kind === ts.SyntaxKind.AsyncKeyword) ? "async " : ""}function ${name}${text.slice(text.indexOf("("))}`;
@@ -35,6 +45,103 @@ function page(path) { return { path, file: { path, extension: "md" }, neighbours
 
 /** Deferred writer allows two synchronous submits before any React busy-state update. */
 function deferred() { let resolve; const promise = new Promise(done => { resolve = done; }); return { promise, resolve }; }
+
+const reciprocalPath = "src/adapters/obsidian/reciprocalRelationshipWrite.ts";
+const normalizeFieldName = production("normalizeFieldName", {}, "src/core/contracts/fieldName.ts");
+const reciprocalOntologyFields = production("reciprocalOntologyFields", {normalizeFieldName}, reciprocalPath);
+const reciprocalPreflight = production("reciprocalPreflight", {reciprocalOntologyFields}, reciprocalPath);
+const reciprocalApprovalCurrent = production("reciprocalApprovalCurrent", {reciprocalOntologyFields}, reciprocalPath);
+const ReciprocalRelationshipWriteError = production("ReciprocalRelationshipWriteError", {}, reciprocalPath);
+const SavedRelationshipPendingError = production("SavedRelationshipPendingError", {}, "src/adapters/obsidian/relationshipMetadataWrite.ts");
+const createReciprocalWriteReceipt = production("createReciprocalWriteReceipt", {normalizeFieldName, ReciprocalRelationshipWriteError, SavedRelationshipPendingError}, reciprocalPath);
+
+/** Real composer checks and receipt policy, with finite native create/write callbacks. */
+function reciprocalComposerFixture() {
+  const origin = page("Origin.md"), created = page("Created.md"), events = [], failures = [];
+  const configuration = {roles: new Map([["child", "child"], ["parent", "parent"]]),
+    pairs: new Map([["child", {field: "Child", partner: "Parent"}]]), hierarchy: {leftFriends: [], rightFriends: []}};
+  const plugin = {settings: {alsoWriteInverseOntology: true}, translator: key => key,
+    app: {vault: {getFileByPath: path => path === origin.path ? origin.file : path === created.path ? created.file : null}},
+    createNewRelatedFileForOrigin: async (...args) => {events.push(["create", ...args]); return created.file;},
+    rememberNewNodeDefaultType: async kind => {events.push(["remember-kind", kind]);},
+    linkNewRelatedFile: async (...args) => {events.push(["link", ...args]); return {state: "saved-published", page: created};}};
+  const dependencies = {plugin, origin, selectedTarget: null, partialFile: null, webUrl: null, role: "child", ontology: "Child",
+    nameValidation: {valid: true, existing: false},
+    folderPath: "Folder", folderValidation: {error: null}, query: "Created", alias: "Readable name", templatePath: "Templates/Markdown.md",
+    templateChoices: {files: [{path: "Templates/Markdown.md", kind: "markdown"}], validate: (...args) => events.push(["validate", ...args])},
+    session: {isSessionOpen: () => true, setWriting() {}}, busyRef: {current: false}, savedPending: null, setBusy() {},
+    prepareField: async () => {events.push(["remember-field"]); return "Child";},
+    refreshCapturedPage: (_plugin, endpoint) => endpoint, setDefaultCreateType() {},
+    complete: async (...args) => {events.push(["complete", ...args]);}, reportFailure: (...args) => failures.push(args)};
+  const policy = { ...dependencies, ontologyConfiguration: () => configuration, reciprocalPreflight, reciprocalApprovalCurrent,
+    eligibleRelationshipOwner: (_app, endpoint) => endpoint.file?.extension === "md" ? endpoint.file : null,
+    drawingAutomation: () => ({getDrawingFilePath: () => "Created.excalidraw.md"})};
+  dependencies.reciprocalCheck = production("reciprocalCheck", policy);
+  dependencies.assertReciprocalApproval = production("assertReciprocalApproval", policy);
+  dependencies.beginWrite = production("beginWrite", dependencies);
+  return {dependencies, plugin, configuration, origin, created, events, failures,
+    create: kind => production("createNew", dependencies)(kind)};
+}
+
+test("new-note reciprocal preflight and captured Template validation precede physical creation", async () => {
+  for (const invalid of ["missing-pair", "unwritable-origin", "stale-template"]) {
+    const fixture = reciprocalComposerFixture();
+    if (invalid === "missing-pair") fixture.configuration.pairs.clear();
+    if (invalid === "unwritable-origin") fixture.origin.file.extension = "pdf";
+    if (invalid === "stale-template") fixture.dependencies.templateChoices.validate = () => {throw Error("Template replaced");};
+    await fixture.create("markdown");
+    assert.deepEqual(fixture.events, [], `${invalid} must not remember ontology, create a file or write a declaration`);
+    assert.equal(fixture.failures.length, 1);
+    assert.equal(fixture.failures[0][0].message, invalid === "missing-pair" ? "reciprocal.requiresInverse" : invalid === "unwritable-origin" ? "reciprocal.requiresMarkdown" : "Template replaced");
+  }
+  const fixture = reciprocalComposerFixture(); await fixture.create("markdown");
+  assert.deepEqual(fixture.events.map(row => row[0]), ["validate", "remember-field", "validate", "create", "remember-kind", "link", "complete"]);
+  assert.deepEqual(fixture.events.filter(row => row[0] === "validate"), [["validate", "Templates/Markdown.md", "markdown"], ["validate", "Templates/Markdown.md", "markdown"]]);
+  assert.deepEqual(fixture.events.find(row => row[0] === "create").slice(1), [fixture.origin, "Created", "markdown", "Readable name", "Folder", "Templates/Markdown.md"]);
+  assert.deepEqual(fixture.failures, []);
+});
+
+for (const boundary of ["remembered-field", "template-create"]) for (const change of ["inverse-pair", "preference"]) {
+  test(`new-note ${change} change during delayed ${boundary} cannot authorize relationship writes`, async () => {
+    const fixture = reciprocalComposerFixture(), hold = deferred(), entered = deferred();
+    if (boundary === "remembered-field") fixture.dependencies.prepareField = async () => {entered.resolve(); await hold.promise; return "Child";};
+    else fixture.plugin.createNewRelatedFileForOrigin = async (...args) => {fixture.events.push(["create", ...args]); entered.resolve(); await hold.promise; return fixture.created.file;};
+    const pending = fixture.create("markdown"); await entered.promise;
+    if (change === "inverse-pair") fixture.configuration.pairs.set("child", {field: "Child", partner: "Guardian"});
+    else fixture.plugin.settings.alsoWriteInverseOntology = false;
+    hold.resolve(); await pending;
+    assert.equal(fixture.events.filter(row => row[0] === "create").length, boundary === "template-create" ? 1 : 0);
+    assert(!fixture.events.some(row => ["link", "complete", "remember-kind"].includes(row[0])), "the captured approval cannot silently adopt changed consent or pairing");
+    assert.equal(fixture.failures.length, 1); assert.equal(fixture.failures[0][0].message, "addRelated.endpointChanged");
+    assert.equal(fixture.failures[0][2], boundary === "template-create" ? fixture.created.file : undefined, "a durable created file stays recoverable by exact identity");
+  });
+}
+
+test("new-note reciprocal recovery retries its retained receipt without creation, validation or a saved forward rewrite", async () => {
+  const fixture = reciprocalComposerFixture(), effects = [], commits = [], cleared = [], busyRef = {current: false};
+  let failInverse = true, retained;
+  const receipt = createReciprocalWriteReceipt({app: fixture.plugin.app,
+    first: {file: fixture.origin.file, target: fixture.created.file, field: "Child"},
+    second: {file: fixture.created.file, target: fixture.origin.file, field: "Parent"}, current: () => true,
+    write: async write => {effects.push([write.file.path, write.field]); if (write.file === fixture.created.file && failInverse) throw Error("Inverse write failed");},
+    failureMessage: () => "Partial relationship", unavailableMessage: () => "Endpoint changed"});
+  await assert.rejects(receipt.retry(), error => {retained = error; return error instanceof ReciprocalRelationshipWriteError;});
+  const dependencies = {reciprocalRecovery: {error: retained, target: fixture.created, intent: "tab"},
+    session: fixture.dependencies.session, busyRef, savedPending: null, setBusy() {}, plugin: fixture.plugin,
+    refreshCapturedPage: (_plugin, endpoint) => endpoint, setReciprocalRecovery: value => cleared.push(["receipt", value]),
+    setPartialFile: value => cleared.push(["file", value]), setPartialFailure: value => cleared.push(["reason", value]),
+    complete: async (...args) => commits.push(args), reportFailure: assert.fail};
+  dependencies.beginWrite = production("beginWrite", dependencies);
+  const retry = production("retryReciprocal", dependencies); failInverse = false;
+  await Promise.all([retry(), retry()]);
+  assert.deepEqual(effects, [["Origin.md", "Child"], ["Created.md", "Parent"], ["Created.md", "Parent"]]);
+  assert.deepEqual(fixture.events, [], "receipt recovery cannot revalidate a template, create a file or call the original link writer");
+  assert.deepEqual(cleared, [["receipt", null], ["file", null], ["reason", null]]);
+  assert.deepEqual(commits, [[fixture.created, "tab", false, "saved-published"]]); assert.equal(busyRef.current, false);
+  let submits = 0;
+  production("submit", {reciprocalRecovery: dependencies.reciprocalRecovery, retryReciprocal: async () => {submits++;}, createNew: assert.fail, linkExisting: assert.fail})();
+  assert.equal(submits, 1, "native submit must route directly to the receipt too");
+});
 
 test("All keeps a known field in its assigned direction and refuses unassigned new fields", async () => {
   const calls = [], notices = [], remembered = [];
@@ -222,7 +329,8 @@ test("modified submit gives open suggestions ownership and repeat never invokes 
 
 test("suggester modified Enter accepts one suggestion before submit, retaining IME and AltGraph ownership", () => {
   const selected = {}, chosen = [], submits = [];
-  const keyDown = production("onKeyDown", { preferSuggestionOnModifiedEnter: true, visibleResults: [selected], clampedSelectedIndex: 0, choose: value => chosen.push(value), onCtrlEnter: () => submits.push(true) }, "src/ui/components/FuzzySuggester.tsx");
+  const keyDown = production("onKeyDown", { combobox: false, disclosure: undefined, openDisclosure: assert.fail,
+    preferSuggestionOnModifiedEnter: true, visibleResults: [selected], clampedSelectedIndex: 0, choose: value => chosen.push(value), onCtrlEnter: () => submits.push(true) }, "src/ui/components/FuzzySuggester.tsx");
   const event = { key: "Enter", ctrlKey: true, metaKey: false, repeat: false, nativeEvent: { isComposing: true }, getModifierState: () => false, preventDefault() {}, stopPropagation() {} };
   keyDown(event); assert.equal(chosen.length, 0); event.nativeEvent.isComposing = false; keyDown(event);
   assert.deepEqual(chosen, [selected]); assert.deepEqual(submits, []);
@@ -239,7 +347,8 @@ test("focus restoration refuses a retired or migrated owner and preserves the ex
 
 /** Portaled suggestions are an owned interaction even though their list sits directly under body. */
 test("composer recognizes only its exact portal session identity", () => {
-  const owns = production("ownsInteractionTarget").bind({ modalEl: { contains: () => false }, ontologyEditor: {owns: () => false}, suggestionOwnerId: "session-A" });
+  const ownsSuggestionTarget=production("ownsSuggestionTarget",{},"src/adapters/obsidian/KplexModal.ts").bind({suggestionOwnerId:"session-A"});
+  const owns = production("ownsInteractionTarget").bind({ modalEl: { contains: () => false }, ontologyEditor: {owns: () => false}, ownsSuggestionTarget });
   assert.equal(owns({ closest: selector => selector === '[data-fuzzy-owner="session-A"]' ? {} : null }), true);
   assert.equal(owns({ closest: () => null }), false);
   assert.equal(owns({}), false);
@@ -309,7 +418,7 @@ test("creation forwards an explicit folder and alias once through the establishe
       createNewRelatedFileForOrigin: async (...args) => { writes.push(args); return created.file; },
       rememberNewNodeDefaultType: async () => {}, linkNewRelatedFile: async () => ({ state: "saved-pending", page: created }) } };
   await production("createNew", dependencies)("markdown");
-  assert.deepEqual(writes, [[origin, "Next", "markdown", "A readable name", "Projects", undefined]]);
+  assert.deepEqual(writes, [[origin, "Next", "markdown", "A readable name", "Projects", ""]]);
 });
 
 /** A malformed destination cannot acquire single-flight write ownership, remember ontology or touch storage. */
@@ -387,7 +496,7 @@ test("explicit folder choice opens the reused picker with the calculated placeho
   const create = production("createGhostNote", {readDailyPinSettings:()=>null,dailyNoteCreationTarget:()=>null, MaterializeGhostModal: class {
     constructor(...args) { this.args = args; } open() { opened.push(this.args); }
   } }, "src/main.ts");
-  const context = { createdNoteCompletionControl: () => ({value:"return",choices:["return","tab"],onChange(){}}), drawingTemplateOptions: () => null, app: {}, settings: {}, documentSession:()=>null, validateRelatedNoteName: () => ({ stem: "Next", valid: true, existing: null }),
+  const context = { creationTypeTabControl:()=>({value:null,onChange(){}}), createdNoteCompletionControl: () => ({value:"return",choices:["return","tab"],onChange(){}}), creationTemplateOptions: () => ({files:[],selected:"",root:""}), app: {}, settings: {}, documentSession:()=>null, validateRelatedNoteName: () => ({ stem: "Next", valid: true, existing: null }),
     ghostCreationLocations: () => [{ folderPath: "Projects", label: "Projects" }], isExcalidrawAvailable: () => false,
     materializeGhostPage: async (...args) => materialized.push(args) };
   await create.call(context, ghost, false);
@@ -443,7 +552,7 @@ test("failed placeholder persistence leaves the virtual index untouched", async 
 
 /** Folder identities are case-sensitive even though suggestion matching remains case-insensitive. */
 test("shared folder suggestions preserve case-distinct native paths without changing ontology deduplication", () => {
-  const rank = production("fuzzyFilterStrings", {}, "src/ui/FuzzySearchInput.tsx");
+  const rank = production("fuzzyFilterStrings", {}, "src/ui/components/fuzzyFilterStrings.ts");
   assert.deepEqual(rank(["Foo", "foo", "Foo"], ""), ["Foo"]);
   const render = production("FolderPathInput", {
     createElement: (type, props) => ({ type, props }), useMemo: evaluate => evaluate(),
@@ -460,6 +569,97 @@ test("shared folder suggestions preserve case-distinct native paths without chan
   assert.equal(partial.value,"/08","Search normalization must not replace the editable destination");
   const root=render({value:"/",onChange(){},folders:["/","08 About"],translate:key=>key}).props;
   assert.deepEqual(root.results,["/","08 About"]);
+  assert.equal(render({value:"",onChange(){},folders:["/"],translate:key=>key}).props.value,"/","Existing destination consumers keep empty-as-root behavior");
+  const optional=render({value:"",onChange(){},folders:["/"],translate:key=>key,preserveEmpty:true,ariaLabel:"Template folder"}).props;
+  assert.equal(optional.value,"");assert.equal(optional.ariaLabel,"Template folder");
+});
+
+/** Real settings binding/setter with finite native rows and React-root ownership; no browser/index work. */
+function folderSettingFixture(initial="",options={}){
+  const writes=[],notices=[],roots=[],inventory=[],folders=[{path:"/"},{path:"Templates"},{path:"templates"},{path:"Other"}];let revision=0,migrated,inserted,insertionReleases=0,shown=options.shown??true;
+  const doc=()=>{const listeners=new Map();return {defaultView:{closed:false,addEventListener:(event,callback)=>listeners.set(event,callback),removeEventListener:(event,callback)=>{if(listeners.get(event)===callback)listeners.delete(event)}},listeners}};
+  const firstDocument=doc(),setting={settingEl:{isConnected:options.connected??true,isShown:()=>shown,ownerDocument:firstDocument,
+    onWindowMigrated:callback=>{migrated=callback;return()=>{migrated=undefined}},
+    ...(options.insertionAvailable===false?{}:{onNodeInserted:callback=>{inserted=callback;return()=>{if(inserted===callback)inserted=undefined;insertionReleases++}}})},
+    controlEl:{createDiv:()=>({get ownerDocument(){return setting.settingEl.ownerDocument}})}};
+  const plugin={settings:{markdownTemplateFolder:initial,alsoWriteInverseOntology:false,future:{kept:true}},translator:key=>key,
+    saveSettings:async(...args)=>writes.push({args,snapshot:structuredClone(plugin.settings)}),
+    index:new Proxy({}, {get:()=>assert.fail("Folder settings must not acquire indexing work")})};
+  const dependencies={canvasViewControl:()=>undefined,HIERARCHY_KEY_MAP:{},Notice:class{constructor(message){notices.push(message)}},
+    createElement:(type,props)=>({type,props}),FolderPathInput(){},formField:row=>{row.stacked=true;return row},
+    createRoot:host=>{const root={document:host.ownerDocument,unmounts:0,render(element){this.element=element},unmount(){this.unmounts++}};roots.push(root);return root;}};
+  const context={app:{vault:{getAllFolders:includeRoot=>{inventory.push(includeRoot);return folders}}},kplexPlugin:plugin,
+    folderSettingReleases:new Set(),colorSwatchOwners:new Set(),colorDialogs:new Set(),actionSettings:null,colorDialogGeneration:0,
+    lateralArrangementKey:()=>undefined,typographyKey:()=>undefined,controlRevision:()=>revision};
+  for(const name of ["getControlValue","setControlValue","receivedControlKey","receivedControlCurrent","folderPathControl","bindThemeScalar","disposeActionSettings"])
+    context[name]=production(name,dependencies,"src/settings.ts");
+  const item={name:"Template folder",desc:"Optional folder",aliases:["templates"],searchable:true,visible:()=>true,control:{type:"text",key:"markdownTemplateFolder"}};
+  const bind=()=>context.bindThemeScalar(item),definition=bind(),release=definition.render(setting);
+  const renderFolder=production("FolderPathInput",{createElement:(type,props)=>({type,props}),useMemo:read=>read(),FuzzySearchInput(){},
+    fuzzyFilterStrings:production("fuzzyFilterStrings",{},"src/ui/components/fuzzyFilterStrings.ts")},"src/ui/FolderPathInput.tsx");
+  return {context,plugin,writes,notices,roots,inventory,setting,definition,release,doc,bind,props:()=>roots.at(-1).element.props,
+    input:()=>renderFolder(roots.at(-1).element.props).props,migrate:next=>{setting.settingEl.ownerDocument=next;migrated?.()},
+    receive:value=>{revision++;plugin.settings={...plugin.settings,markdownTemplateFolder:value,future:{kept:true,received:true}}},
+    insertion:()=>inserted,insertionReleases:()=>insertionReleases,
+    insert:()=>{setting.settingEl.isConnected=true;shown=true;inserted?.()}};
+}
+
+test("template folder setting reuses bounded shared suggestions and preserves optional blank, root and unknown keys",async()=>{
+  const f=folderSettingFixture();try{
+    assert.equal(f.definition.control,undefined);assert.equal(f.setting.stacked,true);assert.deepEqual(f.definition.aliases,["templates"]);
+    assert.deepEqual(f.inventory,[true]);assert.equal(f.writes.length,0);assert.equal(f.input().value,"");assert.equal(f.input().ariaLabel,f.definition.name);
+    f.input().onChange("Tem");assert.deepEqual(new Set(f.input().results),new Set(["Templates","templates"]));
+    f.input().onChoose("Templates");assert.equal(f.input().value,"Templates");assert.equal(f.plugin.settings.markdownTemplateFolder,"Templates");
+    f.input().onChoose("/");assert.equal(f.input().value,"/");assert.equal(f.plugin.settings.markdownTemplateFolder,"/");
+    f.input().onChange("");assert.equal(f.input().value,"");assert.equal(f.plugin.settings.markdownTemplateFolder,"");
+    await Promise.resolve();assert(f.writes.every(write=>JSON.stringify(write.args)==="[false,false]"));assert(f.writes.every(write=>write.snapshot.future.kept));
+    assert.deepEqual(f.inventory,[true],"Typing uses one captured folder inventory rather than rescanning the vault");
+  }finally{f.release();}
+});
+
+test("template folder setting external replacement retires stale writes and reopens from the current saved value",()=>{
+  const f=folderSettingFixture("Templates");let release;
+  try{
+    const stale=f.props().onChange;f.receive("Other");stale("Old edit");assert.equal(f.writes.length,0);assert.equal(f.plugin.settings.markdownTemplateFolder,"Other");
+    assert.deepEqual(f.notices,["settingsSync.conflict"]);f.release();
+    release=f.bind().render(f.setting);assert.equal(f.input().value,"Other");f.input().onChoose("Templates");
+    assert.equal(f.plugin.settings.markdownTemplateFolder,"Templates");assert.deepEqual(f.plugin.settings.future,{kept:true,received:true});
+  }finally{release?.();f.release();}
+});
+
+test("template folder native row migration and settings disposal release only their own roots and suggestions",()=>{
+  const f=folderSettingFixture("Templates"),first=f.roots[0],firstDoc=f.setting.settingEl.ownerDocument,stale=f.props().onChange,stalePageHide=firstDoc.listeners.get("pagehide");
+  try{
+    const nextDoc=f.doc();f.migrate(nextDoc);assert.equal(first.unmounts,1);assert.equal(firstDoc.listeners.size,0);assert.equal(f.roots.length,2);
+    stalePageHide();assert.equal(f.roots[1].unmounts,0,"A retired source window cannot dispose the adopted field");
+    stale("Retired document");assert.equal(f.writes.length,0);assert.equal(f.props().value,"Templates");
+    f.context.disposeActionSettings();assert.equal(f.roots[1].unmounts,1);assert.equal(nextDoc.listeners.size,0);assert.equal(f.context.folderSettingReleases.size,0);
+    f.props().onChange("Retired settings");assert.equal(f.writes.length,0);f.release();assert.equal(f.roots[1].unmounts,1);
+  }finally{f.release();}
+});
+
+test("template folder detached initial row creates no root until insertion in its actual adopted document",()=>{
+  const f=folderSettingFixture("Templates",{connected:false,shown:false});try{
+    assert.equal(f.roots.length,0,"A detached construction document must not own the input");const target=f.doc();f.migrate(target);
+    assert.equal(f.roots.length,0);f.insert();assert.equal(f.roots.length,1);assert.equal(f.roots[0].document,target);
+    assert.equal(f.insertionReleases(),1);assert.equal(f.insertion(),undefined);f.migrate(target);assert.equal(f.roots.length,1,"Late native migration receipt cannot replace the first actual-document input");
+  }finally{f.release();}
+});
+
+test("template folder detached same-window row mounts on insertion without a migration event",()=>{
+  const f=folderSettingFixture("Templates",{connected:false,shown:false});try{
+    assert.equal(f.roots.length,0);const inserted=f.insertion();f.insert();assert.equal(f.roots.length,1);assert.equal(f.roots[0].document,f.setting.settingEl.ownerDocument);
+    inserted();assert.equal(f.roots.length,1);assert.equal(f.insertionReleases(),1);assert.equal(f.writes.length,0);
+  }finally{f.release();}
+});
+
+test("template folder disposal before first insertion retires the listener without constructing a root",()=>{
+  const f=folderSettingFixture("Templates",{connected:false,shown:false}),inserted=f.insertion();
+  f.release();f.insert();inserted();assert.equal(f.roots.length,0);assert.equal(f.insertionReleases(),1);assert.equal(f.context.folderSettingReleases.size,0);assert.equal(f.writes.length,0);
+});
+
+test("template folder host without insertion support retains its existing immediate-mount fallback",()=>{
+  const f=folderSettingFixture("Templates",{connected:false,shown:false,insertionAvailable:false});try{assert.equal(f.roots.length,1);}finally{f.release();}
 });
 
 /** The explicit materialization prompt owns folder focus after its asynchronous React commit. */
@@ -470,7 +670,7 @@ test("native materialization focuses the shared folder field without changing qu
     setName() { return this; } setDesc() { return this; }
     setClass(value) { folderClasses.push(value); return this; }
     addButton(configure) {
-      const button = { setButtonText() { return this; }, setIcon() { return this; }, onClick() { return this; }, setCta() { return this; }, setDisabled() { return this; } };
+      const button = {buttonEl:{classList:{toggle(){}}},setButtonText() { return this; }, setIcon() { return this; }, onClick() { return this; }, setCta() { return this; }, setDisabled() { return this; } };
       configure(button); return this;
     }
   }
@@ -480,7 +680,7 @@ test("native materialization focuses the shared folder field without changing qu
     createElement: (type, props) => ({ type, props }), MaterializationFolderInput() {},
   }, "src/ui/MaterializeGhostModal.ts");
   const context = { renderTemplate() {}, renderCompletion() {}, defaultKind: "markdown", excalidrawAvailable: false, selectedFolderPath: "Projects", noteName: "Next", focusFolder: true,
-    titleEl: { setText() {} }, contentEl: { createEl() {} }, translate: key => key,
+    titleEl: { setText() {} }, contentEl: { createEl() {}, createDiv() {return {};} }, translate: key => key,
     locations: [{ folderPath: "Projects", label: "Projects" }], app: { vault: { getAllFolders: () => [] } },
     buttons: [], nativeHandlers: [], scope: { register: () => ({}) }, partialFile: null, partialKind: null, creating: false,
   };
@@ -901,4 +1101,118 @@ test('folder/folder/note title relocation rewrites body, embed, Markdown and pro
  const expected=aText.replaceAll(old,target).replace('`[['+target+']]`','`'+wiki+'`').replace('folder/folder/note%20title','Elsewhere/note%20title.md');
  assert.equal(texts.get('A.md'),expected);assert.equal(texts.get('B.md'),'[['+target+'|Second]]\n');
  assert.deepEqual(writes,['A.md','B.md']);assert.equal(files.has(old),false);assert.equal(created.path,target);
+});
+
+test("selected Placeholder tab routes native submit without creating a physical note and existing targets retain linking", () => {
+  const calls=[];
+  const dependencies={creationType:"placeholder",defaultCreateType:"excalidraw",createAvailable:true,webLinkAvailable:false,selectedTarget:null,
+    createNew:()=>calls.push("physical"),createPlaceholder:()=>calls.push("placeholder"),linkExisting:()=>calls.push("link"),createWebLink:()=>calls.push("web")};
+  production("submit",dependencies)();assert.deepEqual(calls,["placeholder"]);
+  production("submit",{...dependencies,selectedTarget:page("Existing.md")})();assert.deepEqual(calls,["placeholder","link"]);
+  production("submit",{...dependencies,webLinkAvailable:true})();assert.deepEqual(calls,["placeholder","link","web"]);
+});
+
+test("Placeholder support projects policy and endpoint changes onto the physical submit type without changing drafts", async () => {
+  for (const [support, expected] of [
+    [{session:{},plugin:{settings:{}},origin:page("Origin.md"),storeOnTarget:false},true],
+    [{session:{},plugin:{settings:{alsoWriteInverseOntology:true}},origin:page("Origin.md"),storeOnTarget:false},false],
+    [{session:{},plugin:{settings:{}},origin:{file:{extension:"png"}},storeOnTarget:false},false],
+    [{session:{},plugin:{settings:{}},origin:{file:null},storeOnTarget:false},false],
+    [{session:{},plugin:{settings:{}},origin:page("Origin.md"),storeOnTarget:true},false],
+    [{session:{importSource:{}},plugin:{settings:{}},origin:page("Origin.md"),storeOnTarget:false},false],
+  ]) {
+    for (const valid of [true,false]) assert.equal(production("placeholderSupported",{...support,nameValidation:{valid}}),expected,"Transient name validity must not change supported type tabs");
+    for (const physical of ["markdown","excalidraw"]) {
+      const creationType=production("creationType",{placeholderSupported:expected,requestedCreationType:"placeholder",defaultCreateType:physical});
+      assert.equal(creationType,expected?"placeholder":physical);
+      const effects=[];production("submit",{creationType,defaultCreateType:physical,selectedTarget:null,webLinkAvailable:false,createAvailable:true,
+        createPlaceholder:()=>effects.push("placeholder"),createNew:kind=>effects.push(kind)})();
+      assert.deepEqual(effects,[expected?"placeholder":physical],"Keyboard submission must agree with the projected action and picker kind");
+    }
+  }
+  await production("createPlaceholder",{placeholderSupported:false,beginWrite:assert.fail,plugin:{createPlaceholderRelatedPage:assert.fail}})();
+  assert.equal(production("creationType",{placeholderSupported:false,requestedCreationType:"markdown",defaultCreateType:"excalidraw"}),"markdown","A supported explicit physical selection must not be replaced by the remembered default");
+});
+
+for(const surface of ["folder","ghost"])test(`${surface} creation tabs preserve independent templates and remember only explicit unlocked tab selections`, () => {
+  let rendered;const effects=[],preferences=[],choices={files:[{path:"Templates/Note.md",kind:"markdown"},{path:"Drawings/Note.md",kind:"excalidraw"}],root:"",selected:"",validate:assert.fail};
+  const context={templateChoices:choices,templateRoot:{render:tree=>{rendered=tree;}},selectedKind:"markdown",templatePath:"",templateKind:undefined,
+    creationTabControl:{value:null,onChange:kind=>preferences.push(kind)},
+    templatePaths:{markdown:"",excalidraw:""},opened:true,creating:false,pending:false,partialFile:null,partialKind:null,partialDaily:false,
+    excalidrawAvailable:true,translate:key=>key,plugin:{isExcalidrawAvailable:()=>context.excalidrawAvailable,translator:key=>key},
+    validateName:()=>({valid:true,existing:false}),canComplete:()=>true,create:kind=>effects.push(["create",kind])};
+  const path=`src/ui/${surface==="folder"?"CreateFolderNoteModal":"MaterializeGhostModal"}.ts`;
+  const render=production("renderTemplate",{createElement:(type,props,...children)=>({type,props,children}),CreationTypeTabs:"shared-type-tabs",FormActions:"shared-actions",ObsidianIcon:"native-icon"},path);
+  context.refreshButtons=context.refreshControls=()=>render.call(context);render.call(context);
+  assert.equal(rendered.type,"shared-type-tabs");assert.deepEqual(rendered.props.types,["markdown","excalidraw"]);
+  assert.deepEqual(preferences,[],"Opening a form is not an explicit tab selection");
+  rendered.props.template.onChange("Templates/Note.md");assert.deepEqual(preferences,[],"Template browsing cannot change remembered type");rendered.props.onChange("excalidraw");
+  assert.equal(context.templatePath,"");rendered.props.template.onChange("Drawings/Note.md");rendered.props.onChange("markdown");
+  assert.equal(context.templatePath,"Templates/Note.md");assert.equal(rendered.props.template.value,"Templates/Note.md");
+  rendered.props.onChange("excalidraw");assert.equal(context.templatePath,"Drawings/Note.md");assert.deepEqual(effects,[]);
+  const action=rendered.props.actions;assert.equal(action.type,"button");assert.equal(action.props["aria-label"],"addRelated.createExcalidraw");
+  action.props.onClick();assert.deepEqual(effects,[["create","excalidraw"]]);
+  context.creating=true;render.call(context);rendered.props.onChange("markdown");rendered.props.template.onChange("Replacement.md");
+  assert.equal(context.selectedKind,"excalidraw");assert.equal(context.templatePath,"Drawings/Note.md");assert.equal(rendered.props.disabled,true);
+  context.creating=false;context.pending=surface==="folder";context.partialFile=surface==="ghost"?{}:null;render.call(context);
+  rendered.props.onChange("markdown");assert.equal(context.selectedKind,"excalidraw");assert.equal(rendered.props.disabled,true);
+  assert.deepEqual(preferences,["excalidraw","markdown","excalidraw"],"Explicit tab choices persist without requiring create; accepted writes reject later tab changes");
+  context.pending=false;context.partialFile=null;context.selectedKind="markdown";context.templatePath=context.templatePaths.markdown;context.excalidrawAvailable=false;render.call(context);
+  assert.deepEqual(rendered.props.types,["markdown"],"A missing companion removes the drawing tab; placeholder is unsupported on physical creation surfaces");
+  const retired=rendered.props.onChange;context.opened=false;retired("excalidraw");
+  context.opened=true;if(surface==="ghost")context.generation=(context.generation??0)+1;else context.canComplete=()=>false;retired("excalidraw");
+  assert.deepEqual(preferences,["excalidraw","markdown","excalidraw"],"Retired, replaced and invalidated native forms cannot persist later tab callbacks");
+});
+
+test("remembered tabs outrank initial template defaults while unsupported kinds preserve the stored preference", () => {
+  const choices={files:[{path:"Drawings/Remembered.md",kind:"excalidraw"}],selected:"Drawings/Remembered.md",root:""};
+  const Materialize=production("MaterializeGhostModal",{Modal:class{},createObsidianTranslator:()=>key=>key},"src/ui/MaterializeGhostModal.ts");
+  for(const [remembered,available,expected,path] of [[null,true,"excalidraw",choices.selected],["markdown",true,"markdown",""],["excalidraw",true,"excalidraw",choices.selected],["excalidraw",false,"markdown",""],["placeholder",true,"excalidraw",choices.selected]]){
+    const control={value:remembered,onChange:assert.fail};
+    const modal=new Materialize({},"Draft",[{folderPath:"Folder"}],available,"markdown",assert.fail,false,choices,undefined,undefined,control);
+    assert.equal(modal.selectedKind,expected);assert.equal(modal.templatePath,path);assert.equal(control.value,remembered,"Local fallback must not erase an unavailable remembered type");
+    const dependencies={creationTabControl:control,excalidrawAvailable:available,templateChoices:choices,plugin:{settings:{newNodeDefaultType:"markdown"}},useState:value=>[typeof value==="function"?value():value,()=>{}]};
+    const physical=production("defaultCreateType",dependencies);
+    assert.equal(physical,expected,"Related physical initialization must agree with template-kind authority and explicit tab precedence");
+    assert.equal(production("requestedCreationType",{...dependencies,defaultCreateType:physical}),remembered==="placeholder"?"placeholder":expected);
+  }
+});
+
+test("Template popup retains the native modal's exact suggestion ownership", () => {
+  const tree=production("DrawingTemplateSelect",{createElement:(type,props)=>({type,props}),useId:()=>"template-field",useMemo:read=>read(),useRef:value=>({current:value}),useState:value=>[value,()=>{}],useEffect:run=>run(),FormField:"field",FuzzySuggester:"suggester",fuzzyFilterStrings:()=>[]},"src/ui/features/DrawingTemplateSelect.tsx")({
+    choices:{files:[],selected:"",root:""},value:"",kind:"markdown",resultsOwnerId:"native-session-A",translate:key=>key,onChange:assert.fail});
+  assert.equal(tree.props.children.props.resultsOwnerId,"native-session-A","Body-portalled choices must carry the same exact interaction owner as their modal");
+});
+
+test("native modal Escape dismisses its open shared suggestions before native close", () => {
+  let expanded=true,focused=0;const dispatched=[];
+  const shell={ownerDocument:{defaultView:{CustomEvent:class{constructor(type){this.type=type;}}}},dispatchEvent:event=>{dispatched.push(event.type);expanded=false;}};
+  const input={closest:()=>shell,focus:()=>{focused++;}};
+  class NativeModal {
+    constructor(){this.closed=0;this.modalEl={addClass(){}};this.contentEl={addClass(){},querySelector:()=>expanded?input:null};}
+    onEscapeKey(event){if(!event.defaultPrevented){event.preventDefault();this.close();}}
+    close(){this.closed++;}
+  }
+  const Modal=production("KplexModal",{Modal:NativeModal,modalSuggestionSequence:0},"src/adapters/obsidian/KplexModal.ts"),modal=new Modal({});
+  assert.notEqual(modal.suggestionOwnerId,new Modal({}).suggestionOwnerId,"Separate native roots must never own each other's portalled choices");
+  const event=()=>({defaultPrevented:false,isComposing:false,preventDefault(){this.defaultPrevented=true;},stopPropagation(){this.stopped=true;}});
+  modal.onEscapeKey({...event(),isComposing:true});modal.onEscapeKey({...event(),defaultPrevented:true});assert.equal(modal.closed,0);assert.deepEqual(dispatched,[]);
+  const first=event();modal.onEscapeKey(first);assert.equal(modal.closed,0,"Native Scope must not dismiss the form before React receives the popup Escape");
+  assert.deepEqual(dispatched,["kplex-dismiss-suggestions"]);assert.equal(focused,1);assert.equal(first.defaultPrevented,true);assert.equal(first.stopped,true);
+  modal.onEscapeKey(event());assert.equal(modal.closed,1,"A second Escape without an open popup must retain native dismissal");
+});
+
+test("explicit Template dismissal restores committed display without changing focus or accepting a choice", () => {
+  let draft="Templates/Committed.md";const changes=[],flags=[];
+  const tree=production("DrawingTemplateSelect",{createElement:(type,props)=>({type,props}),useId:()=>"template-field",useMemo:read=>read(),useRef:value=>({current:value}),useState:value=>[value,next=>{draft=next;}],useEffect:run=>run(),FormField:"field",FuzzySuggester:"suggester",fuzzyFilterStrings:()=>[]},"src/ui/features/DrawingTemplateSelect.tsx")({
+    choices:{files:[],selected:"",root:""},value:draft,kind:"markdown",translate:key=>key,onChange:path=>changes.push(path)});
+  const picker=tree.props.children.props;let dismissals=0;
+  picker.disclosure.onOpen();assert.equal(draft,"");
+  const dismiss=production("dismissResults",{setExplicitlyOpened:value=>flags.push(["explicit",value]),setResultsDismissed:value=>flags.push(["dismissed",value]),setSelectedIndex:value=>flags.push(["index",value]),onDismiss:()=>{dismissals++;picker.onDismiss?.();},setFocused:assert.fail,onFocusChange:assert.fail,inputRef:{current:{blur:assert.fail}}},"src/ui/components/FuzzySuggester.tsx");
+  dismiss();assert.equal(draft,"Templates/Committed.md","Escape/disclosure dismissal must restore the accepted display while the input retains focus");
+  assert.deepEqual(changes,[]);assert.deepEqual(flags,[["explicit",false],["dismissed",true],["index",0]]);
+  const closeResults=production("closeResults",{setExplicitlyOpened(){},setFocused(){},setEditedSinceFocus(){},setResultsDismissed(){},setSelectedIndex(){},inputRef:{current:null},onFocusChange:picker.onFocusChange},"src/ui/components/FuzzySuggester.tsx");
+  production("choose",{onChoose:picker.onChoose,closeOnChoose:true,combobox:true,closeResults},"src/ui/components/FuzzySuggester.tsx")({path:"Templates/Accepted.md",kind:"markdown"});
+  assert.equal(draft,"Templates/Accepted.md");assert.deepEqual(changes,["Templates/Accepted.md"]);assert.equal(dismissals,1,"Acceptance must not run dismissal or restore an earlier committed path");
+  production("dismissResults",{setExplicitlyOpened(){},setResultsDismissed(){},setSelectedIndex(){},onDismiss:undefined},"src/ui/components/FuzzySuggester.tsx")();
 });

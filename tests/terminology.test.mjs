@@ -128,7 +128,7 @@ function registerPluginCommands(plugin, device) {
   runInNewContext(`${result.outputText}\ninitializeActions.call(plugin);`, {
     ...api, plugin, KplexView, KplexSidepanelView, FileView, window: {activeWindow: ownerWindow},
     translateActionText: (_translate, key) => key,
-    readObsidianPresentationEnvironment: () => ({device, hostActions: {graphTab: device !== "phone", popout: device === "desktop", sidepanel: true}}),
+    readObsidianPresentationEnvironment: () => ({device, hostActions: {graphTab: true, popout: device === "desktop", sidepanel: true}}),
     Notice: class { constructor(message) { throw new Error(`Unexpected notice: ${message}`); } },
     console,
   });
@@ -216,14 +216,14 @@ test("commands are registered once with canonical IDs and unchanged availability
     assert.doesNotMatch(readFileSync(path, "utf8"), /command\.legacyShortcut/);
   for (const device of ["desktop", "tablet", "phone"]) {
     const commands = [];
-    const activations = [];
+    const activations = [],openSurfaces=[];
     const nativeDialogs = [];
     let activeFile = null;
     const plugin = {
       addCommand(command) { commands.push(command); return command; },
       removeCommand() { throw new Error("Initialization must not remove commands"); },
       translator: (key) => key,
-      activateView: () => activations.push("open"),
+      activateView: surface => {openSurfaces.push(surface);activations.push("open");},
       createPlexTab: () => activations.push("new-tab"),
       rebuildIndex: (force) => activations.push(["rebuild", force]),
       activateViewInPopout: () => activations.push("popout"),
@@ -254,16 +254,17 @@ test("commands are registered once with canonical IDs and unchanged availability
       return matches[0];
     };
     const open = byId("kplex-start");
-    const allowed = device !== "phone";
-    assert.equal(open.checkCallback(true), allowed);
+    assert.equal(open.checkCallback(true), true);
     assert.deepEqual(activations, [], "Availability checks must not execute the action");
-    assert.equal(open.checkCallback(false), allowed);
-    assert.deepEqual(activations.splice(0), allowed ? ["open"] : []);
+    assert.equal(open.checkCallback(false), true);
+    assert.deepEqual(activations.splice(0), ["open"]);
+    assert.deepEqual(openSurfaces,['leaf'],'Explicit tab command bypasses the generic phone sidebar route');
     const newTab = byId("kplex-new-tab");
-    assert.equal(newTab.checkCallback(true), allowed);
+    const splitAllowed = device !== 'phone';
+    assert.equal(newTab.checkCallback(true), splitAllowed);
     assert.deepEqual(activations, [], "Checking the new-tab action must not allocate a native leaf");
-    assert.equal(newTab.checkCallback(false), allowed);
-    assert.deepEqual(activations.splice(0), allowed ? ["new-tab"] : []);
+    assert.equal(newTab.checkCallback(false), splitAllowed);
+    assert.deepEqual(activations.splice(0), splitAllowed ? ["new-tab"] : []);
     const popout = byId("kplex-open-popout");
     assert.equal(popout.checkCallback(true), device === "desktop");
     assert.equal(popout.checkCallback(false), device === "desktop");

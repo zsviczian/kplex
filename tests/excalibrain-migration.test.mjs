@@ -1356,3 +1356,15 @@ test('link completion migration keeps independent choices through reload and rej
  assert.equal(migrateAndMergeSettings({editNewNodeAfterCreate:true}).linkAfterSaving,'sidecar');
  assert.equal(migrateAndMergeSettings({linkAfterSaving:'run-script'}).linkAfterSaving,'return');
 });
+
+test('creation tab memory round-trips independently and foreign graph import cannot replace it',()=>{
+  for(const value of [null,"markdown","excalidraw","placeholder"]){
+    const settings=migrateAndMergeSettings({newNodeCreationTab:value,newNodeDefaultType:"excalidraw",futureWorkflow:{keep:true}});
+    assert.equal(settings.newNodeCreationTab,value);const reopened=migrateAndMergeSettings(JSON.parse(JSON.stringify(settings)));
+    assert.equal(reopened.newNodeCreationTab,value);assert.equal(reopened.newNodeDefaultType,"excalidraw");assert.deepEqual(reopened.futureWorkflow,{keep:true});
+    assert.equal(importExcaliBrainGraphSettings({newNodeCreationTab:"markdown"},settings).newNodeCreationTab,value);
+    assert.equal(encodeIndexSettingsSignature(settings),encodeIndexSettingsSignature({...settings,newNodeCreationTab:null}),"Tab memory is not an index signature input");
+  }
+  for(const invalid of [undefined,"",false,42,"future-kind",{}])assert.equal(migrateAndMergeSettings({newNodeCreationTab:invalid,newNodeDefaultType:"excalidraw"}).newNodeCreationTab,null);
+  assert.equal(DEFAULT_SETTINGS.newNodeCreationTab,null,"Absent memory must retain the former initial-selection policy");
+});

@@ -48,7 +48,8 @@ export function readObsidianPresentationEnvironment(viewWindow?: Window): Presen
     }),
     inputModes: inputModes(windowRef, Platform.isMobile),
     hostActions: {
-      graphTab: device !== "phone",
+      // Normal native workspace tabs are an explicit choice even when phones default to the sidebar.
+      graphTab: true,
       sidepanel: true,
       popout: device === "desktop",
     },

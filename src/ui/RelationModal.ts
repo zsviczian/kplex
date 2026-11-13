@@ -5,6 +5,9 @@ import {KplexModal as Modal, FormSetting as Setting, formField, formActions, lab
 import {createElement} from "react";
 import {createRoot, type Root} from "react-dom/client";
 import { SavedRelationshipPendingError } from "../adapters/obsidian/relationshipMetadataWrite";
+import {hasIndependentFrontmatterDeclarations, reciprocalPreflight, ReciprocalRelationshipWriteError, type ReciprocalWriteReceipt} from "../adapters/obsidian/reciprocalRelationshipWrite";
+import {eligibleRelationshipOwner} from "../adapters/obsidian/relationshipOwner";
+import {ontologyConfiguration} from "../core/contracts/ontologyConfiguration";
 import {Notice, type TFile, setIcon, type WorkspaceLeaf} from "obsidian";
 import type KplexPlugin from "../main";
 import type { GateRole, GateSide, GraphPage, LinkDirection, RelationshipRole } from "../types";
@@ -84,6 +87,10 @@ export class RelationModal extends Modal {
   private ontologyDialog: AddToOntologyModal | null = null;
   private ontologyRoot: Root | null = null;
   private renderOntologySelection: () => void = () => {};
+  private reciprocalHint: HTMLDivElement | null = null;
+  private reciprocalStatus: HTMLDivElement | null = null;
+  private reciprocalReceipt: ReciprocalWriteReceipt | null = null;
+  private reciprocalTarget: GraphPage | null = null;
 
   /** Capture the exact endpoints/storage file before the modal takes focus. */
   constructor(private plugin: KplexPlugin, private options: RelinkRelationModalOptions) {
@@ -121,16 +128,73 @@ export class RelationModal extends Modal {
     return file && this.plugin.app.vault.getFileByPath(file.path) === file ? file : null;
   }
 
+  /** Add/specify is reciprocal authoring; a source-specific move never mirrors another declaration. */
+  private reciprocalValidation(): ReturnType<typeof reciprocalPreflight> {
+    const authoring = this.options.purpose === "ontology-add" || this.options.purpose === "ontology-specify";
+    if (!authoring || this.plugin.settings.alsoWriteInverseOntology !== true) return {approval: {enabled: false}};
+    const target = this.options.fixedTarget;
+    const writable = Boolean(eligibleRelationshipOwner(this.plugin.app, this.options.origin)
+      && target && eligibleRelationshipOwner(this.plugin.app, target) && this.options.origin.file !== target.file);
+    return reciprocalPreflight(ontologyConfiguration(this.plugin.settings), true, this.selectedField, this.semanticRole, writable);
+  }
+
   /** Require an actual captured endpoint and no previously saved pending write. */
   private canSave(): boolean {
     return !this.pending && !this.ontologyDialog && !this.selectedOntologyEditor.active
+      && !this.reciprocalValidation().reasonKey
       && this.plugin.ontologyRoleForField(this.selectedField) === this.semanticRole && Boolean(this.options.fixedTarget || this.selectedFile());
   }
 
   /** Keep native save availability aligned with the synchronous operation guard. */
   private updateSaveButton(): void {
     if (this.saveButton) this.saveButton.disabled = this.busy || !this.canSave();
+    this.contentEl.querySelectorAll<HTMLSelectElement>("[data-kplex-relation-role], #kplex-relation-modal-storage").forEach(/** A retained partial receipt owns its original role and physical storage choice. */ (control: HTMLSelectElement) => {control.disabled = this.busy || this.pending;});
+    if (this.reciprocalHint) {
+      const reason = this.reciprocalValidation().reasonKey;
+      this.reciprocalHint.hidden = !reason;
+      this.reciprocalHint.setText(reason ? this.plugin.translator(reason) : "");
+    }
     this.renderOntologySelection();
+  }
+
+  /** Show each file's durable outcome and one retry action bound to the original approved receipt. */
+  private renderReciprocalFailure(): void {
+    if (!this.opened || !this.reciprocalReceipt) return;
+    this.reciprocalStatus ??= this.contentEl.createDiv({cls: "kplex-reciprocal-status", attr: {role: "status"}});
+    this.reciprocalStatus.empty();
+    this.reciprocalStatus.createDiv({text: this.plugin.translator("reciprocal.partial")});
+    for (const outcome of this.reciprocalReceipt.outcomes) this.reciprocalStatus.createDiv({text: this.plugin.translator("reciprocal.outcome", {
+      path: outcome.path, field: outcome.field, state: this.plugin.translator(outcome.state === "pending" ? "reciprocal.pending" : "reciprocal.saved"),
+    })});
+    formActions(this.reciprocalStatus).addButton(button => {
+      labelIconButton(button.buttonEl, this.plugin.translator("reciprocal.retry"), "rotate-ccw");
+      button.buttonEl.setAttribute("data-kplex-reciprocal-retry", "");
+      button.setCta().setDisabled(this.busy).onClick(/** Retry owns no fresh relationship or physical note creation. */ () => void this.retryReciprocal(button.buttonEl));
+    });
+  }
+
+  /** Resume missing approved writes, then notify only this still-open invocation of publication. */
+  private async retryReciprocal(invoker?: HTMLElement): Promise<void> {
+    const receipt = this.reciprocalReceipt, target = this.reciprocalTarget;
+    if (!this.opened || this.busy || !receipt || !target) return;
+    const doc = invoker?.ownerDocument, restoreFocus = Boolean(invoker && doc?.activeElement === invoker);
+    this.busy = true; this.updateSaveButton(); this.renderReciprocalFailure();
+    try {
+      await receipt.retry();
+      if (!this.opened || this.reciprocalReceipt !== receipt) return;
+      this.options.onCommitted?.({state: "saved-published", page: refreshCapturedPage(this.plugin, target)});
+      this.close();
+    } catch (error) {
+      if (!this.opened || this.reciprocalReceipt !== receipt) return;
+      if (error instanceof ReciprocalRelationshipWriteError) this.reciprocalReceipt = error.receipt;
+      new Notice(error instanceof Error ? error.message : this.plugin.translator("reciprocal.partial"), 5000);
+    } finally {
+      this.busy = false;
+      if (this.opened) {
+        this.updateSaveButton(); this.renderReciprocalFailure();
+        if (restoreFocus && doc && doc.activeElement === doc.body) this.reciprocalStatus?.querySelector<HTMLButtonElement>("[data-kplex-reciprocal-retry]")?.focus();
+      }
+    }
   }
 
   /** Define vocabulary in the shared editor before applying any connection change. The child
@@ -213,7 +277,8 @@ export class RelationModal extends Modal {
 
   /** Persist once, distinguish saved-pending from failure, and never report an early writer return as a commit. */
   private async confirm(): Promise<void> {
-    if (!this.opened || this.busy || !this.canSave()) return;
+    if (!this.opened || this.busy) return;
+    if (!this.canSave()) {this.updateSaveButton(); return;}
     this.busy = true; this.updateSaveButton();
     let success = false;
     this.options.onCommitStart?.(this.semanticRole);
@@ -234,6 +299,15 @@ export class RelationModal extends Modal {
       this.options.onCommitted?.({ state: "saved-published", page: result.page });
       if (this.opened) this.close();
     } catch (error) {
+      if (error instanceof ReciprocalRelationshipWriteError && capturedTarget) {
+        const saved = error.outcomes.some(/** Partial failure cannot turn a durable first declaration into an unsaved operation. */ outcome => outcome.state !== "pending");
+        if (saved) {success = true; this.options.onCommitted?.({state: "saved-pending", page: capturedTarget});}
+        if (this.opened) {
+          this.pending = true; this.reciprocalReceipt = error.receipt; this.reciprocalTarget = capturedTarget;
+          this.renderReciprocalFailure();
+        }
+        return;
+      }
       if (error instanceof SavedRelationshipPendingError && capturedTarget) {
         this.pending = true; success = true;
         this.options.onCommitted?.({ state: "saved-pending", page: capturedTarget });
@@ -255,7 +329,8 @@ export class RelationModal extends Modal {
         new Notice(error instanceof SavedRelationshipPendingError ? error.message : this.plugin.translator("relation.updateFailed", { error: error instanceof Error ? error.message : String(error) }), 5000);
       }
     } finally {
-      this.options.onCommitEnd?.(success); this.busy = false; if (this.opened) this.updateSaveButton();
+      this.options.onCommitEnd?.(success); this.busy = false;
+      if (this.opened) {this.updateSaveButton(); if (this.reciprocalReceipt) this.renderReciprocalFailure();}
     }
   }
 
@@ -295,6 +370,7 @@ export class RelationModal extends Modal {
       const roleRow = formField(new Setting(this.contentEl).setName(this.plugin.translator("relation.directionRole")));
       let roleSelect!: HTMLSelectElement;
       roleRow.addDropdown(dropdown => {roleSelect = dropdown.selectEl;});
+      roleSelect.setAttribute("data-kplex-relation-role", "");
       roleSelect.setAttribute("aria-label", this.plugin.translator("relation.directionRole"));
       for (const role of ["parent", "child", "left", "right"] as GateRole[]) roleSelect.createEl("option", { text: roleLabel(role), attr: { value: role } });
       roleSelect.value = this.semanticRole;
@@ -393,6 +469,7 @@ export class RelationModal extends Modal {
               ? this.plugin.translator("relation.moveEvidenceRecommendation")
               : this.plugin.translator("relation.moveEitherNote")));
         storageSelect.addEventListener("change", () => {
+          if (this.busy || this.pending) {storageSelect.value = this.selectedStoragePath ?? ""; return;}
           this.selectedStoragePath = storageSelect.value;
           this.storageIdentity = this.plugin.app.vault.getFileByPath(storageSelect.value);
           updateStorageHint();
@@ -407,6 +484,8 @@ export class RelationModal extends Modal {
             ? this.plugin.translator("relation.specifyOntologyHelp")
             : this.plugin.translator("relation.addOntologyHelp"),
         });
+      } else if (hasIndependentFrontmatterDeclarations(evidence, this.options.origin.path, this.options.fixedTarget.path)) {
+        this.contentEl.createDiv({cls: "setting-item-description", text: this.plugin.translator("relation.independentDeclarations")});
       }
     }
 
@@ -457,6 +536,8 @@ export class RelationModal extends Modal {
     updateInverseHint();
     updateStorageHint();
 
+    this.reciprocalHint = this.contentEl.createDiv({cls: "setting-item-description kplex-reciprocal-preflight", attr: {role: "status"}});
+
     const actions = formActions(this.contentEl);
     actions.addButton(button => {
       labelIconButton(button.buttonEl, this.plugin.translator("common.cancel"), "x");
@@ -478,6 +559,7 @@ export class RelationModal extends Modal {
   onClose(): void {
     if (!this.opened) return;
     this.opened = false; this.options.onClosed?.(); this.releaseRename?.(); this.releaseRename = null;
+    this.reciprocalReceipt = null; this.reciprocalTarget = null; this.reciprocalStatus = null; this.reciprocalHint = null;
     this.selectedOntologyEditor.close();
     this.renderOntologySelection = () => {}; this.ontologyRoot?.unmount(); this.ontologyRoot = null;
     const ontologyDialog = this.ontologyDialog; this.ontologyDialog = null; ontologyDialog?.close();

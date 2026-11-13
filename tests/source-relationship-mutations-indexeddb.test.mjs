@@ -11,7 +11,7 @@ import { centerGateSettings } from "./support/requestedCenterGateFixture.mjs";
 /** Extract actual host mutation methods; only their native Plugin shell is replaced in the browser. */
 function productionMethods() {
   const source=ts.createSourceFile("main.ts",readFileSync(new URL("../src/main.ts",import.meta.url),"utf8"),ts.ScriptTarget.Latest,true,ts.ScriptKind.TS);
-  const names=new Set(["prepareRelationshipMutation","publishSavedRelationship","mutateRelationshipMetadata","writeRelationship",
+  const names=new Set(["prepareRelationshipMutation","publishSavedRelationship","mutateRelationshipMetadata","writeRelationship","writeReciprocalRelationship",
     "addRelationshipOntology","appendRelationshipReference","clearFrontmatterRelationship","createRelationToPage","addOntologyToConnection","relinkCentralNeighbour",
     "unlinkFrontmatterEvidence","captureFrontmatterUnlinkExpectation","referenceForPage","referenceMatchesTarget","nonTargetReferenceCounts","valueContainsTarget","removeTargetFromValue","stripTargetFromScalar",
     "normalizedNoteReferenceMatches","inverseOntologyField","inverseRelationshipRole","allOntologyFields","ontologyRoleForField","defaultOntologyField","ontologyFieldsForRole","linkNewRelatedFile","createWebLinkRelatedPage","createPlaceholderRelatedPage","normalizedWebUrl","placeholderPath","configuredDisplayNameField"]), methods=[];
@@ -27,12 +27,13 @@ function productionMethods() {
 }
 const bundle=await contributorBrowserBundle(["src/index/GraphIndex.ts","src/index/GraphBuilder.ts","src/index/IndexSnapshot.ts",
   "src/core/graph/compiler.ts","src/core/graph/evidence.ts","src/core/graph/relations.ts","src/adapters/obsidian/metadataSourceCollector.ts",
-  "src/adapters/obsidian/ontologySourceCollector.ts","src/adapters/obsidian/relationshipMetadataWrite.ts","src/adapters/obsidian/relationshipOwner.ts","src/application/frontmatterUnlink.ts","src/adapters/obsidian/placeholderRelocation.ts","src/core/contracts/ontologyConfiguration.ts","src/adapters/obsidian/fileCreationAutomation.ts"]);
+  "src/adapters/obsidian/ontologySourceCollector.ts","src/adapters/obsidian/relationshipMetadataWrite.ts","src/adapters/obsidian/reciprocalRelationshipWrite.ts","src/adapters/obsidian/relationshipOwner.ts","src/application/frontmatterUnlink.ts","src/adapters/obsidian/placeholderRelocation.ts","src/core/contracts/ontologyConfiguration.ts","src/adapters/obsidian/fileCreationAutomation.ts"]);
 const methods=`const assert=Object.assign((value,message)=>ok(value,message),{equal}),M=sourceModules,normalizeFieldName=M.normalizeFieldName,extractLinksFromValue=M.extractLinksFromValue;
 const writeRelationshipMetadata=M.writeRelationshipMetadata,SavedRelationshipPendingError=M.SavedRelationshipPendingError;
 const relationshipMetadataPayload=M.relationshipMetadataPayload,SOURCE_DECODE_BUDGET_BYTES=M.SOURCE_DECODE_BUDGET_BYTES;
 const frontmatterDeclarationKey=M.frontmatterDeclarationKey,iterateResolvedLinksFromValue=M.iterateResolvedLinksFromValue;
 const placeholderReference=M.placeholderReference,ontologyConfiguration=M.ontologyConfiguration,eligibleRelationshipOwner=M.eligibleRelationshipOwner;
+const createReciprocalWriteReceipt=M.createReciprocalWriteReceipt,reciprocalOntologyFields=M.reciprocalOntologyFields,hasIndependentFrontmatterDeclarations=M.hasIndependentFrontmatterDeclarations;
 const normalizePath=x=>x,LinkDirection=M.LinkDirection,Notice=class{constructor(message){window.notices.push(message);}};
 const isUnknownRecord=x=>x!==null&&typeof x==='object'&&!Array.isArray(x);${productionMethods()}`;
 const setup=`window.notices=[];${methods}

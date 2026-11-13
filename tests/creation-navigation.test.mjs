@@ -8,7 +8,7 @@ class NativeFolder {}
 
 function moduleAt(path, dependencies = {}) {
   const source = readFileSync(new URL(`../${path}`, import.meta.url), "utf8");
-  const output = ts.transpileModule(source, {compilerOptions: {module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022}}).outputText;
+  const output = ts.transpileModule(source, {compilerOptions: {module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, jsx: ts.JsxEmit.ReactJSX}}).outputText;
   const result = {exports: {}};
   Function("module", "exports", "require", output)(result, result.exports, name => dependencies[name] ?? {});
   return result.exports;
@@ -41,6 +41,46 @@ test("trackpad scroll pans in both axes at a fixed zoom; wheel mode and modifier
   assert.equal(wheelCamera(camera, {...scroll, deltaY: 1e6}, point, false, 3, 600).scale, 0.3);
   assert.equal(wheelCamera(camera, {...scroll, deltaMode: 1}, point, true, 3, 600).y, 20-12*16);
   assert.equal(wheelCamera(camera, {...scroll, deltaMode: 2}, point, true, 3, 600).y, 20-12*600);
+});
+
+test("creation type feature uses shared tabs and type-scoped fields with stable labelled panels", () => {
+  const render = (type, props, key) => ({type, props, key}), changes = [];
+  const {CreationTypeTabs} = moduleAt("src/ui/features/CreationTypeTabs.tsx", {
+    react: {useId: () => "creation-id"}, "react/jsx-runtime": {jsx: render, jsxs: render},
+    "../components/Tabs": {Tabs: "shared-tabs"}, "./DrawingTemplateSelect": {DrawingTemplateSelect: "shared-template"},
+  });
+  const props = {value: "markdown", types: ["markdown", "excalidraw", "placeholder"], translate: key => key,
+    onChange: type => changes.push(type), template: {choices: {files: [], selected: "", root: ""}, value: "Selected.md", resultsOwnerId: "native-owner", onChange: path => changes.push(path)}, actions: "create-button", status: "selected-type-status", children: "selected-action"};
+  const tree = CreationTypeTabs(props), [tabs, panels] = tree.props.children;
+  assert.equal(tabs.type, "shared-tabs");assert.equal(tabs.props.label, "creation.type");
+  assert.deepEqual(tabs.props.items, props.types.map(id => ({id,label:`common.${id}`})));
+  tabs.props.onChange("excalidraw");tabs.props.onChange("unavailable");assert.deepEqual(changes,["excalidraw"]);
+  for (const [index,panel] of panels.entries()) {
+    assert.equal(panel.props.role,"tabpanel");assert.equal(panel.props.id,`creation-id-panel-${props.types[index]}`);
+    assert.equal(panel.props["aria-labelledby"],`creation-id-tab-${props.types[index]}`);
+    assert.equal(panel.props.hidden,index!==0);assert.equal(panel.props.children[1],index===0?"selected-action":null);
+  }
+  const picker=panels[0].props.children[0];assert.equal(picker.type,"shared-template");assert.equal(picker.props.kind,"markdown");
+  assert.equal(picker.props.actions,"create-button");assert.equal(picker.props.resultsOwnerId,"native-owner");
+  assert.equal(panels[0].props.children[3].props.role,"status");assert.equal(panels[0].props.children[3].props.children,"selected-type-status");
+  picker.props.onChange("Exact.md");assert.deepEqual(changes,["excalidraw","Exact.md"]);
+  const placeholder=CreationTypeTabs({...props,value:"placeholder",disabled:true});
+  assert.equal(placeholder.props.children[1][2].props.children[0],null,"An unresolved node must never offer a physical template");
+  assert.equal(placeholder.props.children[1][2].props.children[2].props.children,"create-button","Placeholder keeps its create action without a template row");
+  placeholder.props.children[0].props.onChange("markdown");assert.deepEqual(changes,["excalidraw","Exact.md"]);
+  const constrained=CreationTypeTabs({...props,types:["markdown"]});assert.equal(constrained.props.children[0].props.items.length,1);
+  constrained.props.children[0].props.onChange("excalidraw");assert.deepEqual(changes,["excalidraw","Exact.md"]);
+});
+
+test("creation tab preference writes through one host owner and remains separate from successful physical defaults", () => {
+  const writes=[],owner={settings:{newNodeCreationTab:null,newNodeDefaultType:"excalidraw",futureWorkflow:{keep:true}},saveSettings:(...args)=>{writes.push([args,structuredClone(owner.settings)]);return Promise.resolve();}};
+  const control=method("src/main.ts","creationTypeTabControl");const first=control.call(owner);
+  assert.equal(first.value,null);assert.deepEqual(writes,[]);
+  first.onChange("placeholder");first.onChange("placeholder");first.onChange("unavailable");
+  assert.equal(owner.settings.newNodeCreationTab,"placeholder");assert.equal(owner.settings.newNodeDefaultType,"excalidraw");
+  assert.equal(writes.length,1);assert.deepEqual(writes[0][0],[false,false]);assert.deepEqual(writes[0][1].futureWorkflow,{keep:true});
+  const reopened=control.call(owner);assert.equal(reopened.value,"placeholder");assert.equal(writes.length,1,"Reading on reopen must not write a supported fallback");
+  reopened.onChange("markdown");assert.equal(control.call(owner).value,"markdown");assert.equal(owner.settings.newNodeDefaultType,"excalidraw");
 });
 
 test("template selectors require EA 2.29.1 and preserve blank, valid and removed choices", () => {
@@ -122,20 +162,27 @@ test("a warm new Plex waits for its mounted navigation consumer before focusing 
   ready(); await work; assert.deepEqual(focused, [[file.path, leaf]]);
 });
 
-test("template dropdown retains complete paths for duplicate names and exposes an explicit blank choice", () => {
+test("searchable template field isolates the selected kind, exact duplicate paths and blank without committing query edits", () => {
   const changes = [];
   const {DrawingTemplateSelect} = moduleAt("src/ui/features/DrawingTemplateSelect.tsx", {
-    react: {createElement: (type, props, ...children) => ({type, props, children})},
-    "../components/FormSelect": {FormSelect: "shared-labelled-select"},
+    react: {createElement: (type, props, ...children) => ({type, props, children}),useId:()=> 'template-id',useMemo:run=>run(),useRef:value=>({current:value}),useState:value=>[value,()=>{}],useEffect:run=>run()},
+    "../components/FormField": {FormField: "shared-labelled-field"},
+    "../components/FuzzySuggester": {FuzzySuggester: "shared-search"},
+    "../components/fuzzyFilterStrings": moduleAt('src/ui/components/fuzzyFilterStrings.ts'),
   });
-  const tree = DrawingTemplateSelect({choices: {root: "Templates", selected: "Templates/B/Same.md", files: [{path: "Templates/A/Same.md"}, {path: "Templates/B/Same.md"}]},
-    value: "Templates/B/Same.md", disabled: false, translate: key => key, onChange: value => changes.push(value)});
-  assert.equal(tree.type, "shared-labelled-select");
-  const select = tree;
+  const choices = {root: "Templates", selected: "Templates/B/Same.md", files: [{path: "Templates/A/Same.md",kind:'markdown'}, {path: "Templates/B/Same.md"}, {path: "Templates/b/Same.md"}]};
+  const tree = DrawingTemplateSelect({choices, value: "Templates/B/Same.md", disabled: false, translate: key => key, onChange: (...value) => changes.push(value)});
+  assert.equal(tree.type, "shared-labelled-field");
+  const select = tree.props.children;assert.equal(select.type,'shared-search');
   assert.equal(select.props.value, "Templates/B/Same.md");
-  assert.deepEqual(select.props.children.map(option => option.props.value), ["", "Templates/A/Same.md", "Templates/B/Same.md"]);
-  assert.deepEqual(select.props.children.slice(1).map(option => option.children[0]), ["A/Same.md", "B/Same.md"]);
-  select.props.onChange(""); assert.deepEqual(changes, [""]);
+  const results=select.props.getResults('');
+  assert.deepEqual(results.map(option=>option.path),["", "Templates/B/Same.md", "Templates/b/Same.md"]);
+  assert.deepEqual(results.slice(1).map(select.props.getDetail),['common.excalidraw · Templates/B/Same.md','common.excalidraw · Templates/b/Same.md']);
+  select.props.onChange('Some uncommitted query');assert.deepEqual(changes,[]);
+  select.props.onChoose(results[1]);select.props.onChoose(results[0]);assert.deepEqual(changes,[['Templates/B/Same.md','excalidraw'],['','excalidraw']]);
+  const markdown=DrawingTemplateSelect({choices,value:'',kind:'markdown',translate:key=>key,onChange:assert.fail}).props.children;
+  assert.deepEqual(markdown.props.getResults('').map(option=>[option.path,option.kind]),[['','markdown'],['Templates/A/Same.md','markdown']]);
+  assert.deepEqual(markdown.props.getResults('Templates/B'),[],"Searching another kind cannot expose a mismatched template");
 });
 
 test("a rejected drawing write destroys its private workbench and retains the last successful template", async () => {

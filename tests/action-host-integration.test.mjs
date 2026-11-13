@@ -12,7 +12,7 @@ import { build } from 'esbuild';
 
 const temporary = mkdtempSync(join(tmpdir(), 'kplex-action-host-'));
 process.on('exit', () => rmSync(temporary, { recursive: true, force: true }));
-await build({ stdin: { contents: 'export * from "./src/core/contracts/ontologyConfiguration"; export * from "./src/ui/KplexDocumentSession"; export * from "./src/core/plex/actionPreferences"; export * from "./src/adapters/obsidian/actionNode"; export * from "./src/application/ActionManager"; export * from "./src/adapters/obsidian/relationshipMetadataWrite"; export * from "./src/core/parser/metadata"; export * from "./src/index/ForegroundWorkScheduler"; export * from "./src/adapters/obsidian/settingsNavigation";', resolveDir: fileURLToPath(new URL('..', import.meta.url)) }, outfile: join(temporary, 'contracts.mjs'), bundle: true, platform: 'node', format: 'esm' });
+await build({ stdin: { contents: 'export * from "./src/core/plex/viewPresentation"; export * from "./src/core/contracts/ontologyConfiguration"; export * from "./src/ui/KplexDocumentSession"; export * from "./src/core/plex/actionPreferences"; export * from "./src/adapters/obsidian/actionNode"; export * from "./src/application/ActionManager"; export * from "./src/adapters/obsidian/relationshipMetadataWrite"; export * from "./src/core/parser/metadata"; export * from "./src/index/ForegroundWorkScheduler"; export * from "./src/adapters/obsidian/settingsNavigation";', resolveDir: fileURLToPath(new URL('..', import.meta.url)) }, outfile: join(temporary, 'contracts.mjs'), bundle: true, platform: 'node', format: 'esm' });
 const contracts = await import(pathToFileURL(join(temporary, 'contracts.mjs')));
 
 /** Extract the real callback with its sync/async contract intact, excluding native startup. */
@@ -73,6 +73,24 @@ test('new Plex tab creates and reveals an adjacent native tab group on every inv
   await create.call(context); await create.call(context);
   assert.equal(opened.length, 2); assert.notEqual(opened[0], opened[1]);
   assert(opened.every(leaf => leaf.revealed)); assert.deepEqual(remembered, ['recent-document', 'recent-document']);
+});
+
+/** Explicit phone tabs share the existing native view implementation, while generic Open stays sidebar-first. */
+test('explicit Open in tab overrides phone and desktop startup defaults without changing generic routing',async()=>{
+  for(const device of ['phone','tablet','desktop'])for(const explicit of [undefined,'leaf']){
+    const calls=[],leaf={setViewState:async state=>calls.push(['view',state])};
+    const environment={device,hostActions:{graphTab:true,sidepanel:true,popout:device==='desktop'}};
+    const activate=method('activateView',{KPLEX_VIEW_TYPE:'kplex',readObsidianPresentationEnvironment:()=>environment,
+      primaryOpenSurface:contracts.primaryOpenSurface});
+    const owner={settings:{startInPopout:true},activateSidepanel:async()=>calls.push(['sidebar']),rememberDocumentLeaf:()=>{},restorePlexFoldBeforeReveal:()=>{},
+      app:{workspace:{getMostRecentLeaf:()=>null,getLeavesOfType:()=>[],getLeaf:kind=>{calls.push(['leaf',kind]);return leaf},revealLeaf:async value=>assert.equal(value,leaf)}}};
+    await activate.call(owner,explicit);
+    if(device==='phone'&&!explicit)assert.deepEqual(calls,[['sidebar']]);
+    else{
+      assert.deepEqual(calls[0],['leaf',device==='desktop'&&!explicit?'window':true]);
+      assert.deepEqual(calls[1],['view',{type:'kplex',active:true}]);
+    }
+  }
 });
 
 /** A newly opened native split must retain its ownership until geometry has settled. */
@@ -380,7 +398,7 @@ test('changing automatic cleanup while deletion consent is open cancels the capt
 
 test('action settings navigate the native declarative page without acquiring a modal session', () => {
   const paths = []; let opens = 0;
-  const current = { manifest: { id: 'k-plex' }, translator: key => key,
+  const current = { manifest: { id: 'k-plex' }, translator: key => key, registerSettingsTab: () => true,
     app: { setting: { open: () => opens++, openPagePath: (id, path) => { paths.push([id, path]); return {}; } } },
     openSettings: assert.fail, settingsTab: null };
   current.openSettingsPage = method("openSettingsPage", contracts).bind(current);
@@ -393,7 +411,7 @@ test('action settings navigate the native declarative page without acquiring a m
 /** Void completion is native success; only an explicit refusal may reopen the root through fallback. */
 test('native settings path completion returning undefined preserves the selected subpage', () => {
   let paths = 0, roots = 0;
-  const current = { manifest: { id: 'k-plex' }, translator: key => key,
+  const current = { manifest: { id: 'k-plex' }, translator: key => key, registerSettingsTab: () => true,
     app: { setting: { open() {}, openPagePath: () => { paths++; } } },
     openSettings: () => roots++, settingsTab: null };
   current.openSettingsPage = method('openSettingsPage', contracts).bind(current);
@@ -403,7 +421,7 @@ test('native settings path completion returning undefined preserves the selected
 
 test('unsupported page navigation retains main settings recovery without a detached editor', () => {
   let opens = 0;
-  const current = { app: {}, translator:key=>key, manifest:{id:"k-plex"}, openSettings: () => opens++, settingsTab: { openSettingsPage: () => false } };
+  const current = { app: {}, translator:key=>key, manifest:{id:"k-plex"}, registerSettingsTab: () => true, openSettings: () => opens++, settingsTab: { openSettingsPage: () => false } };
   current.openSettingsPage = method("openSettingsPage", contracts).bind(current);
   assert.equal(method('openActionSettings').call(current), false); assert.equal(opens, 1);
 });
@@ -741,6 +759,23 @@ function foldFixture() {
   for(const name of ['advancePlexFoldRevision','setSidecarOwner','deleteSidecarOwner','restoreCollapsedPlex','restorePlexFoldBeforeReveal','isPlexFoldedForSidecar','readPlexFoldCandidate','plexFoldToken','readPlexFoldCandidates','readPlexFoldUnavailableReason','isPlexFoldCandidateCurrent','isPlexFoldSessionValid','reconcilePlexFolds','togglePlexFold','expandPlexFromSidecar','closeSidecar','collapsePlexForSidecar'])owner[name]=method(name,{KplexView,ItemView:class{},PlexFoldSession,plexFoldIdentity,Notice:class{},KPLEX_VIEW_TYPE:'kplex',KPLEX_SIDEPANEL_VIEW_TYPE:'sidepanel'});
   return {owner,host,sidecar,sibling,root,split,hostGroup,sidecarGroup,recovery,doc,events,observers,calls,Element,KplexView};
 }
+
+/** Off/Recent/unpin restore a folded owner and leave the document and all neighboring tabs intact. */
+for(const release of ['off','recent','unpin'])test(`folded Sidecar ${release} release retains native document state and closing Plex cannot detach it`,async()=>{
+  const f=foldFixture(),owner=f.owner,session=owner.documentSession(f.host),editor={draft:'Unsaved',cursor:{line:4,ch:2}},history=['Earlier.md','Current.md'];
+  let detached=0;f.sidecar.detach=()=>{detached++;};f.sibling.detach=()=>{detached++;};
+  f.sidecar.editor=editor;f.sidecar.history=history;session.preferences.sidecarOpen=true;
+  const group=f.sidecar.group,otherHost={};owner.sidecarLeaves.set(otherHost,f.sibling);
+  owner.releaseSidecar=method('releaseSidecar');owner.detachSidecar=method('detachSidecar');owner.setDocumentSyncMode=method('setDocumentSyncMode');
+  await owner.togglePlexFold(owner.readPlexFoldCandidate(f.host));assert.equal(f.doc.leases,1);
+  if(release==='unpin')await owner.detachSidecar(f.host);else await owner.setDocumentSyncMode(f.host,release);
+  assert.equal(detached,0);assert.equal(f.sidecar.editor,editor);assert.equal(f.sidecar.history,history);assert.equal(f.sidecar.group,group);
+  assert.equal(f.doc.leases,0);assert.equal(owner.collapsedPlexHosts.size,0);assert(!f.hostGroup.classList.contains('kplex-folded-workspace-group'));
+  assert.equal(owner.sidecarLeaves.has(f.host),false);assert.equal(session.linkedDocumentLeaf,null);assert.equal(session.preferences.sidecarOpen,false);
+  assert.equal(session.preferences.documentSyncMode,release==='recent'?'recent':'off');assert.equal(owner.sidecarLeaves.get(otherHost),f.sibling);
+  owner.openKplexViews=2;method('onKplexViewClosed',{KplexView:f.KplexView,KplexSidepanelView:class{}}).call(owner,f.host,session);
+  assert.equal(detached,0);assert.equal(owner.sidecarLeaves.get(otherHost),f.sibling,'Closing released canvas preserves the other pair');
+});
 
 /** Real pair captures and session transitions are graph-independent and reversible. */
 test('native fold toggles with no center, preserves selected sibling, and restores exact captured DOM',async()=>{

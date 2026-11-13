@@ -21,203 +21,55 @@ Obsidian is the production host; preserve the established portable semantic, ide
 
 ---
 
-# Neighborhood, authoring, Sidecar and toolbar shortcuts: Windows validation
+# Current result: compact creation UI and startup optimization
 
-Branch: `2026-11-11-plex-neighborhood-authoring`. Base/released tag `0.4.3` is
-`69a659e97799376395d609ea814b038cb782c2aa`. On 2026-11-12, after functional
-confirmation and disclosure of the validation limits below, the maintainer
-explicitly requested commit, push, merge to main, related issue closure with PR
-references, and fetching main. These GitHub actions are now authorized. Close
-#282 only after merge; no release/tag publication was requested.
+Checkpoint committed first as requested: ae558b7ccf0cc817b11779b78a30c52710ca1f90 on 2026-11-12-authoring-workspace-bundle. Follow-up changes remain uncommitted. No push/merge/production deployment. Final normal local build is installed only in approved Small.
 
-The authorized work covers #282, #300, #298, #296, #295 and native pin/history
-body drags. The user clarified that Rename needs an opt-out toggle for updating
-an existing configured display-name property (title, aliases or another name
-field). The first supported existing configured field is selected; other aliases
-are preserved. No new title property or persisted toggle preference is invented.
+## Implemented and reviewed
 
-Implemented behavior:
-- Compass Siblings contains unique second-order neighbors of all displayed direct
-  roles, omitting direct/center and actually displayed expanded child occurrences.
-  Filtered, editor-owned and section strips retain their existing admission.
-- Optional On-demand witness incidence is selected from displayed direct nodes,
-  owner/count bounded and deferred behind direct-center publication.
-- Excluded Date properties are suppressed by the shared source policy before
-  materialization. Existing inline ontology remains authoritative. Signature v5
-  invalidates historical graphs with nonempty exclusions once; source facts and
-  unknown preferences remain intact.
-- Pin/history bodies use the existing native node-link adapter; pin grips retain
-  reorder ownership and list gaps retain mouse scrolling.
-- Facets accepts 3-12 categories in existing layouts; the thirteenth is refused.
-- Published Add relationship / Add previous / Add next commands select All /
-  Previous / Next in the shared composer.
-- Native Rename preserves FileManager link maintenance and exact file identity
-  across the subsequent optional metadata write, including partial-failure retry.
-- New copy is maintained in all eight locales; affected architecture/user docs
-  and executable regressions are updated.
+Shared KplexModal now owns exact body-portal suggestion identity and popup-first Escape. Template pointer selection no longer invalidates its parent. Explicit popup dismissal restores committed template text without blur. Shared FormField/Select gives Name/Alias/Folder/Action growing inline inputs; shared CreationTypeTabs gives responsive Template/create-action row, selected-type status and independent drafts. Ineligible physical-property direction is hidden. All3 creation surfaces use the shared owners. Last-tab preference and partial-file recovery remain intact. All8 locales and affected docs updated. Long unbroken-title wrapping has executable regression coverage.
 
-The user confirmed the six requested workflows and the popout Sidecar fix work.
-The additional toolbar enhancements are implemented on this branch:
-- New canvas: ordinary click retains a new group; Ctrl/Cmd-click creates a tab in
-  the invoking group; Ctrl/Cmd+Alt/Option-click creates an adjacent group;
-  Ctrl/Cmd+Alt/Option+Shift-click opens a desktop popout; Alt/Option-click opens
-  K-Plex in Obsidian's sidebar (the user's explicit clarification).
-- Settings: Ctrl/Cmd-click opens plugin settings, Alt/Option-click toggles the
-  existing surface-local area action, and ordinary click retains the menu.
-- Modifier hints use all eight locales and actual platform/keyboard facts.
-  Mobile popouts are neither dispatched nor advertised. Existing `surface.new-tab`
-  command defaults remain unchanged; its finite optional placement argument and
-  shared canvas/created-note group allocator preserve the initiating host.
-- Only multiline ToolButton labels opt into the shared tooltip owner's measured
-  line layout; ordinary hints retain their wrapping, timing and ownership.
+Startup: built-in translation catalogs prepare only the requested exact/base locale, lazily once into owned immutable snapshots. English does not validate unused languages. Explicit injected maps still fully validate every time. Main keeps early native views/API/commands/source fences and tab instance, while Settings registration moves after workspace readiness through one cancellable main-window task. Explicit navigation flushes registration; unload/exact-owner/error/retry/once guards are covered. No GraphIndex, source acquisition, semantic policy, cache schema or persistence policy changes.
 
-Toolbar validation passed 214/214 focused action/placement/localization/terminology
-and actual React-button cases, plus 14/14 final toolbar/shared-tooltip browser
-checks. Installed-type `build:local`, affected lint, core TypeScript and architecture
-checks passed. Windows Obsidian 1.15 native trusted input passed all destinations
-and plugin/area/menu choices from main and popout canvases, plus light/dark tooltip
-captures including a 420-pixel isolated popout. Screenshots were inspected.
-Independent cleanup confirmed the original saved workspace/configuration bytes,
-117 files / 98 Markdown, no fixtures, graph nodes, controllers or owned leaves,
-no open Settings dialog and no captured errors. All three installed/dist hashes
-match; current main.js SHA-256 is
-`8a6cb7a764822ae0e7ed30650ec5d0035c9985460beefd513f2bd79e447068b7`.
+## Source/build acceptance
 
-Managed toolbar evidence: `2026-11-12-toolbar-modifiers-focused-final-1vwQrC`,
-`2026-11-12-toolbar-tooltip-final-KcOPI8`,
-`2026-11-12-toolbar-modifiers-native-final-upnLTH`, and
-`2026-11-12-toolbar-modifiers-final-audit-niiWLG`. Initial failed checks are retained:
-the first source run lacked reference metadata and fixture wiring; native harness
-attempts incorrectly short-circuited leaf inventory or shrank a multi-group main
-window until its button was offscreen. Corrected runs preserve trusted input,
-assertions and deadlines. The actual tooltip capture also prompted multiline
-formatting before the final build. Index/cache owners remain unchanged by these
-toolbar additions, so expensive indexing/restart suites were not repeated.
-Native macOS and physical mobile keyboard/touch acceptance remain unavailable.
+Node22.22.2. Architecture/core/Obsidian lint and native harness77 PASS. Focused source342 and startup/localization41 PASS. Actual installed Obsidian types, release/local/profile builds PASS.
 
-For the first-open popout Sidecar fix, the native baseline reproduced an
-attached empty split whose document still belonged to the main window, so the
-initial adjacency check silently rejected opening the note. `syncSidecarToPage`
-now publishes the owned request before awaiting existing workspace-layout
-settlement, then retains the normal adjacency, ownership, canonical-file and
-supersession fences. Ordinary nonadjacent companions retain their refusal.
+Aggregate attempts retained honestly: x20L1Z stopped on stale intentional UI static contracts; pfN3IR stopped on finite fixture's missing real FolderPathInput dependency. Only feature-specific expectations/closed dependency inventory changed; semantic goldens preserved. Final aggregate startup-full-verification-current-U0MyX4 passed source/indexing2380/2380 and browser574/575, then stopped on Chromium document-loading timeout in canvas-view-selector. Unchanged failed case rerun passed2721ms. Every unreached gate then passed in startup-full-remaining-gates-kWJhCu: source owners362/362, source/browser owners1032/1032, release/local builds. Original aggregate invocation remains FAILED, not retroactively passed.
 
-The Sidecar change passed 83/83 focused follow/attachment/fold regressions,
-`eslint src/main.ts`, and `build:local` against real Obsidian declarations.
-New cases cover first-open mode, latest queued navigation and retirement during
-layout. Exact-build Windows Obsidian 1.15.0 (installer 1.14.5) native input passed
-all eight main-window/popout and right/left/above/below combinations: one trusted
-button click displayed the actual note content in the selected source/preview
-mode. The CLI preflight now reads selected-runtime vault identity directly to
-support Obsidian 1.15's renamed vault-info command.
+Runtime inputs stayed unchanged, hash8fc9fad21bf5c1d82de7baa7048f731fcdf8593a5d4df691223260b0933acc4b. Frozen exact final local artifact in startup-full-remaining-gates-kWJhCu/native-candidate:
+- main8215af06e9e4c544f80e5e980003d06efdd361ad85a0f603b97cd3880ef43a01
+- CSS8188d204efa48384c616c32f8e7a546c82e5548b4136eeb525c06341922e3909
+- manifestdd5c24bca596d39dcfeda4adaac6649fdaa3d2a3cfd905b315c63c64f28b2efb
 
-The pre-toolbar Sidecar checkpoint's main.js SHA-256 was:
-`079b3368c4123db72086c3ae3ffbfb1753d038bce75d14758a21968d584c8e72`.
-The independent final audit verified all three artifact hashes, the original saved
-workspace, 117 files / 98 Markdown, restored configuration bytes, no fixture
-files/graph nodes/controllers and no captured JavaScript errors. Managed evidence:
-`2026-11-12-sidecar-popout-focused-sYHlq9`,
-`2026-11-12-sidecar-popout-native-fixed-5Lo3Pv`, and
-`2026-11-12-sidecar-popout-final-audit-J0UJPa`. The failing native baseline/trace
-and recovered transport/artifact preflight failures remain recorded. This scoped
-navigation fix does not change index/cache policy; expensive indexing/restart
-gates were not repeated. macOS/mobile Sidecar acceptance remains unavailable.
+## Exact-build native UI acceptance
 
-The original six-feature validation below used Node 22.22.2, real installed
-Obsidian declarations and Windows
-Obsidian 1.14.5 (runtime Node 24.22.0 / Electron 43.8.3 / Chrome 150). Both production
-build and build:local passed. Only disposable Small has the identified local build;
-no personal/production vault was deployed. That pre-Sidecar artifact's main.js SHA-256 was
-`ba5e0106470eda3c99cd1c8cdad51bd4c0b914f94fe2c7a733b14b5127b8b84c`.
+creation-compact-native-nJGupX PASS: all3 forms in main and real popout; light1160/dark360 geometry; real pointer template selection and popup-first Escape; independent type drafts, unavailable fallback, actual Markdown template, Settings folder autocomplete and last-tab preference across actual plugin reload. Excalidraw availability injected for UI only. Actual wide/narrow screenshots reviewed. Long-title English/German900/360 browser cases4/4 PASS (creation-long-title-fixed-SIYsai).
 
-All raw evidence is managed under ignored `.test-work/validation` with the standard
-retention policy. No routine report was added under docs/validation.
+Independent native restoration PASS: exact layout/settings/MRU/inventory/windows/configuration bytes and native leaf states, including File Properties retargeting after layout writers. No dialogs/controllers/owned fixtures remained. Original98Markdown/117physical files, ready98/98, no active work or pending save. No physical mobile/macOS acceptance claimed.
 
-Completed source gates:
-- Released tag and branch base coincide at 0.4.3. The original excluded-Date failure
-  was reproduced before the fix; native FileManager filename-only rename also
-  demonstrated that the existing display-name property stays unchanged.
-- Frozen indexing passed with an explicit executable peripheral-presentation delta.
-  Graph/evidence/search/direct lists and direct geometry remain identical.
-- Release/core/architecture/lint checks and 2,215 unit tests passed. Corrected UI
-  files passed 77/77. The full browser group ran 555 checks, with one Chromium
-  bundle-load failure; its unchanged 23-test file rerun passed. Earlier extracted
-  fixture binding, seven-category and expanded-sibling assumptions were corrected;
-  unchanged color/focus/camera/layout-reuse assertions pass.
-- Portable source tests passed 362/362. The full real-IndexedDB lane ran 1,032
-  checks (1,027 passed, five preserved failures). Corrected affected reruns passed:
-  five alias-priority cases, 204 On-demand/deferred/optional cases, and all four
-  high-degree cases, plus explicit 20-, 256- and 257-owner boundary runs.
-- The large case found a real redundant optional replay: direct 1 / optional 1.
-  The internal scope now retains its mandatory source-owner count and defers
-  optional replay above 256 owners, preserving existing small-cover admission.
-  Final 20,015-owner acceptance retained the strict single-pass/no-IO/work/memory
-  bounds: direct 1 / optional 0, 8,187,369 owner checks, 155,029.7ms measured cached
-  publication. This is a real-Chromium GraphIndex fixture, not a native large-vault
-  or production-latency result.
+## Startup measurements and limits
 
-Completed exact-build native gates:
-- Commands/rename, saved drags, semantics and Facets lanes all passed. Native title
-  and alias writes, opt-out, missing-property behavior, actual canvas captions,
-  light/wide and dark/narrow visuals and popout Escape were checked. Screenshots
-  were inspected. Both saved lists produced intercepted real Chromium link data
-  for relationship gates and split Markdown editors; one pin relationship was
-  actually saved. All six second-order roles, real created Date exclusion, two
-  plugin reloads/unknown-key preservation, twelve regions and the disabled
-  thirteenth category were verified.
-- Cache activation was natural, not forced. Two consecutive Reload app without
-  saving cycles reused the exact persisted generation, graph, settings, semantic
-  inputs and source heads. The second remained ready for 610 seconds across two
-  maintenance periods with zero reads/parses/repairs/inventories/rebuilds/catalog
-  starts/snapshot writes. Sampled foreground control remained valid.
-- Two additional reloads began with an actual ordinary save pending, for a backed-
-  up README edit and its reversal. Each reused exactly the one changed cached
-  owner with zero body reads, parses or rebuilds and naturally activated the
-  repaired complete snapshot. README bytes, mtime and ctime were restored.
-- The test-owned unreferenced virtual endpoint was explicitly removed through the
-  existing guarded API, then its ordinary five-minute save activated naturally.
-  A clean reload reused that cache without work. Snapshot write failure/retry,
-  no-op deadline preservation and native-metadata/source fences are additionally
-  covered by the passing real-IndexedDB/source suites.
-- Finally, two graceful whole-application exit/relaunch cycles used the existing
-  guarded Windows lifecycle helper. Every observed native process exited, and
-  both Browser and renderer lifetimes changed each time. Both startups reused
-  the exact persisted cache with zero source checks/reads/parses/repairs,
-  inventories, full builds, catalog starts or snapshot writes. These whole-process
-  results are separate from the renderer-reload results.
+User report: Brain20462files, plugin load3402ms, indexing acceptable. Small98Markdown/117physical files is a functional phase test and does not reproduce that production latency. Source0.4.3 and branch base7ad3d43 both eagerly validate bundled locales and synchronously addSettingTab; lang/index.ts has no released-to-base change. Measured contributors are not proof of the whole3.4s cause.
 
-Important failed invocations remain recorded, not described as clean aggregate
-passes. Earlier verify attempts stopped at typed callback errors and stale fixture/
-signature/command expectations. Later source failures included the demonstrated
-large replay, obsolete second-order expectations and a primary retry assertion
-that also counted the newly valid optional closure. Primary retries still require
-exactly two attempts, plus one distinct bounded optional closure. Native harness
-corrections added a paint wait and scrolled an offscreen history source into view.
-Two over-broad ad-hoc assertions were preserved: host enumeration order is separate
-from saved input identity, and unlinked virtual nodes require explicit cleanup.
-No production acceptance bound or deadline was relaxed.
+Same Small configuration bytes (36771bytes, SHA25623c11db79e8c65f94765d0e61b5eef1b8476b49378e76d07726c541de6933b0b):
+- Clean app-reload baseline35eEDI: constructor60.3/54.2ms, onload140/100.3ms, translator40.7/41.2ms, definitions44.5/42.3ms, loadData46/6.8ms.
+- Final actual app reload npRKvc: constructor0.4/0.5ms, onload23.3/93.8ms, translator0.1/0ms, loadData11.3/81.1ms. Settings definitions absent from initiation receipts, Settings registered after readiness. Both renderer timeOrigins changed. Module eval27.6/39.9ms versus baseline19.5/17.9ms; do not hide this noise.
+- Warm enables final pChKfT host289/242/260ms versus baselineSPNqlV283/205/241ms: no overall warm-enable improvement demonstrated, because loadData increased to128-133ms. Constructor0.3-0.7ms and translator0.1ms; definitions excluded from initiation. Do not claim all plugin-load timings improved.
+- Portable matched English translation construction31.19ms ->0.002ms, first English0.168ms; de/ru first8.5/9ms then cached<0.001ms.
 
-Final independent audit after both whole-process restarts passed: 117 original
-files / 98 Markdown, one Small window, exact original data.json/community-plugins/
-types bytes and Daily Notes options, no owned graph nodes, controllers or debugger
-attachment, no JavaScript errors and no pending cache work. The original workspace
-was restored and saved through the public layout API; it survived full-process
-relaunch. All three installed artifacts still match dist hashes.
+Test-only profile candidateQWmkwQ main1ed1b68b415ebc1e4418770523ce67c2dbb06023addcbce93f79b289a74fe41a uses matched baseline CSS for timing control; product TS499 source hashes match8GHKos, only later product CSS wrapping differs. Profiler preserves calls/awaits, bounds128events, owns/removes its controller. Each final profiler restored exact normal executable/config/workspace and verified no profile controller. Earlier app-baselineiFQm8U audit failed on removal of dormant unregistered false Templater ribbon entry; raw bytes preserved; fresh canonical baseline35eEDI passed. Retain earlier failure.
 
-Key managed evidence labels: `neighborhood-admission-final-J2gytJ`,
-`neighborhood-native-stage-YPYpBn`, `neighborhood-native-rename-visible-Es9k6z`,
-`neighborhood-native-visible-drags-BoGvFm`, `neighborhood-native-semantics-JgC4aw`,
-`neighborhood-native-facets-55v9b6`, `neighborhood-native-restart-idle-poOb5n`,
-`neighborhood-native-clean-cache-npuzsP`, `neighborhood-native-whole-process-orwtY0`,
-and `neighborhood-final-audit-after-process-restarts-mnWeiW` (all dated 2026-11-11).
+## Restart/cache safety acceptance
 
-Remaining acceptance: macOS, physical Android/iOS touch/keyboard interaction,
-minimum-host testing, actual OS sleep/resume and native large-vault restart/paint
-latency were not performed. Highest-probability manual risks are native drag versus
-list scrolling on touch and cross-window drags; repeat rename/IME and owning-window
-behavior separately on those platforms. Windows Small and a 20,015-owner browser
-fixture do not replace these gates. Full cross-platform release acceptance remains
-unfinished. The maintainer has requested merging after these limitations were
-reported; that authorization does not turn unperformed checks into passing results
-or authorize release publication. The PR must retain these limits and close #282
-only after merge.
+startup-final-native-restart-Ow6D1J PASS against final normal artifact: existing authoringWorkspaceRestart driver created owned custom ontology/topology, naturally activated complete saved graph, then2consecutive unchanged actual Obsidian app:reload cycles. Both retained active generation/settings signature and full-snapshot route, with ZERO sourceInventoryPasses/fullBuildStarts/nodeCatalogStarts/completeSnapshotSaves/checkpointSaves, vaultReads/parses/repairs/resolutionRefreshes, semantic full builds/dependency replay, repository source activations and URL reads.
+
+Pending-save application reload recovered added owner pair with4changed/dependent checks, zero reads/parses/full builds/inventory passes, and exactly1complete save activating a new matching-policy generation. Next unchanged app reload reused it with all zero-work assertions. Driver cleanup and independent outer native/config/inventory/MRU/windows/artifact audit PASS. Final readiness98/98, no work/save pending. Application renderer reload retained Electron process; do not describe this as a full process termination/launch or physical paint measurement.
+
+Shared Obsidian user-data lock was respected. Waited for external Excalidraw runner per user's instruction; never killed/overrode its process/lock or closed its window. User closed foreign vault; actual single Small window3 verified before final measurements/reloads.
+
+## Remaining scope limits
+
+Production Brain20k load-time improvement, physical phones/tablets and macOS remain UNVERIFIED. Broad source/IndexedDB cases cover invalidation/failure/retry/late repair; native acceptance here covers Small custom ontology/topology and pending-save restart, not every production-scale/idle-wake combination. No claim of production3.4s resolution or release readiness beyond this evidence. Further production deployment/restart/mutation needs its own authorized scope.
+
+Validation output remains managed ignored14-day storage, no new committed report. Final independent audit w1qpZD passed all507runtime input hashes and equality of dist/frozen/installed artifacts; normal Settings registered, no profiler/probe/restart controllers, only Small window3, original98Markdown/117physical files and ready/no-pending-work. Validation prune/check and git diff --check PASS. No new commit unless requested.

@@ -1807,6 +1807,45 @@ review holds. `pin-settings` also verifies that custom Folder/Date format rows h
 while Daily Notes settings are selected and return with their saved values intact;
 `pin-settings-daily` is its visual hold phase.
 
+After exact-build staging, `npm run verify:obsidian:authoring-workspace` checks
+custom Challenger materialization through native and K-Plex creation, navigation
+and plugin reload. Set `KPLEX_AUTHORING_LANE=labels` for the independent connector
+caption matrix; `KPLEX_EXPECT_FIXED=true` asserts the candidate captions.
+`npm run verify:obsidian:authoring-workspace-sessions` checks non-destructive
+Off/Recent/unpin transitions with actual native editor/history/group identities,
+folded attached tabs, independent owners and late opens in main/popout windows.
+`npm run verify:obsidian:authoring-workspace-templates` requires the official
+Templater 2.27.0 and Excalidraw 2.29.1+ executables staged temporarily in Small.
+It checks explicit plain/properties/Templater execution, automatic-template
+precedence, the real combined creation form, per-file inverse retry, parser
+failure retention and settings reload. Set `KPLEX_TEMPLATE_LANE=reload` to check
+shared native receipts across actual K-Plex bundle reload while Templater keeps
+running; the default expectation is isolated parser admission and exact handler
+cleanup. `KPLEX_TEMPLATE_RELOAD_EXPECT=overlap` is only for attributing an older
+regression artifact. The staging caller backs up/restores
+companion artifacts and enablement under the shared application lock. These
+lanes require the three explicit test-vault variables and a fresh managed
+`KPLEX_HOST_REPORT_DIR`; their fixtures restore configuration and native layouts.
+Plugin reload and desktop input do not replace full-app restart or physical-phone
+acceptance.
+
+The authoring bundle also supplies `verify:obsidian:authoring-workspace-cache`.
+Choose `KPLEX_CACHE_LANE=pending`, `failure-retry` or `mutations`; the first two
+observe ordinary production persistence deadlines without forcing a flush. The
+failure lane retains the old active generation and uses a genuine later edit to
+schedule its normal retry. These Small-vault functional receipts do not establish
+large-vault performance or replace two unchanged application restarts.
+`verify:obsidian:authoring-workspace-phone` performs reload-aware desktop phone
+emulation, actual palette tab/default-sidebar routing and workspace restoration.
+It restores the prior desktop mode and requires an isolated disposable-vault
+application session before changing mode. Physical-phone acceptance remains separate.
+`verify:obsidian:authoring-workspace-restart` rejects other open vault windows
+before any fixture write. Its Node owner retains cleanup across two unchanged
+application reloads, then a pending-save added-owner reload and final reuse. It
+observes natural activation and asserts unchanged generations and work counters;
+it never forces a rebuild or snapshot flush. These are application renderer
+reloads through Obsidian's command, with the Electron process retained.
+
 `preset-ui` opens the real Facets preset editor from a connected native Settings
 page, exercises aligned dropdowns and the shared paired color/source row, and
 checks centered footer icons and Help/classification spacing at wide and narrow

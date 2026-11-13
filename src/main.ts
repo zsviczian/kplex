@@ -72,6 +72,7 @@ import {calendarDay, calendarDayKey, adjacentJournalEntry, missingJournalDirecti
 import {DailyNoteCalendarModal} from "./ui/DailyNoteCalendarModal";
 import {FileCreationAutomation} from "./adapters/obsidian/fileCreationAutomation";
 import { drawingAutomation, drawingTemplateOptions } from "./adapters/obsidian/drawingTemplates";
+import {markdownTemplateFiles, prepareMarkdownTemplate} from "./adapters/obsidian/creationTemplates";
 import {viewLabel} from "./ui/plexViews/labels";
 import {startupIndexPolicy} from './core/plex/startupIndexPreferences';
 import { tagMembershipPair } from "./ui/structuralConnectionActions";
@@ -140,13 +141,14 @@ import { persistedLayoutDeviceClass, type PersistedLayoutDeviceClass } from "./c
 import { readObsidianPresentationEnvironment } from "./adapters/obsidian/presentationEnvironment";
 import { createObsidianTranslator } from "./adapters/obsidian/localization";
 import { createTranslator, type Translator } from "./lang";
-import { isGraphTabCommandAvailable, isPopoutCommandAvailable, primaryOpenSurface } from "./core/plex/viewPresentation";
+import { isGraphTabCommandAvailable, isGraphSplitCommandAvailable, isPopoutCommandAvailable, primaryOpenSurface } from "./core/plex/viewPresentation";
 import { createAdjacentFileLeaf } from "./adapters/obsidian/adjacentFileLeaf";
 import { isEmbeddedMarkdownLeaf } from "./adapters/obsidian/embeddedMarkdownLeaf";
 import {CanvasPropertyAssignmentActions, type CanvasPropertyAssignmentRequest} from "./ui/CanvasPropertyAssignmentActions";
 import type {PlexPropertyAssignment} from "./core/plex/views/propertyAssignment";
 import { StartupDiagnostics } from "./adapters/obsidian/startupDiagnostics";
 import { writeRelationshipMetadata, SavedRelationshipPendingError, relationshipMetadataPayload } from "./adapters/obsidian/relationshipMetadataWrite";
+import {createReciprocalWriteReceipt, hasIndependentFrontmatterDeclarations, reciprocalOntologyFields, type ReciprocalOntologyFields} from "./adapters/obsidian/reciprocalRelationshipWrite";
 import { SOURCE_DECODE_BUDGET_BYTES } from "./index/SourceFacts";
 import { perfNow } from "./util/perf";
 import {captureIndexDiagnostics} from "./adapters/obsidian/indexDiagnosticsReport";
@@ -170,6 +172,7 @@ import { createActionCommandPublisher, type ActionCommandPublisher } from "./ada
 import { actionNodeRef, resolveActionPage } from "./adapters/obsidian/actionNode";
 import {creationAfterSavingActions, effectiveCreationAfterSaving, effectiveCreatedNoteDestination, sanitizeCreationAfterSaving, type CreationAfterSavingAction, type CreatedNoteContext, type CreatedNoteDestination} from "./core/plex/createdNoteDestination";
 import type {CreatedNoteCompletionControl} from "./ui/features/CreationCompletionSelect";
+import type {CreationTypeTabControl} from "./ui/features/CreationTypeTabs";
 import { translateActionText } from "./ui/actionPresentation";
 import { ActionTargetPicker } from "./ui/ActionTargetPicker";
 import { PlexFoldSession, plexFoldIdentity, type PlexFoldCandidate } from "./ui/PlexFoldSession";
@@ -275,6 +278,8 @@ export default class KplexPlugin extends Plugin {
   private appearanceMigrationDialog: NotificationModal | null = null;
   /** The host owns Settings navigation; the tab owns rendered shortcut controls and cleanup. */
   private settingsTab: KplexSettingTab | null = null;
+  private settingsTabRegistrationTimer: number | null = null;
+  private settingsTabRegistered = false;
   private periodicPinRuntime: PeriodicPinRuntime | null = null;
   private periodicPinTimer: number | null = null;
   private periodicPinSignature: string | null = null;
@@ -537,7 +542,6 @@ export default class KplexPlugin extends Plugin {
     this.registerDomEvent(this.app.workspace.containerEl.ownerDocument, "visibilitychange", /** Resume changes presentation only. */ () => this.refreshPeriodicPins());
     this.refreshPeriodicPins();
     this.settingsTab = new KplexSettingTab(this.app, this);
-    this.addSettingTab(this.settingsTab);
     this.registerEditorSuggest(new OntologySuggester(this));
     this.addRibbonIcon("brain-circuit", this.translator("ribbon.open"), () => void this.activateView());
 
@@ -625,6 +629,7 @@ export default class KplexPlugin extends Plugin {
 
 
     this.app.workspace.onLayoutReady(() => {
+      this.scheduleSettingsTabRegistration();
       void (async () => {
         if (this.unloading) return;
         this.installPreRestoreChangeFence();
@@ -674,6 +679,36 @@ export default class KplexPlugin extends Plugin {
 
       })();
     });
+  }
+
+  /** Definition building belongs after native readiness and outside its synchronous initiation task. */
+  private scheduleSettingsTabRegistration(): void {
+    const tab = this.settingsTab;
+    if (this.unloading || !tab || this.settingsTabRegistered || this.settingsTabRegistrationTimer !== null) return;
+    this.settingsTabRegistrationTimer = window.setTimeout(/** Register the captured live owner once; unload also cancels this main-window task. */ () => {
+      this.settingsTabRegistrationTimer = null;
+      if (this.unloading || this.settingsTab !== tab || this.settingsTabRegistered) return;
+      this.registerSettingsTab();
+    }, 0);
+  }
+
+  /** Explicit Settings intent may flush the queued task; failure remains retryable and is reported without escaping a timer. */
+  private registerSettingsTab(): boolean {
+    const tab = this.settingsTab;
+    if (this.unloading || !tab) return false;
+    if (this.settingsTabRegistered) return true;
+    if (this.settingsTabRegistrationTimer !== null) window.clearTimeout(this.settingsTabRegistrationTimer);
+    this.settingsTabRegistrationTimer = null;
+    try {
+      this.addSettingTab(tab);
+      if (this.unloading || this.settingsTab !== tab) return false;
+      this.settingsTabRegistered = true;
+      return true;
+    } catch (error) {
+      console.error("K-Plex settings registration failed", error);
+      if (!this.unloading) new Notice(this.translator("actions.failed"));
+      return false;
+    }
   }
 
   /**
@@ -740,6 +775,8 @@ export default class KplexPlugin extends Plugin {
     for (const resolve of this.layoutReadyWaiters) resolve();
     this.layoutReadyWaiters.clear();
     this.unloading = true;
+    if (this.settingsTabRegistrationTimer !== null) window.clearTimeout(this.settingsTabRegistrationTimer);
+    this.settingsTabRegistrationTimer = null;
     this.fileCreationAutomation.dispose();
     this.nodeLinkClipboard?.dispose();this.nodeLinkClipboard = undefined;
     for (const [timer, resolve] of this.createdEditorWaits) {window.clearTimeout(timer); resolve();}
@@ -2802,6 +2839,7 @@ export default class KplexPlugin extends Plugin {
 
   /** Reuse native page-path navigation with the existing owning-tab fallback for settings cross-links. */
   private openSettingsPage(...pageNames: string[]): boolean {
+    if (!this.registerSettingsTab()) return false;
     if (navigatePluginSettings(this.app, this.manifest.id, pageNames)) return true;
     this.openSettings();
     return pageNames.every(/** Traverse the exact localized native page path only after explicit navigation refusal. */ name => this.settingsTab?.openSettingsPage(name) ?? false);
@@ -2840,13 +2878,13 @@ export default class KplexPlugin extends Plugin {
     /** Wrap a non-writing legacy host operation with one completion/error owner. */
     const completed = (run: () => void | Promise<unknown>): (() => Promise<ActionOutcome>) =>
       async () => { await run(); return { status: "completed" }; };
-    operation("surface.open-tab", completed(() => this.activateView()),
-      /** Preserve device-specific command visibility. */ () => isGraphTabCommandAvailable(readObsidianPresentationEnvironment(window.activeWindow ?? window)) ? enabled : { state: "disabled", reasonKey: "actions.deviceUnavailable" });
+    operation("surface.open-tab", completed(() => this.activateView("leaf")),
+      /** Explicit tab opening remains separate from the phone's generic sidebar default. */ () => isGraphTabCommandAvailable(readObsidianPresentationEnvironment(window.activeWindow ?? window)) ? enabled : { state: "disabled", reasonKey: "actions.deviceUnavailable" });
     operation("surface.new-tab", async context => {
       await this.createPlexTab(context.request.id === "surface.new-tab" ? context.request.args?.placement : undefined, this.actionHostLeaf(context.surfaceId));
       return {status: "completed"};
     },
-      /** Additional tabs share the existing desktop/tablet surface policy. */ () => isGraphTabCommandAvailable(readObsidianPresentationEnvironment(window.activeWindow ?? window)) ? enabled : { state: "disabled", reasonKey: "actions.deviceUnavailable" });
+      /** Adjacent tab groups retain the existing desktop/tablet policy. */ () => isGraphSplitCommandAvailable(readObsidianPresentationEnvironment(window.activeWindow ?? window)) ? enabled : { state: "disabled", reasonKey: "actions.deviceUnavailable" });
     operation("surface.open-popout", completed(() => this.activateViewInPopout()),
       /** Phone/tablet surfaces do not publish an available desktop popout operation. */ () => isPopoutCommandAvailable(readObsidianPresentationEnvironment(window.activeWindow ?? window)) ? enabled : { state: "disabled", reasonKey: "actions.deviceUnavailable" });
     operation("surface.open-sidepanel", completed(() => this.activateSidepanel()));
@@ -3788,7 +3826,7 @@ export default class KplexPlugin extends Plugin {
     const environment = readObsidianPresentationEnvironment();
     return {
       focusOpenTab: this.findOpenFileLeaf(file) !== null,
-      adjacentPane: isGraphTabCommandAvailable(environment),
+      adjacentPane: isGraphSplitCommandAvailable(environment),
       popoutWindow: isPopoutCommandAvailable(environment),
     };
   }
@@ -4041,10 +4079,12 @@ export default class KplexPlugin extends Plugin {
     await this.setDocumentSyncMode(hostLeaf, "pinned", page);
   }
 
-  /** Change native follow ownership, with explicit pinning retiring passive work on its target. */
+  /** Change native follow ownership. Releasing a managed companion preserves its displayed document;
+   * ordinary link opt-in retains its initial synchronization and pinning retires older passive work. */
   async setDocumentSyncMode(hostLeaf: WorkspaceLeaf, mode: DocumentSyncMode, page?: GraphPage): Promise<TFile | null> {
     const session = this.documentSession(hostLeaf);
     if (!session) return null;
+    const releasingSidecar = mode !== "pinned" && this.sidecarLeaves.has(hostLeaf);
     session.retire();
     this.passiveSidecarSyncRequests.delete(hostLeaf);
     session.preferences.documentSyncMode = mode;
@@ -4059,7 +4099,9 @@ export default class KplexPlugin extends Plugin {
     }
     session.persist();
     this.notifySidecar();
-    if (page && mode !== "off") await this.syncPageToDocumentLeaf(page, hostLeaf);
+    // Releasing ownership leaves the document/editor untouched; later Recent navigation uses
+    // its ordinary follow path. An ordinary link opt-in still performs its existing initial sync.
+    if (page && mode !== "off" && !releasingSidecar) await this.syncPageToDocumentLeaf(page, hostLeaf);
     return null;
   }
 
@@ -5283,11 +5325,12 @@ export default class KplexPlugin extends Plugin {
     if (leaf && leaf.view === view && current()) await this.focusInKplex(path, leaf);
   }
 
-  async activateView(): Promise<void> {
+  /** Generic opening follows device defaults; an explicit tab command reuses this native path. */
+  async activateView(explicitSurface?: "leaf"): Promise<void> {
     // Phones intentionally route the generic/open-ribbon action to the sidepanel. Tablets retain
     // the normal graph tab because there is enough screen real-estate to make that useful.
     const environment = readObsidianPresentationEnvironment();
-    const target = primaryOpenSurface(environment, this.settings.startInPopout);
+    const target = explicitSurface ?? primaryOpenSurface(environment, this.settings.startInPopout);
     if (target === "sidepanel") {
       await this.activateSidepanel();
       return;
@@ -5940,6 +5983,7 @@ export default class KplexPlugin extends Plugin {
 
   /** Open the native plugin settings tab, or display localized guidance when the host controller is unavailable. */
   openSettings(): void {
+    if (!this.registerSettingsTab()) return;
     // Obsidian currently has no public Plugin API method for programmatically opening a
     // specific settings tab. Keep the internal bridge isolated and guarded so the rest of
     // K-Plex only relies on the public API surface.
@@ -6262,8 +6306,9 @@ export default class KplexPlugin extends Plugin {
     if (!(await this.index.prepareRelationshipPair(sourcePath, targetPath))) throw new SavedRelationshipPendingError(this.translator("relation.savedUpdatePending"));
   }
 
-  /** Persist a selected ontology move and await all affected metadata/body observations before returning. */
-  private async writeRelationship(storageFile: TFile, target: GraphPage, field: string, referenceOverride?: string): Promise<void> {
+  /** Persist a selected ontology move and await metadata/body observations; optional policy consent
+   * is rechecked inside the native read before changing properties. */
+  private async writeRelationship(storageFile: TFile, target: GraphPage, field: string, referenceOverride?: string, beforeMutation?: () => boolean): Promise<void> {
     if (!this.index.isSemanticWriteReady(storageFile.path, target.path)
       && !(await this.index.prepareRelationshipPair(storageFile.path, target.path, this.index.get(target.path) ? undefined : target))) {
       throw new Error(this.translator("relation.preparingRelationship"));
@@ -6278,6 +6323,7 @@ export default class KplexPlugin extends Plugin {
     const reference = referenceOverride ?? this.referenceForPage(target, storageFile);
 
     await this.mutateRelationshipMetadata(storageFile, new Set([...ontologyFields, desiredNormalized]), (frontmatter: Record<string, unknown>) => {
+      if (beforeMutation?.() === false) throw new Error(this.translator("addRelated.endpointChanged"));
       let desiredKey = field;
       for (const key of Object.keys(frontmatter)) {
         const normalizedKey = normalizeFieldName(key);
@@ -6296,7 +6342,7 @@ export default class KplexPlugin extends Plugin {
       if (this.valueContainsTarget(current, storageFile, target)) return;
       if (Array.isArray(current)) frontmatter[desiredKey] = [...(current as unknown[]), reference];
       else frontmatter[desiredKey] = [current, reference];
-    }, target.path);
+    }, target.path, beforeMutation);
   }
 
   /** Append one explicit ontology through the existing metadata/publication owner, preserving other declarations and optional caller spelling. */
@@ -6365,15 +6411,70 @@ export default class KplexPlugin extends Plugin {
     return this.createRelationToPage(origin, semanticRole, selectedPage, selectedField);
   }
 
+  /** Execute two explicit Markdown declarations through the existing native metadata owners.
+   * Source-ready edits retain normal forward replacement/append behavior. A just-created file
+   * uses additive native writes after its exact-file template barrier, without awaiting indexing.
+   * A partial receipt retains both approved file identities and retries only missing declarations. */
+  private async writeReciprocalRelationship(origin: GraphPage, target: GraphPage, semanticRole: RelationshipRole,
+    selectedField: string, storeOnTarget = false, referenceOverride?: string, sourceReady = true, additiveOnly = true,
+    approvedFields?: ReciprocalOntologyFields | null): Promise<void> {
+    const sourceFile = eligibleRelationshipOwner(this.app, origin), targetFile = eligibleRelationshipOwner(this.app, target);
+    if (!sourceFile || !targetFile || sourceFile === targetFile) throw new Error(this.translator("reciprocal.requiresMarkdown"));
+    const fields = reciprocalOntologyFields(ontologyConfiguration(this.settings), selectedField, semanticRole);
+    if (!fields || approvedFields === null) throw new Error(this.translator("reciprocal.requiresInverse"));
+    if (approvedFields && (approvedFields.forward !== fields.forward || approvedFields.inverse !== fields.inverse)) throw new Error(this.translator("addRelated.endpointChanged"));
+    const forward = {file: sourceFile, target: targetFile, field: fields.forward};
+    const inverse = {file: targetFile, target: sourceFile, field: fields.inverse};
+    const first = storeOnTarget ? inverse : forward, second = storeOnTarget ? forward : inverse;
+    /** Pairing and opt-in consent cannot be borrowed after a settings edit or plugin retirement. */
+    const current = (): boolean => {
+      if (this.unloading || this.settings.alsoWriteInverseOntology !== true) return false;
+      const configured = reciprocalOntologyFields(ontologyConfiguration(this.settings), selectedField, semanticRole);
+      return configured?.forward === fields.forward && configured.inverse === fields.inverse;
+    };
+    const receipt = createReciprocalWriteReceipt({app: this.app, first, second, current,
+      failureMessage: /** Translate failure independently of the private native cause. */ () => this.translator("reciprocal.partial"),
+      unavailableMessage: /** A retired receipt grants no fresh write approval. */ () => this.translator("addRelated.endpointChanged"),
+      write: /** Each existing writer retains current-policy authority inside FileManager's awaited read. */ async (write, valid) => {
+        const referenced = write.target === targetFile ? target : origin;
+        const reference = write.file === sourceFile ? referenceOverride : undefined;
+        if (sourceReady) {
+          if (write.file === first.file && !additiveOnly) await this.writeRelationship(write.file, referenced, write.field, reference, valid);
+          else await this.addRelationshipOntology(write.file, referenced, write.field, reference, valid, true);
+          return;
+        }
+        const renderedReference = reference ?? this.referenceForPage(referenced, write.file);
+        this.pruneManagedMetadataWrites();
+        this.managedMetadataWrites.set(write.file.path, Date.now() + 15000);
+        await this.app.fileManager.processFrontMatter(write.file, /** Preserve template and concurrent values through an exact native additive mutation. */ (frontmatter: Record<string, unknown>) => {
+          if (!valid()) throw new Error(this.translator("addRelated.endpointChanged"));
+          this.appendRelationshipReference(frontmatter, write.file, referenced, write.field, renderedReference, true);
+        });
+        if (!valid()) throw new SavedRelationshipPendingError(this.translator("relation.savedUpdatePending"));
+        try { this.index.refreshVisibleHostMetadataPreviews(write.file.path); }
+        catch (error) { console.error("K-Plex saved reciprocal relationship preview refresh failed", error); }
+      },
+      afterWrites: sourceReady ? /** Publication may retry without repeating either durable native declaration. */ () => this.publishSavedRelationship(origin.path, target.path) : undefined,
+    });
+    await receipt.retry();
+  }
+
   /** Persist under exact current pair authority. Native imports without removal authority reuse the existing append-only ontology owner; legacy callers retain automatic relink. */
   async createRelationToPage(origin: GraphPage, semanticRole: RelationshipRole, target: GraphPage, selectedField: string, referenceOverride?: string,
     additiveOnly = false, storeOnTarget = false): Promise<RelationshipWriteResult> {
+    const reciprocal = this.settings?.alsoWriteInverseOntology === true;
+    const approvedFields = reciprocal ? reciprocalOntologyFields(ontologyConfiguration(this.settings), selectedField, semanticRole) : null;
     return this.index.withForegroundPriority(async () => {
       const originPath = origin.path;
       const targetPath = target.path;
       if (originPath === targetPath) return { state: "unavailable" };
       [origin, target] = await this.prepareRelationshipMutation(originPath, targetPath, origin.file, target.file);
       if (storeOnTarget && !eligibleRelationshipOwner(this.app, target)) throw new Error(this.translator("error.relationshipRequiresMarkdownEndpoint"));
+      if (reciprocal !== (this.settings?.alsoWriteInverseOntology === true)) throw new Error(this.translator("addRelated.endpointChanged"));
+      if (reciprocal) {
+        await this.writeReciprocalRelationship(origin, target, semanticRole, selectedField, storeOnTarget, referenceOverride, true, additiveOnly || storeOnTarget, approvedFields);
+        return {state: "saved-published", page: this.index.get(target.path) ?? target};
+      }
       const gate = semanticRole === "parent" ? "top" : semanticRole === "child" ? "bottom" : semanticRole === "left" || semanticRole === "previous" ? "left" : "right";
       if (this.index.gateNeighbourPaths(origin, gate).has(target.path)) {
         new Notice(this.translator("notice.alreadyConnected"), 1800);
@@ -6421,6 +6522,8 @@ export default class KplexPlugin extends Plugin {
     selectedField: string,
     storagePathOverride: string | null = null,
   ): Promise<RelationshipWriteResult> {
+    const reciprocal = this.settings?.alsoWriteInverseOntology === true;
+    const approvedFields = reciprocal ? reciprocalOntologyFields(ontologyConfiguration(this.settings), selectedField, semanticRole) : null;
     return this.index.withForegroundPriority(async () => {
       [center, neighbour] = await this.prepareRelationshipMutation(center.path, neighbour.path, center.file, neighbour.file);
       const centerFile = center.file?.extension === "md" ? center.file : null;
@@ -6435,6 +6538,12 @@ export default class KplexPlugin extends Plugin {
         ? storagePathOverride
         : (candidates.length > 0 ? candidates[0] : null);
       if (!storagePath) storagePath = centerFile?.path ?? neighbourFile?.path ?? null;
+
+      if (reciprocal !== (this.settings?.alsoWriteInverseOntology === true)) throw new Error(this.translator("addRelated.endpointChanged"));
+      if (reciprocal) {
+        await this.writeReciprocalRelationship(center, neighbour, semanticRole, selectedField, storagePath === neighbourFile?.path, undefined, true, true, approvedFields);
+        return {state: "saved-published", page: this.index.get(neighbour.path) ?? neighbour};
+      }
 
       if (storagePath === centerFile?.path && centerFile) {
         await this.addRelationshipOntology(centerFile, neighbour, selectedField);
@@ -6483,19 +6592,21 @@ export default class KplexPlugin extends Plugin {
       // Prefer the note that already owns the defining relationship evidence. If both Markdown
       // notes are valid declarers, RelationModal exposes a small "Store relationship in" chooser
       // with this intelligent choice preselected. We update one canonical frontmatter declaration,
-      // rather than duplicating metadata in both notes. If the relationship previously had YAML on
-      // the opposite note, remove that stale declaration first; body ontology is retained and the
-      // resolver records it as overridden evidence when it conflicts with the new YAML authority.
+      // rather than mirroring a relink. If both notes independently declare frontmatter evidence,
+      // changing one owner must retain the other declaration. A single-owner storage move keeps
+      // its legacy cleanup; body evidence always remains independently authored.
+      const existingEvidence = this.index.evidenceBetween(center.path, neighbour.path);
+      const independentOwners = hasIndependentFrontmatterDeclarations(existingEvidence, center.path, neighbour.path);
       const existingFrontmatterOwners = new Set(
-        this.index.evidenceBetween(center.path, neighbour.path)
+        existingEvidence
           .filter((item) => item.sourceKind === "frontmatter-ontology")
           .map((item) => item.declaredByPath),
       );
       const cleanup: Promise<void>[] = [];
-      if (centerFile && storagePath !== centerFile.path && existingFrontmatterOwners.has(centerFile.path)) {
+      if (!independentOwners && centerFile && storagePath !== centerFile.path && existingFrontmatterOwners.has(centerFile.path)) {
         cleanup.push(this.clearFrontmatterRelationship(centerFile, neighbour));
       }
-      if (neighbourFile && storagePath !== neighbourFile.path && existingFrontmatterOwners.has(neighbourFile.path)) {
+      if (!independentOwners && neighbourFile && storagePath !== neighbourFile.path && existingFrontmatterOwners.has(neighbourFile.path)) {
         cleanup.push(this.clearFrontmatterRelationship(neighbourFile, center));
       }
       if (cleanup.length) await Promise.all(cleanup);
@@ -6583,6 +6694,35 @@ export default class KplexPlugin extends Plugin {
     return drawingTemplateOptions(this.settings.lastDrawingTemplatePath);
   }
 
+  /** One metadata-only catalogue for every creation shell; path identities retain actual output kinds. */
+  creationTemplateOptions(): {files: readonly {path: string; kind: "markdown" | "excalidraw"}[]; selected: string; root: string; validate(path: string, kind: "markdown" | "excalidraw"): void} {
+    const drawings = this.drawingTemplateOptions(), drawingPaths = new Set(drawings?.files.map(file => file.path));
+    const folder = this.settings.markdownTemplateFolder;
+    const captured = [
+      ...markdownTemplateFiles(this.app, folder).filter(file => !drawingPaths.has(file.path)).map(file => ({file, kind: "markdown" as const})),
+      ...(drawings?.files ?? []).map(file => ({file, kind: "excalidraw" as const})),
+    ].map(({file, kind}) => ({file, kind, path: file.path, mtime: file.stat.mtime, size: file.stat.size}));
+    return {files: captured.map(({path, kind}) => ({path, kind})), selected: drawings?.selected ?? "", root: "",
+      validate: /** Only explicit Save validates captured native template authority; browsing executes nothing. */ (path, kind) => {
+        if (!path) return;
+        const selected = captured.find(entry => entry.path === path && entry.kind === kind);
+        if (!selected || this.unloading || selected.file.path !== path || this.app.vault.getFileByPath(path) !== selected.file
+          || selected.file.stat.mtime !== selected.mtime || selected.file.stat.size !== selected.size
+          || kind === "markdown" && this.settings.markdownTemplateFolder !== folder) throw new Error(this.translator("template.changed"));
+      }};
+  }
+
+  /** Share explicit tab memory across creation forms, independently of successful physical creations. */
+  creationTypeTabControl(): CreationTypeTabControl {
+    return {value: this.settings.newNodeCreationTab,
+      onChange: /** Only an explicit supported tab selection writes through the existing serialized settings owner. */ kind => {
+        if (kind !== "markdown" && kind !== "excalidraw" && kind !== "placeholder" || this.settings.newNodeCreationTab === kind) return;
+        this.settings.newNodeCreationTab = kind;
+        void this.saveSettings(false, false);
+      }};
+  }
+
+  /** Successful physical creation retains its legacy default independently of the last selected tab. */
   async rememberNewNodeDefaultType(kind: "markdown" | "excalidraw"): Promise<void> {
     if (this.settings.newNodeDefaultType === kind) return;
     this.settings.newNodeDefaultType = kind;
@@ -7621,6 +7761,23 @@ export default class KplexPlugin extends Plugin {
 
   /** Create the requested physical note in its target folder and localize user-visible errors without changing vault path semantics. */
   private async createNewFileInFolder(leafName: string, kind: GhostMaterializationKind, configuredFolder: string, parentCurrent?: () => boolean, templatePath?: string): Promise<TFile | null> {
+    if (kind === "markdown" && templatePath) {
+      const folder = this.settings.markdownTemplateFolder, template = this.app.vault.getFileByPath(templatePath);
+      if (!template || !markdownTemplateFiles(this.app, folder).includes(template)
+        || this.drawingTemplateOptions()?.files.some(file => file === template)) throw new Error(this.translator("template.changed"));
+      const path = template.path, mtime = template.stat.mtime, size = template.stat.size;
+      /** Revoke an unstarted native create when the captured source, preference or caller retires
+       * during folder creation; the same fence also owns preparation and template publication. */
+      const current = (): boolean => !this.unloading && (!parentCurrent || parentCurrent()) && this.settings.markdownTemplateFolder === folder
+        && this.app.vault.getFileByPath(path) === template && template.path === path && template.stat.mtime === mtime && template.stat.size === size;
+      const run = await prepareMarkdownTemplate(this.app, template, leafName,
+        current,
+        () => new Error(this.translator("template.changed")), () => new Error(this.translator("template.unsupported")));
+      const destination = normalizePath(configuredFolder ? `${configuredFolder}/${leafName}.md` : `${leafName}.md`);
+      return this.fileCreationAutomation.create(() => this.createNativeFileInFolder(leafName, kind, configuredFolder, current), {path: destination, run});
+    }
+    if (kind === "excalidraw" && templatePath && !this.drawingTemplateOptions()?.files.some(file => file.path === templatePath))
+      throw new Error(this.translator("template.kindMismatch"));
     return this.createFileWithAutomation(() => this.createNativeFileInFolder(leafName, kind, configuredFolder, parentCurrent, templatePath));
   }
 
@@ -8008,7 +8165,10 @@ export default class KplexPlugin extends Plugin {
    * file may be opened immediately while the ordinary metadata/source lane reconciles the graph.
    */
   async linkNewRelatedFile(origin: GraphPage, semanticRole: RelationshipRole, file: TFile, selectedField: string, rawAlias = "", rawDisplayName = "", recoverMetadata = false, storeOnTarget = false): Promise<{ state: "saved-pending"; page: GraphPage }> {
+    const reciprocal = this.settings?.alsoWriteInverseOntology === true;
+    const approvedFields = reciprocal ? reciprocalOntologyFields(ontologyConfiguration(this.settings), selectedField, semanticRole) : null;
     await this.fileCreationAutomation.wait(file);
+    if (reciprocal !== (this.settings?.alsoWriteInverseOntology === true)) throw new Error(this.translator("addRelated.endpointChanged"));
     return this.index.withForegroundPriority(async () => {
       if (this.app.vault.getFileByPath(file.path) !== file) throw new Error(this.translator("addRelated.endpointChanged"));
       // Recovery reuses this exact durable file, completing idempotent presentation writes that
@@ -8033,6 +8193,10 @@ export default class KplexPlugin extends Plugin {
         && this.app.vault.getFileByPath(targetPath) === file
         && (!originFile || originFile.path === originPath && this.app.vault.getFileByPath(originPath) === originFile);
       if (!current()) throw new Error(this.translator("addRelated.endpointChanged"));
+      if (reciprocal) {
+        await this.writeReciprocalRelationship(origin, target, semanticRole, selectedField, storeOnTarget, undefined, false, true, approvedFields);
+        return {state: "saved-pending", page: this.index.get(targetPath) ?? target};
+      }
       const storageFile = storeOnTarget ? eligibleRelationshipOwner(this.app, target)
         : eligibleRelationshipOwner(this.app, origin) ?? eligibleRelationshipOwner(this.app, target);
       if (!storageFile) throw new Error(this.translator("error.relationshipRequiresMarkdownEndpoint"));
@@ -8446,7 +8610,7 @@ export default class KplexPlugin extends Plugin {
       (kind, folderPath, retainedFile, current, templatePath, afterSaving) => this.materializeGhostPage(page, validation.stem, kind, folderPath, rawLeafName, retainedFile, continuation,
         /** Combine the modal's submit lease with this exact native owner. */ () => (!current || current()) && ownerCurrent(), preserveCenter, hostLeaf, templatePath, afterSaving),
       chooseFolder,
-      this.drawingTemplateOptions(),
+      this.creationTemplateOptions(),
       this.createdNoteCompletionControl(hostLeaf, {another: false, follow: false}),
       daily && dailySettings ? {path: daily.path, create: (retainedFile, current, afterSaving) => {
         const valid = (): boolean => current() && ownerCurrent() && dailyNotesSettingsCurrent(this.app, dailySettings)
@@ -8456,6 +8620,7 @@ export default class KplexPlugin extends Plugin {
         return this.materializeGhostPage(page, name, "markdown", dailyFolder ?? "", rawLeafName, retainedFile, continuation,
           valid, preserveCenter, hostLeaf, undefined, afterSaving, daily.date);
       }} : undefined,
+      this.creationTypeTabControl(),
     ).open();
   }
 

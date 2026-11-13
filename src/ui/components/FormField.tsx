@@ -3,12 +3,13 @@
 import type {ReactNode} from "react";
 
 /** Labels remain visibly associated with their controls without redundant tooltip attributes. */
-export function FormField({label, controlId, children, layout = "stacked", className = ""}: {
-  label: string; controlId: string; children: ReactNode; layout?: "stacked" | "option"; className?: string;
+export function FormField({label, controlId, children, layout = "stacked", actions, className = ""}: {
+  label: string; controlId: string; children: ReactNode; layout?: "stacked" | "option" | "inline"; actions?: ReactNode; className?: string;
 }) {
-  return <div className={`${layout === "option" ? "kplex-form-option" : "kplex-form-field kplex-react-field"} ${className}`}>
+  return <div className={`${layout === "option" ? "kplex-form-option" : layout === "inline" ? "kplex-form-inline" : "kplex-form-field kplex-react-field"}${actions ? " has-actions" : ""} ${className}`}>
     <label id={`${controlId}-label`} htmlFor={controlId}>{label}</label>
     {children}
+    {actions ? <div className="kplex-field-actions">{actions}</div> : null}
   </div>;
 }
 

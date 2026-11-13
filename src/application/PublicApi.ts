@@ -123,7 +123,7 @@ export class PublicApi {
     return this.read(options,()=>{
       if(options.format!==undefined&&options.format!=='json'&&options.format!=='markdown')throw new PublicApiError('INVALID_ARGUMENT','Unknown guide format');
       const model=this.ontologyModel(options);
-      const syntax={frontmatter:'Use the exact physical field as a YAML property and an Obsidian note link as its value.',inline:'Use the exact physical field followed by :: and an Obsidian note link.',inverse:'Either endpoint can declare one physical property. K-Plex does not write a reciprocal property automatically.',undocumented:'A missing description supplies no authored meaning. Discovered unassigned fields do not define relationships.'};
+      const syntax={frontmatter:'Use the exact physical field as a YAML property and an Obsidian note link as its value.',inline:'Use the exact physical field followed by :: and an Obsidian note link.',inverse:'Either endpoint can declare one physical property. Default authoring writes one owner; the optional Also write inverse ontology preference adds the configured inverse only during explicit Markdown authoring.',undocumented:'A missing description supplies no authored meaning. Discovered unassigned fields do not define relationships.'};
       return options.format==='markdown'?['# K-Plex ontology',...Object.values(syntax),'',...model.fields.map(field=>`${literal(field.name)} (${field.role}${field.partner?`; inverse ${literal(field.partner)}`:''}): ${field.description?literal(field.description):'No authored description.'}`)].join('\n'):{...model,syntax};
     },{scope:'configuration',complete:true,pending:false,discoveryComplete:false});
   }
