@@ -601,6 +601,7 @@ for (const file of [
   "src/ui/HiddenFieldSetupModal.ts",
   "src/util/perf.ts",
   "src/main.ts",
+  "src/adapters/obsidian/nativeStartupGate.ts",
   "src/adapters/obsidian/fileMenu.ts",
   "src/adapters/obsidian/drawingTemplates.ts",
   "src/adapters/obsidian/nativeSubmenu.ts",

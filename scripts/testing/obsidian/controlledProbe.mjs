@@ -48,7 +48,7 @@ export async function runControlledProbe(name,scenario,definitions='',extraSourc
       if(window.kplexIndexingProbe)throw Error('Existing indexing controller');
       const c=window.kplexIndexingProbe={done:false,closed:false};
       ${definitions}
-      c.task=(${scenario.toString()})(app,c).then(/** Complete only after scenario cleanup succeeds. */ value=>{c.value=value;c.done=true;},/** Retain all failures for the driver. */ error=>{c.error=String(error);c.done=true;});
+      c.task=(async()=>{const plugin=app.plugins.plugins['k-plex'];if(plugin?.whenInitialized&&!await plugin.whenInitialized())throw Error('K-Plex initialization failed');return (${scenario.toString()})(app,c);})().then(/** Complete only after scenario cleanup succeeds. */ value=>{c.value=value;c.done=true;},/** Retain all failures for the driver. */ error=>{c.error=String(error);c.done=true;});
       return JSON.stringify({started:true});
     })()`);assert(started.started);
     const end=Date.now()+maximumMs;

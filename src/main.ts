@@ -58,6 +58,7 @@
  * linking retain shared template/confirmation/composer owners and separate chronological field memory.
  */
 import { registerFileMenus, type FilePlexNode, type FilePlexTarget } from "./adapters/obsidian/fileMenu";
+import {installNativeStartupGate} from "./adapters/obsidian/nativeStartupGate";
 import {moveSavedPin, savedPinEntries, fixedPinPaths, isPeriodicPin, type PinPeriod, type SavedPinMove} from "./core/plex/savedPins";
 import {resolveSavedPins, setPeriodicPinEnabled, type PeriodicPinRuntime, type PeriodicPinConfiguration, type ResolvedSavedPin} from "./core/plex/periodicPins";
 import {MoveNodeModal} from "./ui/MoveNodeModal";
@@ -265,6 +266,26 @@ export default class KplexPlugin extends Plugin {
   readonly viewSettingsRegistry = builtInCanvasViewSettings;
   settings: KplexSettings = DEFAULT_SETTINGS;
   index!: GraphIndex;
+  private initializationComplete = false;
+  private resolveInitialization: ((ready: boolean) => void) | null = null;
+  private readonly initializationReady = new Promise<boolean>(/** The plugin lifetime owns terminal readiness, including unload before native data resolves. */ resolve => {this.resolveInitialization = resolve;});
+  private initializationTask: Promise<void> | null = null;
+  private readonly initializationSourceChanges = new Map<TFile, string | undefined>();
+
+  /** Native plugin CSS loading can finish after teardown; immediately release any late resource registration. */
+  override register(callback: Parameters<Plugin["register"]>[0]): void {
+    if (this.unloading) {callback();return;}
+    super.register(callback);
+  }
+
+  /** Await saved settings and registered services; false means initialization failed or this instance retired. This never waits for semantic indexing. */
+  whenInitialized(): Promise<boolean> {return this.unloading ? Promise.resolve(false) : this.initializationReady;}
+
+  /** Release every initialization waiter once without publishing defaults as an initialized configuration. */
+  private finishInitialization(ready: boolean): void {
+    const resolve = this.resolveInitialization;if (!resolve) return;
+    this.initializationComplete = ready;this.resolveInitialization = null;resolve(ready);
+  }
   /** Shared action engine; React surface ports retain their own state and owning document. */
   actionManager!: ActionManager;
   private actionPublisher: ActionCommandPublisher | null = null;
@@ -486,7 +507,30 @@ export default class KplexPlugin extends Plugin {
     this.translator = createObsidianTranslator();
     this.nodeLinkClipboard = new NodeLinkClipboard(this.app, /** Feedback belongs to this plugin's active catalog. */ key => {new Notice(this.translator(key));});
     this.registerEvent(this.app.workspace.on("editor-paste", /** The native receiver supplies destination context, including embedded and popout editors. */ (event, editor, info) => this.nodeLinkClipboard?.paste(event, editor, info)));
+    this.registerView(KPLEX_VIEW_TYPE, (leaf: WorkspaceLeaf) => new KplexView(leaf, this));
+    this.registerView(KPLEX_SIDEPANEL_VIEW_TYPE, (leaf: WorkspaceLeaf) => new KplexSidepanelView(leaf, this));
+    this.addRibbonIcon("brain-circuit", this.translator("ribbon.open"), () => void this.activateView());
+    this.installPreRestoreChangeFence();
+    this.register(/** External settings may acquire this main-window clock while startup migration is still pending. */ () => this.stopPeriodicPinTimer());
+    installNativeStartupGate(this, this.app.workspace, /** Loading shells restore before the owned native CSS/workspace admission task. */ () => {
+      if (this.unloading) return;
+      this.initializationTask = this.initializePlugin().then(
+        /** Native services and the truthful configuration API now exist; graph readiness remains independent. */ () => this.finishInitialization(!this.unloading),
+        /** Background failure has one notice/cleanup owner and never escapes as an unhandled rejection. */ error => {
+          console.error("K-Plex initialization failed", error);
+          this.finishInitialization(false);
+          try {if (!this.unloading) new Notice(this.translator("actions.failed"));} catch (noticeError) {console.error("K-Plex initialization notice failed", noticeError);}
+          this.unloading = true;
+          try {this.unload();} catch (cleanupError) {console.error("K-Plex failed initialization cleanup failed", cleanupError);}
+        },
+      );
+    }, /** Native CSS rejection remains the host's error channel; pending callers still settle without a duplicate Notice. */ () => this.finishInitialization(false));
+  }
+
+  /** Persisted settings/services start in the owned post-CSS/workspace task; graph admission remains separately owned. */
+  private async initializePlugin(): Promise<void> {
     const ownData: unknown = await this.loadData();
+    if (this.unloading) return;
     const hasOwnData = ownData !== null && ownData !== undefined;
     const ownRecord = ownData && typeof ownData === "object" ? ownData as Record<string, unknown> : null;
     // A persisted record is an existing installation even when newer fields/old flags are absent.
@@ -506,11 +550,16 @@ export default class KplexPlugin extends Plugin {
     }
     if (hasOwnData && (initializedChanged || actionMigration.migrated || Object.prototype.hasOwnProperty.call(ownRecord, "noteTypeStyles")
       || (ownRecord?.appearanceThemes as {version?: unknown} | undefined)?.version === 1 && this.settings.appearanceThemes?.version === 2)) {
-      try {await this.persistSettingsSnapshot(true);} catch {this.reportExternalSettingsFailure();}
+      try {await this.persistSettingsSnapshot(true);} catch {if (!this.unloading) this.reportExternalSettingsFailure();}
     }
 
+    if (this.unloading) return;
     this.startupDiagnostics.mark("settings-loaded");
     this.index = new GraphIndex(this, this.app, true, this.startupIndexPolicy.mode);
+    // Replay only genuine early body/destructive events through the existing deferred source owner.
+    // Metadata-cache inventory waves and startup create notifications never become body-dirty work.
+    for (const [file, oldPath] of this.initializationSourceChanges) this.index.observeDeferredHostChange(file, true, oldPath);
+    this.initializationSourceChanges.clear();
     this.publicApiOwner=createPublicApi(this,()=>!this.unloading,()=>this.getIndexDiagnosticsStatus());
     this.publicCanvases=this.publicApiOwner.canvases;this.api=this.publicApiOwner.api;
     this.disposePublicApiWindows=publishPublicApiWindows(this.app.workspace,this.api,
@@ -531,19 +580,15 @@ export default class KplexPlugin extends Plugin {
         if (file.extension === "md") void this.index.refreshUrlOwner(file.path);
       } }));
 
-    this.registerView(KPLEX_VIEW_TYPE, (leaf: WorkspaceLeaf) => new KplexView(leaf, this));
-    this.registerView(KPLEX_SIDEPANEL_VIEW_TYPE, (leaf: WorkspaceLeaf) => new KplexSidepanelView(leaf, this));
     this.registerHoverLinkSource(KPLEX_VIEW_TYPE, { display: "K-Plex", defaultMod: false });
     // Every surface emits the canonical primary source. Keep native view IDs independent of
     // Page Preview preferences so the same user choice also applies to Sidecar and popouts.
-    this.register(/** Main-window coordination survives closing popouts but stops at plugin unload. */ () => this.stopPeriodicPinTimer());
     this.registerEvent(this.app.workspace.on("layout-change", /** Reveals re-resolve the current local period. */ () => this.refreshPeriodicPins()));
     this.registerDomEvent(window, "focus", /** Suspended timers cannot leave the next foreground display stale. */ () => this.refreshPeriodicPins());
     this.registerDomEvent(this.app.workspace.containerEl.ownerDocument, "visibilitychange", /** Resume changes presentation only. */ () => this.refreshPeriodicPins());
     this.refreshPeriodicPins();
     this.settingsTab = new KplexSettingTab(this.app, this);
     this.registerEditorSuggest(new OntologySuggester(this));
-    this.addRibbonIcon("brain-circuit", this.translator("ribbon.open"), () => void this.activateView());
 
     this.initializeActions();
 
@@ -631,7 +676,7 @@ export default class KplexPlugin extends Plugin {
     this.app.workspace.onLayoutReady(() => {
       this.scheduleSettingsTabRegistration();
       void (async () => {
-        if (this.unloading) return;
+        if (!await this.whenInitialized() || this.unloading) return;
         this.installPreRestoreChangeFence();
         // The native tree may have settled since plugin load. Saved navigation must not await
         // appearance persistence, the vault-wide search catalog or semantic cache restoration.
@@ -643,9 +688,8 @@ export default class KplexPlugin extends Plugin {
           initializeThemes: {existing: hasOwnData || legacySettings !== null, adoptNativeBase: true, notifyMigration: hasOwnData},
           ...(legacySettings === null ? {} : {legacyImport: legacySettings}),
         });} catch (error) {if (!this.externalSettingsReceived) throw error;}
-        if (legacySettings !== null && !this.externalSettingsReceived) new Notice(this.translator("notice.excaliBrainSettingsImported"), 2600);
-
         if (this.unloading) return;
+        if (legacySettings !== null && !this.externalSettingsReceived) new Notice(this.translator("notice.excaliBrainSettingsImported"), 2600);
         this.layoutReady = true;
         for (const resolve of this.layoutReadyWaiters) resolve();
         this.layoutReadyWaiters.clear();
@@ -658,6 +702,7 @@ export default class KplexPlugin extends Plugin {
         // run. This uses only Obsidian's restored workspace geometry/view state; it must not wait
         // for the semantic graph or create a new split.
         for (const restoredHost of this.app.workspace.getLeavesOfType(KPLEX_VIEW_TYPE)) {
+            if (this.unloading) return;
             try {
               await this.restorePersistedSidecar(restoredHost);
             } catch (error) {
@@ -677,7 +722,10 @@ export default class KplexPlugin extends Plugin {
           this.notifySidecar();
         }, 3000);
 
-      })();
+      })().catch(/** Workspace preparation remains separate from service readiness, with one owned failure report. */ error => {
+        console.error("K-Plex workspace initialization failed", error);
+        if (!this.unloading) new Notice(this.translator("actions.failed"));
+      });
     });
   }
 
@@ -769,12 +817,14 @@ export default class KplexPlugin extends Plugin {
 
   /** Release action publications, surface registrations and host resources before index teardown. */
   onunload(): void {
+    this.unloading = true;
+    this.initializationComplete = false;
+    this.finishInitialization(false);
     this.indexingHistory?.close();
     this.indexingHistory = null;
     this.startupDiagnostics.observeActivityBoundary(null);
     for (const resolve of this.layoutReadyWaiters) resolve();
     this.layoutReadyWaiters.clear();
-    this.unloading = true;
     if (this.settingsTabRegistrationTimer !== null) window.clearTimeout(this.settingsTabRegistrationTimer);
     this.settingsTabRegistrationTimer = null;
     this.fileCreationAutomation.dispose();
@@ -974,32 +1024,34 @@ export default class KplexPlugin extends Plugin {
       for (const candidate of this.preRestoreCreatedItems.keys()) if (matches(candidate)) this.preRestoreCreatedItems.delete(candidate);
     };
     const created = this.app.vault.on("create", /** Capture an unchanged native create for later inventory coverage without granting semantic authority. */ (item) => {
-      this.index.invalidateHostStructure();
+      this.index?.invalidateHostStructure();
       mark(item instanceof TFile && item.extension === "md" ? "vault:create-markdown" : "vault:create",
         item instanceof TFile ? item : undefined, item instanceof TFile || item instanceof TFolder ? item : undefined);
       if (!this.indexPreparationAdmitted) {
-        if (this.layoutReady) this.index.observeDeferredHostChange(item);
+        if (this.layoutReady) this.index?.observeDeferredHostChange(item);
         return;
       }
       if (item instanceof TFile) this.index.updateHostFileAvailability(item.path, item);
       else if (item instanceof TFolder) void this.index.updateHostFolderAvailability(item.path, item);
     });
     const deleted = this.app.vault.on("delete", /** Retain destructive invalidation and retire dormant path proof before ordinary native availability updates. */ (item) => {
-      this.index.invalidateHostStructure();
+      if (!this.index && item instanceof TFile && !this.initializationSourceChanges.has(item)) this.initializationSourceChanges.set(item, undefined);
+      this.index?.invalidateHostStructure();
       mark("vault:delete", item instanceof TFile ? item : undefined);
       if (!this.indexPreparationAdmitted) {
         retirePathObservations(item.path, item instanceof TFolder);
-        this.index.observeDeferredHostChange(item); return;
+        this.index?.observeDeferredHostChange(item); return;
       }
       if (item instanceof TFile) this.index.updateHostFileAvailability(item.path);
       else if (item instanceof TFolder) void this.index.updateHostFolderAvailability(item.path);
     });
     const renamed = this.app.vault.on("rename", /** Keep rename reconciliation and remove old dormant coordinates without transferring create coverage. */ (item, oldPath) => {
-      this.index.invalidateHostStructure();
+      if (!this.index && item instanceof TFile && this.initializationSourceChanges.get(item) === undefined) this.initializationSourceChanges.set(item, oldPath);
+      this.index?.invalidateHostStructure();
       mark("vault:rename", item instanceof TFile ? item : undefined);
       if (!this.indexPreparationAdmitted) {
         retirePathObservations(oldPath, item instanceof TFolder);
-        this.index.observeDeferredHostChange(item, true, oldPath); return;
+        this.index?.observeDeferredHostChange(item, true, oldPath); return;
       }
       if (item instanceof TFile) this.index.updateHostFileAvailability(oldPath, item);
       else if (item instanceof TFolder) void this.index.updateHostFolderAvailability(oldPath, item);
@@ -1014,14 +1066,15 @@ export default class KplexPlugin extends Plugin {
       if (this.app.vault.getFileByPath(file.path) !== file) return;
       const previousSourceRevision = this.indexDirtyRevision;
       mark("metadata:changed", file);
-      if (!this.indexPreparationAdmitted) {this.index.observeDeferredHostChange(file, false); return;}
+      if (!this.indexPreparationAdmitted) {this.index?.observeDeferredHostChange(file, false); return;}
       void this.index.refreshVisiblePresentation(file.path);
       if (this.index.refreshVisibleHostMetadataPreviews(file.path, previousSourceRevision)) this.scheduleVisibleMetadataRefresh(file.path);
     });
     const modified = this.app.vault.on("modify", /** Retain actual Markdown body edits independently of create coverage and physical-stat equality. */ file => {
       if (!(file instanceof TFile) || file.extension !== "md") return;
+      if (!this.index && !this.initializationSourceChanges.has(file)) this.initializationSourceChanges.set(file, undefined);
       mark("metadata:changed", file);
-      if (!this.indexPreparationAdmitted) this.index.observeDeferredHostChange(file, true);
+      if (!this.indexPreparationAdmitted) this.index?.observeDeferredHostChange(file, true);
     });
     let released = false;
     /** Retire listeners and transient native tokens idempotently on restore handover or plugin unload. */
@@ -1041,6 +1094,7 @@ export default class KplexPlugin extends Plugin {
       this.preRestoreHadDormantEvent = false;
       this.preRestoreCreatedItems.clear();
       this.preRestoreActualMarkdownChanges.clear();
+      this.initializationSourceChanges.clear();
       this.preRestoreListenerCleanup = null;
     };
     this.preRestoreListenerCleanup = release;
@@ -2184,7 +2238,7 @@ export default class KplexPlugin extends Plugin {
   private documentSession(hostLeaf?: WorkspaceLeaf): KplexDocumentSession | null {
     if (!hostLeaf || this.unloading || !this.leafIsAttached(hostLeaf)) return null;
     const view = hostLeaf.view;
-    if (!(view instanceof KplexView || view instanceof KplexSidepanelView) || view.documentSession.disposed) return null;
+    if (!(view instanceof KplexView || view instanceof KplexSidepanelView) || !view.documentSession || view.documentSession.disposed) return null;
     return view.documentSession;
   }
 
@@ -5297,7 +5351,7 @@ export default class KplexPlugin extends Plugin {
       ? native.path === nativePath && (native instanceof TFolder ? native === this.app.vault.getRoot() ? this.app.vault.getRoot() : this.app.vault.getFolderByPath(nativePath ?? "") : this.app.vault.getFileByPath(path)) === native
       : Boolean(source && source.path === sourcePath && this.app.vault.getFileByPath(sourcePath ?? "") === source
         && !this.app.metadataCache.getFirstLinkpathDest(path, sourcePath ?? "")));
-    if (!current()) return;
+    if (!await this.whenInitialized() || !current()) return;
     if (native instanceof TFolder) this.index.primeSavedNavigation([path]);
     if (!native && !this.index.get(path)) this.index.insertVirtualPage(path);
     const workspace = this.app.workspace;
@@ -5327,6 +5381,7 @@ export default class KplexPlugin extends Plugin {
 
   /** Generic opening follows device defaults; an explicit tab command reuses this native path. */
   async activateView(explicitSurface?: "leaf"): Promise<void> {
+    if (!await this.whenInitialized() || this.unloading) return;
     // Phones intentionally route the generic/open-ribbon action to the sidepanel. Tablets retain
     // the normal graph tab because there is enough screen real-estate to make that useful.
     const environment = readObsidianPresentationEnvironment();
@@ -5460,6 +5515,8 @@ export default class KplexPlugin extends Plugin {
 
   /** Create an additional Plex tab at the captured host; commands retain the adjacent-group default. */
   async createPlexTab(placement: "split" | "tab" = "split", hostLeaf?: WorkspaceLeaf): Promise<void> {
+    const openingView = hostLeaf?.view, openingDocument = openingView?.containerEl.ownerDocument;
+    if (!await this.whenInitialized() || this.unloading || hostLeaf && (!this.leafIsAttached(hostLeaf) || hostLeaf.view !== openingView || hostLeaf.view.containerEl.ownerDocument !== openingDocument)) return;
     this.rememberDocumentLeaf(this.app.workspace.getMostRecentLeaf());
     const leaf = placement === "tab" ? this.createTabInPlexGroup(hostLeaf)
       : hostLeaf && hostLeaf.view.getViewType() !== KPLEX_SIDEPANEL_VIEW_TYPE
@@ -5470,6 +5527,7 @@ export default class KplexPlugin extends Plugin {
 
   /** Activate the native K-Plex sidepanel and report host-opening failures through localized notices. */
   async activateSidepanel(): Promise<void> {
+    if (!await this.whenInitialized() || this.unloading) return;
     this.rememberDocumentLeaf(this.app.workspace.getMostRecentLeaf());
     let leaf: WorkspaceLeaf | null = this.app.workspace.getLeavesOfType(KPLEX_SIDEPANEL_VIEW_TYPE)[0] ?? null;
     if (!leaf) {
@@ -5508,6 +5566,7 @@ export default class KplexPlugin extends Plugin {
 
   /** Activate K-Plex in a supported native popout and localize failure feedback without changing platform availability policy. */
   async activateViewInPopout(): Promise<void> {
+    if (!await this.whenInitialized() || this.unloading) return;
     this.rememberDocumentLeaf(this.app.workspace.getMostRecentLeaf());
     try {
       const leaf = this.app.workspace.getLeaf("window");
@@ -5701,7 +5760,7 @@ export default class KplexPlugin extends Plugin {
     if (this.unloading || !this.settings.pinnedNodes.some(isPeriodicPin)) {this.periodicPinSignature = null;return;}
     const signature = JSON.stringify(this.readSavedPins().filter(/** Only symbolic destinations need calendar refresh. */ row => row.period)
       .map(/** Resume and configuration changes may alter path or availability. */ row => [row.id, row.path, row.state]));
-    if (signature !== this.periodicPinSignature) {this.periodicPinSignature = signature;this.index.notifyPresentation();}
+    if (signature !== this.periodicPinSignature) {this.periodicPinSignature = signature;this.index?.notifyPresentation();}
     this.periodicPinTimer = window.setTimeout(/** Re-enter the same owner after a bounded wait. */ () => {
       this.periodicPinTimer = null;this.refreshPeriodicPins();
     }, 60_000);

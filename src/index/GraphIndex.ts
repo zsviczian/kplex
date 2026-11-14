@@ -135,6 +135,7 @@ import {fixedPinPaths} from "../core/plex/savedPins";
 import type {TAbstractFile} from 'obsidian';
 import {ontologyConfiguration} from "../core/contracts/ontologyConfiguration";
 import { canonicalWebUrl } from "../adapters/obsidian/urlIdentity";
+import {deletedFileNavigationTarget} from "../adapters/obsidian/deletedFileNavigation";
 import { frontmatterUrlLabelSteps } from "../adapters/obsidian/metadataSourceCollector";
 import { remapGraphEndpoint } from "./remapGraphEndpoint";
 import { isRemoteNodeImageSource } from "../core/plex/nodeImagePolicy";
@@ -565,8 +566,13 @@ export class GraphIndex {
   private onDemandHostScopes = new Map<string, ReturnType<typeof createGraphState>>();
   /** Existing local read certificates survive strategy transfer, never authorizing source-backed writes. */
   private localScopeCertificates = new WeakMap<ReturnType<typeof createGraphState>, Readonly<{
-    sourceRevision: number; policyRevision: number; demandRevision: number;
+    sourceRevision: number; policyRevision: number; demandRevision: number; hostRevision: number;
     files: ReadonlyMap<TFile, FileRevision>;
+  }>>();
+  /** A deleted demanded center may keep its existing compiled read during resolution maintenance.
+   * These native witnesses never renew the scope's stale semantic/write/completeness certificate. */
+  private deletedSemanticReads = new WeakMap<PreparedSemanticScope, Readonly<{
+    demandRevision: number; owners: ReadonlyMap<string, SelectedMetadataToken & {event: number}> | null;
   }>>();
   /** Finite eager recovery reuses local compiler publications without replacing the full baseline. */
   private visibleRecoveryCertificates = new WeakMap<ReturnType<typeof createGraphState>, Readonly<{
@@ -878,6 +884,9 @@ export class GraphIndex {
     // Settings may have changed while dormant; no stale constructor policy becomes effective.
     this.presentationSettings = capturePresentationSettings(this.plugin.settings);
     this.fullSemanticSettings = graphCompilerSettingsFromLegacy(this.plugin.settings);
+    // Native resolution can finish during physical search priming, before warm restore starts.
+    // Classify that admitted Eager interval without enabling inventory or granting source authority.
+    if (!this.isOnDemandMode()) this.sourceAcquisition.observeInitialResolverProgress();
     this.sourceAcquisition.start();
     for (const path of this.semanticDemandCounts.keys()) this.startSemanticDemand(path);
   }
@@ -1492,6 +1501,20 @@ export class GraphIndex {
       name: page.name, url: page.url, semanticMtime: page.mtime };
   }
 
+  /** Carry already displayed contributors into native re-resolution, including a deleted center
+   * whose sparse canonical endpoint never owned its incoming preview declarations. Explicit
+   * physical-center selection stays unchanged; deleted-center metadata does not expand body input. */
+  private *existingReadNeighbourPaths(centerPath: string, selected?: Iterable<string>): Iterable<string> {
+    yield* selected ?? this.state.pages.get(centerPath)?.neighbours.keys() ?? [];
+    if (!selected || !this.app.vault.getFileByPath(centerPath)) {
+      yield* this.hostPreviewScopes.get(centerPath)?.pages.get(centerPath)?.neighbours.keys() ?? [];
+      const semantic = this.semanticScopes.get(centerPath);
+      if (semantic && this.deletedSemanticReads.has(semantic) && this.semanticScopeReadAllowed(semantic)) {
+        yield* semantic.pagesByPath.get(centerPath)?.neighbours.keys() ?? [];
+      }
+    }
+  }
+
   /** Compile available local host/body facts before display truncation, preserving canonical precedence.
    * The caller carries its actual P1/P2 lane and may supply an already-fenced requested body;
    * this publisher acquires no body itself and retains only readonly local presentation proof.
@@ -1518,7 +1541,7 @@ export class GraphIndex {
         // retain their complete-contributor requirement and never gain false zero authority.
         ...(inputAvailable && additionalPaths ? { requiredMetadataPaths: new Set(additionalPaths) } : {}),
         entityForPath: path => this.onDemandEntityFact(path),
-        additionalPaths: additionalPaths ?? this.state.pages.get(centerPath)?.neighbours.keys(), isCurrent: scopedCurrent,
+        additionalPaths: this.existingReadNeighbourPaths(centerPath, additionalPaths), isCurrent: scopedCurrent,
         checkpoint: () => this.workScheduler.checkpoint(workPriority),
         /** Only exact live hot bodies are selected; missing bodies stay absent, never trigger reads. */
         bodyForPath: async path => {
@@ -1549,7 +1572,7 @@ export class GraphIndex {
       this.onDemandHostScopes.set(centerPath, scope.state);
       const files = new Map<TFile, FileRevision>();
       for (const page of scope.state.pages.values()) if (page.file) files.set(page.file, captureFileRevision(page.file));
-      this.localScopeCertificates.set(scope.state, { sourceRevision: source, policyRevision: this.semanticPolicyRevision,
+      this.localScopeCertificates.set(scope.state, { sourceRevision: source, policyRevision: this.semanticPolicyRevision, hostRevision,
         demandRevision: this.semanticDemandRevision.get(centerPath) ?? 0, files });
       for (const page of scope.state.pages.values()) this.hostPreviewSettings.set(page, scope.settings);
       this.relationViewCache = new WeakMap();
@@ -2227,7 +2250,9 @@ export class GraphIndex {
     // already closes write authority. An identity-only resolver/cache notification has no such
     // fence and must retire the scope, including released history, before fresh preparation.
     for (const [center, scope] of this.semanticScopes) if ((scope.pagesByPath.has(changedPath) || affectedTargets.has(center))
-      && (!knownMetadataChange || scope.sourceRevision !== previousSourceRevision) && !this.pendingBodyReadOwnerIsPresent(scope)) {
+      && (!this.semanticScopeReadAllowed(scope) || (!knownMetadataChange || scope.sourceRevision !== previousSourceRevision)
+        && !this.pendingBodyReadOwnerIsPresent(scope)
+        && !(this.deletedSemanticReads.has(scope) && this.semanticScopeReadAllowed(scope)))) {
       this.semanticScopes.delete(center);
       this.releasedSemanticScopePaths.delete(center);
       this.semanticPreparationFailures.delete(center);
@@ -3676,6 +3701,33 @@ export class GraphIndex {
     return true;
   }
 
+  /** Qualify only a captured deleted-center read; ordinary scopes retain their existing rules.
+   * Resolution maintenance may advance, but demand/source/policy and every surviving native
+   * contributor must remain unchanged. The original stale maintenance token closes write proof. */
+  private semanticScopeReadAllowed(scope: PreparedSemanticScope): boolean {
+    const read = this.deletedSemanticReads.get(scope);
+    if (!read) return true;
+    if (!read.owners?.size || this.semanticScopes.get(scope.centerPath) !== scope
+      || !this.semanticDemandCounts.has(scope.centerPath)
+      || read.demandRevision !== (this.semanticDemandRevision.get(scope.centerPath) ?? 0)
+      || scope.sourceRevision !== this.plugin.getIndexSourceRevision() || scope.policyRevision !== this.semanticPolicyRevision
+      || scope.maintenanceRevision === this.sourceAcquisition.getMaintenanceRevision()
+      || this.app.vault.getFileByPath(scope.centerPath) || !isMaterializablePage(scope.pagesByPath.get(scope.centerPath))) return false;
+    for (const [path, owner] of read.owners) {
+      if (this.app.vault.getFileByPath(path) !== owner.file || owner.file.path !== path
+        || !fileRevisionMatches(owner.file, owner.revision) || this.app.metadataCache.getFileCache(owner.file) !== owner.cache
+        || this.sourceAcquisition.getFileRevision(owner.file) < owner.event) return false;
+      // Native resolve advances the per-file event token without changing this declaration's
+      // body/cache/stat/source input. Keep only that readonly continuity; observed body dirtiness
+      // retires it permanently, even if a later parse clears the dirty flag before graph publication.
+      if (this.sourceAcquisition.needsBodyRead(owner.file)) {
+        this.deletedSemanticReads.set(scope, {...read, owners: null});
+        return false;
+      }
+    }
+    return true;
+  }
+
   /** Prefer complete current incidence over sparse endpoints and native previews.
    * Requested/retained/local owners keep their existing selection order. A full state wins over
    * provisional reads only under the exact source/policy/maintenance certificate; newer host
@@ -3705,7 +3757,8 @@ export class GraphIndex {
     // An endpoint borrowed by another center can be sparse even when a complete current scope
     // owns this path. Direct get() and relation consumers must select that same complete baseline.
     for (const scope of this.semanticScopes.values()) if (scope.maintenanceRevision === maintenanceRevision
-      && scope.policyRevision === this.semanticPolicyRevision && scope.sourceRevision === currentSourceRevision && scope.completePaths.has(path)) {
+      && scope.policyRevision === this.semanticPolicyRevision && scope.sourceRevision === currentSourceRevision && scope.completePaths.has(path)
+      && this.semanticScopeReadAllowed(scope)) {
       const page = scope.pagesByPath.get(path);
       if (page) return page;
     }
@@ -3721,7 +3774,7 @@ export class GraphIndex {
     // A host-only replacement cannot reclassify existing body-defined incoming/outgoing roles
     // while their edited owner is still private. This is read presentation, never current proof.
     for (const scope of this.semanticScopes.values()) if (scope.policyRevision === this.semanticPolicyRevision
-      && scope.completePaths.has(path) && this.pendingBodyReadOwnerIsPresent(scope)) {
+      && scope.completePaths.has(path) && this.pendingBodyReadOwnerIsPresent(scope) && this.semanticScopeReadAllowed(scope)) {
       const page = scope.pagesByPath.get(path);
       if (page && (!page.file || page.file.path === path && this.app.vault.getFileByPath(path) === page.file)) return page;
     }
@@ -3731,17 +3784,18 @@ export class GraphIndex {
     // A page prepared by any current scope wins over suppression recorded by another current scope.
     // This keeps two visible Plexes composable when their bounded affected sets overlap.
     for (const scope of this.semanticScopes.values()) if (scope.maintenanceRevision === maintenanceRevision
-      && scope.policyRevision === this.semanticPolicyRevision && scope.sourceRevision === currentSourceRevision) {
+      && scope.policyRevision === this.semanticPolicyRevision && scope.sourceRevision === currentSourceRevision && this.semanticScopeReadAllowed(scope)) {
       const page = scope.pagesByPath.get(path);
       if (page) return page;
     }
     for (const scope of this.semanticScopes.values()) if (scope.maintenanceRevision === maintenanceRevision
-      && scope.policyRevision === this.semanticPolicyRevision && scope.sourceRevision === currentSourceRevision && scope.suppressedPaths.has(path)) return undefined;
+      && scope.policyRevision === this.semanticPolicyRevision && scope.sourceRevision === currentSourceRevision && scope.suppressedPaths.has(path)
+      && this.semanticScopeReadAllowed(scope)) return undefined;
     // A known native create can replace a same-path unresolved or obsolete cached identity.
     // Prefer its current scope when present; filename availability alone owns no old incidence.
     const physical = this.physicalSearchUpdatedPaths.has(path) ? this.currentPhysicalSearchPage(path) : undefined;
     if (physical && this.state.pages.get(path)?.file !== physical.file) {
-      const local = this.onDemandHostScopes.get(path)?.pages.get(path) ?? this.borrowedLocalFilePage(path);
+      const local = this.onDemandHostScopes.get(path)?.pages.get(path) ?? this.borrowedLocalNeighbourPage(path);
       if (local?.file === physical.file) return this.mergeOnDemandCachedPage(local);
       const preview = this.hostPreviewScopes.get(path)?.pages.get(path);
       return preview?.file === physical.file ? preview : physical;
@@ -3749,7 +3803,7 @@ export class GraphIndex {
     // Rename closes source/count proof, while even sparse physical facets can be newer than the
     // warm full graph. Prefer those coherent reads until a current scope above replaces them.
     for (const scope of this.semanticScopes.values()) if (scope.retainedAfterRename
-      && scope.policyRevision === this.semanticPolicyRevision) {
+      && scope.policyRevision === this.semanticPolicyRevision && this.semanticScopeReadAllowed(scope)) {
       const page = scope.pagesByPath.get(path);
       if (page) return page;
     }
@@ -3804,13 +3858,14 @@ export class GraphIndex {
     if (provisional) return provisional;
     // Host repair closes writes immediately, but a last coherent view remains readable until a
     // current-maintenance scope replaces it.
-    for (const scope of this.semanticScopes.values()) if (scope.policyRevision === this.semanticPolicyRevision) {
+    for (const scope of this.semanticScopes.values()) if (scope.policyRevision === this.semanticPolicyRevision && this.semanticScopeReadAllowed(scope)) {
       const page = scope.pagesByPath.get(path);
       if (page) return page;
     }
     for (const scope of this.semanticScopes.values()) if (scope.policyRevision === this.semanticPolicyRevision
-      && scope.suppressedPaths.has(path)) return undefined;
+      && scope.suppressedPaths.has(path) && this.semanticScopeReadAllowed(scope)) return undefined;
     for (const scope of this.semanticScopes.values()) {
+      if (!this.semanticScopeReadAllowed(scope)) continue;
       const page = scope.pagesByPath.get(path);
       if (page) return page;
     }
@@ -3824,26 +3879,41 @@ export class GraphIndex {
       if (page && !(canonical?.file && canonical.file === page.file && canonical.file.path === path
         && scope.pages.get(center)?.isFolder)) return page;
     }
-    return canonical ?? this.borrowedLocalFilePage(path) ?? this.currentPhysicalSearchPage(path);
+    return canonical ?? this.borrowedLocalNeighbourPage(path) ?? this.currentPhysicalSearchPage(path);
   }
 
-  /** Resolve a rendered native neighbor from its finite current local owner without granting
+  /** Resolve a rendered neighbor from its finite current local owner without granting
    * complete-center or write authority. Direct/current canonical owners retain precedence; the
-   * endpoint's captured native identity and full stat revision fence unnotified replacement/edit.
-   * Constant-time token lookup avoids walking every contributor for each displayed neighbor. */
-  private borrowedLocalFilePage(path: string): GraphPage | undefined {
-    if (!this.usesLocalForeground()) return undefined;
+   * endpoint's captured native identity fences physical reads. A positive unresolved neighbor
+   * is lent only for the existing deleted-file navigation owner's unique replacement, with every
+   * captured contributor and host observation still current. Other unresolved lookups stay unchanged. */
+  private borrowedLocalNeighbourPage(path: string): GraphPage | undefined {
+    const localForeground = this.usesLocalForeground();
     const sourceRevision = this.plugin.getIndexSourceRevision();
     for (const [center, scope] of this.onDemandHostScopes) {
       if (!this.semanticDemandCounts.has(center)) continue;
       // A center must pass its full read-cover certificate above, including every captured file.
       // Borrowing itself here would bypass those guards after a pending predecessor is rejected.
       if (path === center) continue;
-      const page = scope.pages.get(path), file = page?.file;
-      if (!page || !file || page.path !== file.path || this.app.vault.getFileByPath(path) !== file) continue;
-      const certificate = this.localScopeCertificates.get(scope), revision = certificate?.files.get(file);
-      if (certificate?.sourceRevision === sourceRevision && certificate.policyRevision === this.semanticPolicyRevision
-        && revision && fileRevisionMatches(file, revision)) return this.mergeOnDemandCachedPage(page);
+      const page = scope.pages.get(path), certificate = this.localScopeCertificates.get(scope);
+      if (!page || certificate?.sourceRevision !== sourceRevision || certificate.policyRevision !== this.semanticPolicyRevision) continue;
+      const file = page.file;
+      if (file) {
+        if (!localForeground) continue;
+        const revision = certificate.files.get(file);
+        if (page.path === file.path && this.app.vault.getFileByPath(path) === file
+          && revision && fileRevisionMatches(file, revision)) return this.mergeOnDemandCachedPage(page);
+      } else if (isMaterializablePage(page) && page.neighbours.size > 0
+        && certificate.hostRevision === this.hostPreview.observationRevision()) {
+        // Only the navigation owner's at-most-two lexical candidates may incur a contributor scan.
+        // Its lookup stays within this compiled owner and cannot recurse through index.get().
+        if (deletedFileNavigationTarget(this.app, center,
+          /** Resolve only this compiled owner's coordinates without entering index readers. */ candidate => scope.pages.get(candidate)) !== page) continue;
+        let current = true;
+        for (const [owner, revision] of certificate.files) if (this.app.vault.getFileByPath(owner.path) !== owner
+          || !fileRevisionMatches(owner, revision)) { current = false; break; }
+        if (current) return page;
+      }
     }
     return undefined;
   }
@@ -8432,6 +8502,15 @@ export class GraphIndex {
       // Rename remaps this exact file below; the request token still rejects late old-path builds.
       if (options.retainMovedReads && replacement && (scope.pages.get(path)?.file === replacement
         || options.materialize && isMaterializablePage(scope.pages.get(path)))) continue;
+      // The early native availability listener precedes semantic deletion. Keep its existing read
+      // owner after removing the vanished file's own facts; surviving contributors still describe
+      // the placeholder while private source repair runs. No preview gains semantic/write proof.
+      const endpoint = scope.pages.get(path);
+      if (!replacement && !this.app.vault.getFileByPath(path) && endpoint && !endpoint.isFolder && !endpoint.isTag && !endpoint.url) {
+        this.dematerializePublishedFile(scope, path, affected);
+        changed = true;
+        continue;
+      }
       this.hostPreviewScopes.delete(center);
       changed = true;
     }
@@ -8835,8 +8914,12 @@ export class GraphIndex {
     const canonical = this.state.pages.get(path) ?? this.state.pages.get(this.state.lowercasePathMap.get(path.toLowerCase()) ?? path);
     if (canonical?.isFolder || canonical?.isTag || canonical?.url) return canonical;
     path = canonical?.path ?? path;
+    const deletedScopes = [...this.semanticScopes.values()].filter(
+      /** Only the actual physical-to-ghost transition can capture this active read lifetime. */ scope =>
+        scope.centerPath === path && this.semanticDemandCounts.has(path) && Boolean(scope.pagesByPath.get(path)?.file));
     const affected = new Set<string>([path]);
     const owners: Array<Readonly<{pages: ReadonlyMap<string, GraphPage>; evidence: RelationEvidenceStore}>> = [this.state,
+      ...this.hostPreviewScopes.values(),
       ...[...this.semanticScopes.values()].map(/** Semantic publications retain their own evidence and page identities. */ scope => ({pages: scope.pagesByPath, evidence: scope.evidence})),
       ...this.onDemandCachedScopes.values(), ...this.onDemandHostScopes.values(),
       ...[...this.retainedLocalScopes.values()].map(/** A retained read is updated without renewing its write certificate. */ scope => scope.state)];
@@ -8849,6 +8932,19 @@ export class GraphIndex {
       this.dematerializePublishedFile(owner, path, affected);
     }
     if (!page) return null;
+
+    for (const scope of deletedScopes) {
+      let owners: Map<string, SelectedMetadataToken & {event: number}> | null = new Map();
+      for (const item of scope.evidence.declarationsTouchingIterator(path)) {
+        if (item.declaredByPath === path || owners.has(item.declaredByPath)) continue;
+        const contributor = scope.pagesByPath.get(item.declaredByPath), file = contributor?.file;
+        const cache = file && this.app.metadataCache.getFileCache(file);
+        if (!file || !cache || this.app.vault.getFileByPath(file.path) !== file || contributor.mtime !== file.stat.mtime
+          || this.sourceAcquisition.needsBodyRead(file)) { owners = null; break; }
+        owners.set(item.declaredByPath, {file, cache, revision: captureFileRevision(file), event: this.sourceAcquisition.getFileRevision(file)});
+      }
+      this.deletedSemanticReads.set(scope, {demandRevision: this.semanticDemandRevision.get(path) ?? 0, owners});
+    }
 
     this.fieldCache.delete(path);
     this.semanticFingerprints.delete(path);
@@ -9296,11 +9392,11 @@ export class GraphIndex {
     const maintenanceRevision = this.sourceAcquisition.getMaintenanceRevision();
     for (const scope of this.semanticScopes.values()) {
       if (scope.maintenanceRevision === maintenanceRevision && scope.policyRevision === this.semanticPolicyRevision
-        && scope.completePaths.has(path)) return scope;
+        && scope.completePaths.has(path) && this.semanticScopeReadAllowed(scope)) return scope;
     }
     for (const scope of this.semanticScopes.values()) if (scope.policyRevision === this.semanticPolicyRevision
-      && scope.completePaths.has(path)) return scope;
-    for (const scope of this.semanticScopes.values()) if (scope.completePaths.has(path)) return scope;
+      && scope.completePaths.has(path) && this.semanticScopeReadAllowed(scope)) return scope;
+    for (const scope of this.semanticScopes.values()) if (scope.completePaths.has(path) && this.semanticScopeReadAllowed(scope)) return scope;
     return null;
   }
 
@@ -9309,7 +9405,7 @@ export class GraphIndex {
     const covered = (scope: PreparedSemanticScope, path: string): boolean =>
       scope.pagesByPath.has(path) || scope.suppressedPaths.has(path) || this.state.pages.has(path);
     const ownsPair = (scope: PreparedSemanticScope): boolean =>
-      (sourceRevision === undefined || scope.sourceRevision === sourceRevision)
+      this.semanticScopeReadAllowed(scope) && (sourceRevision === undefined || scope.sourceRevision === sourceRevision)
       && (scope.completePaths.has(sourcePath) || scope.completePaths.has(targetPath))
       && covered(scope, sourcePath) && covered(scope, targetPath);
     const maintenanceRevision = this.sourceAcquisition.getMaintenanceRevision();
@@ -10299,14 +10395,14 @@ export class GraphIndex {
     const suppressed = new Set<string>();
     // While newer policy or host maintenance is pending, retain the last complete publication for
     // that center, but never let it override a page already prepared under current maintenance.
-    for (const scope of this.semanticScopes.values()) if (scope.policyRevision !== this.semanticPolicyRevision
-      || scope.maintenanceRevision !== maintenanceRevision) {
+    for (const scope of this.semanticScopes.values()) if (this.semanticScopeReadAllowed(scope)
+      && (scope.policyRevision !== this.semanticPolicyRevision || scope.maintenanceRevision !== maintenanceRevision)) {
       for (const [path, page] of scope.pagesByPath) overrides.set(path, page);
       for (const path of scope.suppressedPaths) suppressed.add(path);
     }
     const currentPages = new Set<string>();
     for (const scope of this.semanticScopes.values()) if (scope.maintenanceRevision === maintenanceRevision
-      && scope.policyRevision === this.semanticPolicyRevision) {
+      && scope.policyRevision === this.semanticPolicyRevision && this.semanticScopeReadAllowed(scope)) {
       for (const [path, page] of scope.pagesByPath) { overrides.set(path, page); currentPages.add(path); }
       for (const path of scope.suppressedPaths) suppressed.add(path);
     }

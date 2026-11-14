@@ -65,7 +65,7 @@ test('native layout retains a second live pair hidden by another fold but releas
 /** An explicit new-tab request never reuses a Plex or applies the generic startup-surface preference. */
 test('new Plex tab creates and reveals an adjacent native tab group on every invocation without index work', async () => {
   const create = method('createPlexTab', { KPLEX_VIEW_TYPE: 'kplex-view' }), opened = [], remembered = [];
-  const context = { rememberDocumentLeaf: leaf => remembered.push(leaf), app: { workspace: {
+  const context = { whenInitialized:async()=>true,rememberDocumentLeaf: leaf => remembered.push(leaf), app: { workspace: {
     getMostRecentLeaf: () => 'recent-document',
     getLeaf: kind => { assert.equal(kind, 'split'); const leaf = { setViewState: async state => { leaf.state = state; } }; opened.push(leaf); return leaf; },
     revealLeaf: async leaf => { assert.deepEqual(leaf.state, { type: 'kplex-view', active: true }); leaf.revealed = true; },
@@ -82,7 +82,7 @@ test('explicit Open in tab overrides phone and desktop startup defaults without 
     const environment={device,hostActions:{graphTab:true,sidepanel:true,popout:device==='desktop'}};
     const activate=method('activateView',{KPLEX_VIEW_TYPE:'kplex',readObsidianPresentationEnvironment:()=>environment,
       primaryOpenSurface:contracts.primaryOpenSurface});
-    const owner={settings:{startInPopout:true},activateSidepanel:async()=>calls.push(['sidebar']),rememberDocumentLeaf:()=>{},restorePlexFoldBeforeReveal:()=>{},
+    const owner={whenInitialized:async()=>true,settings:{startInPopout:true},activateSidepanel:async()=>calls.push(['sidebar']),rememberDocumentLeaf:()=>{},restorePlexFoldBeforeReveal:()=>{},
       app:{workspace:{getMostRecentLeaf:()=>null,getLeavesOfType:()=>[],getLeaf:kind=>{calls.push(['leaf',kind]);return leaf},revealLeaf:async value=>assert.equal(value,leaf)}}};
     await activate.call(owner,explicit);
     if(device==='phone'&&!explicit)assert.deepEqual(calls,[['sidebar']]);

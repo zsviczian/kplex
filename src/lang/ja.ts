@@ -4,9 +4,13 @@
  * Product names, persisted identifiers and vault content are intentionally not translated here.
  * Source metadata owns literal reference quoting; tag values include their # prefix.
  */
-import { buildLocaleCatalog, type LocaleTranslationMap } from "./catalog";
+import { buildLocaleCatalog, type LocaleCatalog, type LocaleTranslationMap } from "./catalog";
 
+/** Construct the typed Japanese table only when selected; importing this module allocates no catalog. */
+export function createJapaneseCatalog(): LocaleCatalog {
 const japaneseTranslations = {
+  "startup.loading": "K-Plex を読み込み中…",
+  "startup.failed": "K-Plex を初期化できませんでした。プラグインを再読み込みしてもう一度お試しください。",
   "styles.nameConflict": "{name} のスタイルは既に存在します。別のタグを選んでください。",
   "noteType.settings": "ノートタイプを設定",
   "noteType.invalidTag": "person や person/friend など、有効なタグを1つ入力してください。空白は使用できません。",
@@ -1971,4 +1975,5 @@ const japaneseTranslations = {
 
 } as const satisfies LocaleTranslationMap;
 
-export const japaneseCatalog = buildLocaleCatalog(japaneseTranslations);
+return buildLocaleCatalog(japaneseTranslations);
+}

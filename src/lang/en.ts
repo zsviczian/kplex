@@ -9,6 +9,8 @@
  * parameters remain unquoted regardless of their names. Locale catalogs inherit this classification.
  */
 export const englishCatalog = {
+  "startup.loading": {"message":"Loading K-Plex…","context":"Native loading shell while saved settings and plugin services initialize; graph readiness is separate.","params":[],"referenceParams":[]},
+  "startup.failed": {"message":"K-Plex could not initialize. Reload the plugin to try again.","context":"Native loading shell while saved settings and plugin services initialize; graph readiness is separate.","params":[],"referenceParams":[]},
   "styles.nameConflict": {"message":"A style for {name} already exists. Choose another tag.","context":"Unified tag appearance and selected note-type priority.","params":["name"],"referenceParams":["name"]},
   "noteType.settings": {"message":"Configure note type","context":"Direct note-type configuration and explicit, reversible tag-style conversion before saving.","params":[],"referenceParams":[]},
   "noteType.invalidTag": {"message":"Enter one valid tag, for example person or person/friend. Spaces and multiword values are not tags.","context":"Tag-backed note types, optional node details and reviewed changes to document properties.","params":[],"referenceParams":[]},

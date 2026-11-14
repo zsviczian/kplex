@@ -4,9 +4,13 @@
  * Product names, persisted identifiers and vault content are intentionally not translated here.
  * Source metadata owns literal reference quoting; tag values include their # prefix.
  */
-import { buildLocaleCatalog, type LocaleTranslationMap } from "./catalog";
+import { buildLocaleCatalog, type LocaleCatalog, type LocaleTranslationMap } from "./catalog";
 
+/** Construct the typed Russian table only when selected; importing this module allocates no catalog. */
+export function createRussianCatalog(): LocaleCatalog {
 const russianTranslations = {
+  "startup.loading": "Загрузка K-Plex…",
+  "startup.failed": "Не удалось инициализировать K-Plex. Перезагрузите плагин для повторной попытки.",
   "styles.nameConflict": "Стиль для {name} уже существует. Выберите другой тег.",
   "noteType.settings": "Настроить тип заметки",
   "noteType.invalidTag": "Введите один допустимый тег, например person или person/friend. Пробелы недопустимы.",
@@ -1983,4 +1987,5 @@ const russianTranslations = {
 
 } as const satisfies LocaleTranslationMap;
 
-export const russianCatalog = buildLocaleCatalog(russianTranslations);
+return buildLocaleCatalog(russianTranslations);
+}

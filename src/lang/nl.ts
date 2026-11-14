@@ -4,9 +4,13 @@
  * Product names, persisted identifiers and vault content are intentionally not translated here.
  * Source metadata owns literal reference quoting; tag values include their # prefix.
  */
-import { buildLocaleCatalog, type LocaleTranslationMap } from "./catalog";
+import { buildLocaleCatalog, type LocaleCatalog, type LocaleTranslationMap } from "./catalog";
 
+/** Construct the typed Dutch table only when selected; importing this module allocates no catalog. */
+export function createDutchCatalog(): LocaleCatalog {
 const dutchTranslations = {
+  "startup.loading": "K-Plex laden…",
+  "startup.failed": "K-Plex kon niet worden gestart. Laad de plug-in opnieuw om het nogmaals te proberen.",
   "styles.nameConflict": "Er bestaat al een stijl voor {name}. Kies een andere tag.",
   "noteType.settings": "Notitietype instellen",
   "noteType.invalidTag": "Voer één geldige tag in, zoals person of person/friend. Spaties zijn niet toegestaan.",
@@ -1975,4 +1979,5 @@ const dutchTranslations = {
 
 } as const satisfies LocaleTranslationMap;
 
-export const dutchCatalog = buildLocaleCatalog(dutchTranslations);
+return buildLocaleCatalog(dutchTranslations);
+}

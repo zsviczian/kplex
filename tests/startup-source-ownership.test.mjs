@@ -18,7 +18,7 @@ const names = new Set(['performRebuild', 'rebuildIndex', 'pruneMissingDirtyMarkd
   'settlePatchOnlyBacklogIfIdle', 'countDeletedMarkdownFile', 'computeIndexStatusFacts']);
 const methods = plugin.members.filter(/** Copy complete production implementations, not alternate fixture algorithms. */ member => names.has(member.name?.getText(module)));
 assert.equal(methods.length, names.size);
-const onload = plugin.members.find(/** Locate the original timer registration. */ member => member.name?.getText(module) === 'onload');
+const onload = plugin.members.find(/** Locate the original timer registration. */ member => member.name?.getText(module) === 'initializePlugin');
 const interval = onload.body.statements.find(/** Preserve the exact interval policy and callback. */ statement => ts.isIfStatement(statement)
   && statement.expression.getText(module) === 'this.settings.indexUpdateInterval > 0');
 assert(interval, 'Actual legacy interval registration exists');

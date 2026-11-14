@@ -4,9 +4,13 @@
  * Product names, persisted identifiers and vault content are intentionally not translated here.
  * Source metadata owns literal reference quoting; tag values include their # prefix.
  */
-import { buildLocaleCatalog, type LocaleTranslationMap } from "./catalog";
+import { buildLocaleCatalog, type LocaleCatalog, type LocaleTranslationMap } from "./catalog";
 
+/** Construct the typed German table only when selected; importing this module allocates no catalog. */
+export function createGermanCatalog(): LocaleCatalog {
 const germanTranslations = {
+  "startup.loading": "K-Plex wird geladen…",
+  "startup.failed": "K-Plex konnte nicht initialisiert werden. Lade das Plugin neu, um es erneut zu versuchen.",
   "styles.nameConflict": "Ein Stil für {name} existiert bereits. Wähle einen anderen Tag.",
   "noteType.settings": "Notiztyp konfigurieren",
   "noteType.invalidTag": "Ein gültiges Tag eingeben, etwa person oder person/friend. Leerzeichen sind nicht erlaubt.",
@@ -1975,4 +1979,5 @@ const germanTranslations = {
 
 } as const satisfies LocaleTranslationMap;
 
-export const germanCatalog = buildLocaleCatalog(germanTranslations);
+return buildLocaleCatalog(germanTranslations);
+}

@@ -2,10 +2,12 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { createHash, randomUUID } from "node:crypto";
+import {readFileSync} from "node:fs";
+import ts from "typescript";
 import { browserBundle } from "./support/browserTypeScript.mjs";
 
 const bundle = await browserBundle([
-  "src/adapters/obsidian/sourceAcquisition.ts", "src/index/SourceRepository.ts", "src/index/SourceLocalDependencies.ts", "src/core/parser/metadata.ts", "src/index/GraphBuilder.ts", "src/index/fieldParser.ts", "src/index/ForegroundWorkScheduler.ts",
+  "src/adapters/obsidian/sourceAcquisition.ts", "src/index/SourceRepository.ts", "src/index/SourceLocalDependencies.ts", "src/core/parser/metadata.ts", "src/index/GraphBuilder.ts", "src/index/GraphIndex.ts", "src/index/fieldParser.ts", "src/index/ForegroundWorkScheduler.ts",
   "src/adapters/obsidian/metadataSourceCollector.ts",
 ], { obsidian: `exports.Platform={isMobile:false}; exports.TFile=class TFile {
   constructor(path){this.path=path;this.name=path.split('/').pop();this.extension=path.split('.').pop();this.basename=path.split('/').pop().replace(/\\.[^.]+$/,'');this.stat={mtime:1,size:100,ctime:1};this.parent={path:''};}
@@ -322,6 +324,100 @@ test("multiple unscoped resolver events coalesce into one maintenance fence and 
   } finally { f.close(); }
 });
 
+/** A dormant observer outside graph restoration has no startup-window ownership; classification grants no authority. */
+for(const enabled of [true,false])test(`clean resolver markers require admitted startup ownership (enabled=${enabled})`,()=>{
+ const f=hostFixture();
+ try{
+  const owner=f.add('Owner.md','Friends:: [[Target]]'),target=f.add('Target.md','');
+  f.app.metadataCache.resolvedLinks[owner.path]={[target.path]:1};
+  f.acquisition.start();if(enabled)f.acquisition.enableInventory();
+  assert.equal(f.acquisition.isInventoryEnabled(),enabled);
+  for(let n=0;n<3;n++){
+   f.app.metadataCache.trigger('resolve',owner);
+   assert.equal(f.acquisition.isInitialResolutionObservation(owner.path),enabled,'Inventory admission qualifies the baseline; arbitrary dormant observation does not');
+  }
+  assert.equal(f.acquisition.hasSemanticDependencies(),false,'An initial-event marker is never source/write authority');
+  assert.equal(f.acquisition.getCounters().checked,0,'Classification itself authenticates no source families');
+  assert.deepEqual(f.reads,[]);assert.deepEqual(f.parses,[]);
+ }finally{f.close();}
+});
+
+/** An arbitrary dormant observer cannot claim admission retroactively, even before its first resolver event. */
+test('an already observing dormant source cannot adopt initial resolver context later',()=>{
+ const f=hostFixture();
+ try{
+  const owner=f.add('Owner.md');f.acquisition.start();f.acquisition.observeInitialResolverProgress();
+  f.app.metadataCache.trigger('resolve',owner);
+  assert.equal(f.acquisition.isInitialResolutionObservation(owner.path),false,'Only admission before subscriptions owns the initial observation interval');
+  assert.equal(f.acquisition.isInventoryEnabled(),false);assert.equal(f.acquisition.hasSemanticDependencies(),false);
+  assert.equal(f.acquisition.getCounters().checked,0);assert.deepEqual(f.reads,[]);assert.deepEqual(f.parses,[]);
+ }finally{f.close();}
+});
+
+/** Actual admission must qualify the first subscribed resolver event only for Eager preparation. */
+for(const mode of ['eager','on-demand'])test(`admitted ${mode} preparation preserves resolver observation ownership`,()=>{
+ const f=hostFixture();
+ try{
+  const owner=f.add('Owner.md'),source=f.acquisition,start=source.start;
+  source.start=function(...args){const result=start.apply(this,args);f.app.metadataCache.trigger('resolve',owner);return result;};
+  // Invoke the complete production admission method; no graph constructor/storage work is involved.
+  const index=Object.assign(Object.create(window.sourceModules.GraphIndex.prototype),{
+   preparationDeferred:true,diagnosticsClosed:false,persistentCachePurged:false,indexingMode:mode,
+   sourceAcquisition:source,semanticDemandCounts:new Map(),plugin:{settings:{
+    hierarchy:{hidden:[],parents:[],children:[],leftFriends:[],rightFriends:[],previous:[],next:[]},
+    tagStyleList:[],baseNodeStyle:{maxLabelLength:30},inferAllLinksAsFriends:false,inverseInfer:false,
+   }},
+  });
+  index.admitPreparation();
+  source.start=start;
+  assert.equal(source.isInitialResolutionObservation(owner.path),mode==='eager','Context must precede source.start subscription progress');
+  assert.equal(source.isInventoryEnabled(),false);assert.equal(source.hasSemanticDependencies(),false);
+  assert.equal(source.getCounters().checked,0);assert.deepEqual(f.reads,[]);assert.deepEqual(f.parses,[]);
+  const revision=source.getFileRevision(owner);index.admitPreparation();
+  assert.equal(source.getFileRevision(owner),revision,'Repeated admission does not restart subscriptions');
+ }finally{f.close();}
+});
+
+/** The explicit observation context ends at inventory or unload and cannot transfer to a replacement. */
+for(const retirement of ['inventory','unload','replacement'])test(`initial resolver observation retires on ${retirement}`,()=>{
+ const f=hostFixture();let replacement;
+ try{
+  const owner=f.add('Owner.md');f.acquisition.observeInitialResolverProgress();f.acquisition.start();
+  f.app.metadataCache.trigger('resolve',owner);assert(f.acquisition.isInitialResolutionObservation(owner.path));
+  if(retirement==='inventory')f.acquisition.enableInventory();else f.acquisition.close();
+  assert.equal(f.acquisition.initialResolverObservation,false,'No preparation-only context survives its owner boundary');
+  if(retirement==='replacement'){
+   replacement=new ObsidianSourceAcquisition(f.app,f.cache,f.parser);replacement.start();
+   f.app.metadataCache.trigger('resolve',owner);
+   assert.equal(replacement.isInitialResolutionObservation(owner.path),false,'A bare replacement observer has no inherited Eager admission');
+  }
+  assert.equal(f.acquisition.hasSemanticDependencies(),false);assert.deepEqual(f.reads,[]);assert.deepEqual(f.parses,[]);
+ }finally{replacement?.close();f.close();}
+});
+
+/** Real body/metadata/native-incarnation changes cannot inherit the clean-resolver shortcut. */
+for(const admitted of [false,true])for(const change of ['equal-stat-body','metadata','rename','replacement','created','deferred-body'])test(`pre-enable resolver classification rejects real source changes (${change}, admitted=${admitted})`,()=>{
+ const f=hostFixture();
+ try{
+  const owner=f.add('Owner.md','Friends:: [[Target]]');
+  if(change==='deferred-body'){
+   f.acquisition.observeBeforeStart(owner,true);
+   assert.equal(f.app.vault.count(),0,'Dormant observation registers no native listeners');
+  }
+  if(admitted)f.acquisition.observeInitialResolverProgress();f.acquisition.start();
+  f.app.metadataCache.trigger('resolve',owner);
+  if(change==='equal-stat-body')f.app.vault.trigger('modify',owner);
+  if(change==='metadata'){f.metadata.set(owner.path,{frontmatter:{Friends:'[[Different]]'},links:[]});f.app.metadataCache.trigger('changed',owner);}
+  if(change==='rename'){const old=owner.path;f.files.delete(old);owner.path='Moved.md';f.files.set(owner.path,owner);f.app.vault.trigger('rename',owner,old);}
+  if(change==='replacement')f.files.set(owner.path,new TFile(owner.path));
+  if(change==='created')f.app.vault.trigger('create',owner);
+  f.app.metadataCache.trigger('resolve',owner);
+  assert.equal(f.acquisition.isInitialResolutionObservation(owner.path),false,'Changed input must take normal guarded acquisition');
+  assert.equal(f.acquisition.hasSemanticDependencies(),false);
+  assert.deepEqual(f.reads,[]);assert.deepEqual(f.parses,[]);
+ }finally{f.close();}
+});
+
 test("native TFile resolver closes are causally covered while a later unscoped resolver wave stays uncertain", async () => {
   const f = hostFixture();
   try {
@@ -421,6 +517,28 @@ test("an observed equal-stat body edit invalidates immutable and legacy inputs, 
     await f.acquisition.reconcile();
     assert.deepEqual(f.reads, [source.path]); assert.equal(f.parses.length, 1);
   } finally { f.close(); }
+});
+
+test('pending-settings replay reaches the canonical dormant source owner and rejects equal-stat cached body input',async()=>{
+  const f=hostFixture();let dormant;
+  try{
+    const source=f.add('pending.md','Status:: before'),body=parseBodyMetadata(f.text.get(source.path)),stats={...source.stat};
+    await f.acquisition.acquire(source,body);f.legacy.set(source.path,{path:source.path,mtime:source.stat.mtime,parserVersion:2,body});
+    f.acquisition.close();f.reads.length=0;f.parses.length=0;
+    dormant=new ObsidianSourceAcquisition(f.app,f.cache,f.parser);
+    const file=ts.createSourceFile('GraphIndex.ts',readFileSync(new URL('../src/index/GraphIndex.ts',import.meta.url),'utf8'),ts.ScriptTarget.Latest,true);
+    const owner=file.statements.find(node=>ts.isClassDeclaration(node)&&node.name?.text==='GraphIndex');
+    const method=owner.members.find(node=>node.name?.getText(file)==='observeDeferredHostChange').getText(file);
+    const code=ts.transpileModule(`class DormantIndex {${method}}`,{compilerOptions:{target:ts.ScriptTarget.ES2022}}).outputText;
+    const Type=Function('TFile',code+';return DormantIndex;')(TFile),index=Object.assign(new Type(),{preparationDeferred:true,diagnosticsClosed:false,sourceAcquisition:dormant});
+    f.text.set(source.path,'Status:: after!');assert.deepEqual(source.stat,stats);
+    index.observeDeferredHostChange(source,true);
+    assert.deepEqual(f.reads,[],'Replaying an observed edit must not read source bodies before admission');assert.deepEqual(f.parses,[]);
+    assert.equal(dormant.needsBodyRead(source),true,'The existing canonical body-dirty fence survives unchanged native file stats');
+    assert.equal(await dormant.readBody(source),null,'A stale neutral/legacy body cannot satisfy the observed edit');
+    const next=await dormant.readRequestedBody(source,()=>true);
+    assert.equal(next.inlineFields.status[0],'after!');assert.deepEqual(f.reads,[source.path]);assert.equal(f.parses.length,1);
+  }finally{dormant?.close();f.close();}
 });
 
 /** A full semantic build owns no durable source write; its complete parser input still has one exact lifetime. */

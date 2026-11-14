@@ -27,8 +27,8 @@ const resolverOutput = join(directory, "resolver.cjs");
 buildSync({ entryPoints: ["src/core/graph/resolver.ts"], outfile: resolverOutput, bundle: true, platform: "node", format: "cjs" });
 const { classifyRelation } = require(resolverOutput);
 const indexOutput = join(directory, "graph-index.cjs");
-buildSync({ stdin: { resolveDir: process.cwd(), contents: 'export * from "./src/index/GraphIndex"; export * from "./src/index/GraphBuilder";' }, outfile: indexOutput, bundle: true, platform: "node", format: "cjs", external: ["obsidian"] });
-const { GraphIndex, GraphBuilder } = require(indexOutput);
+buildSync({ stdin: { resolveDir: process.cwd(), contents: 'export * from "./src/index/GraphIndex"; export * from "./src/index/GraphBuilder"; export * from "./src/adapters/obsidian/deletedFileNavigation";' }, outfile: indexOutput, bundle: true, platform: "node", format: "cjs", external: ["obsidian"] });
+const { GraphIndex, GraphBuilder, deletedFileNavigationTarget } = require(indexOutput);
 const { TFile, TFolder } = require(join(obsidianDirectory, "index.js"));
 const settings = { hierarchy: { hidden: ["Hidden"], parents: ["Parent"], children: ["Child"], leftFriends: ["Left"], rightFriends: ["Right"], previous: ["Previous"], next: ["Next"] }, inferAllLinksAsFriends: false, inverseInfer: false, showFullTagName: true, tagStyleList: [], baseNodeStyle: { maxLabelLength: 30 }, noteTypeField: "Type", primaryTagField: "Type" };
 
@@ -47,6 +47,13 @@ function fixture(options = {}) {
   let yields = 0;
   const preview = new HostMetadataPreview(app, () => options.settings ?? settings, { now: () => 0, yield: async () => { yields++; await options.onYield?.(); }, isCurrent: () => options.isCurrent?.() ?? true, sliceBudgetMs: 7, resolverBatchSize: 96 });
   return { preview, app, files, cache, centerPath, yields: () => yields };
+}
+
+/** Deliver native-shaped events to actual registered source observers without emulating their policy. */
+function nativeEvents(target) {
+ const listeners=new Map();
+ Object.assign(target,{on:(name,callback)=>{const entry={name,callback};let group=listeners.get(name);if(!group)listeners.set(name,group=new Set());group.add(entry);return entry;},
+  offref:entry=>listeners.get(entry.name)?.delete(entry),trigger:(name,...args)=>{for(const entry of listeners.get(name)??[])entry.callback(...args);}});
 }
 
 /** Native direct membership is available even when all metadata/backlink/body catalogs are blocked. */
@@ -866,8 +873,8 @@ test("GraphIndex host availability renders direct relations over a physical base
   }
 });
 
-/** Renames preserve coherent native reads while retiring builds; deletion retires the affected preview. */
-test("host-only rename remaps neighboring previews; delete retires them and filename lookup", async () => {
+/** Native coordinate changes retain coherent reads while immediately retiring file availability. */
+test("host-only rename remaps neighboring previews; delete dematerializes reads and retires filename lookup", async () => {
   const f = fixture(), originalWindow = globalThis.window;
   globalThis.window = { performance, performance, setTimeout, clearTimeout, setInterval, clearInterval };
   Object.assign(f.app.vault, { getName: () => "preview-lifetime", getFiles: () => [...f.files.values()] });
@@ -919,8 +926,9 @@ test("host-only rename remaps neighboring previews; delete retires them and file
     const neighbor = "Notes/Child.md";
     f.files.delete(neighbor);
     index.dematerializeFile(neighbor);
-    assert.equal(index.hostPreviewScopes.has(f.centerPath), false, "delete retires preview containing deleted neighbor");
-    assert.equal(index.getVaultSearchPage(neighbor), undefined);
+    assert.equal(index.hostPreviewScopes.has(f.centerPath), true, "delete retains the coherent incoming declaration during source repair");
+    assert.equal(index.get(f.centerPath).neighbours.get(neighbor)?.target.file, null, "the retained neighbor immediately becomes a placeholder");
+    assert.equal(index.getVaultSearchPage(neighbor)?.file, null, "canonical lookup may retain the ghost, never native file availability");
     assert.equal(index.search("Child", 20, "vault-files").some(page => page.path === neighbor), false);
     await index.publishHostMetadataPreview(f.centerPath);
     assert.equal(index.get(f.centerPath).neighbours.has(neighbor), false);
@@ -1246,6 +1254,192 @@ test('bounded placeholder preview survives release of its original native center
   assert.equal(index.state.pages.size,0,'A provisional preview does not publish global authority');
   assert.equal(await f.preview.build('Unknown'),null,'An arbitrary missing identity is not fabricated');
   releaseNew();assert.equal(index.get(placeholder),undefined,'Releasing the last owner retires the preview');
+ }finally{index.destroy();f.preview.dispose();globalThis.window=originalWindow}
+});
+
+/** A foreground owner must retain surviving inbound evidence when its center is deleted. */
+test('deletion retains the host-preview center and surviving incoming roles while source repair is pending',async()=>{
+ const f=fixture(),originalWindow=globalThis.window;
+ globalThis.window={performance,setTimeout,clearTimeout,setInterval,clearInterval};
+ f.app.vault.getName=()=> 'host-preview-center-deletion';
+ const plugin={settings:{...settings,excludeFilepaths:[],showVirtualNodes:true},getIndexSourceRevision:()=>0};
+ const index=new GraphIndex(plugin,f.app);index.scheduleSnapshotPersist=()=>{};
+ // Isolate the already displayed provisional owner while its canonical replacement is pending.
+ index.startSemanticDemand=()=>{};
+ const path='Notes/Child.md',release=index.acquireSemanticDemand(path);
+ try{
+  f.cache.get(path).frontmatter.Right='[[Next]]';
+  f.app.metadataCache.resolvedLinks[path]={'Notes/Next.md':1};
+  await index.publishHostMetadataPreview(path);
+  const center=index.get(path),parent=center.neighbours.get(f.centerPath)?.target;
+  assert(center&&parent,'The actual preview begins with the incoming configured parent');
+  assert(center.neighbours.has('Notes/Next.md'),'The deleted source initially contributes its own declaration');
+  assert.equal(index.isSemanticWriteReady(path,f.centerPath),false,'A host preview never authorizes writes');
+  // The early availability listener runs before the ordinary semantic delete listener.
+  f.files.delete(path);index.updateHostFileAvailability(path);index.dematerializeFile(path);
+  assert.equal(index.get(path),center,'Deleting the displayed file retains its exact readable center');
+  assert.equal(center.file,null,'The retained center is immediately a placeholder');
+  assert(center.neighbours.has(f.centerPath),'The surviving incoming declaration remains visible during repair');
+  assert(parent.neighbours.has(path),'The contributor still points at the same placeholder');
+  assert.equal(center.neighbours.has('Notes/Next.md'),false,'Deleted-owned declarations disappear immediately');
+  assert.equal(center.neighbours.has('folder:Notes'),false,'A placeholder immediately loses physical membership');
+  assert.equal(index.isSemanticWriteReady(path,f.centerPath),false,'Read continuity cannot renew semantic write authority');
+ }finally{release();index.destroy();f.preview.dispose();globalThis.window=originalWindow}
+});
+
+/** A foreground owner must retain surviving inbound evidence when its center is deleted. */
+for(const mode of ['local','warm-selected','settled','settled-body-edit'])test('deleted-center repair carries its known contributor to the actual unresolved spelling and navigation handover ('+mode+')',async()=>{
+ const f=fixture(),originalWindow=globalThis.window;
+ const isSettled=mode.startsWith('settled');
+ globalThis.window={performance,crypto:globalThis.crypto,setTimeout,clearTimeout,setInterval,clearInterval};
+ f.app.vault.getName=()=> 'deleted-center-resolution-handover';
+ nativeEvents(f.app.vault);nativeEvents(f.app.metadataCache);
+ let sourceRevision=0;
+ const plugin={settings:{...settings,indexingMode:mode==='local'?'on-demand':'eager',excludeFilepaths:[],showVirtualNodes:true},getIndexSourceRevision:()=>sourceRevision};
+ const index=new GraphIndex(plugin,f.app);index.scheduleSnapshotPersist=()=>{};index.startSemanticDemand=()=>{};
+ index.sourceAcquisition.start();
+ const path='Notes/Child.md',unresolved='Child';let release=index.acquireSemanticDemand(path);
+ index.fullSnapshotFresh=mode!=='local';
+ let maintenance=0,settledScope;
+ if(isSettled)index.sourceAcquisition.getMaintenanceRevision=()=>maintenance;
+ let requiredMetadataPaths;
+ const build=index.hostPreview.build;
+ index.hostPreview.build=function(center,options){if(options?.requiredMetadataPaths)requiredMetadataPaths=options.requiredMetadataPaths;return build.call(this,center,options);};
+ const publish=async()=>{
+  if(mode==='local')return index.publishOnDemandHostScope(path,()=>true);
+  assert.equal(index.usesLocalForeground(),false,'The actual warm selected-recovery strategy is active');
+  assert.equal(index.hasCurrentCanonicalCenter(path),false,'The deleted center has no current canonical incidence');
+  await index.ensureVisibleSemanticRecovery(path);
+  return index.onDemandHostScopes.get(path);
+ };
+ try{
+  if(isSettled){
+   f.cache.get(f.centerPath).frontmatter.Left='[[Other ghost]]';
+   const prepared=await f.preview.build(path);
+   settledScope={centerPath:path,policyRevision:index.semanticPolicyRevision,demandRevision:index.semanticDemandRevision.get(path)??0,
+    maintenanceRevision:maintenance,sourceRevision,completePaths:new Set([path]),pagesByPath:prepared.state.pages,suppressedPaths:new Set(),
+    settings:prepared.settings,evidence:prepared.state.evidence,coverageSignature:index.semanticCoverageSignature()};
+   index.semanticScopes.set(path,settledScope);
+  }else await index.publishHostMetadataPreview(path);
+  const center=index.get(path);
+  // Match the native creation flow: the canonical baseline has only the physical endpoint,
+  // while the already displayed preview owns the saved source's configured relationship.
+  index.state.pages.set(path,{...center,neighbours:new Map()});
+  f.files.delete(path);if(isSettled)maintenance++;
+  index.updateHostFileAvailability(path);index.dematerializeFile(path);
+  assert(index.get(path).neighbours.has(f.centerPath),'The synchronous deletion handover stays connected');
+  // Obsidian rebinds [[Child]] to its actual unresolved spelling after removing the native file.
+  delete f.app.metadataCache.resolvedLinks[f.centerPath][path];
+  f.app.metadataCache.unresolvedLinks[f.centerPath]={[unresolved]:1};
+  f.cache.get(f.centerPath).frontmatter.Left='[[Other ghost]]';
+  index.hostPreview.refreshSource(f.centerPath);
+  if(isSettled){
+   const contributor=f.files.get(f.centerPath),event=index.sourceAcquisition.getFileRevision(contributor);
+   f.app.metadataCache.trigger('resolve',contributor);
+   assert(index.sourceAcquisition.getFileRevision(contributor)>event,'The genuine source observer advances its native event token for resolve');
+   assert.equal(index.sourceAcquisition.needsBodyRead(contributor),false,'Resolver progress has not edited the body');
+   assert.equal(index.get(path),center,'Resolution-only event progress retains the already compiled declaration read');
+   index.refreshVisibleHostMetadataPreviews(f.centerPath);
+   assert.equal(index.semanticScopes.get(path)===settledScope,true,'Actual resolution refresh keeps the coherent stale-maintenance read owner');
+   assert.equal(index.get(path),center,'The settled placeholder stays connected before its replacement publishes');
+   const owner=f.files.get(f.centerPath),cache=f.cache.get(f.centerPath),size=owner.stat.size;
+   owner.stat.size++;
+   assert.equal(index.get(path)===center,false,'An unnotified contributor size change rejects the retained semantic read');
+   assert.equal(index.semanticScopeForPath(path),null,'Expired deletion reads cannot supply a relation-view owner');
+   assert.equal(index.semanticScopeForPair(path,f.centerPath),null,'Expired deletion reads cannot supply stale pair evidence');
+   owner.stat.size=size;
+   f.cache.set(f.centerPath,{...cache});
+   assert.equal(index.get(path)===center,false,'Replaced contributor metadata rejects the retained semantic read');
+   f.cache.set(f.centerPath,cache);
+   if(mode==='settled-body-edit'){
+    const bodyEvent=index.sourceAcquisition.getFileRevision(owner);
+    f.app.vault.trigger('modify',owner);
+    assert(index.sourceAcquisition.getFileRevision(owner)>bodyEvent,'The actual source owner observes the equal-stat body event');
+    assert.equal(owner.stat.size,size);assert.equal(index.sourceAcquisition.needsBodyRead(owner),true);
+    assert.equal(index.get(path)===center,false,'An equal-stat body event retires the compiled deletion read');
+    assert.equal(index.deletedSemanticReads.get(settledScope).owners,null,'Observed dirty body input permanently retires this captured read');
+    // Negative control for the documented acquisition transition that clears bodyDirty after parse:
+    // neither a later clean input capability nor an unchanged source counter may revive this read.
+    index.sourceAcquisition.needsBodyRead=()=>false;
+    assert.equal(sourceRevision,0);
+    assert.equal(index.get(path)===center,false,'Later clean parser state cannot revive the retired declaration');
+    assert.equal(index.semanticScopeForPair(path,f.centerPath),null,'Retired body input cannot supply pair evidence after parse');
+    return;
+   }
+  }
+  const local=await publish();
+  assert(local,'The current metadata-only replacement is actually published');
+  if(mode!=='local')assert.deepEqual([...requiredMetadataPaths],[path],'Retained metadata contributors never become required body-selection inputs');
+  assert(local.pages.has(unresolved),'Explicit selected recovery retains the incoming source needed to compile the actual unresolved spelling');
+  assert(local.pages.has('Other ghost'),'The same actual compilation also contains an unrelated unresolved neighbor');
+  if(!isSettled)assert.equal(index.get('Other ghost'),undefined,'Deleted-center handover does not broaden arbitrary unresolved API lookup');
+  const ghost=index.get(unresolved);
+  assert(ghost,'The compiler-produced unresolved neighbor is readable from the current local cover');
+  if(mode!=='local')assert.equal(index.visibleRecoveryScope(path)===local,true,'The actual warm recovery caller installs its own readable certificate');
+  assert.equal(ghost.file,null);
+  assert.equal(ghost.neighbours.get(f.centerPath)?.isParent,true,'The canonical compiler retains the authored incoming role');
+  assert.equal(ghost.neighbours.get(f.centerPath)?.parentType,1,'The relationship remains defined');
+  assert.equal(deletedFileNavigationTarget(f.app,path,candidate=>index.get(candidate)),ghost,'The established navigation owner finds the connected spelling');
+  assert.equal(index.isSemanticWriteReady(unresolved,f.centerPath),false,'The borrowed local read never authorizes writes');
+  if(mode!=='local')assert.equal(index.borrowedLocalNeighbourPage(f.centerPath),undefined,'Warm recovery does not broaden physical-neighbor borrowing');
+  sourceRevision++;
+  assert.equal(index.get(unresolved),undefined,'A changed source revision retires unresolved borrowing');
+  sourceRevision--;
+  index.semanticPolicyRevision++;
+  assert.equal(index.get(unresolved),undefined,'A changed policy retires unresolved borrowing');
+  index.semanticPolicyRevision--;
+  const contributor=f.files.get(f.centerPath),mtime=contributor.stat.mtime;
+  contributor.stat.mtime++;
+  assert.equal(index.get(unresolved),undefined,'An unnotified contributor edit immediately rejects the borrowed unresolved read');
+  contributor.stat.mtime=mtime;
+  for(const event of ['resolution','create','replacement']){
+   if(event==='resolution')index.hostPreview.refreshSource(f.centerPath);
+   else{
+    const native=new TFile('Notes/Other.md',contributor.parent);
+    f.files.set(native.path,native);f.cache.set(native.path,{frontmatter:{},tags:[]});
+    index.updateHostFileAvailability(native.path,native);
+   }
+   assert.equal(contributor.stat.mtime,mtime,'Native resolution/materialization leaves the contributor stat unchanged');
+   assert.equal(plugin.getIndexSourceRevision(),0,'Native observation alone leaves the source revision unchanged');
+   assert.equal(index.get(unresolved),undefined,`${event} observation rejects an obsolete unresolved identity`);
+   await publish();
+   assert(index.get(unresolved)?.neighbours.has(f.centerPath),'Only a fresh compilation restores the unresolved read');
+  }
+  release();
+  assert.equal(index.get(unresolved),undefined,'A released center cannot lend an unresolved neighbor');
+  release=index.acquireSemanticDemand(unresolved);
+  await index.publishHostMetadataPreview(unresolved);
+  assert(index.get(unresolved).neighbours.has(f.centerPath),'The new center has its own fresh owner after the old demand retires');
+  assert.equal(index.hostPreviewScopes.has(path),false,'The deleted physical-coordinate preview does not survive indefinitely');
+ }finally{release();index.destroy();f.preview.dispose();globalThis.window=originalWindow}
+});
+
+/** A foreground owner must retain surviving inbound evidence when its center is deleted. */
+test('native resolution retains a dematerialized semantic center until its current replacement publishes',async()=>{
+ const f=fixture(),originalWindow=globalThis.window;
+ globalThis.window={performance,setTimeout,clearTimeout,setInterval,clearInterval};
+ f.app.vault.getName=()=> 'semantic-center-deletion-repair';
+ const path='Notes/Child.md',plugin={settings:{...settings,excludeFilepaths:[],showVirtualNodes:true,lastActivePath:path},getIndexSourceRevision:()=>0};
+ const index=new GraphIndex(plugin,f.app);index.scheduleSnapshotPersist=()=>{};
+ // Hold replacement acquisition private; this assertion concerns the synchronous reader handover.
+ index.publishHostMetadataPreview=()=>new Promise(()=>{});
+ index.ensureVisibleSemanticRecovery=()=>new Promise(()=>{});
+ try{
+  const prepared=await f.preview.build(path),center=prepared.state.pages.get(path);
+  index.state.pages.set(path,{...center,neighbours:new Map()});
+  const scope={centerPath:path,policyRevision:index.semanticPolicyRevision,
+   maintenanceRevision:index.sourceAcquisition.getMaintenanceRevision(),sourceRevision:0,
+   completePaths:new Set([path]),pagesByPath:prepared.state.pages,suppressedPaths:new Set(),
+   settings:prepared.settings,evidence:prepared.state.evidence,coverageSignature:index.semanticCoverageSignature()};
+  index.semanticScopes.set(path,scope);
+  assert.equal(index.get(path),center);
+  f.files.delete(path);index.dematerializeFile(path);
+  assert(center.neighbours.has(f.centerPath),'Deletion itself preserves the surviving incoming declaration');
+  index.refreshVisibleHostMetadataPreviews(f.centerPath);
+  assert.equal(index.get(path),center,'Native resolution progress keeps the dematerialized read owner until replacement');
+  assert(center.neighbours.has(f.centerPath),'The pending replacement cannot empty the displayed relationship');
+  assert.equal(index.semanticScopes.get(path)?.sourceRevision,scope.sourceRevision,'Read continuity never renews its source certificate');
+  assert.equal(index.isSemanticWriteReady(path,f.centerPath),false,'Pending resolution never grants write readiness');
  }finally{index.destroy();f.preview.dispose();globalThis.window=originalWindow}
 });
 

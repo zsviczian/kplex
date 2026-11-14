@@ -26,6 +26,41 @@ function method(path, name, dependencies = {}) {
   return Function(...Object.keys(dependencies), `${output}; return Subject.prototype.${name};`)(...Object.values(dependencies));
 }
 const {wheelCamera} = moduleAt("src/ui/components/wheelCamera.ts");
+/** Execute the actual App presentation subscription, including its shared navigation callback. */
+test("metadata-only publication hands a deleted center to its uniquely connected placeholder", () => {
+  const source = readFileSync(new URL("../src/ui/App.tsx", import.meta.url), "utf8");
+  const tree = ts.createSourceFile("App.tsx", source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
+  let adoption, subscription;const helpers=new Map();
+  function visit(node) {
+    if (ts.isVariableDeclaration(node) && node.name.getText(tree) === "activateDeletedFilePlaceholder") adoption = node.initializer.arguments[0].getText(tree);
+    if (ts.isVariableDeclaration(node) && ['acquirePendingDocumentDemand','releasePendingDocumentDemand','acknowledgeDocumentDemandHandover'].includes(node.name.getText(tree))) helpers.set(node.name.getText(tree),node.initializer.arguments[0].getText(tree));
+    if (ts.isCallExpression(node) && ts.isPropertyAccessExpression(node.expression) && node.expression.name.text === "subscribePresentation"
+      && node.arguments[0]?.getText(tree).includes("activateDeletedFilePlaceholder")) subscription = node.arguments[0].getText(tree);
+    ts.forEachChild(node, visit);
+  }
+  visit(tree);assert(adoption && subscription, "The real presentation owner shares deleted-file navigation");
+  const {deletedFileNavigationTarget} = moduleAt("src/adapters/obsidian/deletedFileNavigation.ts");
+  const oldPath = "Notes/Challenger.md", raw = "Challenger", old = {path:oldPath,file:null,neighbours:new Map()}, ghost = {path:raw,file:null,neighbours:new Map([["Notes/Note.md",{}]])};
+  const pages = new Map([[oldPath,old],[raw,ghost]]), activePathRef = {current:oldPath}, activePageRef = {current:old}, activeFileRef = {current:{path:oldPath}};
+  const navigations = [],pendingDocumentDemandRef={current:null},pendingDocumentFollowRef={current:null};let native = null, renders = 0, paints = 0, demands=0;
+  const plugin = {app:{vault:{getFileByPath:()=>native}},index:{get:path=>pages.get(path),viewScopeCoverage:()=>({prepared:true}),acquireSemanticDemand(){demands++;return()=>demands--;}},isKplexLeafVisible:()=>true};
+  const compile = (body,names,values) => Function(...names, `return (${ts.transpileModule(body,{compilerOptions:{target:ts.ScriptTarget.ES2022}}).outputText.trim().replace(/;$/,'')});`)(...values);
+  const acquire=compile(helpers.get('acquirePendingDocumentDemand'),['plugin','pendingDocumentDemandRef'],[plugin,pendingDocumentDemandRef]);
+  const release=compile(helpers.get('releasePendingDocumentDemand'),['pendingDocumentDemandRef'],[pendingDocumentDemandRef]);
+  const acknowledge=compile(helpers.get('acknowledgeDocumentDemandHandover'),['plugin','pendingDocumentDemandRef','pendingDocumentFollowRef','activePathRef','releasePendingDocumentDemand'],[plugin,pendingDocumentDemandRef,pendingDocumentFollowRef,activePathRef,release]);
+  const adopt = compile(adoption,["plugin","hostLeaf","activePathRef","activePageRef","activeFileRef","pendingDocumentDemandRef","acquirePendingDocumentDemand","setActivePath","deletedFileNavigationTarget"],
+    [plugin,{},activePathRef,activePageRef,activeFileRef,pendingDocumentDemandRef,acquire,path=>navigations.push(path),deletedFileNavigationTarget]);
+  const handler = compile(subscription,["plugin","hostLeaf","activatePendingDocumentFollow","activatePendingDocumentUrl","activateDeletedFilePlaceholder","acknowledgeDocumentDemandHandover","forceRender","forcePaint"],
+    [plugin,{},()=>{},()=>{},adopt,acknowledge,()=>renders++,()=>paints++]);
+  handler({kind:"paint"});assert.equal(paints,1);assert.deepEqual(navigations,[],"Paint-only changes cannot retarget navigation");
+  native = {path:oldPath};handler({kind:"data"});assert.deepEqual(navigations,[],"A replacement native file keeps its exact center");native = null;
+  const ambiguous = {...ghost,path:"Notes/Challenger"};pages.set(ambiguous.path,ambiguous);handler({kind:"data"});assert.deepEqual(navigations,[],"Ambiguous spellings do not authorize a handover");pages.delete(ambiguous.path);
+  old.neighbours.set("Notes/Note.md",{});handler({kind:"data"});assert.deepEqual(navigations,[],"A still-connected physical-coordinate read remains displayed");old.neighbours.clear();
+  handler({kind:"data"});assert.deepEqual(navigations,[raw]);assert.equal(activePathRef.current,raw);assert.equal(activePageRef.current,ghost);assert.equal(activeFileRef.current,null);
+  handler({kind:"data"});assert.deepEqual(navigations,[raw],"Later presentation events do not replay the adopted intent");assert.equal(renders,5);
+  assert.equal(demands,1);release();assert.equal(demands,0);
+});
+
 test("trackpad scroll pans in both axes at a fixed zoom; wheel mode and modifier/pinch preserve anchored zoom", () => {
   const camera = {x: 10, y: 20, scale: 1.5}, point = {x: 200, y: 150};
   const scroll = {deltaX: 8, deltaY: 12, deltaMode: 0, ctrlKey: false, metaKey: false};
@@ -142,7 +177,7 @@ test("explicit new-tab/tab-group/window actions allocate the requested native su
     const file = {path: "A.md"}, calls = [], leaf = {setViewState: async state => calls.push(state)};
     const owner = {app: {vault: {getFileByPath: () => file}, workspace: {getMostRecentLeaf: () => null, getLeaf: value => {assert.equal(value, type); return leaf;}}},
       rememberDocumentLeaf() {}, focusInKplex: async (...args) => calls.push(args)};
-    await open.call(owner, file, target); assert.deepEqual(calls.at(-1), [file.path, leaf]);
+    owner.whenInitialized=async()=>true;await open.call(owner, file, target); assert.deepEqual(calls.at(-1), [file.path, leaf]);
     assert.equal(calls[0].type, "plex");
   }
 });
@@ -157,7 +192,7 @@ test("a warm new Plex waits for its mounted navigation consumer before focusing 
   const file = {path: "Chosen.md"}, focused = [], leaf = {view: new View(), setViewState: async () => {}};
   const owner = {app: {vault: {getFileByPath: () => file}, workspace: {getMostRecentLeaf: () => null, getLeaf: () => leaf}},
     rememberDocumentLeaf() {}, focusInKplex: async (...args) => focused.push(args)};
-  const work = open.call(owner, file, "split");
+  owner.whenInitialized=async()=>true;const work = open.call(owner, file, "split");
   await new Promise(resolve => setImmediate(resolve)); assert.equal(focused.length, 0);
   ready(); await work; assert.deepEqual(focused, [[file.path, leaf]]);
 });
@@ -277,9 +312,9 @@ test('new-file tabs use the Plex group or the most recent main group from the si
 
 test('canvas tab modifiers allocate in the captured group even when another group is most recent',async()=>{
  const create=method('src/main.ts','createPlexTab',{KPLEX_VIEW_TYPE:'plex',KPLEX_SIDEPANEL_VIEW_TYPE:'sidepanel'});
- const host={parent:{},view:{getViewType:()=> 'plex'}},other={parent:{}},calls=[];
+ const host={parent:{},view:{containerEl:{ownerDocument:{}},getViewType:()=> 'plex'}},other={parent:{}},calls=[];
  const leaf={setViewState:async state=>calls.push(['view',state])};
- const p={rememberDocumentLeaf:()=>{},app:{workspace:{getMostRecentLeaf:()=>other,
+ const p={whenInitialized:async()=>true,leafIsAttached:()=>true,rememberDocumentLeaf:()=>{},app:{workspace:{getMostRecentLeaf:()=>other,
   iterateAllLeaves:run=>[host,{parent:host.parent},other].forEach(run),
   createLeafInParent:(parent,index)=>{calls.push(['tab',parent,index]);return leaf},
   createLeafBySplit:(...args)=>{calls.push(['split',...args]);return leaf},
@@ -492,11 +527,11 @@ for(const boundary of ['current','replacement','rename'])test('folder menu openi
  const folder=Object.assign(new NativeFolder(),{path:'Folder'}),original=folder.path,focused=[],primed=[];let current=folder;
  const leaf={setViewState:async()=>{if(boundary==='replacement')current=Object.assign(new NativeFolder(),{path:original});if(boundary==='rename')folder.path='Renamed'}};
  const owner={index:{primeSavedNavigation:paths=>primed.push(paths)},app:{vault:{getFolderByPath:path=>path===original?current:null,getRoot:()=>null},workspace:{getLeavesOfType:()=>[],getMostRecentLeaf:()=>null,getLeaf:()=>leaf}},rememberDocumentLeaf(){},focusInKplex:async(...args)=>focused.push(args)};
- await open.call(owner,folder,'tab');assert.deepEqual(primed,[['folder:Folder']]);assert.deepEqual(focused,boundary==='current'?[['folder:Folder',leaf]]:[]);
+ owner.whenInitialized=async()=>true;await open.call(owner,folder,'tab');assert.deepEqual(primed,[['folder:Folder']]);assert.deepEqual(focused,boundary==='current'?[['folder:Folder',leaf]]:[]);
 });
 test('root folder opens through the native root owner without a path lookup',async()=>{
  const root=Object.assign(new NativeFolder(),{path:'/'}),primed=[],focused=[],leaf={setViewState:async()=>{}};
  const open=method('src/main.ts','openFileInKplex',{TFolder:NativeFolder,KplexView:class{},KplexSidepanelView:class{},readObsidianPresentationEnvironment:()=>({device:'desktop'}),KPLEX_VIEW_TYPE:'plex',KPLEX_SIDEPANEL_VIEW_TYPE:'sidebar'});
  const owner={index:{primeSavedNavigation:paths=>primed.push(paths)},app:{vault:{getRoot:()=>root,getFolderByPath(){throw Error('Root uses getRoot')}},workspace:{getLeavesOfType:()=>[],getMostRecentLeaf:()=>null,getLeaf:()=>leaf}},rememberDocumentLeaf(){},focusInKplex:async(...args)=>focused.push(args)};
- await open.call(owner,root,'tab');assert.deepEqual(primed,[['folder:/']]);assert.deepEqual(focused,[['folder:/',leaf]]);
+ owner.whenInitialized=async()=>true;await open.call(owner,root,'tab');assert.deepEqual(primed,[['folder:/']]);assert.deepEqual(focused,[['folder:/',leaf]]);
 });

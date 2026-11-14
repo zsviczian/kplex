@@ -57,9 +57,14 @@ test("verified native identity refuses unverified/private guesses and unsupporte
 
 test("native view keeps the memory owner across React migration and excludes trails from settings/support projections",()=>{
   const view=readFileSync("src/ui/KplexView.tsx","utf8"),main=readFileSync("src/main.ts","utf8");
-  assert.match(view,/readonly documentSession: KplexDocumentSession/);assert.match(view,/plexSession: this.documentSession.getState\(\)/);
+  assert.match(view,/documentSession: KplexDocumentSession \| null = null/);assert.match(view,/plexSession: this.documentSession.getState\(\)/);
+  const initialization=view.slice(view.indexOf("private initializePresentation()"),view.indexOf("private restorePresentation("));
+  assert.match(initialization,/if \(this.documentSession\) return;/,"Only the first authoritative initialization allocates the native lifetime's session");
+  assert.equal(view.split("new KplexDocumentSession(").length-1,1,"React rendering and migration must never replace an initialized native session");
+  assert.match(initialization,/new KplexDocumentSession\(this.plugin.settings,/);
   const migration=view.slice(view.indexOf("this.containerEl.onWindowMigrated"),view.indexOf("this.renderReact();\n    // View"));
-  assert(!migration.includes("documentSession.dispose"));assert.match(view,/this.plugin.onKplexViewClosed\(this.leaf, this.documentSession\);\s*this.documentSession.dispose\(\)/);
+  assert(!migration.includes("documentSession.dispose"));assert(!migration.includes("documentSession ="));
+  assert.match(view,/if \(this.documentSession\) this.plugin.onKplexViewClosed\(this.leaf, this.documentSession\);\s*this.documentSession\?\.dispose\(\)/,"Closing a loading shell is safe; an allocated native session is still disposed on close");
   assert(!main.slice(main.indexOf("reportBug(origin"),main.indexOf("private searchTargetLeaf")).includes("footprints"));
 });
 

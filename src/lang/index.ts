@@ -6,13 +6,13 @@
  * template quote wrappers are normalized while interpolated user values remain opaque text.
  */
 import { englishCatalog, type EnglishCatalog } from "./en";
-import { germanCatalog } from "./de";
-import { spanishCatalog } from "./es";
-import { frenchCatalog } from "./fr";
-import { japaneseCatalog } from "./ja";
-import { dutchCatalog } from "./nl";
-import { russianCatalog } from "./ru";
-import { traditionalChineseCatalog } from "./zh-TW";
+import { createGermanCatalog } from "./de";
+import { createSpanishCatalog } from "./es";
+import { createFrenchCatalog } from "./fr";
+import { createJapaneseCatalog } from "./ja";
+import { createDutchCatalog } from "./nl";
+import { createRussianCatalog } from "./ru";
+import { createTraditionalChineseCatalog } from "./zh-TW";
 
 type PrimitiveParam = string | number;
 type CatalogEntry = Readonly<{
@@ -45,15 +45,16 @@ const PLACEHOLDER = /\{([A-Za-z][A-Za-z0-9_]*)\}/g;
 const PLURAL_CATEGORIES = new Set(["zero", "one", "two", "few", "many", "other"]);
 const REFERENCE_QUOTES: Readonly<Record<string,string>> = { '"':'"', "'":"'", "“":"”", "„":"“", "«":"»", "»":"«", "‹":"›", "›":"‹", "「":"」", "『":"』", "‘":"’", "‚":"‘" };
 
-const bundledLocaleCatalogs: RuntimeLocaleCatalogs = {
-  de: germanCatalog,
-  es: spanishCatalog,
-  fr: frenchCatalog,
-  ja: japaneseCatalog,
-  nl: dutchCatalog,
-  ru: russianCatalog,
-  "zh-tw": traditionalChineseCatalog,
-};
+/** Internal factories keep unused translation literals and catalog allocation out of module startup. */
+const bundledLocaleFactories: ReadonlyMap<string, () => RuntimeCatalog> = new Map([
+  ["de", createGermanCatalog],
+  ["es", createSpanishCatalog],
+  ["fr", createFrenchCatalog],
+  ["ja", createJapaneseCatalog],
+  ["nl", createDutchCatalog],
+  ["ru", createRussianCatalog],
+  ["zh-tw", createTraditionalChineseCatalog],
+]);
 
 /** Collect declared interpolation names without examining literal parameter values. */
 function placeholders(template: string): Set<string> {
@@ -282,11 +283,11 @@ const preparedBundledCatalogs = new Map<string, RuntimeCatalog>();
 function bundledCatalogsFor(language: string): RuntimeLocaleCatalogs {
   const selected: Record<string, RuntimeCatalog> = {};
   for (const locale of localeCandidates(language)) {
-    const catalog = bundledLocaleCatalogs[locale];
-    if (!catalog) continue;
+    const factory = bundledLocaleFactories.get(locale);
+    if (!factory) continue;
     let prepared = preparedBundledCatalogs.get(locale);
     if (!prepared) {
-      prepared = prepareCatalogs({[locale]: catalog}, true)[locale];
+      prepared = prepareCatalogs({[locale]: factory()}, true)[locale];
       if (!prepared) continue;
       preparedBundledCatalogs.set(locale, prepared);
     }
@@ -301,8 +302,8 @@ function bundledCatalogsFor(language: string): RuntimeLocaleCatalogs {
  * maps retain full validation on every call, including unused locales, and are never memoized.
  * Missing locales/keys fall back to English. Reference classification remains owned by English.
  */
-export function createTranslator(language: string, localeCatalogs: RuntimeLocaleCatalogs = bundledLocaleCatalogs): Translator {
-  const normalizedCatalogs = localeCatalogs === bundledLocaleCatalogs
+export function createTranslator(language: string, localeCatalogs?: RuntimeLocaleCatalogs): Translator {
+  const normalizedCatalogs = localeCatalogs === undefined
     ? bundledCatalogsFor(language) : prepareCatalogs(localeCatalogs);
   return (/** Resolve and render one message without reinterpreting values as templates. */ (key: TranslationKey, params?: Readonly<Record<string, PrimitiveParam>>) => {
     const { entry, locale, referenceParams } = entryFor(key, language, normalizedCatalogs);

@@ -20,7 +20,7 @@ export function replaceProfileAnchor(source, anchor, replacement) {
 }
 
 /** Instrument the exact class method/function body without changing return, throw or await behavior. */
-function profileBody(source, className, name, phase) {
+function profileBody(source, className, name, phase, finishOnExit=false) {
  const file=ts.createSourceFile('profile.ts',source,ts.ScriptTarget.Latest,true),matches=[];
  function visit(node){
   if(className&&ts.isClassDeclaration(node)&&node.name?.text===className){
@@ -30,7 +30,7 @@ function profileBody(source, className, name, phase) {
  }
  visit(file);if(matches.length!==1)throw Error('Startup method boundary changed: '+className+'.'+name);
  const body=matches[0],start=body.getStart(file)+1,end=body.end-1;
- return source.slice(0,start)+`\n__kplexInitiation.mark(${JSON.stringify(phase+':enter')});try {`+source.slice(start,end)+`\n} finally {__kplexInitiation.mark(${JSON.stringify(phase+':exit')});${phase==='onload'?'__kplexInitiation.finish();':''}}\n`+source.slice(end);
+ return source.slice(0,start)+`\n__kplexInitiation.mark(${JSON.stringify(phase+':enter')});try {`+source.slice(start,end)+`\n} finally {__kplexInitiation.mark(${JSON.stringify(phase+':exit')});${finishOnExit?'__kplexInitiation.finish();':''}}\n`+source.slice(end);
 }
 
 /** One finite lexical recorder; only onload publishes its test-only controller to the selected vault. */
@@ -40,6 +40,7 @@ export const initiationFooter="__kplexInitiation.mark('module-eval:exit');";
 /** Add source-only phase receipts; no native registrations, settings or index admission are deferred. */
 export function instrumentInitiationSources(sources) {
  let {main,settings,graphIndex,indexedDb}=sources;
+ const asynchronousInitialization=main.includes('private async initializePlugin(): Promise<void> {');
  const settingsRegistration=main.includes('this.addSettingTab(tab);')?'this.addSettingTab(tab);':'this.addSettingTab(this.settingsTab);';
  main=replaceProfileAnchor(main,'export default class KplexPlugin extends Plugin {',`export default class KplexPlugin extends Plugin {
  constructor(...args: ConstructorParameters<typeof Plugin>) {__kplexInitiation.mark('constructor:enter');super(...args);__kplexInitiation.mark('constructor:exit');}`);
@@ -58,7 +59,12 @@ export function instrumentInitiationSources(sources) {
   else main=replaceProfileAnchor(main,anchor,`__kplexInitiation.mark('${phase}:enter');${anchor}__kplexInitiation.mark('${phase}:exit');`);
  }
  main=profileBody(main,'KplexPlugin','initializeActions','actions');
- main=profileBody(main,'KplexPlugin','onload','onload');
+ main=profileBody(main,'KplexPlugin','onload','onload',!asynchronousInitialization);
+ if(asynchronousInitialization){
+  main=profileBody(main,'KplexPlugin','initializePlugin','initialization');
+  // Observe actual terminal settlement, including unload while loadData remains pending.
+  main=replaceProfileAnchor(main,'this.initializationComplete = ready;',`this.initializationComplete = ready;__kplexInitiation.mark(ready?'services:ready':'services:unavailable');__kplexInitiation.finish();`);
+ }
  settings=profileBody(settings,'KplexSettingTab','getSettingDefinitions','settings-definitions');
  settings=profileBody(settings,null,'migrateAndMergeSettings','settings-migration');
  graphIndex=profileBody(graphIndex,'GraphIndex','constructor','GraphIndex');
@@ -120,7 +126,7 @@ mkdirSync(output,{recursive:true});writeFileSync(join(output,'main.js'),code);wr
 if(cpuProfile)writeFileSync(join(output,'main.js.map'),result.outputFiles.find(file=>file.path.endsWith('main.js.map')).contents);
 const sourcePaths=[...sourceOriginals.keys()];
 const identity={sourceCommit:ref??git('rev-parse','HEAD').trim(),sourceDirty:!ref&&Boolean(git('status','--porcelain','--','src').trim()),mode,node:process.version,testOnly:true,cpuProfile,cpuProfileMethod:cpuProfile?'bounded-native-cli-cdp-windows':null,samplingIntervalMicroseconds:null,hardeningEdits:cpuProfile?hardeningEdits:[],
- semantics:mode==='initiation'?'Test-only bounded lexical module/constructor/onload phase clock and process CPU receipts; no startup scheduling, native registrations, settings or cache changes. Banner excludes native compilation/file loading; time app.plugins.loadPlugin externally for the enclosing host interval.':'Native process CPU/IDB counters and bounded resource observations; no source/graph authority, settings, scheduling, watchdog or cache changes. Counts mode keeps detailed StartupDiagnostics disabled.',
+ semantics:mode==='initiation'?'Test-only bounded lexical module/constructor/onload and asynchronous service-initialization phase clock and process CPU receipts; no startup scheduling, native registrations, settings or cache changes. Async candidates record through terminal services readiness independently of onload exit; historical synchronous baselines finish at onload exit. Banner excludes native compilation/file loading; time app.plugins.loadPlugin externally for the enclosing host interval.':'Native process CPU/IDB counters and bounded resource observations; no source/graph authority, settings, scheduling, watchdog or cache changes. Counts mode keeps detailed StartupDiagnostics disabled.',
  sha256:createHash('sha256').update(code).digest('hex'),probeSha256:createHash('sha256').update(readFileSync(join(root,'scripts/testing/obsidian/startupResources.mjs'))).digest('hex'),
  source:Object.fromEntries(sourcePaths.map(/** Pin the frozen original inputs separately from their test-only observation overlays. */ path=>[relative(root,path).split(sep).join('/'),createHash('sha256').update(sourceOriginals.get(path)).digest('hex')]))};
 writeFileSync(join(output,'identity.json'),JSON.stringify(identity,null,2)+'\n');console.log(JSON.stringify({sourceCommit:identity.sourceCommit,mode,sha256:identity.sha256,output}));

@@ -20,7 +20,7 @@ function sourceParts() {
   visit(graph);assert(controls&&resize&&prepare&&editorResize);
   const view=ts.createSourceFile('view.tsx',readFileSync('src/ui/KplexView.tsx','utf8'),ts.ScriptTarget.Latest,true,ts.ScriptKind.TSX);
   const declaration=view.statements.find(node=>ts.isClassDeclaration(node)&&node.name.text==='BaseKplexView');
-  const methods=['onOpen','onClose','getState','setState','refreshTitle','getDisplayText'].map(name=>declaration.members.find(node=>ts.isMethodDeclaration(node)&&node.name.getText(view)===name).getText(view)).join('\n');
+  const methods=['onOpen','onClose','getState','setState','refreshTitle','getDisplayText','initializePresentation','restorePresentation','mountInitializedView','showInitializationFailure'].map(name=>declaration.members.find(node=>ts.isMethodDeclaration(node)&&node.name.getText(view)===name).getText(view)).join('\n');
   return {controls,resize,prepare,editorResize,methods};
 }
 
@@ -40,7 +40,7 @@ async function bundle() {
     const readObsidianPresentationEnvironment=()=>({device:'desktop'});
     class NativeBase {async onOpen(){}async onClose(){}getSurface(){return'leaf'}getState(){return{native:'preserved'}}async setState(){}}
     class NativeView extends NativeBase {${methods}}
-    export function lifecycleView(properties){return Object.assign(new NativeView(),{plugin:{onKplexViewStateRestored(){}},documentSession:new KplexDocumentSession({documentSyncMode:'off',sidecarPosition:'right',sidecarMarkdownMode:'source'},null,()=>{}),root:null,windowMigrationCleanup:null,ready:false,renderGeneration:0,readyResolvers:[],displayModes:null,releaseDisplayLifecycle:null},properties)}
+    export function lifecycleView(properties){const view=Object.assign(new NativeView(),{plugin:{onKplexViewStateRestored(){}},documentSession:new KplexDocumentSession({documentSyncMode:'off',sidecarPosition:'right',sidecarMarkdownMode:'source'},null,()=>{}),initializationGeneration:0,root:null,windowMigrationCleanup:null,ready:false,renderGeneration:0,readyResolvers:[],displayModes:null,releaseDisplayLifecycle:null},properties);if(view.leaf)view.leaf.view=view;return view}
   `},bundle:true,write:false,platform:'browser',format:'iife',globalName:'sourceModules',plugins:[{name:'native-icons',setup(builder){builder.onResolve({filter:/^obsidian$/},()=>({path:'obsidian',namespace:'native'}));builder.onLoad({filter:/.*/,namespace:'native'},()=>({contents:`export const Platform={isWin:false,isDesktop:true};export function getIcon(name){const icon=document.createElementNS('http://www.w3.org/2000/svg','svg');icon.setAttribute('data-icon',name);return icon}`,loader:'js'}));}}]});
   return result.outputFiles[0].text;
 }
@@ -108,7 +108,7 @@ test('production native lifecycle restores before cross-document adoption and re
   try {
     const result=await host.evaluate(`(async()=>{
       const{lifecycleView}=sourceModules,events=new Set(),cleanup=[];const workspace={on(name,callback){const ref={name,callback};events.add(ref);return ref},offref(ref){events.delete(ref)}};
-      const container=document.body.createDiv(),content=container.createDiv(),plugin={register:fn=>cleanup.push(fn),onKplexViewOpened:async()=>{},onKplexViewClosed:()=>{},restorePlexFoldBeforeReveal:()=>{}},leaf={view:{containerEl:container}};let migrate,unmountDoc,renders=0;
+      const container=document.body.createDiv(),content=container.createDiv(),plugin={whenInitialized:async()=>true,translator:key=>key,register:fn=>cleanup.push(fn),onKplexViewOpened:async()=>{},onKplexViewClosed:()=>{},restorePlexFoldBeforeReveal:()=>{}},leaf={view:{containerEl:container}};let migrate,unmountDoc,renders=0;
       container.onWindowMigrated=fn=>{migrate=fn;return()=>{migrate=null}};
       const view=lifecycleView({contentEl:content,containerEl:container,app:{workspace,vault:{on:workspace.on.bind(workspace),offref:workspace.offref.bind(workspace)}},leaf,plugin,renderReact(){renders++;this.root={unmount:()=>{unmountDoc=content.ownerDocument}}}});await view.onOpen();view.displayModes.toggleZen();view.displayModes.toggleFullscreen();const outside=document.createElement('input');document.body.append(outside);outside.focus();[...events].find(ref=>ref.name==='active-leaf-change').callback({view:{containerEl:outside}});const changed=!view.displayModes.getSnapshot().fullscreen&&view.displayModes.getSnapshot().zen&&document.activeElement===outside;view.displayModes.toggleFullscreen();outside.remove();
       const frame=document.createElement('iframe');document.body.append(frame);Object.setPrototypeOf(frame.contentDocument.body,HTMLElement.prototype);frame.contentDocument.body.append(container);migrate();const migrated=unmountDoc===document&&content.ownerDocument===frame.contentDocument&&!view.displayModes.getSnapshot().fullscreen&&view.displayModes.getSnapshot().zen&&renders===2&&!document.querySelector('.kplex-fullscreen-overlay');

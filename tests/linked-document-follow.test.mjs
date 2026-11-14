@@ -19,6 +19,14 @@ const {exports: {DoubleTapGesture, isObsidianUri, deletedFileNavigationTarget}} 
 /** Extract a real plugin method or App follow callback without invoking native plugin startup. */
 function production(name, dependencies = {}, filename = "src/main.ts") {
   dependencies = {isEmbeddedMarkdownLeaf: leaf => Boolean(leaf?.embedded), nativeLeafId: (_workspace, leaf) => leaf?.id ?? null, isObsidianUri, deletedFileNavigationTarget, ...dependencies};
+  if(filename === "src/ui/App.tsx" && ["activatePendingDocumentFollow","activateDeletedFilePlaceholder","centerPublication","presentationPublication","reconcileDocumentFollowVisibility"].includes(name)) {
+    dependencies.acquirePendingDocumentDemand ??= production("acquirePendingDocumentDemand", dependencies, filename);
+  }
+  if(filename === "src/ui/App.tsx" && ["centerPublication", "presentationPublication","reconcileDocumentFollowVisibility"].includes(name)) {
+    dependencies.releasePendingDocumentDemand ??= production("releasePendingDocumentDemand", dependencies, filename);
+    dependencies.acknowledgeDocumentDemandHandover ??= production("acknowledgeDocumentDemandHandover", dependencies, filename);
+    dependencies.activateDeletedFilePlaceholder = production("activateDeletedFilePlaceholder", dependencies, filename);
+  }
   if (name === "activate" && filename === "src/ui/App.tsx") {
     dependencies.pendingEditorNavigation ??= {current:null};
     if (dependencies.documentSession) {dependencies.documentSession.plexView ??= {};dependencies.documentSession.plexView.editors ??= {bindings:[]};}
@@ -41,6 +49,8 @@ function production(name, dependencies = {}, filename = "src/main.ts") {
     if (name === "hostGeometryEffect" && ts.isCallExpression(node) && node.expression.getText(source) === "useEffect"
       && node.arguments[0]?.getText(source).includes("ResizeObserver")
       && node.arguments[0]?.getText(source).includes("setHostWidth")) expression = node.arguments[0].getText(source);
+    if (name === "centerPersistence" && ts.isCallExpression(node) && node.expression.getText(source) === "useEffect"
+      && node.arguments[0]?.getText(source).includes("const replacingMissingCenter")) expression = node.arguments[0].getText(source);
     if (ts.isPropertyAssignment(node) && node.name.getText(source) === '"node.open"'
       && ts.isCallExpression(node.initializer) && ["graphOpen", "graphOpenAvailability"].includes(name)) {
       expression = node.initializer.arguments[name === "graphOpen" ? 0 : 1].getText(source);
@@ -690,6 +700,7 @@ function appFollowFixture() {
       if (borrowedOwner) return state.demandCounts.get(borrowedOwner) ? pages.get(path) : undefined;
       return state.ephemeral.has(path) && !state.demandCounts.get(path) ? undefined : pages.get(path);
     },
+      viewScopeCoverage: /** A borrowed page is readable before the requested center has published its own usable scope. */ path=>({prepared:!state.borrowedFrom.has(path)&&Boolean(pages.get(path))}),
       acquireSemanticDemand: /** Count exact-center acquisition and its precise release lifetime. */ path => {
         state.demands.push(path); state.demandCounts.set(path,(state.demandCounts.get(path)??0)+1);
         state.onAcquire?.(path);
@@ -728,11 +739,77 @@ function appFollowFixture() {
   return {state, files, pages, dependencies};
 }
 
+/** Evaluate the actual App center projection, including warm fallback, without substituting another selector. */
+function projectedAppCenter(f){
+  const file=ts.createSourceFile('App.tsx',readFileSync(new URL('../src/ui/App.tsx',import.meta.url),'utf8'),ts.ScriptTarget.Latest,true,ts.ScriptKind.TSX);
+  const names=new Set(['indexedPage','exactPage','waitingForDocumentHandover','waitingForDocument','fallbackPath','waitingForStartupCenter','page']),declarations=[];
+  const app=file.statements.find(node=>ts.isFunctionDeclaration(node)&&node.name?.text==='KplexApp');
+  for(const statement of app.body.statements)if(ts.isVariableStatement(statement))for(const node of statement.declarationList.declarations)if(names.has(node.name.getText(file)))declarations.push('const '+node.getText(file)+';');
+  const dependencies={...f.state,activePath:f.state.renderPath,navigationOrigin:f.state.origin??'user'};
+  const code=ts.transpileModule(declarations.join('\n'),{compilerOptions:{target:ts.ScriptTarget.ES2022}}).outputText;
+  return Function(...Object.keys(dependencies),code+';return page;')(...Object.values(dependencies));
+}
+
+test('warm deleted-center handover owns the placeholder across borrowed read loss and early child acknowledgement',()=>{
+  const f=appFollowFixture(),{state,files,pages}=f,old=pages.get('A.md'),ghost={path:'A',file:null,neighbours:new Map([['Note.md',{}]])};
+  old.file=null;old.neighbours=new Map();pages.set(ghost.path,ghost);files.delete('A.md');
+  state.plugin.isNavigationFallbackReady=()=>true;state.plugin.resolveNavigationFallbackPath=()=>old.path;
+  state.documentSession.initialized=true;state.documentSession.centerPath=old.path;state.documentSession.footprints.length=1;
+  const trail=[];state.documentSession.footprints.accept=node=>trail.push(node);
+  state.borrowedFrom.set(ghost.path,old.path);state.ephemeral.add(ghost.path);
+  const releaseOld=state.plugin.index.acquireSemanticDemand(old.path);
+  state.presentation({kind:'presentation'});
+  assert.equal(state.renderPath,ghost.path);assert.equal(state.demandCounts.get(ghost.path),1,'The placeholder must acquire its own App demand before releasing its old borrowed owner');
+  const releaseGraph=state.plugin.index.acquireSemanticDemand(ghost.path);state.handover(ghost.path);
+  assert.equal(state.demandCounts.get(ghost.path),2,'Early graph acknowledgement cannot authorize a borrowed read as the new center owner');
+  const replacement={...ghost};pages.set(ghost.path,replacement);
+  production('centerPublication',{...f.dependencies,activatePendingDocumentFollow:state.flush,forceRender(){}},'src/ui/App.tsx')();
+  assert.equal(state.activePageRef.current,replacement,'A borrowed semantic publication may replace its same-kind page object before the requested owner is ready');
+  releaseOld();assert.equal(state.plugin.index.get(ghost.path),undefined);
+  assert.equal(projectedAppCenter(f),ghost,'Warm fallback must retain only the captured, still-owned placeholder while its own read is pending');
+  const persist=page=>production('centerPersistence',{...f.dependencies,page,activePath:state.renderPath},'src/ui/App.tsx')();
+  persist(projectedAppCenter(f));assert.equal(state.documentSession.centerPath,ghost.path,'The native session must never bounce to the old physical-coordinate ghost');
+  state.presentation({kind:'paint'});assert.equal(state.demandCounts.get(ghost.path),2,'Paint-only publication cannot settle source handover');
+  state.borrowedFrom.delete(ghost.path);state.presentation({kind:'presentation'});
+  assert.equal(state.pendingDocumentDemandRef.current,null,'The remembered child acknowledgement settles on a later usable publication');
+  assert.equal(state.demandCounts.get(ghost.path),1);assert.equal(projectedAppCenter(f),replacement);persist(projectedAppCenter(f));
+  assert.equal(state.documentSession.centerPath,ghost.path);assert.deepEqual(state.plugin.settings.navigationHistory,['A.md']);assert.deepEqual(trail,[]);assert.deepEqual(state.activates,[]);assert.deepEqual(state.companions,[]);
+  releaseGraph();state.releaseDemand();
+});
+
+for(const retirement of ['hidden','unmount','superseded','materialized','replacement-kind'])test('placeholder handover retires its exact lease on '+retirement+' without adopting a late predecessor',()=>{
+  const f=appFollowFixture(),{state,files,pages}=f,old=pages.get('A.md'),ghost={path:'A',file:null,neighbours:new Map([['Note.md',{}]])};
+  old.file=null;old.neighbours=new Map();pages.set(ghost.path,ghost);files.delete(old.path);state.mode='off';
+  state.plugin.isNavigationFallbackReady=()=>true;state.plugin.resolveNavigationFallbackPath=()=>old.path;
+  state.borrowedFrom.set(ghost.path,old.path);state.ephemeral.add(ghost.path);
+  const releaseOld=state.plugin.index.acquireSemanticDemand(old.path);state.presentation({kind:'presentation'});releaseOld();
+  assert.equal(state.demandCounts.get('A'),1);
+  if(retirement==='hidden'){state.visible=false;state.reconcile();}
+  if(retirement==='unmount')state.releaseDemand();
+  if(retirement==='superseded')state.activate(pages.get('C.md'));
+  if(retirement==='materialized'){ghost.path='C.md';ghost.file=files.get('C.md');}
+  if(retirement==='replacement-kind'){state.borrowedFrom.delete('A');pages.set('A',{path:'A',file:files.get('C.md'),neighbours:new Map()});}
+  state.presentation({kind:'presentation'});assert.equal(state.demandCounts.get('A'),0);assert.equal(state.pendingDocumentDemandRef.current,null);
+  if(retirement==='hidden'){
+    state.visible=true;state.reconcile();assert.equal(state.demandCounts.get('A'),1,'Reveal reacquires only the still-accepted exact placeholder before warm fallback can run');
+    assert.equal(projectedAppCenter(f),ghost);state.releaseDemand();assert.equal(state.demandCounts.get('A'),0);
+  }
+  if(retirement==='superseded')assert.equal(state.activePathRef.current,'C.md');
+});
+
+test('synchronous placeholder acquisition cannot overwrite a newer explicit center or leak its returned release',()=>{
+  const {state,files,pages}=appFollowFixture(),old=pages.get('A.md'),ghost={path:'A',file:null,neighbours:new Map([['Note.md',{}]])};
+  old.file=null;old.neighbours=new Map();pages.set(ghost.path,ghost);files.delete(old.path);
+  state.onAcquire=path=>{if(path===ghost.path){state.onAcquire=null;state.activate(pages.get('C.md'));}};
+  state.presentation({kind:'presentation'});
+  assert.equal(state.activePathRef.current,'C.md');assert.equal(state.renderPath,'C.md');assert.equal(state.pendingDocumentDemandRef.current,null);assert.equal(state.demandCounts.get('A'),0);
+});
+
 /** Publication remaps only a surface's accepted ghost identity, independently from shared last-active settings. */
 test("centered ghost materialization preserves two Plex centers without navigation or document events",()=>{
   const f=appFollowFixture(),ghost={path:"Projects/Ghost",file:null};f.pages.set(ghost.path,ghost);
-  const other={activePathRef:{current:"A.md"},activePageRef:{current:f.pages.get("A.md")},activeFileRef:{current:f.files.get("A.md")}};
-  const center={activePathRef:{current:ghost.path},activePageRef:{current:ghost},activeFileRef:{current:null}};
+  const other={activePathRef:{current:"A.md"},activePageRef:{current:f.pages.get("A.md")},activeFileRef:{current:f.files.get("A.md")},pendingDocumentDemandRef:{current:null},pendingDocumentFollowRef:{current:null}};
+  const center={activePathRef:{current:ghost.path},activePageRef:{current:ghost},activeFileRef:{current:null},pendingDocumentDemandRef:{current:null},pendingDocumentFollowRef:{current:null}};
   f.state.plugin.settings.lastActivePath="A.md";let refreshes=0;
   const bind=refs=>production("centerPublication",{...refs,plugin:f.state.plugin,hostLeaf:f.state.hostLeaf,
     activatePendingDocumentFollow(){},activatePendingDocumentUrl(){},setActivePath:path=>{refs.renderPath=path;},forceRender:()=>refreshes++},"src/ui/App.tsx");
@@ -749,7 +826,7 @@ test("centered ghost materialization preserves two Plex centers without navigati
 /** Replacement pages and unrelated publications do not inherit the earlier accepted center's authority. */
 test("center remapping rejects retired ghost objects, native replacements and unrelated publications",()=>{
   for(const mode of ["replacement-page","replacement-at-old-path","replacement-file","unrelated"]){
-    const f=appFollowFixture(),ghost={path:"Projects/Ghost",file:null},refs={activePathRef:{current:"Projects/Ghost"},activePageRef:{current:ghost},activeFileRef:{current:null}};
+    const f=appFollowFixture(),ghost={path:"Projects/Ghost",file:null},refs={activePathRef:{current:"Projects/Ghost"},activePageRef:{current:ghost},activeFileRef:{current:null},pendingDocumentDemandRef:{current:null},pendingDocumentFollowRef:{current:null}};
     f.pages.set(ghost.path,ghost);let moves=0;
     const publish=production("centerPublication",{...refs,plugin:f.state.plugin,hostLeaf:f.state.hostLeaf,
       activatePendingDocumentFollow(){},activatePendingDocumentUrl(){},setActivePath:()=>moves++,forceRender(){}},"src/ui/App.tsx");
@@ -878,7 +955,8 @@ test("an already-readable borrowed target obtains its own demand before the prev
   state.flush();assert.equal(state.demandCounts.get("B.md"),1,"the requested center stays demanded through an intervening missing read");
   const releaseGraph=state.plugin.index.acquireSemanticDemand("B.md");state.handover("B.md");
   assert.equal(state.demandCounts.get("B.md"),2,"the App lease remains until this graph's exact native center is readable");
-  assert.equal(production("waitingForDocument",{pendingDocumentFollowRef:state.pendingDocumentFollowRef,navigationOrigin:state.origin,
+  const waitingForDocumentHandover=production('waitingForDocumentHandover',{pendingDocumentDemandRef:state.pendingDocumentDemandRef,activePath:state.renderPath,activePageRef:state.activePageRef},'src/ui/App.tsx');
+  assert.equal(production("waitingForDocument",{waitingForDocumentHandover,pendingDocumentFollowRef:state.pendingDocumentFollowRef,navigationOrigin:state.origin,
     activeFileRef:state.activeFileRef,plugin:state.plugin},"src/ui/App.tsx"),true,"a settled follow cannot fall back to unrelated history during preview handover");
   state.borrowedFrom.delete("B.md");state.presentation({kind:"presentation"});assert.equal(state.plugin.index.get("B.md"),page);
   state.handover("B.md");assert.equal(state.demandCounts.get("B.md"),1);

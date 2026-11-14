@@ -81,12 +81,12 @@ export function nativeBatch270(app,c){
  /** Resolve the actual mounted action registration, never a guessed ID or another canvas's fallback. */
  const surface=leaf=>{const id=[...plugin.actionSurfaceHosts].find(([,registration])=>registration.leaf===leaf)?.[0];check(id,'Live action surface');return id;};
  /** Plugin reload invalidates every captured plugin/view callback; callers reacquire explicitly. */
- const reload=async()=>{await plugin.settingsWriteQueue;await app.plugins.disablePlugin('k-plex');disabled=true;await app.plugins.enablePlugin('k-plex');disabled=false;plugin=app.plugins.plugins['k-plex'];check(plugin?.index,'Plugin reload');await until(()=>plugin.initialIndexComplete&&!plugin.index.isBuilding()&&plugin.getIndexStatus().upToDate,'Reloaded current index',120000);return plugin;};
+ const reload=async()=>{await plugin.settingsWriteQueue;await app.plugins.disablePlugin('k-plex');disabled=true;await app.plugins.enablePlugin('k-plex');disabled=false;plugin=app.plugins.plugins['k-plex'];if(plugin?.whenInitialized)check(await plugin.whenInitialized(),'Plugin initialization');check(plugin?.index,'Plugin reload');await until(()=>plugin.initialIndexComplete&&!plugin.index.isBuilding()&&plugin.getIndexStatus().upToDate,'Reloaded current index',120000);return plugin;};
  /** Independently restore every owned resource even if an earlier assertion or native operation fails. */
  const cleanup=async()=>{const errors=[],clean=async(name,action)=>{try{await action();}catch(error){errors.push(name+': '+error);}};
   for(const restore of restores.reverse())await clean('observer',restore);
   for(const release of releases)await clean('demand',release);
-  if(disabled)await clean('enable',()=>app.plugins.enablePlugin('k-plex'));plugin=app.plugins.plugins['k-plex'];
+  if(disabled)await clean('enable',()=>app.plugins.enablePlugin('k-plex'));plugin=app.plugins.plugins['k-plex'];if(plugin?.whenInitialized)await clean('initialization',async()=>check(await plugin.whenInitialized(),'Cleanup plugin initialization'));
   if(app.setting.win)await clean('owned settings',()=>app.setting.close());
   for(const modal of plugin.actionDialogs?.keys()??[])await clean('owned modal',()=>modal.close());
   plugin.dismissKplexMenu();plugin.hoverParent?.hoverPopover?.hide?.();app.setting.lastTabId=lastTabId;

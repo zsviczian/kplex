@@ -4,9 +4,13 @@
  * Product names, persisted identifiers and vault content are intentionally not translated here.
  * Source metadata owns literal reference quoting; tag values include their # prefix.
  */
-import { buildLocaleCatalog, type LocaleTranslationMap } from "./catalog";
+import { buildLocaleCatalog, type LocaleCatalog, type LocaleTranslationMap } from "./catalog";
 
+/** Construct the typed Traditional Chinese table only when selected; importing this module allocates no catalog. */
+export function createTraditionalChineseCatalog(): LocaleCatalog {
 const traditionalChineseTranslations = {
+  "startup.loading": "正在載入 K-Plex…",
+  "startup.failed": "無法初始化 K-Plex。請重新載入外掛程式以重試。",
   "styles.nameConflict": "{name} 的樣式已存在。請選擇其他標籤。",
   "noteType.settings": "設定筆記類型",
   "noteType.invalidTag": "請輸入一個有效標籤，例如 person 或 person/friend。不可包含空格。",
@@ -1971,4 +1975,5 @@ const traditionalChineseTranslations = {
 
 } as const satisfies LocaleTranslationMap;
 
-export const traditionalChineseCatalog = buildLocaleCatalog(traditionalChineseTranslations);
+return buildLocaleCatalog(traditionalChineseTranslations);
+}

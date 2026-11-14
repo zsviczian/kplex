@@ -34,6 +34,10 @@ Use `npm run dev` for watch development; each actual rebuild refreshes that iden
 and scanner command remains `npm run build`, reproducible without Git metadata. Release workflows
 must never publish locally identified bundles. See [diagnostic build identities](docs/INDEXING_DIAGNOSTICS.md#local-build-identities).
 
+Production and identified local builds ship ordinary minified CommonJS from `src/main.ts`.
+Plugin code and translation catalogs are not compressed or evaluated by a custom loader.
+The development watcher retains source maps for debugging.
+
 After exact-build staging, `npm run verify:obsidian:index-pacing` uses the three explicit `kplex-test-small` target variables and a fresh `KPLEX_HOST_REPORT_DIR`. It exercises bundled short-wait pacing in all three scheduling modes, mutation preemption, unload settlement, and replacement/reclamation/restoration of a private synthetic IndexedDB snapshot. It creates no vault notes and preserves settings/enablement bytes. The report compares the retained timer fallback with the native short-wait path and records actual visibility. `KPLEX_PACING_HIDDEN=true` temporarily hides only the selected Small window and restores its visibility/focus/minimized state in independent cleanup; it does not alter Electron throttling. Hosts without asynchronous atomic-wait support retain native timer fallback. Windows evidence does not establish macOS or physical mobile behavior.
 
 ```bash
@@ -1828,6 +1832,24 @@ lanes require the three explicit test-vault variables and a fresh managed
 `KPLEX_HOST_REPORT_DIR`; their fixtures restore configuration and native layouts.
 Plugin reload and desktop input do not replace full-app restart or physical-phone
 acceptance.
+
+`npm run verify:obsidian:deleted-sidecar` creates owned Challenger relationships,
+opens each new note in its actual managed Sidecar, and deletes it through Obsidian's
+native trash service both immediately after creation and after indexing settles.
+It checks surviving incoming incidence throughout reconciliation and after the
+deleted center becomes a placeholder. Use the same three explicit Small-vault
+variables, exact-build staging and managed report directory; native layouts,
+settings, observers and fixtures are restored independently.
+
+`npm run verify:obsidian:async-initialization` holds the real native settings read
+while plugin enable returns, then checks pending native-state serialization,
+same-view restoration and queued opening intent. It also checks unload before
+read completion, a body edit delivered during loading, a rejected read and late
+native CSS cleanup, then restores the ordinary native loader and original
+workspace. Its durable edit baseline waits for the normal five-minute save idle;
+it does not force persistence. This Small-only lane requires the same target variables,
+exact artifacts and managed report directory; its injected failure is not a
+production startup-time measurement.
 
 The authoring bundle also supplies `verify:obsidian:authoring-workspace-cache`.
 Choose `KPLEX_CACHE_LANE=pending`, `failure-retry` or `mutations`; the first two

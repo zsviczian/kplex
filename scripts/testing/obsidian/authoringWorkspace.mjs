@@ -126,8 +126,39 @@ async function labels(app,c){
  }catch(error){throw Error(String(error)+'; baseline cases: '+JSON.stringify(cases));}finally{await f.cleanup();}
 }
 
+/** Retain incoming authored incidence while deleting a just-created or settled Sidecar note through native trash. */
+async function deletedSidecarRelationship(app,c){
+ const f=c.fixture(app,c),rows=[];let restoreObserver;
+ try{
+ await f.initialize();let p=f.p;await p.updateOntologyField('rightFriends',['OpposesDelete'],[...p.settings.hierarchy.rightFriends],()=>true);
+ for(const settled of [false,true]){
+ const origin=await f.note('Note '+settled),leaf=await f.canvas(origin);await f.ready();
+ const target=await p.createNewRelatedFileForOrigin(p.index.get(origin.path),'Challenger '+settled,'markdown','',f.folder);f.check(target,'Created target');f.files.push(target);
+ const linked=await p.linkNewRelatedFile(p.index.get(origin.path),'right',target,'OpposesDelete');
+ await p.finishNewRelatedNode(linked.page,leaf,'sidecar',()=>true);
+ const sidecar=p.sidecarLeaves.get(leaf);f.check(sidecar?.view.file===target,'Actual sidecar target');
+ if(settled)await f.ready();
+ const sourceText=await app.vault.read(origin),index=p.index,path=target.path,seen=new WeakMap();let next=0;
+ const identity=x=>{if(!x)return null;if(!seen.has(x))seen.set(x,++next);return seen.get(x)};
+ const graph=pages=>{const page=pages?.get(path);return page?{id:identity(page),file:!!page.file,neighbours:[...page.neighbours.keys()].filter(x=>x.startsWith(f.folder))}:null};
+ const capture=phase=>{const center=p.documentSession(leaf)?.centerPath??path,current=index.get(center),row={phase,settled,ms:performance.now(),center,current:current?{id:identity(current),file:!!current.file,neighbours:[...current.neighbours.keys()].filter(x=>x.startsWith(f.folder))}:null,canonical:graph(index.state.pages),semantic:[...index.semanticScopes].filter(([center,s])=>center===path||s.pagesByPath.has(path)).map(([center,s])=>({center,graph:graph(s.pagesByPath),source:s.sourceRevision,policy:s.policyRevision})),preview:[...index.hostPreviewScopes].filter(([center,s])=>center===path||s.pages.has(path)).map(([center,s])=>({center,graph:graph(s.pages)})),retained:[...index.retainedLocalScopes].filter(([center,s])=>center===path||s.state.pages.has(path)).map(([center,s])=>({center,graph:graph(s.state.pages)})),sourceRevision:p.getIndexSourceRevision(),maintenance:index.sourceAcquisition.getMaintenanceRevision(),coverage:index.viewScopeCoverage(path),rendered:!!leaf.view.contentEl.querySelector('[data-kplex-path="'+origin.path+'"]'),renderedEdges:leaf.view.contentEl.querySelectorAll('.kplex-edge-visible').length};if(rows.length<100)rows.push(row);return row;};
+ const original=index.dematerializeFile,descriptor=Object.getOwnPropertyDescriptor(index,"dematerializeFile");index.dematerializeFile=function(...args){if(args[0]===path)capture('sync-before-dematerialize');const result=original.apply(this,args);if(args[0]===path)capture('sync-after-dematerialize');return result;};restoreObserver=()=>{if(descriptor)Object.defineProperty(index,"dematerializeFile",descriptor);else delete index.dematerializeFile};
+ const beforeDelete=capture('before-native-delete');f.check(beforeDelete.rendered&&beforeDelete.renderedEdges>0,'Owned note and connection are rendered before native deletion');
+ await app.fileManager.trashFile(target);
+ capture('native-delete-return');
+ // The App may hold its accepted connected page while the successor read is pending. Test the
+ // actual scene during that handover; require an authoritative connected read after full settlement.
+ for(let n=0;n<8;n++){await f.wait(40);const row=capture('after-'+((n+1)*40)+'ms');f.check(!row.current?.file&&!app.vault.getFileByPath(path),'Deleted center has no native file during repair');f.check(row.rendered&&row.renderedEdges>0,'Surviving related note and connection stay in the rendered canvas during deletion repair');}
+ await f.ready();const final=capture('settled');f.check(final.current?.neighbours.includes(origin.path),'Surviving incoming relationship after convergence');f.check(final.rendered&&final.renderedEdges>0,'Surviving related note and connection are rendered after convergence');restoreObserver();restoreObserver=undefined;
+ f.check(!app.vault.getFileByPath(path),'Deleted only owned target');
+ f.check(await app.vault.read(origin)===sourceText,'Surviving source bytes retained exactly');
+ }
+ return{rows};
+ }catch(error){throw Error(String(error)+'; read-owner-trace: '+JSON.stringify(rows));}finally{restoreObserver?.();await f.cleanup();}
+}
+
 const target=validateTarget({vaultName:process.env.KPLEX_TEST_VAULT_NAME,vaultPath:process.env.KPLEX_TEST_VAULT_PATH,configDir:process.env.KPLEX_TEST_CONFIG_DIR});
-const lane=process.env.KPLEX_AUTHORING_LANE??'relationships',scenario={relationships,labels}[lane];if(!scenario)throw Error('Unknown authoring lane');
+const lane=process.env.KPLEX_AUTHORING_LANE??(process.argv.includes('--delete-sidecar')?'delete':'relationships'),scenario={relationships,labels,delete:deletedSidecarRelationship}[lane];if(!scenario)throw Error('Unknown authoring lane');
 const userDataPath=process.env.KPLEX_OBSIDIAN_USER_DATA??(process.platform==='win32'?join(process.env.APPDATA,'obsidian'):process.platform==='darwin'?join(homedir(),'Library','Application Support','obsidian'):join(process.env.XDG_CONFIG_HOME??join(homedir(),'.config'),'obsidian'));
 const lock=acquireHostLock({userDataPath});
 try{

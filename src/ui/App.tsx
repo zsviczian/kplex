@@ -398,7 +398,7 @@ export function KplexApp({ plugin, surface, hostLeaf, translate, environment, on
   const activePageRef = useRef<GraphPage | null>(plugin.index.get(activePath) ?? null);
   const [navigationOrigin, setNavigationOrigin] = useState<"user" | "wander" | "follow">("user");
   const pendingDocumentFollowRef = useRef<TFile | null>(documentSession.pendingFollow?.file ?? null);
-  const pendingDocumentDemandRef = useRef<{ file: TFile; path: string; release: () => void } | null>(null);
+  const pendingDocumentDemandRef = useRef<{ file: TFile | null; path: string; page: GraphPage | null; graphAcknowledged: boolean; release: () => void } | null>(null);
   const wasLeafVisibleRef = useRef(plugin.isKplexLeafVisible(hostLeaf));
   const pendingFileExplorerDropRef = useRef<TFile | null>(null);
   const activeFileRef = useRef<TFile | null>(
@@ -423,6 +423,22 @@ export function KplexApp({ plugin, surface, hostLeaf, translate, environment, on
     demand?.release();
   }, []);
   useEffect(/** The App retains exact-center acquisition while PlexGraph is absent or changing centers. */ () => releasePendingDocumentDemand, [releasePendingDocumentDemand]);
+
+  /** Acquire the replacement center before retiring its predecessor; synchronous publication owns the same handover receipt. */
+  const acquirePendingDocumentDemand = useCallback((path: string, file: TFile | null, page: GraphPage | null = null): void => {
+    const previous = pendingDocumentDemandRef.current;
+    if (previous?.path === path && previous.file === file) return;
+    const demand = {file, path, page, graphAcknowledged: false, release: /** Acquisition may acknowledge before returning its release capability. */ (): void => {}};
+    pendingDocumentDemandRef.current = demand;
+    try {
+      const release = plugin.index.acquireSemanticDemand(path);
+      if (pendingDocumentDemandRef.current === demand) demand.release = release;
+      else release();
+    } catch (error) {
+      if (pendingDocumentDemandRef.current === demand) pendingDocumentDemandRef.current = null;
+      throw error;
+    } finally {previous?.release();}
+  }, [plugin]);
 
   /**
    * Center an exact page; sidecar-open commands defer document synchronization to their owned open.
@@ -492,10 +508,20 @@ export function KplexApp({ plugin, surface, hostLeaf, translate, environment, on
   }, [plugin, hostLeaf, wander, releasePendingDocumentDemand, documentSession, translate]);
 
   /** Transfer a settled preview lease only after this exact graph center has acquired its own semantic demand. */
-  const acknowledgeDocumentDemandHandover = useCallback((path: string): void => {
+  const acknowledgeDocumentDemandHandover = useCallback((path?: string): void => {
     const demand = pendingDocumentDemandRef.current;
-    if (!pendingDocumentFollowRef.current && demand?.path === path
-      && plugin.index.get(path)?.file === demand.file) releasePendingDocumentDemand();
+    if (!demand || path !== undefined && demand.path !== path) return;
+    if (path !== undefined) demand.graphAcknowledged = true;
+    if (demand.page && (demand.page.path !== demand.path || demand.page.file || demand.page.url || demand.page.isFolder || demand.page.isTag)) {
+      releasePendingDocumentDemand();return;
+    }
+    const target = plugin.index.get(demand.path);
+    if (demand.page && target && (target.path !== demand.path || target.file || target.url || target.isFolder || target.isTag)) {
+      releasePendingDocumentDemand();return;
+    }
+    if (!pendingDocumentFollowRef.current && activePathRef.current === demand.path && demand.graphAcknowledged
+      && target?.file === demand.file && (demand.file || target && !target.url && !target.isFolder && !target.isTag)
+      && plugin.index.viewScopeCoverage(demand.path).prepared) releasePendingDocumentDemand();
   }, [plugin, releasePendingDocumentDemand]);
 
   /** Rejecting an unaccepted native intent returns to this view's last accepted center. */
@@ -531,19 +557,12 @@ export function KplexApp({ plugin, surface, hostLeaf, translate, environment, on
     setActivePath(file.path);
     // Even a readable page can be borrowed from the previous graph's preview scope.
     // Retain this exact center before switching graphs and retiring that previous scope.
-    if (pendingDocumentDemandRef.current?.file !== file || pendingDocumentDemandRef.current.path !== file.path) {
-      releasePendingDocumentDemand();
-      const demand = { file, path: file.path, release: /** A synchronous preview may settle this intent before acquisition returns its release capability. */ (): void => {} };
-      pendingDocumentDemandRef.current = demand;
-      const release = plugin.index.acquireSemanticDemand(file.path);
-      if (pendingDocumentDemandRef.current === demand) demand.release = release;
-      else release();
-    }
+    acquirePendingDocumentDemand(file.path, file);
     // Synchronous acquisition/publication may already settle or supersede this observation.
     if (pendingDocumentFollowRef.current !== file) return;
     const target = plugin.index.get(file.path);
     if (target?.file === file) activate(target, true, true, "follow");
-  }, [plugin, hostLeaf, activate, releasePendingDocumentDemand, restoreAcceptedDocumentCenter]);
+  }, [plugin, hostLeaf, activate, acquirePendingDocumentDemand, releasePendingDocumentDemand, restoreAcceptedDocumentCenter]);
 
   /** Retain native identity while hidden without rendering the graph or starting relationship acquisition. */
   const observeDocumentFollow = useCallback((file: TFile | null): void => {
@@ -617,6 +636,20 @@ export function KplexApp({ plugin, surface, hostLeaf, translate, environment, on
 
   useEffect(subscribePendingFileExplorerDrop, [subscribePendingFileExplorerDrop]);
 
+  /** Semantic and metadata-only publications share the same unambiguous deleted-file navigation handover. */
+  const activateDeletedFilePlaceholder = useCallback((): void => {
+    if (!plugin.isKplexLeafVisible(hostLeaf)) return;
+    const placeholder = deletedFileNavigationTarget(plugin.app, activePathRef.current, path => plugin.index.get(path));
+    if (!placeholder) return;
+    const previousPath = activePathRef.current;
+    acquirePendingDocumentDemand(placeholder.path, null, placeholder);
+    if (activePathRef.current !== previousPath || pendingDocumentDemandRef.current?.path !== placeholder.path) return;
+    activePathRef.current = placeholder.path;
+    activePageRef.current = placeholder;
+    activeFileRef.current = null;
+    setActivePath(placeholder.path);
+  }, [plugin, hostLeaf, acquirePendingDocumentDemand]);
+
   useEffect(/** Publications settle a pending native identity before any visible scene catches up. */ () => {
     /** Keep rename identity and latest native-follow intent coherent with this publication. */
     const refresh = () => {
@@ -629,13 +662,7 @@ export function KplexApp({ plugin, surface, hostLeaf, translate, environment, on
       const currentPage = plugin.index.get(activePathRef.current);
       const trackedPage = activePageRef.current;
       const trackedFilePresent = trackedFile && plugin.app.vault.getFileByPath(trackedFile.path) === trackedFile;
-      const placeholder = deletedFileNavigationTarget(plugin.app, activePathRef.current, path => plugin.index.get(path));
-      if (placeholder) {
-        activePathRef.current = placeholder.path;
-        activePageRef.current = placeholder;
-        activeFileRef.current = null;
-        setActivePath(placeholder.path);
-      }
+      activateDeletedFilePlaceholder();
       // A centered ghost has no native file to track until materialization mutates that exact
       // accepted page. Follow only its identity remap; replacement objects and other Plex centers
       // cannot authorize navigation, history changes or document synchronization on this surface.
@@ -659,6 +686,7 @@ export function KplexApp({ plugin, surface, hostLeaf, translate, environment, on
         setActivePath(trackedFile.path);
       }
       activePageRef.current = plugin.index.get(activePathRef.current) ?? activePageRef.current;
+      acknowledgeDocumentDemandHandover();
       // Hidden tabs/sidebars stay mounted in Obsidian. Do not run the graph React tree for a shared
       // index publication unless this surface is actually visible; it catches up on reveal.
       if (plugin.isKplexLeafVisible(hostLeaf)) forceRender((value) => value + 1);
@@ -668,7 +696,7 @@ export function KplexApp({ plugin, surface, hostLeaf, translate, environment, on
     // Catch that settled snapshot now, without reacquiring sources or waiting for another event.
     refresh();
     return release;
-  }, [plugin, hostLeaf, activatePendingDocumentFollow, activatePendingDocumentUrl]);
+  }, [plugin, hostLeaf, activatePendingDocumentFollow, activatePendingDocumentUrl, activateDeletedFilePlaceholder, acknowledgeDocumentDemandHandover]);
   useEffect(/** Host previews publish through presentation; settle the owned native intent without refreshing semantics. */ () => plugin.index.subscribePresentation(/** Adopt a newly readable exact center, then repaint only visible surfaces. */ (event) => {
     if (event.kind === "paint") {
       if (plugin.isKplexLeafVisible(hostLeaf)) forcePaint(value => value + 1);
@@ -676,8 +704,10 @@ export function KplexApp({ plugin, surface, hostLeaf, translate, environment, on
     }
     activatePendingDocumentFollow();
     activatePendingDocumentUrl();
+    activateDeletedFilePlaceholder();
+    acknowledgeDocumentDemandHandover();
     if (plugin.isKplexLeafVisible(hostLeaf)) forceRender((value) => value + 1);
-  }), [plugin, hostLeaf, activatePendingDocumentFollow, activatePendingDocumentUrl]);
+  }), [plugin, hostLeaf, activatePendingDocumentFollow, activatePendingDocumentUrl, activateDeletedFilePlaceholder, acknowledgeDocumentDemandHandover]);
   /** Reconcile native visibility after workspace events or settled drawer geometry, retaining only the newest hidden file. */
   const reconcileDocumentFollowVisibility = useCallback((): void => {
     // A hidden mounted view may have skipped one or more shared index publications while another
@@ -690,9 +720,14 @@ export function KplexApp({ plugin, surface, hostLeaf, translate, environment, on
       if (revealed) observeDocumentFollow(plugin.getDocumentFollowFile(hostLeaf));
       activatePendingDocumentFollow();
       activatePendingDocumentUrl();
+      activateDeletedFilePlaceholder();
+      const retained = activePageRef.current;
+      if (revealed && retained?.path === activePathRef.current && !retained.file && !retained.url && !retained.isFolder && !retained.isTag
+        && !plugin.index.get(retained.path)) acquirePendingDocumentDemand(retained.path, null, retained);
+      acknowledgeDocumentDemandHandover();
       forceRender(/** Catch up once with skipped shared publications. */ (value) => value + 1);
     }
-  }, [plugin, hostLeaf, observeDocumentFollow, activatePendingDocumentFollow, activatePendingDocumentUrl, releasePendingDocumentDemand]);
+  }, [plugin, hostLeaf, observeDocumentFollow, activatePendingDocumentFollow, activatePendingDocumentUrl, activateDeletedFilePlaceholder, acquirePendingDocumentDemand, acknowledgeDocumentDemandHandover, releasePendingDocumentDemand]);
   useEffect(/** Native workspace notifications share the geometry observer's reveal reconciliation. */ () =>
     plugin.subscribeKplexVisibility(reconcileDocumentFollowVisibility), [plugin, reconcileDocumentFollowVisibility]);
   useEffect(() => {
@@ -746,15 +781,20 @@ export function KplexApp({ plugin, surface, hostLeaf, translate, environment, on
   const indexedPage = plugin.index.get(activePath);
   const exactPage = !pendingDocumentFollowRef.current || indexedPage?.file === pendingDocumentFollowRef.current
     ? indexedPage : undefined;
+  const waitingForDocumentHandover = pendingDocumentDemandRef.current?.path === activePath
+    && pendingDocumentDemandRef.current.file === null && pendingDocumentDemandRef.current.page?.path === activePath
+    && !pendingDocumentDemandRef.current.page.file && !pendingDocumentDemandRef.current.page.url
+    && !pendingDocumentDemandRef.current.page.isFolder && !pendingDocumentDemandRef.current.page.isTag;
   // A borrowed preview can disappear when the old center retires, before the new preview publishes.
   // Keep a followed native center through that gap instead of falling back to unrelated history.
-  const waitingForDocument = pendingDocumentFollowRef.current !== null || navigationOrigin === "follow"
+  const waitingForDocument = waitingForDocumentHandover || pendingDocumentFollowRef.current !== null || navigationOrigin === "follow"
     && activeFileRef.current !== null && plugin.app.vault.getFileByPath(activeFileRef.current.path) === activeFileRef.current;
   const fallbackPath = exactPage || waitingForDocument ? null : plugin.resolveNavigationFallbackPath(activePath);
   // Before the native tree/cache is ready, absence is provisional. Keep this surface's saved
   // center and loading state rather than displaying a different node and persisting it.
   const waitingForStartupCenter = !exactPage && !plugin.isNavigationFallbackReady();
   const page = exactPage
+    ?? (waitingForDocumentHandover ? pendingDocumentDemandRef.current?.page ?? undefined : undefined)
     // The outgoing graph can own this accepted endpoint's only provisional preview. Keep its
     // replacement mounted until its own demand publishes; never retain another center or a retired file.
     ?? (waitingForStartupCenter && !pendingDocumentFollowRef.current && activePageRef.current?.path === activePath

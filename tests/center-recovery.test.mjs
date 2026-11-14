@@ -6,11 +6,13 @@ import ts from 'typescript';
 import {build} from 'esbuild';
 import {chromiumHarness} from './support/browserTypeScript.mjs';
 const source=ts.createSourceFile('src/ui/App.tsx',readFileSync('src/ui/App.tsx','utf8'),ts.ScriptTarget.Latest,true,ts.ScriptKind.TSX);
-let publicationEffect, historyBar, startupWaiting, startupPage, loadingSurface, beginSavedDrag, endSavedDrag;
+let publicationEffect, historyBar, startupWaiting, startupPage, loadingSurface, beginSavedDrag, endSavedDrag, waitingHandover, waitingDocument, demandCleanupEffect;
+const demandOwners=new Map(),demandNames=new Set(['releasePendingDocumentDemand','acquirePendingDocumentDemand','acknowledgeDocumentDemandHandover','activateDeletedFilePlaceholder']);
 function visit(node){if(ts.isCallExpression(node)&&node.expression.getText(source)==='useEffect'&&node.arguments[0]?.getFullText(source).includes('Publications settle a pending native identity'))publicationEffect=node.arguments[0].getText(source);ts.forEachChild(node,visit)}
 visit(source);assert(publicationEffect,'Actual App publication owner exists');
 /** Exercise the real saved-row rendering and startup page selection rather than a parallel UI. */
 function findStartup(node){
+ if(ts.isCallExpression(node)&&node.expression.getText(source)==='useEffect'&&node.arguments[0]?.getFullText(source).includes('The App retains exact-center acquisition'))demandCleanupEffect=node.arguments[0].getText(source);
  if(ts.isIfStatement(node)&&node.expression.getText(source)==='!page'&&ts.isReturnStatement(node.thenStatement)&&node.thenStatement.expression)loadingSurface=node.thenStatement.expression.getText(source);
  if(ts.isVariableDeclaration(node)&&node.initializer){
   const name=node.name.getText(source);
@@ -18,11 +20,14 @@ function findStartup(node){
   if(name==='beginSavedNodeDrag')beginSavedDrag=node.initializer.getText(source);
   if(name==='endSavedNodeDrag')endSavedDrag=node.initializer.getText(source);
   if(name==='waitingForStartupCenter')startupWaiting=node.initializer.getText(source);
+  if(name==='waitingForDocumentHandover')waitingHandover=node.initializer.getText(source);
+  if(name==='waitingForDocument')waitingDocument=node.initializer.getText(source);
+  if(demandNames.has(name))demandOwners.set(name,node.initializer.arguments[0].getText(source));
   if(name==='page'&&node.initializer.getText(source).includes('fallbackPath'))startupPage=node.initializer.getText(source);
  }
  ts.forEachChild(node,findStartup);
 }
-findStartup(source);assert(historyBar&&startupWaiting&&startupPage&&loadingSurface&&beginSavedDrag&&endSavedDrag);
+findStartup(source);assert(historyBar&&startupWaiting&&startupPage&&loadingSurface&&beginSavedDrag&&endSavedDrag&&waitingHandover&&waitingDocument&&demandCleanupEffect);assert.equal(demandOwners.size,demandNames.size);
 const plexSource=ts.createSourceFile('src/ui/PlexGraph.tsx',readFileSync('src/ui/PlexGraph.tsx','utf8'),ts.ScriptTarget.Latest,true,ts.ScriptKind.TSX);
 let recoveryEffect;
 /** Extract the production view lifetime rather than recreating its attempted/completed flags. */
@@ -37,6 +42,22 @@ import {classicViewDefinition as classic} from './src/core/plex/views/classic/de
 import React,{useState,useEffect,useLayoutEffect,useRef} from 'react';import {createRoot} from 'react-dom/client';import {flushSync} from 'react-dom';
 import {HorizontalDragScroll} from './src/ui/components/HorizontalDragScroll';
 import {canDragNodeLink,startNodeLinkDrag,finishNodeLinkDrag} from './src/adapters/obsidian/nodeLinkDrag';
+/** Close the actual App callbacks over each surface's real refs; no suggestion/navigation behavior is replaced. */
+function appDemandOwners({plugin,hostLeaf,activePathRef,activePageRef,activeFileRef,pendingDocumentFollowRef,pendingDocumentDemandRef,setActivePath}){
+ ${[...demandOwners].map(([name,callback])=>'const '+name+' = '+callback+';').join('\n')}
+ return {releasePendingDocumentDemand,activateDeletedFilePlaceholder,acknowledgeDocumentDemandHandover};
+}
+/** Explicit finite index capabilities retain every acquired lease until actual App cleanup releases it. */
+function publicationIndex(pages,listeners){
+ const demands=new Map();let sourceCalls=0;
+ const index={get:path=>pages.get(path),subscribe:fn=>{listeners.add(fn);return()=>listeners.delete(fn)},insertCreatedFile:()=>{throw Error('Unexpected admission')},
+  viewScopeCoverage:path=>({prepared:pages.has(path)}),acquireSemanticDemand:path=>{sourceCalls++;demands.set(path,(demands.get(path)??0)+1);let live=true;return()=>{if(live){live=false;demands.set(path,demands.get(path)-1)}}}};
+ return {index,demands,sourceCalls:()=>sourceCalls};
+}
+/** All three retained App projection expressions run against the supplied native/index read ports. */
+function startupProjection({plugin,activePath,exactPage,activePageRef,pendingDocumentFollowRef,pendingDocumentDemandRef={current:null},activeFileRef={current:null},navigationOrigin='user',fallbackPath=null}){
+ const waitingForDocumentHandover=${waitingHandover},waitingForDocument=${waitingDocument},waitingForStartupCenter=${startupWaiting};return ${startupPage};
+}
 /** Saved rows precede native tree availability; later publication upgrades the same exact slots. */
 export async function startupHistory(){
  const paths=Array.from({length:14},(_,i)=>'Notes/Note-'+i+'.md'),pages=new Map(),clicks=[];
@@ -53,8 +74,8 @@ export async function startupHistory(){
   flushSync(()=>root.render(<Surface/>));const before=element.querySelectorAll('[data-kplex-history-path]').length,disabled=element.querySelectorAll('button:disabled').length;
   element.querySelector('button').click();
   for(const path of paths)pages.set(path,{path,name:path});flushSync(()=>root.render(<Surface/>));element.querySelector('button').click();
-  const exactPage=undefined,waitingForDocument=false,fallbackPath=null,waitingForStartupCenter=${startupWaiting},activePageRef={current:null},pendingDocumentFollowRef={current:null};
-  pages.set('folder:/',{path:'folder:/'});const page=${startupPage};
+  const exactPage=undefined,activePageRef={current:null},pendingDocumentFollowRef={current:null};
+  pages.set('folder:/',{path:'folder:/'});const page=startupProjection({plugin,activePath,exactPage,activePageRef,pendingDocumentFollowRef});
   return {before,disabled,after:element.querySelectorAll('[data-kplex-history-path]').length,clicks,expected:activePath,temporaryCenter:page?.path??null};
  }finally{flushSync(()=>root.unmount());element.remove()}
 }
@@ -63,9 +84,9 @@ export function earlyPlaceholderGap(){
  const activePath='Notes/Unwritten',accepted={path:activePath,isVirtual:true},activePageRef={current:accepted},pendingDocumentFollowRef={current:null};
  let ready=false;
  const plugin={index:{get:()=>undefined},app:{vault:{getFileByPath:()=>null}},isNavigationFallbackReady:()=>ready};
- const exactPage=undefined,waitingForDocument=false,fallbackPath=null;
+ const exactPage=undefined;
  /** Evaluate the exact production selection after the prior center releases its scope. */
- const read=()=>{const waitingForStartupCenter=${startupWaiting};return ${startupPage}};
+ const read=()=>startupProjection({plugin,activePath,exactPage,activePageRef,pendingDocumentFollowRef});
  const during=read();ready=true;const after=read();
  activePageRef.current={path:'Notes/Other',isVirtual:true};ready=false;const unrelated=read();
  activePageRef.current={path:activePath,file:{path:activePath}};const retiredFile=read();
@@ -97,20 +118,25 @@ export async function recoveryAfterReveal(mode='pending'){
  }finally{flushSync(()=>root.unmount());element.remove();window.setTimeout=set;window.clearTimeout=clear;if(timers.size||listeners.size||visibility.size)throw Error('View recovery leaked resources')}
 }
 export async function reproduce(channel){
- const events={semantic:new Set(),presentation:new Set()},file={path:'Center.md'},page={path:'Center.md',file};let children=2,sourceCalls=0,renders=0;
- const plugin={index:{subscribe:fn=>{events.semantic.add(fn);return()=>events.semantic.delete(fn)},get:()=>page,insertCreatedFile:()=>{throw Error('Unexpected admission')}},app:{vault:{getFileByPath:()=>file}},isKplexLeafVisible:()=>true,isManagedCreatedFile:()=>false};
+ const events={semantic:new Set(),presentation:new Set()},file={path:'Center.md'},page={path:'Center.md',file};let children=2,renders=0;
+ const ports=publicationIndex(new Map([[file.path,page]]),events.semantic),plugin={index:ports.index,app:{vault:{getFileByPath:()=>file}},isKplexLeafVisible:()=>true,isManagedCreatedFile:()=>false};
  function Publisher(){useLayoutEffect(()=>{children=7;for(const fn of events[channel])fn()},[]);return null}
- function Surface(){const [revision,forceRender]=useState(0);renders++;const activePathRef={current:'Center.md'},activeFileRef={current:file},activePageRef={current:page};const hostLeaf={},activatePendingDocumentFollow=()=>{},activatePendingDocumentUrl=()=>{},setActivePath=()=>{throw Error('Unexpected navigation')};useEffect(${publicationEffect},[]);return <><Publisher/><div data-revision={revision}>{children}</div></>}
- const element=document.body.appendChild(document.createElement('div')),root=createRoot(element);flushSync(()=>root.render(<Surface/>));await new Promise(resolve=>setTimeout(resolve,40));const count=Number(element.querySelector('div').textContent);flushSync(()=>root.unmount());element.remove();return {count,renders,sourceCalls,listeners:events.semantic.size+events.presentation.size};
+ function Surface(){const [revision,forceRender]=useState(0);renders++;const activePathRef=useRef('Center.md'),activeFileRef=useRef(file),activePageRef=useRef(page),pendingDocumentDemandRef=useRef(null),pendingDocumentFollowRef=useRef(null);const hostLeaf={},activatePendingDocumentFollow=()=>{},activatePendingDocumentUrl=()=>{},setActivePath=()=>{throw Error('Unexpected navigation')};const{releasePendingDocumentDemand,activateDeletedFilePlaceholder,acknowledgeDocumentDemandHandover}=appDemandOwners({plugin,hostLeaf,activePathRef,activeFileRef,activePageRef,pendingDocumentDemandRef,pendingDocumentFollowRef,setActivePath});useEffect(${demandCleanupEffect},[]);useEffect(${publicationEffect},[]);return <><Publisher/><div data-revision={revision}>{children}</div></>}
+ const element=document.body.appendChild(document.createElement('div')),root=createRoot(element);let count;
+ try{flushSync(()=>root.render(<Surface/>));await new Promise(resolve=>setTimeout(resolve,40));count=Number(element.querySelector('div').textContent);}finally{flushSync(()=>root.unmount());element.remove();if(events.semantic.size||events.presentation.size||[...ports.demands.values()].some(Boolean))throw Error('Publication owner leaked resources')}
+ return {count,renders,sourceCalls:ports.sourceCalls(),listeners:events.semantic.size+events.presentation.size};
 }
 export async function deletedCenterHandover(mode){
  const file={path:'Daily/Thursday.md',basename:'Thursday',extension:'md'},old={path:file.path,file:null,neighbours:new Map([['Wednesday',{}]])};
  const ghost={path:'Thursday',file:null,neighbours:new Map([['Wednesday',{}]])},pages=new Map([[file.path,old]]),events=new Set();
  const native=mode==='replacement'?{}:null;
- const plugin={index:{get:path=>pages.get(path),subscribe:fn=>{events.add(fn);return()=>events.delete(fn)}},app:{vault:{getFileByPath:()=>native}},isKplexLeafVisible:()=>true,isManagedCreatedFile:()=>false};
+ const ports=publicationIndex(pages,events),plugin={index:ports.index,app:{vault:{getFileByPath:()=>native}},isKplexLeafVisible:()=>true,isManagedCreatedFile:()=>false};
  const hostLeaf={},activatePendingDocumentFollow=()=>{},activatePendingDocumentUrl=()=>{};
  function Surface(){
   const [active,setActivePath]=useState(file.path),[revision,forceRender]=useState(0),activePathRef=useRef(file.path),activeFileRef=useRef(file),activePageRef=useRef(old);
+  const pendingDocumentDemandRef=useRef(null),pendingDocumentFollowRef=useRef(null);
+  const{releasePendingDocumentDemand,activateDeletedFilePlaceholder,acknowledgeDocumentDemandHandover}=appDemandOwners({plugin,hostLeaf,activePathRef,activeFileRef,activePageRef,pendingDocumentDemandRef,pendingDocumentFollowRef,setActivePath});
+  useEffect(${demandCleanupEffect},[]);
   useEffect(${publicationEffect},[]);
   useEffect(()=>{activeFileRef.current=pages.get(active).file},[active,revision]);return <div>{active}</div>;
  }
@@ -125,7 +151,7 @@ export async function deletedCenterHandover(mode){
   if(mode==='tag-center')old.isTag=true;
   for(const emit of events)emit();await settle();
   return {pending,settled:element.textContent};
- }finally{flushSync(()=>root.unmount());element.remove();if(events.size)throw Error('Deletion publication listener leaked')}
+ }finally{flushSync(()=>root.unmount());element.remove();if(events.size||[...ports.demands.values()].some(Boolean))throw Error('Deletion publication listener or center demand leaked')}
 }
 `},bundle:true,write:false,format:'iife',globalName:'sourceModules',platform:'browser'});
 for(const channel of ['semantic','presentation'])test('App catches '+channel+' publication between initial render and subscription',async()=>{const browser=await chromiumHarness(bundle.outputFiles[0].text);try{const result=await browser.evaluate(`sourceModules.reproduce(${JSON.stringify(channel)})`);assert.equal(result.count,7,'Stationary center must catch child publication without navigation or watchdog');assert.equal(result.sourceCalls,0);assert.equal(result.listeners,0)}finally{await browser.cleanup()}});

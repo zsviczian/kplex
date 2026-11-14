@@ -196,6 +196,8 @@ export class ObsidianSourceAcquisition {
   private closed = false;
   private started = false;
   private enabled = false;
+  /** Eager admission observes native startup resolution while physical search/cache work precedes inventory. */
+  private initialResolverObservation = false;
   private timer: number | null = null;
   private pollTimer: number | null = null;
   private inventory: Promise<boolean> | null = null;
@@ -481,7 +483,7 @@ export class ObsidianSourceAcquisition {
         this.nativeResolvedWave = true;
         this.state(file).resolutionDirty = true;
         changed(file, false, undefined, false, "source", undefined, undefined,
-          !this.restartInventoryChecked && (this.enabled || this.inventory !== null));
+          !this.restartInventoryChecked && (this.enabled || this.inventory !== null || this.initialResolverObservation));
       } else {
         this.noteResolverWaveCause(false, !(file instanceof TFile) ? file == null ? "resolve-no-owner" : "resolve-non-file"
           : file.extension !== "md" ? "resolve-non-markdown"
@@ -752,6 +754,7 @@ export class ObsidianSourceAcquisition {
   /** Cancel every continuation and release event/timer ownership; unload does not await persistence. */
   close(): void {
     this.closed = true; this.inventoryRevision += 1; this.inventoryScopeRevision += 1;
+    this.initialResolverObservation = false;
     this.cancelNativeResolutionWait?.();
     this.warmMaintenanceAuthority = null; this.warmMaintenanceRevision = null;
     this.graphChanges?.clear(); this.graphChanges = null;
@@ -2623,8 +2626,15 @@ export class ObsidianSourceAcquisition {
       return { current: live, saved: false, reason: "write-error" };
     }
   }
+  /** Mark only the admitted Eager startup observation window, before source subscriptions start.
+   * This qualifies clean resolver events for the existing header comparison; it grants no source,
+   * inventory or write authority. Ordinary dormant/on-demand observers do not enter this context. */
+  observeInitialResolverProgress(): void {
+    if (!this.closed && !this.started && !this.enabled && this.inventory === null && !this.restartInventoryChecked) this.initialResolverObservation = true;
+  }
   /** Enable after the existing authoritative publication; do not lengthen its metadata-stability gate. */
   enableInventory(): void {
+    this.initialResolverObservation = false;
     this.start();
     const wasEnabled = this.enabled;
     this.enabled = true;
