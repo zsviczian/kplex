@@ -6,6 +6,7 @@ import {tmpdir} from "node:os";
 import {join} from "node:path";
 import {fileURLToPath} from "node:url";
 import {spawnSync, spawn} from "node:child_process";
+import {runInNewContext} from "node:vm";
 
 /** Fail with captured build/Git diagnostics instead of accepting a missing tool or partial build. */
 function run(root, executable, args) {
@@ -22,7 +23,7 @@ test("production artifacts are identical with clean, dirty and absent Git metada
     await writeFile(join(root, "manifest.json"), JSON.stringify({id: "k-plex", version: "3.2.1"}));
     await writeFile(join(root, "styles.css"), ".test { display: block; }\n");
     await writeFile(join(root, ".gitignore"), "node_modules/\ndist/\n");
-    await writeFile(join(root, "src/main.ts"), 'export const build = __KPLEX_BUILD_ID__; export const script = () => document.createElement("script");');
+    await writeFile(join(root, "src/main.ts"), 'import {Plugin} from "obsidian"; export default class FixturePlugin extends Plugin {marker(){return "visible-native-plugin";}} export const build = __KPLEX_BUILD_ID__; export const script = () => document.createElement("script");');
     await symlink(fileURLToPath(new URL("../node_modules", import.meta.url)), join(root, "node_modules"), process.platform === "win32" ? "junction" : "dir");
     run(root, "git", ["init", "--quiet"]);
     run(root, "git", ["add", "."]);
@@ -33,6 +34,20 @@ test("production artifacts are identical with clean, dirty and absent Git metada
     assert.match(clean.toString(), /3\.2\.1/);
     assert.doesNotMatch(clean.toString(), /source-archive|\.dirty|createElement\(["']script["']\)/);
     assert.match(clean.toString(), /createElement\("template"\)/, "Reproducibility must preserve React script hardening");
+    assert.match(clean.toString(), /visible-native-plugin/, "Plugin behavior stays visible in ordinary executable JavaScript");
+    // Obsidian supplies the native CJS resolver. Loading the generated module must preserve
+    // that exact host class without a browser global, compressed payload or second evaluator.
+    class NativePlugin {}
+    const module = {exports: {}}, required = [];
+    runInNewContext(clean.toString(), {module, exports: module.exports,
+      require(id) {required.push(id);assert.equal(id, "obsidian");return {Plugin: NativePlugin};},
+      eval() {throw Error("Generated plugin requested an evaluator");},
+      Function() {throw Error("Generated plugin requested dynamic compilation");},
+    });
+    const instance = new module.exports.default();
+    assert(instance instanceof NativePlugin);
+    assert.equal(instance.marker(), "visible-native-plugin");
+    assert.deepEqual(required, ["obsidian"]);
     run(root, process.execPath, ["esbuild.config.mjs", "production"]);
     assert.deepEqual(await readFile(join(root, "dist/main.js")), clean, "Repeated release builds are byte-identical");
     run(root, process.execPath, ["esbuild.config.mjs", "local"]);

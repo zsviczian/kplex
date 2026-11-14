@@ -4,9 +4,13 @@
  * Product names, persisted identifiers and vault content are intentionally not translated here.
  * Source metadata owns literal reference quoting; tag values include their # prefix.
  */
-import { buildLocaleCatalog, type LocaleTranslationMap } from "./catalog";
+import { buildLocaleCatalog, type LocaleCatalog, type LocaleTranslationMap } from "./catalog";
 
+/** Construct the typed Dutch table only when selected; importing this module allocates no catalog. */
+export function createDutchCatalog(): LocaleCatalog {
 const dutchTranslations = {
+  "startup.loading": "K-Plex laden…",
+  "startup.failed": "K-Plex kon niet worden gestart. Laad de plug-in opnieuw om het nogmaals te proberen.",
   "styles.nameConflict": "Er bestaat al een stijl voor {name}. Kies een andere tag.",
   "noteType.settings": "Notitietype instellen",
   "noteType.invalidTag": "Voer één geldige tag in, zoals person of person/friend. Spaties zijn niet toegestaan.",
@@ -158,7 +162,7 @@ const dutchTranslations = {
   "visibility.saveFailed": "De zichtbaarheid kon niet worden opgeslagen. De vorige instellingen blijven behouden.",
   "visibility.disableAll": "Alles uitschakelen",
   "actions.node.copy-link.description": "Kopieer het geselecteerde knooppunt of het midden van het canvas. Plakken in een Obsidian-notitie volgt de linkvoorkeuren; andere bestemmingen krijgen een volledig pad.",
-  "drawing.template": "Tekensjabloon",
+  "drawing.template": "Sjabloon",
   "drawing.blank": "Lege tekening",
   "settings.trackpad": "Trackpadnavigatie",
   "settings.trackpad.help": "Scroll om te verschuiven; knijp of scroll met een wijzigingstoets om te zoomen. Schakel uit om met gewoon scrollen te zoomen.",
@@ -909,6 +913,24 @@ const dutchTranslations = {
   "toolbar.newTabGroup": "Nieuwe tabbladgroep",
   "toolbar.sameGroupTab": "Nieuw tabblad in deze groep",
   "toolbar.clickHint": "{shortcut}: {action}",
+  "template.none": "Geen K-Plex-sjabloon",
+  "template.search": "Sjablonen zoeken op naam of pad",
+  "template.browse": "Sjablonen bekijken",
+  "template.folder": "Map met Markdown-sjablonen",
+  "template.folderHelp": "Optionele bronmap relatief aan de kluis. Bekijk maximaal 4.096 items zonder sjablonen uit te voeren. Een expliciete keuze vervangt alleen voor die notitie de automatische aanmaaksjablonen.",
+  "template.changed": "Het sjabloon ontbreekt, is gewijzigd of is groter dan 1 MiB. Open het aanmaakformulier opnieuw en kies het nogmaals.",
+  "template.unsupported": "Dit sjabloon vereist een ondersteunde, ingeschakelde Templater-parser. Kies een ander sjabloon of Geen K-Plex-sjabloon.",
+  "template.kindMismatch": "Het sjabloon past niet bij dit aanmaaktype. Kies een passend sjabloon of geen sjabloon.",
+  "reciprocal.setting": "Ook inverse ontologie schrijven",
+  "reciprocal.settingHelp": "Schrijf bij expliciete relaties tussen twee Markdown-notities ook de ingestelde inverse eigenschap in de andere notitie. Standaard uit; bestaande notities worden niet herschreven.",
+  "reciprocal.requiresMarkdown": "Inverse schrijven vereist twee verschillende schrijfbare Markdown-notities.",
+  "reciprocal.requiresInverse": "Kies vóór het opslaan een veld met een ingestelde inverse.",
+  "reciprocal.partial": "De relatie is gedeeltelijk opgeslagen. Geslaagde declaraties blijven behouden; probeer alleen onvoltooide schrijfacties opnieuw.",
+  "reciprocal.retry": "Onvoltooide schrijfacties opnieuw proberen",
+  "reciprocal.saved": "Opgeslagen",
+  "reciprocal.pending": "Niet opgeslagen",
+  "reciprocal.outcome": "{path} · {field}: {state}",
+  "relation.independentDeclarations": "De andere notitie declareert ook een relatie. Deze bewerking behoudt haar eigenschappen. Gebruik Verbindingsdetails om die declaratie afzonderlijk te wijzigen of te verwijderen.",
   "app.settingsMenu": "Instellingenmenu",
   "app.pluginSettings": "Plugininstellingen",
   "app.areaSettings": "Gebiedsinstellingen",
@@ -1948,6 +1970,14 @@ const dutchTranslations = {
   "pins.calendarHelp": "Weekdatums gebruiken het begin van de week. ISO-weeknotaties gebruiken GGGG en WW; lokale weeknotaties gggg en ww. Rond Nieuwjaar kunnen deze afwijken van het kalenderjaar.",
   "note.applyingTemplate": "Wachten totdat het notitiesjabloon klaar is…",
   "note.templateIntegrationUnavailable": "K-Plex kan bij deze Templater-versie niet veilig wachten. Er zijn geen relatie-eigenschappen geschreven.",
+  "creation.type": "Maken als",
+  "common.placeholder": "Tijdelijke aanduiding",
+
+  "creation.alias": "Alias",
+  "creation.action": "Actie",
+  "creation.typeStatus": "{name} als {type} maken.",
+
 } as const satisfies LocaleTranslationMap;
 
-export const dutchCatalog = buildLocaleCatalog(dutchTranslations);
+return buildLocaleCatalog(dutchTranslations);
+}

@@ -466,10 +466,11 @@ function edgeGeometry(a: Point, b: Point, sourceGate: GateSide, targetGate: Gate
   };
 }
 
-/** Return the actual connector label; default role/topology definitions remain visually suppressed. */
-function relationLabel(typeDefinition?: string): string | null {
+/** Keep authored field names even when they match role words; synthetic topology is never a caption. */
+function relationLabel(typeDefinition?: string, authored = false): string | null {
   const label = typeDefinition?.trim();
-  if (!label || GENERIC_RELATION_LABELS.has(label.toLowerCase())) return null;
+  if (!label || GENERIC_RELATION_LABELS.has(label.toLowerCase()) && (!authored
+    || ["file-tree", "folder-tree", "tag-tree", "inferred-link", "inferred", "sibling", "url", "attachment"].includes(label.toLowerCase()))) return null;
   return label;
 }
 
@@ -673,7 +674,7 @@ function Edge({
   const baseWidth = style.strokeWidth ?? DEFAULT_RENDERED_LINK_WIDTH;
   const strokeWidth = highlighted ? Math.max(baseWidth + 1.7, 2.8) : baseWidth;
   const stroke = alphaHexToCss(style.strokeColor, NATIVE_LINK_STROKE);
-  const label = style.showLabel && !endpoints.source.continued && !endpoints.target.continued ? relationLabel(edge.caption ?? edge.typeDefinition) : null;
+  const label = style.showLabel && !endpoints.source.continued && !endpoints.target.continued ? relationLabel(edge.caption ?? edge.typeDefinition, edge.relationType === RelationType.DEFINED) : null;
 
   const resolvedCrossLinkOpacity = edge.isCrossLink && !highlighted ? crossLinkOpacity : undefined;
 
@@ -716,7 +717,7 @@ function Edge({
 }
 
 /** Shared SVG label presentation for ordinary and expanded-descendant connectors. Caption text
- * is already projected; this component preserves existing generic suppression, fonts and colors. */
+ * is already projected; this component preserves the selected caption, fonts and colors. */
 function EdgeLabel({label,midpoint,style,background,opacity}:{label:string|null;midpoint:Point;style:PositionedEdge['style'];background:string;opacity?:number}){
   if(!label)return null;
   const fontSize=style.fontSize??10,labelWidth=Math.max(20,label.length*fontSize*.58+10),labelHeight=fontSize+6;
@@ -2866,9 +2867,9 @@ export function PlexGraph({ viewDefinition = classicViewDefinition, viewSession,
     return () => { unsubscribe(); releaseView?.(); release?.(); };
   }, [plugin, hostLeaf, index, presentationDemandPages, presentationDemandCenters, viewSession, viewLifetime]);
 
-  const expandedConnectors = useMemo(() => {
-    if (settings.graphDepth !== 2) return [] as Array<{ key:string;sourcePath:string;targetPath:string;d:string;stroke:string;width:number;dash?:string;markerStart?:string;markerEnd?:string;definition?:string;caption?:string;midpoint:Point;style:PositionedEdge['style'] }>;
-    const connectors: Array<{ key:string;sourcePath:string;targetPath:string;d:string;stroke:string;width:number;dash?:string;markerStart?:string;markerEnd?:string;definition?:string;caption?:string;midpoint:Point;style:PositionedEdge['style'] }> = [];
+  const expandedConnectors = useMemo(/** Descendant captions retain their real definition tier, matching ordinary connector labels. */ () => {
+    if (settings.graphDepth !== 2) return [] as Array<{ key:string;sourcePath:string;targetPath:string;d:string;stroke:string;width:number;dash?:string;markerStart?:string;markerEnd?:string;definition?:string;caption?:string;relationType:RelationType;midpoint:Point;style:PositionedEdge['style'] }>;
+    const connectors: Array<{ key:string;sourcePath:string;targetPath:string;d:string;stroke:string;width:number;dash?:string;markerStart?:string;markerEnd?:string;definition?:string;caption?:string;relationType:RelationType;midpoint:Point;style:PositionedEdge['style'] }> = [];
     for (const cluster of expandedClusters) {
       const source = gatePoint(cluster.parent, "bottom");
       for (const child of cluster.children) {
@@ -2890,6 +2891,7 @@ export function PlexGraph({ viewDefinition = classicViewDefinition, viewSession,
         connectors.push({
           key: child.key, sourcePath: cluster.parent.page.path, targetPath: child.relation.page.path,
           definition: child.relation.typeDefinition,
+          relationType: child.relation.relationType,
           caption: connectionCaption(child.relation.typeDefinition,style.showLabel,cluster.parent.page.path,child.relation.page.path,cluster.parent.page,child.relation.page),
           midpoint: geometry.midpoint, style,
           d: geometry.d,
@@ -3138,7 +3140,7 @@ export function PlexGraph({ viewDefinition = classicViewDefinition, viewSession,
     const exportEdges = [...actionEdges.map(edge => painted.get(edge.id) ?? {...edge, style: {...edge.style, showLabel: false}}), ...extraEdges];
     const visibleLabels = new Map<string, string[]>();
     for (const edge of exportEdges) if ((!edge.kind || edge.kind === "semantic") && edge.style.showLabel) {
-      const label = relationLabel(edge.caption ?? edge.typeDefinition);if (!label) continue;
+      const label = relationLabel(edge.caption ?? edge.typeDefinition, edge.relationType === RelationType.DEFINED);if (!label) continue;
       const key = JSON.stringify([edgeOccurrence(edge, "source"), edgeOccurrence(edge, "target")].sort()), list = visibleLabels.get(key) ?? [];
       list.push(label);visibleLabels.set(key, list);
     }
@@ -4513,7 +4515,7 @@ export function PlexGraph({ viewDefinition = classicViewDefinition, viewSession,
       if (!connectionActionAllowed(id, source, target) || !source || !target) return [];
       return [{ value: { origin: actionNodeRef(source), target: actionNodeRef(target), evidenceId: edge.id },
         label: `${scene.nodes.find(node => node.page.path === edge.sourcePath)?.label ?? source.name} → ${scene.nodes.find(node => node.page.path === edge.targetPath)?.label ?? target.name}`,
-        detail: `${relationLabel(edge.typeDefinition) ?? translate(EVIDENCE_ROLE_LABEL[edge.role] ?? "role.child")} · ${relationTypeText(edge.relationType, translate)}` }];
+        detail: `${relationLabel(edge.typeDefinition, edge.relationType === RelationType.DEFINED) ?? translate(EVIDENCE_ROLE_LABEL[edge.role] ?? "role.child")} · ${relationTypeText(edge.relationType, translate)}` }];
     });
     if (!items.length) return { status: "unavailable", reasonKey: "actions.target-unavailable" };
     return ownGraphPicker(items, translate("actions.connectionsPlaceholder"), /** Revalidate captured endpoints through manager and current pair evidence. */ pair => {
@@ -6017,7 +6019,7 @@ export function PlexGraph({ viewDefinition = classicViewDefinition, viewSession,
           labelBackground={NATIVE_LINK_LABEL_FILL}
           crossLinkOpacity={Math.max(0, Math.min(1, settings.crossLinkOpacity / 100))}
           highlighted={!connectDrag && (crossLinkPeek !== null && interaction.edgeIds.has(edge.id)
-            || (finding ? matchesOntologyFind(findQuery, edge.style.showLabel ? relationLabel(edge.typeDefinition) ?? undefined : undefined) : interaction.edgeIds.has(edge.id)))}
+            || (finding ? matchesOntologyFind(findQuery, edge.style.showLabel ? relationLabel(edge.caption ?? edge.typeDefinition, edge.relationType === RelationType.DEFINED) ?? undefined : undefined) : interaction.edgeIds.has(edge.id)))}
           dimmed={connectDrag ? connectBlockedEdgeIds.has(edge.id) : !finding && hover !== null && !interaction.edgeIds.has(edge.id)}
           passive={Boolean(crossLinkPeek && !showCrossLinks && edge.isCrossLink)}
           onHover={(event) => { if (!connectDrag && !nodeDrag) scheduleEdgeHover(edge, event); }}
@@ -6039,7 +6041,7 @@ export function PlexGraph({ viewDefinition = classicViewDefinition, viewSession,
           markerStart={connector.markerStart}
           markerEnd={connector.markerEnd}
           vectorEffect="non-scaling-stroke"
-        /><EdgeLabel label={connector.style.showLabel?relationLabel(connector.caption??connector.definition):null} midpoint={connector.midpoint} style={connector.style} background={NATIVE_LINK_LABEL_FILL} /></g></g>)}
+        /><EdgeLabel label={connector.style.showLabel?relationLabel(connector.caption??connector.definition,connector.relationType===RelationType.DEFINED):null} midpoint={connector.midpoint} style={connector.style} background={NATIVE_LINK_LABEL_FILL} /></g></g>)}
         {dragPath && <path className="kplex-drag-connector" d={dragPath} fill="none" vectorEffect="non-scaling-stroke" />}
       </svg>
 

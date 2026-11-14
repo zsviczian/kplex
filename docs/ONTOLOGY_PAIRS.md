@@ -35,7 +35,22 @@ replies to: "[[Note A]]"
 ---
 ```
 
-Alternatively, Note A can contain `replied by:: [[Note B]]`, or the same `replied by` key in YAML. You need only one declaration. K-Plex never automatically writes a matching property in the other note. If you write both, both remain evidence even though the connector wording appears once.
+Alternatively, Note A can contain `replied by:: [[Note B]]`, or the same `replied by` key in YAML. You need only one declaration. By default, K-Plex writes only the selected property owner. If you write both, both remain evidence even though the connector wording appears once.
+
+Enable **Also write inverse ontology** under **Ontology** to write both configured
+properties when explicitly creating or adding a relationship between two Markdown
+notes. It defaults off and does not rewrite existing notes. The selected owner is
+written first; the other receives its configured inverse. Symmetric Friend or
+Challenger fields can use the same physical field. Missing inverses and unsupported
+endpoints are explained before Save. Newly created notes finish their selected
+template before either relationship property is written.
+
+The two file writes are independent. If one fails, the form shows which declaration
+was saved and offers **Retry unfinished writes**. Retry retains the original files
+and pairing and does not repeat successful writes or create another note. If the
+files or pairing have changed, it requires fresh approval. Connection details keeps
+independently authored reverse evidence visible; changing one declaration does not
+silently erase the other note's properties.
 
 From Note B the connection reads **replies to**; from Note A it reads **replied by**. Enable relationship labels in **Visual styling → Link styling** or the relevant relationship style to display them. Captions do not rename properties: connection details, edits, unlinking, exact-field filters and field styles still use the original declaring field.
 

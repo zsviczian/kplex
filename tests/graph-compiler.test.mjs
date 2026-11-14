@@ -18,7 +18,7 @@ import { applyDefaultDateRoleFixture } from "./support/dateRoleFixture.mjs";
 import { probeUrlAliasMembership } from "./support/urlAliasMembershipProbe.mjs";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
-const loaded = loadPortableModules(['src/core/graph/compiler.ts', 'src/core/graph/model.ts', 'src/core/graph/source.ts', 'src/core/graph/relations.ts', 'src/core/graph/evidence.ts']);
+const loaded = loadPortableModules(['src/core/graph/compiler.ts', 'src/core/graph/model.ts', 'src/core/graph/source.ts', 'src/core/graph/relations.ts', 'src/core/graph/evidence.ts', 'src/core/graph/resolver.ts']);
 const { directory: temp, entryPath: corePath, exports: core } = loaded;
 
 const settings = {
@@ -337,6 +337,36 @@ test("streaming accepts later materialized facts, ignores stale host-map rows, a
   assert.equal(await incomplete.acceptBatch(incompleteRead, { boundary: incompleteBoundary, sequence: 0, final: true, records: [fileTree] }), true);
   assert.equal(incomplete.completeRead(incompleteRead, incompleteBoundary), true);
   assert.equal(await incomplete.finish(), null, "materialized references must have entity facts before a full result can publish");
+});
+
+/** Materialization changes native target identity/resolution, not an explicit physical Challenger declaration. */
+for (const surface of ["frontmatter-ontology", "inline-ontology"]) test(`custom Challenger survives unresolved-to-file compilation from ${surface}`, async () => {
+  const source = {id: core.nodeId("challenger-source"), kind: "document", state: "materialized", semanticPath: "A.md", physicalPath: "A.md"};
+  const fields = {...settings, hierarchy: {...settings.hierarchy, rightFriends: ["Ellentét"]}};
+  for (const materialized of [false, true]) {
+    const target = materialized
+      ? {id: core.nodeId("challenger-file"), kind: "document", state: "materialized", semanticPath: "B.md", physicalPath: "B.md"}
+      : {id: core.nodeId("challenger-ghost"), kind: "unresolved", state: "unresolved", semanticPath: "B"};
+    const revision = core.sourceRevision("challenger:" + materialized), targetRef = {entity: target, rawTarget: "B", resolvedBy: materialized ? "host" : "unresolved"};
+    const records = [{kind: "entity", source, sourceRevision: revision, entity: source, name: "A", url: null, file: {path: "A.md", name: "A.md", extension: "md", mtime: 1}},
+      {kind: "entity", source: target, sourceRevision: revision, entity: target, name: "B", url: null,
+        ...(materialized ? {file: {path: "B.md", name: "B.md", extension: "md", mtime: 1}} : {})},
+      {kind: surface, source, sourceRevision: revision, target: targetRef,
+        provenance: {configuredFieldName: "Ellentét", fieldName: "Ellentét", normalizedFieldName: "ellentét", definition: "Ellentét"}},
+      {kind: "obsidian-link", source, sourceRevision: revision, target: targetRef, occurrenceCount: 1}];
+    const {compilation} = await compileRecords(records, {settings: fields});assert(compilation);
+    const relation = [...compilation.node(source.id).neighbours.values()].find(item => item.target.id === target.id);
+    assert(relation?.isRightFriend);assert.equal(relation.rightFriendType, core.RelationType.DEFINED);
+    assert.equal(relation.rightFriendTypeDefinition, "ellentét");
+    assert.equal(core.classifyRelation(relation, "right", false), core.RelationType.DEFINED);
+    assert.equal(core.classifyRelation(relation, "child", false), null, "Retained inferred evidence cannot demote authored Challenger");
+    const reverse = [...compilation.node(target.id).neighbours.values()].find(item => item.target.id === source.id);
+    assert.equal(core.classifyRelation(reverse, "right", false), core.RelationType.DEFINED, "Centering the materialized endpoint preserves Challenger");
+    assert.equal(core.classifyRelation(reverse, "parent", false), null);
+    const evidence = compilation.evidenceBetween(source.id, target.id);
+    assert(evidence.some(item => item.sourceKind === surface && item.fieldName === "Ellentét" && item.role === "right"));
+    assert(evidence.some(item => item.sourceKind === "obsidian-link"), "Competing host observation remains honest evidence");
+  }
 });
 
 test("Excalibrain.md has no reserved graph meaning", async () => {

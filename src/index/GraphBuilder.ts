@@ -295,7 +295,9 @@ export class GraphBuilder {
   private readonly metadataSourceHost: ObsidianMetadataSourceHost;
   private readonly metadataSourceSettings: ObsidianMetadataSourceSettings;
 
-  /** Retain finite compatibility facets without selecting ontology/image inputs for collection. */
+  /** Retain finite compatibility facets without selecting ontology/image inputs for collection.
+   * An explicit fingerprint map is the sole proof of semantics already applied to its canonical
+   * graph. Standalone callers omitting it retain the historical field-cache comparison. */
   constructor(
     private plugin: KplexPlugin,
     private app: App,
@@ -303,7 +305,7 @@ export class GraphBuilder {
     private metadataParser: MetadataParser,
     private bodyCache: KplexIndexedDbCache,
     private isCurrent: () => boolean,
-    private semanticFingerprints: Map<string, string> = new Map(),
+    private semanticFingerprints?: Map<string, string>,
     private sourceAcquisition: ObsidianSourceAcquisition | null = null,
     private readonly backgroundCheckpoint?: () => Promise<void>,
   ) {
@@ -1508,7 +1510,7 @@ export class GraphBuilder {
         const signature = await this.semanticSourceSignatureCooperative(file, entry.body);
         if (!signature || !this.isCurrent() || !this.fileRevisionMatches(file, revision)) return false;
         entry.semanticSignature = signature;
-        this.semanticFingerprints.set(revision.path, signature);
+        this.semanticFingerprints?.set(revision.path, signature);
         if (!(await this.collectMetadataSources(compiler, file, meta))) return false;
         if (!(await this.yieldToHost())) return false;
         if (sourcePublication) this.sourcePublications.set(file.path, sourcePublication);
@@ -1668,9 +1670,12 @@ export class GraphBuilder {
       // A progressive rebuild starts from a structural-only baseline. A body cache entry left by a
       // cancelled earlier attempt is useful for parsing, but its semantic fingerprint must never
       // suppress applying that source to the fresh baseline. Runtime patches do have prior semantics.
+      // An explicit receipt map belongs to this canonical graph. A body cache can outlive a
+      // replaced/restored state, so its signature cannot certify an added structural-only page.
+      // Standalone callers without a canonical map retain the historical cache-based behavior.
       const previousSignature = discoveryMode === "rebuild" || options.forceRecompile
         ? undefined
-        : this.semanticFingerprints.get(sourcePath) ?? previousEntry?.semanticSignature;
+        : this.semanticFingerprints ? this.semanticFingerprints.get(sourcePath) : previousEntry?.semanticSignature;
       if (!(await this.compactPublishedPatchLayers(state, previousSignature !== signature, true)) || !this.fileRevisionMatches(file, revision)) {
         return { ok: false, cancelled: true, rebuildRequired: false, touchedPagePaths, semanticChanges, semanticNoops };
       }
@@ -1695,7 +1700,7 @@ export class GraphBuilder {
           page.mtime = revision.mtime;
           if (retiredEndpoints) this.sourceAcquisition?.acknowledgeNodeImpacts(sourcePath, retiredEndpoints);
           this.rememberFieldCache(sourcePath, { mtime: revision.mtime, body, inputToken: bodyToken, semanticSignature: signature });
-          this.semanticFingerprints.set(sourcePath, signature);
+          this.semanticFingerprints?.set(sourcePath, signature);
         }, stagedState.discoveredFields.size !== state.discoveredFields.size);
         semanticNoops += 1;
         if (!(await this.yieldToHost())) return { ok: false, cancelled: true, rebuildRequired: false, touchedPagePaths, semanticChanges, semanticNoops };
@@ -1796,7 +1801,7 @@ export class GraphBuilder {
         this.commitPatchState(state, stagedState);
         if (retiredEndpoints) this.sourceAcquisition?.acknowledgeNodeImpacts(sourcePath, retiredEndpoints);
         this.rememberFieldCache(sourcePath, { mtime: revision.mtime, body, inputToken: bodyToken, semanticSignature: signature });
-        this.semanticFingerprints.set(sourcePath, signature);
+        this.semanticFingerprints?.set(sourcePath, signature);
       });
       if (topologyChanged) semanticChanges += 1;
       else semanticNoops += 1;

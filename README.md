@@ -70,7 +70,10 @@ Useful commands include:
 - **Rebuild K-Plex index**
 - **Add parent / child / friend / challenger**
 
-On phones, K-Plex opens naturally in the side panel. Tablets can use either a normal K-Plex tab or the side panel.
+On phones, the ribbon and generic Open action still use the side panel. To use the main
+workspace instead, run **K-Plex: Open canvas** from the command palette; it opens or focuses
+a normal K-Plex tab. Tablets can use either a normal tab or the side panel. Popout windows
+remain desktop-only.
 
 ## Navigating the canvas
 
@@ -210,6 +213,25 @@ The dialog names its captured origin. Navigating the canvas elsewhere while it i
 
 Use the pencil beside the selected ontology to edit that exact property, its pairing and description without losing your form drafts. **Reverse property owner** shows which Markdown note will store which property and link. For a new note, K-Plex creates the note before writing the chosen relationship. Attachments, web links and placeholders cannot receive document properties.
 
+Choose **Markdown**, **Excalidraw** or **Placeholder** in the creation tabs. Available
+types match the operation, and Excalidraw appears only with its companion installed.
+**Action** stays above the tabs and selects what happens after saving. Short labels
+leave long input fields; the Template picker and create button share a responsive
+row. Escape closes an open template list first. Each real-file tab has its own searchable
+**Template** picker and retains its selection when switching. Configure the Markdown
+source with the folder suggester under **Ontology → Relationship behavior → Markdown
+template folder**. **No K-Plex template** keeps normal
+external automation; an explicit choice takes precedence for that new note. Plain
+Markdown, core template variables and supported Templater code are processed before
+relationship properties are written. Daily Notes retains its separate configured flow.
+
+**Also write inverse ontology**, under **Ontology**, optionally writes the configured
+inverse property on the other Markdown note as well. It defaults off and never
+rewrites existing relationships. If only one file saves, the form retains that
+declaration and offers a retry of the unfinished write.
+
+The last selected creation-type tab opens next time, including after cancelling. A form that cannot offer the remembered type shows a supported fallback without replacing the preference.
+
 The folder field starts with Obsidian's calculated destination. Select an existing folder from its suggestions, type a new folder, or use `/` for the vault root. The same picker appears when you hold **Ctrl/Cmd** while double-clicking a placeholder. Moving a path-qualified placeholder to a different folder updates its saved references while keeping their aliases. If that save stops partway, the dialog retains the created file for retry.
 
 Choose **Return** to keep the origin and return to the invoking control, **Create another** to clear the name for another entry, **Follow node** to center the result, or **Edit note** to open its supported editor. The default choice honors **Open for editing** for newly created files. Placeholders and URLs can be followed but do not open as editable notes.
@@ -338,6 +360,12 @@ Expanded children are intentionally smaller and more subdued. Larger child group
 K-Plex can create a dedicated normal Obsidian note pane beside the graph as a **companion sidecar**. Existing neighboring tabs are never taken over or closed by Sidecar actions.
 
 Each canvas has independent document-sync settings and can own its own Sidecar. Changing one canvas's **Off**, **Recent** or **Pinned** mode does not change another's pairing. **Recent** can follow ordinary document tabs, but does not take over another canvas's managed Sidecar. Obsidian's saved workspace restores each pairing; duplicating a canvas starts a separate session with a fresh Footprints trail.
+
+Unpinning the Sidecar or selecting **Off** or **Recent** releases its association and leaves
+the same document tab and adjacent group open, preserving its editor state and native
+history. **Off** stops following; **Recent** follows ordinary recent tabs on subsequent
+navigation. Closing the Sidecar document is a separate action, and closing K-Plex after
+release leaves that document open.
 
 The sidecar:
 

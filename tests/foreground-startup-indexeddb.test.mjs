@@ -104,6 +104,83 @@ for(const scenario of ['unchanged','resolution-change','missing-receipt','metada
  }finally{await browser.cleanup();}
 });}
 
+/** Admitted Eager preparation observes native resolution before catalog priming and warm restore. */
+for(const scenario of ['quiet','early-resolve','resolve','late-resolve','disposed'])test('admitted eager preparation retains clean resolver receipts before inventory promotion ('+scenario+')',async()=>{
+ const browser=await chromiumHarness(bundle);try{
+  await browser.evaluate(contributorBrowserInitialize);await browser.evaluate(initialize);
+  assert(await browser.evaluate(`(async()=>{
+   const M=sourceModules,{f,settings}=await startupSeed('warm-decode-resolver-window-${scenario}','active',{body:'Parent:: [[B]]',frontmatter:{}});settings.lastActivePath='B.md';
+   let index,releaseDecode,releaseAudit,releaseAuditEnd,releaseDemand,restoring,resolveObserver;
+   try{
+    index=new M.GraphIndex({app:f.app,settings,getIndexSourceRevision:()=>0},f.app,true);index.scheduleOrphanCleanup=()=>{};
+    // Main's native resolve observer is registered before source admission; retain that ordering.
+    resolveObserver=f.app.metadataCache.on('resolve',file=>{if(f.app.vault.getFileByPath(file.path)===file){index.refreshVisibleHostMetadataPreviews(file.path);void index.refreshVisiblePresentation(file.path);}});
+    index.admitPreparation();const source=index.sourceAcquisition;
+    const decode=index.preparePhysicalSearchCatalog,observe=source.restoreRestartHostObservations;
+    let enteredDecode,enteredAudit,enteredAuditEnd;
+    const decoding=new Promise(done=>enteredDecode=done),decoded=new Promise(done=>releaseDecode=done);
+    const auditing=new Promise(done=>enteredAudit=done),audit=new Promise(done=>releaseAudit=done);
+    const auditingEnd=new Promise(done=>enteredAuditEnd=done),auditEnd=new Promise(done=>releaseAuditEnd=done);
+    // Main starts this native search owner after admission, before restorePersistedSnapshot.
+    index.preparePhysicalSearchCatalog=async function(...args){enteredDecode();await decoded;return decode.apply(this,args);};
+    source.restoreRestartHostObservations=async function(...args){
+     enteredAudit();await audit;
+     const lookup=this.repository.lookupLocalDependencyCounts;let calls=0;
+     // The real page-progress notification admits maintenance before final root closure.
+     // Hold that closure rather than replacing progress or explicitly requesting maintenance.
+     this.repository.lookupLocalDependencyCounts=async function(...lookupArgs){
+      if(lookupArgs[1]===args[0]&&++calls===2){enteredAuditEnd();await auditEnd;}return lookup.apply(this,lookupArgs);
+     };
+     return observe.apply(this,args);
+    };
+    const work={readBody:[],inspect:[],visit:[],matchesFamily:[]};
+    for(const name of Object.keys(work)){const original=source.repository[name];source.repository[name]=function(...args){
+     work[name].push(name==='visit'?{path:args[0],family:args[1],expected:args[4]??null,caller:new Error().stack.split('\\n').slice(1,6)}
+      :name==='matchesFamily'?{path:args[0],family:args[1]}:args[0]);
+     return original.apply(this,args);
+    };}
+    restoring=(async()=>{
+     await index.primePhysicalSearchCatalog();if(index.diagnosticsClosed)return {restored:false};
+     return index.restorePersistedSnapshot(['B.md'],{deferEagerVocabulary:true,deferEagerUrlRestore:true});
+    })();
+    await deadline(decoding,'Actual pre-restore physical search catalog');
+    ok(source.started&&!source.isInventoryEnabled(),'The real restore observes native events before inventory is enabled');
+    equal(index.isSemanticWriteReady('A.md','B.md'),false,'A held decoder grants no relationship write authority');
+    if(!['quiet','late-resolve'].includes('${scenario}'))for(let round=0;round<3;round++)for(const file of f.files.values())f.app.metadataCache.trigger('resolve',file);
+    equal(source.getCounters().vaultReads,0,'Native observations do not read body bytes');
+    if('${scenario}'==='disposed'){
+     index.destroy();releaseDecode();await restoring;await index.waitForSnapshotHydration();
+     ok(!index.fullSnapshotHydrated,'A retired decoder cannot promote its old graph');
+     ok(!source.isInventoryEnabled()&&!source.hasSemanticDependencies(),'Retired observation grants no inventory or source authority');
+     equal(index.isSemanticWriteReady('A.md','B.md'),false,'No write proof after decoder disposal');
+     equal(await source.readRequestedBody(f.files.get('A.md'),()=>true),null,'A retired observer cannot load the cached body later');
+     return true;
+    }
+    releaseDecode();ok((await restoring).restored,'The genuine saved graph is selected');await index.waitForSnapshotHydration();
+    await deadline(auditing,'Existing background header audit');
+    ok(source.canPrepareWarmMaintenance(),'The real saved dependency projection supports bounded warm maintenance');
+    // A later clean resolver wave must not inherit dirtiness from the earlier observation.
+    if(['resolve','late-resolve'].includes('${scenario}'))for(let round=0;round<3;round++)for(const file of f.files.values())f.app.metadataCache.trigger('resolve',file);
+    releaseAudit();await deadline(auditingEnd,'Actual header progress before root closure');
+    releaseDemand=index.acquireSemanticDemand('B.md');
+    await deadline(index.ensureSemanticScope('B.md'),'Current view over the held audit');
+    if(index.eagerGraphMaintenanceTask)await deadline(index.eagerGraphMaintenanceTask,'Warm resolver maintenance');
+    ok(!source.restartInventoryChecked,'The view does not fabricate or wait for global audit completion');
+    const counters=source.getCounters(),semantic=index.getSemanticPreparationDiagnostics();
+    equal(counters.checked,0,'Clean resolve observations during restore must retain header reuse instead of source-family reacquisition; receipts='+JSON.stringify({work,counters,semantic}));
+    equal(work.readBody.filter(path=>path!=='B.md'),[],'Unchanged resolver receipts load no background body families');
+    equal(work.inspect.filter(path=>path!=='B.md'),[],'Unchanged resolver receipts authenticate no background source families');
+    equal(counters.repaired,0,'No neutral source activation');equal(counters.vaultReads,0,'No native body reads');equal(counters.parses,0,'No Markdown parse');
+    equal(semantic.requested,0,'The cached view does not manufacture a semantic no-op scope');equal(semantic.fullBuilds,0,'No global graph rebuild');
+    const relation=index.get('A.md').neighbours.get('B.md');ok(relation?.isParent&&relation.parentType===1,'The persisted body-defined Parent edge survives');
+    equal(work.matchesFamily,[],'No per-note canonical no-op comparison');
+    equal(work.visit.filter(row=>row.path!=='B.md'),[],'No background family authentication; counters='+JSON.stringify(counters));
+    releaseAuditEnd();await source.flush();return true;
+   }finally{if(resolveObserver)f.app.metadataCache.offref(resolveObserver);releaseDecode?.();releaseAudit?.();releaseAuditEnd?.();releaseDemand?.();index?.destroy();await restoring;f.close();}
+  })()`));
+ }finally{await browser.cleanup();}
+});
+
 test('an unrelated urgent owner cannot hold current-view preparation behind its unfinished work',async()=>{
  const browser=await chromiumHarness(bundle);try{await browser.evaluate(contributorBrowserInitialize);await browser.evaluate(initialize);
   assert(await browser.evaluate(`(async()=>{

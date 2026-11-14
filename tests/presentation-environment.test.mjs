@@ -305,7 +305,7 @@ test("Obsidian adapter preserves form-factor routing and leaves mobile keyboard 
   assert.equal(phone.keyConvention, "ios");
   assert.equal(phone.inputModes.keyboard, "unknown");
   assert.equal(phone.inputModes.touch, true);
-  assert.deepEqual(phone.hostActions, { graphTab: false, sidepanel: true, popout: false });
+  assert.deepEqual(phone.hostActions, { graphTab: true, sidepanel: true, popout: false });
 
   Object.assign(hostFixture.platform, { isPhone: false, isTablet: true });
   const tablet = hostFixture.adapter.readObsidianPresentationEnvironment(mobileWindow);
@@ -389,23 +389,26 @@ test("host action availability drives command visibility without conflating devi
   assert.equal(presentation.primaryOpenSurface(noGraphTab, false), "sidepanel");
 });
 
-test("Obsidian routing remains phone sidepanel, tablet normal tab, desktop normal tab/popout", () => {
-  const phone = environment({ device: "phone", touch: true, graphTab: false, sidepanel: true, popout: false });
+test("phone explicit tabs are available while generic routing remains phone sidebar and tablet/desktop tab", () => {
+  const phone = environment({ device: "phone", touch: true, graphTab: true, sidepanel: true, popout: false });
   assert.equal(presentation.primaryOpenSurface(phone, false), "sidepanel");
   assert.equal(presentation.primaryOpenSurface(phone, true), "sidepanel");
-  assert.equal(presentation.isGraphTabCommandAvailable(phone), false);
+  assert.equal(presentation.isGraphTabCommandAvailable(phone), true);
+  assert.equal(presentation.isGraphSplitCommandAvailable(phone), false,'Tab opt-in does not expose adjacent pane/group commands');
   assert.equal(presentation.isPopoutCommandAvailable(phone), false);
 
   const tablet = environment({ device: "tablet", touch: true, graphTab: true, sidepanel: true, popout: false });
   assert.equal(presentation.primaryOpenSurface(tablet, false), "leaf");
   assert.equal(presentation.primaryOpenSurface(tablet, true), "leaf");
   assert.equal(presentation.isGraphTabCommandAvailable(tablet), true);
+  assert.equal(presentation.isGraphSplitCommandAvailable(tablet), true);
   assert.equal(presentation.isPopoutCommandAvailable(tablet), false);
 
   const desktop = environment({ device: "desktop", keyboard: true, pointer: true, graphTab: true, sidepanel: true, popout: true });
   assert.equal(presentation.primaryOpenSurface(desktop, false), "leaf");
   assert.equal(presentation.primaryOpenSurface(desktop, true), "popout");
   assert.equal(presentation.isGraphTabCommandAvailable(desktop), true);
+  assert.equal(presentation.isGraphSplitCommandAvailable(desktop), true);
   assert.equal(presentation.isPopoutCommandAvailable(desktop), true);
 });
 

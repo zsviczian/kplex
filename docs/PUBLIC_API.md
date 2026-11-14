@@ -8,6 +8,27 @@ if (!api) throw new Error("K-Plex API v1 is unavailable");
 const capabilities = api.capabilities();
 ```
 
+Settings and services start in a deferred task after workspace readiness and
+native CSS completion, including when reloading into an already-ready workspace.
+During that interval the API remains unavailable rather than exposing
+default configuration. A startup integration can wait for the current plugin
+instance, then acquire its API:
+
+```js
+const plugin = app.plugins.plugins["k-plex"];
+if (!plugin || !await plugin.whenInitialized()) {
+  throw new Error("K-Plex initialization failed or the instance unloaded");
+}
+if (app.plugins.plugins["k-plex"] !== plugin) throw new Error("K-Plex reloaded");
+const api = plugin.api?.v1;
+if (!api) throw new Error("K-Plex API v1 is unavailable");
+```
+
+`whenInitialized()` settles `false` on initialization failure or unload. It
+establishes saved settings and service availability, independently of graph
+coverage or index settlement. Continue checking each operation's coverage and
+revision, and reacquire the plugin and API after reload.
+
 The API introduced in PR #240 has earlier complete repository verification and subsequent focused Windows native acceptance. The [original validation record](validation/public-api-cli-240-2026-10-30.md) and [main refresh checkpoint](validation/public-api-cli-240-refresh-2026-10-31.md) distinguish tested revisions, results, hashes and remaining platform limits. The original [implementation brief](proposals/PUBLIC_API_CLI_V1.md) records scope and delivery gates.
 
 The [window entry-point checkpoint](validation/public-api-window-240-2026-10-31.md) records focused validation and native main/popout reload acceptance for `window.kplexApi`.

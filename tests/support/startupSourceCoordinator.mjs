@@ -19,14 +19,14 @@ export function startupSourceCoordinatorSource() {
   const fields = new Set(['layoutReady', 'startupIndexPolicy', 'indexPreparationTask', 'indexPreparationAdmitted',
     'explicitIndexPreparationRequested', 'indexViewOpened', 'openKplexViews', 'indexDirty', 'indexDirtyRevision',
     'indexBacklogReasons', 'pendingCreateRevision', 'dirtyMarkdownPaths', 'preRestoreUncoveredChanges', 'unloading',
-    'metadataStabilized', 'metadataStabilityPromise']);
+    'metadataStabilized', 'metadataStabilityPromise', 'initializationSourceChanges']);
   const members = declaration.members.filter(/** Copy only real coordinator members and its owned recovery state. */ member => {
     const name = member.name?.getText(module);
     return required.has(name) || fields.has(name) || name?.startsWith('initialIndex') || name?.startsWith('initialSource')
       || name?.startsWith('resumeInitialSource') || name?.startsWith('canResumeInitialSource') || name?.startsWith('preRestore');
   });
   for (const name of required) assert(members.some(/** Assert the explicit extraction inventory remains complete. */ member => member.name?.getText(module) === name), name);
-  const onload = declaration.members.find(/** Locate the real native registration owner. */ member => member.name?.getText(module) === 'onload');
+  const onload = declaration.members.find(/** Locate the real native registration owner. */ member => member.name?.getText(module) === 'initializePlugin');
   const urlListeners = onload.body.statements.filter(/** Copy the four independent URL lifecycle registrations intact. */ statement => {
     const text = statement.getText(module);
     return text.startsWith('this.registerEvent(this.app.vault.on(');

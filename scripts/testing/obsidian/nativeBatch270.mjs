@@ -60,7 +60,15 @@ export function nativeBatch270(app,c){
  const initialize=async()=>{main.setMinimumSize(200,200);main.setContentSize(1450,1000);await focus(document);
   await c.sessions(plugin).off();Object.assign(plugin.settings,{embedCentralNode:false,graphDepth:1,showPageNodes:true,showURLNodes:true,renderSiblings:false,animationSpeed:0});await plugin.saveSettings(false,false);
   await until(()=>plugin.initialIndexComplete&&!plugin.index.isBuilding()&&plugin.getIndexStatus().upToDate,'Initial current index',120000);
-  await until(()=>!plugin.index.sourceAcquisition.inventory&&plugin.index.sourceAcquisition.hasSemanticDependencies(),'Closed startup source inventory',120000);
+  if(c.allowOnDemandRoutingStartup===true&&plugin.index.isOnDemandMode()){
+   // Routing-only phone coverage uses the real mobile default. Local readiness does not claim
+   // the global source authority required by every existing/default fixture caller.
+   await until(()=>{const status=plugin.getIndexStatus(),source=plugin.index.sourceAcquisition.getActivityState();return plugin.index.isOnDemandMode()&&plugin.initialIndexComplete&&status.upToDate&&!status.activeWork&&!plugin.index.isBuilding()&&!plugin.index.hasActiveSemanticPreparation()&&!plugin.index.hasPendingSemanticPreparation()&&!plugin.index.hasActiveSourcePreparation()&&!source.pendingKnown&&!source.knownImpactTasks&&!source.sourceActive&&!source.repoWrites&&!source.repoDeleteTask&&!plugin.index.sourceAcquisition.pendingResolutionKeys.size;},'Settled local On-demand routing startup',120000);
+   c.startupEvidence={scope:'local-on-demand-routing',onDemand:true,globalDependenciesReady:plugin.index.sourceAcquisition.hasSemanticDependencies(),status:plugin.getIndexStatus(),source:plugin.index.sourceAcquisition.getActivityState()};
+  }else{
+   await until(()=>!plugin.index.sourceAcquisition.inventory&&plugin.index.sourceAcquisition.hasSemanticDependencies(),'Closed startup source inventory',120000);
+   c.startupEvidence={scope:'global-source-authority',onDemand:plugin.index.isOnDemandMode(),globalDependenciesReady:true};
+  }
   directory=await app.vault.createFolder(folder);
  };
  /** Create exact owned files through ordinary Vault events. Real canvases, not every fixture
@@ -73,12 +81,12 @@ export function nativeBatch270(app,c){
  /** Resolve the actual mounted action registration, never a guessed ID or another canvas's fallback. */
  const surface=leaf=>{const id=[...plugin.actionSurfaceHosts].find(([,registration])=>registration.leaf===leaf)?.[0];check(id,'Live action surface');return id;};
  /** Plugin reload invalidates every captured plugin/view callback; callers reacquire explicitly. */
- const reload=async()=>{await plugin.settingsWriteQueue;await app.plugins.disablePlugin('k-plex');disabled=true;await app.plugins.enablePlugin('k-plex');disabled=false;plugin=app.plugins.plugins['k-plex'];check(plugin?.index,'Plugin reload');await until(()=>plugin.initialIndexComplete&&!plugin.index.isBuilding()&&plugin.getIndexStatus().upToDate,'Reloaded current index',120000);return plugin;};
+ const reload=async()=>{await plugin.settingsWriteQueue;await app.plugins.disablePlugin('k-plex');disabled=true;await app.plugins.enablePlugin('k-plex');disabled=false;plugin=app.plugins.plugins['k-plex'];if(plugin?.whenInitialized)check(await plugin.whenInitialized(),'Plugin initialization');check(plugin?.index,'Plugin reload');await until(()=>plugin.initialIndexComplete&&!plugin.index.isBuilding()&&plugin.getIndexStatus().upToDate,'Reloaded current index',120000);return plugin;};
  /** Independently restore every owned resource even if an earlier assertion or native operation fails. */
  const cleanup=async()=>{const errors=[],clean=async(name,action)=>{try{await action();}catch(error){errors.push(name+': '+error);}};
   for(const restore of restores.reverse())await clean('observer',restore);
   for(const release of releases)await clean('demand',release);
-  if(disabled)await clean('enable',()=>app.plugins.enablePlugin('k-plex'));plugin=app.plugins.plugins['k-plex'];
+  if(disabled)await clean('enable',()=>app.plugins.enablePlugin('k-plex'));plugin=app.plugins.plugins['k-plex'];if(plugin?.whenInitialized)await clean('initialization',async()=>check(await plugin.whenInitialized(),'Cleanup plugin initialization'));
   if(app.setting.win)await clean('owned settings',()=>app.setting.close());
   for(const modal of plugin.actionDialogs?.keys()??[])await clean('owned modal',()=>modal.close());
   plugin.dismissKplexMenu();plugin.hoverParent?.hoverPopover?.hide?.();app.setting.lastTabId=lastTabId;
@@ -94,5 +102,5 @@ export function nativeBatch270(app,c){
   await clean('geometry',()=>{main.setMinimumSize(...minimum);main.setBounds(bounds);if(maximized)main.maximize();});
   check(JSON.stringify(app.vault.getFiles().map(file=>file.path).sort())===JSON.stringify(inventory),'Native fixture inventory differs');if(errors.length)throw Error(errors.join('; '));
  };
- return{get p(){return plugin},workspace,folder,files,leaves,restores,check,wait,until,owner,focus,point,click,doubleClick,key,drag,initialize,note,ready,canvas,surface,reload,cleanup};
+ return{get p(){return plugin},get startupEvidence(){return c.startupEvidence},workspace,folder,files,leaves,restores,check,wait,until,owner,focus,point,click,doubleClick,key,drag,initialize,note,ready,canvas,surface,reload,cleanup};
 }

@@ -8,7 +8,7 @@ class NativeFolder {}
 
 function moduleAt(path, dependencies = {}) {
   const source = readFileSync(new URL(`../${path}`, import.meta.url), "utf8");
-  const output = ts.transpileModule(source, {compilerOptions: {module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022}}).outputText;
+  const output = ts.transpileModule(source, {compilerOptions: {module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, jsx: ts.JsxEmit.ReactJSX}}).outputText;
   const result = {exports: {}};
   Function("module", "exports", "require", output)(result, result.exports, name => dependencies[name] ?? {});
   return result.exports;
@@ -26,6 +26,41 @@ function method(path, name, dependencies = {}) {
   return Function(...Object.keys(dependencies), `${output}; return Subject.prototype.${name};`)(...Object.values(dependencies));
 }
 const {wheelCamera} = moduleAt("src/ui/components/wheelCamera.ts");
+/** Execute the actual App presentation subscription, including its shared navigation callback. */
+test("metadata-only publication hands a deleted center to its uniquely connected placeholder", () => {
+  const source = readFileSync(new URL("../src/ui/App.tsx", import.meta.url), "utf8");
+  const tree = ts.createSourceFile("App.tsx", source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
+  let adoption, subscription;const helpers=new Map();
+  function visit(node) {
+    if (ts.isVariableDeclaration(node) && node.name.getText(tree) === "activateDeletedFilePlaceholder") adoption = node.initializer.arguments[0].getText(tree);
+    if (ts.isVariableDeclaration(node) && ['acquirePendingDocumentDemand','releasePendingDocumentDemand','acknowledgeDocumentDemandHandover'].includes(node.name.getText(tree))) helpers.set(node.name.getText(tree),node.initializer.arguments[0].getText(tree));
+    if (ts.isCallExpression(node) && ts.isPropertyAccessExpression(node.expression) && node.expression.name.text === "subscribePresentation"
+      && node.arguments[0]?.getText(tree).includes("activateDeletedFilePlaceholder")) subscription = node.arguments[0].getText(tree);
+    ts.forEachChild(node, visit);
+  }
+  visit(tree);assert(adoption && subscription, "The real presentation owner shares deleted-file navigation");
+  const {deletedFileNavigationTarget} = moduleAt("src/adapters/obsidian/deletedFileNavigation.ts");
+  const oldPath = "Notes/Challenger.md", raw = "Challenger", old = {path:oldPath,file:null,neighbours:new Map()}, ghost = {path:raw,file:null,neighbours:new Map([["Notes/Note.md",{}]])};
+  const pages = new Map([[oldPath,old],[raw,ghost]]), activePathRef = {current:oldPath}, activePageRef = {current:old}, activeFileRef = {current:{path:oldPath}};
+  const navigations = [],pendingDocumentDemandRef={current:null},pendingDocumentFollowRef={current:null};let native = null, renders = 0, paints = 0, demands=0;
+  const plugin = {app:{vault:{getFileByPath:()=>native}},index:{get:path=>pages.get(path),viewScopeCoverage:()=>({prepared:true}),acquireSemanticDemand(){demands++;return()=>demands--;}},isKplexLeafVisible:()=>true};
+  const compile = (body,names,values) => Function(...names, `return (${ts.transpileModule(body,{compilerOptions:{target:ts.ScriptTarget.ES2022}}).outputText.trim().replace(/;$/,'')});`)(...values);
+  const acquire=compile(helpers.get('acquirePendingDocumentDemand'),['plugin','pendingDocumentDemandRef'],[plugin,pendingDocumentDemandRef]);
+  const release=compile(helpers.get('releasePendingDocumentDemand'),['pendingDocumentDemandRef'],[pendingDocumentDemandRef]);
+  const acknowledge=compile(helpers.get('acknowledgeDocumentDemandHandover'),['plugin','pendingDocumentDemandRef','pendingDocumentFollowRef','activePathRef','releasePendingDocumentDemand'],[plugin,pendingDocumentDemandRef,pendingDocumentFollowRef,activePathRef,release]);
+  const adopt = compile(adoption,["plugin","hostLeaf","activePathRef","activePageRef","activeFileRef","pendingDocumentDemandRef","acquirePendingDocumentDemand","setActivePath","deletedFileNavigationTarget"],
+    [plugin,{},activePathRef,activePageRef,activeFileRef,pendingDocumentDemandRef,acquire,path=>navigations.push(path),deletedFileNavigationTarget]);
+  const handler = compile(subscription,["plugin","hostLeaf","activatePendingDocumentFollow","activatePendingDocumentUrl","activateDeletedFilePlaceholder","acknowledgeDocumentDemandHandover","forceRender","forcePaint"],
+    [plugin,{},()=>{},()=>{},adopt,acknowledge,()=>renders++,()=>paints++]);
+  handler({kind:"paint"});assert.equal(paints,1);assert.deepEqual(navigations,[],"Paint-only changes cannot retarget navigation");
+  native = {path:oldPath};handler({kind:"data"});assert.deepEqual(navigations,[],"A replacement native file keeps its exact center");native = null;
+  const ambiguous = {...ghost,path:"Notes/Challenger"};pages.set(ambiguous.path,ambiguous);handler({kind:"data"});assert.deepEqual(navigations,[],"Ambiguous spellings do not authorize a handover");pages.delete(ambiguous.path);
+  old.neighbours.set("Notes/Note.md",{});handler({kind:"data"});assert.deepEqual(navigations,[],"A still-connected physical-coordinate read remains displayed");old.neighbours.clear();
+  handler({kind:"data"});assert.deepEqual(navigations,[raw]);assert.equal(activePathRef.current,raw);assert.equal(activePageRef.current,ghost);assert.equal(activeFileRef.current,null);
+  handler({kind:"data"});assert.deepEqual(navigations,[raw],"Later presentation events do not replay the adopted intent");assert.equal(renders,5);
+  assert.equal(demands,1);release();assert.equal(demands,0);
+});
+
 test("trackpad scroll pans in both axes at a fixed zoom; wheel mode and modifier/pinch preserve anchored zoom", () => {
   const camera = {x: 10, y: 20, scale: 1.5}, point = {x: 200, y: 150};
   const scroll = {deltaX: 8, deltaY: 12, deltaMode: 0, ctrlKey: false, metaKey: false};
@@ -41,6 +76,46 @@ test("trackpad scroll pans in both axes at a fixed zoom; wheel mode and modifier
   assert.equal(wheelCamera(camera, {...scroll, deltaY: 1e6}, point, false, 3, 600).scale, 0.3);
   assert.equal(wheelCamera(camera, {...scroll, deltaMode: 1}, point, true, 3, 600).y, 20-12*16);
   assert.equal(wheelCamera(camera, {...scroll, deltaMode: 2}, point, true, 3, 600).y, 20-12*600);
+});
+
+test("creation type feature uses shared tabs and type-scoped fields with stable labelled panels", () => {
+  const render = (type, props, key) => ({type, props, key}), changes = [];
+  const {CreationTypeTabs} = moduleAt("src/ui/features/CreationTypeTabs.tsx", {
+    react: {useId: () => "creation-id"}, "react/jsx-runtime": {jsx: render, jsxs: render},
+    "../components/Tabs": {Tabs: "shared-tabs"}, "./DrawingTemplateSelect": {DrawingTemplateSelect: "shared-template"},
+  });
+  const props = {value: "markdown", types: ["markdown", "excalidraw", "placeholder"], translate: key => key,
+    onChange: type => changes.push(type), template: {choices: {files: [], selected: "", root: ""}, value: "Selected.md", resultsOwnerId: "native-owner", onChange: path => changes.push(path)}, actions: "create-button", status: "selected-type-status", children: "selected-action"};
+  const tree = CreationTypeTabs(props), [tabs, panels] = tree.props.children;
+  assert.equal(tabs.type, "shared-tabs");assert.equal(tabs.props.label, "creation.type");
+  assert.deepEqual(tabs.props.items, props.types.map(id => ({id,label:`common.${id}`})));
+  tabs.props.onChange("excalidraw");tabs.props.onChange("unavailable");assert.deepEqual(changes,["excalidraw"]);
+  for (const [index,panel] of panels.entries()) {
+    assert.equal(panel.props.role,"tabpanel");assert.equal(panel.props.id,`creation-id-panel-${props.types[index]}`);
+    assert.equal(panel.props["aria-labelledby"],`creation-id-tab-${props.types[index]}`);
+    assert.equal(panel.props.hidden,index!==0);assert.equal(panel.props.children[1],index===0?"selected-action":null);
+  }
+  const picker=panels[0].props.children[0];assert.equal(picker.type,"shared-template");assert.equal(picker.props.kind,"markdown");
+  assert.equal(picker.props.actions,"create-button");assert.equal(picker.props.resultsOwnerId,"native-owner");
+  assert.equal(panels[0].props.children[3].props.role,"status");assert.equal(panels[0].props.children[3].props.children,"selected-type-status");
+  picker.props.onChange("Exact.md");assert.deepEqual(changes,["excalidraw","Exact.md"]);
+  const placeholder=CreationTypeTabs({...props,value:"placeholder",disabled:true});
+  assert.equal(placeholder.props.children[1][2].props.children[0],null,"An unresolved node must never offer a physical template");
+  assert.equal(placeholder.props.children[1][2].props.children[2].props.children,"create-button","Placeholder keeps its create action without a template row");
+  placeholder.props.children[0].props.onChange("markdown");assert.deepEqual(changes,["excalidraw","Exact.md"]);
+  const constrained=CreationTypeTabs({...props,types:["markdown"]});assert.equal(constrained.props.children[0].props.items.length,1);
+  constrained.props.children[0].props.onChange("excalidraw");assert.deepEqual(changes,["excalidraw","Exact.md"]);
+});
+
+test("creation tab preference writes through one host owner and remains separate from successful physical defaults", () => {
+  const writes=[],owner={settings:{newNodeCreationTab:null,newNodeDefaultType:"excalidraw",futureWorkflow:{keep:true}},saveSettings:(...args)=>{writes.push([args,structuredClone(owner.settings)]);return Promise.resolve();}};
+  const control=method("src/main.ts","creationTypeTabControl");const first=control.call(owner);
+  assert.equal(first.value,null);assert.deepEqual(writes,[]);
+  first.onChange("placeholder");first.onChange("placeholder");first.onChange("unavailable");
+  assert.equal(owner.settings.newNodeCreationTab,"placeholder");assert.equal(owner.settings.newNodeDefaultType,"excalidraw");
+  assert.equal(writes.length,1);assert.deepEqual(writes[0][0],[false,false]);assert.deepEqual(writes[0][1].futureWorkflow,{keep:true});
+  const reopened=control.call(owner);assert.equal(reopened.value,"placeholder");assert.equal(writes.length,1,"Reading on reopen must not write a supported fallback");
+  reopened.onChange("markdown");assert.equal(control.call(owner).value,"markdown");assert.equal(owner.settings.newNodeDefaultType,"excalidraw");
 });
 
 test("template selectors require EA 2.29.1 and preserve blank, valid and removed choices", () => {
@@ -102,7 +177,7 @@ test("explicit new-tab/tab-group/window actions allocate the requested native su
     const file = {path: "A.md"}, calls = [], leaf = {setViewState: async state => calls.push(state)};
     const owner = {app: {vault: {getFileByPath: () => file}, workspace: {getMostRecentLeaf: () => null, getLeaf: value => {assert.equal(value, type); return leaf;}}},
       rememberDocumentLeaf() {}, focusInKplex: async (...args) => calls.push(args)};
-    await open.call(owner, file, target); assert.deepEqual(calls.at(-1), [file.path, leaf]);
+    owner.whenInitialized=async()=>true;await open.call(owner, file, target); assert.deepEqual(calls.at(-1), [file.path, leaf]);
     assert.equal(calls[0].type, "plex");
   }
 });
@@ -117,25 +192,32 @@ test("a warm new Plex waits for its mounted navigation consumer before focusing 
   const file = {path: "Chosen.md"}, focused = [], leaf = {view: new View(), setViewState: async () => {}};
   const owner = {app: {vault: {getFileByPath: () => file}, workspace: {getMostRecentLeaf: () => null, getLeaf: () => leaf}},
     rememberDocumentLeaf() {}, focusInKplex: async (...args) => focused.push(args)};
-  const work = open.call(owner, file, "split");
+  owner.whenInitialized=async()=>true;const work = open.call(owner, file, "split");
   await new Promise(resolve => setImmediate(resolve)); assert.equal(focused.length, 0);
   ready(); await work; assert.deepEqual(focused, [[file.path, leaf]]);
 });
 
-test("template dropdown retains complete paths for duplicate names and exposes an explicit blank choice", () => {
+test("searchable template field isolates the selected kind, exact duplicate paths and blank without committing query edits", () => {
   const changes = [];
   const {DrawingTemplateSelect} = moduleAt("src/ui/features/DrawingTemplateSelect.tsx", {
-    react: {createElement: (type, props, ...children) => ({type, props, children})},
-    "../components/FormSelect": {FormSelect: "shared-labelled-select"},
+    react: {createElement: (type, props, ...children) => ({type, props, children}),useId:()=> 'template-id',useMemo:run=>run(),useRef:value=>({current:value}),useState:value=>[value,()=>{}],useEffect:run=>run()},
+    "../components/FormField": {FormField: "shared-labelled-field"},
+    "../components/FuzzySuggester": {FuzzySuggester: "shared-search"},
+    "../components/fuzzyFilterStrings": moduleAt('src/ui/components/fuzzyFilterStrings.ts'),
   });
-  const tree = DrawingTemplateSelect({choices: {root: "Templates", selected: "Templates/B/Same.md", files: [{path: "Templates/A/Same.md"}, {path: "Templates/B/Same.md"}]},
-    value: "Templates/B/Same.md", disabled: false, translate: key => key, onChange: value => changes.push(value)});
-  assert.equal(tree.type, "shared-labelled-select");
-  const select = tree;
+  const choices = {root: "Templates", selected: "Templates/B/Same.md", files: [{path: "Templates/A/Same.md",kind:'markdown'}, {path: "Templates/B/Same.md"}, {path: "Templates/b/Same.md"}]};
+  const tree = DrawingTemplateSelect({choices, value: "Templates/B/Same.md", disabled: false, translate: key => key, onChange: (...value) => changes.push(value)});
+  assert.equal(tree.type, "shared-labelled-field");
+  const select = tree.props.children;assert.equal(select.type,'shared-search');
   assert.equal(select.props.value, "Templates/B/Same.md");
-  assert.deepEqual(select.props.children.map(option => option.props.value), ["", "Templates/A/Same.md", "Templates/B/Same.md"]);
-  assert.deepEqual(select.props.children.slice(1).map(option => option.children[0]), ["A/Same.md", "B/Same.md"]);
-  select.props.onChange(""); assert.deepEqual(changes, [""]);
+  const results=select.props.getResults('');
+  assert.deepEqual(results.map(option=>option.path),["", "Templates/B/Same.md", "Templates/b/Same.md"]);
+  assert.deepEqual(results.slice(1).map(select.props.getDetail),['common.excalidraw · Templates/B/Same.md','common.excalidraw · Templates/b/Same.md']);
+  select.props.onChange('Some uncommitted query');assert.deepEqual(changes,[]);
+  select.props.onChoose(results[1]);select.props.onChoose(results[0]);assert.deepEqual(changes,[['Templates/B/Same.md','excalidraw'],['','excalidraw']]);
+  const markdown=DrawingTemplateSelect({choices,value:'',kind:'markdown',translate:key=>key,onChange:assert.fail}).props.children;
+  assert.deepEqual(markdown.props.getResults('').map(option=>[option.path,option.kind]),[['','markdown'],['Templates/A/Same.md','markdown']]);
+  assert.deepEqual(markdown.props.getResults('Templates/B'),[],"Searching another kind cannot expose a mismatched template");
 });
 
 test("a rejected drawing write destroys its private workbench and retains the last successful template", async () => {
@@ -230,9 +312,9 @@ test('new-file tabs use the Plex group or the most recent main group from the si
 
 test('canvas tab modifiers allocate in the captured group even when another group is most recent',async()=>{
  const create=method('src/main.ts','createPlexTab',{KPLEX_VIEW_TYPE:'plex',KPLEX_SIDEPANEL_VIEW_TYPE:'sidepanel'});
- const host={parent:{},view:{getViewType:()=> 'plex'}},other={parent:{}},calls=[];
+ const host={parent:{},view:{containerEl:{ownerDocument:{}},getViewType:()=> 'plex'}},other={parent:{}},calls=[];
  const leaf={setViewState:async state=>calls.push(['view',state])};
- const p={rememberDocumentLeaf:()=>{},app:{workspace:{getMostRecentLeaf:()=>other,
+ const p={whenInitialized:async()=>true,leafIsAttached:()=>true,rememberDocumentLeaf:()=>{},app:{workspace:{getMostRecentLeaf:()=>other,
   iterateAllLeaves:run=>[host,{parent:host.parent},other].forEach(run),
   createLeafInParent:(parent,index)=>{calls.push(['tab',parent,index]);return leaf},
   createLeafBySplit:(...args)=>{calls.push(['split',...args]);return leaf},
@@ -445,11 +527,11 @@ for(const boundary of ['current','replacement','rename'])test('folder menu openi
  const folder=Object.assign(new NativeFolder(),{path:'Folder'}),original=folder.path,focused=[],primed=[];let current=folder;
  const leaf={setViewState:async()=>{if(boundary==='replacement')current=Object.assign(new NativeFolder(),{path:original});if(boundary==='rename')folder.path='Renamed'}};
  const owner={index:{primeSavedNavigation:paths=>primed.push(paths)},app:{vault:{getFolderByPath:path=>path===original?current:null,getRoot:()=>null},workspace:{getLeavesOfType:()=>[],getMostRecentLeaf:()=>null,getLeaf:()=>leaf}},rememberDocumentLeaf(){},focusInKplex:async(...args)=>focused.push(args)};
- await open.call(owner,folder,'tab');assert.deepEqual(primed,[['folder:Folder']]);assert.deepEqual(focused,boundary==='current'?[['folder:Folder',leaf]]:[]);
+ owner.whenInitialized=async()=>true;await open.call(owner,folder,'tab');assert.deepEqual(primed,[['folder:Folder']]);assert.deepEqual(focused,boundary==='current'?[['folder:Folder',leaf]]:[]);
 });
 test('root folder opens through the native root owner without a path lookup',async()=>{
  const root=Object.assign(new NativeFolder(),{path:'/'}),primed=[],focused=[],leaf={setViewState:async()=>{}};
  const open=method('src/main.ts','openFileInKplex',{TFolder:NativeFolder,KplexView:class{},KplexSidepanelView:class{},readObsidianPresentationEnvironment:()=>({device:'desktop'}),KPLEX_VIEW_TYPE:'plex',KPLEX_SIDEPANEL_VIEW_TYPE:'sidebar'});
  const owner={index:{primeSavedNavigation:paths=>primed.push(paths)},app:{vault:{getRoot:()=>root,getFolderByPath(){throw Error('Root uses getRoot')}},workspace:{getLeavesOfType:()=>[],getMostRecentLeaf:()=>null,getLeaf:()=>leaf}},rememberDocumentLeaf(){},focusInKplex:async(...args)=>focused.push(args)};
- await open.call(owner,root,'tab');assert.deepEqual(primed,[['folder:/']]);assert.deepEqual(focused,[['folder:/',leaf]]);
+ owner.whenInitialized=async()=>true;await open.call(owner,root,'tab');assert.deepEqual(primed,[['folder:/']]);assert.deepEqual(focused,[['folder:/',leaf]]);
 });

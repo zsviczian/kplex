@@ -109,6 +109,111 @@ test("English catalog is strict, typed at source, and remains the fallback", () 
   assert.equal(localization.createTranslator("zz-ZZ")("command.openGraph"), "Open canvas", "unknown locale must fall back to English");
 });
 
+/** Observe the real materializer so deferred validation cannot conceal eager unused table allocation. */
+test("built-in locale tables materialize only on requested synchronous translation and once per owner", () => {
+  const paths = ["index", "de", "es", "fr", "ja", "nl", "ru", "zh-TW"].map(name => require.resolve(join(portableTemp, `src/lang/${name}.js`)));
+  const previous = new Map(paths.map(path => [path, require.cache[path]]));
+  const catalog = require(join(portableTemp, "src/lang/catalog.js")), original = catalog.buildLocaleCatalog;
+  let materializations = 0;
+  catalog.buildLocaleCatalog = translations => {materializations++; return original(translations);};
+  for (const path of paths) delete require.cache[path];
+  try {
+    const fresh = require(paths[0]);
+    assert.equal(materializations, 0, "Importing the translator must not allocate unused locale tables");
+    assert.equal(fresh.createTranslator("en")("command.openGraph"), "Open canvas");
+    assert.equal(fresh.createTranslator("zz-ZZ")("command.openGraph"), "Open canvas");
+    assert.equal(materializations, 0, "English and unknown locales use the existing English source");
+    const german = fresh.createTranslator("de_DE");
+    assert.equal(typeof german, "function", "Built-in translation remains synchronous");
+    assert.equal(german("command.openGraph"), "Canvas öffnen");
+    assert.equal(materializations, 1);
+    assert.equal(fresh.createTranslator("de-AT")("command.openGraph"), "Canvas öffnen");
+    assert.equal(materializations, 1, "Exact/base identifiers share the same prepared built-in locale");
+    for (const [locale, expected] of [["es", "Abrir lienzo"], ["fr", "Ouvrir le canevas"], ["ja", "キャンバスを開く"], ["nl", "Canvas openen"], ["ru", "Открыть холст"], ["zh_TW", "開啟畫布"]]) {
+      const translate = fresh.createTranslator(locale);
+      assert.equal(typeof translate, "function");
+      assert.equal(translate("command.openGraph"), expected);
+    }
+    assert.equal(materializations, 7, "Each supported requested locale constructs once");
+    delete require.cache[paths[0]];
+    const reloaded = require(paths[0]);
+    assert.equal(reloaded.createTranslator("en")("command.openGraph"), "Open canvas");
+    assert.equal(materializations, 7);
+    assert.equal(reloaded.createTranslator("de")("command.openGraph"), "Canvas öffnen");
+    assert.equal(materializations, 8, "A new translator owner prepares its own locale snapshot");
+    assert.equal(fresh.createTranslator("de")("command.openGraph"), "Canvas öffnen");
+    assert.equal(materializations, 8, "The old owner's prepared snapshot remains independent");
+  } finally {
+    catalog.buildLocaleCatalog = original;
+    for (const [path, entry] of previous) {if (entry) require.cache[path] = entry; else delete require.cache[path];}
+  }
+});
+
+/** Fresh actual owners expose catalog traversal without relying on unstable wall-clock thresholds. */
+test("English startup skips unused bundled catalogs and repeated locale selection reuses a stable prepared translation", () => {
+  const ownerPath = join(portableTemp, "src/lang/index.js"), german = require(join(portableTemp, "src/lang/de.js"));
+  const original = german.createGermanCatalog;
+  let traversals = 0;
+  const authored = {...original()["search.ariaLabel"], message: "Prepared translation", params: []};
+  german.createGermanCatalog = () => new Proxy(original(), {
+    ownKeys(target) {traversals++; return Reflect.ownKeys(target);},
+    get(target, key) {return key === "search.ariaLabel" ? authored : Reflect.get(target, key);},
+  });
+  delete require.cache[require.resolve(ownerPath)];
+  try {
+    const fresh = require(ownerPath);
+    assert.equal(fresh.createTranslator("en")("command.openGraph"), "Open canvas");
+    assert.equal(fresh.createTranslator("zz-ZZ")("command.openGraph"), "Open canvas");
+    assert.equal(traversals, 0, "English and unknown locales must not traverse an unused built-in catalog");
+    const germanTranslator = fresh.createTranslator("de_DE");
+    assert.equal(germanTranslator("search.ariaLabel"), "Prepared translation");
+    assert(traversals > 0, "First use must validate the selected built-in catalog");
+    const preparedTraversals = traversals;
+    authored.message = "Later source mutation";
+    authored.params.push("invalid");
+    assert.equal(fresh.createTranslator("de-AT")("search.ariaLabel"), "Prepared translation", "Base-locale reuse retains its validated owned text and metadata");
+    assert.equal(germanTranslator("search.ariaLabel"), "Prepared translation");
+    assert.equal(traversals, preparedTraversals, "Repeated translator creation must not repeat complete catalog validation");
+    assert.equal(fresh.createTranslator("fr")("command.openGraph"), "Ouvrir le canevas", "Switching locales prepares the newly selected catalog");
+  } finally {
+    german.createGermanCatalog = original;
+    delete require.cache[require.resolve(ownerPath)];
+  }
+});
+
+test("failed bundled preparation does not publish a partial locale cache", () => {
+  const ownerPath = join(portableTemp, "src/lang/index.js"), german = require(join(portableTemp, "src/lang/de.js"));
+  const original = german.createGermanCatalog;
+  let unavailable = true;
+  german.createGermanCatalog = () => new Proxy(original(), {ownKeys(target) {if (unavailable) throw Error("Catalog unavailable"); return Reflect.ownKeys(target);}});
+  delete require.cache[require.resolve(ownerPath)];
+  try {
+    const fresh = require(ownerPath);
+    assert.throws(() => fresh.createTranslator("de"), /Catalog unavailable/);
+    assert.equal(fresh.createTranslator("en")("command.openGraph"), "Open canvas");
+    unavailable = false;
+    assert.equal(fresh.createTranslator("de")("command.openGraph"), "Canvas öffnen");
+  } finally {
+    german.createGermanCatalog = original;
+    delete require.cache[require.resolve(ownerPath)];
+  }
+});
+
+test("explicit reused catalog maps retain live fallback and validate unused mutations on every construction", () => {
+  const entries = {"search.ariaLabel": {message: "First translation", context: "Mutable injected catalog regression.", params: []}};
+  const catalogs = {de: entries};
+  const first = localization.createTranslator("de-DE", catalogs);
+  assert.equal(first("search.ariaLabel"), "First translation");
+  entries["search.ariaLabel"] = {...entries["search.ariaLabel"], message: "Second translation"};
+  assert.equal(localization.createTranslator("de-DE", catalogs)("search.ariaLabel"), "Second translation");
+  assert.equal(first("search.ariaLabel"), "Second translation", "Caller-owned injected catalogs retain the existing live lookup behavior");
+  assert.equal(first("command.openGraph"), "Open canvas", "Missing injected keys still fall back to English");
+  entries["search.ariaLabel"].params.push("unexpected");
+  assert.throws(() => localization.createTranslator("de-DE", catalogs), /not used by every form/);
+  assert.throws(() => localization.createTranslator("en", catalogs), /not used by every form/, "Even an unused injected locale remains fully validated");
+  assert.throws(() => localization.validateCatalog("de", entries), /not used by every form/);
+});
+
 test("Wu Xing labels retain their actual Unicode translations", () => {
   for (const [locale, label] of Object.entries({en:"Water",de:"Wasser",es:"Agua",fr:"Eau",ja:"水",nl:"Water",ru:"Вода","zh-TW":"水"})) {
     const translate=localization.createTranslator(locale);
@@ -117,6 +222,15 @@ test("Wu Xing labels retain their actual Unicode translations", () => {
       assert(!translate(key).includes("?"),`${locale} ${key} must not contain encoding replacement characters`);
   }
   assert.equal(localization.createTranslator("en")("wuxing.unavailable"),"Unclassified · Unavailable");
+});
+
+test('template, reciprocal and toolbar translations retain their authored Unicode characters',()=>{
+ for(const [locale,expected]of [['ja','テンプレート'],['zh-TW','範本'],['ru','шаблона'],['de','für'],['fr','modèle'],['es','bóveda'],['nl','vóór']]){
+  const translate=localization.createTranslator(locale);
+  const text=locale==='de'?translate('template.folder'):locale==='es'?translate('template.folderHelp'):locale==='nl'?translate('reciprocal.requiresInverse'):translate('template.none');
+  assert(text.includes(expected),locale);assert(!text.includes('\uFFFD'),locale);
+ }
+ for(const locale of ['ja','zh-TW','ru'])assert(!localization.createTranslator(locale)('toolbar.newTabGroup').includes('?'),locale);
 });
 
 /** Named reference metadata reflects each consumer's semantics, not a global parameter-name heuristic. */
@@ -167,7 +281,7 @@ test("reference metadata validation rejects malformed subsets duplicates count r
   const entry={message:"{name}",context:"Synthetic inherited metadata.",params:["name"],referenceParams:["name"]};
   assert.equal(localization.createTranslator("de",{de:{"note.existsNamed":entry}})("note.existsNamed",{name:"A.md"}),'"A.md"');
   const module=require(join(portableTemp,"src/lang/de.js"));
-  assert.deepEqual(module.germanCatalog["hide.confirmPair"].referenceParams,["source","target"]);
+  assert.deepEqual(module.createGermanCatalog()["hide.confirmPair"].referenceParams,["source","target"]);
 });
 
 test("every action explains its behavior beyond its label, and help is distinct from commands", () => {
@@ -199,17 +313,17 @@ test("bundled locale catalogs are complete and provide translated copy", () => {
     "sidecar.foldUnsupportedLayout", "sidecar.chooseFoldPair",
   ];
   const catalogs = [
-    ["de", "de.js", "germanCatalog", "Canvas öffnen"],
-    ["fr", "fr.js", "frenchCatalog", "Ouvrir le canevas"],
-    ["es", "es.js", "spanishCatalog", "Abrir lienzo"],
-    ["nl", "nl.js", "dutchCatalog", "Canvas openen"],
-    ["ja", "ja.js", "japaneseCatalog", "キャンバスを開く"],
-    ["zh-TW", "zh-TW.js", "traditionalChineseCatalog", "開啟畫布"],
-    ["ru", "ru.js", "russianCatalog", "Открыть холст"],
+    ["de", "de.js", "createGermanCatalog", "Canvas öffnen"],
+    ["fr", "fr.js", "createFrenchCatalog", "Ouvrir le canevas"],
+    ["es", "es.js", "createSpanishCatalog", "Abrir lienzo"],
+    ["nl", "nl.js", "createDutchCatalog", "Canvas openen"],
+    ["ja", "ja.js", "createJapaneseCatalog", "キャンバスを開く"],
+    ["zh-TW", "zh-TW.js", "createTraditionalChineseCatalog", "開啟畫布"],
+    ["ru", "ru.js", "createRussianCatalog", "Открыть холст"],
   ];
 
   for (const [locale, file, exportName, expected] of catalogs) {
-    const catalog = require(join(portableTemp, `src/lang/${file}`))[exportName];
+    const catalog = require(join(portableTemp, `src/lang/${file}`))[exportName]();
     assert.deepEqual(Object.keys(catalog).sort(), englishKeys, `${locale} must translate every English catalog key`);
     assert.equal(localization.createTranslator(locale)("command.openGraph"), expected);
     for (const key of maintainedSidecarKeys) {

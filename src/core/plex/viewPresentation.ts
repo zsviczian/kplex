@@ -73,6 +73,11 @@ export function isGraphTabCommandAvailable(environment: PresentationEnvironment)
   return isHostActionAvailable(environment, "graphTab");
 }
 
+/** Phone tab opt-in keeps adjacent desktop-style tab-group actions unavailable. */
+export function isGraphSplitCommandAvailable(environment: PresentationEnvironment): boolean {
+  return environment.device !== "phone" && isGraphTabCommandAvailable(environment);
+}
+
 export function isPopoutCommandAvailable(environment: PresentationEnvironment): boolean {
   return isHostActionAvailable(environment, "popout");
 }

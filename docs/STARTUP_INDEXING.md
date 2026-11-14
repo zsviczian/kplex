@@ -1,5 +1,27 @@
 # Startup indexing
 
+K-Plex registers its native view types first, then starts loading saved settings
+and initializing services in one deferred task after native CSS loading and
+workspace readiness. This also keeps service work out of the native CSS wait when
+reloading into an already-ready workspace.
+A restored Plex keeps its native tab and
+serialized state while showing a loading message; it mounts with your saved
+preferences when those services are available. Opening a Plex during this wait
+joins the same initialization. Failure or plugin unload settles pending requests
+without mounting a canvas with default settings.
+
+This separates Obsidian's plugin `onload` duration from settings/service readiness
+and index readiness. Startup measurements must include the later work too. The
+index strategy, cache validation and preparation switches below retain their
+existing meaning.
+
+Native CSS completion uses a guarded, temporary instance hook that is restored
+after its first call or plugin retirement. A host without that observable hook
+falls back to workspace readiness plus the same deferred task; initialization
+still works, but separation from that host's unobserved CSS load clock is not
+guaranteed. CSS failure settles pending service requests without adding a second
+host error notice.
+
 In **Settings → K-Plex → Indexing config → Prepare index before opening K-Plex**, choose whether
 K-Plex prepares its index when Obsidian starts, or waits until you open a Plex.
 Desktop, tablet and phone have separate switches. Desktop starts enabled; tablet and phone

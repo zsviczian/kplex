@@ -1,12 +1,16 @@
-/** Common native modal surface and form primitives. Obsidian still owns focus, Escape,
- * placement and window lifetime; this adapter supplies shared structure and accessible
- * icon actions without changing feature validation or mutation ownership. */
+/** Common native modal surface and form primitives. Shared suggestions get first Escape;
+ * Obsidian owns final dismissal, focus, placement and window lifetime. This adapter supplies
+ * exact popup ownership and accessible structure without changing feature validation or mutations. */
 import {Modal, Setting, getIcon, type App, type TextComponent, type TextAreaComponent, type ButtonComponent} from "obsidian";
 import {fitMobileModalToViewport} from "../../ui/mobileModalViewport";
+
+let modalSuggestionSequence = 0;
 
 /** Every plugin modal opts into the same theme-aware typography, fields and spacing. */
 export class KplexModal extends Modal {
   private releaseFormViewport: (() => void) | null = null;
+  /** Body-portalled suggestions remain interactions of this exact native modal, including popouts. */
+  readonly suggestionOwnerId = `kplex-modal-suggestions-${++modalSuggestionSequence}`;
   /** Native Modal creates these elements synchronously in its owning document. */
   constructor(app: App) {
     super(app);
@@ -26,6 +30,30 @@ export class KplexModal extends Modal {
   close(): void {
     this.releaseFormViewport?.(); this.releaseFormViewport = null;
     super.close();
+  }
+
+  /** Native Scope runs before React's widget handler; dismiss the owned list before native modal dismissal. */
+  override onEscapeKey(event: KeyboardEvent): void {
+    if (event.defaultPrevented || event.isComposing) return;
+    if (!this.dismissOpenSuggestions()) {super.onEscapeKey(event);return;}
+    event.preventDefault();event.stopPropagation();
+  }
+
+  /** The input belongs to this content subtree; its owning realm dispatches the shared widget's dismissal event. */
+  protected dismissOpenSuggestions(): boolean {
+    const expanded = this.contentEl.querySelector<HTMLInputElement>('.kplex-fuzzy-search input[aria-expanded="true"]');
+    const shell = expanded?.closest<HTMLElement>(".kplex-fuzzy-search");
+    if (!shell) return false;
+    const EventCtor = shell.ownerDocument.defaultView?.CustomEvent ?? CustomEvent;
+    shell.dispatchEvent(new EventCtor("kplex-dismiss-suggestions"));
+    expanded?.focus();
+    return true;
+  }
+
+  /** Accept only this modal's exact portal identity; another modal or ordinary body content remains outside interaction. */
+  protected ownsSuggestionTarget(target: EventTarget): boolean {
+    return "closest" in target && typeof target.closest === "function"
+      && Boolean((target as Element).closest(`[data-fuzzy-owner="${this.suggestionOwnerId}"]`));
   }
 }
 

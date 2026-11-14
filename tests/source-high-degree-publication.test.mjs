@@ -171,23 +171,46 @@ test("a local publication superseding ready-source preparation automatically ret
         index=await fullCenterIndex(M,f,initial,semantic,centerGateSettings({showFolderNodes:false}));
         index.sourceAcquisition.close();index.sourceAcquisition=f.acquisition;index.plugin.settings.lastActivePath='A.md';
         release=index.acquireSemanticDemand('A.md');await index.refreshSemanticSettings();
-        const prepare=f.acquisition.prepareRequestedNeighborhood.bind(f.acquisition);let calls=0,entered;
+        const prepare=f.acquisition.prepareRequestedNeighborhood.bind(f.acquisition);let mandatoryCalls=0,optionalCalls=0,activeRequests=0,entered;
+        const requests=[];
         const held=new Promise(done=>entered=done);
         f.acquisition.prepareRequestedNeighborhood=async(...args)=>{
-          calls++;const result=await prepare(...args);if(calls===1){entered();await new Promise(done=>unblock=done);}return result;
+          const selected=args[0].siblingClosure==='selected';
+          ok(selected||args[0].siblingClosure==='deferred','Only direct demand or selected sibling enrichment');
+          const ordinal=selected?++optionalCalls:++mandatoryCalls;
+          requests.push({selected,parents:[...(args[0].siblingParents??[])],policy:args[1].revision,publication:index.publicationRevision});
+          activeRequests++;
+          try{const result=await prepare(...args);if(!selected&&ordinal===1){entered();await new Promise(done=>unblock=done);}return result;}
+          finally{activeRequests--;}
         };
         index.plugin.settings.hierarchy.leftFriends=[];index.plugin.settings.hierarchy.rightFriends=['Friends'];index.invalidateSemanticPolicy();
+        const policy=index.semanticPolicyRevision;
         const pending=index.refreshSemanticSettings();await held;
         index.publishIncrementalFile({sourcePath:'A.md',touchedPagePaths:new Set(['A.md']),semanticChanged:true},()=>{});
         unblock();await pending;
         const deadline=Date.now()+10000;
-        while(index.hasPendingSemanticPreparation()&&Date.now()<deadline)await new Promise(done=>setTimeout(done,10));
+        // The raw total also contains the legitimate second-order closure through visible friend B.
+        // It is not a third mandatory retry. Optional P2 work is outside pending-policy readiness;
+        // await its actual published owner and lane settlement before replacing the source hook.
+        const ownsOptional=()=>{const scope=index.semanticScopes.get('A.md');return scope?.policyRevision===policy
+          &&scope.completePaths.has('B.md')&&index.siblingEnrichmentScopes.get(scope)===index.presentationRevision;};
+        const foregroundIdle=()=>index.getWorkPriorityDiagnostics().active.slice(0,3).every(count=>count===0);
+        while((index.hasPendingSemanticPreparation()||activeRequests||!ownsOptional()||!foregroundIdle())&&Date.now()<deadline)await new Promise(done=>setTimeout(done,10));
         equal(index.hasPendingSemanticPreparation(),false,'Patch race converges without source callback or another settings save');
-        equal(calls,2,'Exactly one changed-publication retry');ok(index.get('A.md').neighbours.get('B.md')?.isRightFriend,'Latest coherent policy');
+        equal(mandatoryCalls,2,'Exactly one changed-publication retry');equal(optionalCalls,1,'Exactly one selected sibling closure');
+        equal(index.plugin.settings.renderSiblings,true,'Sibling work remains enabled');ok(ownsOptional(),'Current optional enrichment owns complete B incidence');
+        equal(activeRequests,0,'No optional source request crosses the next phase');ok(foregroundIdle(),'Foreground publication lanes are settled');
+        equal(requests.map(row=>row.policy),[String(policy),String(policy),String(policy)],'Direct retry and optional closure use the current policy');
+        equal(requests.filter(row=>row.selected).map(row=>row.parents),[['B.md']],'Only the exact visible witness is enriched');
+        equal(requests.filter(row=>!row.selected).map(row=>row.publication),[0,1],'Only the one real publication supersedes direct preparation');
+        ok(index.get('A.md').neighbours.get('B.md')?.isRightFriend,'Latest coherent policy');
         equal(f.reads.length,0);equal(f.parses.length,0);
-        calls=0;f.acquisition.prepareRequestedNeighborhood=async()=>{calls++;return{outcome:'pending',reason:'missing'};};
+        mandatoryCalls=0;optionalCalls=0;f.acquisition.prepareRequestedNeighborhood=async(...args)=>{
+          if(args[0].siblingClosure==='selected')optionalCalls++;else{equal(args[0].siblingClosure,'deferred');mandatoryCalls++;}
+          return{outcome:'pending',reason:'missing'};
+        };
         index.invalidateSemanticPolicy();await index.refreshSemanticSettings();await new Promise(done=>setTimeout(done,30));
-        equal(calls,1,'Unchanged missing inputs never self-retry');return true;
+        equal(mandatoryCalls,1,'Unchanged missing inputs never self-retry');equal(optionalCalls,0,'Missing direct input admits no optional closure');return true;
       }finally{unblock?.();release?.();index?.destroy();f.close();}
     })()`),true);
   }finally{await browser.cleanup();}

@@ -6,13 +6,13 @@
  * template quote wrappers are normalized while interpolated user values remain opaque text.
  */
 import { englishCatalog, type EnglishCatalog } from "./en";
-import { germanCatalog } from "./de";
-import { spanishCatalog } from "./es";
-import { frenchCatalog } from "./fr";
-import { japaneseCatalog } from "./ja";
-import { dutchCatalog } from "./nl";
-import { russianCatalog } from "./ru";
-import { traditionalChineseCatalog } from "./zh-TW";
+import { createGermanCatalog } from "./de";
+import { createSpanishCatalog } from "./es";
+import { createFrenchCatalog } from "./fr";
+import { createJapaneseCatalog } from "./ja";
+import { createDutchCatalog } from "./nl";
+import { createRussianCatalog } from "./ru";
+import { createTraditionalChineseCatalog } from "./zh-TW";
 
 type PrimitiveParam = string | number;
 type CatalogEntry = Readonly<{
@@ -45,15 +45,16 @@ const PLACEHOLDER = /\{([A-Za-z][A-Za-z0-9_]*)\}/g;
 const PLURAL_CATEGORIES = new Set(["zero", "one", "two", "few", "many", "other"]);
 const REFERENCE_QUOTES: Readonly<Record<string,string>> = { '"':'"', "'":"'", "“":"”", "„":"“", "«":"»", "»":"«", "‹":"›", "›":"‹", "「":"」", "『":"』", "‘":"’", "‚":"‘" };
 
-const bundledLocaleCatalogs: RuntimeLocaleCatalogs = {
-  de: germanCatalog,
-  es: spanishCatalog,
-  fr: frenchCatalog,
-  ja: japaneseCatalog,
-  nl: dutchCatalog,
-  ru: russianCatalog,
-  "zh-tw": traditionalChineseCatalog,
-};
+/** Internal factories keep unused translation literals and catalog allocation out of module startup. */
+const bundledLocaleFactories: ReadonlyMap<string, () => RuntimeCatalog> = new Map([
+  ["de", createGermanCatalog],
+  ["es", createSpanishCatalog],
+  ["fr", createFrenchCatalog],
+  ["ja", createJapaneseCatalog],
+  ["nl", createDutchCatalog],
+  ["ru", createRussianCatalog],
+  ["zh-tw", createTraditionalChineseCatalog],
+]);
 
 /** Collect declared interpolation names without examining literal parameter values. */
 function placeholders(template: string): Set<string> {
@@ -231,16 +232,25 @@ for (const [key, rawEntry] of Object.entries(englishCatalog)) {
   validatePluralCoverage("en", key, validateEntry("en", key, rawEntry));
 }
 
-/**
- * Create a typed translator for the requested host language. Bundled locale catalogs are used by
- * default; callers may inject catalogs for validation/tests. Missing locales/keys fall back to English.
- * Reference classification is inherited from English; locales may repeat but cannot change it.
- */
-export function createTranslator(language: string, localeCatalogs: RuntimeLocaleCatalogs = bundledLocaleCatalogs): Translator {
+/** Preserve validated built-in text and nested metadata independently of the exported source objects. */
+function immutableEntry(entry: CatalogEntry): CatalogEntry {
+  return Object.freeze({
+    context: entry.context,
+    params: Object.freeze([...entry.params]),
+    ...(entry.referenceParams === undefined ? {} : {referenceParams: Object.freeze([...entry.referenceParams])}),
+    ...(entry.message === undefined
+      ? {plural: Object.freeze({...entry.plural}), countParam: entry.countParam}
+      : {message: entry.message}),
+  });
+}
+
+/** Validate every supplied catalog; only built-in preparation takes an owned immutable snapshot. */
+function prepareCatalogs(localeCatalogs: RuntimeLocaleCatalogs, immutable = false): RuntimeLocaleCatalogs {
   const normalizedCatalogs: Record<string, RuntimeCatalog | undefined> = {};
   for (const [locale, catalog] of Object.entries(localeCatalogs)) {
     if (!catalog) continue;
     validateCatalog(locale, catalog);
+    const entries: Record<string, CatalogEntry> = {};
     for (const [key, rawEntry] of Object.entries(catalog)) {
       const source = (englishCatalog as RuntimeCatalog)[key];
       if (source === undefined) fail(locale, key, "key is absent from the English source catalog");
@@ -259,9 +269,42 @@ export function createTranslator(language: string, localeCatalogs: RuntimeLocale
         fail(locale,key,"reference parameters differ from the English source catalog");
       }
       validatePluralCoverage(normalizeLocale(locale), key, translatedEntry);
+      if (immutable) entries[key] = immutableEntry(translatedEntry);
     }
-    normalizedCatalogs[normalizeLocale(locale)] = catalog;
+    normalizedCatalogs[normalizeLocale(locale)] = immutable ? Object.freeze(entries) : catalog;
   }
+  return immutable ? Object.freeze(normalizedCatalogs) : normalizedCatalogs;
+}
+
+/** This module alone owns prepared built-in snapshots; mutable injected catalog maps never enter it. */
+const preparedBundledCatalogs = new Map<string, RuntimeCatalog>();
+
+/** Prepare only the requested exact/base built-in fallback chain, once per locale and module lifetime. */
+function bundledCatalogsFor(language: string): RuntimeLocaleCatalogs {
+  const selected: Record<string, RuntimeCatalog> = {};
+  for (const locale of localeCandidates(language)) {
+    const factory = bundledLocaleFactories.get(locale);
+    if (!factory) continue;
+    let prepared = preparedBundledCatalogs.get(locale);
+    if (!prepared) {
+      prepared = prepareCatalogs({[locale]: factory()}, true)[locale];
+      if (!prepared) continue;
+      preparedBundledCatalogs.set(locale, prepared);
+    }
+    selected[locale] = prepared;
+  }
+  return selected;
+}
+
+/**
+ * Create a typed translator for the requested host language. Built-in exact/base locale snapshots
+ * validate lazily once; English startup does not prepare unused translations. Explicit injected
+ * maps retain full validation on every call, including unused locales, and are never memoized.
+ * Missing locales/keys fall back to English. Reference classification remains owned by English.
+ */
+export function createTranslator(language: string, localeCatalogs?: RuntimeLocaleCatalogs): Translator {
+  const normalizedCatalogs = localeCatalogs === undefined
+    ? bundledCatalogsFor(language) : prepareCatalogs(localeCatalogs);
   return (/** Resolve and render one message without reinterpreting values as templates. */ (key: TranslationKey, params?: Readonly<Record<string, PrimitiveParam>>) => {
     const { entry, locale, referenceParams } = entryFor(key, language, normalizedCatalogs);
     return formatEntry(key, entry, locale, params, referenceParams);

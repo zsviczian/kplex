@@ -57,7 +57,20 @@ async function scenario(app, c) {
       && urls.complete && !urls.active && !urls.failed
       && !cache.writerActive && cache.queuedBodies === 0;
   };
+  /** Normal native visibility owns edit catch-up. A Markdown-only starting layout intentionally
+   * retains coordinator backlog, so establish real demand before creating fixture sources. */
+  async function prepareFixtureView() {
+    await p.activateView('leaf');
+    let leaf;
+    await until(() => {
+      leaf = app.workspace.getLeavesOfType('k-plex-react-view').find(value =>
+        value.view.containerEl.ownerDocument === document && p.isKplexLeafVisible(value));
+      return Boolean(leaf);
+    }, 'Visible normal fixture canvas prerequisite');
+    await leaf.view.waitUntilReady();
+  }
   try {
+    await prepareFixtureView();
     await until(settled, 'Original native source state did not settle');
     folder = await app.vault.createFolder(prefix);
     for (const [index, name] of ['Gate', 'Left', 'Right'].entries()) {
@@ -105,7 +118,7 @@ async function scenario(app, c) {
     await app.plugins.enablePlugin('k-plex');
     p = app.plugins.plugins['k-plex'];
     let openingError;
-    const opening = p.activateView().catch(error => { openingError = error; });
+    const opening = p.activateView('leaf').catch(error => { openingError = error; });
     await until(() => c.held || openingError, 'Actual warm source dependency gate was not reached');
     if (openingError) throw openingError;
     check(c.gateState.sourceActive, 'Gate must occur inside actual source inventory');

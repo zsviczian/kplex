@@ -34,6 +34,10 @@ Use `npm run dev` for watch development; each actual rebuild refreshes that iden
 and scanner command remains `npm run build`, reproducible without Git metadata. Release workflows
 must never publish locally identified bundles. See [diagnostic build identities](docs/INDEXING_DIAGNOSTICS.md#local-build-identities).
 
+Production and identified local builds ship ordinary minified CommonJS from `src/main.ts`.
+Plugin code and translation catalogs are not compressed or evaluated by a custom loader.
+The development watcher retains source maps for debugging.
+
 After exact-build staging, `npm run verify:obsidian:index-pacing` uses the three explicit `kplex-test-small` target variables and a fresh `KPLEX_HOST_REPORT_DIR`. It exercises bundled short-wait pacing in all three scheduling modes, mutation preemption, unload settlement, and replacement/reclamation/restoration of a private synthetic IndexedDB snapshot. It creates no vault notes and preserves settings/enablement bytes. The report compares the retained timer fallback with the native short-wait path and records actual visibility. `KPLEX_PACING_HIDDEN=true` temporarily hides only the selected Small window and restores its visibility/focus/minimized state in independent cleanup; it does not alter Electron throttling. Hosts without asynchronous atomic-wait support retain native timer fallback. Windows evidence does not establish macOS or physical mobile behavior.
 
 ```bash
@@ -1806,6 +1810,63 @@ light/wide and dark/narrow native windows. Use
 review holds. `pin-settings` also verifies that custom Folder/Date format rows hide
 while Daily Notes settings are selected and return with their saved values intact;
 `pin-settings-daily` is its visual hold phase.
+
+After exact-build staging, `npm run verify:obsidian:authoring-workspace` checks
+custom Challenger materialization through native and K-Plex creation, navigation
+and plugin reload. Set `KPLEX_AUTHORING_LANE=labels` for the independent connector
+caption matrix; `KPLEX_EXPECT_FIXED=true` asserts the candidate captions.
+`npm run verify:obsidian:authoring-workspace-sessions` checks non-destructive
+Off/Recent/unpin transitions with actual native editor/history/group identities,
+folded attached tabs, independent owners and late opens in main/popout windows.
+`npm run verify:obsidian:authoring-workspace-templates` requires the official
+Templater 2.27.0 and Excalidraw 2.29.1+ executables staged temporarily in Small.
+It checks explicit plain/properties/Templater execution, automatic-template
+precedence, the real combined creation form, per-file inverse retry, parser
+failure retention and settings reload. Set `KPLEX_TEMPLATE_LANE=reload` to check
+shared native receipts across actual K-Plex bundle reload while Templater keeps
+running; the default expectation is isolated parser admission and exact handler
+cleanup. `KPLEX_TEMPLATE_RELOAD_EXPECT=overlap` is only for attributing an older
+regression artifact. The staging caller backs up/restores
+companion artifacts and enablement under the shared application lock. These
+lanes require the three explicit test-vault variables and a fresh managed
+`KPLEX_HOST_REPORT_DIR`; their fixtures restore configuration and native layouts.
+Plugin reload and desktop input do not replace full-app restart or physical-phone
+acceptance.
+
+`npm run verify:obsidian:deleted-sidecar` creates owned Challenger relationships,
+opens each new note in its actual managed Sidecar, and deletes it through Obsidian's
+native trash service both immediately after creation and after indexing settles.
+It checks surviving incoming incidence throughout reconciliation and after the
+deleted center becomes a placeholder. Use the same three explicit Small-vault
+variables, exact-build staging and managed report directory; native layouts,
+settings, observers and fixtures are restored independently.
+
+`npm run verify:obsidian:async-initialization` holds the real native settings read
+while plugin enable returns, then checks pending native-state serialization,
+same-view restoration and queued opening intent. It also checks unload before
+read completion, a body edit delivered during loading, a rejected read and late
+native CSS cleanup, then restores the ordinary native loader and original
+workspace. Its durable edit baseline waits for the normal five-minute save idle;
+it does not force persistence. This Small-only lane requires the same target variables,
+exact artifacts and managed report directory; its injected failure is not a
+production startup-time measurement.
+
+The authoring bundle also supplies `verify:obsidian:authoring-workspace-cache`.
+Choose `KPLEX_CACHE_LANE=pending`, `failure-retry` or `mutations`; the first two
+observe ordinary production persistence deadlines without forcing a flush. The
+failure lane retains the old active generation and uses a genuine later edit to
+schedule its normal retry. These Small-vault functional receipts do not establish
+large-vault performance or replace two unchanged application restarts.
+`verify:obsidian:authoring-workspace-phone` performs reload-aware desktop phone
+emulation, actual palette tab/default-sidebar routing and workspace restoration.
+It restores the prior desktop mode and requires an isolated disposable-vault
+application session before changing mode. Physical-phone acceptance remains separate.
+`verify:obsidian:authoring-workspace-restart` rejects other open vault windows
+before any fixture write. Its Node owner retains cleanup across two unchanged
+application reloads, then a pending-save added-owner reload and final reuse. It
+observes natural activation and asserts unchanged generations and work counters;
+it never forces a rebuild or snapshot flush. These are application renderer
+reloads through Obsidian's command, with the Electron process retained.
 
 `preset-ui` opens the real Facets preset editor from a connected native Settings
 page, exercises aligned dropdowns and the shared paired color/source row, and

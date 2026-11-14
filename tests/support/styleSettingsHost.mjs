@@ -10,7 +10,7 @@ import ts from "typescript";
 /** Preserve original method bodies, including queue/await fences, while callers supply explicit host facts. */
 export function styleSettingsHostSource(root) {
   const source = ts.createSourceFile("main.ts", readFileSync(new URL("src/main.ts", root), "utf8"), ts.ScriptTarget.Latest, true);
-  const names = new Set(["validateRelatedNoteName", "validateNoteFolderPath", "newRelatedNoteFolder", "allOntologyFields", "rememberRelationshipOntology", "openAddToOntologyModal", "readSavedPins", "stopPeriodicPinTimer", "refreshPeriodicPins", "setContentVisibility", "updateStyleSettings", "saveSettings", "enqueueSettingsWrite", "settingsSnapshotForPersistence", "persistSettingsSnapshot", "setGraphLenses", "readPortableSharingState", "previewPortableSharing", "importPortableSharing",
+  const names = new Set(["creationTypeTabControl", "validateRelatedNoteName", "validateNoteFolderPath", "newRelatedNoteFolder", "allOntologyFields", "rememberRelationshipOntology", "openAddToOntologyModal", "readSavedPins", "stopPeriodicPinTimer", "refreshPeriodicPins", "setContentVisibility", "updateStyleSettings", "saveSettings", "enqueueSettingsWrite", "settingsSnapshotForPersistence", "persistSettingsSnapshot", "setGraphLenses", "readPortableSharingState", "previewPortableSharing", "importPortableSharing",
     "captureAppearanceOwner", "isAppearanceOwnerCurrent", "subscribeAppearanceThemes", "bindAppearanceEditor", "appearanceThemeNames", "updateAppearanceThemes", "showAppearanceMigrationNotification",
     "createAppearanceTheme", "resetAppearanceThemeColors", "importLegacyAppearance", "settingsForWrite", "writeSettingsSnapshot", "updateOntologyField", "updateOntologyConfiguration", "editOntologyConfiguration", "assignFieldToOntology", "ontologyFieldsForRole", "ontologyRoleForField", "inverseOntologyField", "inverseRelationshipRole", "defaultOntologyField", "refreshSavedSettings",
     "initializeSettingsReconciliation", "onExternalSettingsChange", "queueExternalSettingsAdoption", "reportExternalSettingsFailure", "installExternalSettings", "updateActionPreferences", "receivedSettingsOwner", "receivedSettingsRevision", "updateCanvasViewSetting", "readCanvasViewConfiguration", "updateCanvasViewConfiguration", "resetCanvasViewConfiguration", "migrateCanvasViewConfiguration", "commitCanvasViewConfiguration", "editOntologyConfigurationBatch"]);
@@ -26,6 +26,9 @@ export function styleSettingsHostSource(root) {
     export {NoteTypeModal} from './src/ui/NoteTypeModal';export {NoteTypeReviewModal} from './src/ui/NoteTypeReviewModal';export {NodeDetailsFields} from './src/ui/NodeDetailsFields';export * from './src/core/plex/nodeProperties';
     export {NewRelatedNoteModal} from './src/ui/NewRelatedNoteModal';
     export {CreateFolderNoteModal} from './src/ui/CreateFolderNoteModal';
+    export {MaterializeGhostModal} from './src/ui/MaterializeGhostModal';
+    export {DrawingTemplateSelect} from './src/ui/features/DrawingTemplateSelect';
+    export {PartialRelatedFileError} from './src/adapters/obsidian/relatedFileOutcome';
     export {MoveNodeModal} from './src/ui/MoveNodeModal';
     export {CreatePeriodicNoteModal} from './src/ui/CreatePeriodicNoteModal';
     export {ReverseRelationshipModal} from './src/ui/ReverseRelationshipModal';

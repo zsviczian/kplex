@@ -4021,6 +4021,13 @@ button.kplex-sidecar-unfold-plex:focus-visible,
 .kplex-tabs { display: flex; flex-wrap: wrap; gap: 4px; border-bottom: 1px solid var(--background-modifier-border); margin-bottom: 16px; padding-bottom: 8px; }
 .kplex-tabs > [role="tab"] { flex: 1 1 140px; box-shadow: none; }
 .kplex-tabs > [aria-selected="true"] { color: var(--text-accent); background: var(--background-modifier-active-hover); outline: 1px solid var(--interactive-accent); }
+/* Creation kinds share one panel; native fields and actions retain their own control chrome. */
+.kplex-creation-types { min-width: 0; }
+.kplex-add-related-footer > .kplex-creation-types { margin-top: 16px; }
+.kplex-creation-types > .kplex-tabs { gap: 4px; margin-bottom: 0; padding-bottom: 0; border-bottom: 0; }
+.kplex-creation-types > .kplex-tabs > [role="tab"] { flex: 1 1 90px; min-width: 0; min-height: var(--input-height); height: auto; white-space: normal; overflow-wrap: anywhere; border-end-start-radius: 0; border-end-end-radius: 0; }
+.kplex-creation-type-panel { min-width: 0; padding: 16px; border: 1px solid var(--background-modifier-border); border-radius: 0 0 var(--radius-m) var(--radius-m); }
+.kplex-creation-type-panel > .kplex-form-actions { margin-bottom: 0; }
 .kplex-create-folder-note-modal [role="tabpanel"][hidden] { display: none; }
 .kplex-ownership-preview { padding: 12px 16px; margin-bottom: 12px; border: 1px solid var(--background-modifier-border); border-radius: var(--radius-m); }
 .kplex-ownership-preview.is-after { border-color: var(--interactive-accent); }
@@ -4132,6 +4139,9 @@ button.kplex-sidecar-unfold-plex:focus-visible,
   box-shadow: none;
 }
 .kplex-native-combobox > input[type="text"]:focus { box-shadow: none; }
+.kplex-template-picker > input[type="text"] { padding-inline: 0 24px; }
+/* The search shell's horizontal flex basis must not become height in a stacked form field. */
+.kplex-drawing-template > .kplex-template-picker { flex: 0 0 auto; }
 .kplex-native-combobox:focus-within { box-shadow: 0 0 0 3px var(--background-modifier-border-focus); }
 .kplex-native-combobox .kplex-search-icon { top: 50%; transform: translateY(-50%); }
 .kplex-native-combobox > .kplex-fuzzy-disclosure {
@@ -4183,4 +4193,30 @@ button.kplex-sidecar-unfold-plex:focus-visible,
   .kplex-form-options .setting-item:not(.kplex-form-field) { flex-wrap: wrap; }
   .kplex-form-options .setting-item:not(.kplex-form-field) > .setting-item-info,
   .kplex-form-options .setting-item:not(.kplex-form-field) > .setting-item-control { flex-basis: 100%; }
+}
+
+/* Compact authored rows keep a short visible label and all remaining width for the native input. */
+.kplex-modal .kplex-form-inline {
+  display: grid;
+  grid-template-columns: minmax(0, 5em) minmax(0, 1fr);
+  align-items: center;
+  gap: var(--kplex-control-gap);
+  min-width: 0;
+  width: 100%;
+}
+.kplex-form-inline > label { margin: 0; overflow-wrap: anywhere; }
+.kplex-modal .kplex-form-inline > :not(label):not(.kplex-field-actions) { min-width: 0; width: 100%; max-width: none; box-sizing: border-box; }
+.kplex-modal .kplex-form-inline.has-actions { grid-template-columns: minmax(0, 5em) minmax(0, 1fr) auto; }
+.kplex-field-actions { display: flex; align-items: center; justify-content: flex-end; min-width: 0; gap: var(--kplex-control-gap); }
+.kplex-field-actions .kplex-add-related-action-area { min-width: 0; height: auto; }
+.kplex-creation-types { container-type: inline-size; }
+.kplex-creation-type-panel { padding: 12px; }
+.kplex-creation-type-actions { display: flex; justify-content: flex-end; }
+.kplex-creation-status { margin-top: 8px; color: var(--text-muted); font-size: var(--font-ui-small); overflow-wrap: anywhere; }
+.kplex-creation-status .kplex-add-related-create-hint { margin-top: 0; }
+@container (max-width: 360px) {
+  .kplex-modal .kplex-drawing-template.has-actions { grid-template-columns: minmax(0, 1fr) auto; }
+  .kplex-drawing-template.has-actions > label { grid-column: 1 / -1; }
+  .kplex-drawing-template.has-actions > .kplex-template-picker { grid-column: 1; }
+  .kplex-drawing-template.has-actions > .kplex-field-actions { grid-column: 2; }
 }

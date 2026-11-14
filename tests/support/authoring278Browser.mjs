@@ -21,6 +21,7 @@ p.index.search=(query,limit)=>[...files.values()].filter(f=>f.path.includes(quer
 p.index.insertCreatedFile=file=>page(file);
 p.index.invalidateSemanticPolicy=()=>{};p.index.refreshSemanticSettings=async()=>{};
 p.isExcalidrawAvailable=()=>false;p.drawingTemplateOptions=()=>null;
+p.creationTemplateOptions=()=>({files:[],selected:'',root:''});
 p.createFileWithAutomation=create=>create();p.waitForCreatedFileAutomation=async()=>{};
 p.createdNoteCompletionControl=()=>({value:'return',choices:['return','another'],onChange:()=>{}});
 p.createNewNodeInFolder=async(parent,name)=>{const file=addFile(parent.path.slice(7)+'/'+name+'.md');writes.push(['note',file.path]);return page(file)};
@@ -30,7 +31,7 @@ p.createRelationToPage=async(...args)=>{links.push(args);return {state:'saved-pu
 p.requestNodeFlair=()=>{};p.finishNewRelatedNode=async()=>{};p.openInDocumentLeaf=async()=>{};
 const host=document.body.createDiv(),leaf={view:{containerEl:host}},openComposer=(fixed,invocation={})=>{const modal=new M.NewRelatedNoteModal(p,origin,'child',undefined,leaf,fixed,invocation);modal.open();return modal};
 const reactInput=(element,value)=>{const proto=element.tagName==='SELECT'?HTMLSelectElement.prototype:HTMLInputElement.prototype;Object.getOwnPropertyDescriptor(proto,'value').set.call(element,value);element.dispatchEvent(new Event(element.tagName==='SELECT'?'change':'input',{bubbles:true}))};
-const field=modal=>modal.contentEl.querySelector('.kplex-add-related-ontology-search input'),name=modal=>modal.contentEl.querySelector('.kplex-add-related-note-search input'),button=(modal,key)=>[...modal.contentEl.querySelectorAll('button')].find(b=>b.getAttribute('role')!=='tab'&&b.textContent===t(key));
+const field=modal=>modal.contentEl.querySelector('.kplex-add-related-ontology-search input'),name=modal=>modal.contentEl.querySelector('.kplex-add-related-note-search input'),button=(modal,key)=>[...modal.contentEl.querySelectorAll('button')].find(b=>b.getAttribute('role')!=='tab'&&(b.getAttribute('aria-label')===t(key)||b.textContent===t(key)));
 `;
 
 /** Each document owns actual React/native-shaped controls, timers and teardown independently. */
