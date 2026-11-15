@@ -89,11 +89,13 @@ import {captureSurfaceContinuation} from "./surfaceContinuation";
 import {type SavedPinMove} from "../core/plex/savedPins";
 import {savedPinPresentation} from "./savedPinPresentation";
 import {HorizontalDragScroll} from "./components/HorizontalDragScroll";
+import {HoverPreview, bindHoverPreview} from "./components/hoverPreview";
 import {nodeMarkdownLink} from "./nodeMarkdownLink";
 import { createLegacyGraphSearchRead } from "../adapters/obsidian/graphContracts";
 import { isEmbeddedMarkdownLeaf } from "../adapters/obsidian/embeddedMarkdownLeaf";
 import { focusEmbeddedMarkdown } from "../adapters/obsidian/embeddedMarkdownFocus";
 import { getDraggedFile, getDraggedFolder } from "../adapters/obsidian/fileExplorerDrag";
+import {captureAttachmentVisibility} from "../core/plex/attachmentVisibility";
 import {isObsidianUri} from "../adapters/obsidian/urlIdentity";
 import {readViewConfiguration} from "../core/plex/views/configuration";
 import {externalFilesPayload} from "../adapters/obsidian/externalFileImport";
@@ -501,11 +503,17 @@ export function KplexApp({ plugin, surface, hostLeaf, translate, environment, on
     }
     void plugin.saveSettings(false, false);
     if (syncDocuments) {
+      // Mobile's Web Viewer is a native sheet, not the desktop webviewer leaf. Explicit URL
+      // taps use Obsidian's external-link routing so its core setting or browser fallback wins.
+      if (target.url && !isObsidianUri(target.url) && origin === "user" && (environment.device !== "desktop" || !plugin.canOpenUrlInWebViewer(target.url))) {
+        void plugin.openPage(target, hostLeaf.view.containerEl.ownerDocument, {hostLeaf});
+        return true;
+      }
       void plugin.syncPageToDocumentLeaf(target, hostLeaf);
       void plugin.syncSidecarToPage(hostLeaf, target);
     }
     return true;
-  }, [plugin, hostLeaf, wander, releasePendingDocumentDemand, documentSession, translate]);
+  }, [plugin, hostLeaf, wander, releasePendingDocumentDemand, documentSession, translate, environment.device]);
 
   /** Transfer a settled preview lease only after this exact graph center has acquired its own semantic demand. */
   const acknowledgeDocumentDemandHandover = useCallback((path?: string): void => {
@@ -1481,6 +1489,22 @@ export function KplexApp({ plugin, surface, hostLeaf, translate, environment, on
   },[plugin,documentSession]);
 
   const savedNodeDrag = useRef<NodeLinkDragSource | null>(null);
+  const savedNodePreview = useRef<HoverPreview | null>(null);
+  useEffect(/** Saved lists share one document-owned hover lease, including a modifier pressed after entry. */ () => {
+    const root = rootRef.current;if (!root) return;
+    const preview = new HoverPreview();savedNodePreview.current = preview;
+    const release = bindHoverPreview(root, preview);
+    const releaseVisibility = plugin.subscribeKplexVisibility(/** Hidden tabs cannot retain a native preview candidate. */ () => {if (!plugin.isKplexLeafVisible(hostLeaf)) preview.clear();});
+    return () => {releaseVisibility();release();if (savedNodePreview.current === preview) savedNodePreview.current = null;};
+  }, [plugin, hostLeaf]);
+  /** Only this still-current physical saved destination can open the native page preview. */
+  const enterSavedNodePreview = (path: string | null, element: HTMLButtonElement, event: PointerEvent): void => {
+    const target = path ? plugin.index.get(path) ?? plugin.index.getVaultSearchPage(path) : null;
+    const file = target?.file;if (!target || !file) return;
+    savedNodePreview.current?.enter(element, event, /** Rename/deletion during a stationary hover retires its physical target. */ previewEvent => {
+      if (element.isConnected && file.path === path && plugin.app.vault.getFileByPath(path) === file) plugin.triggerHoverPreview(target, element, previewEvent, page?.file?.path ?? "");
+    });
+  };
   /** Retire only this saved-list gesture; native dragend may already have released it. */
   const endSavedNodeDrag = (): void => {
     finishNodeLinkDrag(plugin.app, savedNodeDrag.current); savedNodeDrag.current = null;
@@ -1489,6 +1513,7 @@ export function KplexApp({ plugin, surface, hostLeaf, translate, environment, on
     () => {finishNodeLinkDrag(plugin.app, savedNodeDrag.current); savedNodeDrag.current = null;}, [plugin]);
   /** Export the exact cached saved destination through the same native adapter as canvas nodes. */
   const beginSavedNodeDrag = (path: string | null, label: string, event: ReactDragEvent<HTMLButtonElement>): void => {
+    savedNodePreview.current?.clear();
     const target = path ? plugin.index.get(path) ?? plugin.index.getVaultSearchPage(path) : null;
     const root = rootRef.current, element = event.currentTarget, document = element.ownerDocument;
     if (!target || !root) {event.preventDefault(); return;}
@@ -1508,7 +1533,7 @@ export function KplexApp({ plugin, surface, hostLeaf, translate, environment, on
   // both loading and graph surfaces; unresolved targets stay inert until their owner publishes.
   const historyBar = <footer className="kplex-history-bar">
     <span className="kplex-history-label">{translate("app.pastNodes")}</span>
-    <HorizontalDragScroll className="kplex-history-list">
+    <HorizontalDragScroll className="kplex-history-list" directionalLinks>
       {plugin.settings.navigationHistory.slice(-14).reverse().map((path, indexValue) => {
         const item = plugin.index.get(path);
         const {label: title, icon, style} = item ? nodeListPresentation(item, plugin.index.titleFor(item), paintSettings) : {label: path, icon: "file-question", style: undefined};
@@ -1516,6 +1541,7 @@ export function KplexApp({ plugin, surface, hostLeaf, translate, environment, on
           className={path === activePath ? "is-active" : ""} style={style}
           draggable={Boolean(item && canDragNodeLink(item))}
           onDragStart={/** Dragging a history destination never changes navigation history. */ event => beginSavedNodeDrag(path, title, event)} onDragEnd={endSavedNodeDrag}
+          onPointerEnter={/** History references use the same native preview behavior as pins and nodes. */ event => enterSavedNodePreview(path, event.currentTarget, event.nativeEvent)} onPointerLeave={() => savedNodePreview.current?.clear()}
           onClick={/** Dispatch only this currently available saved identity; no fallback or note creation. */ () => {if (item) actions.dispatch({id: "node.activate", source: "toolbar", target: {kind: "explicit", node: actionNodeRef(item)}});}}>
           <ObsidianIcon name={icon} size={12} /><span className="kplex-history-text">{title}</span>
         </button>;
@@ -1529,6 +1555,7 @@ export function KplexApp({ plugin, surface, hostLeaf, translate, environment, on
     role="region"
     aria-labelledby={canvasNameId}
     className="kplex-app"
+    data-floating-layer-boundary={environment.device === "desktop" ? undefined : ""}
     data-kplex-tooltip-scope
     onDragOver={handlePlexDragOver}
     onDrop={handlePlexDrop}
@@ -1616,6 +1643,7 @@ export function KplexApp({ plugin, surface, hostLeaf, translate, environment, on
   return <div
     ref={rootRef}
     className={`kplex-app kplex-surface-${surface}${condensedBySidecar ? " is-sidecar-condensed" : ""}${displayState.zen ? " is-zen" : ""}`}
+    data-floating-layer-boundary={environment.device === "desktop" ? undefined : ""}
     data-kplex-tooltip-scope
     tabIndex={0}
     role="region"
@@ -1701,6 +1729,7 @@ export function KplexApp({ plugin, surface, hostLeaf, translate, environment, on
             onShowSiblingsChange={(show) => void setSiblingVisibility(show)}
             visibility={{
               showAttachments: plugin.settings.showAttachments,
+              ...captureAttachmentVisibility(plugin.settings),
               showVirtualNodes: plugin.settings.showVirtualNodes,
               showInferredNodes: plugin.settings.showInferredNodes,
               showPageNodes: plugin.settings.showPageNodes,
@@ -1745,6 +1774,7 @@ export function KplexApp({ plugin, surface, hostLeaf, translate, environment, on
 
         {(pinnedPages.length > 0 || plugin.settings.showDailyCalendar) && <PinnedNodeBar rows={pinnedPages} translate={translate} onMove={movePin} onMenu={pinMoveMenu}
           onDragStart={/** Saved bodies share history's exact native link and lifetime owner. */ (row, event) => beginSavedNodeDrag(row.path, row.label, event)} onDragEnd={endSavedNodeDrag}
+          onHoverPreview={(row, element, event) => enterSavedNodePreview(row.path, element, event)} onHoverEnd={() => savedNodePreview.current?.clear()}
           onCalendar={plugin.settings.showDailyCalendar ? /** The native date picker retains this canvas and its current day. */ () => plugin.openDailyNoteCalendar(hostLeaf, actions.surfaceId, page.path) : undefined}
           onActivate={activateSavedPin} onRemove={/** Bookmark removal works without preparing a missing destination. */ id => {void plugin.removePinnedEntry(id).catch(/** Keep write failures visible. */ error => {
             console.error("K-Plex pin removal failed", error);new Notice(translate("pins.saveFailed"));
@@ -1767,7 +1797,7 @@ export function KplexApp({ plugin, surface, hostLeaf, translate, environment, on
                 if (target && (target.path !== activePathRef.current || documentSession.plexView.definition.navigationEntry === "attention"
                   && documentSession.plexView.layoutRoot(nodeId(target.path)) !== target.path)) activate(target, true, true, "user", true);
               }} />}
-          actionPorts={graphActionPorts} actionSurfaceId={actions.surfaceId} displayState={displayState} fullscreenAvailable={displayModes.fullscreenAvailable && environment.device === "desktop"}
+          actionPorts={graphActionPorts} actionSurfaceId={actions.surfaceId} displayState={displayState} fullscreenAvailable={displayModes.fullscreenAvailable}
           semanticRevision={plugin.index.getSemanticRevision()} navigationOrigin={navigationOrigin} onSemanticDemandAcquired={acknowledgeDocumentDemandHandover} onActivate={/** Explicit destinations may reroot; occurrence attention and document synchronization retain their existing owners. */ (target, intent) => activate(target, true, true, "user", intent === "destination")} onWanderActivate={/** Explicit Wander origin survives asynchronous scene publications. */ target => activate(target, true, true, "wander")} onOpen={open} onOpenInSidecar={centerAndOpenSidecar} onCentralNodeEditorChange={setCentralNodeEditorEnabled} onPropertiesFileChange={updatePropertiesFile} onCentralNodeModeChange={rememberCentralNodeMarkdownMode} areaSettingsMode={areaSettingsMode} onAreaSettingsModeChange={setAreaSettingsMode}
           onApplyFindFilter={applyFindFilter} appliedFindFilterQuery={findFilterOwner?.query ?? null} onClearFindFilter={clearFindFilter} />
           {wanderState.phase !== "stopped" && <WanderControls state={wanderState} translate={translate}

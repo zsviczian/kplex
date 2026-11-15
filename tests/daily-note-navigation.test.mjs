@@ -10,12 +10,23 @@ const output=buildSync({stdin:{contents:`export * from './src/adapters/obsidian/
 class TFile {constructor(path){this.path=path;this.name=path.split('/').at(-1);this.basename=this.name.slice(0,-3);this.extension='md';}}
 class TFolder {constructor(path){this.path=path;this.children=[];}}
 const module={exports:{}};Function('module','exports','require',output)(module,module.exports,()=>({TFile,TFolder}));const M=module.exports;
-const main=ts.createSourceFile('main.ts',readFileSync('src/main.ts','utf8'),ts.ScriptTarget.Latest,true),names=['dailyNoteGapDirections','openDailyNoteGapLink','navigateDailyNote'];
+const main=ts.createSourceFile('main.ts',readFileSync('src/main.ts','utf8'),ts.ScriptTarget.Latest,true),names=['dailyNoteGapDirections','openDailyNoteGapLink','dailyNoteCreationGapOffer','navigateDailyNote'];
 const declaration=main.statements.find(node=>ts.isClassDeclaration(node)&&node.name?.text==='KplexPlugin');
 const methods=names.map(name=>{const method=declaration.members.find(node=>node.name?.getText(main)===name);assert(method,'Missing production method '+name);return method.getText(main)});
 const hostOutput=ts.transpileModule(`class JournalHost{${methods.join('\n')}}exports.JournalHost=JournalHost`,{compilerOptions:{target:ts.ScriptTarget.ES2022}}).outputText;
 class CreationPrompt {constructor(...args){this.path=args[2];this.createNote=args[6]}open(){this.opened=true}}
-const loaded={};Function('exports','collectDailyNotes','dailyNoteDate','dailyEntryForDate','dailyNotesSettingsCurrent','readDailyPinSettings','adjacentJournalEntry','missingJournalDirections','Notice','calendarDay','dailyNotePath','CreatePeriodicNoteModal',hostOutput)(loaded,M.collectDailyNotes,M.dailyNoteDate,M.dailyEntryForDate,M.dailyNotesSettingsCurrent,app=>({folder:app.internalPlugins.getPluginById().instance.options.folder,format:app.internalPlugins.getPluginById().instance.options.format}),M.adjacentJournalEntry,M.missingJournalDirections,class{constructor(text){this.text=text}},M.calendarDay,M.dailyNotePath,CreationPrompt);
+const loaded={};Function('exports','collectDailyNotes','dailyNoteDate','dailyEntryForDate','dailyNotesSettingsCurrent','readDailyPinSettings','adjacentJournalEntry','missingJournalDirections','Notice','calendarDay','dailyNotePath','CreatePeriodicNoteModal','calendarDayKey','todayJournalGap','shiftCalendarDay',hostOutput)(loaded,M.collectDailyNotes,M.dailyNoteDate,M.dailyEntryForDate,M.dailyNotesSettingsCurrent,app=>({folder:app.internalPlugins.getPluginById().instance.options.folder,format:app.internalPlugins.getPluginById().instance.options.format}),M.adjacentJournalEntry,M.missingJournalDirections,class{constructor(text){this.text=text}},M.calendarDay,M.dailyNotePath,CreationPrompt,M.calendarDayKey,M.todayJournalGap,M.shiftCalendarDay);
+
+test('today gap offers only the nearest past journal when today and yesterday are absent',()=>{
+ const rows=[{date:'2026-11-09',path:'old'},{date:'2026-11-12',path:'nearest'},{date:'2026-11-17',path:'future'}];
+ assert.equal(M.todayJournalGap(rows,'2026-11-15','2026-11-15').path,'nearest');
+ for(const date of ['2026-11-14','2026-11-16','invalid'])assert.equal(M.todayJournalGap(rows,date,'2026-11-15'),null);
+ for(const date of ['2026-11-14','2026-11-15'])assert.equal(M.todayJournalGap([...rows,{date}],'2026-11-15','2026-11-15'),null);
+ assert.equal(M.todayJournalGap([{date:'2026-11-17'}],'2026-11-15','2026-11-15'),null);
+ assert.equal(M.todayJournalGap([{date:'2024-02-28'},{date:'2024-03-01'}],'2024-03-01','2024-03-01'),null);
+ assert.equal(M.todayJournalGap([{date:'2024-02-28'}],'2024-03-01','2024-03-01').date,'2024-02-28');
+ assert.equal(M.todayJournalGap([{date:'2024-02-29'}],'2024-03-01','2024-03-01'),null);
+});
 
 /** Construct only native folder/file metadata; all body/index effects are forbidden. */
 function fixture({folder='Daily',format='YYYY-MM-DD dddd'}={}){

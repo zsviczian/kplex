@@ -468,6 +468,18 @@ test('periodic creation remembers its opening choice and Cancel creates nothing'
  `),true);
 });
 
+test('daily-gap consent reviews only after explicit creation and never on Cancel or stale candidate',async()=>{
+ assert.equal(await authoringScenario(`
+ let created=0,current=true;const reviewed=[],effects=[];
+ p.createPeriodicPinNote=async()=>{created++;return target};p.finishNewRelatedNode=async(...args)=>effects.push(args);
+ const offer={load:async alive=>alive()?{label:'Earlier daily note',current:()=>current}:null,open:async(page,alive)=>{check(alive(),'Retired gap consent');reviewed.push(page)}};
+ const open=()=>{const modal=new M.CreatePeriodicNoteModal(p,'periodic:day','Today.md',leaf,()=>true,()=>{},undefined,offer);modal.open();return modal};
+ let modal=open();await waitFor(()=>modal.contentEl.querySelector('input[type=checkbox]'));check(modal.contentEl.textContent.includes('Earlier daily note'),'Gap target is not visible');modal.close();check(!created&&!reviewed.length,'Cancel created or linked a note');
+ modal=open();await waitFor(()=>modal.contentEl.querySelector('input[type=checkbox]'));let toggle=modal.contentEl.querySelector('input[type=checkbox]');check(!toggle.checked,'Gap consent must default off');toggle.click();button(modal,'pins.createAction').click();await waitFor(()=>!modal.busy&&!modal.modalEl.isConnected);check(created===1&&reviewed.length===1&&reviewed[0]===target,'Explicit creation did not open the reviewed gap composer');
+ modal=open();await waitFor(()=>modal.contentEl.querySelector('input[type=checkbox]'));modal.contentEl.querySelector('input[type=checkbox]').click();current=false;button(modal,'pins.createAction').click();await waitFor(()=>!modal.busy);check(created===2&&reviewed.length===1,'Stale candidate opened a gap composer');
+ `),true);
+});
+
 test('native Move picker rejects replacement and Tab dismisses suggestions without accepting one',async()=>{
  assert.equal(await authoringScenario(`
  const modal=new M.MoveNodeModal(p.app,origin.file,t,()=>true,()=>{},host);modal.open();await waitFor(()=>modal.contentEl.querySelector('input'));

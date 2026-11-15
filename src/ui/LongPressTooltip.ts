@@ -3,8 +3,10 @@
  * long presses share one measured, theme-styled tooltip. Native aria-label hints are suppressed by
  * scoped CSS because Obsidian's warm-tooltip shortcut bypasses delay and its bottom clamp overlaps
  * controls. Explicitly marked controls can use referenced accessible names to avoid the native
- * aria-label tooltip path entirely. Each document has one reference-counted owner; the last release removes all resources.
+ * aria-label tooltip path entirely. Active page previews suspend their own control hints. Each
+ * document has one reference-counted owner; the last release removes all resources.
  */
+import {HOVER_PREVIEW_ACTIVE_ATTRIBUTE} from "./components/hoverPreview";
 const HOVER_MS = 650;
 const LONG_PRESS_MS = 450;
 const TOOLTIP_LIFETIME_MS = 1800;
@@ -159,8 +161,9 @@ export function installKplexLongPressTooltips(doc: Document): () => void {
     if (hoverVisible) removeTooltip();
   };
 
-  /** Gate hints share the normal delay/placement while their caller owns the modifier preference. */
-  const hoverAllowed = (element: HTMLElement): boolean => !element.hasAttribute("data-kplex-tooltip-requires-alt") || alternatePressed;
+  /** Native page previews take priority over hints; gate callers retain their independent Alt policy. */
+  const hoverAllowed = (element: HTMLElement): boolean => !element.closest(`[${HOVER_PREVIEW_ACTIVE_ATTRIBUTE}]`)
+    && (!element.hasAttribute("data-kplex-tooltip-requires-alt") || alternatePressed);
 
   /** Preserve the hovered target while withholding a gated hint, allowing a stationary modifier press. */
   const scheduleHover = (target: HTMLElement): void => {
@@ -297,9 +300,10 @@ export function installKplexLongPressTooltips(doc: Document): () => void {
   const Observer = (view as Window & { MutationObserver: typeof MutationObserver }).MutationObserver;
   const observer = new Observer(/** Retired controls and changed gate preferences cannot retain an unauthorized hint. */ records => {
     if (hoverTarget && (!hoverTarget.isConnected || hoverTarget.ownerDocument !== doc)) clearHover();
-    else if (hoverTarget && records.some(/** Only a modifier-policy change on this hovered control renews the delay. */ record => record.type === "attributes" && record.target === hoverTarget)) scheduleHover(hoverTarget);
+    else if (hoverTarget && records.some(/** Reconcile only this hint's own modifier/preview policy, including an enclosing preview occurrence. */ record => record.type === "attributes"
+      && (record.target === hoverTarget || record.attributeName === HOVER_PREVIEW_ACTIVE_ATTRIBUTE && record.target.contains(hoverTarget)))) scheduleHover(hoverTarget);
   });
-  observer.observe(doc.body, { childList: true, subtree: true, attributes: true, attributeFilter: ["data-kplex-tooltip-requires-alt"] });
+  observer.observe(doc.body, { childList: true, subtree: true, attributes: true, attributeFilter: ["data-kplex-tooltip-requires-alt", HOVER_PREVIEW_ACTIVE_ATTRIBUTE] });
   doc.addEventListener("pointerover", onPointerOver, true);
   doc.addEventListener("pointerout", onPointerOut, true);
   doc.addEventListener("scroll", clearHover, true);

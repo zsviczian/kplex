@@ -3,7 +3,7 @@ import {build} from 'esbuild';
 import {nativeDomHelpers,nativeColorControls} from './nativeColorControls.mjs';
 import {nativeMarkdownControls} from './nativeMarkdownControls.mjs';
 /** Each test owns a real browser and its root lifetimes; this helper only bundles source with the same native boundary. */
-export async function plexViewBrowserModules({captureNotices=false,nativeControls=false}={}){
+export async function plexViewBrowserModules({captureNotices=false,nativeControls=false,platform={isMobile:false,isIosApp:false}}={}){
 const nativeBoundary=nativeControls?nativeColorControls:nativeMarkdownControls;
 const nativeNames=[...nativeBoundary.matchAll(/export (?:const|class) (\w+)/g)].map(match=>match[1]);
 const nativeStub=`
@@ -13,7 +13,7 @@ const nativeStub=`
   exports.PluginSettingTab=exports.Setting=exports.ButtonComponent=exports.ColorComponent=exports.SearchComponent=exports.ExtraButtonComponent=
   exports.ItemView=exports.FileView=exports.TextFileView=exports.Scope=exports.WorkspaceLeaf=NativeBase;
   exports.TFile=class TFile {};exports.TFolder=class TFolder {};
-  exports.Platform={isMobile:false,isIosApp:false};exports.Keymap={isModEvent:e=>e.metaKey||e.ctrlKey};
+  exports.Platform=${JSON.stringify(platform)};exports.Keymap={isModEvent:e=>e.metaKey||e.ctrlKey};
   exports.getLanguage=()=> 'en';exports.getIcon=()=>null;exports.getIconIds=()=>[];exports.setIcon=()=>{};exports.setTooltip=()=>{};
   exports.normalizePath=p=>p;exports.getAllTags=()=>[];
   exports.Notice=class Notice {constructor(message,duration){${captureNotices ? '(window.testNotices ??= []).push({message,duration});' : "throw Error('Unexpected notice: '+message)"}}};

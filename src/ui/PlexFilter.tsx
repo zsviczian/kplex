@@ -4,6 +4,7 @@
  * Portalled controls opt into the shell's shared delayed hover hints without browser title duplicates.
  * Explicit bulk visibility shares the host's one durable write without changing quick filters or lenses.
  */
+import {captureAttachmentVisibility} from "../core/plex/attachmentVisibility";
 import {PredicateExpressionField} from "./predicates/PredicateExpressionField";
 import {LayoutSlider} from "./components/LayoutSlider";
 import {ContentVisibilityActions} from "./features/ContentVisibilityActions";
@@ -42,6 +43,10 @@ export { EMPTY_PLEX_FILTER } from "../lens/SimplePlexFilter";
 export type GraphFilterLayoutMode = "keep" | "reflow";
 export type PlexVisibilitySetting =
   | "showAttachments"
+  | "showDocumentAttachments"
+  | "showImageAttachments"
+  | "showMediaAttachments"
+  | "showOtherAttachments"
   | "showVirtualNodes"
   | "showInferredNodes"
   | "showPageNodes"
@@ -485,22 +490,25 @@ export function PlexFilter({
 
     <section className="kplex-filter-section">
       <div className="kplex-filter-section-heading">{translate("filter.visibility")}</div>
-      <ContentVisibilityActions values={{...visibility, showCrossLinks: value.showCrossLinks, renderSiblings: showSiblings}}
+      <ContentVisibilityActions values={{...visibility, ...captureAttachmentVisibility(visibility), showCrossLinks: value.showCrossLinks, renderSiblings: showSiblings}}
         scope="lenses" onSet={onVisibilitySet} translate={translate} />
       <div className="kplex-filter-visibility-grid">
         {[
           ["showPageNodes", translate("filter.visibilityMarkdown"), translate("filter.visibilityMarkdownHelp")],
-          ["showAttachments", translate("filter.visibilityAttachments"), translate("filter.visibilityAttachmentsHelp")],
-          ["showFolderNodes", translate("filter.visibilityFolders"), translate("filter.visibilityFoldersHelp")],
           ["showTagNodes", translate("filter.visibilityTags"), translate("filter.visibilityTagsHelp")],
+          ["showFolderNodes", translate("filter.visibilityFolders"), translate("filter.visibilityFoldersHelp")],
           ["showURLNodes", translate("filter.visibilityWebLinks"), translate("filter.visibilityWebLinksHelp")],
           ["showVirtualNodes", translate("filter.visibilityPlaceholders"), translate("filter.visibilityPlaceholdersHelp")],
+          ["showDocumentAttachments", translate("filter.visibilityDocuments"), translate("filter.visibilityDocumentsHelp")],
+          ["showImageAttachments", translate("filter.visibilityImages"), translate("filter.visibilityImagesHelp")],
+          ["showMediaAttachments", translate("filter.visibilityMedia"), translate("filter.visibilityMediaHelp")],
+          ["showOtherAttachments", translate("filter.visibilityOtherAttachments"), translate("filter.visibilityOtherAttachmentsHelp")],
           ["showInferredNodes", translate("filter.visibilityInferred"), translate("filter.visibilityInferredHelp")],
         ].map(([key, label, tooltip]) => <label key={key} className="kplex-filter-layout-toggle" aria-label={tooltip} data-tooltip-position="top" data-kplex-long-press-tooltip>
           <span>{label}</span>
           <input
             type="checkbox"
-            checked={visibility[key as PlexVisibilitySetting]}
+            checked={{...visibility, ...captureAttachmentVisibility(visibility)}[key as PlexVisibilitySetting]}
             aria-label={translate("filter.showLabel", { label: label.toLocaleLowerCase() })}
             onChange={() => onVisibilityChange(key as PlexVisibilitySetting)}
           />

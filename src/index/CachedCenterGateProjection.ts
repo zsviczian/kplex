@@ -4,6 +4,7 @@
  * Exact-ID physical facts must share the reader's clean host observation. The caller owns final
  * root/head/journal/host/policy/demand fences; this module neither authenticates ranges nor publishes.
  */
+import {captureAttachmentVisibility, isAttachmentVisible, type AttachmentVisibilitySettings} from "../core/plex/attachmentVisibility";
 import type { CompiledGraphNode, GraphCompilerRuntime, PortableGraphCompilation } from "../core/graph/compiler";
 import type { NodeId } from "../core/graph/model";
 import type { SourcePatchReadPort } from "../core/graph/patch";
@@ -13,7 +14,7 @@ import type { SourceEntityRef } from "../core/graph/source";
 import { SOURCE_MAX_BATCH_RECORDS, type SourceReason } from "./SourceFacts";
 
 /** Only gate visibility inputs; titles, sorting, top-N, lenses and layout are deliberately absent. */
-export type CachedCenterGateSettings = Readonly<{
+export type CachedCenterGateSettings = AttachmentVisibilitySettings & Readonly<{
   excludeFilepaths: readonly string[];
   showVirtualNodes: boolean;
   showAttachments: boolean;
@@ -51,14 +52,14 @@ const roles = ["parent", "child", "left", "right", "previous", "next"] as const;
 const roleGates: Readonly<Record<typeof roles[number], CachedCenterGateSide>> = {
   parent: "top", child: "bottom", left: "left", right: "right", previous: "left", next: "right",
 };
-type VisibilityFact = Readonly<{ path: string; virtual: boolean; attachment: boolean; folder: boolean; tag: boolean; url: boolean }>;
+type VisibilityFact = Readonly<{ path: string; virtual: boolean; attachment: boolean; extension: string; folder: boolean; tag: boolean; url: boolean }>;
 
 /** Copy only finite visibility inputs before any await; retain prefix order and empty prefixes. */
 export function captureCachedCenterGateSettings(settings: CachedCenterGateSettings): CachedCenterGateSettings | null {
   if (settings.excludeFilepaths.length > MAX_VISIBILITY_PREFIXES
     || settings.excludeFilepaths.reduce((bytes, path) => bytes + 2 * path.length, 0) > MAX_VISIBILITY_PREFIX_BYTES) return null;
   return { excludeFilepaths: [...settings.excludeFilepaths], showVirtualNodes: settings.showVirtualNodes,
-    showAttachments: settings.showAttachments, showFolderNodes: settings.showFolderNodes,
+    showAttachments: settings.showAttachments, ...captureAttachmentVisibility(settings), showFolderNodes: settings.showFolderNodes,
     showTagNodes: settings.showTagNodes, showPageNodes: settings.showPageNodes,
     showURLNodes: settings.showURLNodes, showInferredNodes: settings.showInferredNodes };
 }
@@ -67,7 +68,7 @@ export function captureCachedCenterGateSettings(settings: CachedCenterGateSettin
 function visible(fact: VisibilityFact, settings: CachedCenterGateSettings): boolean {
   if (settings.excludeFilepaths.some((prefix) => fact.path.startsWith(prefix))) return false;
   if (!settings.showVirtualNodes && fact.virtual) return false;
-  if (!settings.showAttachments && fact.attachment) return false;
+  if (fact.attachment && !isAttachmentVisible(fact.extension, settings)) return false;
   if (!settings.showFolderNodes && fact.folder) return false;
   if (!settings.showTagNodes && fact.tag) return false;
   if (!settings.showPageNodes && !fact.folder && !fact.tag && !fact.attachment && !fact.url) return false;
@@ -81,7 +82,7 @@ export function cachedCenterTargetVisibility(target: CompiledGraphNode, settings
   | Readonly<{ outcome: "unproved"; reason: SourceReason }> {
     if (!target.semanticPath) { return { outcome: "unproved", reason: "unsupported-scope" }; }
     const folder = target.kind === "container", tag = target.kind === "tag", url = Boolean(target.url);
-    let hasFile = false, attachment = false;
+    let hasFile = false, attachment = false, extension = "";
     if (target.kind === "document" || target.kind === "attachment") {
       const fact = entities.entity(target);
       if (!fact || !fact.file) { return { outcome: "unproved", reason: "missing" }; }
@@ -92,14 +93,14 @@ export function cachedCenterTargetVisibility(target: CompiledGraphNode, settings
         return { outcome: "unproved", reason: "stale" };
       }
       hasFile = true;
-      attachment = fact.file.extension !== "md";
+      attachment = fact.file.extension !== "md";extension = fact.file.extension;
     } else if (target.file || (target.kind === "url" && !url)
       || target.state === "missing" || target.state === "deleted") {
       // These facets cannot bind to the promised ordinary current GraphIndex page contract.
       return { outcome: "unproved", reason: "missing" };
     }
     const fact = { path: target.semanticPath, virtual: !hasFile && !folder && !tag && !url,
-      attachment, folder, tag, url };
+      attachment, extension, folder, tag, url };
     return { outcome: "ready", fact, visible: visible(fact, settings) };
 }
 

@@ -39,6 +39,8 @@ export function styleSettingsHostSource(root) {
     import {SavedSettingsRefresh} from "./src/adapters/obsidian/savedSettingsRefresh";
     import {nodePropertyType,nodePropertyRows,validNodeProperties} from './src/core/plex/nodeProperties';
     import {contentVisibilityPatch} from "./src/core/plex/contentVisibility";
+    import {ATTACHMENT_VISIBILITY_KEYS,reconcileAttachmentVisibility} from './src/core/plex/attachmentVisibility';
+    export * from './src/core/plex/attachmentVisibility';
     import {isPeriodicPin} from './src/core/plex/savedPins';
     import {resolveSavedPins} from './src/core/plex/periodicPins';
     import {createPeriodicPinRuntime} from './src/adapters/obsidian/periodicPins';

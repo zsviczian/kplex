@@ -1,7 +1,8 @@
 /** Finite section-scoped visibility values shared by native Settings and Views and lenses.
  * This presentation policy stages booleans only; persistence and rendering remain host-owned. */
-export const COMMON_CONTENT_VISIBILITY = ["showPageNodes", "showAttachments", "showFolderNodes", "showTagNodes", "showURLNodes", "showVirtualNodes", "showInferredNodes", "showCrossLinks"] as const;
-export type ContentVisibilityKey = typeof COMMON_CONTENT_VISIBILITY[number] | "showNeighborCount" | "renderSiblings";
+import {ATTACHMENT_VISIBILITY_KEYS, captureAttachmentVisibility} from "./attachmentVisibility";
+export const COMMON_CONTENT_VISIBILITY = ["showPageNodes", "showTagNodes", "showFolderNodes", "showURLNodes", "showVirtualNodes", ...ATTACHMENT_VISIBILITY_KEYS, "showInferredNodes", "showCrossLinks"] as const;
+export type ContentVisibilityKey = typeof COMMON_CONTENT_VISIBILITY[number] | "showNeighborCount" | "renderSiblings" | "showAttachments";
 export type ContentVisibilityScope = "settings" | "lenses";
 export type ContentVisibilityValues = Readonly<Partial<Record<ContentVisibilityKey, boolean>>>;
 
@@ -13,6 +14,8 @@ export function contentVisibilityKeys(scope: ContentVisibilityScope): readonly C
 /** Stage explicit changed values together; an empty patch is a true no-op, including mixed-state repeats. */
 export function contentVisibilityPatch(values: ContentVisibilityValues, scope: ContentVisibilityScope, enabled: boolean): Partial<Record<ContentVisibilityKey, boolean>> {
   const patch: Partial<Record<ContentVisibilityKey, boolean>> = {};
-  for (const key of contentVisibilityKeys(scope)) if (values[key] !== enabled) patch[key] = enabled;
+  const effective = {...values, ...captureAttachmentVisibility(values)};
+  for (const key of contentVisibilityKeys(scope)) if (effective[key] !== enabled) patch[key] = enabled;
+  if (Object.keys(patch).length && values.showAttachments !== enabled) patch.showAttachments = enabled;
   return patch;
 }

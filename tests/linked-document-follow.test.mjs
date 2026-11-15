@@ -28,6 +28,7 @@ function production(name, dependencies = {}, filename = "src/main.ts") {
     dependencies.activateDeletedFilePlaceholder = production("activateDeletedFilePlaceholder", dependencies, filename);
   }
   if (name === "activate" && filename === "src/ui/App.tsx") {
+    dependencies.environment ??= {device:"desktop"};
     dependencies.pendingEditorNavigation ??= {current:null};
     if (dependencies.documentSession) {dependencies.documentSession.plexView ??= {};dependencies.documentSession.plexView.editors ??= {bindings:[]};}
   }
@@ -683,7 +684,24 @@ test("App document follow retains companion propagation while rejecting embedded
 });
 
 /** Execute the actual App follow owners with independently controlled visibility, eligibility and publication. */
-function appFollowFixture() {
+for(const device of ["phone","tablet","desktop"])for(const viewer of [false,true])test(`explicit URL navigation routes once through the native external-link owner on ${device}, viewer=${viewer}`,()=>{
+ const {state,pages}=appFollowFixture({device}),target={path:"url:example",url:"https://example.com",file:null};pages.set(target.path,target);
+ const opens=[];state.hostLeaf.view={containerEl:{ownerDocument:{id:"owning-document"}}};
+ state.plugin.canOpenUrlInWebViewer=()=>viewer;state.plugin.openPage=(...args)=>{opens.push(args)};
+ assert.equal(state.activate(target,true,true,"user"),true);
+ const native=device!=="desktop"||!viewer;assert.equal(opens.length,native?1:0);assert.equal(state.companions.length,native?0:2);
+ if(native){assert.equal(opens[0][0],target);assert.equal(opens[0][1],state.hostLeaf.view.containerEl.ownerDocument);assert.equal(opens[0][2].hostLeaf,state.hostLeaf)}
+ opens.length=0;state.activate(target,true,false,"user");state.activate(target,true,true,"follow");state.activate(target,true,true,"wander");
+ assert.equal(opens.length,0,"Passive follow, Wander and unsynchronized centering never launch the browser");
+});
+
+for(const device of ['phone','tablet','desktop'])test(`browsing an Obsidian protocol node on ${device} still requires an explicit Open action`,()=>{
+ const {state,pages}=appFollowFixture({device}),target={path:'obsidian://open?vault=Example',url:'obsidian://open?vault=Example',file:null};pages.set(target.path,target);
+ let opens=0;state.plugin.canOpenUrlInWebViewer=()=>false;state.plugin.openPage=()=>{opens++};
+ state.activate(target,true,true,'user');assert.equal(opens,0);assert.equal(state.companions.length,2);
+});
+
+function appFollowFixture(environment = {device: "desktop"}) {
   const files = new Map(["A.md", "B.md", "C.md"].map(path => [path, {path}]));
   const pages = new Map([...files].map(([path, file]) => [path, {path, file}]));
   const state = {actionNodeRef,documentSession:{centerPath:null,revision:0,pendingFollow:null,persist(){},footprints:{accept(){}}},visible: true, mode: "recent", current: files.get("B.md"), renderPath: "A.md", activates: [], companions: [], demands: [], releases: [],
@@ -715,7 +733,7 @@ function appFollowFixture() {
     syncPageToDocumentLeaf: /** Capture companion propagation without native timing in this App test. */ page => state.companions.push(["document", page]),
     syncSidecarToPage: /** Keep separately managed companions observable on same-file echoes. */ (host, page) => state.companions.push(["sidecar", page]),
   };
-  const dependencies = {...state, plugin, nodeId: id => id, translate: key => key,
+  const dependencies = {...state, plugin, environment, nodeId: id => id, translate: key => key,
     Notice: class {constructor(message){(state.notices??=[]).push(message)}}, activatePendingDocumentUrl(){},
     releasePendingDocumentDemand: production("releasePendingDocumentDemand", state, "src/ui/App.tsx"),
     setNavigationOrigin: /** Observe the exact motion policy supplied to the graph. */ origin => { state.origin = origin; },

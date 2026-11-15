@@ -9,6 +9,23 @@ import { buildLocaleCatalog, type LocaleCatalog, type LocaleTranslationMap } fro
 /** Construct the typed Traditional Chinese table only when selected; importing this module allocates no catalog. */
 export function createTraditionalChineseCatalog(): LocaleCatalog {
 const traditionalChineseTranslations = {
+  "filter.visibilityDocuments": "文件",
+  "filter.visibilityDocumentsHelp": "顯示 PDF、EPUB、DOCX、試算表、簡報和文字等附件。Markdown 有獨立的開關。",
+  "filter.visibilityImages": "圖片",
+  "filter.visibilityImagesHelp": "顯示 PNG、JPG、GIF、SVG 和 HEIC 等圖片附件。",
+  "filter.visibilityMedia": "音訊與影片",
+  "filter.visibilityMediaHelp": "顯示 MP3、WAV、MP4、MOV 和 AVI 等音訊及影片附件。",
+  "filter.visibilityOtherAttachments": "其他附件",
+  "filter.visibilityOtherAttachmentsHelp": "顯示其他附件格式，包括壓縮檔與沒有副檔名的檔案。",
+  "settings.sourceModifier": "連線來源快捷鍵",
+  "settings.sourceModifier.help": "按住此修飾鍵點擊連線，開啟唯一的來源。若有多個來源或來源無法使用，則開啟連線詳細資料。修飾鍵組合維持原有操作。",
+  "settings.sourceModifier.none": "無",
+  "daily.gapOffer": "連結至 {name}",
+  "daily.gapOfferHelp": "建立後，檢視與前一篇每日筆記的連線。昨天的筆記不存在。",
+  "tips.lateralDrag": "{alt}：上一個／下一個 · {mod}：朋友／挑戰者。未按修飾鍵時還原上次選擇。",
+  "tips.relationshipReview": "在下一個對話框中選擇關係和本體。",
+  "tips.hoverModifier": "按住 {alt} 並懸停以醒目顯示連線。按住 {mod} 可預覽筆記。",
+  "tips.hover": "懸停以醒目顯示連線；{alt} 可立即顯示。按住 {mod} 可預覽筆記。",
   "startup.loading": "正在載入 K-Plex…",
   "startup.failed": "無法初始化 K-Plex。請重新載入外掛程式以重試。",
   "styles.nameConflict": "{name} 的樣式已存在。請選擇其他標籤。",

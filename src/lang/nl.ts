@@ -9,6 +9,23 @@ import { buildLocaleCatalog, type LocaleCatalog, type LocaleTranslationMap } fro
 /** Construct the typed Dutch table only when selected; importing this module allocates no catalog. */
 export function createDutchCatalog(): LocaleCatalog {
 const dutchTranslations = {
+  "filter.visibilityDocuments": "Documenten",
+  "filter.visibilityDocumentsHelp": "Toon documentbijlagen zoals PDF, EPUB, DOCX, spreadsheets, presentaties en tekstbestanden. Markdown heeft een eigen schakelaar.",
+  "filter.visibilityImages": "Afbeeldingen",
+  "filter.visibilityImagesHelp": "Toon afbeeldingsbijlagen zoals PNG, JPG, GIF, SVG en HEIC.",
+  "filter.visibilityMedia": "Audio en video",
+  "filter.visibilityMediaHelp": "Toon audio- en videobijlagen zoals MP3, WAV, MP4, MOV en AVI.",
+  "filter.visibilityOtherAttachments": "Overige bijlagen",
+  "filter.visibilityOtherAttachmentsHelp": "Toon overige bijlageformaten, waaronder archieven en bestanden zonder extensie.",
+  "settings.sourceModifier": "Sneltoets voor verbindingsbron",
+  "settings.sourceModifier.help": "Klik met deze toets op een verbinding om de enige bron te openen. Bij meerdere of niet-beschikbare bronnen openen de verbindingsdetails. Toetscombinaties behouden hun bestaande gebaren.",
+  "settings.sourceModifier.none": "Geen",
+  "daily.gapOffer": "Koppelen aan {name}",
+  "daily.gapOfferHelp": "Bekijk na het aanmaken een verbinding met de vorige dagelijkse notitie. De notitie van gisteren ontbreekt.",
+  "tips.lateralDrag": "{alt}: Vorige / Volgende · {mod}: Vriend / Uitdager. Zonder toets geldt de laatste keuze.",
+  "tips.relationshipReview": "Kies de relatie en ontologie in het volgende dialoogvenster.",
+  "tips.hoverModifier": "Houd bij aanwijzen {alt} ingedrukt om verbindingen te markeren. Houd {mod} ingedrukt voor een notitievoorbeeld.",
+  "tips.hover": "Wijs aan om verbindingen te markeren; {alt} markeert direct. Houd {mod} ingedrukt voor een notitievoorbeeld.",
   "startup.loading": "K-Plex laden…",
   "startup.failed": "K-Plex kon niet worden gestart. Laad de plug-in opnieuw om het nogmaals te proberen.",
   "styles.nameConflict": "Er bestaat al een stijl voor {name}. Kies een andere tag.",

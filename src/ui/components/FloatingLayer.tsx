@@ -1,6 +1,7 @@
 /**
  * Portable anchored layers with owner-document dismissal, geometry and optional shared header drag.
- * Consumers own content, focus policy and inside roots; close/unload releases all geometry listeners.
+ * Ancestors may mark a data-floating-layer-boundary to keep every disclosure within a bounded
+ * host instead of underneath adjacent host chrome. Consumers own content and focus policy.
  */
 import { useLayoutEffect, useRef, useState, type CSSProperties, type ReactNode, type RefObject } from "react";
 import { createPortal } from "react-dom";
@@ -69,7 +70,8 @@ export function FloatingLayer({
 
   const anchor = anchorRef.current;
   const ownerDocument = anchor?.ownerDocument ?? null;
-  const target = open && ownerDocument ? portalTarget(ownerDocument) : null;
+  const boundary = anchor?.closest<HTMLElement>("[data-floating-layer-boundary]") ?? null;
+  const target = open && ownerDocument ? boundary ?? portalTarget(ownerDocument) : null;
 
   useLayoutEffect(/** Bind geometry and dismissal to the anchor's current document for this open lifetime. */ () => {
     if (!open) return;
@@ -91,19 +93,28 @@ export function FloatingLayer({
         current.current.onDismiss("anchor-hidden");
         return;
       }
-      const margin = positioning.viewportMargin;
-      const desiredWidth = Math.min(
-        positioning.preferredWidth,
-        Math.max(positioning.minimumWidth, view.innerWidth - margin * 2),
-      );
-      const left = draggedPosition?.left ?? Math.max(margin, Math.min(rect.left, view.innerWidth - desiredWidth - margin));
-      const top = draggedPosition?.top ?? rect.bottom + positioning.anchorGap;
+      const visual = view.visualViewport, scope = boundary?.getBoundingClientRect();
+      const originLeft = scope && boundary ? scope.left + boundary.clientLeft - boundary.scrollLeft : 0;
+      const originTop = scope && boundary ? scope.top + boundary.clientTop - boundary.scrollTop : 0;
+      const boundsLeft = Math.max(visual?.offsetLeft ?? 0, scope?.left ?? 0);
+      const boundsTop = Math.max(visual?.offsetTop ?? 0, scope?.top ?? 0);
+      const boundsRight = Math.min((visual?.offsetLeft ?? 0) + Math.min(view.innerWidth, visual?.width ?? view.innerWidth), scope?.right ?? Infinity);
+      const boundsBottom = Math.min((visual?.offsetTop ?? 0) + Math.min(view.innerHeight, visual?.height ?? view.innerHeight), scope?.bottom ?? Infinity);
+      const margin = Math.min(positioning.viewportMargin, Math.max(0, (boundsRight - boundsLeft) / 2));
+      const desiredWidth = Math.max(0, Math.min(Math.max(positioning.minimumWidth, positioning.preferredWidth), boundsRight - boundsLeft - margin * 2));
+      const left = Math.max(boundsLeft + margin, Math.min(draggedPosition?.left ?? rect.left, boundsRight - desiredWidth - margin));
+      const below = boundsBottom - rect.bottom - positioning.anchorGap - margin;
+      const above = rect.top - boundsTop - positioning.anchorGap - margin;
+      const preferredTop = below < positioning.minimumMaxHeight && above > below
+        ? rect.top - positioning.anchorGap - Math.min(panelRef.current?.scrollHeight || positioning.minimumMaxHeight, above)
+        : rect.bottom + positioning.anchorGap;
+      const top = Math.max(boundsTop + margin, Math.min(draggedPosition?.top ?? preferredTop, boundsBottom - Math.min(positioning.minimumMaxHeight, Math.max(0, boundsBottom - boundsTop - margin * 2)) - margin));
       setStyle({
-        position: "fixed",
-        left,
-        top,
+        position: boundary ? "absolute" : "fixed",
+        left: left - originLeft,
+        top: top - originTop,
         width: desiredWidth,
-        maxHeight: Math.max(positioning.minimumMaxHeight, view.innerHeight - top - margin),
+        maxHeight: Math.max(0, boundsBottom - top - margin),
       });
     };
 
@@ -125,9 +136,12 @@ export function FloatingLayer({
     const ResizeObserverCtor = view.ResizeObserver;
     const resizeObserver = ResizeObserverCtor ? new ResizeObserverCtor(updatePosition) : null;
     resizeObserver?.observe(activeAnchor);
+    if (boundary) resizeObserver?.observe(boundary);
     if (panelRef.current) resizeObserver?.observe(panelRef.current);
 
     view.addEventListener("resize", updatePosition);
+    view.visualViewport?.addEventListener("resize", updatePosition);
+    view.visualViewport?.addEventListener("scroll", updatePosition);
     doc.addEventListener("scroll", updatePosition, true);
     doc.addEventListener("pointerdown", onPointerDown, true);
     doc.addEventListener("keydown", onKeyDown, true);
@@ -146,6 +160,8 @@ export function FloatingLayer({
       releaseDrag?.();
       resizeObserver?.disconnect();
       view.removeEventListener("resize", updatePosition);
+      view.visualViewport?.removeEventListener("resize", updatePosition);
+      view.visualViewport?.removeEventListener("scroll", updatePosition);
       doc.removeEventListener("scroll", updatePosition, true);
       doc.removeEventListener("pointerdown", onPointerDown, true);
       doc.removeEventListener("keydown", onKeyDown, true);
@@ -162,6 +178,7 @@ export function FloatingLayer({
     panelRef,
     dragHandleRef,
     ownerDocument,
+    boundary,
     positioning.anchorGap,
     positioning.minimumMaxHeight,
     positioning.minimumWidth,

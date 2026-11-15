@@ -8,7 +8,12 @@ const built=await build({stdin:{resolveDir:process.cwd(),loader:"tsx",contents:`
 import React from 'react';import{createRoot}from'react-dom/client';import{flushSync}from'react-dom';
 import{PlexFootprints}from'./src/application/PlexFootprints';import{PlexFootprintsPanel}from'./src/ui/PlexFootprintsPanel';import{createTranslator}from'./src/lang';
 import{nodeMarkdownLink}from'./src/ui/nodeMarkdownLink';
+import{InfoBubble}from'./src/ui/components/InfoBubble';
 export {PlexFootprints};
+window.bounded=(width,height)=>{const container=document.body.appendChild(document.createElement('div'));container.className='kplex-app';container.dataset.floatingLayerBoundary='';container.style.cssText='position:fixed;left:200px;top:20px;overflow:hidden;width:'+width+'px;height:'+height+'px';
+ function Surface(){const anchor=React.useRef(null);return <><button ref={anchor}>Status</button><div className="kplex-scene-tools" style={{left:20,top:100,right:'auto'}}><button>Canvas tool behind disclosure</button></div><InfoBubble open targetRef={anchor} message={'Very-long-source-path/'.repeat(60)} advanceLabel='Weitere Informationen anzeigen' onAdvance={()=>{}} dismissLabel='Diesen Hinweis schließen' onDismiss={()=>{}}/>
+ <PlexFootprintsPanel trail={trail} translate={createTranslator('de')} readRow={visit=>({label:visit.node.identity,icon:'file-text',available:true})} formatLink={entry=>entry.node.path} navigate={()=>{}}/></>}
+ const bounded=createRoot(container);flushSync(()=>bounded.render(<Surface/>));container.querySelector('.kplex-footprints-trigger').click();window.boundedContainer=container;};
 window.trail=new PlexFootprints();window.resolves=0;window.navigation=[];window.formats=0;window.clipboardWrites=[];
 window.clipboardMode='resolved';Object.defineProperty(navigator,'clipboard',{configurable:true,value:{writeText(text){clipboardWrites.push(text);if(clipboardMode==='throws')throw Error('private clipboard failure');if(clipboardMode==='rejected')return Promise.reject(Error('private clipboard failure'));if(clipboardMode==='pending')return new Promise(resolve=>window.finishCopy=resolve);return Promise.resolve();}}});
 let root;
@@ -20,6 +25,15 @@ window.mount=()=>{root??=createRoot(document.body.appendChild(document.createEle
 
 /** Install repository CSS and keep the control at the actual upper-right disclosure position. */
 async function browser(){const host=await chromiumHarness(built.outputFiles[0].text);try{await host.evaluate(`(()=>{window.mount();const css=document.createElement('style');css.textContent=${JSON.stringify(readFileSync("styles.css","utf8"))};document.head.append(css);document.querySelector('.kplex-footprints-trigger').parentElement.style.cssText='position:fixed;right:8px;top:8px';})()`);return host;}catch(error){await host.cleanup();throw error;}}
+for(const [width,height]of [[250,280],[320,480],[400,300]])test(`actual callout and Footprints fit a ${width}px mobile host with scroll-reachable actions`,async()=>{
+ const host=await browser();try{
+  await host.evaluate(`for(let i=0;i<20;i++)visit('Long note '+i+'.md');bounded(${width},${height})`);await settle(host);
+  const result=await host.evaluate(`(()=>{const scope=boundedContainer,bounds=scope.getBoundingClientRect(),panels=[...scope.querySelectorAll('.kplex-info-bubble,.kplex-footprints-panel')];return panels.map(panel=>{const r=panel.getBoundingClientRect();const body=panel.querySelector('.kplex-info-bubble-content,.kplex-footprints-list');body.scrollTop=body.scrollHeight;return{within:r.left>=bounds.left&&r.right<=bounds.right&&r.top>=bounds.top&&r.bottom<=bounds.bottom,overflow:panel.scrollWidth<=panel.clientWidth+1,actions:[...panel.querySelectorAll('button')].every(button=>{const b=button.getBoundingClientRect();return b.left>=r.left&&b.right<=r.right}),reachable:body.scrollHeight<=body.clientHeight+body.scrollTop+1}})})()`);
+  assert.equal(result.length,2);for(const panel of result)assert.deepEqual(panel,{within:true,overflow:true,actions:true,reachable:true});
+  assert.equal(await host.evaluate(`(()=>{const tool=boundedContainer.querySelector('.kplex-scene-tools button'),r=tool.getBoundingClientRect();return Boolean(document.elementFromPoint(r.x+r.width/2,r.y+r.height/2)?.closest('.kplex-info-bubble,.kplex-footprints-panel'))})()`),true,'Bounded disclosures must paint above canvas tools');
+ }finally{await host.cleanup()}
+});
+
 /** Wait one browser task for React store subscriptions and native layout to settle. */
 async function settle(host){await host.evaluate("new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)))");}
 

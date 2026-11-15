@@ -27,6 +27,16 @@ const mount=(owner,doc=document,extra={})=>{
 `;
 const scenario=body=>colorEditorScenario(`(async()=>{${initialize}\n${body}\nreturn true})()`);
 
+test('Views and lenses presents twelve ordered visibility controls with independent attachment groups',async()=>{
+ assert.equal(await scenario(`
+ const owner=session('a',M.builtInPlexViews),ui=mount(owner);ui.open();await waitFor(ui.panel);
+ const rows=[...ui.panel().querySelectorAll('.kplex-filter-visibility-grid label')];
+ equal(rows.map(row=>row.textContent.trim()),['Markdown','Tags','Folders','Web links','Placeholders','Documents','Images','Audio & video','Other attachments','Inferred','Siblings','Cross-links'],'Exact twelve-toggle order');
+ equal(rows.map(row=>row.querySelector('input')?.type),Array(12).fill('checkbox'),'Every option has its own checkbox');
+ ui.close();
+ `),true);
+});
+
 test('a one-definition panel shows labelled disabled Compass and no test definitions',async()=>{
  assert.equal(await scenario(`
  const owner=session('a',new M.PlexViewRegistry([M.classicViewDefinition])),ui=mount(owner);ui.open();await waitFor(ui.select);

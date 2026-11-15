@@ -163,15 +163,23 @@ abstract class BaseKplexView extends ItemView {
 
   /** Mount the existing native display/action/index integration only after settings and services are authoritative. */
   private mountInitializedView(): void {
-    this.displayModes = new KplexDisplayModes(this.contentEl, readObsidianPresentationEnvironment(this.contentEl.ownerDocument.defaultView ?? undefined).device === "desktop");
+    this.displayModes = new KplexDisplayModes(this.contentEl, true);
     const workspace = this.app.workspace;
+    /** Layout/migration can replace active native views without another focus event. */
+    const syncNavigation = (): void => {
+      const active = workspace.getActiveViewOfType(ItemView);
+      this.displayModes?.setHostActive(active === this || Boolean(active && this.contentEl.contains(active.containerEl)), this.getSurface() !== "sidepanel");
+    };
     this.releaseDisplayLifecycle = registerDisplayModeUnload(this.plugin, this.displayModes);
     const activeRef = this.app.workspace.on("active-leaf-change", /** A different native pane exits fullscreen; embedded content in this view retains its owner. */ leaf => {
-      if (leaf !== this.leaf && (!leaf || !this.contentEl.contains(leaf.view.containerEl))) this.displayModes?.exitFullscreen(false);
+      const active = leaf === this.leaf || Boolean(leaf && this.contentEl.contains(leaf.view.containerEl));
+      this.displayModes?.setHostActive(active, this.getSurface() !== "sidepanel");
+      if (!active) this.displayModes?.exitFullscreen(false);
     });
     const renameRef = this.app.vault.on("rename", /** A same-file rename changes the native caption without resetting the camera. */ () => this.refreshTitle());
     const layoutRef = this.app.workspace.on("layout-change", /** Native layout destruction must never leave an orphaned fullscreen host. */ () => {
       if (!this.containerEl.isConnected) this.displayModes?.exitFullscreen(false);
+      syncNavigation();
     });
     this.displayModes.ownCleanup(/** Remove exact workspace subscriptions on either view close or plugin unload. */ () => {
       workspace.offref(activeRef); workspace.offref(layoutRef); this.app.vault.offref(renameRef);
@@ -181,9 +189,11 @@ abstract class BaseKplexView extends ItemView {
         this.plugin.restorePlexFoldBeforeReveal(this.leaf);
         this.root?.unmount(); this.root = null;
         this.displayModes?.exitFullscreen();
+        syncNavigation();
         this.renderReact();
       });
     }
+    syncNavigation();
     this.renderReact();
     // View construction/reveal must never wait for a potentially long initial index. On mobile,
     // awaiting the build here makes the sidepanel appear not to open at all and can keep

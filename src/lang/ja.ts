@@ -9,6 +9,23 @@ import { buildLocaleCatalog, type LocaleCatalog, type LocaleTranslationMap } fro
 /** Construct the typed Japanese table only when selected; importing this module allocates no catalog. */
 export function createJapaneseCatalog(): LocaleCatalog {
 const japaneseTranslations = {
+  "filter.visibilityDocuments": "文書",
+  "filter.visibilityDocumentsHelp": "PDF、EPUB、DOCX、表計算、プレゼンテーション、テキストなどの添付文書を表示します。Markdown は専用の切り替えで設定します。",
+  "filter.visibilityImages": "画像",
+  "filter.visibilityImagesHelp": "PNG、JPG、GIF、SVG、HEIC などの添付画像を表示します。",
+  "filter.visibilityMedia": "音声と動画",
+  "filter.visibilityMediaHelp": "MP3、WAV、MP4、MOV、AVI などの音声・動画の添付ファイルを表示します。",
+  "filter.visibilityOtherAttachments": "その他の添付ファイル",
+  "filter.visibilityOtherAttachmentsHelp": "アーカイブや拡張子のないファイルなど、その他の添付ファイルを表示します。",
+  "settings.sourceModifier": "接続元を開くショートカット",
+  "settings.sourceModifier.help": "この修飾キーを押しながら接続をクリックすると、唯一のソースを開きます。複数または利用できない場合は接続の詳細を開きます。修飾キーの組み合わせは既存の操作を維持します。",
+  "settings.sourceModifier.none": "なし",
+  "daily.gapOffer": "{name} にリンク",
+  "daily.gapOfferHelp": "作成後、前の日次ノートへの接続を確認します。昨日のノートがありません。",
+  "tips.lateralDrag": "{alt}: 前 / 次 · {mod}: 友人 / 挑戦者。修飾キーなしでは前回の選択を復元します。",
+  "tips.relationshipReview": "次のダイアログで関係とオントロジーを選択します。",
+  "tips.hoverModifier": "{alt} を押しながらホバーすると接続を強調表示します。{mod} を押すとノートをプレビューします。",
+  "tips.hover": "ホバーで接続を強調表示し、{alt} では即座に表示します。{mod} を押すとノートをプレビューします。",
   "startup.loading": "K-Plex を読み込み中…",
   "startup.failed": "K-Plex を初期化できませんでした。プラグインを再読み込みしてもう一度お試しください。",
   "styles.nameConflict": "{name} のスタイルは既に存在します。別のタグを選んでください。",

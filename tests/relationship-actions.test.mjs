@@ -22,7 +22,8 @@ const { gateCreationRole,gateGroupRole,writeRelationshipMetadata, SavedRelations
 
 /** Compile a production callback/method; class-field arrows capture the supplied owning instance. */
 function productionFunction(path, name, dependencies) {
-  dependencies={gateCreationRole,gateGroupRole,ReciprocalRelationshipWriteError,continuation:"return",...dependencies};
+  dependencies={plugin:{settings:{}},settings:{},gateCreationRole,gateGroupRole,ReciprocalRelationshipWriteError,continuation:"return",...dependencies};
+  if(dependencies.plugin)dependencies.plugin.settings??={};
   const source = ts.createSourceFile(path, readFileSync(new URL(`../${path}`, import.meta.url), "utf8"), ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
   let expression;
   function visit(node) {
@@ -209,6 +210,16 @@ for(const [gate,role] of [["top","parent"],["bottom","child"],["left","left"],["
     assert.equal(actions.length,1);assert.equal(actions[0].origin,origin);assert.equal(actions[0].fixedTarget,target);assert.equal(actions[0].semanticRole,role);assert.equal(actions[0].mode,"create");
   });
 }
+
+for(const [gate,role]of [['left','previous'],['right','next']])test(`gate ${gate} uses newly committed family memory before its rendered settings snapshot refreshes`,()=>{
+ const {origin,actions,ownerDocument,dependencies}=historyFixture(),plugin=dependencies.plugin;
+ plugin.settings={lateralCreationRoles:{left:'left',right:'right'}};
+ const up=productionFunction('src/ui/PlexGraph.tsx','up',{...dependencies,settings:{lateralCreationRoles:{left:'left',right:'right'}},clearHistoryDragHover(){},semanticRoleForGate:productionFunction('src/ui/PlexGraph.tsx','semanticRoleForGate',{}),
+  areaResizeDrag:{current:null},finishAreaSettingsDismiss(){},pendingGateLongPress:{current:null},connectDrag:{pointerId:7,originPath:origin.path,gate,moved:true},setConnectDrag(){},suppressActivateUntil:{current:0},touchPointers:{current:new Map()},viewport:{current:{classList:{remove(){}}}}});
+ plugin.settings.lateralCreationRoles={left:'previous',right:'next'};
+ up({pointerId:7,pointerType:'mouse',clientX:30,clientY:40,altKey:false,ctrlKey:false,metaKey:false,shiftKey:false,currentTarget:{ownerDocument}});
+ assert.equal(actions.length,1);assert.equal(actions[0].semanticRole,role);
+});
 
 test("node-body drop on history retains the four-role chooser against the exact endpoint",()=>{
   const {origin,target,menus,actions,ownerDocument,dependencies}=historyFixture();

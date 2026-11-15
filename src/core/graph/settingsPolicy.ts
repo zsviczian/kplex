@@ -18,7 +18,7 @@ export const PRESENTATION_KEYS = [
 const SEMANTIC_KEYS = ["inferAllLinksAsFriends", "inverseInfer", "thumbnailProperty", "nodeImageProperty", "datePropertyRelations"] as const;
 const VIEW_KEYS = [
   "noteTypeProperties", "propertyFontSize",
-  "hierarchy.exclusions", "showFolderNodes", "showTagNodes", "showPageNodes", "showAttachments", "showURLNodes",
+  "hierarchy.exclusions", "showFolderNodes", "showTagNodes", "showPageNodes", "showAttachments", "showDocumentAttachments", "showImageAttachments", "showMediaAttachments", "showOtherAttachments", "showURLNodes",
   "showVirtualNodes", "showInferredNodes", "renderSiblings", "showCrossLinks", "nodeSortOrder", "graphLenses", "excludeFilepaths",
   "backgroundColor", "connectorStyle", "graphDepth", "groupRelations", "compactingFactor", "horizontalCompactingFactor", "compactView", "maxItemCount",
   "minLinkLength", "inverseArrowDirection", "showNeighborCount", "wrapNodeLabels", "baseFontSize", "siblingRelativeSize", "crossLinkOpacity",

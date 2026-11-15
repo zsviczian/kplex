@@ -1,10 +1,15 @@
 /** Shared disposable native acceptance fixture for #270. Serialized into the CLI controller;
- * owns only its notes, native views, temporary method observers and presentation settings.
+ * owns only its notes, native views, temporary method observers, recent-file state and presentation settings.
  * The outer exact-build runner owns deployment, immutable artifacts and the application lock. */
 export function nativeBatch270(app,c){
  let plugin=app.plugins.plugins['k-plex'];
  if(!plugin||app.vault.getName()!=='kplex-test-small'||app.vault.getFiles().length>=1000||app.setting.win)throw Error('Clean disposable Small required');
  const workspace=app.workspace,layout=workspace.getLayout(),settings=structuredClone(plugin.settings),saved=c.sessions(plugin).capture(),lastTabId=app.setting.lastTabId;
+ // Obsidian 1.15's public changeLayout restores panes but not the recent-file tracker. Snapshot
+ // its verified native serialization boundary so fixture paths cannot escape into later autosaves.
+ const recentTracker=workspace.recentFileTracker;
+ if(typeof recentTracker?.serialize!=='function'||typeof recentTracker?.load!=='function'||!Array.isArray(recentTracker.serialize()))throw Error('Native recent-file restoration contract unavailable');
+ const recentFiles=structuredClone(recentTracker.serialize());
  const inventory=app.vault.getFiles().map(file=>file.path).sort(),folder=(c.fixturePrefix??'__kplex270_')+Date.now(),files=[],leaves=[],releases=[],restores=[];
  const remote=require('@electron/remote'),main=remote.getCurrentWindow(),bounds=main.getBounds(),minimum=main.getMinimumSize(),maximized=main.isMaximized();
  let directory,disabled=false;
@@ -98,7 +103,8 @@ export function nativeBatch270(app,c){
   // GraphIndex captures its mode at construction. Restoring JSON alone leaves a different
   // runtime behind for the next native case, even though its settings bytes look correct.
   await clean('indexing mode',async()=>{if(plugin.index.isOnDemandMode()!==(settings.indexingMode==='on-demand'))await reload();});
-  await wait(2000);await clean('settings bytes',()=>app.vault.adapter.write(plugin.manifest.dir+'/data.json',c.originalData));await clean('enabled bytes',()=>app.vault.adapter.write(app.vault.configDir+'/community-plugins.json',c.originalEnabled));
+  await wait(2000);await clean('recent files',async()=>{recentTracker.load(structuredClone(recentFiles));workspace.requestSaveLayout();await wait(1500);check(JSON.stringify(recentTracker.serialize())===JSON.stringify(recentFiles),'Native recent files differ');});
+  await clean('settings bytes',()=>app.vault.adapter.write(plugin.manifest.dir+'/data.json',c.originalData));await clean('enabled bytes',()=>app.vault.adapter.write(app.vault.configDir+'/community-plugins.json',c.originalEnabled));
   await clean('geometry',()=>{main.setMinimumSize(...minimum);main.setBounds(bounds);if(maximized)main.maximize();});
   check(JSON.stringify(app.vault.getFiles().map(file=>file.path).sort())===JSON.stringify(inventory),'Native fixture inventory differs');if(errors.length)throw Error(errors.join('; '));
  };

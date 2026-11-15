@@ -18,6 +18,21 @@ const turn=()=>new Promise(resolve=>setTimeout(resolve,0));
 `;
 const scenario=body=>colorEditorScenario(`(async()=>{${setup}\n${body}\nreturn true})()`);
 
+test('imperative category edits lift the legacy gate and persist independent choices through the real settings owner',async()=>{
+ assert.equal(await scenario(`
+  const p=await create(),keys=['showDocumentAttachments','showImageAttachments','showMediaAttachments','showOtherAttachments'];
+  p.index.refreshPresentationSettings=()=>{};p.index.refreshSemanticSettings=async()=>{};
+  p.settings.showAttachments=false;await p.saveSettings(false,false);
+  check(keys.every(key=>p.settings[key]===false),'Legacy off disables all groups');
+  p.settings.showImageAttachments=true;await p.saveSettings(false,false);
+  check(p.settings.showAttachments===true,'Individual choice lifts legacy gate');
+  equal(keys.map(key=>p.settings[key]),[false,true,false,false],'Only the selected group enabled');
+  const loaded=M.migrateAndMergeSettings(disk);equal(keys.map(key=>loaded[key]),[false,true,false,false],'Independent choices survive reload');
+  p.settings.showAttachments=false;await p.saveSettings(false,false);p.settings.showAttachments=true;await p.saveSettings(false,false);
+  check(keys.every(key=>p.settings[key]===true),'Historical aggregate on still enables all groups');
+ `),true);
+});
+
 test('native Content visibility exposes explicit Enable all and Disable all actions',async()=>{
   assert.equal(await colorEditorScenario(`(async()=>{
     const M=sourceModules,p=await createAppearanceHost({});p.manifest={id:'k-plex'};const tab=new M.KplexSettingTab({},p);
@@ -37,12 +52,13 @@ for(const scope of ['settings','lenses']) test(scope+' bulk writes mixed, all-on
     const p=await create(),keys=M.contentVisibilityKeys('${scope}');
     p.settings.showPageNodes=false;p.settings.showTagNodes=true;p.settings.excludeFilepaths=['untouched/'];p.settings.excludeFilepathsCsv='untouched/';
     p.settings.graphLenses=[{id:'keep-me',name:'Kept lens',enabled:true,scope:'node',mode:'include',expression:'node.path != "hidden"'}];p.settings.unknown261={keep:['exact']};
-    const unrelated=copy(p.settings);for(const key of keys)delete unrelated[key];
+    const unrelated=copy(p.settings);for(const key of [...keys,'showAttachments'])delete unrelated[key];
     check(await p.setContentVisibility('${scope}',true),'Mixed operation changed');
     check(keys.every(key=>p.settings[key]===true),'All applicable controls enabled');equal([p.writes.length,p.work.notifications],[1,1],'One write/refresh');
     check(!await p.setContentVisibility('${scope}',true),'Repeat is a no-op');equal([p.writes.length,p.work.notifications],[1,1],'No redundant write/refresh');
     check(await p.setContentVisibility('${scope}',false),'Disable changed');check(keys.every(key=>p.settings[key]===false),'All applicable controls disabled');
-    const after=copy(p.settings);for(const key of keys)delete after[key];equal(after,unrelated,'Unrelated and unknown preferences retained');
+    check(p.settings.showAttachments===false,'Legacy attachment gate follows bulk disable');
+    const after=copy(p.settings);for(const key of [...keys,'showAttachments'])delete after[key];equal(after,unrelated,'Unrelated and unknown preferences retained');
     const restored=M.migrateAndMergeSettings(disk);check(keys.every(key=>restored[key]===false),'Persistence round trip');equal(disk.unknown261,{keep:['exact']},'Unknown data retained on disk');
   `),true);
 });

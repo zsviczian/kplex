@@ -149,7 +149,7 @@ test('all moved controls have one native location and original ownership/bounds'
  assert.equal(await scenario(`
  const p=await create(),tab=new M.KplexSettingTab({},p);const definitions=tab.getSettingDefinitions(),rows=flatten(definitions);
  const find=key=>{const matches=rows.filter(row=>row.control.key.replace(/^received:\\d+:/,'')===key);check(matches.length===1,'Expected one '+key);return matches[0]};
- const shared=['hoverHighlightRequiresAlt','gateTooltipRequiresAlt','areaOutlineRequiresAlt','animationSpeed','allowAutozoom','startInPopout','confirmFileDelete','removeOntologyLinksOnDelete','mouseInteractionMode','centralNodeMarkdownMode','maxItemCount','showCrossLinks','showInferredNodes','showVirtualNodes','showURLNodes','showAttachments','showFolderNodes','showTagNodes','showPageNodes','showNeighborCount'];
+ const shared=['hoverHighlightRequiresAlt','gateTooltipRequiresAlt','areaOutlineRequiresAlt','animationSpeed','allowAutozoom','startInPopout','confirmFileDelete','removeOntologyLinksOnDelete','mouseInteractionMode','centralNodeMarkdownMode','maxItemCount','showCrossLinks','showInferredNodes','showVirtualNodes','showURLNodes','showDocumentAttachments','showImageAttachments','showMediaAttachments','showOtherAttachments','showFolderNodes','showTagNodes','showPageNodes','showNeighborCount'];
  for(const key of shared)equal(find(key).path,['Canvas behavior'],'Shared '+key);
  // Long text now has a shared imperative field. Inspect its real mounted callback rather
  // than inventing a generic control key on a render-only declarative definition.

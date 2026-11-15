@@ -36,11 +36,11 @@ function pluginSettingsMethodSource(name) {
   return ts.transpileModule(`const plugin_${name}=${method.modifiers?.some(node=>node.kind===ts.SyntaxKind.AsyncKeyword)?'async ':''}function(${method.parameters.map(node=>node.getText(source)).join(',')})${method.body.getText(source)};`,{compilerOptions:{target:ts.ScriptTarget.ES2021,module:ts.ModuleKind.None}}).outputText;
 }
 
-const bundle=await contributorBrowserBundle(['src/index/GraphIndex.ts','src/index/GraphBuilder.ts','src/core/graph/settingsPolicy.ts','src/core/contracts/ontologyConfiguration.ts','src/core/contracts/appearance.ts','src/adapters/obsidian/savedSettingsRefresh.ts']);
+const bundle=await contributorBrowserBundle(['src/index/GraphIndex.ts','src/index/GraphBuilder.ts','src/core/graph/settingsPolicy.ts','src/core/contracts/ontologyConfiguration.ts','src/core/plex/attachmentVisibility.ts','src/core/contracts/appearance.ts','src/adapters/obsidian/savedSettingsRefresh.ts']);
 const initialize=`(()=>{
   const M=sourceModules,TFile=window.ContributorFile,TFolder=window.ContributorFolder;
   const Platform={isIosApp:false};
-  const {captureSettingsPolicy,classifySettingsChange,isStyleOnlySettingsChange,ontologyConfiguration,STYLE_SETTINGS_KEYS,SavedSettingsRefresh}=M;
+  const {ATTACHMENT_VISIBILITY_KEYS,reconcileAttachmentVisibility,captureSettingsPolicy,classifySettingsChange,isStyleOnlySettingsChange,ontologyConfiguration,STYLE_SETTINGS_KEYS,SavedSettingsRefresh}=M;
   const Notice=class{constructor(message){throw Error('Unexpected fixture notice: '+message)}};
   ${pluginSettingsMethodSource('saveSettings')}
   ${pluginSettingsMethodSource('refreshSavedSettings')}

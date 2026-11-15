@@ -9,6 +9,23 @@ import { buildLocaleCatalog, type LocaleCatalog, type LocaleTranslationMap } fro
 /** Construct the typed Spanish table only when selected; importing this module allocates no catalog. */
 export function createSpanishCatalog(): LocaleCatalog {
 const spanishTranslations = {
+  "filter.visibilityDocuments": "Documentos",
+  "filter.visibilityDocumentsHelp": "Mostrar documentos adjuntos como PDF, EPUB, DOCX, hojas de cálculo, presentaciones y archivos de texto. Markdown tiene su propio control.",
+  "filter.visibilityImages": "Imágenes",
+  "filter.visibilityImagesHelp": "Mostrar imágenes adjuntas como PNG, JPG, GIF, SVG y HEIC.",
+  "filter.visibilityMedia": "Audio y vídeo",
+  "filter.visibilityMediaHelp": "Mostrar archivos adjuntos de audio y vídeo como MP3, WAV, MP4, MOV y AVI.",
+  "filter.visibilityOtherAttachments": "Otros adjuntos",
+  "filter.visibilityOtherAttachmentsHelp": "Mostrar otros formatos adjuntos, incluidos archivos comprimidos y archivos sin extensión.",
+  "settings.sourceModifier": "Atajo a la fuente de la conexión",
+  "settings.sourceModifier.help": "Haz clic en una conexión con esta tecla para abrir su única fuente. Si hay varias fuentes o no están disponibles, se abren los detalles. Las combinaciones de teclas conservan sus gestos actuales.",
+  "settings.sourceModifier.none": "Ninguno",
+  "daily.gapOffer": "Enlazar con {name}",
+  "daily.gapOfferHelp": "Tras crearla, revisar una conexión con la nota diaria anterior. Falta la nota de ayer.",
+  "tips.lateralDrag": "{alt}: Anterior / Siguiente · {mod}: Amigo / Retador. Sin tecla, se restaura la última elección.",
+  "tips.relationshipReview": "Elige la relación y la ontología en el siguiente diálogo.",
+  "tips.hoverModifier": "Mantén {alt} al pasar el cursor para resaltar conexiones. Mantén {mod} para previsualizar una nota.",
+  "tips.hover": "Pasa el cursor para resaltar conexiones; {alt} las resalta al instante. Mantén {mod} para previsualizar una nota.",
   "startup.loading": "Cargando K-Plex…",
   "startup.failed": "No se pudo iniciar K-Plex. Recarga el complemento para volver a intentarlo.",
   "styles.nameConflict": "Ya existe un estilo para {name}. Elige otra etiqueta.",

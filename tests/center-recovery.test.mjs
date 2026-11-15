@@ -64,7 +64,8 @@ export async function startupHistory(){
  const plugin={settings:{navigationHistory:paths},index:{get:path=>pages.get(path),titleFor:page=>page.name},isNavigationFallbackReady:()=>false};
  const activePath=paths.at(-1),paintSettings={},translate=key=>key,actions={dispatch:request=>clicks.push(request.target.node.identity)};
  const actionNodeRef=page=>({identity:page.path}),nodeListPresentation=(page,title)=>({label:title,icon:'file-text'}),ObsidianIcon=()=>null;
- const rootRef={current:null},canvasNameId='test-canvas',indexStatus={},indexStatusRef={current:null},indexStatusInfoOpen=false,indexStatusMessage=null;
+ const rootRef={current:null},environment={device:'desktop'},canvasNameId='test-canvas',indexStatus={},indexStatusRef={current:null},indexStatusInfoOpen=false,indexStatusMessage=null;
+ const savedNodePreview={current:{clear(){}}},enterSavedNodePreview=()=>{};
  const savedNodeDrag={current:null},endSavedNodeDrag=${endSavedDrag},beginSavedNodeDrag=${beginSavedDrag};
  const IndexStatusIndicator=()=>null,InfoBubble=()=>null,displayState={zen:false},supportButton=null;
  const handlePlexDragOver=()=>{},handlePlexDrop=()=>{},showIndexStatusOnHover=()=>{},hideIndexStatusAfterHover=()=>{},openVaultStats=()=>{},dismissIndexStatusInfo=()=>{};
