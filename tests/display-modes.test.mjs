@@ -39,6 +39,7 @@ async function bundle() {
     export function resizePolicy(ports){const compassSync={current:()=>false},requestCameraFrame=()=>{};const{el,displayResizePending,measuredViewport,preserveCameraOnNextLayout,displayResizeLayout,setViewportSize,centralEditorMaximized,suppressAutoFitUntil,settings,fit,colorScope}=ports;const viewport={current:el},centralEditorAvailable=true,restoreCentralEditorCamera={current:false},centralEditorRestoreCamera={current:null},applyCamera=()=>ports.applyCount++,flushCameraTransform=()=>{},activePath='Center.md',sceneScope=activePath,camera={current:{}},automaticFit={current:{path:activePath,camera:camera.current}},sameFitCamera=(a,b)=>a===b,fitCurrentScene={current:fit};return{update:${resize},prepare:${prepare},editor:${editorResize}}}
     const readObsidianPresentationEnvironment=()=>({device:'desktop'});
     class NativeBase {async onOpen(){}async onClose(){}getSurface(){return'leaf'}getState(){return{native:'preserved'}}async setState(){}}
+    const ItemView=NativeBase;
     class NativeView extends NativeBase {${methods}}
     export function lifecycleView(properties){const view=Object.assign(new NativeView(),{plugin:{onKplexViewStateRestored(){}},documentSession:new KplexDocumentSession({documentSyncMode:'off',sidecarPosition:'right',sidecarMarkdownMode:'source'},null,()=>{}),initializationGeneration:0,root:null,windowMigrationCleanup:null,ready:false,renderGeneration:0,readyResolvers:[],displayModes:null,releaseDisplayLifecycle:null},properties);if(view.leaf)view.leaf.view=view;return view}
   `},bundle:true,write:false,platform:'browser',format:'iife',globalName:'sourceModules',plugins:[{name:'native-icons',setup(builder){builder.onResolve({filter:/^obsidian$/},()=>({path:'obsidian',namespace:'native'}));builder.onLoad({filter:/.*/,namespace:'native'},()=>({contents:`export const Platform={isWin:false,isDesktop:true};export function getIcon(name){const icon=document.createElementNS('http://www.w3.org/2000/svg','svg');icon.setAttribute('data-icon',name);return icon}`,loader:'js'}));}}]});
@@ -51,6 +52,45 @@ async function browser() {
   await host.evaluate(`(()=>{HTMLElement.prototype.createDiv=function(options={}){const element=document.createElement('div');element.className=options.cls??'';for(const[key,value]of Object.entries(options.attr??{}))element.setAttribute(key,value);this.append(element);return element};HTMLElement.prototype.empty=function(){this.replaceChildren()};HTMLElement.prototype.setCssProps=function(values){for(const[key,value]of Object.entries(values))this.style.setProperty(key,value)};HTMLElement.prototype.removeClass=function(value){this.classList.remove(value)};HTMLElement.prototype.addClass=function(value){this.classList.add(value)};HTMLElement.prototype.toggleClass=function(value,enabled){this.classList.toggle(value,enabled)};window.testStyles=document.createElement('style');testStyles.textContent=${JSON.stringify(readFileSync('styles.css','utf8'))};document.head.append(testStyles);})()`);
   return host;
 }
+
+test('active mobile tabs reserve native navigation space and immersive modes hide it with exact restoration',async()=>{
+  const host=await browser();
+  try {
+    assert(await host.evaluate(`(async()=>{
+      const {KplexDisplayModes,Platform}=sourceModules;Platform.isMobile=true;Platform.isDesktop=false;
+      document.body.classList.add('is-mobile');document.body.style.margin='0';
+      const native=document.createElement('style');native.textContent='.app-container{height:640px;display:flex;flex-direction:column}.horizontal-main-container{flex:1;min-height:0;position:relative}.mobile-navbar{position:fixed;bottom:0;height:64px;flex-shrink:0;width:100%;display:flex}.kplex-view-host{height:100%}';document.head.append(native);
+      const app=document.body.createDiv({cls:'app-container'}),main=app.createDiv({cls:'horizontal-main-container'}),content=main.createDiv({cls:'kplex-view-host'});
+      let navbar=app.createDiv({cls:'mobile-navbar native-existing'});navbar.style.setProperty('--foreign-value','keep');
+      const modes=new KplexDisplayModes(content,true),check=(ok,message)=>{if(!ok)throw Error(message)},wait=()=>new Promise(resolve=>setTimeout(resolve,0));
+      check(main.getBoundingClientRect().bottom>navbar.getBoundingClientRect().top,'The native floating baseline must overlap');
+      modes.setHostActive(true);
+      check(getComputedStyle(navbar).position==='relative'&&main.getBoundingClientRect().bottom<=navbar.getBoundingClientRect().top,'Normal canvas must end above the native bar');
+      const height=main.getBoundingClientRect().height;
+      for(const [zen,full]of [[true,false],[true,true],[false,true],[false,false]]){
+        modes.setZen(zen);if(modes.getSnapshot().fullscreen!==full)modes.toggleFullscreen();
+        check((getComputedStyle(navbar).display==='none')===(zen||full),'Each immersive combination must hide navigation');
+        if(!zen&&!full)check(main.getBoundingClientRect().height===height,'Normal mode must restore exact reserved space');
+      }
+      modes.setZen(true);modes.setHostActive(false);
+      check(getComputedStyle(navbar).display==='flex'&&getComputedStyle(navbar).position==='fixed','Switching to another tab restores native behavior even if the old tab keeps Zen');
+      modes.setHostActive(true);check(getComputedStyle(navbar).display==='none','Returning to the Zen tab hides navigation');modes.setZen(false);
+      const old=navbar;navbar=document.createElement('div');navbar.className='mobile-navbar native-replacement';old.replaceWith(navbar);await wait();
+      check(!old.classList.contains('kplex-mobile-navbar-docked')&&navbar.classList.contains('kplex-mobile-navbar-docked'),'Native navbar replacement transfers exact ownership');
+      const secondContent=main.createDiv({cls:'kplex-view-host'}),second=new KplexDisplayModes(secondContent,true);second.setHostActive(true);modes.setHostActive(false);
+      check(navbar.classList.contains('kplex-mobile-navbar-docked'),'Late deactivation cannot release the other navbar lease');
+      navbar.classList.add('excalidraw-mobile-navbar-docked');second.dispose();second.dispose();modes.dispose();
+      check(navbar.className==='mobile-navbar native-replacement excalidraw-mobile-navbar-docked','Disposal preserves foreign classes and removes only owned state');
+      check(old.style.getPropertyValue('--foreign-value')==='keep','Foreign inline values remain untouched');
+      const side=new KplexDisplayModes(secondContent,true);side.setHostActive(true,false);
+      check(!navbar.classList.contains('kplex-mobile-navbar-docked'),'Normal sidebar must not acquire main-tab docking');
+      side.setZen(true);check(getComputedStyle(navbar).display==='none','Active sidebar Zen hides mobile navigation');
+      side.setHostActive(false,false);check(getComputedStyle(navbar).display==='flex','Inactive sidebar Zen restores native chrome');
+      side.toggleFullscreen();check(getComputedStyle(navbar).display==='none','Viewport overlay owns navigation even before its native activation event');side.dispose();
+      app.remove();native.remove();document.body.classList.remove('is-mobile');return true;
+    })()`));
+  } finally {await host.cleanup();}
+});
 
 test('all four display combinations retain one React root, native insertion, live controls and independent view state',async()=>{
   const host=await browser();
@@ -107,7 +147,7 @@ test('production native lifecycle restores before cross-document adoption and re
   const host=await browser();
   try {
     const result=await host.evaluate(`(async()=>{
-      const{lifecycleView}=sourceModules,events=new Set(),cleanup=[];const workspace={on(name,callback){const ref={name,callback};events.add(ref);return ref},offref(ref){events.delete(ref)}};
+      const{lifecycleView}=sourceModules,events=new Set(),cleanup=[];const workspace={getActiveViewOfType:()=>null,on(name,callback){const ref={name,callback};events.add(ref);return ref},offref(ref){events.delete(ref)}};
       const container=document.body.createDiv(),content=container.createDiv(),plugin={whenInitialized:async()=>true,translator:key=>key,register:fn=>cleanup.push(fn),onKplexViewOpened:async()=>{},onKplexViewClosed:()=>{},restorePlexFoldBeforeReveal:()=>{}},leaf={view:{containerEl:container}};let migrate,unmountDoc,renders=0;
       container.onWindowMigrated=fn=>{migrate=fn;return()=>{migrate=null}};
       const view=lifecycleView({contentEl:content,containerEl:container,app:{workspace,vault:{on:workspace.on.bind(workspace),offref:workspace.offref.bind(workspace)}},leaf,plugin,renderReact(){renders++;this.root={unmount:()=>{unmountDoc=content.ownerDocument}}}});await view.onOpen();view.displayModes.toggleZen();view.displayModes.toggleFullscreen();const outside=document.createElement('input');document.body.append(outside);outside.focus();[...events].find(ref=>ref.name==='active-leaf-change').callback({view:{containerEl:outside}});const changed=!view.displayModes.getSnapshot().fullscreen&&view.displayModes.getSnapshot().zen&&document.activeElement===outside;view.displayModes.toggleFullscreen();outside.remove();

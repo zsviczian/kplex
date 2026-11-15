@@ -126,10 +126,13 @@ async function preview(app,c){
   if(!toggle.classList.contains('is-enabled'))await f.click(toggle);await f.until(()=>toggle.classList.contains('is-enabled'),'Canonical modifier preference');
   samples.push({case:'native Page Preview settings',rows:names.length,canonicalSource:app.workspace.hoverLinkSources['k-plex-react-view'],sidebarSource:app.workspace.hoverLinkSources['k-plex-sidepanel-view']??null});app.setting.close();
   /** An ordinary stationary pointer followed by native Control must show a real core popover. */
-  const show=async(leaf,name)=>{const p=f.p;
+  const show=async(leaf,name,savedKind)=>{const p=f.p;
    await f.workspace.revealLeaf(leaf);const doc=leaf.view.contentEl.ownerDocument,native=await f.focus(doc);
    await p.actionManager.dispatch({id:'view.fit',source:'internal',surfaceId:f.surface(leaf)});
-   const currentNode=()=>[...leaf.view.contentEl.querySelectorAll('.kplex-thought[data-kplex-path]')].find(row=>row.dataset.kplexPath===target.path);
+   const currentNode=()=>savedKind==='pins'
+    ? [...leaf.view.contentEl.querySelectorAll('.kplex-pinned-open')].find(row=>row.dataset.kplexPinnedPath===target.path)
+    : savedKind==='history'?[...leaf.view.contentEl.querySelectorAll('[data-kplex-history-path]')].find(row=>row.dataset.kplexHistoryPath===target.path)
+    : [...leaf.view.contentEl.querySelectorAll('.kplex-thought[data-kplex-path]')].find(row=>row.dataset.kplexPath===target.path);
    let node;await f.until(()=>{node=currentNode();if(!node)return false;try{f.point(node);return true}catch{return false}},name+' preview target');
    // Reacquire targets during native resize/React replacement. SVG :hover is only a hint:
    // acceptance below requires the actual core popover and its rendered document contents.
@@ -138,13 +141,18 @@ async function preview(app,c){
     native.webContents.sendInputEvent({type:'mouseMove',x:2,y:2});await f.wait(80);native.webContents.sendInputEvent({type:'mouseMove',...f.point(node),modifiers:[]});await f.wait(100);
    }
    const external=!currentNode()?.matches(':hover')&&name==='popout';
+   const accessibleLabel=savedKind?currentNode()?.getAttribute('aria-label'):null;
+   if(savedKind)await f.until(()=>doc.querySelector('.kplex-control-tooltip'),name+' ordinary tooltip before modifier',5000);
    if(external)c.externalPreview={phase:'awaiting native popover',title:native.getTitle(),bounds:native.getBounds(),point:f.point(node)};
    try{native.webContents.sendInputEvent({type:'keyDown',keyCode:'Control',modifiers:['control']});await f.until(()=>p.hoverParent.hoverPopover?.hoverEl.isConnected&&p.hoverParent.hoverPopover.hoverEl.getClientRects().length,name+' stationary modifier popover',external?60000:10000);
     const popover=p.hoverParent.hoverPopover.hoverEl;await f.until(()=>popover.textContent.includes('Native preview text'),name+' native preview content');f.check(popover.ownerDocument===doc,'Preview appeared in the wrong document');samples.push({case:name+' native preview',owningDocument:true,text:true});
+    if(savedKind){await f.until(()=>!doc.querySelector('.kplex-control-tooltip'),name+' tooltip yields to preview',5000);await f.wait(720);f.check(!doc.querySelector('.kplex-control-tooltip')&&currentNode()?.getAttribute('aria-label')===accessibleLabel,'Preview tooltip overlap or accessible-name mutation');samples.push({case:name+' tooltip suppression',noOverlap:true,labelPreserved:true});}
     if(external)c.externalPreview=null;
    }finally{native.webContents.sendInputEvent({type:'keyUp',keyCode:'Control',modifiers:[]});native.webContents.sendInputEvent({type:'mouseMove',x:2,y:2});p.hoverParent.hoverPopover?.hide?.();await f.wait(150);}
   };
   await show(tab,'tab');
+  p.settings.pinnedNodes=[target.path];p.settings.navigationHistory=[target.path,source.path];await p.saveSettings(false,false);p.index.notifyPresentation();
+  await show(tab,'history','history');await show(tab,'pins','pins');
   const sidebar=await f.canvas(source,'k-plex-sidepanel-view');await show(sidebar,'sidebar');
   const popout=await f.canvas(source,'k-plex-react-view','window');await show(popout,'popout');
   await core.disable(false);await f.workspace.revealLeaf(tab);const doc=tab.view.contentEl.ownerDocument,node=tab.view.contentEl.querySelector('[data-kplex-path="'+target.path+'"]');
@@ -305,9 +313,9 @@ export async function settings(app,c){
 /** Every invocation captures exact current configuration bytes and delegates ownership to its lane. */
 export async function runPinsPreviewUri(){
  const target=validateTarget({vaultName:process.env.KPLEX_TEST_VAULT_NAME,vaultPath:process.env.KPLEX_TEST_VAULT_PATH,configDir:process.env.KPLEX_TEST_CONFIG_DIR});
- const definitions='c.sessions='+nativeDocumentSessions.toString()+';c.fixture='+nativeBatch270.toString()+';c.originalData='+JSON.stringify(readFileSync(join(target.pluginDir,'data.json'),'utf8'))+';c.originalEnabled='+JSON.stringify(readFileSync(join(target.config,'community-plugins.json'),'utf8'))+';c.visual='+(process.env.KPLEX_270_SETTINGS_VISUAL==='true')+';';
+ const definitions='c.allowOnDemandRoutingStartup='+(process.env.KPLEX_270_NATIVE_LANE==='preview')+';c.sessions='+nativeDocumentSessions.toString()+';c.fixture='+nativeBatch270.toString()+';c.originalData='+JSON.stringify(readFileSync(join(target.pluginDir,'data.json'),'utf8'))+';c.originalEnabled='+JSON.stringify(readFileSync(join(target.config,'community-plugins.json'),'utf8'))+';c.visual='+(process.env.KPLEX_270_SETTINGS_VISUAL==='true')+';';
  const lane=process.env.KPLEX_270_NATIVE_LANE??'pins',scenario={pins,preview,uri,ontology,settings}[lane];if(!scenario)throw Error('Unknown #270 native lane');
- return runControlledProbe('pins-preview-uri-'+lane+'-270',scenario,definitions,['src/core/plex/savedPins.ts','src/core/plex/periodicPins.ts','src/ui/components/ReorderableList.tsx','src/ui/PinnedNodeBar.tsx','src/ui/AddToOntologyModal.ts','src/index/SourceFacts.ts','src/index/SourceRepository.ts','src/adapters/obsidian/sourceAcquisition.ts','src/main.ts','src/settings.ts','src/ui/App.tsx','src/core/parser/metadata.ts','src/adapters/obsidian/externalUrl.ts'],{maximumMs:420000});
+ return runControlledProbe('pins-preview-uri-'+lane+'-270',scenario,definitions,['src/core/plex/savedPins.ts','src/core/plex/periodicPins.ts','src/ui/LongPressTooltip.ts','src/ui/components/hoverPreview.ts','src/ui/components/ReorderableList.tsx','src/ui/PinnedNodeBar.tsx','src/ui/AddToOntologyModal.ts','src/index/SourceFacts.ts','src/index/SourceRepository.ts','src/adapters/obsidian/sourceAcquisition.ts','src/main.ts','src/settings.ts','src/ui/App.tsx','src/core/parser/metadata.ts','src/adapters/obsidian/externalUrl.ts'],{maximumMs:420000});
 }
 
 if(process.argv[1]&&resolve(process.argv[1])===fileURLToPath(import.meta.url)){

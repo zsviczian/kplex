@@ -17,13 +17,14 @@ function ownedElement(value: EventTarget | null, doc: Document): value is Elemen
 
 /** Dedicated handles may drag with mouse, pen or touch. A stationary handle remains a normal
  * button, allowing the caller's native keyboard-accessible reorder menu to open. */
-export function ReorderableList({ids, className, label, children, onMove, grabScroll = false, reorderEnabled = true}: {
+export function ReorderableList({ids, className, label, children, onMove, grabScroll = false, reorderEnabled = true, directionalLinks = false}: {
   ids: readonly string[]; className: string; label: string; children: ReactNode; onMove: (move: ReorderMove) => void;
   grabScroll?: boolean;
   reorderEnabled?: boolean;
+  directionalLinks?: boolean;
 }) {
   const root = useRef<HTMLDivElement>(null), latest = useRef({ids, onMove});latest.current = {ids, onMove};
-  useHorizontalDragScroll(root, grabScroll, "[data-reorder-handle]");
+  useHorizontalDragScroll(root, grabScroll, "[data-reorder-handle]", directionalLinks);
   useEffect(/** Capture exact document ownership; migrated/unmounted roots cannot commit old gestures. */ () => {
     const element = root.current, doc = element?.ownerDocument, owner = doc?.defaultView;
     if (!element || !doc || !owner || !reorderEnabled) return;

@@ -4,10 +4,12 @@
  * One document owner and an exact window pagehide lease prevent cross-view interference; close,
  * plugin unload and migration restore owned DOM and retire callbacks. No workspace layout writes,
  * persisted settings, browser fullscreen API or semantic/index operations cross this host boundary.
- * Windows toolbar geometry owns a separate per-entry chrome lease, retired on every fullscreen exit.
+ * Windows toolbar geometry owns a per-entry lease. Active main-workspace views also lease mobile
+ * navigation docking/hiding; inactive views and disposal restore native chrome independently of React.
  */
 import type { Component } from "obsidian";
 import { leaseFullscreenChrome } from "../adapters/obsidian/fullscreenChrome";
+import { leaseMobileNavigationChrome } from "../adapters/obsidian/mobileNavigationChrome";
 export type KplexDisplayModeState = Readonly<{ fullscreen: boolean; zen: boolean; revision: number }>;
 const fullscreenOwners = new WeakMap<Document, KplexDisplayModes>();
 
@@ -30,9 +32,27 @@ export class KplexDisplayModes {
   private releaseChrome: (() => void) | null = null;
   private disposed = false;
   private lifecycleCleanup = new Set<() => void>();
+  private hostActive = false;
+  private mainWorkspace = true;
+  private mobileNavigation: ReturnType<typeof leaseMobileNavigationChrome>;
 
-  /** Desktop availability comes from the existing host presentation facts, never browser fullscreen APIs. */
-  constructor(private readonly content: HTMLElement, readonly fullscreenAvailable: boolean) {}
+  /** Native overlay availability is supplied by the host, never the browser fullscreen API. */
+  constructor(private readonly content: HTMLElement, readonly fullscreenAvailable: boolean) {
+    this.mobileNavigation = leaseMobileNavigationChrome(content);
+  }
+
+  /** Normal sidebar focus leaves native navigation alone; immersive sidebar views may hide it. */
+  setHostActive(active: boolean, mainWorkspace = true): void {
+    if (this.disposed) return;
+    this.hostActive = active; this.mainWorkspace = mainWorkspace;
+    this.syncMobileNavigation();
+  }
+
+  /** A viewport overlay owns chrome until native deactivation exits it; normal docking is tab-only. */
+  private syncMobileNavigation(): void {
+    const {fullscreen, zen} = this.state;
+    this.mobileNavigation.update(fullscreen || this.hostActive && (this.mainWorkspace || zen), fullscreen || zen);
+  }
 
   /** React receives a stable immutable snapshot until an actual mode changes. */
   getSnapshot = (): KplexDisplayModeState => this.state;
@@ -56,6 +76,7 @@ export class KplexDisplayModes {
   /** Publish independent mode facts without persisted settings or semantic notifications. */
   private publish(fullscreen: boolean, zen = this.state.zen): void {
     this.state = { fullscreen, zen, revision: this.state.revision + 1 };
+    this.syncMobileNavigation();
     for (const listener of this.listeners) listener();
   }
   /** Restore an owned HTML control after same-document movement; realm identity may differ in popouts. */
@@ -114,6 +135,7 @@ export class KplexDisplayModes {
   dispose(): void {
     if (this.disposed) return;
     this.exitFullscreen(false); this.disposed = true;
+    this.mobileNavigation.dispose();
     for (const release of this.lifecycleCleanup) release(); this.lifecycleCleanup.clear();
     this.listeners.clear(); this.transitions.clear();
   }

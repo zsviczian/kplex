@@ -82,6 +82,7 @@ export function InfoBubble({
       aria-describedby={messageId}
     >
       <span className="kplex-info-bubble-pointer" aria-hidden="true" />
+      <div className="kplex-info-bubble-content">
       <div id={messageId} className="kplex-info-bubble-message" aria-live="polite">{message}</div>
       {((onAdvance && advanceLabel) || dismissLabel) ? <div className="kplex-info-bubble-actions">
         {onAdvance && advanceLabel
@@ -89,6 +90,7 @@ export function InfoBubble({
           : null}
         {dismissLabel ? <button type="button" onClick={dismissFromAction}>{dismissLabel}</button> : null}
       </div> : null}
+      </div>
     </div>}
   </FloatingLayer>;
 }

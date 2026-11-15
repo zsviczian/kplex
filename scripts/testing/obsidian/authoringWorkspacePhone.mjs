@@ -13,6 +13,8 @@ import {runControlledProbe} from './controlledProbe.mjs';
 import {validateTarget} from './runner.mjs';
 import {nativeBatch270} from './nativeBatch270.mjs';
 import {nativeDocumentSessions} from './nativeDocumentSessions.mjs';
+import {mobileSidebarCases} from './mobileSidebarCases.mjs';
+import {mobileNavigationCases} from './mobileNavigationCases.mjs';
 import {obsidianCliExecutable,spawnNativeSync} from './processTools.mjs';
 
 /** The selected Small vault must be the application's only live BrowserWindow. Never close or
@@ -56,7 +58,7 @@ async function phone(app,c){
   // target. Mobile getLeaf(true) may return null once the final native main leaf has detached.
   let mainSeed;workspace.iterateAllLeaves(leaf=>{if(!mainSeed&&leaf.view.containerEl.ownerDocument===document)mainSeed=leaf});
   f.check(mainSeed,'Initial palette canvas main group required for the native switching anchor');
-  const anchor=own(workspace.createLeafInParent(mainSeed.parent,mainSeed.parent.children.length));await anchor.openFile(a,{active:true,state:{mode:'source'}});
+  let anchor=own(workspace.createLeafInParent(mainSeed.parent,mainSeed.parent.children.length));await anchor.openFile(a,{active:true,state:{mode:'source'}});
   // Baseline Plex views are restored by nativeBatch's saved layout/session owner. Removing them
   // after the anchor opens proves each later command materializes its requested native type.
   for(const leaf of [...tabs(),...sidebars()])leaf.detach();
@@ -76,11 +78,15 @@ async function phone(app,c){
    f.check(await genericSidebar()===sidebar,'Generic open did not reuse the native sidebar');f.check(await explicitTab()===tab&&sidebars()[0]===sidebar,'Repeated explicit command changed the native sidebar');
    await workspace.revealLeaf(anchor);workspace.setActiveLeaf(anchor,{focus:true});await workspace.revealLeaf(tab);workspace.setActiveLeaf(tab,{focus:true});await f.wait(100);
    f.check(tab.parent.activeTab===tab||workspace.activeLeaf===tab,'Native tab switching did not select the normal canvas');f.check(f.p.documentSession(tab)===tabSession&&tabSession.centerPath===a.path&&sidebarSession.centerPath===b.path,'Native tab switching mixed independent session centers');
+   cases.push({mobileNavigation:await c.mobileNavigationCases(app,c,f,tab,anchor)});
    const serialized=structuredClone(workspace.getLayout()),mainRows=serializedLeaves(serialized.main),sidebarRows=[...serializedLeaves(serialized.left),...serializedLeaves(serialized.right)];
    const tabRow=mainRows.find(row=>row.id===tab.id),sidebarRow=sidebarRows.find(row=>row.id===sidebar.id);
    f.check(tabRow?.state?.type==='k-plex-react-view'&&sidebarRow?.state?.type==='k-plex-sidepanel-view','Native workspace serialized the requested types in their actual regions');
    f.check(tabRow.state.state?.plexSession?.centerPath===a.path&&sidebarRow.state.state?.plexSession?.centerPath===b.path,'Serialized native centers crossed surfaces');
    tab.detach();sidebar.detach();await workspace.changeLayout(serialized);await f.until(()=>tabs().length===1&&sidebars().length===1,'Phone serialized native views restored');
+   // Native layout restoration replaces the Markdown switching anchor too. Never reveal a
+   // detached pre-restore leaf during the next orientation's active-tab/chrome assertions.
+   anchor=own(workspace.getLeafById(anchor.id));f.check(anchor,'Restored native Markdown switching anchor');await anchor.loadIfDeferred();
    tab=own(tabs()[0]);sidebar=own(sidebars()[0]);
    // Native layout restoration may retain DeferredViews, especially in a closed mobile sidebar.
    // Materialize these exact saved leaves before asking their registered Plex views for readiness.
@@ -91,7 +97,8 @@ async function phone(app,c){
    cases.push({id,status:'passed',viewport:[innerWidth,innerHeight],device,explicitPaletteTab:true,genericSidebar:true,splitUnavailable:true,popoutUnavailable:true,independentCenters:true,nativeTabSelection:true,serializedAndRestored:true,closeReopenIndependent:true});
    tab.detach();sidebar.detach();await f.until(()=>!tabs().length&&!sidebars().length,'Phone orientation fixture surfaces closed');
   }
-  return{cases,startupEvidence:f.startupEvidence,limitations:'Desktop Obsidian mobile emulation only; no physical touch, iOS/Android WebView, attached keyboard, screen-reader or OS-level mobile acceptance.'};
+  const sidebarCases=await c.mobileSidebarCases(app,c,f,b);
+  return{cases,sidebarCases,startupEvidence:f.startupEvidence,limitations:'Desktop Obsidian mobile emulation only; no physical touch, iOS/Android WebView, attached keyboard, screen-reader or OS-level mobile acceptance.'};
  }catch(error){throw Error(String(error)+'; completed phone cases: '+JSON.stringify(cases));}
  finally{try{c.phoneIsolation(app,c.phonePath);await f.cleanup();}finally{geometryRestores.reverse().forEach(restore=>restore());}}
 }
@@ -114,7 +121,16 @@ function isolatedEvaluate(body,phase){isolation(phase);return evaluate('(()=>{co
 async function transition(mobile,phase){isolation(phase);cli('eval','code=('+phoneIsolation.toString()+')(app,'+JSON.stringify(selectedPath)+');app.emulateMobile('+mobile+')');await ready();isolation(phase+' complete');}
 const wait=ms=>new Promise(resolve=>setTimeout(resolve,ms));
 /** Mode transitions intentionally reload; every readiness poll reacquires the live vault/plugin. */
-async function ready(){const deadline=Date.now()+180000;let lastError;while(Date.now()<deadline){try{const value=evaluate('JSON.stringify({path:app.vault.adapter.getBasePath(),ready:!!app.plugins.plugins["k-plex"]?.actionManager})');assert.equal(resolve(value.path),target.vault);if(value.ready)return;}catch(error){lastError=String(error)}await wait(500)}throw Error('Phone-mode reload readiness: '+lastError);}
+async function ready(){const deadline=Date.now()+180000;let lastError,loading=false;while(Date.now()<deadline){try{
+ const value=evaluate('JSON.stringify({path:app.vault.adapter.getBasePath(),present:!!app.plugins.plugins["k-plex"],ready:!!app.plugins.plugins["k-plex"]?.actionManager})');assert.equal(resolve(value.path),target.vault);if(value.ready)return;
+ // Exact-build staging enables the plugin for this session without changing the user's enabled
+ // list. A mode reload legitimately drops that lease; reacquire it only in the isolated test vault.
+ if(!value.present&&!loading){
+  isolation('reacquire staged plugin after reload');
+  evaluate('(async()=>{('+phoneIsolation.toString()+')(app,'+JSON.stringify(selectedPath)+');await app.plugins.enablePlugin("k-plex");return JSON.stringify(true)})()');loading=true;
+ }
+ lastError=JSON.stringify(value);
+ }catch(error){lastError=String(error)}await wait(500)}throw Error('Phone-mode reload readiness: '+lastError);}
 try{
  const root=resolve(fileURLToPath(new URL('../../..',import.meta.url))),hash=path=>createHash('sha256').update(readFileSync(path)).digest('hex');
  for(const name of ['main.js','manifest.json','styles.css']){const artifact=hash(join(root,'dist',name));assert.equal(hash(join(target.pluginDir,name)),artifact,'Installed exact-build artifact '+name);report.artifacts[name]=artifact;}
@@ -125,8 +141,8 @@ try{
  mutated=true;isolatedEvaluate('const w=require("@electron/remote").getCurrentWindow();w.unmaximize();guard();w.setMinimumSize(200,200);guard();w.setContentSize(390,844);return JSON.stringify(true);','initial native geometry');
  if(!baseline.mobile)await transition(true,'enter mobile emulation');
  isolation('before native phone fixture');
- const definitions='c.fixture='+nativeBatch270.toString()+';c.sessions='+nativeDocumentSessions.toString()+';c.phoneIsolation='+phoneIsolation.toString()+';c.phonePath='+JSON.stringify(selectedPath)+';c.allowOnDemandRoutingStartup=true;c.fixturePrefix="__kplex302phone_";c.originalData='+JSON.stringify(readFileSync(join(target.pluginDir,'data.json'),'utf8'))+';c.originalEnabled='+JSON.stringify(readFileSync(join(target.config,'community-plugins.json'),'utf8'))+';';
- const result=await runControlledProbe('authoring-workspace-phone',phone,definitions,['src/main.ts','src/adapters/obsidian/presentationEnvironment.ts','src/core/plex/viewPresentation.ts','scripts/testing/obsidian/authoringWorkspacePhone.mjs'],{maximumMs:900000});
+ const definitions='c.mobileNavigationCases='+mobileNavigationCases.toString()+';c.captureRoot='+JSON.stringify(directory)+';c.mobileSidebarCases='+mobileSidebarCases.toString()+';c.fixture='+nativeBatch270.toString()+';c.sessions='+nativeDocumentSessions.toString()+';c.phoneIsolation='+phoneIsolation.toString()+';c.phonePath='+JSON.stringify(selectedPath)+';c.allowOnDemandRoutingStartup=true;c.fixturePrefix="__kplex302phone_";c.originalData='+JSON.stringify(readFileSync(join(target.pluginDir,'data.json'),'utf8'))+';c.originalEnabled='+JSON.stringify(readFileSync(join(target.config,'community-plugins.json'),'utf8'))+';';
+ const result=await runControlledProbe('authoring-workspace-phone',phone,definitions,['src/main.ts','src/adapters/obsidian/presentationEnvironment.ts','src/core/plex/viewPresentation.ts','scripts/testing/obsidian/authoringWorkspacePhone.mjs','scripts/testing/obsidian/mobileSidebarCases.mjs','scripts/testing/obsidian/mobileNavigationCases.mjs','src/ui/KplexDisplayModes.ts','src/ui/KplexView.tsx','src/adapters/obsidian/mobileNavigationChrome.ts'],{maximumMs:900000});
  assert.equal(result.status,'passed',result.error);report.status='passed';
 }catch(error){report.status='failed';report.error=String(error);process.exitCode=1;}
 finally{

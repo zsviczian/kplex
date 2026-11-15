@@ -9,6 +9,7 @@ import {readFileSync} from 'node:fs';
 import test from 'node:test';
 import {chromiumHarness} from './support/browserTypeScript.mjs';
 const result=await build({stdin:{resolveDir:process.cwd(),contents:`export {installKplexLongPressTooltips} from './src/ui/LongPressTooltip';
+export {HoverPreview,bindHoverPreview} from './src/ui/components/hoverPreview';
 import React from 'react';import {createRoot} from 'react-dom/client';import {flushSync} from 'react-dom';import {TooltipButton} from './src/ui/components/TooltipButton';
 let root;export function renderOwnedButton(label){root??=createRoot(document.querySelector('main').appendChild(document.createElement('div')));flushSync(()=>root.render(React.createElement(TooltipButton,{id:'owned',label,style:{position:'fixed',top:100,left:300}},React.createElement('span',{'aria-hidden':true},'Icon'))));}
 `},write:false,bundle:true,format:'iife',globalName:'sourceModules',platform:'browser'});
@@ -26,6 +27,29 @@ async function fixture(host){
   window.read=()=>{const el=document.querySelector('.kplex-control-tooltip');if(!el)return null;const r=el.getBoundingClientRect();return{text:el.firstChild.textContent,top:r.top,bottom:r.bottom,left:r.left,right:r.right,above:el.classList.contains('mod-top'),pointer:getComputedStyle(el).pointerEvents}};start();
  })()`);
 }
+
+for(const modifier of ['Control','Meta'])test(modifier+' note previews dismiss a visible tooltip and keep it hidden until hover ends',async()=>{
+ const host=await chromiumHarness(result.outputFiles[0].text);
+ try{await fixture(host);
+  const data=await host.evaluate(`(async()=>{
+   const element=document.querySelector('#bottom'),preview=new sourceModules.HoverPreview(),release=sourceModules.bindHoverPreview(document.querySelector('main'),preview);let opened=0;
+   preview.enter(element,new PointerEvent('pointerenter',{pointerType:'mouse',clientX:100,clientY:100}),()=>opened++);
+   fire('#bottom','pointerover');await pause(720);const before=!!read(),label=element.getAttribute('aria-label');
+   document.dispatchEvent(new KeyboardEvent('keydown',{bubbles:true,key:'${modifier}',${modifier==='Control'?'ctrlKey':'metaKey'}:true}));await pause(20);const hidden=read()===null;
+   document.dispatchEvent(new KeyboardEvent('keyup',{bubbles:true,key:'${modifier}'}));await pause(720);const noOverlap=read()===null;
+   fire('#bottom','pointerout');preview.clear();fire('#bottom','pointerover');await pause(720);const restored=!!read();release();
+   return{before,hidden,noOverlap,restored,opened,labelPreserved:label===element.getAttribute('aria-label')};
+  })()`);assert.deepEqual(data,{before:true,hidden:true,noOverlap:true,restored:true,opened:1,labelPreserved:true});
+ }finally{await host.cleanup()}
+});
+
+test('entering with the preview modifier already held suppresses the pending tooltip and unmount restores eligibility',async()=>{
+ const host=await chromiumHarness(result.outputFiles[0].text);
+ try{await fixture(host);
+  const data=await host.evaluate(`(async()=>{const element=document.querySelector('#bottom'),preview=new sourceModules.HoverPreview();let opened=0;fire('#bottom','pointerover',null,{ctrlKey:true});preview.enter(element,new PointerEvent('pointerenter',{pointerType:'mouse',ctrlKey:true}),()=>opened++);await pause(720);const hidden=read()===null;preview.clear();await pause(720);return{hidden,opened,restored:!!read(),label:element.getAttribute('aria-label')};})()`);
+  assert.deepEqual(data,{hidden:true,opened:1,restored:true,label:'Bottom control'});
+ }finally{await host.cleanup()}
+});
 
 test('explicit multiline toolbar hints retain line breaks and one measured tooltip',async()=>{
  const host=await chromiumHarness(result.outputFiles[0].text);

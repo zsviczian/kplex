@@ -9,6 +9,23 @@ import { buildLocaleCatalog, type LocaleCatalog, type LocaleTranslationMap } fro
 /** Construct the typed German table only when selected; importing this module allocates no catalog. */
 export function createGermanCatalog(): LocaleCatalog {
 const germanTranslations = {
+  "filter.visibilityDocuments": "Dokumente",
+  "filter.visibilityDocumentsHelp": "Dokumentanhänge wie PDF, EPUB, DOCX, Tabellen, Präsentationen und Textdateien anzeigen. Markdown hat einen eigenen Schalter.",
+  "filter.visibilityImages": "Bilder",
+  "filter.visibilityImagesHelp": "Bildanhänge wie PNG, JPG, GIF, SVG und HEIC anzeigen.",
+  "filter.visibilityMedia": "Audio & Video",
+  "filter.visibilityMediaHelp": "Audio- und Videoanhänge wie MP3, WAV, MP4, MOV und AVI anzeigen.",
+  "filter.visibilityOtherAttachments": "Andere Anhänge",
+  "filter.visibilityOtherAttachmentsHelp": "Andere Anhangsformate anzeigen, einschließlich Archive und Dateien ohne Erweiterung.",
+  "settings.sourceModifier": "Tastenkürzel für Verbindungsquellen",
+  "settings.sourceModifier.help": "Mit dieser Zusatztaste auf eine Verbindung klicken, um ihre einzige Quelle zu öffnen. Mehrere oder nicht verfügbare Quellen öffnen die Verbindungsdetails. Tastenkombinationen behalten ihre bisherigen Gesten.",
+  "settings.sourceModifier.none": "Keine",
+  "daily.gapOffer": "Mit {name} verknüpfen",
+  "daily.gapOfferHelp": "Nach dem Erstellen eine Verbindung zur vorherigen Tagesnotiz prüfen. Die gestrige Notiz fehlt.",
+  "tips.lateralDrag": "{alt}: Vorherige / Nächste · {mod}: Freund / Herausforderer. Ohne Zusatztaste gilt die letzte Auswahl.",
+  "tips.relationshipReview": "Beziehung und Ontologie im nächsten Dialog auswählen.",
+  "tips.hoverModifier": "Beim Zeigen {alt} halten, um Verbindungen hervorzuheben. Mit {mod} eine Notizvorschau anzeigen.",
+  "tips.hover": "Zeigen hebt Verbindungen hervor; {alt} wirkt sofort. Mit {mod} eine Notizvorschau anzeigen.",
   "startup.loading": "K-Plex wird geladen…",
   "startup.failed": "K-Plex konnte nicht initialisiert werden. Lade das Plugin neu, um es erneut zu versuchen.",
   "styles.nameConflict": "Ein Stil für {name} existiert bereits. Wähle einen anderen Tag.",

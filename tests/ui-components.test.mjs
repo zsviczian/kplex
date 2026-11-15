@@ -109,6 +109,11 @@ const dispatchPointer = (target) => {
 const setViewport = (view, width, height) => {
   Object.defineProperty(view, "innerWidth", { configurable: true, value: width });
   Object.defineProperty(view, "innerHeight", { configurable: true, value: height });
+  // This fixture simulates a whole viewport resize, not an independently opened soft keyboard.
+  // Keep the native visual viewport consistent; bounded-layer tests exercise keyboard divergence.
+  if (view.visualViewport) for (const [key, value] of Object.entries({width, height, offsetLeft: 0, offsetTop: 0})) {
+    Object.defineProperty(view.visualViewport, key, {configurable: true, value});
+  }
 };
 const trackListeners = (target, types) => {
   const nativeAdd = target.addEventListener.bind(target);
@@ -1546,6 +1551,39 @@ test("FloatingLayer owner-document browser behavior", () => {
   runBrowserDom(floatingLayerBrowserEntry(), "FloatingLayer browser behavior passed");
 });
 
+/** Real DOM geometry covers narrow hosts in wide viewports, transformed drawers and keyboard changes. */
+function boundedFloatingLayerBrowserEntry() { return `
+import React,{useRef,useState} from 'react';
+import {flushSync} from 'react-dom';
+import {createRoot} from 'react-dom/client';
+import {FloatingLayer} from ${JSON.stringify(join(root,'src/ui/components/FloatingLayer.tsx'))};
+const result=document.querySelector('#result'),check=(value,message)=>{if(!value)throw Error(message)};
+try {
+ document.body.style.margin='0';
+ const cases=[[480,320,0],[600,400,192],[1024,400,600],[1280,580,680],[390,250,112]];
+ for(const[viewportWidth,width,left]of cases){
+  Object.defineProperty(window,'innerWidth',{configurable:true,value:viewportWidth});
+  Object.defineProperty(window,'innerHeight',{configurable:true,value:650});
+  const visual=Object.assign(new EventTarget(),{width:viewportWidth,height:650,offsetLeft:0,offsetTop:0});
+  Object.defineProperty(window,'visualViewport',{configurable:true,value:visual});
+  const host=document.createElement('div');host.dataset.floatingLayerBoundary='';
+  Object.assign(host.style,{position:'fixed',left:left+'px',top:'30px',width:width+'px',height:'500px',transform:'translateZ(0)',overflow:'hidden'});document.body.append(host);
+  function Consumer(){const anchor=useRef(null),panel=useRef(null),[open,setOpen]=useState(false);return <><button ref={anchor} style={{position:'absolute',right:10,top:20}} onClick={()=>setOpen(!open)}>Open</button><FloatingLayer open={open} anchorRef={anchor} panelRef={panel} insideRoots={()=>[anchor.current,panel.current]} onDismiss={()=>setOpen(false)} portalTarget={doc=>doc.body} positioning={{preferredWidth:560,minimumWidth:300,viewportMargin:8,anchorGap:6,minimumMaxHeight:180}}>{style=><div ref={panel} data-bounded-panel style={{...style,overflow:'auto',boxSizing:'border-box'}}><div style={{height:1200}}><button>First</button></div><button data-last>Last</button></div>}</FloatingLayer></>}
+  const root=createRoot(host);flushSync(()=>root.render(<Consumer/>));flushSync(()=>host.querySelector('button').click());
+  const panel=host.querySelector('[data-bounded-panel]');check(panel&&panel.parentElement===host,'Layer escaped its mobile host');
+  const verify=()=>{const p=panel.getBoundingClientRect(),h=host.getBoundingClientRect();check(p.left>=Math.max(0,h.left)&&p.right<=Math.min(viewportWidth,h.right)+1,'Panel crossed a sidepanel or viewport edge');check(p.top>=Math.max(visual.offsetTop,h.top)&&p.bottom<=Math.min(visual.offsetTop+visual.height,h.bottom)+1,'Panel crossed keyboard/host bounds');check(panel.style.position==='absolute','Transformed drawer requires local coordinates');};
+  verify();panel.scrollTop=panel.scrollHeight;check(panel.querySelector('[data-last]').getBoundingClientRect().bottom<=panel.getBoundingClientRect().bottom+1,'Last action is unreachable');
+  host.style.width=Math.min(width,280)+'px';flushSync(()=>window.dispatchEvent(new Event('resize')));verify();
+  visual.height=260;flushSync(()=>visual.dispatchEvent(new Event('resize')));verify();
+  flushSync(()=>panel.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',bubbles:true,cancelable:true})));check(!host.querySelector('[data-bounded-panel]'),'Escape did not retire bounded portal');
+  root.unmount();host.remove();
+ }
+ result.dataset.status='passed';result.textContent='Bounded mobile floating layers passed';
+}catch(error){result.dataset.status='failed';result.textContent=String(error.stack||error)}
+`; }
+
+test('Floating layers stay inside mobile sidepanels across viewport breakpoints and keyboard resizing',()=>runBrowserDom(boundedFloatingLayerBrowserEntry(),'Bounded mobile floating layers passed'));
+
 test("InfoBubble rendered browser behavior", () => {
   runBrowserDom(infoBubbleBrowserEntry(), "InfoBubble browser behavior passed");
 });
@@ -1707,7 +1745,7 @@ try {
  const index={get:path=>pages.get(path),isSemanticWriteReady:()=>true,neighbours:(page,role)=>(scene.edges??[]).filter(edge=>edge.sourcePath===page.path&&edge.role===role).map(edge=>({page:pages.get(edge.targetPath),role:edge.role,relationType:edge.relationType,typeDefinition:edge.typeDefinition,linkDirection:edge.direction})),gateNeighbourPaths:(page,gate)=>blocked.get(gate)||new Set()};
  const calls=[],navigated=[],destinationIntents=[],hostLeaf={id:"owning-leaf"},actionSurfaceId="drop-fixture";
  const snapshot={mounted:true,interactionRevision:1,center:{identity:origin.path}};let shown=null,hoverCleared=0;
- const plugin={app:{dragManager:{draggable:{type:"file",file:{path:target.path}}},vault:{getFileByPath:path=>filePaths.has(path)?pages.get(path)?.file??{path}:null}},
+ const plugin={settings:{lateralCreationRoles:{left:"left",right:"right"}},app:{dragManager:{draggable:{type:"file",file:{path:target.path}}},vault:{getFileByPath:path=>filePaths.has(path)?pages.get(path)?.file??{path}:null}},
   actionManager:{readSnapshot:()=>({...snapshot,center:{...snapshot.center}})},
   openStructuralNodeDrop:()=>false,openRelationModal:options=>calls.push(options),showKplexMenuAtPosition:(menu,point,doc)=>{shown={menu,point,doc}}};
  const translate=key=>key,clearHoverIntent=()=>hoverCleared++,onActivate=(page,intent)=>{navigated.push(page);destinationIntents.push(intent)};

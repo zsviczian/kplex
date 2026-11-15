@@ -7,7 +7,7 @@ import test from 'node:test';
 import {chromiumHarness} from './support/browserTypeScript.mjs';
 import {plexViewBrowserModules} from './support/plexViewBrowser.mjs';
 import {canvasSceneFixture} from './support/canvasSceneFixture.mjs';
-const output=await plexViewBrowserModules({captureNotices:true});
+const output=await plexViewBrowserModules({captureNotices:true,platform:{isMobile:false,isIosApp:false,isWin:true}});
 const register=`
  const releases=[];
  const attach=ui=>{const release=plugin.actionManager.registerSurface({id:ui.props.actionSurfaceId,generation:1,
@@ -17,6 +17,63 @@ const register=`
    ui.props.activePath=page.path;ui.render();return true};ui.render();return ui};
  const dispatch=async(ui,id)=>{const result=await plugin.actionManager.dispatch({id,source:'local-hotkey',surfaceId:ui.props.actionSurfaceId});ui.render();await wait();return result};
 `;
+
+test('canvas usage tips stay viewport-sized and stationary across camera transforms and narrow views',async()=>{
+ const host=await chromiumHarness(output.outputFiles[0].text+';window.sourceModules=sourceModules;');
+ try{assert(await host.evaluate(`(async()=>{${canvasSceneFixture}
+  settings.backgroundColor='#f3f0cf';
+  for(const view of ['classic','mindmap','wuxing']){
+   const ui=await mount(M.builtInPlexViews.resolve(view)),viewport=ui.container.querySelector('.kplex-plex'),camera=viewport.querySelector('.kplex-camera');
+   const tip=viewport.querySelector('.kplex-canvas-usage-tips');check(tip?.textContent.includes('Hold'),'A real keyboard convention must render the production tip');
+   check(getComputedStyle(tip).backgroundColor==='rgba(0, 0, 0, 0)','Usage hints keep a transparent background');
+   for(const width of [320,640,1200]){
+    ui.container.style.width=width+'px';await wait();const v=viewport.getBoundingClientRect(),baseline=tip.getBoundingClientRect();
+    check(baseline.width>=width-40&&baseline.height<100,'Tip must wrap by words in the viewport: '+JSON.stringify({view,width,tip:baseline.toJSON()}));
+    check(baseline.top>=v.top+30,'Usage hints leave the heading and area-caption row clear');
+    for(const transform of ['translate(750px,260px) scale(1)','translate(-500px,400px) scale(.3)','translate(50px,-900px) scale(2)']){
+     camera.style.transform=transform;const r=tip.getBoundingClientRect();
+     check(r.left===baseline.left&&r.top===baseline.top&&r.width===baseline.width&&r.height===baseline.height,'Camera motion must not move or scale instructional UI');
+     check(r.left>=v.left&&r.right<=v.right&&r.top>=v.top,'Tip must fit the owning canvas');
+    }
+   }
+   ui.close();
+  }
+  return true;
+ })()`));}finally{await host.cleanup()}
+});
+
+for(const kind of ['markdown','excalidraw'])test(kind+': focusing a bottom-edge native editor cannot scroll the canvas or detach its controls and gate coordinates',async()=>{
+ const host=await chromiumHarness(output.outputFiles[0].text+';window.sourceModules=sourceModules;');
+ await host.command('Emulation.setDeviceMetricsOverride',{width:1280,height:1000,deviceScaleFactor:1,mobile:false});
+ try{assert(await host.evaluate(`(async()=>{${canvasSceneFixture}
+  const ui=await mount(M.builtInPlexViews.resolve('classic')),viewport=ui.container.querySelector('.kplex-plex'),camera=viewport.querySelector('.kplex-camera');
+  const controls=viewport.querySelector('.kplex-zoom-controls'),tint=viewport.querySelector('.kplex-compass-background'),gate=viewport.querySelector('.kplex-role-center .gate-wrap-bottom');
+  check(controls&&tint&&gate,'Production fixed controls, directional tint and center gate must be mounted');
+  const before={controls:controls.getBoundingClientRect().toJSON(),tint:tint.getBoundingClientRect().toJSON(),gate:gate.getBoundingClientRect().toJSON(),camera:camera.style.transform};
+  // Native view startup can focus a textarea/contenteditable after its near-bottom editor has
+  // expanded beyond the aperture. The viewport must clip it without becoming a scroll container.
+  const frame=document.createElement('div');frame.className='kplex-central-editor-overlay';frame.style.cssText='left:30px;top:'+(viewport.clientHeight-35)+'px;width:400px;height:600px';
+  frame.innerHTML='<div class="kplex-central-editor-content"><div class="kplex-central-editor-document"><div class="kplex-central-editor-leaf-host"><div class="view-content"><div class="${kind==='markdown'?'markdown-source-view':'excalidraw'}" style="height:100%;position:relative"><textarea style="position:absolute;bottom:0;width:200px;height:60px"></textarea></div></div></div></div></div>';
+  viewport.append(frame);frame.querySelector('textarea').focus();await wait();
+  check(document.activeElement===frame.querySelector('textarea'),'Delayed native focus must actually occur');
+  check(viewport.scrollTop===0&&viewport.scrollLeft===0,'Editor focus must not scroll the graph viewport: '+JSON.stringify({top:viewport.scrollTop,left:viewport.scrollLeft}));
+  for(const [name,element]of [['controls',controls],['tint',tint],['gate',gate]])check(JSON.stringify(element.getBoundingClientRect().toJSON())===JSON.stringify(before[name]),name+' moved independently of the camera');
+  check(camera.style.transform===before.camera,'Editor focus must not change graph camera intent');
+  frame.remove();ui.close();return true;
+ })()`));}finally{await host.cleanup()}
+});
+
+test('short landscape canvases keep fullscreen and Zen hit-testable beside search',async()=>{
+ const host=await chromiumHarness(output.outputFiles[0].text+';window.sourceModules=sourceModules;');
+ await host.command('Emulation.setDeviceMetricsOverride',{width:1000,height:600,deviceScaleFactor:1,mobile:false});
+ try{assert(await host.evaluate(`(async()=>{${canvasSceneFixture}
+  const ui=await mount(M.builtInPlexViews.resolve('classic'));ui.container.style.width='820px';ui.container.style.height='27px';ui.props.fullscreenAvailable=true;ui.render();await wait();await wait();
+  const viewport=ui.container.querySelector('.kplex-plex'),bounds=viewport.getBoundingClientRect();
+  for(const mode of ['fullscreen','zen']){const button=viewport.querySelector('[data-kplex-display-control="'+mode+'"]'),r=button.getBoundingClientRect(),x=r.left+r.width/2,y=r.top+r.height/2;
+   check(r.top>=bounds.top-1&&r.bottom<=bounds.bottom+1&&button.contains(document.elementFromPoint(x,y)),'Short canvas must expose '+mode+' instead of toolbar/search overlap: '+JSON.stringify({bounds:bounds.toJSON(),button:r.toJSON(),hit:document.elementFromPoint(x,y)?.outerHTML.slice(0,180),viewport:viewport.className,bottom:getComputedStyle(button.parentElement).bottom}));}
+  ui.close();return true;
+ })()`));}finally{await host.cleanup()}
+});
 
 // Obsidian's shipped app.css applies this tablet rule. Insert it after plugin CSS to
 // exercise specificity as well as coarse-pointer sizing; Chromium is not iOS validation.

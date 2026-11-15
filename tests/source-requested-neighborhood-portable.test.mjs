@@ -450,6 +450,34 @@ async function compareGates(result, full, scope, semantic, expected, view, fixtu
   assert.deepEqual(result.preparation.sources, result.certificate.relations.contributors.sources);
 }
 
+test("private center gates independently filter all four native attachment groups without source acquisition", async () => {
+  const files = ["document.pdf", "image.png", "video.mp4", "archive.zip"];
+  const keys = ["showDocumentAttachments", "showImageAttachments", "showMediaAttachments", "showOtherAttachments"];
+  const f = await fixture(false, f => {
+    f.add("A.md", "", { Children: files.map(path => `[[${path}]]`) });
+    for (const path of files) f.add(path, "");
+  });
+  try {
+    const semantic = assigned(), full = await fullNeighborhoodOracle(M, f, semantic, runtime());
+    const views = Array.from({length: 16}, (_, mask) => centerGateSettings(Object.fromEntries(keys.map((key, bit) => [key, Boolean(mask & (1 << bit))]))));
+    const expected = [];
+    for (const [mask, view] of views.entries()) {
+      const index = await fullCenterIndex(M, f, full, semantic, view);
+      try {
+        const gates = structuredClone(index.gateStats(index.get("A.md")));
+        assert.equal(gates.bottom.visibleCount, keys.filter((_, bit) => mask & (1 << bit)).length);
+        expected.push(gates);
+      } finally { index.destroy(); }
+    }
+    const check = guard(f);
+    for (const [i, view] of views.entries()) {
+      const result = await f.makeReader().prepareCenterGates(request(), policy({settings: semantic}), centerGatePolicy(view), runtime());
+      await compareGates(result, full, request(), semantic, expected[i], view, f);
+    }
+    check();
+  } finally { f.close(); }
+});
+
 test("private center gates equal the full current GraphIndex across visibility, sort and top-N policies", async () => {
   const f = await fixture(false, f => {
     configureNeighborhood(f);
@@ -463,7 +491,9 @@ test("private center gates equal the full current GraphIndex across visibility, 
       const index = await fullCenterIndex(M, f, full, semantic, view);
       try { expected.push(currentNeighborhoodView(index, "A.md").gates); } finally { index.destroy(); }
     }
-    assert.notDeepEqual(expected[0], expected[10], "All-excluded policy must change visible counts");
+    const allExcluded = views.findIndex(view => view.excludeFilepaths.length === 1 && view.excludeFilepaths[0] === "");
+    assert(allExcluded >= 0, "All-excluded presentation case is required");
+    assert.notDeepEqual(expected[0], expected[allExcluded], "All-excluded policy must change visible counts");
     const check = guard(f);
     for (const [i, view] of views.entries()) {
       const result = await f.makeReader().prepareCenterGates(request(), policy({ settings: semantic }), centerGatePolicy(view), runtime());

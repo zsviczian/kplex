@@ -10,6 +10,21 @@
   min-height: 0;
 }
 
+.kplex-canvas-usage-tips {
+  position: absolute;
+  z-index: 4;
+  /* Leave the first row for the view heading and relationship-area captions. */
+  top: 32px;
+  left: 16px;
+  right: 16px;
+  color: var(--text-muted);
+  font-size: var(--font-ui-smaller);
+  text-align: center;
+  pointer-events: none;
+  overflow-wrap: anywhere;
+}
+.kplex-canvas-usage-tips.is-contextual { color: var(--text-normal); }
+
 .kplex-app {
   position: relative;
   color: var(--kplex-text, var(--text-normal));
@@ -118,6 +133,8 @@
 
 .kplex-info-bubble {
   z-index: 1000;
+  display: flex;
+  flex-direction: column;
   box-sizing: border-box;
   padding: 12px;
   color: var(--text-normal);
@@ -126,6 +143,8 @@
   border-radius: var(--radius-m);
   box-shadow: var(--shadow-s);
 }
+
+.kplex-info-bubble-content { min-height: 0; overflow: auto; overflow-wrap: anywhere; }
 
 .kplex-info-bubble-pointer {
   position: absolute;
@@ -147,6 +166,7 @@
 
 .kplex-info-bubble-actions {
   display: flex;
+  flex-wrap: wrap;
   gap: 8px;
   justify-content: flex-end;
   margin-top: 10px;
@@ -291,7 +311,10 @@ button.kplex-sidecar-unfold-plex:hover,
 
 .kplex-workspace { min-height: 0; display: flex; }
 .kplex-graph-area { position: relative; min-width: 0; min-height: 0; flex: 1; overflow: hidden; }
-.kplex-plex { position: absolute; inset: 0; overflow: hidden; user-select: none; cursor: grab; }
+/* Native editor startup may focus content beyond the canvas aperture. hidden would let the
+   browser scroll this viewport, displacing HUD/tint and invalidating gate pointer coordinates.
+   clip keeps the camera as the only canvas motion owner; editor/list scroll lanes stay native. */
+.kplex-plex { position: absolute; inset: 0; overflow: clip; user-select: none; cursor: grab; }
 .kplex-plex:active { cursor: grabbing; }
 .kplex-plex::after {
   content: "";
@@ -493,7 +516,7 @@ button.kplex-sidecar-unfold-plex:hover,
 .kplex-sibling-scroll::-webkit-scrollbar-thumb { background: var(--background-modifier-hover); border-radius: 8px; }
 .kplex-sibling-content { position: relative; width: 100%; min-height: 100%; }
 
-.kplex-zoom-controls { position: absolute; z-index: 20; right: 12px; bottom: 12px; display: flex; gap: 5px; }
+.kplex-zoom-controls { position: absolute; z-index: 20; right: 12px; bottom: clamp(0px, calc(100% - 42px), 12px); display: flex; gap: 5px; }
 .kplex-zoom-controls button,
 button.kplex-layout-toggle,
 button.kplex-zone-filter-button,
@@ -517,6 +540,7 @@ button.kplex-sidecar-unfold-plex,
 .kplex-history-list.is-mouse-scrolling, .kplex-history-list.is-mouse-scrolling button,
 .kplex-pinned-bar.is-mouse-scrolling, .kplex-pinned-bar.is-mouse-scrolling button { cursor: grabbing; }
 .kplex-history-list::-webkit-scrollbar, .kplex-pinned-bar::-webkit-scrollbar { display: none; }
+.kplex-history-list, .kplex-pinned-bar { touch-action: pan-x pinch-zoom; overscroll-behavior-x: contain; }
 .kplex-history-list button { flex: 0 0 auto; width: 180px; max-width: 180px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-align: left; justify-content: flex-start; color: var(--text-normal); border: 1px solid var(--background-modifier-border); border-radius: 6px; background: var(--background-primary); padding: 5px 9px; cursor: pointer; font-size: 11px; }
 .kplex-history-list button { display: flex; align-items: center; gap: 5px; }
 .kplex-history-list button > .kplex-icon,
@@ -1118,7 +1142,7 @@ button.kplex-sidecar-unfold-plex,
 
 .kplex-layout-controls {
   left: 14px;
-  bottom: 15px;
+  bottom: clamp(0px, calc(100% - 45px), 15px);
   gap: 8px;
   padding: 0;
   border: 0;
@@ -2344,6 +2368,11 @@ button.kplex-sidecar-unfold-plex,
   background: var(--background-primary-alt, var(--background-primary));
   box-shadow: var(--shadow-s);
 }
+/* Bounded mobile disclosures share the canvas's local stack rather than the body's native
+   popover stack. Keep every shared disclosure above scene tools and Sidecar edge controls. */
+.kplex-app[data-floating-layer-boundary] > :is(.kplex-filter-portal, .kplex-footprints-panel, .kplex-info-bubble) {
+  z-index: 95;
+}
 /* Obsidian's styled tooltip is also portalled outside the filter panel. While this overlay is
    open, keep those tooltips one layer above it instead of letting the panel cover them. */
 body.kplex-filter-panel-open .tooltip { z-index: 100300; }
@@ -2454,7 +2483,6 @@ body.kplex-filter-panel-open .tooltip { z-index: 100300; }
 .kplex-gate-count { white-space: nowrap; min-width: max-content; }
 
 @media (max-width: 520px) {
-  .kplex-filter-portal { width: calc(100vw - 16px); left: 8px; }
   .kplex-lens-editor-row { grid-template-columns: 1fr; }
   .kplex-lens-condition-field,
   .kplex-lens-condition-property,
@@ -2961,7 +2989,7 @@ button.kplex-style-manager-row { height: fit-content; }
 }
 .kplex-quick-lens-row {
   display: grid;
-  grid-template-columns: minmax(105px, .9fr) minmax(115px, 1fr) minmax(130px, 1.4fr);
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 130px), 1fr));
   gap: 7px;
   align-items: end;
 }
@@ -2976,8 +3004,6 @@ button.kplex-style-manager-row { height: fit-content; }
 
 @media (max-width: 520px) {
   .kplex-filter-visibility-grid { grid-template-columns: 1fr; }
-  .kplex-quick-lens-row { grid-template-columns: 1fr 1fr; }
-  .kplex-quick-lens-row label:last-child { grid-column: 1 / -1; }
   .kplex-create-name-pair { gap: 6px; }
   .kplex-create-alias-input { min-width: 62px; }
 }
@@ -3346,9 +3372,13 @@ button.kplex-style-manager-row { height: fit-content; }
   padding: 0;
 }
 .kplex-scene-tools.is-suspended { display: none; }
+/* In phone landscape, native chrome can leave only one row of canvas. Reuse the measured
+   viewport state to place search beside the bottom controls instead of covering Zen/full screen. */
+.kplex-plex.is-short-canvas .kplex-scene-tools { top: 0; left: 60px; right: auto; }
 .kplex-find { display: flex; align-items: center; gap: 4px; min-width: 0; }
 .kplex-footprints-panel {
   position: fixed;
+  box-sizing: border-box;
   z-index: var(--layer-popover);
   display: flex;
   flex-direction: column;
@@ -3360,7 +3390,7 @@ button.kplex-style-manager-row { height: fit-content; }
   box-shadow: var(--shadow-s);
 }
 .kplex-footprints-heading { display: flex; align-items: center; gap: var(--size-4-2); padding: var(--size-4-2); }
-.kplex-footprints-heading strong { flex: 1; }
+.kplex-footprints-heading strong { flex: 1; min-width: 0; overflow-wrap: anywhere; }
 .kplex-footprints-heading > span, .kplex-footprints-empty { color: var(--text-muted); font-size: var(--font-ui-small); }
 .kplex-footprints-empty { padding: var(--size-4-3); }
 .kplex-footprints-list { max-height: 320px; min-height: 0; overflow-y: auto; overscroll-behavior: contain; touch-action: pan-y; }
@@ -3659,6 +3689,11 @@ button.kplex-sidecar-unfold-plex:focus-visible,
 .kplex-action-filters .kplex-action-conflicts-filter.is-active { color: var(--text-on-accent); background-color: var(--background-modifier-error); border-color: var(--background-modifier-error); }
 
 /* One owning-document fullscreen lease covers workspace chrome below native popovers/dialogs. */
+/* Match the native layout docking used by Excalidraw: reserve the bar's actual height rather
+   than guessing bottom padding. Native safe-area, keyboard, floating/hidden-nav and tablet rules
+   remain authoritative; the active view's lease restores them on tab change or close. */
+body.is-mobile > .app-container > .mobile-navbar.kplex-mobile-navbar-docked { position: relative; }
+body.is-mobile > .app-container > .mobile-navbar.kplex-mobile-navbar-hidden { display: none; }
 .kplex-fullscreen-anchor { display: none; }
 .kplex-fullscreen-overlay {
   position: fixed;

@@ -12,7 +12,7 @@ test('source gate creation intent follows RTL ports and modifiers independently 
   assert.equal(role,M.classicNodePorts(flipped)[side]);
   for(const targetSide of ['top','bottom','left','right']){
    assert.equal(M.gateCreationRole(role,none),role,'Destination '+targetSide+' must not invert source intent');
-   for(const key of Object.keys(none))assert.equal(M.gateCreationRole(role,{...none,[key]:true}),role==='left'?'previous':role==='right'?'next':role);
+   for(const key of Object.keys(none))assert.equal(M.gateCreationRole(role,{...none,[key]:true}),key==='altKey'?(role==='left'?'previous':role==='right'?'next':role):role);
   }
  }
  assert.equal(M.sourceGateRole('left',{left:'right'},false),'right','Explicit view port wins over fallback');
@@ -40,6 +40,13 @@ for(const lateralArrangement of ['split','left'])for(const graphDepth of [1,2])t
  }
  assert(flipped.nodes.filter(n=>n.role==='left').every(n=>n.x>0));
  assert(flipped.nodes.filter(n=>n.role==='right').every(n=>lateralArrangement==='left'?n.x>0:n.x<0));
+});
+
+test('relationship family and source-modifier preferences validate independently and preserve future settings',()=>{
+ const raw={lateralCreationRoles:{left:'previous',right:'next'},connectionSourceModifier:'shift',futureSetting:{keep:true}};
+ const loaded=M.migrateAndMergeSettings(raw);assert.deepEqual(loaded.lateralCreationRoles,raw.lateralCreationRoles);assert.equal(loaded.connectionSourceModifier,'shift');assert.deepEqual(loaded.futureSetting,raw.futureSetting);
+ const invalid=M.migrateAndMergeSettings({lateralCreationRoles:{left:'next',right:'previous'},connectionSourceModifier:'alt'});
+ assert.deepEqual(invalid.lateralCreationRoles,{left:'left',right:'right'});assert.equal(invalid.connectionSourceModifier,'none');
 });
 
 test('Compass opt-in has a false default and uses the existing validated configuration boundary',()=>{

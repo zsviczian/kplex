@@ -53,3 +53,9 @@ export function adjacentJournalEntry<T extends {date: string}>(entries: readonly
   }
   return chosen;
 }
+
+/** Offer a missed-day bridge only for today's new journal, never for yesterday or arbitrary dates. */
+export function todayJournalGap<T extends {date: string}>(entries: readonly T[], date: string, today: string): T | null {
+  if (!calendarDay(date) || date !== today || entries.some(/** Existing today or yesterday needs no creation-gap prompt. */ row => row.date === date || row.date === shiftCalendarDay(date, -1))) return null;
+  return adjacentJournalEntry(entries, date, "previous");
+}

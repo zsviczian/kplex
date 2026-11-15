@@ -130,6 +130,7 @@
  * close subtree/native inputs independently of unrelated graph publications. Per-file commit
  * receipts retire coordinator backlog before subscriber notifications can deliver later edits.
  */
+import {captureAttachmentVisibility, isAttachmentVisible, attachmentVisibilitySignature} from "../core/plex/attachmentVisibility";
 import {CLASSIC_NEIGHBOR_ROLES, classicSiblingCandidateLimit, projectClassicNeighborhood} from "../core/plex/views/classic/projection";
 import {fixedPinPaths} from "../core/plex/savedPins";
 import type {TAbstractFile} from 'obsidian';
@@ -2814,7 +2815,7 @@ export class GraphIndex {
   private semanticVisibilitySettings() {
     return {
       excludeFilepaths: [...this.plugin.settings.excludeFilepaths], showVirtualNodes: this.plugin.settings.showVirtualNodes,
-      showAttachments: this.plugin.settings.showAttachments, showFolderNodes: this.plugin.settings.showFolderNodes,
+      showAttachments: this.plugin.settings.showAttachments, ...captureAttachmentVisibility(this.plugin.settings), showFolderNodes: this.plugin.settings.showFolderNodes,
       showTagNodes: this.plugin.settings.showTagNodes, showPageNodes: this.plugin.settings.showPageNodes,
       showURLNodes: this.plugin.settings.showURLNodes, showInferredNodes: this.plugin.settings.showInferredNodes,
     };
@@ -3264,7 +3265,7 @@ export class GraphIndex {
       JSON.stringify(graphCompilerSettingsFromLegacy(this.plugin.settings)) === settingsSignature
       && JSON.stringify({
         excludeFilepaths: [...this.plugin.settings.excludeFilepaths], showVirtualNodes: this.plugin.settings.showVirtualNodes,
-        showAttachments: this.plugin.settings.showAttachments, showFolderNodes: this.plugin.settings.showFolderNodes,
+        showAttachments: this.plugin.settings.showAttachments, ...captureAttachmentVisibility(this.plugin.settings), showFolderNodes: this.plugin.settings.showFolderNodes,
         showTagNodes: this.plugin.settings.showTagNodes, showPageNodes: this.plugin.settings.showPageNodes,
         showURLNodes: this.plugin.settings.showURLNodes, showInferredNodes: this.plugin.settings.showInferredNodes,
       }) === gateSignature;
@@ -4238,7 +4239,7 @@ export class GraphIndex {
       // needs a new cover as well as a repaint. Keep the predecessor readable until publication.
       if (keys.some(/** Only ordering, visibility and candidate limits can change retained native membership. */ key =>
         ["maxItemCount", "nodeSortOrder", "renderAlias", "nameFields", "nodeTitleScript", "excludeFilepaths",
-          "showFolderNodes", "showTagNodes", "showPageNodes", "showAttachments", "showURLNodes", "showVirtualNodes", "showInferredNodes"].includes(key))) {
+          "showFolderNodes", "showTagNodes", "showPageNodes", "showAttachments", "showDocumentAttachments", "showImageAttachments", "showMediaAttachments", "showOtherAttachments", "showURLNodes", "showVirtualNodes", "showInferredNodes"].includes(key))) {
         const centers = [...this.semanticDemandCounts.keys()].filter(/** Only active native folder centers own this finite replacement. */
           path => path.startsWith("folder:"));
         await Promise.all(centers.map(/** Each folder compiles direct native members through its existing P2 owner. */
@@ -9723,7 +9724,7 @@ export class GraphIndex {
     const isVirtual = !page.file && !page.isFolder && !page.isTag && !page.url;
     const isAttachment = Boolean(page.file && page.file.extension !== "md");
     if (!settings.showVirtualNodes && isVirtual) return false;
-    if (!settings.showAttachments && isAttachment) return false;
+    if (isAttachment && !isAttachmentVisible(page.file?.extension ?? "", settings)) return false;
     if (!settings.showFolderNodes && page.isFolder) return false;
     if (!settings.showTagNodes && page.isTag && !tagNavigation) return false;
     if (!settings.showPageNodes && !page.isFolder && !page.isTag && !isAttachment && !page.url) return false;
@@ -9787,7 +9788,7 @@ export class GraphIndex {
     return [
       settings.showInferredNodes ? "1" : "0",
       settings.showVirtualNodes ? "1" : "0",
-      settings.showAttachments ? "1" : "0",
+      attachmentVisibilitySignature(settings),
       settings.showFolderNodes ? "1" : "0",
       settings.showTagNodes ? "1" : "0",
       settings.showPageNodes ? "1" : "0",

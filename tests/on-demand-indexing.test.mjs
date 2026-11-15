@@ -8,7 +8,7 @@ import { chromiumHarness } from './support/browserTypeScript.mjs';
 import { centerGateSettings } from './support/requestedCenterGateFixture.mjs';
 
 const bundle = await contributorBrowserBundle(['src/index/GraphIndex.ts', 'src/index/GraphBuilder.ts', 'src/index/GraphState.ts', 'src/index/IndexSnapshot.ts',
-  'src/core/graph/settingsPolicy.ts', 'src/core/contracts/ontologyConfiguration.ts', 'src/core/graph/relations.ts', 'src/core/plex/savedPins.ts', 'src/core/plex/typographyPreferences.ts', 'src/core/contracts/appearance.ts', 'src/core/plex/colorPreferences.ts', 'src/core/plex/appearanceThemes.ts', 'src/ui/layout.ts', 'src/adapters/obsidian/savedSettingsRefresh.ts']);
+  'src/core/graph/settingsPolicy.ts', 'src/core/contracts/ontologyConfiguration.ts', 'src/core/graph/relations.ts', 'src/core/plex/savedPins.ts', 'src/core/plex/attachmentVisibility.ts', 'src/core/plex/typographyPreferences.ts', 'src/core/contracts/appearance.ts', 'src/core/plex/colorPreferences.ts', 'src/core/plex/appearanceThemes.ts', 'src/ui/layout.ts', 'src/adapters/obsidian/savedSettingsRefresh.ts']);
 
 /** Keep the actual settings classifier, save queue and typography writers without plugin startup. */
 function typographyHostSource() {
@@ -38,7 +38,7 @@ const initialize = `(() => {
   window.settleDemand=async(index)=>{while(index.onDemandTasks.size)await Promise.all([...index.onDemandTasks.values()]);};
   window.typographyHost=o=>{
     const appearanceThemes=sourceModules;
-    const {isPeriodicPin,ontologyConfiguration,SavedSettingsRefresh,STYLE_SETTINGS_KEYS,cyclicSemanticColorSlots,migrateColorPreferences,captureSettingsPolicy,classifySettingsChange,isStyleOnlySettingsChange,mergeTypographyOverride,resetTypographyOverride:resetDeviceTypography}=sourceModules;
+    const {ATTACHMENT_VISIBILITY_KEYS,reconcileAttachmentVisibility,isPeriodicPin,ontologyConfiguration,SavedSettingsRefresh,STYLE_SETTINGS_KEYS,cyclicSemanticColorSlots,migrateColorPreferences,captureSettingsPolicy,classifySettingsChange,isStyleOnlySettingsChange,mergeTypographyOverride,resetTypographyOverride:resetDeviceTypography}=sourceModules;
     class Notice {constructor(message){throw new Error('Unexpected settings failure: '+message);}}
     ${typographyHostSource()}
     const host=new TypographyHost();host.settings=o.settings;host.index=o.index;host.settingsWriteQueue=Promise.resolve();

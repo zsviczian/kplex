@@ -50,7 +50,7 @@ export function currentNeighborhoodView(index, path) {
 
 /** Exercise all kind/inference/prefix filters and prove that sorting/top-N do not change gate totals. */
 export function centerVisibilityCases() {
-  return [{}, ...["showVirtualNodes", "showAttachments", "showFolderNodes", "showTagNodes", "showPageNodes", "showURLNodes", "showInferredNodes"]
+  return [{}, ...["showVirtualNodes", "showAttachments", "showDocumentAttachments", "showImageAttachments", "showMediaAttachments", "showOtherAttachments", "showFolderNodes", "showTagNodes", "showPageNodes", "showURLNodes", "showInferredNodes"]
     .map(key => ({ [key]: false })), { excludeFilepaths: ["B", "image", "https://", "tag:"] },
     { excludeFilepaths: ["A.md"] }, { excludeFilepaths: [""] },
     { showVirtualNodes: true, showPageNodes: false }, { showInferredNodes: false, maxItemCount: 0 },

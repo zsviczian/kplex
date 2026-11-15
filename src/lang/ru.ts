@@ -9,6 +9,23 @@ import { buildLocaleCatalog, type LocaleCatalog, type LocaleTranslationMap } fro
 /** Construct the typed Russian table only when selected; importing this module allocates no catalog. */
 export function createRussianCatalog(): LocaleCatalog {
 const russianTranslations = {
+  "filter.visibilityDocuments": "Документы",
+  "filter.visibilityDocumentsHelp": "Показывать вложенные PDF, EPUB, DOCX, таблицы, презентации и текстовые файлы. Для Markdown есть отдельный переключатель.",
+  "filter.visibilityImages": "Изображения",
+  "filter.visibilityImagesHelp": "Показывать изображения PNG, JPG, GIF, SVG, HEIC и другие.",
+  "filter.visibilityMedia": "Аудио и видео",
+  "filter.visibilityMediaHelp": "Показывать аудио- и видеовложения MP3, WAV, MP4, MOV, AVI и другие.",
+  "filter.visibilityOtherAttachments": "Другие вложения",
+  "filter.visibilityOtherAttachmentsHelp": "Показывать другие форматы вложений, включая архивы и файлы без расширения.",
+  "settings.sourceModifier": "Сочетание для источника связи",
+  "settings.sourceModifier.help": "Нажмите на связь с этой клавишей, чтобы открыть её единственный источник. Если источников несколько или они недоступны, откроются сведения о связи. Комбинации клавиш сохраняют прежние жесты.",
+  "settings.sourceModifier.none": "Нет",
+  "daily.gapOffer": "Связать с {name}",
+  "daily.gapOfferHelp": "После создания проверить связь с предыдущей ежедневной заметкой. Вчерашняя заметка отсутствует.",
+  "tips.lateralDrag": "{alt}: Предыдущая / Следующая · {mod}: Друг / Оппонент. Без клавиши восстанавливается последний выбор.",
+  "tips.relationshipReview": "Выберите отношение и онтологию в следующем диалоге.",
+  "tips.hoverModifier": "Удерживайте {alt} при наведении, чтобы выделить связи. Удерживайте {mod} для предпросмотра заметки.",
+  "tips.hover": "Наведите для выделения связей; {alt} выделяет сразу. Удерживайте {mod} для предпросмотра заметки.",
   "startup.loading": "Загрузка K-Plex…",
   "startup.failed": "Не удалось инициализировать K-Plex. Перезагрузите плагин для повторной попытки.",
   "styles.nameConflict": "Стиль для {name} уже существует. Выберите другой тег.",

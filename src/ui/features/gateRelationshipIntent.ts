@@ -13,10 +13,14 @@ export function sourceGateRole(gate: GateSide, ports: Partial<Record<GateSide, G
     : (gate === "left") !== flipped ? "left" : "right";
 }
 
-/** A held modifier selects the temporal alternative of the source's semantic lateral role. */
-export function gateCreationRole(role: GateRole, modifiers: Modifiers): RelationshipRole {
-  const modified = modifiers.altKey || modifiers.ctrlKey || modifiers.metaKey || modifiers.shiftKey;
-  return modified && role === "left" ? "previous" : modified && role === "right" ? "next" : role;
+/** Primary forces Friend/Challenger, Alt forces Previous/Next; otherwise restore this side's
+ * last used family. Shift alone does not change relationship meaning. Primary wins if both are held. */
+export function gateCreationRole(role: GateRole, modifiers: Modifiers,
+  remembered?: Readonly<{left?: RelationshipRole; right?: RelationshipRole}>): RelationshipRole {
+  if (role !== "left" && role !== "right") return role;
+  if (modifiers.ctrlKey || modifiers.metaKey) return role;
+  const chronological = role === "left" ? "previous" : "next";
+  return modifiers.altKey || remembered?.[role] === chronological ? chronological : role;
 }
 
 /** History/pin eligibility retains its existing four physical membership groups. */

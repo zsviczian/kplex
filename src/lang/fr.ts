@@ -9,6 +9,23 @@ import { buildLocaleCatalog, type LocaleCatalog, type LocaleTranslationMap } fro
 /** Construct the typed French table only when selected; importing this module allocates no catalog. */
 export function createFrenchCatalog(): LocaleCatalog {
 const frenchTranslations = {
+  "filter.visibilityDocuments": "Documents",
+  "filter.visibilityDocumentsHelp": "Afficher les pièces jointes PDF, EPUB, DOCX, les feuilles de calcul, présentations et fichiers texte. Markdown a son propre bouton.",
+  "filter.visibilityImages": "Images",
+  "filter.visibilityImagesHelp": "Afficher les images jointes comme PNG, JPG, GIF, SVG et HEIC.",
+  "filter.visibilityMedia": "Audio et vidéo",
+  "filter.visibilityMediaHelp": "Afficher les fichiers audio et vidéo joints comme MP3, WAV, MP4, MOV et AVI.",
+  "filter.visibilityOtherAttachments": "Autres pièces jointes",
+  "filter.visibilityOtherAttachmentsHelp": "Afficher les autres formats, y compris les archives et les fichiers sans extension.",
+  "settings.sourceModifier": "Raccourci vers la source d’une connexion",
+  "settings.sourceModifier.help": "Cliquez sur une connexion avec cette touche pour ouvrir sa source unique. Si les sources sont multiples ou indisponibles, les détails s’ouvrent. Les combinaisons de touches gardent leurs gestes actuels.",
+  "settings.sourceModifier.none": "Aucun",
+  "daily.gapOffer": "Relier à {name}",
+  "daily.gapOfferHelp": "Après la création, vérifier un lien vers la note quotidienne précédente. La note d’hier est absente.",
+  "tips.lateralDrag": "{alt} : Précédent / Suivant · {mod} : Ami / Contradicteur. Sans touche, reprendre le dernier choix.",
+  "tips.relationshipReview": "Choisissez la relation et l’ontologie dans la boîte de dialogue suivante.",
+  "tips.hoverModifier": "Maintenez {alt} au survol pour surligner les connexions. Maintenez {mod} pour prévisualiser une note.",
+  "tips.hover": "Survolez pour surligner les connexions ; {alt} agit immédiatement. Maintenez {mod} pour prévisualiser une note.",
   "startup.loading": "Chargement de K-Plex…",
   "startup.failed": "Impossible d’initialiser K-Plex. Rechargez le module pour réessayer.",
   "styles.nameConflict": "Un style existe déjà pour {name}. Choisissez un autre tag.",

@@ -59,17 +59,19 @@
  */
 import { registerFileMenus, type FilePlexNode, type FilePlexTarget } from "./adapters/obsidian/fileMenu";
 import {installNativeStartupGate} from "./adapters/obsidian/nativeStartupGate";
+import {groupRelationshipSourceOccurrences} from "./ui/features/relationshipSourceOccurrences";
 import {moveSavedPin, savedPinEntries, fixedPinPaths, isPeriodicPin, type PinPeriod, type SavedPinMove} from "./core/plex/savedPins";
 import {resolveSavedPins, setPeriodicPinEnabled, type PeriodicPinRuntime, type PeriodicPinConfiguration, type ResolvedSavedPin} from "./core/plex/periodicPins";
 import {MoveNodeModal} from "./ui/MoveNodeModal";
 import {graphFolder} from "./adapters/obsidian/graphFolder";
-import {CreatePeriodicNoteModal} from "./ui/CreatePeriodicNoteModal";
+import {CreatePeriodicNoteModal, type DailyCreationGapOffer} from "./ui/CreatePeriodicNoteModal";
 import {createPeriodicPinRuntime} from "./adapters/obsidian/periodicPins";
 import {createConfiguredDailyNote} from "./adapters/obsidian/dailyNotes";
 import {readDailyPinSettings} from "./adapters/obsidian/dailyNotes";
 import {collectDailyNotes, dailyNoteDate, dailyNotePath, dailyNoteCreationTarget, dailyEntryForDate, dailyNotesSettingsCurrent, type DailyNoteEntry} from "./adapters/obsidian/dailyNoteNavigation";
 import {deletedFileNavigationTarget} from "./adapters/obsidian/deletedFileNavigation";
-import {calendarDay, calendarDayKey, adjacentJournalEntry, missingJournalDirections, type JournalDirection} from "./core/plex/calendarDates";
+import {ATTACHMENT_VISIBILITY_KEYS, reconcileAttachmentVisibility, type AttachmentVisibilitySettings} from "./core/plex/attachmentVisibility";
+import {calendarDay, calendarDayKey, todayJournalGap, shiftCalendarDay, adjacentJournalEntry, missingJournalDirections, type JournalDirection} from "./core/plex/calendarDates";
 import {DailyNoteCalendarModal} from "./ui/DailyNoteCalendarModal";
 import {FileCreationAutomation} from "./adapters/obsidian/fileCreationAutomation";
 import { drawingAutomation, drawingTemplateOptions } from "./adapters/obsidian/drawingTemplates";
@@ -123,7 +125,7 @@ import { DeleteNodeConfirmationModal, RemainingNodeReferencesModal, HideRelation
 import { HiddenFieldSetupModal, type HiddenFieldSetupChoice } from "./ui/HiddenFieldSetupModal";
 import { navigatePluginSettings } from "./adapters/obsidian/settingsNavigation";
 import { suggestHiddenProperty } from "./adapters/obsidian/hiddenPropertyName";
-import { LinkDirection, type GateRole, type GraphPage, type RelationshipRole } from "./types";
+import { LinkDirection, RelationType, type GateRole, type GraphPage, type RelationshipRole } from "./types";
 import { OntologySuggester } from "./editor/OntologySuggester";
 import { isWebViewerAvailable, openExternalUrl } from "./adapters/obsidian/externalUrl";
 import {isObsidianUri} from "./adapters/obsidian/urlIdentity";
@@ -207,7 +209,15 @@ export type RelationshipSourceSection = {
   label: string;
   text: string;
   sourceKind: RelationEvidence["sourceKind"];
+  /** Exact physical coordinates, independent of the wider displayed paragraph. */
+  occurrence?: Readonly<{start: number; end: number; line: number}>;
+  /** Located cards remain useful even when another native property occurrence is ambiguous. */
+  incomplete?: boolean;
 };
+
+/** Native metadata locations may contain both body spans and frontmatter property ranges. */
+type RelationshipEvidenceLocations = Array<{path: string; line: number; label: string; start?: number; end?: number}> & {incomplete?: boolean};
+type RelationshipPropertyLocation = {start: number; end: number; startOffset?: number; endOffset?: number};
 
 /** Confirmation authority for one physical property; replacement files never inherit approval. */
 export type FrontmatterUnlinkExpectation = Readonly<{
@@ -3118,6 +3128,11 @@ export default class KplexPlugin extends Plugin {
    * change never acquires or recompiles semantic scopes.
    */
   async saveSettings(_reindex = false, notifyIndex = true): Promise<void> {
+    if (this.savedSettingsPolicy) {
+      const previous: AttachmentVisibilitySettings = Object.fromEntries(["showAttachments", ...ATTACHMENT_VISIBILITY_KEYS].map(/** Decode only this finite boolean compatibility policy. */ key =>
+        [key, this.savedSettingsPolicy?.values[key as keyof typeof this.savedSettingsPolicy.values] === "true"]));
+      Object.assign(this.settings, reconcileAttachmentVisibility(this.settings, previous));
+    }
     // Capture historical same-length in-place ontology mutations once at their save boundary.
     // Ordinary immutable field edits and subsequent scene/compiler reads reuse the prepared lookup.
     ontologyConfiguration(this.settings, true);
@@ -5441,8 +5456,35 @@ export default class KplexPlugin extends Plugin {
         const file = await this.createDailyNoteFile(path, valid, day.getTime());
         if (!file && valid()) throw new Error(this.translator("pins.createFailed"));
         return file && valid() ? this.index.insertCreatedFile(file) : null;
-      });
+      }, this.dailyNoteCreationGapOffer(path, hostLeaf, surfaceId, current));
     this.actionDialogs.set(dialog, {surfaceId, generation});dialog.open();
+  }
+
+  /** One guarded offer serves calendar creation and the configured Daily Notes pin. No links are written here. */
+  private dailyNoteCreationGapOffer(path: string, hostLeaf: WorkspaceLeaf, surfaceId: string, current: () => boolean): DailyCreationGapOffer {
+    return {
+      load: async alive => {
+        const settings = readDailyPinSettings(this.app), today = calendarDayKey(new Date());
+        if (!settings || !current() || !alive() || dailyNotePath(this.app, today, settings) !== path || this.app.vault.getFileByPath(path)) return null;
+        const valid = /** Midnight or a changed Daily Notes configuration retires this creation offer. */ (): boolean => !this.unloading && current() && calendarDayKey(new Date()) === today
+          && dailyNotesSettingsCurrent(this.app, settings) && dailyNotePath(this.app, today, settings) === path;
+        const entries = await collectDailyNotes(this.app, () => alive() && valid());if (!entries || !alive() || !valid()) return null;
+        const nearest = todayJournalGap(entries, today, today), file = nearest?.file;
+        if (!file) return null;
+        const previousPath = file.path;
+        return {label: file.basename, current: /** A deleted/replaced candidate or newly arrived yesterday requires a fresh review. */ () => valid()
+          && file.path === previousPath && this.app.vault.getFileByPath(previousPath) === file && dailyNoteDate(this.app, file, settings) === nearest.date
+          && !this.app.vault.getFileByPath(dailyNotePath(this.app, shiftCalendarDay(today, -1), settings) ?? "")};
+      },
+      open: /** Recheck historical subfolders too: yesterday may have arrived while the template ran. */ async (page, alive) => {
+        const today = calendarDayKey(new Date()), date = page.file && dailyNoteDate(this.app, page.file);
+        const valid = /** No rollover or retired prompt can authorize a late chronological offer. */ (): boolean => current() && alive() && calendarDayKey(new Date()) === today;
+        if (date !== today || !valid()) return;
+        const entries = await collectDailyNotes(this.app, valid);
+        if (!entries || !valid() || !todayJournalGap(entries.filter(/** Today now exists because this prompt just created it. */ row => row.date !== today), today, today)) return;
+        await this.openDailyNoteGapLink(page, "previous", hostLeaf, surfaceId, valid);
+      },
+    };
   }
 
   /** Known daily connectors suppress their chronological side without depending on view layout or ontology role. */
@@ -5490,7 +5532,7 @@ export default class KplexPlugin extends Plugin {
     const dialog = new CreatePeriodicNoteModal(this, id, path, hostLeaf,
       /** Creation consent belongs to this connected native canvas and generation. */ () => !this.unloading && current() && owner.isConnected && owner.ownerDocument === doc
         && (generation === undefined || this.isActionSurfaceCurrent(surfaceId, generation)),
-      /** Native close and unload retire the same prompt. */ () => this.actionDialogs.delete(dialog));
+      /** Native close and unload retire the same prompt. */ () => this.actionDialogs.delete(dialog), undefined, this.dailyNoteCreationGapOffer(path, hostLeaf, surfaceId, current));
     this.actionDialogs.set(dialog, {surfaceId, generation}); dialog.open();
   }
 
@@ -6167,7 +6209,14 @@ export default class KplexPlugin extends Plugin {
     const existing = this.ontologyFieldsForRole(role).find((field) => normalizeFieldName(field) === normalized);
     const canonical=existing??trimmed;
     if(!existing)await this.assignFieldToOntology(canonical,role);
-    if(this.settings.relationDefaultFields[role]!==canonical){this.settings.relationDefaultFields={...this.settings.relationDefaultFields,[role]:canonical};await this.saveSettings(false,false);}
+    let changed = this.settings.relationDefaultFields[role] !== canonical;
+    if (changed) this.settings.relationDefaultFields = {...this.settings.relationDefaultFields, [role]: canonical};
+    const side = role === "left" || role === "previous" ? "left" : role === "right" || role === "next" ? "right" : null;
+    if (side) {
+      const memory = this.settings.lateralCreationRoles ?? {left: "left", right: "right"};
+      if (memory[side] !== role) {this.settings.lateralCreationRoles = {...memory, [side]: role};changed = true;}
+    }
+    if (changed) await this.saveSettings(false, false);
 
     return canonical;
   }
@@ -7608,16 +7657,17 @@ export default class KplexPlugin extends Plugin {
   }
 
   /** Resolve source locations for pair evidence while keeping actual note content untouched and localizing unavailable-source feedback. */
-  async relationshipEvidenceLocations(evidence: RelationEvidence): Promise<Array<{ path: string; line: number; label: string }>> {
+  async relationshipEvidenceLocations(evidence: RelationEvidence, locateProperty?: (name: string) => RelationshipPropertyLocation | null): Promise<RelationshipEvidenceLocations> {
     const membership = evidence.sourceKind === "tag-tree" ? tagMembershipPair(this.index.get(evidence.sourcePath), this.index.get(evidence.targetPath)) : null;
     const file = membership?.note.file ?? this.app.vault.getFileByPath(evidence.declaredByPath);
     if (!file || file.extension !== "md") return [];
 
-    const positions: Array<{ path: string; line: number; label: string }> = [];
-    const add = (line: number, label: string) => {
+    const positions: RelationshipEvidenceLocations = [];
+    const add = (line: number, label: string, start?: number, end?: number) => {
       const safeLine = Math.max(0, Math.floor(line));
-      if (positions.some((item) => item.line === safeLine && item.label === label)) return;
-      positions.push({ path: file.path, line: safeLine, label });
+      if (positions.some(/** Localized labels never identify distinct same-line physical links. */ item => start !== undefined
+        ? item.start === start && item.end === end : item.line === safeLine && item.label === label)) return;
+      positions.push({ path: file.path, line: safeLine, label, start, end });
     };
 
     if (membership) {
@@ -7639,20 +7689,34 @@ export default class KplexPlugin extends Plugin {
       const linkCaches = [...(cache?.links ?? []), ...(cache?.embeds ?? [])];
       const targetLower = evidence.declaredTargetPath.replace(/\.md$/i, "").toLocaleLowerCase();
       const targetBase = targetLower.split("/").pop() ?? targetLower;
-      const matchingLines: number[] = [];
-      for (const link of linkCaches) {
-        const resolved = this.app.metadataCache.getFirstLinkpathDest(link.link, file.path);
+      /** Native resolution and the existing unresolved-path rule own both body and property mirrors. */
+      const matchesReference = (link: string): boolean => {
+        const resolved = this.app.metadataCache.getFirstLinkpathDest(link, file.path);
         let matches = resolved?.path === evidence.declaredTargetPath;
         if (!matches && !resolved && evidence.sourceKind === "unresolved-link") {
-          const raw = link.link.split("#", 1)[0].trim().replace(/\.md$/i, "").toLocaleLowerCase();
+          const raw = link.split("#", 1)[0].trim().replace(/\.md$/i, "").toLocaleLowerCase();
           matches = raw === targetLower || raw === targetBase || raw.split("/").pop() === targetBase;
         }
-        if (matches) matchingLines.push(link.position.start.line);
+        return matches;
+      };
+      const matchingLinks: Array<{line: number; start: number; end: number}> = [];
+      for (const link of linkCaches) {
+        if (matchesReference(link.link)) matchingLinks.push({line: link.position.start.line, start: link.position.start.offset, end: link.position.end.offset});
       }
-      matchingLines.forEach((line, index) => add(
-        line,
-        matchingLines.length > 1 ? this.translator("evidence.navigateLinkNumber", { index: index + 1 }) : this.translator("evidence.navigateLink"),
+      matchingLinks.forEach((link, index) => add(
+        link.line,
+        matchingLinks.length > 1 ? this.translator("evidence.navigateLinkNumber", { index: index + 1 }) : this.translator("evidence.navigateLink"), link.start, link.end,
       ));
+      for (const link of cache?.frontmatterLinks ?? []) {
+        if (!matchesReference(link.link)) continue;
+        // Obsidian reports property paths such as Parent.0. Dotted physical keys can be
+        // ambiguous; retain located body cards but never grant a guessed direct destination.
+        const fields = Object.keys(cache?.frontmatter ?? {}).filter(/** Only a unique native top-level property can own this reference. */ name => link.key === name || link.key.startsWith(name + "."));
+        const field = fields.length === 1 ? fields[0] : null;
+        const range: RelationshipPropertyLocation | null = field ? locateProperty ? locateProperty(field) : await this.frontmatterPropertyLineRange(file, field) : null;
+        if (!range || !field) {positions.incomplete = true;continue;}
+        add(range.start, this.translator("evidence.navigateProperty", {field}), range.startOffset, range.endOffset);
+      }
       return positions;
     }
 
@@ -7664,6 +7728,28 @@ export default class KplexPlugin extends Plugin {
     }
 
     return positions;
+  }
+
+  /** Resolve one complete, explicitly defined physical source without preparing unknown pair
+   * authority. Captured source/native revisions retire asynchronous reads and later menu clicks. */
+  async singleRelationshipSourceLocation(sourcePath: string, targetPath: string, current: () => boolean): Promise<Readonly<{path: string; line: number; current: () => boolean}> | null> {
+    if (!current() || !this.index.isSemanticWriteReady(sourcePath, targetPath)) return null;
+    const explanation = this.index.explainRelationship(sourcePath, targetPath);
+    if (!explanation?.decisions.some(/** Inferred-only edges cannot grant direct navigation and need no source reads. */ row => row.active && row.evidence.relationType === RelationType.DEFINED)) return null;
+    const revision = this.getIndexSourceRevision(), evidence = explanation.decisions.map(/** Preserve exact declared provenance while observing physical sources. */ row => row.evidence);
+    const signature = JSON.stringify(explanation.decisions), files = new Map(evidence.map(/** Every source owner retains its actual native incarnation. */ row => {
+      const file = this.app.vault.getFileByPath(row.declaredByPath);return [row.declaredByPath, {file, mtime: file?.stat.mtime, size: file?.stat.size}] as const;
+    }));
+    const valid = /** No old physical line may be opened after an edit, source replacement or policy change. */ (): boolean => !this.unloading && current() && this.getIndexSourceRevision() === revision
+      && this.index.isSemanticWriteReady(sourcePath, targetPath) && JSON.stringify(this.index.explainRelationship(sourcePath, targetPath)?.decisions) === signature
+      && [...files].every(/** Same-stat native replacement is still a different source. */ ([path, row]) => !!row.file && row.file.extension === "md" && this.app.vault.getFileByPath(path) === row.file && row.file.path === path && row.file.stat.mtime === row.mtime && row.file.stat.size === row.size);
+    if (!valid()) return null;
+    const sections = await this.relationshipEvidenceSectionsBatch(evidence);if (!valid()) return null;
+    const grouped = groupRelationshipSourceOccurrences(explanation.decisions, sections);
+    if (grouped.groups.length !== 1 || grouped.unlocated.length) return null;
+    const occurrence = grouped.groups[0];
+    if (!occurrence.decisions.some(/** An inferred-only occurrence never grants direct source navigation. */ row => row.active && row.evidence.relationType === RelationType.DEFINED)) return null;
+    return {path: occurrence.section.path, line: occurrence.section.occurrence?.line ?? occurrence.section.startLine, current: valid};
   }
 
   /** Acquire source sections for the requested evidence batch and preserve provenance; localize only plugin-owned fallback copy. */
@@ -7686,6 +7772,8 @@ export default class KplexPlugin extends Plugin {
       // the same long note. Edge Properties is on-demand, but it should still stay cheap to skim.
       const content = await this.app.vault.cachedRead(file);
       const lines = content.split(/\r?\n/);
+      const offsets: number[] = [];let offset = 0;
+      for (const line of content.split("\n")) {offsets.push(offset);offset += line.length + 1;}
       const keyPattern = /^(\s*)(?:"([^"]+)"|'([^']+)'|([^:#][^:]*?))\s*:/;
       const frontmatterPropertyRanges = (): Array<{ start: number; end: number; key: string }> => {
         if (lines[0]?.trim() !== "---") return [];
@@ -7734,11 +7822,12 @@ export default class KplexPlugin extends Plugin {
       };
 
       for (const evidence of fileEvidences) {
-        const make = (startLine: number, endLine: number, label: string): RelationshipSourceSection => ({
+        const make = (startLine: number, endLine: number, label: string, occurrence?: RelationshipSourceSection["occurrence"]): RelationshipSourceSection => ({
           id: `${file.path}:${startLine}:${endLine}:${evidence.id}`,
           path: file.path, startLine, endLine, label,
           text: lines.slice(startLine, endLine + 1).join("\n"),
           sourceKind: evidence.sourceKind,
+          occurrence: occurrence ?? {start: offsets[startLine] ?? 0, end: (offsets[endLine] ?? 0) + (lines[endLine]?.length ?? 0), line: startLine},
         });
         let sections: RelationshipSourceSection[] = [];
         if ((evidence.sourceKind === "frontmatter-ontology" || evidence.sourceKind === "date-property"
@@ -7747,7 +7836,8 @@ export default class KplexPlugin extends Plugin {
           sections = range ? [make(range.start, range.end, this.translator("evidence.property", { field: evidence.fieldName }))] : [];
         } else if ((evidence.sourceKind === "inline-ontology" || evidence.sourceKind === "body-url" || evidence.sourceKind === "property-url") && evidence.line) {
           const range = paragraphRange(evidence.line - 1);
-          sections = [make(range.start, range.end, this.translator("evidence.paragraphAroundLine", { line: evidence.line }))];
+          sections = [make(range.start, range.end, this.translator("evidence.paragraphAroundLine", { line: evidence.line }),
+            {start: evidence.start ?? offsets[evidence.line - 1] ?? 0, end: evidence.end ?? (offsets[evidence.line - 1] ?? 0) + (lines[evidence.line - 1]?.length ?? 0), line: evidence.line - 1})];
         } else if (evidence.sourceKind === "tag-tree") {
           const locations = await this.relationshipEvidenceLocations(evidence);
           const seen = new Set<number>();
@@ -7757,15 +7847,19 @@ export default class KplexPlugin extends Plugin {
             sections.push(make(location.line, location.line, this.translator("evidence.navigateLine", { line: location.line + 1 })));
           }
         } else if (evidence.sourceKind === "obsidian-link" || evidence.sourceKind === "unresolved-link") {
-          const locations = await this.relationshipEvidenceLocations(evidence);
+          const locations = await this.relationshipEvidenceLocations(evidence, /** Reuse this batch's single source read, including all native YAML-link mirrors. */ field => {
+            const range = propertyRange(field);return range ? {...range, startOffset: offsets[range.start], endOffset: (offsets[range.end] ?? 0) + (lines[range.end]?.length ?? 0)} : null;
+          });
           const seen = new Set<string>();
           for (const location of locations) {
             const range = paragraphRange(location.line);
-            const key = `${range.start}:${range.end}`;
+            const key = `${location.start ?? location.line}:${location.end ?? location.line}`;
             if (seen.has(key)) continue;
             seen.add(key);
-            sections.push(make(range.start, range.end, locations.length > 1 ? this.translator("evidence.linkOccurrenceLine", { line: location.line + 1 }) : this.translator("evidence.linkLine", { line: location.line + 1 })));
+            sections.push(make(range.start, range.end, locations.length > 1 ? this.translator("evidence.linkOccurrenceLine", { line: location.line + 1 }) : this.translator("evidence.linkLine", { line: location.line + 1 }),
+              {start: location.start ?? offsets[location.line] ?? 0, end: location.end ?? (offsets[location.line] ?? 0) + (lines[location.line]?.length ?? 0), line: location.line}));
           }
+          if (locations.incomplete) for (const section of sections) section.incomplete = true;
         }
         result.set(evidence.id, sections);
       }

@@ -9,6 +9,23 @@
  * parameters remain unquoted regardless of their names. Locale catalogs inherit this classification.
  */
 export const englishCatalog = {
+  "filter.visibilityDocuments": {"message":"Documents","context":"Attachment-category controls in shared content visibility, separate from Markdown.","params":[],"referenceParams":[]},
+  "filter.visibilityDocumentsHelp": {"message":"Show document attachments such as PDF, EPUB, DOCX, spreadsheets, presentations and text files. Markdown has its own toggle.","context":"Attachment-category controls in shared content visibility, separate from Markdown.","params":[],"referenceParams":[]},
+  "filter.visibilityImages": {"message":"Images","context":"Attachment-category controls in shared content visibility, separate from Markdown.","params":[],"referenceParams":[]},
+  "filter.visibilityImagesHelp": {"message":"Show image attachments such as PNG, JPG, GIF, SVG and HEIC.","context":"Attachment-category controls in shared content visibility, separate from Markdown.","params":[],"referenceParams":[]},
+  "filter.visibilityMedia": {"message":"Audio & video","context":"Attachment-category controls in shared content visibility, separate from Markdown.","params":[],"referenceParams":[]},
+  "filter.visibilityMediaHelp": {"message":"Show audio and video attachments such as MP3, WAV, MP4, MOV and AVI.","context":"Attachment-category controls in shared content visibility, separate from Markdown.","params":[],"referenceParams":[]},
+  "filter.visibilityOtherAttachments": {"message":"Other attachments","context":"Attachment-category controls in shared content visibility, separate from Markdown.","params":[],"referenceParams":[]},
+  "filter.visibilityOtherAttachmentsHelp": {"message":"Show other attachment formats, including archives and files without an extension.","context":"Attachment-category controls in shared content visibility, separate from Markdown.","params":[],"referenceParams":[]},
+  "settings.sourceModifier": {"message":"Connector source shortcut","context":"Connector provenance, daily-gap consent and contextual canvas usage hints.","params":[],"referenceParams":[]},
+  "settings.sourceModifier.help": {"message":"Click a connector with this modifier to open its single source. Multiple or unavailable sources open Connection details. Combined modifiers keep their existing gestures.","context":"Connector provenance, daily-gap consent and contextual canvas usage hints.","params":[],"referenceParams":[]},
+  "settings.sourceModifier.none": {"message":"None","context":"Connector provenance, daily-gap consent and contextual canvas usage hints.","params":[],"referenceParams":[]},
+  "daily.gapOffer": {"message":"Link to {name}","context":"Connector provenance, daily-gap consent and contextual canvas usage hints.","params":["name"],"referenceParams":["name"]},
+  "daily.gapOfferHelp": {"message":"After creation, review a connection to the previous daily note. Yesterday is missing.","context":"Connector provenance, daily-gap consent and contextual canvas usage hints.","params":[],"referenceParams":[]},
+  "tips.lateralDrag": {"message":"{alt}: Previous / Next · {mod}: Friend / Challenger. Without a modifier, restore the last choice.","context":"Connector provenance, daily-gap consent and contextual canvas usage hints.","params":["alt","mod"],"referenceParams":[]},
+  "tips.relationshipReview": {"message":"Choose the relationship and ontology in the next dialog.","context":"Connector provenance, daily-gap consent and contextual canvas usage hints.","params":[],"referenceParams":[]},
+  "tips.hoverModifier": {"message":"Hold {alt} while hovering to highlight connections. Hold {mod} to preview a note.","context":"Connector provenance, daily-gap consent and contextual canvas usage hints.","params":["alt","mod"],"referenceParams":[]},
+  "tips.hover": {"message":"Hover to highlight connections; {alt} highlights immediately. Hold {mod} to preview a note.","context":"Connector provenance, daily-gap consent and contextual canvas usage hints.","params":["alt","mod"],"referenceParams":[]},
   "startup.loading": {"message":"Loading K-Plex…","context":"Native loading shell while saved settings and plugin services initialize; graph readiness is separate.","params":[],"referenceParams":[]},
   "startup.failed": {"message":"K-Plex could not initialize. Reload the plugin to try again.","context":"Native loading shell while saved settings and plugin services initialize; graph readiness is separate.","params":[],"referenceParams":[]},
   "styles.nameConflict": {"message":"A style for {name} already exists. Choose another tag.","context":"Unified tag appearance and selected note-type priority.","params":["name"],"referenceParams":["name"]},

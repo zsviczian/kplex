@@ -25,6 +25,7 @@ label, actions and layout is not component reuse. Read this file before UI work.
 | Folder paths | `FolderPathInput` |
 | Tabs | `src/ui/components/Tabs.tsx` |
 | Tooltip ownership | Native Obsidian for native actions; `TooltipButton` for controls leased to K-Plex tooltips |
+| Native mobile navigation | `mobileNavigationChrome` through the view's `KplexDisplayModes`; dock normal tabs in native app flow, hide immersive navigation, restore on deactivation/disposal |
 | Numeric preferences | `numberSlider`, `styleNumberSlider`, `LayoutSlider` |
 
 Feature code owns its values, validation, persistence and native lifetime. Shared
@@ -134,9 +135,11 @@ Obsidian APIs in portable components.
   Import, create and link share the same ontology vocabulary, annotations and editor.
 - A gate drag takes its initial relationship role from the source's rendered port.
   A destination gate chooses the target note and does not invert that role. Honor
-  flipped Compass ports before applying a held modifier: Friend becomes Previous,
-  Challenger becomes Next; Parent/Child retain their roles. Each role restores its
-  own remembered ontology field. Use `gateRelationshipIntent` for this creation intent.
+  flipped Compass ports before applying a held modifier. Alt/Option chooses Previous/Next;
+  Ctrl/Cmd chooses Friend/Challenger, with primary taking precedence when both are held.
+  Without either, restore the last committed lateral family. Shift alone leaves that choice
+  unchanged. Parent/Child retain their roles. Each role restores its own ontology field.
+  Use `gateRelationshipIntent` for this creation intent and `CanvasUsageTips` for canvas hints.
 - Icon-only linking footers shrink to their rendered actions. Do not reserve space
   for absent creation buttons; Cancel and Link share dimensions, spacing and centered
   glyphs regardless of companion availability. Hidden text labels stay out of flex flow.

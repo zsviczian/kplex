@@ -8,6 +8,8 @@ import {runControlledProbe} from './controlledProbe.mjs';
 import {validateTarget} from './runner.mjs';
 import {nativeBatch270} from './nativeBatch270.mjs';
 import {nativeDocumentSessions} from './nativeDocumentSessions.mjs';
+import {navigationAuthoringCases} from './navigationAuthoringCases.mjs';
+import {savedListScrolling} from './savedListScrolling.mjs';
 
 /** Characterize current declarations/evidence/placement before changing semantics or captions. */
 async function relationships(app,c){
@@ -158,10 +160,10 @@ async function deletedSidecarRelationship(app,c){
 }
 
 const target=validateTarget({vaultName:process.env.KPLEX_TEST_VAULT_NAME,vaultPath:process.env.KPLEX_TEST_VAULT_PATH,configDir:process.env.KPLEX_TEST_CONFIG_DIR});
-const lane=process.env.KPLEX_AUTHORING_LANE??(process.argv.includes('--delete-sidecar')?'delete':'relationships'),scenario={relationships,labels,delete:deletedSidecarRelationship}[lane];if(!scenario)throw Error('Unknown authoring lane');
+const lane=process.env.KPLEX_AUTHORING_LANE??(process.argv.includes('--scroll')?'scroll':process.argv.includes('--navigation')?'navigation':process.argv.includes('--delete-sidecar')?'delete':'relationships'),scenario={relationships,labels,delete:deletedSidecarRelationship,navigation:navigationAuthoringCases,scroll:savedListScrolling}[lane];if(!scenario)throw Error('Unknown authoring lane');
 const userDataPath=process.env.KPLEX_OBSIDIAN_USER_DATA??(process.platform==='win32'?join(process.env.APPDATA,'obsidian'):process.platform==='darwin'?join(homedir(),'Library','Application Support','obsidian'):join(process.env.XDG_CONFIG_HOME??join(homedir(),'.config'),'obsidian'));
 const lock=acquireHostLock({userDataPath});
 try{
- const definitions='c.fixture='+nativeBatch270.toString()+';c.sessions='+nativeDocumentSessions.toString()+';c.fixturePrefix="__kplex302_";c.expectFixed='+(process.env.KPLEX_EXPECT_FIXED==='true')+';c.originalData='+JSON.stringify(readFileSync(join(target.pluginDir,'data.json'),'utf8'))+';c.originalEnabled='+JSON.stringify(readFileSync(join(target.config,'community-plugins.json'),'utf8'))+';';
- await runControlledProbe('authoring-workspace-'+lane,scenario,definitions,['src/main.ts','src/ui/PlexGraph.tsx'],{maximumMs:900000});
+ const definitions='c.allowOnDemandRoutingStartup='+(lane==='scroll')+';c.fixture='+nativeBatch270.toString()+';c.sessions='+nativeDocumentSessions.toString()+';c.fixturePrefix="__kplex302_";c.expectFixed='+(process.env.KPLEX_EXPECT_FIXED==='true')+';c.originalData='+JSON.stringify(readFileSync(join(target.pluginDir,'data.json'),'utf8'))+';c.originalEnabled='+JSON.stringify(readFileSync(join(target.config,'community-plugins.json'),'utf8'))+';';
+ await runControlledProbe('authoring-workspace-'+lane,scenario,definitions,['src/main.ts','src/ui/PlexGraph.tsx','scripts/testing/obsidian/navigationAuthoringCases.mjs','src/ui/components/HorizontalDragScroll.tsx','scripts/testing/obsidian/savedListScrolling.mjs'],{maximumMs:900000});
 }finally{lock.release();}

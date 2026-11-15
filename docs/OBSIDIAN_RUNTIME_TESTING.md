@@ -1,5 +1,58 @@
 # Inspecting the running plugin with Obsidian CLI
 
+## Mobile sidebar and navigation regression matrix
+
+`npm run verify:obsidian:authoring-workspace-phone` also runs the maintained
+`mobileSidebarCases.mjs` matrix at widths 390, 480, 600, 844, 1024 and 1280.
+It uses the actual registered sidebar, checks Views and lenses against its own
+canvas bounds, reaches the bottom by scrolling, dismisses with Escape, and cancels
+the shared native creation form after checking control bounds. It also checks
+native hit testing above covered canvas tools, bounded Footprints, and light/dark
+captures at 600 and 1024 pixels. Use the three
+explicit Small-vault variables, a managed report directory and exact-build staging.
+The runner requires an isolated single-vault session because emulation reloads Obsidian.
+Staging may enable K-Plex only for the current session; the runner reacquires that
+temporary enablement after reload without changing the saved plugin list.
+
+The same isolated phone runner uses `mobileNavigationCases.mjs` in portrait and
+landscape. It checks normal-tab docking against the real navbar bounds, all four
+Zen/full-screen combinations, switching to a Markdown tab and returning to an
+inactive Zen canvas. Full screen uses the existing reversible viewport overlay on
+phones/tablets as well as desktop. Native keyboard/safe-area behavior still needs
+physical Android/iOS coverage; emulation cannot establish it.
+
+`npm run verify:obsidian:editor-viewport` uses real Markdown and Excalidraw child
+editors near the bottom of a panned canvas. It checks the viewport's scroll offset,
+fixed controls/tint bounds and a trusted central-gate drag's visible starting point.
+The actual companion is required. This lane shares the native host lock, operates
+only in the explicit Small vault, and restores its own notes, settings and workspace.
+
+`npm run verify:obsidian:navigation-authoring` covers exact source navigation and
+multi-source fallback, Previous/Next preference reload, independent attachment
+group toggling and reload, and opt-in today's missing-yesterday creation review.
+`npm run verify:obsidian:saved-list-scroll` checks real primary- and middle-button
+scrolling across both saved lists, with small initial pointer steps to cover early
+native drag recognition. It asserts no link export, navigation or pin reordering.
+
+The preview lane of `verify:obsidian:pins-preview-uri` includes real native History
+and Pins popovers after a stationary-pointer modifier press. Select it with
+`KPLEX_270_NATIVE_LANE=preview`; use `pins` for reorder/scroll and cancellation coverage.
+
+Physical phone/tablet acceptance remains separate. On Android and iOS, in portrait
+and landscape, check both sidebars at narrow and wide tablet widths. Open Views and
+lenses, the index/status bubble, Footprints, creation/relationship, ontology and
+template selectors. Resize a tablet sidebar while a panel is open; all labels,
+controls and bottom actions must remain inside its surface and reachable. Show the
+software keyboard, edit a long name, browse suggestions, dismiss just suggestions,
+then dismiss the dialog. Check light/dark themes and large interface text.
+
+Swipe History and Pins across chip bodies without activation or reorder, then
+long-press/export a link outward. With an attached keyboard, verify primary-key
+hover preview and Alt versus primary-key lateral relationship selection. An
+ordinary URL-node tap must open once via the native external-link route, with
+Web viewer's external-link option both enabled and disabled. Desktop emulation
+does not establish physical touch, native mobile Web viewer or keyboard behavior.
+
 PR267's maintained lane is `npm run verify:obsidian:ontology-consolidation`, after exact-build
 staging with `npm run verify:obsidian`. Supply all three explicit `kplex-test-small` destination
 variables and a fresh `KPLEX_HOST_REPORT_DIR`. It verifies installed artifact hashes and runs

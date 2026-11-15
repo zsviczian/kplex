@@ -1,14 +1,29 @@
-/** Surface-owned native page-preview intent, shared by ordinary and expanded thought rows. */
+/** Surface-owned native page-preview intent, shared by nodes and saved lists. An active preview
+ * leases a DOM marker so the shared tooltip owner yields without changing accessible names. */
+export const HOVER_PREVIEW_ACTIVE_ATTRIBUTE = "data-kplex-hover-preview-active";
+
+/** Own one hovered occurrence and its preview/tooltip handoff until leave, blur or disposal. */
 export class HoverPreview {
-  private candidate: {element: HTMLElement; event: PointerEvent; modified: boolean; preview: (event: MouseEvent) => void} | null = null;
+  private candidate: {element: HTMLElement; event: PointerEvent; modified: boolean; ownsTooltipSuppression: boolean; preview: (event: MouseEvent) => void} | null = null;
+
+  /** Suppress overlapping hints for this hover's lifetime, including after modifier release while
+   * the native preview can remain open. The caller alone owns opening the actual popover. */
+  private openPreview(event: MouseEvent): void {
+    const candidate = this.candidate;
+    if (!candidate) return;
+    if (!candidate.element.hasAttribute(HOVER_PREVIEW_ACTIVE_ATTRIBUTE)) {
+      candidate.element.setAttribute(HOVER_PREVIEW_ACTIVE_ATTRIBUTE, "");candidate.ownsTooltipSuppression = true;
+    }
+    candidate.preview(event);
+  }
 
   /** Retain only the hovered occurrence; an unmodified hover schedules no preview or timer. */
   enter(element: HTMLElement, event: PointerEvent, preview: (event: MouseEvent) => void): void {
     this.clear();
     if (event.pointerType === "touch") return;
     const modified = event.ctrlKey || event.metaKey;
-    this.candidate = {element, event, modified, preview};
-    if (modified) preview(event);
+    this.candidate = {element, event, modified, ownsTooltipSuppression: false, preview};
+    if (modified) this.openPreview(event);
   }
 
   /** Keep the eventual popover near the current pointer without renewing or opening it. */
@@ -29,14 +44,17 @@ export class HoverPreview {
     if (!owner) return;
     // The native hover contract expects a mouse event. Preserve pointer coordinates while using
     // the new modifier state and the target's actual window (including popouts).
-    candidate.preview(new owner.MouseEvent("mousemove", {view: owner,
+    this.openPreview(new owner.MouseEvent("mousemove", {view: owner,
       clientX: candidate.event.clientX, clientY: candidate.event.clientY,
       screenX: candidate.event.screenX, screenY: candidate.event.screenY,
       ctrlKey: event.ctrlKey, metaKey: event.metaKey, altKey: event.altKey, shiftKey: event.shiftKey}));
   }
 
   /** Navigation, leave, drag, blur, hidden surfaces and teardown all retire the captured occurrence. */
-  clear(): void {this.candidate = null;}
+  clear(): void {
+    if (this.candidate?.ownsTooltipSuppression) this.candidate.element.removeAttribute(HOVER_PREVIEW_ACTIVE_ATTRIBUTE);
+    this.candidate = null;
+  }
 }
 
 /** Bind one preview owner per graph to its actual window; remove every listener on teardown. */

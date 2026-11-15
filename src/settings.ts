@@ -33,6 +33,7 @@
  * saved dictionaries, including explicit clears, never inherit replacement wording on reload.
  * Creation and linking remember separate after-saving actions, retaining the former shared choice on upgrade.
  */
+import {ATTACHMENT_VISIBILITY_KEYS} from "./core/plex/attachmentVisibility";
 import {FormSetting as Setting, formField, formSelect, formActions, formOptionGroup, labelIconButton} from "./adapters/obsidian/KplexModal";
 import {createElement} from "react";
 import {createRoot, type Root} from "react-dom/client";
@@ -291,7 +292,12 @@ export interface KplexSettings extends StartupIndexPreferences {
   autoOpenCentralDocument: boolean;
   toggleEmbedTogglesAutoOpen: boolean;
   showInferredNodes: boolean;
+  /** Retained all-attachment gate for older settings and callers; category controls lift it as needed. */
   showAttachments: boolean;
+  showDocumentAttachments: boolean;
+  showImageAttachments: boolean;
+  showMediaAttachments: boolean;
+  showOtherAttachments: boolean;
   showURLNodes: boolean;
   showVirtualNodes: boolean;
   showFolderNodes: boolean;
@@ -391,6 +397,8 @@ export interface KplexSettings extends StartupIndexPreferences {
   /** Effective-view projection of the active profile; shared persisted settings leave this absent. */
   lateralArrangement?: LateralArrangement;
   mouseInteractionMode: MouseInteractionMode;
+  /** Optional direct provenance click; disabled preserves all current connector gestures. */
+  connectionSourceModifier: "none" | "mod" | "shift";
   /** Require the alternate modifier instead of delayed pointer highlighting. */
   hoverHighlightRequiresAlt: boolean;
   /** Require the alternate modifier for area hover outlines outside explicit area-settings mode. */
@@ -408,6 +416,8 @@ export interface KplexSettings extends StartupIndexPreferences {
   sidecarLastUrl: string;
   /** Remember the last ontology field used by each add-relationship action. */
   relationDefaultFields: { parent: string; child: string; left: string; right: string; previous: string; next: string };
+  /** Horizontal creation restores its last selected family independently of each family's field. */
+  lateralCreationRoles: {left: "left" | "previous"; right: "right" | "next"};
   /** How K-Plex is paired with a note tab. */
   documentSyncMode: DocumentSyncMode;
   /** Animation speed multiplier: 0 disables motion; 1 is normal; 2 is very fast. */
@@ -480,6 +490,10 @@ const LEGACY_DEFAULT_SETTINGS: KplexSettings = {
   toggleEmbedTogglesAutoOpen: true,
   showInferredNodes: true,
   showAttachments: true,
+  showDocumentAttachments: true,
+  showImageAttachments: true,
+  showMediaAttachments: true,
+  showOtherAttachments: true,
   showURLNodes: true,
   showVirtualNodes: true,
   showFolderNodes: false,
@@ -529,6 +543,7 @@ const LEGACY_DEFAULT_SETTINGS: KplexSettings = {
   boldFields: false,
   allowAutozoom: false,
   trackpadNavigation: false,
+  connectionSourceModifier: "none",
   allowAutofocuOnSearch: true,
   defaultAlwaysOnTop: false,
   embedCentralNode: false,
@@ -573,6 +588,7 @@ const LEGACY_DEFAULT_SETTINGS: KplexSettings = {
   sidecarLastFilePath: "",
   sidecarLastUrl: "",
   relationDefaultFields: { parent: "Parent", child: "Child", left: "Friend", right: "Challenger", previous: "Previous", next: "Next" },
+  lateralCreationRoles: {left: "left", right: "right"},
   documentSyncMode: "off",
   animationSpeed: 0.5,
   graphLenses: [],
@@ -652,6 +668,7 @@ export function importExcaliBrainGraphSettings(raw: unknown, current?: KplexSett
   const imported = structuredClone(Object.fromEntries(LEGACY_GRAPH_SETTING_KEYS
     .filter((key) => Object.prototype.hasOwnProperty.call(source, key))
     .map((key) => [key, source[key]])));
+  if (typeof imported.showAttachments === "boolean") for (const key of ATTACHMENT_VISIBILITY_KEYS) imported[key] = imported.showAttachments;
   // Normalize only supplied foreign standard records against their historical missing-field defaults.
   for (const key of [...STANDARD_NODE_COLOR_STYLES, ...STANDARD_LINK_COLOR_STYLES]) if (isSettingsRecord(imported[key]))
     imported[key] = {...LEGACY_DEFAULT_SETTINGS[key], ...imported[key]};
@@ -812,6 +829,10 @@ export function migrateAndMergeSettings(raw: unknown): KplexSettings {
     noteTypeProperties: loadNoteTypeProperties(old.noteTypeProperties),
     hierarchyLinkStyles: old.hierarchyLinkStyles ?? {},
     navigationHistory: old.navigationHistory ?? [],
+    showDocumentAttachments: old.showAttachments !== false && old.showDocumentAttachments !== false,
+    showImageAttachments: old.showAttachments !== false && old.showImageAttachments !== false,
+    showMediaAttachments: old.showAttachments !== false && old.showMediaAttachments !== false,
+    showOtherAttachments: old.showAttachments !== false && old.showOtherAttachments !== false,
     excludeFilepaths: old.excludeFilepaths ?? [],
     primaryTagFieldLowerCase: norm(old.primaryTagField ?? DEFAULT_SETTINGS.primaryTagField),
     connectorStyle: old.connectorStyle === "straight" ? "straight" : "bezier",
@@ -871,6 +892,7 @@ export function migrateAndMergeSettings(raw: unknown): KplexSettings {
       previous: String(old.relationDefaultFields?.previous ?? DEFAULT_SETTINGS.relationDefaultFields.previous),
       next: String(old.relationDefaultFields?.next ?? DEFAULT_SETTINGS.relationDefaultFields.next),
     },
+    lateralCreationRoles: {left: old.lateralCreationRoles?.left === "previous" ? "previous" : "left", right: old.lateralCreationRoles?.right === "next" ? "next" : "right"},
     documentSyncMode,
     animationSpeed: Math.max(0, Math.min(2, finite(old.animationSpeed, 1))),
     graphLenses: sanitizeGraphLensDefinitions(old.graphLenses),
@@ -884,6 +906,7 @@ export function migrateAndMergeSettings(raw: unknown): KplexSettings {
     folderCreationTab: old.folderCreationTab === "folder" ? "folder" : "note",
     linkAfterSaving: sanitizeCreationAfterSaving(old.linkAfterSaving ?? old.newNodeAfterSaving, old.editNewNodeAfterCreate === true),
     trackpadNavigation: old.trackpadNavigation === true,
+    connectionSourceModifier: old.connectionSourceModifier === "mod" || old.connectionSourceModifier === "shift" ? old.connectionSourceModifier : "none",
     lastDrawingTemplatePath: typeof old.lastDrawingTemplatePath === "string" ? old.lastDrawingTemplatePath : null,
     markdownTemplateFolder: typeof old.markdownTemplateFolder === "string" ? old.markdownTemplateFolder : "",
     alsoWriteInverseOntology: old.alsoWriteInverseOntology === true,
@@ -2433,6 +2456,9 @@ export class KplexSettingTab extends PluginSettingTab {
       shift: translate("shortcut.shift"), command: translate("shortcut.command"), control: translate("shortcut.control"),
       option: translate("shortcut.option"), alt: translate("shortcut.alt"),
     }, true, "") ?? translate("settings.hoverHighlight.modifier");
+    const primaryModifier = formatShortcut({key: "", modifiers: ["mod"]}, {...environment, inputModes: {...environment.inputModes, keyboard: true}}, {
+      shift: translate("shortcut.shift"), command: translate("shortcut.command"), control: translate("shortcut.control"), option: translate("shortcut.option"), alt: translate("shortcut.alt"),
+    }, true, "") ?? translate("shortcut.control");
     const deleteCleanupDescription = createFragment();
     deleteCleanupDescription.createSpan({ text: translate("settings.deletion.removeOntologyLinks.help"), attr: { id: "kplex-remove-ontology-links-on-delete" } });
     const nodeStyles = this.nodeStyleEntries();
@@ -2475,6 +2501,7 @@ export class KplexSettingTab extends PluginSettingTab {
               { name: translate("settings.gateTooltip.name"), desc: translate("settings.gateTooltip.help", {key: hoverModifier}), control: {type: "toggle", key: "gateTooltipRequiresAlt"} },
               { name: translate("settings.areaOutline.name"), desc: translate("settings.areaOutline.help", {key: hoverModifier}), control: {type: "toggle", key: "areaOutlineRequiresAlt"} },
               { name: translate("settings.ui.animation.speed"), desc: translate("settings.ui.speed.multiplier.0.off.0.5.slow.1.normal.1.5.fast.2.very"), control: { type: "slider", key: "animationSpeed", min: 0, max: 2, step: 0.1 } },
+              {name: translate("settings.sourceModifier"), desc: translate("settings.sourceModifier.help"), control: {type: "dropdown", key: "connectionSourceModifier", defaultValue: "none", options: {none: translate("settings.sourceModifier.none"), mod: primaryModifier, shift: translate("shortcut.shift")}}},
               { name: translate("settings.trackpad"), desc: translate("settings.trackpad.help"), control: {type: "toggle", key: "trackpadNavigation"} },
               { name: translate("settings.ui.auto.fit.on.navigation"), control: { type: "toggle", key: "allowAutozoom" } },
               { name: translate("settings.ui.open.k.plex.in.a.pop.out.window"), desc: translate("settings.ui.when.k.plex.is.opened.and.no.k.plex.view.already.exists"), control: { type: "toggle", key: "startInPopout" } },
@@ -2513,7 +2540,10 @@ export class KplexSettingTab extends PluginSettingTab {
               { name: translate("settings.ui.show.inferred.relationships"), control: { type: "toggle", key: "showInferredNodes" } },
               { name: translate("settings.ui.ghost.unresolved.nodes"), control: { type: "toggle", key: "showVirtualNodes" } },
               { name: translate("settings.ui.web.links"), control: { type: "toggle", key: "showURLNodes" } },
-              { name: translate("settings.ui.attachments"), control: { type: "toggle", key: "showAttachments" } },
+              {name: translate("filter.visibilityDocuments"), desc: translate("filter.visibilityDocumentsHelp"), control: {type: "toggle", key: "showDocumentAttachments"}},
+              {name: translate("filter.visibilityImages"), desc: translate("filter.visibilityImagesHelp"), control: {type: "toggle", key: "showImageAttachments"}},
+              {name: translate("filter.visibilityMedia"), desc: translate("filter.visibilityMediaHelp"), control: {type: "toggle", key: "showMediaAttachments"}},
+              {name: translate("filter.visibilityOtherAttachments"), desc: translate("filter.visibilityOtherAttachmentsHelp"), control: {type: "toggle", key: "showOtherAttachments"}},
               { name: translate("settings.ui.folders"), control: { type: "toggle", key: "showFolderNodes" } },
               { name: translate("settings.ui.tags"), control: { type: "toggle", key: "showTagNodes" } },
               { name: translate("settings.ui.markdown.pages"), control: { type: "toggle", key: "showPageNodes" } },

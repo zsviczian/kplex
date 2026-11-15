@@ -75,6 +75,11 @@ workspace instead, run **K-Plex: Open canvas** from the command palette; it open
 a normal K-Plex tab. Tablets can use either a normal tab or the side panel. Popout windows
 remain desktop-only.
 
+In a normal phone tab, Obsidian's navigation bar stays below K-Plex without covering
+History or the canvas controls. Zen and full screen hide that bar; switching to
+another tab or leaving those modes restores it. Full screen is also available on
+phones and tablets.
+
 ## Navigating the canvas
 
 - **Single-click / tap** a node to make it the center.
@@ -132,7 +137,9 @@ show the shortcuts for your platform when a keyboard is available.
 
 Drag a note, attachment, URL or placeholder node into a Markdown editor to insert its link, or into another K-Plex view to navigate or start a relationship. Tags are inserted as `#tag` text and can also be dragged between canvases for navigation. Desktop node dragging uses Obsidian's native link handling; gates retain their connection gestures.
 
-History and pins show type icons and full tag paths. Drag a Markdown note onto a tag in either list to add that tag to the note's **tags** property.
+History and pins show type icons and full tag paths. Swipe or drag horizontally across their chips to scroll. On desktop, middle-button dragging also scrolls without exporting a note; drag outward to export a node link to the canvas or another Obsidian tab. Hold **Control** (**Command** on macOS) while hovering to preview a note. The chip tooltip stays hidden while that preview hover is active. Drag a Markdown note onto a tag in either list to add that tag to the note's **tags** property.
+
+When creating relationships through the Friend or Challenger areas, K-Plex restores the last used Friend/Previous or Challenger/Next choice. Hold **Alt** (**Option** on macOS) to choose Previous/Next, or **Control** (**Command** on macOS) for Friend/Challenger. The canvas shows these tips while dragging. Each role retains its own ontology field.
 
 Drag a file or folder's gate onto a folder to move it there. With a folder in the center, you can also drag its gate onto a file or attachment to bring that file into the folder. K-Plex shows the source and destination for confirmation; hold **Alt** (**Option** on macOS) while dragging to move immediately. Collision and folder-ancestry checks still apply, and Obsidian updates links according to your file settings. Dragging a folder's gate onto empty space opens **Create note / Create subfolder** tabs and remembers your last choice. Use **Move** in a file or folder node's context menu to choose another destination.
 
@@ -271,6 +278,8 @@ Right-click a connector to inspect, unlink or hide its relationship:
 
 **Go to source** opens the real Markdown note at the relevant location, using the Sidecar when it is available. Continue editing there with Obsidian's normal editor, wikilinks, suggestions and hotkeys. The source Markdown files remain the source of truth; K-Plex does not create a separate database of edge notes.
 
+When a connector has one distinct physical source, its context menu also offers **Go to source** directly. **Canvas behavior → Navigation & interaction → Connector source shortcut** optionally enables a modifier-click shortcut; it defaults to **None**. Multiple, inferred or unavailable sources open **Connection details** for review.
+
 Connection details also offers a pencil for each ontology and **Reverse property owner** for eligible document-property sources. Choose the specific declaration to reverse. K-Plex saves its inverse property on the other Markdown note before removing the original, keeping unrelated properties and body links. Body-only and unsupported sources explain why reversal is unavailable; use **Go to source** to edit those links manually.
 
 ## Colors and appearance
@@ -327,6 +336,8 @@ At the top of the filter panel you can choose how filtered results are displayed
 Keep layout is useful when you want to preserve spatial context. Reflow is useful when a large canvas is reduced to a small focused subset.
 
 When a visibility filter is active, gate counts can show **shown/total**, such as `2/12`, so you can still see that hidden relationships exist.
+
+The visibility controls appear in this order: **Markdown**, **Tags**, **Folders**, **Web links**, **Placeholders**, **Documents**, **Images**, **Audio & video**, **Other attachments**, **Inferred**, **Siblings**, **Cross-links**. Attachment groups work independently: for example, show PDFs and text documents while hiding images and recordings. Unrecognized file formats belong to Other attachments. Your previous Attachments preference initially applies to all four groups.
 
 ### Styling with lenses
 

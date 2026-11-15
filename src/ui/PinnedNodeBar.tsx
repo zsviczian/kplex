@@ -2,7 +2,7 @@
  * owner supplies paint; host callbacks own activation, unpin and native reorder-menu effects.
  * Generic drag mechanics retain their document lifetime without acquiring graph/source data.
  * Editing is local to this mounted row; navigation and grab scrolling remain available in both modes. */
-import {useState, type CSSProperties, type MouseEvent, type DragEvent} from "react";
+import {useState, type CSSProperties, type MouseEvent, type DragEvent, type PointerEvent as ReactPointerEvent} from "react";
 import type {Translator} from "../lang";
 import {ObsidianIcon} from "./ObsidianIcon";
 import {ReorderableList, type ReorderMove} from "./components/ReorderableList";
@@ -13,12 +13,14 @@ export type PinnedNodeRow = Readonly<{id: string; path: string | null; label: st
 
 /** Render one finite globally saved list. Stationary/keyboard handle activation opens the same
  * host-native movement menu; a committed pointer drag requests exactly one guarded relative move. */
-export function PinnedNodeBar({rows, translate, onActivate, onRemove, onMove, onMenu, onCalendar, onDragStart, onDragEnd}: {
+export function PinnedNodeBar({rows, translate, onActivate, onRemove, onMove, onMenu, onCalendar, onDragStart, onDragEnd, onHoverPreview, onHoverEnd}: {
   rows: readonly PinnedNodeRow[]; translate: Translator; onActivate: (id: string) => void; onRemove: (id: string) => void;
   onMove: (move: ReorderMove) => void; onMenu: (id: string, button: HTMLButtonElement) => void;
   onCalendar?: () => void;
   onDragStart?: (row: PinnedNodeRow, event: DragEvent<HTMLButtonElement>) => void;
   onDragEnd?: () => void;
+  onHoverPreview?: (row: PinnedNodeRow, element: HTMLButtonElement, event: PointerEvent) => void;
+  onHoverEnd?: () => void;
 }) {
   const [editing, setEditing] = useState(false);
   return <div className="kplex-pinned-row">
@@ -28,7 +30,7 @@ export function PinnedNodeBar({rows, translate, onActivate, onRemove, onMove, on
       {onCalendar && <TooltipButton className="kplex-icon-button kplex-pin-calendar" label={translate("daily.calendar")} aria-haspopup="dialog"
         onClick={/** The host retains date formatting and navigation ownership. */ onCalendar}><ObsidianIcon name="calendar-days" size={15} /></TooltipButton>}
     </div>
-    <ReorderableList ids={rows.map(/** Ordering includes missing entries rather than graph-filtered rows. */ row => row.id)} className="kplex-pinned-bar" label={translate("app.pinnedNodes")} onMove={onMove} reorderEnabled={editing} grabScroll>
+    <ReorderableList ids={rows.map(/** Ordering includes missing entries rather than graph-filtered rows. */ row => row.id)} className="kplex-pinned-bar" label={translate("app.pinnedNodes")} onMove={onMove} reorderEnabled={editing} grabScroll directionalLinks>
     {rows.map(/** Keep legacy paint/selectors and per-entry actions independent of the drag handle. */ row => <div key={row.id} role="listitem" data-reorder-id={row.id}
       style={row.style} className={`kplex-pinned-chip${row.active ? " is-active" : ""}${row.available ? "" : " is-unavailable"}`}>
       {editing && <button type="button" className="kplex-pin-reorder-handle" data-reorder-handle aria-label={translate("pins.reorder", {title: row.label})}
@@ -37,6 +39,8 @@ export function PinnedNodeBar({rows, translate, onActivate, onRemove, onMove, on
       <button type="button" className="kplex-pinned-open" data-kplex-pinned-path={row.path ?? undefined} disabled={!(row.actionable ?? row.available)} aria-label={`${row.label}\n${row.detail ?? row.path ?? ""}`}
         draggable={Boolean(row.draggable && onDragStart)}
         onDragStart={/** Pin bodies export links; the separate grip alone owns reordering. */ event => onDragStart?.(row, event)} onDragEnd={onDragEnd}
+        onPointerEnter={/** The host shares the ordinary node's native modifier preview owner. */ (event: ReactPointerEvent<HTMLButtonElement>) => onHoverPreview?.(row, event.currentTarget, event.nativeEvent)}
+        onPointerLeave={onHoverEnd}
         onClick={/** Only the host performs explicit guarded navigation. */ () => onActivate(row.id)}><ObsidianIcon name={row.icon} size={12} /><span>{row.label}</span></button>
       {editing && <button type="button" className="kplex-pinned-remove" aria-label={translate("app.unpinNode", {title: row.label})}
         onClick={/** Removing an unavailable bookmark never requires a graph page or a note write. */ () => onRemove(row.id)}><ObsidianIcon name="x" size={11} /></button>}

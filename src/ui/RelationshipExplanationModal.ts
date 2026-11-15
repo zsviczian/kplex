@@ -24,6 +24,7 @@ import type { RelationEvidence } from "../index/RelationEvidence";
 import {SelectedOntologyEditor} from "./SelectedOntologyEditor";
 import {ReverseRelationshipModal} from "./ReverseRelationshipModal";
 import {eligibleRelationshipOwner} from "../adapters/obsidian/relationshipOwner";
+import {groupRelationshipSourceOccurrences} from "./features/relationshipSourceOccurrences";
 
 const ROLE_LABEL: Record<string, PlainTranslationKey> = {
   parent: "role.parent",
@@ -311,7 +312,7 @@ export class RelationshipExplanationModal extends Modal {
         .map(/** Field names are source facts, not combined connector captions. */ decision => decision.evidence.fieldName).filter(/** Body/property sources without a physical field have no ontology editor target. */ (field): field is string => Boolean(field)))) this.ontologyEditButton(actions, field);
       const navigate = iconButton(actions, "locate-fixed", this.plugin.translator("explain.goToSource"), () => {
         if (this.closed || this.operation !== "idle") return;
-        void this.plugin.openRelationshipEvidenceLocation({ path: section.path, line: section.startLine }, this.displayContext?.hostLeaf).then(() => this.close());
+        void this.plugin.openRelationshipEvidenceLocation({ path: section.path, line: section.occurrence?.line ?? section.startLine }, this.displayContext?.hostLeaf).then(() => this.close());
       });
       navigate.disabled = this.operation !== "idle";
       this.mutationNavigationButtons.push(navigate);
@@ -538,66 +539,9 @@ export class RelationshipExplanationModal extends Modal {
       void this.plugin.relationshipEvidenceSectionsBatch(evidence).then(/** Render only still-mounted results and combine overlapping physical occurrence views. */ (sectionsByEvidence) => {
         if (!this.isCurrent(generation) || !list.isConnected) return;
         loading.remove();
-        const occurrenceGroups = new Map<string, { section: RelationshipSourceSection; decisions: EvidenceDecision[]; priority: number }>();
-        /** Prefer explicit ontology provenance when generic cache ranges overlap the same occurrence. */
-        const priorityFor = (decision: EvidenceDecision): number => {
-          if (decision.evidence.sourceKind === "frontmatter-ontology" || decision.evidence.sourceKind === "inline-ontology") return 0;
-          if (decision.evidence.sourceKind === "body-url" || decision.evidence.sourceKind === "property-url" || decision.evidence.sourceKind === "date-property") return 1;
-          return 2;
-        };
-        for (const decision of explanation.decisions) {
-          const sections = sectionsByEvidence.get(decision.evidence.id) ?? [];
-          if (!sections.length) {
-            this.renderEvidenceSource(list, decision, sections);
-            continue;
-          }
-          for (const section of sections) {
-            const key = `${section.path}\u0000${section.startLine}\u0000${section.endLine}`;
-            const priority = priorityFor(decision);
-            const existing = occurrenceGroups.get(key);
-            if (!existing) {
-              occurrenceGroups.set(key, { section, decisions: [decision], priority });
-            } else {
-              existing.decisions.push(decision);
-              if (priority < existing.priority) {
-                existing.section = section;
-                existing.priority = priority;
-              }
-            }
-          }
-        }
-        // A single physical Markdown occurrence can be detected through more than one evidence
-        // path. The common case is a frontmatter ontology link that Obsidian also reports as a
-        // generic resolved link. Exact range matching is insufficient because the generic link
-        // range may expand to a larger YAML paragraph while the ontology evidence identifies the
-        // precise property range. Prefer the most specific/higher-priority section and fold any
-        // overlapping lower-priority detections into it so Connection details never shows the
-        // same source text twice.
-        const mergedGroups: Array<{ section: RelationshipSourceSection; decisions: EvidenceDecision[]; priority: number }> = [];
-        const groups = [...occurrenceGroups.values()].sort((a, b) => (
-          a.priority - b.priority
-          || (a.section.endLine - a.section.startLine) - (b.section.endLine - b.section.startLine)
-          || a.section.startLine - b.section.startLine
-        ));
-        for (const group of groups) {
-          const existing = mergedGroups.find((candidate) => (
-            candidate.section.path === group.section.path
-            && candidate.section.startLine <= group.section.endLine
-            && group.section.startLine <= candidate.section.endLine
-          ));
-          if (!existing) {
-            mergedGroups.push(group);
-            continue;
-          }
-          existing.decisions.push(...group.decisions);
-        }
-        for (const group of mergedGroups.sort((a, b) => (
-          a.section.path.localeCompare(b.section.path)
-          || a.section.startLine - b.section.startLine
-          || a.priority - b.priority
-        ))) {
-          this.renderSourceOccurrence(list, group.section, group.decisions);
-        }
+        const grouped = groupRelationshipSourceOccurrences(explanation.decisions, sectionsByEvidence);
+        for (const decision of grouped.unlocated) this.renderEvidenceSource(list, decision, []);
+        for (const group of grouped.groups) this.renderSourceOccurrence(list, group.section, group.decisions);
       }).catch(() => {
         if (!this.isCurrent(generation) || !list.isConnected) return;
         loading.setText(this.plugin.translator("explain.sourceLoadFailed"));
