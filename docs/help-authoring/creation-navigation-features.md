@@ -1,6 +1,6 @@
 # Creation and navigation: help-authoring reference
 
-This is the proposed behavior on `codex/kplex-creation-navigation`, addressing [#217](https://github.com/zsviczian/kplex/issues/217), [#208](https://github.com/zsviczian/kplex/issues/208) and [#224](https://github.com/zsviczian/kplex/issues/224). It is an unreleased draft. This reference supports a separate agent working in K-Plex Help; it does not change that repository. Follow its current instructions and the [authoring guide](README.md) when organizing help pages.
+This is a historical implementation reference from the creation/navigation work before 0.4.4. For current reader-facing behavior, use the living Help guides and the merged changes in [PR #302](https://github.com/zsviczian/kplex/pull/302) and [PR #308](https://github.com/zsviczian/kplex/pull/308): creation types are now shared tabs with separate Markdown/Excalidraw template lists, a remembered tab and compact fields. The older acceptance notes below describe that checkpoint, not current release coverage. Follow the [authoring guide](README.md) and verify source before reusing a platform or availability claim.
 
 ## Open files in K-Plex
 

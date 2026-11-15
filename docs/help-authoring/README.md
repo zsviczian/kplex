@@ -6,7 +6,7 @@ This is an **agent playbook for maintaining [K-Plex Help](https://github.com/zsv
 
 - Product implementation, source truth, issues, PRs, released tags and technical documentation: [K-Plex](https://github.com/zsviczian/kplex).
 - User-facing explanations, use cases, release archive, screenshots and visual showcase: [K-Plex Help](https://github.com/zsviczian/kplex-help).
-- As of October 19, 2026, the in-progress Help branch is [`2026-10-19-help-use-cases`](https://github.com/zsviczian/kplex-help/tree/2026-10-19-help-use-cases), under [Help PR #2](https://github.com/zsviczian/kplex-help/pull/2). **Check the live branch/PR before resuming; never assume it stays open.**
+- Check the live Help branch, working tree and open PRs before resuming. Do not assume a historical authoring branch or PR is still active. Preserve local appearance/workspace changes and unrelated edits.
 - The help vault has independent `.obsidian` configuration, including plugin executables and `plugins/k-plex/data.json`. Documentation edits do **not** authorize changing binaries, settings, hotkeys or workspace state. The local maintainer updates the bundled `main.js` / release artifacts deliberately once the release is ready.
 
 ## Content architecture
@@ -53,7 +53,22 @@ When a K-Plex release ships, update the Help vault's plugin assets only under a 
 
 Before completing a release-note edit, check the entire release archive in version order: valid YAML, existing targets, correct reciprocal `Previous`/`Next` links, no chronological links under `Related`/`Friend`, and correct endpoints. Preserve historical body text when correcting navigation metadata.
 
-**Acceptance checklist:** accurate source/release status; one clear audience goal; all referenced files exist; correct YAML/ontology/Note type; complete reciprocal release sequence; no stale availability promises in use cases; screenshots genuine and appropriately captioned; no unapproved `.obsidian` or binary changes; GitHub read-back and honest visual-test report.
+### Release-day journal navigation
+
+- Maintain real daily notes at the configured Daily Notes location and date format. The supplied Help vault uses root-level `YYYY-MM-DD.md` notes. Use GitHub's **published_at** date for historical releases, rather than commit, tag creation, documentation-edit or deployment dates. Several versions may share a day. The technical 0.2.1 republication is documented by Release 0.2.0 and shares its October 20 date.
+- In each release page, write `released on:: [[YYYY-MM-DD]]`. Configure **released on** as a **Friend** field; it is an explicit wikilink relationship, not a scalar Date. Do not reclassify release-to-feature `Explains` edges or release-to-release `Previous`/`Next` edges.
+- Daily notes form a reciprocal chain through `earlier:: [[previous-existing-day]]` and `later:: [[next-existing-day]]`. Configure **earlier/later** as the Previous/Next inverse pair. Link the nearest existing daily entries across gaps; do not manufacture notes for every intervening calendar day. Omit earlier on the first day and later on the last.
+- Keep existing demonstration days in the chain, identifying them as examples rather than inventing a release event. The October 9 Date-property example demonstrates a different source from the explicit released-on link.
+- Use the [daily-note template](DAILY_NOTE_TEMPLATE.md). Group the Release days hub by month so its actual semantic children remain within twelve; audit inferred body-link children as well as YAML declarations.
+- Validate every release's date, reciprocal day-chain links, version-chain links, filename/date agreement, ontology assignment and calendar navigation. Do not infer a whole-vault negative from an incomplete runtime graph.
+
+### Final material prepared before publication
+
+When the maintainer explicitly requests publication-ready copy, write the consumer release page as final material without planned-release banners. Keep the publication checklist, source status and screenshot limitations **here or in the PR**, outside the Help vault. Use an authoritative published date or a maintainer-supplied release date; do not guess one. Recheck the actual GitHub release and its shipped scope before publication. Other drafts retain the normal explicit-draft convention.
+
+An explicit deployment instruction authorizes the named artifacts only. Build current source with `build:local`, verify hashes after copying, and preserve the vault's settings and other plugin files. Do not silently bump a manifest to a future version or describe its displayed version as the executable's source identity. Coordinate screenshots through the shared native host lock; on a conflict, stop CLI activity and ask the maintainer to choose priority. Capture actual Help content, preserve preexisting configuration/workspace bytes, and leave the exact build installed when deployment was requested.
+
+**Acceptance checklist:** accurate source/release status; one clear audience goal; all referenced files exist; correct YAML/ontology/Note type; complete reciprocal release and daily-note sequences; no stale availability promises in use cases; screenshots genuine and appropriately captioned; no unapproved `.obsidian` or binary changes; GitHub read-back and honest visual-test report. Maintain the [screenshot coverage catalog](SCREENSHOTS.md) for missing physical-device views.
 
 ## Reader-first review
 

@@ -23,6 +23,8 @@ Explains:
 
 <Reader need and the useful outcome of this update.>
 
+released on:: [[<actual YYYY-MM-DD daily note>]]
+
 > [!warning] Draft — not released
 > Remove this callout **only** after verifying the published GitHub tag.
 
@@ -50,5 +52,7 @@ Follow [Links and Markdown tables](README.md#links-and-markdown-tables): short n
 Validate the entire archive's reciprocal sequence and endpoints, YAML and link targets before finishing. See [Release sequence navigation](README.md#release-sequence-navigation) for the rules and a 0.2.4 ↔ 0.3.0 example. Preserve historical body text when fixing navigation metadata.
 
 Before publishing: confirm exact numeric version/tag/date and actual shipped scope, links to real help pages, image display, and whether source release text is reproduced or editorially condensed. `Explains` connects the release to the guides and real-life use cases it makes possible; individual evergreen use cases should **not** carry "shipped next release" banners. Maintain an indexed Release notes hub. Use the existing `kplex-help/release-notes` tag so styling can be applied without inventing a separate ontology.
+
+The released-on field requires a real dated target and the Help vault's Friend assignment. Maintain that day's reciprocal earlier/later journal links using [DAILY_NOTE_TEMPLATE.md](DAILY_NOTE_TEMPLATE.md). For maintainer-requested final copy prepared before publication, omit the draft callout; keep the release-status/date check outside the consumer vault, as described in the authoring guide. Never invent a date to fill the placeholder.
 
 Keep original published release text intact and attributed. Add a brief reader-facing introduction before publication metadata; the introduction should help a user decide whether to read this version. Group release-to-feature links through subject hubs if direct semantic children would exceed twelve.
