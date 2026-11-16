@@ -395,6 +395,34 @@ for(const retirement of ['inventory','unload','replacement'])test(`initial resol
  }finally{replacement?.close();f.close();}
 });
 
+for(const bodyChanged of [false,true])test('an exact Markdown observation before admission remains finite (body='+bodyChanged+')',()=>{
+ const f=hostFixture();try{
+  const file=f.add('Early.md','Before');f.acquisition.observeBeforeStart(file,bodyChanged);
+  assert.equal(f.app.vault.count(),0,'Dormant observation cannot register listeners');
+  assert.deepEqual(f.reads,[]);assert.deepEqual(f.parses,[]);
+  f.acquisition.start();const recovery=f.acquisition.getRecoveryDiagnostics();
+  assert.equal(recovery.resolutionUncertain,false,'A known source is not an unscoped resolver event');
+  assert.equal(recovery.pendingKnown,1);assert.equal(recovery.dependenciesReady,false,'A finite receipt grants no authority');
+  assert.equal(f.acquisition.needsBodyRead(file),bodyChanged,'Actual dirty parser input is preserved');
+  assert.deepEqual(f.reads,[]);assert.deepEqual(f.parses,[]);
+ }finally{f.close();}
+});
+
+for(const mutation of ['unscoped','attachment','rename','delete','replacement','overflow'])test('dormant source admission retains global uncertainty for '+mutation,()=>{
+ const f=hostFixture();try{
+  const file=f.add(mutation==='attachment'?'Early.png':'Early.md','Before');
+  f.acquisition.observeBeforeStart(file,true,mutation==='rename'?'Old.md':undefined);
+  if(mutation==='unscoped')f.acquisition.observeBeforeStart();
+  if(mutation==='delete')f.files.delete(file.path);
+  if(mutation==='replacement')f.files.set(file.path,new TFile(file.path));
+  if(mutation==='overflow')for(let i=0;i<256;i++)f.acquisition.observeBeforeStart(f.add('Extra'+i+'.md',''),true);
+  assert.equal(f.app.vault.count(),0);assert.deepEqual(f.reads,[]);f.acquisition.start();
+  const recovery=f.acquisition.getRecoveryDiagnostics();assert.equal(recovery.resolutionUncertain,true);assert.equal(recovery.dependenciesReady,false);
+  assert.ok(recovery.pendingKnown<=256,'Dormant strong owner retention is bounded');
+  assert.deepEqual(f.reads,[]);assert.deepEqual(f.parses,[]);
+ }finally{f.close();}
+});
+
 /** Real body/metadata/native-incarnation changes cannot inherit the clean-resolver shortcut. */
 for(const admitted of [false,true])for(const change of ['equal-stat-body','metadata','rename','replacement','created','deferred-body'])test(`pre-enable resolver classification rejects real source changes (${change}, admitted=${admitted})`,()=>{
  const f=hostFixture();

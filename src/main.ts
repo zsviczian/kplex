@@ -124,6 +124,7 @@ import { MaterializeGhostModal, type GhostMaterializationKind, type GhostMateria
 import { DeleteNodeConfirmationModal, RemainingNodeReferencesModal, HideRelationshipModal, type DeleteNodePreview, type DeleteSourcePreview, type RemainingNodeReference } from "./ui/DeleteNodeModal";
 import { HiddenFieldSetupModal, type HiddenFieldSetupChoice } from "./ui/HiddenFieldSetupModal";
 import { navigatePluginSettings } from "./adapters/obsidian/settingsNavigation";
+import type {ElementStyleSource, StandardStyleKey} from "./core/contracts/styleSource";
 import { suggestHiddenProperty } from "./adapters/obsidian/hiddenPropertyName";
 import { LinkDirection, RelationType, type GateRole, type GraphPage, type RelationshipRole } from "./types";
 import { OntologySuggester } from "./editor/OntologySuggester";
@@ -676,9 +677,9 @@ export default class KplexPlugin extends Plugin {
       const interval = Math.max(5000, this.settings.indexUpdateInterval);
       this.registerInterval(window.setInterval(() => {
         // Event-driven dirty tracking is authoritative. The legacy interval may flush a pending
-        // backlog while a Plex is open, but it must never make a closed/clean index dirty merely
+        // backlog with visible or opted-in Eager demand, but must never make a clean index dirty merely
         // because a minute passed.
-        if (this.hasVisibleKplexSurface() && this.indexDirty) void this.rebuildIndex(false, false, "interval");
+        if (this.hasIndexMaintenanceDemand() && this.indexDirty) void this.rebuildIndex(false, false, "interval");
       }, interval));
     }
 
@@ -1208,7 +1209,7 @@ export default class KplexPlugin extends Plugin {
           // authoritative graph is already available; if startup is still building, reconcile it
           // after that pass instead of restarting the entire vault scan for one created file.
           this.dirtyMarkdownPaths.add(created.path);
-          if (this.initialIndexComplete && !this.rebuildTask && this.hasVisibleKplexSurface() && this.index?.hasPhysicalBaseline()) {
+          if (this.initialIndexComplete && !this.rebuildTask && this.hasIndexMaintenanceDemand() && this.index?.hasPhysicalBaseline()) {
             this.index.insertCreatedFile(created);
           } else {
             // Find/navigation may use the exact native file while a graph owner is still awaiting
@@ -1445,7 +1446,7 @@ export default class KplexPlugin extends Plugin {
     if (reason === "vault:create") this.pendingCreateRevision = this.indexDirtyRevision;
     this.indexBacklogReasons.add(reason);
     this.notifyIndexStatus();
-    if (!this.hasVisibleKplexSurface() || !this.initialIndexComplete || this.rebuildTask) return;
+    if (!this.hasIndexMaintenanceDemand() || !this.initialIndexComplete || this.rebuildTask) return;
     if (this.rebuildTimer !== null) {
       window.clearTimeout(this.rebuildTimer);
     }
@@ -1484,16 +1485,14 @@ export default class KplexPlugin extends Plugin {
     }
     this.openKplexViews = Math.max(0, this.openKplexViews - 1);
     if (this.openKplexViews > 0) return;
-    if (this.rebuildTimer !== null) {
+    if (!this.hasIndexMaintenanceDemand() && this.rebuildTimer !== null) {
       window.clearTimeout(this.rebuildTimer);
       this.rebuildTimer = null;
     }
-    // Desktop/Android may finish the once-per-session prewarm in the background. On iOS a large
-    // first-ever build is intentionally demand-driven: if the user closes the last Plex, cancel
-    // the in-memory graph build immediately. Parsed-body IndexedDB checkpoints already completed
-    // remain useful, so reopening resumes with less work instead of keeping a hidden iPad WebView
-    // under memory pressure.
-    if (this.initialIndexComplete || Platform.isIosApp) this.index.cancelRebuild();
+    // Explicit Eager pre-canvas preparation keeps its existing background owner. Otherwise a
+    // completed demand-driven graph, or an iOS first build, releases work with the last canvas;
+    // already persisted source/checkpoint work remains reusable on reopening.
+    if (!this.hasIndexMaintenanceDemand() && (this.initialIndexComplete || Platform.isIosApp)) this.index.cancelRebuild();
     // A completed graph's pending cache save must survive closing its last surface. Otherwise a
     // corrected ontology/topology cache can be lost and the next reload repeats global recovery.
     // Partial/on-demand graphs retain the existing cancellation and never become complete caches.
@@ -1541,7 +1540,7 @@ export default class KplexPlugin extends Plugin {
       if (!this.preRestoreUncoveredChanges && this.indexBacklogReasons.size === 0 && this.dirtyMarkdownPaths.size === 0) {
         this.indexDirty = false;
       }
-      if (this.indexDirty && this.hasVisibleKplexSurface()) this.scheduleRebuild("startup:post-initial-backlog");
+      if (this.indexDirty && this.hasIndexMaintenanceDemand()) this.scheduleRebuild("startup:post-initial-backlog");
       if (!this.indexDirty && !index.isOnDemandMode()) index.finishStartupSnapshot();
     }
     this.notifyIndexStatus();
@@ -1609,7 +1608,7 @@ export default class KplexPlugin extends Plugin {
   private async finishStartupIndexPreparation(): Promise<void> {
     await this.ensureInitialIndex();
     if (!this.unloading && this.initialIndexComplete && !this.indexDirty && !this.index.isOnDemandMode()) this.index.finishStartupSnapshot();
-    if (!this.unloading && this.initialIndexComplete && this.indexDirty && this.hasVisibleKplexSurface()) {
+    if (!this.unloading && this.initialIndexComplete && this.indexDirty && this.hasIndexMaintenanceDemand()) {
       this.scheduleRebuild("startup:post-initial-backlog");
     }
   }
@@ -1781,7 +1780,7 @@ export default class KplexPlugin extends Plugin {
           if (!this.indexDirty) return;
           // A newer reactive event remains in the per-file backlog. Let the normal coordinator
           // patch it after this startup task releases its guard.
-          if (this.hasVisibleKplexSurface()) this.scheduleRebuild("startup:post-initial-backlog");
+          if (this.hasIndexMaintenanceDemand()) this.scheduleRebuild("startup:post-initial-backlog");
           return;
         }
       }
@@ -1805,9 +1804,9 @@ export default class KplexPlugin extends Plugin {
       this.initialIndexComplete = this.index.isFullSnapshotHydrated();
       this.notifyIndexStatus();
 
-      // Changes that arrived while the initial build was running are coalesced. Only reconcile
-      // them immediately when the user currently has a Plex open; otherwise keep the backlog.
-      if (this.indexDirty && this.hasVisibleKplexSurface()) this.scheduleRebuild("startup:post-initial-backlog");
+      // Changes during initial preparation stay with the existing coalesced owner. Opted-in
+      // Eager preparation must drain them even before the first canvas opens.
+      if (this.indexDirty && this.hasIndexMaintenanceDemand()) this.scheduleRebuild("startup:post-initial-backlog");
     })().finally(() => {
       // Keep the resolved promise only after a complete initial index. If iOS work was cancelled
       // because the last K-Plex view closed, reopening must be able to resume the durable prewarm.
@@ -1907,7 +1906,7 @@ export default class KplexPlugin extends Plugin {
         || item === "coalesced-backlog" || item === "interval")) return;
     }
     const explicitlyRequested = showNotice;
-    if (!this.hasVisibleKplexSurface() && !allowClosed && !explicitlyRequested) {
+    if (!this.hasIndexMaintenanceDemand() && !allowClosed && !explicitlyRequested) {
       return;
     }
 
@@ -2011,10 +2010,9 @@ export default class KplexPlugin extends Plugin {
         }
         // Only a structural/unsupported patch result may fall through to the authoritative builder.
       }
-      // Awaited patch/read work may have outlived the last visible Plex. Never turn that cancellation
-      // into a hidden full-vault rebuild. Explicit user rebuilds and startup allowClosed work remain
-      // separate from this demand-driven guard.
-      if (!this.hasVisibleKplexSurface() && !allowClosed && !explicitlyRequested) {
+      // Awaited patch/read work may outlive its demand. A hidden session without opted-in Eager
+      // preparation cannot escalate to a full build; explicit and startup owners remain separate.
+      if (!this.hasIndexMaintenanceDemand() && !allowClosed && !explicitlyRequested) {
         this.indexDirty = true;
         return;
       }
@@ -2040,7 +2038,7 @@ export default class KplexPlugin extends Plugin {
       if (!published) {
         this.indexDirty = true;
         this.indexBacklogReasons.add(reason);
-        if (allowClosed && this.indexDirtyRevision !== startRevision && this.hasVisibleKplexSurface() && this.rebuildTimer === null) {
+        if (allowClosed && this.indexDirtyRevision !== startRevision && this.hasIndexMaintenanceDemand() && this.rebuildTimer === null) {
           // A note saved while cold ingestion was awaiting work invalidates that source revision.
           // Retry after the current startup task releases its guard instead of leaving a partial
           // scene indefinitely until the user closes and reopens K-Plex.
@@ -2097,11 +2095,14 @@ export default class KplexPlugin extends Plugin {
       await task;
     } finally {
       if (this.rebuildTask === task) this.rebuildTask = null;
+      // The initial repair can finish in this coalesced owner after startup itself returned.
+      // Discharge only coherent initial save debt; this method preserves later edit deadlines.
+      if (!this.unloading && this.initialIndexComplete && !this.indexDirty && !this.index.isOnDemandMode()) this.index.finishStartupSnapshot();
       this.notifyIndexStatus();
     }
 
 
-    if (!this.unloading && this.indexDirty && this.initialIndexComplete && this.hasVisibleKplexSurface() && this.rebuildTimer === null) {
+    if (!this.unloading && this.indexDirty && this.initialIndexComplete && this.hasIndexMaintenanceDemand() && this.rebuildTimer === null) {
       this.rebuildTimer = window.setTimeout(() => {
         this.rebuildTimer = null;
         void this.rebuildIndex(false, false, "coalesced-backlog");
@@ -2901,6 +2902,19 @@ export default class KplexPlugin extends Plugin {
     return opened && (target === undefined || !!this.settingsTab?.openCanvasViewManager(id, target));
   }
 
+  /** Navigate an appearance source to its existing native editor, preserving the invoking document. */
+  openElementStyleSource(source: Exclude<ElementStyleSource, {kind: "lens"}>, scope: HTMLElement, previewPath?: string): boolean {
+    if (!scope.isConnected || !this.registerSettingsTab()) return false;
+    if (source.kind === "standard") return this.openStandardStyleSettings(source.key);
+    return this.settingsTab?.openElementStyleSource(source, scope, previewPath) ?? false;
+  }
+
+  /** Standard source colors already have exact declarative pages; retain native page controls. */
+  private openStandardStyleSettings(key: StandardStyleKey): boolean {
+    return this.openSettingsPage(this.translator("settings.ui.visual.styling"), this.translator("colors.colorsPage"),
+      this.translator("colors.standardColors"), this.translator(`colors.standard.${key}`));
+  }
+
   /** Reuse native page-path navigation with the existing owning-tab fallback for settings cross-links. */
   private openSettingsPage(...pageNames: string[]): boolean {
     if (!this.registerSettingsTab()) return false;
@@ -3641,6 +3655,13 @@ export default class KplexPlugin extends Plugin {
     return this.isKplexLeaf(leaf) && this.leafIsVisible(leaf);
   }
 
+  /** Keep opted-in Eager preparation current while canvases are closed. Use captured startup
+   * policy, never a newly edited preference; dormant and On-demand sessions retain view demand. */
+  private hasIndexMaintenanceDemand(): boolean {
+    return this.hasVisibleKplexSurface() || this.layoutReady && this.indexPreparationAdmitted
+      && this.startupIndexPolicy.beforeView && this.startupIndexPolicy.mode === "eager";
+  }
+
   private hasVisibleKplexSurface(): boolean {
     return this.currentVisibleKplexLeaves().size > 0;
   }
@@ -3670,13 +3691,13 @@ export default class KplexPlugin extends Plugin {
       if (this.indexDirty || !this.initialIndexComplete) void this.ensureIndexReady("view-visible");
       return;
     }
+    if (this.hasIndexMaintenanceDemand()) return;
     if (this.rebuildTimer !== null) {
       window.clearTimeout(this.rebuildTimer);
       this.rebuildTimer = null;
       this.notifyIndexStatus();
     }
-    // Preserve the once-per-session desktop/Android startup policy, but once an authoritative
-    // index exists there is no reason to keep an automatic edit patch running for a hidden tab.
+    // Only demand-driven sessions pause here; opted-in Eager work keeps its timer and save debt.
     if (this.initialIndexComplete || Platform.isIosApp) this.index.cancelRebuild();
     this.index.cancelPendingPersistence();
   }

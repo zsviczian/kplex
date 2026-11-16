@@ -65,6 +65,7 @@ import { ColorAdoptionModal } from "./ui/ColorAdoptionModal";
 import { StyleColorControls, compassSwatchItem, type StyleColorContext } from "./ui/StyleColorControls";
 import { ColorPaletteModal } from "./ui/ColorPaletteModal";
 import { standardColorSlots, adoptStandardThemeColors, withoutStyleColorOverrides, mergeStyleDraft, requireNamedColor, STANDARD_NODE_COLOR_STYLES, STANDARD_LINK_COLOR_STYLES } from "./core/plex/colorEditing";
+import type {ElementStyleSource} from "./core/contracts/styleSource";
 import { NOTE_TYPE_TAG_LINK_STYLE } from "./core/graph/presentation";
 import { noteTypeTagDefaultStyle } from "./index/style";
 import { styleNumberSlider } from "./ui/styleNumberSlider";
@@ -355,6 +356,8 @@ export interface KplexSettings extends StartupIndexPreferences {
   allowAutozoom: boolean;
   /** Canvas-style trackpad navigation; false preserves wheel zoom. */
   trackpadNavigation: boolean;
+  /** An explicit tap may open an external URL only after it is already the canvas center. */
+  singleClickExternalNavigation: boolean;
   allowAutofocuOnSearch: boolean;
   defaultAlwaysOnTop: boolean;
   embedCentralNode: boolean;
@@ -543,6 +546,7 @@ const LEGACY_DEFAULT_SETTINGS: KplexSettings = {
   boldFields: false,
   allowAutozoom: false,
   trackpadNavigation: false,
+  singleClickExternalNavigation: false,
   connectionSourceModifier: "none",
   allowAutofocuOnSearch: true,
   defaultAlwaysOnTop: false,
@@ -906,6 +910,7 @@ export function migrateAndMergeSettings(raw: unknown): KplexSettings {
     folderCreationTab: old.folderCreationTab === "folder" ? "folder" : "note",
     linkAfterSaving: sanitizeCreationAfterSaving(old.linkAfterSaving ?? old.newNodeAfterSaving, old.editNewNodeAfterCreate === true),
     trackpadNavigation: old.trackpadNavigation === true,
+    singleClickExternalNavigation: old.singleClickExternalNavigation === true,
     connectionSourceModifier: old.connectionSourceModifier === "mod" || old.connectionSourceModifier === "shift" ? old.connectionSourceModifier : "none",
     lastDrawingTemplatePath: typeof old.lastDrawingTemplatePath === "string" ? old.lastDrawingTemplatePath : null,
     markdownTemplateFolder: typeof old.markdownTemplateFolder === "string" ? old.markdownTemplateFolder : "",
@@ -1812,6 +1817,18 @@ export class KplexSettingTab extends PluginSettingTab {
     }, 250);
   }
 
+  /** Open only an existing captured style owner; a deleted menu source never becomes a new rule. */
+  openElementStyleSource(source: Exclude<ElementStyleSource, {kind: "lens" | "standard"}>, scope: HTMLElement, previewPath?: string): boolean {
+    const settings = this.kplexPlugin.settings;
+    if (source.kind === "ontology") {
+      // The built-in Note Type connector is a permanent editor even before an override is saved.
+      if (source.key !== NOTE_TYPE_TAG_LINK_STYLE && !Object.prototype.hasOwnProperty.call(settings.hierarchyLinkStyles, source.key)) return false;
+      this.openOntologyLinkStyleEditor(source.key, undefined, scope);return true;
+    }
+    if (!Object.prototype.hasOwnProperty.call(settings.tagNodeStyles, source.key)) return false;
+    this.openNodeStyleEditor(source.key, undefined, scope, false, previewPath);return true;
+  }
+
   /** Open the selected primary type directly, preserving existing style-key spelling and the caller's window. */
   openNoteTypeEditor(value: string, sourceScope: HTMLElement, previewPath?: string): boolean {
     const type = nodePropertyType(value);if (!type) return false;
@@ -2302,7 +2319,7 @@ export class KplexSettingTab extends PluginSettingTab {
   }
 
   /** Edit/reset an ontology appearance override through the same durable owner as node styles. */
-  private openOntologyLinkStyleEditor(fieldName: string, afterChange?: () => void): void {
+  private openOntologyLinkStyleEditor(fieldName: string, afterChange?: () => void, sourceScope?: HTMLElement): void {
     const owner = this.kplexPlugin.captureAppearanceOwner();
     const key = normalizeOntologyStyleKey(fieldName);
     const openingExists = this.ontologyLinkStyle(fieldName) !== undefined;
@@ -2329,8 +2346,8 @@ export class KplexSettingTab extends PluginSettingTab {
         delete draft.hierarchyLinkStyles[key];
       }, isCurrent, owner, afterChange),
       fieldName === NOTE_TYPE_TAG_LINK_STYLE
-        ? {...this.styleColorContext(owner), linkStyle: () => noteTypeTagDefaultStyle(this.kplexPlugin.settings)}
-        : this.styleColorContext(owner), () => this.colorDialogs.delete(dialog), fieldName === NOTE_TYPE_TAG_LINK_STYLE,
+        ? {...this.styleColorContext(owner, sourceScope), linkStyle: () => noteTypeTagDefaultStyle(this.kplexPlugin.settings)}
+        : this.styleColorContext(owner, sourceScope), () => this.colorDialogs.delete(dialog), fieldName === NOTE_TYPE_TAG_LINK_STYLE,
     );
     this.colorDialogs.add(dialog); dialog.open();
   }
@@ -2503,6 +2520,7 @@ export class KplexSettingTab extends PluginSettingTab {
               { name: translate("settings.ui.animation.speed"), desc: translate("settings.ui.speed.multiplier.0.off.0.5.slow.1.normal.1.5.fast.2.very"), control: { type: "slider", key: "animationSpeed", min: 0, max: 2, step: 0.1 } },
               {name: translate("settings.sourceModifier"), desc: translate("settings.sourceModifier.help"), control: {type: "dropdown", key: "connectionSourceModifier", defaultValue: "none", options: {none: translate("settings.sourceModifier.none"), mod: primaryModifier, shift: translate("shortcut.shift")}}},
               { name: translate("settings.trackpad"), desc: translate("settings.trackpad.help"), control: {type: "toggle", key: "trackpadNavigation"} },
+              {name: translate("settings.singleClickExternalNavigation"), desc: translate("settings.singleClickExternalNavigation.help"), control: {type: "toggle", key: "singleClickExternalNavigation"}},
               { name: translate("settings.ui.auto.fit.on.navigation"), control: { type: "toggle", key: "allowAutozoom" } },
               { name: translate("settings.ui.open.k.plex.in.a.pop.out.window"), desc: translate("settings.ui.when.k.plex.is.opened.and.no.k.plex.view.already.exists"), control: { type: "toggle", key: "startInPopout" } },
               { name: translate("settings.ui.confirm.before.deleting.files"), desc: translate("settings.ui.ask.before.a.node.context.menu.action.deletes.a.note.usi"), control: { type: "toggle", key: "confirmFileDelete" } },

@@ -355,7 +355,10 @@ export class ObsidianSourceAcquisition {
    * Native identities and dirty parser inputs share the normal coalesced observation owner. */
   observeBeforeStart(file?: TFile, bodyChanged = true, oldPath?: string): void {
     if (this.started || this.closed) return;
-    this.preStartHostChanged = true;
+    // Exact live Markdown owners can enter the ordinary restart comparison and finite repair.
+    // Unknown topology, non-Markdown inputs and old-path identities retain global uncertainty.
+    this.preStartHostChanged ||= !file || file.extension !== "md" || oldPath !== undefined
+      || this.app.vault.getFileByPath(file.path) !== file;
     if (file) {
       // Deleted identities need only the existing global inventory fence. Do not retain every
       // create/delete cycle until a view eventually opens; native inventory retires cached heads.
@@ -363,7 +366,8 @@ export class ObsidianSourceAcquisition {
       const state = this.state(file);
       state.revision++; state.dirty = true; state.bodyDirty ||= bodyChanged;
       if (oldPath) state.oldPath ??= oldPath;
-      this.pendingKnownFiles.add(file);
+      if (this.pendingKnownFiles.has(file) || this.pendingKnownFiles.size < SOURCE_MAX_BATCH_RECORDS) this.pendingKnownFiles.add(file);
+      else this.preStartHostChanged = true;
     } else for (const pending of this.pendingKnownFiles) {
       // Some hosts report a deleted folder without individual descendant delete events.
       if (this.app.vault.getFileByPath(pending.path) !== pending) this.pendingKnownFiles.delete(pending);
@@ -374,9 +378,15 @@ export class ObsidianSourceAcquisition {
     if (this.started || this.closed) return;
     this.started = true;
     this.epoch = this.repository.createIdentity();
-    if (this.preStartHostChanged) {
+    if (this.preStartHostChanged || [...this.pendingKnownFiles].some(file => file.extension !== "md"
+      || this.app.vault.getFileByPath(file.path) !== file || this.states.get(file)?.oldPath !== undefined)) {
       this.preStartHostChanged = false;
       this.markContributorHostChange("resolution", true);
+    } else if (this.pendingKnownFiles.size) {
+      // Transfer actual dormant file receipts without certifying their bodies or the rest of the
+      // vault. The normal header/native comparison and per-source compiler still close authority;
+      // no resolver-close token is invented for an event that may have finished before admission.
+      this.markContributorHostChange("source", false, "known-file", true);
     }
     /**
      * Observe each native change before ordinary acquisition/fan-out. A closing resolver event
@@ -476,14 +486,22 @@ export class ObsidianSourceAcquisition {
       }
     });
     const metadata = this.app.metadataCache.on("changed", (file) => changed(file));
-    const resolve = this.app.metadataCache.on("resolve", /** The public per-file event identifies
-     * which owner's resolved/unresolved links actually changed, even after a slow native queue.
-     * Its following all-files close needs no timer-based guess. Unknown/replaced owners fail closed. */ file => {
+    const resolve = this.app.metadataCache.on("resolve", /** Native resolution also reports unchanged
+     * attachments while rebuilding its startup link tables. Canonical owners in the admitted
+     * initial window are progress: the restart comparison still proves every Markdown input.
+     * Attachment graph facts remain owned by the physical/host graph collector. This receipt
+     * grants no source or graph authority and cannot erase genuine file/metadata invalidation.
+     * Unknown/replaced owners and attachment events after startup retain conservative recovery. */ file => {
+      const initial = !this.restartInventoryChecked && (this.enabled || this.inventory !== null || this.initialResolverObservation);
+      if (initial && file instanceof TFile && file.extension !== "md" && this.app.vault.getFileByPath(file.path) === file) {
+        this.nativeResolvedWave = true;
+        return;
+      }
       if (file instanceof TFile && file.extension === "md" && this.app.vault.getFileByPath(file.path) === file) {
         this.nativeResolvedWave = true;
         this.state(file).resolutionDirty = true;
         changed(file, false, undefined, false, "source", undefined, undefined,
-          !this.restartInventoryChecked && (this.enabled || this.inventory !== null || this.initialResolverObservation));
+          initial);
       } else {
         this.noteResolverWaveCause(false, !(file instanceof TFile) ? file == null ? "resolve-no-owner" : "resolve-non-file"
           : file.extension !== "md" ? "resolve-non-markdown"

@@ -33,6 +33,30 @@ writeFileSync(bundledPath, compiled.outputText.replace(/from ["']\.\.\/contracts
 const parser = await import(pathToFileURL(bundledPath).href);
 const oracle = JSON.parse(readFileSync(join(root, "tests/fixtures/parser-c12c-oracle.json"), "utf8"));
 
+test('Markdown URL titles and image alt text survive optional quoted title attributes', async () => {
+  const worker = vm.runInNewContext(`(${parser.parseBodyMetadataCore.toString()})`, Object.create(null));
+  const cases = [
+    ['He visto el video ![Por qué ser solo &quot;BUENA PERSONA&quot;](https://www.youtube.com/watch?v=hBYxZP38kRE "Teoría de Juegos")', 'https://www.youtube.com/watch?v=hBYxZP38kRE', 'Por qué ser solo &quot;BUENA PERSONA&quot;'],
+    ['![Teoría de Juegos, Veritasium](https://www.youtube.com/watch?v=vBgrvVY1jGo "Veritasium, el dilema del prisionero")', 'https://www.youtube.com/watch?v=vBgrvVY1jGo', 'Teoría de Juegos, Veritasium'],
+    ["[A source](https://example.com/path?x=1&t=20 'Optional title')", 'https://example.com/path?x=1&t=20', 'A source'],
+    ['[A source](https://example.com/path "Title (with parentheses)")', 'https://example.com/path', 'A source'],
+    ['![Pensamiento sistémico](https://youtu.be/jnBj07_-Jl0?is=ewiYfLfvCt44PQXM)', 'https://youtu.be/jnBj07_-Jl0?is=ewiYfLfvCt44PQXM', 'Pensamiento sistémico'],
+    ['![](https://example.com/one "Fallback (with parentheses)")', 'https://example.com/one', 'Fallback (with parentheses)'],
+    ["[  ](https://example.com/two 'Fallback title')", 'https://example.com/two', 'Fallback title'],
+    [String.raw`![](https://example.com/three "Escaped \"title\"")`, 'https://example.com/three', 'Escaped "title"'],
+  ];
+  for (const [input, url, label] of cases) {
+    const expected = [{url, label, line: 1}];
+    assert.deepEqual(parser.parseBodyMetadataCore(input).urls, expected, input);
+    assert.deepEqual((await parser.parseBodyMetadataCooperativeCore(input, noTimerRuntime(), 60000)).urls, expected, input);
+    assert.deepEqual(JSON.parse(JSON.stringify(worker(input))).urls, expected, input);
+  }
+});
+
+test('cooperative optional-title fallback retains cancellation during a long attribute scan',async()=>{
+  await assert.rejects(parser.parseBodyMetadataCooperativeCore('![](https://example.com/long "'+'x'.repeat(200000)+'")',noTimerRuntime({shouldContinue:phase=>phase!=='markdown-url-title'})),/cancelled/);
+});
+
 function bodyInput(item) {
   if (typeof item.input === "string") return item.input;
   const spec = item.inputSpec;

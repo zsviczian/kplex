@@ -173,7 +173,7 @@ export function PlexFilter({
   value,
   onChange,
   lenses,
-  onLensesChange, onEditColor, onShareLens, lensesReadOnly = false, colorPalette = [], appearance,
+  onLensesChange, onEditColor, onShareLens, lensesReadOnly = false, colorPalette = [], appearance, styleEditRequest,
   layoutMode,
   onLayoutModeChange,
   showSiblings,
@@ -193,6 +193,7 @@ export function PlexFilter({
   value: PlexFilterState;
   onChange: (value: PlexFilterState) => void;
   lenses: GraphLensDefinition[];
+  styleEditRequest?: Readonly<{id: string; sequence: number}> | null;
   appearance?: LensAppearanceContext;
   onLensesChange: (lenses: GraphLensDefinition[], baseline?: GraphLensDefinition[], owner?: AppearanceOwner) => Promise<StyleCommitResult> | void;
   onEditColor?: (request: LensColorRequest) => LensColorDialog;
@@ -229,6 +230,8 @@ export function PlexFilter({
   const openingContributions = useRef<CanvasViewContributionController | undefined>(undefined);
   const [draft, setDraft] = useState<LensDraft | null>(null);
   const draftSequence = useRef(0);
+  const handledStyleRequest = useRef<typeof styleEditRequest>(null);
+  const focusStyleRequest = useRef<string | null>(null);
   const [, setThemeRevision] = useState(0);
   useEffect(/** Inactive metadata has no render effect; activation epochs retire drafts even after A→B→A. */ () => {
     if (!appearance) return;
@@ -367,6 +370,20 @@ export function PlexFilter({
     });
     setDraftError(null);
   };
+
+  useEffect(/** Source menus target one existing lens in this exact canvas, using the normal draft/Save owner. */ () => {
+    if (!styleEditRequest || handledStyleRequest.current === styleEditRequest) return;
+    handledStyleRequest.current = styleEditRequest;
+    const lens = lenses.find(lens => lens.id === styleEditRequest.id);
+    if (!lens || lensesReadOnly || draftStale || operation.current.busy) return;
+    openingViewSession.current = viewSession;openingContributions.current = viewContributions;
+    focusStyleRequest.current = lens.id;setOpen(true);editLens(lens);
+  }, [styleEditRequest, lenses, lensesReadOnly, draftStale, viewSession, viewContributions]);
+  useEffect(/** Reveal the existing style controls after the floating panel and its draft have mounted. */ () => {
+    if (!open || draft?.id !== focusStyleRequest.current) return;
+    const controls = panelRef.current?.querySelector<HTMLElement>(".kplex-lens-style-editor");if (!controls) return;
+    focusStyleRequest.current = null;controls.scrollIntoView({block: "nearest"});controls.querySelector<HTMLElement>("button:not(:disabled), input:not(:disabled), select:not(:disabled)")?.focus({preventScroll: true});
+  }, [open, draft?.session]);
 
   const updateSimple = (simple: GraphLensSimpleModel) => {
     setDraft((current) => current ? { ...current, simple, expression: buildGraphLensSimpleExpression(simple) } : current);

@@ -6,6 +6,34 @@ import { chromiumHarness } from './support/browserTypeScript.mjs';
 
 const bundle = await contributorBrowserBundle();
 
+for(const phase of ['startup','settled','changed','foreign'])test('attachment resolver receipt retains exact source recovery fences ('+phase+')',async()=>{
+ const browser=await chromiumHarness(bundle);try{
+  await browser.evaluate(contributorBrowserInitialize);
+  assert(await browser.evaluate(`(async()=>{
+   const f=await fixture('attachment-startup-${phase}');let restarted;
+   try{
+    f.add('A.md','Parent:: [[B]]');f.add('B.md','');const attachment=f.add('Picture.png','');
+    await f.acquire();ok(await f.acquisition.reconcile(),'Closed Markdown source baseline');f.acquisition.close();
+    restarted=new sourceModules.ObsidianSourceAcquisition(f.app,f.cache,async text=>sourceModules.parseBodyMetadata(text));
+    restarted.observeInitialResolverProgress();restarted.start();
+    if('${phase}'==='settled')ok(await restarted.reconcile(),'Complete genuine startup before a later resolver event');
+    if('${phase}'==='changed'){f.texts.set('A.md','Parent:: [[B]]\\nValue:: edited');f.app.vault.trigger('modify',f.files.get('A.md'));f.app.metadataCache.trigger('changed',f.files.get('A.md'));}
+    const before=restarted.getCounters();
+    f.app.metadataCache.trigger('resolve','${phase}'==='foreign'?new window.ContributorFile('Foreign.png'):attachment);
+    f.app.metadataCache.trigger('resolved');
+    const diagnostic=restarted.getRecoveryDiagnostics();
+    if(['settled','foreign'].includes('${phase}')){equal(diagnostic.uncoveredResolverCause,'resolve-non-markdown','Ordinary and noncanonical attachment observations remain conservative');ok(diagnostic.resolutionUncertain,'Unknown resolution remains fenced');}
+    else equal(diagnostic.resolutionUncertain,false,'Canonical initial attachment resolution is startup progress, not unknown Markdown drift');
+    ok(await restarted.reconcile(),'Recovery closes through actual production source checks');
+    const after=restarted.getCounters();
+    if('${phase}'==='startup'){equal(after.checked-before.checked,0,'Unchanged Markdown uses closed host receipts rather than per-note family authentication');equal(after.repaired-before.repaired,0,'No source activation');}
+    if('${phase}'==='changed'){ok(after.vaultReads>before.vaultReads,'A real same-stat body edit still reads current bytes');const rows=[];equal(await f.repository.visit('A.md','values',batch=>{rows.push(...batch);return true}),'ready','Authenticated edited source');ok(rows.some(row=>row.kind==='inline-payload'&&row.text==='edited'),'Edited facts survive the initial resolver receipt');}
+    return true;
+   }finally{restarted?.close();f.close();}
+  })()`));
+ }finally{await browser.cleanup();}
+});
+
 test('uncovered resolver diagnostics distinguish native owner failures without weakening recovery',async()=>{
  const browser=await chromiumHarness(bundle);try{
   await browser.evaluate(contributorBrowserInitialize);

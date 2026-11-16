@@ -12,7 +12,7 @@ opens storage, records readiness or waits for historical loading.
 | --- | --- |
 | `plugin` | Fixed plugin ID, installed `manifestVersion` and embedded `buildId`, separately |
 | `index` | Status, graph, hydration, sources, recovery, decisions and `cache` |
-| `index.cache` | Saved generations, pending/active persistence with remaining delay, latest writer outcome |
+| `index.cache` | Saved generations, passive connection/failure receipts, pending/active persistence with remaining delay, latest writer outcome |
 | `environment` | Host/API/installer versions, OS, device, locale, theme and permitted installed-plugin metadata |
 | `indexingPreferences` | Allowlisted indexing/pacing and related preferences |
 | `startup` | Admission, progress, timing availability, aggregate source/semantic work and bounded detailed phases |
@@ -24,6 +24,15 @@ opens storage, records readiness or waits for historical loading.
 Identity and environment are not repeated inside the index. Current activity's `settings.build`
 moves to `plugin.buildId`; every historical session retains its own manifest and build values.
 For example, an installed manifest `0.4.1` and embedded build `0.4.2` remain distinct.
+
+`index.cache.connection` distinguishes a healthy handle, normal retry backoff, a closed lifetime
+and a newer unsupported database. It retains the last finite failure cause/native error class
+after a successful reopen, with snapshot connection retry/recovery counts. Messages, stacks,
+database names and note data are excluded. A storage-related hydration `firstFailure.storage`
+also captures those facts at the failed boundary, independently of subsequent recovery.
+A snapshot reader can await one existing connection-backoff interval before decoding; this is
+not another graph-decoding attempt, a new source certificate or permission to reuse corrupt chunks.
+Persistent storage failures, policy/native drift, missing chunks and newer schemas remain failures.
 
 `url-background-start` now marks admission of the complete web-link operation, including cached
 link restoration. Earlier builds recorded it after restoration, so their start-to-complete interval
@@ -228,9 +237,12 @@ another whole-vault patch pass. Watch both full-build starts and subsequent
 per-file batch sizes when diagnosing prolonged startup work.
 
 The single tracked body-free startup baseline does not consume a snapshot retry
-when no foreground task is pending and no file has committed. Actual foreground
-commits, reentrant publications and source, identity or policy changes retain the
-ordinary rejection fences and bounded retry path.
+when no foreground task is pending and no file has committed. A compatible stale
+candidate also retains that exact receipt during foreground preparation. Its
+accounted file commits become bounded read-only repair obligations across private
+decoding, rather than discarded graph work. Source closure and normal per-file
+repair still precede authority. Unaccounted/reentrant publications and actual
+native or policy drift retain the rejection fences and existing single retry.
 
 ## Deferred startup
 

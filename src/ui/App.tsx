@@ -349,6 +349,7 @@ export function KplexApp({ plugin, surface, hostLeaf, translate, environment, on
   const [renderRevision, forceRender] = useState(0);
   const [paintRevision, forcePaint] = useState(0);
   const [plexFilter, setPlexFilter] = useState<PlexFilterState>(EMPTY_PLEX_FILTER);
+  const [styleLensRequest, setStyleLensRequest] = useState<{id: string; sequence: number} | null>(null);
   const [filterLayoutMode, setFilterLayoutMode] = useState<GraphFilterLayoutMode>("keep");
   const [findFilterOwner, setFindFilterOwner] = useState<{
     query: string; previousFilter: PlexFilterState; previousLayout: GraphFilterLayoutMode;
@@ -449,6 +450,7 @@ export function KplexApp({ plugin, surface, hostLeaf, translate, environment, on
    * Explicit destinations may reroot after the outgoing editor saves, before changing attention or history.
    */
   const activate = useCallback((target: GraphPage, record = true, syncDocuments = true, origin: "user" | "wander" | "follow" = "user", reroot = false): boolean => {
+    const alreadyCentral = target.path === activePathRef.current;
     if (reroot && target.file && plugin.app.vault.getFileByPath(target.file.path) !== target.file) return false;
     const changesRoot = reroot && documentSession.plexView.definition.navigation === "rooted"
       && documentSession.plexView.layoutRoot(nodeId(activePathRef.current)) !== target.path;
@@ -503,17 +505,18 @@ export function KplexApp({ plugin, surface, hostLeaf, translate, environment, on
     }
     void plugin.saveSettings(false, false);
     if (syncDocuments) {
-      // Mobile's Web Viewer is a native sheet, not the desktop webviewer leaf. Explicit URL
-      // taps use Obsidian's external-link routing so its core setting or browser fallback wins.
-      if (target.url && !isObsidianUri(target.url) && origin === "user" && (environment.device !== "desktop" || !plugin.canOpenUrlInWebViewer(target.url))) {
-        void plugin.openPage(target, hostLeaf.view.containerEl.ownerDocument, {hostLeaf});
+      // Centering a neighbour must never also launch its URL. An opt-in second activation
+      // uses the native external-link owner; explicit Open/double-click remains independent.
+      if (target.url && !isObsidianUri(target.url) && origin === "user") {
+        if (alreadyCentral && plugin.settings.singleClickExternalNavigation === true)
+          void plugin.openPage(target, hostLeaf.view.containerEl.ownerDocument, {hostLeaf});
         return true;
       }
       void plugin.syncPageToDocumentLeaf(target, hostLeaf);
       void plugin.syncSidecarToPage(hostLeaf, target);
     }
     return true;
-  }, [plugin, hostLeaf, wander, releasePendingDocumentDemand, documentSession, translate, environment.device]);
+  }, [plugin, hostLeaf, wander, releasePendingDocumentDemand, documentSession, translate]);
 
   /** Transfer a settled preview lease only after this exact graph center has acquired its own semantic demand. */
   const acknowledgeDocumentDemandHandover = useCallback((path?: string): void => {
@@ -1709,6 +1712,7 @@ export function KplexApp({ plugin, surface, hostLeaf, translate, environment, on
             ariaLabel={searchCopy.ariaLabel}
           />
           <PlexFilter
+            styleEditRequest={styleLensRequest}
             viewSession={documentSession.plexView}
             viewContributions={viewContributions}
             index={plugin.index}
@@ -1785,6 +1789,7 @@ export function KplexApp({ plugin, surface, hostLeaf, translate, environment, on
         <section className="kplex-graph-area" data-kplex-tooltip-boundary>
           {ViewLabels && <ViewLabels translate={translate} configuration={readViewConfiguration(plexViewDefinition, plugin.settings.canvasViewSettings)} />}
           <PlexGraph publicFrame={publicFrame} publicScene={plugin.publicCanvases?publicScene:undefined} viewDefinition={plexViewDefinition} viewSession={documentSession.plexView} viewContributions={viewContributions} viewRevision={viewRevision} sidecarOpen={sidecarOpen} plugin={plugin} index={plugin.index} settings={viewSettings} paintSettings={paintSettings} paintLenses={paintLenses} surface={profileSurface} hostLeaf={hostLeaf} predicate={plexFilterPredicate} lenses={compiledGraphLenses} filterLayoutMode={filterLayoutMode} predicateRevision={predicateRevision} showCrossLinks={plugin.settings.showCrossLinks} activePath={page.path} renderRevision={renderRevision} findFocusRequest={findFocusRequest}
+            onEditStyleLens={/** A canvas source menu opens only this canvas's existing lens editor. */ id => setStyleLensRequest(previous => ({id, sequence: (previous?.sequence ?? 0) + 1}))}
             onExportBreadcrumbs={exportBreadcrumbs} hasBreadcrumbs={/** Read the native trail only when composing the menu. */ () => documentSession.footprints.length > 0}
             footprintsControl={<PlexFootprintsPanel trail={documentSession.footprints} translate={translate}
               readRow={/** Resolve visible references only; unavailable nodes never trigger acquisition or creation. */ visit => {

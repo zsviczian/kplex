@@ -53,6 +53,24 @@ async function browser() {
   return host;
 }
 
+test('mobile sidebar fullscreen stays above its native drawer but below native previews and menus',async()=>{
+  const host=await browser();
+  try {
+    assert(await host.evaluate(`(async()=>{
+      const {KplexDisplayModes,Platform}=sourceModules;Platform.isMobile=true;Platform.isDesktop=false;document.body.classList.add('is-mobile');
+      const style=document.createElement('style');style.textContent='body{margin:0;--layer-sidedock:10;--layer-popover:30;--layer-modal:50;--layer-menu:65}.workspace-drawer{position:fixed;inset:0 0 0 20px;z-index:var(--layer-popover);background:rgb(20,20,20);contain:layout style paint}.workspace-split.mod-root.is-sliding-sidebar{position:fixed;inset:0 auto 0 0;width:20px;z-index:calc(var(--layer-popover) + 1)}.workspace-split.mod-root>.workspace-drawer-backdrop{position:fixed;inset:0 auto 0 0;width:20px;z-index:calc(var(--layer-popover) + 2)}.native-preview{position:fixed;inset:80px 0 0 0;height:40px;z-index:var(--layer-popover)}';document.head.append(style);
+      const workspace=document.body.createDiv({cls:'workspace-split mod-root is-sliding-sidebar'}),backdrop=workspace.createDiv({cls:'workspace-drawer-backdrop foreign-backdrop'});
+      const drawer=document.body.createDiv({cls:'workspace-drawer mod-secondary foreign-drawer'}),parent=drawer.createDiv(),content=parent.createDiv({cls:'kplex-view-host'});content.innerHTML='<div class="kplex-app"><button id="fullscreen-exit">Return to canvas</button></div>';
+      const modes=new KplexDisplayModes(content,true);modes.setHostActive(true,false);const before=getComputedStyle(drawer).zIndex;modes.toggleFullscreen();
+      const control=content.querySelector('button'),r=control.getBoundingClientRect(),hit=document.elementFromPoint(r.x+r.width/2,r.y+r.height/2);if(hit!==control)throw Error('The empty native mobile drawer covers the fullscreen canvas: '+hit?.className);
+      if(!content.closest('.kplex-fullscreen-overlay').contains(document.elementFromPoint(5,70)))throw Error('The native drawer backdrop covers the fullscreen left edge');
+      const preview=document.body.createDiv({cls:'native-preview'});if(document.elementFromPoint(10,90)!==preview)throw Error('Fullscreen hides a native preview');preview.remove();
+      modes.exitFullscreen();if(content.parentElement!==parent||getComputedStyle(drawer).zIndex!==before||drawer.className!=='workspace-drawer mod-secondary foreign-drawer'||backdrop.className!=='workspace-drawer-backdrop foreign-backdrop'||getComputedStyle(backdrop).zIndex!=='32'||getComputedStyle(workspace).zIndex!=='31')throw Error('Drawer restoration');
+      modes.toggleFullscreen();modes.dispose();const clean=content.parentElement===parent&&drawer.className==='workspace-drawer mod-secondary foreign-drawer'&&backdrop.className==='workspace-drawer-backdrop foreign-backdrop'&&!document.querySelector('.kplex-fullscreen-overlay');drawer.remove();workspace.remove();style.remove();return clean;
+    })()`));
+  } finally {await host.cleanup();}
+});
+
 test('active mobile tabs reserve native navigation space and immersive modes hide it with exact restoration',async()=>{
   const host=await browser();
   try {

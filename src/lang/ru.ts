@@ -9,6 +9,12 @@ import { buildLocaleCatalog, type LocaleCatalog, type LocaleTranslationMap } fro
 /** Construct the typed Russian table only when selected; importing this module allocates no catalog. */
 export function createRussianCatalog(): LocaleCatalog {
 const russianTranslations = {
+  "styleSources.menu": "Источники оформления",
+  "styleSources.tag": "Стиль тега · {name}",
+  "styleSources.noteType": "Тип заметки · {name}",
+  "styleSources.lens": "Линза · {name}",
+  "styleSources.ontology": "Связь · {name}",
+  "styleSources.prefix": "Префикс подписи · {name}",
   "filter.visibilityDocuments": "Документы",
   "filter.visibilityDocumentsHelp": "Показывать вложенные PDF, EPUB, DOCX, таблицы, презентации и текстовые файлы. Для Markdown есть отдельный переключатель.",
   "filter.visibilityImages": "Изображения",
@@ -181,6 +187,8 @@ const russianTranslations = {
   "actions.node.copy-link.description": "Копировать выбранный узел или центр холста. При вставке в заметку Obsidian используются настройки ссылок; в других местах — полный путь.",
   "drawing.template": "Шаблон",
   "drawing.blank": "Пустой рисунок",
+  "settings.singleClickExternalNavigation": "Открывать внешние ссылки одним щелчком",
+  "settings.singleClickExternalNavigation.help": "Открывать веб-ссылку одним щелчком, только если она уже является центральным узлом. По умолчанию выключено; двойной щелчок и команды открытия доступны всегда.",
   "settings.trackpad": "Навигация трекпадом",
   "settings.trackpad.help": "Прокрутка перемещает холст; жест щипка или прокрутка с клавишей-модификатором меняет масштаб. Выключите для масштабирования обычной прокруткой.",
   "fileMenu.reuse": "Открыть",

@@ -6,9 +6,8 @@
 import {appearanceColorReferences, mapAppearanceColors, appearanceHasUnsupportedColors} from "../contracts/appearance";
 import {colorValuesEqual, copyColorValue, NODE_COLOR_FIELDS, LINK_COLOR_FIELDS, type ColorValue} from "../contracts/colorValue";
 import type {ColorPreferencesV1, SemanticColorPair} from "./colorPreferences";
-
-export const STANDARD_NODE_COLOR_STYLES = ["baseNodeStyle", "centralNodeStyle", "inferredNodeStyle", "virtualNodeStyle", "siblingNodeStyle", "urlNodeStyle", "attachmentNodeStyle", "folderNodeStyle", "tagNodeStyle"] as const;
-export const STANDARD_LINK_COLOR_STYLES = ["baseLinkStyle", "inferredLinkStyle", "folderLinkStyle", "tagLinkStyle"] as const;
+import {STANDARD_NODE_COLOR_STYLES, STANDARD_LINK_COLOR_STYLES} from "../contracts/styleSource";
+export {STANDARD_NODE_COLOR_STYLES, STANDARD_LINK_COLOR_STYLES} from "../contracts/styleSource";
 type ConfiguredColors = Parameters<typeof mapAppearanceColors>[0];
 type ColorEditDraft = ConfiguredColors & {colorPreferences: ColorPreferencesV1; standardStyleDefaults?: "native" | "legacy"};
 /** Merge only changed style fields, retaining concurrent colors, geometry and unknown metadata. */

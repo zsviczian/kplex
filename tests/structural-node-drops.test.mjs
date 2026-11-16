@@ -177,12 +177,12 @@ test('structural connection capability omits impossible mutations in both view o
  for(const [a,b]of [[note,tag],[tag,note]]){assert(api.connectionActionAllowed('relationship.unlink',a,b));assert.equal(api.connectionActionAllowed('relationship.hide',a,b),false);assert.equal(api.connectionActionAllowed('relationship.relink',a,b),false)}
  assert(api.connectionActionAllowed('relationship.hide',note,note));
 });
-test('actual edge menu hides tag Hidden and every folder mutation while preserving note actions',()=>{
+test('actual edge menu hides tag Hidden and every folder mutation while preserving note actions',async()=>{
  for(const [kind,expected]of [['tag',['tagAssignment.toNoteType','graph.connectionDetails','graph.unlinkConnection']],['folder',['graph.connectionDetails']],['note',['graph.connectionDetails','graph.unlinkConnection','hide.title']]]){
   const note=page({path:'N.md',file:{extension:'md'}}),other=page({path:'other',isTag:kind==='tag',isFolder:kind==='folder',file:kind==='note'?{extension:'md'}:null}),items=[];
   class Menu{addItem(configure){const item={setTitle(title){items.push(title);return this},setIcon(){return this},onClick(){return this}};configure(item)}}
-  const callback=graphCallback('showEdgeContextMenuAt',{tagMembershipPair:api.tagMembershipPair,isNoteTypeTagConnection:api.isNoteTypeTagConnection,captureSurfaceContinuation:()=>()=>true,actionSurfaceId:'surface',connectionActionAllowed:api.connectionActionAllowed,Menu,scene:{nodes:[{page:note},{page:other}]},index:{get:()=>null},touchDoubleTap:{current:{reset(){}}},translate:key=>key,viewport:{current:{ownerDocument:{}}},plugin:{showKplexMenuAtPosition(){}},hostLeaf:{}});
-  callback({sourcePath:note.path,targetPath:other.path},10,20);assert.deepEqual(items,expected);
+  const callback=graphCallback('showEdgeContextMenuAt',{tagMembershipPair:api.tagMembershipPair,isNoteTypeTagConnection:api.isNoteTypeTagConnection,captureSurfaceContinuation:()=>()=>true,actionSurfaceId:'surface',connectionActionAllowed:api.connectionActionAllowed,Menu,scene:{nodes:[{page:note},{page:other}]},index:{get:()=>null},touchDoubleTap:{current:{reset(){}}},translate:key=>key,viewport:{current:{ownerDocument:{}}},plugin:{captureAppearanceOwner:()=>({}),singleRelationshipSourceLocation:async()=>null,showKplexMenuAtPosition(){}},hostLeaf:{},renderedNodeMap:new Map(),edgeOccurrence:(edge,side)=>edge[side+'Path'],linkStyleLayers:()=>[],paintSettings:{},predicateCenter:null,addElementStyleMenu(){}});
+  await callback({sourcePath:note.path,targetPath:other.path},10,20);assert.deepEqual(items,expected);
  }
 });
 test('actual tag Unlink removes YAML and opens existing details for retained body evidence',async()=>{

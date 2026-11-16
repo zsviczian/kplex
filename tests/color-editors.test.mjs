@@ -4,6 +4,35 @@ import {readFileSync} from "node:fs";
 import test from "node:test";
 import {colorEditorScenario as scenario} from "./support/colorEditorBrowser.mjs";
 
+test('appearance sources open the existing type and relationship controls without creating or saving rules',async()=>{
+ assert.equal(await scenario(`(async()=>{
+  const p=await createAppearanceHost({tagNodeStyles:{'#Project':{fontSize:23}},hierarchyLinkStyles:{Parent:{strokeWidth:2}}});
+  const app={workspace:{on:()=>({}),offref:()=>{}}},tab=new sourceModules.KplexSettingTab(app,p),before=p.writes.length,initial=JSON.stringify(p.settings);
+  for(const source of [{kind:'note-type',key:'#Project'},{kind:'prefix',key:'#Project'},{kind:'tag',key:'#Project'},{kind:'ontology',key:'Parent'},{kind:'ontology',key:'k-plex:note-type-tag'}]){
+   if(!tab.openElementStyleSource(source,scope,'Example.md'))throw Error('Existing source rejected '+JSON.stringify(source));
+   const modal=sourceModules.TestModal.instances.at(-1);if(!modal?.modalEl.isConnected||!modal.contentEl.querySelector('input,button'))throw Error('Existing native editor was not mounted');modal.close();
+  }
+  for(const source of [{kind:'tag',key:'#Deleted'},{kind:'ontology',key:'Deleted'}])if(tab.openElementStyleSource(source,scope))throw Error('Deleted source recreated');
+  if(p.writes.length!==before||JSON.stringify(p.settings)!==initial)throw Error('Opening/closing source persisted configuration');tab.disposeActionSettings();return true;
+ })()`),true);
+});
+
+test('appearance-source requests open the exact existing lens style controls without saving',async()=>{
+ assert.equal(await scenario(`(async()=>{
+  const t=sourceModules.createTranslator('en'),R=sourceModules.React,{flushSync}=sourceModules,wait=()=>new Promise(done=>setTimeout(done,50));
+  const lenses=[{id:'first',name:'First',enabled:true,scope:'node',mode:'style',expression:'file.extension == "md"',style:{node:{strokeWidth:2}}},{id:'second',name:'Second',enabled:true,scope:'edge',mode:'style',expression:'edge.role == "child"',style:{edge:{strokeWidth:4}}}];
+  const initial=JSON.stringify(lenses),index={suggestionCatalog:()=>({tags:[],noteTypes:[],folders:[],properties:[],paths:[]})};let writes=0;
+  let props={index,revision:0,value:sourceModules.EMPTY_PLEX_FILTER,onChange(){},lenses,onLensesChange(){writes++},layoutMode:'keep',onLayoutModeChange(){},showSiblings:false,onShowSiblingsChange(){},visibility:{},onVisibilityChange(){},sortOrder:'name',onSortOrderChange(){},translate:t,styleEditRequest:{id:'second',sequence:1}};
+  const container=createDiv();document.body.append(container);const root=sourceModules.createRoot(container),render=()=>flushSync(()=>root.render(R.createElement(sourceModules.PlexFilter,props)));render();await wait();await wait();
+  let editor=document.querySelector('.kplex-lens-editor'),controls=editor?.querySelector('.kplex-lens-style-editor');
+  if(!editor||editor.querySelector('input').value!=='Second'||!controls||!controls.contains(document.activeElement)||writes)throw Error('Exact requested style editor did not open/focus without saving');
+  props={...props,styleEditRequest:{id:'first',sequence:2}};render();await wait();await wait();editor=document.querySelector('.kplex-lens-editor');
+  if(editor.querySelector('input').value!=='First'||JSON.stringify(lenses)!==initial||writes)throw Error('Lens identity or draft ownership changed');
+  props={...props,styleEditRequest:{id:'deleted',sequence:3}};render();await wait();if(document.querySelector('.kplex-lens-editor input').value!=='First'||writes)throw Error('Deleted source created/replaced a draft');
+  flushSync(()=>root.unmount());container.remove();if(document.querySelector('.kplex-filter-panel')||document.body.classList.contains('kplex-filter-panel-open')||writes)throw Error('Source navigation leaked resources or persisted a draft');return true;
+ })()`),true);
+});
+
 test("literal controls preserve exact alpha, partial text/caret, IME, reset and retired callbacks",async()=>{
  const result=await scenario(`(async()=>{
   const changes=[],labels={rgb:'RGB',value:'Value',opacity:'Opacity',reset:'Reset',invalid:'Invalid',legacy:'Legacy'};

@@ -9,6 +9,12 @@ import { buildLocaleCatalog, type LocaleCatalog, type LocaleTranslationMap } fro
 /** Construct the typed Dutch table only when selected; importing this module allocates no catalog. */
 export function createDutchCatalog(): LocaleCatalog {
 const dutchTranslations = {
+  "styleSources.menu": "Vormgevingsbronnen",
+  "styleSources.tag": "Tagstijl · {name}",
+  "styleSources.noteType": "Notitietype · {name}",
+  "styleSources.lens": "Lens · {name}",
+  "styleSources.ontology": "Relatie · {name}",
+  "styleSources.prefix": "Labelvoorvoegsel · {name}",
   "filter.visibilityDocuments": "Documenten",
   "filter.visibilityDocumentsHelp": "Toon documentbijlagen zoals PDF, EPUB, DOCX, spreadsheets, presentaties en tekstbestanden. Markdown heeft een eigen schakelaar.",
   "filter.visibilityImages": "Afbeeldingen",
@@ -181,6 +187,8 @@ const dutchTranslations = {
   "actions.node.copy-link.description": "Kopieer het geselecteerde knooppunt of het midden van het canvas. Plakken in een Obsidian-notitie volgt de linkvoorkeuren; andere bestemmingen krijgen een volledig pad.",
   "drawing.template": "Sjabloon",
   "drawing.blank": "Lege tekening",
+  "settings.singleClickExternalNavigation": "Externe links met één klik openen",
+  "settings.singleClickExternalNavigation.help": "Open een weblink met één klik alleen als deze al de centrale node is. Standaard uit; dubbelklikken en Openen blijven beschikbaar.",
   "settings.trackpad": "Trackpadnavigatie",
   "settings.trackpad.help": "Scroll om te verschuiven; knijp of scroll met een wijzigingstoets om te zoomen. Schakel uit om met gewoon scrollen te zoomen.",
   "fileMenu.reuse": "Openen",

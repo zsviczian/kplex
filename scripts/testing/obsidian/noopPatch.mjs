@@ -14,6 +14,8 @@ import { Script } from 'node:vm';
 import { obsidianCliExecutable, spawnNativeSync } from './processTools.mjs';
 import { validateTarget } from './runner.mjs';
 import { probeNoopPatch } from '../../../tests/support/noopPatchFixture.mjs';
+import {nativeBatch270} from './nativeBatch270.mjs';
+import {nativeDocumentSessions} from './nativeDocumentSessions.mjs';
 
 const root = resolve(fileURLToPath(new URL('../../..', import.meta.url)));
 const name = process.env.KPLEX_TEST_VAULT_NAME;
@@ -57,10 +59,12 @@ try {
   const start = evaluate(String.raw`(/** Install one controller with cleanup ownership before source setup. */ ()=>{
     if(window.kplexNoopPatchProbe)throw Error('Previous no-op controller still active');
     const c={done:false,closed:false};window.kplexNoopPatchProbe=c;
+    c.fixture=${nativeBatch270.toString()};c.sessions=${nativeDocumentSessions.toString()};
+    c.fixturePrefix='__kplex153_noop_';c.originalData=${JSON.stringify(originalData.toString('utf8'))};c.originalEnabled=${JSON.stringify(originalEnabled.toString('utf8'))};
     c.task=(/** Keep asynchronous setup/measurements outside the CLI's immediate response. */ async()=>{
-      const path='__kplex-153-noop-probe.md',p=app.plugins.plugins['k-plex'];
-      if(!p?.getIndexStatus().upToDate)throw Error('Existing plugin must be ready');
-      if(app.vault.getFileByPath(path))throw Error('Owned probe path already exists');
+      let path;const p=app.plugins.plugins['k-plex'];
+      if(p?.whenInitialized)await p.whenInitialized();if(!p?.index)throw Error('Existing plugin must initialize');
+      const fixture=c.fixture(app,c);
       const remote=require('@electron/remote'),win=remote.getCurrentWindow();
       const windowState={bounds:win.getBounds(),maximized:win.isMaximized(),minimized:win.isMinimized()};
       remote.app.show?.();remote.app.focus({steal:true});win.restore();win.show();win.moveTop();win.focus();
@@ -71,17 +75,22 @@ try {
       /** Retired controllers cannot begin another setup or measurement step. */
       const current=()=>!c.closed;
       /** Bound setup polling by both elapsed time and the controller's exact lifetime. */
-      const until=async(check)=>{const end=performance.now()+60000;while(!check()){assert(current()&&performance.now()<end,'Setup deadline');await delay(50)}};
+      const until=async(check,label)=>{const end=performance.now()+60000;while(!check()){assert(current()&&performance.now()<end,label+': '+JSON.stringify(p.getIndexStatus()));await delay(50)}};
       /** Record actual rendering-window state; the probe never disables background throttling. */
       const foreground=()=>({hidden:document.hidden,documentFocused:document.hasFocus(),windowFocused:win.isFocused(),throttle:win.webContents.getBackgroundThrottling()});
       const rows=[];
       try{
-        c.file=await app.vault.create(path,Array.from({length:512},/** Disjoint unresolved targets give a known minimum physical degree. */ (_,n)=>'[[__kplex153_target_'+n+']]').join('\n'));
-        await until(/** Wait for the actual native cache, not a fixed sleep. */ ()=>app.metadataCache.getFileCache(c.file)?.links?.length===512);
+        // A restored Markdown-only layout can defer native edit catch-up. Establish actual canvas
+        // demand through the shared owned fixture; never force primary-index preparation methods.
+        const seed=app.workspace.getActiveFile()??app.vault.getMarkdownFiles()[0];assert(seed,'Existing disposable navigation seed');
+        await fixture.canvas(seed);await fixture.initialize();
+        c.file=await fixture.note('No-op hub',Array.from({length:512},/** Disjoint unresolved targets give a known minimum physical degree. */ (_,n)=>'[[__kplex153_target_'+n+']]').join('\n'));path=c.file.path;
+        await fixture.canvas(c.file);await fixture.ready();
+        await until(/** Wait for the actual native cache, not a fixed sleep. */ ()=>app.metadataCache.getFileCache(c.file)?.links?.length===512,'Owned native link metadata');
         c.index=new p.index.constructor(p,app);
         assert(await c.index.rebuild(),'Isolated production build');
         assert((await c.index.patchMarkdownPaths([path])).outcome==='patched','Warm source acquisition');
-        await until(/** Avoid attributing concurrent primary-index fixture reconciliation to the no-op. */ ()=>p.getIndexStatus().upToDate&&!p.index.building);
+        await until(/** Avoid attributing concurrent primary-index fixture reconciliation to the no-op. */ ()=>p.getIndexStatus().upToDate&&!p.index.building,'Foreground primary index settlement');
         for(let run=0;run<3;run++){
           const i=c.index,page=i.get(path),retained=page.neighbours;
           assert(page&&retained.size>=512,'High-degree canonical page');
@@ -121,7 +130,7 @@ try {
         for(const restore of (c.wrappers??[]).reverse())try{restore()}catch(error){cleanupErrors.push(String(error))}c.wrappers=[];
         try{c.probe?.restore()}catch(error){cleanupErrors.push(String(error))}c.probe=null;
         try{c.index?.destroy()}catch(error){cleanupErrors.push(String(error))}c.index=null;
-        try{if(c.file&&app.vault.getFileByPath(path)===c.file)await app.vault.delete(c.file)}catch(error){cleanupErrors.push(String(error))}c.file=null;
+        try{await fixture.cleanup()}catch(error){cleanupErrors.push(String(error))}c.file=null;
         try{win.setBounds(windowState.bounds);if(windowState.maximized)win.maximize();if(windowState.minimized)win.minimize()}catch(error){cleanupErrors.push(String(error))}
         if(cleanupErrors.length)throw Error('Native cleanup failed: '+cleanupErrors.join('; '));
       }

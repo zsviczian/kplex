@@ -6,7 +6,7 @@ import {graphLensSemanticError, type PortableLensValidationIssue as GraphLensVal
 export {validateGraphLensExpression} from "../core/plex/lensValidation";
 import type { GraphPage, LinkStyle, NodeStyle, StrokeStyle, FillStyle } from "../types";
 import { createLegacyEvidenceProvider, lensCandidateFromLegacy, type LegacyEvidenceSource } from "../adapters/obsidian/predicateContracts";
-import { matchesPortableLenses, portableLensStyle } from "../core/plex/lens";
+import { matchesPortableLenses, portableLensStyle, matchingPortableStyleLenses } from "../core/plex/lens";
 import { NODE_COLOR_FIELDS, LINK_COLOR_FIELDS, colorValuesEqual, sanitizeColorValue, type ColorValue } from "../core/contracts/colorValue";
 import {
   compileGraphPredicate,
@@ -193,6 +193,12 @@ export type GraphLensCandidate = {
   center?: GraphPage;
   edge?: GraphPredicateEdgeContext;
 };
+
+/** Read exact enabled style sources through the painter's shared predicate/evidence owner. */
+export function graphLensStyleSources(engine: GraphPredicateEngine, index: LegacyEvidenceSource, lensSet: CompiledGraphLensSet,
+  candidate: GraphLensCandidate, target: "node" | "edge"): CompiledGraphLens[] {
+  return matchingPortableStyleLenses(engine.portable, createLegacyEvidenceProvider(index), lensSet.lenses, lensCandidateFromLegacy(candidate), target);
+}
 
 /** Include lenses union, excludes subtract; evaluation is delegated to the host-free core. */
 export function matchesGraphLenses(engine: GraphPredicateEngine, index: LegacyEvidenceSource, lensSet: CompiledGraphLensSet, candidate: GraphLensCandidate): boolean {

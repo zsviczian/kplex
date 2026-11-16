@@ -43,6 +43,22 @@ class HostFile {
 /** A real folder-shaped native event must remain structurally owed during source adoption. */
 class HostFolder { /** Retain folder identity independently of its path. */ constructor(path) { this.path = path; } }
 
+for(const mode of ['eager','on-demand'])for(const beforeView of [false,true])for(const admitted of [false,true])
+test(`closed-canvas maintenance follows captured ${mode} policy: beforeView=${beforeView}, admitted=${admitted}`,async()=>{
+ const f=fixture({complete:true,sourceBacked:false,reasons:['metadata:changed'],dirty:['A.md']});
+ try{
+  const p=f.p;let patches=0;
+  p.hasVisibleKplexSurface=()=>false;p.startupIndexPolicy={device:'desktop',mode,beforeView};p.indexPreparationAdmitted=admitted;p.rebuildTimer=null;
+  p.index.insertCreatedFile=()=>{};
+  p.index.patchMarkdownPaths=async(paths,options)=>{assert.deepEqual(paths,['A.md']);patches++;options.onCommitted('A.md');return{outcome:'patched',count:1};};
+  const expected=admitted&&beforeView&&mode==='eager';
+  assert.equal(p.hasIndexMaintenanceDemand(),expected);
+  await p.performRebuild(false,false,'metadata:changed',false);
+  assert.equal(patches,Number(expected),'Only the existing admitted Eager owner can maintain a closed graph');
+  assert.equal(p.indexDirty,!expected);assert.equal(f.counts.full,0,'Known edits remain per-file work');
+ }finally{f.close();}
+});
+
 for (const outcome of ['patched', 'cancelled']) test(`committed backlog drains across unrelated metadata events (${outcome})`, async () => {
  const f=fixture({reasons:['metadata:changed'],dirty:['A.md'],complete:true});
  try {
@@ -108,7 +124,7 @@ function fixture({ reasons = ['startup:stale-snapshot'], dirty = [], sourceBacke
   const Coordinator = load({ isIosApp: false }, HostFile, HostFolder, Notice, timers, () => 0, {background:4}), p = new Coordinator();
   const counts = { full: 0, local: 0 }, initial = new Promise(/** Hold source adoption independently of automatic graph rebuild. */ done => { release = done; });
   p.app = { vault: { /** Retain the genuine named dirty source. */ getFileByPath: path => path === 'A.md' ? { path, extension: 'md' } : null } };
-  p.settings = { indexUpdateInterval: 120000 }; p.layoutReady = true; p.indexPreparationAdmitted = true;
+  p.settings = { indexUpdateInterval: 120000 }; p.startupIndexPolicy = {device:'desktop',beforeView:false,mode:onDemand?'on-demand':'eager'}; p.layoutReady = true; p.indexPreparationAdmitted = true;
   p.initialIndexComplete = complete; p.initialIndexTask = activeInitialTask ? initial : null; p.indexDirty = true; p.rebuildTimer = 1;
   p.indexBacklogReasons = new Set(reasons); p.dirtyMarkdownPaths = new Set(dirty);
   p.hasVisibleKplexSurface = /** The real interval only flushes a visible dirty surface. */ () => true;

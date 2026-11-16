@@ -9,7 +9,7 @@
  */
 import type { Component } from "obsidian";
 import { leaseFullscreenChrome } from "../adapters/obsidian/fullscreenChrome";
-import { leaseMobileNavigationChrome } from "../adapters/obsidian/mobileNavigationChrome";
+import { leaseMobileNavigationChrome, leaseMobileFullscreenDrawer } from "../adapters/obsidian/mobileNavigationChrome";
 export type KplexDisplayModeState = Readonly<{ fullscreen: boolean; zen: boolean; revision: number }>;
 const fullscreenOwners = new WeakMap<Document, KplexDisplayModes>();
 
@@ -30,6 +30,7 @@ export class KplexDisplayModes {
   private parent: HTMLElement | null = null;
   private releaseWindow: (() => void) | null = null;
   private releaseChrome: (() => void) | null = null;
+  private releaseDrawer: (() => void) | null = null;
   private disposed = false;
   private lifecycleCleanup = new Set<() => void>();
   private hostActive = false;
@@ -104,6 +105,7 @@ export class KplexDisplayModes {
     this.parent.insertBefore(this.anchor, this.content);
     this.overlay = document.body.createDiv({ cls: "kplex-fullscreen-overlay" });
     const focused = document.activeElement;
+    this.releaseDrawer = leaseMobileFullscreenDrawer(this.content);
     this.overlay.appendChild(this.content);
     fullscreenOwners.set(document, this);
     this.releaseChrome = leaseFullscreenChrome(this.overlay, /** Toolbar wrapping uses the same camera-preservation boundary as native movement. */ () => this.prepare());
@@ -122,6 +124,7 @@ export class KplexDisplayModes {
     this.prepare();
     const document = this.overlay.ownerDocument, focused = this.content.ownerDocument.activeElement;
     this.releaseChrome?.(); this.releaseChrome = null;
+    this.releaseDrawer?.(); this.releaseDrawer = null;
     this.releaseWindow?.(); this.releaseWindow = null;
     if (this.anchor?.parentElement) this.anchor.parentElement.insertBefore(this.content, this.anchor);
     else if (this.parent) this.parent.appendChild(this.content);

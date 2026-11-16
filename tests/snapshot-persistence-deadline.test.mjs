@@ -106,7 +106,7 @@ test('closing the last Plex retains completed graph persistence and still cancel
   const f=fixture(),close=load('src/main.ts','onKplexViewClosed',{window:f.window,Platform:{isIosApp:false}});
   let cancelled=0;f.index.cancelRebuild=()=>{};f.index.isFullSnapshotHydrated=()=>true;
   const cancel=f.index.cancelPendingPersistence;f.index.cancelPendingPersistence=function(...args){cancelled++;return cancel.apply(this,args);};
-  const context={openKplexViews:1,initialIndexComplete:true,rebuildTimer:null,index:f.index};
+  const context={openKplexViews:1,initialIndexComplete:true,rebuildTimer:null,index:f.index,hasIndexMaintenanceDemand:()=>false};
   f.index.scheduleSnapshotPersist(5000);close.call(context);assert.equal(cancelled,0);assert.equal(f.timers.size,1);f.fire();assert.equal(f.writes.length,1);
   context.openKplexViews=1;f.index.isFullSnapshotHydrated=()=>false;f.index.scheduleSnapshotPersist(5000);close.call(context);assert.equal(cancelled,1);assert.equal(f.timers.size,0);
 });

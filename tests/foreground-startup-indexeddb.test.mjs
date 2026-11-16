@@ -7,7 +7,7 @@ import { hostOracle, collect } from "./support/cachedSourceFixture.mjs";
 import { fullCenterIndex, centerGateSettings } from "./support/requestedCenterGateFixture.mjs";
 
 const bundle = await contributorBrowserBundle(["src/index/GraphIndex.ts", "src/index/GraphBuilder.ts", "src/index/IndexSnapshot.ts", "src/index/ForegroundWorkScheduler.ts",
-  "src/core/graph/compiler.ts", "src/adapters/obsidian/metadataSourceCollector.ts", "src/adapters/obsidian/ontologySourceCollector.ts", "src/ui/components/centerWatchdog.ts"]);
+  "src/core/graph/compiler.ts", "src/adapters/obsidian/metadataSourceCollector.ts", "src/adapters/obsidian/ontologySourceCollector.ts", "src/adapters/obsidian/startupDiagnostics.ts", "src/ui/components/centerWatchdog.ts"]);
 
 const initialize = `(() => {
   const M=sourceModules,assert=Object.assign((v,m)=>ok(v,m),{equal});
@@ -15,14 +15,22 @@ const initialize = `(() => {
   window.startupSeed=async(name,key='active',input={})=>{
     const M=sourceModules,f=await fixture(name);let initial;
     try{
-      f.text=f.texts;f.add('A.md',input.body??'[Evidence URL](https://example.com/startup-evidence)',input.frontmatter??{Parent:'[[B]]'});f.add('B.md','');f.add('C.md','');
-      f.app.metadataCache.resolvedLinks={'A.md':{'B.md':1}};f.app.vault.getName=()=>name;
-      f.app.vault.getAbstractFileByPath=path=>f.files.get(path)??(path==='/'||path===''?f.app.vault.getRoot():null);
+      const a=input.centerPath??'A.md',b=input.otherPath??'B.md',c=input.incomingPath??'C.md';
+      f.text=f.texts;f.add(a,input.body??'[Evidence URL](https://example.com/startup-evidence)',input.frontmatter??{Parent:'[[B]]'});f.add(b,input.otherBody??'');f.add(c,input.incomingBody??'',input.incomingFrontmatter??{});
+      if(input.attachment)f.add('Picture.png','');
+      f.app.metadataCache.resolvedLinks=input.hostLinks??{[a]:{[b]:1}};f.app.vault.getName=()=>name;
+      if(input.incomingBody&&!input.hostLinks)f.app.metadataCache.resolvedLinks[c]={[a]:1};
+      const folders=new Map();
+      if(input.folders){const root=f.app.vault.getRoot();root.children=[];
+        for(const file of f.files.values()){let parent=root,path='';for(const part of file.path.split('/').slice(0,-1)){path=path?path+'/'+part:part;let folder=folders.get(path);if(!folder){folder=new window.ContributorFolder();folder.path=path;folder.name=part;folder.parent=parent;parent.children.push(folder);folders.set(path,folder)}parent=folder;}file.parent=parent;parent.children.push(file);}
+        f.app.vault.getRoot=()=>root;f.app.vault.getFolderByPath=path=>path===''||path==='/'?root:folders.get(path)??null;
+      }
+      f.app.vault.getAbstractFileByPath=path=>f.files.get(path)??folders.get(path)??(path==='/'||path===''?f.app.vault.getRoot():null);
       await f.acquire();ok(await f.acquisition.reconcile(),'Seeded neutral sources have genuine authority');
-      const semantic={hierarchy:{hidden:['Hidden'],parents:['Parent'],children:['Child'],leftFriends:['Friend'],rightFriends:['Right'],previous:['Previous'],next:['Next']},inferAllLinksAsFriends:false,inverseInfer:false,showFullTagName:true,tagStyleList:[],maxLabelLength:30};
-      initial=await fullCenterIndex(M,f,await hostOracle(f,[...f.files.keys()],semantic,{noteTypeField:'Type',primaryTagField:'Style'},true),semantic,centerGateSettings({showFolderNodes:false,renderSiblings:false}));
+      const semantic={hierarchy:{hidden:['Hidden'],parents:['Parent'],children:['Child'],leftFriends:['Friend'],rightFriends:['Right'],previous:['Previous'],next:['Next'],...input.hierarchy},inferAllLinksAsFriends:false,inverseInfer:false,showFullTagName:true,tagStyleList:[],maxLabelLength:30};
+      initial=await fullCenterIndex(M,f,await hostOracle(f,[...f.files.keys()],semantic,{noteTypeField:'Type',primaryTagField:'Style'},true),semantic,centerGateSettings({showFolderNodes:!!input.folders,renderSiblings:false}));
       // These fixtures exercise optional Eager hydration/inventory authority; On-demand startup has its own suite.
-      const settings={...initial.plugin.settings,lastActivePath:'A.md',pinnedNodes:[]};
+      const settings={...initial.plugin.settings,lastActivePath:a,pinnedNodes:[]};
       const pages=[...initial.state.pages.values()].map(page=>M.persistedPageFromGraphPage(page));
       const evidence=[...initial.state.evidence.declarations()].map(item=>M.persistedDeclarationFromEvidence(item));
       ok(await f.cache.writeSnapshot({createdAt:Date.now(),urlAliasVersion:2,vaultSignature:M.computeVaultSignature(f.app),settingsSignature:M.computeIndexSettingsSignature(settings),discoveredFields:[],...(key==='checkpoint'?{completedMarkdownPaths:[]}: {})},pages,evidence,()=>true,key),'Actual schema-3 snapshot activation');
@@ -34,6 +42,192 @@ const initialize = `(() => {
   };
   return true;
 })()`;
+
+test('parser5 label upgrade preserves URL-free sources and a settled canvas across a new embed',async()=>{
+ const browser=await chromiumHarness(bundle);try{
+  await browser.evaluate(contributorBrowserInitialize);await browser.evaluate(initialize);
+  assert(await browser.evaluate(`(async()=>{
+   const M=sourceModules,{f,settings}=await startupSeed('parser5-embed-edit');let index,release;
+   try{
+    const db=await f.cache.open();
+    await edit(db,['sourceHeads','bodies','urlOwners'],async tx=>{
+     for(const store of ['sourceHeads','bodies','urlOwners']){
+      const rows=await value(tx.objectStore(store).getAll());
+      for(const row of rows){if(store==='sourceHeads')row.bodyParserVersion=5;else row.parserVersion=5;tx.objectStore(store).put(row)}
+     }
+    });
+    let diagnostics=new M.StartupDiagnostics();diagnostics.begin(false);
+    index=new M.GraphIndex({app:f.app,settings,getIndexSourceRevision:()=>0,startupDiagnostics:diagnostics},f.app);index.scheduleOrphanCleanup=()=>{};
+    release=index.acquireSemanticDemand('A.md');
+    await index.restorePersistedSnapshot(['A.md'],{deferEagerVocabulary:true,deferEagerUrlRestore:true});
+    await deadline(index.waitForSnapshotHydration(),'upgrade hydration');
+    ok(await deadline(index.flushSourceRepository(),'upgrade source closure'),'Source upgrade settles');
+    const upgraded=index.getSourceAcquisitionCounters();
+    equal(upgraded.vaultReads,1,'Label-only upgrade reads the URL owner, not URL-free notes');
+    equal(upgraded.parses,1,'Label-only upgrade parses only the URL owner');
+    await index.refreshSemanticSettings();
+    const generation=(await index.indexedDb.readSnapshotMeta()).generation;
+    for(let cycle=0;cycle<2;cycle++){
+     release();release=null;index.destroy();
+     diagnostics=new M.StartupDiagnostics();diagnostics.begin(false);
+     index=new M.GraphIndex({app:f.app,settings,getIndexSourceRevision:()=>0,startupDiagnostics:diagnostics},f.app);index.scheduleOrphanCleanup=()=>{};
+     release=index.acquireSemanticDemand('A.md');
+     await index.restorePersistedSnapshot(['A.md'],{deferEagerVocabulary:true,deferEagerUrlRestore:true});
+     ok((await deadline(index.waitForSnapshotHydration(),'unchanged upgrade restart')).restored,'Unchanged restart reuses saved graph');
+     ok(await deadline(index.flushSourceRepository(),'unchanged source closure'),'Unchanged source closure');
+     const warm=index.getSourceAcquisitionCounters();
+     for(const counter of ['checked','vaultReads','parses','repaired'])equal(warm[counter],0,'Unchanged restart does not repeat '+counter);
+     for(const [counter,count]of Object.entries(diagnostics.snapshot().sessionWork))equal(count,0,'Unchanged restart admits no '+counter);
+     equal((await index.indexedDb.readSnapshotMeta()).generation,generation,'Unchanged restart keeps the activated generation');
+    }
+    const before=index.getNeighborhood('A.md');ok(before.parents.some(n=>n.page.path==='B.md'),'Settled parent before edit');
+    const reads=index.getSourceAcquisitionCounters().vaultReads;
+    const url='https://www.youtube.com/watch?v=vBgrvVY1jGo',file=f.files.get('A.md');
+    f.texts.set(file.path,'[Evidence URL](https://example.com/startup-evidence)\\n![Video caption]('+url+' "Video title")');
+    file.stat.mtime++;f.app.vault.trigger('modify',file);
+    ok(await deadline(index.flushSourceRepository(),'edited source closure'),'Edited source settles');
+    await index.patchMarkdownPaths([file.path]);
+    ok(index.getNeighborhood('A.md').parents.some(n=>n.page.path==='B.md'),'Stationary parent survives edit');
+    ok(index.getNeighborhood('A.md').children.some(n=>n.page.path===url),'Stationary canvas includes new embed');
+    equal(index.getSourceAcquisitionCounters().vaultReads-reads,1,'Settled embed edit reads only the changed owner');
+    equal(diagnostics.snapshot().sessionWork.sourceInventoryPasses,0,'Settled embed edit does not start a global source inventory');
+    equal(diagnostics.snapshot().sessionWork.fullBuildStarts,0,'Settled embed edit does not rebuild the graph');
+    return true;
+   }finally{release?.();index?.destroy();f.close()}
+  })()`));
+ }finally{await browser.cleanup()}
+});
+
+for(const {creationStamp,sameMtime=false} of [{creationStamp:false},{creationStamp:true},{creationStamp:true,sameMtime:true}])test('an existing-note embed during preview search retains bounded cached repair (creation stamp '+creationStamp+', same mtime '+sameMtime+')',async()=>{
+ const browser=await chromiumHarness(bundle);try{
+  await browser.evaluate(contributorBrowserInitialize);await browser.evaluate(initialize);
+  assert(await browser.evaluate(`(async()=>{
+   const M=sourceModules,{f,settings}=await startupSeed('embed-preview-search-${creationStamp}-${sameMtime}','active',{incomingFrontmatter:{'excalidraw-plugin':'parsed'}});let index,release;let revision=0,injected=false;
+   try{
+    const diagnostics=new M.StartupDiagnostics();diagnostics.begin(false);
+    index=new M.GraphIndex({app:f.app,settings,getIndexSourceRevision:()=>revision,startupDiagnostics:diagnostics},f.app);index.scheduleOrphanCleanup=()=>{};
+    const prepare=index.preparePresentationPublication;
+    index.preparePresentationPublication=async function(...args){
+     if(!injected&&this.snapshotHydrationDiagnostics.phase==='preview-search'&&this.snapshotHydrationDiagnostics.pages>0){
+      injected=true;const file=f.files.get('C.md');f.texts.set(file.path,'![Same video](https://example.com/startup-evidence)');if(!${sameMtime})file.stat.mtime++;file.stat.size++;if(${creationStamp})file.stat.ctime++;
+      revision++;f.app.vault.trigger('modify',file);f.app.metadataCache.trigger('changed',file);
+     }return prepare.apply(this,args);
+    };
+    release=index.acquireSemanticDemand('A.md');await index.restorePersistedSnapshot(['A.md'],{deferEagerVocabulary:true,deferEagerUrlRestore:true});
+    await deadline(index.waitForSnapshotHydration(),'Changed-note cache restoration');ok(injected,'Actual preview-search boundary exercised');
+    ok(index.hasIncrementalRestorePatch(),'An edit of one existing Markdown owner retains the finite cached patch plan: '+JSON.stringify(index.getSnapshotHydrationDiagnostics()));
+    const repaired=await deadline(index.reconcileRestoredSnapshot(),'Bounded changed-owner repair');ok(repaired.reconciled,'Finite repair closes: '+JSON.stringify({repaired,decisions:index.getIndexDiagnostics(),source:index.getSourceAcquisitionCounters()}));
+    ok(index.get('C.md').neighbours.has('https://example.com/startup-evidence'),'Edited note contributes the existing video URL');
+    ok(index.get('A.md').neighbours.get('B.md')?.isParent,'Unchanged relationships remain');
+    equal(index.getIndexDiagnostics().some(row=>row.reason==='snapshot-markdown-creation-stamp-changed'),${creationStamp},'Creation-stamp change is distinguished without recording a note path');
+    equal(index.getSourceAcquisitionCounters().vaultReads,1,'Only the edited note needs current bytes');equal(index.getSourceAcquisitionCounters().parses,1,'Only the edited note is reparsed');
+    equal(diagnostics.snapshot().sessionWork.sourceInventoryPasses,0,'No global Markdown-source audit');equal(diagnostics.snapshot().sessionWork.fullBuildStarts,0,'No full rebuild');
+    return true;
+   }finally{release?.();index?.destroy();f.close();}
+  })()`));
+ }finally{await browser.cleanup();}
+});
+
+for(const extra of ['unchanged-incarnation','replacement','attachment','folder'])test('changed-note hydration retry rejects unrelated '+extra+' drift',async()=>{
+ const browser=await chromiumHarness(bundle);try{
+  await browser.evaluate(contributorBrowserInitialize);await browser.evaluate(initialize);
+  assert(await browser.evaluate(`(async()=>{
+   const M=sourceModules,{f,settings}=await startupSeed('embed-preview-extra-${extra}','active',{attachment:'${extra}'==='attachment'});let index,release,revision=0,injected=false;
+   try{
+    index=new M.GraphIndex({app:f.app,settings,getIndexSourceRevision:()=>revision},f.app);index.scheduleOrphanCleanup=()=>{};
+    const prepare=index.preparePresentationPublication;
+    index.preparePresentationPublication=async function(...args){
+     if(!injected&&this.snapshotHydrationDiagnostics.phase==='preview-search'&&this.snapshotHydrationDiagnostics.pages>0){
+      injected=true;const file=f.files.get('C.md');f.texts.set(file.path,'![Video](https://example.com/startup-evidence)');file.stat.mtime++;file.stat.size++;file.stat.ctime++;revision++;
+      f.app.vault.trigger('modify',file);
+      if('${extra}'==='unchanged-incarnation')f.files.get('B.md').stat.ctime++;
+      if('${extra}'==='replacement'){const next=new window.ContributorFile(file.path);next.stat={...file.stat};next.parent=file.parent;f.files.set(file.path,next);}
+      if('${extra}'==='attachment')f.files.get('Picture.png').stat.mtime++;
+      if('${extra}'==='folder'){const root=f.app.vault.getRoot(),folder=new window.ContributorFolder();folder.path='New';folder.name='New';folder.parent=root;const getRoot=f.app.vault.getRoot;f.app.vault.getRoot=()=>{const current=getRoot();if(!current.children.includes(folder))current.children.push(folder);return current;};}
+     }return prepare.apply(this,args);
+    };
+    release=index.acquireSemanticDemand('A.md');await index.restorePersistedSnapshot(['A.md'],{deferEagerVocabulary:true,deferEagerUrlRestore:true});await deadline(index.waitForSnapshotHydration(),'Conservative extra drift recovery');
+    ok(injected,'Real preview-search boundary exercised');ok(!index.hasIncrementalRestorePatch(),'Unproved unrelated drift cannot borrow the finite retry');
+    equal(index.getSnapshotHydrationDiagnostics().route,'source-recovery','Conservative source recovery remains available');return true;
+   }finally{release?.();index?.destroy();f.close();}
+  })()`));
+ }finally{await browser.cleanup();}
+});
+
+test('parser5 upgrade keeps a stationary edited canvas through interrupted graph restoration',async()=>{
+ const browser=await chromiumHarness(bundle);try{
+  await browser.evaluate(contributorBrowserInitialize);await browser.evaluate(initialize);
+  assert(await browser.evaluate(`(async()=>{
+   const M=sourceModules,{f,settings}=await startupSeed('parser5-interrupted-embed','active',{incomingBody:'Parent:: [[A]]'});let index,release,releaseSources,releasePages,restore;
+   try{
+    const db=await f.cache.open();await edit(db,['sourceHeads'],async tx=>{for(const head of await value(tx.objectStore('sourceHeads').getAll())){head.bodyParserVersion=5;tx.objectStore('sourceHeads').put(head)}});
+    let revision=0,entered;const reached=new Promise(done=>entered=done),pageGate=new Promise(done=>releasePages=done),sourceGate=new Promise(done=>releaseSources=done);
+    index=new M.GraphIndex({app:f.app,settings,getIndexSourceRevision:()=>revision},f.app);index.scheduleOrphanCleanup=()=>{};
+    const source=index.sourceAcquisition.reconcile.bind(index.sourceAcquisition);index.sourceAcquisition.reconcile=async(...args)=>{await sourceGate;return source(...args)};
+    const pages=index.indexedDb.iterateSnapshotPages.bind(index.indexedDb);let reads=0;
+    index.indexedDb.iterateSnapshotPages=async(...args)=>{
+     const attempt=++reads;if(attempt===1){entered();await pageGate;}
+     const result=await pages(...args);
+     if(attempt===2){const file=f.files.get('A.md');f.texts.set(file.path,f.texts.get(file.path)+'\\n[Second embed](https://example.com/second-embed)');file.stat.mtime++;revision++;f.app.vault.trigger('modify',file);
+      equal((await index.patchMarkdownPaths([file.path])).outcome,'patched','A second actual edit supersedes the single hydration retry');}
+     return result;
+    };
+    release=index.acquireSemanticDemand('A.md');restore=index.restorePersistedSnapshot(['A.md'],{deferEagerVocabulary:true,deferEagerUrlRestore:true});
+    await deadline(reached,'Actual graph page admission');
+    await deadline((async()=>{while(index.onDemandTasks.size)await Promise.all([...index.onDemandTasks.values()])})(),'Initial foreground center publication');
+    const file=f.files.get('A.md'),url='https://www.youtube.com/watch?v=interrupted309';
+    f.texts.set(file.path,'[Evidence URL](https://example.com/startup-evidence)\\n![New embed caption]('+url+' "Video title")');file.stat.mtime++;revision++;f.app.vault.trigger('modify',file);
+    const patched=await deadline(index.patchMarkdownPaths([file.path]),'Foreground embed patch');
+    equal(patched.outcome,'patched','Actual file patch commits during hydration');
+    ok(index.getNeighborhood(file.path).parents.some(row=>row.page.path==='B.md'),'Parent exists before graph replacement');
+    ok(index.getNeighborhood(file.path).children.some(row=>row.page.path===url),'New embed exists before graph replacement');
+    releasePages();
+    await deadline((async()=>{while(!index.getIndexDiagnostics().some(row=>row.reason==='source-backed-physical-baseline')&&index.snapshotHydrationTask)await new Promise(done=>setTimeout(done,0))})(),'Interrupted graph handoff');
+    ok(index.getIndexDiagnostics().some(row=>row.reason==='source-backed-physical-baseline'),'Reported source-recovery fallback was exercised');
+    ok(index.getNeighborhood(file.path).parents.some(row=>row.page.path==='B.md'),'Stationary parent survives interrupted graph restoration');
+    ok(index.getNeighborhood(file.path).children.some(row=>row.page.path===url),'Stationary embed survives interrupted graph restoration');
+    ok(index.getNeighborhood(file.path).children.some(row=>row.page.path==='C.md'),'Stationary incoming body-defined relationship survives graph restoration');
+    releaseSources();await deadline(index.waitForSnapshotHydration(),'Upgrade hydration closure');await restore;
+    ok(await deadline(index.adoptStartupSources(),'Upgrade semantic closure'),'Canonical source recovery settles');return true;
+   }finally{releaseSources?.();releasePages?.();release?.();index?.destroy();await restore?.catch(()=>{});f.close()}
+  })()`));
+ }finally{await browser.cleanup()}
+});
+
+test('parser5 recovery retains a folder and incoming bold Excalidraw ontology during an embed edit',async()=>{
+ const browser=await chromiumHarness(bundle);try{
+  await browser.evaluate(contributorBrowserInitialize);await browser.evaluate(initialize);
+  assert(await browser.evaluate(`(async()=>{
+   const M=sourceModules,a='Input/YouTube/Presentation.md',c='Cards/Take a stand.md',url='https://youtu.be/nancy-recovery';
+   const {f,settings,pages:seedPages}=await startupSeed('nancy-folder-incoming','active',{centerPath:a,body:'',frontmatter:{},otherBody:'https://example.com/unrelated',incomingPath:c,
+    incomingBody:'**supercharged by**:: [[Input/YouTube/Presentation]]',incomingFrontmatter:{'excalidraw-plugin':'parsed',tags:['excalidraw']},
+    // The portable compiler receives resolved names; the native lane uses the paired setting.
+    folders:true,hostLinks:{[c]:{[a]:1}},hierarchy:{parents:['Source'],rightFriends:['supercharged by','supercharges']}});
+   let index,release,releaseSources,releasePages,restoring;
+   try{
+    ok(seedPages.find(row=>row.path===a)?.relations.some(row=>row.targetPath===c&&row.isRightFriend),'Full oracle has incoming challenger: '+JSON.stringify(seedPages.find(row=>row.path===a)?.relations));
+    const db=await f.cache.open();await edit(db,['sourceHeads'],async tx=>{for(const head of await value(tx.objectStore('sourceHeads').getAll())){head.bodyParserVersion=5;tx.objectStore('sourceHeads').put(head)}});
+    let revision=0,entered,attempt=0;const reached=new Promise(done=>entered=done),pagesGate=new Promise(done=>releasePages=done),sourcesGate=new Promise(done=>releaseSources=done);
+    index=new M.GraphIndex({app:f.app,settings,getIndexSourceRevision:()=>revision},f.app);index.scheduleOrphanCleanup=()=>{};
+    const source=index.sourceAcquisition.reconcile.bind(index.sourceAcquisition);index.sourceAcquisition.reconcile=async(...args)=>{await sourcesGate;return source(...args)};
+    const pages=index.indexedDb.iterateSnapshotPages.bind(index.indexedDb);
+    index.indexedDb.iterateSnapshotPages=async(...args)=>{const current=++attempt;if(current===1){entered();await pagesGate;}const result=await pages(...args);
+     if(current===2){const file=f.files.get(a);f.texts.set(a,f.texts.get(a)+'\\n[Another link](https://example.com/another)');file.stat.mtime++;revision++;f.app.vault.trigger('modify',file);equal((await index.patchMarkdownPaths([a])).outcome,'patched','Second real edit interrupts cache retry');}return result;};
+    release=index.acquireSemanticDemand(a);restoring=index.restorePersistedSnapshot([a],{deferEagerVocabulary:true,deferEagerUrlRestore:true});await deadline(reached,'Nancy graph page admission');
+    await deadline((async()=>{while(index.onDemandTasks.size)await Promise.all([...index.onDemandTasks.values()])})(),'Nancy initial center publication');
+    ok(index.get(a).neighbours.get(c)?.isRightFriend,'Initial cached incoming supercharges relation is present before the edit');
+    const file=f.files.get(a);f.texts.set(a,'**Source**:: ![Presentation]('+url+')');file.stat.mtime++;revision++;f.app.vault.trigger('modify',file);
+    equal((await index.patchMarkdownPaths([a])).outcome,'patched','Embed edit publishes normally');releasePages();
+    await deadline((async()=>{while(!index.getIndexDiagnostics().some(row=>row.reason==='source-backed-physical-baseline')&&index.snapshotHydrationTask)await new Promise(done=>setTimeout(done,0))})(),'Nancy physical baseline handoff');
+    ok(index.getIndexDiagnostics().some(row=>row.reason==='source-backed-physical-baseline'),'Source-recovery route exercised');
+    const center=index.get(a);ok(center.neighbours.get('folder:Input/YouTube')?.isParent,'Enabled containing folder survives while global verification is held');
+    ok(center.neighbours.get(c)?.isRightFriend,'Incoming bold supercharges relation survives while global verification is held: '+JSON.stringify({neighbours:[...center.neighbours].map(([id,r])=>({id,right:r.isRightFriend,parent:r.isParent})),scopes:[...index.semanticScopes.keys()],host:[...index.onDemandHostScopes.keys()],cached:[...index.onDemandCachedScopes.keys()],retained:[...index.retainedLocalScopes.keys()],decisions:index.getIndexDiagnostics()}));
+    ok(center.neighbours.has(url),'New Source embed remains present');
+    releaseSources();await deadline(index.waitForSnapshotHydration(),'Nancy hydration closure');await restoring;ok(await deadline(index.adoptStartupSources(),'Nancy source recovery'),'Recovery settles');return true;
+   }finally{releaseSources?.();releasePages?.();release?.();index?.destroy();await restoring?.catch(()=>{});f.close()}
+  })()`));
+ }finally{await browser.cleanup()}
+});
 
 for(const disposal of [false,true])test(`retired startup repair proof releases captured inventory (dispose ${disposal})`,async()=>{
  const browser=await chromiumHarness(bundle);try{
@@ -105,11 +299,11 @@ for(const scenario of ['unchanged','resolution-change','missing-receipt','metada
 });}
 
 /** Admitted Eager preparation observes native resolution before catalog priming and warm restore. */
-for(const scenario of ['quiet','early-resolve','resolve','late-resolve','disposed'])test('admitted eager preparation retains clean resolver receipts before inventory promotion ('+scenario+')',async()=>{
+for(const scenario of ['quiet','early-resolve','resolve','late-resolve','attachment','disposed'])test('admitted eager preparation retains clean resolver receipts before inventory promotion ('+scenario+')',async()=>{
  const browser=await chromiumHarness(bundle);try{
   await browser.evaluate(contributorBrowserInitialize);await browser.evaluate(initialize);
   assert(await browser.evaluate(`(async()=>{
-   const M=sourceModules,{f,settings}=await startupSeed('warm-decode-resolver-window-${scenario}','active',{body:'Parent:: [[B]]',frontmatter:{}});settings.lastActivePath='B.md';
+   const M=sourceModules,{f,settings}=await startupSeed('warm-decode-resolver-window-${scenario}','active',{body:'Parent:: [[B]]',frontmatter:{},attachment:'${scenario}'==='attachment'});settings.lastActivePath='B.md';
    let index,releaseDecode,releaseAudit,releaseAuditEnd,releaseDemand,restoring,resolveObserver;
    try{
     index=new M.GraphIndex({app:f.app,settings,getIndexSourceRevision:()=>0},f.app,true);index.scheduleOrphanCleanup=()=>{};
@@ -160,7 +354,7 @@ for(const scenario of ['quiet','early-resolve','resolve','late-resolve','dispose
     await deadline(auditing,'Existing background header audit');
     ok(source.canPrepareWarmMaintenance(),'The real saved dependency projection supports bounded warm maintenance');
     // A later clean resolver wave must not inherit dirtiness from the earlier observation.
-    if(['resolve','late-resolve'].includes('${scenario}'))for(let round=0;round<3;round++)for(const file of f.files.values())f.app.metadataCache.trigger('resolve',file);
+    if(['resolve','late-resolve','attachment'].includes('${scenario}'))for(let round=0;round<3;round++)for(const file of f.files.values())f.app.metadataCache.trigger('resolve',file);
     releaseAudit();await deadline(auditingEnd,'Actual header progress before root closure');
     releaseDemand=index.acquireSemanticDemand('B.md');
     await deadline(index.ensureSemanticScope('B.md'),'Current view over the held audit');

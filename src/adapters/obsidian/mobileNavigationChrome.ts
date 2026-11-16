@@ -8,6 +8,17 @@ const owners = new WeakMap<Document, () => void>();
 const DOCKED = "kplex-mobile-navbar-docked";
 const HIDDEN = "kplex-mobile-navbar-hidden";
 
+/** Native mobile drawers, sliding workspace and backdrop sit above the fullscreen layer. Lease only
+ * their stacking order while the canvas is outside the drawer, leaving previews/menus above it.
+ * Retire exact classes on exit, unload or migration without changing the drawer's saved state. */
+export function leaseMobileFullscreenDrawer(content: HTMLElement): () => void {
+  const className = "kplex-fullscreen-drawer";
+  const surfaces = Platform.isMobile ? [content.closest(".workspace-drawer"), ...Array.from(content.ownerDocument.querySelectorAll(".workspace-drawer-backdrop, .workspace-split.mod-root.is-sliding-sidebar"))] : [];
+  const owned = surfaces.filter((element): element is Element => !!element && !element.classList.contains(className));
+  for (const element of owned) element.classList.add(className);
+  return () => {for (const element of owned) element.classList.remove(className);};
+}
+
 /** Lease only the owning document's native navbar for an active tab or immersive surface.
  * Observe direct app children so native navbar reconstruction is covered without watching graph
  * mutations. Preserve foreign classes/styles, including Excalidraw's independent docking lease. */

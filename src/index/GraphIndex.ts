@@ -53,6 +53,8 @@
  * diagnostic publication labels never relax the underlying lifetime or source predicates.
  * A zero-page foreground interruption may admit one new candidate after P4 admission, bounded
  * structural/file publication accounting and saved semantic proofs; the old candidate stays rejected.
+ * A bounded Markdown save can recapture changed physical stamps once for source-fenced repair;
+ * unchanged owners retain their incarnation checks and no stale body gains authority from that retry.
  * Eager startup admits independent URL replay after the primary graph and shares its long-lived
  * inventory lease with P4 source maintenance. Local-mode URL discovery retains its existing lane.
  * URL owners share only immutable configured-field selection within a semantic policy revision;
@@ -428,6 +430,8 @@ export type SnapshotHydrationFailure = {
   publicationCause: SnapshotPublicationCause;
   sourceRevision: number;
   policyRevision: number;
+  /** Copy the connection failure at this boundary; later successful reopens cannot erase it. */
+  storage?: ReturnType<KplexIndexedDbCache["getStorageDiagnostics"]>;
 };
 /** Readiness routes describe completed work independently of source/write authority. */
 export type SnapshotHydrationRoute = "none" | "saved-preview" | "full-snapshot" | "checkpoint" |
@@ -5871,13 +5875,14 @@ export class GraphIndex {
     upgradePaths: ReadonlySet<string> = new Set(),
     onNavigable?: () => void,
     semanticCurrent: () => boolean = () => true,
-    physicalCurrent: () => boolean = () => true,
+    physicalCurrent: (operation?: SnapshotReadOperation) => boolean = () => true,
     retainRestoreWork?: (priority: IndexWorkPriority) => () => void,
     parentRecordCurrent: (operation?: SnapshotReadOperation) => boolean = parentCurrent,
     foregroundProof?: ReadonlyMap<string, string>,
     physicalFoldersRevision?: number,
     eagerGraphMaintenanceRevision?: number,
     patchPolicyCurrent: () => boolean = semanticCurrent,
+    retainForegroundPatches = false,
   ): Promise<{ restored: boolean; fresh: boolean; createdAt: number | null; interruptedBeforePages?: boolean }> {
     const releaseWork = retainRestoreWork?.(INDEX_WORK_PRIORITY.background) ?? this.workScheduler.begin(INDEX_WORK_PRIORITY.background);
     try {
@@ -5885,17 +5890,47 @@ export class GraphIndex {
       let expectedPublicationRevision = this.publicationRevision;
       let publicationSuperseded = false;
       let pageFailure: SnapshotReadFailureReason | undefined;
+      const pageForegroundProof = new Map(foregroundProof);
+      const initialForeground = this.snapshotForegroundWindow;
+      let foregroundReceipts = initialForeground?.run === run ? initialForeground.commits + initialForeground.baselines : 0;
       /** A receipt from the one body-free bootstrap changes presentation, not captured semantic
        * input. Account that exact publication without spending the retry for real file commits;
-       * every other publication and all parent source/policy/physical guards remain unchanged. */
+       * unaccounted publications and all parent source/policy/physical guards remain unchanged. */
       const currentPublication = (operation: SnapshotReadOperation): boolean => {
         if (expectedPublicationRevision === this.publicationRevision) return true;
         const foreground = this.snapshotForegroundWindow;
-        if (foreground?.run === run && foreground.baselines === 1 && foreground.commits === 0 && this.onDemandTasks.size === 0
+        if (foreground?.run === run && foreground.baselines === 1 && foreground.commits === 0
+          && (this.onDemandTasks.size === 0 || retainForegroundPatches)
           && foreground.publication === expectedPublicationRevision
           && this.publicationRevision === expectedPublicationRevision + 1 && this.snapshotPublicationCause === "snapshot") {
           expectedPublicationRevision = this.publicationRevision;
+          foregroundReceipts = foreground.commits + foreground.baselines;
           return true;
+        }
+        // A compatible graph whose captured host semantics changed is only a readonly repair candidate. During its private
+        // decode, retain exactly accounted canonical file commits as finite repair obligations.
+        // Dropping 100k decoded pages for a foreground center commit would instead replay every
+        // source. Native identity/stats, policy and source guards still run before this receipt.
+        // Changed owners need bounded readonly scope retention before either cache publication;
+        // identical fingerprints need no replay. Its own preview is not a foreground receipt.
+        if (retainForegroundPatches && !semanticCurrent() && patchPolicyCurrent()
+          && foreground?.run === run && foreground.baselines <= 1
+          && foreground.commits + foreground.baselines > 0
+          && foreground.commits + foreground.baselines <= SOURCE_MAX_BATCH_RECORDS
+          && this.publicationRevision - expectedPublicationRevision
+            === foreground.commits + foreground.baselines - foregroundReceipts
+          && physicalCurrent(operation)) {
+          const proof = new Map<string, string>();
+          for (const path of foreground.paths) {
+            const signature = this.semanticFingerprints.get(path);
+            if (signature) proof.set(path, signature);
+          }
+          if (proof.size === foreground.paths.size) {
+            for (const [path, signature] of proof) pageForegroundProof.set(path, signature);
+            expectedPublicationRevision = this.publicationRevision;
+            foregroundReceipts = foreground.commits + foreground.baselines;
+            return true;
+          }
         }
         publicationSuperseded = true;
         this.recordSnapshotHydrationFailure(run, "publication-superseded", operation, expectedPublicationRevision);
@@ -5953,28 +5988,39 @@ export class GraphIndex {
       // A current authoritative replacement still needs exact signature equality. A compatible
       // stale candidate may instead retain a finite mismatch as a read-only repair obligation;
       // source closure and per-file compilation must finish before it can grant authority.
-      const foregroundRepairs: string[] = [];
-      for (const [path, signature] of foregroundProof ?? []) if (restoredFingerprints.get(path) !== signature) {
-        if (!semanticCurrent() && patchPolicyCurrent() && this.app.vault.getFileByPath(path)?.extension === "md") {
-          modifiedMarkdownPaths.add(path);foregroundRepairs.push(path);
-        } else {
-          this.recordIndexDiagnostic("restore", "snapshot-foreground-proof-mismatch");
-          return { restored: false, fresh: false, createdAt: meta.createdAt };
-        }
-      }
+      const retainedForeground = new Map<string, string>();
       let foregroundBytes = 0;
-      for (const path of foregroundRepairs) {
-        const file = this.app.vault.getFileByPath(path), hot = this.fieldCache.get(path);
-        if (!file || !hot || hot.mtime !== file.stat.mtime || foregroundRepairs.length > 64
-          || (foregroundBytes += file.stat.size) > MAX_CACHED_SCOPE_RETAINED_BYTES / 4) return {restored:false,fresh:false,createdAt:meta.createdAt};
-        // Preserve the current center through the established bounded readonly scope owner.
-        // Never retain the preceding full native baseline or renew exact-pair write proof.
-        const scope = await this.publishOnDemandHostScope(path, isCurrent, INDEX_WORK_PRIORITY.background,
-          candidate => this.fieldCache.get(candidate)?.body, foregroundRepairs);
-        if (!scope || !isCurrent()) return {restored:false,fresh:false,createdAt:meta.createdAt};
-        this.retainedLocalScopes.set(path, {state:scope,sourceRevision:this.plugin.getIndexSourceRevision(),
-          policyRevision:this.semanticPolicyRevision,cached:false});
-      }
+      /** Retain finite current reads before a cached preview/promotion can replace their graph.
+       * No async scope can borrow a newer publication/source revision as its own proof. */
+      const retainForegroundReads = async (): Promise<boolean> => {
+        const repairs: string[] = [];
+        for (const [path, signature] of pageForegroundProof) if (restoredFingerprints.get(path) !== signature) {
+          if (semanticCurrent() || !patchPolicyCurrent() || this.app.vault.getFileByPath(path)?.extension !== "md") {
+            this.recordIndexDiagnostic("restore", "snapshot-foreground-proof-mismatch");return false;
+          }
+          modifiedMarkdownPaths.add(path);repairs.push(path);
+        }
+        if (repairs.length > 64) return false;
+        for (const path of repairs) {
+          const signature = pageForegroundProof.get(path)!;
+          if (retainedForeground.get(path) === signature) continue;
+          const file = this.app.vault.getFileByPath(path), hot = this.fieldCache.get(path);
+          if (!file || !hot || hot.mtime !== file.stat.mtime
+            || (foregroundBytes += file.stat.size) > MAX_CACHED_SCOPE_RETAINED_BYTES / 4) return false;
+          const publication = this.publicationRevision, source = this.plugin.getIndexSourceRevision();
+          /** Even an accounted later commit cannot renew this specific in-flight read. */
+          const readCurrent = (): boolean => isCurrent() && publication === this.publicationRevision
+            && source === this.plugin.getIndexSourceRevision() && this.fieldCache.get(path) === hot
+            && this.semanticFingerprints.get(path) === signature;
+          const scope = await this.publishOnDemandHostScope(path, readCurrent, INDEX_WORK_PRIORITY.background,
+            candidate => this.fieldCache.get(candidate)?.body, repairs);
+          if (!scope || !readCurrent()) return false;
+          this.retainedLocalScopes.set(path, {state:scope,sourceRevision:source,policyRevision:this.semanticPolicyRevision,cached:false});
+          retainedForeground.set(path, signature);
+        }
+        return isCurrent();
+      };
+      if (pageForegroundProof.size && !(await retainForegroundReads())) return {restored:false,fresh:false,createdAt:meta.createdAt};
 
       if (missingFileBindings.size) {
         this.setSnapshotHydrationPhase(run, "file-rebind");
@@ -6063,6 +6109,7 @@ export class GraphIndex {
       if (!isCurrent()) return { restored: false, fresh: false, createdAt: meta.createdAt };
 
       if (!physicalCurrent()) return { restored: false, fresh: false, createdAt: meta.createdAt };
+      if (pageForegroundProof.size && !(await retainForegroundReads())) return {restored:false,fresh:false,createdAt:meta.createdAt};
       if (relationsHydrated) {
         // Publish a page-only state with complete resolved relations and empty provenance. This is a
         // deliberate progressive-hydration boundary: navigation/search can work immediately while
@@ -6128,6 +6175,7 @@ export class GraphIndex {
         for (const path of removedPaths) restoredFingerprints.delete(path);
       }
       if (!physicalCurrent()) return { restored: false, fresh: false, createdAt: meta.createdAt };
+      if (pageForegroundProof.size && !(await retainForegroundReads())) return {restored:false,fresh:false,createdAt:meta.createdAt};
       const currentSemantics = semanticCurrent();
       if (!currentSemantics) this.retainCachedStartupPresentation(next);
       const authoritativeFresh = currentSemantics && fresh && !structuralMismatch && missingFileBindings.size === 0;
@@ -6344,7 +6392,13 @@ export class GraphIndex {
             const reason = this.app.vault.getFileByPath(path) !== token.file ? "physical-identity-changed"
               : !fileRevisionMatches(token.file, token.revision) ? "physical-stat-changed" : null;
             if (reason) {
-              markdownStatChange = reason === "physical-stat-changed" && token.file.extension === "md" && token.file.stat.ctime === token.ctime;
+              markdownStatChange = reason === "physical-stat-changed" && token.file.extension === "md";
+              if (reason === "physical-stat-changed" && (token.file.extension !== "md" || token.file.stat.ctime !== token.ctime)) {
+                // Keep the cause observable without retaining a note path. Platform-specific
+                // save/sync ordering must be distinguishable from an ordinary Markdown save.
+                this.recordIndexDiagnostic("restore", token.file.extension !== "md"
+                  ? "snapshot-attachment-revision-changed" : "snapshot-markdown-creation-stamp-changed");
+              }
               physicalValid = false;
               this.recordSnapshotHydrationFailure(run, reason, operation);
               break;
@@ -6492,12 +6546,16 @@ export class GraphIndex {
             } : undefined;
           const foregroundWindow = (trustedWarmSnapshot || deferredCandidate) && meta === active
             ? { run, publication: this.publicationRevision, commits: 0, baselines: 0, paths: new Set<string>() } : null;
+          // A physically fresh cache can become semantically stale after selection, for example
+          // when native short-link bindings finish loading. Keep the same bounded readonly repair
+          // receipts across that transition; physical freshness never renews source authority.
+          const retainKnownForeground = decision.compatible && foregroundWindow !== null;
           this.snapshotForegroundWindow = foregroundWindow;
           let result, retried = false;
           try {
             result = await this.restoreFullIndexedDbSnapshot(meta, fresh, run, inventory, candidateCurrent, upgradePaths,
-              onNavigable, candidateSemanticsCurrent, trustedWarmSnapshot ? physicalCurrent : undefined, retainRestoreWork, candidateRecordCurrent,
-              undefined, physicalFoldersRevision, eagerGraphMaintenanceRevision, patchPolicyCurrent);
+              onNavigable, candidateSemanticsCurrent, trustedWarmSnapshot || deferredCandidate ? physicalCurrent : undefined, retainRestoreWork, candidateRecordCurrent,
+              undefined, physicalFoldersRevision, eagerGraphMaintenanceRevision, patchPolicyCurrent, retainKnownForeground);
             if (result.interruptedBeforePages && foregroundWindow && isCurrent()) {
               // A deferred-cache center can await metadata between its P2 structural and file
               // publications. Join those existing owners before spending the single retry; the
@@ -6516,19 +6574,22 @@ export class GraphIndex {
                   if (signature) proof.set(path, signature);
                 }
                 if (proof.size === foregroundWindow.paths.size) {
-                  // The second attempt captures a new publication fence. A further publication
-                  // rejects it normally; no third attempt or large discarded graph is retained.
-                  this.snapshotForegroundWindow = null;
+                  // The second attempt captures a new publication fence. Stale private pages
+                  // may retain accounted file receipts; no third decoding attempt is admitted.
+                  this.snapshotForegroundWindow = retainKnownForeground ? foregroundWindow : null;
                   retried = true;
                   result = await this.restoreFullIndexedDbSnapshot(meta, fresh, run, inventory, candidateCurrent, upgradePaths,
                     onNavigable, candidateSemanticsCurrent, physicalCurrent, retainRestoreWork, candidateRecordCurrent, proof, physicalFoldersRevision,
-                    eagerGraphMaintenanceRevision, patchPolicyCurrent);
+                    eagerGraphMaintenanceRevision, patchPolicyCurrent, retainKnownForeground);
                 }
               }
             }
             if (!result.restored && !retried && deferEagerVocabulary && meta === active && decision.compatible
               && markdownStatChange && isCurrent()) {
               // One genuine note save during hydration must not discard every unchanged source.
+              // A changed body revision may also carry a new creation stamp. Capture that new
+              // physical input for ordinary source authentication; never certify its old body.
+              // An otherwise unchanged revision still requires its original incarnation stamp.
               // Share the existing single retry budget, take new native tokens, and keep this
               // candidate readonly until source closure and its finite patch plan commit.
               await this.workScheduler.checkpoint(INDEX_WORK_PRIORITY.background);
@@ -6539,8 +6600,8 @@ export class GraphIndex {
                 && [...inventory.folderPaths].every(path => revised.folderPaths.has(path))
                 && [...physicalTokens].every(([path, token]) => {
                   const file = revised.filesByPath.get(path);
-                  if (file !== token.file || file.stat.ctime !== token.ctime) return false;
-                  if (fileRevisionMatches(file, token.revision)) return true;
+                  if (file !== token.file) return false;
+                  if (fileRevisionMatches(file, token.revision)) return file.stat.ctime === token.ctime;
                   return file.extension === "md" && ++changed <= SOURCE_MAX_BATCH_RECORDS;
                 });
               if (eligible && changed > 0 && isCurrent()) {
@@ -6549,10 +6610,10 @@ export class GraphIndex {
                 snapshotSourceRevision = checkedSourceRevision = this.restoreInventorySourceRevision = this.plugin.getIndexSourceRevision();
                 snapshotHostPresentationRevision = this.hostPresentationRevision;
                 physicalValid = true;markdownStatChange = false;deferredCandidate = true;fresh = false;retried = true;
-                this.snapshotForegroundWindow = null;
+                this.snapshotForegroundWindow = deferredCandidate ? foregroundWindow : null;
                 result = await this.restoreFullIndexedDbSnapshot(meta,false,run,inventory,candidateCurrent,upgradePaths,
                   undefined,candidateSemanticsCurrent,physicalCurrent,retainRestoreWork,candidateRecordCurrent,
-                  undefined,physicalFoldersRevision,undefined,patchPolicyCurrent);
+                  undefined,physicalFoldersRevision,undefined,patchPolicyCurrent,deferredCandidate);
               }
             }
           } finally {
@@ -6643,6 +6704,7 @@ export class GraphIndex {
       reason, phase, operation, attempt: attempts, pages, relations, evidence, expectedPublication,
       actualPublication: this.publicationRevision, publicationCause: this.snapshotPublicationCause,
       sourceRevision: this.plugin.getIndexSourceRevision(), policyRevision: this.semanticPolicyRevision,
+      ...(reason === "storage-unavailable" || reason === "read-error" ? {storage: this.indexedDb.getStorageDiagnostics()} : {}),
     };
   }
 
@@ -6706,8 +6768,9 @@ export class GraphIndex {
 
   /** Export independent aggregate copies; callers cannot rewrite the first failure after capture. */
   getSnapshotHydrationDiagnostics(): SnapshotHydrationDiagnostics {
-    return { ...this.snapshotHydrationDiagnostics, firstFailure: this.snapshotHydrationDiagnostics.firstFailure
-      ? { ...this.snapshotHydrationDiagnostics.firstFailure } : null };
+    const failure = this.snapshotHydrationDiagnostics.firstFailure, storage = failure?.storage;
+    return { ...this.snapshotHydrationDiagnostics, firstFailure: failure
+      ? { ...failure, ...(storage ? {storage: {...storage, lastFailure: storage.lastFailure ? {...storage.lastFailure} : null}} : {}) } : null };
   }
 
   /** Inspect recent local index decisions without exposing vault paths or note content. */
@@ -6721,9 +6784,11 @@ export class GraphIndex {
     invalidActive: boolean;
     active: { createdAt: number; schema: number } | null;
     checkpoint: { createdAt: number; schema: number; completedMarkdownFiles: number } | null;
+    connection: ReturnType<KplexIndexedDbCache["getStorageDiagnostics"]>;
   } {
     return {
       ...this.savedSnapshotSummary,
+      connection: this.indexedDb.getStorageDiagnostics(),
       active: this.savedSnapshotSummary.active && { ...this.savedSnapshotSummary.active },
       checkpoint: this.savedSnapshotSummary.checkpoint && { ...this.savedSnapshotSummary.checkpoint },
     };
@@ -6895,15 +6960,18 @@ export class GraphIndex {
     // keeps its body-defined roles; afterwards canonical incidence owns the replacement read.
     for (const [center, scope] of this.onDemandHostScopes) if (scope.pages.has(commit.sourcePath)
       || commit.touchedPagePaths.has(center)) this.onDemandHostScopes.delete(center);
-    // A partial Eager foreground patch supersedes a captured graph candidate, not the neutral
-    // source recovery lifetime. Its publication fence rejects stale pages/evidence independently.
-    if (this.snapshotHydrationTask && !(this.usesLocalForeground() && !this.isOnDemandMode()
+    // An accounted active-generation patch remains a readonly repair obligation even after its
+    // page preview is navigable or source dependencies finish. The private reader still closes
+    // all policy/native/fingerprint guards; unaccounted or over-budget publications cannot borrow it.
+    const foregroundWindow = this.snapshotForegroundWindow;
+    const boundedRestorePatch = foregroundWindow?.run === this.snapshotHydrationRun
+      && foregroundWindow.commits + foregroundWindow.baselines < SOURCE_MAX_BATCH_RECORDS && foregroundWindow.baselines <= 1;
+    if (this.snapshotHydrationTask && !boundedRestorePatch && !(this.usesLocalForeground() && !this.isOnDemandMode()
       && !this.warmSourceRecoveryAvailable)) this.cancelSnapshotHydration?.();
     this.navigableSnapshotSourceRevision = preserveWarm ? sourceRevision : null;
     if (preserveWarm) for (const path of commit.touchedPagePaths) this.retiredSnapshotPaths.add(path);
     this.publicationRevision += 1;
     this.snapshotPublicationCause = "file-patch";
-    const foregroundWindow = this.snapshotForegroundWindow;
     if (foregroundWindow && foregroundWindow.run === this.snapshotHydrationRun) {
       foregroundWindow.commits++;
       if (foregroundWindow.commits <= 256) foregroundWindow.paths.add(commit.sourcePath);

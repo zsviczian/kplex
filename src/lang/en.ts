@@ -9,6 +9,12 @@
  * parameters remain unquoted regardless of their names. Locale catalogs inherit this classification.
  */
 export const englishCatalog = {
+  "styleSources.menu": {"message":"Appearance sources","context":"Node and connector context menus navigate the actual ordered appearance sources.","params":[],"referenceParams":[]},
+  "styleSources.tag": {"message":"Tag style · {name}","context":"Node and connector context menus navigate the actual ordered appearance sources.","params":["name"],"referenceParams":["name"]},
+  "styleSources.noteType": {"message":"Note type · {name}","context":"Node and connector context menus navigate the actual ordered appearance sources.","params":["name"],"referenceParams":["name"]},
+  "styleSources.lens": {"message":"Lens · {name}","context":"Node and connector context menus navigate the actual ordered appearance sources.","params":["name"],"referenceParams":["name"]},
+  "styleSources.ontology": {"message":"Relationship · {name}","context":"Node and connector context menus navigate the actual ordered appearance sources.","params":["name"],"referenceParams":["name"]},
+  "styleSources.prefix": {"message":"Label prefix · {name}","context":"Node and connector context menus navigate the actual ordered appearance sources.","params":["name"],"referenceParams":["name"]},
   "filter.visibilityDocuments": {"message":"Documents","context":"Attachment-category controls in shared content visibility, separate from Markdown.","params":[],"referenceParams":[]},
   "filter.visibilityDocumentsHelp": {"message":"Show document attachments such as PDF, EPUB, DOCX, spreadsheets, presentations and text files. Markdown has its own toggle.","context":"Attachment-category controls in shared content visibility, separate from Markdown.","params":[],"referenceParams":[]},
   "filter.visibilityImages": {"message":"Images","context":"Attachment-category controls in shared content visibility, separate from Markdown.","params":[],"referenceParams":[]},
@@ -180,6 +186,8 @@ export const englishCatalog = {
   "visibility.disableAll": {"message": "Disable all", "context": "Explicit node clipboard feedback and section-scoped content visibility actions.", "params": [], "referenceParams": []},
   "drawing.template": {"message": "Template", "context": "Shared creation template field for Markdown and Excalidraw.", "params": []},
   "drawing.blank": {"message": "Blank drawing", "context": "File creation, native file menus and wheel navigation preferences.", "params": []},
+  "settings.singleClickExternalNavigation": {"message":"Single-click external navigation","context":"Canvas behavior setting for opt-in activation of an already-central external link.","params":[]},
+  "settings.singleClickExternalNavigation.help": {"message":"Open a web link with one click only when it is already the central node. Off by default; double-click and Open actions remain available.","context":"Canvas behavior setting for opt-in activation of an already-central external link.","params":[]},
   "settings.trackpad": {"message": "Trackpad navigation", "context": "File creation, native file menus and wheel navigation preferences.", "params": []},
   "settings.trackpad.help": {"message": "Scroll to pan; pinch or modified scroll to zoom. Turn off to zoom with ordinary scrolling.", "context": "File creation, native file menus and wheel navigation preferences.", "params": []},
   "fileMenu.reuse": {"message": "Open", "context": "File creation, native file menus and wheel navigation preferences.", "params": []},
