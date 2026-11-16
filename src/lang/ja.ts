@@ -9,6 +9,12 @@ import { buildLocaleCatalog, type LocaleCatalog, type LocaleTranslationMap } fro
 /** Construct the typed Japanese table only when selected; importing this module allocates no catalog. */
 export function createJapaneseCatalog(): LocaleCatalog {
 const japaneseTranslations = {
+  "styleSources.menu": "外観の設定元",
+  "styleSources.tag": "タグスタイル · {name}",
+  "styleSources.noteType": "ノートタイプ · {name}",
+  "styleSources.lens": "レンズ · {name}",
+  "styleSources.ontology": "関係 · {name}",
+  "styleSources.prefix": "名前の接頭辞 · {name}",
   "filter.visibilityDocuments": "文書",
   "filter.visibilityDocumentsHelp": "PDF、EPUB、DOCX、表計算、プレゼンテーション、テキストなどの添付文書を表示します。Markdown は専用の切り替えで設定します。",
   "filter.visibilityImages": "画像",
@@ -181,6 +187,8 @@ const japaneseTranslations = {
   "actions.node.copy-link.description": "選択したノードまたはキャンバスの中心をコピーします。Obsidianのノートへの貼り付けにはリンク設定が適用され、それ以外の貼り付け先には完全なパスが使われます。",
   "drawing.template": "テンプレート",
   "drawing.blank": "空の描画",
+  "settings.singleClickExternalNavigation": "シングルクリックで外部リンクを開く",
+  "settings.singleClickExternalNavigation.help": "すでに中央ノードになっているウェブリンクだけをシングルクリックで開きます。初期設定はオフです。ダブルクリックや「開く」は引き続き使えます。",
   "settings.trackpad": "トラックパッド操作",
   "settings.trackpad.help": "スクロールで移動し、ピンチまたは修飾キーを押しながらのスクロールでズームします。オフにすると通常のスクロールでズームします。",
   "fileMenu.reuse": "開く",

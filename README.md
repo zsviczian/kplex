@@ -80,11 +80,15 @@ History or the canvas controls. Zen and full screen hide that bar; switching to
 another tab or leaving those modes restores it. Full screen is also available on
 phones and tablets.
 
+Full screen also works from the mobile side panel. Leaving full screen returns the
+canvas to that same panel without changing its saved layout.
+
 ## Navigating the canvas
 
 - **Single-click / tap** a node to make it the center.
 - **Double-click** a file-backed node to open it in Obsidian.
 - Double-clicking a URL opens it in the browser.
+- Web-link nodes use authored Markdown link text or image alt text. If that text is empty, a quoted Markdown title attribute supplies the name.
 - Double-clicking an unresolved link can create the missing note. **Control-click** (**Command-click** on macOS) opens its creation dialog without moving the canvas center. A placeholder can already specify its intended folder. When its name matches your Daily Notes date format, **Daily note** creates it with the configured daily template in the displayed daily-note destination.
 - Folder and tag nodes can also become the center.
 - An open, unpinned **File properties** pane follows the central file while K-Plex is active. Pinned or grouped Properties panes keep their own file; non-file centers clear the unpinned pane.
@@ -195,6 +199,8 @@ Select **Footprints**, beside Find in the upper-right corner, to see this canvas
 
 Select **Editor node** to expand a file or URL inside the central node. Images fit both dimensions without cropping. The editor’s **Open menu** button provides the same opening destinations as the node context menu. Maximizing the editor temporarily hides Find and preserves its query. Webpages use a desktop webview with browser authentication, or an iframe on Obsidian mobile. YouTube and Vimeo links use embedded players; YouTube Shorts use a portrait frame. Expanding a URL loads that website, which receives normal browser requests and may store its own cookies.
 
+Clicking a web-link node centers it without opening the website. Enable **Canvas behavior → Single-click external navigation** to open a link with a subsequent click once it is already central. This is off by default. Double-click and explicit **Open** actions remain available.
+
 For Markdown notes in a normal editor node, select **Scale text with canvas zoom** to make text grow or shrink with the graph. Select **Keep text size** to retain the native font size as the frame changes. K-Plex remembers this choice for each note. Fullscreen editors use the native text size.
 
 
@@ -285,6 +291,13 @@ Connection details also offers a pencil for each ontology and **Reverse property
 ## Colors and appearance
 
 A fresh installation follows Obsidian’s theme. In **Settings → K-Plex → Visual styling → Colors**, choose fixed colors, live theme colors or named Light/Dark pairs for nodes, links and lenses. Existing saved colors stay intact; **Use theme colors for standard styles…** previews an explicit adoption.
+
+Right-click a node or connection (long-press on touch) and choose **Appearance sources**
+to inspect its style layers in inheritance order. The submenu includes standard styles,
+matching tags and note types, relationship styles, and matching styling lenses. Select
+a source to open its existing settings page or editor; a lens opens directly at its style
+controls. Opening a source does not save a change. Several layers can appear because
+later styles can override only some attributes of an earlier layer.
 
 Optional **Area tint** adds four subtle Compass sectors behind the graph. It is off by default and follows the rendered center while you navigate. See [Colors and appearance](docs/APPEARANCE.md) for color sources, paired previews, palette management and tint settings.
 
@@ -481,7 +494,7 @@ Filename/path **Find in vault** and the current note’s Obsidian-known relation
 
 A note’s membership in a large tag or folder does not require loading every sibling before the note opens. A **≥** gate count shows the relationships prepared so far; more may become available as that node’s neighborhood loads.
 
-While you work, changes are handled incrementally: editing one note does not normally require K-Plex to rebuild the entire vault. If every K-Plex tab or side panel is hidden, automatic indexing pauses and K-Plex coalesces the pending changes; showing a K-Plex surface catches up once. Background updates also preserve your current camera and scroll position rather than repeatedly recentering the graph.
+While you work, changes are handled incrementally: editing one note does not normally require K-Plex to rebuild the entire vault. With **Prepare index before opening K-Plex** enabled and the **Eager** strategy selected for your device, preparation and later updates continue with every canvas closed. Otherwise, hidden canvases coalesce pending changes and catch up when shown. Background updates preserve your current camera and scroll position rather than repeatedly recentering the graph.
 
 Version 0.0.3 substantially improved startup performance, incremental updates, large-vault behavior, iPad stability, mobile/touch interaction, graph animation, relationship editing, section expansion, provenance/explanation, sidecar behavior and search/navigation. These improvements form the foundation for the newer Graph Lens workflow.
 

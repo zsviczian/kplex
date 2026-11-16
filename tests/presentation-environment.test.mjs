@@ -490,11 +490,13 @@ test("persisted layout keys and node-open leaf modes remain stable with canonica
       addSeparator() {return this;}
     }
     const showMenu = productionArrow("src/ui/PlexGraph.tsx", "showNodeContextMenuAt", {
+      // This finite host tests opening destinations; real appearance owners have dedicated renderer coverage.
+      nodeStyleLayers: () => [], addElementStyleMenu() {}, paintSettings: {}, predicateCenter: null, RelationType: {DEFINED: 1},
       viewDefinition: {hierarchy: undefined, capabilities: {}},
       touchDoubleTap: {current: {reset() {}}}, persistentPageFor: () => page,
       neighborhood: null, activePath: "Other.md", canExpandCentralSections: () => false,
       Menu: MenuDouble, captureSurfaceContinuation: continuationModule.exports.captureSurfaceContinuation, actionNodeRef: nodeModule.exports.actionNodeRef, actionSurfaceId: "owning-surface", sceneNodeKeys: new Map(),
-      plugin: {app: {}, getFileOpenMenuState: () => ({focusOpenTab: true, adjacentPane: true, popoutWindow: false}), isPinned: () => false,
+      plugin: {app: {}, captureAppearanceOwner: () => ({}), getFileOpenMenuState: () => ({focusOpenTab: true, adjacentPane: true, popoutWindow: false}), isPinned: () => false,
         canShowNodeProperties: () => false, canInitializeNodeProperties: () => false,
         dailyNoteGapDirections: target => {assert.equal(target, page); return [];},
         actionManager: {readSnapshot: () => null, dispatch: request => {requests.push(request); return Promise.resolve({status: "completed"});}}, showKplexMenuAtPosition() {}},
@@ -825,9 +827,10 @@ test('actual folder context menu offers Files/Finder and refuses a same-path rep
  const page={path:'folder:Projects',name:'Projects',file:null,isFolder:true,isTag:false,url:null};
  class MenuDouble{addItem(build){const item={setTitle(value){this.title=value;return this},setIcon(){return this},onClick(run){items.set(this.title,run);return this}};build(item);return this}addSeparator(){return this}}
  const show=productionArrow('src/ui/PlexGraph.tsx','showNodeContextMenuAt',{
+  nodeStyleLayers:()=>[],addElementStyleMenu(){},paintSettings:{},predicateCenter:null,RelationType:{DEFINED:1},
   viewDefinition:{capabilities:{}},touchDoubleTap:{current:{reset(){}}},persistentPageFor:()=>page,neighborhood:null,activePath:'Other.md',
   Menu:MenuDouble,captureSurfaceContinuation:continuation.exports.captureSurfaceContinuation,actionNodeRef:value=>({identity:value.path,path:value.path,kind:'folder'}),actionSurfaceId:'own',sceneNodeKeys:new Map(),
-  plugin:{app:{vault:{getFolderByPath:path=>path==='Projects'?live:null}},getFileOpenMenuState:assert.fail,isPinned:()=>false,
+  plugin:{app:{vault:{getFolderByPath:path=>path==='Projects'?live:null}},captureAppearanceOwner:()=>({}),getFileOpenMenuState:assert.fail,isPinned:()=>false,
    actionManager:{readSnapshot:()=>({mounted:true}),dispatch:request=>{requests.push(request);return Promise.resolve({status:'completed'})}},showKplexMenuAtPosition(){}},
   addNativeSubmenu:(menu,_title,_icon,populate)=>populate(menu),translate:key=>key,nativeRevealTarget:fileReveal.nativeRevealTarget,
   fileRevealMenuState:()=>({systemLabel:'graph.openInFinder',navigation:true}),readObsidianPresentationEnvironment:()=>({}),viewport:{current:{ownerDocument:{}}},hostLeaf:{},

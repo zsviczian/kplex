@@ -10,6 +10,21 @@ import { M, replayFixture, settings, runtime, policy } from "./support/cachedSou
 import { seedTitleBodies, fullTitle, nestedTitleOwners } from "./support/selectedTitleFixture.mjs";
 import { titleFixture, bindTitleCatalog, titleUrl, urlRef, guardUrlTitle, rejectedTitle, reframeTitleCatalog } from "./support/urlTitleFixture.mjs";
 
+test("quoted Markdown title attributes retain image labels through full compilation and cached replay", async () => {
+  const url = "https://www.youtube.com/watch?v=vBgrvVY1jGo", label = "Game theory, Veritasium";
+  const f = await titleFixture(f => f.add("Video.md", `![${label}](${url} "Veritasium, the prisoner's dilemma")`));
+  try {
+    const full = await fullTitle(f, url);
+    assert.equal(full.title, label);
+    const check = guardUrlTitle(f);
+    const result = await f.makeReader().prepare(urlRef(url), policy(), runtime());
+    assert.equal(result.outcome, "ready", JSON.stringify(result));
+    assert.equal(result.input.name, label);
+    assert.equal(result.input.url, url);
+    check();
+  } finally { f.close(); }
+});
+
 test("frontmatter Markdown labels survive full compilation and unchanged cached-source replay", async () => {
   const f = await titleFixture(f => {
     f.add("Bare.md", titleUrl);

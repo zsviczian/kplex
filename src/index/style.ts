@@ -9,6 +9,17 @@ import { RelationType } from "../types";
 import type { ColorValue } from "../core/contracts/colorValue";
 import { colorValueCss } from "../adapters/obsidian/colorPresentation";
 import { isNoteTypeTagConnection, NOTE_TYPE_TAG_LINK_STYLE } from "../core/graph/presentation";
+import type {ElementStyleSource, StandardStyleKey} from "../core/contracts/styleSource";
+
+/** One real inheritance layer can draw its combined label prefix from several tag definitions. */
+export type ElementStyleLayer<S> = Readonly<{sources: readonly ElementStyleSource[]; style: S}>;
+
+/** Merge optional style fields in renderer order without mutating a stored definition. */
+function mergeStyleLayers<S extends NodeStyle | LinkStyle>(layers: readonly ElementStyleLayer<S>[]): S {
+  const style = {} as S;
+  for (const layer of layers) Object.assign(style, layer.style);
+  return style;
+}
 
 /** Renderer inheritance when a legacy/custom style has no explicit width. */
 export const DEFAULT_RENDERED_LINK_WIDTH = 1.2;
@@ -36,71 +47,79 @@ function tagStyle(page: GraphPage, settings: KplexSettings, selected: NodeStyle)
 }
 
 /** Read the selected tag directly, then its case-equivalent or existing prefix rule. */
-function noteTypeStyle(page: GraphPage, settings: KplexSettings): NodeStyle {
-  if (!page.noteType) return {};
+function noteTypeLayers(page: GraphPage, settings: KplexSettings): ElementStyleLayer<NodeStyle>[] {
+  if (!page.noteType) return [];
   const name = tagStyleKey(page.noteType);
   const key = Object.prototype.hasOwnProperty.call(settings.tagNodeStyles, name) ? name
     : Object.keys(settings.tagNodeStyles).find(key => key.toLowerCase() === name.toLowerCase());
   const prefix = settings.tagStyleList.find(prefix => matchesStyleTag(name, prefix));
-  if (!key || key === prefix) return settings.tagNodeStyles[key ?? prefix ?? ""] ?? {};
-  return {...(prefix ? settings.tagNodeStyles[prefix] : {}), ...settings.tagNodeStyles[key]};
+  return [...new Set([prefix, key].filter((value): value is string => !!value))].map(key =>
+    ({sources: [{kind: "note-type" as const, key}], style: settings.tagNodeStyles[key] ?? {}}));
 }
 
-/** Layer defaults, semantic kind, role and explicit property/tag overrides for one rendered node. */
+/** Rendering and its context menu consume this exact ordered inheritance, without a second classifier. */
+export function nodeStyleLayers(page: GraphPage, relation: Neighbour | null, role: Role | "center", settings: KplexSettings): ElementStyleLayer<NodeStyle>[] {
+  const layers: ElementStyleLayer<NodeStyle>[] = [];
+  const standard = (key: StandardStyleKey): void => {layers.push({sources: [{kind: "standard", key}], style: settings[key]});};
+  standard("baseNodeStyle");
+  if (page.isFolder || page.isTag) {
+    if (role === "center") standard("centralNodeStyle");
+    if (role === "sibling") standard("siblingNodeStyle");
+    standard(page.isFolder ? "folderNodeStyle" : "tagNodeStyle");return layers;
+  }
+  if (relation?.relationType === RelationType.INFERRED) standard("inferredNodeStyle");
+  if (page.url) standard("urlNodeStyle");
+  if (!page.file && !page.url) standard("virtualNodeStyle");
+  if (page.file && page.file.extension !== "md") standard("attachmentNodeStyle");
+  if (role === "center") standard("centralNodeStyle");
+  if (role === "sibling") standard("siblingNodeStyle");
+  const selectedLayers = noteTypeLayers(page, settings), selected = mergeStyleLayers(selectedLayers);
+  const primary = page.primaryStyleTag && settings.tagStyleList.find(key => matchesStyleTag(page.primaryStyleTag!, key));
+  if (primary) layers.push({sources: [{kind: "tag", key: primary}], style: settings.tagNodeStyles[primary] ?? {}});
+  layers.push(...selectedLayers);
+  const tags = tagStyle(page, settings, selected);
+  if (settings.displayAllStylePrefixes && tags.prefix) {
+    const keys = page.styleTags.flatMap(tag => {const key = settings.tagStyleList.find(candidate => matchesStyleTag(tag, candidate));return key && settings.tagNodeStyles[key]?.prefix ? [key] : [];});
+    if (primary && settings.tagNodeStyles[primary]?.prefix) keys.unshift(primary);
+    keys.push(...selectedLayers.filter(layer => layer.style.prefix).flatMap(layer => layer.sources.flatMap(source => source.kind === "note-type" ? [source.key] : [])));
+    layers.push({sources: [...new Set(keys)].map(key => ({kind: "prefix", key})), style: {prefix: tags.prefix}});
+  }
+  return layers;
+}
+
+/** Preserve the same style result while retaining explicit provenance for each inherited layer. */
 export function resolveNodeStyle(page: GraphPage, relation: Neighbour | null, role: Role | "center", settings: KplexSettings): NodeStyle {
-  const central = role === "center" ? settings.centralNodeStyle : {};
-  const sibling = role === "sibling" ? settings.siblingNodeStyle : {};
-  if (page.isFolder) {
-    return { ...settings.baseNodeStyle, ...central, ...sibling, ...settings.folderNodeStyle };
-  }
-  if (page.isTag) {
-    return { ...settings.baseNodeStyle, ...central, ...sibling, ...settings.tagNodeStyle };
-  }
-  const selected = noteTypeStyle(page, settings), tags = tagStyle(page, settings, selected);
-  return {
-    ...settings.baseNodeStyle,
-    ...(relation?.relationType === RelationType.INFERRED ? settings.inferredNodeStyle : {}),
-    ...(page.url ? settings.urlNodeStyle : {}),
-    ...(!page.file && !page.url ? settings.virtualNodeStyle : {}),
-    ...(page.file && page.file.extension !== "md" ? settings.attachmentNodeStyle : {}),
-    ...central,
-    ...sibling,
-    // Semantic node styles are the user's explicit appearance choice and therefore override the
-    // generic role treatment. This is especially important for the central node: previously the
-    // central background/text colors masked a perfectly valid Note type style, making the editor
-    // appear broken even though the index had parsed the property correctly.
-    ...tags,
-    ...selected,
-    ...(settings.displayAllStylePrefixes && tags.prefix ? {prefix: tags.prefix} : {}),
-    embedHeight: settings.centerEmbedHeight,
-    embedWidth: settings.centerEmbedWidth
-  };
+  const style = mergeStyleLayers(nodeStyleLayers(page, relation, role, settings));
+  return page.isFolder || page.isTag ? style : {...style, embedHeight: settings.centerEmbedHeight, embedWidth: settings.centerEmbedWidth};
 }
 
 /** Layer connector overrides, preserving exact and normalized imported ontology-key precedence. */
-function definitionLinkStyle(neighbour: Pick<Neighbour, "typeDefinition" | "relationType">, settings: KplexSettings): LinkStyle {
-  let layered: LinkStyle = {};
+export function linkStyleLayers(neighbour: Pick<Neighbour, "typeDefinition" | "relationType">, settings: KplexSettings, origin?: GraphPage, target?: GraphPage): ElementStyleLayer<LinkStyle>[] {
+  const layers: ElementStyleLayer<LinkStyle>[] = [{sources: [{kind: "standard", key: "baseLinkStyle"}], style: settings.baseLinkStyle}];
+  if (neighbour.relationType === RelationType.INFERRED) layers.push({sources: [{kind: "standard", key: "inferredLinkStyle"}], style: settings.inferredLinkStyle});
   const definitions = neighbour.typeDefinition?.split(",").map((x) => x.trim()).filter(Boolean) ?? [];
   for (const definition of definitions) {
-    if (definition === "file-tree") layered = { ...layered, ...settings.folderLinkStyle };
-    else if (definition === "tag-tree") layered = { ...layered, ...settings.tagLinkStyle };
+    if (definition === "file-tree") layers.push({sources: [{kind: "standard", key: "folderLinkStyle"}], style: settings.folderLinkStyle});
+    else if (definition === "tag-tree") layers.push({sources: [{kind: "standard", key: "tagLinkStyle"}], style: settings.tagLinkStyle});
     const normalized = definition.toLowerCase().replaceAll(" ", "-");
     // The index publishes normalized names; legacy ExcaliBrain overrides may retain
     // their original display spelling. Preserve exact-key precedence and stored data.
     const importedKey = settings.hierarchyLinkStyles[definition] || settings.hierarchyLinkStyles[normalized]
       ? undefined
       : Object.keys(settings.hierarchyLinkStyles).find((key) => key.toLowerCase().replaceAll(" ", "-") === normalized);
-    layered = {
-      ...layered,
-      ...(settings.hierarchyLinkStyles[definition] ?? settings.hierarchyLinkStyles[normalized]
-        ?? (importedKey ? settings.hierarchyLinkStyles[importedKey] : undefined) ?? {})
-    };
+    const key = settings.hierarchyLinkStyles[definition] ? definition : settings.hierarchyLinkStyles[normalized] ? normalized : importedKey;
+    if (key) layers.push({sources: [{kind: "ontology", key}], style: settings.hierarchyLinkStyles[key]});
   }
-  return {
-    ...settings.baseLinkStyle,
-    ...(neighbour.relationType === RelationType.INFERRED ? settings.inferredLinkStyle : {}),
-    ...layered
-  };
+  if (origin && target && definitions.includes("tag-tree") && isNoteTypeTagConnection(origin, target)) {
+    const normal = mergeStyleLayers(layers);
+    layers.push({sources: [{kind: "ontology", key: NOTE_TYPE_TAG_LINK_STYLE}], style: {strokeWidth: (normal.strokeWidth ?? DEFAULT_RENDERED_LINK_WIDTH) * 2, ...settings.hierarchyLinkStyles[NOTE_TYPE_TAG_LINK_STYLE]}});
+  }
+  return layers;
+}
+
+/** Existing tag defaults share the same normal connector inheritance as painted edges. */
+function definitionLinkStyle(neighbour: Pick<Neighbour, "typeDefinition" | "relationType">, settings: KplexSettings): LinkStyle {
+  return mergeStyleLayers(linkStyleLayers(neighbour, settings));
 }
 
 /** Inherit live tag defaults and double their width; never sample/store computed factory colors. */
@@ -111,9 +130,7 @@ export function noteTypeTagDefaultStyle(settings: KplexSettings): LinkStyle {
 
 /** Only the active scene's prepared facets choose this appearance override; no source/evidence work. */
 export function resolveLinkStyle(neighbour: Neighbour, settings: KplexSettings, origin?: GraphPage): LinkStyle {
-  const normal = definitionLinkStyle(neighbour, settings);
-  return origin && neighbour.typeDefinition?.split(",").some(definition => definition.trim() === "tag-tree") && isNoteTypeTagConnection(origin, neighbour.page)
-    ? {...normal, strokeWidth: (normal.strokeWidth ?? DEFAULT_RENDERED_LINK_WIDTH) * 2, ...settings.hierarchyLinkStyles[NOTE_TYPE_TAG_LINK_STYLE]} : normal;
+  return mergeStyleLayers(linkStyleLayers(neighbour, settings, origin, neighbour.page));
 }
 
 /** Paint-only output shared by real thoughts, mini nodes and synthetic editor examples. */

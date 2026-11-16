@@ -84,13 +84,30 @@ lifetime while the complete graph snapshot is older. The startup journal alone
 would then miss referrers whose graph declarations still require patching.
 
 A production Eager restore can spend its existing single retry on a bounded
-Markdown mtime/size change during hydration. Native identities, creation stamps,
-membership and compiler policy must still match; the retried graph remains
+Markdown mtime/size change during hydration. The same native Markdown owner may
+also carry an updated creation stamp; its current body must still authenticate.
+Unchanged incarnation stamps, other native identities, membership and compiler
+policy must still match; the retried graph remains
 read-only until the normal finite source repair closes. A second change or a
 replacement retains conservative recovery. Full source fallback publication
 consumes only the coordinator paths certified by its existing per-source input
 receipts, before subscribers run. A later same-source edit cannot be consumed by
 an older private graph.
+
+Before deferred preparation starts, at most 256 exact live Markdown owners retain
+their dirty-body observations for the existing restart comparison and finite repair.
+This dormant path registers no listeners, reads or timers. Unscoped activity,
+non-Markdown inputs, renames/deletions, replaced identities and overflow retain
+global uncertainty; a known-file receipt grants no source authority.
+
+A compatible stale graph may retain exactly accounted foreground publications
+while decoding pages, relations and evidence. Unchanged fingerprints need no
+replay; changed owners become mandatory per-file repair obligations. Before cached
+preview and final publication, the existing read-scope owner retains their current
+views, bounded to 64 changed owners and one quarter of the retained-scope byte
+budget. Each asynchronous read keeps its own publication, source, policy and native
+fences. Unaccounted publications still reject the candidate, and neither these
+read views nor successful cache decoding renew exact-pair write authority.
 
 The saved repair candidate retains its compiler-policy and native-structure
 fences. Its source epoch is captured when repair starts, after coordinator

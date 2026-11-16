@@ -9,6 +9,12 @@ import { buildLocaleCatalog, type LocaleCatalog, type LocaleTranslationMap } fro
 /** Construct the typed Traditional Chinese table only when selected; importing this module allocates no catalog. */
 export function createTraditionalChineseCatalog(): LocaleCatalog {
 const traditionalChineseTranslations = {
+  "styleSources.menu": "外觀來源",
+  "styleSources.tag": "標籤樣式 · {name}",
+  "styleSources.noteType": "筆記類型 · {name}",
+  "styleSources.lens": "透鏡 · {name}",
+  "styleSources.ontology": "關係 · {name}",
+  "styleSources.prefix": "名稱前綴 · {name}",
   "filter.visibilityDocuments": "文件",
   "filter.visibilityDocumentsHelp": "顯示 PDF、EPUB、DOCX、試算表、簡報和文字等附件。Markdown 有獨立的開關。",
   "filter.visibilityImages": "圖片",
@@ -181,6 +187,8 @@ const traditionalChineseTranslations = {
   "actions.node.copy-link.description": "複製選取的節點或畫布中心。貼入 Obsidian 筆記時會使用其連結偏好設定；其他目標會收到完整路徑連結。",
   "drawing.template": "範本",
   "drawing.blank": "空白繪圖",
+  "settings.singleClickExternalNavigation": "按一下開啟外部連結",
+  "settings.singleClickExternalNavigation.help": "只有網頁連結已是中心節點時，才可按一下開啟。預設關閉；仍可按兩下或使用開啟動作。",
   "settings.trackpad": "觸控板導覽",
   "settings.trackpad.help": "捲動以平移；捏合或按住修飾鍵捲動以縮放。關閉後使用一般捲動縮放。",
   "fileMenu.reuse": "開啟",

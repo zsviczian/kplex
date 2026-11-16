@@ -1706,6 +1706,10 @@ export class NeutralSourceRepository {
     try {
       if (!matches(view.head.physical) || !current()) return null;
       if (view.head.compilerVersion !== SOURCE_FACT_COMPILER_VERSION) return null;
+      // Retirement enumeration accepts older headers, not their parser inputs. Only the explicitly
+      // supported primary grammar, including URL-free parser5 input, may feed a retained body.
+      if (view.head.bodyParserVersion !== SOURCE_BODY_PARSER_VERSION && view.head.bodyParserVersion !== 2
+        && view.head.bodyParserVersion !== 3 && !legacyPrimaryGrammarCandidate(view.head)) return null;
       if (requireCurrentParser && view.head.bodyParserVersion !== SOURCE_BODY_PARSER_VERSION
         && (view.head.families["body-urls"]?.records ?? 0) > 0) return null;
       for (const family of ["values", "body-urls"] as const) {

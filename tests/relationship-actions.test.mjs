@@ -352,6 +352,7 @@ test("reactive startup backlog cannot rebuild a partial cache preview before hyd
     refreshBookmarkedEntryPoints: async () => {}, notifyIndexStatus: () => {}, hasVisibleKplexSurface: () => true,
     scheduleRebuild: () => assert.fail("Handled delta must not schedule a duplicate build"), pruneMissingDirtyMarkdownPaths: () => {},
   };
+  context.hasIndexMaintenanceDemand = productionFunction("src/main.ts", "hasIndexMaintenanceDemand", {});
   context.ensureInitialIndex = productionFunction("src/main.ts", "ensureInitialIndex", { Platform: { isIosApp: false } });
   const perform = productionFunction("src/main.ts", "performRebuild", {});
   const task = perform.call(context, false, false, "interval", false);
@@ -403,7 +404,7 @@ for (const outcome of ["fresh", "stale", "failed", "sources", "sources-pending"]
       scheduleRebuild: () => assert.fail("This settled startup needs no additional rebuild"),
       pruneMissingDirtyMarkdownPaths: () => {}, startupGraphSeedPaths: () => [],
     };
-    for (const name of ["ensureInitialIndex", "performRebuild", "adoptInitialSourceIndex", "retireCoveredCreateReason", "retireCoveredMarkdownBacklog"]) {
+    for (const name of ["hasIndexMaintenanceDemand", "ensureInitialIndex", "performRebuild", "adoptInitialSourceIndex", "retireCoveredCreateReason", "retireCoveredMarkdownBacklog"]) {
       context[name] = productionFunction("src/main.ts", name, { Platform: { isIosApp: false } });
     }
     const task = context.ensureInitialIndex();

@@ -4,12 +4,25 @@ import test from 'node:test';
 import { readFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import path from 'node:path';
+import {runInNewContext} from 'node:vm';
 
 const require = createRequire(import.meta.url), ts = require('typescript');
 const text = readFileSync(new URL('../scripts/testing/obsidian/indexingEventConvergence.mjs', import.meta.url), 'utf8');
 const tree = ts.createSourceFile('native.mjs', text, ts.ScriptTarget.Latest, true);
 const scenario = tree.statements.find(/** Extract the exact controller rather than reproducing cleanup logic. */item => ts.isFunctionDeclaration(item) && item.name?.text === 'scenario');
 assert(scenario);
+
+test('warm source observer forwards pre-index layout registrations without touching asynchronous startup',()=>{
+ let replacement;
+ const visit=node=>{if(ts.isBinaryExpression(node)&&node.left.getText(tree)==='layoutReplacement')replacement=node.right.getText(tree);ts.forEachChild(node,visit)};visit(scenario);assert(replacement);
+ const calls=[],repository={ensureLocalDependencies:async()=>true},next={},workspace={id:'workspace'},c={};let probes=0;
+ const context={app:{plugins:{plugins:{'k-plex':next}}},probe:undefined,p:{},c,originalLayoutReady:function(...args){assert.equal(this,workspace);calls.push(args);return 'forwarded'},check:assert,owned:[],gate:Promise.resolve()};
+ c.probeFactory=()=>{probes++;return {}};
+ const hook=runInNewContext('('+replacement+')',context);
+ assert.equal(hook.call(workspace,'before-index'),'forwarded');assert.equal(probes,0);assert.equal(c.index,undefined);
+ next.index={sourceAcquisition:{repository}};assert.equal(hook.call(workspace,'with-index'),'forwarded');assert.equal(probes,1);assert.equal(c.index,next.index);
+ context.restoreEnsure();assert.deepEqual(calls,[['before-index'],['with-index']]);
+});
 
 /** Fail real fixture creation at a selected ordinal and count every independent cleanup capability. */
 function cleanupFixture(failAt, failDelete = false, outsideFolder = false, hiddenFolderChild = false) {
@@ -113,7 +126,7 @@ for (const issue of ['escape', 'hidden-child']) test(`physical folder ${issue} p
   assert.equal(f.calls.layout, 1); assert.equal(f.calls.data, 2);
 });
 
-test('failure after warm hooks restores prototype registration and dependency wrappers', /** Exercise the late finally path after actual hook installation, before delivering any fake event. */ async () => {
+test('failure after warm hooks restores prototype registration and dependency wrappers', /** Exercise late cleanup after the offline preparation, before concurrent writes. */ async () => {
   const f = cleanupFixture(99), p = f.app.plugins.plugins['k-plex'];
   const original = f.app.workspace.onLayoutReady;
   Object.setPrototypeOf(f.app.workspace, { onLayoutReady: original });
@@ -128,6 +141,14 @@ test('failure after warm hooks restores prototype registration and dependency wr
   for (const owner of [f.app.vault, f.app.metadataCache]) {
     owner.on = () => ({}); owner.offref = () => {};
   }
+  const metadataRefs = new Set();let offlineWrites = 0;
+  f.app.metadataCache.on = (name, callback) => { const ref = {name,callback};metadataRefs.add(ref);return ref; };
+  f.app.metadataCache.offref = ref => metadataRefs.delete(ref);
+  f.app.vault.modify = async (file, text) => {
+    assert.match(text,/offline-startup-preparation/);assert.equal(f.calls.disable,1,'Offline edit follows plugin disable');offlineWrites++;
+    file.stat = {mtime:1,size:text.length};
+    for(const ref of metadataRefs)if(ref.name==='changed')ref.callback(file);
+  };
   const enable = f.app.plugins.enablePlugin;
   f.app.plugins.enablePlugin = async () => { await enable(); f.app.workspace.onLayoutReady(() => {}); };
   await assert.rejects(f.run(f.app, f.controller), /Owned warm activation failure/);
@@ -136,6 +157,7 @@ test('failure after warm hooks restores prototype registration and dependency wr
   assert.equal(Object.hasOwn(f.app.workspace, 'onLayoutReady'), false, 'Prototype ownership is restored');
   assert.equal(p.index.sourceAcquisition.repository.ensureLocalDependencies, ensure);
   assert.equal(retired, 1); assert.equal(f.controller.progress.observation.observed, true);
+  assert.equal(offlineWrites,1);assert.equal(metadataRefs.size,0,'Offline and concurrent metadata listeners are independently retired');
   assert.equal(f.controller.progress.cleaned, true);
 });
 

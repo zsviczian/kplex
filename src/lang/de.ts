@@ -9,6 +9,12 @@ import { buildLocaleCatalog, type LocaleCatalog, type LocaleTranslationMap } fro
 /** Construct the typed German table only when selected; importing this module allocates no catalog. */
 export function createGermanCatalog(): LocaleCatalog {
 const germanTranslations = {
+  "styleSources.menu": "Darstellungsquellen",
+  "styleSources.tag": "Tag-Stil · {name}",
+  "styleSources.noteType": "Notiztyp · {name}",
+  "styleSources.lens": "Linse · {name}",
+  "styleSources.ontology": "Beziehung · {name}",
+  "styleSources.prefix": "Beschriftungspräfix · {name}",
   "filter.visibilityDocuments": "Dokumente",
   "filter.visibilityDocumentsHelp": "Dokumentanhänge wie PDF, EPUB, DOCX, Tabellen, Präsentationen und Textdateien anzeigen. Markdown hat einen eigenen Schalter.",
   "filter.visibilityImages": "Bilder",
@@ -181,6 +187,8 @@ const germanTranslations = {
   "actions.node.copy-link.description": "Ausgewählten Knoten oder Canvas-Mitte kopieren. Beim Einfügen in eine Obsidian-Notiz gelten deren Linkeinstellungen; andere Ziele erhalten einen vollständigen Pfad.",
   "drawing.template": "Vorlage",
   "drawing.blank": "Leere Zeichnung",
+  "settings.singleClickExternalNavigation": "Externe Links mit einem Klick öffnen",
+  "settings.singleClickExternalNavigation.help": "Weblinks nur dann mit einem Klick öffnen, wenn sie bereits der zentrale Knoten sind. Standardmäßig aus; Doppelklick und Öffnen bleiben verfügbar.",
   "settings.trackpad": "Trackpad-Navigation",
   "settings.trackpad.help": "Scrollen zum Verschieben; zum Zoomen zwei Finger zusammenziehen oder mit Zusatztaste scrollen. Ausschalten für Zoom durch normales Scrollen.",
   "fileMenu.reuse": "Öffnen",

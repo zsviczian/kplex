@@ -107,9 +107,48 @@ async function pending(app,c){
   leaf=await f.canvas(a);await f.ready();
   f.check(h.pair(a.path,b.path),'Reopened pending canvas retained authored relationship');
   cases.push({phase:'pending-canvas-reopened',saved:before});
-  await f.reload();leaf=await f.canvas(a);await f.ready();
+  await f.reload(false);
+  const index=f.p.index,owner=index.indexedDb,iterate=owner.iterateSnapshotPages;
+  let held=false,releasePages;const gate=new Promise(resolve=>releasePages=resolve);
+  if(c.cacheStartupBoundary!=='before-cache')owner.iterateSnapshotPages=async function(...args){if(!held&&index.getSnapshotHydrationDiagnostics().phase==='pages'){held=true;await gate;}return iterate.apply(this,args);};
+  const release=()=>{owner.iterateSnapshotPages=iterate;releasePages();};f.restores.push(release);
+  if(c.cacheStartupBoundary!=='before-cache')await h.until(()=>held,'Actual stale-cache page await before embed');
+  const sourceOwner=index.sourceAcquisition,repository=sourceOwner.repository,proof=sourceOwner.restoreRestartHostObservations,
+   lookup=repository.lookupLocalDependencyCounts,heads=repository.headPage,observations=[];
+  repository.lookupLocalDependencyCounts=async function(...args){const result=await lookup.apply(this,args);if(observations.length<64)observations.push({kind:'counts',outcome:result.outcome,fence:result.value?.fence});return result;};
+  repository.headPage=async function(...args){const result=await heads.apply(this,args);if(args[2]?.hostObservations&&observations.length<64){const known=new Set(result.hostObservations?.map(row=>row.sourceId));observations.push({kind:'headers',available:result.available,invalid:result.invalid,missingObservations:result.heads.filter(head=>head.state==='complete'&&!known.has(head.sourceId)).map(head=>head.physical.path)});}return result;};
+  sourceOwner.restoreRestartHostObservations=async function(...args){const before=this.getRecoveryDiagnostics(),result=await proof.apply(this,args);if(observations.length<64)observations.push({kind:'restart-proof',result,before,after:this.getRecoveryDiagnostics()});return result;};
+  f.restores.push(()=>{repository.lookupLocalDependencyCounts=lookup;repository.headPage=heads;sourceOwner.restoreRestartHostObservations=proof;});
+  const resume=f.p.index.getSnapshotHydrationDiagnostics(),resumeWork=f.p.startupDiagnostics.snapshot().sessionWork;
+  f.check(!f.p.initialIndexComplete,'Embed must arrive before stale new-note startup settles');
+  const embed='https://youtu.be/kplex_startup_embed',edited=source+'\n**Source**:: ![Startup embed]('+embed+')\n';
+  let metadataChanged=false;const observation=app.metadataCache.on('changed',file=>{if(file===a)metadataChanged=true;});
+  try{
+   await app.vault.modify(a,edited);await h.until(()=>metadataChanged,'Native changed-file callback during cached page wait');
+   if(c.cacheStartupBoundary==='storage-backoff'){
+    const db=await owner.open();f.check(!!db,'Original shared native connection is available before its declared fault');
+    const tx=db.transaction('meta','readwrite');tx.objectStore('meta').get('active');
+    await new Promise(resolve=>{tx.onabort=resolve;tx.abort();});
+    f.check(await owner.open()===null,'Actual request AbortError enters ordinary connection backoff');
+    cases.push({phase:'native-storage-backoff-before-pages',connection:owner.getStorageDiagnostics()});
+   }
+  }
+  finally{app.metadataCache.offref(observation);release();}
+  leaf=await f.canvas(a);await f.ready();
   await h.until(()=>h.coherent()&&h.pair(a.path,b.path),'Added owner recovered after pending-save plugin reload');
-  f.check(await app.vault.read(a)===source,'Pending-save recovery retained source bytes');
+  f.check(await app.vault.read(a)===edited,'Pending-save recovery retained the foreground embed bytes');
+  f.check(f.p.index.get(a.path)?.neighbours.has(embed),'New-note startup incorporates the foreground embed');
+  const resumed=f.p.startupDiagnostics.snapshot().sessionWork;
+  const diagnostics=JSON.parse(f.p.captureDiagnosticJson(window));
+  for(const key of ['sourceInventoryPasses','fullBuildStarts'])f.check(resumed[key]===resumeWork[key],'Foreground embed during new-note recovery must not start '+key+': '+JSON.stringify({resume,resumeWork,resumed,observations,recovery:diagnostics.index.recovery,activity:diagnostics.indexingActivity,decisions:f.p.index.getIndexDiagnostics()}));
+  f.check(f.p.index.getSemanticPreparationDiagnostics().fullBuilds===0,'No hidden full compiler admission');
+  if(c.cacheStartupBoundary==='storage-backoff'){
+   const connection=owner.getStorageDiagnostics();
+   f.check(connection.snapshotRetries===1&&connection.snapshotRecoveries===1,'One bounded connection recovery resumes original cache decoding');
+   f.check(connection.lastFailure?.errorName==='AbortError','Native failure class remains observable after recovery');
+   cases.push({phase:'native-storage-backoff-recovered',connection});
+  }
+  cases.push({phase:'stale-new-note-embed-before-settlement',resume,resumeWork,resumed,observations,source:f.p.index.getSourceAcquisitionCounters()});
   h.capture('pending-reload-recovered',[a.path,b.path]);
   let activated;
   await h.until(async()=>{
@@ -173,6 +212,34 @@ async function failureRetry(app,c){
  }catch(error){throw Error(String(error)+'; cache cases: '+JSON.stringify(cases));}finally{await f.cleanup();}
 }
 
+/** Repeated unchanged native resolver notifications and a real background/foreground transition
+ * must retain the settled graph and saved generation. This is not OS suspend/resume coverage. */
+async function quiet(app,c){
+ const h=c.cacheFixture(app,c),{f,cases}=h;
+ try{
+  const native=f.owner(document);
+  // Desktop overlays can occlude the restored window even while Electron reports focus.
+  // Keep only this test window genuinely visible; never override page visibility or throttling.
+  const originalAlwaysOnTop=native.isAlwaysOnTop();native.setAlwaysOnTop(true);
+  f.restores.push(()=>{if(!native.isDestroyed())native.setAlwaysOnTop(originalAlwaysOnTop);});
+  const {a,b,baseline}=await h.initialize(),p=f.p,index=p.index,page=index.get(a.path),target=index.get(b.path);
+  const before=h.capture('settled-before-quiet-events',[a.path,b.path]);
+  // `changed`/`modify` explicitly revoke body authority, including same-stat edits. A settled
+  // resolver notification carries no such content claim and is the true unchanged-event case.
+  for(let n=0;n<3;n++){app.metadataCache.trigger('resolve',a);await f.wait(150);}
+  await f.ready();await h.until(()=>h.coherent(),'Unchanged native events settle');
+  native.minimize();await f.wait(750);native.restore();await f.focus(document);await f.wait(1250);await f.ready();
+  await h.until(()=>h.coherent()&&!p.getIndexStatus().activeWork,'Foreground wake remains current');
+  const after=h.capture('after-noop-events-and-window-wake',[a.path,b.path]),saved=await h.saved([a.path,b.path]);
+  f.check(index.get(a.path)===page&&index.get(b.path)===target&&h.pair(a.path,b.path),'No-op events replaced displayed identities or relationship');
+  f.check(saved.meta?.generation===baseline.meta.generation,'Quiet events replaced the activated generation');
+  for(const key of ['vaultReads','parses','repaired'])f.check(after.source[key]===before.source[key],'Quiet events repeated '+key);
+  for(const key of ['fullBuildStarts','completeSnapshotSaves'])f.check(after.work[key]===before.work[key],'Quiet events admitted '+key);
+  cases.push({phase:'quiet-generation-retained',generation:saved.meta.generation,unchangedNotifications:3,backgroundForeground:true,visibility:{temporarilyRaised:true,originalAlwaysOnTop}});
+  return {cases,limitation:'Native window background/foreground only; no OS suspend or physical device claim.'};
+ }catch(error){throw Error(String(error)+'; quiet cases: '+JSON.stringify(cases));}finally{await f.cleanup();}
+}
+
 /** Genuine edits, native rename/delete and committed policy changes must replace current pair
  * semantics. This is functional invalidation evidence, separate from natural cache activation. */
 async function mutations(app,c){
@@ -211,11 +278,11 @@ async function mutations(app,c){
 
 if(process.env.KPLEX_TEST_VAULT_NAME!=='kplex-test-small')throw Error('Explicit disposable Small required');
 const target=validateTarget({vaultName:process.env.KPLEX_TEST_VAULT_NAME,vaultPath:process.env.KPLEX_TEST_VAULT_PATH,configDir:process.env.KPLEX_TEST_CONFIG_DIR});
-const lane=process.env.KPLEX_CACHE_LANE??'pending',scenario={pending,'failure-retry':failureRetry,mutations}[lane];
+const lane=process.env.KPLEX_CACHE_LANE??'pending',scenario={pending,'failure-retry':failureRetry,mutations,quiet}[lane];
 if(!scenario)throw Error('Unknown authoring cache lane');
 const userDataPath=process.env.KPLEX_OBSIDIAN_USER_DATA??(process.platform==='win32'?join(process.env.APPDATA,'obsidian'):process.platform==='darwin'?join(homedir(),'Library','Application Support','obsidian'):join(process.env.XDG_CONFIG_HOME??join(homedir(),'.config'),'obsidian'));
 const lock=acquireHostLock({userDataPath});
 try{
  const definitions='c.fixture='+nativeBatch270.toString()+';c.sessions='+nativeDocumentSessions.toString()+';c.cacheFixture='+cacheFixture.toString()+';c.fixturePrefix="__kplex302_cache_";c.originalData='+JSON.stringify(readFileSync(join(target.pluginDir,'data.json'),'utf8'))+';c.originalEnabled='+JSON.stringify(readFileSync(join(target.config,'community-plugins.json'),'utf8'))+';';
- await runControlledProbe('authoring-workspace-cache-'+lane,scenario,definitions,['src/main.ts','src/adapters/obsidian/sourceAcquisition.ts'],{maximumMs:900000});
+ await runControlledProbe('authoring-workspace-cache-'+lane,scenario,definitions+'c.cacheStartupBoundary='+JSON.stringify(['before-cache','storage-backoff'].includes(process.env.KPLEX_CACHE_STARTUP_BOUNDARY)?process.env.KPLEX_CACHE_STARTUP_BOUNDARY:'pages')+';',['src/main.ts','src/adapters/obsidian/sourceAcquisition.ts'],{maximumMs:900000});
 }finally{lock.release();}

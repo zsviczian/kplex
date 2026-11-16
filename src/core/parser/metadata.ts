@@ -347,6 +347,11 @@ export function parseBodyMetadataCore(content: string): ParsedBodyMetadata {
         let rawEnd = closeUrl;
         while (rawStart < rawEnd && isWhitespace(visible[rawStart])) rawStart += 1;
         while (rawEnd > rawStart && isWhitespace(visible[rawEnd - 1])) rawEnd -= 1;
+        // A quoted Markdown title follows whitespace; it is not part of the destination found
+        // by the lexical URL scanner below. Keep the label keyed to that exact literal URL.
+        for (let cursor = rawStart; cursor < rawEnd; cursor++) {
+          if (isWhitespace(visible[cursor])) { rawEnd = cursor; break; }
+        }
         while (rawEnd > rawStart && isTrailingUrlPunctuation(visible[rawEnd - 1])) rawEnd -= 1;
         if (rawEnd - rawStart > schemeLength) {
           const raw = visible.slice(rawStart, rawEnd);
@@ -354,7 +359,20 @@ export function parseBodyMetadataCore(content: string): ParsedBodyMetadata {
           let labelEnd = closeLabel;
           while (labelStart < labelEnd && isWhitespace(visible[labelStart])) labelStart += 1;
           while (labelEnd > labelStart && isWhitespace(visible[labelEnd - 1])) labelEnd -= 1;
-          const label = visible.slice(labelStart, labelEnd).replace(/\\([\\[\]])/g, "$1");
+          let label = visible.slice(labelStart, labelEnd).replace(/\\([\\[\]])/g, "$1");
+          // Prefer authored text/alt text; an empty label may use a valid quoted title attribute.
+          if (!label && isWhitespace(visible[rawEnd])) {
+            let start = rawEnd;
+            while (isWhitespace(visible[start])) start++;
+            const quote = visible[start];
+            if (quote === '"' || quote === "'") {
+              let end = start + 1;
+              while (end < visible.length && visible[end] !== quote) { if (visible[end] === "\\") end++; end++; }
+              let close = end + 1;
+              while (isWhitespace(visible[close])) close++;
+              if (visible[end] === quote && visible[close] === ")") label = visible.slice(start + 1, end).replace(/\\(["'\\])/g, "$1").trim();
+            }
+          }
           aliasByUrl.set(raw, label);
           if (label && label !== raw) {
             const aliases = urlAliases.get(raw) ?? new Set<string>();
@@ -820,11 +838,31 @@ export async function parseBodyMetadataCooperativeCore(
         const closeUrl = await findString(visible, ")", urlStart);
         if (closeUrl < 0) break;
         let [rawStart, rawEnd] = await trimBounds(visible, urlStart, closeUrl);
+        // Mirror the worker's destination/title boundary without adding an unyielding long scan.
+        for (let cursor = rawStart; cursor < rawEnd; cursor++) {
+          if ((cursor - rawStart) % 512 === 0) await yieldToHost(false, "markdown-url-target");
+          if (isWhitespace(visible[cursor])) { rawEnd = cursor; break; }
+        }
         rawEnd = await stripTrailingUrlPunctuation(visible, rawStart, rawEnd);
         if (rawEnd - rawStart > schemeLength) {
           const [labelStart, labelEnd] = await trimBounds(visible, open + 1, closeLabel);
           const raw = visible.slice(rawStart, rawEnd);
-          const label = visible.slice(labelStart, labelEnd).replace(/\\([\\[\]])/g, "$1");
+          let label = visible.slice(labelStart, labelEnd).replace(/\\([\\[\]])/g, "$1");
+          if (!label && isWhitespace(visible[rawEnd])) {
+            let start = rawEnd;
+            while (isWhitespace(visible[start])) { if ((start - rawEnd) % 512 === 0) await yieldToHost(false, "markdown-url-title"); start++; }
+            const quote = visible[start];
+            if (quote === '"' || quote === "'") {
+              let end = start + 1;
+              while (end < visible.length && visible[end] !== quote) {
+                if ((end - start) % 512 <= 1) await yieldToHost(false, "markdown-url-title");
+                if (visible[end] === "\\") end++; end++;
+              }
+              let close = end + 1;
+              while (isWhitespace(visible[close])) { if ((close - end) % 512 === 0) await yieldToHost(false, "markdown-url-title"); close++; }
+              if (visible[end] === quote && visible[close] === ")") label = visible.slice(start + 1, end).replace(/\\(["'\\])/g, "$1").trim();
+            }
+          }
           aliasByUrl.set(raw, label);
           if (label && label !== raw) {
             const aliases = urlAliases.get(raw) ?? new Set<string>();

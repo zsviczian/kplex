@@ -7,6 +7,19 @@ scroll it. A click still opens the chosen note; touch, trackpad and keyboard kee
 
 A fresh K-Plex installation follows Obsidian’s theme. Open **Settings → K-Plex → Visual styling → Colors** to change colors. No companion plugin is required.
 
+## Find the source of a style
+
+Right-click a canvas node or connection, or long-press on touch, and open **Appearance sources**.
+The submenu lists the applicable layers in inheritance order, including standard styles,
+tag and note-type definitions, relationship overrides, and matching styling lenses.
+Later layers may override individual attributes while inheriting the others.
+
+Select a standard style to open its native color settings page. Tag, note-type and
+relationship entries open their existing style editors; a lens entry opens **Views and lenses**
+at that lens's style controls. Opening an editor leaves settings unchanged until you save.
+Labels such as **Note type · "Person"** and **Lens · "Important"** distinguish the source
+of a style from its user-defined name.
+
 ## Save named K-Plex themes
 
 Open **Settings → K-Plex → Visual styling**. Select a theme from **Theme** to apply it. Color and style changes are saved to that theme, including changes made from a graph’s background menu or lens editor.

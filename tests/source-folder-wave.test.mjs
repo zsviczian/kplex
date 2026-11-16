@@ -44,6 +44,7 @@ const initialize=`(()=>{
   const Notice=class{constructor(message){throw Error('Unexpected fixture notice: '+message)}};
   ${pluginSettingsMethodSource('saveSettings')}
   ${pluginSettingsMethodSource('refreshSavedSettings')}
+  ${pluginSettingsMethodSource('hasIndexMaintenanceDemand')}
   ${pluginSettingsMethodSource('onKplexViewClosed')}
   window.closeLastPlex=plugin_onKplexViewClosed;
   ${externalVaultEventSource('create','makeExternalCreate')}
@@ -71,7 +72,8 @@ const initialize=`(()=>{
       startupDiagnostics:{mark(){},count(){},phase(){},processed(){},recordWork(key){if(key==='sourceInventoryPasses')wholePasses++;}},
       dirtyMarkdownPaths:new Set(),deletedMarkdownFiles:new WeakSet(),managedCreatedPaths:new Map(),initialIndexComplete:true,rebuildTask:null,
       renameMetadataSuppressions:new Map(),remapNavigationPaths(){return false;},
-      pruneManagedMetadataWrites(){},adjustCachedMarkdownFileCount(){},notifyIndexStatus(){},hasVisibleKplexSurface:()=>true,scheduleRebuild(){}};
+      pruneManagedMetadataWrites(){},adjustCachedMarkdownFileCount(){},notifyIndexStatus(){},hasVisibleKplexSurface:()=>true,
+      hasIndexMaintenanceDemand:plugin_hasIndexMaintenanceDemand,scheduleRebuild(){}};
     f.app.vault.getName=()=>name;
     let parseCalls=0;
     /** Each actual plugin-index lifetime gets its own ordinary parser observer. */

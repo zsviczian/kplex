@@ -11,6 +11,53 @@ import { hydrationWorkBundle, contributorBrowserInitialize, initializeHydrationW
 
 const bundle = await hydrationWorkBundle({}, ['src/index/SectionExpansion.ts', 'src/ui/plexViews/sections.ts', 'src/core/plex/views/sections.ts']);
 
+for(const secondPhase of ['pages','relations','evidence-only'])test('fresh saved pages retain '+(secondPhase==='evidence-only'?'a late same-stat native source repair':'repeated same-stat native source repairs')+' without a compiler detour ('+secondPhase+')',async()=>{
+ const browser=await chromiumHarness(bundle);try{
+  await browser.evaluate(contributorBrowserInitialize);await browser.evaluate(initializeHydrationWork);
+  assert(await browser.evaluate(`(async()=>{
+   const q=await hydrationWorkFixture('fresh-native-repairs',8000,1,'eager',true),i=q.index,f=q.f;
+   ok((await i.sourceAcquisition.acquire(q.file,sourceModules.parseBodyMetadata(f.texts.get(q.file.path)))).saved,'Authentic durable source body before restart');
+   let revision=0,commits=0,injectionError;const checkpoint=i.indexedDb.backgroundCheckpoint,trace=[];
+   f.reads.length=0;f.parses.length=0;
+   q.plugin.getIndexSourceRevision=()=>revision;
+   i.indexedDb.backgroundCheckpoint=async function(){
+    const phase=i.snapshotHydrationDiagnostics.phase;
+    if(${secondPhase==='evidence-only'} ? commits===0&&phase==='evidence' :
+      commits===0&&phase==='pages'||commits===1&&phase==='${secondPhase}'&&('${secondPhase}'!=='pages'||i.snapshotHydrationDiagnostics.pages>0)){
+     try{const n=++commits;
+     trace.push({n,local:i.usesLocalForeground(),fresh:i.fullSnapshotFresh,navigable:i.navigableSnapshotSourceRevision,deps:i.sourceAcquisition.hasSemanticDependencies(),window:i.snapshotForegroundWindow});
+     // Native metadata/resolution may change without a body/stat edit. Commit through the real
+     // source owner while the complete cache is decoding, at two separate suspension boundaries.
+     const native=f.metadata.get(q.file.path);
+     f.metadata.set(q.file.path,{...native,frontmatter:{...native.frontmatter,'Dormant parent 0':'[[Ghost-'+n+']]'}});revision++;
+     f.app.metadataCache.trigger('changed',q.file);
+     if(${secondPhase!=='evidence-only'})i.fieldCache.delete(q.file.path);q.releaseSources();
+     equal((await i.patchMarkdownPaths([q.file.path],{useDurableCache:true,forceRecompile:true})).outcome,'patched','Actual same-stat native source publication');
+     ok(i.state.pages.get(q.file.path)?.neighbours.get('Ghost-'+n)?.isParent,'Native repair actually published its changed relationship before cache continuation');
+     }catch(error){injectionError=error;throw error;}
+    }
+    return checkpoint?.call(this);
+   };
+   try{
+    await i.restoreIndexedDbSnapshot([q.file.path],true);await i.waitForSnapshotHydration();if(injectionError)throw injectionError;
+    equal(commits,${secondPhase==='evidence-only'?1:2},'Native repairs occurred at their declared boundaries: '+JSON.stringify({trace,diagnostic:i.getSnapshotHydrationDiagnostics()}));
+    ok(i.isFullSnapshotHydrated(),'Known native repairs must not discard the complete cached graph: '+JSON.stringify(i.getSnapshotHydrationDiagnostics()));
+    equal(i.fullSnapshotFresh,false,'Changed host semantics cannot inherit old freshness');
+    ok(i.hasIncrementalRestorePatch(),'Current source closure and finite repair remain mandatory');
+    ok(!i.hasCurrentFullSemanticGraph(),'Cached promotion cannot certify changed host semantics');
+    const retained=i.retainedLocalScopes.get(q.file.path),host=i.onDemandHostScopes.get(q.file.path);
+    // Current foreground reads stay available while old evidence remains a repair candidate.
+    const target='Ghost-${secondPhase==='evidence-only'?1:2}';
+    ok(i.get(q.file.path)?.neighbours.get(target)?.isParent,'Latest same-stat relationship survives the readonly cache: '+JSON.stringify({canonical:i.state.pages.get(q.file.path)?.neighbours.get(target)?.isParent,retained:retained&&{revision:retained.sourceRevision,current:retained.state===host,parent:retained.state.pages.get(q.file.path)?.neighbours.get(target)?.isParent},hostParent:host?.pages.get(q.file.path)?.neighbours.get(target)?.isParent,revision}));
+    ok((await i.reconcileRestoredSnapshot()).reconciled,'Normal source closure and finite repair complete');
+    ok(i.state.pages.get(q.file.path)?.neighbours.get(target)?.isParent,'Canonical repair retains the latest native relationship');
+    equal(i.getSemanticPreparationDiagnostics().fullBuilds,0,'No full source compiler');
+    equal(f.reads.length,0,'Native metadata repair uses the retained body');return true;
+   }finally{i.indexedDb.backgroundCheckpoint=checkpoint;q.close();}
+  })()`));
+ }finally{await browser.cleanup();}
+});
+
 for (const mode of ['eager', 'on-demand']) test(`${mode}: central sections reuse saved incidence before private evidence hydration`, async () => {
   const browser = await chromiumHarness(bundle);
   try {
@@ -231,12 +278,15 @@ test('hydration guards retain policy/lifetime/physical fences while removing per
             canonical:[...index.state.pages.values()].every(/** Every restored relation targets this published generation's canonical page. */ page=>[...page.neighbours].every(/** Do not retain targets from the retired foreground graph. */ ([path,relation])=>relation.target===index.state.pages.get(path)))};
         }finally{index.startPersistedSourceInventory=inventory;sourceModules.GraphBuilder.prototype.buildSourceNodeCatalog=catalog;hold.restore();f.close();}
       })()`);
-      assert.equal(result.diagnostic.firstFailure?.reason,'publication-superseded');
-      assert.equal(result.diagnostic.firstFailure?.publicationCause,'file-patch');
-      assert.equal(result.diagnostic.firstFailure?.operation,'open');
-      assert.equal(result.diagnostic.firstFailure?.pages,0);
+      if(changedVault)assert.equal(result.diagnostic.firstFailure,null,'Readonly stale-cache page loading retains the accounted commit without discarding its decode');
+      else {
+        assert.equal(result.diagnostic.firstFailure?.reason,'publication-superseded');
+        assert.equal(result.diagnostic.firstFailure?.publicationCause,'file-patch');
+        assert.equal(result.diagnostic.firstFailure?.operation,'open');
+        assert.equal(result.diagnostic.firstFailure?.pages,0);
+      }
       assert.equal(result.full,true,JSON.stringify(result));
-      assert.equal(result.diagnostic.attempts,2,'Only one newly fenced attempt follows the rejected candidate');
+      assert.equal(result.diagnostic.attempts,changedVault?1:2,'Readonly page retention avoids replay; authoritative candidates keep the single fenced retry');
       assert.equal(result.diagnostic.route,'full-snapshot');
       assert.equal(result.canonical,true,'The newly published graph keeps canonical target identities');
       assert.equal(result.inventories,0,'An unchanged reusable graph does not need global source recovery');
@@ -273,12 +323,14 @@ test('hydration guards retain policy/lifetime/physical fences while removing per
       assert.equal(result.fresh,false,'The changed-vault generation cannot grant current authority');
       assert.equal(result.patch,true,'A finite current-policy repair remains mandatory');
       if(changedSource)assert.equal(result.current,true,'Current foreground vocabulary survives the readonly cache baseline');
-      assert.equal(result.diagnostic.attempts,2,'The existing single retry remains bounded');
-      assert.equal(result.diagnostic.firstFailure.publicationCause,'snapshot');
+      assert.equal(result.diagnostic.attempts,1,'Accounted bootstrap/file receipts retain the private decode without spending a retry');
+      assert.equal(result.diagnostic.firstFailure,null,'A known readonly repair obligation is not a superseded decode');
       assert.equal(result.diagnostic.route,'full-snapshot','A changed source retains the compatible readonly graph and an explicit repair obligation');
     });
 
-    for(const bootstrap of [false,true])for(const mutation of ['one-save','second-save','replacement','ctime'])await t.test(`eager startup shares one retry for a changing Markdown stat: ${mutation}, bootstrap=${bootstrap}`,async()=>{
+    // A save with a new creation stamp still has the same native owner and must reacquire its
+    // body through the finite repair. Actual replacement and a second save keep rejecting.
+    for(const bootstrap of [false,true])for(const mutation of ['one-save','save-ctime','second-save','replacement'])await t.test(`eager startup shares one retry for a changing Markdown stat: ${mutation}, bootstrap=${bootstrap}`,async()=>{
       const result=await browser.evaluate(`(async()=>{
         const f=await hydrationWorkFixture('guards-bounded-stat-${mutation}-${bootstrap}',12,0,'eager',true),index=f.index;
         const hold=holdHydrationOpen(index,'pages'),iterate=index.indexedDb.iterateSnapshotPages;let mutatedAgain=false;
@@ -287,10 +339,10 @@ test('hydration guards retain policy/lifetime/physical fences while removing per
           const restore=index.restoreIndexedDbSnapshot(['Hub.md'],true);await hydrationDeadline(hold.entered,'Initial warm reader');
           if(${bootstrap})ok(await hydrationDeadline(index.initializeOnDemandBaseline(['Hub.md']),'Body-free bootstrap before the real edit'),'Actual bootstrap publishes');
           f.f.texts.set(f.file.path,'[[NewTarget]]');f.f.app.metadataCache.unresolvedLinks[f.file.path]={NewTarget:1};
-          if('${mutation}'==='replacement')f.f.add(f.file.path,'[[NewTarget]]');else{f.file.stat.mtime++;if('${mutation}'==='ctime')f.file.stat.ctime++;}
+          if('${mutation}'==='replacement')f.f.add(f.file.path,'[[NewTarget]]');else{f.file.stat.mtime++;if('${mutation}'==='save-ctime')f.file.stat.ctime++;}
           f.releaseSources();hold.release();await hydrationDeadline(restore,'Preview');await hydrationDeadline(index.waitForSnapshotHydration(),'Bounded retry');
           const diagnostic=index.getSnapshotHydrationDiagnostics();
-          if('${mutation}'==='one-save'){
+          if(['one-save','save-ctime'].includes('${mutation}')){
             ok(index.isFullSnapshotHydrated()&&!index.fullSnapshotFresh&&index.hasIncrementalRestorePatch(),'Only a readonly repair candidate is restored');
             ok((await index.reconcileRestoredSnapshot()).reconciled,'The changed note commits through the existing per-file owner');
             ok(index.get('NewTarget'),'Actual new reference vocabulary survives repair');equal(index.getSemanticPreparationDiagnostics().fullBuilds,0,'No full graph compilation');
@@ -298,8 +350,8 @@ test('hydration guards retain policy/lifetime/physical fences while removing per
           return{diagnostic,full:index.isFullSnapshotHydrated(),reads:f.f.reads};
         }finally{index.indexedDb.iterateSnapshotPages=iterate;hold.restore();f.close();}
       })()`);
-      assert.equal(result.diagnostic.attempts,['one-save','second-save'].includes(mutation)?2:1,'No third attempt or destructive-identity shortcut');
-      if(mutation==='one-save'){assert.equal(result.full,true);assert.equal(result.diagnostic.route,'full-snapshot');assert(result.reads.every(path=>path==='Hub.md'));}
+      assert.equal(result.diagnostic.attempts,['one-save','save-ctime','second-save'].includes(mutation)?2:1,'No third attempt or native replacement shortcut');
+      if(['one-save','save-ctime'].includes(mutation)){assert.equal(result.full,true);assert.equal(result.diagnostic.route,'full-snapshot');assert(result.reads.every(path=>path==='Hub.md'));assert.equal(result.reads.length,1,'Changed physical stamps require one fresh body read');}
       else assert.equal(result.full,false,'Repeated edits and native reincarnation retain conservative recovery');
     });
 
@@ -341,6 +393,60 @@ test('hydration guards retain policy/lifetime/physical fences while removing per
         assert.equal(result.reads,0);assert.equal(result.parses,0);
       });
     }
+
+    for(const fresh of [false,true])for(const mutation of ['mixed-publication','file-replacement','policy','missing-fingerprint'])await t.test((fresh?'fresh':'stale')+' page retention rejects '+mutation+' outside the accounted file proof',async()=>{
+      const result=await browser.evaluate(`(async()=>{
+        const f=await hydrationWorkFixture('page-fence-${fresh}-${mutation}',32,0,'eager',true),index=f.index;
+        if(!${fresh})f.f.add('Offline.md','');const hold=holdHydrationOpen(index,'pages');
+        try{
+          const restore=index.restoreIndexedDbSnapshot(['Hub.md'],true);await hydrationDeadline(hold.entered,'Stale page reader');f.releaseSources();
+          equal((await index.patchMarkdownPaths(['Hub.md'],{useDurableCache:true,forceRecompile:true})).outcome,'patched','Genuine canonical source publication');
+          if('${mutation}'==='mixed-publication')index.publishRestoredState(index.state,null,true,false);
+          if('${mutation}'==='file-replacement')f.f.files.set(f.file.path,Object.assign(Object.create(Object.getPrototypeOf(f.file)),f.file));
+          if('${mutation}'==='policy')f.settings.hierarchy.parents.push('New policy');
+          if('${mutation}'==='missing-fingerprint')index.semanticFingerprints.delete(f.file.path);
+          hold.release();await restore;await hydrationDeadline(index.waitForSnapshotHydration(),'Rejected stale page proof');
+          return {full:index.fullSnapshotHydrated,diagnostic:index.getSnapshotHydrationDiagnostics(),windowRetired:index.snapshotForegroundWindow===null};
+        }finally{hold.restore();f.close();}
+      })()`);
+      assert.equal(result.full,false,JSON.stringify(result));assert.equal(result.windowRetired,true);
+      assert.ok(result.diagnostic.attempts<=2,'No expanded retry budget');
+    });
+
+    await t.test('a tracked body-free bootstrap after the readonly cached preview retains its private evidence decode',async()=>{
+      const result=await browser.evaluate(`(async()=>{
+        const f=await hydrationWorkFixture('stale-late-bootstrap',32,0,'eager',true),index=f.index;
+        f.f.add('Offline.md','');const hold=holdHydrationOpen(index,'evidence');
+        try{
+          const restore=index.restoreIndexedDbSnapshot(['Hub.md'],true);await hydrationDeadline(hold.entered,'Readonly evidence reader');f.releaseSources();
+          ok(await index.initializeOnDemandBaseline(['Hub.md']),'Actual body-free bootstrap publishes after the saved preview');
+          hold.release();await restore;await hydrationDeadline(index.waitForSnapshotHydration(),'Retained evidence decode');
+          return {full:index.fullSnapshotHydrated,fresh:index.fullSnapshotFresh,patch:index.hasIncrementalRestorePatch(),diagnostic:index.getSnapshotHydrationDiagnostics()};
+        }finally{hold.restore();f.close();}
+      })()`);
+      assert.equal(result.full,true,JSON.stringify(result));assert.equal(result.fresh,false);assert.equal(result.patch,true);
+      assert.equal(result.diagnostic.attempts,1);assert.equal(result.diagnostic.firstFailure,null);
+    });
+
+    await t.test('readonly stale hydration retains a late changed foreground read without granting write authority',async()=>{
+      const result=await browser.evaluate(`(async()=>{
+        const f=await hydrationWorkFixture('stale-late-fingerprint',32,0,'eager',true),index=f.index;
+        f.f.add('Offline.md','');const hold=holdHydrationOpen(index,'evidence');
+        try{
+          const restore=index.restoreIndexedDbSnapshot(['Hub.md'],true);await hydrationDeadline(hold.entered,'Stale evidence reader');f.releaseSources();
+          const stat={...f.file.stat};f.f.texts.set(f.file.path,'[[Changed after pages]]');
+          f.f.app.metadataCache.unresolvedLinks[f.file.path]={'Changed after pages':1};f.f.app.vault.trigger('modify',f.file);
+          equal((await index.patchMarkdownPaths([f.file.path],{forceRecompile:true})).outcome,'patched','Real changed source publication');
+          equal(f.file.stat,stat,'Controlled equal-stat edit still changes the authenticated source fingerprint');
+          hold.release();await restore;await hydrationDeadline(index.waitForSnapshotHydration(),'Late changed source rejection');
+          const result={full:index.fullSnapshotHydrated,fresh:index.fullSnapshotFresh,patch:index.hasIncrementalRestorePatch(),write:index.isSemanticWriteReady(f.file.path,'Changed after pages'),diagnostic:index.getSnapshotHydrationDiagnostics(),current:!!index.get(f.file.path)?.neighbours.has('Changed after pages')};
+          result.reconciled=(await index.reconcileRestoredSnapshot()).reconciled;result.canonical=!!index.get('Changed after pages');return result;
+        }finally{hold.restore();f.close();}
+      })()`);
+      assert.equal(result.full,true,JSON.stringify(result));assert.equal(result.current,true,'Cached evidence cannot replace the retained current read');
+      assert.equal(result.fresh,false);assert.equal(result.patch,true);assert.equal(result.write,false,'Only ordinary source closure and per-file repair may authorize writes');
+      assert.equal(result.reconciled,true);assert.equal(result.canonical,true,'Normal source repair incorporates the target into the canonical graph');
+    });
 
     for (const mutation of ['changed-source','missing-saved-proof','mixed-publication']) {
       await t.test(`${mutation} cannot replace a current foreground commit with an older saved graph`, /** Reject unproved saved semantics through the actual outer coordinator. */ async () => {

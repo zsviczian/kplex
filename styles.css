@@ -3695,6 +3695,12 @@ button.kplex-sidecar-unfold-plex:focus-visible,
 body.is-mobile > .app-container > .mobile-navbar.kplex-mobile-navbar-docked { position: relative; }
 body.is-mobile > .app-container > .mobile-navbar.kplex-mobile-navbar-hidden { display: none; }
 .kplex-fullscreen-anchor { display: none; }
+/* An emptied native mobile drawer/backdrop must not cover its canvas at popover z-index 30/32.
+   Keep the fullscreen overlay below native previews, dialogs and menus. */
+.workspace-drawer.kplex-fullscreen-drawer,
+.workspace-drawer-backdrop.kplex-fullscreen-drawer,
+.workspace-split.mod-root.is-sliding-sidebar.kplex-fullscreen-drawer,
+.workspace-split.mod-root > .workspace-drawer-backdrop.kplex-fullscreen-drawer { z-index: var(--layer-sidedock, 10); }
 .kplex-fullscreen-overlay {
   position: fixed;
   inset: 0;

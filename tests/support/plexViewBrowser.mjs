@@ -17,13 +17,13 @@ const nativeStub=`
   exports.getLanguage=()=> 'en';exports.getIcon=()=>null;exports.getIconIds=()=>[];exports.setIcon=()=>{};exports.setTooltip=()=>{};
   exports.normalizePath=p=>p;exports.getAllTags=()=>[];
   exports.Notice=class Notice {constructor(message,duration){${captureNotices ? '(window.testNotices ??= []).push({message,duration});' : "throw Error('Unexpected notice: '+message)"}}};
-  exports.Menu=class Menu {items=[];addItem(prepare){const item={setTitle(){return item},setIcon(){return item},setChecked(){return item},setDisabled(){return item},onClick(fn){item.click=fn;return item}};prepare(item);this.items.push(item);return this;}addSeparator(){return this;}};
+  exports.Menu=class Menu {items=[];addItem(prepare){const item={setTitle(value){item.title=value;return item},setIcon(value){item.icon=value;return item},setChecked(){return item},setDisabled(value){item.disabled=value;return item},setIsLabel(){return item},setSubmenu(){return item.submenu=new exports.Menu()},onClick(fn){item.click=fn;return item}};prepare(item);this.items.push(item);return this;}addSeparator(){return this;}};
   exports.MarkdownRenderer={render:async()=>{}};
   ${nativeBoundary.replaceAll('export ','')+';'+nativeNames.map(name=>'exports.'+name+'='+name+';').join('')}
 `;
 return await build({stdin:{resolveDir:process.cwd(),contents:`
   export {createElement,useSyncExternalStore} from 'react';export {createRoot} from 'react-dom/client';export {flushSync} from 'react-dom';
-  export {PlexGraph} from './src/ui/PlexGraph';export {migrateAndMergeSettings} from './src/settings';export {createTranslator} from './src/lang';
+  export {PlexGraph} from './src/ui/PlexGraph';export {migrateAndMergeSettings} from './src/settings';export {createTranslator} from './src/lang';export {compileGraphLensDefinitions} from './src/lens/GraphLens';
   export {PlexViewRegistry} from './src/core/plex/views/registry';export {PlexViewSession} from './src/application/PlexViewSession';
   export {builtInPlexViews} from './src/ui/plexViews/builtins';export {probeViewDefinition} from './tests/support/plexViewProbe';
   export {ActionManager} from './src/application/ActionManager';export {actionNodeRef} from './src/adapters/obsidian/actionNode';

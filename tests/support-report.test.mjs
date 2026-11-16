@@ -106,6 +106,19 @@ test('snapshot attempt attribution survives only through finite allowlisted scal
   assert.equal(payload(createSupportReport(input)).index.hydration.firstFailure,null);assert.equal(calls,0);
 });
 
+test('storage failure attribution survives recovery without exporting errors, database names or accessors',()=>{
+ const input=inputFixture(),secret='private-vault/path.md',failure={at:1730000000000,cause:'database-error',errorName:'AbortError',sourceReason:'none',message:secret,stack:secret};
+ const connection={state:'available',failures:1,snapshotRetries:1,snapshotRecoveries:1,retryInMs:0,lastFailure:failure,databaseName:secret};
+ input.indexReport.saved.connection=connection;
+ input.indexReport.hydration.firstFailure={reason:'storage-unavailable',phase:'pages',operation:'chunk',storage:connection};
+ const report=payload(createSupportReport(input));assert.equal(report.index.cache.connection.lastFailure.errorName,'AbortError');
+ assert.equal(report.index.hydration.firstFailure.storage.snapshotRecoveries,1);assert(!JSON.stringify(report).includes(secret));
+ let calls=0;Object.defineProperty(failure,'errorName',{get(){calls++;throw Error(secret)}});
+ assert.equal(payload(createSupportReport(input)).index.cache.connection.lastFailure.errorName,'unavailable');assert.equal(calls,0);
+ failure.cause=secret;failure.sourceReason=secret;connection.state=secret;
+ assert(!createSupportReport(input).includes(secret));
+});
+
 test("support output preserves useful aggregate index and partial startup facts, with explicit unknown evidence", /** Ordinary facts survive the privacy boundary without inventing readiness or telemetry. */ () => {
   const report = payload(createSupportReport(inputFixture()));
   assert.equal(report.formatVersion, 2); assert.equal(report.index.status.indexedFiles, 4); assert.equal(report.index.status.totalFiles, 73);

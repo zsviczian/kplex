@@ -684,13 +684,18 @@ test("App document follow retains companion propagation while rejecting embedded
 });
 
 /** Execute the actual App follow owners with independently controlled visibility, eligibility and publication. */
-for(const device of ["phone","tablet","desktop"])for(const viewer of [false,true])test(`explicit URL navigation routes once through the native external-link owner on ${device}, viewer=${viewer}`,()=>{
+for(const device of ["phone","tablet","desktop"])for(const viewer of [false,true])test(`external URL activation requires opt-in and an already-central node on ${device}, viewer=${viewer}`,()=>{
  const {state,pages}=appFollowFixture({device}),target={path:"url:example",url:"https://example.com",file:null};pages.set(target.path,target);
  const opens=[];state.hostLeaf.view={containerEl:{ownerDocument:{id:"owning-document"}}};
  state.plugin.canOpenUrlInWebViewer=()=>viewer;state.plugin.openPage=(...args)=>{opens.push(args)};
  assert.equal(state.activate(target,true,true,"user"),true);
- const native=device!=="desktop"||!viewer;assert.equal(opens.length,native?1:0);assert.equal(state.companions.length,native?0:2);
- if(native){assert.equal(opens[0][0],target);assert.equal(opens[0][1],state.hostLeaf.view.containerEl.ownerDocument);assert.equal(opens[0][2].hostLeaf,state.hostLeaf)}
+ assert.equal(opens.length,0,'Default activation centers without opening');assert.equal(state.companions.length,0,'Centering cannot indirectly open a native URL companion');
+ state.activate(target,true,true,'user');assert.equal(opens.length,0,'An already-central URL remains inert by default');
+ state.plugin.settings.singleClickExternalNavigation=true;
+ state.activate(pages.get('A.md'),true,false,'user');
+ state.activate(target,true,true,'user');assert.equal(opens.length,0,'Opt-in does not open a peripheral URL');
+ state.activate(target,true,true,'user');assert.equal(opens.length,1,'Opt-in opens on a subsequent central activation');
+ assert.equal(opens[0][0],target);assert.equal(opens[0][1],state.hostLeaf.view.containerEl.ownerDocument);assert.equal(opens[0][2].hostLeaf,state.hostLeaf);
  opens.length=0;state.activate(target,true,false,"user");state.activate(target,true,true,"follow");state.activate(target,true,true,"wander");
  assert.equal(opens.length,0,"Passive follow, Wander and unsynchronized centering never launch the browser");
 });

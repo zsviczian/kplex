@@ -46,7 +46,8 @@ async function scenario(app, c) {
   };
   /** Natural source/semantic/URL and persistence closure, using only already retained task state. */
   const settled = () => {
-    const index = p.index, source = index.sourceAcquisition, state = source.getActivityState();
+    const index = p.index;if (!index) return false;
+    const source = index.sourceAcquisition, state = source.getActivityState();
     const cache = index.indexedDb.getActivityState();
     const urls = index.getUrlIndexProgress();
     return p.initialIndexComplete && source.hasSemanticDependencies() && !index.hasPendingSemanticPreparation()
@@ -80,16 +81,30 @@ async function scenario(app, c) {
     await until(() => owned.every(file => app.metadataCache.getFileCache(file)), 'Fixture metadata did not arrive');
     await until(settled, 'Fixture preparation did not naturally close');
     initialComplete = { files: app.vault.getFiles().length, counters: p.index.getSourceAcquisitionCounters() };
+    await app.plugins.disablePlugin('k-plex');
+    // A completely unchanged warm restart may correctly skip dependency repair. Give this
+    // scenario one genuine offline change instead of relying on incidental cache misses.
+    // Observe this preparation separately from the three writes made inside the held owner.
+    const gateFile = owned[0], beforeGate = { ...gateFile.stat };
+    let offlineMetadata = false, watchingOffline = true;
+    const offlineRef = app.metadataCache.on('changed', file => { if (file === gateFile) offlineMetadata = true; });
+    const stopOffline = () => { if (watchingOffline) { watchingOffline = false; app.metadataCache.offref(offlineRef); } };
+    listeners.push(stopOffline);
+    await app.vault.modify(gateFile, '---\ntags: [kplex210/events]\n---\nValue:: offline-startup-preparation\n');
+    await until(() => offlineMetadata, 'Offline fixture metadata did not arrive');
+    stopOffline();
+    c.progress.offlinePreparation = { owner: 0, metadataObserved: true, before: beforeGate, after: { ...gateFile.stat } };
     for (const [owner, name, kind] of [[app.vault, 'modify', 'modify'], [app.metadataCache, 'changed', 'metadata'], [app.metadataCache, 'resolved', 'resolved']]) {
       const ref = owner.on(name, file => observed(kind, file));
       listeners.push(() => owner.offref(ref));
     }
-    await app.plugins.disablePlugin('k-plex');
     c.progress.phase = 'warm-startup';
     /** Attach before the real plugin's layout callback admits its existing startup owners. */
     layoutReplacement = function(...args) {
       const next = app.plugins.plugins['k-plex'];
-      if (next && !probe) {
+      // Other registrations can reach this hook while asynchronous settings are still loading.
+      // Observe only the plugin's real index-bearing registration; never force early startup.
+      if (next?.index && !probe) {
         p = next; c.index = p.index;
         probe = c.probeFactory(app, p);
         const repository = p.index.sourceAcquisition.repository;
@@ -117,6 +132,7 @@ async function scenario(app, c) {
     app.workspace.onLayoutReady = layoutReplacement;
     await app.plugins.enablePlugin('k-plex');
     p = app.plugins.plugins['k-plex'];
+    if (p.whenInitialized) check(await p.whenInitialized(), 'Warm plugin initialization');
     let openingError;
     const opening = p.activateView('leaf').catch(error => { openingError = error; });
     await until(() => c.held || openingError, 'Actual warm source dependency gate was not reached');
@@ -148,7 +164,7 @@ async function scenario(app, c) {
     await wait(500); check(settled(), 'Quiet tail lost source completion');
     c.progress.functionalComplete = true;
     c.progress.summary = { finalComplete, values, lastWriteToClosureMs: closedAt - lastWrite };
-    return { initialComplete, finalComplete, writes, events, gate: c.gateState, observation: probe.snapshot(),
+    return { initialComplete, finalComplete, offlinePreparation: c.progress.offlinePreparation, writes, events, gate: c.gateState, observation: probe.snapshot(),
       eventSpanMs: lastWrite - started, lastWriteToClosureMs: closedAt - lastWrite,
       limitation: 'Declared selected-owner await gate, actual native writes/events and natural completion. Functional ordering evidence, not throughput, actual paint or full application restart.' };
   } catch (error) {
@@ -161,7 +177,7 @@ async function scenario(app, c) {
     // Preserve the bounded native chain even if an assertion fails before the final return.
     c.progress.phaseAtExit = c.progress.phase;
     await clean(() => {
-      c.progress.sourceAtExit = p.index.sourceAcquisition.getActivityState();
+      c.progress.sourceAtExit = p.index?.sourceAcquisition.getActivityState() ?? {unavailable:true};
       if (probe) c.progress.observation = probe.snapshot();
     });
     c.progress.phase = 'cleanup';
@@ -193,6 +209,7 @@ async function scenario(app, c) {
     await clean(() => app.plugins.enablePlugin('k-plex'));
     p = app.plugins.plugins['k-plex'];
     await clean(async () => {
+      if (p.whenInitialized) check(await p.whenInitialized(), 'Restored plugin initialization');
       await until(() => p.layoutReady, 'Restored plugin did not load'); await p.settingsWriteQueue; await wait(1500);
       await app.vault.adapter.write(c.configRelative + '/plugins/k-plex/data.json', c.originalData);
       check(app.vault.getFiles().length === initialFiles, 'Native fixture inventory not restored');

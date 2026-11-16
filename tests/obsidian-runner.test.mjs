@@ -118,13 +118,21 @@ test('phone emulation actual serialized restoration loads both exact deferred le
   view:{get waitUntilReady(){throw Error('DeferredView has no registered Plex readiness method');}},
   setViewState:()=>{throw Error('The actual saved leaf must not be reinitialized or receive replacement state');},
   async loadIfDeferred(){events.push('load '+id);this.isDeferred=false;this.view={getViewType:()=>type,waitUntilReady:async()=>{events.push('ready '+id);}};}};return leaf;};
- const restoredTab=deferred('saved-tab','k-plex-react-view',a.path),restoredSidebar=deferred('saved-sidebar','k-plex-sidepanel-view',b.path);let restored=false;
- const workspace={changeLayout:async value=>{assert.equal(value,serialized,'Restore the exact captured native layout');events.push('change saved layout');restored=true;}};
- const result=await runInNewContext('(async()=>{let tab={id:"retired-tab"},sidebar={id:"retired-sidebar"};'+stage+';return {tab,sidebar}})()',{
+ const restoredTab=deferred('saved-tab','k-plex-react-view',a.path),restoredSidebar=deferred('saved-sidebar','k-plex-sidepanel-view',b.path),restoredAnchor=deferred('saved-anchor','markdown','Anchor.md');let restored=false;
+ const workspace={changeLayout:async value=>{assert.equal(value,serialized,'Restore the exact captured native layout');events.push('change saved layout');restored=true;},getLeafById:id=>{assert.equal(id,'saved-anchor');assert(restored);return restoredAnchor;}};
+ const result=await runInNewContext('(async()=>{let tab={id:"retired-tab"},sidebar={id:"retired-sidebar"},anchor={id:"saved-anchor"};'+stage+';return {tab,sidebar,anchor}})()',{
   workspace,serialized,own:leaf=>{owned.push(leaf);return leaf;},tabs:()=>restored?[restoredTab]:[],sidebars:()=>restored?[restoredSidebar]:[],a,b,
-  f:{until:async(predicate,label)=>{assert(predicate(),label);},p:{documentSession:leaf=>leaf.session}}});
- assert.deepEqual(events,['change saved layout','load saved-tab','load saved-sidebar','ready saved-tab','ready saved-sidebar']);
- assert.equal(result.tab,restoredTab);assert.equal(result.sidebar,restoredSidebar);assert.deepEqual(owned,[restoredTab,restoredSidebar]);assert.equal(restoredTab.session.centerPath,a.path);assert.equal(restoredSidebar.session.centerPath,b.path);
+  f:{check:(value,label)=>assert(value,label),until:async(predicate,label)=>{assert(predicate(),label);},p:{documentSession:leaf=>leaf.session}}});
+ assert.deepEqual(events,['change saved layout','load saved-anchor','load saved-tab','load saved-sidebar','ready saved-tab','ready saved-sidebar']);
+ assert.equal(result.tab,restoredTab);assert.equal(result.sidebar,restoredSidebar);assert.equal(result.anchor,restoredAnchor);assert.deepEqual(owned,[restoredAnchor,restoredTab,restoredSidebar]);assert.equal(restoredTab.session.centerPath,a.path);assert.equal(restoredSidebar.session.centerPath,b.path);
+});
+
+test('native batch cleanup restores its original device policy without demanding a closed canvas',async()=>{
+ const path=new URL('../scripts/testing/obsidian/nativeBatch270.mjs',import.meta.url),source=ts.createSourceFile(path.pathname,readFileSync(path,'utf8'),ts.ScriptTarget.Latest,true,ts.ScriptKind.JS);let callback;
+ const visit=node=>{if(ts.isCallExpression(node)&&node.expression.getText(source)==='clean'&&node.arguments[0]?.getText(source)==="'indexing mode'")callback=node.arguments[1].getText(source);ts.forEachChild(node,visit)};visit(source);assert(callback);
+ for(const [original,current,expected]of [[true,true,[]],[false,false,[]],[false,true,[false]],[true,false,[false]]]){
+  const calls=[];await runInNewContext('('+callback+')()',{plugin:{index:{isOnDemandMode:()=>current}},originalIndexingMode:original,reload:async wait=>calls.push(wait)});assert.deepEqual(calls,expected);
+ }
 });
 
 test('native batch startup keeps global authority by default and admits only explicitly settled On-demand routing',async()=>{

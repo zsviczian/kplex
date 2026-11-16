@@ -4,7 +4,7 @@
 export function nativeBatch270(app,c){
  let plugin=app.plugins.plugins['k-plex'];
  if(!plugin||app.vault.getName()!=='kplex-test-small'||app.vault.getFiles().length>=1000||app.setting.win)throw Error('Clean disposable Small required');
- const workspace=app.workspace,layout=workspace.getLayout(),settings=structuredClone(plugin.settings),saved=c.sessions(plugin).capture(),lastTabId=app.setting.lastTabId;
+ const workspace=app.workspace,layout=workspace.getLayout(),settings=structuredClone(plugin.settings),originalIndexingMode=plugin.index.isOnDemandMode(),saved=c.sessions(plugin).capture(),lastTabId=app.setting.lastTabId;
  // Obsidian 1.15's public changeLayout restores panes but not the recent-file tracker. Snapshot
  // its verified native serialization boundary so fixture paths cannot escape into later autosaves.
  const recentTracker=workspace.recentFileTracker;
@@ -86,7 +86,7 @@ export function nativeBatch270(app,c){
  /** Resolve the actual mounted action registration, never a guessed ID or another canvas's fallback. */
  const surface=leaf=>{const id=[...plugin.actionSurfaceHosts].find(([,registration])=>registration.leaf===leaf)?.[0];check(id,'Live action surface');return id;};
  /** Plugin reload invalidates every captured plugin/view callback; callers reacquire explicitly. */
- const reload=async()=>{await plugin.settingsWriteQueue;await app.plugins.disablePlugin('k-plex');disabled=true;await app.plugins.enablePlugin('k-plex');disabled=false;plugin=app.plugins.plugins['k-plex'];if(plugin?.whenInitialized)check(await plugin.whenInitialized(),'Plugin initialization');check(plugin?.index,'Plugin reload');await until(()=>plugin.initialIndexComplete&&!plugin.index.isBuilding()&&plugin.getIndexStatus().upToDate,'Reloaded current index',120000);return plugin;};
+ const reload=async(awaitIndex=true)=>{await plugin.settingsWriteQueue;await app.plugins.disablePlugin('k-plex');disabled=true;await app.plugins.enablePlugin('k-plex');disabled=false;plugin=app.plugins.plugins['k-plex'];if(plugin?.whenInitialized)check(await plugin.whenInitialized(),'Plugin initialization');check(plugin?.index,'Plugin reload');if(awaitIndex)await until(()=>plugin.initialIndexComplete&&!plugin.index.isBuilding()&&plugin.getIndexStatus().upToDate,'Reloaded current index',120000);return plugin;};
  /** Independently restore every owned resource even if an earlier assertion or native operation fails. */
  const cleanup=async()=>{const errors=[],clean=async(name,action)=>{try{await action();}catch(error){errors.push(name+': '+error);}};
   for(const restore of restores.reverse())await clean('observer',restore);
@@ -100,9 +100,9 @@ export function nativeBatch270(app,c){
   if(directory&&app.vault.getFolderByPath(folder)===directory&&!directory.children.length)await clean('owned folder',()=>app.vault.delete(directory,true));
   await clean('settings',async()=>{plugin.settings=settings;await plugin.saveSettings(false,false);await plugin.settingsWriteQueue;});
   await clean('layout',()=>workspace.changeLayout(layout));await clean('sessions',()=>c.sessions(plugin).restore(saved));await clean('pending writer',()=>plugin.settingsWriteQueue);
-  // GraphIndex captures its mode at construction. Restoring JSON alone leaves a different
-  // runtime behind for the next native case, even though its settings bytes look correct.
-  await clean('indexing mode',async()=>{if(plugin.index.isOnDemandMode()!==(settings.indexingMode==='on-demand'))await reload();});
+  // Restore the actual original device policy, not the legacy global preference. With every
+  // owned canvas closed, initialization may legitimately wait for a future view's demand.
+  await clean('indexing mode',async()=>{if(plugin.index.isOnDemandMode()!==originalIndexingMode)await reload(false);});
   await wait(2000);await clean('recent files',async()=>{recentTracker.load(structuredClone(recentFiles));workspace.requestSaveLayout();await wait(1500);check(JSON.stringify(recentTracker.serialize())===JSON.stringify(recentFiles),'Native recent files differ');});
   await clean('settings bytes',()=>app.vault.adapter.write(plugin.manifest.dir+'/data.json',c.originalData));await clean('enabled bytes',()=>app.vault.adapter.write(app.vault.configDir+'/community-plugins.json',c.originalEnabled));
   await clean('geometry',()=>{main.setMinimumSize(...minimum);main.setBounds(bounds);if(maximized)main.maximize();});

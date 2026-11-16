@@ -9,6 +9,12 @@ import { buildLocaleCatalog, type LocaleCatalog, type LocaleTranslationMap } fro
 /** Construct the typed Spanish table only when selected; importing this module allocates no catalog. */
 export function createSpanishCatalog(): LocaleCatalog {
 const spanishTranslations = {
+  "styleSources.menu": "Fuentes de apariencia",
+  "styleSources.tag": "Estilo de etiqueta · {name}",
+  "styleSources.noteType": "Tipo de nota · {name}",
+  "styleSources.lens": "Lente · {name}",
+  "styleSources.ontology": "Relación · {name}",
+  "styleSources.prefix": "Prefijo del nombre · {name}",
   "filter.visibilityDocuments": "Documentos",
   "filter.visibilityDocumentsHelp": "Mostrar documentos adjuntos como PDF, EPUB, DOCX, hojas de cálculo, presentaciones y archivos de texto. Markdown tiene su propio control.",
   "filter.visibilityImages": "Imágenes",
@@ -181,6 +187,8 @@ const spanishTranslations = {
   "actions.node.copy-link.description": "Copia el nodo seleccionado o el centro del lienzo. Al pegar en una nota de Obsidian se usan sus preferencias de enlaces; otros destinos reciben una ruta completa.",
   "drawing.template": "Plantilla",
   "drawing.blank": "Dibujo en blanco",
+  "settings.singleClickExternalNavigation": "Abrir enlaces externos con un clic",
+  "settings.singleClickExternalNavigation.help": "Abrir un enlace web con un clic solo cuando ya sea el nodo central. Desactivado por defecto; el doble clic y las acciones Abrir siguen disponibles.",
   "settings.trackpad": "Navegación con panel táctil",
   "settings.trackpad.help": "Desplaza para mover; pellizca o desplaza con una tecla modificadora para ampliar. Desactiva para ampliar con el desplazamiento normal.",
   "fileMenu.reuse": "Abrir",

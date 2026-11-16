@@ -49,11 +49,26 @@ export async function mobileSidebarCases(app,c,f,file) {
    await f.until(()=>modal.contentEl.querySelector('input'),'Native creation form');
    for(const control of modal.contentEl.querySelectorAll('input,select,button'))if(control.getBoundingClientRect().width)inside(control,modal.modalEl,'Creation control exceeds native modal');
    modal.close();await f.until(()=>!modal.modalEl.isConnected,'Cancel removes native modal',5000);
-   cases.push({...size,status:'passed',controlsBounded:true,coveredControls,bottomReachable:true,footprintsBounded:true,nativeFormCancelled:true});
+   // The fullscreen overlay moves content outside the real drawer. Its empty native shell must
+   // no longer cover the canvas, and leaving fullscreen must restore the exact original parent.
+   const modes=leaf.view.displayModes,parent=leaf.view.contentEl.parentElement,drawer=leaf.view.contentEl.closest('.workspace-drawer'),drawerClasses=drawer?.className;
+   f.check(drawer,'Actual mobile drawer required for fullscreen regression');
+   const fullscreen=()=>root.querySelector('[data-kplex-display-control="fullscreen"]');
+   await f.click(fullscreen());await f.until(()=>modes.getSnapshot().fullscreen,'Mobile sidebar enters fullscreen');
+   await f.until(()=>{try{f.point(fullscreen());return true}catch{return false}},'Native drawer must not cover fullscreen controls');
+   const overlay=root.closest('.kplex-fullscreen-overlay');f.check(overlay,'Canvas moved into actual fullscreen overlay');
+   await f.until(()=>[8,Math.floor(innerWidth/2),innerWidth-8].every(x=>[20,Math.floor(innerHeight/2),innerHeight-20].every(y=>overlay.contains(document.elementFromPoint(x,y)))),'Every fullscreen viewport region must be above native drawers',5000);
+   f.check(drawer.classList.contains('kplex-fullscreen-drawer'),'Originating drawer lease');
+   const navbar=document.querySelector('.mobile-navbar');if(navbar)f.check(getComputedStyle(navbar).display==='none','Fullscreen hides mobile navbar');
+   if(c.captureRoot&&[390,1024].includes(width))require('node:fs').writeFileSync(c.captureRoot+'/mobile-sidebar-fullscreen-'+width+'.png',(await native.webContents.capturePage()).toPNG());
+   await f.click(fullscreen());await f.until(()=>!modes.getSnapshot().fullscreen,'Mobile sidebar leaves fullscreen');
+   f.check(leaf.view.contentEl.parentElement===parent&&drawer.className===drawerClasses,'Exact sidebar/drawer restoration');
+   cases.push({...size,status:'passed',controlsBounded:true,coveredControls,bottomReachable:true,footprintsBounded:true,nativeFormCancelled:true,fullscreenVisible:true,fullscreenSidebarRestored:true});
   }
   return cases;
  }catch(error){
   if(c.captureRoot)require('node:fs').writeFileSync(c.captureRoot+'/mobile-sidebar-failure.png',(await native.webContents.capturePage()).toPNG());
-  throw Error((error?.stack??String(error))+'; sidebar layout: '+JSON.stringify({viewport:[innerWidth,innerHeight],cases,root:leaf.view.contentEl.querySelector('.kplex-app')?.getBoundingClientRect().toJSON(),trigger:leaf.view.contentEl.querySelector('.kplex-filter-trigger')?.getBoundingClientRect().toJSON()}));
+  const hits=[8,Math.floor(innerWidth/2),innerWidth-8].flatMap(x=>[20,Math.floor(innerHeight/2),innerHeight-20].map(y=>({x,y,stack:document.elementsFromPoint(x,y).slice(0,5).map(element=>({tag:element.tagName,classes:element.getAttribute('class'),z:getComputedStyle(element).zIndex}))})));
+  throw Error((error?.stack??String(error))+'; sidebar layout: '+JSON.stringify({viewport:[innerWidth,innerHeight],cases,hits,root:leaf.view.contentEl.querySelector('.kplex-app')?.getBoundingClientRect().toJSON(),trigger:leaf.view.contentEl.querySelector('.kplex-filter-trigger')?.getBoundingClientRect().toJSON()}));
  }finally{leaf.detach();}
 }

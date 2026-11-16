@@ -1318,6 +1318,19 @@ test("native declarative hover controls expose both local preferences and persis
 test('partial legacy ontology import preserves an implicit former counterpart and escapes foreign slash fields',()=>{const current=migrateAndMergeSettings({ontologyPairingVersion:1,hierarchy:{previous:['replies to/replied by'],next:[]}});const partial=importExcaliBrainGraphSettings({hierarchy:{previous:['literal/a']}},current);assert(partial.hierarchy.next.includes('replied by'));assert.deepEqual(partial.hierarchy.previous,['literal\\/a']);const replaced=importExcaliBrainGraphSettings({hierarchy:{previous:['literal/a'],next:['Explicit next']}},current);assert.deepEqual(replaced.hierarchy.next,['Explicit next']);assert(!replaced.hierarchy.next.includes('replied by'));});
 
 
+test('external single-click navigation is opt-in, persists, and never changes graph policy or foreign import',()=>{
+ assert.equal(defaults.singleClickExternalNavigation,false);
+ for(const raw of [undefined,null,'true',1,false])assert.equal(migrateAndMergeSettings({singleClickExternalNavigation:raw}).singleClickExternalNavigation,false);
+ const enabled=migrateAndMergeSettings({...defaults,singleClickExternalNavigation:true,futureNavigation:{retained:true}});
+ const restored=migrateAndMergeSettings(JSON.parse(JSON.stringify(enabled)));
+ assert.equal(restored.singleClickExternalNavigation,true);assert.deepEqual(restored.futureNavigation,{retained:true});
+ const effects=classifySettingsChange(captureSettingsPolicy(defaults),captureSettingsPolicy(enabled));
+ assert.equal(effects.semanticInvalidation,false);assert.equal(effects.presentationFacets,false);
+ assert.equal(encodeIndexSettingsSignature(enabled),encodeIndexSettingsSignature(defaults));
+ assert.equal(importExcaliBrainGraphSettings({singleClickExternalNavigation:true},defaults).singleClickExternalNavigation,false);
+ assert.equal(importExcaliBrainGraphSettings({singleClickExternalNavigation:false},enabled).singleClickExternalNavigation,true);
+});
+
 test("trackpad and remembered drawing templates survive settings loading without semantic invalidation", () => {
   const settings = migrateAndMergeSettings({...defaults, trackpadNavigation: true, lastDrawingTemplatePath: "Templates/Chosen.md", futureCreationPreference: {retained: true}});
   assert.equal(settings.trackpadNavigation, true);

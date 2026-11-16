@@ -105,6 +105,14 @@ async function scenario(app,c){
   check(types.every(type=>app.workspace.getLeavesOfType(type).length===0),'Enabled test unexpectedly opened a Plex');
   check(!p.index.isOnDemandMode()&&p.startupIndexPolicy.mode==='eager','Reload did not apply saved desktop strategy');
   const enabled=quietFacts();cases.push('enabled desktop admits Eager preparation with no native Plex');
+  await app.vault.modify(a,'[['+b.basename+']]\nBackground edit:: [['+prefix+' background target]]');
+  await until(()=>p.indexDirty,'Closed-canvas edit reaches the ordinary native backlog');
+  await until(()=>!p.indexDirty&&!p.rebuildTask&&p.index.hasCurrentFullSemanticGraph()
+   &&!p.index.hasActiveSourcePreparation()&&!p.index.hasPendingSemanticPreparation(),
+   'Enabled desktop preparation must settle a genuine edit without opening a Plex');
+  check(p.index.get(a.path)?.neighbours.has(prefix+' background target'),'Background graph omitted the actual edited link');
+  check(types.every(type=>app.workspace.getLeavesOfType(type).length===0),'Background maintenance opened a Plex');
+  cases.push('enabled desktop maintains a genuine edit to current graph authority with every Plex closed');
   p.settings.indexBeforeViewDesktop=false;await p.saveSettings(false,false);await reload();await wait(2000);noWork();
   await p.rebuildIndex(true,true,'native-startup-admission');
   check(p.initialIndexComplete,'Explicit closed rebuild did not establish readiness');

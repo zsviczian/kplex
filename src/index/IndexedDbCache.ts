@@ -29,6 +29,9 @@
  * while foreground point reads never borrow the lower-priority maintenance checkpoint. URL-page
  * progress is reported only after acquisition; the GraphIndex caller owns its bounded wait and
  * may retire unabortable storage work without allowing a late consumer publication.
+ * Snapshot streams may join one existing connection-backoff interval before decoding. This does
+ * not replay chunks, bypass caller guards or grant storage/source authority; close settles the
+ * owned wait. Finite passive connection receipts retain failure attribution after recovery.
  */
 import { yieldToHostTask } from "../adapters/obsidian/yieldToHostTask";
 import {sanitizeCenterRecoveryDiagnostic, type CenterRecoveryDiagnostic} from "../core/contracts/centerRecovery";
@@ -38,7 +41,7 @@ import { NeutralSourceRepository, SOURCE_HEAD_STORE, SOURCE_CHUNK_STORE, SOURCE_
   SOURCE_REVISION_INDEX, SOURCE_FAMILY_INDEX, SOURCE_LOOKUP_INDEX, SOURCE_LEASE_INDEX } from "./SourceRepository";
 import { SOURCE_LOCAL_DEPENDENCY_STATE_KEY, SOURCE_LOCAL_DEPENDENCY_STORE, SOURCE_LOCAL_KEY_STORE, SOURCE_LOCAL_LOOKUP_INDEX, SOURCE_LOCAL_OWNER_STORE, SOURCE_LOCAL_REPAIR_STORE,
   SOURCE_LOCAL_REVISION_INDEX, sourceLocalDependencyState } from "./SourceLocalDependencies";
-import { SOURCE_BODY_PARSER_VERSION, SOURCE_DEPENDENCY_STORE, sourceDependencyState, validSourceFact } from "./SourceFacts";
+import { SOURCE_BODY_PARSER_VERSION, SOURCE_DEPENDENCY_STORE, SourceFactError, sourceDependencyState, validSourceFact, type SourceReason } from "./SourceFacts";
 import type { ParsedBodyMetadata } from "../core/parser/metadata";
 import { estimateReferenceRecordBytes } from "../core/graph/source";
 import type { PersistedEvidenceDeclaration, PersistedPage } from "./IndexSnapshot";
@@ -126,6 +129,15 @@ export type SnapshotReadFailureReason = "storage-unavailable" | "missing-chunk" 
 
 /** Existing snapshot suspension/decoding boundaries, exposed only as finite diagnostic codes. */
 export type SnapshotReadOperation = "guard" | "open" | "checkpoint" | "transaction" | "record" | "task" | "chunk";
+
+/** Fixed failure categories exclude exception messages, stack traces, database names and note data. */
+type StorageFailureCause = "source-transaction" | "transaction-open" | "database-error" | "database-abort" |
+  "connection-close" | "version-change" | "open-timeout" | "open-error" | "open-blocked" | "open-exception";
+const STORAGE_ERROR_NAMES = ["AbortError", "ConstraintError", "DataError", "DataCloneError", "InvalidAccessError",
+  "InvalidStateError", "NotFoundError", "QuotaExceededError", "ReadOnlyError", "SecurityError", "TransactionInactiveError",
+  "UnknownError", "VersionError", "TimeoutError", "Error"] as const;
+type StorageFailureReceipt = Readonly<{at: number; cause: StorageFailureCause;
+  errorName: typeof STORAGE_ERROR_NAMES[number] | "none" | "other"; sourceReason: SourceReason | "none"}>;
 
 /** Path-free reason codes for a failed generation write. */
 export type SnapshotWriteFailureReason = "storage-unavailable" | "cancelled" | "quota-exceeded" | "write-error";
@@ -415,6 +427,12 @@ export class KplexIndexedDbCache {
   private connection: IDBDatabase | null = null;
   private openEpoch = 0;
   private newerDatabase = false;
+  /** Only live pre-decode connection recovery waits; shutdown settles each promise through its owner. */
+  private readonly snapshotOpenWaiters = new Set<() => void>();
+  private storageFailureCount = 0;
+  private storageFailureReceipt: StorageFailureReceipt | null = null;
+  private snapshotConnectionRetries = 0;
+  private snapshotConnectionRecoveries = 0;
   private maintenanceReads = new Set<IDBTransaction>();
   private purgePromise: Promise<boolean> | null = null;
   /** Disposable snapshot generations remain reachable to maintenance until their writer settles. */
@@ -435,10 +453,19 @@ export class KplexIndexedDbCache {
     return {queuedBodies: this.queuedBodyWrites.size, writerActive: this.bodyWriteInFlight};
   }
 
+  /** Copy passive connection state without opening storage, scheduling work or resetting backoff. */
+  getStorageDiagnostics() {
+    return {state: this.closed ? "closed" : this.newerDatabase ? "newer-database" : this.connection ? "available" :
+      Date.now() < this.openRetryAfter ? "backoff" : "unavailable", failures: this.storageFailureCount,
+      snapshotRetries: this.snapshotConnectionRetries, snapshotRecoveries: this.snapshotConnectionRecoveries,
+      retryInMs: Math.max(0, this.openRetryAfter - Date.now()),
+      lastFailure: this.storageFailureReceipt ? {...this.storageFailureReceipt} : null};
+  }
+
   /** Share one connection owner. The injected checkpoint belongs to broad cache maintenance (P4);
    * caller-specific URL restore overrides it with P3 and foreground point reads never borrow it. */
   constructor(private vaultName: string, private readonly backgroundCheckpoint?: () => Promise<void>, completedWork?: () => void) {
-    this.sources = new NeutralSourceRepository({ open: () => this.open(), failed: (db) => this.storageFailed(db),
+    this.sources = new NeutralSourceRepository({ open: () => this.open(), failed: (db, error) => this.storageFailed(db, "source-transaction", error),
       unavailableReason: () => this.newerDatabase ? "newer-database" : "storage-unavailable",
       /** Cleanup borrows no normal writer authority and accepts only an ended reader's lease. */
       releaseContributorLease: lease => this.releaseContributorLease(lease) }, undefined, completedWork);
@@ -459,14 +486,24 @@ export class KplexIndexedDbCache {
   }
 
   /** Clear only the failed handle; never erase stores or neutral heads on a cache failure. */
-  private storageFailed(db: IDBDatabase): void {
+  private storageFailed(db: IDBDatabase, cause: StorageFailureCause = "connection-close", error?: unknown): void {
     try { db.close(); } catch { /* already closed */ }
     if (this.connection !== db) return;
+    this.recordStorageFailure(cause, error);
     this.connection = null;
     this.dbPromise = null;
     this.openEpoch += 1;
     this.openFailureCount += 1;
     this.openRetryAfter = Date.now() + (this.openFailureCount === 1 ? 1000 : this.openFailureCount === 2 ? 5000 : 30000);
+  }
+
+  /** Retain only a finite cause/class and safe domain code; never keep a native exception object. */
+  private recordStorageFailure(cause: StorageFailureCause, error?: unknown): void {
+    const name = error instanceof Error || error instanceof DOMException ? error.name : undefined;
+    this.storageFailureCount++;
+    this.storageFailureReceipt = {at: Date.now(), cause,
+      errorName: name === undefined ? "none" : STORAGE_ERROR_NAMES.find(candidate => candidate === name) ?? "other",
+      sourceReason: error instanceof SourceFactError ? error.reason : "none"};
   }
 
   /** Ignore only native AbortErrors from a source transaction deliberately canceled or rolled back. */
@@ -480,7 +517,7 @@ export class KplexIndexedDbCache {
   /** A synchronously closed/invalid legacy transaction must not leave the shared owner ready. */
   private openTransaction(db: IDBDatabase, stores: string | string[], mode: IDBTransactionMode): IDBTransaction {
     try { return db.transaction(stores, mode); }
-    catch (error) { this.storageFailed(db); throw error; }
+    catch (error) { this.storageFailed(db, "transaction-open", error); throw error; }
   }
 
   /** Lazily open v10 with bounded backoff and reject late, blocked or newer-version connections. */
@@ -497,10 +534,11 @@ export class KplexIndexedDbCache {
         if (openTimeout !== null) window.clearTimeout(openTimeout);
         openTimeout = null;
       };
-      const fail = (): void => {
+      const fail = (cause: StorageFailureCause, error?: unknown): void => {
         if (settled) return;
         settled = true;
         clearOpenTimeout();
+        if (!this.closed && epoch === this.openEpoch) this.recordStorageFailure(cause, error);
         this.openFailureCount += 1;
         const delay = this.openFailureCount === 1 ? 1000 : this.openFailureCount === 2 ? 5000 : 30000;
         this.openRetryAfter = Date.now() + delay;
@@ -508,12 +546,12 @@ export class KplexIndexedDbCache {
         resolve(null);
       };
       try {
-        if (this.closed || epoch !== this.openEpoch || typeof indexedDB === "undefined") { fail(); return; }
+        if (this.closed || epoch !== this.openEpoch || typeof indexedDB === "undefined") { fail("open-exception"); return; }
         const request = indexedDB.open(safeDbName(this.vaultName), DB_VERSION);
         // IndexedDB open can remain pending for a surprisingly long time in a busy WebView. The
         // cache is only an optimization, so cold startup degrades to vault reads instead of waiting
         // minutes for storage. A late success is closed by the settled guard below.
-        openTimeout = window.setTimeout(fail, Platform.isMobile ? 2500 : 1800);
+        openTimeout = window.setTimeout(() => fail("open-timeout"), Platform.isMobile ? 2500 : 1800);
         request.onupgradeneeded = (event) => {
           if (settled || this.closed || epoch !== this.openEpoch) { request.transaction?.abort(); return; }
           const db = request.result;
@@ -597,25 +635,59 @@ export class KplexIndexedDbCache {
           this.openFailureCount = 0;
           this.openRetryAfter = 0;
           this.connection = db;
-          db.onversionchange = () => { this.storageFailed(db); };
-          db.onclose = () => { this.storageFailed(db); };
-          db.onerror = (event) => { if (!this.isExpectedSourceAbort(event)) this.storageFailed(db); };
+          db.onversionchange = () => { this.storageFailed(db, "version-change"); };
+          db.onclose = () => { this.storageFailed(db, "connection-close"); };
+          db.onerror = (event) => {
+            if (!this.isExpectedSourceAbort(event)) this.storageFailed(db, "database-error",
+              event.target instanceof IDBRequest || event.target instanceof IDBTransaction ? event.target.error : undefined);
+          };
           db.onabort = (event) => {
-            if (!this.isExpectedSourceAbort(event) && event.target instanceof IDBTransaction && event.target.error) this.storageFailed(db);
+            if (!this.isExpectedSourceAbort(event) && event.target instanceof IDBTransaction && event.target.error) this.storageFailed(db, "database-abort", event.target.error);
           };
           resolve(db);
         };
         request.onerror = () => {
           if (request.error?.name === "VersionError") this.newerDatabase = true;
-          fail();
+          fail("open-error", request.error);
         };
-        request.onblocked = fail;
-      } catch {
-        fail();
+        request.onblocked = () => fail("open-blocked");
+      } catch (error) {
+        fail("open-exception", error);
       }
     }));
     this.dbPromise = pending;
     return pending;
+  }
+
+  /**
+   * A transient connection backoff is not a missing/corrupt snapshot. Join that existing timed
+   * recovery once before decoding, then let the normal opener enforce blocked/newer/failure policy.
+   * No chunk is replayed and ordinary point reads remain nonblocking. Caller values are fenced
+   * on both sides of the wait; the cache's closed lifetime settles it immediately.
+   */
+  private async openSnapshot(isCurrent: (operation?: SnapshotReadOperation) => boolean,
+    recovery: {used: boolean} = {used: false}): Promise<IDBDatabase | null> {
+    const db = await this.open();
+    if (db || !isCurrent("open") || this.closed || this.newerDatabase || this.openFailureCount === 0 || recovery.used) return db;
+    recovery.used = true;
+    this.snapshotConnectionRetries++;
+    const delay = Math.max(0, this.openRetryAfter - Date.now());
+    if (delay > 0) await new Promise<void>(/** Own one existing-backoff wait and release it on close or expiry. */ resolve => {
+      let timer: number | null = null;
+      /** Settle once through the same owner, including when close races the timer callback. */
+      const finish = (): void => {
+        if (!this.snapshotOpenWaiters.delete(finish)) return;
+        if (timer !== null) window.clearTimeout(timer);
+        resolve();
+      };
+      this.snapshotOpenWaiters.add(finish);
+      timer = window.setTimeout(finish, delay);
+    });
+    if (this.closed || !isCurrent("open")) return null;
+    const recovered = await this.open();
+    if (!isCurrent("open")) return null;
+    if (recovered) this.snapshotConnectionRecoveries++;
+    return recovered;
   }
 
 
@@ -623,6 +695,7 @@ export class KplexIndexedDbCache {
   /** Fence pending opens/source writes immediately; unload never waits for asynchronous persistence. */
   close(): void {
     this.closed = true;
+    for (const settle of this.snapshotOpenWaiters) settle();
     this.openEpoch += 1;
     this.sources.close();
     for (const transaction of this.maintenanceReads) {
@@ -864,8 +937,9 @@ export class KplexIndexedDbCache {
     onFailure?: (reason: SnapshotReadFailureReason) => void,
     isRecordCurrent: (operation?: SnapshotReadOperation) => boolean = isCurrent,
   ): Promise<boolean> {
-    const db = await this.open();
-    if (!isCurrent("open")) { onFailure?.("cancelled"); return false; }
+    const recovery = {used: false};
+    let db = await this.openSnapshot(isCurrent, recovery);
+    if (this.closed || !isCurrent("open")) { onFailure?.("cancelled"); return false; }
     if (!db || !db.objectStoreNames.contains(SNAPSHOT_CHUNK_STORE)) {
       onFailure?.("storage-unavailable");
       return false;
@@ -878,6 +952,13 @@ export class KplexIndexedDbCache {
       for (let start = 0; start < chunkCount; start += readBatch) {
         await this.backgroundCheckpoint?.();
         if (!isCurrent("checkpoint")) { onFailure?.("cancelled"); return false; }
+        if (start === 0 && db !== this.connection) {
+          // A source operation may retire the original handle while the first priority
+          // checkpoint yields. Reacquire before decoding, sharing this stream's single wait.
+          db = await this.openSnapshot(isCurrent, recovery);
+          if (this.closed || !isCurrent("open")) { onFailure?.("cancelled"); return false; }
+          if (!db || !db.objectStoreNames.contains(SNAPSHOT_CHUNK_STORE)) { onFailure?.("storage-unavailable"); return false; }
+        }
         const end = Math.min(chunkCount, start + readBatch);
         const tx = this.openTransaction(db, SNAPSHOT_CHUNK_STORE, "readonly");
         const done = transactionDone(tx);
@@ -927,7 +1008,8 @@ export class KplexIndexedDbCache {
 
   private async iterateGeneration<T>(storeName: string, generation: string, onValue: (value: T) => void, isCurrent: () => boolean,
     onFailure?: (reason: SnapshotReadFailureReason) => void): Promise<boolean> {
-    const db = await this.open();
+    const db = await this.openSnapshot(isCurrent);
+    if (this.closed || !isCurrent()) { onFailure?.("cancelled"); return false; }
     if (!db) { onFailure?.("storage-unavailable"); return false; }
     let failureReason: SnapshotReadFailureReason | null = null;
     try {

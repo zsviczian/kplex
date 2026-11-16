@@ -59,15 +59,17 @@ export function matchesPortableLenses(engine: GraphPredicateEngine, evidence: Gr
   return included && !excludes.some((lens) => matchesLens(engine, evidence, lens, candidate));
 }
 
+/** Retain the same matching lens identities used by paint, in the exact override order. */
+export function matchingPortableStyleLenses<L extends PortableCompiledLens>(engine: GraphPredicateEngine, evidence: GraphEvidenceProvider,
+  lenses: readonly L[], candidate: PortableLensCandidate, target: "node" | "edge"): L[] {
+  return lenses.filter(lens => lens.mode === "style" && !!lens.style?.[target]
+    && (target === "node" ? lens.scope === "node" : lens.scope !== "node") && matchesLens(engine, evidence, lens, candidate));
+}
+
 export function portableLensStyle(engine: GraphPredicateEngine, evidence: GraphEvidenceProvider, lenses: readonly PortableCompiledLens[], candidate: PortableLensCandidate, target: "node"): PortableLensNodeStyle;
 export function portableLensStyle(engine: GraphPredicateEngine, evidence: GraphEvidenceProvider, lenses: readonly PortableCompiledLens[], candidate: PortableLensCandidate, target: "edge"): PortableLensEdgeStyle;
 export function portableLensStyle(engine: GraphPredicateEngine, evidence: GraphEvidenceProvider, lenses: readonly PortableCompiledLens[], candidate: PortableLensCandidate, target: "node" | "edge"): PortableLensNodeStyle | PortableLensEdgeStyle {
   const style: PortableLensNodeStyle | PortableLensEdgeStyle = {};
-  for (const lens of lenses) {
-    if (lens.mode !== "style" || !lens.style?.[target]) continue;
-    if (target === "node" && lens.scope !== "node") continue;
-    if (target === "edge" && lens.scope === "node") continue;
-    if (matchesLens(engine, evidence, lens, candidate)) Object.assign(style, lens.style[target]);
-  }
+  for (const lens of matchingPortableStyleLenses(engine, evidence, lenses, candidate, target)) Object.assign(style, lens.style?.[target]);
   return style;
 }

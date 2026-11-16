@@ -15,7 +15,120 @@ const bundle = await contributorBrowserBundle(['src/main.ts', 'src/index/GraphIn
   'src/index/IndexSnapshot.ts', 'src/core/graph/compiler.ts', 'src/adapters/obsidian/metadataSourceCollector.ts',
   'src/adapters/obsidian/ontologySourceCollector.ts', 'src/adapters/obsidian/startupDiagnostics.ts'], {'src/main.ts': startupSourceCoordinatorSource()});
 
+/** The real startup coordinator must keep a concurrent edit on the cached-patch path. */
+for(const {early,storageFailure} of [{early:false},{early:true},{early:false,storageFailure:true}])test('an Excalidraw Markdown embed save '+(early?'before preparation admission':'during warm hydration')+(storageFailure?' with a transient shared connection failure':'')+' never admits a competing full compiler',async()=>{
+ const browser=await chromiumHarness(bundle);try{
+  await browser.evaluate(contributorBrowserInitialize);
+  assert(await browser.evaluate(`(async()=>{
+   const M=sourceModules,f=await fixture('drawing-embed-warm-hydration'),assert=Object.assign((v,m)=>ok(v,m),{equal});
+   const collect=${collect.toString()},hostOracle=${hostOracle.toString()},fullCenterIndex=${fullCenterIndex.toString()},centerGateSettings=${centerGateSettings.toString()};
+   let initial,index,release;try{
+    f.text=f.texts;f.app.vault.getName=()=> 'drawing-embed-warm-hydration';f.app.vault.getAbstractFileByPath=path=>f.files.get(path)??(path==='/'||path===''?f.app.vault.getRoot():null);
+    f.add('A.md','Friends:: [[B]]');f.add('B.md','');f.add('Drawing.md','',{'excalidraw-plugin':'parsed'});
+    await f.acquire();ok(await f.acquisition.reconcile(),'Genuine durable source baseline');
+    const semantic={hierarchy:{hidden:[],parents:[],children:[],leftFriends:['Friends'],rightFriends:[],previous:[],next:[]},inferAllLinksAsFriends:false,inverseInfer:false,showFullTagName:true,tagStyleList:[],maxLabelLength:30};
+    const view=centerGateSettings({showFolderNodes:false}),settings={indexingMode:'eager',...semantic,...view,lastActivePath:'A.md',pinnedNodes:[]};
+    initial=await fullCenterIndex(M,f,await hostOracle(f,[...f.files.keys()],semantic,view,true),semantic,view);
+    const fingerprints=new Map(),builder=new M.GraphBuilder(initial.plugin,f.app,new Map(),initial.metadataParser,f.cache,()=>true,fingerprints);
+    const compiled=await builder.build({acquireSources:false});ok(compiled,'Full compiler provides genuine saved fingerprints');initial.state=compiled;
+    ok(await f.cache.writeSnapshot({createdAt:Date.now(),urlAliasVersion:2,vaultSignature:M.computeVaultSignature(f.app),settingsSignature:M.computeIndexSettingsSignature(settings),discoveredFields:[]},[...initial.state.pages.values()].map(page=>M.persistedPageFromGraphPage(page,fingerprints.get(page.path))),[...initial.state.evidence.declarations()].map(item=>M.persistedDeclarationFromEvidence(item))),'Genuine complete cached graph');
+    initial.destroy();initial=null;f.acquisition.close();
+    const p=new M.StartupSourceCoordinator();Object.assign(p,{app:f.app,settings,layoutReady:true,metadataStabilized:true,startupIndexPolicy:{device:'desktop',beforeView:true,mode:'eager'},supportEvents:{record(){}},notifyIndexStatus(){},hasVisibleKplexSurface:()=>false,refreshBookmarkedEntryPoints:async()=>{},startupGraphSeedPaths:()=>['A.md'],registerReactiveIndexListeners(){}});
+    p.startupDiagnostics=new M.StartupDiagnostics();p.startupDiagnostics.begin(false);index=new M.GraphIndex(p,f.app,${early});p.index=index;index.scheduleOrphanCleanup=()=>{};
+    let injected=false,builds=0;const prepare=index.preparePresentationPublication,rebuild=index.rebuild,failures=[],failure=index.recordSnapshotHydrationFailure;
+    index.recordSnapshotHydrationFailure=function(...args){if(args[1]==='publication-superseded')failures.push({phase:this.snapshotHydrationDiagnostics.phase,window:this.snapshotForegroundWindow?{...this.snapshotForegroundWindow,paths:[...this.snapshotForegroundWindow.paths]}:null,demand:this.onDemandTasks.size,baseline:!!this.onDemandBaselineTask});return failure.apply(this,args);};
+    index.rebuild=function(...args){builds++;return rebuild.apply(this,args);};
+    let storageInterrupted=false;
+    if(${!!storageFailure}){
+     const open=index.indexedDb.open;
+     index.indexedDb.open=async function(...args){
+      const db=await open.apply(this,args);
+      if(db&&!storageInterrupted&&index.snapshotHydrationDiagnostics.phase==='pages'){
+       storageInterrupted=true;
+       // A real unowned request AbortError exercises the shared owner's genuine failure/backoff.
+       // No storage API, native error, deadline or cache payload is fabricated.
+       const tx=db.transaction('meta','readwrite');tx.objectStore('meta').get('active');
+       await new Promise(resolve=>{tx.onabort=resolve;tx.abort();});
+       equal(await open.apply(this,args),null,'Actual native fault puts the shared connection in backoff');
+       return null;
+      }
+      return db;
+     };
+    }
+    if(${early}){
+     injected=true;const file=f.files.get('Drawing.md');f.texts.set(file.path,'![Video](https://youtu.be/warm-drawing)');file.stat.mtime++;file.stat.size++;file.stat.ctime++;
+     p.indexDirty=true;p.indexDirtyRevision++;p.dirtyMarkdownPaths.add(file.path);p.indexBacklogReasons.add('metadata:changed');index.observeDeferredHostChange(file,true);
+    }
+    index.preparePresentationPublication=async function(...args){if(!injected&&this.snapshotHydrationDiagnostics.phase==='preview-search'&&this.snapshotHydrationDiagnostics.pages>0){
+     injected=true;const file=f.files.get('Drawing.md');f.texts.set(file.path,'![Video](https://youtu.be/warm-drawing)');file.stat.mtime++;file.stat.size++;file.stat.ctime++;
+     p.indexDirty=true;p.indexDirtyRevision++;p.dirtyMarkdownPaths.add(file.path);p.indexBacklogReasons.add('metadata:changed');f.app.vault.trigger('modify',file);f.app.metadataCache.trigger('changed',file);
+    }return prepare.apply(this,args);};
+    const readStart=f.reads.length;
+    release=index.acquireSemanticDemand('A.md');await p.startIndexPreparation();
+    if(${!!storageFailure})ok(storageInterrupted,'Real connection failure occurred before the first snapshot chunk');
+    ok(injected&&p.initialIndexComplete&&index.isFullSnapshotHydrated(),'Actual startup coordinator reaches complete graph authority: '+JSON.stringify({injected,builds,hydration:index.getSnapshotHydrationDiagnostics(),decisions:index.getIndexDiagnostics()}));
+    equal(builds,0,'Source adoption must not turn this saved-note edit into a full compiler pass: '+JSON.stringify({failures,hydration:index.getSnapshotHydrationDiagnostics(),decisions:index.getIndexDiagnostics(),source:index.getIndexRecoveryDiagnostics().source}));
+    ok(index.get('Drawing.md').neighbours.has('https://youtu.be/warm-drawing'),'Embed is present after coordinator completion');ok(index.get('A.md').neighbours.get('B.md')?.isLeftFriend,'Unchanged relationship remains');
+    const work=p.startupDiagnostics.snapshot().sessionWork;equal(work.fullBuildStarts,0,'No full build admission');equal(work.sourceInventoryPasses,0,'No global source inventory');
+    equal(index.getSemanticPreparationDiagnostics().fullBuilds,0,'No hidden source-based full compiler');
+    if(${!!storageFailure}){
+     const connection=index.indexedDb.getStorageDiagnostics(),reads=f.reads.slice(readStart);
+     equal(connection.snapshotRetries,1,'Only one existing connection recovery interval is joined');equal(connection.snapshotRecoveries,1,'Original cache stream resumes with a healthy handle');
+     equal(connection.lastFailure.cause,'database-error','Native failing request remains attributable after recovery');equal(connection.lastFailure.errorName,'AbortError','Native error class survives');
+     ok(reads.length<=2&&reads.every(path=>path==='A.md'||path==='Drawing.md'),'Unavailable point caches may fall back only for the demanded center and edited owner: '+JSON.stringify(reads));
+    }else equal(index.getSourceAcquisitionCounters().vaultReads,1,'Only the edited drawing is read');return true;
+   }finally{release?.();initial?.destroy();index?.destroy();f.close();}
+  })()`));
+ }finally{await browser.cleanup();}
+});
+
 /** Offline sync changes must not put a complete cached graph behind an unrelated all-owner audit. */
+for(const boundary of ['before-pages','after-pages'])for(const save of [false,true])test('a new note and foreground source publications during stale-cache page loading retain finite recovery ('+boundary+', save='+save+')',async()=>{
+ const browser=await chromiumHarness(bundle);try{
+  await browser.evaluate(contributorBrowserInitialize);
+  assert(await browser.evaluate(`(async()=>{
+   const M=sourceModules,f=await fixture('new-note-during-stale-pages'),assert=Object.assign((v,m)=>ok(v,m),{equal});
+   const collect=${collect.toString()},hostOracle=${hostOracle.toString()},fullCenterIndex=${fullCenterIndex.toString()},centerGateSettings=${centerGateSettings.toString()};
+   let initial,index,release;try{
+    f.text=f.texts;f.app.vault.getName=()=> 'new-note-during-stale-pages';f.app.vault.getAbstractFileByPath=path=>f.files.get(path)??(path==='/'||path===''?f.app.vault.getRoot():null);
+    f.add('A.md','Friends:: [[B]]');f.add('B.md','');f.add('Drawing.md','',{'excalidraw-plugin':'parsed'});
+    await f.acquire();ok(await f.acquisition.reconcile(),'Genuine durable source baseline');
+    const semantic={hierarchy:{hidden:[],parents:[],children:[],leftFriends:['Friends'],rightFriends:[],previous:[],next:[]},inferAllLinksAsFriends:false,inverseInfer:false,showFullTagName:true,tagStyleList:[],maxLabelLength:30};
+    const view=centerGateSettings({showFolderNodes:false}),settings={indexingMode:'eager',...semantic,...view,lastActivePath:'A.md',pinnedNodes:[]};
+    initial=await fullCenterIndex(M,f,await hostOracle(f,[...f.files.keys()],semantic,view,true),semantic,view);
+    ok(await f.cache.writeSnapshot({createdAt:Date.now(),urlAliasVersion:2,vaultSignature:M.computeVaultSignature(f.app),settingsSignature:M.computeIndexSettingsSignature(settings),discoveredFields:[]},[...initial.state.pages.values()].map(page=>M.persistedPageFromGraphPage(page)),[...initial.state.evidence.declarations()].map(item=>M.persistedDeclarationFromEvidence(item))),'Genuine complete cached graph');
+    initial.destroy();initial=null;f.acquisition.close();
+    f.add('C.md',${save}? '':'**Source**:: ![Video](https://youtu.be/new-note)');
+    const drawing=f.files.get('Drawing.md');f.texts.set(drawing.path,'![Same video](https://youtu.be/new-note)');drawing.stat.mtime++;
+    const p=new M.StartupSourceCoordinator();Object.assign(p,{app:f.app,settings,layoutReady:true,metadataStabilized:true,startupIndexPolicy:{device:'desktop',beforeView:true,mode:'eager'},supportEvents:{record(){}},notifyIndexStatus(){},hasVisibleKplexSurface:()=>false,refreshBookmarkedEntryPoints:async()=>{},startupGraphSeedPaths:()=>['A.md'],registerReactiveIndexListeners(){}});
+    p.startupDiagnostics=new M.StartupDiagnostics();p.startupDiagnostics.begin(false);index=new M.GraphIndex(p,f.app);p.index=index;index.scheduleOrphanCleanup=()=>{};
+    let injected=0,builds=0,injectionError;const pages=index.indexedDb.iterateSnapshotPages,rebuild=index.rebuild;
+    index.rebuild=function(...args){builds++;return rebuild.apply(this,args);};
+    index.indexedDb.iterateSnapshotPages=async function(...args){
+     const result=${JSON.stringify(boundary)}==='after-pages'?await pages.apply(this,args):undefined;
+     if(index.snapshotHydrationDiagnostics.phase==='pages'&&injected<2){
+      while(index.onDemandTasks.size)await Promise.all([...index.onDemandTasks.values()]);
+      if(${save}&&injected===0){const file=f.files.get('C.md');f.texts.set(file.path,'**Source**:: ![Video](https://youtu.be/new-note)');file.stat.mtime++;file.stat.size++;p.indexDirtyRevision++;f.app.vault.trigger('modify',file);}
+      // These are real source commits while the optional saved graph is awaiting storage.
+      // Native input is already in the captured inventory; source acquisition must still fence it.
+      const path=++injected===1?'C.md':'Drawing.md';
+      try{equal((await index.patchMarkdownPaths([path])).outcome,'patched','Foreground source commits during cache loading');}catch(error){injectionError=String(error);throw error;}
+     }
+     return ${JSON.stringify(boundary)}==='after-pages'?result:pages.apply(this,args);
+    };
+    release=index.acquireSemanticDemand('A.md');await p.startIndexPreparation();
+    ok(injected>0,'Actual cache-page boundary was exercised');ok(!injectionError,'Foreground injection: '+injectionError);
+    equal(builds,0,'Known foreground commits must not discard a compatible graph and replay every source: '+JSON.stringify({injected,hydration:index.getSnapshotHydrationDiagnostics(),decisions:index.getIndexDiagnostics()}));
+    ok(p.initialIndexComplete&&index.isFullSnapshotHydrated(),'Actual coordinator closes finite cached repair');
+    ok(index.get('C.md').neighbours.has('https://youtu.be/new-note'),'Created note includes its embed');
+    ok(index.get('Drawing.md').neighbours.has('https://youtu.be/new-note'),'Edited note includes the same embed');
+    ok(index.get('A.md').neighbours.get('B.md')?.isLeftFriend,'Unchanged relationship survives');
+    equal(p.startupDiagnostics.snapshot().sessionWork.sourceInventoryPasses,0,'No global source inventory');return true;
+   }finally{release?.();initial?.destroy();index?.destroy();f.close();}
+  })()`));
+ }finally{await browser.cleanup();}
+});
+
 for (const {legacy,alias,discovery,ahead,rename,bookkeeping} of [{legacy:true,alias:false},{legacy:false,alias:false},{legacy:false,alias:true},{legacy:false,alias:false,discovery:true},{legacy:false,alias:true,ahead:true},{legacy:false,alias:false,ahead:true,rename:true},{legacy:false,alias:false,bookkeeping:true},{legacy:false,alias:false,bookkeeping:"before-edit"},{legacy:false,alias:false,bookkeeping:"during-edit"},{legacy:false,alias:false,bookkeeping:"structure"},{legacy:false,alias:false,bookkeeping:"interval"}]) test(`stale compatible graph repairs ${rename?'a rename and its referrer':alias ? 'an alias and its referrer' : 'one offline edit'} without rebuilding${legacy ? ' while a legacy audit is held' : ' using unchanged-owner certificates'}${discovery?' after native startup discovery':''}${ahead?' with newer durable sources':''}${bookkeeping?' after coordinator bookkeeping '+bookkeeping:''}`,async()=>{
  const browser=await chromiumHarness(bundle);
  try{
@@ -42,8 +155,7 @@ for (const {legacy,alias,discovery,ahead,rename,bookkeeping} of [{legacy:true,al
     else{const a=f.files.get(${alias}?'B.md':'A.md');if(${alias})f.metadata.get(a.path).frontmatter.aliases=['newAlias'];else f.texts.set(a.path,'Children:: [[B]]');a.stat.mtime++;}
     if(${Boolean(ahead)}){const newer=new M.ObsidianSourceAcquisition(f.app,f.cache,async text=>M.parseBodyMetadata(text));try{ok(await newer.reconcile(),'Prior lifetime already persisted the updated source facts');}finally{newer.close();}}
     const p=new M.StartupSourceCoordinator();Object.assign(p,{app:f.app,settings,layoutReady:true,metadataStabilized:true,startupIndexPolicy:{device:'desktop',beforeView:true,mode:'eager'},supportEvents:{record(){}},notifyIndexStatus(){},
-      hasVisibleKplexSurface:()=>false,refreshBookmarkedEntryPoints:async()=>{},startupGraphSeedPaths:()=>['A.md'],registerReactiveIndexListeners(){},
-      performRebuild:async()=>{throw Error('One offline edit must reconcile the compatible graph without a full rebuild');}});
+      hasVisibleKplexSurface:()=>false,refreshBookmarkedEntryPoints:async()=>{},startupGraphSeedPaths:()=>['A.md'],registerReactiveIndexListeners(){}});
     p.startupDiagnostics=new M.StartupDiagnostics();p.startupDiagnostics.begin(false);
     index=new M.GraphIndex(p,f.app);p.index=index;index.scheduleOrphanCleanup=()=>{};
     if(${Boolean(discovery)}){
@@ -73,6 +185,7 @@ for (const {legacy,alias,discovery,ahead,rename,bookkeeping} of [{legacy:true,al
         const select=source.snapshotResolutionSources;source.snapshotResolutionSources=async function(...args){const result=await select.apply(this,args);change();return result;};
       }
       if(['during-edit','structure'].includes(${JSON.stringify(bookkeeping)})){
+        p.performRebuild=async()=>{throw Error('One offline edit must reconcile the compatible graph without a full rebuild');};
         let rejected=false;try{await p.finishStartupIndexPreparation();}catch(error){rejected=String(error).includes('without a full rebuild');}
         // The fixture's fail-fast full-builder is the expected conservative fallback here.
         // Its actual error text describes the protected non-race route.
@@ -93,6 +206,10 @@ for (const {legacy,alias,discovery,ahead,rename,bookkeeping} of [{legacy:true,al
       }else await p.finishStartupIndexPreparation();
     }
     await source.flush();
+    // The opted-in closed-canvas coordinator now owns its ordinary coalesced follow-up.
+    // Wait for that real timer/patch owner; a full compiler still throws below.
+    const backlogEnd=Date.now()+4000;
+    while(p.rebuildTimer!==null||p.rebuildTask){ok(Date.now()<backlogEnd,'Finite background backlog settles');await new Promise(done=>setTimeout(done,20));}
     ok(p.initialIndexComplete&&index.publicApiCoverage().complete,'Source audit eventually closes real current graph');
     if(!p.indexDirty){
       const persistence=index.getSnapshotPersistenceDiagnostics();

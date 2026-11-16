@@ -16,7 +16,9 @@ export const SOURCE_FACT_FORMAT_VERSION = 1;
 // URI references were previously stored as internal/unresolved targets. Reacquire those derived
 // families as well as bodies; legacy primary-grammar reuse cannot certify their old classification.
 export const SOURCE_FACT_COMPILER_VERSION = 2;
-export const SOURCE_BODY_PARSER_VERSION = 5;
+// Optional Markdown title attributes no longer hide the link label. URL-bearing parser5 input
+// must be reacquired once; authenticated URL-free primary families remain unchanged.
+export const SOURCE_BODY_PARSER_VERSION = 6;
 export const SOURCE_RESOLUTION_VERSION = 1;
 export const SOURCE_CHUNK_TARGET_BYTES = 256 * 1024;
 export const SOURCE_MAX_RECORD_BYTES = 4 * 1024 * 1024;
@@ -210,13 +212,14 @@ export function validFamilyManifest(value: unknown): value is SourceFamilyManife
     && sourceCount(value.bytes) && sourceCount(value.postings) && digest(value.digest) && digest(value.postingDigest);
 }
 /**
- * Parser4 fixes escaped/nested link labels. Parser3 URL owners require canonical reacquisition;
- * URL-free parser3 heads and parser2 primary candidates retain their authenticated grammar.
+ * Parser4 fixes escaped/nested link labels; parser6 fixes quoted Markdown titles. URL-bearing
+ * parser3/5 owners require reacquisition, while their URL-free facts are unchanged. Parser2
+ * primary candidates retain their separately authenticated grammar.
  * Repository pins authenticate the URL family before any legacy primary-fact reuse.
  */
 export function legacyPrimaryGrammarCandidate(value: SourceManifest): boolean {
   return value.state === "complete" && (value.bodyParserVersion === 2
-    || value.bodyParserVersion === 3 && value.families["body-urls"]?.records === 0);
+    || (value.bodyParserVersion === 3 || value.bodyParserVersion === 5) && value.families["body-urls"]?.records === 0);
 }
 /** Distinguish complete sources, known compatible primary-grammar candidates, tombstones and format changes. */
 export function sourceHeadReason(value: unknown): SourceReason {
@@ -229,7 +232,7 @@ export function sourceHeadReason(value: unknown): SourceReason {
   // when a grammar upgrade rejects their former facts, or one deleted note blocks every audit.
   const legacyRetirement = value.state === "tombstone" && (value.compilerVersion === 1
     && (value.bodyParserVersion === 2 || value.bodyParserVersion === 3 || value.bodyParserVersion === 4) || value.compilerVersion === SOURCE_FACT_COMPILER_VERSION
-      && (value.bodyParserVersion === 2 || value.bodyParserVersion === 3));
+      && (value.bodyParserVersion === 2 || value.bodyParserVersion === 3 || value.bodyParserVersion === 5));
   if (value.formatVersion !== SOURCE_FACT_FORMAT_VERSION || value.compilerVersion !== SOURCE_FACT_COMPILER_VERSION && !legacyRetirement
     || value.resolutionVersion !== SOURCE_RESOLUTION_VERSION) return "format-version";
   if (!Object.entries(value.families).every(([key, entry]) => sourceFamily(key) && validFamilyManifest(entry))) return "invalid-head";
@@ -248,7 +251,8 @@ export function decodeSourceHead(value: unknown): SourceHead | null {
  * the caller may enumerate its physical owner or tombstone it, never replay its old facts. */
 export function decodeSourceRetirementHead(value: unknown): SourceHead | null {
   const current = decodeSourceHead(value);if (current) return current;
-  if (!sourceObject(value) || value.compilerVersion !== 1 || !(value.bodyParserVersion === 2 || value.bodyParserVersion === 3 || value.bodyParserVersion === 4)) return null;
+  if (!sourceObject(value) || !(value.compilerVersion === 1 && (value.bodyParserVersion === 2 || value.bodyParserVersion === 3 || value.bodyParserVersion === 4)
+    || value.compilerVersion === SOURCE_FACT_COMPILER_VERSION && value.bodyParserVersion === 5)) return null;
   const reason = sourceHeadReason({...value, compilerVersion: SOURCE_FACT_COMPILER_VERSION, bodyParserVersion: SOURCE_BODY_PARSER_VERSION});
   return reason === "ready" || reason === "tombstone" ? value as SourceHead : null;
 }

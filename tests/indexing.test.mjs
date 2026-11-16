@@ -509,6 +509,7 @@ for (const file of [
   "src/core/plex/colorPreferences.ts",
   "src/core/plex/compassBackground.ts",
   "src/core/plex/colorEditing.ts",
+  "src/core/contracts/styleSource.ts",
   "src/core/plex/appearanceThemes.ts",
   "src/adapters/obsidian/colorPresentation.ts",
   "src/core/graph/presentation.ts",
@@ -982,7 +983,8 @@ const KplexPlugin = require(join(temp, "src/main.js")).default;
 
 // Support output must be useful during a rebuild without exposing raw snapshot metadata or paths.
 {
-  const summaryContext = {};
+  // Use the real passive connection owner; construction/capture must not open storage.
+  const summaryContext = {indexedDb: new KplexIndexedDbCache("saved-summary-fixture")};
   GraphIndex.prototype.rememberSnapshotCatalog.call(summaryContext, {
     available: true, invalidActive: false,
     active: { createdAt: 100, schema: 3, pageChunkCount: 4, evidenceChunkCount: 7,
@@ -990,6 +992,9 @@ const KplexPlugin = require(join(temp, "src/main.js")).default;
     checkpoint: { createdAt: 200, schema: 3, completedMarkdownPaths: ["Private/Note.md"] },
   });
   const saved = GraphIndex.prototype.getSavedSnapshotSummary.call(summaryContext);
+  assert.equal(saved.connection.state, "unavailable");
+  assert.equal(saved.connection.failures, 0);
+  summaryContext.indexedDb.close();
   const report = JSON.parse(createIndexDiagnosticsReport({
     getSavedSnapshotSummary: () => saved,
     size: 42,
@@ -2010,6 +2015,8 @@ for (const { inventoryRevision, fresh, remainsDirty } of [
   };
   startup.app = app;
   startup.layoutReady = true; startup.indexPreparationAdmitted = true;
+  // Isolate inventory classification from the separate opted-in background timer owner.
+  startup.startupIndexPolicy = {device:'desktop',beforeView:false,mode:'eager'};
   startup.metadataStabilized = true;
   startup.notifyIndexStatus = () => {};
   startup.hasVisibleKplexSurface = () => false;
@@ -2047,9 +2054,10 @@ for (const { inventoryRevision, fresh, remainsDirty } of [
 
 // Sidecar restore can await after a visible view has already completed local initialization.
 // Later restore classification must queue actual reconciliation without clearing newer events.
-for (const { visible, unloading, complete, dirty, expected } of [
+for (const { visible, unloading, complete, dirty, expected, beforeView = false } of [
   { visible: true, unloading: false, complete: true, dirty: true, expected: 1 },
   { visible: false, unloading: false, complete: true, dirty: true, expected: 0 },
+  { visible: false, unloading: false, complete: true, dirty: true, beforeView: true, expected: 1 },
   { visible: true, unloading: true, complete: true, dirty: true, expected: 0 },
   { visible: true, unloading: false, complete: false, dirty: true, expected: 0 },
   { visible: true, unloading: false, complete: true, dirty: false, expected: 0 },
@@ -2059,6 +2067,7 @@ for (const { visible, unloading, complete, dirty, expected } of [
   startup.index = {finishStartupSnapshot: () => {},isOnDemandMode: () => false};
   startup.initialIndexComplete = complete;
   startup.layoutReady = true; startup.indexPreparationAdmitted = true;
+  startup.startupIndexPolicy = {device:'desktop',beforeView,mode:'eager'};
   startup.indexDirty = dirty;
   startup.unloading = unloading;
   startup.hasVisibleKplexSurface = () => visible;
@@ -2068,7 +2077,7 @@ for (const { visible, unloading, complete, dirty, expected } of [
   const scheduled = [];
   startup.scheduleRebuild = reason => { scheduled.push(reason); };
   await startup.finishStartupIndexPreparation();
-  assert.equal(scheduled.length, expected, "Only visible, complete, live startup queues its outstanding backlog");
+  assert.equal(scheduled.length, expected, "Complete live startup queues its backlog with visible or opted-in Eager demand");
   if (expected) assert.deepEqual(scheduled, ["startup:post-initial-backlog"]);
   assert.equal(startup.indexDirty, dirty, "Queueing is not proof that the backlog has been reconciled");
   assert.deepEqual([...startup.indexBacklogReasons], ["startup:no-snapshot", "metadata:changed"]);
@@ -4806,6 +4815,7 @@ try {
     invalidateHostStructure: () => {},
     refreshVisibleHostMetadataPreviews: () => false,
     acknowledgeHostPresentation: () => {},
+    finishStartupSnapshot: () => {},
     hasPendingStructuralMaintenance: () => false,
     hasPendingSnapshotHydration: () => false,
     cancelRebuild: () => {},
@@ -5113,6 +5123,7 @@ try {
   const coordinatorPatchGate = new Promise((resolve) => { releaseCoordinatorPatch = resolve; });
   coordinator.index = { isOnDemandMode: () => false,
     acknowledgeHostPresentation: () => {},
+    finishStartupSnapshot: () => {},
     hasPendingStructuralMaintenance: () => false,
     hasPendingSnapshotHydration: () => false,
     size: 1,
@@ -5162,6 +5173,7 @@ try {
   creationCoordinator.app = { vault: { getFileByPath: (path) => path === createdDuringPatch.path ? createdDuringPatch : null } };
   creationCoordinator.index = { isOnDemandMode: () => false,
     acknowledgeHostPresentation: () => {},
+    finishStartupSnapshot: () => {},
     withForegroundPriority: work => work(),
     hasPendingStructuralMaintenance: () => false,
     hasPendingSnapshotHydration: () => false,

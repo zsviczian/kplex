@@ -43,6 +43,63 @@ const initialize = `(() => {
 
 /** URI grammar migration reuses the existing database and CAS owner. Old omitted references
  * cannot masquerade as current inputs, while unrelated stored data and valid warm hits survive. */
+test('snapshot connection recovery preserves bounded backoff, faults and closed lifetimes', {timeout:60000}, async t=>{
+ const browser=await chromiumHarness(bundle);try{
+  await browser.evaluate(initialize);
+  for(const mode of ['recover','checkpoint','cancel','close','persistent','missing-chunk','invalid-chunk','newer'])await t.test(mode,async()=>{
+   assert(await browser.evaluate(`(async()=>{
+    const owner=await fresh('snapshot-connection-${mode}'),db=await owner.open(),nativeOpen=indexedDB.open;
+    let replacement,live=true,opens=0,pages=0,failure;
+    try{
+     const page={path:'A.md',filePath:'A.md',name:'A',url:null,isFolder:false,isTag:false,mtime:1,
+      aliases:[],tags:[],noteType:null,primaryStyleTag:null,styleTags:[],maxLabelLength:30,relations:[]};
+     ok(await owner.writeSnapshot({createdAt:Date.now(),vaultSignature:'vault',settingsSignature:'settings',discoveredFields:[]},[page],[],()=>true),'Actual persisted generation');
+     const meta=await owner.readSnapshotMeta();ok(meta,'Active saved pointer');
+     if(['missing-chunk','invalid-chunk'].includes('${mode}'))await edit(db,['snapshotChunks'],tx=>{
+      const store=tx.objectStore('snapshotChunks'),key=[meta.generation,'pages',0];
+      if('${mode}'==='missing-chunk')store.delete(key);else store.put({generation:meta.generation,kind:'pages',index:0,values:null});
+     });
+     else if('${mode}'==='newer'){
+      replacement=await rawOpen(databaseName('snapshot-connection-${mode}'),11);
+      equal(await owner.open(),null,'Current shared handle is retired by versionchange');
+     }else if('${mode}'!=='checkpoint'){
+      const tx=db.transaction('meta','readwrite');tx.objectStore('meta').get('active');
+      await new Promise(resolve=>{tx.onabort=resolve;tx.abort();});
+      equal(await owner.open(),null,'Actual native request error activates normal shared backoff');
+     }
+     if('${mode}'==='checkpoint')owner.backgroundCheckpoint=async()=>{
+      owner.backgroundCheckpoint=undefined;
+      const tx=db.transaction('meta','readwrite');tx.objectStore('meta').get('active');
+      await new Promise(resolve=>{tx.onabort=resolve;tx.abort();});
+      equal(await owner.open(),null,'Original handle retires while first priority checkpoint yields');
+     };
+     indexedDB.open=function(...args){opens++;if('${mode}'==='persistent')throw new DOMException('Private database/path.md','SecurityError');return nativeOpen.apply(this,args);};
+     const task=owner.iterateSnapshotPages(meta,()=>pages++,()=>live,reason=>failure=reason);
+     if(['close','cancel'].includes('${mode}')){
+      while(!owner.snapshotOpenWaiters.size)await sourceModules.yieldToHostTask();
+      equal(opens,0,'No native open before ordinary backoff expires');
+      if('${mode}'==='close')owner.close();else live=false;
+     }
+     const result=await task,diagnostic=owner.getStorageDiagnostics();
+     equal(owner.snapshotOpenWaiters.size,0,'Recovery wait always releases its timer owner');
+     if(['recover','checkpoint'].includes('${mode}')){
+      equal(result,true,'Existing generation is readable after a real connection reopen');equal(pages,1,'Each stored record is decoded once');
+      equal(opens,1,'One reopen only');equal(diagnostic.snapshotRetries,1,'One recovery wait');equal(diagnostic.snapshotRecoveries,1,'One successful recovery');
+      equal(diagnostic.lastFailure.errorName,'AbortError','Native failure survives recovery');equal(diagnostic.lastFailure.cause,'database-error','Native event owner survives');
+     }else{
+      equal(result,false,'Failure/retirement cannot publish records');equal(pages,0,'No callback escapes failed recovery');
+      if(['close','cancel'].includes('${mode}')){equal(opens,0,'Retired caller never reopens');equal(failure,'cancelled','Caller retirement is not corruption');}
+      if('${mode}'==='persistent'){equal(opens,1,'A second failure does not loop');equal(failure,'storage-unavailable','Persistent failure remains visible');equal(diagnostic.lastFailure.errorName,'SecurityError','Only native class, never message');}
+      if('${mode}'==='newer'){equal(opens,1,'Native version check runs once');equal(diagnostic.state,'newer-database','Newer schema stays unavailable');equal(diagnostic.snapshotRecoveries,0,'No false recovery');}
+      if(['missing-chunk','invalid-chunk'].includes('${mode}')){equal(opens,0,'Corruption never triggers connection retries');equal(diagnostic.snapshotRetries,0,'No recovery for invalid payload');equal(failure,'${mode}','Actual corruption category is preserved');}
+     }
+     return true;
+    }finally{indexedDB.open=nativeOpen;owner.close();replacement?.close();}
+   })()`));
+  });
+ }finally{await browser.cleanup();}
+});
+
 test("real Chromium: URI parser/fact versions repair old cache families and reopen warm", {timeout: 60000}, async () => {
   const browser = await chromiumHarness(bundle);
   try {
@@ -76,17 +133,74 @@ test("real Chromium: URI parser/fact versions repair old cache families and reop
   } finally {await browser.cleanup();}
 });
 
+test("real Chromium: quoted-title parser upgrade invalidates parser5 derived data once and preserves warm labels", {timeout: 60000}, async () => {
+  const browser = await chromiumHarness(bundle);
+  try {
+    await browser.evaluate(initialize);
+    assert(await browser.evaluate(`(async()=>{
+      const M=sourceModules,name='quoted-title-parser-six',owner=await fresh(name),db=await owner.open();let reader;
+      const path='Video.md',url='https://www.youtube.com/watch?v=vBgrvVY1jGo',text='![Game theory]('+url+' "Video title")';
+      try{
+        equal((await owner.sources.replace(await make(owner.sources,path,{kind:'missing'},url))).outcome,'activated','Seed URL-bearing source');
+        await edit(db,['bodies','urlOwners','sourceHeads','meta'],async tx=>{
+          tx.objectStore('bodies').put({path,mtime:1,parserVersion:5,body:{inlineFields:{},inlineFieldOccurrences:[],urls:[{url,line:1}]}});
+          tx.objectStore('urlOwners').put({path,mtime:1,size:text.length,version:3,parserVersion:5,urls:[{url,line:1}],inlineFieldOccurrences:[],frontmatter:{}});
+          const head=await requestValue(tx.objectStore('sourceHeads').get(path));head.bodyParserVersion=5;tx.objectStore('sourceHeads').put(head);
+          tx.objectStore('meta').put({key:'title-upgrade-sentinel',value:'keep'});
+        });
+        equal(await owner.getBody(path,1),null,'Old unlabeled body cannot be a warm hit');
+        const old=[];ok(await owner.readUrlOwners(async rows=>old.push(...rows),()=>true),'Read old URL owners');equal(old,[],'Old unlabeled URL owner rejected');
+        const stale=await owner.sources.inspect(path,[]);equal(stale.reason,'format-version','Parser5 source requires reacquisition');
+        const body=M.parseBodyMetadata(text);equal(body.urls[0].label,'Game theory','Current parser label');
+        ok(await owner.putBodies([{path,mtime:1,body}]),'Persist repaired body');
+        ok(await owner.putUrlOwners([{path,mtime:1,size:text.length,urls:body.urls,inlineFieldOccurrences:[],frontmatter:{}}]),'Persist repaired owner');
+        equal((await owner.sources.replace(await make(owner.sources,path,stale.expected,text))).outcome,'activated','Reacquire through existing CAS');
+        owner.close();reader=await fresh(name);
+        equal(await reader.getBody(path,1),body,'Warm body retains title');
+        const warm=[];ok(await reader.readUrlOwners(async rows=>warm.push(...rows),()=>true),'Warm URL owners');equal(warm[0].urls[0].label,'Game theory','Warm owner retains title');
+        equal((await reader.sources.inspect(path,[])).reason,'ready','Current source ready');
+        const reopened=await reader.open();equal((await requestValue(reopened.transaction('meta').objectStore('meta').get('title-upgrade-sentinel'))).value,'keep','Unrelated data retained');return true;
+      }finally{owner.close();reader?.close();}
+    })()`));
+  } finally {await browser.cleanup();}
+});
+
+test('real Chromium: URL-free parser5 reuse authenticates its empty family without restamping',async()=>{
+ const browser=await chromiumHarness(bundle);try{
+  await browser.evaluate(initialize);
+  assert(await browser.evaluate(`(async()=>{
+   const owner=await fresh('parser5-empty-authentication'),r=owner.sources,db=await owner.open();
+   try{
+    for(const [id,text]of [['Empty','Field:: [[Alpha]]'],['Bearing','https://example.com/video']])await r.replace(await make(r,id,{kind:'missing'},text));
+    const empty={...(await r.inspect('Empty')).head,bodyParserVersion:5},bearing={...(await r.inspect('Bearing')).head,bodyParserVersion:5};
+    await edit(db,['sourceHeads'],tx=>{tx.objectStore('sourceHeads').put(empty);tx.objectStore('sourceHeads').put(bearing)});
+    equal((await r.inspect('Empty',[])).head,empty,'Exact URL-free head is reused');
+    ok(await r.readBody('Empty',()=>true,()=>true,false,false,undefined,true),'URL-free body remains current for title grammar');
+    const key=['Empty',empty.families['body-urls'].revision,'body-urls',0],chunk=await requestValue(db.transaction('sourceChunks').objectStore('sourceChunks').get(key));
+    await edit(db,['sourceChunks'],tx=>tx.objectStore('sourceChunks').delete(key));
+    equal((await r.inspect('Empty',[])).reason,'missing-chunk','Manifest alone cannot certify an empty family');
+    await edit(db,['sourceChunks'],tx=>tx.objectStore('sourceChunks').put(chunk));
+    const falseEmpty={...bearing,families:{...bearing.families,'body-urls':{...bearing.families['body-urls'],records:0}}};
+    await edit(db,['sourceHeads'],tx=>tx.objectStore('sourceHeads').put(falseEmpty));
+    ok((await r.inspect('Bearing',[])).reason!=='ready','An actual URL hidden by a false empty count fails authentication');
+    equal(await r.readBody('Bearing',()=>true),null,'Falsely empty URL family is never reused');
+    equal((await r.inspect('Empty',[])).head,empty,'Independent corruption does not restamp the valid head');return true;
+   }finally{owner.close()}
+  })()`));
+ }finally{await browser.cleanup()}
+});
+
 /** Historical deleted/offline owners cannot hold the whole source audit open after a URI upgrade. */
-test("real Chromium: URI upgrade enumerates old tombstones and retires offline-deleted headers without replay", {timeout: 60000}, async () => {
+for (const [compilerVersion, parserVersion] of [[1, 4], [2, 5]]) test(`real Chromium: parser${parserVersion} upgrade enumerates old tombstones and retires offline-deleted headers without replay`, {timeout: 60000}, async () => {
   const browser = await chromiumHarness(bundle);
   try {
     await browser.evaluate(initialize);
     assert(await browser.evaluate(`(async()=>{
       const owner=await fresh('uri-retirement-grammar'),db=await owner.open();let reader;
       try{
-        for(const id of ['Retired','Offline'])equal((await owner.sources.replace(await make(owner.sources,id))).outcome,'activated','Seed current source');
+        for(const id of ['Retired','Offline'])equal((await owner.sources.replace(await make(owner.sources,id,{kind:'missing'},'https://example.com/retired'))).outcome,'activated','Seed current URL-bearing source');
         equal((await owner.sources.tombstone('Retired',()=>true,true)).outcome,'activated','Retain an actual deletion marker');
-        await edit(db,['sourceHeads'],async tx=>{for(const id of ['Retired','Offline']){const head=await requestValue(tx.objectStore('sourceHeads').get(id));head.compilerVersion=1;head.bodyParserVersion=4;tx.objectStore('sourceHeads').put(head);}});
+        await edit(db,['sourceHeads'],async tx=>{for(const id of ['Retired','Offline']){const head=await requestValue(tx.objectStore('sourceHeads').get(id));head.compilerVersion=${compilerVersion};head.bodyParserVersion=${parserVersion};tx.objectStore('sourceHeads').put(head);}});
         owner.close();reader=await fresh('uri-retirement-grammar');
         const strict=await reader.sources.headPage();equal(strict.invalid,1,'Only old complete facts lack current authority');
         const retired=await reader.sources.headPage(null,256,{retirementOnly:true});equal(retired.invalid,0,'Known old physical headers remain available for absence reconciliation');equal(retired.heads.length,2,'Both historical owners are enumerable');
@@ -94,7 +208,7 @@ test("real Chromium: URI upgrade enumerates old tombstones and retires offline-d
         equal((await reader.sources.inspect('Offline',[])).reason,'format-version','Ordinary selection still rejects old complete facts');
         equal((await reader.sources.tombstone('Offline')).outcome,'activated','Existing absence CAS retires an offline-deleted old owner');
         equal((await reader.sources.headPage()).invalid,0,'Retirement leaves no permanently invalid source catalog entry');
-        const raw=await requestValue((await reader.open()).transaction('sourceHeads').objectStore('sourceHeads').get('Retired'));equal(raw.compilerVersion,1,'Enumeration never restamps old data');return true;
+        const raw=await requestValue((await reader.open()).transaction('sourceHeads').objectStore('sourceHeads').get('Retired'));equal(raw.compilerVersion,${compilerVersion},'Enumeration never restamps old data');equal(raw.bodyParserVersion,${parserVersion},'Enumeration retains the old parser version');return true;
       }finally{owner.close();reader?.close();}
     })()`));
   } finally {await browser.cleanup();}

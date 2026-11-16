@@ -9,6 +9,12 @@ import { buildLocaleCatalog, type LocaleCatalog, type LocaleTranslationMap } fro
 /** Construct the typed French table only when selected; importing this module allocates no catalog. */
 export function createFrenchCatalog(): LocaleCatalog {
 const frenchTranslations = {
+  "styleSources.menu": "Sources de l’apparence",
+  "styleSources.tag": "Style d’étiquette · {name}",
+  "styleSources.noteType": "Type de note · {name}",
+  "styleSources.lens": "Lentille · {name}",
+  "styleSources.ontology": "Relation · {name}",
+  "styleSources.prefix": "Préfixe du libellé · {name}",
   "filter.visibilityDocuments": "Documents",
   "filter.visibilityDocumentsHelp": "Afficher les pièces jointes PDF, EPUB, DOCX, les feuilles de calcul, présentations et fichiers texte. Markdown a son propre bouton.",
   "filter.visibilityImages": "Images",
@@ -181,6 +187,8 @@ const frenchTranslations = {
   "actions.node.copy-link.description": "Copier le nœud sélectionné ou le centre du canevas. Le collage dans une note Obsidian suit ses préférences de liens ; les autres destinations reçoivent un chemin complet.",
   "drawing.template": "Modèle",
   "drawing.blank": "Dessin vierge",
+  "settings.singleClickExternalNavigation": "Ouvrir les liens externes en un clic",
+  "settings.singleClickExternalNavigation.help": "Ouvrir un lien web en un clic uniquement s’il est déjà le nœud central. Désactivé par défaut ; le double-clic et les actions Ouvrir restent disponibles.",
   "settings.trackpad": "Navigation au pavé tactile",
   "settings.trackpad.help": "Faites défiler pour déplacer ; pincez ou utilisez une touche de modification pour zoomer. Désactivez pour zoomer par défilement simple.",
   "fileMenu.reuse": "Ouvrir",

@@ -43,7 +43,9 @@ import { connectionActionAllowed, tagMembershipPair } from "./structuralConnecti
 import { graphTagValue } from "../adapters/obsidian/tagMembership";
 import { structuralDropKind, structuralAreaDrop } from "./StructuralNodeDropActions";
 import { isNoteTypeTagConnection } from "../core/graph/presentation";
-import { DEFAULT_RENDERED_LINK_WIDTH } from "../index/style";
+import { DEFAULT_RENDERED_LINK_WIDTH, nodeStyleLayers, linkStyleLayers } from "../index/style";
+import {addElementStyleMenu} from "./ElementStyleMenu";
+import type {ElementStyleSource} from "../core/contracts/styleSource";
 import { subscribeAppearanceSources } from "../adapters/obsidian/colorChanges";
 import {HoverHighlight, bindHoverHighlight} from "./components/hoverHighlight";
 import {HoverPreview, bindHoverPreview} from "./components/hoverPreview";
@@ -126,7 +128,7 @@ import { RenameNoteModal } from "./RenameNoteModal";
 import {classicExpandedChildren} from "../core/plex/views/classic/projection";
 import { buildCentralSectionExpansion, canExpandCentralSections, projectCentralSectionExpansion, type CentralSectionExpansion } from "../index/SectionExpansion";
 import { GraphPredicateEngine, type CompiledGraphPredicate, type GraphPredicateEdgeContext } from "../lens/GraphPredicate";
-import { graphLensEdgeStyle, graphLensNodeStyle, matchesGraphLenses, type CompiledGraphLensSet } from "../lens/GraphLens";
+import { graphLensEdgeStyle, graphLensNodeStyle, graphLensStyleSources, matchesGraphLenses, type CompiledGraphLensSet } from "../lens/GraphLens";
 import type { Translator, PlainTranslationKey } from "../lang";
 import { usePlexKeyboardNavigation, type PlexKeyboardNode } from "./usePlexKeyboardNavigation";
 import { usePlexTypeSelection } from "./usePlexTypeSelection";
@@ -749,7 +751,7 @@ function EdgeLabel({label,midpoint,style,background,opacity}:{label:string|null;
 }
 
 /** Compose the deterministic Plex scene; native-follow layouts land immediately while explicit navigation retains motion and central Open uses a main tab. */
-export function PlexGraph({ viewDefinition = classicViewDefinition, viewSession, viewContributions, viewRevision = 0, plugin, index, settings: viewSettings, paintSettings, paintLenses, surface, hostLeaf, predicate, lenses, filterLayoutMode, predicateRevision, showCrossLinks, activePath, navigationOrigin = "user", onSemanticDemandAcquired, renderRevision, semanticRevision, findFocusRequest, footprintsControl, onExportBreadcrumbs, hasBreadcrumbs, areaSettingsMode, onAreaSettingsModeChange, onApplyFindFilter, appliedFindFilterQuery, onClearFindFilter, onActivate, onWanderActivate, onOpen, onOpenInSidecar, onCentralNodeEditorChange, onCentralNodeModeChange, onPropertiesFileChange, actionPorts, actionSurfaceId, displayState, fullscreenAvailable, sidecarOpen, publicScene, publicFrame }: {
+export function PlexGraph({ viewDefinition = classicViewDefinition, viewSession, viewContributions, viewRevision = 0, plugin, index, settings: viewSettings, paintSettings, paintLenses, surface, hostLeaf, predicate, lenses, filterLayoutMode, predicateRevision, showCrossLinks, activePath, navigationOrigin = "user", onSemanticDemandAcquired, renderRevision, semanticRevision, findFocusRequest, footprintsControl, onExportBreadcrumbs, onEditStyleLens, hasBreadcrumbs, areaSettingsMode, onAreaSettingsModeChange, onApplyFindFilter, appliedFindFilterQuery, onClearFindFilter, onActivate, onWanderActivate, onOpen, onOpenInSidecar, onCentralNodeEditorChange, onCentralNodeModeChange, onPropertiesFileChange, actionPorts, actionSurfaceId, displayState, fullscreenAvailable, sidecarOpen, publicScene, publicFrame }: {
   viewDefinition?: PlexViewDefinition;
   viewSession?: PlexViewSession;
   viewContributions?: CanvasViewContributionController;
@@ -774,6 +776,7 @@ export function PlexGraph({ viewDefinition = classicViewDefinition, viewSession,
   findFocusRequest: number;
   footprintsControl?: ReactNode;
   onExportBreadcrumbs?: () => void;
+  onEditStyleLens?: (id: string) => void;
   hasBreadcrumbs?: () => boolean;
   areaSettingsMode: boolean;
   onAreaSettingsModeChange: (enabled: boolean) => void;
@@ -5182,6 +5185,16 @@ export function PlexGraph({ viewDefinition = classicViewDefinition, viewSession,
     const isMarkdown = Boolean(persistent?.file?.extension === "md");
     const canExpand = viewDefinition.capabilities.sections === true && canExpandCentralSections(persistent, sectionDocument ?? "");
     const menu = new Menu();
+    const menuCurrent = captureSurfaceContinuation(() => viewport.current, () => plugin.actionManager.readSnapshot(actionSurfaceId), {checkInteraction: false});
+    const appearance = plugin.captureAppearanceOwner();
+    const relation: Neighbour | null = node.role === "center" ? null : {page, role: node.role, relationType: node.relationType ?? RelationType.DEFINED,
+      typeDefinition: node.typeDefinition, linkDirection: node.linkDirection ?? null};
+    const sources = nodeStyleLayers(page, relation, node.role, paintSettings).flatMap(layer => layer.sources);
+    if (predicateCenter) sources.push(...graphLensStyleSources(predicateEngine, index, paintLenses, {page, label: node.label, center: predicateCenter,
+      edge: node.role === "center" ? undefined : {role: node.role, relationType: node.relationType, definition: node.typeDefinition, linkDirection: node.linkDirection,
+        sourcePath: node.semanticSourceId ?? predicateCenter.path, targetPath: page.path}}, "node")
+      .map(lens => ({kind: "lens" as const, id: lens.id, name: lens.name})));
+    addElementStyleMenu(menu, sources, translate, () => menuCurrent() && plugin.isAppearanceOwnerCurrent(appearance), source => openElementStyleSource(source, page.path));
     if (page.transient?.kind === "group") {
       menu.addItem(item => item.setTitle(translate("groups.unfold", { name: page.name, count: page.transient?.groupMembers?.length ?? 0 }))
         .setIcon("ungroup").onClick(() => { unfoldGroup(page); }));
@@ -5193,7 +5206,6 @@ export function PlexGraph({ viewDefinition = classicViewDefinition, viewSession,
       .onClick(/** All native entry points dispatch the same surface-owned action. */ () => void plugin.actionManager.dispatch({ id: "view.wander.start", source: "context-menu", surfaceId: actionSurfaceId })));
     menu.addSeparator();
     const capturedPage = actionNodeRef(page);
-    const menuCurrent = captureSurfaceContinuation(() => viewport.current, () => plugin.actionManager.readSnapshot(actionSurfaceId), {checkInteraction: false});
     const capturedPersistent = persistent ? actionNodeRef(persistent) : null;
     const capturedNativeTarget = persistent ? nativeRevealTarget(plugin.app, persistent) : null;
     const capturedFolderPath = persistent?.isFolder ? capturedNativeTarget?.path : null;
@@ -5389,6 +5401,15 @@ export function PlexGraph({ viewDefinition = classicViewDefinition, viewSession,
     showNodeContextMenuAt(node, event.clientX, event.clientY);
   };
 
+  /** Preserve native appearance ownership and exact source identities while reusing existing editors. */
+  const openElementStyleSource = (source: ElementStyleSource, previewPath?: string): void => {
+    const scope = viewport.current;if (!scope?.isConnected) return;
+    if (source.kind === "lens") {
+      const lens = plugin.settings.graphLenses.find(lens => lens.id === source.id);
+      if (lens?.enabled && lens.mode === "style") onEditStyleLens?.(source.id);
+    } else plugin.openElementStyleSource(source, scope, previewPath);
+  };
+
   /** Show connection actions; absent Hidden configuration opens explicit setup rather than disabling the action. */
   const showEdgeContextMenuAt = async (edge: PositionedEdge, clientX: number, clientY: number): Promise<void> => {
     if (!semanticSceneEdge(edge)) return;
@@ -5403,6 +5424,14 @@ export function PlexGraph({ viewDefinition = classicViewDefinition, viewSession,
     let source: Awaited<ReturnType<typeof plugin.singleRelationshipSourceLocation>> = null;
     try {source = await plugin.singleRelationshipSourceLocation(edge.explanationSourcePath ?? edge.sourcePath, edge.explanationTargetPath ?? edge.targetPath, current);} catch { /* Keep ordinary connection actions when provenance cannot be read. */ }
     if (!current()) return;
+    const appearance = plugin.captureAppearanceOwner(), styledTarget = renderedNodeMap.get(edgeOccurrence(edge, "target")) ?? scene.nodes.find(node => node.page.path === target.path);
+    const styledOrigin = renderedNodeMap.get(edgeOccurrence(edge, "source"))?.page;
+    const sources = linkStyleLayers({typeDefinition: edge.typeDefinition, relationType: edge.relationType}, paintSettings, styledOrigin, styledTarget?.page).flatMap(layer => layer.sources);
+    if (styledTarget && predicateCenter) sources.push(...graphLensStyleSources(predicateEngine, index, paintLenses, {page: styledTarget.page, label: styledTarget.label, center: predicateCenter,
+      edge: {role: edge.role, relationType: edge.relationType, definition: edge.typeDefinition, linkDirection: edge.direction,
+        sourcePath: edge.explanationSourcePath ?? edge.sourcePath, targetPath: edge.explanationTargetPath ?? edge.targetPath}}, "edge")
+      .map(lens => ({kind: "lens" as const, id: lens.id, name: lens.name})));
+    addElementStyleMenu(menu, sources, translate, () => current() && plugin.isAppearanceOwnerCurrent(appearance), style => openElementStyleSource(style));
     if (source?.current()) menu.addItem(/** Click rechecks current provenance rather than retaining an old line. */ item => item.setTitle(translate("explain.goToSource")).setIcon("locate-fixed")
       .onClick(() => void plugin.actionManager.dispatch({id: "relationship.details", args: {directSource: true}, source: "context-menu", surfaceId: actionSurfaceId,
         target: {kind: "edge", origin: actionNodeRef(origin), target: actionNodeRef(target), evidenceId: edge.id}})));

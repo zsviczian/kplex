@@ -88,6 +88,20 @@ function supportIndexInput(input: unknown): unknown {
   if (input.length > 64 * 1024) return null;
   try { return JSON.parse(input); } catch { return null; }
 }
+/** Rebuild passive connection receipts, admitting neither database names nor native exception payloads. */
+function supportStorageDiagnostics(input: unknown) {
+  if (!input || typeof input !== "object" || supportIsArray(input)) return null;
+  const failure = supportField(input, "lastFailure");
+  return {state: supportCode(supportField(input, "state"), ["closed", "newer-database", "available", "backoff", "unavailable"]),
+    ...supportCounters(input, ["failures", "snapshotRetries", "snapshotRecoveries"]), retryInMs: supportDuration(supportField(input, "retryInMs")),
+    lastFailure: failure == null ? null : {at: supportMilliseconds(supportField(failure, "at")),
+      cause: supportCode(supportField(failure, "cause"), ["source-transaction", "transaction-open", "database-error", "database-abort",
+        "connection-close", "version-change", "open-timeout", "open-error", "open-blocked", "open-exception"]),
+      errorName: supportCode(supportField(failure, "errorName"), ["none", "other", "AbortError", "ConstraintError", "DataError", "DataCloneError",
+        "InvalidAccessError", "InvalidStateError", "NotFoundError", "QuotaExceededError", "ReadOnlyError", "SecurityError", "TransactionInactiveError",
+        "UnknownError", "VersionError", "TimeoutError", "Error"]),
+      sourceReason: supportCode(supportField(failure, "sourceReason"), ["none", ...SOURCE_REASONS])}};
+}
 /** Rebuild one bounded failed-candidate explanation; no paths, source signatures or error payloads survive. */
 function supportHydrationFailure(input: unknown) {
   if (!input || typeof input !== "object" || supportIsArray(input)) return null;
@@ -99,6 +113,7 @@ function supportHydrationFailure(input: unknown) {
     operation: supportCode(supportField(input, "operation"), ["guard", "open", "checkpoint", "transaction", "record", "task", "chunk"]),
     publicationCause: supportCode(supportField(input, "publicationCause"), ["none", "snapshot", "file-patch", "progressive-build", "full-build", "rename"]),
     ...supportCounters(input, ["attempt", "pages", "relations", "evidence", "expectedPublication", "actualPublication", "sourceRevision", "policyRevision"]),
+    ...(supportField(input, "storage") == null ? {} : {storage: supportStorageDiagnostics(supportField(input, "storage"))}),
   };
 }
 /** Rebuild the existing native index schema from explicit safe fields; unavailable input is named. */
@@ -135,6 +150,7 @@ export function projectSupportIndex(input: unknown) {
       route: supportCode(supportField(hydration, "route"), ["none", "saved-preview", "full-snapshot", "checkpoint", "source-recovery", "source-vocabulary", "on-demand-preview"]),
       firstFailure: supportHydrationFailure(supportField(hydration, "firstFailure")) },
     saved: { storage: supportCode(supportField(saved, "storage"), ["unchecked", "available", "unavailable"]), invalidActive: supportBoolean(supportField(saved, "invalidActive")),
+      connection: supportStorageDiagnostics(supportField(saved, "connection")),
       active: supportSavedGeneration(supportField(saved, "active"), false), checkpoint: supportSavedGeneration(supportField(saved, "checkpoint"), true) },
     sources: { ...supportCounters(sources, ["formatVersion", "databaseVersion", "factFormatVersion", "factCompilerVersion", "bodyParserVersion", "resolutionVersion", "activated",
       "unsaved", "empty", "chunksWritten", "bytesWritten", "familiesReused", "readFailures", "sequenceMin", "sequenceMax", "peakDecodeBytes"]),
