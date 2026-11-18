@@ -27,6 +27,24 @@ test('every generic Settings slider has a persistent accessible value and never 
   check(!host.querySelector('input[type=number]'),'No numeric text box');release();host.remove();}
  check(p.writes.length===0,'Opening all numeric preferences must not materialize defaults');tab.hide();return true})()`),true);
 });
+test('background effort readouts survive received native settings keys without writing on mount',async()=>{
+ assert.equal(await colorEditorScenario(`(async()=>{${setup}
+ const p=await createAppearanceHost({});p.writes=[];p.viewSettingsRegistry=M.builtInCanvasViewSettings;p.manifest={id:'k-plex'};
+ p.receivedSettingsRevision=()=>0;
+ const tab=new M.KplexSettingTab({workspace:{on:()=>({}),offref:()=>{}}},p);
+ for(const [value,expected]of [[0,'Paused'],[10,'10 / 100'],[100,'Same as foreground']]){
+  p.settings.backgroundIndexingEffort=value;const all=[];
+  const walk=items=>{for(const row of items){all.push(row);walk(row.items??[])}};walk(tab.getSettingDefinitions());
+  const definition=all.find(row=>row.name===p.translator('indexing.backgroundEffort')),host=document.body.createDiv(),row=new M.Setting(host),release=definition.render(row);
+  check(row.settingEl.dataset.kplexSettingKey.startsWith('received:'),'Exercise the real instance-qualified native binding');
+  const input=host.querySelector('input[type=range]'),output=host.querySelector('output');
+  check(output.textContent===expected&&input.getAttribute('aria-valuetext')===expected,'Named effort readout: '+value+' / '+output.textContent);
+  check(Number(input.value)===value&&input.min==='0'&&input.max==='100'&&input.step==='1','Slider represents every persisted effort integer');
+  release();host.remove();
+ }
+ check(p.writes.length===0,'Opening effort controls never saves a default');tab.hide();return true})()`),true);
+});
+
 test('native shared slider coalesces slow updates and does not rewind the displayed latest value',async()=>{
  assert.equal(await colorEditorScenario(`(async()=>{${setup}
  const host=document.body.createDiv(),row=new M.Setting(host),calls=[],releases=[];
