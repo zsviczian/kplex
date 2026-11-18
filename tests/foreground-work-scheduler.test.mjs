@@ -13,6 +13,7 @@ process.once('exit',()=>rmSync(directory,{recursive:true,force:true}));
 const output=join(directory,'scheduler.cjs');
 buildSync({entryPoints:['src/index/ForegroundWorkScheduler.ts'],outfile:output,bundle:true,platform:'node',format:'cjs'});
 const {ForegroundWorkScheduler,INDEX_WORK_PRIORITY:P,sanitizeIndexingThrottle}=createRequire(import.meta.url)(output);
+const {sanitizeBackgroundIndexingEffort}=createRequire(import.meta.url)(output);
 const cacheBundle=await browserBundle(['src/index/IndexedDbCache.ts'],{
  obsidian:'exports.Platform={isMobile:false};',
 });
@@ -28,6 +29,60 @@ function pagedCache(checkpoint){
 }
 /** Observe promise completion without relying on elapsed time or timers. */
 async function turn(){await Promise.resolve();await Promise.resolve();}
+
+test('inactive effort is bounded and malformed persisted values select the conservative default',()=>{
+ for(const value of [undefined,null,'0',NaN,Infinity,{}])assert.equal(sanitizeBackgroundIndexingEffort(value),10);
+ for(const [value,want] of [[0,0],[-20,0],[10.4,10],[67,67],[110,100]])assert.equal(sanitizeBackgroundIndexingEffort(value),want);
+});
+
+test('paused optional work has no timer, retains progress and resumes on actual host/preference events',async()=>{
+ const f=pacedScheduler(),s=f.scheduler;let effort=0,completed=0;
+ s.pacing.backgroundEffort=()=>effort;f.setForeground(false);
+ const first=s.checkpoint(P.background).then(()=>{completed++;});
+ const second=s.checkpoint(P.urlInventory).then(()=>{completed++;});
+ await turn();assert.equal(completed,0);assert.equal(f.timers.size,0);assert.equal(s.diagnostics().paused,true);
+ const release=s.begin(P.mutation);await s.checkpoint(P.mutation);release();await turn();
+ assert.equal(completed,0,'Mutation admission cannot bypass a background pause');
+ effort=10;s.refreshPacing();await Promise.all([first,second]);assert.equal(completed,2);
+ assert.equal(s.diagnostics().paused,false);assert(s.diagnostics().restMs>1000);
+ effort=0;s.refreshPacing();const third=s.checkpoint(P.background).then(()=>{completed++;});
+ await turn();assert.equal(completed,2);f.setForeground(true);s.refreshPacing();await third;
+ assert.equal(completed,3);assert.equal(s.diagnostics().restMs,24);
+ f.setForeground(false);const retired=s.checkpoint(P.background);s.close();await retired;
+ assert.equal(f.timers.size,0);assert.equal(s.activityWaiters.size,0);
+});
+
+test('effort spans a long low-power rest through exactly the chosen foreground speed',()=>{
+ for(const mode of ['responsive','balanced','faster']){
+  const f=pacedScheduler(mode,false),s=f.scheduler;let effort=1;s.pacing.backgroundEffort=()=>effort;
+  assert.equal(s.diagnostics().restMs,2000);let previous=2001;
+  for(effort=1;effort<=100;effort++){
+   const current=s.diagnostics();assert(current.restMs<=previous);previous=current.restMs;
+  }
+  effort=100;const inactive=s.diagnostics();f.setForeground(true);const foreground=s.diagnostics();
+  assert.equal(inactive.workMs,foreground.workMs);assert.equal(inactive.restMs,foreground.restMs);s.close();
+ }
+});
+
+test('an admitted save keeps normal pacing and mutation preemption after switching to a paused background',async()=>{
+ const f=pacedScheduler('responsive',false),s=f.scheduler;s.pacing.backgroundEffort=()=>0;
+ await s.checkpoint(P.background,true);f.advance(6);
+ let saved=false;const pending=s.checkpoint(P.background,true).then(()=>{saved=true;});
+ assert.deepEqual(f.delays,[24]);const release=s.begin(P.mutation);await turn();assert.equal(saved,false);
+ release();await pending;assert.equal(saved,true);assert.equal(s.diagnostics().paused,true);s.close();
+});
+
+test('an admitted save bypasses a paused URL owner while foreground mutations still preempt it',async()=>{
+ const f=pacedScheduler('responsive',true),s=f.scheduler;s.pacing.backgroundEffort=()=>0;
+ const releaseUrl=s.begin(P.urlInventory);let saved=false;
+ const pending=s.checkpoint(P.background,true).then(()=>{saved=true;});
+ await turn();assert.equal(saved,false,'Normal URL priority is retained before focus loss');
+ f.setForeground(false);const releaseMutation=s.begin(P.mutation);s.refreshPacing();await turn();
+ assert.equal(saved,false,'Foreground mutation still preempts the save when optional URL work is paused');
+ releaseMutation();await turn();await turn();
+ const passed=saved;s.close();releaseUrl();await pending;
+ assert.equal(passed,true,'A paused optional owner cannot indefinitely stop an admitted save');
+});
 
 /** Deterministic host clock/timers exercise pacing without sleep or altered timing bounds. */
 function pacedScheduler(throttle='responsive',foreground=true){

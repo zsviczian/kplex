@@ -6,7 +6,8 @@ import {readFileSync} from 'node:fs';
 /** Extract an unchanged production method; fake capabilities supply only clocks and timer receipts. */
 function load(path,name,dependencies){const source=ts.createSourceFile(path,readFileSync(new URL('../'+path,import.meta.url),'utf8'),ts.ScriptTarget.Latest,true);let found;
   function visit(node){if(ts.isMethodDeclaration(node)&&node.name.getText(source)===name)found=node;ts.forEachChild(node,visit);}visit(source);assert(found,name);
-  const text=found.getText(source),js=ts.transpileModule('const action=function '+name+text.slice(text.indexOf('('))+';', {compilerOptions:{target:ts.ScriptTarget.ES2022}}).outputText;
+  const text=found.getText(source),async=found.modifiers?.some(modifier=>modifier.kind===ts.SyntaxKind.AsyncKeyword)?'async ':'';
+  const js=ts.transpileModule('const action='+async+'function '+name+text.slice(text.indexOf('('))+';', {compilerOptions:{target:ts.ScriptTarget.ES2022}}).outputText;
   return new Function(...Object.keys(dependencies),js+'return action;')(...Object.values(dependencies));}
 /** Wall-clock changes are intentionally absent: retained scheduling deadlines are monotonic. */
 function fixture(){let now=0,serial=0;const timers=new Map(),writes=[];
@@ -18,8 +19,22 @@ function fixture(){let now=0,serial=0;const timers=new Map(),writes=[];
     sourceAcquisition:{isInventoryEnabled:()=>false,hasSemanticDependencies:()=>true,pendingGraphSources:()=>new Map(),getMaintenanceRevision:()=>0},
     plugin:{getIndexSourceRevision:()=>0,notifyStartupProgress(){notifications.push(index.snapshotPersistTimer===null?'writer':'scheduled');}},
     async persistIndexedDbSnapshot(run){writes.push(run);return true;}};
-  for(const name of ['scheduleSnapshotPersist','cancelPendingPersistence','startSnapshotPersist'])index[name]=load('src/index/GraphIndex.ts',name,{window,Platform:{isMobile:false,isIosApp:false}});
+  for(const name of ['scheduleSnapshotPersist','cancelPendingPersistence','startSnapshotPersist','wakeCacheFocusWaiters'])index[name]=load('src/index/GraphIndex.ts',name,{window,Platform:{isMobile:false,isIosApp:false}});
   return{index,timers,writes,notifications,setNow:value=>{now=value},fire:()=>{const entry=[...timers.values()][0];assert(entry);now=entry.at;timers.clear();entry.callback();},window};}
+
+test('supersession and unload release focus-deferred writers without another timer or lost deadline',async()=>{
+ const f=fixture(),i=f.index;i.cacheFocusWaiters=new Set();i.isCacheSaveForeground=()=>false;
+ i.waitForCacheFocus=load('src/index/GraphIndex.ts','waitForCacheFocus',{});
+ let current=i.snapshotPersistGeneration,done=false;
+ i.snapshotPersistDueAt=5000;
+ const pending=i.waitForCacheFocus(()=>current===i.snapshotPersistGeneration).then(()=>{done=true;});
+ await Promise.resolve();assert.equal(done,false);assert.equal(i.cacheFocusWaiters.size,1);assert.equal(f.timers.size,0);
+ i.cancelPendingPersistence(true);await pending;assert.equal(done,true);assert.equal(i.cacheFocusWaiters.size,0);
+ assert.equal(i.snapshotPersistDueAt,5000,'Existing debt survives an edit superseding a deferred save');
+ current=i.snapshotPersistGeneration;const retiring=i.waitForCacheFocus(()=>current===i.snapshotPersistGeneration);
+ i.diagnosticsClosed=true;i.wakeCacheFocusWaiters();await retiring;
+ assert.equal(i.cacheFocusWaiters.size,0);assert.equal(f.timers.size,0);
+});
 
 test('an idle status subscriber observes cache scheduling, writer start and completion without a graph event',async()=>{
   const f=fixture();let release;f.index.persistIndexedDbSnapshot=()=>new Promise(done=>release=done);

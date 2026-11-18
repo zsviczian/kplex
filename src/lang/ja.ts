@@ -9,6 +9,18 @@ import { buildLocaleCatalog, type LocaleCatalog, type LocaleTranslationMap } fro
 /** Construct the typed Japanese table only when selected; importing this module allocates no catalog. */
 export function createJapaneseCatalog(): LocaleCatalog {
 const japaneseTranslations = {
+  "indexing.backgroundTitle": "K-Plex が非アクティブなとき",
+  "indexing.backgroundEffort": "バックグラウンドの処理量",
+  "indexing.backgroundHelp": "0 では任意のインデックス処理を一時停止し、100 ではフォアグラウンドと同じ速度で処理します。変更はすぐに反映されます。初回の準備は中断せず完了します。移動と編集は優先されます。",
+  "indexing.backgroundPaused": "一時停止",
+  "indexing.backgroundFull": "フォアグラウンドと同じ",
+  "indexing.cacheFocusTitle": "K-Plex がアクティブなときにキャッシュ保存を開始",
+  "indexing.cacheFocusHelp": "完全なインデックスキャッシュの保存は、フォーカスのあるウィンドウで K-Plex がアクティブなタブのときにのみ開始します。開始済みの保存は、別のタブに移っても完了まで続きます。",
+  "index.cacheWaitingForFocus": "K-Plex のフォーカスを待ってキャッシュ保存を保留中",
+  "indexing.backgroundPausedStatus": "バックグラウンドのインデックス処理を一時停止中",
+  "indexing.backgroundReducedStatus": "バックグラウンドのインデックス処理を抑制中",
+  "indexing.throttle": "フォアグラウンドのインデックス速度",
+  "indexing.throttleHelp": "K-Plex がアクティブなときと初回の準備中の速度を選択します。応答性優先では他の処理により多くの時間を確保します。移動と編集は優先されます。変更はすぐに反映されます。",
   "styleSources.menu": "外観の設定元",
   "styleSources.tag": "タグスタイル · {name}",
   "styleSources.noteType": "ノートタイプ · {name}",

@@ -9,6 +9,18 @@ import { buildLocaleCatalog, type LocaleCatalog, type LocaleTranslationMap } fro
 /** Construct the typed Russian table only when selected; importing this module allocates no catalog. */
 export function createRussianCatalog(): LocaleCatalog {
 const russianTranslations = {
+  "indexing.backgroundTitle": "Когда K-Plex неактивен",
+  "indexing.backgroundEffort": "Фоновая нагрузка",
+  "indexing.backgroundHelp": "При 0 необязательная индексация приостановлена; при 100 используется скорость переднего плана. Изменения действуют сразу. Начальная подготовка индекса завершается без перерыва; навигация и правки имеют приоритет.",
+  "indexing.backgroundPaused": "Приостановлено",
+  "indexing.backgroundFull": "Как на переднем плане",
+  "indexing.cacheFocusTitle": "Начинать сохранение кэша, когда K-Plex активен",
+  "indexing.cacheFocusHelp": "Сохранение полного кэша индекса начинается, только когда K-Plex — активная вкладка в окне с фокусом. Уже начатое сохранение завершается, даже если переключиться на другую вкладку.",
+  "index.cacheWaitingForFocus": "Сохранение кэша ожидает фокуса K-Plex",
+  "indexing.backgroundPausedStatus": "Фоновая индексация приостановлена",
+  "indexing.backgroundReducedStatus": "Фоновая индексация замедлена",
+  "indexing.throttle": "Скорость индексации на переднем плане",
+  "indexing.throttleHelp": "Выберите скорость при активном K-Plex и во время начальной подготовки. Отзывчивый режим оставляет больше времени другим задачам. Навигация и правки имеют приоритет. Изменения действуют сразу.",
   "styleSources.menu": "Источники оформления",
   "styleSources.tag": "Стиль тега · {name}",
   "styleSources.noteType": "Тип заметки · {name}",

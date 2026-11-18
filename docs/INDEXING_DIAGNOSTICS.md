@@ -25,6 +25,16 @@ Identity and environment are not repeated inside the index. Current activity's `
 moves to `plugin.buildId`; every historical session retains its own manifest and build values.
 For example, an installed manifest `0.4.1` and embedded build `0.4.2` remain distinct.
 
+`indexingPreferences.backgroundIndexingEffort` records the live relative 0–100 preference:
+zero pauses optional inactive-tab work, 10 is the conservative default, and 100 uses the selected
+foreground speed. It is not a CPU percentage. Initial preparation remains uninterrupted, and a
+snapshot save already admitted while focused keeps progressing after switching away.
+`index.cache.persistence.waitingForFocus` distinguishes a due save held before admission from an
+active writer or storage failure. The previous complete cache remains usable while it waits.
+The recorded pacing preference is still Responsive/Balanced/Faster; these passive snapshots do not
+record a focus timeline or measure CPU. The inactive native brand mark dims to 0.5 independently
+of whether there is currently work to do.
+
 `index.cache.connection` distinguishes a healthy handle, normal retry backoff, a closed lifetime
 and a newer unsupported database. It retains the last finite failure cause/native error class
 after a successful reopen, with snapshot connection retry/recovery counts. Messages, stacks,

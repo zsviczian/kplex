@@ -127,7 +127,7 @@ test("support output preserves useful aggregate index and partial startup facts,
   assert.equal(report.startup.progress.source.processed, 4); assert.equal(report.startup.detailedTelemetry, "disabled"); assert.deepEqual(report.startup.phases, []);
   assert.equal(report.session.eventsCaptureStatus, "active"); assert.equal(report.session.rawConsoleCaptureStatus, "unsupported");
   assert.equal(report.environment.hostVersion, "unavailable"); assert.equal(report.environment.enabledPluginCount, null);
-  assert.deepEqual(report.indexingPreferences, { indexingMode: "on-demand", urlIndexingMode: "background", indexingThrottle: "responsive", excalidrawFitOnNodeOpen: null });
+  assert.deepEqual(report.indexingPreferences, { indexingMode: "on-demand", urlIndexingMode: "background", indexingThrottle: "responsive", backgroundIndexingEffort: null, excalidrawFitOnNodeOpen: null });
 });
 test("hostile input cannot disclose paths, note titles, metadata, URLs, accounts, tokens, errors or ASCII reason secrets", /** Inject private data into plausible sources and extra properties rather than testing one scrub regex. */ () => {
   const secrets = ["/Users/alice/Private Vault/Medical.md", "C:\\Users\\Alice\\Secret Vault\\Salary.md", "https://secret.example/private?token=abc", "Alice's medical history",

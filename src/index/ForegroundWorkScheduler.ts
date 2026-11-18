@@ -1,8 +1,9 @@
 /**
  * Cooperative priority boundary owned by the existing GraphIndex lifecycle. Work retains its private
  * progress while higher-priority requests run. Injected host capabilities pace background lanes with
- * shared idle windows and a live host-focus hint. Inactive hosts keep progressing at a reduced rate;
- * this owner cancels only host waits on foreground admission and unload. Publication
+ * shared idle windows and a live host-focus hint. Inactive hosts can reduce or pause optional work;
+ * admitted cache saves retain normal pacing. This owner cancels only host waits on focus/preferences,
+ * foreground admission and unload. Publication
  * and freshness remain caller-owned. Checkpoints must run outside IDB transactions.
  */
 /** Named cooperative lanes; lower numbers preempt higher numbers at safe task boundaries. */
@@ -28,6 +29,11 @@ export function sanitizeIndexingThrottle(value: unknown): IndexingThrottle {
   return value === "balanced" || value === "faster" ? value : "responsive";
 }
 
+/** Relative effort is scheduling-only; zero pauses optional work without discarding its progress. */
+export function sanitizeBackgroundIndexingEffort(value: unknown): number {
+  return typeof value === "number" && Number.isFinite(value) ? Math.min(100, Math.max(0, Math.round(value))) : 10;
+}
+
 /** Narrow host capabilities keep timing deterministic in tests and independent of window globals. */
 export interface IndexWorkPacing {
   now: () => number;
@@ -38,6 +44,8 @@ export interface IndexWorkPacing {
   throttle: () => unknown;
   /** Optional live focus hint changes only P3/P4 rests; omitted hosts retain their established pacing. */
   isForeground?: () => boolean;
+  /** Zero pauses settled-session background work; 100 uses the selected foreground pace. */
+  backgroundEffort?: () => unknown;
 }
 
 const PACING_WINDOWS: Record<IndexingThrottle, { work: number; idle: number }> = {
@@ -62,6 +70,7 @@ export class ForegroundWorkScheduler {
   private idleWait: Promise<void> | undefined;
   private releaseIdle: (() => void) | undefined;
   private idleWindows = 0;
+  private readonly activityWaiters = new Set<() => void>();
 
   /** Hosts inject pacing; capability-free callers retain the existing priority-only contract. */
   constructor(private readonly pacing?: IndexWorkPacing) {}
@@ -86,16 +95,17 @@ export class ForegroundWorkScheduler {
     try { return await work(); } finally { release(); }
   }
 
-  /** Pause behind higher lanes and pace P3/P4 together, without delaying foreground checkpoints. */
-  checkpoint(priority: IndexWorkPriority = INDEX_WORK_PRIORITY.background): Promise<void> {
+  /** Pause behind higher lanes and pace P3/P4 together, without delaying foreground checkpoints.
+   * An already-admitted save uses normal pacing even after focus loss or a zero-effort preference. */
+  checkpoint(priority: IndexWorkPriority = INDEX_WORK_PRIORITY.background, admittedSave = false): Promise<void> {
     if (this.closed) return Promise.resolve();
-    if (!this.hasHigherPriority(priority)) return this.pacedCheckpoint(priority);
+    if (!this.hasHigherPriority(priority, admittedSave)) return this.pacedCheckpoint(priority, admittedSave);
     this.pauses++;
     this.pausesByLane[priority]++;
     const wait = new Promise<void>((resolve) => {
       /** Recheck after every release because another foreground request may still own its lane. */
       const wake = (): void => {
-        if (!this.closed && this.hasHigherPriority(priority)) return;
+        if (!this.closed && this.hasHigherPriority(priority, admittedSave)) return;
         this.waiters.delete(wake);
         resolve();
       };
@@ -103,14 +113,16 @@ export class ForegroundWorkScheduler {
       wake();
     });
     return this.pacing ? wait.then(/** Recheck priority and live pacing after the request releases. */
-      () => this.checkpoint(priority)) : wait;
+      () => this.checkpoint(priority, admittedSave)) : wait;
   }
 
   /** Aggregate-only diagnostics expose scheduling activity without retaining request identities. */
   diagnostics(): Readonly<{ active: readonly number[]; waiting: number; pauses: number; pausesByLane: readonly number[];
-    idleWindows: number; pacing: boolean; throttle: IndexingThrottle | null }> {
+    idleWindows: number; pacing: boolean; throttle: IndexingThrottle | null; paused: boolean; workMs: number; restMs: number }> {
+    const policy = this.pacingWindow();
     return { active: [...this.active], waiting: this.waiters.size, pauses: this.pauses, pausesByLane: [...this.pausesByLane],
       idleWindows: this.idleWindows, pacing: this.idleWait !== undefined,
+      paused: policy === null, workMs: policy?.work ?? 0, restMs: policy?.idle ?? 0,
       throttle: this.pacing ? sanitizeIndexingThrottle(this.pacing.throttle()) : null };
   }
 
@@ -119,15 +131,39 @@ export class ForegroundWorkScheduler {
     this.closed = true;
     this.finishIdle();
     for (const wake of this.waiters) wake();
+    for (const wake of this.activityWaiters) wake();
+  }
+
+  /** Focus/preferences wake retained work through events, including a completely timer-free pause. */
+  refreshPacing(): void {
+    this.finishIdle();
+    for (const wake of this.waiters) wake();
+    for (const wake of this.activityWaiters) wake();
+  }
+
+  /** Share the selected foreground ceiling; logarithmic rests make the full slider useful. */
+  private pacingWindow(): {work: number; idle: number} | null {
+    const foreground = PACING_WINDOWS[sanitizeIndexingThrottle(this.pacing?.throttle())];
+    if (this.pacing?.isForeground?.() !== false) return foreground;
+    // Capability-free embedders retain the earlier finite inactive contract.
+    if (!this.pacing.backgroundEffort) return INACTIVE_PACING_WINDOW;
+    const effort = sanitizeBackgroundIndexingEffort(this.pacing.backgroundEffort());
+    if (effort === 0) return null;
+    if (effort === 100) return foreground;
+    return {work: 6, idle: Math.round(2000 * Math.pow(foreground.idle / 2000, (effort - 1) / 99))};
   }
 
   /** Reuse one background idle window so concurrent inventories cannot create independent budgets. */
-  private pacedCheckpoint(priority: IndexWorkPriority): Promise<void> {
+  private pacedCheckpoint(priority: IndexWorkPriority, admittedSave = false): Promise<void> {
     if (!this.pacing || priority < INDEX_WORK_PRIORITY.urlInventory) return Promise.resolve();
+    const policy = admittedSave ? PACING_WINDOWS[sanitizeIndexingThrottle(this.pacing.throttle())] : this.pacingWindow();
+    if (!policy) return new Promise<void>(/** No polling: selection, window focus, preference changes or unload release this wait. */ resolve => {
+      /** Remove this receipt before the retained operation resumes or retires. */
+      const wake = (): void => {this.activityWaiters.delete(wake);resolve();};
+      this.activityWaiters.add(wake);
+    }).then(/** Preserve priority and captured caller freshness checks after resumption. */ () => this.checkpoint(priority));
     const now = this.pacing.now();
     this.sliceStarted ??= now;
-    const policy = this.pacing.isForeground?.() === false ? INACTIVE_PACING_WINDOW
-      : PACING_WINDOWS[sanitizeIndexingThrottle(this.pacing.throttle())];
     if (!this.idleWait && now - this.sliceStarted < policy.work) return Promise.resolve();
     if (!this.idleWait) {
       this.idleWindows++;
@@ -143,7 +179,7 @@ export class ForegroundWorkScheduler {
       }
     }
     return this.idleWait.then(/** Foreground admission can cancel the timer; it must still preempt resumed work. */
-      () => this.checkpoint(priority));
+      () => this.checkpoint(priority, admittedSave));
   }
 
   /** Cancel and resolve the single idle resource; caller fences remain authoritative after wakeup. */
@@ -158,9 +194,11 @@ export class ForegroundWorkScheduler {
     release?.();
   }
 
-  /** Check only strictly higher lanes so a request can never wait for itself. */
-  private hasHigherPriority(priority: IndexWorkPriority): boolean {
-    for (let lane = 0; lane < priority; lane++) if (this.active[lane] > 0) return true;
+  /** Check strictly higher lanes. A policy-paused optional URL owner cannot strand an admitted
+   * save; mutation/current/visible owners retain their original priority in every focus state. */
+  private hasHigherPriority(priority: IndexWorkPriority, admittedSave = false): boolean {
+    const ceiling = admittedSave && this.pacingWindow() === null ? Math.min(priority, INDEX_WORK_PRIORITY.urlInventory) : priority;
+    for (let lane = 0; lane < ceiling; lane++) if (this.active[lane] > 0) return true;
     return false;
   }
 }

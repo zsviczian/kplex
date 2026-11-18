@@ -42,12 +42,25 @@ owner widens the window for native file changes to exhaust its guarded hydration
 initial-index completion flag changes pacing only; no source/cache guard or retry limit is relaxed.
 After initial readiness, background P3/P4 checkpoints read one live native focus hint. A K-Plex tab or sidepanel in
 its focused owning document uses the selected Responsive/Balanced/Faster pacing; another active
-view or an unfocused/hidden document uses 6 ms work followed by a 240 ms rest. This finite pacing
-override neither changes demand/admission nor cancels/restarts source, graph or persistence owners.
-P0/P1/P2 remain immediately eligible under the existing priority rules. Focus-only catch-up reads
-the hint after any existing rest (nominally at most 240 ms, subject to host dispatch); foreground
-requests still preempt it. This is a cooperative allowance, not a hard task-duration or CPU cap.
+view or an unfocused/hidden document uses the live `backgroundIndexingEffort` preference. The
+0–100 slider defaults to 10: zero holds optional P3/P4 work at safe checkpoints without timers,
+1 gives a 2,000 ms rest after 6 ms work, and 100 uses the selected foreground pacing exactly.
+Intermediate rests interpolate logarithmically (10 gives 1,338 ms in Responsive). Native selection,
+owning-window focus/visibility and live preference events wake retained continuations. No focus
+event changes demand, invalidates a cache or restarts a source/graph owner. P0/P1/P2 retain their
+existing priority. This is a cooperative allowance, not a hard task-duration or CPU cap.
 Parser workers, indivisible publication and source-repository-only yields retain their existing bounds.
+
+Complete snapshot saves wait for actual K-Plex focus before serialization or writer admission,
+including when initial preparation was admitted before a view opened. The previous active cache,
+save deadline and generation fences remain intact. Once admitted, a save finishes at the selected
+normal pace after switching tabs, even when optional background effort is zero. Real edits still
+supersede obsolete writers; focus changes never do. The wait owns no IDB transaction or polling
+timer and is released on focus, supersession or unload. Small source/URL repository writes retain
+their existing correctness lifetimes. Status distinguishes waiting-for-focus from saving. Each
+inactive native Plex surface dims its brand mark to 0.5, including external-app focus and popouts.
+At zero effort, a paused P3 URL owner cannot hold an admitted save behind its retained lease;
+P0/P1/P2 still preempt that save, and ordinary background owners retain their original priorities.
 
 The restart-required per-device policy is captured once from the main host's existing presentation
 environment. Desktop defaults on, tablet and phone off; phone maps to the persisted `mobile` key.

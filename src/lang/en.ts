@@ -9,6 +9,16 @@
  * parameters remain unquoted regardless of their names. Locale catalogs inherit this classification.
  */
 export const englishCatalog = {
+  "indexing.backgroundTitle": {message: "When K-Plex is inactive", context: "Live inactive-tab scheduling and foreground-only complete cache persistence.", params: [], referenceParams: []},
+  "indexing.backgroundEffort": {message: "Background effort", context: "Live inactive-tab scheduling and foreground-only complete cache persistence.", params: [], referenceParams: []},
+  "indexing.backgroundHelp": {message: "Pause optional indexing at 0, or allow more work up to the foreground speed at 100. Changes apply immediately. Initial index preparation finishes uninterrupted; navigation and edits keep priority.", context: "Live inactive-tab scheduling and foreground-only complete cache persistence.", params: [], referenceParams: []},
+  "indexing.backgroundPaused": {message: "Paused", context: "Live inactive-tab scheduling and foreground-only complete cache persistence.", params: [], referenceParams: []},
+  "indexing.backgroundFull": {message: "Same as foreground", context: "Live inactive-tab scheduling and foreground-only complete cache persistence.", params: [], referenceParams: []},
+  "indexing.cacheFocusTitle": {message: "Start cache saves while K-Plex is active", context: "Cache admission follows focus; admitted writes finish uninterrupted by focus changes.", params: [], referenceParams: []},
+  "indexing.cacheFocusHelp": {message: "Full index cache saves start only while K-Plex is the active tab in a focused window. A save already in progress finishes if you switch away.", context: "Cache admission follows focus; admitted writes finish uninterrupted by focus changes.", params: [], referenceParams: []},
+  "index.cacheWaitingForFocus": {message: "Cache save waiting for K-Plex focus", context: "Live inactive-tab scheduling and foreground-only complete cache persistence.", params: [], referenceParams: []},
+  "indexing.backgroundPausedStatus": {message: "Background indexing paused", context: "Live inactive-tab scheduling and foreground-only complete cache persistence.", params: [], referenceParams: []},
+  "indexing.backgroundReducedStatus": {message: "Background indexing reduced", context: "Live inactive-tab scheduling and foreground-only complete cache persistence.", params: [], referenceParams: []},
   "styleSources.menu": {"message":"Appearance sources","context":"Node and connector context menus navigate the actual ordered appearance sources.","params":[],"referenceParams":[]},
   "styleSources.tag": {"message":"Tag style · {name}","context":"Node and connector context menus navigate the actual ordered appearance sources.","params":["name"],"referenceParams":["name"]},
   "styleSources.noteType": {"message":"Note type · {name}","context":"Node and connector context menus navigate the actual ordered appearance sources.","params":["name"],"referenceParams":["name"]},
@@ -1111,8 +1121,8 @@ export const englishCatalog = {
   "indexing.urls": { message: "Web link indexing", context: "URL discovery settings label.", params: [] },
   "indexing.urlsHelp": { message: "Web links are always discovered in the background. Cached links appear first; only changed notes are scanned again. An open web link updates as referring notes are found.", context: "Always-on independent URL discovery and cache behavior.", params: [] },
   "indexing.background": { message: "Background scan", context: "Optional all-note URL discovery option.", params: [] },
-  "indexing.throttle": { message: "Background indexing speed", context: "Live background indexing throttle setting.", params: [] },
-  "indexing.throttleHelp": { message: "Responsive gives Obsidian more time between background tasks. Faster finishes indexing sooner but can make the app less responsive. Navigation and edits keep priority. Changes apply immediately.", context: "Background indexing responsiveness tradeoff; no restart needed.", params: [] },
+  "indexing.throttle": {message: "Foreground indexing speed", context: "Live inactive-tab scheduling and foreground-only complete cache persistence.", params: [], referenceParams: []},
+  "indexing.throttleHelp": {message: "Choose the indexing speed while K-Plex is active and during initial preparation. Responsive leaves more time for other work. Navigation and edits keep priority. Changes apply immediately.", context: "Live inactive-tab scheduling and foreground-only complete cache persistence.", params: [], referenceParams: []},
   "indexing.throttleResponsive": { message: "Responsive (recommended)", context: "Default background throttle option.", params: [] },
   "indexing.throttleBalanced": { message: "Balanced", context: "Moderate background throttle option.", params: [] },
   "indexing.throttleFaster": { message: "Faster", context: "Least background idle time option.", params: [] },

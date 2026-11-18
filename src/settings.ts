@@ -10,7 +10,8 @@
  * Calendar visibility is canvas chrome; journal link memories are independent workflow fields.
  * Date fallback roles reinterpret cached facts through the semantic settings owner; absent/interim
  * preferences use Parent and foreign imports cannot overwrite the local default role.
- * Background throttle changes apply live without reconstructing semantic data. One tag style owns
+ * Background throttle and inactive effort apply live without reconstructing semantic data; zero
+ * effort pauses optional work while initial preparation remains uninterrupted. One tag style owns
  * ordinary prefix matching and selected note-type precedence, with explicit legacy attribute migration. Internal
  * keyboard bindings are additive workflow preferences; recorder controls own only transient capture.
  * Sparse per-note Markdown zoom overrides are durable local workflow data, independent of graph imports.
@@ -84,7 +85,7 @@ import { collectionWindow } from "./ui/components/collectionWindow";
 import { createObsidianTranslator } from "./adapters/obsidian/localization";
 import type { Translator, PlainTranslationKey } from "./lang";
 import { PurgeIndexCacheModal } from "./ui/PurgeIndexCacheModal";
-import { sanitizeIndexingThrottle, type IndexingThrottle } from "./index/ForegroundWorkScheduler";
+import { sanitizeBackgroundIndexingEffort, sanitizeIndexingThrottle, type IndexingThrottle } from "./index/ForegroundWorkScheduler";
 import { sanitizeInternalHotkeys, type InternalHotkeys } from "./core/plex/internalHotkeys";
 import { migrateActionPreferences, type ActionPreferencesV1 } from "./core/plex/actionPreferences";
 import { ActionSettingsController } from "./ui/ActionSettingsController";
@@ -270,6 +271,8 @@ export interface KplexSettings extends StartupIndexPreferences {
   urlIndexingMode: UrlIndexingMode;
   /** Live background scheduling policy, independent of semantic settings and cached source facts. */
   indexingThrottle: IndexingThrottle;
+  /** Live inactive-tab effort; zero pauses optional work and 100 retains the selected active speed. */
+  backgroundIndexingEffort: number;
   hierarchy: Hierarchy;
   /** Versioned settings grammar; pre-syntax literal slashes/backslashes are escaped losslessly. */
   ontologyPairingVersion: 1;
@@ -477,6 +480,7 @@ const LEGACY_DEFAULT_SETTINGS: KplexSettings = {
   indexingMode: "on-demand",
   urlIndexingMode: "background",
   indexingThrottle: "responsive",
+  backgroundIndexingEffort: 10,
   hierarchy: LEGACY_HIERARCHY_DEFINITION,
   ontologyPairingVersion: 1,
   ontologyDescriptions: {},
@@ -812,6 +816,7 @@ export function migrateAndMergeSettings(raw: unknown): KplexSettings {
     ...sanitizeStartupIndexPreferences(old),
     urlIndexingMode: "background",
     indexingThrottle: sanitizeIndexingThrottle(old.indexingThrottle),
+    backgroundIndexingEffort: sanitizeBackgroundIndexingEffort(old.backgroundIndexingEffort),
     datePropertyRelations: sanitizeDatePropertyRelations(old.datePropertyRelations),
     hierarchy,
     ontologyPairingVersion: 1,
@@ -2824,6 +2829,18 @@ export class KplexSettingTab extends PluginSettingTab {
           },
           {
             type: "group",
+            heading: translate("indexing.backgroundTitle"),
+            items: [
+              {
+                name: translate("indexing.backgroundEffort"),
+                desc: translate("indexing.backgroundHelp"),
+                control: {type: "slider", key: "backgroundIndexingEffort", defaultValue: 10, min: 0, max: 100, step: 1},
+              },
+              {name: translate("indexing.cacheFocusTitle"), desc: translate("indexing.cacheFocusHelp")},
+            ],
+          },
+          {
+            type: "group",
             heading: translate("indexing.cache"),
             items: [{
               name: translate("indexing.purgeAction"),
@@ -3075,6 +3092,8 @@ export class KplexSettingTab extends PluginSettingTab {
         setting.settingEl.dataset.kplexSettingKey = key;
         const read = (): number => Number(readValue(key) ?? control.defaultValue ?? control.min);
         const slider = numberSlider(setting, {isCurrent: current, label: item.name, value: read(), min: control.min, max: control.max, step: control.step,
+          format: key === "backgroundIndexingEffort" ? /** Readout names both endpoints without claiming a process CPU percentage. */ value => value === 0
+            ? plugin.translator("indexing.backgroundPaused") : value === 100 ? plugin.translator("indexing.backgroundFull") : `${value} / 100` : undefined,
           disabled: unavailable || (typeof control.disabled === "function" ? control.disabled() : control.disabled),
           onChange: async value => {
             if (!current()) return;
@@ -3281,7 +3300,14 @@ export class KplexSettingTab extends PluginSettingTab {
     }
     if (key === "indexingThrottle") {
       this.kplexPlugin.settings.indexingThrottle = sanitizeIndexingThrottle(value);
+      this.kplexPlugin.refreshIndexActivity(true);
       // The scheduler reads this preference live; saving must not invalidate semantic caches.
+      await this.kplexPlugin.saveSettings(false, false);
+      return;
+    }
+    if (key === "backgroundIndexingEffort") {
+      this.kplexPlugin.settings.backgroundIndexingEffort = sanitizeBackgroundIndexingEffort(value);
+      this.kplexPlugin.refreshIndexActivity(true);
       await this.kplexPlugin.saveSettings(false, false);
       return;
     }

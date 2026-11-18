@@ -1,5 +1,7 @@
 /**
  * Vault-local IndexedDB storage for neutral source facts, parsed bodies and graph snapshots.
+ * Callers own focus admission; optional writer checkpoints let admitted saves finish independently
+ * of a pause in other background work, without holding transactions across those checkpoints.
  * Complete and partial checkpoint metadata point to independent chunk generations only after
  * their writes finish; callers own semantic validity, disposable URL-facet versions and plugin-lifetime cancellation.
  * Snapshot writers retain their staged generation through activation. Orphan deletion rechecks
@@ -1046,7 +1048,8 @@ export class KplexIndexedDbCache {
 
   /** Serialize one graph generation in bounded transactions, then atomically activate its key.
    * Cancellation leaves unreachable chunks for later orphan cleanup and preserves prior metadata.
-   * The optional failure callback reports a fixed, path-free code for support diagnostics. */
+   * The optional failure callback reports a fixed, path-free code for support diagnostics.
+   * A caller may supply normal-paced write checkpoints so admitted saves finish across focus loss. */
   async writeSnapshot(
     meta: Omit<IndexedDbSnapshotMeta, "key" | "schema" | "generation" | "pageChunkCount" | "evidenceChunkCount">,
     pages: Iterable<PersistedPage>,
@@ -1054,6 +1057,7 @@ export class KplexIndexedDbCache {
     isCurrent: () => boolean = () => true,
     key: "active" | "checkpoint" = "active",
     onFailure?: (reason: SnapshotWriteFailureReason) => void,
+    writeCheckpoint?: () => Promise<void>,
   ): Promise<boolean> {
     const startedAtMonotonic = window.performance.now();
     this.snapshotWriteStartedAtMonotonic = startedAtMonotonic;
@@ -1077,7 +1081,7 @@ export class KplexIndexedDbCache {
     let pageChunkCount = 0;
     let evidenceChunkCount = 0;
     const yieldBetweenBatches = async (): Promise<void> => {
-      await this.backgroundCheckpoint?.();
+      await (writeCheckpoint ?? this.backgroundCheckpoint)?.();
       // IndexedDB completion is asynchronous, but serialization/structured cloning happens on the
       // caller thread. Give input/paint a real task boundary after every bounded write wave on all
       // platforms; desktop gets larger waves above, so this does not become a per-record yield.

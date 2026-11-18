@@ -9,6 +9,18 @@ import { buildLocaleCatalog, type LocaleCatalog, type LocaleTranslationMap } fro
 /** Construct the typed German table only when selected; importing this module allocates no catalog. */
 export function createGermanCatalog(): LocaleCatalog {
 const germanTranslations = {
+  "indexing.backgroundTitle": "Wenn K-Plex inaktiv ist",
+  "indexing.backgroundEffort": "Hintergrundaufwand",
+  "indexing.backgroundHelp": "Bei 0 pausiert die optionale Indizierung; bei 100 arbeitet sie so schnell wie im Vordergrund. Änderungen gelten sofort. Die anfängliche Indexvorbereitung wird ohne Unterbrechung abgeschlossen; Navigation und Bearbeitungen haben Vorrang.",
+  "indexing.backgroundPaused": "Pausiert",
+  "indexing.backgroundFull": "Wie im Vordergrund",
+  "indexing.cacheFocusTitle": "Cache-Speicherung starten, wenn K-Plex aktiv ist",
+  "indexing.cacheFocusHelp": "Das Speichern des vollständigen Indexcaches beginnt nur, wenn K-Plex der aktive Tab im fokussierten Fenster ist. Ein bereits gestarteter Speichervorgang wird beim Wechsel nicht unterbrochen.",
+  "index.cacheWaitingForFocus": "Cache-Speicherung wartet auf K-Plex-Fokus",
+  "indexing.backgroundPausedStatus": "Hintergrundindizierung pausiert",
+  "indexing.backgroundReducedStatus": "Hintergrundindizierung reduziert",
+  "indexing.throttle": "Indizierungsgeschwindigkeit im Vordergrund",
+  "indexing.throttleHelp": "Geschwindigkeit bei aktivem K-Plex und während der ersten Vorbereitung. Reaktionsschnell lässt mehr Zeit für andere Aufgaben. Navigation und Bearbeitungen haben Vorrang. Änderungen gelten sofort.",
   "styleSources.menu": "Darstellungsquellen",
   "styleSources.tag": "Tag-Stil · {name}",
   "styleSources.noteType": "Notiztyp · {name}",

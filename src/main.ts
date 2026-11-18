@@ -1,4 +1,6 @@
 /**
+ * Native focus drives live inactive effort and new snapshot admission without cache invalidation.
+ * Initial preparation keeps its established pace; already-admitted saves finish across tab changes.
  * Captured section opens retain exact native request identities. Explicit node copies use the
  * revocable host clipboard owner; section-scoped bulk visibility uses the existing settings queue.
  * Related-note completion keeps link and creation preferences independent through that same writer.
@@ -362,6 +364,7 @@ export default class KplexPlugin extends Plugin {
   private preRestoreListenerCleanup: (() => void) | null = null;
   private openKplexViews = 0;
   private indexViewOpened = false;
+  private lastIndexForeground: boolean | null = null;
   private layoutReady = false;
   private startupIndexPolicy: ReturnType<typeof startupIndexPolicy> = {device: "desktop", beforeView: true, mode: "eager"};
   private indexPreparationTask: Promise<void> | null = null;
@@ -570,7 +573,9 @@ export default class KplexPlugin extends Plugin {
     this.startupDiagnostics.mark("settings-loaded");
     this.index = new GraphIndex(this, this.app, true, this.startupIndexPolicy.mode,
       /** Keep startup/cache hydration at its original rate; focus only paces settled-session work. */
-      () => !this.initialIndexComplete || this.isKplexIndexingForeground());
+      () => !this.initialIndexComplete || this.isKplexIndexingForeground(),
+      /** Snapshot serialization/writes require actual focus, including during initial preparation. */
+      () => this.isKplexIndexingForeground());
     // Replay only genuine early body/destructive events through the existing deferred source owner.
     // Metadata-cache inventory waves and startup create notifications never become body-dirty work.
     for (const [file, oldPath] of this.initializationSourceChanges) this.index.observeDeferredHostChange(file, true, oldPath);
@@ -600,6 +605,8 @@ export default class KplexPlugin extends Plugin {
     // Page Preview preferences so the same user choice also applies to Sidecar and popouts.
     this.registerEvent(this.app.workspace.on("layout-change", /** Reveals re-resolve the current local period. */ () => this.refreshPeriodicPins()));
     this.registerDomEvent(window, "focus", /** Suspended timers cannot leave the next foreground display stale. */ () => this.refreshPeriodicPins());
+    this.registerDomEvent(window, "focus", /** Resume retained background work and cache saves without polling. */ () => this.refreshIndexActivity());
+    this.registerDomEvent(window, "blur", /** External applications reduce settled-session indexing effort. */ () => this.refreshIndexActivity());
     this.registerDomEvent(this.app.workspace.containerEl.ownerDocument, "visibilitychange", /** Resume changes presentation only. */ () => this.refreshPeriodicPins());
     this.refreshPeriodicPins();
     this.settingsTab = new KplexSettingTab(this.app, this);
@@ -608,6 +615,7 @@ export default class KplexPlugin extends Plugin {
     this.initializeActions();
 
     this.registerEvent(this.app.workspace.on("active-leaf-change", (leaf) => {
+      this.refreshIndexActivity();
       // A requested Presentation/other tab in a folded group must become visible without
       // redirecting native activation to the Plex or its managed document.
       if (leaf) for (const [host, session] of this.collapsedPlexHosts) {
@@ -3673,6 +3681,15 @@ export default class KplexPlugin extends Plugin {
     return owner.visibilityState !== "hidden" && owner.hasFocus();
   }
 
+  /** Native focus and live scheduling preferences only wake retained work; they never invalidate data. */
+  refreshIndexActivity(force = false): void {
+    const foreground = this.isKplexIndexingForeground();
+    if (!force && foreground === this.lastIndexForeground) return;
+    this.lastIndexForeground = foreground;
+    this.index?.refreshHostActivity();
+    this.notifyStartupProgress(true);
+  }
+
   /** Keep opted-in Eager preparation current while canvases are closed. Use captured startup
    * policy, never a newly edited preference; dormant and On-demand sessions retain view demand. */
   private hasIndexMaintenanceDemand(): boolean {
@@ -4314,6 +4331,7 @@ export default class KplexPlugin extends Plugin {
       indexingPreferences: {
         indexingMode: this.index?.isOnDemandMode() ? "on-demand" : this.startupIndexPolicy.mode, urlIndexingMode: this.settings?.urlIndexingMode,
         indexingThrottle: this.settings?.indexingThrottle,
+        backgroundIndexingEffort: this.settings?.backgroundIndexingEffort,
         excalidrawFitOnNodeOpen: this.settings?.excalidrawFitOnNodeOpen,
       },
     }, indexingActivity);
@@ -4560,7 +4578,8 @@ export default class KplexPlugin extends Plugin {
     if (urlLabel && phase !== "deferred") labels.push(urlLabel);
     const persistence = this.index.getSnapshotPersistenceDiagnostics?.();
     const cacheSavePending = phase !== "deferred" && Boolean(persistence?.pending);
-    if (persistence?.active) labels.push(this.translator("index.statusSavingCache"));
+    if (persistence?.waitingForFocus) labels.push(this.translator("index.cacheWaitingForFocus"));
+    else if (persistence?.active) labels.push(this.translator("index.statusSavingCache"));
     else if (cacheSavePending) labels.push(this.translator("index.statusCacheSavePending"));
     const activeWork = phase !== "deferred" && Boolean(phase === "loading-cache" || phase === "indexing" || phase === "saving-cache"
       || this.index.hasActiveSemanticPreparation?.() || this.index.hasActiveSourcePreparation?.()
@@ -4570,6 +4589,9 @@ export default class KplexPlugin extends Plugin {
     if (phase === "ready" && progressLabel === label && (activeWork || urlLabel)) {
       labels.shift();
       if (!labels.length) labels.push(this.translator("index.statusUpdating"));
+    }
+    if (activeWork && this.initialIndexComplete && this.lastIndexForeground === false && this.settings.backgroundIndexingEffort < 100) {
+      labels.push(this.translator(this.settings.backgroundIndexingEffort === 0 ? "indexing.backgroundPausedStatus" : "indexing.backgroundReducedStatus"));
     }
     return { ...facts, activeWork, cacheSavePending, label: [...new Set(labels)].join("\n"), totalFiles };
   }

@@ -134,6 +134,7 @@ export function projectSupportIndex(input: unknown) {
     availability: "available" as const, recovery: projectIndexRecoveryDiagnostics(supportField(source, "recovery")),
     persistence: {pending: supportBoolean(supportField(supportField(source, "persistence"), "pending")),
       active: supportBoolean(supportField(supportField(source, "persistence"), "active")),
+      waitingForFocus: supportBoolean(supportField(supportField(source, "persistence"), "waitingForFocus")),
       dueInMs: supportDuration(supportField(supportField(source, "persistence"), "dueInMs"))},
     decisionsOmitted: Math.max(0, supportRowCount(supportField(source, "decisions")) - 20), formatVersion: supportCount(supportField(source, "formatVersion")),
     generatedAt: supportIsoTime(supportField(source, "generatedAt")), plugin: { id: "k-plex", version: supportVersion(supportField(plugin, "version")) },
@@ -183,6 +184,7 @@ export function projectSupportPreferences(input: unknown) {
   return { indexingMode: supportCode(supportField(input, "indexingMode"), ["eager", "on-demand"]),
     urlIndexingMode: supportCode(supportField(input, "urlIndexingMode"), ["on-demand", "background"]),
     indexingThrottle: supportCode(supportField(input, "indexingThrottle"), ["responsive", "balanced", "faster"]),
+    backgroundIndexingEffort: supportCount(supportField(input, "backgroundIndexingEffort")),
     excalidrawFitOnNodeOpen: supportBoolean(supportField(input, "excalidrawFitOnNodeOpen")) };
 }
 /** Project one current/passive phase with bounded counters and finite lane/phase vocabulary. */

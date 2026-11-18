@@ -9,6 +9,18 @@ import { buildLocaleCatalog, type LocaleCatalog, type LocaleTranslationMap } fro
 /** Construct the typed Spanish table only when selected; importing this module allocates no catalog. */
 export function createSpanishCatalog(): LocaleCatalog {
 const spanishTranslations = {
+  "indexing.backgroundTitle": "Cuando K-Plex está inactivo",
+  "indexing.backgroundEffort": "Esfuerzo en segundo plano",
+  "indexing.backgroundHelp": "En 0 se pausa la indexación opcional; en 100 se usa la velocidad del primer plano. Los cambios son inmediatos. La preparación inicial termina sin interrupciones; navegar y editar tienen prioridad.",
+  "indexing.backgroundPaused": "En pausa",
+  "indexing.backgroundFull": "Igual que en primer plano",
+  "indexing.cacheFocusTitle": "Iniciar el guardado de caché cuando K-Plex esté activo",
+  "indexing.cacheFocusHelp": "La caché completa solo empieza a guardarse cuando K-Plex es la pestaña activa de una ventana enfocada. Si cambia de pestaña, un guardado ya iniciado continúa hasta terminar.",
+  "index.cacheWaitingForFocus": "Guardado de caché esperando el foco de K-Plex",
+  "indexing.backgroundPausedStatus": "Indexación en segundo plano en pausa",
+  "indexing.backgroundReducedStatus": "Indexación en segundo plano reducida",
+  "indexing.throttle": "Velocidad de indexación en primer plano",
+  "indexing.throttleHelp": "Elija la velocidad con K-Plex activo y durante la preparación inicial. Ágil deja más tiempo para otras tareas. Navegar y editar tienen prioridad. Los cambios son inmediatos.",
   "styleSources.menu": "Fuentes de apariencia",
   "styleSources.tag": "Estilo de etiqueta · {name}",
   "styleSources.noteType": "Tipo de nota · {name}",

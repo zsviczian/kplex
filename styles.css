@@ -599,6 +599,7 @@ button.kplex-sidecar-unfold-plex,
 .kplex-icon { display: inline-flex; align-items: center; justify-content: center; line-height: 0; flex: 0 0 auto; }
 .kplex-icon svg { display: block; stroke: currentColor; }
 .kplex-brand-mark { color: var(--interactive-accent); filter: none; }
+.kplex-index-background .kplex-icon.kplex-brand-mark { opacity: 0.5; }
 .kplex-node-icon { opacity: .88; margin-right: 4px; }
 .kplex-thought-label { display: inline-flex; align-items: center; justify-content: center; min-width: 0; }
 .kplex-thought-label > span:last-child { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

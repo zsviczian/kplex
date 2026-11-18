@@ -9,6 +9,18 @@ import { buildLocaleCatalog, type LocaleCatalog, type LocaleTranslationMap } fro
 /** Construct the typed Dutch table only when selected; importing this module allocates no catalog. */
 export function createDutchCatalog(): LocaleCatalog {
 const dutchTranslations = {
+  "indexing.backgroundTitle": "Wanneer K-Plex inactief is",
+  "indexing.backgroundEffort": "Inspanning op de achtergrond",
+  "indexing.backgroundHelp": "Bij 0 pauzeert optionele indexering; bij 100 geldt de voorgrondsnelheid. Wijzigingen gelden direct. De eerste indexvoorbereiding wordt zonder onderbreking voltooid; navigeren en bewerken houden voorrang.",
+  "indexing.backgroundPaused": "Gepauzeerd",
+  "indexing.backgroundFull": "Gelijk aan voorgrond",
+  "indexing.cacheFocusTitle": "Cacheopslag starten wanneer K-Plex actief is",
+  "indexing.cacheFocusHelp": "Het opslaan van de volledige indexcache begint alleen wanneer K-Plex het actieve tabblad in een venster met focus is. Een al gestarte opslag wordt bij wegschakelen afgemaakt.",
+  "index.cacheWaitingForFocus": "Cacheopslag wacht op K-Plex-focus",
+  "indexing.backgroundPausedStatus": "Indexering op de achtergrond gepauzeerd",
+  "indexing.backgroundReducedStatus": "Indexering op de achtergrond verminderd",
+  "indexing.throttle": "Indexeringssnelheid op de voorgrond",
+  "indexing.throttleHelp": "Kies de snelheid wanneer K-Plex actief is en tijdens de eerste voorbereiding. Responsief laat meer tijd voor ander werk. Navigeren en bewerken houden voorrang. Wijzigingen gelden direct.",
   "styleSources.menu": "Vormgevingsbronnen",
   "styleSources.tag": "Tagstijl · {name}",
   "styleSources.noteType": "Notitietype · {name}",

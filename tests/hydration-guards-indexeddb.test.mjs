@@ -12,6 +12,43 @@ import {indexPacingHintSource} from './support/indexPacingHost.mjs';
 
 const bundle = await hydrationWorkBundle({}, ['src/index/SectionExpansion.ts', 'src/ui/plexViews/sections.ts', 'src/core/plex/views/sections.ts']);
 
+test('cache saves wait for focus then finish after switching away even with optional indexing paused',async()=>{
+ const browser=await chromiumHarness(bundle);
+ try{
+  await browser.evaluate(contributorBrowserInitialize);await browser.evaluate(initializeHydrationWork);
+  await browser.evaluate(`(async()=>{
+   const q=await hydrationWorkFixture('cache-focus-admission',1600,0,'eager',true),i=q.index;
+   let releaseOptional;
+   try{
+    q.releaseSources();await i.restoreIndexedDbSnapshot([q.file.path],true);await i.waitForSnapshotHydration();
+    ok(i.isFullSnapshotHydrated(),'Production restore prepares the complete graph');
+    i.cancelPendingPersistence();const before=await i.indexedDb.readSnapshotMeta();
+    let foreground=false,admissions=0,queued;const statuses=[];
+    const waiting=new Promise(resolve=>queued=resolve);
+    i.isCacheSaveForeground=()=>foreground;
+    i.workScheduler.pacing.isForeground=()=>foreground;i.workScheduler.pacing.backgroundEffort=()=>0;
+    q.plugin.notifyStartupProgress=()=>{const status=i.getSnapshotPersistenceDiagnostics();statuses.push(status);if(i.cacheFocusWaiters.size)queued();};
+    const write=i.indexedDb.writeSnapshot;
+    i.indexedDb.writeSnapshot=function(...args){admissions++;foreground=false;i.refreshHostActivity();return write.apply(this,args);};
+    const saving=i.persistIndexedDbSnapshot(++i.snapshotPersistGeneration);
+    await waiting;equal(admissions,0,'No snapshot serialization or write admission while inactive');
+    equal((await i.indexedDb.readSnapshotMeta()).generation,before.generation,'The previous durable generation remains active');
+    ok(i.getSnapshotPersistenceDiagnostics().waitingForFocus,'Status discloses the retained save');
+    releaseOptional=i.workScheduler.begin(3);
+    foreground=true;i.refreshHostActivity();
+    ok(await saving,'Once admitted, tab switching and zero optional effort cannot pause the save');
+    equal(admissions,1,'Focus resumes the same request exactly once');
+    ok(statuses.some(status=>status.active&&!status.waitingForFocus),'An idle UI subscriber observes the writer start after the focus wait');
+    const after=await i.indexedDb.readSnapshotMeta();ok(after.generation!==before.generation,'Complete replacement generation activates');
+    equal(i.indexedDb.getSnapshotWriteDiagnostics().outcome,'complete','Actual multi-batch IndexedDB writer completed');
+    equal(i.cacheFocusWaiters.size,0,'No retained focus receipts');
+    ok(i.workScheduler.diagnostics().paused,'Other optional indexing remains paused');
+   }finally{releaseOptional?.();q.close();}
+   return true;
+  })()`);
+ }finally{await browser.cleanup();}
+});
+
 test('inactive initial hydration keeps its original rate and saved graph while later maintenance slows',async()=>{
  const browser=await chromiumHarness(bundle);
  try{
@@ -28,7 +65,7 @@ test('inactive initial hydration keeps its original rate and saved graph while l
    i.workScheduler.pacing={...pacing,isForeground:hint,now:()=>clock,
     scheduleIdle:(callback,ms)=>{
      rests.push(ms);clock+=ms;
-     if(edits<2&&clock>=(edits+1)*400){edits++;q.file.stat.mtime++;revision++;}
+     if(!host.initialIndexComplete&&edits<2&&clock>=(edits+1)*400){edits++;q.file.stat.mtime++;revision++;}
      const timer=window.setTimeout(callback,0);return()=>window.clearTimeout(timer);
     }};
    i.indexedDb.iterateSnapshotPages=function(meta,onValue,...args){return iterate.call(this,meta,value=>{clock+=0.001;onValue(value);},...args);};
@@ -43,7 +80,7 @@ test('inactive initial hydration keeps its original rate and saved graph while l
     const startupRests=[...rests];ok(startupRests.length>0,'Real hydration consumed background work slices');
     ok(startupRests.every(ms=>ms===24),'Startup retains the responsive rest in an inactive tab');
     host.initialIndexComplete=true;clock+=6;await i.workScheduler.checkpoint(4);
-    equal(rests.at(-1),240,'Settled inactive maintenance still receives the reduced allowance');
+    equal(rests.at(-1),1338,'Settled inactive maintenance uses the new conservative default effort');
     return{pages:i.state.pages.size,startupRests:startupRests.length,edits,clock};
    }finally{i.indexedDb.iterateSnapshotPages=iterate;i.workScheduler.pacing=pacing;q.close();}
   })()`);

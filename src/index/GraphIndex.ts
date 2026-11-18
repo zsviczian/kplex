@@ -1,4 +1,6 @@
 /**
+ * Inactive effort pauses or paces optional settled-session work without dropping private progress.
+ * New snapshots await actual host focus before capture; admitted writes keep their normal pace.
  * Short background rests use a main-window cancellable idle capability so hidden-renderer timer
  * clamping cannot multiply source-audit, snapshot-write and cache-reclamation pacing delays.
  * Warm eager views can compile finite visible owners through the same local compiler at P1,
@@ -734,6 +736,8 @@ export class GraphIndex {
   private snapshotPersistDueAt: number | null = null;
   private orphanCleanupTimer: number | null = null;
   private snapshotPersistGeneration = 0;
+  /** Event-driven waits stay outside transactions and retain the existing generation fences. */
+  private readonly cacheFocusWaiters = new Set<() => void>();
   /** The coordinator requests once; independent source/graph closure may complete afterward. */
   private startupSnapshotRequested = false;
   private startupSnapshotFinished = false;
@@ -816,10 +820,10 @@ export class GraphIndex {
   private nodeVisualCache = new Map<string, { signature: string; visual: NodeVisual | null }>();
   private nodeVisualRevision = 0;
   /** Construct lifecycle-owned caches without admitting broad work. Production supplies its captured
-   * device strategy and live native focus hint; the hint only paces existing background owners.
+   * device strategy and live native focus hints for optional pacing and new snapshot admission.
    * Legacy direct consumers retain the explicit settings strategy and foreground pacing as defaults. */
   constructor(private plugin: KplexPlugin, private app: App = plugin.app, private preparationDeferred = false,
-    mode = plugin.settings.indexingMode, isForeground?: () => boolean) {
+    mode = plugin.settings.indexingMode, isForeground?: () => boolean, private readonly isCacheSaveForeground?: () => boolean) {
     this.workScheduler = new ForegroundWorkScheduler({
       /** The plugin-global index and storage belong to the main application window. */
       now: () => window.performance.now(),
@@ -833,6 +837,8 @@ export class GraphIndex {
       throttle: () => plugin.settings.indexingThrottle,
       // Host focus is pacing-only: never translate a tab switch into index cancellation or admission.
       isForeground,
+      /** Read live effort without restarting graph or source owners. */
+      backgroundEffort: () => plugin.settings.backgroundIndexingEffort,
     });
     // Production passes its captured device strategy; direct legacy callers retain their supplied preference.
     this.indexingMode = mode ?? "on-demand";
@@ -4490,8 +4496,9 @@ export class GraphIndex {
   /** Passive durability state is distinct from usable graph readiness and never starts a write. */
   getSnapshotPersistenceDiagnostics() {
     const writer = this.indexedDb.getSnapshotWriteDiagnostics();
-    return {pending: this.snapshotPersistTimer !== null,
-      active: writer.outcome === "running", writer,
+    const waitingForFocus = this.cacheFocusWaiters.size > 0;
+    return {pending: this.snapshotPersistTimer !== null || waitingForFocus, waitingForFocus,
+      active: writer.outcome === "running" && !waitingForFocus, writer,
       dueInMs: this.snapshotPersistDueAt === null ? null : Math.max(0, Math.ceil(this.snapshotPersistDueAt - window.performance.now()))};
   }
   /**
@@ -5549,6 +5556,31 @@ export class GraphIndex {
       this.orphanCleanupTimer = null;
     }
     this.snapshotPersistGeneration += 1;
+    this.wakeCacheFocusWaiters();
+  }
+
+  /** Focus is scheduling-only: resume retained owners without invalidating or rebuilding the index. */
+  refreshHostActivity(): void {
+    this.workScheduler.refreshPacing();
+    this.wakeCacheFocusWaiters();
+  }
+
+  /** Release stale as well as current writers; each continuation rechecks its original generation. */
+  private wakeCacheFocusWaiters(): void {
+    for (const wake of this.cacheFocusWaiters ?? []) wake();
+  }
+
+  /** Await actual K-Plex focus before snapshot capture, without timers, transactions or invalidation.
+   * Admitted writers never wait here again; edits/unload wake superseded requests promptly. */
+  private async waitForCacheFocus(isCurrent: () => boolean): Promise<void> {
+    while (!this.diagnosticsClosed && isCurrent() && this.isCacheSaveForeground?.() === false) {
+      await new Promise<void>(/** Each wait owns exactly one removable event receipt. */ resolve => {
+        /** Remove the receipt before the save resumes or retires through its generation fence. */
+        const wake = (): void => {this.cacheFocusWaiters.delete(wake);resolve();};
+        this.cacheFocusWaiters.add(wake);
+        this.plugin.notifyStartupProgress?.(true);
+      });
+    }
   }
 
   /**
@@ -5613,6 +5645,7 @@ export class GraphIndex {
     this.cancelSnapshotHydration?.();
     this.snapshotHydrationRun += 1;
     this.snapshotPersistGeneration += 1;
+    this.wakeCacheFocusWaiters();
     this.snapshotHydrationTask = null;
     if (this.snapshotPersistTimer !== null) window.clearTimeout(this.snapshotPersistTimer);
     if (this.orphanCleanupTimer !== null) window.clearTimeout(this.orphanCleanupTimer);
@@ -7527,6 +7560,10 @@ export class GraphIndex {
       const checkpoint = completedMarkdownPaths !== undefined;
       if (this.onDemandPartialState || this.persistentCachePurged) return false;
       if (run !== this.snapshotPersistGeneration || (!checkpoint && !this.fullSnapshotHydrated) || this.state.pages.size === 0) return false;
+      await this.waitForCacheFocus(/** Superseded or retired saves never keep awaiting host focus. */ () => run === this.snapshotPersistGeneration && isCurrent());
+      // Focus can return after edits or lifecycle retirement. Recheck before capturing any graph data.
+      if (this.onDemandPartialState || this.persistentCachePurged || !isCurrent()) return false;
+      if (run !== this.snapshotPersistGeneration || (!checkpoint && !this.fullSnapshotHydrated) || this.state.pages.size === 0) return false;
       const state = this.state;
       const semanticFingerprints = this.semanticFingerprints;
       function* pageRecords(): IterableIterator<PersistedPage> {
@@ -7546,7 +7583,7 @@ export class GraphIndex {
       const completedPaths = completedMarkdownPaths ? [...completedMarkdownPaths] : null;
       const completedMarkdownFiles = completedPaths?.length;
       let failureReason: SnapshotWriteFailureReason | null = null;
-      const persisted = await this.indexedDb.writeSnapshot({
+      const writing = this.indexedDb.writeSnapshot({
         createdAt: snapshotCreatedAt,
         vaultSignature,
         settingsSignature,
@@ -7554,7 +7591,13 @@ export class GraphIndex {
         discoveredFields: [...this.state.discoveredFields.entries()],
         ...(completedPaths ? { completedMarkdownPaths: completedPaths } : {}),
       }, pages, evidence, () => run === this.snapshotPersistGeneration && isCurrent(), checkpoint ? "checkpoint" : "active",
-      (reason) => { failureReason = reason; });
+      (reason) => { failureReason = reason; },
+      /** Once admitted, finish the save at the selected normal pace even if tabs change or effort is zero. */
+      () => this.workScheduler.checkpoint(INDEX_WORK_PRIORITY.background, true));
+      // A deferred request was last reported as waiting. Publish the actual running writer now,
+      // rather than leaving that old label visible until another unrelated graph event arrives.
+      this.plugin.notifyStartupProgress?.(true);
+      const persisted = await writing;
 
       if (!persisted || run !== this.snapshotPersistGeneration) {
         if (run === this.snapshotPersistGeneration && failureReason !== "cancelled") {
@@ -7635,6 +7678,7 @@ export class GraphIndex {
       window.clearTimeout(this.snapshotPersistTimer);
     }
     const run = ++this.snapshotPersistGeneration;
+    this.wakeCacheFocusWaiters();
     const delay = delayOverride ?? (Platform.isIosApp ? 12000 : Platform.isMobile ? 8000 : 5000);
     const now = window.performance.now();
     this.snapshotPersistDueAt = Math.min(this.snapshotPersistDueAt ?? Infinity, now + delay);

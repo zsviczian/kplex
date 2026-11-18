@@ -14,9 +14,9 @@ async function scenario(app,c){
  const pacing=plugin.index.workScheduler.pacing;
  assert(typeof pacing.scheduleIdle==='function','Bundled index injects the short-wait adapter');
  const schedulers=[],result={visibility:document.visibilityState,focused:document.hasFocus(),asyncWaitAvailable:typeof window.SharedArrayBuffer==='function'&&typeof window.Atomics?.waitAsync==='function',modes:[],cache:null};
- let cache,originalError,nativeWindow,originalWindow,focusLeaf,originalActive;
+ let cache,originalError,nativeWindow,originalWindow,focusLeaf,originalActive,originalEffort;
  /** Allocate only independent scheduler state; no plugin setting or active index is replaced. */
- const make=(mode,now=()=>performance.now(),isForeground=()=>true)=>{const scheduler=new Scheduler({...pacing,now,throttle:()=>mode,isForeground});schedulers.push(scheduler);return scheduler;};
+ const make=(mode,now=()=>performance.now(),isForeground=()=>true)=>{const scheduler=new Scheduler({...pacing,now,throttle:()=>mode,isForeground,backgroundEffort:()=>10});schedulers.push(scheduler);return scheduler;};
  c.release=()=>{for(const scheduler of schedulers)scheduler.close();};
  try{
   if(c.checkFocus){
@@ -49,10 +49,33 @@ async function scenario(app,c){
    const foreground=await measure();
    focusLeaf=app.workspace.getLeaf('tab');await focusLeaf.setViewState({type:'empty',active:true});
    app.workspace.setActiveLeaf(focusLeaf,{focus:true});assert(!pacing.isForeground(),'Another actual tab reduces throughput');
+   const brand=plex.view.contentEl.querySelector('.kplex-icon.kplex-brand-mark');
+   assert(brand&&getComputedStyle(brand).opacity==='0.5','Inactive Plex brand visibly dims to 0.5');
    const inactive=await measure();
    assert(inactive.idleWindows===foreground.idleWindows&&inactive.idleWindows===6,'Both runs retain all six work slices');
    assert(inactive.duty<foreground.duty/3,'Inactive scheduled CPU duty must fall by at least threefold');
    app.workspace.setActiveLeaf(plex,{focus:true});assert(pacing.isForeground(),'Returning to Plex restores the live policy');
+   assert(getComputedStyle(brand).opacity==='1','Focused Plex brand restores full opacity');
+   if(c.captureRoot)require('node:fs').writeFileSync(c.captureRoot+'/plex-active.png',(await nativeWindow.webContents.capturePage()).toPNG());
+   nativeWindow.blur();const blurDeadline=performance.now()+2000;
+   while((document.hasFocus()||getComputedStyle(brand).opacity!=='0.5')&&performance.now()<blurDeadline)await new Promise(resolve=>window.setTimeout(resolve,20));
+   assert(!document.hasFocus()&&!pacing.isForeground()&&getComputedStyle(brand).opacity==='0.5','External window focus dims the still-visible Plex and reduces its work');
+   if(c.captureRoot)require('node:fs').writeFileSync(c.captureRoot+'/plex-inactive.png',(await nativeWindow.webContents.capturePage()).toPNG());
+   nativeWindow.focus();nativeWindow.webContents.focus();const returnDeadline=performance.now()+2000;
+   while((!pacing.isForeground()||getComputedStyle(brand).opacity!=='1')&&performance.now()<returnDeadline)await new Promise(resolve=>window.setTimeout(resolve,20));
+   assert(pacing.isForeground()&&getComputedStyle(brand).opacity==='1','Owning-window focus restores work and full brand opacity');
+   originalEffort=plugin.settings.backgroundIndexingEffort;
+   plugin.settings.backgroundIndexingEffort=0;plugin.refreshIndexActivity(true);
+   app.workspace.setActiveLeaf(focusLeaf,{focus:true});
+   let resumed=false;const paused=plugin.index.workScheduler.checkpoint(4).then(()=>{resumed=true;});
+   await new Promise(resolve=>window.setTimeout(resolve,60));
+   assert(!resumed&&plugin.index.workScheduler.diagnostics().paused,'Zero effort retains optional work without polling');
+   app.workspace.setActiveLeaf(plex,{focus:true});
+   let resumeTimer;
+   try{await Promise.race([paused,new Promise((_,reject)=>{resumeTimer=window.setTimeout(()=>reject(Error('Native focus did not resume paused work')),2000);})]);}
+   finally{window.clearTimeout(resumeTimer);}
+   assert(resumed,'Actual native selection wakes the retained production scheduler');
+   plugin.settings.backgroundIndexingEffort=originalEffort;plugin.refreshIndexActivity(true);originalEffort=undefined;
    result.focus={foreground,inactive,dutyReduction:foreground.duty/inactive.duty};
   }
   if(c.hideRenderer){
@@ -61,7 +84,7 @@ async function scenario(app,c){
    nativeWindow.hide();await new Promise(resolve=>window.setTimeout(resolve,100));
    result.visibility=document.visibilityState;result.focused=document.hasFocus();assert(result.visibility==='hidden','Actual selected renderer is hidden');
   }
-  let legacyClock=0;const legacy=make('responsive',()=>legacyClock);legacy.pacing={...pacing,now:()=>legacyClock,throttle:()=> 'responsive',scheduleIdle:undefined};
+  let legacyClock=0;const legacy=make('responsive',()=>legacyClock);legacy.pacing={...pacing,now:()=>legacyClock,throttle:()=> 'responsive',isForeground:()=>true,scheduleIdle:undefined};
   const legacyStarted=performance.now();await legacy.checkpoint(4);
   for(let step=0;step<3;step++){legacyClock+=6;await legacy.checkpoint(4);}
   result.legacyTimer={requestedIdleMs:72,elapsedMs:performance.now()-legacyStarted};legacy.close();
@@ -109,6 +132,7 @@ async function scenario(app,c){
   result.cache={pages:restored,elapsedMs:performance.now()-started,retiredGenerationRemoved:true,inactivePacing:Boolean(c.checkFocus)};return result;
  }catch(error){originalError=error;throw error;
  }finally{
+  if(originalEffort!==undefined){plugin.settings.backgroundIndexingEffort=originalEffort;plugin.refreshIndexActivity(true);}
   c.release();
   try{
    if(cache&&!await cache.purgeAndClose())throw Error(String(originalError??'Scenario completed')+'; private fixture purge failed');

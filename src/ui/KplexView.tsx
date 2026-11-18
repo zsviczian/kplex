@@ -1,6 +1,8 @@
 /**
  * Native Obsidian view shells, active-view hotkey scopes and React-root lifecycle for K-Plex
- * surfaces. The view owns reversible session display leases and restores them before close/unload or cross-document adoption. React registers/unregisters scoped actions with its owning surface. View registration
+ * surfaces. Owning-document focus listeners dim inactive brands and wake shared scheduling;
+ * migration, view close and plugin unload release their exact document/window registrations.
+ * The view owns reversible session display leases and restores them before close/unload or cross-document adoption. React registers/unregisters scoped actions with its owning surface. View registration
  * IDs stay stable; display titles use the plugin translator.
  */
 import { ItemView, Scope, WorkspaceLeaf, type ViewStateResult } from "obsidian";
@@ -30,6 +32,7 @@ abstract class BaseKplexView extends ItemView {
   private readyResolvers: Array<() => void> = [];
   private displayModes: KplexDisplayModes | null = null;
   private releaseDisplayLifecycle: (() => void) | null = null;
+  private releaseIndexFocus: (() => void) | null = null;
 
   /** Bind the native leaf, inherited hotkey scope and K-Plex owner; React owns surface handlers. */
   constructor(leaf: WorkspaceLeaf, protected plugin: KplexPlugin) {
@@ -169,12 +172,17 @@ abstract class BaseKplexView extends ItemView {
     const syncNavigation = (): void => {
       const active = workspace.getActiveViewOfType(ItemView);
       this.displayModes?.setHostActive(active === this || Boolean(active && this.contentEl.contains(active.containerEl)), this.getSurface() !== "sidepanel");
+      this.syncIndexActivity();
     };
     this.releaseDisplayLifecycle = registerDisplayModeUnload(this.plugin, this.displayModes);
+    this.displayModes.ownCleanup(/** Plugin unload can retire a view before native onClose. */ () => {
+      this.releaseIndexFocus?.();this.releaseIndexFocus = null;
+    });
     const activeRef = this.app.workspace.on("active-leaf-change", /** A different native pane exits fullscreen; embedded content in this view retains its owner. */ leaf => {
       const active = leaf === this.leaf || Boolean(leaf && this.contentEl.contains(leaf.view.containerEl));
       this.displayModes?.setHostActive(active, this.getSurface() !== "sidepanel");
       if (!active) this.displayModes?.exitFullscreen(false);
+      this.syncIndexActivity();
     });
     const renameRef = this.app.vault.on("rename", /** A same-file rename changes the native caption without resetting the camera. */ () => this.refreshTitle());
     const layoutRef = this.app.workspace.on("layout-change", /** Native layout destruction must never leave an orphaned fullscreen host. */ () => {
@@ -189,10 +197,12 @@ abstract class BaseKplexView extends ItemView {
         this.plugin.restorePlexFoldBeforeReveal(this.leaf);
         this.root?.unmount(); this.root = null;
         this.displayModes?.exitFullscreen();
+        this.bindIndexFocus();
         syncNavigation();
         this.renderReact();
       });
     }
+    this.bindIndexFocus();
     syncNavigation();
     this.renderReact();
     // View construction/reveal must never wait for a potentially long initial index. On mobile,
@@ -202,8 +212,33 @@ abstract class BaseKplexView extends ItemView {
     void this.plugin.onKplexViewOpened(this.leaf, this.documentSession ?? undefined).catch((error) => console.error("K-Plex view initialization failed", error));
   }
 
+  /** Dim this surface's brand when another tab/window owns focus; shared index policy stays plugin-owned. */
+  private syncIndexActivity(): void {
+    const document = this.contentEl.ownerDocument;
+    const active = this.app.workspace.getActiveViewOfType(ItemView) === this
+      && document.visibilityState !== "hidden" && document.hasFocus();
+    this.contentEl.toggleClass("kplex-index-background", !active);
+    this.plugin.refreshIndexActivity();
+  }
+
+  /** Rebind exact owning-window listeners after migration, with no timer or retained retired document. */
+  private bindIndexFocus(): void {
+    this.releaseIndexFocus?.();
+    const document = this.contentEl.ownerDocument, owner = document.defaultView;
+    /** Use the current owning document after every native focus/visibility transition. */
+    const sync = (): void => this.syncIndexActivity();
+    owner?.addEventListener("focus", sync);
+    owner?.addEventListener("blur", sync);
+    document.addEventListener("visibilitychange", sync);
+    this.releaseIndexFocus = /** Detach from the exact original targets, including a retired source window. */ () => {
+      owner?.removeEventListener("focus", sync);owner?.removeEventListener("blur", sync);
+      document.removeEventListener("visibilitychange", sync);
+    };
+  }
+
   /** Release window hooks, React resources and pending waiters before native view teardown. */
   async onClose(): Promise<void> {
+    this.releaseIndexFocus?.();this.releaseIndexFocus = null;
     this.closed = true;this.initializationGeneration++;
     if (this.documentSession && this.leaf.view === this) this.plugin.restorePlexFoldBeforeReveal(this.leaf);
     this.displayModes?.dispose(); this.displayModes = null;

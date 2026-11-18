@@ -442,12 +442,13 @@ test("indexing acquisition settings default conservatively, validate saved value
 test("background throttle settings use declarative localized controls and save without reconstruction", async () => {
   const saves = [];
   const plugin = { manifest: { id: "k-plex" }, settings: structuredClone(defaults), saveSettings: async (...args) => { saves.push(args); },
+    refreshIndexActivity: () => {},
     index: { unassignedOntologyFields: () => [], allPages: () => [] } };
   plugin.translator = createObsidianTranslator();
   const tab = new KplexSettingTab({}, plugin);
   const page = tab.getSettingDefinitions().find(item => item.name === "Indexing config");
   const row = page.items.flatMap(group => group.items ?? []).find(item => item.control?.key === "indexingThrottle");
-  assert.equal(row.name, "Background indexing speed");
+  assert.equal(row.name, "Foreground indexing speed");
   assert.equal(row.control.defaultValue, "responsive");
   assert.deepEqual(Object.keys(row.control.options), ["responsive", "balanced", "faster"]);
   await tab.setControlValue("indexingThrottle", "faster");
@@ -463,6 +464,25 @@ test("background throttle settings use declarative localized controls and save w
   });
   assert.equal(encodeIndexSettingsSignature(faster), encodeIndexSettingsSignature(defaults));
   assert.equal(importExcaliBrainGraphSettings({ ...fixture, indexingThrottle: "balanced" }, faster).indexingThrottle, "faster");
+});
+
+test("inactive effort persists independently of admission, strategy and semantic cache identity",async()=>{
+ const wakes=[],saves=[];
+ const plugin={manifest:{id:'k-plex'},settings:structuredClone(defaults),translator:createObsidianTranslator(),
+  refreshIndexActivity:force=>wakes.push(force),saveSettings:async(...args)=>saves.push(args),index:{unassignedOntologyFields:()=>[],allPages:()=>[]}};
+ const tab=new KplexSettingTab({},plugin),page=tab.getSettingDefinitions().find(item=>item.name==='Indexing config');
+ const group=page.items.find(item=>item.heading==='When K-Plex is inactive');assert(group);
+ assert.equal(typeof group.items.find(item=>item.name==='Background effort').render,'function','Uses the shared visible-value numeric row');
+ for(const value of [0,40,100]){
+  await tab.setControlValue('backgroundIndexingEffort',value);assert.equal(plugin.settings.backgroundIndexingEffort,value);
+  const saved={...plugin.settings,unknownFuture:{preserve:7}},loaded=migrateAndMergeSettings(JSON.parse(JSON.stringify(saved)));
+  assert.equal(loaded.backgroundIndexingEffort,value);assert.deepEqual(loaded.unknownFuture,{preserve:7});
+  assert.equal(encodeIndexSettingsSignature(loaded),encodeIndexSettingsSignature(defaults),'Scheduling never invalidates a saved graph');
+  assert.equal(importExcaliBrainGraphSettings({...fixture,backgroundIndexingEffort:99},loaded).backgroundIndexingEffort,value);
+ }
+ assert.deepEqual(wakes,[true,true,true]);assert.deepEqual(saves,[[false,false],[false,false],[false,false]]);
+ assert.equal(migrateAndMergeSettings({backgroundIndexingEffort:'0'}).backgroundIndexingEffort,10);
+ assert.equal(migrateAndMergeSettings({backgroundIndexingEffort:0}).backgroundIndexingEffort,0);
 });
 
 test("indexing settings persist without rebuilding and cache estimation is lazy and fenced to the displayed row", async () => {

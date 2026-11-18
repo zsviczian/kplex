@@ -46,6 +46,14 @@ must retain all progress while inactive duty falls at least threefold. The lane 
 and removes its temporary tab independently of success. This is scheduler evidence, not total
 Obsidian CPU or large-vault latency acceptance. Run it separately from the hidden-renderer lane.
 
+Inactive effort is a live 0–100 preference (default 10), separate from restart-applied preparation
+and Eager/On-demand strategy. Cover zero-effort timer-free pause/resume, the full foreground endpoint,
+focus loss to another application and owning-window migration. Initial preparation remains exempt.
+Complete cache saves wait for actual K-Plex focus before starting; once started they must finish
+after switching away, including at zero effort. Verify preserved prior metadata while waiting,
+edit/unload supersession, actual replacement activation and subsequent unchanged warm reuse.
+The inactive brand mark is 0.5 opacity; inspect it alongside the waiting-for-focus cache status.
+
 ```bash
 npm i
 npm run verify

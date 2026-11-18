@@ -9,6 +9,18 @@ import { buildLocaleCatalog, type LocaleCatalog, type LocaleTranslationMap } fro
 /** Construct the typed French table only when selected; importing this module allocates no catalog. */
 export function createFrenchCatalog(): LocaleCatalog {
 const frenchTranslations = {
+  "indexing.backgroundTitle": "Quand K-Plex est inactif",
+  "indexing.backgroundEffort": "Effort en arrière-plan",
+  "indexing.backgroundHelp": "À 0, suspend l’indexation facultative ; à 100, utilise la vitesse du premier plan. Les changements sont immédiats. La préparation initiale se termine sans interruption ; navigation et modifications restent prioritaires.",
+  "indexing.backgroundPaused": "En pause",
+  "indexing.backgroundFull": "Comme au premier plan",
+  "indexing.cacheFocusTitle": "Démarrer l’enregistrement du cache quand K-Plex est actif",
+  "indexing.cacheFocusHelp": "L’enregistrement complet du cache démarre uniquement lorsque K-Plex est l’onglet actif dans une fenêtre au premier plan. Un enregistrement déjà commencé se termine si vous changez d’onglet.",
+  "index.cacheWaitingForFocus": "Enregistrement du cache en attente du focus K-Plex",
+  "indexing.backgroundPausedStatus": "Indexation en arrière-plan en pause",
+  "indexing.backgroundReducedStatus": "Indexation en arrière-plan réduite",
+  "indexing.throttle": "Vitesse d’indexation au premier plan",
+  "indexing.throttleHelp": "Choisissez la vitesse lorsque K-Plex est actif et pendant la préparation initiale. Réactif laisse plus de temps aux autres tâches. Navigation et modifications restent prioritaires. Les changements sont immédiats.",
   "styleSources.menu": "Sources de l’apparence",
   "styleSources.tag": "Style d’étiquette · {name}",
   "styleSources.noteType": "Type de note · {name}",
