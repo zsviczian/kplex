@@ -50,11 +50,15 @@ async function scenario(app,c){
    focusLeaf=app.workspace.getLeaf('tab');await focusLeaf.setViewState({type:'empty',active:true});
    app.workspace.setActiveLeaf(focusLeaf,{focus:true});assert(!pacing.isForeground(),'Another actual tab reduces throughput');
    const brand=plex.view.contentEl.querySelector('.kplex-icon.kplex-brand-mark');
+   /** Native active-leaf events follow selection asynchronously; observe their actual style result. */
+   const waitForOpacity=async value=>{const end=performance.now()+2000;while(brand&&getComputedStyle(brand).opacity!==value&&performance.now()<end)await new Promise(resolve=>window.setTimeout(resolve,20));};
+   await waitForOpacity('0.5');
    assert(brand&&getComputedStyle(brand).opacity==='0.5','Inactive Plex brand visibly dims to 0.5');
    const inactive=await measure();
    assert(inactive.idleWindows===foreground.idleWindows&&inactive.idleWindows===6,'Both runs retain all six work slices');
    assert(inactive.duty<foreground.duty/3,'Inactive scheduled CPU duty must fall by at least threefold');
    app.workspace.setActiveLeaf(plex,{focus:true});assert(pacing.isForeground(),'Returning to Plex restores the live policy');
+   await waitForOpacity('1');
    assert(getComputedStyle(brand).opacity==='1','Focused Plex brand restores full opacity');
    if(c.captureRoot)require('node:fs').writeFileSync(c.captureRoot+'/plex-active.png',(await nativeWindow.webContents.capturePage()).toPNG());
    nativeWindow.blur();const blurDeadline=performance.now()+2000;
