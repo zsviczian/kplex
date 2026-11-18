@@ -23,6 +23,9 @@ async function scenario(app,c){
   }
   const role=c.incoming?'children':'parents';
   if(c.incoming||c.dense)await app.vault.modify(edited,editedBody);
+  // Measure edits to a settled warm graph, independently of first-open recovery for a new
+  // multi-contributor topology. The real startup coordinator prepares this fixture baseline.
+  if(c.dense)p=await f.reload();
   const setupLeaf=await f.canvas(source);await f.ready();
   const settled=()=>{const s=p.index.sourceAcquisition.getActivityState();return !p.indexDirty&&!p.rebuildTask&&p.rebuildTimer===null&&!p.index.hasActiveSemanticPreparation()&&!p.index.hasPendingSemanticPreparation()&&!s.sourceActive&&!s.pendingKnown&&!s.knownImpactTasks&&!s.repoWrites&&!p.index.onDemandTasks.size;};
   for(const mode of ['eager','on-demand']){
@@ -88,7 +91,10 @@ async function scenario(app,c){
      f.check(!violations.length,'Prose-only scene changed '+mode+' '+view+': '+JSON.stringify(violations));
      const globalInventories=p.startupDiagnostics.snapshot().sessionWork.sourceInventoryPasses-inventoryBefore;
      f.check(globalInventories===0,'Plain Markdown autosaves admitted a global source inventory');
-     results.push({mode,view,incomingContributor:!!c.incoming,paused:!!c.paused,saves:3,samples,nodeCount:baseline.length,edgeCount:edges.length,sceneStable:true,globalInventories});
+     const observed=p.index.getSourceAcquisitionCounters();
+     results.push({mode,view,incomingContributor:!!c.incoming,paused:!!c.paused,backgroundEffort:p.settings.backgroundIndexingEffort,
+      saves:3,samples,nodeCount:baseline.length,edgeCount:edges.length,sceneStable:true,globalInventories,
+      editWork:{reads:observed.vaultReads-sourceBefore.vaultReads,parses:observed.parses-sourceBefore.parses}});
      if(c.paused){
       const resumed=performance.now();app.workspace.setActiveLeaf(leaf,{focus:true});await f.focus(doc);p.refreshIndexActivity(true);await f.until(settled,'Focused catch-up after paused prose saves');
       const after=p.index.getSourceAcquisitionCounters(),fullBuildAdmissions=p.index.getSemanticPreparationDiagnostics().fullBuilds-buildsBefore;
