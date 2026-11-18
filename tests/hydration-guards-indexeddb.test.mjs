@@ -8,8 +8,48 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { chromiumHarness } from './support/browserTypeScript.mjs';
 import { hydrationWorkBundle, contributorBrowserInitialize, initializeHydrationWork } from './support/hydrationWorkFixture.mjs';
+import {indexPacingHintSource} from './support/indexPacingHost.mjs';
 
 const bundle = await hydrationWorkBundle({}, ['src/index/SectionExpansion.ts', 'src/ui/plexViews/sections.ts', 'src/core/plex/views/sections.ts']);
+
+test('inactive initial hydration keeps its original rate and saved graph while later maintenance slows',async()=>{
+ const browser=await chromiumHarness(bundle);
+ try{
+  await browser.evaluate(contributorBrowserInitialize);await browser.evaluate(initializeHydrationWork);
+  const result=await browser.evaluate(`(async()=>{
+   const q=await hydrationWorkFixture('inactive-startup-pacing',12000,0,'eager',true),i=q.index;
+   const host={initialIndexComplete:false,isKplexIndexingForeground:()=>false};
+   const hint=new Function('return ('+${JSON.stringify(indexPacingHintSource)}+');').call(host);
+   const pacing=i.workScheduler.pacing,iterate=i.indexedDb.iterateSnapshotPages,rests=[];
+   let clock=0,revision=0,edits=0;
+   q.plugin.getIndexSourceRevision=()=>revision;
+   // Reproduce host saves at 400/800 ms of consumed work+rest time. Virtual CPU cost
+   // avoids wall-clock/CI races; actual IDB decoding, file-stat guards and publication stay real.
+   i.workScheduler.pacing={...pacing,isForeground:hint,now:()=>clock,
+    scheduleIdle:(callback,ms)=>{
+     rests.push(ms);clock+=ms;
+     if(edits<2&&clock>=(edits+1)*400){edits++;q.file.stat.mtime++;revision++;}
+     const timer=window.setTimeout(callback,0);return()=>window.clearTimeout(timer);
+    }};
+   i.indexedDb.iterateSnapshotPages=function(meta,onValue,...args){return iterate.call(this,meta,value=>{clock+=0.001;onValue(value);},...args);};
+   try{
+    q.releaseSources();
+    await i.restoreIndexedDbSnapshot([q.file.path],true);await i.waitForSnapshotHydration();
+    ok(i.isFullSnapshotHydrated(),'Inactive startup must retain the complete saved graph: '+JSON.stringify(i.getSnapshotHydrationDiagnostics()));
+    equal(i.state.pages.size,q.state.pages.size,'All saved pages survive');
+    equal(i.getSemanticPreparationDiagnostics().fullBuilds,0,'No full graph fallback');
+    equal(q.f.reads.length,0,'Unchanged Markdown is not reread');equal(q.f.parses.length,0,'Unchanged Markdown is not reparsed');
+    equal(i.getSnapshotHydrationDiagnostics().attempts,1,'No hydration restart');
+    const startupRests=[...rests];ok(startupRests.length>0,'Real hydration consumed background work slices');
+    ok(startupRests.every(ms=>ms===24),'Startup retains the responsive rest in an inactive tab');
+    host.initialIndexComplete=true;clock+=6;await i.workScheduler.checkpoint(4);
+    equal(rests.at(-1),240,'Settled inactive maintenance still receives the reduced allowance');
+    return{pages:i.state.pages.size,startupRests:startupRests.length,edits,clock};
+   }finally{i.indexedDb.iterateSnapshotPages=iterate;i.workScheduler.pacing=pacing;q.close();}
+  })()`);
+  assert.equal(result.edits,0,'Original startup pacing closes before the simulated later saves');
+ }finally{await browser.cleanup();}
+});
 
 for(const secondPhase of ['pages','relations','evidence-only'])test('fresh saved pages retain '+(secondPhase==='evidence-only'?'a late same-stat native source repair':'repeated same-stat native source repairs')+' without a compiler detour ('+secondPhase+')',async()=>{
  const browser=await chromiumHarness(bundle);try{

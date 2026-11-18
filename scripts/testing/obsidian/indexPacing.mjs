@@ -29,6 +29,9 @@ async function scenario(app,c){
    assert(plex,'Existing main-window Plex required');
    nativeWindow.restore();nativeWindow.show();nativeWindow.focus();
    app.workspace.setActiveLeaf(plex,{focus:true});
+   const startupDeadline=performance.now()+90000;
+   while(!plugin.initialIndexComplete&&performance.now()<startupDeadline)await new Promise(resolve=>window.setTimeout(resolve,50));
+   assert(plugin.initialIndexComplete,'Initial readiness precedes settled-session focus measurements');
    const focusDeadline=performance.now()+2000;
    while(!pacing.isForeground()&&performance.now()<focusDeadline)await new Promise(resolve=>window.setTimeout(resolve,20));
    assert(pacing.isForeground(),'Actual selected focused Plex receives normal throughput');

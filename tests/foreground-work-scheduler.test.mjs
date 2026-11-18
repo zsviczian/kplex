@@ -2,11 +2,12 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {buildSync} from 'esbuild';
-import {mkdtempSync,rmSync,readFileSync} from 'node:fs';
+import {mkdtempSync,rmSync} from 'node:fs';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import {createRequire} from 'node:module';
 import {browserBundle} from './support/browserTypeScript.mjs';
+import {hostPacingProbe} from './support/indexPacingHost.mjs';
 const directory=mkdtempSync(join(tmpdir(),'kplex-priority-'));
 process.once('exit',()=>rmSync(directory,{recursive:true,force:true}));
 const output=join(directory,'scheduler.cjs');
@@ -99,16 +100,7 @@ test('unload settles an inactive rest without allowing late publication',async()
 });
 
 test('native selection uses the selected Plex owning document, including sidepanels and popouts',()=>{
- // Execute the exact host methods without loading unrelated plugin startup, UI or indexing owners.
- const ts=createRequire(import.meta.url)('typescript');
- const source=ts.createSourceFile('main.ts',readFileSync('src/main.ts','utf8'),ts.ScriptTarget.Latest,true);
- const plugin=source.statements.find(node=>ts.isClassDeclaration(node)&&node.name?.text==='KplexPlugin');
- const methods=['isKplexIndexingForeground'].map(name=>{
-  const member=plugin.members.find(node=>node.name?.getText(source)===name);assert(member,name);return member.getText(source);
- });
- const compiled=ts.transpileModule('class FocusProbe {'+methods.join('\n')+'}',{compilerOptions:{target:ts.ScriptTarget.ES2021}}).outputText;
- class ItemView{}
- const Probe=new Function('ItemView','KPLEX_VIEW_TYPE','KPLEX_SIDEPANEL_VIEW_TYPE',compiled+';return FocusProbe;')(ItemView,'plex','sidepanel');
+ const {Probe,ItemView}=hostPacingProbe();
  const probe=new Probe();let active=null,calls=0;
  probe.app={workspace:{getActiveViewOfType(type){assert.equal(type,ItemView);calls++;return active;}}};
  /** Each view owns independent native-document state; main-window globals cannot authorize a popout. */
@@ -123,6 +115,28 @@ test('native selection uses the selected Plex owning document, including sidepan
   active=view(type,true,'hidden');assert.equal(probe.isKplexIndexingForeground(),false);
  }
  assert.equal(calls,8,'One native selection read per hint, without enumerating leaves or reading geometry');
+});
+
+test('inactive startup retains normal pacing until its initial index is complete, then slows the same maintenance job',async()=>{
+ const {Probe,ItemView}=hostPacingProbe(),host=new Probe();let reads=0,now=0,next=0;
+ host.initialIndexComplete=false;
+ host.app={workspace:{getActiveViewOfType(type){assert.equal(type,ItemView);reads++;return null;}}};
+ const timers=new Map(),delays=[];
+ const scheduler=new ForegroundWorkScheduler({now:()=>now,throttle:()=> 'responsive',isForeground:()=>host.pacingHint(),
+  setTimeout:(callback,ms)=>{const id=++next;timers.set(id,callback);delays.push(ms);return id;},clearTimeout:id=>timers.delete(id)});
+ const release=scheduler.begin(P.background);let completed=0;
+ try{
+  await scheduler.checkpoint(P.background);now+=6;
+  let pending=scheduler.checkpoint(P.background).then(()=>{completed++;});
+  assert.deepEqual(delays,[24],'Inactive cache hydration must retain its pre-change rest, not a 240 ms interruption window');
+  assert.equal(reads,0,'Before readiness, native focus cannot change startup throughput');
+  let [id,callback]=timers.entries().next().value;timers.delete(id);callback();await pending;
+  host.initialIndexComplete=true;now+=6;
+  pending=scheduler.checkpoint(P.background).then(()=>{completed++;});
+  assert.deepEqual(delays,[24,240],'Only subsequent inactive maintenance uses the long rest');
+  [id,callback]=timers.entries().next().value;timers.delete(id);callback();await pending;
+  assert.equal(completed,2,'The existing job and its progress survive startup completion');
+ }finally{release();scheduler.close();}
 });
 
 test('foreground admission cancels idle resource and resumed background waits for all foreground owners',async()=>{

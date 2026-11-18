@@ -49,7 +49,8 @@
  * relocation approves bounded native reference occurrences and retains partial-write recovery locally.
  * Device-specific startup admission and strategy are captured once; actual views and explicit work
  * share the existing initialization owners. Dormant native changes retain coalesced validity fences.
- * Active native-view/window focus only adjusts background pacing; it never retires index progress.
+ * Active native-view/window focus only adjusts background pacing after initial readiness; startup
+ * retains its original throughput and focus never retires index progress.
  * Fresh restore inventory retires unchanged native create notifications only under their exact
  * identity/path/stat/event proof; dormant semantic edits and destructive changes retain reconciliation.
  * Ontology text drafts persist one guarded field through the existing settings queue before live
@@ -568,8 +569,8 @@ export default class KplexPlugin extends Plugin {
     if (this.unloading) return;
     this.startupDiagnostics.mark("settings-loaded");
     this.index = new GraphIndex(this, this.app, true, this.startupIndexPolicy.mode,
-      /** Read native selection at existing checkpoints, without DOM scans, subscriptions or polling. */
-      () => this.isKplexIndexingForeground());
+      /** Keep startup/cache hydration at its original rate; focus only paces settled-session work. */
+      () => !this.initialIndexComplete || this.isKplexIndexingForeground());
     // Replay only genuine early body/destructive events through the existing deferred source owner.
     // Metadata-cache inventory waves and startup create notifications never become body-dirty work.
     for (const [file, oldPath] of this.initializationSourceChanges) this.index.observeDeferredHostChange(file, true, oldPath);

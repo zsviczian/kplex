@@ -36,7 +36,11 @@ The [independence design](INDEX_SETTINGS_INDEPENDENCE_DESIGN.md) tracks acceptan
 
 ## Startup admission
 
-Background P3/P4 checkpoints read one live native focus hint. An active K-Plex tab or sidepanel in
+Initial preparation, including complete saved-cache hydration and its source/repair closure, keeps
+the existing Responsive/Balanced/Faster pacing regardless of tab focus. Slowing that finite startup
+owner widens the window for native file changes to exhaust its guarded hydration retry. The
+initial-index completion flag changes pacing only; no source/cache guard or retry limit is relaxed.
+After initial readiness, background P3/P4 checkpoints read one live native focus hint. A K-Plex tab or sidepanel in
 its focused owning document uses the selected Responsive/Balanced/Faster pacing; another active
 view or an unfocused/hidden document uses 6 ms work followed by a 240 ms rest. This finite pacing
 override neither changes demand/admission nor cancels/restarts source, graph or persistence owners.

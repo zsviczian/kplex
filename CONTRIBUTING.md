@@ -40,7 +40,7 @@ The development watcher retains source maps for debugging.
 
 After exact-build staging, `npm run verify:obsidian:index-pacing` uses the three explicit `kplex-test-small` target variables and a fresh `KPLEX_HOST_REPORT_DIR`. It exercises bundled short-wait pacing in all three scheduling modes, mutation preemption, unload settlement, and replacement/reclamation/restoration of a private synthetic IndexedDB snapshot. It creates no vault notes and preserves settings/enablement bytes. The report compares the retained timer fallback with the native short-wait path and records actual visibility. `KPLEX_PACING_HIDDEN=true` temporarily hides only the selected Small window and restores its visibility/focus/minimized state in independent cleanup; it does not alter Electron throttling. Hosts without asynchronous atomic-wait support retain native timer fallback. Windows evidence does not establish macOS or physical mobile behavior.
 
-`KPLEX_PACING_FOCUS=true` separately checks the production focus hint by switching from an existing
+`KPLEX_PACING_FOCUS=true` waits for initial index readiness, then checks the production focus hint by switching from an existing
 main-window Plex to a temporary empty native tab and back. Equal six-slice synthetic CPU workloads
 must retain all progress while inactive duty falls at least threefold. The lane restores selection
 and removes its temporary tab independently of success. This is scheduler evidence, not total
