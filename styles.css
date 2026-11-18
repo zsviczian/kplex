@@ -1574,14 +1574,14 @@ button.kplex-sidecar-unfold-plex,
    scenes visibly migrate between their actual old/new positions. CSS only handles connector
    appearance; duplicating positional CSS transitions here makes the FLIP transform fight layout. */
 @keyframes kplex-edge-arrive { from { opacity: 0; } to { opacity: 1; } }
-/* Arrival opacity belongs to an inner paint group. A finished fill-both animation on the
-   focus group would override is-dimmed forever, keeping relationship captions opaque. */
-.kplex-edge-paint {
+/* Only actual scene transitions animate arrival. Follow/focus and source updates must not
+   restart opacity on stationary connectors. Keep the inner group separate from hover dimming. */
+.kplex-plex.is-scene-transitioning .kplex-edge-paint {
   animation: kplex-edge-arrive max(120ms, calc(var(--kplex-motion-ms, 560ms) * .55)) ease-out both;
 }
 .kplex-plex.is-following-document .kplex-edge-paint { animation: none; }
 @media (prefers-reduced-motion: reduce) {
-  .kplex-edge-paint { animation: none; }
+  .kplex-plex.is-scene-transitioning .kplex-edge-paint { animation: none; }
 }
 
 .kplex-plex.is-section-expanded .kplex-thought.is-selected {

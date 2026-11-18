@@ -1,6 +1,7 @@
 /** Real browser regression for production animation replacement, interruption and completed-fill cleanup. */
 import assert from 'node:assert/strict';
 import test from 'node:test';
+import {readFileSync} from 'node:fs';
 import {browserBundle,chromiumHarness} from './support/browserTypeScript.mjs';
 import {loadPortableModules} from './support/portableTypeScript.mjs';
 
@@ -13,6 +14,31 @@ function animationFixture() {
  return {effect,finish:()=>resolve(),fail:()=>reject(Error('canceled')),get canceled(){return canceled}};
 }
 const motionPoses=[{offset:0,x:0,y:0,scaleX:1,scaleY:1,originX:0,originY:0},{offset:1,x:10,y:0,scaleX:1,scaleY:1,originX:0,originY:0}];
+
+test('stationary connectors never replay arrival opacity when document-follow or focus styling changes',async()=>{
+ const browser=await chromiumHarness(await browserBundle(['src/ui/components/ElementMotion.ts']));
+ try{
+  const result=await browser.evaluate(`(()=>{
+   const style=document.createElement('style');style.id='edge-opacity-style';style.textContent=${JSON.stringify(readFileSync(new URL('../styles.css',import.meta.url),'utf8'))};document.head.append(style);
+   const root=document.createElement('div');root.id='stationary-edge';root.className='kplex-plex is-following-document';root.style.cssText='width:600px;height:400px;--kplex-motion-ms:1000ms';
+   root.innerHTML='<svg><g class="kplex-edge-paint"><path d="M 0 0 L 100 100" /></g></svg>';document.body.append(root);
+   const paint=root.querySelector('g'),path=paint.querySelector('path'),initial=getComputedStyle(paint).animationName;
+   root.classList.remove('is-following-document');
+   const stationary={animation:getComputedStyle(paint).animationName,opacity:Number(getComputedStyle(paint).opacity)};
+   root.classList.add('is-scene-transitioning');const deliberate=getComputedStyle(paint).animationName;
+   for(const animation of paint.getAnimations())animation.finish();root.classList.remove('is-scene-transitioning');
+   root.classList.add('is-following-document');getComputedStyle(paint).opacity;root.classList.remove('is-following-document');root.style.setProperty('--kplex-motion-ms','500ms');
+   const settled={animation:getComputedStyle(paint).animationName,opacity:Number(getComputedStyle(paint).opacity)};
+   const same=path===root.querySelector('path');return{initial,stationary,deliberate,settled,same};
+  })()`);
+  assert.equal(result.initial,'none');assert.deepEqual(result.stationary,{animation:'none',opacity:1});
+  assert.equal(result.deliberate,'kplex-edge-arrive','Real scene transitions keep their existing arrival effect');
+  assert.deepEqual(result.settled,{animation:'none',opacity:1});assert.equal(result.same,true);
+  await browser.command('Emulation.setEmulatedMedia',{features:[{name:'prefers-reduced-motion',value:'reduce'}]});
+  const reduced=await browser.evaluate(`(()=>{const root=document.getElementById('stationary-edge');root.classList.add('is-scene-transitioning');const animation=getComputedStyle(root.querySelector('g')).animationName;root.remove();document.getElementById('edge-opacity-style').remove();return animation;})()`);
+  assert.equal(reduced,'none','Reduced motion also disables deliberate connector arrival');
+ }finally{await browser.cleanup();}
+});
 
 test('native null animation acquisition retains no effect or pose and cancelAll stays safe',()=>{
  const motion=new ElementMotion(),element={animate:()=>null};
