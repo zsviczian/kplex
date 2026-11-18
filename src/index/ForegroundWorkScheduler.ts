@@ -1,7 +1,8 @@
 /**
  * Cooperative priority boundary owned by the existing GraphIndex lifecycle. Work retains its private
  * progress while higher-priority requests run. Injected host capabilities pace background lanes with
- * shared idle windows; this owner cancels those host waits on foreground admission and unload. Publication
+ * shared idle windows and a live host-focus hint. Inactive hosts keep progressing at a reduced rate;
+ * this owner cancels only host waits on foreground admission and unload. Publication
  * and freshness remain caller-owned. Checkpoints must run outside IDB transactions.
  */
 /** Named cooperative lanes; lower numbers preempt higher numbers at safe task boundaries. */
@@ -35,6 +36,8 @@ export interface IndexWorkPacing {
   /** Host-owned cancellable short waits avoid hidden-renderer timer clamping where supported. */
   scheduleIdle?: (callback: () => void, milliseconds: number) => () => void;
   throttle: () => unknown;
+  /** Optional live focus hint changes only P3/P4 rests; omitted hosts retain their established pacing. */
+  isForeground?: () => boolean;
 }
 
 const PACING_WINDOWS: Record<IndexingThrottle, { work: number; idle: number }> = {
@@ -42,6 +45,10 @@ const PACING_WINDOWS: Record<IndexingThrottle, { work: number; idle: number }> =
   balanced: { work: 12, idle: 12 },
   faster: { work: 24, idle: 4 },
 };
+
+// Keep the already-tested responsive work allowance. A longer finite rest lowers inactive load
+// without suspending owners, losing private progress, or changing publication/persistence deadlines.
+const INACTIVE_PACING_WINDOW = { work: 6, idle: 240 };
 
 /** Priority accounting for mutations, navigation, visible changes, indexing and maintenance. */
 export class ForegroundWorkScheduler {
@@ -119,7 +126,8 @@ export class ForegroundWorkScheduler {
     if (!this.pacing || priority < INDEX_WORK_PRIORITY.urlInventory) return Promise.resolve();
     const now = this.pacing.now();
     this.sliceStarted ??= now;
-    const policy = PACING_WINDOWS[sanitizeIndexingThrottle(this.pacing.throttle())];
+    const policy = this.pacing.isForeground?.() === false ? INACTIVE_PACING_WINDOW
+      : PACING_WINDOWS[sanitizeIndexingThrottle(this.pacing.throttle())];
     if (!this.idleWait && now - this.sliceStarted < policy.work) return Promise.resolve();
     if (!this.idleWait) {
       this.idleWindows++;

@@ -49,6 +49,7 @@
  * relocation approves bounded native reference occurrences and retains partial-write recovery locally.
  * Device-specific startup admission and strategy are captured once; actual views and explicit work
  * share the existing initialization owners. Dormant native changes retain coalesced validity fences.
+ * Active native-view/window focus only adjusts background pacing; it never retires index progress.
  * Fresh restore inventory retires unchanged native create notifications only under their exact
  * identity/path/stat/event proof; dormant semantic edits and destructive changes retain reconciliation.
  * Ontology text drafts persist one guarded field through the existing settings queue before live
@@ -566,7 +567,9 @@ export default class KplexPlugin extends Plugin {
 
     if (this.unloading) return;
     this.startupDiagnostics.mark("settings-loaded");
-    this.index = new GraphIndex(this, this.app, true, this.startupIndexPolicy.mode);
+    this.index = new GraphIndex(this, this.app, true, this.startupIndexPolicy.mode,
+      /** Read native selection at existing checkpoints, without DOM scans, subscriptions or polling. */
+      () => this.isKplexIndexingForeground());
     // Replay only genuine early body/destructive events through the existing deferred source owner.
     // Metadata-cache inventory waves and startup create notifications never become body-dirty work.
     for (const [file, oldPath] of this.initializationSourceChanges) this.index.observeDeferredHostChange(file, true, oldPath);
@@ -3653,6 +3656,20 @@ export default class KplexPlugin extends Plugin {
 
   isKplexLeafVisible(leaf: WorkspaceLeaf | null): boolean {
     return this.isKplexLeaf(leaf) && this.leafIsVisible(leaf);
+  }
+
+  /**
+   * Grant normal background throughput only to an active Plex in its focused owning document.
+   * Visible sidepanels beside another active editor and unfocused popouts keep finite slower work.
+   * This read is independent of visibility/demand cancellation and owns no listeners or timers.
+   */
+  private isKplexIndexingForeground(): boolean {
+    const view = this.app.workspace.getActiveViewOfType(ItemView);
+    if (!view) return false;
+    const type = view.getViewType();
+    if (type !== KPLEX_VIEW_TYPE && type !== KPLEX_SIDEPANEL_VIEW_TYPE) return false;
+    const owner = view.containerEl.ownerDocument;
+    return owner.visibilityState !== "hidden" && owner.hasFocus();
   }
 
   /** Keep opted-in Eager preparation current while canvases are closed. Use captured startup

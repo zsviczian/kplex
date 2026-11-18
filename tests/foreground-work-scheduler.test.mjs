@@ -2,7 +2,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {buildSync} from 'esbuild';
-import {mkdtempSync,rmSync} from 'node:fs';
+import {mkdtempSync,rmSync,readFileSync} from 'node:fs';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import {createRequire} from 'node:module';
@@ -29,12 +29,12 @@ function pagedCache(checkpoint){
 async function turn(){await Promise.resolve();await Promise.resolve();}
 
 /** Deterministic host clock/timers exercise pacing without sleep or altered timing bounds. */
-function pacedScheduler(throttle='responsive'){
+function pacedScheduler(throttle='responsive',foreground=true){
  let now=0,next=0;const timers=new Map(),delays=[];
- const scheduler=new ForegroundWorkScheduler({now:()=>now,throttle:()=>throttle,
+ const scheduler=new ForegroundWorkScheduler({now:()=>now,throttle:()=>throttle,isForeground:()=>foreground,
   setTimeout:(callback,delay)=>{const id=++next;timers.set(id,callback);delays.push(delay);return id;},
   clearTimeout:id=>{timers.delete(id);}});
- return{scheduler,timers,delays,advance:ms=>{now+=ms;},setThrottle:value=>{throttle=value;},
+ return{scheduler,timers,delays,advance:ms=>{now+=ms;},setThrottle:value=>{throttle=value;},setForeground:value=>{foreground=value;},
   fire:()=>{const [id,callback]=timers.entries().next().value;timers.delete(id);callback();}};
 }
 
@@ -50,6 +50,79 @@ test('background pacing creates shared host idle windows while foreground checkp
  f.advance(24);f.fire();await Promise.all([url,background]);
  assert.equal(urlDone,true);assert.equal(backgroundDone,true);assert.equal(f.timers.size,0);
  assert.equal(scheduler.diagnostics().idleWindows,1);scheduler.close();
+});
+
+test('inactive inventories share finite slower rests in every preference and retain their exact progress',async()=>{
+ for(const mode of ['responsive','balanced','faster']){
+  const f=pacedScheduler(mode,false),s=f.scheduler,committed=[];
+  const release=s.begin(P.background);
+  await s.checkpoint(P.background);
+  for(let file=0;file<3;file++){
+   f.advance(6);let urlReady=false;
+   const url=s.checkpoint(P.urlInventory).then(()=>{urlReady=true;});
+   const background=s.checkpoint(P.background).then(()=>{committed.push(file);});
+   await turn();assert.equal(urlReady,false);assert.deepEqual(committed,Array.from({length:file},(_,n)=>n));
+   assert.equal(f.timers.size,1,'Concurrent inventories cannot multiply their work allowance');
+   assert.equal(f.delays.at(-1),240);
+   f.advance(240);f.fire();await Promise.all([url,background]);assert.equal(urlReady,true);
+  }
+  assert.deepEqual(committed,[0,1,2],'Same retained job finishes without replay or cancellation');
+  release();assert.deepEqual(s.diagnostics().active,[0,0,0,0,0]);s.close();
+ }
+});
+
+test('tab focus changes restore the live preference without restarting retained work or shortening a pending rest',async()=>{
+ const f=pacedScheduler('faster'),s=f.scheduler;
+ await s.checkpoint(P.background);f.advance(6);await s.checkpoint(P.background);assert.equal(f.timers.size,0);
+ f.setForeground(false);let completed=0;
+ const pending=s.checkpoint(P.background).then(()=>{completed++;});assert.deepEqual(f.delays,[240]);
+ f.setForeground(true);f.setThrottle('balanced');f.advance(240);f.fire();await pending;
+ assert.equal(completed,1);f.advance(11);await s.checkpoint(P.background);assert.equal(f.timers.size,0);
+ f.advance(1);const next=s.checkpoint(P.background);assert.deepEqual(f.delays,[240,12]);f.fire();await next;s.close();
+});
+
+test('inactive pacing never delays foreground checkpoints and mutations still preempt the same pending inventory',async()=>{
+ const f=pacedScheduler('responsive',false),s=f.scheduler;
+ await s.checkpoint(P.background);f.advance(6);
+ let done=false;const pending=s.checkpoint(P.background).then(()=>{done=true;});
+ for(const lane of [P.mutation,P.currentNode,P.visibleNeighborhood])await s.checkpoint(lane);
+ assert.equal(done,false);assert.equal(f.timers.size,1);
+ const release=s.begin(P.mutation);assert.equal(f.timers.size,0);await turn();assert.equal(done,false);
+ release();await pending;assert.equal(done,true);assert.equal(s.diagnostics().waiting,0);s.close();
+});
+
+test('unload settles an inactive rest without allowing late publication',async()=>{
+ const f=pacedScheduler('responsive',false),s=f.scheduler;let current=true,published=0;
+ await s.checkpoint(P.background);f.advance(6);
+ const pending=s.checkpoint(P.background).then(()=>{if(current)published++;});
+ current=false;s.close();await pending;assert.equal(published,0);assert.equal(f.timers.size,0);
+});
+
+test('native selection uses the selected Plex owning document, including sidepanels and popouts',()=>{
+ // Execute the exact host methods without loading unrelated plugin startup, UI or indexing owners.
+ const ts=createRequire(import.meta.url)('typescript');
+ const source=ts.createSourceFile('main.ts',readFileSync('src/main.ts','utf8'),ts.ScriptTarget.Latest,true);
+ const plugin=source.statements.find(node=>ts.isClassDeclaration(node)&&node.name?.text==='KplexPlugin');
+ const methods=['isKplexIndexingForeground'].map(name=>{
+  const member=plugin.members.find(node=>node.name?.getText(source)===name);assert(member,name);return member.getText(source);
+ });
+ const compiled=ts.transpileModule('class FocusProbe {'+methods.join('\n')+'}',{compilerOptions:{target:ts.ScriptTarget.ES2021}}).outputText;
+ class ItemView{}
+ const Probe=new Function('ItemView','KPLEX_VIEW_TYPE','KPLEX_SIDEPANEL_VIEW_TYPE',compiled+';return FocusProbe;')(ItemView,'plex','sidepanel');
+ const probe=new Probe();let active=null,calls=0;
+ probe.app={workspace:{getActiveViewOfType(type){assert.equal(type,ItemView);calls++;return active;}}};
+ /** Each view owns independent native-document state; main-window globals cannot authorize a popout. */
+ const view=(type,focused=true,visibilityState='visible')=>({getViewType:()=>type,
+  leaf:{getViewState(){throw Error('Pacing must never serialize a native view session');}},
+  containerEl:{ownerDocument:{visibilityState,hasFocus:()=>focused}}});
+ assert.equal(probe.isKplexIndexingForeground(),false);
+ active=view('markdown');assert.equal(probe.isKplexIndexingForeground(),false);
+ for(const type of ['plex','sidepanel']){
+  active=view(type);assert.equal(probe.isKplexIndexingForeground(),true);
+  active=view(type,false);assert.equal(probe.isKplexIndexingForeground(),false);
+  active=view(type,true,'hidden');assert.equal(probe.isKplexIndexingForeground(),false);
+ }
+ assert.equal(calls,8,'One native selection read per hint, without enumerating leaves or reading geometry');
 });
 
 test('foreground admission cancels idle resource and resumed background waits for all foreground owners',async()=>{

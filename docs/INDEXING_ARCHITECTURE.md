@@ -36,6 +36,15 @@ The [independence design](INDEX_SETTINGS_INDEPENDENCE_DESIGN.md) tracks acceptan
 
 ## Startup admission
 
+Background P3/P4 checkpoints read one live native focus hint. An active K-Plex tab or sidepanel in
+its focused owning document uses the selected Responsive/Balanced/Faster pacing; another active
+view or an unfocused/hidden document uses 6 ms work followed by a 240 ms rest. This finite pacing
+override neither changes demand/admission nor cancels/restarts source, graph or persistence owners.
+P0/P1/P2 remain immediately eligible under the existing priority rules. Focus-only catch-up reads
+the hint after any existing rest (nominally at most 240 ms, subject to host dispatch); foreground
+requests still preempt it. This is a cooperative allowance, not a hard task-duration or CPU cap.
+Parser workers, indivisible publication and source-repository-only yields retain their existing bounds.
+
 The restart-required per-device policy is captured once from the main host's existing presentation
 environment. Desktop defaults on, tablet and phone off; phone maps to the persisted `mobile` key.
 Missing/malformed booleans use those defaults and explicit false survives migration. The six flat

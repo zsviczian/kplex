@@ -816,8 +816,10 @@ export class GraphIndex {
   private nodeVisualCache = new Map<string, { signature: string; visual: NodeVisual | null }>();
   private nodeVisualRevision = 0;
   /** Construct lifecycle-owned caches without admitting broad work. Production supplies its captured
-   * device strategy; legacy direct consumers retain the explicit settings strategy as a default. */
-  constructor(private plugin: KplexPlugin, private app: App = plugin.app, private preparationDeferred = false, mode = plugin.settings.indexingMode) {
+   * device strategy and live native focus hint; the hint only paces existing background owners.
+   * Legacy direct consumers retain the explicit settings strategy and foreground pacing as defaults. */
+  constructor(private plugin: KplexPlugin, private app: App = plugin.app, private preparationDeferred = false,
+    mode = plugin.settings.indexingMode, isForeground?: () => boolean) {
     this.workScheduler = new ForegroundWorkScheduler({
       /** The plugin-global index and storage belong to the main application window. */
       now: () => window.performance.now(),
@@ -829,6 +831,8 @@ export class GraphIndex {
       scheduleIdle: (callback, milliseconds) => scheduleBackgroundIdle(callback, milliseconds),
       /** Settings changes are scheduling-only and take effect at the next safe checkpoint. */
       throttle: () => plugin.settings.indexingThrottle,
+      // Host focus is pacing-only: never translate a tab switch into index cancellation or admission.
+      isForeground,
     });
     // Production passes its captured device strategy; direct legacy callers retain their supplied preference.
     this.indexingMode = mode ?? "on-demand";
