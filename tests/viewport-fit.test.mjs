@@ -158,18 +158,19 @@ test('passive follow retires a deliberate transition through its original owning
   /** Locate the real timer owner rather than substituting a timer policy. */
   const visit=node=>{
     if(ts.isCallExpression(node)&&node.expression.getText(source)==='useEffect'
-      &&node.arguments[0]?.getText(source).includes('setSceneTransitioning(navigationOrigin !== "follow")'))selected=node.arguments[0].getText(source);
+      &&node.arguments[0]?.getFullText(source).includes('Passive follow has no transition timer'))selected=node.arguments[0].getText(source);
     ts.forEachChild(node,visit);
   };
   visit(source);assert(selected);
   const cleared=[],created=[],prior={clearTimeout:id=>cleared.push(['prior',id])},owner={
     clearTimeout:id=>cleared.push(['owner',id]),setTimeout(fn,ms){created.push({fn,ms});return 9}};
-  const ctx={navigationOrigin:'follow',settings:{animationSpeed:1},viewport:{current:{ownerDocument:{defaultView:owner}}},window:owner,
+  const ctx={navigationOrigin:'follow',transitionScene:'Current.md',lastTransitionScene:{current:null},settings:{animationSpeed:1},viewport:{current:{ownerDocument:{defaultView:owner}}},window:owner,
     sceneTransitionTimer:{current:4},sceneTransitionTimerWindow:{current:prior},setSceneTransitioning:value=>{ctx.transitioning=value}};
   const js=ts.transpileModule(`const selected=${selected};`,{compilerOptions:{target:ts.ScriptTarget.ES2021}}).outputText;
   const run=()=>Function(...Object.keys(ctx),`${js}\nreturn selected();`)(...Object.values(ctx));
   run();assert.deepEqual(cleared,[['prior',4]]);assert.equal(created.length,0);assert.equal(ctx.transitioning,false);assert.equal(ctx.sceneTransitionTimerWindow.current,null);
-  ctx.navigationOrigin='user';run();assert.equal(created.length,1);assert.equal(ctx.sceneTransitionTimerWindow.current,owner);assert.equal(ctx.transitioning,true);
+  ctx.navigationOrigin='user';run();assert.equal(created.length,0);assert.equal(ctx.transitioning,false);
+  ctx.transitionScene='Next.md';run();assert.equal(created.length,1);assert.equal(ctx.sceneTransitionTimerWindow.current,owner);assert.equal(ctx.transitioning,true);
   ctx.navigationOrigin='follow';run();assert.deepEqual(cleared,[['prior',4],['owner',9]]);assert.equal(created.length,1);assert.equal(ctx.transitioning,false);
 });
 

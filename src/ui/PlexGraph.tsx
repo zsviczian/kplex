@@ -1445,8 +1445,11 @@ export function PlexGraph({ viewDefinition = classicViewDefinition, viewSession,
   };
   const sceneTransitionTimer = useRef<number | null>(null);
   const sceneTransitionTimerWindow = useRef<Window | null>(null);
+  const lastTransitionScene = useRef<string | null>(null);
+  const transitionScene = JSON.stringify([viewDefinition.id, sceneScope]);
   const transitionPath = useRef(sceneScope);
   const pathChangedThisRender = transitionPath.current !== sceneScope;
+  const enteringTransitionScene = lastTransitionScene.current !== transitionScene;
   const touchLongPress = useRef<{
     pointerId: number;
     startX: number;
@@ -1590,19 +1593,24 @@ export function PlexGraph({ viewDefinition = classicViewDefinition, viewSession,
   }, [sceneScope, viewLifetime]);
 
   useEffect(/** Passive follow has no transition timer or arrival delay; deliberate navigation keeps its temporary transition. */ () => {
+    const enteringScene = lastTransitionScene.current !== transitionScene;
+    lastTransitionScene.current = transitionScene;
     const viewWindow = viewport.current?.ownerDocument.defaultView ?? window;
     if (sceneTransitionTimer.current !== null) (sceneTransitionTimerWindow.current ?? viewWindow).clearTimeout(sceneTransitionTimer.current);
     sceneTransitionTimer.current = null;
     sceneTransitionTimerWindow.current = null;
-    setSceneTransitioning(navigationOrigin !== "follow");
-    if (navigationOrigin === "follow") return;
+    // Returning focus can change an attention/follow origin without changing a rooted scene.
+    // Only a new root/view owns arrival opacity; source catch-up retains its connectors.
+    const animate = enteringScene && navigationOrigin !== "follow" && settings.animationSpeed > 0;
+    setSceneTransitioning(animate);
+    if (!animate) return;
     sceneTransitionTimerWindow.current = viewWindow;
     sceneTransitionTimer.current = viewWindow.setTimeout(/** Retire this center's temporary deliberate-transition state. */ () => {
       sceneTransitionTimer.current = null;
       sceneTransitionTimerWindow.current = null;
       setSceneTransitioning(false);
     }, settings.animationSpeed <= 0 ? 0 : Math.max(140, Math.round(620 / Math.max(0.25, settings.animationSpeed))));
-  }, [sceneScope, navigationOrigin, settings.animationSpeed]);
+  }, [transitionScene, navigationOrigin, settings.animationSpeed]);
 
   useEffect(() => {
     if (!sectionEditorAvailable || !sectionExpanded) return;
@@ -5959,7 +5967,7 @@ export function PlexGraph({ viewDefinition = classicViewDefinition, viewSession,
 
   return <div
     ref={viewport}
-    className={`kplex-plex${viewportSize.width >= 600 && viewportSize.height > 0 && viewportSize.height < 80 ? " is-short-canvas" : ""}${finding ? " is-finding" : ""}${navigationOrigin === "follow" ? " is-following-document" : sceneTransitioning || pathChangedThisRender ? " is-scene-transitioning" : ""}${sectionExpanded ? " is-section-expanded" : ""}${centralEditorMaximized ? " is-central-editor-maximized" : ""}${Platform.isIosApp ? " is-ios" : ""}${areaSettingsMode ? " is-area-settings-mode" : ""}${areaHover?.edgeActive ? " is-area-resize-ready" : ""}${resizingArea ? " is-area-resizing" : ""}${areaHover?.edgeActive && areaHover.axis === "width" || areaResizeDrag.current?.axis === "width" ? " is-area-width-resize" : ""}`}
+    className={`kplex-plex${viewportSize.width >= 600 && viewportSize.height > 0 && viewportSize.height < 80 ? " is-short-canvas" : ""}${finding ? " is-finding" : ""}${navigationOrigin === "follow" ? " is-following-document" : settings.animationSpeed > 0 && (sceneTransitioning || pathChangedThisRender || enteringTransitionScene) ? " is-scene-transitioning" : ""}${sectionExpanded ? " is-section-expanded" : ""}${centralEditorMaximized ? " is-central-editor-maximized" : ""}${Platform.isIosApp ? " is-ios" : ""}${areaSettingsMode ? " is-area-settings-mode" : ""}${areaHover?.edgeActive ? " is-area-resize-ready" : ""}${resizingArea ? " is-area-resizing" : ""}${areaHover?.edgeActive && areaHover.axis === "width" || areaResizeDrag.current?.axis === "width" ? " is-area-width-resize" : ""}`}
     style={{
       background: alphaHexToCss(paintSettings.backgroundColor, NATIVE_CANVAS_FILL),
       "--kplex-motion-scale": String(Math.max(0, Math.min(2, settings.animationSpeed))),

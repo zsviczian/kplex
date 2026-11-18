@@ -2,6 +2,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import {readFileSync} from 'node:fs';
+import ts from 'typescript';
 import {browserBundle,chromiumHarness} from './support/browserTypeScript.mjs';
 import {loadPortableModules} from './support/portableTypeScript.mjs';
 
@@ -14,6 +15,22 @@ function animationFixture() {
  return {effect,finish:()=>resolve(),fail:()=>reject(Error('canceled')),get canceled(){return canceled}};
 }
 const motionPoses=[{offset:0,x:0,y:0,scaleX:1,scaleY:1,originX:0,originY:0},{offset:1,x:10,y:0,scaleX:1,scaleY:1,originX:0,originY:0}];
+
+test('a stationary scene does not become a navigation transition when focus changes its follow origin',()=>{
+ const source=ts.createSourceFile('PlexGraph.tsx',readFileSync(new URL('../src/ui/PlexGraph.tsx',import.meta.url),'utf8'),ts.ScriptTarget.Latest,true,ts.ScriptKind.TSX);
+ let expression;const visit=node=>{if(ts.isCallExpression(node)&&node.expression.getText(source)==='useEffect'
+  &&node.arguments[0]?.getFullText(source).includes('Passive follow has no transition timer'))expression=node.arguments[0].getText(source);ts.forEachChild(node,visit);};visit(source);assert(expression);
+ const compiled=ts.transpileModule('const effect='+expression,{compilerOptions:{target:ts.ScriptTarget.ES2022}}).outputText;
+ const timers=new Map(),sceneTransitionTimer={current:null},sceneTransitionTimerWindow={current:null},lastTransitionScene={current:null};let serial=0,transitioning=false;
+ const owner={setTimeout:callback=>{timers.set(++serial,callback);return serial;},clearTimeout:id=>timers.delete(id)};
+ const run=(transitionScene,navigationOrigin,animationSpeed=1)=>new Function('transitionScene','navigationOrigin','settings','viewport','window','sceneTransitionTimer','sceneTransitionTimerWindow','lastTransitionScene','setSceneTransitioning',compiled+';effect();')(
+  transitionScene,navigationOrigin,{animationSpeed},{current:{ownerDocument:{defaultView:owner}}},owner,sceneTransitionTimer,sceneTransitionTimerWindow,lastTransitionScene,value=>{transitioning=value;});
+ run('root-A','user');assert.equal(transitioning,true);
+ for(const [id,callback]of [...timers]){timers.delete(id);callback();}assert.equal(transitioning,false);
+ run('root-A','follow');run('root-A','user');assert.equal(transitioning,false,'Origin-only changes must not fade an unchanged scene');assert.equal(timers.size,0);
+ run('root-B','user');assert.equal(transitioning,true,'A new root still owns its arrival');
+ run('root-C','user',0);assert.equal(transitioning,false,'Disabled animation creates no one-frame arrival');assert.equal(timers.size,0);
+});
 
 test('stationary connectors never replay arrival opacity when document-follow or focus styling changes',async()=>{
  const browser=await chromiumHarness(await browserBundle(['src/ui/components/ElementMotion.ts']));
