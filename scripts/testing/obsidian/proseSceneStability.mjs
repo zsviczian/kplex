@@ -59,17 +59,23 @@ async function scenario(app,c){
     /** Inspect the mounted scene at every frame and DOM delivery, including a one-frame blink. */
     const inspect=()=>{
      samples++;const current=nodes();let reason;
-     if(current.length!==baseline.length)reason='node-count';
+     if(current.length!==baseline.length)reason??='node-count';
      for(const row of baseline){const element=row.element,r=element.getBoundingClientRect(),style=doc.defaultView.getComputedStyle(element);
-      if(!element.isConnected||!current.includes(element))reason='node-identity';
-      else if(Math.abs(r.x-row.rect.x)>.5||Math.abs(r.y-row.rect.y)>.5||Math.abs(r.width-row.rect.width)>.5||Math.abs(r.height-row.rect.height)>.5)reason='node-geometry';
-      else if(style.visibility==='hidden'||style.display==='none'||Number(style.opacity)<.99)reason='node-visibility';
-      for(let owner=element.parentElement;owner&&owner!==root;owner=owner.parentElement)if(Number(doc.defaultView.getComputedStyle(owner).opacity)<.99)reason='ancestor-visibility';
+      if(!element.isConnected||!current.includes(element))reason??='node-identity';
+      else if(Math.abs(r.x-row.rect.x)>.5||Math.abs(r.y-row.rect.y)>.5||Math.abs(r.width-row.rect.width)>.5||Math.abs(r.height-row.rect.height)>.5)reason??='node-geometry';
+      else if(style.visibility==='hidden'||style.display==='none'||Number(style.opacity)<.99)reason??='node-visibility';
+      for(let owner=element.parentElement;owner&&owner!==root;owner=owner.parentElement)if(Number(doc.defaultView.getComputedStyle(owner).opacity)<.99)reason??='ancestor-visibility';
      }
      const currentEdges=[...root.querySelectorAll('[data-kplex-edge-id]')];
-     if(currentEdges.length!==edges.length||edges.some(row=>!row.element.isConnected||!currentEdges.includes(row.element)||row.element.getAttribute('d')!==row.d))reason='edge-identity-or-geometry';
-     for(const row of edges){const paint=row.element.closest('.kplex-edge-paint');if(paint&&Number(doc.defaultView.getComputedStyle(paint).opacity)<.99)reason='edge-arrival-replayed';}
-     if(reason&&violations.length<32)violations.push({reason,at:performance.now()});
+     if(currentEdges.length!==edges.length||edges.some(row=>!row.element.isConnected||!currentEdges.includes(row.element)||row.element.getAttribute('d')!==row.d))reason??='edge-identity-or-geometry';
+     for(const row of edges){const paint=row.element.closest('.kplex-edge-paint');if(paint?.isConnected&&doc.defaultView.getComputedStyle(paint).opacity!==''&&Number(doc.defaultView.getComputedStyle(paint).opacity)<.99)reason??='edge-arrival-replayed';}
+     if(reason&&violations.length<32){
+      const paint=edges.map(row=>row.element.closest('.kplex-edge-paint')).find(element=>element&&Number(doc.defaultView.getComputedStyle(element).opacity)<.99);
+      const style=paint&&doc.defaultView.getComputedStyle(paint);
+      violations.push({reason,at:performance.now(),classes:root.querySelector('.kplex-plex')?.className,
+       opacity:style?.opacity,animation:style?.animationName,duration:style?.animationDuration,nodeCounts:[baseline.length,current.length],edgeCounts:[edges.length,currentEdges.length],missingEdges:edges.filter(row=>!row.element.isConnected).slice(0,3).map(row=>row.id),newEdges:currentEdges.filter(element=>!edges.some(row=>row.element===element)).slice(0,3).map(element=>element.dataset.kplexEdgeId),
+       layoutRoot:session.plexView.layoutRoot(source.path),lifetime:session.plexView.getLifetime(),activePath:p.settings.lastActivePath});
+     }
     };
     frameWindow=doc.defaultView;const tick=()=>{inspect();frame=frameWindow.requestAnimationFrame(tick);};frame=frameWindow.requestAnimationFrame(tick);
     observer=new frameWindow.MutationObserver(inspect);observer.observe(root,{subtree:true,childList:true,attributes:true,attributeFilter:['style','class','d']});

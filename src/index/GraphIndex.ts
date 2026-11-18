@@ -1702,6 +1702,7 @@ export class GraphIndex {
     this.fullSemanticSourceRevision = revision;
     const acknowledged = this.acknowledgeEagerGraphMaintenance();
     this.retryEagerGraphMaintenance();
+    if (this.hasCurrentFullSemanticGraph()) this.pendingBodyReadOwners.delete(this.state);
     if (sameRevision && !tagsChanged && !acknowledged) return;
     this.relationViewCache = new WeakMap<GraphPage, CachedRelationView>();
     this.emitPresentation();
@@ -1719,6 +1720,7 @@ export class GraphIndex {
       || this.fullSemanticMaintenanceRevision === this.sourceAcquisition.getMaintenanceRevision()) return false;
     this.fullSemanticMaintenanceRevision = this.sourceAcquisition.getMaintenanceRevision();
     this.sourceAcquisition.acknowledgeGraphPublication(this.sourceAcquisition.beginGraphPublication(), this.fullSemanticMaintenanceRevision);
+    this.pendingBodyReadOwners.delete(this.state);
     // Retire captured local producers before restoring complete in-memory reads and exact counts.
     this.publicationRevision += 1;
     this.semanticScopes.clear(); this.releasedSemanticScopePaths.clear();
@@ -3790,9 +3792,8 @@ export class GraphIndex {
     if (retained) return this.mergeOnDemandCachedPage(retained.pages.get(path)!);
     const recovery = this.visibleRecoveryScope(path);
     const canonicalRead = this.state.pages.get(path), pendingRead = this.pendingBodyReadOwners.get(this.state);
-    const recoveryBodies = recovery && this.visibleRecoveryCertificates.get(recovery)?.bodies;
     if (canonicalRead && pendingRead && this.semanticDemandCounts.has(path) && this.pendingBodyReadOwnerIsPresent(this.state)
-      && [...pendingRead.files.keys()].some(owner => (owner === path || canonicalRead.neighbours.has(owner)) && !recoveryBodies?.has(owner))
+      && [...pendingRead.files.keys()].some(owner => owner === path || canonicalRead.neighbours.has(owner))
       && (!canonicalRead.file || canonicalRead.file.path === path && this.app.vault.getFileByPath(path) === canonicalRead.file)) return canonicalRead;
     if (recovery) return recovery.pages.get(path);
     // A host-only replacement cannot reclassify existing body-defined incoming/outgoing roles
@@ -6994,7 +6995,10 @@ export class GraphIndex {
     publishPreparedState();
     const patchedSource = this.state.pages.get(commit.sourcePath);
     if (patchedSource?.file) this.patchedSnapshotFileRevisions.set(patchedSource, captureFileRevision(patchedSource.file));
-    for (const scope of [this.state, ...this.semanticScopes.values(), ...this.onDemandHostScopes.values()]) {
+    // Parsing one selected body cannot prove that a partial recovery includes every unchanged
+    // incoming owner. Keep the canonical read through source closure; this atomic commit has
+    // already applied real relationship edits to that state, without granting any write proof.
+    for (const scope of [...this.semanticScopes.values(), ...this.onDemandHostScopes.values()]) {
       const owners = this.pendingBodyReadOwners.get(scope);
       owners?.files.delete(commit.sourcePath);
       if (owners && !owners.files.size) this.pendingBodyReadOwners.delete(scope);

@@ -100,6 +100,61 @@ test('an unchanged metadata patch preserves the saved warm cache without schedul
   }finally{await browser.cleanup();}
 });
 
+test('a partial incoming-body recovery cannot thin a complete warm neighborhood before source settlement',async()=>{
+ const browser=await chromiumHarness(bundle);try{
+  await browser.evaluate(contributorBrowserInitialize);
+  assert(await browser.evaluate(String.raw`(async()=>{
+   const M=sourceModules,f=await fixture('warm-partial-incoming-continuity');let index,releaseDemand,releasePresentation,releaseBackground;
+   try{
+    const center=f.add('Center.md',''),owners=[];
+    for(let n=0;n<25;n++){const file=f.add('Owner '+n+'.md','Parent:: [[Center]]\n\nOriginal prose.');owners.push(file);f.app.metadataCache.resolvedLinks[file.path]={[center.path]:1};}
+    f.app.vault.getName=()=> 'warm-partial-incoming-continuity';
+    f.app.vault.getAbstractFileByPath=path=>f.files.get(path)??(path===''||path==='/'?f.app.vault.getRoot():null);
+    const settings={...(${centerGateSettings.toString()})({showFolderNodes:true,showTagNodes:false,renderSiblings:false}),indexingMode:'eager',
+     hierarchy:{hidden:[],parents:['Parent'],children:[],leftFriends:[],rightFriends:[],previous:[],next:[],exclusions:[]},tagStyleList:[],showFullTagName:true,
+     inferAllLinksAsFriends:false,inverseInfer:false,lastActivePath:center.path,pinnedNodes:[]};
+    let revision=0;const plugin={app:f.app,settings,getIndexSourceRevision:()=>revision};
+    index=new M.GraphIndex(plugin,f.app);index.scheduleOrphanCleanup=()=>{};
+    ok(await index.rebuild(),'Complete canonical graph');await index.sourceAcquisition.flush();index.cancelPendingPersistence();
+    ok(await index.persistIndexedDbSnapshot(index.snapshotPersistGeneration),'Actual saved warm input');index.destroy();
+    index=new M.GraphIndex(plugin,f.app);index.scheduleOrphanCleanup=()=>{};
+    ok((await index.restorePersistedSnapshot([center.path],{deferEagerVocabulary:true})).restored,'Warm restore');await index.waitForSnapshotHydration();await index.sourceAcquisition.flush();
+    equal(index.fieldCache.size,0,'Unchanged incoming bodies have no hot entries');equal(index.urlOwnerBodies.size,0,'Optional URL inventory has not supplied bodies');
+    releaseDemand=index.acquireSemanticDemand(center.path);
+    const read=()=>{const n=index.getNeighborhood(center.path);return n&&{children:n.children.map(row=>row.page.path).sort(),parents:n.parents.map(row=>row.page.path).sort()};};
+    const before=read();equal(before.children.length,25,'All body-defined incoming links are already displayed');
+    // Hold the existing background source owner, while allowing finite P1/P2 reads and file commits.
+    releaseBackground=index.workScheduler.begin(2);
+    const edited=owners[0];releasePresentation=index.acquirePresentationDemand([index.get(center.path),index.get(edited.path)],[center.path]);
+    f.texts.set(edited.path,'Edited prose before the field.\n'+f.texts.get(edited.path));edited.stat.mtime++;edited.stat.size=f.texts.get(edited.path).length;
+    f.app.vault.trigger('modify',edited);const previous=revision;revision++;f.app.metadataCache.trigger('changed',edited);
+    index.refreshVisibleHostMetadataPreviews(edited.path,previous);
+    await index.ensureVisibleSemanticRecovery(center.path);
+    ok(index.onDemandHostScopes.has(center.path),'A real finite recovery cover was prepared');
+    equal(read(),before,'Selected-body recovery must not remove unchanged incoming or folder links');
+    const result=await index.patchMarkdownPaths([edited.path]);equal(result.outcome,'patched','Actual atomic canonical file publication');
+    await index.ensureVisibleSemanticRecovery(center.path);
+    equal(read(),before,'Canonical publication remains readable while independent source closure is pending');
+    ok(!index.isSemanticWriteReady(center.path,edited.path),'Readonly continuity cannot renew source write proof');
+    const edit=async(text,linked)=>{
+     f.texts.set(edited.path,text);edited.stat.mtime++;edited.stat.size=text.length;
+     f.app.metadataCache.resolvedLinks[edited.path]=linked?{[center.path]:1}:{};
+     f.app.vault.trigger('modify',edited);const previous=revision;revision++;f.app.metadataCache.trigger('changed',edited);
+     index.refreshVisibleHostMetadataPreviews(edited.path,previous);
+     equal((await index.patchMarkdownPaths([edited.path])).outcome,'patched','Current canonical relationship publication');
+    };
+    await edit('The actual link was removed.',false);
+    equal(read(),{...before,children:before.children.filter(path=>path!==edited.path)},'A real removal updates the retained canonical read before source closure');
+    await edit('Parent:: [[Center]]\nRestored actual link.',true);
+    equal(read(),before,'A real restoration updates that same read before source closure');
+    releaseBackground();releaseBackground=null;await index.sourceAcquisition.flush();index.acknowledgeHostPresentation();
+    equal(read(),before,'Settled current graph retains the exact neighborhood');
+    equal(index.getSemanticPreparationDiagnostics().fullBuilds,0,'Warm prose recovery admits no full rebuild');return true;
+   }finally{releaseBackground?.();releasePresentation?.();releaseDemand?.();index?.destroy();f.close();}
+  })()`));
+ }finally{await browser.cleanup();}
+});
+
 for(const folders of [false,true])for(const contributor of [false,true])for(const [label,mode,prime] of [['eager','eager',false],['eager-after-edit','eager',true],['on-demand','on-demand',false]])test((folders?'with folders ':'')+label+(contributor?' incoming contributor':' center')+': prose saves retain body ontology throughout changed/resolve and current replacement',async()=>{
   const browser=await chromiumHarness(bundle);
   try{
