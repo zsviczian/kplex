@@ -14,8 +14,6 @@ const germanTranslations = {
   "indexing.backgroundHelp": "Bei 0 pausiert die optionale Indizierung; bei 100 arbeitet sie so schnell wie im Vordergrund. Änderungen gelten sofort. Die anfängliche Indexvorbereitung wird ohne Unterbrechung abgeschlossen; Navigation und Bearbeitungen haben Vorrang.",
   "indexing.backgroundPaused": "Pausiert",
   "indexing.backgroundFull": "Wie im Vordergrund",
-  "indexing.cacheFocusTitle": "Cache-Speicherung starten, wenn K-Plex aktiv ist",
-  "indexing.cacheFocusHelp": "Das Speichern des vollständigen Indexcaches beginnt nur, wenn K-Plex der aktive Tab im fokussierten Fenster ist. Ein bereits gestarteter Speichervorgang wird beim Wechsel nicht unterbrochen.",
   "index.cacheWaitingForFocus": "Cache-Speicherung wartet auf K-Plex-Fokus",
   "indexing.backgroundPausedStatus": "Hintergrundindizierung pausiert",
   "indexing.backgroundReducedStatus": "Hintergrundindizierung reduziert",

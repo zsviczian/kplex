@@ -14,8 +14,6 @@ const spanishTranslations = {
   "indexing.backgroundHelp": "En 0 se pausa la indexación opcional; en 100 se usa la velocidad del primer plano. Los cambios son inmediatos. La preparación inicial termina sin interrupciones; navegar y editar tienen prioridad.",
   "indexing.backgroundPaused": "En pausa",
   "indexing.backgroundFull": "Igual que en primer plano",
-  "indexing.cacheFocusTitle": "Iniciar el guardado de caché cuando K-Plex esté activo",
-  "indexing.cacheFocusHelp": "La caché completa solo empieza a guardarse cuando K-Plex es la pestaña activa de una ventana enfocada. Si cambia de pestaña, un guardado ya iniciado continúa hasta terminar.",
   "index.cacheWaitingForFocus": "Guardado de caché esperando el foco de K-Plex",
   "indexing.backgroundPausedStatus": "Indexación en segundo plano en pausa",
   "indexing.backgroundReducedStatus": "Indexación en segundo plano reducida",

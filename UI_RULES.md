@@ -150,6 +150,10 @@ Obsidian APIs in portable components.
 
 ## Settings
 
+- Settings rows must provide a configurable control or user action, or explain the
+  setting immediately following them. Do not add standalone informational rows about
+  automatic behavior, internal policies or implementation details. Put such material
+  in documentation when it is needed; do not use Settings as a feature-announcement surface.
 - Keep Obsidian's declarative settings hierarchy, native toggle/dropdown behavior and
   existing persistence configurators. Do not replace Settings with a parallel form.
 - Labelled long text and textarea settings use the shared full-width field treatment.

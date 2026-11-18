@@ -14,8 +14,6 @@ const traditionalChineseTranslations = {
   "indexing.backgroundHelp": "設為 0 可暫停非必要的索引作業；設為 100 則使用前景速度。變更立即生效。初次索引準備會不中斷地完成；導覽與編輯仍享有優先權。",
   "indexing.backgroundPaused": "已暫停",
   "indexing.backgroundFull": "與前景相同",
-  "indexing.cacheFocusTitle": "K-Plex 使用中時才開始儲存快取",
-  "indexing.cacheFocusHelp": "完整索引快取只會在 K-Plex 是焦點視窗中的作用中分頁時開始儲存。已開始的儲存作業會在切換離開後繼續完成。",
   "index.cacheWaitingForFocus": "快取儲存正在等候 K-Plex 取得焦點",
   "indexing.backgroundPausedStatus": "背景索引已暫停",
   "indexing.backgroundReducedStatus": "背景索引已降低處理量",

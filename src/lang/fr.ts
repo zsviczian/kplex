@@ -14,8 +14,6 @@ const frenchTranslations = {
   "indexing.backgroundHelp": "À 0, suspend l’indexation facultative ; à 100, utilise la vitesse du premier plan. Les changements sont immédiats. La préparation initiale se termine sans interruption ; navigation et modifications restent prioritaires.",
   "indexing.backgroundPaused": "En pause",
   "indexing.backgroundFull": "Comme au premier plan",
-  "indexing.cacheFocusTitle": "Démarrer l’enregistrement du cache quand K-Plex est actif",
-  "indexing.cacheFocusHelp": "L’enregistrement complet du cache démarre uniquement lorsque K-Plex est l’onglet actif dans une fenêtre au premier plan. Un enregistrement déjà commencé se termine si vous changez d’onglet.",
   "index.cacheWaitingForFocus": "Enregistrement du cache en attente du focus K-Plex",
   "indexing.backgroundPausedStatus": "Indexation en arrière-plan en pause",
   "indexing.backgroundReducedStatus": "Indexation en arrière-plan réduite",

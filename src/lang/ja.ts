@@ -14,8 +14,6 @@ const japaneseTranslations = {
   "indexing.backgroundHelp": "0 では任意のインデックス処理を一時停止し、100 ではフォアグラウンドと同じ速度で処理します。変更はすぐに反映されます。初回の準備は中断せず完了します。移動と編集は優先されます。",
   "indexing.backgroundPaused": "一時停止",
   "indexing.backgroundFull": "フォアグラウンドと同じ",
-  "indexing.cacheFocusTitle": "K-Plex がアクティブなときにキャッシュ保存を開始",
-  "indexing.cacheFocusHelp": "完全なインデックスキャッシュの保存は、フォーカスのあるウィンドウで K-Plex がアクティブなタブのときにのみ開始します。開始済みの保存は、別のタブに移っても完了まで続きます。",
   "index.cacheWaitingForFocus": "K-Plex のフォーカスを待ってキャッシュ保存を保留中",
   "indexing.backgroundPausedStatus": "バックグラウンドのインデックス処理を一時停止中",
   "indexing.backgroundReducedStatus": "バックグラウンドのインデックス処理を抑制中",

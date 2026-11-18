@@ -2836,7 +2836,6 @@ export class KplexSettingTab extends PluginSettingTab {
                 desc: translate("indexing.backgroundHelp"),
                 control: {type: "slider", key: "backgroundIndexingEffort", defaultValue: 10, min: 0, max: 100, step: 1},
               },
-              {name: translate("indexing.cacheFocusTitle"), desc: translate("indexing.cacheFocusHelp")},
             ],
           },
           {

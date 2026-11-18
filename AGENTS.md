@@ -524,6 +524,10 @@ Continue supporting legacy tag-specific style compatibility where feasible.
 
 ## Settings UX
 
+Every settings addition must follow the [settings content rules](UI_RULES.md#settings).
+Standalone informational rows that neither offer a setting/action nor explain the next
+setting are not allowed.
+
 Use grouped declarative settings pages with user-intent names such as:
 
 - Canvas behavior

@@ -472,6 +472,7 @@ test("inactive effort persists independently of admission, strategy and semantic
   refreshIndexActivity:force=>wakes.push(force),saveSettings:async(...args)=>saves.push(args),index:{unassignedOntologyFields:()=>[],allPages:()=>[]}};
  const tab=new KplexSettingTab({},plugin),page=tab.getSettingDefinitions().find(item=>item.name==='Indexing config');
  const group=page.items.find(item=>item.heading==='When K-Plex is inactive');assert(group);
+ assert(group.items.every((item,n)=>item.control||item.render||group.items[n+1]?.control),'Settings rows must offer a control/action or explain the next setting');
  assert.equal(typeof group.items.find(item=>item.name==='Background effort').render,'function','Uses the shared visible-value numeric row');
  for(const value of [0,40,100]){
   await tab.setControlValue('backgroundIndexingEffort',value);assert.equal(plugin.settings.backgroundIndexingEffort,value);

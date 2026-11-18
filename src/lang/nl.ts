@@ -14,8 +14,6 @@ const dutchTranslations = {
   "indexing.backgroundHelp": "Bij 0 pauzeert optionele indexering; bij 100 geldt de voorgrondsnelheid. Wijzigingen gelden direct. De eerste indexvoorbereiding wordt zonder onderbreking voltooid; navigeren en bewerken houden voorrang.",
   "indexing.backgroundPaused": "Gepauzeerd",
   "indexing.backgroundFull": "Gelijk aan voorgrond",
-  "indexing.cacheFocusTitle": "Cacheopslag starten wanneer K-Plex actief is",
-  "indexing.cacheFocusHelp": "Het opslaan van de volledige indexcache begint alleen wanneer K-Plex het actieve tabblad in een venster met focus is. Een al gestarte opslag wordt bij wegschakelen afgemaakt.",
   "index.cacheWaitingForFocus": "Cacheopslag wacht op K-Plex-focus",
   "indexing.backgroundPausedStatus": "Indexering op de achtergrond gepauzeerd",
   "indexing.backgroundReducedStatus": "Indexering op de achtergrond verminderd",
