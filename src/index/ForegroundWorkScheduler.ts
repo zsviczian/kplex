@@ -1,7 +1,7 @@
 /**
  * Cooperative priority boundary owned by the existing GraphIndex lifecycle. Work retains its private
  * progress while higher-priority requests run. Injected host capabilities pace background lanes with
- * shared idle windows and a live host-focus hint. Inactive hosts can reduce or pause optional work;
+ * shared idle windows and a live host-focus hint. Inactive hosts also pace automatic view preparation;
  * admitted cache saves retain normal pacing. This owner cancels only host waits on focus/preferences,
  * foreground admission and unload. Publication
  * and freshness remain caller-owned. Checkpoints must run outside IDB transactions.
@@ -42,7 +42,7 @@ export interface IndexWorkPacing {
   /** Host-owned cancellable short waits avoid hidden-renderer timer clamping where supported. */
   scheduleIdle?: (callback: () => void, milliseconds: number) => () => void;
   throttle: () => unknown;
-  /** Optional live focus hint changes only P3/P4 rests; omitted hosts retain their established pacing. */
+  /** Live focus hint; inactive effort also applies to automatic current/visible preparation. */
   isForeground?: () => boolean;
   /** Zero pauses settled-session background work; 100 uses the selected foreground pace. */
   backgroundEffort?: () => unknown;
@@ -79,7 +79,7 @@ export class ForegroundWorkScheduler {
   begin(priority: IndexWorkPriority): () => void {
     if (this.closed) return () => undefined;
     this.active[priority]++;
-    if (priority < INDEX_WORK_PRIORITY.urlInventory) this.finishIdle();
+    if (priority === INDEX_WORK_PRIORITY.mutation || priority < INDEX_WORK_PRIORITY.urlInventory && !this.pacesInactiveView()) this.finishIdle();
     let released = false;
     return () => {
       if (released) return;
@@ -91,11 +91,14 @@ export class ForegroundWorkScheduler {
 
   /** Run a named operation with exception-safe ownership; nested work is not serialized. */
   async run<T>(priority: IndexWorkPriority, work: () => Promise<T>): Promise<T> {
+    // Do not let a visible-but-unfocused task publish or acquire before its first checkpoint.
+    // Wait before taking its lane so a paused admission cannot obstruct an admitted cache save.
+    if (!this.closed && priority !== INDEX_WORK_PRIORITY.mutation && this.pacesInactiveView()) await this.pacedCheckpoint(priority);
     const release = this.begin(priority);
     try { return await work(); } finally { release(); }
   }
 
-  /** Pause behind higher lanes and pace P3/P4 together, without delaying foreground checkpoints.
+  /** Pause behind higher lanes and share inactive effort without delaying focused view checkpoints.
    * An already-admitted save uses normal pacing even after focus loss or a zero-effort preference. */
   checkpoint(priority: IndexWorkPriority = INDEX_WORK_PRIORITY.background, admittedSave = false): Promise<void> {
     if (this.closed) return Promise.resolve();
@@ -155,7 +158,8 @@ export class ForegroundWorkScheduler {
 
   /** Reuse one background idle window so concurrent inventories cannot create independent budgets. */
   private pacedCheckpoint(priority: IndexWorkPriority, admittedSave = false): Promise<void> {
-    if (!this.pacing || priority < INDEX_WORK_PRIORITY.urlInventory) return Promise.resolve();
+    if (!this.pacing || priority === INDEX_WORK_PRIORITY.mutation
+      || priority < INDEX_WORK_PRIORITY.urlInventory && !this.pacesInactiveView()) return Promise.resolve();
     const policy = admittedSave ? PACING_WINDOWS[sanitizeIndexingThrottle(this.pacing.throttle())] : this.pacingWindow();
     if (!policy) return new Promise<void>(/** No polling: selection, window focus, preference changes or unload release this wait. */ resolve => {
       /** Remove this receipt before the retained operation resumes or retires. */
@@ -194,10 +198,18 @@ export class ForegroundWorkScheduler {
     release?.();
   }
 
-  /** Check strictly higher lanes. A policy-paused optional URL owner cannot strand an admitted
-   * save; mutation/current/visible owners retain their original priority in every focus state. */
+  /** Only explicitly configured inactive effort restricts local view preparation. Initial startup
+   * remains exempt through the host's existing foreground hint; full effort retains normal lanes. */
+  private pacesInactiveView(): boolean {
+    return this.pacing?.isForeground?.() === false && this.pacing.backgroundEffort !== undefined
+      && sanitizeBackgroundIndexingEffort(this.pacing.backgroundEffort()) < 100;
+  }
+
+  /** Check strictly higher lanes. Policy-paused automatic owners cannot strand an admitted
+   * save; mutations always preempt, and ordinary priority returns when preparation resumes. */
   private hasHigherPriority(priority: IndexWorkPriority, admittedSave = false): boolean {
-    const ceiling = admittedSave && this.pacingWindow() === null ? Math.min(priority, INDEX_WORK_PRIORITY.urlInventory) : priority;
+    const ceiling = admittedSave && this.pacingWindow() === null
+      ? Math.min(priority, this.pacesInactiveView() ? INDEX_WORK_PRIORITY.currentNode : INDEX_WORK_PRIORITY.urlInventory) : priority;
     for (let lane = 0; lane < ceiling; lane++) if (this.active[lane] > 0) return true;
     return false;
   }

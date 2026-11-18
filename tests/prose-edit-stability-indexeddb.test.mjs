@@ -100,7 +100,7 @@ test('an unchanged metadata patch preserves the saved warm cache without schedul
   }finally{await browser.cleanup();}
 });
 
-for(const contributor of [false,true])for(const [label,mode,prime] of [['eager','eager',false],['eager-after-edit','eager',true],['on-demand','on-demand',false]])test(label+(contributor?' incoming contributor':' center')+': prose saves retain body ontology throughout changed/resolve and current replacement',async()=>{
+for(const folders of [false,true])for(const contributor of [false,true])for(const [label,mode,prime] of [['eager','eager',false],['eager-after-edit','eager',true],['on-demand','on-demand',false]])test((folders?'with folders ':'')+label+(contributor?' incoming contributor':' center')+': prose saves retain body ontology throughout changed/resolve and current replacement',async()=>{
   const browser=await chromiumHarness(bundle);
   try{
     await browser.evaluate(contributorBrowserInitialize);
@@ -113,7 +113,7 @@ for(const contributor of [false,true])for(const [label,mode,prime] of [['eager',
         f.metadata.get(edited.path).links=[cachedLink];f.app.metadataCache.resolvedLinks[edited.path]={[target.path]:1};
         f.app.vault.getName=()=>name;f.app.vault.getAbstractFileByPath=path=>f.files.get(path)??(path===''||path==='/'?f.app.vault.getRoot():null);
         await f.acquire();ok(await f.acquisition.reconcile(),'Initial neutral authority');f.acquisition.close();
-        const settings={...(${centerGateSettings.toString()})({showFolderNodes:false,showTagNodes:false,renderSiblings:false}),indexingMode:'${mode}',
+        const settings={...(${centerGateSettings.toString()})({showFolderNodes:${folders},showTagNodes:false,renderSiblings:false}),indexingMode:'${mode}',
           hierarchy:{hidden:[],parents:['Parent'],children:[],leftFriends:[],rightFriends:[],previous:[],next:[],exclusions:[]},tagStyleList:[],showFullTagName:true,
           inferAllLinksAsFriends:false,inverseInfer:false,lastActivePath:center.path,pinnedNodes:[]};
         let revision=0;const plugin={app:f.app,settings,getIndexSourceRevision:()=>revision};
@@ -134,7 +134,7 @@ for(const contributor of [false,true])for(const [label,mode,prime] of [['eager',
           for(let n=0;n<100&&index.hasActiveSemanticPreparation();n++)await new Promise(resolve=>setTimeout(resolve,10));
         }
         const read=()=>{const value=index.getNeighborhood(center.path);return value?{parents:value.parents.map(row=>row.page.path),children:value.children.map(row=>row.page.path),left:value.leftFriends.map(row=>row.page.path),right:value.rightFriends.map(row=>row.page.path)}:null;};
-        const role=${contributor}?'children':'parents',before=read();equal(before[role],['Parent.md'],'Body ontology initially present');
+        const role=${contributor}?'children':'parents',before=read();equal(before[role].filter(path=>!${folders}||!path.startsWith('folder:')),['Parent.md'],'Body ontology initially present');
         let semanticEvents=0;const commits=[],publish=index.commitPreparedFile;
         index.commitPreparedFile=function(commit,...args){commits.push(commit.semanticChanged);return publish.call(this,commit,...args);};
         const samples=[],observe=()=>samples.push(read()),off=index.subscribe(()=>{semanticEvents++;observe();}),offPaint=index.subscribePresentation(observe);
@@ -161,8 +161,8 @@ for(const contributor of [false,true])for(const [label,mode,prime] of [['eager',
             index.refreshVisibleHostMetadataPreviews(edited.path,previous);await index.refreshVisibleMarkdownPath(edited.path);
             for(let n=0;n<100&&(index.hasActiveSemanticPreparation()||index.onDemandTasks.size);n++)await new Promise(resolve=>setTimeout(resolve,10));
           };
-          await edit('The link was removed.',false);equal(read()[role],[],'Genuine relationship removal is published');
-          await edit(original+'Restored relationship.',true);equal(read()[role],['Parent.md'],'Genuine relationship restoration is published');
+          await edit('The link was removed.',false);equal(read()[role].filter(path=>!${folders}||!path.startsWith('folder:')),[],'Genuine relationship removal is published');
+          await edit(original+'Restored relationship.',true);equal(read()[role].filter(path=>!${folders}||!path.startsWith('folder:')),['Parent.md'],'Genuine relationship restoration is published');
           ok(semanticEvents>=2,'Real relationship changes notify semantic consumers');
           return true;
         }finally{release();index.metadataParser.parse=parse;index.commitPreparedFile=publish;off();offPaint();}

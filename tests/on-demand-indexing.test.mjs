@@ -351,6 +351,51 @@ test('native case rename retains an actual host preview while the older canonica
   }finally{o.close();}
 })()`));
 
+test('reactive catch-up of an existing file preserves its newer host preview without retiring links', async()=>scenario(`(async()=>{
+  const o=await onDemandFixture('existing-file-preview-continuity',{indexingMode:'eager',showFolderNodes:true});const {f,index}=o;
+  try{
+    delete index.sourceAcquisition.enableInventory;index.plugin.startupDiagnostics.processed=()=>{};
+    const a=f.add('A.md','',{Child:'[[Gone]]'}),b=f.add('B.md','');
+    f.app.metadataCache.unresolvedLinks={'A.md':{Gone:1}};ok(await index.rebuild(),'Older canonical graph');
+    f.metadata.set(a.path,{frontmatter:{Child:'[[B]]'},links:[]});
+    f.app.metadataCache.resolvedLinks={[a.path]:{[b.path]:1}};f.app.metadataCache.unresolvedLinks={};o.bump();
+    await index.publishHostMetadataPreview(a.path);
+    const preview=index.hostPreviewScopes.get(a.path);ok(preview,'Real newer host cover while source repair is pending');
+    const read=()=>{const n=index.getNeighborhood(a.path);return [n.parents,n.children,n.leftFriends,n.rightFriends].map(rows=>rows.map(row=>row.page.path));};
+    const before=read();ok(before[1].includes(b.path),'Current relationship is displayed');
+    let paints=0;const off=index.subscribePresentation(()=>paints++);
+    try{
+      // rebuildIndex admits all dirty existing files here before trying a per-file patch.
+      // An unavailable/paused writer can revisit this same unchanged endpoint repeatedly.
+      for(let attempt=0;attempt<3;attempt++){
+        index.insertCreatedFile(a);index.insertCreatedFile(b);
+        equal(read(),before,'Existing endpoint admission cannot remove a displayed relationship');
+        ok(index.hostPreviewScopes.get(a.path)===preview,'Retain the exact published cover');
+      }
+      equal(paints,0,'No presentation work for an already materialized native identity');
+      ok(!index.isSemanticWriteReady(a.path,b.path),'Presentation continuity grants no write proof');
+    }finally{off();}
+    return true;
+  }finally{o.close();}
+})()`));
+
+test('paused native metadata bursts retain one refresh per file instead of accumulating preview jobs', async()=>scenario(`(async()=>{
+ const o=await onDemandFixture('paused-metadata-coalescing',{indexingMode:'eager',lastActivePath:'A.md'}),{f,index}=o;
+ try{
+  delete index.sourceAcquisition.enableInventory;index.plugin.startupDiagnostics.processed=()=>{};
+  const a=f.add('A.md','',{Child:'[[B]]'});f.add('B.md','');f.app.metadataCache.resolvedLinks={'A.md':{'B.md':1}};
+  ok(await index.rebuild(),'Canonical input');
+  index.plugin.settings.backgroundIndexingEffort=0;let foreground=false;index.workScheduler.pacing.isForeground=()=>foreground;
+  o.bump();const waiting=index.workScheduler.activityWaiters.size;
+  for(let event=0;event<100;event++)index.refreshVisibleHostMetadataPreviews(a.path,0);
+  await Promise.resolve();await Promise.resolve();
+  equal(index.workScheduler.activityWaiters.size,waiting,'Repeated observations cannot accumulate paused preview jobs');
+  foreground=true;const paths=index.refreshHostActivity();equal(paths,[a.path],'Focus resumes this file exactly once');
+  equal(index.refreshHostActivity(),[],'Repeated focus notifications do not replay the same metadata');
+  return true;
+ }finally{o.close();}
+})()`));
+
 test('durable and compatibility style saves retain real on-demand authority with zero source acquisition', async()=>scenario(`(async()=>{
   const o=await onDemandFixture('v2-demand-style-commit',{noteTypeStyles:{},tagNodeStyles:{},tagStyleList:[],hierarchyLinkStyles:{}});
   const {f,index}=o;let release;const restores=[];

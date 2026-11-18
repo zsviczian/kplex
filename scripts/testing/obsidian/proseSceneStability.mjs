@@ -16,13 +16,17 @@ async function scenario(app,c){
   const target=await f.note('Parent'),field=p.defaultOntologyField('parent');f.check(field,'Configured parent ontology');
   const body=field+':: [['+target.basename+']]\n\nOrdinary prose.';
   const source=await f.note('Center',c.incoming?'':body),edited=c.incoming?target:source;
-  const editedBody=c.incoming?field+':: [['+source.basename+']]\n\nOrdinary prose.':body;
+  let editedBody=c.incoming?field+':: [['+source.basename+']]\n\nOrdinary prose.':body;
+  if(c.dense)for(let peer=0;peer<24;peer++){
+   const note=await f.note('Neighbor '+peer,c.incoming?field+':: [['+source.basename+']]':'');
+   if(!c.incoming)editedBody+='\n'+field+':: [['+note.basename+']]';
+  }
   const role=c.incoming?'children':'parents';
-  if(c.incoming)await app.vault.modify(edited,editedBody);
+  if(c.incoming||c.dense)await app.vault.modify(edited,editedBody);
   const setupLeaf=await f.canvas(source);await f.ready();
   const settled=()=>{const s=p.index.sourceAcquisition.getActivityState();return !p.indexDirty&&!p.rebuildTask&&p.rebuildTimer===null&&!p.index.hasActiveSemanticPreparation()&&!p.index.hasPendingSemanticPreparation()&&!s.sourceActive&&!s.pendingKnown&&!s.knownImpactTasks&&!s.repoWrites&&!p.index.onDemandTasks.size;};
   for(const mode of ['eager','on-demand']){
-   Object.assign(p.settings,{indexingMode:mode,showFolderNodes:false,showTagNodes:false,renderSiblings:false,sidecarMarkdownMode:'source',animationSpeed:200});await p.saveSettings(false,false);
+   Object.assign(p.settings,{...(c.dense?{maxItemCount:60,parentMaxHeight:220,childMaxHeight:220,parentColumns:2,childColumns:2}:{}),indexingMode:mode,showFolderNodes:!!c.paused,showTagNodes:false,renderSiblings:false,sidecarMarkdownMode:'source',animationSpeed:200});await p.saveSettings(false,false);
    // Prepare a genuine persisted warm graph outside the measured edit, then retire its owner.
    if(mode==='eager'){
     await f.until(settled,'Warm fixture source convergence');await p.index.sourceAcquisition.flush();p.index.cancelPendingPersistence();
@@ -40,7 +44,10 @@ async function scenario(app,c){
    f.restores.push(()=>{parser.parse=parse;});
    for(const view of ['classic','mindmap','wuxing']){
     f.check(await session.plexView.requestSelection(view),'Selected native view '+view);await f.ready();await f.wait(750);
+    if(c.paused){p.settings.backgroundIndexingEffort=0;p.refreshIndexActivity(true);}
     const inventoryBefore=p.startupDiagnostics.snapshot().sessionWork.sourceInventoryPasses;
+    const sourceBefore=p.index.getSourceAcquisitionCounters();
+    const buildsBefore=p.index.getSemanticPreparationDiagnostics().fullBuilds;
     const nodes=()=>[...root.querySelectorAll('.kplex-thought[data-kplex-path]')];
     const baseline=nodes().map(element=>({element,path:element.dataset.kplexPath,rect:element.getBoundingClientRect().toJSON()}));
     f.check(baseline.some(row=>row.path===target.path),'Parent node visible in '+view);
@@ -58,6 +65,7 @@ async function scenario(app,c){
      }
      const currentEdges=[...root.querySelectorAll('[data-kplex-edge-id]')];
      if(currentEdges.length!==edges.length||edges.some(row=>!row.element.isConnected||!currentEdges.includes(row.element)||row.element.getAttribute('d')!==row.d))reason='edge-identity-or-geometry';
+     for(const row of edges){const paint=row.element.closest('.kplex-edge-paint');if(paint&&Number(doc.defaultView.getComputedStyle(paint).opacity)<.99)reason='edge-arrival-replayed';}
      if(reason&&violations.length<32)violations.push({reason,at:performance.now()});
     };
     frameWindow=doc.defaultView;const tick=()=>{inspect();frame=frameWindow.requestAnimationFrame(tick);};frame=frameWindow.requestAnimationFrame(tick);
@@ -65,15 +73,30 @@ async function scenario(app,c){
     try{
      for(let edit=0;edit<3;edit++){
       const revision=p.getIndexSourceRevision(),content=editor.querySelector('.cm-content'),native=await f.focus(doc);content.focus();
-      for(const type of ['keyDown','keyUp'])native.webContents.sendInputEvent({type,keyCode:'End',modifiers:[require('process').platform==='darwin'?'meta':'control']});
-      await native.webContents.insertText('\nPlain prose '+view+' '+edit+'.');
-      await f.until(()=>p.getIndexSourceRevision()>revision&&settled(),'Native prose autosave '+mode+' '+view);await f.wait(300);inspect();
+      for(const type of ['keyDown','keyUp'])native.webContents.sendInputEvent({type,keyCode:edit%2?'End':'Home',modifiers:[require('process').platform==='darwin'?'meta':'control']});
+      await native.webContents.insertText((edit%2?'\n':'')+'Plain prose '+view+' '+edit+'.'+(edit%2?'':'\n'));
+      await f.until(()=>p.getIndexSourceRevision()>revision&&(c.paused||settled()),'Native prose autosave '+mode+' '+view);await f.wait(c.paused?2200:300);inspect();
+     }
+     if(c.paused){
+      await f.until(()=>root.classList.contains('kplex-index-background'),'Inactive paused native surface');
+      const after=p.index.getSourceAcquisitionCounters();
+      f.check(after.vaultReads===sourceBefore.vaultReads&&after.parses===sourceBefore.parses,'Paused edits acquired Markdown or parsed bodies');
+      f.check(p.rebuildTimer===null&&p.visibleMetadataTimer===null,'Paused catch-up kept retrying');
+      await f.wait(3500);inspect();
      }
      f.check(editor.contains(doc.activeElement),'Sidecar editor focus preserved');
      f.check(!violations.length,'Prose-only scene changed '+mode+' '+view+': '+JSON.stringify(violations));
      const globalInventories=p.startupDiagnostics.snapshot().sessionWork.sourceInventoryPasses-inventoryBefore;
      f.check(globalInventories===0,'Plain Markdown autosaves admitted a global source inventory');
-     results.push({mode,view,incomingContributor:!!c.incoming,saves:3,samples,nodeCount:baseline.length,edgeCount:edges.length,sceneStable:true,globalInventories});
+     results.push({mode,view,incomingContributor:!!c.incoming,paused:!!c.paused,saves:3,samples,nodeCount:baseline.length,edgeCount:edges.length,sceneStable:true,globalInventories});
+     if(c.paused){
+      const resumed=performance.now();app.workspace.setActiveLeaf(leaf,{focus:true});await f.focus(doc);p.refreshIndexActivity(true);await f.until(settled,'Focused catch-up after paused prose saves');
+      const after=p.index.getSourceAcquisitionCounters(),fullBuildAdmissions=p.index.getSemanticPreparationDiagnostics().fullBuilds-buildsBefore;
+      f.check(fullBuildAdmissions===0,'Paused edit catch-up admitted a full graph rebuild');inspect();
+      f.check(!violations.length,'Focus catch-up changed unchanged connectors '+mode+' '+view+': '+JSON.stringify(violations));
+      results.at(-1).samples=samples;
+      results.at(-1).catchup={elapsedMs:performance.now()-resumed,reads:after.vaultReads-sourceBefore.vaultReads,parses:after.parses-sourceBefore.parses,fullBuildAdmissions};
+     }
     }finally{observer.disconnect();observer=null;frameWindow.cancelAnimationFrame(frame);frame=null;}
    }
    // Genuine link edits must still converge naturally; no direct index patch or forced refresh.
@@ -90,6 +113,6 @@ if(process.env.KPLEX_TEST_VAULT_NAME!=='kplex-test-small')throw Error('Explicit 
 const userData=process.env.KPLEX_OBSIDIAN_USER_DATA??(process.platform==='win32'?join(process.env.APPDATA,'obsidian'):process.platform==='darwin'?join(homedir(),'Library','Application Support','obsidian'):join(homedir(),'.config','obsidian'));
 const lock=acquireHostLock({userDataPath:userData});
 try{
- const definitions='c.incoming='+JSON.stringify(process.env.KPLEX_PROSE_INCOMING==='true')+';c.fixturePrefix="__kplex_prose_scene_";c.sessions='+nativeDocumentSessions.toString()+';c.fixture='+nativeBatch270.toString()+';c.originalData='+JSON.stringify(readFileSync(join(target.pluginDir,'data.json'),'utf8'))+';c.originalEnabled='+JSON.stringify(readFileSync(join(target.config,'community-plugins.json'),'utf8'))+';';
+ const definitions='c.incoming='+JSON.stringify(process.env.KPLEX_PROSE_INCOMING==='true')+';c.paused='+JSON.stringify(process.env.KPLEX_PROSE_PAUSED==='true')+';c.dense='+JSON.stringify(process.env.KPLEX_PROSE_DENSE==='true')+';c.fixturePrefix="__kplex_prose_scene_";c.sessions='+nativeDocumentSessions.toString()+';c.fixture='+nativeBatch270.toString()+';c.originalData='+JSON.stringify(readFileSync(join(target.pluginDir,'data.json'),'utf8'))+';c.originalEnabled='+JSON.stringify(readFileSync(join(target.config,'community-plugins.json'),'utf8'))+';';
  await runControlledProbe('prose-scene-stability',scenario,definitions,['src/main.ts','src/ui/PlexGraph.tsx','src/ui/ThoughtNode.tsx'],{maximumMs:420000});
 }finally{lock.release();}

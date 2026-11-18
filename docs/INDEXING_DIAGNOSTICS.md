@@ -26,7 +26,7 @@ moves to `plugin.buildId`; every historical session retains its own manifest and
 For example, an installed manifest `0.4.1` and embedded build `0.4.2` remain distinct.
 
 `indexingPreferences.backgroundIndexingEffort` records the live relative 0–100 preference:
-zero pauses optional inactive-tab work, 10 is the conservative default, and 100 uses the selected
+zero pauses automatic inactive-tab work (including visible-view preparation), 10 is the conservative default, and 100 uses the selected
 foreground speed. It is not a CPU percentage. Initial preparation remains uninterrupted, and a
 snapshot save already admitted while focused keeps progressing after switching away.
 `index.cache.persistence.waitingForFocus` distinguishes a due save held before admission from an

@@ -53,6 +53,11 @@ Complete cache saves wait for actual K-Plex focus before starting; once started 
 after switching away, including at zero effort. Verify preserved prior metadata while waiting,
 edit/unload supersession, actual replacement activation and subsequent unchanged warm reuse.
 The inactive brand mark is 0.5 opacity; inspect it alongside the waiting-for-focus cache status.
+For native prose/idle continuity, set `KPLEX_PROSE_PAUSED=true` when running
+`verify:obsidian:prose-scene`; repeat with `KPLEX_PROSE_INCOMING=true`. The lane includes folder
+links, rejects reads/parses and retry timers during pause, checks exact connector DOM/geometry
+and arrival-animation continuity, then verifies genuine relationship changes after focus resumes.
+Use `KPLEX_PROSE_DENSE=true` to include 24 additional connected notes and bounded scrolling areas.
 
 ```bash
 npm i

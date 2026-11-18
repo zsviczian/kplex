@@ -49,12 +49,13 @@ test('cache saves wait for focus then finish after switching away even with opti
  }finally{await browser.cleanup();}
 });
 
-test('inactive initial hydration keeps its original rate and saved graph while later maintenance slows',async()=>{
+for(const effort of [0,10])test('inactive initial hydration keeps its original rate and saved graph at effort '+effort,async()=>{
  const browser=await chromiumHarness(bundle);
  try{
   await browser.evaluate(contributorBrowserInitialize);await browser.evaluate(initializeHydrationWork);
   const result=await browser.evaluate(`(async()=>{
-   const q=await hydrationWorkFixture('inactive-startup-pacing',12000,0,'eager',true),i=q.index;
+   const q=await hydrationWorkFixture('inactive-startup-pacing-${effort}',12000,0,'eager',true),i=q.index;
+   q.plugin.settings.backgroundIndexingEffort=${effort};
    const host={initialIndexComplete:false,isKplexIndexingForeground:()=>false};
    const hint=new Function('return ('+${JSON.stringify(indexPacingHintSource)}+');').call(host);
    const pacing=i.workScheduler.pacing,iterate=i.indexedDb.iterateSnapshotPages,rests=[];
@@ -79,8 +80,15 @@ test('inactive initial hydration keeps its original rate and saved graph while l
     equal(i.getSnapshotHydrationDiagnostics().attempts,1,'No hydration restart');
     const startupRests=[...rests];ok(startupRests.length>0,'Real hydration consumed background work slices');
     ok(startupRests.every(ms=>ms===24),'Startup retains the responsive rest in an inactive tab');
-    host.initialIndexComplete=true;clock+=6;await i.workScheduler.checkpoint(4);
-    equal(rests.at(-1),1338,'Settled inactive maintenance uses the new conservative default effort');
+    let visiblePrepared=false;await i.workScheduler.run(1,async()=>{visiblePrepared=true;});
+    ok(visiblePrepared,'Initial local preparation is exempt even at zero inactive effort');
+    host.initialIndexComplete=true;clock+=6;
+    let progressed=false;const work=i.workScheduler.checkpoint(4).then(()=>{progressed=true;});
+    if(${effort}===0){
+     await Promise.resolve();await Promise.resolve();equal(progressed,false,'Settled inactive maintenance now pauses');
+     host.isKplexIndexingForeground=()=>true;i.refreshHostActivity();await work;
+     equal(rests.at(-1),24,'Focus resumes the retained task at normal responsive speed');
+    }else{await work;equal(rests.at(-1),1338,'Settled inactive maintenance uses the conservative default effort');}
     return{pages:i.state.pages.size,startupRests:startupRests.length,edits,clock};
    }finally{i.indexedDb.iterateSnapshotPages=iterate;i.workScheduler.pacing=pacing;q.close();}
   })()`);

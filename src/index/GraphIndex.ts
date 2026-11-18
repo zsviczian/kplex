@@ -621,6 +621,8 @@ export class GraphIndex {
   private visiblePresentation = new Map<string, {
     pages: Map<GraphPage, number>; revision: number; pending: boolean; queued: boolean; task: Promise<void> | null;
   }>();
+  /** Inactive zero-effort observations coalesce by file; they own no preview task or timer. */
+  private deferredHostMetadataPaths = new Map<string, number>();
   /** Each surface owns its finite recovery inputs independently of other mounted canvases. */
   private recoveryPresentationLeases = new Map<symbol, ReadonlyMap<string, ReadonlySet<string>>>();
   private recoveryPresentationRevisions = new Map<string, number>();
@@ -2184,6 +2186,13 @@ export class GraphIndex {
    * demand retirement still cancels old producers, and no certificate is renewed for that read.
    */
   refreshVisibleHostMetadataPreviews(changedPath: string, previousSourceRevision = this.plugin.getIndexSourceRevision()): boolean {
+    if (this.diagnosticsClosed) return false;
+    if (this.workScheduler.diagnostics().paused) {
+      // Retain the earliest observation. Several source revisions cannot renew an old read/write
+      // certificate as one known event when focus returns; ordinary conservative guards apply.
+      if (!this.deferredHostMetadataPaths.has(changedPath)) this.deferredHostMetadataPaths.set(changedPath, previousSourceRevision);
+      return false;
+    }
     const urlBody = this.urlOwnerBodies.get(changedPath), urlFile = this.app.vault.getFileByPath(changedPath), owner = this.urlOwners.get(changedPath);
     const knownMetadataChange = this.plugin.getIndexSourceRevision() === previousSourceRevision + 1;
     if (urlFile && urlBody && owner?.file === urlFile && owner.mtime === urlFile.stat.mtime && owner.size === urlFile.stat.size
@@ -5559,10 +5568,15 @@ export class GraphIndex {
     this.wakeCacheFocusWaiters();
   }
 
-  /** Focus is scheduling-only: resume retained owners without invalidating or rebuilding the index. */
-  refreshHostActivity(): void {
+  /** Resume retained owners and coalesced real metadata observations, without inventing source changes.
+   * Return only affected visible files for the host's existing coalesced per-file preparation. */
+  refreshHostActivity(): readonly string[] {
     this.workScheduler.refreshPacing();
     this.wakeCacheFocusWaiters();
+    if (this.diagnosticsClosed || this.workScheduler.diagnostics().paused) return [];
+    const pending = [...this.deferredHostMetadataPaths];
+    this.deferredHostMetadataPaths.clear();
+    return pending.flatMap(([path, previous]) => this.refreshVisibleHostMetadataPreviews(path, previous) ? [path] : []);
   }
 
   /** Release stale as well as current writers; each continuation rechecks its original generation. */
@@ -5593,6 +5607,7 @@ export class GraphIndex {
     this.cancelSnapshotRestoreWait?.();
     this.cancelUrlRestore?.();
     this.visiblePresentation.clear();
+    this.deferredHostMetadataPaths.clear();
     this.recoveryPresentationLeases.clear();
     this.recoveryPresentationRevisions.clear();
     this.dirtyFolderPresentation.clear();
@@ -9372,11 +9387,13 @@ export class GraphIndex {
    * coherent preview incidence. Publish even if those read maps shared the newly bound canonical page.
    */
   insertCreatedFile(file: TFile, aliases: readonly string[] = [], materializedReads = false): GraphPage {
-    if (!materializedReads) this.updateHostFileAvailability(file.path, file);
     // A prepared scope can already contain this file before the physical event is patched. The
     // canonical patch baseline must still own its endpoint; never promote only the private view.
     const existing = this.state.pages.get(file.path);
+    // Reactive catch-up also calls this for existing dirty files. Their native availability has
+    // not changed: retiring a newer preview here exposes older canonical links on every retry.
     if (existing?.file === file && aliases.length === 0 && !materializedReads) return existing;
+    if (!materializedReads) this.updateHostFileAvailability(file.path, file);
     if (existing) {
       // A K-Plex-created note can materialize a previously unresolved/virtual graph page. Promote
       // that page immediately instead of waiting for the managed Obsidian create event (which is

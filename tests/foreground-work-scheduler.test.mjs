@@ -7,7 +7,7 @@ import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import {createRequire} from 'node:module';
 import {browserBundle} from './support/browserTypeScript.mjs';
-import {hostPacingProbe} from './support/indexPacingHost.mjs';
+import {hostPacingProbe,hostActivityProbe} from './support/indexPacingHost.mjs';
 const directory=mkdtempSync(join(tmpdir(),'kplex-priority-'));
 process.once('exit',()=>rmSync(directory,{recursive:true,force:true}));
 const output=join(directory,'scheduler.cjs');
@@ -64,6 +64,40 @@ test('effort spans a long low-power rest through exactly the chosen foreground s
  }
 });
 
+test('paused inactive views cannot admit current-center or neighbor preparation before focus returns',async()=>{
+ const f=pacedScheduler('responsive',false),s=f.scheduler;s.pacing.backgroundEffort=()=>0;
+ const published=[];
+ const tasks=[P.currentNode,P.visibleNeighborhood].map(priority=>s.run(priority,async()=>{published.push(priority);}));
+ await turn();const before=[...published];
+ let checkpointPassed=false;const checkpoint=s.checkpoint(P.visibleNeighborhood).then(()=>{checkpointPassed=true;});
+ await turn();const checkpointBefore=checkpointPassed;
+ const release=s.begin(P.mutation);await s.checkpoint(P.mutation);release();
+ const save=s.checkpoint(P.background,true);await save;
+ f.setForeground(true);s.refreshPacing();await Promise.all([...tasks,checkpoint]);s.close();
+ assert.deepEqual(before,[],'Visible does not mean foreground: automatic work must remain private while paused');
+ assert.equal(checkpointBefore,false,'An already running visible task pauses at its next safe boundary');
+ assert.deepEqual(published,[P.currentNode,P.visibleNeighborhood]);assert.equal(f.timers.size,0);
+ f.setForeground(false);await s.run(P.currentNode,async()=>{});
+ assert.equal(s.activityWaiters.size,0,'A late retired caller cannot install a new unload-blocked wait');
+});
+
+test('paused native catch-up retains one dirty backlog and visible path set without retry timers',async()=>{
+ const timers=new Map();let serial=0,foreground=false,patches=0,visible=0,wakes=0;
+ const Probe=hostActivityProbe({setTimeout:(callback)=>{timers.set(++serial,callback);return serial;},clearTimeout:id=>timers.delete(id)});
+ const p=new Probe();Object.assign(p,{initialIndexComplete:true,settings:{backgroundIndexingEffort:0},lastIndexForeground:false,
+  indexDirty:false,indexDirtyRevision:7,indexBacklogReasons:new Set(),visibleMetadataPaths:new Set(),visibleMetadataTimer:null,rebuildTimer:null,rebuildTask:null,
+  isKplexIndexingForeground:()=>foreground,hasVisibleKplexSurface:()=>true,hasIndexMaintenanceDemand:()=>true,
+  notifyIndexStatus:()=>{},notifyStartupProgress:()=>{},runtimePatchDelayMs:()=>1100,supportEvents:{record:()=>{}},
+  index:{refreshHostActivity:()=>{wakes++;return ['A.md'];},refreshVisibleMarkdownPath:async()=>visible++},rebuildIndex:async()=>patches++});
+ for(let edit=0;edit<3;edit++){p.scheduleRebuild('metadata:changed');p.scheduleVisibleMetadataRefresh('A.md');}
+ assert.equal(timers.size,0,'Paused edits must not start the 1.1-second catch-up loop');
+ assert.equal(p.indexDirty,true);assert.deepEqual([...p.visibleMetadataPaths],['A.md']);
+ assert.equal(p.indexDirtyRevision,10,'Real edit observations remain dirty');
+ foreground=true;p.refreshIndexActivity();assert.equal(timers.size,2,'Focus schedules each existing owner once');
+ for(const [id,callback]of [...timers]){timers.delete(id);callback();}await turn();
+ assert.equal(patches,1);assert.equal(visible,1);assert.equal(wakes,1);assert.equal(p.indexDirtyRevision,10,'Focus cannot manufacture source changes');
+});
+
 test('an admitted save keeps normal pacing and mutation preemption after switching to a paused background',async()=>{
  const f=pacedScheduler('responsive',false),s=f.scheduler;s.pacing.backgroundEffort=()=>0;
  await s.checkpoint(P.background,true);f.advance(6);
@@ -72,13 +106,13 @@ test('an admitted save keeps normal pacing and mutation preemption after switchi
  release();await pending;assert.equal(saved,true);assert.equal(s.diagnostics().paused,true);s.close();
 });
 
-test('an admitted save bypasses a paused URL owner while foreground mutations still preempt it',async()=>{
+for(const lane of [P.currentNode,P.visibleNeighborhood,P.urlInventory])test('an admitted save bypasses paused automatic lane '+lane+' while mutations still preempt it',async()=>{
  const f=pacedScheduler('responsive',true),s=f.scheduler;s.pacing.backgroundEffort=()=>0;
- const releaseUrl=s.begin(P.urlInventory);let saved=false;
+ const releaseUrl=s.begin(lane);let saved=false;
  const pending=s.checkpoint(P.background,true).then(()=>{saved=true;});
- await turn();assert.equal(saved,false,'Normal URL priority is retained before focus loss');
+ await turn();assert.equal(saved,false,'Normal automatic priority is retained before focus loss');
  f.setForeground(false);const releaseMutation=s.begin(P.mutation);s.refreshPacing();await turn();
- assert.equal(saved,false,'Foreground mutation still preempts the save when optional URL work is paused');
+ assert.equal(saved,false,'Foreground mutation still preempts the save when automatic work is paused');
  releaseMutation();await turn();await turn();
  const passed=saved;s.close();releaseUrl();await pending;
  assert.equal(passed,true,'A paused optional owner cannot indefinitely stop an admitted save');

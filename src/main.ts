@@ -1433,6 +1433,7 @@ export default class KplexPlugin extends Plugin {
   private scheduleVisibleMetadataRefresh(path: string): void {
     if (!this.hasVisibleKplexSurface() || this.unloading) return;
     this.visibleMetadataPaths.add(path);
+    if (this.isBackgroundIndexingPaused()) return;
     if (this.visibleMetadataTimer !== null) window.clearTimeout(this.visibleMetadataTimer);
     this.visibleMetadataTimer = window.setTimeout(() => {
       this.visibleMetadataTimer = null;
@@ -1458,7 +1459,7 @@ export default class KplexPlugin extends Plugin {
     if (reason === "vault:create") this.pendingCreateRevision = this.indexDirtyRevision;
     this.indexBacklogReasons.add(reason);
     this.notifyIndexStatus();
-    if (!this.hasIndexMaintenanceDemand() || !this.initialIndexComplete || this.rebuildTask) return;
+    if (!this.hasIndexMaintenanceDemand() || !this.initialIndexComplete || this.rebuildTask || this.isBackgroundIndexingPaused()) return;
     if (this.rebuildTimer !== null) {
       window.clearTimeout(this.rebuildTimer);
     }
@@ -1918,7 +1919,7 @@ export default class KplexPlugin extends Plugin {
         || item === "coalesced-backlog" || item === "interval")) return;
     }
     const explicitlyRequested = showNotice;
-    if (!this.hasIndexMaintenanceDemand() && !allowClosed && !explicitlyRequested) {
+    if ((!this.hasIndexMaintenanceDemand() || this.isBackgroundIndexingPaused()) && !allowClosed && !explicitlyRequested) {
       return;
     }
 
@@ -2114,7 +2115,8 @@ export default class KplexPlugin extends Plugin {
     }
 
 
-    if (!this.unloading && this.indexDirty && this.initialIndexComplete && this.hasIndexMaintenanceDemand() && this.rebuildTimer === null) {
+    if (!this.unloading && this.indexDirty && this.initialIndexComplete && this.hasIndexMaintenanceDemand()
+      && !this.isBackgroundIndexingPaused() && this.rebuildTimer === null) {
       this.rebuildTimer = window.setTimeout(() => {
         this.rebuildTimer = null;
         void this.rebuildIndex(false, false, "coalesced-backlog");
@@ -3686,8 +3688,24 @@ export default class KplexPlugin extends Plugin {
     const foreground = this.isKplexIndexingForeground();
     if (!force && foreground === this.lastIndexForeground) return;
     this.lastIndexForeground = foreground;
-    this.index?.refreshHostActivity();
+    for (const path of this.index?.refreshHostActivity() ?? []) this.visibleMetadataPaths.add(path);
+    if (!this.isBackgroundIndexingPaused() && !this.unloading && this.initialIndexComplete) {
+      const pending = this.visibleMetadataPaths.values().next();
+      if (!pending.done) this.scheduleVisibleMetadataRefresh(pending.value);
+      if (this.indexDirty && this.hasIndexMaintenanceDemand() && !this.rebuildTask && this.rebuildTimer === null) {
+        // Resume the existing backlog without manufacturing a source revision or invalidation.
+        this.rebuildTimer = window.setTimeout(() => {
+          this.rebuildTimer = null;
+          void this.rebuildIndex(false, false, "coalesced-backlog");
+        }, 0);
+      }
+    }
     this.notifyStartupProgress(true);
+  }
+
+  /** Initial preparation keeps its existing exemption; later automatic catch-up waits for focus. */
+  private isBackgroundIndexingPaused(): boolean {
+    return this.initialIndexComplete && this.settings.backgroundIndexingEffort === 0 && !this.isKplexIndexingForeground();
   }
 
   /** Keep opted-in Eager preparation current while canvases are closed. Use captured startup

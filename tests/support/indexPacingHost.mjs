@@ -24,3 +24,12 @@ export function hostPacingProbe(){
  const Probe=new Function('ItemView','KPLEX_VIEW_TYPE','KPLEX_SIDEPANEL_VIEW_TYPE',compiled+';return FocusProbe;')(ItemView,'plex','sidepanel');
  return{Probe,ItemView};
 }
+
+/** Execute the actual catch-up admission/wakeup methods against an owned deterministic timer. */
+export function hostActivityProbe(window){
+ const names=['refreshIndexActivity','isBackgroundIndexingPaused','scheduleRebuild','scheduleVisibleMetadataRefresh'];
+ const members=names.map(name=>{const member=plugin.members.find(node=>node.name?.getText(source)===name);assert(member,name);return member.getText(source);});
+ const compiled=ts.transpileModule('class ActivityProbe {'+members.join('\n')+'}',
+  {compilerOptions:{target:ts.ScriptTarget.ES2021}}).outputText;
+ return new Function('window','perfNow',compiled+';return ActivityProbe;')(window,()=>0);
+}

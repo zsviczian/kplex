@@ -334,7 +334,8 @@ test("reactive startup backlog cannot rebuild a partial cache preview before hyd
   const closed = new Promise((resolve) => { closeHydration = resolve; });
   let optionalUrlStarts=0;
   const context = {
-    unloading: false, layoutReady: true, initialIndexTask: null, initialIndexComplete: false,
+    unloading: false, layoutReady: true, initialIndexTask: null, initialIndexComplete: false, settings: {},
+    isBackgroundIndexingPaused: productionFunction("src/main.ts", "isBackgroundIndexingPaused", {}),
     indexDirty: true, indexDirtyRevision: 1, preRestoreUncoveredChanges: false,
     indexBacklogReasons: new Set(["startup:stale-snapshot"]), dirtyMarkdownPaths: new Set(), metadataStabilized: true,
     rebuildTask: null, rebuildTimer: null,
@@ -404,7 +405,8 @@ for (const outcome of ["fresh", "stale", "failed", "sources", "sources-pending"]
       scheduleRebuild: () => assert.fail("This settled startup needs no additional rebuild"),
       pruneMissingDirtyMarkdownPaths: () => {}, startupGraphSeedPaths: () => [],
     };
-    for (const name of ["hasIndexMaintenanceDemand", "ensureInitialIndex", "performRebuild", "adoptInitialSourceIndex", "retireCoveredCreateReason", "retireCoveredMarkdownBacklog"]) {
+    context.settings = {};
+    for (const name of ["hasIndexMaintenanceDemand", "ensureInitialIndex", "performRebuild", "adoptInitialSourceIndex", "retireCoveredCreateReason", "retireCoveredMarkdownBacklog", "isBackgroundIndexingPaused"]) {
       context[name] = productionFunction("src/main.ts", name, { Platform: { isIosApp: false } });
     }
     const task = context.ensureInitialIndex();
