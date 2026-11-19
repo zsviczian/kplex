@@ -21,25 +21,26 @@ Obsidian is the production host; preserve the established portable semantic, ide
 
 ---
 
-# Active status: accepted for commit and merge
+# Active status: 0.4.5 release material prepared
 
-Repository: kplex. Branch: 2026-11-15-style-sources-links-mobile-fullscreen. Maintainer explicitly authorized commit and merge and confirmed physical-mobile verification. Preserve the standing instructions above.
+Runtime checkpoint: e225456 on main. The maintainer authorized committing and merging the inactive-tab performance branch, returning to main and fetching. No release or tag was requested.
 
-Implemented scope:
-- Appearance sources in node/connection context menus, navigating to existing standard, tag/note-type, ontology and styling-lens controls (#310).
-- Markdown web-link text/alt/title parsing and compatible cached-source upgrades (title portion of #309 only; YouTube video-ID deduplication remains out of scope).
-- Mobile side-panel fullscreen ownership/restoration (#124 follow-up), plus external single-click navigation opt-in, disabled by default and restricted to an already-central node.
-- Retain compatible cache restoration through bounded, accounted foreground source commits; recover one transient pre-decode storage backoff while retaining source/policy/identity fences and finite retries. Eager preparation maintains edits with canvases closed through the existing coordinator.
+Remote publication remains pending explicit permission. Automatic approval review rejected git push origin main because the merge/fetch request was not considered authorization to publish to the remote default branch. The maintainer has been asked; do not bypass that rejection through GitHub APIs or another route.
 
-Acceptance:
-- Final npm run verify passed on Node22.22.2: core137, main2500, UI607, source393, real-IDB1084, plus validation/release checks and the real production build.
-- Final exact-artifact native sequence13runs passed: pending-save close/reopen, actual app reloads, ordinary failure/retry deadlines, no-op events, idle/wake, mutations, startup embed/storage fault, style/title UI and phone/tablet emulation.
-- Two isolated unchanged Brain app reloads reused the activated generation with zero primary-source checks/reads/parses/repairs, full builds, global source inventories, node catalogs or cache writes. Cached URL replay remains a separate background cost.
-- Independent audit matched510 runtime/build inputs and tested/staged/deployed artifact hashes. Original production data.json restored exactly; all note edits preserved and confirmed as maintainer editing/sync activity. No production note-writing commands were issued.
-- Maintainer Mac diagnostics confirm no broad rebuild. Latest build212509765Z has the same510 inputs as tested184120030Z: clean requested graph52s; early edit61s, updated snapshot92.5s, URL pass130.2s. These are indexing milestones, not plugin-load timings or a controlled before/after benchmark.
-- Maintainer confirmed physical-mobile verification before authorizing merge. Device/OS was not specified; do not claim a complete Android/iOS matrix.
-- Earlier failed aggregate runs are preserved in managed ignored storage. Missing extracted-method fixture capabilities were corrected without changing assertions/deadlines; the complete final aggregate passed afterward. No raw validation reports or generated artifacts belong in this commit.
+Implemented and validated:
+- Live inactive effort now also gates automatic current/visible-note preparation. Zero effort retains pending observations without recurring retry timers; focus resumes the existing owners. Initial preparation and admitted cache saves retain their agreed exceptions.
+- Repeated native identity observations preserve newer previews. Partial recovery cannot replace a complete displayed neighborhood before source closure; real relationship edits still update the canonical graph without renewing write proof.
+- Stationary connectors no longer replay arrival fades on follow/focus changes. Actual root/view transitions retain their animation.
+- Node22.22.2 checks completed: core137; main2517 with one Chromium bundle-startup failure before its scenario ran; the unchanged case passed on rerun. All remaining gates passed separately: browser610, source393, real IndexedDB1096 and the real production build. The failed aggregate remains recorded as failed. Focused indexing coverage374 also passed.
+- Exact-artifact Windows Small coverage passed24 native scenes/72 autosaves across both strategies, all three layouts and Paused/full effort. Paused cases admitted zero Markdown reads/parses. Four actual app:reload renderer cycles passed: two unchanged, pending save, unchanged after repair. All four admitted zero full builds/global inventories/reads/parses; only the pending-save cycle wrote one replacement snapshot.
+- The20,015-owner persisted-graph regression passed. Windows functional evidence is not Mac production-vault or physical-mobile acceptance.
 
-Known follow-ups: cache/URL-pass latency and one recovered Mac source-transaction InvalidStateError remain recorded. The reported run completed an authoritative graph and activated its cache without a full rebuild. No additional broad regression rerun is needed while runtime inputs remain unchanged.
+Help checkpoint: kplex-help main commit9c976b8, kept local for publication after the release is live. Final consumer copy is written as Release0.4.5, with November20,2026 explicitly supplied by the maintainer. Version and daily-note chains, living indexing/style/navigation guides, a genuine desktop background-effort screenshot and the bundled current main executable are updated. Manifest remains0.4.4; authoring/deployment did not prepare a release version.
 
-Merge instructions: use a PR against current main, close #310, reference only the completed title portion of #309 and the already-closed #124 follow-up, then switch local checkout to main and fetch. Do not publish a release/tag or modify production vaults as part of merging.
+Help acceptance and publication:
+- Static audit passed180 notes,1,998 links,34 tables,21 release versions and18 journal days. Native reading views render the release/date/strategy guide and the actual screenshot. Release-to-guide/date/previous-version navigation and the twelve-child limit passed.
+- The Help vault already maps earlier/later under Parent/Child, while its authoring guide expects Previous/Next. The native Previous assertion correctly failed against that preexisting configuration. The maintainer has been asked whether to move the pair; do not claim that role gate passed or change data.json without the answer.
+- Native cleanup restored the original plugin settings, appearance and enablement bytes and the preexisting live layout/history. The original live recent-file list already contained Release0.4.5 while its disk workspace was older; Obsidian subsequently persisted that history. Leave the resulting workspace-only diff uncommitted.
+- GitHub's latest release was0.4.4 at authoring. Before publishing the Help update, verify the actual0.4.5 release date/scope against the final copy. Do not publish the Help commit or create a release/tag without maintainer instruction.
+
+Known follow-ups: repeat the corrected split-pane/idle workflow on the maintainer's Mac. A separate dense newly-created incoming-contributor first-open stall also reproduces on b9044c7 and remains unresolved; the warm prose scenario deliberately settles fixture creation before measurement. Earlier #309 YouTube-ID normalization and previously recorded cache/URL-pass latency are not claimed fixed by this patch.
