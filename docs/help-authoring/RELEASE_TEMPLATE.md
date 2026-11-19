@@ -45,7 +45,7 @@ released on:: [[<actual YYYY-MM-DD daily note>]]
 <Exact published release text when importing older history; attribute and link source.>
 ```
 
-Replace sequence placeholders with the actual adjacent release pages in version order. Omit `Previous` if there is no earlier page and `Next` if there is no later page; never create a link to a nonexistent page. Explicitly labeled drafts participate in the sequence without changing their release status. Update the previous page's `Next` and, when inserting between existing pages, the next page's `Previous` in the same edit. Chronological release links belong only in `Previous`/`Next`, never `Related`/`Friend`.
+Replace sequence placeholders with the actual adjacent release pages in version order. Omit `Previous` if there is no earlier page and `Next` if there is no later page; never create a link to a nonexistent page. Explicitly labeled drafts participate in the sequence without changing their release status. Update the previous page's `Next` and, when inserting between existing pages, the next page's `Previous` in the same edit. Release-version links belong only in `Previous`/`Next`, never `Related`/`Friend`. This does not apply to daily journal entries: their settled `earlier/later` mapping is Parent/Child, as specified in the daily-note template.
 
 Follow [Links and Markdown tables](README.md#links-and-markdown-tables): short note names unless ambiguous, including sequence and ontology lists; never use an aliased wikilink in a table.
 

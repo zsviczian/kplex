@@ -25,7 +25,7 @@ Obsidian is the production host; preserve the established portable semantic, ide
 
 Runtime checkpoint: e225456 on main. The maintainer authorized committing and merging the inactive-tab performance branch, returning to main and fetching. No release or tag was requested.
 
-Remote publication remains pending explicit permission. Automatic approval review rejected git push origin main because the merge/fetch request was not considered authorization to publish to the remote default branch. The maintainer has been asked; do not bypass that rejection through GitHub APIs or another route.
+The maintainer explicitly approved pushing source main. Keep the Help-vault update local until the release is live; no release or tag is authorized.
 
 Implemented and validated:
 - Live inactive effort now also gates automatic current/visible-note preparation. Zero effort retains pending observations without recurring retry timers; focus resumes the existing owners. Initial preparation and admitted cache saves retain their agreed exceptions.
@@ -35,11 +35,11 @@ Implemented and validated:
 - Exact-artifact Windows Small coverage passed24 native scenes/72 autosaves across both strategies, all three layouts and Paused/full effort. Paused cases admitted zero Markdown reads/parses. Four actual app:reload renderer cycles passed: two unchanged, pending save, unchanged after repair. All four admitted zero full builds/global inventories/reads/parses; only the pending-save cycle wrote one replacement snapshot.
 - The20,015-owner persisted-graph regression passed. Windows functional evidence is not Mac production-vault or physical-mobile acceptance.
 
-Help checkpoint: kplex-help main commit9c976b8, kept local for publication after the release is live. Final consumer copy is written as Release0.4.5, with November20,2026 explicitly supplied by the maintainer. Version and daily-note chains, living indexing/style/navigation guides, a genuine desktop background-effort screenshot and the bundled current main executable are updated. Manifest remains0.4.4; authoring/deployment did not prepare a release version.
+Help checkpoint: kplex-help main commit68f584e follows the release-material commit9c976b8; both remain local for publication after the release is live. Final consumer copy is written as Release0.4.5, with November20,2026 explicitly supplied by the maintainer. Version and daily-note chains, living indexing/style/navigation guides, a genuine desktop background-effort screenshot and the bundled current main executable are updated. Manifest remains0.4.4; authoring/deployment did not prepare a release version.
 
 Help acceptance and publication:
 - Static audit passed180 notes,1,998 links,34 tables,21 release versions and18 journal days. Native reading views render the release/date/strategy guide and the actual screenshot. Release-to-guide/date/previous-version navigation and the twelve-child limit passed.
-- The Help vault already maps earlier/later under Parent/Child, while its authoring guide expects Previous/Next. The native Previous assertion correctly failed against that preexisting configuration. The maintainer has been asked whether to move the pair; do not claim that role gate passed or change data.json without the answer.
+- The maintainer confirmed that journal entries deliberately use earlier/later as Parent/Child. The authoring guide, templates, agent guidance and consumer explanations now preserve that settled choice without asking again on routine updates. Read-only native checks passed all18 journal days under Parent/Child and all21 release versions under Previous/Next. The earlier native Previous assertion tested an incorrect documentation expectation, not an index defect; settings remain unchanged.
 - Native cleanup restored the original plugin settings, appearance and enablement bytes and the preexisting live layout/history. The original live recent-file list already contained Release0.4.5 while its disk workspace was older; Obsidian subsequently persisted that history. Leave the resulting workspace-only diff uncommitted.
 - GitHub's latest release was0.4.4 at authoring. Before publishing the Help update, verify the actual0.4.5 release date/scope against the final copy. Do not publish the Help commit or create a release/tag without maintainer instruction.
 

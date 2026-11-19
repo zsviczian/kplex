@@ -96,6 +96,8 @@ Follow the playbook's [link and table rules](docs/help-authoring/README.md#links
 
 Use the Help repository's current branch, own instructions, ontology and existing documentation as authority for content organization. Keep use cases evergreen and marked `Note type: Use case`; connect release pages to relevant feature/use-case pages via the Help vault's existing `Explains` ontology. Release pages must distinguish drafts from published history. Capture authentic screenshots locally, preserve existing visual assets and avoid changing its bundled plugin executables or `.obsidian` settings without separate authorization. Verify Help-repository writes independently of K-Plex source changes.
 
+Follow the settled journal-ontology decision in that playbook. A chronological daily-note chain is not a reason to change its roles or request reconfirmation on each Help update.
+
 ## Architecture boundaries
 
 **Current architecture refactoring milestone: C14 accepted; structural refactoring is paused.** Feature work may proceed within the established boundaries. Do not start C15–C26 or retire compatibility facades without an explicitly scoped task. Obsidian remains the only production host; a portable semantic engine does not mean the application and all UI are host-independent. The current ownership and retained seams are documented in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) and tracked in [Refactor plan.md](Refactor%20plan.md).
