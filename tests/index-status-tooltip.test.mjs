@@ -1,4 +1,4 @@
-/** Exercise the actual status component and shared gesture owner without starting the graph host. */
+/** Exercise actual passive status projection, CSS pacing and shared gestures without starting graph work. */
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import {readFileSync} from 'node:fs';
@@ -11,6 +11,13 @@ const component=source.statements.find(node=>ts.isFunctionDeclaration(node)&&nod
 assert(component,'Actual status component required');
 const statusHook=source.statements.find(node=>ts.isFunctionDeclaration(node)&&node.name?.text==='useIndexStatus');
 assert(statusHook,'Actual status subscription hook required');
+const main=ts.createSourceFile('main.ts',readFileSync('src/main.ts','utf8'),ts.ScriptTarget.Latest,true);
+const plugin=main.statements.find(node=>ts.isClassDeclaration(node)&&node.name?.text==='KplexPlugin');
+const statusMethods=['getIndexStatus','notifyIndexStatus'].map(name=>{
+ const method=plugin.members.find(node=>ts.isMethodDeclaration(node)&&node.name?.getText(main)===name);assert(method,name);return method.getText(main);
+});
+const StatusProbe=new Function(ts.transpileModule('class StatusProbe {'+statusMethods.join('\n')+'}',{compilerOptions:{target:ts.ScriptTarget.ES2021}}).outputText+';return StatusProbe;')();
+const stylesheet=readFileSync('styles.css','utf8');
 const bundle=await build({stdin:{resolveDir:process.cwd(),loader:'tsx',contents:`
 import React,{useRef,useState,useEffect,useId} from 'react';
 import {createRoot} from 'react-dom/client';
@@ -20,18 +27,54 @@ import {installKplexLongPressTooltips,KPLEX_CONTROL_LONG_PRESS_EVENT} from './sr
 ${component.getText(source)}
 ${statusHook.getText(source)}
 export {IndexStatusIndicator};
-function Fixture(){const ref=useRef(null),[open,setOpen]=useState(false),[summary,setSummary]=useState(0);useEffect(()=>installKplexLongPressTooltips(document),[]);return <main data-kplex-tooltip-scope><IndexStatusIndicator status={{upToDate:false,phase:'incomplete',label:'Relationship data is incomplete'}} indicatorRef={ref} open={open} onHoverStart={()=>setOpen(true)} onHoverEnd={()=>setOpen(false)} onToggle={()=>{setOpen(false);setSummary(value=>value+1)}}/>{open&&<aside data-status-callout>Relationship data is incomplete</aside>}<output data-summary>{summary}</output></main>}
+function Fixture(){const ref=useRef(null),[open,setOpen]=useState(false),[summary,setSummary]=useState(0);useEffect(()=>installKplexLongPressTooltips(document),[]);return <main data-kplex-tooltip-scope><IndexStatusIndicator status={{upToDate:false,effortPercent:100,phase:'incomplete',label:'Relationship data is incomplete'}} indicatorRef={ref} open={open} onHoverStart={()=>setOpen(true)} onHoverEnd={()=>setOpen(false)} onToggle={()=>{setOpen(false);setSummary(value=>value+1)}}/>{open&&<aside data-status-callout>Relationship data is incomplete</aside>}<output data-summary>{summary}</output></main>}
 window.mountStatus=()=>{document.body.innerHTML='<div id="fixture"></div>';window.statusRoot=createRoot(document.getElementById('fixture'));flushSync(()=>window.statusRoot.render(<Fixture/>))};
-window.renderActivityStatus=(activeWork,cacheSavePending=false)=>{if(!window.statusRoot){document.body.innerHTML='<div id="fixture"></div>';window.statusRoot=createRoot(document.getElementById('fixture'))}flushSync(()=>window.statusRoot.render(<IndexStatusIndicator status={{upToDate:true,activeWork,cacheSavePending,phase:'ready',label:activeWork?'Validating note metadata':cacheSavePending?'Index ready; cache save pending':'Index ready'}} open={false} onHoverStart={()=>{}} onHoverEnd={()=>{}} onToggle={()=>{}}/>))};
+window.renderActivityStatus=(activeWork,cacheSavePending=false,effortPercent=100)=>{if(!window.statusRoot){document.body.innerHTML='<div id="fixture"></div>';window.statusRoot=createRoot(document.getElementById('fixture'))}flushSync(()=>window.statusRoot.render(<IndexStatusIndicator status={{upToDate:true,activeWork,cacheSavePending,effortPercent,phase:'ready',label:activeWork?'Validating note metadata':cacheSavePending?'Index ready; cache save pending':'Index ready'}} open={false} onHoverStart={()=>{}} onHoverEnd={()=>{}} onToggle={()=>{}}/>))};
 function SubscribedFixture({plugin}){const status=useIndexStatus(plugin,plugin.leaf);return <IndexStatusIndicator status={status} open={false} onHoverStart={()=>{}} onHoverEnd={()=>{}} onToggle={()=>{}}/>}
 window.mountSubscribedStatus=()=>{
- let current={upToDate:true,activeWork:true,cacheSavePending:false,phase:'ready',label:'Loading cached web links',indexedFiles:1,totalFiles:1},visible=true;
+ let current={upToDate:true,activeWork:true,cacheSavePending:false,effortPercent:100,phase:'ready',label:'Loading cached web links',indexedFiles:1,totalFiles:1},visible=true;
  const listeners=new Set(),subscribe=listener=>{const registration=()=>listener();listeners.add(registration);return()=>listeners.delete(registration)};
  const plugin={leaf:{},getIndexStatus:()=>current,isKplexLeafVisible:()=>visible,subscribeIndexStatus:subscribe,subscribeKplexVisibility:subscribe,index:{subscribe,subscribePresentation:subscribe}};
  document.body.innerHTML='<div id="fixture"></div>';window.statusRoot=createRoot(document.getElementById('fixture'));flushSync(()=>statusRoot.render(<SubscribedFixture plugin={plugin}/>));
- window.updateSubscribedStatus=(active,pending,hidden)=>{visible=!hidden;current={...current,activeWork:active,cacheSavePending:pending,label:active?'Loading cached web links':pending?'Index ready; cache save pending':'Index ready'};flushSync(()=>{for(const listener of listeners)listener()})};window.statusListenerCount=()=>listeners.size;
+ window.updateSubscribedStatus=(active,pending,hidden,effortPercent=100)=>{visible=!hidden;current={...current,activeWork:active,cacheSavePending:pending,effortPercent,label:active?'Loading cached web links':pending?'Index ready; cache save pending':'Index ready'};flushSync(()=>{for(const listener of listeners)listener()})};window.statusListenerCount=()=>listeners.size;
 };
 `},write:false,bundle:true,format:'iife',globalName:'sourceModules',platform:'browser'});
+
+test('passive status publishes live effort changes without source work and exempts startup and admitted saves',()=>{
+ const owner=new StatusProbe();let notifications=0,saving=false;
+ Object.assign(owner,{initialIndexComplete:true,indexPreparationAdmitted:true,cachedMarkdownFileCount:1,lastIndexForeground:false,
+  settings:{backgroundIndexingEffort:50},translator:key=>key,indexStatusListeners:new Set([()=>notifications++]),
+  supportEvents:{record:()=>{}},computeIndexStatusFacts:()=>({upToDate:true,phase:'ready',indexedFiles:1,totalFiles:1}),
+  app:{vault:{getMarkdownFiles:assert.fail}},index:{isOnDemandMode:()=>false,getUrlIndexProgress:()=>({active:true,total:0,restored:1}),
+   getSnapshotPersistenceDiagnostics:()=>({active:saving})}});
+ assert.equal(owner.getIndexStatus().effortPercent,50);owner.notifyIndexStatus();assert.equal(notifications,1);
+ owner.settings.backgroundIndexingEffort=25;owner.notifyIndexStatus();assert.equal(owner.getIndexStatus().effortPercent,25);
+ assert.equal(notifications,2,'An effort-only change must publish even when activity labels are unchanged');
+ owner.notifyIndexStatus();assert.equal(notifications,2,'Unchanged reads must not create render churn');
+ owner.settings.backgroundIndexingEffort=0;assert.equal(owner.getIndexStatus().effortPercent,0);
+ owner.lastIndexForeground=true;assert.equal(owner.getIndexStatus().effortPercent,100,'Focused work uses normal effort');
+ owner.lastIndexForeground=false;owner.initialIndexComplete=false;assert.equal(owner.getIndexStatus().effortPercent,100,'Initial preparation is exempt');
+ owner.initialIndexComplete=true;saving=true;assert.equal(owner.getIndexStatus().effortPercent,100,'An admitted cache save keeps running');
+ saving=false;assert.equal(owner.getIndexStatus().effortPercent,0,'Optional work returns to its live pause after saving');
+});
+
+test('indicator frequency scales with live effort, pauses solid red and respects reduced motion in both toolbar locations',async()=>{
+ const host=await chromiumHarness(bundle.outputFiles[0].text);try{
+  await host.evaluate(`(()=>{const style=document.createElement('style');style.textContent=${JSON.stringify(stylesheet)}+' :root {--color-red:rgb(190,20,30);--color-green:rgb(20,180,30)}';document.head.append(style);mountSubscribedStatus();return true})()`);
+  for(const toolbar of [false,true]){
+   await host.evaluate(`document.getElementById('fixture').className=${JSON.stringify(toolbar?'kplex-topbar':'kplex-index-status-empty')}`);
+   for(const [effort,period]of [[100,1],[50,2],[25,4],[10,10],[1,100],[0,null],[50,2],[100,1]]){
+    const actual=await host.evaluate(`(()=>{updateSubscribedStatus(true,false,false,${effort});const button=document.querySelector('button'),style=getComputedStyle(button);return{duration:style.animationName==='none'?null:parseFloat(style.animationDuration),red:style.backgroundColor==='rgb(190, 20, 30)',paused:button.classList.contains('is-paused'),animations:button.getAnimations().length}})()`);
+    assert.deepEqual(actual,{duration:period,red:true,paused:effort===0,animations:effort===0?0:1},'Live effort '+effort+' in '+(toolbar?'toolbar':'empty canvas'));
+   }
+  }
+  await host.command('Emulation.setEmulatedMedia',{features:[{name:'prefers-reduced-motion',value:'reduce'}]});
+  assert.equal(await host.evaluate(`getComputedStyle(document.querySelector('button')).animationName`),'none','Reduced motion overrides toolbar specificity');
+  await host.evaluate(`updateSubscribedStatus(false,false,false,0)`);
+  assert.equal(await host.evaluate(`getComputedStyle(document.querySelector('button')).backgroundColor`),'rgb(20, 180, 30)','Settled work remains green even at zero effort');
+  await host.evaluate('statusRoot.unmount()');assert.equal(await host.evaluate('statusListenerCount()'),0);
+ }finally{await host.cleanup();}
+});
 
 test('a terminal status notification clears red without navigation even when native geometry is hidden',async()=>{
  const host=await chromiumHarness(bundle.outputFiles[0].text);try{

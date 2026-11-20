@@ -3091,8 +3091,6 @@ export class KplexSettingTab extends PluginSettingTab {
         setting.settingEl.dataset.kplexSettingKey = key;
         const read = (): number => Number(readValue(key) ?? control.defaultValue ?? control.min);
         const slider = numberSlider(setting, {isCurrent: current, label: item.name, value: read(), min: control.min, max: control.max, step: control.step,
-          format: control.key === "backgroundIndexingEffort" ? /** Format by the authored key; instance-qualified keys still own reads/writes. */ value => value === 0
-            ? plugin.translator("indexing.backgroundPaused") : value === 100 ? plugin.translator("indexing.backgroundFull") : `${value} / 100` : undefined,
           disabled: unavailable || (typeof control.disabled === "function" ? control.disabled() : control.disabled),
           onChange: async value => {
             if (!current()) return;

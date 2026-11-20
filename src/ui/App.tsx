@@ -24,6 +24,7 @@
  * independently of node activation, native touch scrolling and canvas gestures.
  * Pins keep the complete canonical saved collection and use handle-only reorder mechanics;
  * unavailable rows retain their slots, and native move menus share the guarded settings writer.
+ * Index status animates passive host effort through CSS; a paused background has a steady red dot.
  */
 import { subscribeAppearanceSources } from "../adapters/obsidian/colorChanges";
 import {CanvasViewContributionController} from "./plexViews/CanvasViewContributionController";
@@ -142,6 +143,7 @@ function useIndexStatus(plugin: KplexPlugin, hostLeaf: WorkspaceLeaf): IndexStat
       if (previous.upToDate === next.upToDate
         && previous.activeWork === next.activeWork
         && previous.cacheSavePending === next.cacheSavePending
+        && previous.effortPercent === next.effortPercent
         && previous.phase === next.phase
         && previous.label === next.label
         && previous.indexedFiles === next.indexedFiles
@@ -165,7 +167,8 @@ function useIndexStatus(plugin: KplexPlugin, hostLeaf: WorkspaceLeaf): IndexStat
   return status;
 }
 
-/** Show one status callout on hover/long press; double-tap and keyboard open the vault summary. */
+/** Scale CSS blink frequency with live effort, keeping paused work red without UI timers.
+ * Show one status callout on hover/long press; double-tap and keyboard open the vault summary. */
 function IndexStatusIndicator({
   status,
   indicatorRef,
@@ -198,7 +201,8 @@ function IndexStatusIndicator({
     <button
       ref={controlRef}
       type="button"
-      className={`kplex-index-status${status.upToDate && !status.activeWork ? " is-ready" : status.phase === "incomplete" ? " is-incomplete" : " is-updating"}`}
+      className={`kplex-index-status${status.upToDate && !status.activeWork ? " is-ready" : status.phase === "incomplete" ? " is-incomplete" : " is-updating"}${status.effortPercent === 0 ? " is-paused" : ""}`}
+      style={{animationDuration: `${100 / Math.max(1, status.effortPercent)}s`}}
       aria-labelledby={nameId}
       data-kplex-tooltip="callout"
       aria-expanded={open}

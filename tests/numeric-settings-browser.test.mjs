@@ -27,12 +27,12 @@ test('every generic Settings slider has a persistent accessible value and never 
   check(!host.querySelector('input[type=number]'),'No numeric text box');release();host.remove();}
  check(p.writes.length===0,'Opening all numeric preferences must not materialize defaults');tab.hide();return true})()`),true);
 });
-test('background effort readouts survive received native settings keys without writing on mount',async()=>{
+test('background effort shows only its numeric value with received native settings keys without writing on mount',async()=>{
  assert.equal(await colorEditorScenario(`(async()=>{${setup}
  const p=await createAppearanceHost({});p.writes=[];p.viewSettingsRegistry=M.builtInCanvasViewSettings;p.manifest={id:'k-plex'};
  p.receivedSettingsRevision=()=>0;
  const tab=new M.KplexSettingTab({workspace:{on:()=>({}),offref:()=>{}}},p);
- for(const [value,expected]of [[0,'Paused'],[10,'10 / 100'],[100,'Same as foreground']]){
+ for(const [value,expected]of [[0,'0'],[10,'10'],[18,'18'],[100,'100']]){
   p.settings.backgroundIndexingEffort=value;const all=[];
   const walk=items=>{for(const row of items){all.push(row);walk(row.items??[])}};walk(tab.getSettingDefinitions());
   const definition=all.find(row=>row.name===p.translator('indexing.backgroundEffort')),host=document.body.createDiv(),row=new M.Setting(host),release=definition.render(row);

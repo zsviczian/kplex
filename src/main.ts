@@ -1,6 +1,7 @@
 /**
  * Native focus drives live inactive effort and new snapshot admission without cache invalidation.
  * Initial preparation keeps its established pace; already-admitted saves finish across tab changes.
+ * Passive index status exposes effective effort for animation without scheduling additional work.
  * Captured section opens retain exact native request identities. Explicit node copies use the
  * revocable host clipboard owner; section-scoped bulk visibility uses the existing settings queue.
  * Related-note completion keeps link and creation preferences independent through that same writer.
@@ -4498,11 +4499,13 @@ export default class KplexPlugin extends Plugin {
    * rather than implying a completed empty scan. Discovery totals apply once the inventory is known.
    * After graph hydration, an unfinished startup source pass keeps its existing measured progress;
    * compilation, saving, URL work, local mode and settled outcomes retain their own labels.
+   * Effective effort describes optional work; initial preparation and admitted saves retain full pace.
    */
   getIndexStatus(): {
     upToDate: boolean;
     activeWork: boolean;
     cacheSavePending: boolean;
+    effortPercent: number;
     phase: "ready" | "loading-cache" | "preparing" | "checking-cache" | "indexing" | "saving-cache" | "updating" | "incomplete" | "deferred";
     label: string;
     indexedFiles: number;
@@ -4608,10 +4611,12 @@ export default class KplexPlugin extends Plugin {
       labels.shift();
       if (!labels.length) labels.push(this.translator("index.statusUpdating"));
     }
-    if (activeWork && this.initialIndexComplete && this.lastIndexForeground === false && this.settings.backgroundIndexingEffort < 100) {
-      labels.push(this.translator(this.settings.backgroundIndexingEffort === 0 ? "indexing.backgroundPausedStatus" : "indexing.backgroundReducedStatus"));
+    const effortPercent = this.initialIndexComplete && this.lastIndexForeground === false && !persistence?.active
+      ? this.settings.backgroundIndexingEffort : 100;
+    if (activeWork && effortPercent < 100) {
+      labels.push(this.translator(effortPercent === 0 ? "indexing.backgroundPausedStatus" : "indexing.backgroundReducedStatus"));
     }
-    return { ...facts, activeWork, cacheSavePending, label: [...new Set(labels)].join("\n"), totalFiles };
+    return { ...facts, activeWork, cacheSavePending, effortPercent, label: [...new Set(labels)].join("\n"), totalFiles };
   }
 
   /**
@@ -4652,7 +4657,7 @@ export default class KplexPlugin extends Plugin {
       this.lastSupportIndexPhase = status.phase;
       this.supportEvents.record("index-phase-change", { category: "index", phase: status.phase });
     }
-    const key = `${status.upToDate ? "1" : "0"}:${status.activeWork ? "1" : "0"}:${status.cacheSavePending ? "1" : "0"}:${status.phase}:${status.indexedFiles}:${status.totalFiles}:${status.label}`;
+    const key = `${status.upToDate ? "1" : "0"}:${status.activeWork ? "1" : "0"}:${status.cacheSavePending ? "1" : "0"}:${status.effortPercent}:${status.phase}:${status.indexedFiles}:${status.totalFiles}:${status.label}`;
     if (key === this.lastIndexStatusKey) return;
     this.lastIndexStatusKey = key;
     for (const listener of this.indexStatusListeners) listener();

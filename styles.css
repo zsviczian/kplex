@@ -116,6 +116,11 @@
   animation: kplex-index-status-blink 1s ease-in-out infinite;
 }
 
+.kplex-index-status.is-paused,
+.kplex-topbar button.kplex-index-status.is-paused {
+  animation: none;
+}
+
 .kplex-index-status-empty {
   position: absolute;
   top: 18px;
@@ -128,7 +133,8 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .kplex-index-status.is-updating { animation: none; }
+  .kplex-index-status.is-updating,
+  .kplex-topbar button.kplex-index-status.is-updating { animation: none; }
 }
 
 .kplex-info-bubble {
