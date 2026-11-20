@@ -9,6 +9,8 @@ import { buildLocaleCatalog, type LocaleCatalog, type LocaleTranslationMap } fro
 /** Construct the typed French table only when selected; importing this module allocates no catalog. */
 export function createFrenchCatalog(): LocaleCatalog {
 const frenchTranslations = {
+  "settings.canvasHints.name": "Afficher les conseils sur le canevas",
+  "settings.canvasHints.help": "Afficher les conseils sur les raccourcis et les relations en haut du canevas.",
   "indexing.backgroundTitle": "Quand K-Plex est inactif",
   "indexing.backgroundEffort": "Effort en arrière-plan",
   "indexing.backgroundHelp": "À 0, suspend l’indexation facultative ; à 100, utilise la vitesse du premier plan. Les changements sont immédiats. La préparation initiale se termine sans interruption ; navigation et modifications restent prioritaires.",

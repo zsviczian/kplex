@@ -47,9 +47,11 @@ test('canvas usage tips stay viewport-sized and stationary across camera transfo
  const host=await chromiumHarness(output.outputFiles[0].text+';window.sourceModules=sourceModules;');
  try{assert(await host.evaluate(`(async()=>{${canvasSceneFixture}
   settings.backgroundColor='#f3f0cf';
+  style.textContent+=' :root {--font-ui-smaller:12px}';
   for(const view of ['classic','mindmap','wuxing']){
    const ui=await mount(M.builtInPlexViews.resolve(view)),viewport=ui.container.querySelector('.kplex-plex'),camera=viewport.querySelector('.kplex-camera');
    const tip=viewport.querySelector('.kplex-canvas-usage-tips');check(tip?.textContent.includes('Hold'),'A real keyboard convention must render the production tip');
+   check(getComputedStyle(tip).fontSize==='11px','Canvas hints are slightly smaller than the small interface text');
    check(getComputedStyle(tip).backgroundColor==='rgba(0, 0, 0, 0)','Usage hints keep a transparent background');
    for(const width of [320,640,1200]){
     ui.container.style.width=width+'px';await wait();const v=viewport.getBoundingClientRect(),baseline=tip.getBoundingClientRect();
@@ -61,6 +63,15 @@ test('canvas usage tips stay viewport-sized and stationary across camera transfo
      check(r.left>=v.left&&r.right<=v.right&&r.top>=v.top,'Tip must fit the owning canvas');
     }
    }
+   // Return from synthetic transform stress to an actual camera gesture before testing preference changes.
+   await ui.ports.current.implementations['view.zoom-in'].execute({});await wait();
+   const center=viewport.querySelector('.kplex-role-center'),cameraBefore=camera.style.transform,before={...work};
+   for(const showCanvasHints of [false,true,false,true]){
+    settings.showCanvasHints=showCanvasHints;ui.props.settings={...settings};ui.props.paintSettings=ui.props.settings;ui.render();await wait();
+    check(Boolean(viewport.querySelector('.kplex-canvas-usage-tips'))===showCanvasHints,'Live canvas hint visibility in '+view);
+    check(viewport.querySelector('.kplex-role-center')===center&&camera.style.transform===cameraBefore,'Hint visibility preserves the center and camera: '+JSON.stringify({view,showCanvasHints,center:viewport.querySelector('.kplex-role-center')===center,before:cameraBefore,after:camera.style.transform}));
+   }
+   check(work.body===before.body&&work.scans===before.scans&&work.acquisitions===before.acquisitions,'Hint visibility acquires no graph sources');
    ui.close();
   }
   return true;

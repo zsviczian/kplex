@@ -9,6 +9,8 @@
  * parameters remain unquoted regardless of their names. Locale catalogs inherit this classification.
  */
 export const englishCatalog = {
+  "settings.canvasHints.name": {message: "Show canvas hints", context: "Toggle the shortcut and contextual relationship hints at the top of every canvas view.", params: [], referenceParams: []},
+  "settings.canvasHints.help": {message: "Show shortcut and relationship hints at the top of the canvas.", context: "Toggle the shortcut and contextual relationship hints at the top of every canvas view.", params: [], referenceParams: []},
   "indexing.backgroundTitle": {message: "When K-Plex is inactive", context: "Live inactive-tab scheduling and foreground-only complete cache persistence.", params: [], referenceParams: []},
   "indexing.backgroundEffort": {message: "Background effort", context: "Live inactive-tab scheduling and foreground-only complete cache persistence.", params: [], referenceParams: []},
   "indexing.backgroundHelp": {message: "Pause optional indexing at 0, or allow more work up to the foreground speed at 100. Changes apply immediately. Initial index preparation finishes uninterrupted; navigation and edits keep priority.", context: "Live inactive-tab scheduling and foreground-only complete cache persistence.", params: [], referenceParams: []},

@@ -9,6 +9,8 @@ import { buildLocaleCatalog, type LocaleCatalog, type LocaleTranslationMap } fro
 /** Construct the typed Japanese table only when selected; importing this module allocates no catalog. */
 export function createJapaneseCatalog(): LocaleCatalog {
 const japaneseTranslations = {
+  "settings.canvasHints.name": "キャンバスのヒントを表示",
+  "settings.canvasHints.help": "キャンバスの上部にショートカットと関係のヒントを表示します。",
   "indexing.backgroundTitle": "K-Plex が非アクティブなとき",
   "indexing.backgroundEffort": "バックグラウンドの処理量",
   "indexing.backgroundHelp": "0 では任意のインデックス処理を一時停止し、100 ではフォアグラウンドと同じ速度で処理します。変更はすぐに反映されます。初回の準備は中断せず完了します。移動と編集は優先されます。",

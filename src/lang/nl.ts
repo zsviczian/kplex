@@ -9,6 +9,8 @@ import { buildLocaleCatalog, type LocaleCatalog, type LocaleTranslationMap } fro
 /** Construct the typed Dutch table only when selected; importing this module allocates no catalog. */
 export function createDutchCatalog(): LocaleCatalog {
 const dutchTranslations = {
+  "settings.canvasHints.name": "Canvasaanwijzingen tonen",
+  "settings.canvasHints.help": "Aanwijzingen voor sneltoetsen en relaties bovenaan het canvas tonen.",
   "indexing.backgroundTitle": "Wanneer K-Plex inactief is",
   "indexing.backgroundEffort": "Inspanning op de achtergrond",
   "indexing.backgroundHelp": "Bij 0 pauzeert optionele indexering; bij 100 geldt de voorgrondsnelheid. Wijzigingen gelden direct. De eerste indexvoorbereiding wordt zonder onderbreking voltooid; navigeren en bewerken houden voorrang.",

@@ -1,4 +1,5 @@
 /**
+ * The shared viewport hint strip follows the live canvas-hint preference without changing the scene.
  * Visible recovery inputs belong to this canvas's attention, root, hierarchy and editor scopes.
  * Native editor buttons share captured maximize intent and file eligibility. Document clipping
  * leaves recovery chrome independent; the open document/root supplies this canvas's Properties target.
@@ -6059,7 +6060,7 @@ export function PlexGraph({ viewDefinition = classicViewDefinition, viewSession,
         onClick={/** Hidden buffers remain recoverable through the same explicit save-aware action. */ () => {
           void plugin.actionManager.dispatch({id: "editor.collapse", source: "toolbar", surfaceId: actionSurfaceId, args: {bindingId: boundEditorBinding.id}});
         }}>{translate("actions.editor.collapse")}</button>}</div>}
-    <CanvasUsageTips contextual={Boolean(lateralTip)}>{usageTip}</CanvasUsageTips>
+    {viewSettings.showCanvasHints && <CanvasUsageTips contextual={Boolean(lateralTip)}>{usageTip}</CanvasUsageTips>}
     <div ref={cameraElement} className="kplex-camera" style={{ transform: `translate(${camera.current.x}px, ${camera.current.y}px) scale(${camera.current.scale})` }}>
       {scene.decorations && <ViewDecorations decorations={scene.decorations} translate={translate}
         counts={viewDecorationCounts(scene.decorations, scene.nodes, filterMatchedNodePaths, zoneDisplayLayouts)} />}

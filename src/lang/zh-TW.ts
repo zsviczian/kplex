@@ -9,6 +9,8 @@ import { buildLocaleCatalog, type LocaleCatalog, type LocaleTranslationMap } fro
 /** Construct the typed Traditional Chinese table only when selected; importing this module allocates no catalog. */
 export function createTraditionalChineseCatalog(): LocaleCatalog {
 const traditionalChineseTranslations = {
+  "settings.canvasHints.name": "顯示畫布提示",
+  "settings.canvasHints.help": "在畫布頂端顯示快捷鍵與關係提示。",
   "indexing.backgroundTitle": "K-Plex 非使用中時",
   "indexing.backgroundEffort": "背景處理量",
   "indexing.backgroundHelp": "設為 0 可暫停非必要的索引作業；設為 100 則使用前景速度。變更立即生效。初次索引準備會不中斷地完成；導覽與編輯仍享有優先權。",

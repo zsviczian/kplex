@@ -1287,8 +1287,8 @@ test("standard adoption and named deletion durably clear an existing canvas thro
 });
 
 
-test("hover modifier preferences default on while explicit false survives migration, restart and foreign import", () => {
-  for (const key of ["hoverHighlightRequiresAlt", "areaOutlineRequiresAlt", "gateTooltipRequiresAlt"]) {
+test("hover and canvas hint preferences default on while explicit false survives migration, restart and foreign import", () => {
+  for (const key of ["hoverHighlightRequiresAlt", "areaOutlineRequiresAlt", "gateTooltipRequiresAlt", "showCanvasHints"]) {
     assert.equal(defaults[key], true, key);
     for (const malformed of [undefined, null, "true", "false", 0, 1, [], {}])
       assert.equal(migrateAndMergeSettings({kplexInitialized: true, [key]: malformed})[key], true, `${key}: ${JSON.stringify(malformed)}`);
@@ -1316,7 +1316,7 @@ test("hover modifier preferences remain independent of theme application and all
   assert.equal(changed.gateTooltipRequiresAlt, false);
 });
 
-test("native declarative hover controls expose both local preferences and persist explicit opt-outs", async () => {
+test("native declarative hover and canvas hint controls expose local preferences and persist explicit opt-outs", async () => {
   const saves = [];
   const plugin = {manifest: {id: "k-plex"}, settings: structuredClone(defaults),
     saveSettings: async (...args) => { saves.push(args); },
@@ -1325,7 +1325,7 @@ test("native declarative hover controls expose both local preferences and persis
   const tab = new KplexSettingTab({}, plugin);
   const behavior = tab.getSettingDefinitions().find(item => item.name === "Canvas behavior");
   const navigation = behavior.items.find(item => item.heading === "Navigation & interaction");
-  for (const key of ["hoverHighlightRequiresAlt", "areaOutlineRequiresAlt", "gateTooltipRequiresAlt"]) {
+  for (const key of ["hoverHighlightRequiresAlt", "areaOutlineRequiresAlt", "gateTooltipRequiresAlt", "showCanvasHints"]) {
     const row = navigation.items.find(item => item.control?.key === key);
     assert.equal(row?.control?.type, "toggle", key);
     assert.equal(typeof row?.desc, "string", key);
@@ -1333,7 +1333,7 @@ test("native declarative hover controls expose both local preferences and persis
     await tab.setControlValue(key, false);
     assert.equal(plugin.settings[key], false, key);
   }
-  assert.deepEqual(saves, [[], [], []], "workflow controls use the existing settings writer");
+  assert.deepEqual(saves, [[], [], [], []], "workflow controls use the existing settings writer");
 });
 
 test('partial legacy ontology import preserves an implicit former counterpart and escapes foreign slash fields',()=>{const current=migrateAndMergeSettings({ontologyPairingVersion:1,hierarchy:{previous:['replies to/replied by'],next:[]}});const partial=importExcaliBrainGraphSettings({hierarchy:{previous:['literal/a']}},current);assert(partial.hierarchy.next.includes('replied by'));assert.deepEqual(partial.hierarchy.previous,['literal\\/a']);const replaced=importExcaliBrainGraphSettings({hierarchy:{previous:['literal/a'],next:['Explicit next']}},current);assert.deepEqual(replaced.hierarchy.next,['Explicit next']);assert(!replaced.hierarchy.next.includes('replied by'));});

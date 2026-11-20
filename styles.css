@@ -18,7 +18,7 @@
   left: 16px;
   right: 16px;
   color: var(--text-muted);
-  font-size: var(--font-ui-smaller);
+  font-size: calc(var(--font-ui-smaller) - 1px);
   text-align: center;
   pointer-events: none;
   overflow-wrap: anywhere;

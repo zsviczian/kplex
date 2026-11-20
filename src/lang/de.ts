@@ -9,6 +9,8 @@ import { buildLocaleCatalog, type LocaleCatalog, type LocaleTranslationMap } fro
 /** Construct the typed German table only when selected; importing this module allocates no catalog. */
 export function createGermanCatalog(): LocaleCatalog {
 const germanTranslations = {
+  "settings.canvasHints.name": "Hinweise auf der Zeichenfläche anzeigen",
+  "settings.canvasHints.help": "Hinweise zu Tastenkürzeln und Beziehungen am oberen Rand der Zeichenfläche anzeigen.",
   "indexing.backgroundTitle": "Wenn K-Plex inaktiv ist",
   "indexing.backgroundEffort": "Hintergrundaufwand",
   "indexing.backgroundHelp": "Bei 0 pausiert die optionale Indizierung; bei 100 arbeitet sie so schnell wie im Vordergrund. Änderungen gelten sofort. Die anfängliche Indexvorbereitung wird ohne Unterbrechung abgeschlossen; Navigation und Bearbeitungen haben Vorrang.",

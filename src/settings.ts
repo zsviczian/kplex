@@ -8,6 +8,7 @@
  * injected translator owns display copy. Device indexing strategies and admission take effect after restart; persistent
  * cache estimates run only when their settings row is rendered, never during plugin startup.
  * Calendar visibility is canvas chrome; journal link memories are independent workflow fields.
+ * Canvas hint visibility is a live workflow preference, independent of graph and theme policy.
  * Date fallback roles reinterpret cached facts through the semantic settings owner; absent/interim
  * preferences use Parent and foreign imports cannot overwrite the local default role.
  * Background throttle and inactive effort apply live without reconstructing semantic data; zero
@@ -411,6 +412,8 @@ export interface KplexSettings extends StartupIndexPreferences {
   areaOutlineRequiresAlt: boolean;
   /** Require the alternate modifier before showing mouse gate hints; accessible names remain available. */
   gateTooltipRequiresAlt: boolean;
+  /** Show the shared shortcut and contextual relationship hints above the canvas. */
+  showCanvasHints: boolean;
   toolbarExpanded: boolean;
   sidecarOpen: boolean;
   sidecarPosition: SidecarPosition;
@@ -588,6 +591,7 @@ const LEGACY_DEFAULT_SETTINGS: KplexSettings = {
   hoverHighlightRequiresAlt: true,
   areaOutlineRequiresAlt: true,
   gateTooltipRequiresAlt: true,
+  showCanvasHints: true,
   toolbarExpanded: false,
   sidecarOpen: false,
   sidecarPosition: "right",
@@ -878,6 +882,7 @@ export function migrateAndMergeSettings(raw: unknown): KplexSettings {
     hoverHighlightRequiresAlt: typeof old.hoverHighlightRequiresAlt === "boolean" ? old.hoverHighlightRequiresAlt : true,
     areaOutlineRequiresAlt: typeof old.areaOutlineRequiresAlt === "boolean" ? old.areaOutlineRequiresAlt : true,
     gateTooltipRequiresAlt: typeof old.gateTooltipRequiresAlt === "boolean" ? old.gateTooltipRequiresAlt : true,
+    showCanvasHints: typeof old.showCanvasHints === "boolean" ? old.showCanvasHints : true,
     mouseInteractionMode: old.mouseInteractionMode === "legacy" || old.mouseInteractionMode === "middle-only" ? old.mouseInteractionMode : "smart",
     // ExcaliBrain persisted `embedCentralNode` for its own center presentation. K-Plex's native
     // embedded editor is a different, explicitly opt-in surface, so legacy imports must start
@@ -2519,6 +2524,7 @@ export class KplexSettingTab extends PluginSettingTab {
             type: "group",
             heading: translate("settings.ui.navigation.interaction"),
             items: [
+              {name: translate("settings.canvasHints.name"), desc: translate("settings.canvasHints.help"), control: {type: "toggle", key: "showCanvasHints"}},
               { name: translate("settings.hoverHighlight.name"), desc: translate("settings.hoverHighlight.help", {key: hoverModifier}), control: {type: "toggle", key: "hoverHighlightRequiresAlt"} },
               { name: translate("settings.gateTooltip.name"), desc: translate("settings.gateTooltip.help", {key: hoverModifier}), control: {type: "toggle", key: "gateTooltipRequiresAlt"} },
               { name: translate("settings.areaOutline.name"), desc: translate("settings.areaOutline.help", {key: hoverModifier}), control: {type: "toggle", key: "areaOutlineRequiresAlt"} },

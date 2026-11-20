@@ -9,6 +9,8 @@ import { buildLocaleCatalog, type LocaleCatalog, type LocaleTranslationMap } fro
 /** Construct the typed Spanish table only when selected; importing this module allocates no catalog. */
 export function createSpanishCatalog(): LocaleCatalog {
 const spanishTranslations = {
+  "settings.canvasHints.name": "Mostrar consejos en el lienzo",
+  "settings.canvasHints.help": "Mostrar consejos sobre atajos y relaciones en la parte superior del lienzo.",
   "indexing.backgroundTitle": "Cuando K-Plex está inactivo",
   "indexing.backgroundEffort": "Esfuerzo en segundo plano",
   "indexing.backgroundHelp": "En 0 se pausa la indexación opcional; en 100 se usa la velocidad del primer plano. Los cambios son inmediatos. La preparación inicial termina sin interrupciones; navegar y editar tienen prioridad.",

@@ -22,6 +22,18 @@ const selected=raw=>raw.appearanceThemes.themes.find(theme=>theme.id===raw.appea
 /** Keep every trial in a fresh real browser with the established native-shaped editor boundary. */
 const scenario=body=>colorEditorScenario(`(async()=>{${initialize}\n${body}\nreturn true})()`);
 
+test('canvas hint visibility persists and reloads without semantic work or losing unknown preferences',async()=>{
+ assert.equal(await scenario(`
+ const p=await create();check(p.settings.showCanvasHints===true,'Existing vaults keep canvas hints visible');
+ p.settings.showCanvasHints=false;p.settings.futureCanvasPreference={retained:true};await p.saveSettings();
+ check(disk.showCanvasHints===false&&disk.futureCanvasPreference.retained,'Persist the explicit opt-out and unknown data');
+ check(p.work.semantic===0&&p.work.invalidate===0&&p.work.notify>0,'Hint visibility must notify canvases without semantic work');
+ const reloaded=await create();check(reloaded.settings.showCanvasHints===false&&reloaded.settings.futureCanvasPreference.retained,'Keep hidden hints and unknown data after reload');
+ reloaded.settings.showCanvasHints=true;await reloaded.saveSettings();
+ check(disk.showCanvasHints===true&&reloaded.work.semantic===0&&reloaded.work.invalidate===0,'Showing hints again stays presentation-only');
+ `),true);
+});
+
 test('calendar visibility publishes only canvas rendering while journal field memories remain workflow preferences',async()=>{
  assert.equal(await scenario(`
  const p=await create();p.settings.showDailyCalendar=false;p.settings.dailyNoteLinkFields={previous:'Yesterday',next:'Tomorrow'};
