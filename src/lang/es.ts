@@ -9,6 +9,7 @@ import { buildLocaleCatalog, type LocaleCatalog, type LocaleTranslationMap } fro
 /** Construct the typed Spanish table only when selected; importing this module allocates no catalog. */
 export function createSpanishCatalog(): LocaleCatalog {
 const spanishTranslations = {
+  "notice.linkedNodeHidden": "Se ha enlazado {name}, pero los filtros o las lentes actuales lo ocultan.",
   "settings.canvasHints.name": "Mostrar consejos en el lienzo",
   "settings.canvasHints.help": "Mostrar consejos sobre atajos y relaciones en la parte superior del lienzo.",
   "indexing.backgroundTitle": "Cuando K-Plex está inactivo",

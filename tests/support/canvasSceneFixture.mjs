@@ -19,7 +19,7 @@ const index={isVisiblePage:()=>true,get:path=>pages.get(path),titleFor:page=>pag
  getNeighborhood:path=>({center:pages.get(path),parents:rows(pages.get(path),'parent'),children:rows(pages.get(path),'child'),leftFriends:[],rightFriends:[],siblings:[]})};
 const plugin={settings,index,viewSettingsRegistry:M.builtInCanvasViewSettings,translator:M.createTranslator('en'),app:{workspace:{...nativeEvents},
  metadataCache:{...nativeEvents,getFileCache:file=>{work.properties++;return fieldCaches.get(file.path)}},vault:{getFileByPath:path=>pages.get(path)?.file??null,cachedRead:()=>{work.body++;throw Error('Unexpected body read')},getMarkdownFiles:()=>{work.scans++;throw Error('Unexpected inventory')}}},
- saveSettings:async()=>{},getTypographyDevice:()=> 'desktop',isKplexLeafVisible:()=>visible,subscribeKplexVisibility:subscribe,subscribeNodeFlair:subscribe,
+ saveSettings:async()=>{},getTypographyDevice:()=> 'desktop',isKplexLeafVisible:()=>visible,subscribeKplexVisibility:subscribe,subscribeNodeFlair:subscribe,registerLinkedNodeFeedback:()=>()=>{},
  getHierarchyColorRevision:()=>0,isActionSurfaceCurrent:()=>true,getSavedSettingsPolicy:()=>null};
 plugin.actionManager=new M.ActionManager({readCommandContext:()=>({sharedCenter:null,focusRegion:'graph'}),validateNode:()=>true});
 const mount=async(definition,{openHelp}={})=>{

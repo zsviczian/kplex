@@ -9,6 +9,7 @@
  * parameters remain unquoted regardless of their names. Locale catalogs inherit this classification.
  */
 export const englishCatalog = {
+  "notice.linkedNodeHidden": {message: "Linked {name}, but it is hidden by the current filters or lenses.", context: "Notice after a successful relationship save in the originating canvas; filters and lenses are unchanged.", params: ["name"], referenceParams: ["name"]},
   "settings.canvasHints.name": {message: "Show canvas hints", context: "Toggle the shortcut and contextual relationship hints at the top of every canvas view.", params: [], referenceParams: []},
   "settings.canvasHints.help": {message: "Show shortcut and relationship hints at the top of the canvas.", context: "Toggle the shortcut and contextual relationship hints at the top of every canvas view.", params: [], referenceParams: []},
   "indexing.backgroundTitle": {message: "When K-Plex is inactive", context: "Live inactive-tab scheduling and foreground-only complete cache persistence.", params: [], referenceParams: []},

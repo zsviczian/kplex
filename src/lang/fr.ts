@@ -9,6 +9,7 @@ import { buildLocaleCatalog, type LocaleCatalog, type LocaleTranslationMap } fro
 /** Construct the typed French table only when selected; importing this module allocates no catalog. */
 export function createFrenchCatalog(): LocaleCatalog {
 const frenchTranslations = {
+  "notice.linkedNodeHidden": "Le n?ud {name} a ?t? li?, mais les filtres ou les lentilles actuels le masquent.",
   "settings.canvasHints.name": "Afficher les conseils sur le canevas",
   "settings.canvasHints.help": "Afficher les conseils sur les raccourcis et les relations en haut du canevas.",
   "indexing.backgroundTitle": "Quand K-Plex est inactif",

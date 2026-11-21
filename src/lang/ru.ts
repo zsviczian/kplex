@@ -9,6 +9,7 @@ import { buildLocaleCatalog, type LocaleCatalog, type LocaleTranslationMap } fro
 /** Construct the typed Russian table only when selected; importing this module allocates no catalog. */
 export function createRussianCatalog(): LocaleCatalog {
 const russianTranslations = {
+  "notice.linkedNodeHidden": "???? {name} ??????, ?? ????? ???????? ????????? ??? ???????.",
   "settings.canvasHints.name": "Показывать подсказки на холсте",
   "settings.canvasHints.help": "Показывать подсказки о сочетаниях клавиш и связях в верхней части холста.",
   "indexing.backgroundTitle": "Когда K-Plex неактивен",

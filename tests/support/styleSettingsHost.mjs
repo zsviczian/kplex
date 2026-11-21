@@ -11,7 +11,7 @@ import ts from "typescript";
 export function styleSettingsHostSource(root) {
   const source = ts.createSourceFile("main.ts", readFileSync(new URL("src/main.ts", root), "utf8"), ts.ScriptTarget.Latest, true);
   const names = new Set(["creationTypeTabControl", "validateRelatedNoteName", "validateNoteFolderPath", "newRelatedNoteFolder", "allOntologyFields", "rememberRelationshipOntology", "openAddToOntologyModal", "readSavedPins", "stopPeriodicPinTimer", "refreshPeriodicPins", "setContentVisibility", "updateStyleSettings", "saveSettings", "enqueueSettingsWrite", "settingsSnapshotForPersistence", "persistSettingsSnapshot", "setGraphLenses", "readPortableSharingState", "previewPortableSharing", "importPortableSharing",
-    "captureAppearanceOwner", "isAppearanceOwnerCurrent", "subscribeAppearanceThemes", "bindAppearanceEditor", "appearanceThemeNames", "updateAppearanceThemes", "showAppearanceMigrationNotification",
+    "registerLinkedNodeFeedback", "captureLinkedNodeFeedback", "captureAppearanceOwner", "isAppearanceOwnerCurrent", "subscribeAppearanceThemes", "bindAppearanceEditor", "appearanceThemeNames", "updateAppearanceThemes", "showAppearanceMigrationNotification",
     "createAppearanceTheme", "resetAppearanceThemeColors", "importLegacyAppearance", "settingsForWrite", "writeSettingsSnapshot", "updateOntologyField", "updateOntologyConfiguration", "editOntologyConfiguration", "assignFieldToOntology", "ontologyFieldsForRole", "ontologyRoleForField", "inverseOntologyField", "inverseRelationshipRole", "defaultOntologyField", "refreshSavedSettings",
     "initializeSettingsReconciliation", "onExternalSettingsChange", "queueExternalSettingsAdoption", "reportExternalSettingsFailure", "installExternalSettings", "updateActionPreferences", "receivedSettingsOwner", "receivedSettingsRevision", "updateCanvasViewSetting", "readCanvasViewConfiguration", "updateCanvasViewConfiguration", "resetCanvasViewConfiguration", "migrateCanvasViewConfiguration", "commitCanvasViewConfiguration", "editOntologyConfigurationBatch"]);
   const methods = [];
@@ -71,5 +71,5 @@ export function styleSettingsHostSource(root) {
     import {appearanceColorReferences,STYLE_SETTINGS_KEYS} from "./src/core/contracts/appearance";
     import {cyclicSemanticColorSlots,migrateColorPreferences} from "./src/core/plex/colorPreferences";
     import {captureSettingsPolicy,classifySettingsChange,isStyleOnlySettingsChange} from "./src/core/graph/settingsPolicy";
-    export class StyleSettingsHost {actionDialogs = new Map();periodicPinTimer=null;periodicPinSignature=null;periodicPinRuntime=null; ${methods.join("\n")}}`;
+    export class StyleSettingsHost {linkedNodeFeedback = new Map();actionDialogs = new Map();periodicPinTimer=null;periodicPinSignature=null;periodicPinRuntime=null; ${methods.join("\n")}}`;
 }

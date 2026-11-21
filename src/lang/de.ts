@@ -9,6 +9,7 @@ import { buildLocaleCatalog, type LocaleCatalog, type LocaleTranslationMap } fro
 /** Construct the typed German table only when selected; importing this module allocates no catalog. */
 export function createGermanCatalog(): LocaleCatalog {
 const germanTranslations = {
+  "notice.linkedNodeHidden": "Verkn?pft mit {name}, aber der Knoten wird durch die aktuellen Filter oder Linsen ausgeblendet.",
   "settings.canvasHints.name": "Hinweise auf der Zeichenfläche anzeigen",
   "settings.canvasHints.help": "Hinweise zu Tastenkürzeln und Beziehungen am oberen Rand der Zeichenfläche anzeigen.",
   "indexing.backgroundTitle": "Wenn K-Plex inaktiv ist",

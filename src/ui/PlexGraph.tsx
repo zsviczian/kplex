@@ -27,6 +27,7 @@
  * Central-editor corner clicks share modifier expansion; expanded mini rows retain one native title
  * with a separate full accessible name, avoiding competing aria-label tooltips.
  * Startup recovery remains eligible across visibility changes until its current check completes.
+ * Committed-link notices reuse this surface's live visibility rules without admitting index work.
  * Opt-in rooted hierarchies retain root/attention/editor intent separately, reconcile finite frontier
  * leases after scene admission and share exact ancestor filtering and catalog-backed branch actions.
  * Their first current local preparation may fit once; manual/restored cameras and live editors win.
@@ -99,6 +100,7 @@ import type { WanderDestination, WanderScene } from "../application/WanderContro
 import { ElementMotion } from "./components/ElementMotion";
 import { ResizableAreaFrame } from "./components/ResizableAreaFrame";
 import { ThoughtNode, type ConnectionDragState } from "./ThoughtNode";
+import {linkedNodeHidden} from "./linkedNodeVisibility";
 import {nodeId, type NodeId} from "../core/graph/model";
 import {useHierarchyDemand} from "./plexViews/useHierarchyDemand";
 import {hierarchyReferenceAncestor} from "../core/plex/views/hierarchy";
@@ -2562,6 +2564,21 @@ export function PlexGraph({ viewDefinition = classicViewDefinition, viewSession,
   const nodeMatchesCurrentFilter = (node: PositionedNode): boolean =>
     hierarchyMatchedOccurrences ? hierarchyMatchedOccurrences.has(occurrenceKey(node))
       : occurrenceEditorPolicy && occurrenceKey(node) === boundEditorBinding?.occurrenceId || filterMatchedNodePaths.has(node.page.path);
+  const linkedNodeFeedback = useRef<(origin: GraphPage, target: GraphPage) => void>(() => {});
+  linkedNodeFeedback.current = /** Inspect only the saved pair and this scene's filters; a known ancestor/root stays visible. */ (origin, target) => {
+    const currentOrigin = index.get(origin.file?.path ?? origin.path) ?? origin;
+    const currentTarget = index.get(target.file?.path ?? target.path) ?? target;
+    if (currentOrigin.file !== origin.file || currentTarget.file !== target.file) return;
+    const hidden = linkedNodeHidden(index, settings, predicateEngine, predicate, lenses, currentOrigin, currentTarget, predicateCenter);
+    const occurrences = scene.nodes.filter(node => node.page.path === currentTarget.path);
+    const areaHidden = occurrences.length > 0 && occurrences.every(node => !nodeMatchesCurrentFilter(node)
+      || !matchesZoneFilter(node, zoneFilters[areaForNode(node) ?? ""] ?? ""));
+    if (hidden && !occurrences.length || areaHidden) new Notice(translate("notice.linkedNodeHidden", {name: index.titleFor(currentTarget)}), 6000);
+  };
+  useLayoutEffect(/** Feedback reads current view-local filters; navigation, view replacement and unmount retire captured completions. */ () => {
+    if (!hostLeaf) return;
+    return plugin.registerLinkedNodeFeedback(hostLeaf, /** A stable lease reads the latest filters after an awaited save. */ (origin, target) => linkedNodeFeedback.current(origin, target));
+  }, [plugin, hostLeaf, activePath, viewDefinition, sceneScope]);
   const zoneDisplayLayouts = useMemo(() => {
     const layouts: Partial<Record<ScrollZone, ZoneDisplayLayout>> = {};
     for (const zone of ZONES) {

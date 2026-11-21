@@ -9,6 +9,7 @@ import { buildLocaleCatalog, type LocaleCatalog, type LocaleTranslationMap } fro
 /** Construct the typed Dutch table only when selected; importing this module allocates no catalog. */
 export function createDutchCatalog(): LocaleCatalog {
 const dutchTranslations = {
+  "notice.linkedNodeHidden": "{name} is gekoppeld, maar wordt verborgen door de huidige filters of lenzen.",
   "settings.canvasHints.name": "Canvasaanwijzingen tonen",
   "settings.canvasHints.help": "Aanwijzingen voor sneltoetsen en relaties bovenaan het canvas tonen.",
   "indexing.backgroundTitle": "Wanneer K-Plex inactief is",
