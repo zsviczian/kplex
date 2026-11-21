@@ -70,10 +70,10 @@ export function refreshCapturedPage(plugin: KplexPlugin, captured: GraphPage): G
   return indexed?.file === file ? captureRelatedEndpoint(indexed) : { ...captured, path: file.path, file };
 }
 
-/** Only physical Markdown targets participate in this existing-note composer. */
-function isNoteTarget(page: GraphPage, originPath: string): boolean {
+/** Attachments are valid endpoints when the origin owns the sole Markdown declaration. */
+function isNoteTarget(page: GraphPage, originPath: string, allowAttachments: boolean): boolean {
   if (page.path === originPath || page.isFolder || page.isTag || page.url) return false;
-  return page.file?.extension === "md";
+  return Boolean(page.file && (allowAttachments || page.file.extension === "md"));
 }
 
 /** Render the reusable related-node form with localized labels and injected creation actions; note/query values remain user data. */
@@ -161,8 +161,10 @@ function RelatedNoteComposer({
   const getNoteResults = useCallback(/** Filename-only selection needs no graph visibility evaluation or prepared incidence. */ (value: string) => {
     if (session.importSource) return [];
     const trimmed = value.trim();
-    return trimmed ? plugin.index.search(trimmed, 48, "vault-files").filter((page) => isNoteTarget(page, origin.path)).slice(0, 18) : [];
-  }, [plugin, origin.path]);
+    const allowAttachments = !storeOnTarget && !plugin.settings.alsoWriteInverseOntology
+      && Boolean(eligibleRelationshipOwner(plugin.app, origin));
+    return trimmed ? plugin.index.search(trimmed, 48, "vault-files").filter((page) => isNoteTarget(page, origin.path, allowAttachments)).slice(0, 18) : [];
+  }, [plugin, origin, storeOnTarget]);
 
   const ontologyFields = ontologySelectionFields(roleFilter === "all" ? plugin.allOntologyFields() : plugin.ontologyFieldsForRole(role));
   const ontologyViews=ontologyFieldViews(ontologyConfiguration(plugin.settings),[],plugin.settings.ontologyDescriptions);

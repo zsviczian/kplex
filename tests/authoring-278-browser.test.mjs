@@ -39,6 +39,25 @@ test('Markdown export gives the native ontology dropdown remaining width and cen
 });
 import {authoringScenario} from './support/authoring278Browser.mjs';
 
+test('Markdown composer selects indexed attachments and submits their exact file identities',async()=>{
+ assert.equal(await authoringScenario(`
+ for(const extension of ['svg','pdf','canvas','custom']){
+  const attachment=page(addFile('Attachment.'+extension,extension)),modal=openComposer();
+  await waitFor(()=>name(modal));name(modal).focus();reactInput(name(modal),'Attachment.'+extension);
+  await waitFor(()=>document.querySelector('.kplex-search-result'));
+  const option=[...document.querySelectorAll('.kplex-search-result')].find(row=>row.textContent.includes(attachment.path));
+  check(option,'Indexed attachment absent from suggestions: '+extension);option.click();
+  await waitFor(()=>modal.contentEl.querySelector('.kplex-add-related-note-search.has-selection'));
+  check(!modal.contentEl.querySelector('.kplex-creation-types'),'Existing attachment left creation controls active');
+  const link=modal.contentEl.querySelector('.kplex-add-related-link-button');
+  check(link&&!link.disabled,'Selected attachment did not enable linking');link.click();
+  await waitFor(()=>links.length&&links[links.length-1][2].file===attachment.file);
+  const args=links[links.length-1];check(args[0].file===origin.file&&args[2].path===attachment.path&&args[6]===false,'Wrong endpoints or property owner');
+  check(!writes.length,'Existing attachment selection created a file');modal.close();
+ }
+ `),true);
+});
+
 for(const width of [900,360])for(const locale of ['en','de'])test(`compact related creation keeps long controls and type-specific status at ${width}px in ${locale}`,async()=>{
  assert.equal(await authoringScenario(`
  p.translator=M.createTranslator(${JSON.stringify(locale)});p.isExcalidrawAvailable=()=>true;p.settings.newNodeCreationTab='markdown';
