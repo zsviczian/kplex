@@ -1677,6 +1677,13 @@ For connector clipping or navigation-paint changes, stage the exact build in the
 
 ### File creation and navigation acceptance
 
+After exact-build staging in disposable Small, `npm run verify:obsidian:hidden-links`
+checks the actual relationship composer and native Notices for disabled image nodes,
+node/edge include and exclude lenses, visible links, style-only lenses and a popout.
+Use the three explicit test-vault variables and a managed `KPLEX_HOST_REPORT_DIR`.
+The driver owns the shared host lock and restores fixtures, settings and native workspace;
+the staging caller owns artifact deployment. This is desktop functional evidence.
+
 `node --test tests/creation-navigation.test.mjs tests/related-note-composer.test.mjs tests/viewport-fit.test.mjs`
 checks version-gated drawing templates, destination forwarding, creation recovery and camera behavior.
 The shared template control is used by related-note creation, folder-child creation and placeholder

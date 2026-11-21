@@ -3,6 +3,16 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
+test('actual Link completion reports its endpoint once to the captured canvas without changing the saved result',async()=>{
+ assert.equal(await authoringScenario(`
+ const feedback=[],release=p.registerLinkedNodeFeedback(leaf,(source,linked)=>feedback.push([source.path,linked.path]));
+ const modal=openComposer(target);await waitFor(()=>button(modal,'addRelated.link'));
+ button(modal,'addRelated.link').click();await waitFor(()=>!modal.modalEl.isConnected);
+ equal(feedback,[[origin.path,target.path]],'Shared composer lost or duplicated originating feedback');
+ check(links.length===1,'Feedback repeated the relationship write');release();
+ `),true);
+});
+
 test('connection property picker shares ontology browsing, descriptions and visible create/edit glyphs',async()=>{
  assert.equal(await authoringScenario(`
  p.settings.ontologyDescriptions.Child='A deliberately long relationship description that belongs under its name.';

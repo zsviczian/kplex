@@ -306,7 +306,7 @@ test("partial file recovery reuses exact created file and never reissues create"
 
 test("another resets target/name/alias after confirmed publication and retains role/ontology/type", async () => {
   const affected = page("C.md"), events = [], setters = Object.fromEntries(["setSelectedTarget", "setQuery", "setAlias", "setNoteTyped", "setAliasFocused", "setPartialFile", "setPartialFailure", "setOntologyTyped", "setBrowseOntology"].map(name => [name, value => events.push([name, value])]));
-  await production("complete", { ...setters, onCommitted: value => events.push(["commit", value]), session: { canComplete: () => true, focusName: () => events.push(["focus"]) }, plugin: { requestNodeFlair() {} } })(affected, "another", true);
+  await production("complete", { ...setters, onCommitted: value => events.push(["commit", value]), session: { reportLinkedNode() {}, canComplete: () => true, focusName: () => events.push(["focus"]) }, plugin: { requestNodeFlair() {} } })(affected, "another", true);
   assert.equal(events[0][0], "commit"); assert(events.some(([name, value]) => name === "setQuery" && value === ""));
   assert(events.some(([name, value]) => name === "setAlias" && value === "")); assert.equal(events.at(-1)[0], "focus");
   assert(!events.some(([name]) => ["setRole", "setOntology", "setDefaultCreateType"].includes(name)));
@@ -316,6 +316,39 @@ test("close during a saved write reports commitment but prevents late navigation
   const commits = [];
   await production("complete", { onCommitted: result => commits.push(result), session: { canComplete: () => false }, plugin: { requestNodeFlair: assert.fail, finishNewRelatedNode: assert.fail } })(page("C.md"), "edit", true);
   assert.equal(commits.length, 1); assert.equal(commits[0].state, "saved-published");
+});
+
+test("successful linking checks hidden-node feedback once before Follow, while a retired composer stays silent", async () => {
+  const target = page("Linked.md"), events = [];
+  const complete = production("complete", {onCommitted: undefined, hostLeaf: "originating-leaf", session: {
+    canComplete: () => true, reportLinkedNode: page => events.push(["feedback", page]),
+    closeForCompletion() {}, finishCompletion() {}, focusGraph() {},
+  }, plugin: {requestNodeFlair() {}, finishNewRelatedNode: async () => events.push(["follow"])}});
+  await complete(target, "follow", false);
+  assert.deepEqual(events, [["feedback", target], ["follow"]]);
+  await production("complete", {onCommitted: undefined, session: {canComplete: () => false, reportLinkedNode: assert.fail}})(target, "follow", false);
+  assert.equal(events.length, 2);
+});
+
+test("hidden-link feedback belongs only to the captured native Plex incarnation", () => {
+  const register = production("registerLinkedNodeFeedback", {}, "src/main.ts");
+  const capture = production("captureLinkedNodeFeedback", {}, "src/main.ts");
+  const calls = [], doc = {}, container = {isConnected: true, ownerDocument: doc}, host = {view: {containerEl: container}};
+  const plugin = {linkedNodeFeedback: new Map(), unloading: false};
+  const release = register.call(plugin, host, (...args) => calls.push(args));
+  const report = capture.call(plugin, host), origin = page("Origin.md"), target = page("Target.md");
+  report(origin, target); assert.deepEqual(calls, [[origin, target]]);
+  const other = {view: {containerEl: {isConnected: true, ownerDocument: doc}}};
+  register.call(plugin, other, assert.fail); report(origin, target); assert.equal(calls.length, 2);
+  container.isConnected = false; report(origin, target); assert.equal(calls.length, 2);
+  container.isConnected = true; container.ownerDocument = {}; report(origin, target); assert.equal(calls.length, 2);
+  container.ownerDocument = doc;
+  const releaseReplacement = register.call(plugin, host, (...args) => calls.push(["replacement", ...args]));
+  release(); report(origin, target); assert.equal(calls.length, 2, "Navigation/replacement retires an old modal");
+  const current = capture.call(plugin, host); current(origin, target); assert.equal(calls.length, 3);
+  plugin.unloading = true; current(origin, target); assert.equal(calls.length, 3);
+  plugin.unloading = false; releaseReplacement(); current(origin, target); assert.equal(calls.length, 3);
+  capture.call(plugin)(origin, target);
 });
 
 test("dismissed pending and partial writes preserve durable outcomes without transient state or notices", () => {
@@ -427,7 +460,7 @@ test("partial recovery retains the failure reason as well as file identity", () 
 test("saved new-file relationship still completes its selected Sidecar action while indexing is pending", async () => {
   const created = page("Child.md"), outcomes = [], edits = [];
   await production("complete", { onCommitted: outcome => outcomes.push(outcome), continuation: "sidecar",
-    session: { canComplete: () => true, closeForCompletion: intent => edits.push(intent), finishCompletion() {}, focusGraph: assert.fail },
+    session: { reportLinkedNode() {}, canComplete: () => true, closeForCompletion: intent => edits.push(intent), finishCompletion() {}, focusGraph: assert.fail },
     plugin: { requestNodeFlair() {}, finishNewRelatedNode: async (...args) => edits.push(args.slice(0, 3)) }, hostLeaf: "owning-leaf" })(created, "configured", true, "saved-pending");
   assert.deepEqual(outcomes, [{ state: "saved-pending", page: created }]); assert.deepEqual(edits, ["sidecar", [created, "owning-leaf", "sidecar"]]);
 });

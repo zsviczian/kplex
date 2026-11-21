@@ -9,6 +9,7 @@ import { buildLocaleCatalog, type LocaleCatalog, type LocaleTranslationMap } fro
 /** Construct the typed Traditional Chinese table only when selected; importing this module allocates no catalog. */
 export function createTraditionalChineseCatalog(): LocaleCatalog {
 const traditionalChineseTranslations = {
+  "notice.linkedNodeHidden": "??? {name}??????????????????",
   "settings.canvasHints.name": "顯示畫布提示",
   "settings.canvasHints.help": "在畫布頂端顯示快捷鍵與關係提示。",
   "indexing.backgroundTitle": "K-Plex 非使用中時",

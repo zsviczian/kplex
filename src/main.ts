@@ -5,6 +5,7 @@
  * Captured section opens retain exact native request identities. Explicit node copies use the
  * revocable host clipboard owner; section-scoped bulk visibility uses the existing settings queue.
  * Related-note completion keeps link and creation preferences independent through that same writer.
+ * Hidden-link feedback is leased to the invoking mounted Plex and retired on navigation/unmount.
  * Pin moves recheck a captured canonical order and publish presentation only; unavailable saved
  * destinations remain bookmark entries and never acquire sources merely for reordering.
  * Eager startup admits optional URL replay only after primary graph completion, so its higher
@@ -419,6 +420,7 @@ export default class KplexPlugin extends Plugin {
   private readonly navigationListeners = new Set<(path: string, hostLeaf?: WorkspaceLeaf, reroot?: boolean) => void>();
   private readonly searchFocusListeners = new Map<WorkspaceLeaf, () => void>();
   private readonly nodeFlairListeners = new Set<(path: string) => void>();
+  private readonly linkedNodeFeedback = new Map<WorkspaceLeaf, (origin: GraphPage, target: GraphPage) => void>();
   private readonly indexStatusListeners = new Set<() => void>();
   /** Lazily established Markdown total; known membership changes maintain it without vault enumeration. */
   private cachedMarkdownFileCount: number | null = null;
@@ -890,6 +892,7 @@ export default class KplexPlugin extends Plugin {
     // close the user's note; simply release K-Plex ownership and leave workspace leaves intact.
     this.sidecarLeaves.clear();
     this.nodeFlairListeners.clear();
+    this.linkedNodeFeedback.clear();
     this.indexStatusListeners.clear();
     this.kplexVisibilityListeners.clear();
     this.visibleKplexLeaves.clear();
@@ -4732,6 +4735,26 @@ export default class KplexPlugin extends Plugin {
 
   requestNodeFlair(path: string): void {
     for (const listener of this.nodeFlairListeners) listener(path);
+  }
+
+  /** Lease feedback to one mounted Plex; cleanup cannot unregister its replacement. */
+  registerLinkedNodeFeedback(host: WorkspaceLeaf, feedback: (origin: GraphPage, target: GraphPage) => void): () => void {
+    this.linkedNodeFeedback.set(host, feedback);
+    return () => {if (this.linkedNodeFeedback.get(host) === feedback) this.linkedNodeFeedback.delete(host);};
+  }
+
+  /** Capture only the invoking view incarnation. Late saves keep their disk result but cannot
+   * notify a closed, navigated or migrated Plex, or another open view with different filters. */
+  captureLinkedNodeFeedback(host?: WorkspaceLeaf): (origin: GraphPage, target: GraphPage) => void {
+    const feedback = host && this.linkedNodeFeedback.get(host), container = host?.view.containerEl, doc = container?.ownerDocument;
+    return (origin, target) => {
+      if (this.unloading || !host || !feedback || this.linkedNodeFeedback.get(host) !== feedback
+        || host.view.containerEl !== container || !container?.isConnected || container.ownerDocument !== doc) return;
+      try {feedback(origin, target);} catch (error) {
+        // Optional presentation feedback cannot turn a committed relationship into a failed save.
+        console.error("K-Plex linked-node feedback failed", error);
+      }
+    };
   }
 
   subscribeSidecar(listener: () => void): () => void {

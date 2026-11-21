@@ -1,5 +1,5 @@
 /**
- * Native Obsidian shell and shared React composer for related-note creation. The plugin owns mutations and separate link/create completion preferences; the modal owns operation-local choices, focus, suggestions, failure-only recovery and cleanup, and consumes localized copy. Recovery retains the exact durable file and displays the failure reason without enabling fresh creation.
+ * Native Obsidian shell and shared React composer for related-note creation. The plugin owns mutations and separate link/create completion preferences; the modal owns operation-local choices, focus, suggestions, failure-only recovery and cleanup, and consumes localized copy. Recovery retains the exact durable file and displays the failure reason without enabling fresh creation. Successful links request hidden-node feedback only from the captured originating Plex before completion navigation.
  */
 import {KplexModal as Modal} from "../adapters/obsidian/KplexModal";
 import {CreationTypeTabs, type CreationType} from "./features/CreationTypeTabs";
@@ -248,6 +248,7 @@ function RelatedNoteComposer({
   const complete = async (page: GraphPage, intent: CompletionIntent | CreationAfterSavingAction, _createdFile: boolean, state: RelatedNoteCommit["state"] = "saved-published"): Promise<void> => {
     onCommitted?.({state, page});
     if (!session.canComplete()) return;
+    session.reportLinkedNode(page);
     plugin.requestNodeFlair(page.path);
     let action = resolveCreationAfterSaving(intent, continuation);
     if (!page.file && action !== "return" && action !== "another" && action !== "follow") action = "return";
@@ -754,6 +755,7 @@ export class NewRelatedNoteModal extends Modal {
   private hostContainer: HTMLElement | null;
   private releaseIdentity: (() => void) | null = null;
   private releaseInteraction: (() => void) | null = null;
+  private readonly linkedNodeFeedback: (origin: GraphPage, target: GraphPage) => void;
   readonly continuation: CompletionIntent;
   readonly additiveOnly: boolean;
   readonly initialOntology?: string;
@@ -777,6 +779,7 @@ export class NewRelatedNoteModal extends Modal {
     this.origin = captureRelatedEndpoint(origin);
     this.fixedTarget = fixedTarget ? captureRelatedEndpoint(fixedTarget) : undefined;
     this.hostContainer = hostLeaf?.view.containerEl ?? null;
+    this.linkedNodeFeedback = plugin.captureLinkedNodeFeedback(hostLeaf);
     this.invokingDocument = this.hostContainer?.ownerDocument ?? this.modalEl.ownerDocument;
     const active = this.invokingDocument.activeElement;
     this.invokingElement = active && "focus" in active ? active as HTMLElement : null;
@@ -788,6 +791,11 @@ export class NewRelatedNoteModal extends Modal {
 
   /** Retain an invocation's independent field memory through the existing serialized host writer. */
   async rememberOntology(field: string): Promise<void> {await this.invocation.onOntologySelected?.(field);}
+
+  /** A durable save gets one view-scoped visibility check, before Follow can change the center. */
+  reportLinkedNode(page: GraphPage): void {
+    if (this.canComplete()) this.linkedNodeFeedback(this.origin, page);
+  }
 
   /** Protect role changes during the exact asynchronous save, independently of React state. */
   setWriting(writing: boolean): void {

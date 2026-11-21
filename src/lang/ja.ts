@@ -9,6 +9,7 @@ import { buildLocaleCatalog, type LocaleCatalog, type LocaleTranslationMap } fro
 /** Construct the typed Japanese table only when selected; importing this module allocates no catalog. */
 export function createJapaneseCatalog(): LocaleCatalog {
 const japaneseTranslations = {
+  "notice.linkedNodeHidden": "{name} ??????????????????????????????????????",
   "settings.canvasHints.name": "キャンバスのヒントを表示",
   "settings.canvasHints.help": "キャンバスの上部にショートカットと関係のヒントを表示します。",
   "indexing.backgroundTitle": "K-Plex が非アクティブなとき",
