@@ -159,13 +159,39 @@ test("All keeps a known field in its assigned direction and refuses unassigned n
 });
 
 test("relationship note provider uses bounded physical catalog ranking without graph visibility", () => {
-  const calls = [], target = page("Target.md");
-  const provider = production("getNoteResults", { useCallback: fn => fn, origin: page("Origin.md"), isNoteTarget: production("isNoteTarget"),
-    plugin: { index: { search: (...args) => { calls.push(args); return [target, page("Origin.md"), { ...page("Folder"), isFolder: true }]; } } } });
+  const calls = [], target = page("Target.md"), origin = page("Origin.md");
+  const provider = production("getNoteResults", { useCallback: fn => fn, origin, isNoteTarget: production("isNoteTarget"),
+    eligibleRelationshipOwner: production("eligibleRelationshipOwner", {}, "src/adapters/obsidian/relationshipOwner.ts"),
+    plugin: { settings: {}, app: {vault: {getFileByPath: path => path === origin.path ? origin.file : target.file}},
+      index: { search: (...args) => { calls.push(args); return [target, origin, { ...page("Folder"), isFolder: true }]; } } } });
   assert.deepEqual(provider("  Target  "), [target]);
   assert.deepEqual(calls, [["Target", 48, "vault-files"]]);
   assert.deepEqual(provider(" "), []);
   assert.equal(calls.length, 1);
+});
+
+test("relationship search accepts every physical file type only when the origin can store its declaration", () => {
+  const origin = page("Daily.md"), note = page("Target.md");
+  const attachments = ["svg", "png", "pdf", "canvas", "mp3", "custom"].map(extension => ({
+    ...page(`Target.${extension}`), file: {path: `Target.${extension}`, extension},
+  }));
+  const excluded = [origin, {...page("Folder"), isFolder: true}, {...page("#tag"), isTag: true},
+    {path: "https://example.com", url: "https://example.com", file: null}, {path: "Missing", file: null}];
+  const files = new Map([origin, note, ...attachments].map(item => [item.path, item.file]));
+  const plugin = {settings: {alsoWriteInverseOntology: false}, app: {vault: {getFileByPath: path => files.get(path)}},
+    index: {search: () => [...attachments, note, ...excluded]}};
+  const dependencies = {plugin, origin, useCallback: fn => fn, isNoteTarget: production("isNoteTarget"),
+    eligibleRelationshipOwner: production("eligibleRelationshipOwner", {}, "src/adapters/obsidian/relationshipOwner.ts")};
+  const results = overrides => production("getNoteResults", {...dependencies, ...overrides})("Target");
+  assert.deepEqual(results(), [...attachments, note], "Markdown-owned relationships must retain attachment ranking and identity");
+  assert.deepEqual(results({storeOnTarget: true}), [note], "The selected property owner must support Markdown");
+  plugin.settings.alsoWriteInverseOntology = true;
+  assert.deepEqual(results(), [note], "Reciprocal writes still require two Markdown owners");
+  plugin.settings.alsoWriteInverseOntology = false;
+  for (const unavailable of [{...origin, file: {...origin.file, extension: "pdf"}}, {...origin, file: null},
+    {...origin, transient: true}, {...origin, file: {...origin.file}}]) {
+    assert.deepEqual(results({origin: unavailable}), [note], "An unavailable Markdown owner cannot authorize attachment targets");
+  }
 });
 
 test("unified completion resolves remembered and explicit command intents without changing them", () => {

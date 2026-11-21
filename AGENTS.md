@@ -489,7 +489,7 @@ Dragging from a gate and releasing on empty Plex opens an Obsidian `Modal`.
 
 The modal provides:
 
-- Markdown target selection
+- Indexed physical file selection when the origin can own the relationship property; otherwise Markdown targets only. Reciprocal writes require two Markdown endpoints.
 - ontology/document-property dropdown appropriate to the relationship direction
 - check/confirm and X/cancel Lucide buttons via `getIcon()`
 
