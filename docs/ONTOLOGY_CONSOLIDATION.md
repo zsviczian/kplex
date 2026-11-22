@@ -2,7 +2,7 @@
 
 This workflow supports agents helping with hundreds of ontology fields. It separates a proposed spelling/synonym/language change from a genuine semantic change, an inverse pair from a coincidental name similarity, and configuration changes from physical note edits. It does **not** run a migration or authorize one. Start with an explicitly selected scope and obtain approval for exact mappings, collision policy, private backup destination and write phases.
 
-The [root skill](https://github.com/zsviczian/kplex/blob/2026-11-03-ontology-consolidation-api/skill.md) retains connection, coverage, authorization and retry safeguards. Read the [public API contract](https://github.com/zsviczian/kplex/blob/2026-11-03-ontology-consolidation-api/docs/PUBLIC_API.md) and [CLI argument-array guide](https://github.com/zsviczian/kplex/blob/2026-11-03-ontology-consolidation-api/docs/CLI.md) for transport details. These draft links address this implementation branch; after acceptance the stable locations are the corresponding paths on `main`. The recipe below is executable JavaScript for a trusted local Obsidian script/CLI eval, with synthetic paths only. It is not a new plugin API or a second field parser.
+The [K-Plex CLI skill](../skills/kplex-obsidian-cli/SKILL.md) retains connection, coverage, authorization and retry safeguards. Read the [public API contract](PUBLIC_API.md) and [CLI argument-array guide](CLI.md) for transport details. The recipe below is executable JavaScript for a trusted local Obsidian script/CLI eval, with synthetic paths only. It is not a new plugin API or a second field parser.
 
 ## Inventory, mappings and authority
 

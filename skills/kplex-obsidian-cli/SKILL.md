@@ -6,7 +6,7 @@ description: Use K-Plex in an explicitly selected Obsidian desktop vault through
 
 Use this skill when an assistant works with K-Plex's ontology, indexed knowledge or open maps. The plugin ID is `k-plex`; the exact public entry point is **`window.kplexApi.v1`**. K-Plex has no HTTP/MCP server or parameterized `obsidian kplex:*` command family.
 
-This repository's skill follows the API implementation. It adapts the earlier [Help-vault skill](https://github.com/zsviczian/kplex-help/blob/main/skill.md), retaining its access, authorization, coverage, canvas and retry safeguards. This file works when copied alone: use the canonical online links below. The new consolidation guide links this draft's implementation branch until acceptance; its stable location will be the same path on `main`.
+This repository's skill follows the API implementation. It adapts the earlier [Help-vault skill](https://github.com/zsviczian/kplex-help/blob/main/skill.md), retaining its access, authorization, coverage, canvas and retry safeguards. This skill uses the canonical online references linked below and works outside the repository.
 
 ## Connect and discover
 
@@ -52,7 +52,7 @@ For GraphQL inspect both outer `ok` and `value.errors`. It remains synchronous/r
 
 ## Reviewed ontology consolidation
 
-Read the [worked consolidation guide](https://github.com/zsviczian/kplex/blob/2026-11-03-ontology-consolidation-api/docs/ONTOLOGY_CONSOLIDATION.md) before planning writes. Audit/read permission **does not authorize** configuration or note changes. Do not run consolidation on a personal vault merely because the API is available.
+Read the [worked consolidation guide](https://github.com/zsviczian/kplex/blob/main/docs/ONTOLOGY_CONSOLIDATION.md) before planning writes. Audit/read permission **does not authorize** configuration or note changes. Do not run consolidation on a personal vault merely because the API is available.
 
 1. Inventory exact physical fields, independent descriptions, usage coverage and dependent lens/style references. Propose spelling fixes, true synonym merges, language conventions and genuine inverse pairs separately. Do not pair unrelated fields to increase pair count. Preserve alternative names in authored descriptions, without claiming parser aliases.
 2. Discover candidate files through bounded `ontologyDocuments` pages. Inspect each candidate **once for all mapped fields**, retaining source snapshots and unsupported/truncated flags. If coverage cannot establish the intended scope, request explicit authorization for a bounded source audit: enumerate the selected Markdown scope through public Obsidian APIs and inspect in batches, never once per field.
@@ -79,4 +79,4 @@ An `accepted` action is not final scene admission; `completed` observes metadata
 
 Portable preset/lens import remains separate: only when requested, use `configuration.validate`, inspect `configuration.preview(packageJson,choices)` and then apply the reviewed token with confirmation. Replacement/private export requires explicit intent; imported lenses start disabled. Check durable state, `verified`, `refreshPending` and exact readback before deciding another operation is needed.
 
-CLI eval has host privileges; the skill adds no sandbox or authority. For full contracts use the [public API](https://github.com/zsviczian/kplex/blob/main/docs/PUBLIC_API.md), [CLI](https://github.com/zsviczian/kplex/blob/main/docs/CLI.md) and [consolidation guide](https://github.com/zsviczian/kplex/blob/2026-11-03-ontology-consolidation-api/docs/ONTOLOGY_CONSOLIDATION.md).
+CLI eval has host privileges; the skill adds no sandbox or authority. For full contracts use the [public API](https://github.com/zsviczian/kplex/blob/main/docs/PUBLIC_API.md), [CLI](https://github.com/zsviczian/kplex/blob/main/docs/CLI.md) and [consolidation guide](https://github.com/zsviczian/kplex/blob/main/docs/ONTOLOGY_CONSOLIDATION.md).

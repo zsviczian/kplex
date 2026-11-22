@@ -2,7 +2,7 @@
 
 Obsidian CLI `eval` calls the [public K-Plex API](PUBLIC_API.md) inside the running application. Enable and register Obsidian's CLI using [Obsidian's official setup](https://help.obsidian.md/cli), keep the intended vault open, and address that vault explicitly. K-Plex does not register parameterized `obsidian kplex:*` commands or ship a separate executable wrapper.
 
-For agent workflows use the repository's [root skill](../skill.md). The
+For agent workflows use the [K-Plex CLI skill](../skills/kplex-obsidian-cli/SKILL.md). The
 [worked consolidation guide](ONTOLOGY_CONSOLIDATION.md) covers bounded usage lookup, explicit
 selected-file inspection and confirmed ontology batches. Reads do not grant migration authority.
 Keep the PR267 capabilities optional through discovery and reacquire after plugin reload.

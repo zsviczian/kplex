@@ -536,6 +536,16 @@ Sibling relative size (30–85%) is under **Canvas behavior → Views → Compas
 
 Excalidraw drawings fit automatically when opened or navigated to in a normal editor node, even if Excalidraw’s own fit-on-open preference is off. Change this in **K-Plex settings → Compatibility → Excalidraw → Fit drawings when opening an editor node**. Untouched drawings in view mode also refit when Plex zoom changes their frame size. After you interact with a drawing, its pan and zoom are preserved until another opening. Edit mode and fullscreen editors retain their native behavior.
 
+## Use K-Plex with an agent
+
+Install the K-Plex CLI skill in your agent project.
+
+```sh
+npx skills add zsviczian/kplex --skill kplex-obsidian-cli
+```
+
+Use `npx skills update kplex-obsidian-cli` to pick up changes. The skill uses K-Plex in an explicitly selected vault in the running Obsidian desktop app. Enable Obsidian CLI and K-Plex in that vault, then follow the [CLI guide](docs/CLI.md) and the [skill instructions](skills/kplex-obsidian-cli/SKILL.md).
+
 ## Help, issues and contributing
 
 Select **Report a bug** (the Bug icon in the toolbar) to copy a diagnostic report and view reporting guidance. In Zen mode, use **K-Plex: Report a bug** from Obsidian’s Command Palette. Search existing issues first, describe how to reproduce the problem, and paste the report at the bottom. The report includes active plugin names and versions, the custom theme name, and enabled/available CSS snippet counts. It excludes note contents, paths and snippet names. Inspect the preview before posting; nothing is submitted automatically. If copying fails, select the preview to copy it manually or select **Copy again**.

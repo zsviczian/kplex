@@ -28,7 +28,7 @@ The final additive v1 names are `ontologyDocuments`, `inspectOntologyOccurrences
 `previewOntologyConfiguration` and `applyOntologyConfiguration`. The
 [public reference](../PUBLIC_API.md#inspect-and-consolidate-ontology-safely) defines exact DTOs,
 budgets, coverage, cursor/review lifetime, cancellation and side effects. The
-[worked guide](../ONTOLOGY_CONSOLIDATION.md) and root [skill](../../skill.md) use those names.
+[worked guide](../ONTOLOGY_CONSOLIDATION.md) and [skill](../../skills/kplex-obsidian-cli/SKILL.md) use those names.
 Accepted main, including shared completion PR268, was merged normally into this branch;
 specification commit `7a6dd608` remains in its history. No Help-repository or personal-vault
 consolidation/deployment is part of this implementation.
