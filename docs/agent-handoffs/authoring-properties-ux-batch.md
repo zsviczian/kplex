@@ -1,7 +1,7 @@
-# Authoring properties and small UX batch
+# Authoring properties, UX improvements and bug validation
 
 Status: implementation handoff only; no runtime fixes are included.
-Prepared by Zsolt's Codex Agent on 2026-11-22.
+Prepared by Zsolt's Codex Agent on 2026-11-22; scope expanded by the maintainer to include validation and conditional fixes for #313 and #318.
 Base: main at a87006e44db9f7ad736aef090b493393bae454b6, including merged #325.
 Branch: 2026-11-22-authoring-properties-ux-batch.
 
@@ -15,18 +15,27 @@ Also implement the maintainer's larger add-node feature: Note type selection; co
 
 Keep filename Name distinct from a configurable metadata field called Name. Keep property identity, optional display label, creation-form visibility and node-detail visibility distinct. Reuse existing alias semantics when the configured field is Alias; a different property name must actually target that property, not merely relabel a hard-coded alias input. Preserve title/alias resolution independently of supplementary node-detail visibility.
 
+## Validation-first bugs — included in this PR
+
+This supersedes the earlier exclusion of #313 and #318. Validate both on the accepted baseline before relevant feature changes, then repeat on the final PR artifact. Reporter replies are useful but are not a prerequisite to starting the existing reproductions.
+
+- **#318, first priority:** reproduce the A → B → C Add friend / Follow node workflow before and after Local graph ready. Assert the second dialog's source, captured action/file identity and actual A/B/C contents, not only the rendered graph. Exercise delayed readiness deterministically and retain exact-build native coverage of the command/navigation path. If confirmed, fix the smallest responsible action-context, navigation or indexing owner in this PR and add a regression that fails on the unfixed baseline. Never write to A when the second operation intends B; an unavailable exact target must be refused clearly rather than replaced by a previous center.
+- **#313:** reproduce plain-prose `see [[ ]] here`, repeated empty links, an explicit self-link and an inline-code control. Compare native resolved-link counts with K-Plex's source-resolution/reconciliation results, preserving genuine self-link multiplicity. Validate recovery settlement, stable failure counters and two unchanged app restarts against a reusable cache; include the applicable settled non-default-ontology fixture. If confirmed, fix the canonical resolver/source-comparison/recovery owner and add failing-before/passing-after regression coverage. Do not hide the loop by dropping valid links, suppressing status, weakening comparisons or resetting caches.
+- For each issue, record whether it reproduced, was already fixed, did not reproduce under specified conditions, or remains blocked by unavailable host/device evidence. If not reproduced, update the issue with exact tested commit/build, environment/settings, fixture and steps, commands/results, commit-pinned test references and relevant PR/validation references. A missing native/device check is not a negative reproduction. Do not close an issue solely because one test passed or the PR exists. Confirmed fixes also receive linked regression and validation evidence.
+
 ## Boundaries
 
-- #313 (empty-wikilink reconciliation loop) and #318 (wrong-file relationship writes before local readiness) need separate priority investigations and are excluded from this UX batch.
 - #309 link titles were addressed by #314, released in 0.4.5; video-ID graph deduplication remains separate. #310 is already completed.
 - #315 needs clarification between retained preset categories and failed manual edits. #320 needs a minimal heading/embed example. Neither is an implementation commitment here.
 - #321 is only the requested YouTube subset until the reporter clarifies local video attachments versus web URLs.
-- No global index changes, cache resets, automatic vault-wide property renames, new parser/index framework or network work during indexing.
+- Indexing/source-resolution changes are authorized only where required by a confirmed #313 or #318 failure. No speculative indexing rewrite, new parser/index framework, blanket cache reset, automatic vault-wide property renames or network work during indexing.
 - Use the current shared composer, property/type writers, canonical target parsing/resolution, settings queue, display measurement and consent-aware image lifetime. Keep explicit target identity, reciprocal-write guards and partial-commit recovery.
 
 ## Acceptance and handoff
 
 Implement in independently reviewable slices. Add focused regressions and run the required real-dependency checks and applicable exact-build native lanes. Cover settings compatibility, create versus link behavior, templates, cancellation/failure recovery, narrow/mobile/popout rendering, all canvas property measurements, and consent/offline thumbnail behavior. Establish no extra semantic preparation from presentation-only controls.
+
+#313/#318 validation is mandatory scope, not an optional follow-up. Assess risk from the actual fix: changes to indexing, source acquisition, graph semantics, scheduling or persistence require the repository's full indexing/persistence acceptance gates, including real-dependency verification, exact-build native checks and unchanged restart/cache reuse evidence. Preserve failing results and record unavailable checks separately. Keep raw validation artifacts in the repository's managed ignored storage; retain concise results and durable test/commit references in the PR and issues.
 
 Current evidence is source review, issue/release comparison and remote document read-back only. No build, runtime test or native validation was run for this planning change. Keep the PR draft; do not merge or close issues as fixed until implementation and acceptance exist.
 
