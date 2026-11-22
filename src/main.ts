@@ -6,6 +6,7 @@
  * revocable host clipboard owner; section-scoped bulk visibility uses the existing settings queue.
  * Related-note completion keeps link and creation preferences independent through that same writer.
  * Hidden-link feedback is leased to the invoking mounted Plex and retired on navigation/unmount.
+ * Connection ontology replacements retain exact property owners and independently durable paired outcomes.
  * Pin moves recheck a captured canonical order and publish presentation only; unavailable saved
  * destinations remain bookmark entries and never acquire sources merely for reordering.
  * Eager startup admits optional URL replay only after primary graph completion, so its higher
@@ -128,7 +129,6 @@ import {EXTERNAL_IMPORT_LIMITS, type ExternalImportPayload} from "./adapters/obs
 import {ExternalFileImportBatchModal} from "./ui/ExternalFileImportBatchModal";
 import { MaterializeGhostModal, type GhostMaterializationKind, type GhostMaterializationLocation } from "./ui/MaterializeGhostModal";
 import { DeleteNodeConfirmationModal, RemainingNodeReferencesModal, HideRelationshipModal, type DeleteNodePreview, type DeleteSourcePreview, type RemainingNodeReference } from "./ui/DeleteNodeModal";
-import { HiddenFieldSetupModal, type HiddenFieldSetupChoice } from "./ui/HiddenFieldSetupModal";
 import { navigatePluginSettings } from "./adapters/obsidian/settingsNavigation";
 import type {ElementStyleSource, StandardStyleKey} from "./core/contracts/styleSource";
 import { suggestHiddenProperty } from "./adapters/obsidian/hiddenPropertyName";
@@ -176,6 +176,7 @@ import { PartialRelatedFileError } from "./adapters/obsidian/relatedFileOutcome"
 import { capturePlaceholderRelocation, applyPlaceholderRelocation, assertPlaceholderRelocationTarget, placeholderReference, type PlaceholderRelocation } from "./adapters/obsidian/placeholderRelocation";
 import { ActionManager, type ActionContext, type ActionImplementations, type SidecarFoldRoute, type SidecarFoldTarget } from "./application/ActionManager";
 import { frontmatterDeclarationKey } from "./application/frontmatterUnlink";
+import {selectConnectionOntology, type ConnectionOntologySelection} from "./application/connectionOntology";
 import { ACTION_BY_ID, ACTION_RELATION_ROLES, type ActionId, type ActionOutcome, type ActionRequest, type Availability } from "./core/plex/actions";
 import { compileActionBindings, migrateActionPreferences, sanitizeActionPreferences, type ActionPreferencesV1 } from "./core/plex/actionPreferences";
 import { createActionCommandPublisher, type ActionCommandPublisher } from "./adapters/obsidian/actionCommands";
@@ -236,6 +237,13 @@ export type FrontmatterUnlinkExpectation = Readonly<{
   declarationKey: string;
   viewSourcePath: string;
   viewTargetPath: string;
+}>;
+
+/** Bounded native approval for changing the one property or reciprocal pair shown by a connection. */
+export type ConnectionOntologyChange = Readonly<{
+  selection: ConnectionOntologySelection;
+  expectations: readonly FrontmatterUnlinkExpectation[];
+  configurationSignature: string;
 }>;
 
 /** A writing adapter signals commitment only after the existing canonical pair publication. */
@@ -6632,7 +6640,7 @@ export default class KplexPlugin extends Plugin {
    * A partial receipt retains both approved file identities and retries only missing declarations. */
   private async writeReciprocalRelationship(origin: GraphPage, target: GraphPage, semanticRole: RelationshipRole,
     selectedField: string, storeOnTarget = false, referenceOverride?: string, sourceReady = true, additiveOnly = true,
-    approvedFields?: ReciprocalOntologyFields | null): Promise<void> {
+    approvedFields?: ReciprocalOntologyFields | null, beforeMutation?: () => boolean): Promise<void> {
     const sourceFile = eligibleRelationshipOwner(this.app, origin), targetFile = eligibleRelationshipOwner(this.app, target);
     if (!sourceFile || !targetFile || sourceFile === targetFile) throw new Error(this.translator("reciprocal.requiresMarkdown"));
     const fields = reciprocalOntologyFields(ontologyConfiguration(this.settings), selectedField, semanticRole);
@@ -6643,7 +6651,7 @@ export default class KplexPlugin extends Plugin {
     const first = storeOnTarget ? inverse : forward, second = storeOnTarget ? forward : inverse;
     /** Pairing and opt-in consent cannot be borrowed after a settings edit or plugin retirement. */
     const current = (): boolean => {
-      if (this.unloading || this.settings.alsoWriteInverseOntology !== true) return false;
+      if (this.unloading || beforeMutation?.() === false || this.settings.alsoWriteInverseOntology !== true) return false;
       const configured = reciprocalOntologyFields(ontologyConfiguration(this.settings), selectedField, semanticRole);
       return configured?.forward === fields.forward && configured.inverse === fields.inverse;
     };
@@ -6736,11 +6744,20 @@ export default class KplexPlugin extends Plugin {
     semanticRole: RelationshipRole,
     selectedField: string,
     storagePathOverride: string | null = null,
+    beforeMutation?: () => boolean,
   ): Promise<RelationshipWriteResult> {
     const reciprocal = this.settings?.alsoWriteInverseOntology === true;
     const approvedFields = reciprocal ? reciprocalOntologyFields(ontologyConfiguration(this.settings), selectedField, semanticRole) : null;
+    const centerPath = center.path, neighbourPath = neighbour.path, centerNative = center.file, neighbourNative = neighbour.file;
+    /** A child selector cannot retain its parent's consent or adopt a recreated native endpoint. */
+    const current = (): boolean => !this.unloading && beforeMutation?.() !== false
+      && (!centerNative || centerNative.path === centerPath) && (!neighbourNative || neighbourNative.path === neighbourPath)
+      && this.app.vault.getFileByPath(centerPath) === centerNative && this.app.vault.getFileByPath(neighbourPath) === neighbourNative
+      && reciprocal === (this.settings?.alsoWriteInverseOntology === true);
     return this.index.withForegroundPriority(async () => {
+      if (!current()) throw new Error(this.translator("addRelated.endpointChanged"));
       [center, neighbour] = await this.prepareRelationshipMutation(center.path, neighbour.path, center.file, neighbour.file);
+      if (!current()) throw new Error(this.translator("addRelated.endpointChanged"));
       const centerFile = center.file?.extension === "md" ? center.file : null;
       const neighbourFile = neighbour.file?.extension === "md" ? neighbour.file : null;
       if (!centerFile && !neighbourFile) {
@@ -6756,26 +6773,177 @@ export default class KplexPlugin extends Plugin {
 
       if (reciprocal !== (this.settings?.alsoWriteInverseOntology === true)) throw new Error(this.translator("addRelated.endpointChanged"));
       if (reciprocal) {
-        await this.writeReciprocalRelationship(center, neighbour, semanticRole, selectedField, storagePath === neighbourFile?.path, undefined, true, true, approvedFields);
+        await this.writeReciprocalRelationship(center, neighbour, semanticRole, selectedField, storagePath === neighbourFile?.path, undefined, true, true, approvedFields, current);
         return {state: "saved-published", page: this.index.get(neighbour.path) ?? neighbour};
       }
 
       if (storagePath === centerFile?.path && centerFile) {
-        await this.addRelationshipOntology(centerFile, neighbour, selectedField);
+        await this.addRelationshipOntology(centerFile, neighbour, selectedField, undefined, current);
+        if (!current()) throw new SavedRelationshipPendingError(this.translator("relation.savedUpdatePending"));
         await this.publishSavedRelationship(center.path, neighbour.path);
       } else if (storagePath === neighbourFile?.path && neighbourFile) {
         const inverseField = this.inverseOntologyField(selectedField, semanticRole);
-        await this.addRelationshipOntology(neighbourFile, center, inverseField);
+        await this.addRelationshipOntology(neighbourFile, center, inverseField, undefined, current);
+        if (!current()) throw new SavedRelationshipPendingError(this.translator("relation.savedUpdatePending"));
         await this.publishSavedRelationship(center.path, neighbour.path);
       } else if (centerFile) {
-        await this.addRelationshipOntology(centerFile, neighbour, selectedField);
+        await this.addRelationshipOntology(centerFile, neighbour, selectedField, undefined, current);
+        if (!current()) throw new SavedRelationshipPendingError(this.translator("relation.savedUpdatePending"));
         await this.publishSavedRelationship(center.path, neighbour.path);
       } else if (neighbourFile) {
         const inverseField = this.inverseOntologyField(selectedField, semanticRole);
-        await this.addRelationshipOntology(neighbourFile, center, inverseField);
+        await this.addRelationshipOntology(neighbourFile, center, inverseField, undefined, current);
+        if (!current()) throw new SavedRelationshipPendingError(this.translator("relation.savedUpdatePending"));
         await this.publishSavedRelationship(center.path, neighbour.path);
       }
       return { state: "saved-published", page: this.index.get(neighbour.path) ?? neighbour };
+    });
+  }
+
+  /** Capture a cache-only edit intent for a single document-property ontology or its configured
+   * reciprocal pair. Menu checks never acquire sources; Save reauthorizes the exact pair. */
+  captureConnectionOntologyChange(sourcePath: string, targetPath: string): ConnectionOntologyChange | null {
+    const source = this.index.get(sourcePath), target = this.index.get(targetPath);
+    if (!source || !target || source === target || source.isFolder || source.isTag || target.isFolder || target.isTag
+      || source.transient || target.transient || this.app.vault.getFileByPath(sourcePath) !== source.file
+      || this.app.vault.getFileByPath(targetPath) !== target.file) return null;
+    const selection = selectConnectionOntology(this.index.evidenceBetween(sourcePath, targetPath), ontologyConfiguration(this.settings), sourcePath, targetPath);
+    if (!selection) return null;
+    const expectations: FrontmatterUnlinkExpectation[] = [];
+    for (const declaration of selection.declarations) {
+      const expected = this.captureFrontmatterUnlinkExpectation(declaration);
+      if (!expected || expected.storage.extension !== "md" || selection.declarations.length === 2 && expected.target?.extension !== "md") return null;
+      expectations.push(expected);
+    }
+    return {selection, expectations, configurationSignature: JSON.stringify(selection.declarations.map(
+      /** Only the approved ontology endpoints participate; unrelated vocabulary edits remain mergeable. */
+      declaration => ontologyEndpointState(this.settings, declaration.fieldName)))};
+  }
+
+  /** Replace only the approved property's references to this endpoint. Existing reciprocal
+   * declarations are changed together, regardless of the separate new-link mirroring preference.
+   * Native identity, exact property shape and the original/new vocabulary are fenced after reads;
+   * retained two-file receipts retry missing writes without replaying a durable first replacement. */
+  async changeConnectionOntology(approved: ConnectionOntologyChange, semanticRole: RelationshipRole, selectedField: string,
+    beforeMutation: () => boolean): Promise<RelationshipWriteResult> {
+    const selection = approved.selection, primary = selection.primary;
+    const configuration = ontologyConfiguration(this.settings), field = selectedField.trim();
+    if (configuration.roles.get(normalizeFieldName(field)) !== semanticRole) throw new Error(this.translator("addRelated.endpointChanged"));
+    const paired = selection.declarations.length === 2;
+    const fields = paired ? reciprocalOntologyFields(configuration, field, semanticRole) : {forward: field, inverse: field};
+    if (!fields) throw new Error(this.translator("reciprocal.requiresInverse"));
+    const replacementSignature = JSON.stringify([ontologyEndpointState(this.settings, fields.forward), ontologyEndpointState(this.settings, fields.inverse)]);
+    const entries = selection.declarations.map(/** Keep one physical owner and original property per approved declaration. */ declaration => {
+      const expected = approved.expectations.find(candidate => candidate.declarationKey === frontmatterDeclarationKey(declaration));
+      if (!expected || expected.storage.extension !== "md" || paired && expected.target?.extension !== "md") throw new Error(this.translator("explain.removeSourceChanged"));
+      const nextField = declaration === primary ? fields.forward : fields.inverse;
+      const nextRole = configuration.roles.get(normalizeFieldName(nextField));
+      if (nextRole !== "parent" && nextRole !== "child" && nextRole !== "left" && nextRole !== "right" && nextRole !== "previous" && nextRole !== "next") throw new Error(this.translator("reciprocal.requiresInverse"));
+      return {declaration, expected, nextField, nextRole, observed: declaration};
+    });
+    /** Physical incarnations and selected vocabulary remain authoritative while queued writes await. */
+    const current = (): boolean => !this.unloading && beforeMutation()
+      && approved.configurationSignature === JSON.stringify(selection.declarations.map(declaration => ontologyEndpointState(this.settings, declaration.fieldName)))
+      && replacementSignature === JSON.stringify([ontologyEndpointState(this.settings, fields.forward), ontologyEndpointState(this.settings, fields.inverse)])
+      && entries.every(/** Neither a rename nor a replacement file inherits this dialog's approval. */ entry => entry.expected.storage.path === entry.expected.storagePath
+        && (!entry.expected.target || entry.expected.target.path === entry.expected.targetPath)
+        && this.app.vault.getFileByPath(entry.expected.storagePath) === entry.expected.storage
+        && this.app.vault.getFileByPath(entry.expected.targetPath) === entry.expected.target);
+    /** Approved replacements may leave a temporary mixed pair. Map only their exact expected
+     * physical tuples back to the original intent before reusing the shared eligibility policy. */
+    const declarationsCurrent = (): boolean => {
+      if (!current()) return false;
+      let exact = true;
+      const observed = new Set<typeof entries[number]>();
+      const evidence = this.index.evidenceBetween(primary.sourcePath, primary.targetPath).map(item => {
+        if (item.sourceKind !== "frontmatter-ontology") return item;
+        const entry = entries.find(candidate => frontmatterDeclarationKey(candidate.observed) === frontmatterDeclarationKey(item)
+          && candidate.observed.fieldName === item.fieldName && candidate.observed.role === item.role);
+        if (!entry) {exact = false; return item;}
+        observed.add(entry); return entry.declaration;
+      });
+      return exact && observed.size === entries.length
+        && selectConnectionOntology(evidence, ontologyConfiguration(this.settings), primary.sourcePath, primary.targetPath)?.signature === selection.signature;
+    };
+    /** Confirm all previously durable replacements before permitting the next owner or a retry. */
+    const prepare = async (): Promise<void> => {
+      if (!current()) throw new Error(this.translator("explain.removeSourceChanged"));
+      await this.prepareRelationshipMutation(primary.sourcePath, primary.targetPath,
+        this.app.vault.getFileByPath(primary.sourcePath), this.app.vault.getFileByPath(primary.targetPath));
+      if (!declarationsCurrent()) throw new Error(this.translator("explain.removeSourceChanged"));
+    };
+    /** One native mutation preserves other properties, list members and all Markdown body data. */
+    const replace = async (entry: typeof entries[number]): Promise<void> => {
+      await prepare();
+      const storage = entry.expected.storage, target = this.index.get(entry.expected.targetPath);
+      if (!target || target.file !== entry.expected.target || !current()) throw new Error(this.translator("explain.removeSourceChanged"));
+      const previousObserved = entry.observed;
+      const oldName = normalizeFieldName(entry.declaration.fieldName), nextName = normalizeFieldName(entry.nextField);
+      const ontology = new Set(this.allOntologyFields().map(normalizeFieldName));
+      this.pruneManagedMetadataWrites(); this.managedMetadataWrites.set(storage.path, Date.now() + 15000);
+      try {
+        await this.mutateRelationshipMetadata(storage, new Set([oldName, nextName]), /** Reauthorize after FileManager's actual native read, before assigning either property. */ frontmatter => {
+          const oldKeys = Object.keys(frontmatter).filter(key => normalizeFieldName(key) === oldName);
+          const nextKeys = Object.keys(frontmatter).filter(key => normalizeFieldName(key) === nextName);
+          if (!declarationsCurrent() || oldKeys.length !== 1 || oldKeys[0] !== entry.expected.fieldKey || nextKeys.length > 1
+            || !this.valueContainsTarget(frontmatter[oldKeys[0]], storage, target)) throw new Error(this.translator("explain.removeSourceChanged"));
+          for (const key of Object.keys(frontmatter)) {
+            if (normalizeFieldName(key) !== oldName && ontology.has(normalizeFieldName(key)) && this.valueContainsTarget(frontmatter[key], storage, target)) {
+              throw new Error(this.translator("explain.removeSourceChanged"));
+            }
+          }
+          const next = this.removeTargetFromValue(frontmatter[oldKeys[0]], storage, target);
+          const destination = nextKeys[0] ?? entry.nextField;
+          const staged = {...frontmatter};
+          if (next === undefined) delete staged[oldKeys[0]]; else staged[oldKeys[0]] = next;
+          if (!Object.prototype.hasOwnProperty.call(staged, destination)) Object.defineProperty(staged, destination, {value: undefined, enumerable: true, configurable: true, writable: true});
+          this.appendRelationshipReference(staged, storage, target, destination, this.referenceForPage(target, storage), true);
+          if (next === undefined) delete frontmatter[oldKeys[0]]; else frontmatter[oldKeys[0]] = next;
+          Object.defineProperty(frontmatter, destination, {value: staged[destination], enumerable: true, configurable: true, writable: true});
+          entry.observed = {...entry.declaration, fieldName: destination, declaredRole: entry.nextRole,
+            role: entry.declaration.declaredByPath === primary.sourcePath ? entry.nextRole : this.inverseRelationshipRole(entry.nextRole)};
+        }, target.path, current);
+      } catch (error) {
+        // An unsaved native rejection retains the original intent; saved-pending writes are never replayed.
+        if (!(error instanceof SavedRelationshipPendingError)) entry.observed = previousObserved;
+        throw error;
+      }
+    };
+    /** Publication confirms saved fields; it never turns a committed native replacement into an unsaved retry. */
+    const publish = async (): Promise<void> => {
+      try {
+        await this.publishSavedRelationship(primary.sourcePath, primary.targetPath);
+        if (!declarationsCurrent()) throw new SavedRelationshipPendingError(this.translator("relation.savedUpdatePending"));
+      } catch (error) {
+        if (error instanceof SavedRelationshipPendingError) throw error;
+        const pending = new SavedRelationshipPendingError(this.translator("relation.savedUpdatePending"));
+        // Retain the private failure for diagnostics without changing the already saved outcome.
+        Object.defineProperty(pending, "cause", {value: error, configurable: true});
+        throw pending;
+      }
+    };
+    return this.index.withForegroundPriority(async () => {
+      await prepare();
+      if (entries.every(entry => normalizeFieldName(entry.nextField) === normalizeFieldName(entry.declaration.fieldName) && entry.nextRole === entry.declaration.declaredRole)) {
+        return {state: "saved-published", page: this.index.get(primary.declaredTargetPath)!};
+      }
+      if (!paired) {
+        await replace(entries[0]); await publish();
+      } else {
+        const first = entries.find(entry => entry.declaration === primary)!, second = entries.find(entry => entry !== first)!;
+        const receipt = createReciprocalWriteReceipt({app: this.app,
+          first: {file: first.expected.storage, target: first.expected.target!, field: first.nextField},
+          second: {file: second.expected.storage, target: second.expected.target!, field: second.nextField}, current,
+          write: /** The shared receipt invokes only missing owners; reprepare already saved-pending entries first. */ async write => {
+            const entry = entries.find(candidate => candidate.expected.storage === write.file)!;
+            await this.index.withForegroundPriority(() => replace(entry));
+          },
+          afterWrites: /** A retained receipt's retry owns the same foreground publication priority as Save. */ () => this.index.withForegroundPriority(publish),
+          failureMessage: () => this.translator("reciprocal.partial"), unavailableMessage: () => this.translator("explain.removeSourceChanged"),
+        });
+        await receipt.retry();
+      }
+      return {state: "saved-published", page: this.index.get(primary.declaredTargetPath)!};
     });
   }
 
@@ -7273,7 +7441,7 @@ export default class KplexPlugin extends Plugin {
     }
   }
 
-  /** Offer explicit first-field setup, then confirm directional Hidden scope; original links and native identity fences remain intact. */
+  /** Confirm directional Hidden scope once. Missing vocabulary stays a local draft until the final Save; cancellation never configures a field or edits a note. */
   async hideRelationship(sourcePath: string, targetPath: string, beforeMutation?: () => boolean,
     ownConfirmation?: (modal: { close(): void } | null) => void): Promise<ActionOutcome> {
     const source = this.index.get(sourcePath), target = this.index.get(targetPath);
@@ -7282,30 +7450,13 @@ export default class KplexPlugin extends Plugin {
       || source.file?.extension !== "md" && target.file?.extension !== "md") {
       return {status:"unavailable",reasonKey:"actions.target-unavailable"};
     }
+    const stagedField = fields.length ? null : this.suggestHiddenOntologyField();
     if (!fields.length) {
-      const sourceRef = actionNodeRef(source), targetRef = actionNodeRef(target);
-      /** Configuration consent retains exact endpoints and graph lifetime independently of later semantic-policy publication. */
-      const setupCurrent = (): boolean => !this.unloading && beforeMutation?.() !== false
-        && Boolean(resolveActionPage(this.index, sourceRef)) && Boolean(resolveActionPage(this.index, targetRef));
-      const proposed = this.suggestHiddenOntologyField();
-      const decision = await new Promise<HiddenFieldSetupChoice>(/** Native cancellation, settings navigation and surface teardown settle once. */ resolve => {
-        const modal = new HiddenFieldSetupModal(this.app, proposed, resolve);
-        const cancel = (): void => modal.close();
-        /** Invoke the original class callback with this modal as its receiver. */
-        const close = (): void => { HiddenFieldSetupModal.prototype.onClose.call(modal); };
-        modal.onClose = /** Release plugin and surface ownership before continuing setup or navigation. */ (): void => {
-          close(); this.relationshipWriteCancels.delete(cancel); ownConfirmation?.(null);
-        };
-        this.relationshipWriteCancels.add(cancel); ownConfirmation?.(modal);
-        if (!setupCurrent()) { modal.close(); return; }
-        modal.open();
-      });
-      if (!decision || !setupCurrent()) return { status: "cancelled" };
-      if (decision === "settings") { this.openHiddenOntologySettings(); return { status: "cancelled" }; }
-      if (!proposed || !(await this.createHiddenOntologyField(proposed, setupCurrent))) return { status: "unavailable", reasonKey: "actions.target-unavailable" };
-      // Configuration is not consent to edit a note. Recapture the current settings/endpoints
-      // before the ordinary source/direction dialog and its existing pair/native write guards.
-      return this.hideRelationship(sourcePath, targetPath, beforeMutation, ownConfirmation);
+      if (!stagedField) {
+        new Notice(this.translator("hide.setup.manualRequired"));
+        return {status: "unavailable", reasonKey: "actions.target-unavailable"};
+      }
+      fields.push(stagedField);
     }
     const affected = [actionNodeRef(source),actionNodeRef(target)];
     const normalized = new Set(fields.map(normalizeFieldName));
@@ -7319,7 +7470,7 @@ export default class KplexPlugin extends Plugin {
       }));
     if (!choices.length) return {status:"unavailable",reasonKey:"actions.target-unavailable"};
     const selection = await new Promise<{sourcePath:string;field:string}|null>(/** Native closure and plugin teardown both retire pending consent. */ resolve => {
-      const modal = new HideRelationshipModal(this.app,choices.map(/** Picker exposes only captured writable endpoints. */ choice => choice.path),fields,[source.path,target.path],resolve);
+      const modal = new HideRelationshipModal(this.app,choices.map(/** Picker exposes only captured writable endpoints. */ choice => choice.path),fields,[source.path,target.path],resolve,{createHiddenField: stagedField !== null});
       const cancel = (): void => modal.close();
       /** Invoke the original class callback with this modal as its receiver. */
       const close = (): void => { HideRelationshipModal.prototype.onClose.call(modal); };
@@ -7331,13 +7482,26 @@ export default class KplexPlugin extends Plugin {
     if (!selection) return {status:"cancelled"};
     const choice = choices.find(/** A returned choice cannot introduce another source identity. */ item => item.path === selection.sourcePath);
     if (!choice || !fields.includes(selection.field)) return {status:"unavailable",reasonKey:"actions.target-unavailable"};
-    /** Confirmation fences canonical/native incarnations while pair publication may refresh read facades. */
-    const current = (): boolean => !this.unloading && beforeMutation?.() !== false && choice.file.path === choice.path
+    let fieldConfigured = stagedField === null;
+    /** Configuring this approved draft may republish graph facades; native endpoints and the selected payload remain the consent boundary. */
+    const nativeCurrent = (): boolean => !this.unloading && beforeMutation?.() !== false && choice.file.path === choice.path
       && Boolean(resolveActionPage(this.index,choice.ref)) && Boolean(resolveActionPage(this.index,choice.otherRef))
-      && this.index.pages.get(choice.path) === choice.canonical && choice.canonical?.file === choice.file
-      && this.index.pages.get(choice.otherPath) === choice.otherCanonical && choice.otherCanonical?.file === choice.otherFile
       && this.app.vault.getFileByPath(choice.path) === choice.file
       && choice.other.path === choice.otherPath && this.app.vault.getFileByPath(choice.otherPath) === choice.otherFile;
+    /** Confirmation fences canonical/native incarnations while pair publication may refresh read facades. */
+    const current = (): boolean => nativeCurrent()
+      && this.index.pages.get(choice.path) === choice.canonical && choice.canonical?.file === choice.file
+      && this.index.pages.get(choice.otherPath) === choice.otherCanonical && choice.otherCanonical?.file === choice.otherFile
+      && (!fieldConfigured || ontologyConfiguration(this.settings).hierarchy.hidden.includes(selection.field));
+    if (stagedField !== null) {
+      if (!current() || !(await this.createHiddenOntologyField(stagedField, nativeCurrent))) return {status: "unavailable", reasonKey: "actions.target-unavailable"};
+      fieldConfigured = true;
+      // This operation's own vocabulary publication may replace canonical pages. Rebind only
+      // those facades after rechecking the original native endpoints; consent never adopts files.
+      if (!nativeCurrent()) return {status: "unavailable", reasonKey: "actions.target-unavailable"};
+      choice.canonical = this.index.pages.get(choice.path);
+      choice.otherCanonical = this.index.pages.get(choice.otherPath);
+    }
     try {
       const saved = await this.index.withForegroundPriority(/** Own only pair preparation and the native write; P2 publication must not wait on this P0 lease. */ async () => {
         if (!current() || !(await this.index.prepareRelationshipPair(choice.path,choice.other.path)) || !current()) return false;

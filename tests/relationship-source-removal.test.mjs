@@ -30,16 +30,16 @@ const setup = `(()=>{
  const M=window.sourceModules;window.notices=[];window.ok=(value,message)=>{if(!value)throw new Error(message)};
  window.tick=async()=>{for(let i=0;i<8;i++)await Promise.resolve()};
  window.defer=()=>{let release;const promise=new Promise(r=>release=r);return{promise,release}};
- window.makeDetails=()=>{
-  const storage={path:'Owner.md'},inverse={path:'Target.md'},target=inverse,owners=new Map([[storage.path,storage],[inverse.path,inverse]]),listeners=new Set(),calls=[];
-  const evidence=(field,owner='Owner.md',kind='frontmatter-ontology')=>({id:field+owner+kind,sourcePath:'Owner.md',targetPath:'Target.md',declaredByPath:owner,declaredTargetPath:owner==='Owner.md'?'Target.md':'Owner.md',sourceKind:kind,fieldName:field,role:'child',declaredRole:'child',direction:1,relationType:1});
-  const child=evidence('Children'),friend=evidence('Friends'),reverse=evidence('Parents','Target.md');
-  let current={sourcePath:'Owner.md',targetPath:'Target.md',hidden:false,resolvedRoles:[{role:'child',relationType:1}],summary:'defined-ontology',decisions:[child,{...child,id:'repeat'},friend,reverse,{...evidence('inferred'),relationType:2},evidence('date','Owner.md','date-property'),evidence('body','Owner.md','inline-ontology'),evidence('generic','Owner.md','obsidian-link')].map(evidence=>({evidence,active:true}))};
-  const pages=new Map([['Owner.md',{path:'Owner.md',file:storage,url:null}],['Target.md',{path:'Target.md',file:target,url:null}]]);
-  const section=(item)=>({path:item.declaredByPath,startLine:1,endLine:5,text:item.declaredByPath==='Owner.md'?'Children: [[Target]]\\nFriends: [[Target]]':'Parents: [[Owner]]',label:item.declaredByPath,id:item.id,sourceKind:item.sourceKind});
+ window.makeDetails=({sourceExtension='md',targetExtension='md'}={})=>{
+  const storage={path:'Owner.'+sourceExtension,extension:sourceExtension},inverse={path:'Target.'+targetExtension,extension:targetExtension},target=inverse,owners=new Map([[storage.path,storage],[inverse.path,inverse]]),listeners=new Set(),calls=[];
+  const evidence=(field,owner=storage.path,kind='frontmatter-ontology')=>({id:field+owner+kind,sourcePath:storage.path,targetPath:target.path,declaredByPath:owner,declaredTargetPath:owner===storage.path?target.path:storage.path,sourceKind:kind,fieldName:field,role:'child',declaredRole:'child',direction:1,relationType:1});
+  const child=evidence('Children'),friend=evidence('Friends'),reverse=evidence('Parents',target.path);
+  let current={sourcePath:storage.path,targetPath:target.path,hidden:false,resolvedRoles:[{role:'child',relationType:1}],summary:'defined-ontology',decisions:[child,{...child,id:'repeat'},friend,reverse,{...evidence('inferred'),relationType:2},evidence('date',storage.path,'date-property'),evidence('body',storage.path,'inline-ontology'),evidence('generic',storage.path,'obsidian-link')].map(evidence=>({evidence,active:true}))};
+  const pages=new Map([[storage.path,{path:storage.path,file:storage,url:null}],[target.path,{path:target.path,file:target,url:null}]]);
+  const section=(item)=>({path:item.declaredByPath,startLine:1,endLine:5,text:item.declaredByPath===storage.path?'Children: [[Target]]\\nFriends: [[Target]]':'Parents: [[Owner]]',label:item.declaredByPath,id:item.id,sourceKind:item.sourceKind});
   const f={owners,listeners,calls,child,friend,reverse,storage,target,ready:true,get explanation(){return current},set explanation(value){current=value},sections:async items=>new Map(items.map(item=>[item.id,[section(item)]])),save:async()=>true};
-  const plugin={app:{},translator:M.createTranslator('en'),index:{get:path=>pages.get(path),titleFor:page=>page.path,explainRelationship:()=>current,isSemanticWriteReady:()=>f.ready,subscribe:fn=>{listeners.add(fn);return()=>listeners.delete(fn)}},
-   captureFrontmatterUnlinkExpectation:item=>item.sourceKind==='frontmatter-ontology'?{storage:owners.get(item.declaredByPath),target:owners.get(item.declaredTargetPath),storagePath:item.declaredByPath,targetPath:item.declaredTargetPath,fieldKey:item.fieldName,declarationKey:M.frontmatterDeclarationKey(item)}:null,
+  const plugin={app:{vault:{getFileByPath:path=>owners.get(path)??null}},settings:{hierarchy:{hidden:[],parents:['Parents'],children:['Children'],leftFriends:['Friends'],rightFriends:[],previous:['Previous'],next:['Next'],exclusions:[]}},captureConnectionOntologyChange:()=>null,translator:M.createTranslator('en'),index:{get:path=>pages.get(path),titleFor:page=>page.path,explainRelationship:()=>current,isSemanticWriteReady:()=>f.ready,subscribe:fn=>{listeners.add(fn);return()=>listeners.delete(fn)}},
+   captureFrontmatterUnlinkExpectation:item=>item.sourceKind==='frontmatter-ontology'&&owners.get(item.declaredByPath)?.extension==='md'?{storage:owners.get(item.declaredByPath),target:owners.get(item.declaredTargetPath),storagePath:item.declaredByPath,targetPath:item.declaredTargetPath,fieldKey:item.fieldName,declarationKey:M.frontmatterDeclarationKey(item)}:null,
    unlinkFrontmatterEvidence:async(...args)=>{calls.push(args);return f.save(...args)},relationshipEvidenceSectionsBatch:items=>f.sections(items),openRelationshipEvidenceLocation:async(...args)=>{f.navigation=args},openRelationModal:()=>{}};
   f.plugin=plugin;f.modal=new M.RelationshipExplanationModal(plugin,current, {hostLeaf:{id:'owned-sidecar',view:{containerEl:document.body.createDiv()}}});f.emit=()=>{for(const fn of listeners)fn()};return f;
  };
@@ -62,6 +62,139 @@ test('tag and folder connection details omit impossible source mutation controls
     f.modal.close();
    }return true;
   })()`),true);
+ }finally{await browser.cleanup()}
+});
+
+/** The compact toolbar preserves all six source directions and leases one child to its inspector. */
+test('connection toolbar owns additive and replacement children across cancel, publication and close',async()=>{
+ const browser=await chromiumHarness(bundle);try{
+  assert.equal(await browser.evaluate(setup),true);
+  assert.equal(await browser.evaluate(`(async()=>{
+   for(const role of ['parent','child','left','right','previous','next']){
+    const f=makeDetails(),opened=[],declaration={...f.child,role,declaredRole:role};
+    f.explanation={...f.explanation,decisions:[{evidence:declaration,active:true}]};
+    const approved={selection:{primary:declaration,declarations:[declaration],signature:role},expectations:[]};
+    f.plugin.captureConnectionOntologyChange=()=>approved;
+    f.plugin.openRelationModal=options=>{const child={closed:false,close(){if(this.closed)return;this.closed=true;options.onClosed()}};opened.push({options,child});return child};
+    let styled=0;f.modal=new sourceModules.RelationshipExplanationModal(f.plugin,f.explanation,{role,onStyle:button=>{ok(button.dataset.kplexConnectionStyle==='true','Captured style invoker');styled++}});
+    f.modal.open();await tick();
+    const toolbar=f.modal.modalEl.querySelector('.kplex-edge-connection-actions'),add=toolbar.querySelector('[data-kplex-add-ontology]'),replace=toolbar.querySelector('[data-kplex-change-ontology]');
+    ok(add&&replace&&toolbar.querySelector('[data-kplex-connection-style]'),'Coherent connection toolbar');
+    toolbar.querySelector('[data-kplex-connection-style]').click();ok(styled===1,'Appearance sources stay caller owned');
+    add.click();ok(opened.length===1&&opened[0].options.semanticRole===role&&opened[0].options.allowRoleSelection===true&&opened[0].options.purpose==='ontology-add','Every semantic direction opens the shared additive selector');
+    ok(f.modal.modalEl.isConnected&&add.disabled&&opened[0].options.current(),'Inspector stays mounted behind child');
+    f.emit();ok(opened[0].options.current(),'Publication cannot retire its own pending child');
+    opened[0].child.close();await tick();ok(!opened[0].options.current()&&f.modal.modalEl.isConnected,'Cancel returns to refreshed inspector and retires old generation');
+    f.modal.modalEl.querySelector('[data-kplex-change-ontology]').click();ok(opened.length===2&&opened[1].options.semanticRole===role&&opened[1].options.ontologyChange===approved&&opened[1].options.initialStoragePath==='Owner.md','Replacement pins the real physical owner and role');
+    const stale=f.modal.modalEl.querySelector('[data-kplex-add-ontology]');f.modal.close();ok(opened[1].child.closed&&!opened[1].options.current(),'Parent close retires exact child authority');stale.click();ok(opened.length===2,'Detached actions cannot open new children');
+   }return true;
+  })()`),true);
+ }finally{await browser.cleanup()}
+});
+
+/** Body-property limitations stay next to ontology, without mislabeling ordinary prose links. */
+test('connection details explains body ontology editing limits only for actual inline declarations',async()=>{
+ const browser=await chromiumHarness(bundle);try{
+  assert.equal(await browser.evaluate(setup),true);
+  assert.equal(await browser.evaluate(`(async()=>{
+   for(const mode of ['inline','mixed','frontmatter','inferred','body-url']){
+    const f=makeDetails(),inline={...f.child,id:'body-property',sourceKind:'inline-ontology'};
+    const decisions=mode==='mixed'?[{evidence:f.child,active:true},{evidence:inline,active:false}]
+     :[{evidence:mode==='inline'?inline:mode==='frontmatter'?f.child:{...f.child,sourceKind:mode==='inferred'?'obsidian-link':'body-url',relationType:2},active:true}];
+    f.explanation={...f.explanation,decisions};f.modal=new sourceModules.RelationshipExplanationModal(f.plugin,f.explanation);f.modal.open();await tick();
+    const hint=f.modal.modalEl.querySelector('.kplex-edge-body-ontology-hint'),expected=mode==='inline'||mode==='mixed';
+    ok(Boolean(hint)===expected,'Body ontology hint eligibility: '+mode);
+    if(hint)ok(hint.closest('.kplex-edge-ontology-row')&&hint.textContent===f.plugin.translator('explain.bodyOntologyHint'),'Short limitation hint stays beside ontology');
+    ok(f.calls.length===0,'Hint rendering must not write a relationship');f.modal.close();
+   }return true;
+  })()`),true);
+ }finally{await browser.cleanup()}
+});
+
+/** Inference uses the same plus action; only genuine incompatible property sets explain conflict. */
+test('connection ontology toolbar defines inferred sequence links and explains only declaration conflicts',async()=>{
+ const browser=await chromiumHarness(bundle);try{
+  assert.equal(await browser.evaluate(setup),true);
+  assert.equal(await browser.evaluate(`(async()=>{
+   const f=makeDetails(),opened=[];f.plugin.openRelationModal=options=>{opened.push(options);return{close(){options.onClosed()}}};
+   f.explanation={...f.explanation,resolvedRoles:[{role:'next',relationType:2}],decisions:[{evidence:{...f.child,role:'next',declaredRole:'next',relationType:2,sourceKind:'obsidian-link'},active:true}]};
+   f.modal=new sourceModules.RelationshipExplanationModal(f.plugin,f.explanation,{role:'sibling'});f.modal.open();await tick();
+   ok(!f.modal.modalEl.querySelector('.kplex-edge-ontology-conflict'),'Inference is not a conflict');
+   const define=f.modal.modalEl.querySelector('[data-kplex-add-ontology]');ok(define.getAttribute('aria-label')==='Define relationship…','Define plus has accessible intent');define.click();ok(opened[0].purpose==='ontology-specify'&&opened[0].semanticRole==='next','Inference preserves sequence direction');f.modal.close();
+   const single=makeDetails();single.explanation={...single.explanation,decisions:[{evidence:single.child,active:true}]};single.modal.open();await tick();ok(!single.modal.modalEl.querySelector('.kplex-edge-ontology-conflict'),'Native or unsupported eligibility alone is not a conflict');single.modal.close();
+   const pair=makeDetails();pair.plugin.settings.ontologyPairingVersion=1;pair.plugin.settings.hierarchy.children=['Children/Parents'];pair.plugin.settings.hierarchy.parents=[];pair.explanation={...pair.explanation,decisions:[{evidence:pair.child,active:true},{evidence:{...pair.reverse,declaredRole:'parent',direction:2},active:true}]};pair.modal.open();await tick();ok(!pair.modal.modalEl.querySelector('.kplex-edge-ontology-conflict'),'A configured reciprocal pair is one ontology despite unavailable native replacement');pair.modal.close();
+   const conflict=makeDetails();conflict.modal=new sourceModules.RelationshipExplanationModal(conflict.plugin,conflict.explanation,{role:'child'});conflict.modal.open();await tick();
+   ok(conflict.modal.modalEl.querySelector('.kplex-edge-ontology-conflict')&&!conflict.modal.modalEl.querySelector('[data-kplex-change-ontology]'),'Multiple mismatched properties explain how to repair source declarations');
+   const removals=[...conflict.modal.modalEl.querySelectorAll('[data-kplex-remove-field]')];ok(removals.length===3&&removals.every(button=>button.parentElement.classList.contains('kplex-edge-declaration-actions')),'Exact confirmed removal remains grouped by physical declaration');
+   ok(conflict.modal.modalEl.querySelector('.kplex-edge-source-actions [aria-label="Go to source"]'),'Source navigation remains readily available');conflict.modal.close();return true;
+  })()`),true);
+ }finally{await browser.cleanup()}
+});
+
+/** Declaration coordinates remain independent of occurrence grouping and generic cache mirrors. */
+test('single Hidden visibility removal is direct, exact and guarded while multiple Hidden sources remain separate',async()=>{
+ const browser=await chromiumHarness(bundle);try{
+  assert.equal(await browser.evaluate(setup),true);
+  assert.equal(await browser.evaluate(`(async()=>{
+   const hidden=f=>({...f.child,fieldName:'Hidden',role:'hidden',declaredRole:'hidden'});
+   const prepare=()=>{const f=makeDetails();f.plugin.settings.hierarchy.hidden=['Hidden','Private'];f.explanation={...f.explanation,hidden:true,resolvedRoles:[],summary:'hidden',decisions:[{evidence:hidden(f),active:true},{evidence:{...f.child,sourceKind:'obsidian-link',relationType:2},active:false}]};f.modal=new sourceModules.RelationshipExplanationModal(f.plugin,f.explanation,{role:'child'});return f};
+   const f=prepare(),hold=defer();f.save=async()=>{await hold.promise;f.explanation={...f.explanation,hidden:false,decisions:f.explanation.decisions.filter(d=>d.evidence.declaredRole!=='hidden')};return true};f.modal.open();await tick();
+   const show=f.modal.modalEl.querySelector('[data-kplex-show-connection]');ok(show&&show.getAttribute('aria-label')==='Remove Hidden declaration','One supported Hidden declaration exposes the eye action');show.click();show.click();await tick();ok(f.calls.length===1&&f.calls[0][0].fieldName==='Hidden'&&f.calls[0][1].storagePath==='Owner.md'&&f.calls[0][1].targetPath==='Target.md','Duplicate visibility activation writes exactly the selected physical property');ok(!document.querySelector('.kplex-remove-relationship-source-modal'),'Visibility toggle opens no extra confirmation');f.modal.close();ok(!f.calls[0][2](),'Closing the inspector retires the writer guard');hold.release();await tick();show.click();ok(f.calls.length===1&&!f.modal.modalEl.isConnected,'Late completion and detached activation cannot reopen or retry');
+   const stale=prepare();stale.modal.open();await tick();const retired=stale.modal.modalEl.querySelector('[data-kplex-show-connection]'),capture=stale.plugin.captureFrontmatterUnlinkExpectation;stale.plugin.captureFrontmatterUnlinkExpectation=()=>null;retired.click();await tick();ok(stale.calls.length===0,'Changed native edit expectation cannot write');stale.plugin.captureFrontmatterUnlinkExpectation=capture;stale.modal.close();
+   const multiple=prepare();multiple.explanation={...multiple.explanation,decisions:[...multiple.explanation.decisions,{evidence:{...hidden(multiple),fieldName:'Private',id:'private-hidden'},active:true}]};multiple.modal=new sourceModules.RelationshipExplanationModal(multiple.plugin,multiple.explanation,{role:'child'});multiple.modal.open();await tick();ok(!multiple.modal.modalEl.querySelector('[data-kplex-show-connection]')&&multiple.modal.modalEl.querySelectorAll('[data-kplex-remove-field]').length===2,'Several Hidden declarations keep independent source actions without a broad visibility removal');multiple.modal.close();return true;
+  })()`),true);
+ }finally{await browser.cleanup()}
+});
+
+/** Disabled reversal explains only its own unsupported receiver, while replacement stays available. */
+test('visible reverse inspection removes only the original owners Hidden declaration',async()=>{
+ const browser=await chromiumHarness(bundle);try{
+  assert.equal(await browser.evaluate(setup),true);
+  assert.equal(await browser.evaluate(`(async()=>{
+   const prepare=kind=>{const f=makeDetails(),ontology={...f.child,sourcePath:'Target.md',targetPath:'Owner.md',role:'parent',direction:2},hidden={...ontology,id:'inverse-hidden',fieldName:'Hidden',declaredRole:'hidden',role:'hidden',sourceKind:kind};f.plugin.settings.hierarchy.hidden=['Hidden'];f.explanation={sourcePath:'Target.md',targetPath:'Owner.md',hidden:false,resolvedRoles:[{role:'parent',relationType:1}],summary:'defined-ontology',decisions:[{evidence:ontology,active:true},{evidence:hidden,active:false}]};f.modal=new sourceModules.RelationshipExplanationModal(f.plugin,f.explanation,{role:'parent'});return{f,ontology,hidden}};
+   const {f,ontology,hidden}=prepare('frontmatter-ontology');f.save=async(item,expected,current)=>{ok(current(),'Exact reverse inspector still owns write authority');f.explanation={...f.explanation,decisions:f.explanation.decisions.filter(d=>d.evidence!==hidden)};return true};f.modal.open();await tick();
+   const show=f.modal.modalEl.querySelector('[data-kplex-show-connection]');ok(show&&!f.explanation.hidden,'Opposite visible perspective still offers original Hidden declaration removal');show.click();show.click();await tick();ok(f.calls.length===1&&f.calls[0][0]===hidden&&f.calls[0][1].storage===f.storage&&f.calls[0][1].target===f.target&&f.calls[0][1].storagePath==='Owner.md'&&f.calls[0][1].targetPath==='Target.md','Perspective never swaps the physical Hidden owner or target');ok(!document.querySelector('.kplex-remove-relationship-source-modal'),'Reverse visibility removal opens no additional confirmation');ok(f.explanation.decisions.length===1&&f.explanation.decisions[0].evidence===ontology&&!f.modal.modalEl.querySelector('[data-kplex-show-connection]'),'Other explicit ontology is preserved and canonical refresh retires the eye action');f.modal.close();show.click();ok(f.calls.length===1&&!f.calls[0][2](),'Closed reverse inspector cannot reuse visibility authority');
+   const inline=prepare('inline-ontology');inline.f.modal.open();await tick();ok(!inline.f.modal.modalEl.querySelector('[data-kplex-show-connection]')&&inline.f.modal.modalEl.querySelector('.kplex-edge-source-actions [aria-label="Go to source"]'),'Inline-only Hidden provenance stays available for manual source editing');inline.f.modal.close();
+   const multiple=prepare('frontmatter-ontology');multiple.f.explanation={...multiple.f.explanation,decisions:[...multiple.f.explanation.decisions,{evidence:{...multiple.hidden,id:'other-hidden',fieldName:'Private'},active:false}]};multiple.f.modal=new sourceModules.RelationshipExplanationModal(multiple.f.plugin,multiple.f.explanation,{role:'parent'});multiple.f.modal.open();await tick();ok(!multiple.f.modal.modalEl.querySelector('[data-kplex-show-connection]')&&multiple.f.calls.length===0,'Visible reverse perspective cannot broadly remove multiple Hidden properties');multiple.f.modal.close();return true;
+  })()`),true);
+ }finally{await browser.cleanup()}
+});
+
+/** Disabled reversal explains only its own unsupported receiver, while replacement stays available. */
+test('attachment connection limits are attached to Reverse rather than a broad ontology warning',async()=>{
+ const browser=await chromiumHarness(bundle);try{
+  assert.equal(await browser.evaluate(setup),true);
+  assert.equal(await browser.evaluate(`(async()=>{const f=makeDetails({targetExtension:'png'});f.explanation={...f.explanation,decisions:[{evidence:f.child,active:true}]};f.plugin.captureConnectionOntologyChange=()=>({selection:{primary:f.child,declarations:[f.child],signature:'attachment'},expectations:[]});const opened=[];f.plugin.openRelationModal=options=>{opened.push(options);return{close(){options.onClosed()}}};f.modal.open();await tick();const reverse=f.modal.modalEl.querySelector('.kplex-edge-declaration-actions button[aria-label^="Flip owner"]');ok(reverse&&reverse.disabled&&reverse.getAttribute('aria-label').includes('Both owners must be physical Markdown notes'),'Disabled Reverse has its own exact availability explanation');const replace=f.modal.modalEl.querySelector('[data-kplex-change-ontology]');ok(replace&&f.modal.modalEl.querySelector('[data-kplex-add-ontology]'),'Single Markdown owner permits both additive and replacement ontology');replace.click();ok(opened.length===1&&opened[0].origin.file===f.storage&&opened[0].fixedTarget.file===f.target&&opened[0].fixedTarget.path==='Target.png'&&opened[0].initialStoragePath==='Owner.md','Attachment replacement keeps its live Markdown owner and native attachment identity');opened[0].onClosed();await tick();ok(![...f.modal.modalEl.querySelectorAll('.setting-item-description')].some(el=>el.textContent.includes('Both owners must be physical Markdown notes')),'No broad warning implies replacement is unavailable');f.modal.close();return true})()`),true);
+ }finally{await browser.cleanup()}
+});
+
+/** Declaration coordinates remain independent of occurrence grouping and generic cache mirrors. */
+test('connection ontology actions require a live Markdown property owner',async()=>{
+ const browser=await chromiumHarness(bundle);try{
+  assert.equal(await browser.evaluate(setup),true);
+  assert.equal(await browser.evaluate(`(async()=>{
+   for(const replaced of [false,true]){
+    const f=replaced?makeDetails():makeDetails({sourceExtension:'png',targetExtension:'pdf'});
+    f.explanation={...f.explanation,summary:'source:obsidian-link',decisions:[{evidence:{...f.child,sourceKind:'obsidian-link',relationType:2},active:true}]};
+    if(replaced){for(const file of [f.storage,f.target])f.owners.set(file.path,{path:file.path,extension:'md'})}
+    f.plugin.captureConnectionOntologyChange=()=>{throw new Error('No native owner must not expose replacement capture')};
+    f.plugin.openRelationModal=()=>{throw new Error('No native owner must not open a property writer')};
+    f.modal=new sourceModules.RelationshipExplanationModal(f.plugin,f.explanation,{role:'child'});f.modal.open();await tick();
+    ok(!f.modal.modalEl.querySelector('[data-kplex-add-ontology]')&&!f.modal.modalEl.querySelector('[data-kplex-change-ontology]'),replaced?'Replaced native files cannot inherit editable ownership':'Two non-Markdown endpoints cannot store an ontology declaration');f.modal.close();
+   }return true;
+  })()`),true);
+ }finally{await browser.cleanup()}
+});
+
+/** Declaration coordinates remain independent of occurrence grouping and generic cache mirrors. */
+test('connection details retains its top toolbar by default and honors explicit initial focus once',async()=>{
+ const browser=await chromiumHarness(bundle);try{
+  assert.equal(await browser.evaluate(setup),true);
+  assert.equal(await browser.evaluate(`(async()=>{const original=HTMLElement.prototype.scrollIntoView,calls=[];HTMLElement.prototype.scrollIntoView=function(){calls.push(this)};try{
+   const frame=()=>new Promise(resolve=>requestAnimationFrame(resolve));
+   const ordinary=makeDetails();ordinary.modal.open();await frame();ok(calls.length===0&&ordinary.modal.modalEl.querySelector('.kplex-edge-connection-actions'),'Ordinary details preserves top actions without source-list autoscroll');ordinary.modal.refreshDetails();await frame();ok(calls.length===0,'Source publication never scrolls ordinary inspection');ordinary.modal.close();
+   for(const initialFocus of ['sources','why']){const f=makeDetails();f.modal=new sourceModules.RelationshipExplanationModal(f.plugin,f.explanation,{role:'child',initialFocus});f.modal.open();await frame();ok(calls.length===1&&calls[0].classList.contains(initialFocus==='sources'?'kplex-edge-source-list':'kplex-edge-why'),'Explicit source/why navigation is honored');f.modal.refreshDetails();await frame();ok(calls.length===1,'Refresh preserves the reader position after initial navigation');f.modal.close();calls.length=0}return true;
+  }finally{HTMLElement.prototype.scrollIntoView=original}})()`),true);
  }finally{await browser.cleanup()}
 });
 
@@ -157,7 +290,7 @@ test("rendered source removal confirms exact property scope, cancels without wri
    find().click();let confirmation=document.querySelector('.kplex-remove-relationship-source-modal');ok(confirmation.textContent.includes('Children')&&confirmation.textContent.includes('Owner.md')&&confirmation.textContent.includes('Target.md')&&confirmation.textContent.includes('All references'),'Exact destructive scope disclosed');
    confirmation.querySelector('button').click();await tick();ok(f.calls.length===0&&!find().disabled,'Cancellation leaves write port untouched');
    const save=defer();f.save=async()=>{await save.promise;f.explanation={...f.explanation,decisions:f.explanation.decisions.filter(d=>d.evidence.fieldName!=='Children')};return true};
-   find().click();confirmation=document.querySelector('.kplex-remove-relationship-source-modal');confirmation.querySelector('button.mod-warning').click();await tick();find().click();ok(f.calls.length===1,'Duplicate activation serialized');ok([...f.modal.modalEl.querySelectorAll('[data-kplex-remove-field]')].every(b=>b.disabled),'Competing controls disabled');
+   find().click();confirmation=document.querySelector('.kplex-remove-relationship-source-modal');const unlink=confirmation.querySelector('button.mod-warning');ok(unlink.classList.contains('kplex-icon-action')&&unlink.getAttribute('aria-label')==='Remove relationship','Destructive approval retains an accessible native icon action');unlink.click();await tick();find().click();ok(f.calls.length===1,'Duplicate activation serialized');ok([...f.modal.modalEl.querySelectorAll('[data-kplex-remove-field]')].every(b=>b.disabled),'Competing controls disabled');
    save.release();await tick();ok(!find()&&f.modal.modalEl.textContent.includes('connection still has other evidence'),'Canonical remaining visibility refreshed');
    const f2=makeDetails();f2.save=async()=>{f2.explanation={...f2.explanation,hidden:true,resolvedRoles:[],decisions:[{evidence:f2.friend,active:false}]};return true};f2.modal.open();await tick();f2.modal.modalEl.querySelector('[data-kplex-remove-field]').click();document.querySelector('.kplex-remove-relationship-source-modal button.mod-warning').click();await tick();ok(f2.modal.modalEl.textContent.includes('Source removed.')&&!f2.modal.modalEl.textContent.includes('still has other evidence'),'Suppressed decisions do not imply visible connection');
    f.modal.close();f2.modal.close();return true;
@@ -247,9 +380,17 @@ test('Hidden native shell updates exact central direction with source selection 
   assert.equal(await browser.evaluate(`(()=>{const calls=[];const modal=new sourceModules.HideRelationshipModal({},['Folder/A.md','Folder/B.md'],['hidden','Private'],['Folder/A.md','Folder/B.md'],value=>calls.push(value));modal.open();ok(modal.modalEl.textContent.includes('All links are kept')&&modal.modalEl.textContent.includes('may still appear from the other note'),'Retention and inverse visibility disclosed');
    const direction=modal.modalEl.querySelector('[data-kplex-hide-direction]'),source=modal.modalEl.querySelector('[data-kplex-hide-source]'),field=modal.modalEl.querySelector('[data-kplex-hidden-field]');ok(direction.getAttribute('aria-live')==='polite','Source-selection consequences announce politely');ok(direction.dataset.kplexHideFrom==='Folder/A.md'&&direction.dataset.kplexHideTo==='Folder/B.md'&&direction.textContent==='Hide "Folder/B.md" when "Folder/A.md" is the central note. Save the Hidden relationship in "Folder/A.md".','Exact initial central and write note');
    source.value='Folder/B.md';source.dispatchEvent(new Event('change'));ok(direction.dataset.kplexHideFrom==='Folder/B.md'&&direction.dataset.kplexHideTo==='Folder/A.md'&&direction.textContent==='Hide "Folder/A.md" when "Folder/B.md" is the central note. Save the Hidden relationship in "Folder/B.md".','Selected source updates direction before approval');
-   field.value='Private';field.dispatchEvent(new Event('change'));const confirm=modal.modalEl.querySelector('[data-kplex-hide-confirm]');confirm.click();source.value='Folder/A.md';source.dispatchEvent(new Event('change'));confirm.click();ok(calls.length===1&&calls[0].sourcePath==='Folder/B.md'&&calls[0].field==='Private'&&direction.dataset.kplexHideFrom==='Folder/B.md','Detached approved controls cannot change exact once-only scope');
+   field.value='Private';field.dispatchEvent(new Event('change'));const confirm=modal.modalEl.querySelector('[data-kplex-hide-confirm]');ok(confirm.classList.contains('kplex-icon-action')&&confirm.getAttribute('aria-label')==='Hide connection','Hide approval uses the same accessible icon action');confirm.click();source.value='Folder/A.md';source.dispatchEvent(new Event('change'));confirm.click();ok(calls.length===1&&calls[0].sourcePath==='Folder/B.md'&&calls[0].field==='Private'&&direction.dataset.kplexHideFrom==='Folder/B.md','Detached approved controls cannot change exact once-only scope');
    const cancel=new sourceModules.HideRelationshipModal({},['A.md','B.md'],['hidden','Private'],['A.md','B.md'],value=>calls.push(value));cancel.open();const stale=cancel.modalEl.querySelector('[data-kplex-hide-confirm]'),staleSource=cancel.modalEl.querySelector('[data-kplex-hide-source]'),staleField=cancel.modalEl.querySelector('[data-kplex-hidden-field]'),staleDirection=cancel.modalEl.querySelector('[data-kplex-hide-direction]');cancel.close();staleSource.value='B.md';staleSource.dispatchEvent(new Event('change'));staleField.value='Private';staleField.dispatchEvent(new Event('change'));stale.click();ok(calls.length===2&&calls[1]===null&&staleDirection.dataset.kplexHideFrom==='A.md','Canceled hidden shell cannot revive or update detached direction');return true})()`),true);
  }finally{await browser.cleanup();}
+});
+
+/** The original target can be the sole writable source; the explicit pair prevents a false self-direction. */
+test('Hidden setup is staged in the final form and cancellation grants no configuration authority',async()=>{
+ const browser=await chromiumHarness(bundle);try{
+  assert.equal(await browser.evaluate(setup),true);
+  assert.equal(await browser.evaluate(`(()=>{const calls=[],modal=new sourceModules.HideRelationshipModal({},['A.md'],['privateHidden'],['A.md','B.md'],value=>calls.push(value),{createHiddenField:true});modal.open();const staged=modal.modalEl.querySelector('[data-kplex-hidden-field-staged]');ok(staged&&staged.textContent.includes('privateHidden'),'Final save form names the pending vocabulary field');ok(calls.length===0,'Opening never configures or writes');const stale=modal.modalEl.querySelector('[data-kplex-hide-confirm]');modal.close();stale.click();ok(calls.length===1&&calls[0]===null,'Cancel grants neither configuration nor hide authority');const configured=new sourceModules.HideRelationshipModal({},['A.md'],['hidden'],['A.md','B.md'],value=>calls.push(value));configured.open();ok(!configured.modalEl.querySelector('[data-kplex-hidden-field-staged]'),'Existing vocabulary requires no setup prompt');configured.close();return true})()`),true);
+ }finally{await browser.cleanup()}
 });
 
 /** The original target can be the sole writable source; the explicit pair prevents a false self-direction. */

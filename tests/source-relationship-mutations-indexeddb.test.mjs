@@ -11,7 +11,7 @@ import { centerGateSettings } from "./support/requestedCenterGateFixture.mjs";
 /** Extract actual host mutation methods; only their native Plugin shell is replaced in the browser. */
 function productionMethods() {
   const source=ts.createSourceFile("main.ts",readFileSync(new URL("../src/main.ts",import.meta.url),"utf8"),ts.ScriptTarget.Latest,true,ts.ScriptKind.TS);
-  const names=new Set(["prepareRelationshipMutation","publishSavedRelationship","mutateRelationshipMetadata","writeRelationship","writeReciprocalRelationship",
+  const names=new Set(["captureConnectionOntologyChange","changeConnectionOntology","prepareRelationshipMutation","publishSavedRelationship","mutateRelationshipMetadata","writeRelationship","writeReciprocalRelationship",
     "addRelationshipOntology","appendRelationshipReference","clearFrontmatterRelationship","createRelationToPage","addOntologyToConnection","relinkCentralNeighbour",
     "unlinkFrontmatterEvidence","captureFrontmatterUnlinkExpectation","referenceForPage","referenceMatchesTarget","nonTargetReferenceCounts","valueContainsTarget","removeTargetFromValue","stripTargetFromScalar",
     "normalizedNoteReferenceMatches","inverseOntologyField","inverseRelationshipRole","allOntologyFields","ontologyRoleForField","defaultOntologyField","ontologyFieldsForRole","linkNewRelatedFile","createWebLinkRelatedPage","createPlaceholderRelatedPage","normalizedWebUrl","placeholderPath","configuredDisplayNameField"]), methods=[];
@@ -27,19 +27,19 @@ function productionMethods() {
 }
 const bundle=await contributorBrowserBundle(["src/index/GraphIndex.ts","src/index/GraphBuilder.ts","src/index/IndexSnapshot.ts",
   "src/core/graph/compiler.ts","src/core/graph/evidence.ts","src/core/graph/relations.ts","src/adapters/obsidian/metadataSourceCollector.ts",
-  "src/adapters/obsidian/ontologySourceCollector.ts","src/adapters/obsidian/relationshipMetadataWrite.ts","src/adapters/obsidian/reciprocalRelationshipWrite.ts","src/adapters/obsidian/relationshipOwner.ts","src/application/frontmatterUnlink.ts","src/adapters/obsidian/placeholderRelocation.ts","src/core/contracts/ontologyConfiguration.ts","src/adapters/obsidian/fileCreationAutomation.ts"]);
+  "src/adapters/obsidian/ontologySourceCollector.ts","src/adapters/obsidian/relationshipMetadataWrite.ts","src/adapters/obsidian/reciprocalRelationshipWrite.ts","src/adapters/obsidian/relationshipOwner.ts","src/application/frontmatterUnlink.ts","src/application/connectionOntology.ts","src/adapters/obsidian/placeholderRelocation.ts","src/core/contracts/ontologyConfiguration.ts","src/adapters/obsidian/fileCreationAutomation.ts"]);
 const methods=`const assert=Object.assign((value,message)=>ok(value,message),{equal}),M=sourceModules,normalizeFieldName=M.normalizeFieldName,extractLinksFromValue=M.extractLinksFromValue;
 const writeRelationshipMetadata=M.writeRelationshipMetadata,SavedRelationshipPendingError=M.SavedRelationshipPendingError;
 const relationshipMetadataPayload=M.relationshipMetadataPayload,SOURCE_DECODE_BUDGET_BYTES=M.SOURCE_DECODE_BUDGET_BYTES;
 const frontmatterDeclarationKey=M.frontmatterDeclarationKey,iterateResolvedLinksFromValue=M.iterateResolvedLinksFromValue;
-const placeholderReference=M.placeholderReference,ontologyConfiguration=M.ontologyConfiguration,eligibleRelationshipOwner=M.eligibleRelationshipOwner;
+const placeholderReference=M.placeholderReference,ontologyConfiguration=M.ontologyConfiguration,ontologyEndpointState=M.ontologyEndpointState,selectConnectionOntology=M.selectConnectionOntology,eligibleRelationshipOwner=M.eligibleRelationshipOwner;
 const createReciprocalWriteReceipt=M.createReciprocalWriteReceipt,reciprocalOntologyFields=M.reciprocalOntologyFields,hasIndependentFrontmatterDeclarations=M.hasIndependentFrontmatterDeclarations;
 const normalizePath=x=>x,LinkDirection=M.LinkDirection,Notice=class{constructor(message){window.notices.push(message);}};
 const isUnknownRecord=x=>x!==null&&typeof x==='object'&&!Array.isArray(x);${productionMethods()}`;
 const setup=`window.notices=[];${methods}
 window.makeRelationshipFixture=async name=>{
  const f=await fixture(name),collect=${collect.toString()},hostOracle=${hostOracle.toString()},centerGateSettings=${centerGateSettings.toString()};
- f.text=f.texts;f.add('A.md','[[Unrelated]]');f.add('B.md','',{Parents:['[[A]]']});f.add('Unrelated.md','');f.add('image.png','');
+ f.text=f.texts;f.add('A.md','[[Unrelated]]');f.add('B.md','',{Parents:['[[A]]']});f.add('Unrelated.md','');f.add('image.png','');f.add('icon.svg','<svg/>');
  f.add('URL-owner.md','[Upper](https://Obsidian.md)\\n[Lower](https://obsidian.md)',{Children:['[[image.png]]']});
  for(let i=0;i<80;i++)f.add('Shared-'+i+'.md','[Shared](https://Obsidian.md)');
  const semantic={hierarchy:{hidden:[],parents:['Parents'],children:['Children'],leftFriends:['Friends'],rightFriends:['Opposes'],previous:[],next:[],exclusions:[]},inferAllLinksAsFriends:false,inverseInfer:false,showFullTagName:true,tagStyleList:[],maxLabelLength:30};
@@ -66,6 +66,257 @@ window.makeRelationshipFixture=async name=>{
 };`;
 
 /** Saved pair replacements must compose across edits without changing unedited old-policy relations. */
+
+test("connection details additive ontology consent expires across preparation, native reads and reciprocal retry", async () => {
+ const browser=await chromiumHarness(bundle);
+ try {
+  assert.equal(await browser.evaluate(contributorBrowserInitialize),true);await browser.evaluate(setup);
+  assert.equal(await browser.evaluate(`(async()=>{
+   for(const mode of ['legacy-success','closed','preparation','native','saved','reciprocal-native','reciprocal-retry']){
+    const f=await makeRelationshipFixture('details-add-lifetime-'+mode),i=f.index,c=f.context;
+    try{
+     if(mode.startsWith('reciprocal')){c.settings.alsoWriteInverseOntology=true;i.invalidateSemanticPolicy();}
+     ok(await i.prepareRelationshipPair('A.md','B.md'),'Exact details pair');
+     let live=mode!=='closed',attempts=0,saved=0;
+     const prepare=c.prepareRelationshipMutation,native=f.app.fileManager.processFrontMatter;
+     c.prepareRelationshipMutation=async(...args)=>{const result=await prepare.apply(c,args);if(mode==='preparation')live=false;return result;};
+     f.app.fileManager.processFrontMatter=async(file,update)=>{attempts++;
+      if(mode==='reciprocal-retry'&&attempts===2)throw Error('Second native write unavailable');
+      await native(file,fm=>{if(mode==='native'||mode==='reciprocal-native')live=false;update(fm);});saved++;if(mode==='saved')live=false;
+     };
+     let outcome,failure;try{outcome=await c.addOntologyToConnection(i.get('A.md'),i.get('B.md'),'right','Opposes',null,mode==='legacy-success'?undefined:()=>live);}catch(error){failure=error;}
+     if(mode==='legacy-success'){equal(outcome?.state,'saved-published','Existing callers keep successful additive behavior');equal(saved,1,'One additive owner');}
+     else if(mode==='saved'){ok(failure instanceof M.SavedRelationshipPendingError,'Consent retirement after durable save is truthful');equal(saved,1);}
+     else if(mode==='reciprocal-retry'){
+      ok(failure instanceof M.ReciprocalRelationshipWriteError,'Partial receipt retained');equal(saved,1,'Only first owner saved');live=false;
+      try{await failure.receipt.retry();}catch{}equal(attempts,2,'Closed details cannot authorize missing reciprocal owner on Retry');equal(saved,1);
+     }else{ok(failure,'Retired details reject '+mode);equal(saved,0,'No durable assignment after retired consent');}
+     equal(c.relationshipWriteCancels.size,0,'All native observers retired');
+    }finally{f.close();}
+   }return true;
+  })()`),true);
+ }finally{await browser.cleanup();}
+});
+
+test("connection ontology replacement supports all six directions, preserves other targets and leaves a single owner single", async () => {
+ const browser=await chromiumHarness(bundle);
+ try {
+  assert.equal(await browser.evaluate(contributorBrowserInitialize),true);await browser.evaluate(setup);
+  assert.equal(await browser.evaluate(`(async()=>{
+   const f=await makeRelationshipFixture('change-single-ontology'),i=f.index,c=f.context;
+   try {
+    c.settings.hierarchy.previous=['Earlier'];c.settings.hierarchy.next=['Later'];c.settings.alsoWriteInverseOntology=true;i.invalidateSemanticPolicy();
+    await f.app.fileManager.processFrontMatter(f.files.get('B.md'),fm=>{fm.Parents=['[[A]]','[[Unrelated]]','[[A]]'];fm.Keep='Unchanged';});
+    ok(await i.prepareRelationshipPair('A.md','B.md'),'Fresh document-property declaration');
+    const roles={child:'Children',left:'Friends',right:'Opposes',previous:'Earlier',next:'Later',parent:'Parents'},native=f.app.fileManager.processFrontMatter;
+    let writes=0;f.app.fileManager.processFrontMatter=async(file,update)=>{writes++;return native(file,fm=>{if(writes===1)fm.Parents.push('[[Unrelated]]');update(fm)})};
+    for(const [role,field]of Object.entries(roles)){
+     const approved=c.captureConnectionOntologyChange('A.md','B.md');ok(approved,'One physical document-property selection for '+role);
+     equal(approved.selection.primary.declaredByPath,'B.md','Inverse viewed declaration keeps its physical owner');
+     const result=await c.changeConnectionOntology(approved,role,field,()=>true);equal(result.state,'saved-published','Exact committed role '+role);
+     const fm=f.metadata.get('B.md').frontmatter;equal(fm.Keep,'Unchanged','Unrelated property retained');
+     ok(fm.Parents.includes('[[Unrelated]]'),'Other target survives a field move');
+     equal(fm.Parents.filter(value=>value==='[[Unrelated]]').length,2,'Concurrent unrelated member addition is preserved');
+     ok(c.valueContainsTarget(fm[field],f.files.get('B.md'),i.get('A.md')),'New property contains exact target');
+     equal(f.metadata.get('A.md').frontmatter,{},'Global mirroring preference does not manufacture a second owner');
+     equal(i.evidenceBetween('A.md','B.md').filter(e=>e.sourceKind==='frontmatter-ontology').length,1,'One canonical explicit declaration');
+    }
+    const before=writes,approved=c.captureConnectionOntologyChange('A.md','B.md');await c.changeConnectionOntology(approved,'parent','Parents',()=>true);
+    equal(writes,before,'No-op reselect performs zero native writes');equal(i.getSemanticPreparationDiagnostics().fullBuilds,0,'No full graph rebuild');return true;
+   } finally {f.close();}
+  })()`),true);
+ } finally {await browser.cleanup();}
+});
+
+test("connection ontology replacement supports single Markdown owners of attachments, unresolved notes and exact URLs", async () => {
+ const browser=await chromiumHarness(bundle);
+ try {
+  assert.equal(await browser.evaluate(contributorBrowserInitialize),true);await browser.evaluate(setup);
+  assert.equal(await browser.evaluate(`(async()=>{
+   for(const kind of ['attachment','unresolved','url','attachment-replaced','unresolved-materialized']){
+    const f=await makeRelationshipFixture('change-nonmarkdown-'+kind),i=f.index,c=f.context;
+    try {
+     let target;c.validateRelatedNoteName=name=>({valid:true,existing:null,stem:name});
+     if(kind.startsWith('attachment')){
+      await f.app.fileManager.processFrontMatter(f.files.get('A.md'),fm=>{fm.Children=['[[icon.svg]]'];});
+      ok(await i.prepareRelationshipPair('A.md','icon.svg'),'Exact SVG target');target=i.get('icon.svg');
+     }else if(kind.startsWith('unresolved'))target=await c.createPlaceholderRelatedPage(i.get('A.md'),'child','Not created yet','Children');
+     else target=await c.createWebLinkRelatedPage(i.get('A.md'),'child','https://example.com/ExactCase','Exact URL','Children');
+     ok(target,'Canonical non-Markdown endpoint');const approved=c.captureConnectionOntologyChange(target.path,'A.md');
+     ok(approved&&approved.selection.declarations.length===1,'Single Markdown storage can change '+kind);
+     equal(approved.selection.primary.declaredByPath,'A.md','Reverse viewing does not adopt non-Markdown storage');
+     const native=f.app.fileManager.processFrontMatter;let writes=0;
+     f.app.fileManager.processFrontMatter=async(file,update)=>{equal(file.path,'A.md','Only approved Markdown owns native writes');writes++;return native(file,fm=>{
+      if(kind==='attachment-replaced')f.files.set(target.path,{...target.file});
+      if(kind==='unresolved-materialized')f.add(target.path,'A new note');
+      update(fm);
+     })};
+     let outcome,error;try{outcome=await c.changeConnectionOntology(approved,'right','Opposes',()=>true)}catch(failure){error=failure}
+     equal(writes,1,'One native callback without manufacturing inverse storage');
+     const fm=f.metadata.get('A.md').frontmatter;
+     if(kind==='attachment-replaced'||kind==='unresolved-materialized'){
+      ok(error,'A new native target cannot inherit prior approval: '+kind);ok(fm.Children,'Old target remains after rejected native callback');equal(fm.Opposes,undefined,'No replacement property assigned');
+     }else{
+      equal(outcome?.state,'saved-published','Non-Markdown target changes successfully '+kind);equal(fm.Children,undefined,'Only selected old reference moved');
+      ok(c.valueContainsTarget(fm.Opposes,f.files.get('A.md'),i.get(target.path)),'Exact native or nullable target preserved');
+      ok(c.captureConnectionOntologyChange('A.md',target.path),'Changed single-owner connection remains editable');
+     }
+    }finally{f.close();}
+   }return true;
+  })()`),true);
+ }finally{await browser.cleanup();}
+});
+
+test("connection ontology replacement changes both approved reciprocal owners and retries only the failed second write", async () => {
+ const browser=await chromiumHarness(bundle);
+ try {
+  assert.equal(await browser.evaluate(contributorBrowserInitialize),true);await browser.evaluate(setup);
+  assert.equal(await browser.evaluate(`(async()=>{
+   const f=await makeRelationshipFixture('change-reciprocal-ontology'),i=f.index,c=f.context;
+   try {
+    c.settings.ontologyPairingVersion=1;c.settings.hierarchy.children=['Children/Parents'];c.settings.hierarchy.parents=[];
+    c.settings.hierarchy.previous=['Earlier/Later'];c.settings.hierarchy.next=[];i.invalidateSemanticPolicy();
+    await f.app.fileManager.processFrontMatter(f.files.get('A.md'),fm=>{fm.Children=['[[B]]','[[Unrelated]]'];fm.Keep='first';});
+    await f.app.fileManager.processFrontMatter(f.files.get('B.md'),fm=>{fm.Keep='second';});
+    ok(await i.prepareRelationshipPair('A.md','B.md'),'Reciprocal document properties ready');
+    const approved=c.captureConnectionOntologyChange('A.md','B.md');ok(approved&&approved.selection.declarations.length===2,'One configured reciprocal pair');
+    const native=f.app.fileManager.processFrontMatter,calls=[];let fail=true;
+    f.app.fileManager.processFrontMatter=async(file,update)=>{calls.push(file.path);if(file.path==='B.md'&&fail){fail=false;throw Error('Second native write failed');}return native(file,update)};
+    let partial;try{await c.changeConnectionOntology(approved,'previous','Earlier',()=>true)}catch(error){partial=error}
+    ok(partial instanceof M.ReciprocalRelationshipWriteError,'Truthful reciprocal recovery receipt');
+    equal(partial.outcomes.map(x=>x.state),['saved','pending'],'First replacement durably saved before second failed');
+    equal(f.metadata.get('A.md').frontmatter.Children,['[[Unrelated]]'],'Only selected old target moved');
+    ok(f.metadata.get('A.md').frontmatter.Earlier,'First new field persisted');ok(f.metadata.get('B.md').frontmatter.Parents,'Unsaved second old field retained');
+    await partial.receipt.retry();equal(calls,['A.md','B.md','B.md'],'Successful first owner is never replayed');
+    equal(f.metadata.get('B.md').frontmatter.Parents,undefined,'Second old target removed after retry');ok(f.metadata.get('B.md').frontmatter.Later,'Inverse field saved');
+    equal(f.metadata.get('A.md').frontmatter.Keep,'first','First unrelated field retained');equal(f.metadata.get('B.md').frontmatter.Keep,'second','Second unrelated field retained');
+    const changed=c.captureConnectionOntologyChange('A.md','B.md');ok(changed&&changed.selection.primary.declaredRole==='previous','New canonical reciprocal intent remains editable');
+    await c.changeConnectionOntology(changed,'right','Opposes',()=>true);
+    equal(f.metadata.get('A.md').frontmatter.Earlier,undefined,'Previous property retired by the next explicit change');
+    equal(f.metadata.get('B.md').frontmatter.Later,undefined,'Next counterpart retired together');
+    const symmetric=c.captureConnectionOntologyChange('B.md','A.md');ok(symmetric&&symmetric.selection.declarations.length===2,'Same symmetric Challenger field remains a reciprocal edit intent');
+    const beforeCalls=calls.length;await c.changeConnectionOntology(symmetric,'child','Children',()=>true);
+    ok(calls.length===beforeCalls+2,'Both original physical owners are updated from the reverse view');
+    c.settings.hierarchy.previous.push('Standalone previous');i.invalidateSemanticPolicy();
+    const unpaired=c.captureConnectionOntologyChange('A.md','B.md'),beforeRefusal=calls.length;let refused;
+    try{await c.changeConnectionOntology(unpaired,'previous','Standalone previous',()=>true)}catch(error){refused=error}
+    ok(refused&&refused.message==='reciprocal.requiresInverse','A two-owner replacement requires an explicit new counterpart');equal(calls.length,beforeRefusal,'Missing inverse fails before any native write');
+    return true;
+   } finally {f.close();}
+  })()`),true);
+ } finally {await browser.cleanup();}
+});
+
+test("single-owner ontology replacement reports a thrown post-save publication failure as saved-pending", async () => {
+ const browser=await chromiumHarness(bundle);
+ try {
+  assert.equal(await browser.evaluate(contributorBrowserInitialize),true);await browser.evaluate(setup);
+  assert.equal(await browser.evaluate(`(async()=>{
+   const f=await makeRelationshipFixture('change-single-publication-failure'),i=f.index,c=f.context;
+   try {
+    ok(await i.prepareRelationshipPair('A.md','B.md'),'Original exact document-property pair');
+    const approved=c.captureConnectionOntologyChange('A.md','B.md');ok(approved&&approved.selection.declarations.length===1,'One original physical owner');
+    const native=f.app.fileManager.processFrontMatter,failure=new Error('Canonical publication failed');let writes=0,publications=0;
+    f.app.fileManager.processFrontMatter=async(...args)=>{writes++;return native(...args)};
+    c.publishSavedRelationship=async()=>{publications++;throw failure};
+    let outcome;try{await c.changeConnectionOntology(approved,'right','Opposes',()=>true)}catch(error){outcome=error}
+    ok(outcome instanceof M.SavedRelationshipPendingError,'Durable replacement must not report an unsaved failure');
+    equal(outcome.message,'relation.savedUpdatePending','Pending outcome uses the existing saved-relationship copy');
+    ok(Reflect.get(outcome,'cause')===failure,'Original private publication failure is retained for diagnostics');
+    equal(writes,1,'Exactly one native write, with no replay after publication failure');equal(publications,1,'One attempted canonical publication');
+    equal(f.metadata.get('B.md').frontmatter.Parents,undefined,'Old selected property is durably removed');
+    ok(c.valueContainsTarget(f.metadata.get('B.md').frontmatter.Opposes,f.files.get('B.md'),i.get('A.md')),'Replacement reference is durably saved');
+    equal(f.metadata.get('A.md').frontmatter,{},'No other owner was manufactured');return true;
+   } finally {f.close();}
+  })()`),true);
+ } finally {await browser.cleanup();}
+});
+
+test("connection ontology replacement resumes first-write failure and saved-pending receipts without replaying saved owners", async () => {
+ const browser=await chromiumHarness(bundle);
+ try {
+  assert.equal(await browser.evaluate(contributorBrowserInitialize),true);await browser.evaluate(setup);
+  assert.equal(await browser.evaluate(`(async()=>{
+   for(const mode of ['first-failed','first-saved-pending','last-saved-pending']){
+    const f=await makeRelationshipFixture('change-reciprocal-retry-'+mode),i=f.index,c=f.context;
+    try {
+     c.settings.ontologyPairingVersion=1;c.settings.hierarchy.children=['Children/Parents'];c.settings.hierarchy.parents=[];
+     c.settings.hierarchy.previous=['Earlier/Later'];c.settings.hierarchy.next=[];i.invalidateSemanticPolicy();
+     await f.app.fileManager.processFrontMatter(f.files.get('A.md'),fm=>{fm.Children=['[[B]]'];});
+     ok(await i.prepareRelationshipPair('A.md','B.md'),'Reciprocal source authority');
+     const approved=c.captureConnectionOntologyChange('A.md','B.md');ok(approved,'Reciprocal selection');
+     const native=f.app.fileManager.processFrontMatter,mutate=c.mutateRelationshipMetadata,calls=[],foreground=i.withForegroundPriority.bind(i);let once=true,priority=0;
+     i.withForegroundPriority=(work,...args)=>foreground(async()=>{priority++;try{return await work()}finally{priority--}},...args);
+     f.app.fileManager.processFrontMatter=async(file,update)=>{ok(priority>0,'Retained receipt owns mutation priority');calls.push(file.path);if(mode==='first-failed'&&once){once=false;throw Error('First write rejected');}return native(file,update)};
+     c.mutateRelationshipMetadata=async(...args)=>{await mutate.apply(c,args);if(mode!=='first-failed'&&once&&args[0].path===(mode==='first-saved-pending'?'A.md':'B.md')){once=false;throw new M.SavedRelationshipPendingError('Saved metadata still pending');}};
+     let partial;try{await c.changeConnectionOntology(approved,'previous','Earlier',()=>true)}catch(error){partial=error}
+     ok(partial instanceof M.ReciprocalRelationshipWriteError,'Retained native outcome for '+mode);
+     equal(partial.outcomes.map(x=>x.state),mode==='first-failed'?['pending','pending']:mode==='first-saved-pending'?['saved-pending','pending']:['saved','saved-pending'],'Truthful per-owner states');
+     await partial.receipt.retry();
+     equal(calls,mode==='first-failed'?['A.md','A.md','B.md']:['A.md','B.md'],'Only genuinely missing native work retries');
+     const after=c.captureConnectionOntologyChange('A.md','B.md');ok(after&&after.selection.declarations.length===2&&after.selection.primary.declaredRole==='previous','Actual pair publication after retry');
+    } finally {f.close();}
+   }return true;
+  })()`),true);
+ } finally {await browser.cleanup();}
+});
+
+test("connection ontology replacement cannot advance saved-pending owners before their actual new metadata is observed", async () => {
+ const browser=await chromiumHarness(bundle);
+ try {
+  assert.equal(await browser.evaluate(contributorBrowserInitialize),true);await browser.evaluate(setup);
+  assert.equal(await browser.evaluate(`(async()=>{
+   const f=await makeRelationshipFixture('change-reciprocal-observation'),i=f.index,c=f.context;
+   try {
+    c.settings.ontologyPairingVersion=1;c.settings.hierarchy.children=['Children/Parents'];c.settings.hierarchy.parents=[];
+    c.settings.hierarchy.previous=['Earlier/Later'];c.settings.hierarchy.next=[];i.invalidateSemanticPolicy();
+    await f.app.fileManager.processFrontMatter(f.files.get('A.md'),fm=>{fm.Children=['[[B]]'];});
+    ok(await i.prepareRelationshipPair('A.md','B.md'),'Original actual pair');const approved=c.captureConnectionOntologyChange('A.md','B.md');ok(approved,'Approved reciprocal intent');
+    const native=f.app.fileManager.processFrontMatter,calls=[];let pending,hold=true;
+    f.app.fileManager.processFrontMatter=async(file,update)=>{
+     calls.push(file.path);
+     if(file.path!=='A.md'||!hold)return native(file,update);
+     hold=false;const frontmatter=structuredClone(f.metadata.get(file.path).frontmatter);update(frontmatter);
+     file.stat.mtime++;f.texts.set(file.path,f.texts.get(file.path)+'\\n');f.app.vault.trigger('modify',file);
+     pending={file,cache:{...f.metadata.get(file.path),frontmatter}};
+     window.setTimeout(()=>{for(const cancel of c.relationshipWriteCancels)cancel()},0);
+    };
+    let partial;try{await c.changeConnectionOntology(approved,'previous','Earlier',()=>true)}catch(error){partial=error}
+    ok(partial instanceof M.ReciprocalRelationshipWriteError,'Saved-but-unobserved first owner yields a retained receipt');
+    equal(partial.outcomes.map(x=>x.state),['saved-pending','pending'],'Actual first persistence is not reissued');
+    let blocked;try{await partial.receipt.retry()}catch(error){blocked=error}
+    ok(blocked,'Unobserved replacement cannot authorize the second file');equal(calls,['A.md'],'No new mutation before current metadata');
+    f.metadata.set(pending.file.path,pending.cache);f.app.metadataCache.trigger('changed',pending.file,f.texts.get(pending.file.path),pending.cache);
+    await partial.receipt.retry();equal(calls,['A.md','B.md'],'Observed saved-pending first owner is reused');
+    ok(c.captureConnectionOntologyChange('A.md','B.md')?.selection.primary.declaredRole==='previous','Real canonical publication after observation');return true;
+   } finally {f.close();}
+  })()`),true);
+ } finally {await browser.cleanup();}
+});
+
+test("connection ontology replacement refuses stale declarations, native replacements and competing fields inside the native read", async () => {
+ const browser=await chromiumHarness(bundle);
+ try {
+  assert.equal(await browser.evaluate(contributorBrowserInitialize),true);await browser.evaluate(setup);
+  assert.equal(await browser.evaluate(`(async()=>{
+   for(const mode of ['declaration','replacement','native-field','cancelled','configuration','destination-shape','ambiguous-key']){
+    const f=await makeRelationshipFixture('change-ontology-fence-'+mode),i=f.index,c=f.context;
+    try{
+     ok(await i.prepareRelationshipPair('A.md','B.md'),'Initial exact pair');const approved=c.captureConnectionOntologyChange('A.md','B.md');ok(approved,'Captured single property');
+     const original=structuredClone(f.metadata.get('B.md').frontmatter),native=f.app.fileManager.processFrontMatter;let writes=0;
+     if(mode==='declaration'){await native(f.files.get('B.md'),fm=>{fm.Friends=['[[A]]'];});}
+     if(mode==='replacement')f.files.set('A.md',new window.ContributorFile('A.md'));
+     if(mode==='configuration'){c.settings.hierarchy.parents=['Different parent'];i.invalidateSemanticPolicy();}
+     f.app.fileManager.processFrontMatter=async(file,update)=>native(file,fm=>{if(mode==='native-field')fm.Friends=['[[A]]'];if(mode==='destination-shape')fm.Opposes={unsupported:'shape'};if(mode==='ambiguous-key')fm.parents=['[[A]]'];update(fm);writes++});
+     let failure;try{await c.changeConnectionOntology(approved,'right','Opposes',()=>mode!=='cancelled')}catch(error){failure=error}
+     ok(failure,'Stale intent rejected: '+mode);equal(writes,0,'No replacement metadata assignment for '+mode);
+     const fm=f.metadata.get('B.md').frontmatter;equal(fm.Opposes,undefined,'No new field for '+mode);equal(fm.Parents,original.Parents,'Original selected field retained');
+    }finally{f.close();}
+   }return true;
+  })()`),true);
+ } finally {await browser.cleanup();}
+});
+
 test("canonical pair edits preserve earlier relationships, normalized URL authority, inverse provenance and old-policy baselines",async()=>{
  const browser=await chromiumHarness(bundle);
  try{

@@ -1684,6 +1684,17 @@ Use the three explicit test-vault variables and a managed `KPLEX_HOST_REPORT_DIR
 The driver owns the shared host lock and restores fixtures, settings and native workspace;
 the staging caller owns artifact deployment. This is desktop functional evidence.
 
+`npm run verify:obsidian:ontology-change` uses the same explicit Small target and
+managed report directory. It tests trusted connector-menu activation, the current
+ontology default, six-direction selection, Cancel, source-specific and reciprocal
+property replacement, and omission of Change ontology for ambiguous or non-property declarations.
+It also checks an SVG target, the compact details toolbar, style-source freshness
+after replacement, direct inferred definition with editable direction, and the
+single staged Hide form with side-effect-free Cancel and exact Hidden removal.
+The actual dialog is captured in light/wide, dark/narrow and native popout windows.
+The fixture restores its documents, settings, theme classes and native workspace;
+physical mobile and macOS remain separate acceptance.
+
 `node --test tests/creation-navigation.test.mjs tests/related-note-composer.test.mjs tests/viewport-fit.test.mjs`
 checks version-gated drawing templates, destination forwarding, creation recovery and camera behavior.
 The shared template control is used by related-note creation, folder-child creation and placeholder

@@ -20,7 +20,7 @@ const index={isVisiblePage:()=>true,get:path=>pages.get(path),titleFor:page=>pag
 const plugin={settings,index,viewSettingsRegistry:M.builtInCanvasViewSettings,translator:M.createTranslator('en'),app:{workspace:{...nativeEvents},
  metadataCache:{...nativeEvents,getFileCache:file=>{work.properties++;return fieldCaches.get(file.path)}},vault:{getFileByPath:path=>pages.get(path)?.file??null,cachedRead:()=>{work.body++;throw Error('Unexpected body read')},getMarkdownFiles:()=>{work.scans++;throw Error('Unexpected inventory')}}},
  saveSettings:async()=>{},getTypographyDevice:()=> 'desktop',isKplexLeafVisible:()=>visible,subscribeKplexVisibility:subscribe,subscribeNodeFlair:subscribe,registerLinkedNodeFeedback:()=>()=>{},
- getHierarchyColorRevision:()=>0,isActionSurfaceCurrent:()=>true,getSavedSettingsPolicy:()=>null};
+ getHierarchyColorRevision:()=>0,isActionSurfaceCurrent:()=>true,getSavedSettingsPolicy:()=>null,captureConnectionOntologyChange:()=>null};
 plugin.actionManager=new M.ActionManager({readCommandContext:()=>({sharedCenter:null,focusRegion:'graph'}),validateNode:()=>true});
 const mount=async(definition,{openHelp}={})=>{
  const registered=[...M.builtInPlexViews.available,M.exampleViewDefinition];if(!registered.some(row=>row.id===definition.id))registered.push(definition);

@@ -21,26 +21,18 @@ Obsidian is the production host; preserve the established portable semantic, ide
 
 ---
 
-# Active status: 0.4.5 release material prepared
+# Connection ontology editing: publication handoff
 
-Runtime checkpoint: e225456 on main. The maintainer authorized committing and merging the inactive-tab performance branch, returning to main and fetching. No release or tag was requested.
+State: implementation and automated validation complete. Maintainer explicitly requested commit and merge to main, then switch to main and fetch. No new assignment or refactor resume.
 
-The maintainer explicitly approved pushing source main. Keep the Help-vault update local until the release is live; no release or tag is authorized.
+Branch: feat/change-connection-ontology; base 33c420013a574108b7aba22bcfa7888f863f1565.
 
-Implemented and validated:
-- Live inactive effort now also gates automatic current/visible-note preparation. Zero effort retains pending observations without recurring retry timers; focus resumes the existing owners. Initial preparation and admitted cache saves retain their agreed exceptions.
-- Repeated native identity observations preserve newer previews. Partial recovery cannot replace a complete displayed neighborhood before source closure; real relationship edits still update the canonical graph without renewing write proof.
-- Stationary connectors no longer replay arrival fades on follow/focus changes. Actual root/view transitions retain their animation.
-- Node22.22.2 checks completed: core137; main2517 with one Chromium bundle-startup failure before its scenario ran; the unchanged case passed on rerun. All remaining gates passed separately: browser610, source393, real IndexedDB1096 and the real production build. The failed aggregate remains recorded as failed. Focused indexing coverage374 also passed.
-- Exact-artifact Windows Small coverage passed24 native scenes/72 autosaves across both strategies, all three layouts and Paused/full effort. Paused cases admitted zero Markdown reads/parses. Four actual app:reload renderer cycles passed: two unchanged, pending save, unchanged after repair. All four admitted zero full builds/global inventories/reads/parses; only the pending-save cycle wrote one replacement snapshot.
-- The20,015-owner persisted-graph regression passed. Windows functional evidence is not Mac production-vault or physical-mobile acceptance.
+Scope: precise single-YAML or matching reciprocal ontology replacement, including Markdown owners linked to attachments; six-direction Define/Add/Change; inferred context-menu Define; compact details action toolbar and source groups; staged Hide setup without an extra confirmation; current metadata property API; body-ontology YAML-only editing hint in all eight locales. Preserve Markdown body, unrelated values and exact source/native identity guards.
 
-Help checkpoint: kplex-help main commit68f584e follows the release-material commit9c976b8; both remain local for publication after the release is live. Final consumer copy is written as Release0.4.5, with November20,2026 explicitly supplied by the maintainer. Version and daily-note chains, living indexing/style/navigation guides, a genuine desktop background-effort screenshot and the bundled current main executable are updated. Manifest remains0.4.4; authoring/deployment did not prepare a release version.
+Validation on Node 22.22.2: release/architecture/core/lint and full indexing passed. Initial npm run verify stopped on six missing finite fixture prerequisites after 2546 general passes; fixtures corrected and all six rerun green (details 26, reciprocal 34). Remaining npm test lanes passed 620 browser, 393 portable source and 1104 real IndexedDB/source tests, without skips. Final appearance callback regression suite passed 64 tests. Local and production builds passed. Latest body-hint details/localization suite passed 58/58, scoped lint and production build passed. Validation commit gate and diff checks pass.
 
-Help acceptance and publication:
-- Static audit passed180 notes,1,998 links,34 tables,21 release versions and18 journal days. Native reading views render the release/date/strategy guide and the actual screenshot. Release-to-guide/date/previous-version navigation and the twelve-child limit passed.
-- The maintainer confirmed that journal entries deliberately use earlier/later as Parent/Child. The authoring guide, templates, agent guidance and consumer explanations now preserve that settled choice without asking again on routine updates. Read-only native checks passed all18 journal days under Parent/Child and all21 release versions under Previous/Next. The earlier native Previous assertion tested an incorrect documentation expectation, not an index defect; settings remain unchanged.
-- Native cleanup restored the original plugin settings, appearance and enablement bytes and the preexisting live layout/history. The original live recent-file list already contained Release0.4.5 while its disk workspace was older; Obsidian subsequently persisted that history. Leave the resulting workspace-only diff uncommitted.
-- GitHub's latest release was0.4.4 at authoring. Before publishing the Help update, verify the actual0.4.5 release date/scope against the final copy. Do not publish the Help commit or create a release/tag without maintainer instruction.
+Evidence remains ignored/managed: .test-work/validation/2026-11-22-connection-ux-LO6nUI and .test-work/validation/2026-11-22-body-ontology-hint-NoULTT. Do not claim the original aggregate verify invocation passed.
 
-Known follow-ups: repeat the corrected split-pane/idle workflow on the maintainer's Mac. A separate dense newly-created incoming-contributor first-open stall also reproduces on b9044c7 and remains unresolved; the warm prose scenario deliberately settles fixture creation before measurement. Earlier #309 YouTube-ID normalization and previously recorded cache/URL-pass latency are not claimed fixed by this patch.
+Recorded limitation: final native light/dark/narrow/main/popout acceptance remains pending while the maintainer uses the PC; their explicit publication request follows disclosure of this limitation. macOS and physical mobile remain untested. Do not take PC control without coordinating a window. Native lane verify:obsidian:ontology-change is prepared, not run on the final artifact; rebuild build:local before deferred exact-build Small-vault testing. The existing managed staging wrapper freezes/restores artifacts/config/layout under the shared host lock.
+
+Production Zsolt's Brain remains read-only except separately authorized main.js/styles.css deployment. No production files or settings were changed and no deployment was performed. Current dist is the latest production build and is not committed.

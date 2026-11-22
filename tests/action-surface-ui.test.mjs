@@ -40,20 +40,20 @@ export class FuzzySuggestModal {
 export const Platform={isDesktopApp:true,isMacOS:true,isMobile:false,isIosApp:false,isAndroidApp:false};
 `;
 
-/** Compile the production sequence-role boundary without loading the native modal shell. */
+/** Compile the production semantic direction boundary without loading the native modal shell. */
 function productionRoleResolver() {
   const filename = "src/ui/RelationshipExplanationModal.ts";
   const source = ts.createSourceFile(filename, readFileSync(new URL(`../${filename}`, import.meta.url), "utf8"), ts.ScriptTarget.Latest, true);
-  const declaration = source.statements.find(node => ts.isFunctionDeclaration(node) && node.name?.text === "gateRoleForDisplayRole");
-  assert(declaration, "the details modal must retain an explicit semantic-to-gate boundary");
+  const declaration = source.statements.find(node => ts.isFunctionDeclaration(node) && node.name?.text === "relationshipRoleForDisplay");
+  assert(declaration, "the details modal must retain an explicit semantic direction boundary");
   const code = ts.transpileModule(declaration.getText(source), { compilerOptions: { target: ts.ScriptTarget.ES2021 } }).outputText;
-  return Function(`${code}\nreturn gateRoleForDisplayRole;`)();
+  return Function(`${code}\nreturn relationshipRoleForDisplay;`)();
 }
 
-test("connection inspection preserves sequence roles instead of reinterpreting them as relink gates", () => {
+test("connection inspection preserves every semantic direction for the shared relationship selector", () => {
   const resolve = productionRoleResolver();
-  for (const role of ["parent", "child", "left", "right"]) assert.equal(resolve(role), role);
-  for (const role of ["previous", "next", "hidden", "center"]) assert.equal(resolve(role), null);
+  for (const role of ["parent", "child", "left", "right", "previous", "next"]) assert.equal(resolve(role), role);
+  for (const role of ["hidden", "center", "sibling"]) assert.equal(resolve(role), null);
 });
 
 /** Selector persistence now belongs to the shared drop queue; browser and structural tests

@@ -9,6 +9,16 @@ import { buildLocaleCatalog, type LocaleCatalog, type LocaleTranslationMap } fro
 /** Construct the typed Spanish table only when selected; importing this module allocates no catalog. */
 export function createSpanishCatalog(): LocaleCatalog {
 const spanishTranslations = {
+  "explain.bodyOntologyHint": "K-Plex solo puede cambiar la ontología en el frontmatter YAML. Edita la ontología definida en el cuerpo de la nota de origen.",
+  "hide.removeDeclaration": "Eliminar declaración Hidden",
+  "explain.connectionActions": "Acciones de conexión",
+  "explain.changeOntologyConflict": "Varias propiedades de documento definen esta conexión. Usa las acciones de las fuentes de abajo para eliminar la declaración adicional o corregir su ontología antes de reemplazarla.",
+  "relation.additionalOntologyHelp": "Se conservan las declaraciones de ontología existentes. Otra ontología puede dar varios roles a esta conexión. Usa Cambiar ontología para reemplazar la propiedad existente.",
+  "hide.setup.staged": "Al guardar, se añade {field} a la ontología Hidden y se oculta esta conexión.",
+  "relation.changeOntologyPairHelp": "Cambia la ontología en ambas notas conectadas. Se conservan las demás conexiones y el texto de las notas.",
+  "relation.changeOntologyHelp": "Cambia la propiedad de documento de esta conexión. Se conservan las demás conexiones y el texto de la nota.",
+  "actions.relationship.relink.description": "Cambiar la ontología de una conexión en las propiedades del documento o su par recíproco correspondiente.",
+  "actions.relationship.relink": "Cambiar ontología",
   "notice.linkedNodeHidden": "Se ha enlazado {name}, pero los filtros o las lentes actuales lo ocultan.",
   "settings.canvasHints.name": "Mostrar consejos en el lienzo",
   "settings.canvasHints.help": "Mostrar consejos sobre atajos y relaciones en la parte superior del lienzo.",
@@ -190,7 +200,7 @@ const spanishTranslations = {
   "folderActions.create": "Crear subcarpeta",
   "folderActions.destination": "Mover esta carpeta a",
   "folderActions.failed": "No se pudo completar la operación de carpeta.",
-  "ontology.editSelected": "Editar: {field}",
+  "ontology.editSelected": "Editar definición de ontología: {field}",
   "copyLink.failed": "No se pudo copiar el enlace del nodo. Inténtalo de nuevo.",
   "copyLink.fallback": "Se ha copiado un enlace con la ruta completa de la bóveda. Este portapapeles no puede adaptar los enlaces a la nota de destino.",
   "copyLink.targetUnavailable": "El nodo copiado ya no está disponible. Vuelve a copiarlo.",

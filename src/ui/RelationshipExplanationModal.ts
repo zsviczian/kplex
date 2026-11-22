@@ -13,7 +13,7 @@ import { connectionActionAllowed } from "./structuralConnectionActions";
 import {Notice, type WorkspaceLeaf} from "obsidian";
 import type KplexPlugin from "../main";
 import type { RelationshipSourceSection } from "../main";
-import { RelationType, type GateRole, type Role } from "../types";
+import { RelationType, type RelationshipRole, type Role } from "../types";
 import { ONTOLOGY_PRECEDENCE_SUPPRESSION, type EvidenceDecision, type EvidenceSourceKind, type EvidenceSuppressionReason } from "../index/RelationEvidence";
 import type { RelationshipExplanation, RelationshipSummary } from "../index/RelationResolver";
 import type { Translator, PlainTranslationKey } from "../lang";
@@ -25,6 +25,9 @@ import {SelectedOntologyEditor} from "./SelectedOntologyEditor";
 import {ReverseRelationshipModal} from "./ReverseRelationshipModal";
 import {eligibleRelationshipOwner} from "../adapters/obsidian/relationshipOwner";
 import {groupRelationshipSourceOccurrences} from "./features/relationshipSourceOccurrences";
+import {selectConnectionOntology} from "../application/connectionOntology";
+import {ontologyConfiguration} from "../core/contracts/ontologyConfiguration";
+import type {RelinkRelationModalOptions} from "./RelationModal";
 
 const ROLE_LABEL: Record<string, PlainTranslationKey> = {
   parent: "role.parent",
@@ -95,9 +98,9 @@ function evidenceDescription(decision: EvidenceDecision, translate: Translator):
   return pieces.join(" · ");
 }
 
-/** Only explicit four-gate roles are supported by the current relink shell; sequence roles stay semantic. */
-function gateRoleForDisplayRole(role: Role): GateRole | null {
-  if (role === "parent" || role === "child" || role === "left" || role === "right") return role;
+/** Preserve every semantic direction without treating sequence roles as physical gates. */
+function relationshipRoleForDisplay(role: Role): RelationshipRole | null {
+  if (role === "parent" || role === "child" || role === "left" || role === "right" || role === "previous" || role === "next") return role;
   return null;
 }
 
@@ -149,6 +152,7 @@ export class RelationshipExplanationModal extends Modal {
   private pendingDeclaration: string | null = null;
   private releaseIndex: (() => void) | null = null;
   private releaseMigration: (() => void) | null = null;
+  private initialFocusHandled = false;
 
   /** Capture one pair explanation and optional native-dialog lease; source reads are cancelled on close. */
   constructor(
@@ -161,6 +165,7 @@ export class RelationshipExplanationModal extends Modal {
       targetTitle?: string;
       hostLeaf?: WorkspaceLeaf;
       initialFocus?: "why" | "sources";
+      onStyle?: (invoker: HTMLButtonElement) => void;
     },
     private onClosed: () => void = () => {},
   ) {
@@ -176,15 +181,32 @@ export class RelationshipExplanationModal extends Modal {
 
   /** Every physical field uses the same exact editor and parent lifetime, including overridden sources. */
   private ontologyEditButton(parent: HTMLElement, field: string): HTMLButtonElement {
+    const generation = this.loadGeneration;
     const edit = iconButton(parent, "pencil", this.plugin.translator("ontology.editSelected", {field}), /** Vocabulary changes never mutate the inspected connection. */ () => {
-      if (this.operation !== "idle") return;
+      if (!this.isCurrent(generation) || this.operation !== "idle") return;
       this.ontologyEditor.open(field, edit, /** Saved annotations reacquire the current inspected pair. */ () => this.refreshDetails());
     });
     edit.disabled = this.operation !== "idle"; this.mutationNavigationButtons.push(edit); return edit;
   }
 
-  /** Render the additive ontology action for the inspected pair with localized captions; existing sources remain preserved. */
-  private addOntologyEditor(parent: HTMLElement): void {
+  /** Keep the existing inspector mounted behind its one exact relationship editor. */
+  private openRelationshipEditor(options: RelinkRelationModalOptions): void {
+    const generation = this.loadGeneration;
+    if (!this.isCurrent(generation) || this.operation !== "idle" || this.ontologyEditor.active) return;
+    this.setOperation("confirming");
+    const dialog = this.plugin.openRelationModal({...options,
+      current: /** Closing, migration or refresh retires unaccepted child work. */ () => this.isCurrent(generation),
+      onClosed: /** Cancel and successful Save both return to the current canonical inspector. */ () => {
+        if (this.confirmation !== dialog) return;
+        this.confirmation = null;
+        if (this.isCurrent(generation)) { this.setOperation("idle"); this.refreshDetails(); }
+      }});
+    this.confirmation = dialog;
+  }
+
+  /** Render physical ontology names and compact connection actions without changing their sources. */
+  private addOntologyEditor(parent: HTMLElement, actions: HTMLElement): void {
+    const generation = this.loadGeneration;
     const row = parent.createDiv({ cls: "kplex-edge-ontology-row" });
     const copy = row.createDiv({ cls: "kplex-edge-ontology-copy" });
     copy.createEl("strong", { text: this.plugin.translator("explain.ontology") });
@@ -195,6 +217,9 @@ export class RelationshipExplanationModal extends Modal {
       const value = values.createDiv({cls: "kplex-edge-ontology-field"}); value.createSpan({text: field});
       this.ontologyEditButton(value, field);
     }
+    if (this.explanation.decisions.some(decision => decision.evidence.sourceKind === "inline-ontology")) {
+      copy.createDiv({cls: "kplex-edge-body-ontology-hint setting-item-description", text: this.plugin.translator("explain.bodyOntologyHint")});
+    }
 
     const activeDefined = this.explanation.decisions.filter((decision) =>
       decision.active && decision.evidence.relationType === RelationType.DEFINED,
@@ -204,42 +229,91 @@ export class RelationshipExplanationModal extends Modal {
     );
     const hasExplicitOntology = Boolean(definingDecision);
 
-    let semanticRole = this.displayContext ? gateRoleForDisplayRole(this.displayContext.role) : null;
+    let semanticRole = this.displayContext ? relationshipRoleForDisplay(this.displayContext.role) : null;
+    if (!semanticRole) semanticRole = this.explanation.resolvedRoles.map(/** Sibling placement is contextual; the pair retains its actual semantic direction. */
+      resolved => relationshipRoleForDisplay(resolved.role)).find(/** Hidden/context-only roles cannot initialize the six-direction selector. */ role => role !== null) ?? null;
     let source = this.plugin.index.get(this.explanation.sourcePath);
     let target = this.plugin.index.get(this.explanation.targetPath);
     let storagePath: string | undefined;
     if (definingDecision) {
       const evidence = definingDecision.evidence;
-      if (evidence.declaredRole !== "hidden") semanticRole = gateRoleForDisplayRole(evidence.declaredRole);
+      if (evidence.declaredRole !== "hidden") semanticRole = relationshipRoleForDisplay(evidence.declaredRole);
       source = this.plugin.index.get(evidence.declaredByPath);
       target = this.plugin.index.get(evidence.declaredTargetPath);
       storagePath = evidence.declaredByPath;
     }
-    if (!semanticRole || !source || !target || !connectionActionAllowed("relationship.relink", source, target)) return;
+    if (!semanticRole || !source || !target || !connectionActionAllowed("relationship.relink", source, target)
+      || !eligibleRelationshipOwner(this.app, source) && !eligibleRelationshipOwner(this.app, target)) return;
 
     const actionLabel = this.plugin.translator(hasExplicitOntology ? "explain.addOntology" : "explain.specifyOntology");
-    const button = row.createEl("button", { text: actionLabel, cls: "mod-cta", attr: { type: "button" } });
-    button.disabled = this.operation !== "idle";
-    this.mutationNavigationButtons.push(button);
-    button.addEventListener("click", () => {
-      if (this.closed || this.operation !== "idle") return;
-      this.close();
-      this.plugin.openRelationModal({
-        mode: "relink",
-        purpose: hasExplicitOntology ? "ontology-add" : "ontology-specify",
-        origin: source,
-        fixedTarget: target,
-        semanticRole,
-        initialStoragePath: storagePath,
-        hostLeaf: this.displayContext?.hostLeaf,
+    const button = iconButton(actions, "plus", actionLabel, /** Add and define retain every existing declaration. */ () => {
+      if (!this.isCurrent(generation)) return;
+      this.openRelationshipEditor({
+        mode: "relink", purpose: hasExplicitOntology ? "ontology-add" : "ontology-specify",
+        origin: source, fixedTarget: target, semanticRole, initialStoragePath: storagePath,
+        allowRoleSelection: true, hostLeaf: this.displayContext?.hostLeaf,
       });
     });
+    button.dataset.kplexAddOntology = "true";
+    button.disabled = this.operation !== "idle";
+    this.mutationNavigationButtons.push(button);
+
+    const {sourcePath, targetPath} = this.explanation;
+    const approved = this.plugin.captureConnectionOntologyChange(sourcePath, targetPath);
+    if (approved) {
+      const replace = iconButton(actions, "replace", this.plugin.translator("actions.relationship.relink"), /** Reacquire native approval at activation, not just when rendering the toolbar. */ () => {
+        if (!this.isCurrent(generation) || this.operation !== "idle") return;
+        const current = this.plugin.captureConnectionOntologyChange(sourcePath, targetPath);
+        if (!current || current.selection.signature !== approved.selection.signature) {
+          this.refreshDetails(this.plugin.translator("explain.removeSourceChanged")); return;
+        }
+        const primary = current.selection.primary;
+        const owner = this.plugin.index.get(primary.declaredByPath), destination = this.plugin.index.get(primary.declaredTargetPath);
+        if (!owner || !destination) return;
+        this.openRelationshipEditor({mode: "relink", purpose: "ontology-change", ontologyChange: current,
+          origin: owner, fixedTarget: destination, semanticRole: primary.declaredRole,
+          initialField: primary.fieldName, initialStoragePath: primary.declaredByPath,
+          hostLeaf: this.displayContext?.hostLeaf});
+      });
+      replace.dataset.kplexChangeOntology = "true";
+      replace.disabled = this.operation !== "idle"; this.mutationNavigationButtons.push(replace);
+    }
+    const explicit = this.explanation.decisions.map(/** Only physical property provenance can explain a declaration conflict. */ decision => decision.evidence)
+      .filter(/** Generic inference and unsupported native endpoints are not conflicting ontology declarations. */ evidence => evidence.sourceKind === "frontmatter-ontology" || evidence.sourceKind === "inline-ontology");
+    const physical = new Set(explicit.map(/** Repeated evidence for one physical property is one declaration. */ evidence =>
+      JSON.stringify([evidence.sourceKind, evidence.declaredByPath, evidence.declaredTargetPath, evidence.fieldName])));
+    if (physical.size > 1 && !selectConnectionOntology(explicit, ontologyConfiguration(this.plugin.settings), sourcePath, targetPath)) {
+      copy.createDiv({cls: "kplex-edge-ontology-conflict setting-item-description", text: this.plugin.translator("explain.changeOntologyConflict")});
+    }
   }
 
-  /** Reuse confirmed additive Hidden writes for the inspected pair, preserving all source links. */
+  /** Reuse exact directional Hidden provenance and additive writes, preserving all source links. */
   private addHiddenAction(parent: HTMLElement): void {
-    if (!this.plugin.hideRelationship || !connectionActionAllowed("relationship.hide", this.plugin.index.get(this.explanation.sourcePath), this.plugin.index.get(this.explanation.targetPath))) return;
     const generation = this.loadGeneration;
+    const hidden = this.explanation.decisions.map(/** Visibility removal retains authored provenance from either inspected endpoint. */ decision => decision.evidence)
+      .filter(/** Other relationship declarations are preserved, including when this perspective stays visible. */ evidence => evidence.declaredRole === "hidden");
+    if (hidden.length) {
+      const declarations = selectedFrontmatterDeclarations(hidden);
+      const coordinates = new Set(hidden.map(/** Generic repeats of the same physical declaration are one visibility source. */ evidence =>
+        evidence.sourceKind === "frontmatter-ontology" ? frontmatterDeclarationKey(evidence) : JSON.stringify([evidence.sourceKind, evidence.declaredByPath, evidence.fieldName, evidence.line])));
+      if (coordinates.size !== 1 || declarations.length !== 1) return;
+      const evidence = declarations[0], expected = this.plugin.captureFrontmatterUnlinkExpectation(evidence);
+      if (!expected) return;
+      const show = iconButton(parent, "eye", this.plugin.translator("hide.removeDeclaration"), /** A reversible visibility flag can be removed directly while preserving every source link. */ () => {
+        if (!this.isCurrent(generation) || this.operation !== "idle") return;
+        const actual = this.plugin.captureFrontmatterUnlinkExpectation(evidence);
+        if (!actual || actual.storage !== expected.storage || actual.target !== expected.target || actual.fieldKey !== expected.fieldKey) {
+          this.refreshDetails(this.plugin.translator("explain.removeSourceChanged")); return;
+        }
+        this.setOperation("confirming");
+        void this.removeDeclaration(evidence, actual, generation);
+      });
+      show.dataset.kplexShowConnection = "true";
+      show.disabled = this.operation !== "idle"; this.removalButtons.push(show);
+      return;
+    }
+    if (this.explanation.hidden) return;
+    if (!this.plugin.hideRelationship || !connectionActionAllowed("relationship.hide", this.plugin.index.get(this.explanation.sourcePath), this.plugin.index.get(this.explanation.targetPath))) return;
     const button = iconButton(parent,"eye-off",this.plugin.translator("hide.title"), /** Parent close or refresh retires confirmation authority. */ () => {
       if (!this.isCurrent(generation) || this.operation !== "idle") return;
       this.setOperation("confirming");
@@ -267,7 +341,6 @@ export class RelationshipExplanationModal extends Modal {
       const row = container.createDiv({ cls: `kplex-edge-source-card is-metadata${decision.active ? " is-active" : " is-overridden"}` });
       const header = row.createDiv({ cls: "kplex-edge-source-header" });
       header.createDiv({ cls: "kplex-edge-source-meta", text: evidenceDescription(decision, this.plugin.translator) });
-      if (evidence.fieldName && (evidence.sourceKind === "frontmatter-ontology" || evidence.sourceKind === "inline-ontology")) this.ontologyEditButton(header, evidence.fieldName);
       const status = header.createDiv({ cls: "kplex-edge-source-status" });
       renderDecisionEvaluations(status, [decision], this.plugin.translator);
       status.createSpan({
@@ -277,6 +350,18 @@ export class RelationshipExplanationModal extends Modal {
       });
       if (evidence.rawValue) row.createEl("code", { text: evidence.rawValue });
       if (decision.suppressionReason) row.createDiv({ cls: "kplex-edge-source-reason", text: suppressionReasonLabel(decision.suppressionReason, this.plugin.translator) });
+      const actions = header.createDiv({cls: "kplex-edge-source-actions"});
+      if (evidence.fieldName && (evidence.sourceKind === "frontmatter-ontology" || evidence.sourceKind === "inline-ontology")) {
+        this.ontologyEditButton(actions, evidence.fieldName);
+      }
+      if (this.plugin.index.get(evidence.declaredByPath)?.file) {
+        const generation = this.loadGeneration;
+        const navigate = iconButton(actions, "locate-fixed", this.plugin.translator("explain.goToSource"), /** Missing occurrence text still retains the exact physical document owner. */ () => {
+          if (!this.isCurrent(generation) || this.operation !== "idle") return;
+          void this.plugin.openRelationshipEvidenceLocation({path: evidence.declaredByPath, line: evidence.line ?? 1}, this.displayContext?.hostLeaf).then(() => this.close());
+        });
+        navigate.disabled = this.operation !== "idle"; this.mutationNavigationButtons.push(navigate);
+      }
       this.renderRemovalActions(row, [decision]);
       return;
     }
@@ -286,6 +371,7 @@ export class RelationshipExplanationModal extends Modal {
 
   /** Render a grouped physical source occurrence with localized evidence labels and original source content. */
   private renderSourceOccurrence(container: HTMLElement, section: RelationshipSourceSection, decisions: readonly EvidenceDecision[]): void {
+      const generation = this.loadGeneration;
       const active = decisions.some((decision) => decision.active);
       const card = container.createDiv({ cls: `kplex-edge-source-card${active ? " is-active" : " is-overridden"}` });
       const header = card.createDiv({ cls: "kplex-edge-source-header" });
@@ -306,12 +392,12 @@ export class RelationshipExplanationModal extends Modal {
       const reasons = [...new Set(decisions.map((decision) => decision.suppressionReason).filter((value): value is EvidenceSuppressionReason => Boolean(value)))];
       for (const reason of reasons) card.createDiv({ cls: "kplex-edge-source-reason", text: suppressionReasonLabel(reason, this.plugin.translator) });
 
-      const actions = card.createDiv({ cls: "kplex-edge-source-actions" });
+      const actions = header.createDiv({ cls: "kplex-edge-source-actions" });
       for (const field of new Set(decisions.filter(/** Overridden properties retain their own physical editing identity. */ decision =>
         decision.evidence.sourceKind === "frontmatter-ontology" || decision.evidence.sourceKind === "inline-ontology")
         .map(/** Field names are source facts, not combined connector captions. */ decision => decision.evidence.fieldName).filter(/** Body/property sources without a physical field have no ontology editor target. */ (field): field is string => Boolean(field)))) this.ontologyEditButton(actions, field);
       const navigate = iconButton(actions, "locate-fixed", this.plugin.translator("explain.goToSource"), () => {
-        if (this.closed || this.operation !== "idle") return;
+        if (!this.isCurrent(generation) || this.operation !== "idle") return;
         void this.plugin.openRelationshipEvidenceLocation({ path: section.path, line: section.occurrence?.line ?? section.startLine }, this.displayContext?.hostLeaf).then(() => this.close());
       });
       navigate.disabled = this.operation !== "idle";
@@ -332,31 +418,18 @@ export class RelationshipExplanationModal extends Modal {
       row.createDiv({ cls: "kplex-edge-source-removal-coordinate", text: this.plugin.translator("explain.removeCoordinate", {
         note: expected.storagePath, field: expected.fieldKey, target: expected.targetPath,
       }) });
-      const button = iconButton(row, "unlink", this.plugin.translator("explain.removeRelationship"), /** Capture one still-current physical declaration before showing native confirmation. */ () => {
-        if (!this.isCurrent(generation) || this.operation !== "idle") return;
-        const actual = this.plugin.captureFrontmatterUnlinkExpectation(evidence);
-        if (!actual || actual.storage !== expected.storage || actual.target !== expected.target || actual.fieldKey !== expected.fieldKey) {
-          this.refreshDetails(this.plugin.translator("explain.removeSourceChanged"));
-          return;
-        }
-        this.setOperation("confirming");
-        const confirmation = new RemoveRelationshipSourceModal(this.app, this.plugin.translator,
-          { note: actual.storagePath, field: actual.fieldKey, target: actual.targetPath }, /** Only this mounted generation can resume an explicit approval. */ confirmed => {
-            this.confirmation = null;
-            if (!this.isCurrent(generation)) return;
-            if (!confirmed) { this.setOperation("idle"); return; }
-            void this.removeDeclaration(evidence, actual, generation);
-          });
-        this.confirmation = confirmation;
-        confirmation.open();
-      });
+      const actions = row.createDiv({cls: "kplex-edge-declaration-actions"});
+      const button = iconButton(actions, "unlink", this.plugin.translator("explain.removeRelationship"), /** Capture one still-current physical declaration before showing native confirmation. */ () =>
+        this.confirmDeclarationRemoval(evidence, expected, generation));
       button.dataset.kplexRemoveField = expected.fieldKey;
       button.disabled = this.operation !== "idle";
       this.removalButtons.push(button);
+      if (evidence.declaredRole === "hidden") continue;
       const receiving = this.plugin.index.get(expected.targetPath);
       const reversible = receiving && eligibleRelationshipOwner(this.app, receiving)
         && ["parent", "child", "left", "right", "previous", "next"].includes(evidence.declaredRole);
-      const reverse = iconButton(parent.querySelector<HTMLElement>(".kplex-edge-source-actions") ?? parent.createDiv({cls: "kplex-edge-source-actions"}), "arrow-left-right", this.plugin.translator("relationship.flip"), /** Each action names one independent declaration, even when the pair has several evidence sources. */ () => {
+      const reverseLabel = this.plugin.translator("relationship.flip");
+      const reverse = iconButton(actions, "arrow-left-right", reversible ? reverseLabel : `${reverseLabel} · ${this.plugin.translator("relationship.flipUnavailable")}`, /** Each action names one independent declaration, even when the pair has several evidence sources. */ () => {
         if (!reversible || !this.isCurrent(generation) || this.operation !== "idle" || this.ontologyEditor.active) return;
         const actual = this.plugin.captureFrontmatterUnlinkExpectation(evidence);
         if (!actual || actual.storage !== expected.storage || actual.target !== expected.target || actual.fieldKey !== expected.fieldKey) {
@@ -375,10 +448,29 @@ export class RelationshipExplanationModal extends Modal {
         });
         this.confirmation = dialog; dialog.open();
       });
+      actions.insertBefore(reverse, button);
       reverse.disabled = !reversible || this.operation !== "idle";
       if (reversible) this.removalButtons.push(reverse);
-      else row.createDiv({cls: "setting-item-description", text: this.plugin.translator("relationship.flipUnavailable")});
     }
+  }
+
+  /** Physical source unlink retains one exact, explicitly confirmed declaration edit. */
+  private confirmDeclarationRemoval(evidence: RelationEvidence, expected: NonNullable<ReturnType<KplexPlugin["captureFrontmatterUnlinkExpectation"]>>, generation: number): void {
+    if (!this.isCurrent(generation) || this.operation !== "idle") return;
+    const actual = this.plugin.captureFrontmatterUnlinkExpectation(evidence);
+    if (!actual || actual.storage !== expected.storage || actual.target !== expected.target || actual.fieldKey !== expected.fieldKey) {
+      this.refreshDetails(this.plugin.translator("explain.removeSourceChanged")); return;
+    }
+    this.setOperation("confirming");
+    const confirmation = new RemoveRelationshipSourceModal(this.app, this.plugin.translator,
+      {note: actual.storagePath, field: actual.fieldKey, target: actual.targetPath}, /** Only this mounted generation can resume an explicit approval. */ confirmed => {
+        this.confirmation = null;
+        if (!this.isCurrent(generation)) return;
+        if (!confirmed) { this.setOperation("idle"); return; }
+        void this.removeDeclaration(evidence, actual, generation);
+      });
+    this.confirmation = confirmation;
+    confirmation.open();
   }
 
   /** A closed modal or superseded source generation cannot resume confirmation or append old cards. */
@@ -455,6 +547,7 @@ export class RelationshipExplanationModal extends Modal {
   /** Render the pair’s Connection details, evidence evaluations and provenance actions with localized captions and feedback; the native Modal owns its open/close shell. */
   onOpen(): void {
     this.closed = false;
+    this.initialFocusHandled = false;
     this.releaseMigration = this.displayContext?.hostLeaf?.view.containerEl.onWindowMigrated?.(/** A migrated inspector cannot retain nested ontology or cross-file mutation prompts. */ () => this.close()) ?? null;
     this.releaseIndex = this.plugin.index.subscribe(/** Only a saved-pending operation needs publication-driven refresh. */ () => this.refreshPendingRemoval());
     this.refreshDetails();
@@ -500,11 +593,15 @@ export class RelationshipExplanationModal extends Modal {
     pair.createSpan({ text: " → " });
     pair.createEl("strong", { text: targetTitle, attr: { title: this.explanation.targetPath } });
 
-    this.addOntologyEditor(this.contentEl);
-    this.addHiddenAction(this.contentEl);
-    if (!selectedFrontmatterDeclarations(this.explanation.decisions.map(/** Availability reflects actual selected-source provenance, never screen direction. */ decision => decision.evidence))
-      .some(/** Unsupported property shapes must be edited manually rather than broadly rewritten. */ evidence => Boolean(this.plugin.captureFrontmatterUnlinkExpectation(evidence)))) {
-      this.contentEl.createDiv({cls: "setting-item-description", text: this.plugin.translator("relationship.flipSourceUnavailable")});
+    const actions = this.contentEl.createDiv({cls: "kplex-edge-connection-actions", attr: {"aria-label": this.plugin.translator("explain.connectionActions"), role: "group"}});
+    this.addOntologyEditor(this.contentEl, actions);
+    this.addHiddenAction(actions);
+    if (this.displayContext?.onStyle) {
+      const style = iconButton(actions, "paintbrush", this.plugin.translator("styleSources.menu"), /** Appearance navigation belongs to the caller's captured style sources. */ () => {
+        if (this.isCurrent(generation) && this.operation === "idle") this.displayContext?.onStyle?.(style);
+      });
+      style.dataset.kplexConnectionStyle = "true";
+      style.disabled = this.operation !== "idle"; this.mutationNavigationButtons.push(style);
     }
 
     if (this.displayContext?.role === "sibling") {
@@ -548,12 +645,15 @@ export class RelationshipExplanationModal extends Modal {
       });
     }
 
-    const viewWindow = this.contentEl.ownerDocument.defaultView ?? window;
-    viewWindow.requestAnimationFrame(() => {
-      if (!this.isCurrent(generation)) return;
-      const focus = this.displayContext?.initialFocus === "why" ? why : list;
-      focus.scrollIntoView({ block: "nearest" });
-    });
+    const initialFocus = this.displayContext?.initialFocus;
+    if (initialFocus && !this.initialFocusHandled) {
+      const viewWindow = this.contentEl.ownerDocument.defaultView ?? window;
+      viewWindow.requestAnimationFrame(() => {
+        if (!this.isCurrent(generation) || this.initialFocusHandled) return;
+        this.initialFocusHandled = true;
+        (initialFocus === "why" ? why : list).scrollIntoView({ block: "nearest" });
+      });
+    }
   }
 
   /** Retire pending evidence UI and release the originating surface session exactly once. */

@@ -235,7 +235,7 @@ function modalFixture(){
  const modal=Object.assign(new M.RelationShell(),{plugin:f.host,options:{mode:'relink',purpose:'ontology-add',origin:f.origin,fixedTarget:f.target,onCommitted:result=>commits.push(result),onCommitEnd:success=>ends.push(success)},
   semanticRole:'parent',selectedField:'Parent',opened:true,busy:false,pending:false,selectedStoragePath:f.a.path,storageIdentity:f.a,
   selectedOntologyEditor:{active:false,close(){}},ontologyDialog:null,ontologyRoot:null,releaseRename:null,reciprocalReceipt:null,reciprocalTarget:null,
-  contentEl:{empty(){}},renderOntologySelection(){},
+  modalEl:{isConnected:true},contentEl:{empty(){}},renderOntologySelection(){},
   updateSaveButton(){this.saveDisabled=this.busy||!this.canSave()},
   renderReciprocalFailure(){renders.push({busy:this.busy,outcomes:this.reciprocalReceipt.outcomes})},
   close(){this.onClose()},

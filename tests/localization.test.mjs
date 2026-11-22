@@ -16,6 +16,21 @@ const require = createRequire(import.meta.url);
 const ts = require("typescript");
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 
+test("connection feedback and ontology translations retain authored Unicode instead of shell substitution marks", () => {
+  const keys = ["notice.linkedNodeHidden", "actions.relationship.relink", "actions.relationship.relink.description", "relation.changeOntologyHelp", "relation.changeOntologyPairHelp"];
+  for (const locale of ["en", "de", "fr", "es", "nl", "ja", "ru", "zh-TW"]) {
+    const source = readFileSync(join(root, "src/lang", locale + ".ts"), "utf8");
+    for (const key of keys) {
+      const line = source.split("\n").find(line => line.includes('"' + key + '":'));
+      assert(line, locale + ": " + key);
+      assert(!line.includes("?") && !line.includes("\uFFFD"), locale + " lost authored characters in " + key);
+      if (locale === "ja") assert(/[\u3040-\u30ff]/u.test(line), "Japanese copy must retain kana");
+      if (locale === "ru") assert(/[\u0400-\u04ff]/u.test(line), "Russian copy must retain Cyrillic");
+      if (locale === "zh-TW") assert(/[\u4e00-\u9fff]/u.test(line), "Chinese copy must retain Han characters");
+    }
+  }
+});
+
 function compileModules(relativePaths, prefix = "kplex-localization-test-") {
   const temp = mkdtempSync(join(tmpdir(), prefix));
   for (const relativePath of relativePaths) {

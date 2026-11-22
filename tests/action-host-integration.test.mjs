@@ -13,7 +13,21 @@ import { build } from 'esbuild';
 const temporary = mkdtempSync(join(tmpdir(), 'kplex-action-host-'));
 process.on('exit', () => rmSync(temporary, { recursive: true, force: true }));
 await build({ stdin: { contents: 'export * from "./src/core/plex/viewPresentation"; export * from "./src/core/contracts/ontologyConfiguration"; export * from "./src/ui/KplexDocumentSession"; export * from "./src/core/plex/actionPreferences"; export * from "./src/adapters/obsidian/actionNode"; export * from "./src/application/ActionManager"; export * from "./src/adapters/obsidian/relationshipMetadataWrite"; export * from "./src/core/parser/metadata"; export * from "./src/index/ForegroundWorkScheduler"; export * from "./src/adapters/obsidian/settingsNavigation";', resolveDir: fileURLToPath(new URL('..', import.meta.url)) }, outfile: join(temporary, 'contracts.mjs'), bundle: true, platform: 'node', format: 'esm' });
+await build({entryPoints:[fileURLToPath(new URL('../src/adapters/obsidian/hiddenPropertyName.ts',import.meta.url))],outfile:join(temporary,'hidden-property.mjs'),bundle:true,platform:'node',format:'esm'});
 const contracts = await import(pathToFileURL(join(temporary, 'contracts.mjs')));
+const {suggestHiddenProperty}=await import(pathToFileURL(join(temporary,'hidden-property.mjs')));
+
+/** New hosts expose the property registry through MetadataTypeManager; the old alias is an older-host fallback only. */
+test('Hidden name proposal prefers current cached native property registry and fails closed on malformed current data',()=>{
+ let legacyReads=0;
+ const cache={getAllPropertyInfos(){legacyReads++;return {hidden:{}};}};
+ assert.equal(suggestHiddenProperty({metadataTypeManager:{getAllProperties:()=>({hidden:{name:'hidden',widget:'multitext'},'kplex-hidden':{name:'kplex-hidden',widget:'multitext'}})},metadataCache:cache},['kplex-hidden-2']),'kplex-hidden-3');
+ assert.equal(legacyReads,0);
+ assert.equal(suggestHiddenProperty({metadataTypeManager:{getAllProperties:()=>[]},metadataCache:cache},[]),null);
+ assert.equal(legacyReads,0,'A malformed current registry must not invoke the deprecated alias');
+ assert.equal(suggestHiddenProperty({metadataCache:cache},[]),'kplex-hidden');assert.equal(legacyReads,1);
+ assert.equal(suggestHiddenProperty({metadataCache:{}},[]),null);
+});
 
 /** Extract the real callback with its sync/async contract intact, excluding native startup. */
 function method(name, dependencies = {}) {
@@ -603,6 +617,32 @@ for(const hazard of ['success','cancel','replacement','hidden-payload','retired-
  assert.equal(result.status,hazard==='success'||hazard==='refreshed-facade'||hazard==='priority-scheduler'?'committed':hazard==='cancel'||hazard==='retired-owner'?'cancelled':hazard==='canonical-replacement'?'unavailable':'failed');
  if(hazard==='success'||hazard==='refreshed-facade'||hazard==='priority-scheduler')assert.deepEqual(f.frontmatter['Hide also'],['[[Folder/B.md]]']);assert.equal(f.context.relationshipWriteCancels.size+f.app.metadataCache.refs.size+f.app.vault.refs.size,0);
  if(scheduler){assert.deepEqual(scheduler.diagnostics().active,[0,0,0,0,0]);assert.equal(scheduler.diagnostics().waiting,0);assert.deepEqual(f.patches,['Owner.md']);}
+});
+
+/** First-use Hidden configuration is part of the actual directional consent, never a separate setup approval. */
+for(const hazard of ['save','cancel','retired-owner','configuration-refresh','competing-configuration'])test('connection Hidden stages missing field until final '+hazard,async()=>{
+ const f=deleteFixture({Children:'[[B]]'}),owner={path:f.source.path,name:'Owner',file:f.source,url:null};
+ f.context.settings.hierarchy.hidden=[];f.context.index.pages=new Map([[owner.path,owner],[f.target.path,f.target]]);
+ f.context.index.get=path=>f.context.index.pages.get(path);f.context.index.withForegroundPriority=async work=>work();f.context.publishSavedRelationship=async()=>{};
+ let configurations=0,dialogs=0,nativeWrites=0,live=true;
+ f.context.suggestHiddenOntologyField=()=> 'hidden';
+ f.context.createHiddenOntologyField=async(field,current)=>{
+  assert.equal(field,'hidden');assert(current());configurations++;
+  f.context.settings.hierarchy.hidden=[hazard==='competing-configuration'?'Other hidden':field];
+  if(hazard==='configuration-refresh')for(const [path,page]of f.context.index.pages)f.context.index.pages.set(path,{...page});
+  return true;
+ };
+ const native=f.app.fileManager.processFrontMatter;f.app.fileManager.processFrontMatter=async(...args)=>{nativeWrites++;return native(...args);};
+ class Modal{constructor(app,sources,fields,target,decision,options){dialogs++;assert.deepEqual(fields,['hidden']);assert.deepEqual(options,{createHiddenField:true});this.decision=decision;this.decided=false;}onClose(){if(!this.decided){this.decided=true;this.decision(null);}}close(){this.onClose();}open(){assert.equal(configurations,0,'Opening the actual chooser must not persist draft vocabulary');assert.equal(nativeWrites,0);assert.deepEqual(f.context.settings.hierarchy.hidden,[]);this.decided=true;this.close();if(hazard==='retired-owner')live=false;this.decision(hazard==='cancel'?null:{sourcePath:'Owner.md',field:'hidden'});}}
+ f.context.hideRelationship=method('hideRelationship',{...contracts,normalizeFieldName:contracts.normalizeFieldName,HideRelationshipModal:Modal,Notice:class{},relationshipMetadataPayload:contracts.relationshipMetadataPayload}).bind(f.context);
+ const previous=globalThis.window;globalThis.window={setTimeout,clearTimeout};let result;try{result=await f.context.hideRelationship(owner.path,f.target.path,()=>live);}finally{globalThis.window=previous;}
+ assert.equal(dialogs,1,'Only the final directional Hide chooser opens');
+ assert.equal(configurations,hazard==='cancel'||hazard==='retired-owner'?0:1);
+ assert.equal(nativeWrites,hazard==='save'||hazard==='configuration-refresh'?1:0);
+ assert.equal(result.status,hazard==='save'||hazard==='configuration-refresh'?'committed':hazard==='cancel'?'cancelled':'unavailable');
+ assert.equal(f.frontmatter.Children,'[[B]]');
+ if(nativeWrites)assert.deepEqual(f.frontmatter.hidden,['[[Folder/B.md]]']);else assert.equal(f.frontmatter.hidden,undefined);
+ assert.equal(f.context.relationshipWriteCancels.size+f.app.metadataCache.refs.size+f.app.vault.refs.size,0);
 });
 
 /** Native trash awaits cannot dematerialize a replacement file at the original path. */

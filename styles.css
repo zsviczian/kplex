@@ -2674,6 +2674,7 @@ body.kplex-filter-panel-open .tooltip { z-index: 100300; }
 /* Connection details is optimized for skimming provenance occurrences and hands actual editing
    off to the native Markdown source view. */
 .kplex-edge-properties-modal { width: min(860px, calc(100vw - 36px)); max-width: min(860px, calc(100vw - 36px)); }
+.kplex-edge-connection-actions { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: var(--size-4-2); margin-top: var(--size-4-2); }
 .kplex-edge-ontology-row {
   display: flex;
   align-items: center;
@@ -2687,6 +2688,11 @@ body.kplex-filter-panel-open .tooltip { z-index: 100300; }
 }
 .kplex-edge-ontology-copy { min-width: 0; display: grid; gap: 2px; }
 .kplex-edge-ontology-value { color: var(--text-muted); overflow-wrap: anywhere; }
+.kplex-edge-ontology-conflict { margin-top: var(--size-4-2); }
+.kplex-relation-additional { display: flex; flex-wrap: wrap; align-items: center; gap: var(--size-4-2); margin-block: var(--size-4-4); }
+.kplex-relation-additional[hidden] { display: none; }
+.kplex-relation-additional .setting-item-description { flex: 1 1 240px; min-width: 0; }
+.kplex-relation-additional button { margin-inline-start: auto; }
 .kplex-edge-why { margin-bottom: 14px; }
 .kplex-edge-source-intro { margin: -3px 0 10px; color: var(--text-muted); line-height: 1.4; font-size: var(--font-ui-small); }
 .kplex-edge-source-list { display: grid; gap: 9px; }
@@ -2698,7 +2704,7 @@ body.kplex-filter-panel-open .tooltip { z-index: 100300; }
   background: var(--background-secondary);
 }
 .kplex-edge-source-card.is-overridden { opacity: .74; }
-.kplex-edge-source-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 9px; }
+.kplex-edge-source-header { display: flex; flex-wrap: wrap; align-items: flex-start; justify-content: space-between; gap: 9px; }
 .kplex-edge-source-title { min-width: 0; overflow-wrap: anywhere; }
 .kplex-edge-source-title span { color: var(--text-muted); font-size: var(--font-ui-smaller); }
 .kplex-edge-source-status { display: flex; flex: 0 0 auto; align-items: center; justify-content: flex-end; flex-wrap: wrap; gap: 5px; max-width: 55%; }
@@ -2734,10 +2740,12 @@ body.kplex-filter-panel-open .tooltip { z-index: 100300; }
   font-size: var(--font-ui-smaller);
 }
 .kplex-edge-source-reason { margin: 5px 0; color: var(--text-muted); font-size: var(--font-ui-smaller); }
-.kplex-edge-source-actions { display: flex; flex-wrap: wrap; gap: 6px; }
+.kplex-edge-source-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: var(--size-4-2); }
+.kplex-edge-source-header > .kplex-edge-source-actions { flex-basis: 100%; }
 .kplex-edge-source-removal { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: var(--size-4-2); margin-top: var(--size-4-2); }
-.kplex-edge-source-removal-coordinate { color: var(--text-muted); font-size: var(--font-ui-small); overflow-wrap: anywhere; }
-.kplex-edge-source-removal button { color: var(--text-error); }
+.kplex-edge-source-removal-coordinate { flex: 1 1 220px; min-width: 0; color: var(--text-muted); font-size: var(--font-ui-small); overflow-wrap: anywhere; }
+.kplex-edge-declaration-actions { display: flex; gap: var(--size-4-2); margin-inline-start: auto; }
+.kplex-edge-source-removal [data-kplex-remove-field] { color: var(--text-error); }
 .kplex-edge-removal-status { padding: var(--size-4-2) 0; color: var(--text-muted); }
 .kplex-edge-source-action { display: inline-flex; align-items: center; gap: 6px; min-height: 28px; padding: 3px 8px; font-size: var(--font-ui-smaller); }
 .kplex-edge-source-action svg { width: 14px; height: 14px; }

@@ -9,7 +9,17 @@ import { buildLocaleCatalog, type LocaleCatalog, type LocaleTranslationMap } fro
 /** Construct the typed Japanese table only when selected; importing this module allocates no catalog. */
 export function createJapaneseCatalog(): LocaleCatalog {
 const japaneseTranslations = {
-  "notice.linkedNodeHidden": "{name} ??????????????????????????????????????",
+  "explain.bodyOntologyHint": "K-Plex でオントロジーを変更できるのは YAML フロントマターのみです。本文で定義されたオントロジーは元のノートで編集してください。",
+  "hide.removeDeclaration": "Hidden 宣言を削除",
+  "explain.connectionActions": "接続の操作",
+  "explain.changeOntologyConflict": "複数のドキュメントプロパティがこの接続を定義しています。置き換える前に、下のソース操作で余分な宣言を削除するか、そのオントロジーを修正してください。",
+  "relation.additionalOntologyHelp": "既存のオントロジー宣言は保持されます。別のオントロジーを追加すると、この接続が複数の役割を持つ場合があります。既存のプロパティを置き換えるには「オントロジーを変更」を使用してください。",
+  "hide.setup.staged": "保存すると、{field} が Hidden オントロジーに追加され、この接続が非表示になります。",
+  "relation.changeOntologyPairHelp": "接続された両方のノートのオントロジーを変更します。他の接続とノート本文は保持されます。",
+  "relation.changeOntologyHelp": "この接続の文書プロパティを変更します。他の接続とノート本文は保持されます。",
+  "actions.relationship.relink.description": "文書プロパティに定義された接続のオントロジー、または対応する相互ペアを変更します。",
+  "actions.relationship.relink": "オントロジーを変更",
+  "notice.linkedNodeHidden": "{name} をリンクしましたが、現在のフィルターまたはレンズにより非表示になっています。",
   "settings.canvasHints.name": "キャンバスのヒントを表示",
   "settings.canvasHints.help": "キャンバスの上部にショートカットと関係のヒントを表示します。",
   "indexing.backgroundTitle": "K-Plex が非アクティブなとき",
@@ -190,7 +200,7 @@ const japaneseTranslations = {
   "folderActions.create": "サブフォルダーを作成",
   "folderActions.destination": "このフォルダーの移動先",
   "folderActions.failed": "フォルダー操作を完了できませんでした。",
-  "ontology.editSelected": "編集：{field}",
+  "ontology.editSelected": "オントロジー定義を編集：{field}",
   "copyLink.failed": "ノードのリンクをコピーできませんでした。もう一度お試しください。",
   "copyLink.fallback": "保管庫内の完全なパスを含むリンクをコピーしました。このクリップボードでは貼り付け先のノートに合わせてリンクを調整できません。",
   "copyLink.targetUnavailable": "コピーしたノードは利用できなくなりました。もう一度コピーしてください。",

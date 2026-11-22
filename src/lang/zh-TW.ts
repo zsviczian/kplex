@@ -9,7 +9,17 @@ import { buildLocaleCatalog, type LocaleCatalog, type LocaleTranslationMap } fro
 /** Construct the typed Traditional Chinese table only when selected; importing this module allocates no catalog. */
 export function createTraditionalChineseCatalog(): LocaleCatalog {
 const traditionalChineseTranslations = {
-  "notice.linkedNodeHidden": "??? {name}??????????????????",
+  "explain.bodyOntologyHint": "K-Plex 只能變更 YAML 前置資料中的本體。請在來源筆記中編輯定義於本文的本體。",
+  "hide.removeDeclaration": "移除 Hidden 宣告",
+  "explain.connectionActions": "連線操作",
+  "explain.changeOntologyConflict": "有多個文件屬性定義此連線。取代前，請使用下方的來源操作移除多餘的宣告，或修正其本體。",
+  "relation.additionalOntologyHelp": "現有的本體宣告會保留。其他本體可能讓此連線具有多個角色。請使用「變更本體」來取代現有屬性。",
+  "hide.setup.staged": "儲存會將 {field} 加入 Hidden 本體，並隱藏此連線。",
+  "relation.changeOntologyPairHelp": "變更兩份相連筆記中的本體關係。其他連線與筆記文字會保留。",
+  "relation.changeOntologyHelp": "變更這條連線的文件屬性。其他連線與筆記文字會保留。",
+  "actions.relationship.relink.description": "變更單一連線在文件屬性中的本體關係，或其對應的互惠關係配對。",
+  "actions.relationship.relink": "變更本體關係",
+  "notice.linkedNodeHidden": "已連結 {name}，但目前的篩選器或透鏡將此節點隱藏。",
   "settings.canvasHints.name": "顯示畫布提示",
   "settings.canvasHints.help": "在畫布頂端顯示快捷鍵與關係提示。",
   "indexing.backgroundTitle": "K-Plex 非使用中時",
@@ -190,7 +200,7 @@ const traditionalChineseTranslations = {
   "folderActions.create": "建立子資料夾",
   "folderActions.destination": "將此資料夾移至",
   "folderActions.failed": "無法完成資料夾操作。",
-  "ontology.editSelected": "編輯：{field}",
+  "ontology.editSelected": "編輯本體定義：{field}",
   "copyLink.failed": "無法複製節點連結，請再試一次。",
   "copyLink.fallback": "已複製含儲存庫完整路徑的連結。此剪貼簿無法依貼上目標筆記調整連結。",
   "copyLink.targetUnavailable": "複製的節點已無法使用，請重新複製。",

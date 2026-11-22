@@ -3,6 +3,100 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
+test('Define relationship offers six directions and commits the selected direction with its live form guard',async()=>{
+ assert.equal(await authoringScenario(`
+ const definitions=[];p.addOntologyToConnection=async(...args)=>{definitions.push(args);check(args[5](),'Live definition guard missing');return {state:'saved-published',page:target}};
+ for(const role of ['parent','child','left','right','previous','next']){
+  const modal=new M.RelationModal(p,{mode:'relink',purpose:'ontology-specify',origin,fixedTarget:target,semanticRole:'parent'});modal.open();
+  await waitFor(()=>field(modal));const select=modal.contentEl.querySelector('.kplex-add-related-role-select');
+  equal([...select.options].map(option=>option.value),['child','parent','left','right','previous','next'],'Definition directions incomplete');
+  reactInput(select,role);await waitFor(()=>field(modal).value===p.defaultOntologyField(role));
+  const input=field(modal);check(input.value===p.defaultOntologyField(role),'Field did not follow direction');
+  button(modal,'relation.specifyOntologyButton').click();await waitFor(()=>!modal.modalEl.isConnected);
+  const saved=definitions.at(-1);check(saved[2]===role&&saved[3]===p.defaultOntologyField(role),'Definition wrote the inferred default instead of the selected role');
+  check(!saved[5](),'Closed definition retained write approval');
+ }
+ check(definitions.length===6,'Definitions were duplicated');
+ `),true);
+});
+
+test('adding to an existing ontology explains retained declarations and switches the same mounted form to replacement',async()=>{
+ assert.equal(await authoringScenario(`
+ const changes=[],adds=[];
+ const primary={declaredByPath:origin.path,declaredTargetPath:target.path,declaredRole:'child',fieldName:'Child'};
+ const approval={selection:{primary,declarations:[primary]}};
+ p.index.evidenceBetween=()=>[{sourceKind:'frontmatter-ontology',fieldName:'Child'}];
+ p.captureConnectionOntologyChange=()=>approval;
+ p.addOntologyToConnection=async(...args)=>{adds.push(args);return {state:'saved-published',page:target}};
+ p.changeConnectionOntology=async(...args)=>{changes.push(args);return {state:'saved-published',page:target}};
+ const modal=new M.RelationModal(p,{mode:'relink',purpose:'ontology-add',origin,fixedTarget:target,semanticRole:'child',initialField:'Child'});modal.open();
+ await waitFor(()=>field(modal));const mounted=modal.modalEl,input=field(modal);
+ const guidance=modal.contentEl.querySelector('.kplex-relation-additional');
+ check(!guidance.hidden&&guidance.textContent.includes(t('relation.additionalOntologyHelp')),'Additional role effect unexplained');
+ modal.contentEl.querySelector('[data-kplex-replace-existing]').click();await waitFor(()=>modal.titleEl.textContent===t('actions.relationship.relink'));
+ check(modal.modalEl===mounted&&field(modal)===input,'Replace created another dialog or discarded the picker');
+ check(modal.contentEl.querySelector('.kplex-relation-storage').hidden,'Replacement can redirect approved ownership');
+ check(!modal.contentEl.querySelector('.kplex-relation-additional'),'Replacement retains obsolete additive actions');
+ reactInput(modal.contentEl.querySelector('.kplex-add-related-role-select'),'right');await waitFor(()=>field(modal).value==='Challenger');
+ button(modal,'actions.relationship.relink').click();await waitFor(()=>!mounted.isConnected);
+ check(!adds.length&&changes.length===1&&changes[0][0]===approval&&changes[0][1]==='right','Mode switch added a competing ontology or lost exact approval');
+ `,{styles:true}),true);
+});
+
+test('Change ontology starts in its current direction, scopes suggestions and offers all six replacement directions',async()=>{
+ assert.equal(await authoringScenario(`
+ p.settings.hierarchy.children=['Child','Child alternative'];
+ const approved={selection:{declarations:[{}]}},changes=[];
+ p.changeConnectionOntology=async(...args)=>{changes.push(args);return {state:'saved-published',page:target}};
+ const modal=new M.RelationModal(p,{mode:'relink',purpose:'ontology-change',ontologyChange:approved,
+  origin,fixedTarget:target,semanticRole:'child',initialField:'Child',hostLeaf:leaf});modal.open();
+ await waitFor(()=>field(modal));const direction=modal.contentEl.querySelector('.kplex-add-related-role-select');
+ check(direction.value==='child'&&field(modal).value==='Child','Current direction and physical ontology were lost');
+ equal([...direction.options].map(option=>option.value),['child','parent','left','right','previous','next'],'Replacement directions are incomplete');
+ check(!modal.contentEl.querySelector('#kplex-relation-modal-storage'),'Replacement can redirect an approved property owner');
+ modal.contentEl.querySelector('.kplex-fuzzy-disclosure').click();await waitFor(()=>document.querySelector('.kplex-ontology-results'));
+ const choices=document.querySelector('.kplex-ontology-results').textContent;
+ check(choices.includes('Child alternative')&&!choices.includes('Previous'),'Default ontology list is not scoped to Child');
+ field(modal).dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',bubbles:true,cancelable:true}));
+ reactInput(direction,'previous');await waitFor(()=>field(modal).value==='Previous');
+ button(modal,'actions.relationship.relink').click();await waitFor(()=>!modal.modalEl.isConnected);
+ check(changes.length===1&&changes[0][0]===approved&&changes[0][1]==='previous'&&changes[0][2]==='Previous','Replacement bypassed its exact approval/role/field');
+ `,{styles:true}),true);
+});
+
+test('paired ontology replacement requires a valid inverse and Cancel never writes either note',async()=>{
+ assert.equal(await authoringScenario(`
+ p.settings.hierarchy.children=['Child/Parent','Unpaired child'];
+ const approved={selection:{declarations:[{},{}]}},changes=[];
+ p.changeConnectionOntology=async(...args)=>{changes.push(args);return {state:'saved-published',page:target}};
+ const open=()=>{const modal=new M.RelationModal(p,{mode:'relink',purpose:'ontology-change',ontologyChange:approved,
+  origin,fixedTarget:target,semanticRole:'child',initialField:'Child',hostLeaf:leaf});modal.open();return modal};
+ let modal=open();await waitFor(()=>field(modal));check(modal.contentEl.textContent.includes(t('relation.changeOntologyPairHelp')),'Two-owner mutation is unexplained');
+ reactInput(field(modal),'Unpaired child');await waitFor(()=>button(modal,'actions.relationship.relink').disabled);
+ check(modal.contentEl.textContent.includes(t('reciprocal.requiresInverse')),'Missing replacement inverse is unexplained');
+ button(modal,'common.cancel').click();check(!changes.length,'Cancel changed ontology');
+ modal=open();await waitFor(()=>field(modal));reactInput(modal.contentEl.querySelector('.kplex-add-related-role-select'),'left');
+ await waitFor(()=>field(modal).value==='Friend'&&!button(modal,'actions.relationship.relink').disabled);
+ button(modal,'actions.relationship.relink').click();await waitFor(()=>!modal.modalEl.isConnected);
+ check(changes.length===1&&changes[0][1]==='left'&&changes[0][2]==='Friend','Symmetric Friend replacement was rejected');
+ `,{styles:true}),true);
+});
+
+test('partial ontology replacement retains frozen intent and retries its existing receipt',async()=>{
+ assert.equal(await authoringScenario(`
+ p.settings.hierarchy.children=['Child/Parent'];let retry=0,replacementWrites=0;const commits=[];
+ const receipt={outcomes:[{path:origin.path,field:'Child',state:'saved'},{path:target.path,field:'Parent',state:'pending'}],retry:async()=>{retry++}};
+ p.changeConnectionOntology=async()=>{replacementWrites++;throw new M.ReciprocalRelationshipWriteError(receipt,t('reciprocal.partial'),Error('Second file failure'))};
+ const modal=new M.RelationModal(p,{mode:'relink',purpose:'ontology-change',ontologyChange:{selection:{declarations:[{},{}]}},
+  origin,fixedTarget:target,semanticRole:'child',initialField:'Child',hostLeaf:leaf,onCommitted:outcome=>commits.push(outcome.state)});modal.open();
+ await waitFor(()=>field(modal));button(modal,'actions.relationship.relink').click();await waitFor(()=>modal.contentEl.querySelector('[data-kplex-reciprocal-retry]'));
+ check(field(modal).disabled&&modal.contentEl.querySelector('.kplex-add-related-role-select').disabled,'Partial intent remains editable');
+ check(button(modal,'actions.relationship.relink').disabled,'Partial save can be submitted as a new replacement');
+ modal.contentEl.querySelector('[data-kplex-reciprocal-retry]').click();await waitFor(()=>!modal.modalEl.isConnected);
+ equal(commits,['saved-pending','saved-published'],'Durable partial/result status was lost');check(replacementWrites===1&&retry===1,'Retry repeated replacement intent');
+ `),true);
+});
+
 test('actual Link completion reports its endpoint once to the captured canvas without changing the saved result',async()=>{
  assert.equal(await authoringScenario(`
  const feedback=[],release=p.registerLinkedNodeFeedback(leaf,(source,linked)=>feedback.push([source.path,linked.path]));

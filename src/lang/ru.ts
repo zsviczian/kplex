@@ -9,7 +9,17 @@ import { buildLocaleCatalog, type LocaleCatalog, type LocaleTranslationMap } fro
 /** Construct the typed Russian table only when selected; importing this module allocates no catalog. */
 export function createRussianCatalog(): LocaleCatalog {
 const russianTranslations = {
-  "notice.linkedNodeHidden": "???? {name} ??????, ?? ????? ???????? ????????? ??? ???????.",
+  "explain.bodyOntologyHint": "K-Plex может изменять онтологию только в YAML-свойствах. Онтологию, заданную в тексте, редактируйте в исходной заметке.",
+  "hide.removeDeclaration": "Удалить объявление Hidden",
+  "explain.connectionActions": "Действия со связью",
+  "explain.changeOntologyConflict": "Эту связь определяют несколько свойств документа. Перед заменой удалите лишнее объявление или исправьте его онтологию с помощью действий с источниками ниже.",
+  "relation.additionalOntologyHelp": "Существующие объявления онтологии сохраняются. Другая онтология может добавить этой связи ещё одну роль. Чтобы заменить существующее свойство, используйте «Изменить онтологию».",
+  "hide.setup.staged": "При сохранении {field} добавляется в онтологию Hidden, и эта связь скрывается.",
+  "relation.changeOntologyPairHelp": "Изменяет онтологию в обеих связанных заметках. Другие связи и текст заметок сохраняются.",
+  "relation.changeOntologyHelp": "Изменяет свойство документа для этой связи. Другие связи и текст заметки сохраняются.",
+  "actions.relationship.relink.description": "Изменить онтологию одной связи в свойствах документа или соответствующую взаимную пару.",
+  "actions.relationship.relink": "Изменить онтологию",
+  "notice.linkedNodeHidden": "Узел {name} связан, но скрыт текущими фильтрами или линзами.",
   "settings.canvasHints.name": "Показывать подсказки на холсте",
   "settings.canvasHints.help": "Показывать подсказки о сочетаниях клавиш и связях в верхней части холста.",
   "indexing.backgroundTitle": "Когда K-Plex неактивен",
@@ -190,7 +200,7 @@ const russianTranslations = {
   "folderActions.create": "Создать вложенную папку",
   "folderActions.destination": "Переместить эту папку в",
   "folderActions.failed": "Не удалось завершить операцию с папкой.",
-  "ontology.editSelected": "Изменить: {field}",
+  "ontology.editSelected": "Изменить определение онтологии: {field}",
   "copyLink.failed": "Не удалось скопировать ссылку на узел. Попробуйте ещё раз.",
   "copyLink.fallback": "Скопирована ссылка с полным путём в хранилище. Этот буфер обмена не может адаптировать ссылки к заметке назначения.",
   "copyLink.targetUnavailable": "Скопированный узел больше недоступен. Скопируйте его снова.",

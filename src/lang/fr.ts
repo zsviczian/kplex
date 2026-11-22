@@ -9,7 +9,17 @@ import { buildLocaleCatalog, type LocaleCatalog, type LocaleTranslationMap } fro
 /** Construct the typed French table only when selected; importing this module allocates no catalog. */
 export function createFrenchCatalog(): LocaleCatalog {
 const frenchTranslations = {
-  "notice.linkedNodeHidden": "Le n?ud {name} a ?t? li?, mais les filtres ou les lentilles actuels le masquent.",
+  "explain.bodyOntologyHint": "K-Plex peut modifier l’ontologie uniquement dans le frontmatter YAML. Modifiez l’ontologie définie dans le corps de la note source.",
+  "hide.removeDeclaration": "Supprimer la déclaration Hidden",
+  "explain.connectionActions": "Actions de connexion",
+  "explain.changeOntologyConflict": "Plusieurs propriétés de document définissent cette connexion. Utilisez les actions des sources ci-dessous pour supprimer la déclaration supplémentaire ou corriger son ontologie avant de la remplacer.",
+  "relation.additionalOntologyHelp": "Les déclarations d’ontologie existantes sont conservées. Une autre ontologie peut donner plusieurs rôles à cette connexion. Utilisez Modifier l’ontologie pour remplacer la propriété existante.",
+  "hide.setup.staged": "L’enregistrement ajoute {field} à l’ontologie Hidden et masque cette connexion.",
+  "relation.changeOntologyPairHelp": "Modifie l’ontologie dans les deux notes connectées. Les autres connexions et le texte des notes sont conservés.",
+  "relation.changeOntologyHelp": "Modifie la propriété de document de cette connexion. Les autres connexions et le texte de la note sont conservés.",
+  "actions.relationship.relink.description": "Modifier l’ontologie d’une connexion dans les propriétés du document ou sa paire réciproque correspondante.",
+  "actions.relationship.relink": "Modifier l’ontologie",
+  "notice.linkedNodeHidden": "Le nœud {name} a été lié, mais les filtres ou les lentilles actuels le masquent.",
   "settings.canvasHints.name": "Afficher les conseils sur le canevas",
   "settings.canvasHints.help": "Afficher les conseils sur les raccourcis et les relations en haut du canevas.",
   "indexing.backgroundTitle": "Quand K-Plex est inactif",
@@ -190,7 +200,7 @@ const frenchTranslations = {
   "folderActions.create": "Créer un sous-dossier",
   "folderActions.destination": "Déplacer ce dossier dans",
   "folderActions.failed": "Impossible de terminer l’opération sur le dossier.",
-  "ontology.editSelected": "Modifier : {field}",
+  "ontology.editSelected": "Modifier la définition d’ontologie : {field}",
   "copyLink.failed": "Impossible de copier le lien du nœud. Réessayez.",
   "copyLink.fallback": "Un lien avec le chemin complet du coffre a été copié. Ce presse-papiers ne peut pas adapter les liens à la note de destination.",
   "copyLink.targetUnavailable": "Le nœud copié n’est plus disponible. Copiez-le à nouveau.",

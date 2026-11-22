@@ -27,7 +27,7 @@ export class RemoveRelationshipSourceModal extends Modal {
       .addButton(/** Native close and explicit Cancel both leave the source untouched. */ button => iconButton(button, this.translate("common.cancel"), "x").onClick(/** Cancelling has no mutation capability. */ () => this.close()))
       .addButton(/** Only explicit approval can resume the parent's fresh authorization path. */ button => {
         button.buttonEl.dataset.kplexConfirmRemove = "true";
-        button.setButtonText(this.translate("explain.removeRelationship")).setDestructive()
+        iconButton(button, this.translate("explain.removeRelationship"), "unlink").setDestructive()
           .onClick(/** Coalesce repeated activation and settle approval only once. */ () => {
             if (this.decided) return;
             this.decided = true;
