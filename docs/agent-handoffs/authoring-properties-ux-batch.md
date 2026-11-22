@@ -1,0 +1,33 @@
+# Authoring properties and small UX batch
+
+Status: implementation handoff only; no runtime fixes are included.
+Prepared by Zsolt's Codex Agent on 2026-11-22.
+Base: main at a87006e44db9f7ad736aef090b493393bae454b6, including merged #325.
+Branch: 2026-11-22-authoring-properties-ux-batch.
+
+The draft PR description is the implementation specification and acceptance checklist. Follow AGENTS.md, CONTRIBUTING.md, CODING_STANDARDS.md, UI_RULES.md and docs/agent-workflows/issue-resolution.md. Refresh the accepted baseline and issue discussions before implementation; preserve unrelated work and existing canonical owners.
+
+## Approved scope
+
+Seven bounded issue slices: #311 property names/icons, #312 canvas pinch sensitivity, #316 Markdown web-link input, #317 generic Add relationship field memory, #319 lowercase defaults, #321 YouTube thumbnails only, and #322 complete wikilink input.
+
+Also implement the maintainer's larger add-node feature: Note type selection; configurable common creation properties including Alias; note-type properties in the same composer; independent node-detail visibility for common properties, with Alias hidden by default; and the requested order of Name, Note type, Folder, divider, common properties, note-type properties, Action, then the existing creation-kind tabs/template selection.
+
+Keep filename Name distinct from a configurable metadata field called Name. Keep property identity, optional display label, creation-form visibility and node-detail visibility distinct. Reuse existing alias semantics when the configured field is Alias; a different property name must actually target that property, not merely relabel a hard-coded alias input. Preserve title/alias resolution independently of supplementary node-detail visibility.
+
+## Boundaries
+
+- #313 (empty-wikilink reconciliation loop) and #318 (wrong-file relationship writes before local readiness) need separate priority investigations and are excluded from this UX batch.
+- #309 link titles were addressed by #314, released in 0.4.5; video-ID graph deduplication remains separate. #310 is already completed.
+- #315 needs clarification between retained preset categories and failed manual edits. #320 needs a minimal heading/embed example. Neither is an implementation commitment here.
+- #321 is only the requested YouTube subset until the reporter clarifies local video attachments versus web URLs.
+- No global index changes, cache resets, automatic vault-wide property renames, new parser/index framework or network work during indexing.
+- Use the current shared composer, property/type writers, canonical target parsing/resolution, settings queue, display measurement and consent-aware image lifetime. Keep explicit target identity, reciprocal-write guards and partial-commit recovery.
+
+## Acceptance and handoff
+
+Implement in independently reviewable slices. Add focused regressions and run the required real-dependency checks and applicable exact-build native lanes. Cover settings compatibility, create versus link behavior, templates, cancellation/failure recovery, narrow/mobile/popout rendering, all canvas property measurements, and consent/offline thumbnail behavior. Establish no extra semantic preparation from presentation-only controls.
+
+Current evidence is source review, issue/release comparison and remote document read-back only. No build, runtime test or native validation was run for this planning change. Keep the PR draft; do not merge or close issues as fixed until implementation and acceptance exist.
+
+This file is a temporary artifact required to open the handoff PR. Delete it before final implementation review; keep the lasting scope, decisions and actual results in the PR. Do not archive it or replace the root HANDOFF.md for this planning-only step.
