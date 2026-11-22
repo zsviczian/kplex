@@ -115,6 +115,48 @@ test('details preview identifies its source and never renders an unexplained tit
  })()`),true);
 });
 
+test('property editor keeps write identity, creation/display flags, label and emoji in a detached draft',async()=>{
+ assert.equal(await colorEditorScenario(`(()=>{
+  const M=sourceModules,t=M.createTranslator('en'),container=document.body.appendChild(createDiv());
+  const opening=[{field:'Name',visible:false,creationVisible:true}],fields=new M.NodeDetailsFields(container,t,{rows:opening,preview:(_type,rows)=>({title:'Sample',lines:M.nodePropertyLines(null,{},()=> 'Ada',rows)})},()=> '',()=>true);
+  const change=(name,value)=>{const input=container.querySelector('input[aria-label="'+t(name)+'"]');input.value=value;input.dispatchEvent(new Event('input'))};
+  const toggle=name=>{const input=container.querySelector('[aria-label="'+t(name)+'"]');input.click()};
+  toggle('nodeProperties.visible');toggle('nodeProperties.creationVisible');toggle('nodeProperties.showName');change('nodeProperties.label','Full name');change('nodeProperties.icon','🧭');
+  const saved=fields.read();if(saved[0].field!=='Name'||!saved[0].visible||saved[0].creationVisible!==false||!saved[0].showName||saved[0].label!=='Full name'||saved[0].icon!=='🧭')throw Error('Property draft lost flags or identity');
+  if(opening[0].visible||opening[0].creationVisible!==true||opening[0].label)throw Error('Unsaved edit mutated settings');
+  const preview=container.querySelector('.kplex-node-details-preview');if(preview.querySelector('.kplex-node-property-label').textContent!=='Full name:'||preview.querySelector('.kplex-node-property-value').textContent!=='Ada'||preview.querySelector('.kplex-node-property-icon').textContent!=='🧭')throw Error('Preview differs from measured property parts');
+  fields.dispose();return true;
+ })()`),true);
+});
+
+test('type property controls reflect inherited common flags and keep explicit overrides stable across reload',async()=>{
+ assert.equal(await colorEditorScenario(`(()=>{
+  const M=sourceModules,t=M.createTranslator('en'),container=document.body.appendChild(createDiv());
+  const common=[{field:'company',visible:true,creationVisible:false,showName:true,label:'Employer',icon:'building'}],rows=[{field:'Company',visible:true}];
+  const fields=new M.NodeDetailsFields(container,t,{rows,inheritedRows:common,preview:(_type,typeRows)=>({title:'Person',lines:M.nodePropertyLines('person',{person:typeRows},()=> 'ACME',common)})},()=> 'person',()=>true);
+  const control=key=>container.querySelector('[aria-label="'+t(key)+'"]');
+  if(control('nodeProperties.creationVisible').checked||!control('nodeProperties.showName').checked||control('nodeProperties.label').placeholder!=='Employer'||control('nodeProperties.icon').placeholder!=='building')throw Error('Effective inherited presentation differs from controls');
+  if(fields.read()[0].creationVisible!==undefined||fields.read()[0].showName!==undefined)throw Error('Opening editor persisted inherited flags');
+  control('nodeProperties.creationVisible').click();control('nodeProperties.showName').click();
+  for(const key of ['nodeProperties.label','nodeProperties.icon']){const input=control(key);input.value='';input.dispatchEvent(new Event('input'))}
+  const saved=fields.read(),loaded=M.loadNoteTypeProperties({person:saved});
+  if(saved[0].creationVisible!==true||saved[0].showName!==false||saved[0].label!==undefined||saved[0].icon!==undefined||JSON.stringify(loaded.person)!==JSON.stringify(saved))throw Error('Type override/reload lost explicit choices or stored empty inherited decoration');
+  const merged=M.mergedNodePropertyRows(common,saved)[0];if(merged.label!=='Employer'||merged.icon!=='building'||merged.showName!==false||merged.creationVisible!==true)throw Error('Clearing override differs before/after load');fields.dispose();return true;
+ })()`),true);
+});
+
+test('common property editor Cancel is read-only and Save submits one current detached configuration',async()=>{
+ assert.equal(await colorEditorScenario(`(async()=>{
+  const M=sourceModules,t=M.createTranslator('en'),p=await createAppearanceHost({});let saves=0,rows;
+  p.updateCommonNodeProperties=async(opening,next,current)=>{if(!current())throw Error('Retired editor');saves++;rows=structuredClone(next);return true};
+  const app={workspace:{getActiveFile:()=>null}},tab=new M.KplexSettingTab(app,p),button=(modal,key)=>[...modal.contentEl.querySelectorAll('button')].find(el=>el.getAttribute('aria-label')===t(key));
+  tab.openCommonNodeProperties();let modal=M.TestModal.instances.at(-1);modal.contentEl.querySelector('input[type=text]').value='Name';modal.contentEl.querySelector('input[type=text]').dispatchEvent(new Event('input'));modal.close();
+  if(saves||p.settings.commonNodeProperties[0].field!=='aliases')throw Error('Cancel changed common definitions');
+  tab.openCommonNodeProperties();modal=M.TestModal.instances.at(-1);const input=modal.contentEl.querySelector('input[type=text]');input.value='Name';input.dispatchEvent(new Event('input'));button(modal,'common.save').click();button(modal,'common.save').click();await new Promise(resolve=>setTimeout(resolve,40));
+  if(saves!==1||rows[0].field!=='Name'||rows[0].visible||rows[0].creationVisible!==true||modal.modalEl.isConnected)throw Error('Common properties Save lost semantics');return true;
+ })()`),true);
+});
+
 test('Set note type shows selected defaults, adds only explicitly and confirms existing empty values',async()=>{
  assert.equal(await colorEditorScenario(`(async()=>{
   const M=sourceModules,t=M.createTranslator('en'),file={path:'Person.md',extension:'md',stat:{mtime:1,size:1}},fm={'Note type':'person',tags:['person'],email:null};let writes=0,saved;
@@ -206,10 +248,21 @@ test('measured property text uses the 12px global default, fits below the unchan
   await b.evaluate(`(()=>{const css=document.createElement('style');css.textContent=${JSON.stringify(readFileSync('styles.css','utf8'))};document.head.append(css)})()`);
   for(const role of ['center','child','sibling'])for(const wrap of [false,true]){
    await b.evaluate(`render('${role}',${wrap})`);
-   const value=await b.evaluate(`(()=>{const node=document.querySelector('.kplex-thought'),label=node.querySelector('.kplex-thought-label'),lines=[...node.querySelectorAll('.kplex-node-property')],r=node.getBoundingClientRect();return{title:label.textContent,size:parseFloat(getComputedStyle(lines[0]).fontSize),small:parseFloat(getComputedStyle(lines[0]).fontSize)<parseFloat(getComputedStyle(label).fontSize),fit:lines.every(l=>{const b=l.getBoundingClientRect();return b.bottom<=r.bottom&&b.left>=r.left&&b.right<=r.right}),literal:lines[1].textContent,scripts:node.querySelectorAll('script').length,ellipsis:getComputedStyle(lines[0]).textOverflow}})()`);
+   const value=await b.evaluate(`(()=>{const node=document.querySelector('.kplex-thought'),label=node.querySelector('.kplex-thought-label'),lines=[...node.querySelectorAll('.kplex-node-property')],r=node.getBoundingClientRect();return{title:label.textContent,size:parseFloat(getComputedStyle(lines[0]).fontSize),small:parseFloat(getComputedStyle(lines[0]).fontSize)<parseFloat(getComputedStyle(label).fontSize),fit:lines.every(l=>{const b=l.getBoundingClientRect();return b.bottom<=r.bottom&&b.left>=r.left&&b.right<=r.right}),literal:lines[1].textContent,scripts:node.querySelectorAll('script').length,ellipsis:getComputedStyle(lines[0].querySelector('.kplex-node-property-value')).textOverflow}})()`);
    assert.equal(value.title,'ER12345');assert.equal(value.size,12);if(role==='center')assert.equal(value.small,true);assert.equal(value.fit,true);assert.equal(value.literal,'<script>Microsoft</script>');assert.equal(value.scripts,0);assert.equal(value.ellipsis,'ellipsis');
   }
   await b.evaluate(`render('child',false,[],false)`);assert.equal(await b.evaluate(`!!document.querySelector('.kplex-thought-caption')`),false);
   await b.evaluate(`render('child',false,[{field:'title',text:'Hidden by editor'}],true)`);assert.equal(await b.evaluate(`!!document.querySelector('.kplex-node-properties')`),false);
+ }finally{await b.cleanup()}
+});
+
+test('painted property labels shrink before values and icons, with full accessible copy and no overflow',async()=>{
+ const b=await chromiumHarness(bundle.outputFiles[0].text);try{
+  await b.evaluate(`(()=>{const css=document.createElement('style');css.textContent=${JSON.stringify(readFileSync('styles.css','utf8'))};document.head.append(css)})()`);
+  for(const theme of ['theme-light','theme-dark'])for(const role of ['center','child','sibling']){
+   await b.evaluate(`document.body.className='${theme}';render('${role}',false,[{field:'number',text:'42',label:'A very long translated label 中文 '+ 'word '.repeat(20),icon:'🧭'},{field:'date',text:'2026-11-22',label:'Date',icon:'calendar'}])`);
+   const value=await b.evaluate(`(()=>{const node=document.querySelector('.kplex-thought'),rows=[...node.querySelectorAll('.kplex-node-property')],row=rows[0],label=row.querySelector('.kplex-node-property-label'),value=row.querySelector('.kplex-node-property-value'),icon=row.querySelector('.kplex-node-property-icon');return{labelClipped:label.clientWidth<label.scrollWidth,valueFits:value.clientWidth>=value.scrollWidth,icon:icon.textContent,inside:rows.every(r=>r.getBoundingClientRect().right<=node.getBoundingClientRect().right),accessible:node.querySelector('.kplex-accessible-name').textContent.includes('number: 42'),labelRule:getComputedStyle(label).textOverflow,valueRule:getComputedStyle(value).textOverflow,iconWidth:icon.getBoundingClientRect().width}})()`);
+   assert.equal(value.labelClipped,true);assert.equal(value.valueFits,true);assert.equal(value.icon,'🧭');assert.equal(value.inside,true);assert.equal(value.accessible,true);assert.equal(value.labelRule,'ellipsis');assert.equal(value.valueRule,'ellipsis');assert(value.iconWidth>=12);
+  }
  }finally{await b.cleanup()}
 });

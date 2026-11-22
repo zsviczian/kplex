@@ -1140,6 +1140,15 @@ import {resolveCreationAfterSaving,creationAfterSavingActions,effectiveCreationA
 import {ontologyConfiguration} from ${JSON.stringify(join(root,"src/core/contracts/ontologyConfiguration.ts"))};
 import {normalizeFieldName} from ${JSON.stringify(join(root,"src/core/contracts/fieldName.ts"))};
 import {ontologyFieldViews,ontologyFieldDetail,ontologyFuzzyMatches,ontologySelectionFields} from ${JSON.stringify(join(root,"src/ui/features/ontologyPresentation.ts"))};
+import {DEFAULT_COMMON_NODE_PROPERTIES,mergedNodePropertyRows,nodePropertyRows} from ${JSON.stringify(join(root,"src/core/plex/nodeProperties.ts"))};
+import {CreationPropertyFields} from ${JSON.stringify(join(root,"src/ui/features/CreationPropertyFields.tsx"))};
+import {creationPropertyValues} from ${JSON.stringify(join(root,"src/application/creationProperties.ts"))};
+import {noteTypeTag} from ${JSON.stringify(join(root,"src/core/graph/tagPaths.ts"))};
+${uiDefinitions("src/adapters/obsidian/creationProperties.ts",["creationPropertyKind"])}
+${uiDefinitions("src/adapters/obsidian/tagNoteType.ts",["noteTypeAsTag"])}
+import {iterateInternalLinkTokens,iterateMarkdownLinkSteps} from ${JSON.stringify(join(root,"src/core/parser/metadata.ts"))};
+const parseLinktext=()=>{throw Error('This existing-selection fixture does not parse a native subpath')};
+${uiDefinitions("src/adapters/obsidian/relatedTarget.ts",["webTarget","interpretRelatedTarget"])}
 const FuzzySearchInput = (props) => createElement(FuzzySuggester, { ...props, icon: null });
 const ObsidianIcon = ({ name }) => createElement("span", null, name);
 ${uiDefinitions("src/ui/components/fuzzyFilterStrings.ts", ["fuzzyFilterStrings"])}
@@ -1155,15 +1164,16 @@ ${production}
  };
  try {
   const host = document.createElement("div"); document.body.append(host);
-  const origin = { path: "Origin.md", file: { path: "Origin.md", extension: "md" } }; const target = { path: "Target.md", file: { path: "Target.md", extension: "md" } };
+  const origin = { path: "Origin.md", file: { path: "Origin.md", extension: "md" }, tags: [] }; const target = { path: "Target.md", file: { path: "Target.md", extension: "md" }, tags: [] };
   const intents = [], outcomes = [], remembered = [], linkedFeedback = []; let commits = 0; let closes = 0; let rejectCommit = true; let savedPending = false;
   let folderEnumerations = 0;
   const session = { continuation: "return", suggestionOwnerId: "composer-browser-fixture", isSessionOpen: () => true, canComplete: () => true, reportLinkedNode: page => linkedFeedback.push(page), setWriting: () => {}, registerSubmit: () => () => {}, focusName: () => host.querySelector("input")?.focus(), closeForCompletion: () => { closes++; }, finishCompletion: () => {}, focusGraph: () => {} };
   session.rememberOntology = async field => { remembered.push(field); };
+  session.rememberGenericSelection=async()=>{};
   const plugin = {
    app: { vault: { on: () => ({}), offref: () => {}, getFileByPath: path => [origin, target].find(page => page.path === path)?.file,
     getAllFolders: includeRoot => { check(includeRoot === true, "folder inventory must include the vault root"); folderEnumerations++; return [{ path: "/" }, { path: "Projects" }, { path: "Projects/Ideas" }]; } } },
-   settings: { editNewNodeAfterCreate: false, newNodeDefaultType: "markdown",ontologyPairingVersion:1,ontologyDescriptions:{review:"Historicterm meaningful synonym",parent:"Historicterm other role"},hierarchy:{hidden:[],parents:["parent"],children:["children","review","example"],leftFriends:[],rightFriends:[],previous:[],next:[],exclusions:[]} },
+   settings: { editNewNodeAfterCreate: false, newNodeDefaultType: "markdown",noteTypeField:"Note type",noteTypeProperties:{},ontologyPairingVersion:1,ontologyDescriptions:{review:"Historicterm meaningful synonym",parent:"Historicterm other role"},hierarchy:{hidden:[],parents:["parent"],children:["children","review","example"],leftFriends:[],rightFriends:[],previous:[],next:[],exclusions:[]} },
    createdNoteCompletionControl(_host,options={}){const context={desktop:true,sidepanel:false,another:options.another!==false,editable:options.editable!==false,follow:options.follow!==false},key=options.operation==='link'?'linkAfterSaving':'newNodeAfterSaving';return{choices:creationAfterSavingActions(context),value:effectiveCreationAfterSaving(sanitizeCreationAfterSaving(this.settings[key]??this.settings.newNodeAfterSaving,this.settings.editNewNodeAfterCreate),context),onChange:value=>{this.settings[key]=value}}},
    finishNewRelatedNode:async()=>{}, creationTypeTabControl:()=>({value:null,onChange(){}}),
    translator: (key) => key, creationTemplateOptions: () => ({files:[],selected:'',root:''}), isExcalidrawAvailable: () => false, defaultOntologyField: role => role === "right" ? "Challenger" : role === "parent" ? "parent" : "children",
@@ -1173,7 +1183,8 @@ ${production}
    validateRelatedNoteName: () => ({ valid: true, existing: false, stem: "Target" }),
    newRelatedNoteFolder: () => "Projects",
    validateNoteFolderPath: value => ({ folderPath: value === "/" ? "" : value, error: null }),
-   index: { search: () => [target], titleFor: (page) => page.path, get: path => [origin, target].find(page => page.path === path), prepareRelationshipPair: async () => true },
+   index: { allPages:()=>[origin,target], search: () => [target], titleFor: (page) => page.path, get: path => [origin, target].find(page => page.path === path), prepareRelationshipPair: async () => true },
+   applyNewNoteCreationMetadata: async()=>{}, finalizeCreatedNoteMetadata: async()=>{},
    rememberRelationshipOntology: async (_role, field) => field,
    createRelationToPage: async (...args) => { if (savedPending) throw new SavedRelationshipPendingError("Saved; graph pending"); if (rejectCommit) throw new Error("not ready"); intents.push(args); return { state: "saved-published", page: target }; },
    requestNodeFlair: () => {},
@@ -1416,7 +1427,7 @@ const translate = (key) => key;
 const interaction = { gates: new Set(), nodePaths: new Set() }, connectDrag = null, nodeDrag = null;
 const hoverPreview = {current:new HoverPreview()};
 // The production unfiltered projection is absent; rename reconciliation must not invent a filtered read.
-const globalFiltering = false, filteredGateCounts = null, nodeVisuals = new Map();
+const globalFiltering = false, filteredGateCounts = null, nodeVisuals = new Map(), thumbnailLoader = undefined;
 const visibleEdgeProjection = {limited:false};
 const predicate = null, lenses = { lenses: [] }, paintLenses = lenses, predicateEngine = {}, predicateRevision = 0, layoutRevision = 0;
 let styleReads=0;const measuredStyle=()=>new Proxy({textColor:"#abcdef"},{ownKeys(target){styleReads++;return Reflect.ownKeys(target)}});
@@ -2331,6 +2342,7 @@ import {nodePaint,nodePaintFallbacks} from ${JSON.stringify(join(root,'src/index
 import {effectiveLabelLimit,nodeLabelFontSize,gateDiameter} from ${JSON.stringify(join(root,'src/ui/layout.ts'))};
 import {physicalPositionLabel} from ${JSON.stringify(join(root,'src/ui/features/positionPresentation.ts'))};
 import {canDisplayNodeImage} from ${JSON.stringify(join(root,'src/core/plex/nodeImagePolicy.ts'))};
+import {NodeVisualImage} from ${JSON.stringify(join(root,'src/ui/features/NodeVisualImage.tsx'))};
 import {createTranslator} from ${JSON.stringify(join(root,'src/lang/index.ts'))};
 import {HoverPreview,bindHoverPreview} from ${JSON.stringify(join(root,'src/ui/components/hoverPreview.ts'))};
 const ObsidianIcon=()=>null;
@@ -2479,7 +2491,7 @@ import { effectiveLabelLimit, nodeLabelFontSize, gateDiameter } from ${JSON.stri
 ${uiDefinitions("src/ui/plexViews/measurement.ts", ["clamp", "nodeSize"])}
 import { physicalPositionLabel } from ${JSON.stringify(join(root, "src/ui/features/positionPresentation.ts"))};
 const ObsidianIcon=({className,size})=><span className={"kplex-icon "+className} style={{width:size,height:size}}/>;
-import {physicalGateStats} from ${JSON.stringify(join(root,"src/ui/plexViews/measurement.ts"))};
+import {physicalGateStats,nodePropertyLinesWidth,nodePropertyLinesHeight} from ${JSON.stringify(join(root,"src/ui/plexViews/measurement.ts"))};
 import {nodePropertyFontSize} from ${JSON.stringify(join(root,"src/core/plex/nodeProperties.ts"))};
 import {useGateCountPresentation} from ${JSON.stringify(join(root,'src/ui/useGateCountPresentation.ts'))};
 import {thoughtCornerRadius} from ${JSON.stringify(join(root,'src/ui/plexViews/nodeConnections.ts'))};

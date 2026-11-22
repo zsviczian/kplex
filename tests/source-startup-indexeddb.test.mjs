@@ -10,6 +10,102 @@ import { createStartupResourceProbe } from "../scripts/testing/obsidian/startupR
 const bundle = await contributorBrowserBundle(["src/index/GraphIndex.ts", "src/index/GraphBuilder.ts", "src/index/IndexSnapshot.ts",
   "src/core/graph/compiler.ts", "src/adapters/obsidian/metadataSourceCollector.ts", "src/adapters/obsidian/ontologySourceCollector.ts"]);
 
+/** Native empty-link spellings retain their lexical occurrence and actual self-link count. */
+for(const rawTarget of ['', ' ', 'Self']) test(`empty wikilink acquisition persists native literal ${JSON.stringify(rawTarget)} without recovery retries`,async()=>{
+ const browser=await chromiumHarness(bundle);try{
+  assert(await browser.evaluate(contributorBrowserInitialize));
+  assert(await browser.evaluate(`(async()=>{
+   const M=sourceModules,f=await fixture('empty-wikilink-'+${JSON.stringify(rawTarget)}.length+'-'+${JSON.stringify(rawTarget === 'Self')}),raw=${JSON.stringify(rawTarget)};
+   try{
+    const file=f.add('Self.md','see [['+raw+']] here and [['+raw+']] again');
+    const position=index=>({start:{line:0,col:index,offset:index},end:{line:0,col:index+6,offset:index+6}});
+    f.metadata.get(file.path).links=[{link:raw,original:'[['+raw+']]',position:position(4)},{link:raw,original:'[['+raw+']]',position:position(24)}];
+    const resolve=f.app.metadataCache.getFirstLinkpathDest;
+    f.app.metadataCache.getFirstLinkpathDest=(literal,source)=>literal.trim()===''?f.files.get(source):resolve(literal,source);
+    f.app.metadataCache.resolvedLinks[file.path]={[file.path]:2};
+    const result=await f.acquisition.acquire(file,M.parseBodyMetadata(f.texts.get(file.path)));
+    ok(result.current&&result.saved,'Native literal must be durable: '+JSON.stringify(result));
+    const facts=async family=>{const values=[];equal(await f.repository.visit(file.path,family,records=>{values.push(...records);return true;}),'ready','Stored family');return values;};
+    equal((await facts('metadata')).filter(record=>record.kind==='host-literal').map(record=>record.rawTarget),[raw,raw],'Keep both native lexical occurrences');
+    const resolution=await facts('resolution');
+    const lexicalTarget=raw===' '?undefined:file.path;
+    equal(resolution.filter(record=>record.kind==='literal-resolution').map(record=>record.target?.entity.id),[lexicalTarget,lexicalTarget],'Canonical empty and explicit self literals use the host; older whitespace spelling retains its nullable binding');
+    equal(resolution.filter(record=>record.kind==='host-link').map(record=>record.count),[2],'Preserve actual self-link multiplicity');
+    ok(await f.acquisition.reconcile(),'Recovery closes its real source inventory');
+    const before=f.acquisition.getCounters(),writes=f.work.writes.length;
+    for(let attempt=0;attempt<3;attempt++){
+      f.app.metadataCache.trigger('changed',file);
+      ok(await f.acquisition.reconcile(),'Unchanged metadata recovery cycle '+attempt+' settles');
+    }
+    equal(f.acquisition.getCounters().failures,before.failures,'Completed unchanged recovery cycles cannot grow failures');
+    equal(f.work.writes.length,writes,'Unchanged cycles retain the actual source head');
+    equal((await facts('resolution')).filter(record=>record.kind==='host-link').map(record=>record.count),[2],'Recovery never drops valid self links');
+    return true;
+   }finally{f.close();}
+  })()`));
+ }finally{await browser.cleanup();}
+});
+
+/** Empty native lexical facts are distinct from malformed property candidates or code text. */
+test('empty wikilink support keeps missing-host and inline-code exclusion guards',async()=>{
+ const browser=await chromiumHarness(bundle);try{
+  assert(await browser.evaluate(contributorBrowserInitialize));
+  assert(await browser.evaluate(`(async()=>{
+   const M=sourceModules,f=await fixture('empty-wikilink-exclusion');
+   try{
+    const file=f.add('Code.md','see \\u0060[[ ]]\\u0060 here');
+    ok(M.validSourceFact({kind:'host-literal',ordinal:0,rawTarget:''},'metadata'),'Actual empty native literals are valid metadata');
+    ok(!M.validSourceFact({kind:'reference-candidate',valueId:'v',ordinal:0,final:true,rawTarget:'',external:false},'values'),'Empty property candidates remain invalid');
+    equal(M.resolveObsidianReferenceTarget({metadataCache:f.app.metadataCache,resolvedLinkCount:()=>0},file.path,{rawTarget:'',external:false}),null,'Missing native resolution never fabricates an empty unresolved entity');
+    const result=await f.acquisition.acquire(file,M.parseBodyMetadata(f.texts.get(file.path)));
+    ok(result.current&&result.saved,'Inline-code-only source is durable');
+    const metadata=[],resolution=[];
+    equal(await f.repository.visit(file.path,'metadata',records=>{metadata.push(...records);return true;}),'ready','Read actual metadata');
+    equal(await f.repository.visit(file.path,'resolution',records=>{resolution.push(...records);return true;}),'ready','Read actual resolution');
+    equal(metadata.filter(record=>record.kind==='host-literal'),[],'No lexical native occurrence is invented from inline code');
+    equal(resolution.filter(record=>record.kind==='host-link'||record.kind==='literal-resolution'),[],'No self relationship is invented from inline code');
+    ok(await f.acquisition.reconcile(),'Code control settles naturally');equal(f.acquisition.getCounters().failures,0,'Code control has no recovery failures');return true;
+   }finally{f.close();}
+  })()`));
+ }finally{await browser.cleanup();}
+});
+
+/** Previously persistable nonempty spellings keep their old binding through quiet reuse.
+ * Current Obsidian emits raw '' for [[ ]]; the old codec could never activate that canonical fact.
+ * These legacy-shaped fixtures guard the migration boundary without invalidating unrelated heads.
+ */
+for(const raw of [' ','%20','#Heading','%23Heading'])test(`legacy empty-candidate resolution keeps exact durable heads on quiet restart: ${JSON.stringify(raw)}`,async()=>{
+ const browser=await chromiumHarness(bundle);try{
+  assert(await browser.evaluate(contributorBrowserInitialize));
+  assert(await browser.evaluate(`(async()=>{
+   const M=sourceModules,f=await fixture('legacy-empty-resolution-'+${JSON.stringify(raw)}.length),raw=${JSON.stringify(raw)},expected=raw==='%20'?' ':null;let restarted;
+   try{
+    const file=f.add('Self.md','Legacy lexical spelling');
+    const position={start:{line:0,col:0,offset:0},end:{line:0,col:6,offset:6}};
+    f.metadata.get(file.path).links=[{link:raw,original:'[['+raw+']]',position}];
+    f.app.metadataCache.resolvedLinks[file.path]={[file.path]:2};
+    f.app.metadataCache.getFirstLinkpathDest=(literal,source)=>literal===''?f.files.get(source):f.files.get(literal)??null;
+    const target=M.resolveObsidianReferenceTarget({metadataCache:f.app.metadataCache,resolvedLinkCount:()=>2},file.path,{rawTarget:raw,external:false});
+    equal(target?.entity.id??null,expected,'Noncanonical spellings retain accepted null/URI-decoded unresolved binding');
+    await f.acquire();ok(await f.acquisition.reconcile(),'Seed a genuine durable, closed legacy-shaped source');
+    const db=await f.cache.open(),heads=await value(db.transaction('sourceHeads').objectStore('sourceHeads').getAll());
+    const read=async()=>{const facts=[];equal(await f.repository.visit(file.path,'resolution',records=>{facts.push(...records);return true;}),'ready','Authenticated resolution family');return facts;};
+    equal((await read()).filter(record=>record.kind==='literal-resolution').map(record=>record.target?.entity.id??null),[expected],'Stored legacy binding retains exact identity');
+    f.acquisition.close();f.work.reset();f.reads.length=0;f.parses.length=0;
+    restarted=new M.ObsidianSourceAcquisition(f.app,f.cache,async text=>{f.parses.push(text);return M.parseBodyMetadata(text)});
+    const result=await restarted.acquire(file,M.parseBodyMetadata(f.texts.get(file.path)));
+    ok(result.current&&result.saved,'Quiet restart reuses the authenticated exact head');
+    ok(await restarted.reconcile(),'Unchanged legacy-shaped source closes normally');
+    equal(await value(db.transaction('sourceHeads').objectStore('sourceHeads').getAll()),heads,'No source version migration or restamping');
+    equal(f.work.writes,[],'No unchanged source replacement');equal(f.reads,[],'No Markdown reread');equal(f.parses,[],'No parser replay');
+    const facts=await read();equal(facts.filter(record=>record.kind==='literal-resolution').map(record=>record.target?.entity.id??null),[expected],'Current resolver and reusable cached resolution agree');
+    equal(facts.filter(record=>record.kind==='host-link').map(record=>record.count),[2],'Native aggregate self-link multiplicity stays intact');
+    equal(restarted.getCounters().failures,0,'Quiet reuse has no repeated recovery failures');return true;
+   }finally{restarted?.close();f.close();}
+  })()`));
+ }finally{await browser.cleanup();}
+});
+
 test('recovery diagnostics preserve real snapshot failure, cancellation and retry outcomes',async()=>{
  const browser=await chromiumHarness(bundle);try{
   assert(await browser.evaluate(contributorBrowserInitialize));

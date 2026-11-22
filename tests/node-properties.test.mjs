@@ -1,8 +1,46 @@
 /** Display-only properties exercise actual loading, cached reads, all scene owners and geometry. */
 import assert from 'node:assert/strict';import test from 'node:test';
 import {plexViewModules,classicFixture,viewPage} from './support/plexViewFixture.mjs';
-const M=await plexViewModules(['src/core/plex/nodeProperties.ts','src/adapters/obsidian/nodeProperties.ts','src/core/graph/settingsPolicy.ts','src/ui/plexViews/prepareScene.ts','src/core/plex/views/mindmap/definition.ts','src/core/plex/views/wuxing/definition.ts']);
+const M=await plexViewModules(['src/core/plex/nodeProperties.ts','src/adapters/obsidian/nodeProperties.ts','src/core/graph/settingsPolicy.ts','src/ui/plexViews/measurement.ts','src/ui/plexViews/prepareScene.ts','src/core/plex/views/mindmap/definition.ts','src/core/plex/views/wuxing/definition.ts']);
 const fields=[{field:'title',visible:true},{field:'private',visible:false},{field:'company',visible:true}];
+
+test('common properties default Alias to creation only and retain explicit saved choices without semantic work',()=>{
+ const fresh=M.migrateAndMergeSettings({sentinel:{keep:true}});
+ assert.deepEqual(fresh.commonNodeProperties,[{field:'aliases',visible:false,creationVisible:true}]);
+ assert.deepEqual(M.migrateAndMergeSettings({commonNodeProperties:[]}).commonNodeProperties,[]);
+ const common=[{field:'Name',visible:true,creationVisible:false,showName:true,label:'Display name',icon:'user'}];
+ const loaded=M.migrateAndMergeSettings({...fresh,commonNodeProperties:common});
+ assert.deepEqual(loaded.commonNodeProperties,common);assert.deepEqual(M.migrateAndMergeSettings(JSON.parse(JSON.stringify(loaded))).commonNodeProperties,common);
+ assert.deepEqual(loaded.sentinel,{keep:true});
+ const effects=M.classifySettingsChange(M.captureSettingsPolicy(fresh),M.captureSettingsPolicy(loaded));
+ assert.equal(effects.semanticInvalidation,false);assert.equal(effects.presentationFacets,false);assert.equal(effects.searchTerms,false);assert.equal(effects.render,true);
+ assert.deepEqual(effects.changedKeys,['commonNodeProperties']);
+});
+
+test('common and type definitions merge once in common order with independent creation and display flags',()=>{
+ const common=[{field:'aliases',visible:false,creationVisible:true},{field:'Company',visible:true,creationVisible:true,label:'Employer',showName:true,icon:'building'}];
+ const type=[{field:'company',visible:false,creationVisible:false,icon:'🏢'},{field:'number',visible:true}];
+ const merged=M.mergedNodePropertyRows(common,type);
+ assert.deepEqual(merged,[common[0],{...common[1],...type[0]},type[1]]);
+ assert.notEqual(merged[0],common[0]);assert.deepEqual(common[1].icon,'building');
+ assert.deepEqual(M.nodePropertyLines(null,{},()=> 'Other name',common.slice(0,1)),[]);
+ const read=[];assert.deepEqual(M.nodePropertyLines('person',{person:type},field=>{read.push(field);return 42},common),[{field:'number',text:'42'}]);assert.deepEqual(read,['number']);
+ const aliasType=[{field:'aliases',visible:true}];assert.deepEqual(M.nodePropertyLines('person',{person:aliasType},()=> 'Authored alias',common.slice(0,1)),[{field:'aliases',text:'Authored alias'}]);
+ const fullCommon=Array.from({length:16},(_,index)=>({field:'common'+index,visible:false})),fullType=Array.from({length:16},(_,index)=>({field:'type'+index,visible:true}));
+ assert.equal(M.mergedNodePropertyRows(fullCommon,fullType).length,32);assert.equal(M.nodePropertyLines('person',{person:fullType},()=> 'value',fullCommon).length,16);
+});
+
+test('labels and icons are opt-in inert presentation and load without changing legacy value-only rows',()=>{
+ const rows=[{field:'number',visible:true,showName:true,label:'Translated heading 🧭',icon:'🏷️'},{field:'date',visible:true,icon:'calendar'},{field:'empty',visible:true,showName:true}];
+ const configuration=M.loadNoteTypeProperties({Person:rows});assert.deepEqual(configuration,{person:rows});
+ assert.deepEqual(M.nodePropertyLines('person',configuration,field=>({number:0,date:'2026-11-22',empty:null})[field]),[
+  {field:'number',text:'0',label:'Translated heading 🧭',icon:'🏷️'},{field:'date',text:'2026-11-22',icon:'calendar'}]);
+ const rowsWithDefaultName=[{field:'Amount',visible:true,showName:true}];assert.deepEqual(M.nodePropertyLines(null,{},()=>false,rowsWithDefaultName),[{field:'Amount',text:'false',label:'Amount'}]);
+ assert.equal(M.validNodeProperties([{field:'x',visible:true,label:'x\ny'}]),false);assert.equal(M.validNodeProperties([{field:'x',visible:true,showName:'yes'}]),false);
+ const value={field:'number',text:'42'},rich={...value,label:'A long translated label',icon:'compass'};
+ assert(M.nodePropertyLineWidth(rich,12)>M.nodePropertyLineWidth(value,12));
+ assert.equal(M.nodePropertyLineWidth({...value,label:'中文'},12)-M.nodePropertyLineWidth(value,12),12*2+12*.55+4);
+});
 
 test('global property font size is bounded, persisted and presentation-only',()=>{
  for(const [input,expected] of [[undefined,12],[NaN,12],['18',12],[2,8],[40,20],[9,9],[13,13]])assert.equal(M.migrateAndMergeSettings({propertyFontSize:input}).propertyFontSize,expected);
@@ -45,6 +83,22 @@ test('native-cache adapter never reads bodies, fences file identity and avoids h
  const noCache={...app,vault:{getFileByPath:()=>page.file},metadataCache:{getFileCache:()=>null}};assert.deepEqual(M.nodePropertyReader(noCache,{person:fields})(page),[]);
 });
 
+test('common details work without a note type and never read hidden Alias or acquire sources',()=>{
+ const page=viewPage('No type.md');page.file.stat={mtime:1,size:10};let reads=0;
+ const cache={frontmatter:{aliases:['Title'],rating:5}};
+ const app={vault:{getFileByPath:()=>page.file,read:()=>{throw Error('Body read')}},metadataCache:{getFileCache:()=>{reads++;return cache}}};
+ const common=[{field:'aliases',visible:false,creationVisible:true},{field:'rating',visible:true,showName:true,icon:'star'}];
+ assert.deepEqual(M.nodePropertyReader(app,{},common)(page),[{field:'rating',text:'5',label:'rating',icon:'star'}]);assert(reads>0);
+});
+
+test('type refinements read canonical spaced/hyphenated property identity and refuse ambiguous native keys',()=>{
+ const page=viewPage('Person.md');page.file.stat={mtime:1,size:10};page.noteType='person';
+ const cache={frontmatter:{'Full Name':'Ada'}},app={vault:{getFileByPath:()=>page.file},metadataCache:{getFileCache:()=>cache}};
+ const common=[{field:'Full Name',visible:true}],types={person:[{field:'full-name',visible:true,showName:true,label:'Name'}]};
+ assert.deepEqual(M.nodePropertyReader(app,types,common)(page),[{field:'full-name',text:'Ada',label:'Name'}]);
+ cache.frontmatter['full-name']='Conflicting';assert.deepEqual(M.nodePropertyReader(app,types,common)(page),[]);
+});
+
 test('Compass measures extra lines before positioning and invalidates geometry on visible value changes',()=>{
  const f=classicFixture(M),plain=M.buildScene(f.neighborhood,f.index,f.settings,false,undefined,true);
  let text='Microsoft';const detailsFor=()=>[{field:'company',text}],reader={...f.index,detailsFor};
@@ -61,4 +115,21 @@ for(const definition of [M.mindMapViewDefinition,M.wuXingViewDefinition])test(`$
  const plain=prepare(source),rich=prepare({...source,detailsFor:()=>[{field:'title',text:'A useful description'}]});assert.equal(plain.failure,false);assert.equal(rich.failure,false);
  assert.deepEqual(rich.scene.edges.map(e=>e.id),plain.scene.edges.map(e=>e.id));
  for(const node of rich.scene.nodes){const old=plain.scene.nodes.find(n=>n.occurrenceId===node.occurrenceId);assert(node.height>old.height);assert.equal(node.propertyLines.length,1);}
+});
+
+test('Compass, Mindmap and Facets reserve visible label/icon/value width for short titles without semantic preparation',()=>{
+ const plain=[{field:'amount',text:'42'}],rich=[{field:'amount',text:'42',label:'Very long translated label 中文',icon:'🧭'}];
+ const f=classicFixture(M);
+ const compass=lines=>M.buildScene(f.neighborhood,{...f.index,detailsFor:()=>lines},f.settings,false,undefined,true);
+ const scenes=[[compass(plain),compass(rich)]];
+ for(const definition of [M.mindMapViewDefinition,M.wuXingViewDefinition]){
+  const page=viewPage('A');page.file.stat={mtime:1,size:1};
+  const source={get:id=>id==='A'?page:undefined,titleFor:()=> 'A',isVisiblePage:()=>true,captureSemanticGateRead:()=>({isCurrent:()=>true}),neighbours:()=>[],sortNeighbours:rows=>rows,viewScopeCoverage:()=>({coverage:'local',prepared:true,complete:true,pending:false}),explainRelationship:()=>null};
+  const prepare=lines=>M.prepareViewScene(definition,M.plexViewRead(source,()=>true,32,'A',256),{...source,detailsFor:()=>lines},'A',null,f.settings,()=>true).scene;
+  scenes.push([prepare(plain),prepare(rich)]);
+ }
+ for(const [before,after] of scenes){
+  assert.deepEqual(after.edges.map(edge=>edge.id),before.edges.map(edge=>edge.id));
+  for(const node of after.nodes){const previous=before.nodes.find(row=>row.page.path===node.page.path);assert(node.width>previous.width);assert.equal(node.height,previous.height);assert.equal(node.propertyLines[0].label,rich[0].label);}
+ }
 });

@@ -7,7 +7,7 @@ import {classicPorts, classicNodePorts} from "../../../core/plex/views/classic/d
 import {mirrorClassicCoordinates} from "../../../core/plex/views/classic/geometry";
 import {nodeId} from "../../../core/graph/model";
 import type {PlexProjection} from "../../../core/plex/views/contracts";
-import {nodeSize, sectionNodeSize, countsForLayout, nodeLabelFontSize} from "../measurement";
+import {nodeSize, sectionNodeSize, countsForLayout, nodeLabelFontSize, nodePropertyLinesHeight, nodePropertyLinesWidth} from "../measurement";
 import {nodePropertyFontSize} from "../../../core/plex/nodeProperties";
 import type {NodeDetailsRead} from "../measurement";
 /**
@@ -131,11 +131,11 @@ function makeNode(
   const label = n.page.transient?.kind === "group" ? n.page.name : index.titleFor(n.page);
   const propertyLines = index.detailsFor?.(n.page);
   const baseSize = nodeSize(`${resolved.prefix ?? ""}${label}`, resolved.fontSize ?? 18, settings, false, resolved.maxLabelLength ?? 30, resolved.maxWidth ?? settings.baseNodeStyle.maxWidth, resolved.strokeWidth, propertyLines);
-  const size = scale === 1 ? baseSize : { width: baseSize.width * scale,
+  const size = scale === 1 ? baseSize : { width: Math.max(baseSize.width * scale, Math.min(baseSize.width, nodePropertyLinesWidth(propertyLines ?? [], nodePropertyFontSize(settings.propertyFontSize)))),
     // Sibling scaling keeps its width/proportions but cannot shrink the actual font's clip box.
     height: Math.max(baseSize.height * scale, Math.ceil(nodeLabelFontSize(style.fontSize ?? 18, false, settings.baseFontSize)
       * (settings.wrapNodeLabels ? 2.8 : 1.6) + 8 + 2 * Math.max(0, style.strokeWidth ?? 1))
-      + (propertyLines?.length ? 4 + propertyLines.length * Math.ceil(nodePropertyFontSize(settings.propertyFontSize) * 1.4) : 0)) };
+      + nodePropertyLinesHeight(propertyLines ?? [], nodePropertyFontSize(settings.propertyFontSize))) };
   const node: PositionedNode = {
     page: n.page,
     role,

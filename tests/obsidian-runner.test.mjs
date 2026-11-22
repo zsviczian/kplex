@@ -8,7 +8,7 @@ import { existsSync, mkdtempSync, mkdirSync, readFileSync, realpathSync, rmSync,
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
-import { runInNewContext } from "node:vm";
+import { runInNewContext, Script } from "node:vm";
 import { runObsidianVerification, validateTarget } from "../scripts/testing/obsidian/runner.mjs";
 import { runLiveUpdatesForeground } from "../scripts/testing/obsidian/foregroundLiveUpdates.mjs";
 import { createWaitTimingProbe } from "../scripts/testing/obsidian/waitTiming.mjs";
@@ -19,6 +19,7 @@ import { createHash } from "node:crypto";
 import { startupCacheIdentity } from "../scripts/testing/obsidian/startupCacheIdentity.mjs";
 import { startupRetainedMemory } from "../scripts/testing/obsidian/startupRetainedMemory.mjs";
 import {nativeDocumentSessions,withNativeDocumentSessions} from "../scripts/testing/obsidian/nativeDocumentSessions.mjs";
+import {emptyWikilinkCases} from "../scripts/testing/obsidian/emptyWikilinkCases.mjs";
 import ts from "typescript";
 import {createLightweightIndexingProbe} from "../scripts/testing/obsidian/indexingCpuProbe.mjs";
 import "./indexing-checkpoint.test.mjs";
@@ -665,7 +666,7 @@ test('authoring cache and application-restart receipts retain owned persisted de
  const nativeIndex={indexedDb:cache,semanticFingerprints:new Map([[a,'a'],[b,'b']])};
  const nativeApp={plugins:{plugins:{'k-plex':{index:nativeIndex}}}};
  const task=async(_name,body)=>new Function('app','return (async()=>{'+body+'})();')(nativeApp);
- const restartResult=await new Function('task','plannedFiles',declaration(restart,'savedProof')+'\nreturn savedProof();')(task,[a,b]);
+ const restartResult=await new Function('task','plannedFiles','emptyLinkMode',declaration(restart,'savedGraphProof')+'\n'+declaration(restart,'savedProof')+'\nreturn savedProof();')(task,[a,b],false);
  assert.deepEqual(restartResult.evidence.map(row=>[row.by,row.target,row.field,row.role,row.type]),
   [[a,b,'Opposes302','right',exports.RelationType.DEFINED],[b,a,'opposes302','right',exports.RelationType.DEFINED]]);
  const relationships=parse('scripts/testing/obsidian/authoringWorkspace.mjs');let persistedCallback;
@@ -849,4 +850,82 @@ test('foreground inventory prewrite barrier waits for Node-owned persisted recov
  runInNewContext(nodeAcceptance.getText(source),context);await task;
  assert(Object.isFrozen(context.inventoryState.layout));assert.deepEqual(created,['owned-fixture']);assert.deepEqual(JSON.parse(JSON.stringify(c.owned)),['owned-fixture']);assert.equal(c.baselineAccepted,true);
  assert.deepEqual(receipts,[report.inventoryRecovery.native,report.inventoryRecovery.configuration]);assert.equal(JSON.parse(files.get(report.inventoryRecovery.native)).leaves.length,3);
+});
+
+/** Finite native facts exercise the actual #313 driver's admission; no Obsidian process is opened. */
+function emptyLinkDriverFixture(states,expectFixed=true){
+ const files=new Map(),metadata=new Map(),resolved={},folder='owned313',target=folder+'/Target313.md';
+ let calls=0,cleaned=false,current={completed:false,outcome:'cancelled',pendingKnown:5,failures:0};
+ const app={vault:{getFileByPath:path=>files.get(path)??null},metadataCache:{resolvedLinks:resolved,
+  getFileCache:file=>metadata.get(file.path),getFirstLinkpathDest:(literal,source)=>files.get(literal===''?source:folder+'/'+literal+'.md')??null}};
+ const source={reconcile:async()=>{current=states[Math.min(calls++,states.length-1)];if(current.error)throw current.error;return current.completed;},
+  getRecoveryDiagnostics:()=>({dependenciesReady:current.completed,pendingKnown:current.pendingKnown,pendingResolution:0,pass:{outcome:current.outcome}}),
+  getActivityState:()=>({pendingKnown:current.pendingKnown})};
+ const plugin={settings:{hierarchy:{leftFriends:[]}},updateOntologyField:async()=>{},index:{sourceAcquisition:source,
+  getSourceAcquisitionCounters:()=>({failures:current.failures}),getSourceRepositoryDiagnostics:()=>({unsaved:current.unsaved??0}),getSemanticPreparationDiagnostics:()=>({fullBuilds:0}),
+  indexedDb:{sources:{visit:async(path,family,consume)=>{
+   const literals=metadata.get(path).links,facts=family==='metadata'?literals.map((link,ordinal)=>({kind:'host-literal',ordinal,rawTarget:link.link})):
+    [...literals.map((link,ordinal)=>({kind:'literal-resolution',ordinal,target:{entity:{id:path}}})),...(resolved[path][path]?[{kind:'host-link',state:'resolved',target:path,count:resolved[path][path]}]:[])];
+   consume(facts);return 'ready';
+  }}}}};
+ const fixture={p:plugin,initialize:async()=>{},check:(value,message)=>assert.ok(value,message),until:async(predicate,message)=>assert.ok(predicate(),message),
+  note:async(name)=>{
+   const file={path:folder+'/'+name+'.md'};files.set(file.path,file);
+   const count=name==='Repeated313'?2:name==='Empty313'||name==='Self313'?1:0;
+   metadata.set(file.path,{links:Array.from({length:count},(_,index)=>({link:name==='Self313'?'Self313':'',original:name==='Self313'?'[[Self313]]':'[[ ]]',position:{start:{offset:index*8},end:{offset:index*8+6}}}))});
+   resolved[file.path]={[target]:1,...(count?{[file.path]:count}:{})};return file;
+  },cleanup:async()=>{cleaned=true;}};
+ const control={expectFixed,fixture:()=>fixture,closed:false};
+ return{app,control,get calls(){return calls;},get cleaned(){return cleaned;}};
+}
+
+test('empty-link native driver settles cancelled fixture passes before three strict unchanged cycles',async()=>{
+ const settled={completed:true,outcome:'complete',pendingKnown:0,failures:4};
+ const f=emptyLinkDriverFixture([{completed:false,outcome:'cancelled',pendingKnown:5,failures:2},settled]);
+ const result=await emptyWikilinkCases(f.app,f.control);
+ assert.equal(result.warmup.length,2);assert.equal(result.warmup[0].recovery.pass.outcome,'cancelled');
+ assert.equal(result.before.counters.failures,4,'Startup observations remain recorded, never reset');
+ assert.equal(result.passes.length,3);assert(result.passes.every(pass=>pass.completed&&pass.recovery.pass.outcome==='complete'&&pass.counters.failures===4));
+ assert.equal(f.calls,5);assert.equal(f.cleaned,true);
+});
+
+test('empty-link native driver keeps baseline characterization at three actual incomplete attempts',async()=>{
+ const f=emptyLinkDriverFixture([{completed:false,outcome:'cancelled',pendingKnown:5,failures:0},
+  {completed:false,outcome:'incomplete',pendingKnown:4,failures:6},{completed:false,outcome:'incomplete',pendingKnown:2,failures:8}],false);
+ const result=await emptyWikilinkCases(f.app,f.control);
+ assert.deepEqual(result.warmup,[]);assert.equal(f.calls,3);assert.deepEqual(result.passes.map(pass=>pass.counters.failures),[0,6,8]);assert.equal(f.cleaned,true);
+});
+
+for(const condition of ['incomplete','unsaved'])test('empty-link native driver bounds unsettled '+condition+' work and retains every attempt',async()=>{
+ const f=emptyLinkDriverFixture([{completed:condition==='unsaved',outcome:condition==='unsaved'?'complete':'incomplete',pendingKnown:condition==='unsaved'?0:2,failures:8,unsaved:condition==='unsaved'?1:0}]);
+ await assert.rejects(emptyWikilinkCases(f.app,f.control),/completed durable closure/);
+ assert.equal(f.calls,32);assert.equal(f.control.progress.warmup.length,32);assert.equal(f.control.progress.warmup[0].counters.failures,8);assert.equal(f.cleaned,true);
+});
+
+test('empty-link native driver still rejects a genuine failure during its unchanged cycles',async()=>{
+ const f=emptyLinkDriverFixture([{completed:true,outcome:'complete',pendingKnown:0,failures:4},
+  {completed:true,outcome:'complete',pendingKnown:0,failures:5}]);
+ await assert.rejects(emptyWikilinkCases(f.app,f.control),/must not grow failure counters/);
+ assert.equal(f.calls,4);assert.equal(f.control.progress.before.counters.failures,4);assert.equal(f.cleaned,true);
+});
+
+/** Validate cooked template output, since node --check cannot detect invalid nested eval strings. */
+test('empty-link restart fixture generation compiles and preserves exact Markdown bytes',async()=>{
+ const source=ts.createSourceFile('authoringWorkspaceRestart.mjs',readFileSync(new URL('../scripts/testing/obsidian/authoringWorkspaceRestart.mjs',import.meta.url),'utf8'),ts.ScriptTarget.Latest,true);
+ let call;const find=node=>{if(ts.isCallExpression(node)&&node.expression.getText(source)==='task'&&node.arguments[0]?.text==='Create native empty-link controls')call=node;ts.forEachChild(node,find);};find(source);assert(call,'Actual native fixture task');
+ const paths={b:'owned/Baseline target.md'},emptyFixtures=[{path:'owned/Empty313.md',body:'see [[ ]] here'},
+  {path:'owned/Code313.md',body:'see `[[ ]]` here; "quoted" and \\ literal'}];
+ const body=runInNewContext('('+call.arguments[1].getText(source)+')',{paths,emptyFixtures});
+ new Script('(async()=>{'+body+'})()',{filename:'empty-link-native-fixture.js'});
+ const writes=[],app={plugins:{plugins:{'k-plex':{settingsWriteQueue:Promise.resolve()}}},vault:{create:async(path,text)=>writes.push([path,text])}};
+ await new Function('app','return (async()=>{'+body+'})();')(app);
+ assert.deepEqual(writes,emptyFixtures.map(fixture=>[fixture.path,'---\nOpposes302: '+JSON.stringify('[['+paths.b+']]')+'\n---\n'+fixture.body+'\n']));
+});
+
+test('restart native eval syntax preflight names its task before invoking CLI',()=>{
+ const source=ts.createSourceFile('authoringWorkspaceRestart.mjs',readFileSync(new URL('../scripts/testing/obsidian/authoringWorkspaceRestart.mjs',import.meta.url),'utf8'),ts.ScriptTarget.Latest,true);
+ const declaration=source.statements.find(node=>ts.isFunctionDeclaration(node)&&node.name?.text==='evaluate');assert(declaration,'Actual native eval owner');
+ let calls=0;const evaluate=new Function('Script','cli',declaration.getText(source)+';return evaluate;')(Script,()=>{calls++;assert.fail('Invalid script reached CLI');});
+ assert.throws(()=>evaluate('(]','Create native empty-link controls'),/Create native empty-link controls generated invalid native JavaScript: SyntaxError/);
+ assert.equal(calls,0);
 });

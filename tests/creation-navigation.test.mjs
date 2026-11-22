@@ -78,6 +78,27 @@ test("trackpad scroll pans in both axes at a fixed zoom; wheel mode and modifier
   assert.equal(wheelCamera(camera, {...scroll, deltaMode: 2}, point, true, 3, 600).y, 20-12*600);
 });
 
+test('pinch sensitivity changes modifier-wheel zoom in both navigation modes and preserves ordinary wheel behavior', () => {
+ const {trackpadPinchSensitivity:sanitize}=moduleAt('src/core/plex/trackpadNavigation.ts');
+ const camera={x:10,y:20,scale:1.5},point={x:200,y:150},event={deltaX:8,deltaY:2,deltaMode:0,ctrlKey:false,metaKey:false};
+ for(const value of [undefined,null,'3',NaN,Infinity])assert.equal(sanitize(value),5);
+ assert.equal(sanitize(1),1,'An explicitly saved 1 retains the original response');
+ assert.equal(sanitize(-1),0.25);assert.equal(sanitize(30),10);
+ for(const sensitivity of [0.25,1,5,10]){
+  assert.deepEqual(wheelCamera(camera,event,point,true,3,600,sensitivity),{x:2,y:18,scale:1.5},'Panning keeps its exact response');
+  assert.deepEqual(wheelCamera(camera,event,point,false,3,600,sensitivity),wheelCamera(camera,event,point,false,3,600),'Ordinary mouse wheel is unchanged');
+  for(const trackpad of [false,true])for(const modifier of ['ctrlKey','metaKey'])for(const mode of [0,1,2]){
+   const next=wheelCamera(camera,{...event,[modifier]:true,deltaMode:mode},point,trackpad,3,600,sensitivity);
+   const unit=trackpad?(mode===1?16:mode===2?600:1):1;
+   assert.equal(next.scale,Math.max(0.3,camera.scale*Math.exp(-event.deltaY*unit*0.0015*sensitivity)));
+   assert(Math.abs((point.x-next.x)/next.scale-(point.x-camera.x)/camera.scale)<1e-10);
+   assert(Math.abs((point.y-next.y)/next.scale-(point.y-camera.y)/camera.scale)<1e-10);
+  }
+  assert.equal(wheelCamera(camera,{...event,ctrlKey:true,deltaY:-1e6},point,true,3,600,sensitivity).scale,3);
+  assert.equal(wheelCamera(camera,{...event,ctrlKey:true,deltaY:1e6},point,true,3,600,sensitivity).scale,0.3);
+ }
+});
+
 test("creation type feature uses shared tabs and type-scoped fields with stable labelled panels", () => {
   const render = (type, props, key) => ({type, props, key}), changes = [];
   const {CreationTypeTabs} = moduleAt("src/ui/features/CreationTypeTabs.tsx", {
@@ -239,9 +260,11 @@ for(const kind of ['related','folder'])test(`foreign ${kind} template completion
  const owner={unloading:false,translator:key=>key,validateNoteFolderPath:()=>({folderPath:'Folder'}),validateRelatedNoteName:()=>({valid:true,stem:'New'}),
   createNewFileInFolder:()=>pending,writeCreatedNodeDisplayName:async()=>'',writeCreatedNodeAlias:async()=>'',mutateCreatedNodeMetadata:async()=>{},configuredDisplayNameField:()=>'',
   index:{withForegroundPriority:work=>scheduler.run(0,work),insertCreatedFile:created=>({file:created})}};
+ owner.finalizeCreatedNoteMetadata=method('src/main.ts','finalizeCreatedNoteMetadata');
  const create=method('src/main.ts',kind==='related'?'createNewRelatedFileForOrigin':'createNewNodeInFolder',{normalizePath:value=>value});
  const work=kind==='related'?create.call(owner,{},'New','markdown','','Folder'):create.call(owner,{isFolder:true,path:'folder:Folder'},'New','markdown');
- try{await Promise.resolve();assert.equal(scheduler.diagnostics().active[0],0,'Waiting for another plugin must not preempt navigation or background work');await scheduler.checkpoint(1);}
+ try{await Promise.resolve();assert.equal(scheduler.diagnostics().active[0],0,'Waiting for another plugin must not preempt navigation or background work');await scheduler.checkpoint(1);
+  finish(file);const created=await work;assert.equal(kind==='related'?created:created.file,file,'The real metadata finalizer retains the actual created file');}
  finally{finish(file);await work.catch(()=>{});scheduler.close();}
 });
 

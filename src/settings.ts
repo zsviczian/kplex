@@ -34,6 +34,8 @@
  * Fresh installations receive editable English descriptions for their English factory vocabulary;
  * saved dictionaries, including explicit clears, never inherit replacement wording on reload.
  * Creation and linking remember separate after-saving actions, retaining the former shared choice on upgrade.
+ * Canvas pinch sensitivity applies to modifier-wheel zoom and two-finger touch zoom.
+ * Missing saved values use the default and explicit saved values are preserved within bounds.
  */
 import {ATTACHMENT_VISIBILITY_KEYS} from "./core/plex/attachmentVisibility";
 import {FormSetting as Setting, formField, formSelect, formActions, formOptionGroup, labelIconButton} from "./adapters/obsidian/KplexModal";
@@ -47,6 +49,7 @@ import {periodicPinLabel} from "./ui/savedPinPresentation";
 import { readObsidianPresentationEnvironment } from "./adapters/obsidian/presentationEnvironment";
 import {contentVisibilityPatch} from "./core/plex/contentVisibility";
 import {sanitizeCreationAfterSaving, type CreationAfterSavingAction} from "./core/plex/createdNoteDestination";
+import {sanitizeGenericRelationshipSelection, type GenericRelationshipSelection} from "./core/plex/relationshipMemory";
 import {OntologyManagerModal} from "./ui/OntologyManagerModal";
 import {ontologyFieldViews,type OntologyFilter} from "./ui/features/ontologyPresentation";
 import {normalizeOntologyDescriptions,type OntologyDescriptions} from "./core/contracts/ontologyReadModel";
@@ -72,6 +75,7 @@ import { NOTE_TYPE_TAG_LINK_STYLE } from "./core/graph/presentation";
 import { noteTypeTagDefaultStyle } from "./index/style";
 import { styleNumberSlider } from "./ui/styleNumberSlider";
 import {numberSlider} from "./ui/numberSlider";
+import {TRACKPAD_PINCH_SENSITIVITY, trackpadPinchSensitivity} from "./core/plex/trackpadNavigation";
 import {COMPASS_DIRECTIONS, SEMANTIC_COLOR_DEFAULTS} from "./core/plex/colorPreferences";
 import { ColorSourceModal } from "./ui/ColorSourceModal";
 import {App, Notice, PluginSettingTab, getIconIds, type SettingDefinitionItem, type SettingDefinition, } from "obsidian";
@@ -95,9 +99,10 @@ import { effectiveTypography, sanitizeTypographyProfiles, sanitizeTypographyValu
 import type { LateralArrangement, PersistedLayoutDeviceClass } from "./core/plex/viewPresentation";
 import { sanitizeMarkdownZoomModes, type MarkdownZoomModes } from "./core/plex/markdownZoomPreferences";
 import { STYLE_SETTINGS_KEYS, appearanceColorReferences, appearanceHasUnsupportedColors } from "./core/contracts/appearance";
-import {loadNoteTypeProperties, nodePropertyRows, nodePropertyType, nodePropertyFontSize, PROPERTY_FONT_SIZE, type NoteTypeProperties, type NodeProperty, type NodePropertiesEdit} from "./core/plex/nodeProperties";
+import {loadNoteTypeProperties, loadCommonNodeProperties, DEFAULT_COMMON_NODE_PROPERTIES, nodePropertyRows, nodePropertyType, nodePropertyFontSize, PROPERTY_FONT_SIZE, type NoteTypeProperties, type NodeProperty, type NodePropertiesEdit} from "./core/plex/nodeProperties";
 import {NodeDetailsFields, type NodeDetailsOptions} from "./ui/NodeDetailsFields";
 import {nodePropertyReader} from "./adapters/obsidian/nodeProperties";
+import {CommonNodePropertiesModal} from "./ui/CommonNodePropertiesModal";
 import {applyThemeAppearance, captureThemeAppearance, readAppearanceThemes, resetAppearanceColors, semanticColorSlots, DEFAULT_THEME_ID, type ColorResetScope, type AppearanceThemeLibrary, type AppearanceOwner} from "./core/plex/appearanceThemes";
 import { defaultColorPreferences, migrateColorPreferences, SEMANTIC_COLOR_SLOTS, type SemanticColorSlot, type SemanticColorPair, type ColorPreferencesV1 } from "./core/plex/colorPreferences";
 import { NODE_COLOR_FIELDS, LINK_COLOR_FIELDS, colorValuesEqual, colorIdentityText, colorRgbInput, type ColorValue } from "./core/contracts/colorValue";
@@ -158,11 +163,15 @@ const LEGACY_HIERARCHY_DEFINITION: Hierarchy = {
   hidden: ["hidden"]
 };
 
-/** Fresh-install pairs preserve the physical default fields and their established ordering. */
+/** Only fresh/default vocabulary uses lowercase; saved/imported physical spellings stay intact. */
 export const DEFAULT_HIERARCHY_DEFINITION: Hierarchy = {
   ...structuredClone(LEGACY_HIERARCHY_DEFINITION),
-  parents: ["Parent/Child", "Parents/Children", "up/down", "u/d", "North/South", "origin", "inception", "source", "parent domain"],
-  previous: ["Previous/Next", "Prev", "West/East", "w/e", "Before/After"],
+  parents: ["parent/child", "Parents/Children", "up/down", "u/d", "North/South", "origin", "inception", "source", "parent domain"],
+  children: LEGACY_HIERARCHY_DEFINITION.children.map(/** Preserve secondary vocabulary while lowercasing the canonical child field. */ field => field === "Child" ? "child" : field),
+  leftFriends: LEGACY_HIERARCHY_DEFINITION.leftFriends.map(/** Existing installations retain the legacy source above. */ field => field === "Friend" ? "friend" : field),
+  rightFriends: LEGACY_HIERARCHY_DEFINITION.rightFriends.map(/** Factory defaults never rename an authored property. */ field => field === "Challenger" ? "challenger" : field),
+  previous: ["previous/next", "Prev", "West/East", "w/e", "Before/After"],
+  next: LEGACY_HIERARCHY_DEFINITION.next.map(/** Pair projection retains the same next direction and ordering. */ field => field === "Next" ? "next" : field),
 };
 
 /** Editable factory vocabulary, keyed by exact physical field names rather than pair declarations.
@@ -192,7 +201,9 @@ export const DEFAULT_ONTOLOGY_DESCRIPTIONS: OntologyDescriptions = Object.fromEn
     [['Next', 'n', 'East', 'e', 'After'], 'Notes that come after this note in a sequence, process, or timeline.'],
     [['hidden'], 'Linked notes to keep out of the visible Plex while retaining their relationship.'],
     [LEGACY_HIERARCHY_DEFINITION.exclusions, 'Plugin configuration metadata; links in this property do not create K-Plex relationships.'],
-  ] satisfies [string[], string][]).flatMap(/** Every alias receives its own editable physical-name entry. */ ([fields, description]) => fields.map(/** Pair syntax is never used as a description key. */ field => [field, description] as const)));
+  ] satisfies [string[], string][]).flatMap(/** Every alias receives its own editable physical-name entry. */ ([fields, description]) => fields.map(/** Match the six lowercase factory names without altering other vocabulary. */ field => [
+    ["Parent", "Child", "Friend", "Challenger", "Previous", "Next"].includes(field) ? field.toLowerCase() : field, description,
+  ] as const)));
 
 export type KplexViewSurface = "leaf" | "sidepanel" | "popout";
 export type KplexDeviceClass = "desktop" | "tablet" | "mobile";
@@ -360,6 +371,8 @@ export interface KplexSettings extends StartupIndexPreferences {
   allowAutozoom: boolean;
   /** Canvas-style trackpad navigation; false preserves wheel zoom. */
   trackpadNavigation: boolean;
+  /** Canvas pinch multiplier for trackpad and touchscreen. */
+  trackpadPinchSensitivity: number;
   /** An explicit tap may open an external URL only after it is already the canvas center. */
   singleClickExternalNavigation: boolean;
   allowAutofocuOnSearch: boolean;
@@ -389,6 +402,7 @@ export interface KplexSettings extends StartupIndexPreferences {
   childMaxHeight: number;
   noteTypeField: string;
   noteTypeProperties: NoteTypeProperties;
+  commonNodeProperties: readonly NodeProperty[];
   kplexInitialized: boolean;
   startInPopout: boolean;
   lastActivePath: string;
@@ -425,6 +439,8 @@ export interface KplexSettings extends StartupIndexPreferences {
   sidecarLastUrl: string;
   /** Remember the last ontology field used by each add-relationship action. */
   relationDefaultFields: { parent: string; child: string; left: string; right: string; previous: string; next: string };
+  /** Successful generic commands remember a role/field independently of direction-specific defaults. */
+  genericRelationshipSelection: GenericRelationshipSelection | null;
   /** Horizontal creation restores its last selected family independently of each family's field. */
   lateralCreationRoles: {left: "left" | "previous"; right: "right" | "next"};
   /** How K-Plex is paired with a note tab. */
@@ -553,6 +569,7 @@ const LEGACY_DEFAULT_SETTINGS: KplexSettings = {
   boldFields: false,
   allowAutozoom: false,
   trackpadNavigation: false,
+  trackpadPinchSensitivity: TRACKPAD_PINCH_SENSITIVITY.default,
   singleClickExternalNavigation: false,
   connectionSourceModifier: "none",
   allowAutofocuOnSearch: true,
@@ -578,6 +595,7 @@ const LEGACY_DEFAULT_SETTINGS: KplexSettings = {
   childMaxHeight: 400,
   noteTypeField: "Note type",
   noteTypeProperties: {},
+  commonNodeProperties: DEFAULT_COMMON_NODE_PROPERTIES.map(/** Each settings instance owns its own mutable default rows. */ row => ({...row})),
   kplexInitialized: false,
   startInPopout: false,
   lastActivePath: "",
@@ -599,7 +617,8 @@ const LEGACY_DEFAULT_SETTINGS: KplexSettings = {
   sidecarCondensedBreakpoint: 560,
   sidecarLastFilePath: "",
   sidecarLastUrl: "",
-  relationDefaultFields: { parent: "Parent", child: "Child", left: "Friend", right: "Challenger", previous: "Previous", next: "Next" },
+  relationDefaultFields: { parent: "parent", child: "child", left: "friend", right: "challenger", previous: "previous", next: "next" },
+  genericRelationshipSelection: null,
   lateralCreationRoles: {left: "left", right: "right"},
   documentSyncMode: "off",
   animationSpeed: 0.5,
@@ -840,6 +859,7 @@ export function migrateAndMergeSettings(raw: unknown): KplexSettings {
     tagLinkStyle: { ...defaults.tagLinkStyle, ...(old.tagLinkStyle ?? {}) },
     ...migrateTagStyles(old.tagNodeStyles, old.tagStyleList, legacyTypeStyles),
     noteTypeProperties: loadNoteTypeProperties(old.noteTypeProperties),
+    commonNodeProperties: loadCommonNodeProperties(old.commonNodeProperties),
     hierarchyLinkStyles: old.hierarchyLinkStyles ?? {},
     navigationHistory: old.navigationHistory ?? [],
     showDocumentAttachments: old.showAttachments !== false && old.showDocumentAttachments !== false,
@@ -906,6 +926,7 @@ export function migrateAndMergeSettings(raw: unknown): KplexSettings {
       previous: String(old.relationDefaultFields?.previous ?? DEFAULT_SETTINGS.relationDefaultFields.previous),
       next: String(old.relationDefaultFields?.next ?? DEFAULT_SETTINGS.relationDefaultFields.next),
     },
+    genericRelationshipSelection: sanitizeGenericRelationshipSelection(old.genericRelationshipSelection),
     lateralCreationRoles: {left: old.lateralCreationRoles?.left === "previous" ? "previous" : "left", right: old.lateralCreationRoles?.right === "next" ? "next" : "right"},
     documentSyncMode,
     animationSpeed: Math.max(0, Math.min(2, finite(old.animationSpeed, 1))),
@@ -920,6 +941,7 @@ export function migrateAndMergeSettings(raw: unknown): KplexSettings {
     folderCreationTab: old.folderCreationTab === "folder" ? "folder" : "note",
     linkAfterSaving: sanitizeCreationAfterSaving(old.linkAfterSaving ?? old.newNodeAfterSaving, old.editNewNodeAfterCreate === true),
     trackpadNavigation: old.trackpadNavigation === true,
+    trackpadPinchSensitivity: trackpadPinchSensitivity(old.trackpadPinchSensitivity),
     singleClickExternalNavigation: old.singleClickExternalNavigation === true,
     connectionSourceModifier: old.connectionSourceModifier === "mod" || old.connectionSourceModifier === "shift" ? old.connectionSourceModifier : "none",
     lastDrawingTemplatePath: typeof old.lastDrawingTemplatePath === "string" ? old.lastDrawingTemplatePath : null,
@@ -1139,6 +1161,7 @@ class NodeStyleModal extends StyleEditorModal {
   private valueSuggest?: NodeStyleValueSuggest;
   private iconSuggest?: LucideIconSuggest;
   private colors?: StyleColorControls;
+  private details?: NodeDetailsFields;
 
   /** Edit one tag definition, including its optional note-type properties. */
   constructor(
@@ -1193,7 +1216,8 @@ class NodeStyleModal extends StyleEditorModal {
     this.valueSuggest = new NodeStyleValueSuggest(this.app, nameInput, () => this.valueSuggestions);
     const prefixInput = form.createEl("input");prefixInput.type = "text";prefixInput.value = this.initialStyle.prefix ?? "";
     field(this.translate("styles.labelPrefix"), prefixInput, this.translate("styles.labelPrefixHelp"));
-    const details = this.detailsOptions ? new NodeDetailsFields(form, this.translate, this.detailsOptions, () => nameInput.value, () => this.canEdit()) : null;
+    const details = this.detailsOptions ? new NodeDetailsFields(form, this.translate, this.detailsOptions, /** Match the parent's unsaved tag name without publishing it. */ () => nameInput.value, /** Exclude edits after this native form retires or submits. */ () => this.canEdit()) : null;
+    this.details = details ?? undefined;
     nameInput.addEventListener("input", /** Keep property previews attached to this tag draft. */ () => {nameInput.classList.remove("is-invalid");details?.refreshPreview();});
 
     const iconInput = form.createEl("input");
@@ -1268,6 +1292,7 @@ class NodeStyleModal extends StyleEditorModal {
     super.onClose();
     this.valueSuggest?.close();
     this.iconSuggest?.close();
+    this.details?.dispose();this.details = undefined;
     this.colors?.dispose(); this.colors = undefined;
     this.contentEl.empty(); this.onClosed?.();
   }
@@ -1870,10 +1895,22 @@ export class KplexSettingTab extends PluginSettingTab {
         delete currentSettings.tagNodeStyles[removeName];currentSettings.tagStyleList = currentSettings.tagStyleList.filter(key => key !== removeName);
       }, isCurrent, owner, afterChange),
       this.styleColorContext(owner, sourceScope), () => this.colorDialogs.delete(dialog),
-      {rows: openingProperties, focusProperties, propertyFontSize: settings.propertyFontSize, preview: (type, rows) => {
+      {rows: openingProperties, focusProperties, inheritedRows: settings.commonNodeProperties, propertyFontSize: settings.propertyFontSize, preview: /** Match the same common/type inheritance and cache-only fields used by every canvas. */ (type, rows) => {
         const key = nodePropertyType(type), page = previewPath ? this.kplexPlugin.index.get(previewPath) : key ? previewPages.get(key) : undefined;
-        return {title: page ? this.kplexPlugin.index.titleFor(page) : "", path: page?.path, lines: page && key ? nodePropertyReader(this.app, {[key]: rows})({...page, noteType: type}) : []};
-      }});
+        return {title: page ? this.kplexPlugin.index.titleFor(page) : "", path: page?.path, lines: page && key ? nodePropertyReader(this.app, {[key]: rows}, settings.commonNodeProperties)({...page, noteType: type}) : []};
+      }, suggestIcon: /** Reuse native icon suggestions for type-property adornments. */ input => {const suggestion = new LucideIconSuggest(this.app, input);return /** The parent releases its input/window lease on rerender or dismissal. */ () => suggestion.dispose();}});
+    this.colorDialogs.add(dialog);dialog.open();
+  }
+
+  /** Common definitions share the type editor, while the host owns conflict-safe settings publication. */
+  private openCommonNodeProperties(): void {
+    const settings = this.kplexPlugin.settings, opening = settings.commonNodeProperties.map(/** Preserve the exact opening configuration for conflict-safe Save. */ row => ({...row}));
+    const file = this.app.workspace.getActiveFile(), page = file ? this.kplexPlugin.index.get(file.path) : undefined;
+    const dialog = new CommonNodePropertiesModal(this.app, {rows: opening, propertyFontSize: settings.propertyFontSize,
+      preview: /** Preview only the already active native note; never discover or acquire another source. */ (_type, rows) => ({title: page ? this.kplexPlugin.index.titleFor(page) : "", path: page?.path,
+        lines: page ? nodePropertyReader(this.app, {}, rows)(page) : []}),
+      suggestIcon: /** Common and type editors share the same host-owned icon list. */ input => {const suggestion = new LucideIconSuggest(this.app, input);return /** No suggestion observation outlives its native input. */ () => suggestion.dispose();}},
+    /** Submit only this property configuration through the canonical settings writer. */ (rows, current) => this.kplexPlugin.updateCommonNodeProperties(opening, rows, current), /** Remove the exact retired shell from settings teardown ownership. */ () => this.colorDialogs.delete(dialog));
     this.colorDialogs.add(dialog);dialog.open();
   }
 
@@ -2531,6 +2568,7 @@ export class KplexSettingTab extends PluginSettingTab {
               { name: translate("settings.ui.animation.speed"), desc: translate("settings.ui.speed.multiplier.0.off.0.5.slow.1.normal.1.5.fast.2.very"), control: { type: "slider", key: "animationSpeed", min: 0, max: 2, step: 0.1 } },
               {name: translate("settings.sourceModifier"), desc: translate("settings.sourceModifier.help"), control: {type: "dropdown", key: "connectionSourceModifier", defaultValue: "none", options: {none: translate("settings.sourceModifier.none"), mod: primaryModifier, shift: translate("shortcut.shift")}}},
               { name: translate("settings.trackpad"), desc: translate("settings.trackpad.help"), control: {type: "toggle", key: "trackpadNavigation"} },
+              {name: translate("settings.trackpadPinchSensitivity"), desc: translate("settings.trackpadPinchSensitivity.help"), control: {type: "slider", key: "trackpadPinchSensitivity", min: TRACKPAD_PINCH_SENSITIVITY.min, max: TRACKPAD_PINCH_SENSITIVITY.max, step: TRACKPAD_PINCH_SENSITIVITY.step}},
               {name: translate("settings.singleClickExternalNavigation"), desc: translate("settings.singleClickExternalNavigation.help"), control: {type: "toggle", key: "singleClickExternalNavigation"}},
               { name: translate("settings.ui.auto.fit.on.navigation"), control: { type: "toggle", key: "allowAutozoom" } },
               { name: translate("settings.ui.open.k.plex.in.a.pop.out.window"), desc: translate("settings.ui.when.k.plex.is.opened.and.no.k.plex.view.already.exists"), control: { type: "toggle", key: "startInPopout" } },
@@ -2711,6 +2749,7 @@ export class KplexSettingTab extends PluginSettingTab {
                   { name: translate("settings.ui.maximum.central.node.width"), desc: translate("settings.ui.maximum.central.node.width.help"), control: { type: "slider", key: "centralNodeStyle.maxWidth", min: 180, max: 1000, step: 10 } },
                   { name: translate("settings.ui.gate.radius"), desc: translate("settings.ui.radius.of.the.relationship.gates.around.nodes.in.pixels"), control: { type: "slider", key: "baseNodeStyle.gateRadius", min: 2, max: 8, step: 0.5 } },
                   { name: translate("settings.ui.style.property"), desc: translate("settings.ui.a.yaml.or.dataview.style.property.whose.value.can.select"), control: { type: "text", key: "noteTypeField" } },
+                  {name: translate("nodeProperties.commonTitle"), desc: translate("nodeProperties.commonHelp"), action: /** Edit common fields without converting them into appearance/theme data. */ () => this.openCommonNodeProperties()},
                   {name: translate("noteType.review"), desc: translate("noteType.reviewHelp"), action: () => {this.kplexPlugin.openNoteTypeReview();}},
                   {
                     name: translate("styles.nodeTitle"),

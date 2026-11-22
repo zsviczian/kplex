@@ -21,7 +21,11 @@ test("interface copy names document properties without format jargon", () => {
   const source = readFileSync(join(root, "src/lang/en.ts"), "utf8");
   const compiled = ts.transpileModule(source, {compilerOptions: {module: ts.ModuleKind.CommonJS}}).outputText;
   runInNewContext(compiled, {exports: module.exports});
+  // The maintainer explicitly requested this source-editing limitation to name YAML frontmatter.
+  assert.equal(module.exports.englishCatalog['explain.bodyOntologyHint'].message,
+    'K-Plex can change ontology only in YAML frontmatter. Edit body-defined ontology in the source note.');
   for (const [key, entry] of Object.entries(module.exports.englishCatalog)) {
+    if (key === 'explain.bodyOntologyHint') continue;
     const messages = typeof entry.message === "string" ? [entry.message] : Object.values(entry.plural);
     for (const message of messages) assert.doesNotMatch(message.replace(/```yaml\b/gi, "```"), /\b(?:YAML|frontmatter)\b/i, key);
   }

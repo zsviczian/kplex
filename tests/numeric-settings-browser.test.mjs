@@ -3,6 +3,24 @@ import test from 'node:test';import assert from 'node:assert/strict';
 import {colorEditorScenario} from './support/colorEditorBrowser.mjs';
 const setup=`const M=sourceModules,check=(value,message)=>{if(!value)throw Error(message)};`;
 
+for(const theme of ['light','dark'])for(const width of [360,1000])test(`pinch sensitivity actual Settings definition remains bounded and accessible in ${theme} at ${width}px`,async()=>{
+ assert.equal(await colorEditorScenario(`(async()=>{${setup}
+ document.body.className='theme-${theme}';
+ const p=await createAppearanceHost({trackpadNavigation:true});p.writes=[];p.viewSettingsRegistry=M.builtInCanvasViewSettings;p.manifest={id:'k-plex'};p.receivedSettingsRevision=()=>0;
+ const tab=new M.KplexSettingTab({workspace:{on:()=>({}),offref:()=>{}}},p),all=[];
+ const walk=items=>{for(const row of items){all.push(row);walk(row.items??[])}};walk(tab.getSettingDefinitions());
+ const definition=all.find(row=>row.name===p.translator('settings.trackpadPinchSensitivity'));check(definition?.render,'Actual pinch definition exists');
+ const host=document.body.createDiv();host.style.width='100%';const row=new M.Setting(host),release=definition.render(row),input=host.querySelector('input[type=range]'),output=host.querySelector('output');
+ check(input&&output&&input.min==='0.25'&&input.max==='10'&&input.step==='0.25','Bounded shared slider');
+ check(input.value==='5'&&output.textContent==='5'&&input.getAttribute('aria-valuetext')==='5'&&input.getAttribute('aria-label')===definition.name&&!input.disabled,'Persistent accessible default');
+ check(p.writes.length===0,'Mount never saves');
+ const box=input.getBoundingClientRect(),readout=output.getBoundingClientRect();check(box.width>0&&box.left>=0&&box.right<=innerWidth&&readout.width>0&&readout.right<=innerWidth,'Narrow theme control/readout stay visible');
+ input.focus();input.value='7.25';input.dispatchEvent(new Event('input',{bubbles:true}));await waitFor(()=>p.writes.at(-1)?.trackpadPinchSensitivity===7.25);
+ check(input.value==='7.25'&&output.textContent==='7.25'&&input.getAttribute('aria-valuetext')==='7.25'&&document.activeElement===input,'Actual shared writer preserves focused latest value');
+ release();const count=p.writes.length;input.value='3';input.dispatchEvent(new Event('input',{bubbles:true}));await Promise.resolve();check(p.writes.length===count,'Retired pinch control is inert');
+ host.remove();tab.hide();return true})()`,{width}),true);
+});
+
 test('long declarative text settings share stacked fields, preserve their writer and retire stale handlers',async()=>{
  assert.equal(await colorEditorScenario(`(async()=>{${setup}
  const p=await createAppearanceHost({});p.viewSettingsRegistry=M.builtInCanvasViewSettings;p.manifest={id:'k-plex'};

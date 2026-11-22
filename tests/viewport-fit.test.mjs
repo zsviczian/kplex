@@ -6,13 +6,14 @@ import test from 'node:test';
 import {readFileSync} from 'node:fs';
 import ts from 'typescript';
 import {loadPortableModules} from './support/portableTypeScript.mjs';
-const {exports: {centeredViewportFit, restoredViewportCamera, sameFitCamera, EmbeddedDrawingFit, centerArrivalFrames, hasClickModifier, edgeViewportEndpoints, branchDisclosureReserve, edgeViewportClip, revealRowScrollTop, editorToolbarInsets, CameraMotion, wheelCamera}} = loadPortableModules([
+const {exports: {centeredViewportFit, restoredViewportCamera, sameFitCamera, EmbeddedDrawingFit, centerArrivalFrames, hasClickModifier, edgeViewportEndpoints, branchDisclosureReserve, edgeViewportClip, revealRowScrollTop, editorToolbarInsets, CameraMotion, wheelCamera, trackpadPinchSensitivity}} = loadPortableModules([
+  'src/core/plex/trackpadNavigation.ts',
   'src/ui/components/wheelCamera.ts', 'src/ui/components/viewportFit.ts', 'src/adapters/obsidian/EmbeddedDrawingFit.ts', 'src/ui/components/centerArrival.ts', 'src/ui/components/modifierClick.ts', 'src/ui/plexViews/areaVisibility.ts', 'src/ui/plexViews/branchDisclosure.ts', 'src/ui/components/CameraMotion.ts']);
 const source=ts.createSourceFile('graph.tsx',readFileSync('src/ui/PlexGraph.tsx','utf8'),ts.ScriptTarget.Latest,true,ts.ScriptKind.TSX);
 
 /** Run production callbacks with explicit finite composition dependencies, without a second policy. */
 function callback(name, dependencies) {
-  dependencies = {wheelCamera, restoredViewportCamera, ...dependencies};
+  dependencies = {wheelCamera, trackpadPinchSensitivity, restoredViewportCamera, ...dependencies};
   let selected;
   /** Select the actual declaration or layout callback, preserving its complete body. */
   const visit=node=>{
@@ -106,6 +107,46 @@ test('Ctrl or Cmd wheel zooms over both bounded list types while native editor a
       assert(Math.abs((150-ctx.camera.current.y)/ctx.camera.current.scale-150)<1e-8);
     }
   }
+});
+
+test('two actual graph wheel callbacks share pinch preference while retaining independent anchored cameras',()=>{
+ const views=[graphFixture(),graphFixture()];
+ for(const [i,ctx]of views.entries()){
+  Object.assign(ctx,{el:ctx.viewport.current,panDrag:{current:null}});
+  ctx.settings.trackpadNavigation=i===0;
+  ctx.camera.current={x:10*i,y:-20*i,scale:1+i*.25};
+ }
+ const gesture=()=>({target:{closest:()=>null},ctrlKey:true,metaKey:false,clientX:200,clientY:150,deltaY:-10,deltaX:0,preventDefault(){}});
+ for(const sensitivity of [1,7.25]){
+  for(const [i,ctx]of views.entries()){
+   ctx.settings.trackpadPinchSensitivity=sensitivity;
+   const before={...ctx.camera.current},other={...views[1-i].camera.current};
+   callback('wheel',ctx)(gesture());
+   assert.equal(ctx.camera.current.scale,before.scale*Math.exp(0.015*sensitivity),`Pinch sensitivity with Trackpad navigation ${ctx.settings.trackpadNavigation}`);
+   assert.deepEqual(views[1-i].camera.current,other,'Gesture does not mutate another canvas camera');
+   assert(Math.abs((200-ctx.camera.current.x)/ctx.camera.current.scale-(200-before.x)/before.scale)<1e-8);
+   assert(Math.abs((150-ctx.camera.current.y)/ctx.camera.current.scale-(150-before.y)/before.scale)<1e-8);
+  }
+ }
+});
+
+test('two-finger canvas gestures honor pinch sensitivity and keep the original world point under the moving midpoint',()=>{
+ for(const [sensitivity,expectedScale] of [[1,1.2],[2,1.44],[10,2]]){
+  const ctx=graphFixture();
+  ctx.settings.trackpadPinchSensitivity=sensitivity;
+  ctx.Platform.isIosApp=true;
+  ctx.viewport.current.classList={add(){}};
+  Object.assign(ctx,{touchPointers:{current:new Map([[1,{x:100,y:150}],[2,{x:200,y:150}]])},pinchGesture:{current:null},touchDoubleTap:{current:{reset(){}}},
+   areaResizeDrag:{current:null},connectDrag:null,nodeDrag:null,updateAreaSettingsDismiss(){},pendingGateLongPress:{current:null},
+   touchLongPress:{current:null},cancelTouchLongPress(){},cancelPendingGateLongPress(){},suppressActivateUntil:{current:0}});
+  ctx.beginPinch=callback('beginPinch',ctx);
+  ctx.beginPinch();
+  callback('move',ctx)({pointerId:2,pointerType:'touch',clientX:220,clientY:150,preventDefault(){},stopPropagation(){}});
+  const {x,y,scale}=ctx.camera.current;
+  assert(Math.abs(scale-expectedScale)<1e-9,`Touch pinch sensitivity ${sensitivity}`);
+  assert(Math.abs((160-x)/scale-150)<1e-9);
+  assert(Math.abs((150-y)/scale-150)<1e-9);
+ }
 });
 
 test('passive follow cancels existing motion and suppresses immediate and late-layout arrivals while deliberate navigation still animates', /** Run the production preparation/layout owners with positive animation speed and inspect actual emitted frames. */ () => {

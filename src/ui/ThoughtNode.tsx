@@ -5,6 +5,8 @@
  * is distinct from the central node and uses caller-supplied occurrence identity. Visible text shares
  * the density-independent geometry limit, preserving prefixes, ellipsis and center allowance.
  * The final image boundary rechecks consent before producing a src, including retained cached props.
+ * Automatic URL previews delegate to the injected viewport/consent-aware image lease; this node
+ * never acquires network or source data and retains the ordinary label and icon on failure.
  * A separately referenced accessible name avoids Obsidian's competing node tooltip; visible labels
  * retain the compact browser title, while gate hints and explicit page previews keep their owners.
  * Optional native body dragging preserves embedded editor input and delegates its host payload.
@@ -17,6 +19,7 @@
  */
 import {physicalGateStats} from "./plexViews/measurement";
 import {nodePropertyFontSize} from "../core/plex/nodeProperties";
+import {NodePropertyCaption} from "./NodePropertyCaption";
 import {thoughtCornerRadius} from "./plexViews/nodeConnections";
 import { useId, type CSSProperties, type DragEvent as ReactDragEvent, type MouseEvent, type PointerEvent as ReactPointerEvent, type ReactNode } from "react";
 import type { GateSide, NodeVisual, PositionedNode } from "../types";
@@ -29,6 +32,8 @@ import { ObsidianIcon } from "./ObsidianIcon";
 import type { Translator } from "../lang";
 import { physicalPositionLabel } from "./features/positionPresentation";
 import { canDisplayNodeImage } from "../core/plex/nodeImagePolicy";
+import {NodeVisualImage} from "./features/NodeVisualImage";
+import type {ThumbnailLoader} from "../application/youtubeThumbnails";
 import { useGateCountPresentation } from "./useGateCountPresentation";
 
 /** One caller-owned disclosure action. Separate branch/section instances share event isolation,
@@ -71,6 +76,7 @@ export function ThoughtNode({
   branchStatusHint,
   badgeColorRevision = 0,
   visual,
+  thumbnailLoader,
   content,
   cornerAction,
   translate,
@@ -101,6 +107,8 @@ export function ThoughtNode({
   onNativeDragEnd?: () => void;
   onContextMenu?: (node: PositionedNode, event: MouseEvent<HTMLDivElement>) => void;
   visual?: NodeVisual;
+  /** Native composition supplies consent-aware video transport; ordinary images require none. */
+  thumbnailLoader?: ThumbnailLoader;
   content?: ReactNode;
   cornerAction?: {
     icon: string;
@@ -189,13 +197,13 @@ export function ThoughtNode({
         })()}</span>
         : <>
           {visual?.mode === "thumbnail" && <span className="kplex-node-visual is-thumbnail" title={visual.alt}>
-            <img src={visual.src} alt="" loading="lazy" decoding="async" draggable={false} />
+            <NodeVisualImage {...visual} alt="" allowRemote={settings.allowRemoteNodeImages} loader={thumbnailLoader} />
           </span>}
           {!visual || visual.mode !== "replace" ? (style.icon && <ObsidianIcon name={style.icon} size={node.role === "center" ? 18 : 13} className="kplex-node-icon" />) : null}
         </>}
       {visual?.mode === "replace"
         ? <span className="kplex-node-visual is-replace" title={visual.alt}>
-          <img src={visual.src} alt={visual.alt} loading="lazy" decoding="async" draggable={false} />
+          <NodeVisualImage {...visual} allowRemote={settings.allowRemoteNodeImages} loader={thumbnailLoader} />
         </span>
         : <span className="kplex-thought-text" title={label}>{display}</span>}
     </span>;
@@ -255,7 +263,7 @@ export function ThoughtNode({
       onDoubleClick={(e: MouseEvent<HTMLDivElement>) => e.stopPropagation()}
       onContextMenu={(e: MouseEvent<HTMLDivElement>) => e.stopPropagation()}
     >{content}</div> : (node.propertyLines?.length ? <span className="kplex-thought-caption">{labelElement}<span className="kplex-node-properties">
-      {node.propertyLines.map(row => <span key={row.field} className="kplex-node-property" title={`${row.field}: ${row.text}`}>{row.text}</span>)}
+      {node.propertyLines.map(/** The same distinct label/icon/value parts are measured by all canvas layouts. */ row => <NodePropertyCaption key={row.field} line={row} />)}
     </span></span> : labelElement)}
     {cornerAction && <button
       type="button"

@@ -24,6 +24,16 @@ note type:: #person
 
 Nested tag names such as `person/friend` are supported. Enter one valid tag; a value such as `Big idea` needs an explicit replacement, for example `big-idea`. K-Plex does not invent tag names.
 
+## Create a note with properties
+
+The related-note composer places **Name**, **Note type** and **Folder** before the optional properties and creation type and template controls. **Action** sits below the type section. Choose a note type with the same tag suggester used in **Set note type** to reveal its configured properties. Saving a new Markdown note, including a Markdown-backed drawing, writes the selected type and its matching tag together.
+
+Configure shared rows under **Settings → K-Plex → Visual styling → Node styling → Common properties**. **Alias** is included for creation by default. You can disable it, add other fields or change its property name to `Name`. A metadata field called `Name` writes that property; the filename input remains independent.
+
+Common rows come first, followed by type-specific rows. Matching property names share one row, ignoring case and normalizing whitespace to hyphens. A type can refine the common row's options without clearing an entered value. Changing types retains shared edits, and only the currently offered properties are saved. Unset controls leave template values untouched; explicit values replace the selected property. Aliases and tags preserve existing entries.
+
+Creation properties apply only to newly created writable notes. Choosing an existing note, web link or placeholder keeps the drafts available but does not retype the target, move it or add metadata. An explicitly entered Alias can still supply the relationship's link caption. If a later save fails after creating the file, use the retained-file recovery action; it does not create another file or replay properties that already saved.
+
 ## Set or clear a note type
 
 Right-click a physical Markdown node and choose **Set note type…**. Saving sets the note-type document property and adds the selected tag to the tags document property. Other tags and properties are preserved.
@@ -34,17 +44,19 @@ Right-click a physical Markdown node and choose **Set note type…**. Saving set
 
 ## Show properties under node names
 
-Open **Node styles** on the same Settings page, then edit or add the style for a note type. Its **Node details** section contains the ordered property list, **Show on node** toggles and a live sample from a matching note. Appearance and details share one Save; Cancel discards both drafts.
+Open **Node styles** on the same Settings page, then edit or add the style for a note type. Its **Node details** section contains the ordered property list, **Show on node** and **Show during creation** toggles, and a live sample from a matching note. Appearance and details share one Save; Cancel discards both drafts. Common properties have the same independent visibility choices and can appear on notes without a type.
+
+Enable **Show property label** to put a field name or your own display label before its value. An optional Lucide icon or emoji can appear alongside it. Without these options, the existing value-only appearance remains. At the node's width limit, the label shortens before the value. Alias is hidden in supplementary node details by default; this does not disable alias-based titles or link captions. Explicit saved type-specific visibility is retained.
 
 For a direct shortcut, open **Set note type**, choose a valid type and click the **Configure note type** settings icon. It opens that selected type's properties and appearance without saving the note-type draft. Close the settings editor to return to that draft.
 
-Each tag has one style, shown with its `#` prefix. Ordinary tags use it through the existing primary-tag and prefix-matching rules; selecting the tag as the note type gives that same style priority. Its matching prefix rule supplies inherited appearance, and explicit attributes in its exact style take precedence. Property lists still belong to the exact selected type. **Label prefix** and **Node details** are available in the same editor. Property defaults and displayed fields apply only when that tag is the selected note type.
+Each tag has one style, shown with its `#` prefix. Ordinary tags use it through the existing primary-tag and prefix-matching rules; selecting the tag as the note type gives that same style priority. Its matching prefix rule supplies inherited appearance, and explicit attributes in its exact style take precedence. Type-specific property lists belong to the exact selected type and refine matching common rows. **Label prefix** and **Node details** are available in the same editor.
 
 Existing tag and note-type styles migrate automatically, including saved themes. Where both define an attribute, the explicit note-type value wins; tag attributes fill the gaps. Prefixes, unknown style attributes and matching priority are retained. The old duplicate definitions are removed, and no notes are changed. A merged value also applies to ordinary tag use?for example, a former blue note-type background replaces a conflicting yellow tag background.
 
 For the example above, show `nickname` and `company`, or keep an ID filename such as `ER12345.md` and show its `title` property underneath. The main node label stays unchanged. Compass, Mind Map and Facets measure the extra lines before placing nodes and their gates.
 
-Configure up to 16 unique property names. Text, numbers, booleans and simple lists from document properties are displayed; `0` and `false` remain visible. Missing/empty values add no blank line, and complex objects are omitted. Text is limited to 512 characters per line and 16 list items, with visual ellipsis and a hover description. Fields in the note text are not part of this display. Type matching ignores case and an optional leading `#`. **Property font size** under Visual styling controls the text size for all nodes; the default is 12px.
+Configure up to 16 unique property names in each common or type-specific list. Text, numbers, booleans and simple lists from document properties are displayed; `0` and `false` remain visible. Missing/empty values add no blank line, and complex objects are omitted. Text is limited to 512 characters per line and 16 list items, with visual ellipsis and a hover description. Fields in the note text are not part of this display. Type matching ignores case and an optional leading `#`. **Property font size** under Visual styling controls the text size for all nodes; the default is 12px.
 
 These are optional defaults, not required fields. Viewing a note or saving its type alone does not add them. **Set note type** lists the defined properties and offers **Save type and add missing properties** when needed. You can also right-click the note and choose **Add missing note-type properties…**. Review its missing fields and confirm. Only absent document properties are added with empty values; existing values, including null, empty, `0` and `false`, remain untouched. Hidden display fields can also be added. Set a valid note type and its matching tag first if needed, then recheck.
 
