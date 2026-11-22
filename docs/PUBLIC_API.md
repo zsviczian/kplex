@@ -287,7 +287,7 @@ Do not replay after uncertain completion: reacquire/read back and prepare a fres
 
 The [worked consolidation guide](ONTOLOGY_CONSOLIDATION.md) covers approved source auditing,
 YAML/body collisions, guarded public Obsidian writes, backups, stale/dirty buffers, interruption,
-readback and idempotence. The repository's [agent skill](../skill.md) retains vault-selection,
+readback and idempotence. The [K-Plex CLI skill](../skills/kplex-obsidian-cli/SKILL.md) retains vault-selection,
 coverage and authorization safeguards. These capabilities do not authorize personal-vault cleanup.
 
 ## Read and control a specific canvas

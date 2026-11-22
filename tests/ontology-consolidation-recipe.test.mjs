@@ -147,9 +147,9 @@ test('unchanged body receipts require current identity, text and exclusive owner
  assert.equal(f.counters().bodyWrites,0);assert.equal(f.counters().yamlWrites,0);
 });
 
-test('root skill retains explicit authorization, coverage, canvas and timeout safeguards',()=>{
- const skill=readFileSync('skill.md','utf8');assert(skill.startsWith('---\nname: kplex-obsidian-cli\n'));
+test('installable skill retains explicit authorization, coverage, canvas and timeout safeguards',()=>{
+ const skill=readFileSync('skills/kplex-obsidian-cli/SKILL.md','utf8');assert(skill.startsWith('---\nname: kplex-obsidian-cli\n'));
  const header=yaml.load(skill.slice(4,skill.indexOf('\n---',4)));assert.deepEqual(Object.keys(header),['name','description']);assert(/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(header.name));assert(header.name.length<64);assert(header.description.length<=1024);assert(!/[<>]/.test(header.description));
  for(const required of ['vault info=path','whole-vault negative','AMBIGUOUS_CANVAS','scenePending','motionPending','read back','**does not authorize**','ontologyDocuments','inspectOntologyOccurrences','previewOntologyConfiguration','applyOntologyConfiguration'])assert(skill.includes(required),required);
- assert(!skill.includes('12%20Automation/'));assert(skill.includes('https://github.com/zsviczian/kplex/blob/2026-11-03-ontology-consolidation-api/docs/ONTOLOGY_CONSOLIDATION.md'));
+ assert(!skill.includes('12%20Automation/'));assert(skill.includes('https://github.com/zsviczian/kplex/blob/main/docs/ONTOLOGY_CONSOLIDATION.md'));
 });
