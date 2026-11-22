@@ -15,19 +15,24 @@ p.app={vault:{getRoot:()=>root,getAllFolders:()=>[...folders.values()],getFolder
  on:(name,callback)=>{const ref={name,callback};let set=events.get(name);if(!set)events.set(name,set=new Set());set.add(ref);return ref},offref:ref=>events.get(ref.name)?.delete(ref),
  createFolder:async path=>{check(!files.has(path)&&!folders.has(path),'No native overwrite');const parent=folders.get(path.slice(0,path.lastIndexOf('/')))??root,item=Object.assign(new M.TFolder(),{path,name:path.split('/').pop(),parent,children:[]});parent.children.push(item);folders.set(path,item);writes.push(['folder',path]);return item},
  createBinary:async(path,data)=>{check(!files.has(path)&&!folders.has(path),'No binary overwrite');const file=addFile(path,path.split('.').pop());bytes.set(file,new Uint8Array(data).slice());writes.push(['binary',path]);return file}},
- fileManager:{getNewFileParent:()=>root,renameFile:async(file,path)=>{writes.push(['move',file.path,path]);const map=file instanceof M.TFolder?folders:files;map.delete(file.path);file.path=path;file.name=path.split('/').pop();map.set(path,file)}},metadataCache:{getFileCache:()=>({frontmatter:{}})}};
+ fileManager:{getNewFileParent:()=>root,generateMarkdownLink:(file,_source,_subpath,alias)=>'[['+file.path+(alias?'|'+alias:'')+']]',renameFile:async(file,path)=>{writes.push(['move',file.path,path]);const map=file instanceof M.TFolder?folders:files;map.delete(file.path);file.path=path;file.name=path.split('/').pop();map.set(path,file)}},metadataCache:{getFileCache:()=>({frontmatter:{}}),getFirstLinkpathDest:raw=>{const exact=files.get(raw)??files.get(raw+'.md');if(exact)return exact;const matches=[...files.values()].filter(file=>file.basename===raw||file.name===raw);return matches.length===1?matches[0]:null}}};
 p.index.get=path=>files.has(path)?page(files.get(path)):undefined;p.index.titleFor=value=>value.name??value.path;
+p.index.getVaultSearchPage=(path,file)=>files.get(path)===file?page(file):undefined;p.index.allPages=()=>[...files.values()].map(page);
 p.index.search=(query,limit)=>[...files.values()].filter(f=>f.path.includes(query)).slice(0,limit).map(page);p.index.relationshipStorageCandidates=()=>[origin.path,target.path];p.index.evidenceBetween=()=>[];
 p.index.insertCreatedFile=file=>page(file);
 p.index.invalidateSemanticPolicy=()=>{};p.index.refreshSemanticSettings=async()=>{};
+p.index.withForegroundPriority=async task=>task();
 p.isExcalidrawAvailable=()=>false;p.drawingTemplateOptions=()=>null;
 p.creationTemplateOptions=()=>({files:[],selected:'',root:''});
 p.createFileWithAutomation=create=>create();p.waitForCreatedFileAutomation=async()=>{};
 p.createdNoteCompletionControl=()=>({value:'return',choices:['return','another'],onChange:()=>{}});
 p.createNewNodeInFolder=async(parent,name)=>{const file=addFile(parent.path.slice(7)+'/'+name+'.md');writes.push(['note',file.path]);return page(file)};
 p.createNewRelatedFileForOrigin=async(_origin,name)=>addFile(name+'.md');p.rememberNewNodeDefaultType=async()=>{};
+p.applyNewNoteCreationMetadata=async()=>{};
+p.finalizeCreatedNoteMetadata=async()=>{};
 p.linkNewRelatedFile=async(...args)=>{links.push(args);return {state:'saved-pending',page:page(args[2])}};
 p.createRelationToPage=async(...args)=>{links.push(args);return {state:'saved-published',page:args[2]}};
+p.createWebLinkRelatedPage=async(...args)=>{links.push(['web',...args]);return {path:args[2],url:args[2],name:args[3]||args[2],file:null}};
 p.requestNodeFlair=()=>{};p.finishNewRelatedNode=async()=>{};p.openInDocumentLeaf=async()=>{};
 const host=document.body.createDiv(),leaf={view:{containerEl:host}},openComposer=(fixed,invocation={})=>{const modal=new M.NewRelatedNoteModal(p,origin,'child',undefined,leaf,fixed,invocation);modal.open();return modal};
 const reactInput=(element,value)=>{const proto=element.tagName==='SELECT'?HTMLSelectElement.prototype:HTMLInputElement.prototype;Object.getOwnPropertyDescriptor(proto,'value').set.call(element,value);element.dispatchEvent(new Event(element.tagName==='SELECT'?'change':'input',{bubbles:true}))};

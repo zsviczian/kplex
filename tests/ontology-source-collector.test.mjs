@@ -27,6 +27,7 @@ function compile(relativePath) {
 for (const file of [
   "src/core/graph/model.ts",
   "src/core/contracts/fieldName.ts",
+  "src/core/contracts/videoUrl.ts",
   "src/core/parser/metadata.ts",
   "src/core/parser/referenceValues.ts",
   "src/core/graph/source.ts",

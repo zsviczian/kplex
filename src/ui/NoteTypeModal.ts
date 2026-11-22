@@ -10,7 +10,7 @@ import {SavedRelationshipPendingError} from "../adapters/obsidian/relationshipMe
 import {parseBodyMetadataCooperative} from "../index/fieldParser";
 import {normalizeFieldName} from "../core/contracts/fieldName";
 import {StyleEditorModal} from "./StyleEditorModal";
-import {TagNameSuggest} from "./TagNameSuggest";
+import {noteTypeSuggestionNames, TagNameSuggest} from "./TagNameSuggest";
 import type KplexPlugin from "../main";
 
 export class NoteTypeModal extends StyleEditorModal {
@@ -47,10 +47,10 @@ export class NoteTypeModal extends StyleEditorModal {
   /** Mount a detached draft and inspect inline fallback only for this explicitly opened physical note. */
   onOpen(): void {
     this.beginEditor();this.inspectionLive = true;const t = this.plugin.translator;this.titleEl.setText(t("noteType.title"));
-    const names = new Set<string>();for (const page of this.plugin.index.allPages()) for (const tag of [...page.tags, ...(page.noteType ? [page.noteType] : [])]) if (noteTypeAsTag(tag)) names.add(tag.replace(/^#/, ""));
+    const names = noteTypeSuggestionNames(this.plugin.index.allPages(), Object.keys(this.plugin.settings.noteTypeProperties ?? {}));
     new Setting(this.contentEl).setName(t("noteType.tag")).addText(input => {
       this.input = input;input.setValue(this.value).setPlaceholder(t("noteType.placeholder")).onChange(value => {this.value = value;this.removeOld = false;this.refresh();});
-      this.suggestion = new TagNameSuggest(this.app, input.inputEl, [...names].sort(), true);
+      this.suggestion = new TagNameSuggest(this.app, input.inputEl, names, true, this.suggestionOwnerId);
     });
     this.contentEl.createEl("p", {text: t("noteType.tagHelp"), cls: "setting-item-description"});
     this.validation = this.contentEl.createEl("p", {cls: "setting-item-description", attr: {role: "status", "aria-live": "polite"}});

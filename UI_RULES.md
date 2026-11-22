@@ -9,6 +9,7 @@ label, actions and layout is not component reuse. Read this file before UI work.
 | --- | --- |
 | Native modal shell | `src/adapters/obsidian/KplexModal.ts` (`KplexModal`) |
 | Tag/style/icon input suggestions | `KplexInputSuggest` in `src/adapters/obsidian/KplexInputSuggest.ts`; native popup skin and keyboard behavior, with owning-window anchor refresh and close cleanup |
+| Note type input | `TagNameSuggest` in `src/ui/TagNameSuggest.ts`; Set note type and Add relationship use the same native picker and tag choices |
 | Native settings rows and authored fields | `FormSetting` in that adapter; use `formField` for an integrated custom field |
 | Native footer / icon action | `formActions`, `iconButton`, `labelIconButton` in that adapter |
 | React footer | `FormActions` in `src/ui/components/FormField.tsx` |
@@ -94,7 +95,8 @@ Obsidian APIs in portable components.
   for `kplex-form-field`, with bounded label-to-input spacing in native review.
 - Keep tabs at the top of their content and preserve drafts when switching. Never
   hide a required common option behind an extra configure dialog.
-- Creation forms keep the shared After saving control above creation-type tabs.
+- Creation forms keep the shared After saving control above creation-type tabs,
+  except Add relationship, which places it below the entire type section.
   Compact forms label this control Action. Name, Alias, Folder and Action share
   the same short label column; fields consume the remaining width. Creation
   status names only the active type, below the template/action row.

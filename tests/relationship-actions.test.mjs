@@ -15,14 +15,14 @@ import ts from "typescript";
 // The real convergence adapter is exercised with host events, not replaced by an immediate success.
 const metadataTemp = mkdtempSync(join(tmpdir(), "kplex-created-metadata-"));
 process.on("exit", () => rmSync(metadataTemp, { recursive: true, force: true }));
-await build({ stdin: { contents: 'export * from "./src/adapters/obsidian/relationshipMetadataWrite"; export {ReciprocalRelationshipWriteError} from "./src/adapters/obsidian/reciprocalRelationshipWrite"; export {gateCreationRole,gateGroupRole} from "./src/ui/features/gateRelationshipIntent"; export { normalizeFieldName } from "./src/core/contracts/fieldName"; export { captureSurfaceContinuation } from "./src/ui/surfaceContinuation"; export { createTranslator } from "./src/lang/index";', resolveDir: fileURLToPath(new URL("..", import.meta.url)) },
+await build({ stdin: { contents: 'export * from "./src/adapters/obsidian/relationshipMetadataWrite"; export {PartialRelatedFileError} from "./src/adapters/obsidian/relatedFileOutcome"; export {ReciprocalRelationshipWriteError} from "./src/adapters/obsidian/reciprocalRelationshipWrite"; export {gateCreationRole,gateGroupRole} from "./src/ui/features/gateRelationshipIntent"; export { normalizeFieldName } from "./src/core/contracts/fieldName"; export { captureSurfaceContinuation } from "./src/ui/surfaceContinuation"; export { createTranslator } from "./src/lang/index";', resolveDir: fileURLToPath(new URL("..", import.meta.url)) },
   outfile: join(metadataTemp, "observer.mjs"), bundle: true, platform: "node", format: "esm" });
-const { gateCreationRole,gateGroupRole,writeRelationshipMetadata, SavedRelationshipPendingError: ActualSavedPendingError, ReciprocalRelationshipWriteError, normalizeFieldName: actualNormalizeFieldName, captureSurfaceContinuation, createTranslator }
+const { gateCreationRole,gateGroupRole,writeRelationshipMetadata, PartialRelatedFileError, SavedRelationshipPendingError: ActualSavedPendingError, ReciprocalRelationshipWriteError, normalizeFieldName: actualNormalizeFieldName, captureSurfaceContinuation, createTranslator }
   = await import(pathToFileURL(join(metadataTemp, "observer.mjs")));
 
 /** Compile a production callback/method; class-field arrows capture the supplied owning instance. */
 function productionFunction(path, name, dependencies) {
-  dependencies={plugin:{settings:{}},settings:{},gateCreationRole,gateGroupRole,ReciprocalRelationshipWriteError,continuation:"return",...dependencies};
+  dependencies={plugin:{settings:{}},settings:{},gateCreationRole,gateGroupRole,PartialRelatedFileError,ReciprocalRelationshipWriteError,continuation:"return",...dependencies};
   if(dependencies.plugin)dependencies.plugin.settings??={};
   const source = ts.createSourceFile(path, readFileSync(new URL(`../${path}`, import.meta.url), "utf8"), ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
   let expression;
@@ -166,7 +166,7 @@ for (const shell of ["composer", "details"]) {
     if (shell === "composer") {
       const report = productionFunction("src/ui/NewRelatedNoteModal.ts", "reportFailure", {
         Notice, SavedRelationshipPendingError, PartialRelatedFileError,
-        session: { isSessionOpen: () => true },
+        role: "child", ontology: "Children", session: { isSessionOpen: () => true, rememberGenericSelection: async () => {} },
         setSavedPending: () => {}, setPartialFile: () => {}, onCommitted: result => commits.push(result),
         plugin: { index: { get: () => undefined } },
       });
@@ -736,7 +736,7 @@ function createdMetadataFixture({ extension = "md", displayField = "aliases", in
     assert.equal(destination, "tab"); assert(current());
     await context.openInDocumentLeaf(created.file, hostLeaf);
   };
-  for (const method of ["newRelatedNoteFolder", "validateNoteFolderPath", "waitForCreatedFileAutomation", "mutateCreatedNodeMetadata", "writeCreatedNodeDisplayName", "writeCreatedNodeAlias", "createNewRelatedFileForOrigin", "linkNewRelatedFile", "appendRelationshipReference"])
+  for (const method of ["newRelatedNoteFolder", "validateNoteFolderPath", "waitForCreatedFileAutomation", "mutateCreatedNodeMetadata", "writeCreatedNodeDisplayName", "writeCreatedNodeAlias", "finalizeCreatedNoteMetadata", "createNewRelatedFileForOrigin", "linkNewRelatedFile", "appendRelationshipReference"])
     context[method] = productionFunction("src/main.ts", method, { writeRelationshipMetadata, normalizeFieldName: actualNormalizeFieldName,
       eligibleRelationshipOwner, normalizePath: value => value,
       Notice: class { constructor(message) { notices.push(message); } } }).bind(context);

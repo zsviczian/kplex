@@ -36,6 +36,8 @@
  * File and folder Open menus share native reveal capabilities; captured folder incarnations cannot transfer to a same-path replacement.
  */
 import { wheelCamera } from "./components/wheelCamera";
+import {trackpadPinchSensitivity} from "../core/plex/trackpadNavigation";
+import {youtubeThumbnailLoader} from "../adapters/obsidian/youtubeThumbnails";
 import {editorOverlayClip, editorOverlayFrame} from "./editorOverlayFrame";
 import {edgeViewportClip, edgeViewportEndpoints, revealRowScrollTop, editorToolbarInsets} from "./plexViews/areaVisibility";
 import {nodeCenterConnector} from "./plexViews/nodeConnections";
@@ -121,6 +123,8 @@ import {viewLabel} from "./plexViews/labels";
 import {ViewDecorations, viewDecorationCounts} from "./plexViews/ViewDecorations";
 import {createLegacyPropertyProvider} from "../adapters/obsidian/predicateContracts";
 import {nodePropertyReader} from "../adapters/obsidian/nodeProperties";
+import {nodePropertyFontSize} from "../core/plex/nodeProperties";
+import {useNodePropertyMeasurement} from "./plexViews/useNodePropertyMeasurement";
 import { DropAreaPreview } from "./components/DropAreaPreview";
 import { DoubleTapGesture } from "./components/DoubleTapGesture";
 import { ObsidianIcon } from "./ObsidianIcon";
@@ -805,15 +809,20 @@ export function PlexGraph({ viewDefinition = classicViewDefinition, viewSession,
   const translate = plugin.translator;
   const classic = plexViewContributionFor(viewDefinition);
   const ClassicControls = classic?.Controls;
+  const viewport = useRef<HTMLDivElement | null>(null);
+  const viewLifetime = viewSession?.getLifetime() ?? 0;
+  const subscribePropertyCss = useCallback(/** Native CSS settings invalidate only this viewport's font context. */ (changed: () => void) => {
+    const ref = plugin.app.workspace.on("css-change", changed);return /** The same native workspace owns the exact registered callback. */ () => plugin.app.workspace.offref(ref);
+  }, [plugin]);
+  const measureProperties = useNodePropertyMeasurement(viewport, nodePropertyFontSize(viewSettings.propertyFontSize), viewLifetime, subscribePropertyCss);
   const [viewPropertyRevision, refreshViewProperties] = useState(0);
   const [nodePropertyRevision, refreshNodeProperties] = useState(0);
-  const readNodeProperties = useMemo(() => nodePropertyReader(plugin.app, viewSettings.noteTypeProperties),
-    [plugin, viewSettings.noteTypeProperties, renderRevision, semanticRevision, viewPropertyRevision, nodePropertyRevision]);
+  const readNodeProperties = useMemo(/** Rebind only lazy presentation reads when common/type definitions, actual font metrics or admitted metadata change. */ () => nodePropertyReader(plugin.app, viewSettings.noteTypeProperties, viewSettings.commonNodeProperties, measureProperties),
+    [plugin, viewSettings.noteTypeProperties, viewSettings.commonNodeProperties, measureProperties, renderRevision, semanticRevision, viewPropertyRevision, nodePropertyRevision]);
   const classicRead = useMemo(() => ({titleFor: (page: GraphPage) => index.titleFor(page),
     detailsFor: readNodeProperties,
     neighbours: (page: GraphPage, role: Role) => index.neighbours(page, role), neighbourCount: (page: GraphPage) => index.neighbourCount(page),
     gateStats: (page: GraphPage) => index.gateStats(page), visibleRelationshipsWithin: (source: GraphPage, paths: ReadonlySet<string>) => index.visibleRelationshipsWithin(source, paths)}), [index, readNodeProperties]);
-  const viewLifetime = viewSession?.getLifetime() ?? 0;
   const occurrenceEditorCapable = viewDefinition.editorHosting !== undefined;
   const boundEditorBinding = occurrenceEditorCapable ? viewSession?.editors.bindings[0] : undefined;
   const occurrenceEditorPolicy = occurrenceEditorCapable && ((!classic && viewDefinition.editorHosting !== "attention-and-occurrence") || Boolean(boundEditorBinding));
@@ -1231,25 +1240,27 @@ export function PlexGraph({ viewDefinition = classicViewDefinition, viewSession,
   const centralEditorGeometry = useRef<{node: PositionedNode | null; page: GraphPage | null; clip?: ZoneViewport}>({node: centralEditorNode, page: centralEditorPage});
   centralEditorGeometry.current = {node: centralEditorNode, page: centralEditorPage};
   const [nodeVisuals, setNodeVisuals] = useState<Map<string, NodeVisual>>(new Map());
+  const thumbnailLoader = useMemo(/** Remote fallback reads current permission independently of React's render timing. */ () =>
+    youtubeThumbnailLoader(/** The existing settings owner grants only an explicit opt-in. */ () => plugin.settings.allowRemoteNodeImages === true), [plugin]);
   const visualRefreshTimers = useRef(new Map<string, number>());
   const visualPages = useMemo(() => [...new Map(
     scene.nodes.filter((node) => !node.page.transient).map((node) => [node.page.path, node.page]),
   ).values()], [scene.nodes]);
   const visualPageByPath = useMemo(() => new Map(visualPages.map((page) => [page.path, page])), [visualPages]);
   useEffect(/** Cached-field views refresh only admitted current files; real note edits retain normal index maintenance. No body read or semantic notification is requested here. */ () => {
-    if (!viewDefinition.capabilities.properties && !Object.values(viewSettings.noteTypeProperties ?? {}).some(rows => rows.some(row => row.visible))) return;
+    if (!viewDefinition.capabilities.properties && !viewSettings.commonNodeProperties?.some(row => row.visible) && !Object.values(viewSettings.noteTypeProperties ?? {}).some(rows => rows.some(row => row.visible))) return;
     const current = viewSession?.capture() ?? (() => true);
     let alive = true;
     const ref = plugin.app.metadataCache.on("changed", /** Late metadata from a retired view or replaced native file has no presentation authority. */ file => {
       if (!alive || !current() || visualPageByPath.get(file.path)?.file !== file || plugin.app.vault.getFileByPath(file.path) !== file) return;
       const page = visualPageByPath.get(file.path)!;
-      const lines = nodePropertyReader(plugin.app, viewSettings.noteTypeProperties)(page);
+      const lines = nodePropertyReader(plugin.app, viewSettings.noteTypeProperties, viewSettings.commonNodeProperties, measureProperties)(page);
       const displayed = scene.nodes.find(node => node.page === page && !node.page.transient)?.propertyLines ?? [];
       if (JSON.stringify(lines) !== JSON.stringify(displayed)) refreshNodeProperties(revision => alive && current() ? revision + 1 : revision);
       if (viewDefinition.capabilities.properties) refreshViewProperties(/** Retain the lifetime fence even if React delays this state updater. */ revision => alive && current() ? revision + 1 : revision);
     });
     return /** Exact view-owned listener is retired before replacement/unmount. */ () => {alive = false; plugin.app.metadataCache.offref(ref);};
-  }, [plugin, viewDefinition, viewLifetime, viewSession, visualPageByPath, viewSettings.noteTypeProperties, scene.nodes]);
+  }, [plugin, viewDefinition, viewLifetime, viewSession, visualPageByPath, viewSettings.noteTypeProperties, viewSettings.commonNodeProperties, measureProperties, scene.nodes]);
   useEffect(/** Resolve visible imagery under one consent epoch and retire publication on teardown. */ () => {
     let cancelled = false;
     const revision = index.getNodeVisualRevision();
@@ -1305,7 +1316,6 @@ export function PlexGraph({ viewDefinition = classicViewDefinition, viewSession,
       visualRefreshTimers.current.clear();
     };
   }, [plugin, index, visualPageByPath, settings.thumbnailProperty, settings.nodeImageProperty, settings.attachmentImageDisplay, settings.allowRemoteNodeImages]);
-  const viewport = useRef<HTMLDivElement | null>(null);
   const clipboardOwner = useMemo(/** A successor view in the same DOM must not inherit outgoing cleanup. */ () => ({}), [viewLifetime]);
   useEffect(/** A retired/migrated canvas releases clipboard captures without invalidating another canvas's copy. */ () => {
     return () => {plugin.nodeLinkClipboard?.retireOwner(clipboardOwner);};
@@ -2434,9 +2444,10 @@ export function PlexGraph({ viewDefinition = classicViewDefinition, viewSession,
     return () => {observer.disconnect(); el.ownerDocument.removeEventListener("visibilitychange", visible);};
   }, [settings.allowAutozoom, centralEditorMaximized, displayState.revision, sceneScope]);
 
-  useEffect(() => {
+  useEffect(/** Own one canvas wheel listener with current navigation/pinch preferences, retiring it on replacement. */ () => {
     const el = viewport.current;
     if (!el) return;
+    /** Preserve native editor/list scrolling and anchor every admitted pan/zoom to the pointer. */
     const wheel = (e: WheelEvent) => {
       const target = e.target as Element | null;
       // Editors and bounded lists keep native scrolling; the canvas uses the selected navigation mode.
@@ -2449,7 +2460,7 @@ export function PlexGraph({ viewDefinition = classicViewDefinition, viewSession,
       const py = e.clientY - rect.top;
       applyCamera((c) => {
         const next = wheelCamera(c, e, {x: px, y: py}, settings.trackpadNavigation,
-          Platform.isIosApp ? IOS_MAX_ZOOM : MAX_ZOOM, rect.height);
+          Platform.isIosApp ? IOS_MAX_ZOOM : MAX_ZOOM, rect.height, trackpadPinchSensitivity(settings.trackpadPinchSensitivity));
         // If the middle/left/right pan gesture is also active, reset its anchor to the newly
         // zoomed camera so the next pointermove cannot snap back to the pre-zoom position.
         const drag = panDrag.current;
@@ -2464,7 +2475,7 @@ export function PlexGraph({ viewDefinition = classicViewDefinition, viewSession,
     };
     el.addEventListener("wheel", wheel, { passive: false });
     return () => el.removeEventListener("wheel", wheel);
-  }, [centralEditorMaximized, settings.trackpadNavigation]);
+  }, [centralEditorMaximized, settings.trackpadNavigation, settings.trackpadPinchSensitivity]);
 
   useEffect(() => {
     const el = viewport.current;
@@ -3726,7 +3737,10 @@ export function PlexGraph({ viewDefinition = classicViewDefinition, viewSession,
         const rect = el.getBoundingClientRect();
         const midX = (a.x + b.x) / 2 - rect.left;
         const midY = (a.y + b.y) / 2 - rect.top;
-        const scale = Math.max(0.3, Math.min(Platform.isIosApp ? IOS_MAX_ZOOM : MAX_ZOOM, pinch.startScale * distance / pinch.startDistance));
+        // Scale the change from the gesture's start, so pointer-event frequency cannot affect zoom speed.
+        const ratio = distance / pinch.startDistance;
+        const zoom = Math.pow(ratio, trackpadPinchSensitivity(settings.trackpadPinchSensitivity));
+        const scale = Math.max(0.3, Math.min(Platform.isIosApp ? IOS_MAX_ZOOM : MAX_ZOOM, pinch.startScale * zoom));
         applyCamera({
           scale,
           x: midX - pinch.worldMidpoint.x * scale,
@@ -5611,6 +5625,7 @@ export function PlexGraph({ viewDefinition = classicViewDefinition, viewSession,
         : baseNode.branch?.status === "partial" ? translate("mindmap.partialHint")
         : baseNode.branch?.status === "unavailable" ? translate("mindmap.unavailableHint") : undefined}
       visual={hasCentralEditor ? undefined : nodeVisuals.get(baseNode.page.path)}
+      thumbnailLoader={thumbnailLoader}
       content={hasCentralEditor ? <div className="kplex-central-editor-placeholder" aria-hidden="true" /> : undefined}
       cornerAction={canOpenCentralEditor ? {
         icon: "file-text",

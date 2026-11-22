@@ -13,11 +13,15 @@ import ts from 'typescript';
 import { chromiumHarness } from './support/browserTypeScript.mjs';
 import { contributorBrowserBundle, contributorBrowserInitialize } from './support/contributorBrowserFixture.mjs';
 import { centerGateSettings } from './support/requestedCenterGateFixture.mjs';
+import {loadPortableModules} from './support/portableTypeScript.mjs';
+
+const {exports:{YoutubeThumbnails,YOUTUBE_THUMBNAIL_LIMITS,youtubeVideo,youtubeThumbnailUrls,urlEmbed}}=loadPortableModules([
+  'src/application/youtubeThumbnails.ts','src/core/contracts/videoUrl.ts','src/ui/features/urlEmbed.ts']);
 
 const indexBundle = await contributorBrowserBundle(['src/index/GraphIndex.ts', 'src/index/GraphPresentation.ts', 'src/core/graph/settingsPolicy.ts', 'src/core/plex/savedPins.ts', 'src/core/plex/attachmentVisibility.ts', 'src/core/contracts/ontologyConfiguration.ts', 'src/core/contracts/appearance.ts', 'src/adapters/obsidian/savedSettingsRefresh.ts']);
-const ui = await build({ stdin: { resolveDir: process.cwd(), contents: `export {ThoughtNode} from './src/ui/ThoughtNode'; export {createElement} from 'react'; export {createRoot} from 'react-dom/client'; export {flushSync} from 'react-dom'; export {renderToStaticMarkup} from 'react-dom/server';` }, bundle: true, write: false, platform: 'browser', format: 'iife', globalName: 'nodeUI', plugins: [{ name: 'native-icon-boundary', setup(builder) {
+const ui = await build({ stdin: { resolveDir: process.cwd(), contents: `export {ThoughtNode} from './src/ui/ThoughtNode'; export {NodeVisualImage} from './src/ui/features/NodeVisualImage'; export {youtubeThumbnailLoader} from './src/adapters/obsidian/youtubeThumbnails'; export {createElement} from 'react'; export {createRoot} from 'react-dom/client'; export {flushSync} from 'react-dom'; export {renderToStaticMarkup} from 'react-dom/server';` }, bundle: true, write: false, platform: 'browser', format: 'iife', globalName: 'nodeUI', plugins: [{ name: 'native-icon-boundary', setup(builder) {
   builder.onResolve({filter:/^obsidian$/}, /** Keep only the native icon API doubled. */ () => ({path:'obsidian',namespace:'native'}));
-  builder.onLoad({filter:/.*/,namespace:'native'}, /** The fixture uses no icons or native shell components. */ () => ({contents:'export const getIcon=()=>null;'}));
+  builder.onLoad({filter:/.*/,namespace:'native'}, /** Only thumbnail requests use a controlled native HTTP boundary; no third-party host is contacted. */ () => ({contents:'export const getIcon=()=>null; export const requestUrl=options=>window.thumbnailRequest(options);'}));
 } }] });
 const main = ts.createSourceFile('main.ts', readFileSync('src/main.ts','utf8'), ts.ScriptTarget.Latest, true);
 const owner = main.statements.find(node => ts.isClassDeclaration(node) && node.name?.text === 'KplexPlugin');
@@ -180,5 +184,134 @@ test('held optional refresh cannot undo immediate image revocation or trap a dur
    equal(window.imageSaveNotices,[],'Normal queued consent save must not emit a generic recovery notice');
    equal(o.counts().semanticRefreshes,before.semanticRefreshes,'No semantic refresh for consent');equal(o.counts().reads,before.reads,'No note reads');equal(o.counts().parses,before.parses,'No acquisition parsing');return true;
   }finally{release();index.refreshPresentationSettings=refresh}
+ })()`),true);
+});
+
+test('YouTube thumbnail identity shares the existing embed allowlist and preserves full navigation URLs',()=>{
+ const id='z8UkHGpykYU';
+ for(const raw of [`https://youtu.be/${id}?t=60`,`https://www.youtube.com/watch?v=${id}&t=90`,`https://m.youtube.com/embed/${id}`,
+  `https://www.youtube-nocookie.com/embed/${id}`,`https://youtube.com/shorts/${id}`,`https://youtube.com/live/${id}`]){
+  assert.equal(youtubeVideo(new URL(raw)).id,id);assert.match(urlEmbed(raw).url,new RegExp('/embed/'+id));
+ }
+ for(const raw of [`https://youtube.com.attacker.invalid/watch?v=${id}`,`https://youtu.be.attacker.invalid/${id}`,
+  `javascript:alert(1)`,`ftp://youtube.com/watch?v=${id}`,`https://youtube.com/watch?v=short`,`https://youtube.com/shorts/bad%2F${id}`])assert.equal(youtubeVideo(new URL(raw)),null,raw);
+ assert.deepEqual(youtubeThumbnailUrls('../bad'),[]);
+ assert.deepEqual(youtubeThumbnailUrls(id).map(url=>url.split('/').at(-1)),['maxresdefault.jpg','hq720.jpg','mqdefault.jpg','default.jpg']);
+});
+
+test('thumbnail leases coalesce videos, retain independent subscribers and try each quality at most once',async()=>{
+ const calls=[],body={bytes:new Uint8Array([255,216,255,1]).buffer,mime:'image/jpeg'},current=()=>true;
+ let release;const first=new Promise(resolve=>release=resolve),cache=new YoutubeThumbnails(async url=>{calls.push(url);if(calls.length===1)await first;return calls.length===4?body:null});
+ const a=cache.acquire('z8UkHGpykYU',current),b=cache.acquire('z8UkHGpykYU',current);assert.equal(a.promise,b.promise);assert.equal(calls.length,1);
+ a.release();a.release();release();assert.equal(await b.promise,body);assert.deepEqual(calls.map(url=>url.split('/').at(-1)),['maxresdefault.jpg','hq720.jpg','mqdefault.jpg','default.jpg']);
+ const c=cache.acquire('z8UkHGpykYU',current);assert.equal(await c.promise,body);assert.equal(calls.length,4,'Mounted subscribers reuse successful bytes');b.release();c.release();
+ assert.equal(cache.entries.size,0);assert.equal(cache.bytes,0,'Final release retires decoded payload cache');
+});
+
+test('consent revocation and final release stop fallback, stale results and negative retry loops',async()=>{
+ for(const retire of ['permission','release']){
+  let permitted=true,release;const requests=[],held=new Promise(resolve=>release=resolve),cache=new YoutubeThumbnails(async url=>{requests.push(url);await held;return null});
+  const lease=cache.acquire('z8UkHGpykYU',()=>permitted);
+  if(retire==='permission')permitted=false;else lease.release();release();assert.equal(await lease.promise,null);assert.equal(requests.length,1,retire);lease.release();assert.equal(cache.entries.size,0);
+ }
+ let calls=0;const cache=new YoutubeThumbnails(async()=>{calls++;throw Error('Offline')});
+ const first=cache.acquire('z8UkHGpykYU',()=>true);assert.equal(await first.promise,null);assert.equal(calls,4);
+ const again=cache.acquire('z8UkHGpykYU',()=>true);assert.equal(await again.promise,null);assert.equal(calls,4,'A mounted failed video does not spin');first.release();again.release();
+ for(const value of ['bad','../bad']){const denied=cache.acquire(value,()=>true);assert.equal(await denied.promise,null);denied.release()}
+ assert.equal(await cache.acquire('z8UkHGpykYU',()=>false).promise,null);assert.equal(calls,4,'Invalid/denied inputs send no requests');
+});
+
+test('thumbnail service bounds pending entries, individual payloads and total retained bytes',async()=>{
+ let complete;const waiting=new Promise(resolve=>complete=resolve),calls=[],pending=new YoutubeThumbnails(async url=>{calls.push(url);await waiting;return null}),leases=[];
+ for(let i=0;i<YOUTUBE_THUMBNAIL_LIMITS.entries;i++)leases.push(pending.acquire(String(i).padStart(11,'0'),()=>true));
+ assert.equal(await pending.acquire('99999999999',()=>true).promise,null);assert.equal(calls.length,YOUTUBE_THUMBNAIL_LIMITS.entries);
+ leases.forEach(lease=>lease.release());complete();await Promise.all(leases.map(lease=>lease.promise));assert.equal(pending.entries.size,0);
+ for(const payload of [{bytes:new ArrayBuffer(YOUTUBE_THUMBNAIL_LIMITS.imageBytes+1),mime:'image/jpeg'},{bytes:new ArrayBuffer(4),mime:'text/html'}]){
+  const cache=new YoutubeThumbnails(async()=>payload),lease=cache.acquire('z8UkHGpykYU',()=>true);assert.equal(await lease.promise,null);lease.release();assert.equal(cache.bytes,0);
+ }
+ const bytes=new ArrayBuffer(YOUTUBE_THUMBNAIL_LIMITS.imageBytes),cache=new YoutubeThumbnails(async()=>({bytes,mime:'image/jpeg'})),kept=[];
+ for(let i=0;i<8;i++){const lease=cache.acquire(String(i).padStart(11,'0'),()=>true);assert(await lease.promise);kept.push(lease)}
+ const excess=cache.acquire('99999999999',()=>true);assert.equal(await excess.promise,null);assert.equal(cache.bytes,YOUTUBE_THUMBNAIL_LIMITS.cacheBytes);excess.release();kept.forEach(lease=>lease.release());assert.equal(cache.bytes,0);
+});
+
+test('visible URL imagery yields only consent-gated candidates without source work, title changes or graph deduplication',async()=>{
+ assert.equal(await scenario(`(async()=>{
+  const {index,settings}=o,id='z8UkHGpykYU',a={path:'https://youtu.be/'+id+'?t=30',url:'https://youtu.be/'+id+'?t=30',name:'Authored A',file:null},b={path:'https://youtube.com/watch?v='+id+'&t=90',url:'https://youtube.com/watch?v='+id+'&t=90',name:'Authored B',file:null};
+  const before=o.counts(),revision=index.getSemanticRevision();equal((await index.resolveNodeVisuals([a,b])).size,0,'Consent off');await setConsent(true);
+  const result=await index.resolveNodeVisuals([a,b]);equal(result.size,2,'Separate graph identities retained');equal(result.get(a.path).youtubeId,id,'Validated shared video ID');equal(result.get(b.path).youtubeId,id,'Timestamp variant shares only image request');equal(a.name,'Authored A','Title unchanged');equal(a.url,'https://youtu.be/'+id+'?t=30','Navigation URL unchanged');
+  equal(result.get(a.path).mode,'thumbnail','Preview retains label');equal(index.getSemanticRevision(),revision,'No semantic publication');equal(o.counts().reads,before.reads,'No source reads');equal(o.counts().parses,before.parses,'No parses');
+  equal((await index.resolveNodeVisuals([{path:'bad',url:'https://youtube.com.attacker.invalid/watch?v='+id,file:null}])).size,0,'Denied host');return true;
+ })()`),true);
+});
+
+test('real image component admits only visible consented thumbnails and retires pending native requests on replacement',async()=>{
+ assert.equal(await scenario(`(async()=>{
+  const U=nodeUI,{settings}=o,host=document.body.appendChild(document.createElement('main')),root=U.createRoot(host),calls=[];
+  host.className='thumbnail-test';const sheet=document.head.appendChild(document.createElement('style'));sheet.textContent='.thumbnail-test img {width:24px;height:24px}';
+  let consent=false,pending=null;window.thumbnailRequest=async options=>{calls.push(options.url);if(pending)await pending;return {status:404,arrayBuffer:new ArrayBuffer(0)}};
+  const loader=U.youtubeThumbnailLoader(()=>consent),render=(id='z8UkHGpykYU',allow=consent)=>U.flushSync(()=>root.render(U.createElement(U.NodeVisualImage,{src:'https://i.ytimg.com/vi/'+id+'/maxresdefault.jpg',path:'https://i.ytimg.com/vi/'+id+'/maxresdefault.jpg',youtubeId:id,allowRemote:allow,loader,alt:''})));
+  try{
+   render();await pause(100);equal(calls,[],'Permission off has no image or transport');
+   consent=true;host.style.marginTop='20000px';render();await pause(150);equal(calls,[],'Offscreen remains lazy');
+   host.style.marginTop='0';await pause(200);equal(calls.length,4,'Visible failure follows each quality once');equal([...host.querySelectorAll('img[src]')].length,0,'Offline keeps normal label/icon fallback');render();await pause(100);equal(calls.length,4,'Ordinary rerender does not retry');
+   let release;pending=new Promise(resolve=>release=resolve);render('aaaaaaaaaaa');await pause(100);equal(calls.length,5,'One new video request');
+   consent=false;release();await pause(100);equal(calls.length,5,'Live permission stops fallback before a render');render('aaaaaaaaaaa',false);equal(host.querySelectorAll('img').length,0,'Revocation removes src boundary');
+   consent=true;pending=null;render('bbbbbbbbbbb');await pause(150);equal(calls.length,9,'New identity starts its own bounded request');
+  }finally{U.flushSync(()=>root.unmount());host.remove();sheet.remove();delete window.thumbnailRequest}return true;
+ })()`),true);
+});
+
+test('successful video payloads coalesce across documents and revoke each owner Blob URL on teardown',async()=>{
+ assert.equal(await scenario(`(async()=>{
+  const U=nodeUI,host=document.body.appendChild(document.createElement('main')),frame=document.body.appendChild(document.createElement('iframe'));await pause(50);
+  const canvas=document.createElement('canvas');canvas.width=canvas.height=2;const bytes=Uint8Array.from(atob(canvas.toDataURL('image/jpeg').split(',')[1]),char=>char.charCodeAt(0)).buffer,calls=[],revoked=[];
+  window.thumbnailRequest=async options=>{calls.push(options.url);return {status:200,arrayBuffer:bytes}};
+  const root=U.createRoot(host),other=U.createRoot(frame.contentDocument.body),loader=U.youtubeThumbnailLoader(()=>true),saved=[];
+  for(const [owner,name]of [[window,'main'],[frame.contentWindow,'other']]){const original=owner.URL.revokeObjectURL.bind(owner.URL);saved.push([owner,owner.URL.revokeObjectURL]);owner.URL.revokeObjectURL=url=>{revoked.push([name,url]);original(url)}}
+  const render=target=>U.createElement('span',{style:{display:'inline-flex',width:24,height:24}},U.createElement(U.NodeVisualImage,{src:'https://i.ytimg.com/vi/z8UkHGpykYU/maxresdefault.jpg',path:'https://i.ytimg.com/vi/z8UkHGpykYU/maxresdefault.jpg',youtubeId:'z8UkHGpykYU',allowRemote:true,loader,alt:'',key:target}));
+  try{
+   U.flushSync(()=>{root.render(render('main'));other.render(render('other'))});await pause(350);
+   const images=[host.querySelector('img'),frame.contentDocument.querySelector('img')];ok(images.every(image=>image?.src.startsWith('blob:')&&image.naturalWidth===2),'Actual native bytes decode in both documents');equal(calls.length,1,'Two documents share one video fetch');
+   U.flushSync(()=>root.unmount());await pause(50);equal(revoked.length,1,'First document releases only its Blob URL');ok(images[1].naturalWidth===2,'Other document retains its independent image');
+   U.flushSync(()=>other.unmount());equal(revoked.length,2,'Last owner revokes its Blob URL');equal(revoked.map(item=>item[0]),['main','other'],'Captured owning windows dispose their resources');
+  }finally{for(const [owner,original]of saved)owner.URL.revokeObjectURL=original;U.flushSync(()=>{root.unmount();other.unmount()});frame.remove();host.remove();delete window.thumbnailRequest}return true;
+ })()`),true);
+});
+
+/** Released consumers cannot reclaim native transports that requestUrl is still awaiting. */
+test('thumbnail transport permits bound abandoned requests while allowing existing-video coalescing',async()=>{
+ let complete;const pending=new Promise(done=>{complete=done;}),calls=[],leases=[];
+ const cache=new YoutubeThumbnails(async url=>{calls.push(url);await pending;return null;});
+ for(let i=0;i<YOUTUBE_THUMBNAIL_LIMITS.requests;i++){
+  const lease=cache.acquire(String(i).padStart(11,'0'),()=>true);leases.push(lease);
+  if(i>0)lease.release();
+ }
+ assert.equal(cache.entries.size,1,'Only one mounted video remains, independently of native pending requests');
+ assert.equal(cache.activeRequests,YOUTUBE_THUMBNAIL_LIMITS.requests);
+ const shared=cache.acquire('00000000000',()=>true);assert.equal(shared.promise,leases[0].promise,'A current video can share its existing transport at capacity');
+ assert.equal(await cache.acquire('99999999999',()=>true).promise,null);assert.equal(calls.length,YOUTUBE_THUMBNAIL_LIMITS.requests,'Released requests still consume the global transport budget');
+ leases[0].release();shared.release();assert.equal(cache.entries.size,0);assert.equal(cache.activeRequests,YOUTUBE_THUMBNAIL_LIMITS.requests);
+ complete();await Promise.all(leases.map(lease=>lease.promise));assert.equal(cache.activeRequests,0,'Only actual transport settlement returns permits');
+ assert.equal(calls.length,YOUTUBE_THUMBNAIL_LIMITS.requests,'Retired transports cannot start later quality fallbacks');
+ const next=cache.acquire('99999999999',()=>true);await next.promise;next.release();assert.equal(calls.length,YOUTUBE_THUMBNAIL_LIMITS.requests+4,'Freed capacity permits a new bounded attempt');
+});
+
+/** Missing payloads and thrown loader errors are current-owner failure states, never stale updates. */
+test('thumbnail component removes failed placeholders and ignores retired loader rejection',async()=>{
+ assert.equal(await scenario(`(async()=>{
+  const U=nodeUI,host=document.body.appendChild(document.createElement('main')),root=U.createRoot(host),sheet=document.head.appendChild(document.createElement('style'));
+  host.className='thumbnail-failure-test';sheet.textContent='.thumbnail-failure-test img {width:24px;height:24px}';
+  const render=(id,loader)=>U.flushSync(()=>root.render(U.createElement(U.NodeVisualImage,{src:'https://i.ytimg.com/vi/'+id+'/maxresdefault.jpg',path:'https://i.ytimg.com/vi/'+id+'/maxresdefault.jpg',youtubeId:id,allowRemote:true,loader,alt:''})));
+  let releases=0;
+  try{
+   const empty={permitted:()=>true,acquire:()=>({promise:Promise.resolve(null),release:()=>{releases++}})};
+   render('aaaaaaaaaaa',empty);await pause(180);equal(host.querySelector('img'),null,'Null payload removes the empty image placeholder');equal(releases,1,'Current failure releases its subscriber');
+   const thrown={permitted:()=>true,acquire:()=>{throw Error('Expected synchronous host failure')}};
+   render('bbbbbbbbbbb',thrown);await pause(180);equal(host.querySelector('img'),null,'Thrown acquisition uses the ordinary fallback');
+   let reject,resolve;const old={permitted:()=>true,acquire:()=>({promise:new Promise((_done,fail)=>{reject=fail}),release:()=>{releases++}})},current={permitted:()=>true,acquire:()=>({promise:new Promise(done=>{resolve=done}),release:()=>{releases++}})};
+   render('ccccccccccc',old);await pause(120);ok(reject,'Actual outgoing lease admitted');render('ddddddddddd',current);await pause(120);ok(resolve,'Actual replacement lease admitted');
+   reject(Error('Retired host request'));await pause(100);ok(host.querySelector('img'),'Old rejection cannot mark the replacement failed');
+   resolve(null);await pause(120);equal(host.querySelector('img'),null,'Replacement publishes its own failure independently');return true;
+  }finally{U.flushSync(()=>root.unmount());host.remove();sheet.remove();}
  })()`),true);
 });

@@ -8,7 +8,7 @@ export class FileView{} export class TextFileView extends FileView{} export clas
 export class TFile{};export class TFolder{};
 export class TextAreaComponent {constructor(container){this.inputEl=container.createEl('textarea')}}
 export const normalizePath=value=>value.replaceAll('\\\\','/').replace(/\\/+/g,'/').replace(/^\\/+|\\/+$/g,'')||'/';
-export const parseLinktext=path=>({path,subpath:''});
+export const parseLinktext=value=>{const hash=value.indexOf('#');return hash<0?{path:value,subpath:''}:{path:value.slice(0,hash),subpath:value.slice(hash)}};
 export class AbstractInputSuggest {constructor(app,input){this.app=app;this.input=input} setValue(value){this.input.value=value} open(){} close(){}}
 export class PluginSettingTab {update(){} constructor(app,plugin){this.app=app;this.plugin=plugin;this.containerEl=createDiv();document.body.append(this.containerEl)} hide(){}}
 export function parseFrontMatterTags(fm){const tags=fm.tags;return Array.isArray(tags)?tags.map(value=>'#'+String(value).replace(/^#/,'')):typeof tags==='string'?tags.split(/[ ,]+/).filter(Boolean).map(value=>'#'+value.replace(/^#/,'')):null;}

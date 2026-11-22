@@ -25,9 +25,16 @@ assert(!existsSync(reportPath),'Restart report exists; use a fresh managed repor
 const userDataPath=process.env.KPLEX_OBSIDIAN_USER_DATA??(process.platform==='win32'?join(process.env.APPDATA,'obsidian'):process.platform==='darwin'?join(homedir(),'Library','Application Support','obsidian'):join(process.env.XDG_CONFIG_HOME??join(homedir(),'.config'),'obsidian'));
 const lock=acquireHostLock({userDataPath}),started=Date.now(),deadline=started+900000;
 const folder='__kplex302_restart_'+Date.now(),paths={folder,a:folder+'/Baseline source.md',b:folder+'/Baseline target.md',added:folder+'/Added source.md',target:folder+'/Added target.md'};
-const plannedFiles=[paths.a,paths.b,paths.added,paths.target];
+const emptyLinkMode=process.argv.includes('--empty-links');
+const emptyFixtures=emptyLinkMode?[
+ {path:folder+'/Empty313.md',body:'see [[ ]] here'},
+ {path:folder+'/Repeated313.md',body:'see [[ ]] here and [[ ]] again'},
+ {path:folder+'/Self313.md',body:'see [[Self313]] here',selfCount:1},
+ {path:folder+'/Code313.md',body:'see `[[ ]]` here',selfCount:0},
+]:[];
+const plannedFiles=[paths.a,paths.b,paths.added,paths.target,...emptyFixtures.map(fixture=>fixture.path)];
 const report={status:'failed',startedAt:new Date(started).toISOString(),node:process.version,platform:process.platform,
- lifecycle:'Obsidian app:reload application renderer; Electron process retained',isolation:[],cycles:[],paths,
+ lifecycle:'Obsidian app:reload application renderer; Electron process retained',isolation:[],cycles:[],paths,emptyLinkMode,
  limitation:'Small functional cache/source-work acceptance. Observed DOM timing is a polling upper bound, not a paint trace or large-vault latency result.'};
 const configPaths=[join(target.pluginDir,'data.json'),join(target.config,'community-plugins.json'),join(target.config,'workspace.json')];
 let originalConfig,originalNative,setupStarted=false,activeCenter=paths.a;
@@ -36,7 +43,10 @@ const hash=path=>createHash('sha256').update(readFileSync(path)).digest('hex');
 /** Keep CLI transport finite; the shared helper owns long/multiline Windows eval scripts. */
 function cli(command,...args){const r=spawnNativeSync(obsidianCliExecutable(),[`vault=${process.env.KPLEX_TEST_VAULT_NAME}`,command,...args],{cwd:root,encoding:'utf8',timeout:15000,killSignal:'SIGKILL',maxBuffer:4*1024*1024});if(r.error||r.status!==0||/^Error:/m.test(r.stdout??''))throw Error(r.error?.message||r.stderr||r.stdout);return r.stdout.trim();}
 /** Validate serialized script syntax before any native operation. */
-function evaluate(code){new Script(code);const raw=cli('eval','code='+code);return JSON.parse(raw.slice(raw.indexOf('{')));}
+function evaluate(code,name='Native evaluation'){
+ try{new Script(code,{filename:'kplex-restart-'+name+'.js'});}catch(error){throw Error(name+' generated invalid native JavaScript: '+String(error));}
+ const raw=cli('eval','code='+code);return JSON.parse(raw.slice(raw.indexOf('{')));
+}
 /** Node owns a bounded observation wait; no renderer scheduling policy is changed. */
 const delay=ms=>new Promise(resolve=>setTimeout(resolve,ms));
 /** Persist aggregate progress after every phase; private recovery inputs are separate files. */
@@ -48,7 +58,7 @@ function isolation(){const proof=evaluate(`(()=>{const r=require('@electron/remo
  * from transport. No phase task is left running when application reload is scheduled. */
 async function task(name,body,maximum=120000,cleanupPhase=false){
  if(!cleanupPhase)assert(Date.now()<deadline,name+' acceptance deadline');
- evaluate(`(()=>{if(window.kplex302RestartTask&&!window.kplex302RestartTask.done)throw Error('Existing restart phase');const s=window.kplex302RestartTask={done:false};s.task=(async()=>{${body}})().then(value=>{s.value=value;s.done=true},error=>{s.error=String(error);s.done=true});return JSON.stringify({started:true})})()`);
+ evaluate(`(()=>{if(window.kplex302RestartTask&&!window.kplex302RestartTask.done)throw Error('Existing restart phase');const s=window.kplex302RestartTask={done:false};s.task=(async()=>{${body}})().then(value=>{s.value=value;s.done=true},error=>{s.error=String(error);s.done=true});return JSON.stringify({started:true})})()`,name);
  const end=cleanupPhase?Date.now()+maximum:Math.min(deadline,Date.now()+maximum);
  while(Date.now()<end){await delay(250);const state=evaluate('JSON.stringify({done:window.kplex302RestartTask?.done,value:window.kplex302RestartTask?.value,error:window.kplex302RestartTask?.error})');if(!state.done)continue;evaluate('delete window.kplex302RestartTask;JSON.stringify({retired:true})');if(state.error)throw Error(name+': '+state.error);return state.value;}
  throw Error(name+' deadline');
@@ -74,7 +84,42 @@ async function observe(label,previousOrigin,maximum=180000){
 }
 /** Inspect the actual activated generation through schema-3 chunk readers. Only owned rows and
  * provenance cross the boundary; matching live fingerprints and current graph certificates are separate. */
-async function savedProof(){return task('Read activated owned snapshot',`const p=app.plugins.plugins['k-plex'],i=p.index,cache=i.indexedDb,meta=await cache.readSnapshotMeta(),owned=new Set(${JSON.stringify(plannedFiles)}),pages=[],evidence=[];if(!meta)throw Error('No active snapshot');if(!await cache.iterateSnapshotPages(meta,row=>{if(owned.has(row.path))pages.push({path:row.path,signature:row.semanticSignature,currentSignature:i.semanticFingerprints.get(row.path),mtime:row.mtime,relations:row.relations?.filter(value=>owned.has(value.targetPath))})},()=>true))throw Error('Page chunk read failed');if(!await cache.iterateSnapshotEvidence(meta,row=>{if(owned.has(row.sourcePath)&&owned.has(row.targetPath))evidence.push({by:row.sourcePath,target:row.targetPath,kind:row.sourceKind,field:row.fieldName??row.definition,type:row.relationType,role:row.role})},()=>true))throw Error('Evidence chunk read failed');return {meta:{generation:meta.generation,createdAt:meta.createdAt,settingsSignature:meta.settingsSignature,vaultSignature:meta.vaultSignature},pages,evidence};`);}
+async function savedGraphProof(){return task('Read activated owned snapshot',`const p=app.plugins.plugins['k-plex'],i=p.index,cache=i.indexedDb,meta=await cache.readSnapshotMeta(),owned=new Set(${JSON.stringify(plannedFiles)}),pages=[],evidence=[];if(!meta)throw Error('No active snapshot');if(!await cache.iterateSnapshotPages(meta,row=>{if(owned.has(row.path))pages.push({path:row.path,signature:row.semanticSignature,currentSignature:i.semanticFingerprints.get(row.path),mtime:row.mtime,relations:row.relations?.filter(value=>owned.has(value.targetPath))})},()=>true))throw Error('Page chunk read failed');if(!await cache.iterateSnapshotEvidence(meta,row=>{if(owned.has(row.sourcePath)&&owned.has(row.targetPath))evidence.push({by:row.sourcePath,target:row.targetPath,kind:row.sourceKind,field:row.fieldName??row.definition,type:row.relationType,role:row.role})},()=>true))throw Error('Evidence chunk read failed');return {meta:{generation:meta.generation,createdAt:meta.createdAt,settingsSignature:meta.settingsSignature,vaultSignature:meta.vaultSignature},pages,evidence};`);}
+/** The optional #313 lane inspects only its native lexical facts after ordinary settlement.
+ * These explicit test reads follow the measured startup interval and never repair or restamp sources. */
+async function savedProof(){
+ const proof=await savedGraphProof();if(!emptyLinkMode)return proof;
+ proof.emptyLinks=await task('Read durable empty-link source proof',`const p=app.plugins.plugins['k-plex'],i=p.index,rows=[];
+ for(const fixture of ${JSON.stringify(emptyFixtures)}){
+  const file=app.vault.getFileByPath(fixture.path),cache=file&&app.metadataCache.getFileCache(file);if(!file||!cache)throw Error('Owned empty-link metadata missing');
+  const metadata=[],resolution=[],repository=i.indexedDb.sources;
+  const inspection=await repository.inspect(file.path,['metadata','resolution']);
+  if(!inspection.saved||inspection.reason!=='ready')throw Error('Empty-link source head is not durable');
+  for(const [family,records]of [['metadata',metadata],['resolution',resolution]])if(await repository.visit(file.path,family,chunk=>{records.push(...chunk);return true;},()=>true)!=='ready')throw Error('Owned empty-link family unavailable');
+  const literals=(cache.links??[]).map((link,ordinal)=>({ordinal,raw:link.link,original:link.original,
+   host:app.metadataCache.getFirstLinkpathDest(link.link,file.path)?.path??null,trimmedHost:app.metadataCache.getFirstLinkpathDest(link.link.trim(),file.path)?.path??null}));
+  rows.push({path:file.path,expectedSelf:fixture.selfCount,selfCount:app.metadataCache.resolvedLinks[file.path]?.[file.path]??0,literals,
+   head:{sourceRevision:inspection.head.sourceRevision,physical:inspection.head.physical,families:inspection.head.families},
+   metadata:metadata.filter(record=>record.kind==='host-literal'),resolution:resolution.filter(record=>record.kind==='host-link'||record.kind==='literal-resolution')});
+ }
+ return {rows,counters:i.getSourceAcquisitionCounters(),recovery:i.sourceAcquisition.getRecoveryDiagnostics(),repository:i.getSourceRepositoryDiagnostics()};`);
+ const selected=proof.emptyLinks;
+ assert.equal(selected.counters.failures,0,'Empty-link recovery must not accumulate failures');
+ assert.equal(selected.recovery.pendingKnown,0,'No empty-link owner remains queued');assert.equal(selected.repository.unsaved,0,'No in-memory mask replaces durability');
+ for(const row of selected.rows){
+  if(row.expectedSelf!==undefined)assert.equal(row.selfCount,row.expectedSelf,'Native explicit-self/inline-code control');
+  assert.deepEqual(row.metadata.map(record=>record.rawTarget),row.literals.map(link=>link.raw),'Preserve every exact native lexical occurrence');
+  const actual=row.resolution.filter(record=>record.kind==='literal-resolution');
+  for(const link of row.literals){
+   const host=link.host??link.trimmedHost;
+   if(host)assert.equal(actual.find(record=>record.ordinal===link.ordinal)?.target?.entity.id,host,'Cached lexical binding must match native resolution');
+  }
+  const counts=row.resolution.filter(record=>record.kind==='host-link'&&record.state==='resolved'&&record.target===row.path);
+  assert(counts.length<=1,'Self aggregate cannot be duplicated');assert.equal(counts[0]?.count??0,row.selfCount,'Preserve genuine self-link multiplicity');
+  if(row.expectedSelf===0)assert(!row.literals.some(link=>link.original.includes('[[ ]]')),'Inline code must stay excluded');
+ }
+ return proof;
+}
 /** A complete saved source must have current canonical input and retained authored provenance. */
 function assertSaved(proof,source,targetPath){const page=proof.pages.find(row=>row.path===source);assert(page?.signature&&page.signature===page.currentSignature,'Saved source lacks matching canonical fingerprint');assert(page.relations?.some(row=>row.targetPath===targetPath),'Saved authored adjacency missing');assert(proof.evidence.some(row=>row.by===source&&row.target===targetPath&&row.kind==='frontmatter-ontology'&&row.type===1),'Saved authored provenance missing');}
 /** Unchanged input may compare native metadata/header coordinates; it cannot replay source bodies,
@@ -82,7 +127,7 @@ function assertSaved(proof,source,targetPath){const page=proof.pages.find(row=>r
 function assertUnchanged(receipt,proof,baseline){const s=receipt.final;assert.equal(s.hydration.route,'full-snapshot','Unchanged restart did not hydrate saved graph');for(const key of ['sourceInventoryPasses','fullBuildStarts','nodeCatalogStarts','completeSnapshotSaves','checkpointSaves'])assert.equal(s.work[key],0,'Unchanged restart admitted '+key);for(const key of ['vaultReads','parses','repaired','resolutionRefreshes'])assert.equal(s.source[key],0,'Unchanged restart repeated '+key);assert.equal(s.semantic.fullBuilds,0,'Unchanged semantic full build');assert.equal(s.semantic.dependencyVisits,0,'Unchanged restart replayed selected source semantics');assert.equal(s.repository.activated,0,'Unchanged restart rewrote sources');assert.equal(s.url.reads,0,'Unchanged restart regenerated URL sources');assert.equal(proof.meta.generation,baseline.meta.generation,'Unchanged restart replaced active generation');assert.equal(proof.meta.settingsSignature,baseline.meta.settingsSignature,'Unchanged restart changed saved policy');assertSaved(proof,activeCenter,activeCenter===paths.added?paths.target:paths.b);}
 /** Schedule the actual installed application command only after a fresh isolated-window proof.
  * The pending task/controller is retired first; Node alone owns observations and recovery inputs. */
-async function reload(label,baseline,requirePending=false){isolation();const before=sample();if(requirePending)assert(before.fullCurrent&&before.pair.canonical&&before.persistence.pending,'Save is no longer pending at the application reload boundary');evaluate(`(()=>{if(window.kplex302RestartTask&&!window.kplex302RestartTask.done)throw Error('Unsettled phase before app reload');delete window.kplex302RestartTask;if(window.kplex302ReloadTimer)throw Error('Existing owned reload timer');window.kplex302ReloadTimer=window.setTimeout(()=>{delete window.kplex302ReloadTimer;app.commands.executeCommandById('app:reload')},100);return JSON.stringify({scheduled:true})})()`);const result=await observe(label,before.timeOrigin);const proof=await savedProof();result.saved=proof;result.cacheProofCapturedAt=Date.now();report.cycles.push(result);save();if(baseline)assertUnchanged(result,proof,baseline);return result;}
+async function reload(label,baseline,requirePending=false){isolation();const before=sample();if(requirePending)assert(before.fullCurrent&&before.pair.canonical&&before.persistence.pending,'Save is no longer pending at the application reload boundary');evaluate(`(()=>{if(window.kplex302RestartTask&&!window.kplex302RestartTask.done)throw Error('Unsettled phase before app reload');delete window.kplex302RestartTask;if(window.kplex302ReloadTimer)throw Error('Existing owned reload timer');window.kplex302ReloadTimer=window.setTimeout(()=>{delete window.kplex302ReloadTimer;app.commands.executeCommandById('app:reload')},100);return JSON.stringify({scheduled:true})})()`);const result=await observe(label,before.timeOrigin);const proof=await savedProof();result.saved=proof;result.cacheProofCapturedAt=Date.now();report.cycles.push(result);save();if(baseline){assertUnchanged(result,proof,baseline);if(emptyLinkMode)assert.deepEqual(proof.emptyLinks.rows.map(row=>({path:row.path,head:row.head})),baseline.emptyLinks.rows.map(row=>({path:row.path,head:row.head})),'Unchanged app restart must retain exact empty-link source heads');}return result;}
 
 try{
  isolation();
@@ -90,7 +135,7 @@ try{
  assert(!process.env.KPLEX_PROBE_ARTIFACT_DIR||process.env.KPLEX_PROBE_BASELINE_REF,'Alternate artifacts require explicit baseline attribution');
  report.artifactDir=artifactDir;report.baselineRef=process.env.KPLEX_PROBE_BASELINE_REF;
  report.artifacts=Object.fromEntries(['main.js','manifest.json','styles.css'].map(name=>{const expected=hash(join(artifactDir,name));assert.equal(hash(join(target.pluginDir,name)),expected,'Installed artifact mismatch: '+name);return[name,expected];}));
- report.driverSha256=hash(fileURLToPath(import.meta.url));report.workingTreeSource=Object.fromEntries(['src/main.ts','src/index/GraphBuilder.ts','src/index/GraphIndex.ts','src/adapters/obsidian/sourceAcquisition.ts'].map(path=>[path,hash(join(root,path))]));
+ report.driverSha256=hash(fileURLToPath(import.meta.url));report.workingTreeSource=Object.fromEntries(['src/main.ts','src/index/GraphBuilder.ts','src/index/GraphIndex.ts','src/adapters/obsidian/sourceAcquisition.ts','src/adapters/obsidian/ontologySourceCollector.ts','src/index/SourceFacts.ts'].map(path=>[path,hash(join(root,path))]));
  originalNative=evaluate(`(()=>{const p=app.plugins.plugins['k-plex'];if(!p?.index||p.index.isOnDemandMode())throw Error('Actual eager Small required');if(app.setting.win||document.querySelector('.modal-container'))throw Error('Close native dialogs');return JSON.stringify({layout:app.workspace.getLayout(),settings:structuredClone(p.settings),sessions:(${nativeDocumentSessions.toString()})(p).capture(),inventory:app.vault.getFiles().map(file=>file.path).sort()})})()`);
  await task('Settle original settings writer',`await app.plugins.plugins['k-plex'].settingsWriteQueue;return {settled:true};`);
  originalConfig=configPaths.map(path=>({path,bytes:readFileSync(path)}));
@@ -100,6 +145,9 @@ try{
  writeFileSync(join(directory,'owned-fixture.json'),JSON.stringify(paths,null,2)+'\n');
  setupStarted=true;
  await task('Create custom-ontology native baseline',`const p=app.plugins.plugins['k-plex'],paths=${JSON.stringify(paths)};if(app.vault.getAbstractFileByPath(paths.folder))throw Error('Owned folder collision');const r=require('@electron/remote'),w=r.getCurrentWindow();r.app.show?.();r.app.focus({steal:true});w.restore();w.show();w.moveTop();w.focus();w.webContents.focus();await (${nativeDocumentSessions.toString()})(p).off();Object.assign(p.settings,{embedCentralNode:false,graphDepth:1,renderSiblings:false,animationSpeed:0});await p.saveSettings(false,false);await p.updateOntologyField('rightFriends',['Opposes302'],[...p.settings.hierarchy.rightFriends],()=>true);await app.vault.createFolder(paths.folder);await app.vault.create(paths.b,'');await app.vault.create(paths.a,${JSON.stringify('---\nOpposes302: '+JSON.stringify('[['+paths.b+']]')+'\n---\n')});await p.settingsWriteQueue;await app.plugins.disablePlugin('k-plex');await app.plugins.enablePlugin('k-plex');const next=app.plugins.plugins['k-plex'];if(next?.whenInitialized&&!await next.whenInitialized())throw Error('Replacement initialization failed');return {created:true};`);
+ if(emptyLinkMode)await task('Create native empty-link controls',`const p=app.plugins.plugins['k-plex'];
+ for(const fixture of ${JSON.stringify(emptyFixtures.map(fixture=>({path:fixture.path,content:'---\nOpposes302: '+JSON.stringify('[['+paths.b+']]')+'\n---\n'+fixture.body+'\n'})))})await app.vault.create(fixture.path,fixture.content);
+ await p.settingsWriteQueue;return {created:${emptyFixtures.length}};`);
  await task('Open owned baseline canvas',`const p=app.plugins.plugins['k-plex'],leaf=app.workspace.getLeaf('tab');await leaf.setViewState({type:'k-plex-react-view',active:true});await app.workspace.revealLeaf(leaf);await leaf.view.waitUntilReady();p.notifyNavigation(${JSON.stringify(paths.a)},leaf);await p.settingsWriteQueue;return {leafId:leaf.id};`);
  report.preparation=await observe('naturally-activated-custom-baseline',undefined,360000);
  const baseline=await savedProof();assertSaved(baseline,paths.a,paths.b);report.preparation.saved=baseline;save();

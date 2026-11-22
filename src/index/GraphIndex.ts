@@ -139,7 +139,7 @@ import {CLASSIC_NEIGHBOR_ROLES, classicSiblingCandidateLimit, projectClassicNeig
 import {fixedPinPaths} from "../core/plex/savedPins";
 import type {TAbstractFile} from 'obsidian';
 import {ontologyConfiguration} from "../core/contracts/ontologyConfiguration";
-import { canonicalWebUrl } from "../adapters/obsidian/urlIdentity";
+import { canonicalWebUrl, youtubeThumbnailCandidate } from "../adapters/obsidian/urlIdentity";
 import {deletedFileNavigationTarget} from "../adapters/obsidian/deletedFileNavigation";
 import { frontmatterUrlLabelSteps } from "../adapters/obsidian/metadataSourceCollector";
 import { remapGraphEndpoint } from "./remapGraphEndpoint";
@@ -4568,6 +4568,8 @@ export class GraphIndex {
    * frontmatter and one existing durable-body batch supplies cold inline fields. Consent participates
    * in cache signatures; revocation, settings changes, invalidation and unload fence awaited results.
    * Denied candidates fall through to the first allowed local value, then the normal node label.
+   * Supported URL pages yield static thumbnail candidates only; mounted viewport image leases own
+   * network transport independently of this resolver and all semantic/indexing work.
    */
   async resolveNodeVisuals(pages: readonly GraphPage[]): Promise<Map<string, NodeVisual>> {
     const result = new Map<string, NodeVisual>();
@@ -4596,6 +4598,14 @@ export class GraphIndex {
     };
 
     for (const page of pages) {
+      // URL-node candidates are lazy presentation data. Resolving them performs no request and
+      // never touches semantic state, body acquisition, titles or the timestamped navigation URL.
+      if (!page.file && page.url && allowRemote) {
+        const candidate = youtubeThumbnailCandidate(page.url);
+        if (candidate) result.set(page.path, {mode: "thumbnail", src: candidate.url, path: candidate.url,
+          alt: page.name, youtubeId: candidate.id});
+        continue;
+      }
       const file = page.file;
       if (!file) continue;
       const signature = [file.stat.mtime, thumbnailField, replaceField, attachmentDisplay, allowRemote].join("\u0001");

@@ -40,6 +40,7 @@ await build({
       export class Component {load(){} unload(){}} export const MarkdownRenderer={render:()=>{throw Error("Native Markdown is outside this finite fixture")}}; export class App {}
       export class ExtraButtonComponent {} export class Scope {}
       export class TFile {} export class TFolder {}
+      export const parseLinktext=link=>{const hash=link.indexOf('#');return hash<0?{path:link,subpath:''}:{path:link.slice(0,hash),subpath:link.slice(hash)};};
       export const normalizePath=path=>path.replaceAll('\\\\','/');
       export const Platform = {};
       export const parseFrontMatterTags=fm=>{const value=fm.tags;return Array.isArray(value)?value.map(tag=>'#'+tag.replace(/^#/,'')):typeof value==='string'?value.split(/[ ,]+/).filter(Boolean).map(tag=>'#'+tag.replace(/^#/,'')):null};
@@ -149,8 +150,8 @@ const defaults = migrateAndMergeSettings(undefined);
 const migrated = importExcaliBrainGraphSettings(fixture);
 
 test("fresh settings pair inverse factory fields, survive persistence and keep independent defaults", () => {
-  const expected = [["Parent", "Child"], ["Parents", "Children"], ["up", "down"], ["u", "d"], ["North", "South"],
-    ["Previous", "Next"], ["West", "East"], ["w", "e"], ["Before", "After"]];
+  const expected = [["parent", "child"], ["Parents", "Children"], ["up", "down"], ["u", "d"], ["North", "South"],
+    ["previous", "next"], ["West", "East"], ["w", "e"], ["Before", "After"]];
   for (const raw of [undefined, null, {}]) {
     const settings = migrateAndMergeSettings(raw);
     assert.deepEqual(settings.hierarchy, DEFAULT_SETTINGS.hierarchy);
@@ -163,7 +164,7 @@ test("fresh settings pair inverse factory fields, survive persistence and keep i
     assert.equal(configuration.pairs.size, expected.length * 2);
     const legacy = ontologyConfiguration(migrateAndMergeSettings({standardStyleDefaults: "native"}));
     for (const group of Object.keys(configuration.hierarchy)) {
-      assert.deepEqual([...configuration.hierarchy[group]].sort(), [...legacy.hierarchy[group]].sort(), group);
+      assert.deepEqual(configuration.hierarchy[group].map(field=>field.toLowerCase()).sort(), legacy.hierarchy[group].map(field=>field.toLowerCase()).sort(), group);
     }
     assert.deepEqual(migrateAndMergeSettings(JSON.parse(JSON.stringify(settings))).hierarchy, settings.hierarchy);
   }
@@ -191,6 +192,60 @@ test("paired factory defaults never opt saved or imported ontology into pairing"
   assert.deepEqual(importedOverFresh.hierarchy.parents, ["Custom"]);
   assert.deepEqual(importedOverFresh.hierarchy.children, ["Custom child"]);
   assert.equal(ontologyConfiguration(importedOverFresh).pairs.has("parent"), false);
+});
+
+/** Lowercase is a factory spelling choice, never a migration that renames vault properties. */
+test("lowercase default fields preserve exact saved, imported and partially omitted ontology", () => {
+ const fresh=migrateAndMergeSettings({}),configuration=ontologyConfiguration(fresh);
+ const expected={parent:'parent',child:'child',left:'friend',right:'challenger',previous:'previous',next:'next'};
+ assert.deepEqual(fresh.relationDefaultFields,expected);
+ for(const [role,field]of Object.entries(expected)){
+  assert.equal(configuration.roles.get(field),role);assert.equal(fresh.ontologyDescriptions[field]?.length>0,true);
+  assert.equal(Object.hasOwn(fresh.ontologyDescriptions,field[0].toUpperCase()+field.slice(1)),false,'Factory descriptions follow the authored physical field');
+ }
+ const raw={ontologyPairingVersion:1,hierarchy:{parents:['Parent/Child'],leftFriends:['My friend'],rightFriends:['Challenger'],previous:['Previous/Next']},
+  relationDefaultFields:{parent:'Parent',child:'Child',left:'My friend',right:'Challenger',previous:'Previous',next:'Next'},unknownFuture:{keep:true}};
+ const saved=migrateAndMergeSettings(raw);
+ assert.deepEqual(saved.hierarchy.parents,raw.hierarchy.parents);assert.deepEqual(saved.hierarchy.leftFriends,raw.hierarchy.leftFriends);
+ assert.deepEqual(saved.relationDefaultFields,raw.relationDefaultFields);assert.deepEqual(saved.unknownFuture,{keep:true});
+ assert.equal(ontologyConfiguration(saved).pairs.get('parent').partner,'Child','Case-insensitive identity keeps the original physical inverse');
+ assert.equal(ontologyConfiguration(saved).hierarchy.next.includes('Next'),true);
+ const partial=migrateAndMergeSettings({hierarchy:{leftFriends:['CUSTOM']},relationDefaultFields:{left:'CUSTOM'}});
+ assert.deepEqual(partial.hierarchy.leftFriends,['CUSTOM']);assert.equal(partial.relationDefaultFields.left,'CUSTOM');
+ assert(partial.hierarchy.parents.includes('Parent'),'Missing legacy role lists retain historical spellings');
+ const imported=importExcaliBrainGraphSettings({hierarchy:{parents:['PARENT'],children:['CHILD'],friends:['FRIEND']}},saved);
+ assert.deepEqual(imported.hierarchy.parents,['PARENT']);assert.deepEqual(imported.hierarchy.children,['CHILD']);assert.deepEqual(imported.hierarchy.leftFriends,['FRIEND']);
+ assert.deepEqual(imported.relationDefaultFields,saved.relationDefaultFields,'Foreign settings never replace local workflow memory');
+});
+
+/** Generic memory installs only after its own queued disk commit and never changes explicit-role memory. */
+test("generic relationship selection survives reload and revalidates removed or reassigned fields", async () => {
+ const f=styleEditorFixture(),p=f.plugin,roleMemory=structuredClone(p.settings.relationDefaultFields),lateral=structuredClone(p.settings.lateralCreationRoles),journal=structuredClone(p.settings.dailyNoteLinkFields);
+ const initial=p.initialGenericRelationshipSelection();assert.deepEqual(initial,{role:'child',field:'child'});assert.equal(f.saves.length,0,'Opening or canceling an untouched dialog writes nothing');
+ for(const [role,field]of [['left','friend'],['previous','previous'],['right','challenger'],['next','next'],['parent','parent'],['child','child']]){
+  await p.rememberGenericRelationshipOntology(role,field.toUpperCase());assert.deepEqual(p.initialGenericRelationshipSelection(),{role,field});
+  const restored=styleEditorFixture(migrateAndMergeSettings(JSON.parse(JSON.stringify(f.saves.at(-1))))).plugin;
+  assert.deepEqual(restored.initialGenericRelationshipSelection(),{role,field},'Actual saved preference restores after settings reload');
+ }
+ assert.deepEqual(p.settings.relationDefaultFields,roleMemory);assert.deepEqual(p.settings.lateralCreationRoles,lateral);assert.deepEqual(p.settings.dailyNoteLinkFields,journal);
+ p.settings.genericRelationshipSelection={role:'left',field:'Removed'};assert.deepEqual(p.initialGenericRelationshipSelection(),{role:'left',field:'friend'});
+ p.settings.genericRelationshipSelection={role:'left',field:'challenger'};assert.deepEqual(p.initialGenericRelationshipSelection(),{role:'left',field:'friend'},'A field reassigned elsewhere cannot silently change the remembered direction');
+ for(const value of [{role:'hidden',field:'hidden'},{role:'left',field:''},['child','child'],null]){
+  const migrated=migrateAndMergeSettings({genericRelationshipSelection:value});assert.equal(migrated.genericRelationshipSelection,null);
+ }
+});
+
+test("generic relationship memory rejects failed storage and queued ontology reassignment without installing drafts", async () => {
+ const f=styleEditorFixture(),p=f.plugin;await p.rememberGenericRelationshipOntology('left','friend');
+ const before=structuredClone(p.settings.genericRelationshipSelection),roleMemory=structuredClone(p.settings.relationDefaultFields),write=p.saveData;
+ p.saveData=async()=>{throw Error('Expected disk failure');};
+ await assert.rejects(p.rememberGenericRelationshipOntology('previous','previous'),/Expected disk failure/);
+ assert.deepEqual(p.settings.genericRelationshipSelection,before);assert.deepEqual(p.settings.relationDefaultFields,roleMemory);
+ p.saveData=write;await p.rememberGenericRelationshipOntology('next','next');assert.deepEqual(p.settings.genericRelationshipSelection,{role:'next',field:'next'},'A failed save cannot poison the next queued operation');
+ let release;p.settingsWriteQueue=new Promise(done=>{release=done;});
+ const pending=p.rememberGenericRelationshipOntology('left','friend');
+ p.settings={...p.settings,hierarchy:{...p.settings.hierarchy,leftFriends:[],rightFriends:['friend','challenger']}};
+ release();await assert.rejects(pending,/conflict|changed/i);assert.deepEqual(p.settings.genericRelationshipSelection,{role:'next',field:'next'});
 });
 
 /** Keep theme identities native-shaped while preserving the real queue and all source/color policy. */
@@ -1185,6 +1240,28 @@ test("actual layout-profile saves stay presentation-only while mixed visibility 
   settings.hierarchy.parents.push('Other parent');await plugin.saveSettings(false);assert.equal(semantic,2);assert.equal(invalidations,1);
 });
 
+/** The real host save/refresh owner must keep pinch edits out of its semantic capability, rather
+ * than relying only on the portable effects classifier. The finite semantic port records the
+ * active-center preparation it would request if that owner is entered. */
+test('actual pinch settings saves serialize durable values and perform zero semantic refresh or center preparation',async()=>{
+ const {plugin,settings,saves}=styleEditorFixture();let semantic=0,prepared=0,invalidations=0,presentation=0,active=0,peak=0,release;
+ const gate=new Promise(resolve=>release=resolve),save=plugin.saveData;
+ plugin.index.ensureOnDemandCenter=async()=>{prepared++};
+ plugin.index.refreshSemanticSettings=async()=>{semantic++;await plugin.index.ensureOnDemandCenter('Current.md')};
+ plugin.index.invalidateSemanticPolicy=()=>{invalidations++};
+ plugin.index.refreshPresentationSettings=async()=>{presentation++};
+ plugin.index.notifyPresentation=()=>{};
+ plugin.saveData=async snapshot=>{active++;peak=Math.max(peak,active);try{await save(snapshot);if(saves.length===1)await gate}finally{active--}};
+ settings.futurePinchSetting={retained:true};settings.trackpadPinchSensitivity=5;
+ const first=plugin.saveSettings();await new Promise(resolve=>setImmediate(resolve));assert.equal(saves.length,1);assert.equal(saves[0].trackpadPinchSensitivity,5);
+ settings.trackpadPinchSensitivity=7.25;const later=plugin.saveSettings();await new Promise(resolve=>setImmediate(resolve));assert.equal(saves.length,1,'Later preference must wait for the serialized writer');
+ release();await Promise.all([first,later]);
+ assert.equal(peak,1);assert.equal(saves.at(-1).trackpadPinchSensitivity,7.25);assert.equal(migrateAndMergeSettings(saves.at(-1)).trackpadPinchSensitivity,7.25);
+ assert.deepEqual(migrateAndMergeSettings(saves.at(-1)).futurePinchSetting,{retained:true});
+ assert.equal(semantic,0);assert.equal(prepared,0);assert.equal(invalidations,0);assert(presentation>0,'Mounted canvases still receive presentation refresh');
+ assert.deepEqual(plugin.savedSettingsPolicy,captureSettingsPolicy(plugin.settings));
+});
+
 test("explicit normalized link-style keys take precedence over legacy display names", () => {
   const settings = structuredClone(migrated);
   settings.hierarchyLinkStyles["inspired-by"] = { strokeColor: "#123456ff" };
@@ -1367,6 +1444,20 @@ test("trackpad and remembered drawing templates survive settings loading without
   assert.equal(encodeIndexSettingsSignature(settings), encodeIndexSettingsSignature(defaults));
   const invalid = migrateAndMergeSettings({trackpadNavigation: "true", lastDrawingTemplatePath: 42});
   assert.equal(invalid.trackpadNavigation, false); assert.equal(invalid.lastDrawingTemplatePath, null);
+});
+
+test('pinch sensitivity defaults to 5 and valid saved settings survive reload without semantic work',()=>{
+ assert.equal(migrateAndMergeSettings(undefined).trackpadPinchSensitivity,5);
+ for(const raw of [undefined,null,'3',NaN,Infinity])assert.equal(migrateAndMergeSettings({trackpadPinchSensitivity:raw}).trackpadPinchSensitivity,5);
+ assert.equal(migrateAndMergeSettings({trackpadPinchSensitivity:1}).trackpadPinchSensitivity,1);
+ assert.equal(migrateAndMergeSettings({trackpadPinchSensitivity:-1}).trackpadPinchSensitivity,0.25);
+ assert.equal(migrateAndMergeSettings({trackpadPinchSensitivity:99}).trackpadPinchSensitivity,10);
+ const selected=migrateAndMergeSettings({...defaults,trackpadPinchSensitivity:7.25,futurePinchPreference:{keep:true}});
+ const restored=migrateAndMergeSettings(JSON.parse(JSON.stringify(selected)));
+ assert.equal(restored.trackpadPinchSensitivity,7.25);assert.deepEqual(restored.futurePinchPreference,{keep:true});
+ const effects=classifySettingsChange(captureSettingsPolicy(defaults),captureSettingsPolicy(restored));
+ assert.equal(effects.semanticInvalidation,false);assert.equal(effects.render,true);assert.deepEqual(effects.changedKeys,['trackpadPinchSensitivity']);
+ assert.equal(encodeIndexSettingsSignature(restored),encodeIndexSettingsSignature(defaults));
 });
 
 /** Persisted opening preferences migrate once and preserve unrelated future settings. */

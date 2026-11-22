@@ -100,7 +100,7 @@ import {editOntologyDescriptions,type OntologyDescriptions} from './core/contrac
 import {createPublicApi, type KplexPublicApi, type PublicApiOwner} from './publicApi/createPublicApi';
 import {publishPublicApiWindows} from './adapters/obsidian/publicApiWindow';
 import type {PublicCanvasRegistry} from './application/PublicCanvasRegistry';
-import {ontologyConfiguration, assignOntologyField, applyOntologyEdit, ontologyEndpointState, editOntologyEntries, ONTOLOGY_GROUPS, type OntologyConfiguration, type OntologyConfigurationInput, type OntologyEdit} from './core/contracts/ontologyConfiguration';
+import {ontologyConfiguration, assignOntologyField, applyOntologyEdit, ontologyEndpointState, editOntologyEntries, ONTOLOGY_GROUPS, ONTOLOGY_ROLE_GROUP, type OntologyConfiguration, type OntologyConfigurationInput, type OntologyEdit} from './core/contracts/ontologyConfiguration';
 import {prepareOntologyBatch,type OntologyBatchEdit,type OntologyBatchPlan} from './core/contracts/ontologyBatch';
 import type {StyleEditorModal} from "./ui/StyleEditorModal";
 import {NotificationModal} from "./ui/NotificationModal";
@@ -123,6 +123,7 @@ import { KPLEX_VIEW_TYPE, KPLEX_SIDEPANEL_VIEW_TYPE, KplexView, KplexSidepanelVi
 import { nativeLeafId, type KplexDocumentSession, type DocumentFollowIntent } from "./ui/KplexDocumentSession";
 import { RelationModal, type RelationModalOptions } from "./ui/RelationModal";
 import { NewRelatedNoteModal, type RelatedNoteInvocation } from "./ui/NewRelatedNoteModal";
+import {sanitizeGenericRelationshipSelection, type GenericRelationshipSelection} from "./core/plex/relationshipMemory";
 import { CreateFolderNoteModal } from "./ui/CreateFolderNoteModal";
 import {eligibleRelationshipOwner} from "./adapters/obsidian/relationshipOwner";
 import {EXTERNAL_IMPORT_LIMITS, type ExternalImportPayload} from "./adapters/obsidian/externalFileImport";
@@ -143,6 +144,8 @@ import { AddToOntologyModal, type OntologyAssignmentRole } from "./ui/AddToOntol
 import { NoteTypeModal } from "./ui/NoteTypeModal";
 import {NoteTypeReviewModal} from "./ui/NoteTypeReviewModal";
 import {validNodeProperties, nodePropertyRows, nodePropertyType, type NodeProperty, type NodePropertiesEdit} from "./core/plex/nodeProperties";
+import type {CreationMetadata} from "./application/creationProperties";
+import {applyCreationProperties} from "./adapters/obsidian/creationProperties";
 import type {NoteTypeSelection} from "./adapters/obsidian/tagNoteType";
 import {canShowFileProperties, showFileProperties} from "./adapters/obsidian/fileProperties";
 import { activeLayoutProfile, effectiveViewSettings, layoutProfileKey } from "./ui/viewProfile";
@@ -3031,8 +3034,11 @@ export default class KplexPlugin extends Plugin {
         if (!origin) return { status: "unavailable", reasonKey: "actions.target-unavailable" };
         const sessionId = `composer-${++this.actionInvocationSequence}`;
         const hostLeaf = this.actionHostLeaf(context.surfaceId);
+        const genericSelection = role === "all" ? this.initialGenericRelationshipSelection() : undefined;
         const invocation: RelatedNoteInvocation = {
           initialRoleFilter: role === "all" ? "all" : undefined,
+          initialOntology: genericSelection?.field,
+          rememberGenericOntology: role === "all",
           continuation: context.request.args && "continuation" in context.request.args ? context.request.args.continuation : undefined,
           /** Closing/migrating a graph retires late navigation without changing committed disk work. */
           current: () => !this.unloading && (!context.surfaceId || context.generation === undefined
@@ -3044,7 +3050,7 @@ export default class KplexPlugin extends Plugin {
         };
         const dialog = origin.isFolder
           ? new CreateFolderNoteModal(this, origin, hostLeaf, invocation)
-          : new NewRelatedNoteModal(this, origin, role === "all" ? "child" : role, undefined, hostLeaf, undefined, invocation);
+          : new NewRelatedNoteModal(this, origin, genericSelection?.role ?? (role === "all" ? "child" : role), undefined, hostLeaf, undefined, invocation);
         this.actionDialogs.set(dialog, { surfaceId: context.surfaceId, generation: context.generation });
         try { dialog.open(); } catch (error) { dialog.close(); this.actionDialogs.delete(dialog); throw error; }
         return { status: "opened", sessionId };
@@ -3160,6 +3166,27 @@ export default class KplexPlugin extends Plugin {
     return changed;
   }
 
+  /** Save an explicit common-property draft under its opening identity, without preparing sources.
+   * Failed storage publishes nothing; dismissal cannot undo a write already accepted by the queue. */
+  async updateCommonNodeProperties(opening: readonly NodeProperty[], rows: readonly NodeProperty[], isCurrent: () => boolean): Promise<boolean> {
+    if (!validNodeProperties(rows)) throw new Error(this.translator("nodeProperties.changed"));
+    const draft = rows.map(/** Detach the submitted form definitions before entering the existing settings queue. */ row => ({...row}));
+    let committed = false;
+    await this.enqueueSettingsWrite(/** Recheck after external adoption and merge only this finite configuration. */ async () => {
+      const source = this.settingsForWrite();
+      if (this.unloading || !isCurrent() || !appearanceThemes.themeValuesEqual(source.commonNodeProperties, opening)) return;
+      const live = this.settings.commonNodeProperties, next = {...source, commonNodeProperties: draft};
+      await this.writeSettingsSnapshot(this.settingsSnapshotForPersistence(source.actionPreferencesFuture ?? source.actionPreferences, next));
+      if (this.unloading) {committed = true; return;}
+      if (this.settings.commonNodeProperties === live) this.settings.commonNodeProperties = draft;
+      const policy = captureSettingsPolicy(next), values = {...(this.savedSettingsPolicy ?? policy).values};
+      values.commonNodeProperties = policy.values.commonNodeProperties;
+      this.savedSettingsPolicy = {values}; committed = true;
+    });
+    if (committed && !this.unloading) this.index.notifyPresentation();
+    return committed;
+  }
+
   /**
    * Persist all caller mutations through the canonical immutable settings projection. The legacy
    * boolean is a call-site compatibility facade only: managers/imports cannot bypass classification.
@@ -3181,7 +3208,7 @@ export default class KplexPlugin extends Plugin {
     const previousPolicy = this.savedSettingsPolicy;
     const effects = classifySettingsChange(previousPolicy ?? next, next);
     const consentOnly = effects.changedKeys.length === 1 && effects.changedKeys[0] === "allowRemoteNodeImages";
-    const layoutOnly = effects.changedKeys.length > 0 && effects.changedKeys.every(key => key === "layoutProfiles" || key === "groupRelations" || key === "canvasViewSettings");
+    const layoutOnly = effects.changedKeys.length > 0 && effects.changedKeys.every(key => key === "layoutProfiles" || key === "groupRelations" || key === "canvasViewSettings" || key === "commonNodeProperties" || key === "noteTypeProperties" || key === "trackpadPinchSensitivity");
     const appearanceChanged = effects.changedKeys.some(/** Legacy imperative saves delegate appearance synchronization to the one queued owner. */ key => STYLE_SETTINGS_KEYS.some(/** This is the appearance-write inventory, not the theme schema. */ field => field === key));
     const queuedAppearance = appearanceChanged && (this.settings.appearanceThemes || this.settings.appearanceThemesFuture !== undefined);
     // The appearance queue owns its durable policy baseline. Advancing it here would make a
@@ -6285,8 +6312,8 @@ export default class KplexPlugin extends Plugin {
     switch (group) {
       case "parent": return this.defaultOntologyField("child");
       case "child": return this.defaultOntologyField("parent");
-      case "previous": return h.next[0] ?? "Next";
-      case "next": return h.previous[0] ?? "Previous";
+      case "previous": return h.next[0] ?? "next";
+      case "next": return h.previous[0] ?? "previous";
       // Friend/challenger ontologies are symmetric in classic ExcaliBrain. Keep the same
       // property name when the relationship has to be stored on the opposite Markdown note.
       case "left":
@@ -6314,9 +6341,41 @@ export default class KplexPlugin extends Plugin {
       const found = fields.find((field) => normalizeFieldName(field) === candidate);
       if (found) return found;
     }
-    return fields[0] ?? (role === "parent" ? "Parent" : role === "child" ? "Child" : role === "left" ? "Friend" : role === "right" ? "Challenger" : role === "previous" ? "Previous" : "Next");
+    return fields[0] ?? (role === "left" ? "friend" : role === "right" ? "challenger" : role);
   }
 
+  /** Restore the generic command's own last role, revalidating its field against current vocabulary. */
+  initialGenericRelationshipSelection(): GenericRelationshipSelection {
+    const remembered = sanitizeGenericRelationshipSelection(this.settings.genericRelationshipSelection);
+    const role = remembered?.role ?? "child";
+    const field = remembered && this.ontologyRoleForField(remembered.field) === role
+      ? this.ontologyFieldsForRole(role).find(/** Retain configured physical spelling after a case-insensitive match. */ candidate =>
+        normalizeFieldName(candidate) === normalizeFieldName(remembered.field)) : undefined;
+    return {role, field: field ?? this.defaultOntologyField(role)};
+  }
+
+  /** Persist only a successfully used generic-command tuple; failures never install a live draft. */
+  async rememberGenericRelationshipOntology(role: RelationshipRole, field: string): Promise<void> {
+    const submitted = sanitizeGenericRelationshipSelection({role, field});
+    if (!submitted) throw new Error(this.translator("addRelated.enterOntologyField"));
+    const current = this.receivedSettingsOwner("genericRelationshipSelection");
+    await this.enqueueSettingsWrite(/** Validate again inside the shared writer after external settings/reassignment. */ async () => {
+      if (this.unloading || !current()) throw new Error(this.translator("settingsSync.conflict"));
+      const source = this.settingsForWrite(), configuration = ontologyConfiguration(source);
+      const normalized = normalizeFieldName(submitted.field);
+      if (configuration.roles.get(normalized) !== submitted.role) throw new Error(this.translator("settingsSync.conflict"));
+      const field = configuration.hierarchy[ONTOLOGY_ROLE_GROUP[submitted.role]].find(/** Resolve one physical spelling, never rename a configured field. */ candidate =>
+        normalizeFieldName(candidate) === normalized);
+      if (!field) throw new Error(this.translator("settingsSync.conflict"));
+      const selection = {role: submitted.role, field};
+      if (source.genericRelationshipSelection?.role === selection.role && source.genericRelationshipSelection.field === selection.field) return;
+      const next = {...source, genericRelationshipSelection: selection};
+      await this.writeSettingsSnapshot(this.settingsSnapshotForPersistence(source.actionPreferencesFuture ?? source.actionPreferences, next));
+      if (!this.unloading) this.settings.genericRelationshipSelection = selection;
+    });
+  }
+
+  /** Remember explicit direction and lateral-family defaults through their existing workflow owner. */
   async rememberRelationshipOntology(role: RelationshipRole, rawField: string): Promise<string> {
     const trimmed = rawField.trim();
     if (!trimmed) return this.defaultOntologyField(role);
@@ -8495,6 +8554,23 @@ export default class KplexPlugin extends Plugin {
     });
   }
 
+  /** Apply only explicitly authored creation values after template completion to the retained file.
+   * The caller keeps a partial-file receipt if publication fails; this never creates another file. */
+  async applyNewNoteCreationMetadata(file: TFile, draft: CreationMetadata, current: () => boolean): Promise<void> {
+    if (file.extension !== "md" || !draft.properties.length && draft.noteType === null) return;
+    const path = file.path, typeField = this.settings.noteTypeField;
+    const captured: CreationMetadata = {noteType: draft.noteType, properties: draft.properties.map(/** Caller drafts cannot change accepted values during a native metadata wait. */ ({field, value}) => ({field,
+      value: typeof value === "object" ? [...value] : value}))};
+    const fields = new Set(captured.properties.map(/** The existing observation receipt tracks only explicitly affected native fields. */ row => normalizeFieldName(row.field)));
+    if (captured.noteType !== null) {fields.add(normalizeFieldName(typeField));fields.add("tags");}
+    await this.index.withForegroundPriority(/** Template code has finished before acquiring native mutation priority. */ () =>
+      this.mutateCreatedNodeMetadata(file, fields, /** Reauthorize the exact native incarnation inside FileManager's queued callback. */ frontmatter => {
+        if (this.unloading || !current() || file.path !== path || this.app.vault.getFileByPath(path) !== file || this.settings.noteTypeField !== typeField)
+          throw new Error(this.translator("addRelated.endpointChanged"));
+        applyCreationProperties(frontmatter, captured, typeField, this.translator("creation.propertiesInvalid"));
+      }));
+  }
+
   /** Persist the display title and await its current body/cache before a relationship selects this file. */
   private async writeCreatedNodeDisplayName(file: TFile, rawDisplayName: string): Promise<string> {
     const displayName = rawDisplayName;
@@ -8539,6 +8615,16 @@ export default class KplexPlugin extends Plugin {
     return alias;
   }
 
+  /** Complete display-name/alias observation before explicit creation properties. The composer
+   * disables filename synthesis so untouched template fields survive; other callers retain their default.
+   * A retained partial file uses this same owner once; later relationship retries must not replay it. */
+  async finalizeCreatedNoteMetadata(file: TFile, rawName: string, rawAlias: string, synthesizeDisplayName = true): Promise<void> {
+    const displayName = synthesizeDisplayName ? await this.writeCreatedNodeDisplayName(file, rawName) : "";
+    const alias = await this.writeCreatedNodeAlias(file, rawAlias);
+    if (file.extension === "md" && !displayName && !alias) await this.mutateCreatedNodeMetadata(file, new Set(),
+      /** A blank new note still needs its actual cache observation before relationship authority. */ () => {});
+  }
+
   private normalizedWebUrl(raw: string): string | null {
     const value = raw.trim();
     if (!/^https?:\/\//i.test(value)) return null;
@@ -8550,8 +8636,9 @@ export default class KplexPlugin extends Plugin {
     }
   }
 
-  /** Create a related file for the selected origin while preserving folder/name validation and localized product feedback. */
-  async createNewRelatedFileForOrigin(origin: GraphPage, rawName: string, kind: GhostMaterializationKind, rawAlias = "", selectedFolder?: string, templatePath?: string): Promise<TFile | null> {
+  /** Create a related file with validated folder/name and localized feedback. Existing callers
+   * retain display-name synthesis; the explicit-property composer keeps filename and metadata independent. */
+  async createNewRelatedFileForOrigin(origin: GraphPage, rawName: string, kind: GhostMaterializationKind, rawAlias = "", selectedFolder?: string, templatePath?: string, synthesizeDisplayName = true): Promise<TFile | null> {
     const destination = this.validateNoteFolderPath(selectedFolder ?? this.newRelatedNoteFolder(origin, rawName, kind));
     if (destination.error) throw new Error(destination.error);
     const validation = this.validateRelatedNoteName(rawName, destination.folderPath);
@@ -8569,11 +8656,7 @@ export default class KplexPlugin extends Plugin {
     // Foreign template execution must not hold P0 and preempt navigation or indexing.
     return this.index.withForegroundPriority(async () => {
       try {
-        const displayName = await this.writeCreatedNodeDisplayName(file, rawName);
-        const alias = await this.writeCreatedNodeAlias(file, rawAlias);
-        // A blank new Markdown file still needs its first actual cache observation before the pair
-        // freezes identity. Reuse the observer for a no-op, rather than a quiet-window timeout.
-        if (file.extension === "md" && !displayName && !alias) await this.mutateCreatedNodeMetadata(file, new Set(), /** Observe creation without adding properties. */ () => {});
+        await this.finalizeCreatedNoteMetadata(file, rawName, rawAlias, synthesizeDisplayName);
         return file;
       } catch (error) {
         // The file is already durable. Retain its identity for recovery instead of suggesting
