@@ -1156,9 +1156,9 @@ ${production}
  try {
   const host = document.createElement("div"); document.body.append(host);
   const origin = { path: "Origin.md", file: { path: "Origin.md", extension: "md" } }; const target = { path: "Target.md", file: { path: "Target.md", extension: "md" } };
-  const intents = [], outcomes = [], remembered = []; let commits = 0; let closes = 0; let rejectCommit = true; let savedPending = false;
+  const intents = [], outcomes = [], remembered = [], linkedFeedback = []; let commits = 0; let closes = 0; let rejectCommit = true; let savedPending = false;
   let folderEnumerations = 0;
-  const session = { continuation: "return", suggestionOwnerId: "composer-browser-fixture", isSessionOpen: () => true, canComplete: () => true, setWriting: () => {}, registerSubmit: () => () => {}, focusName: () => host.querySelector("input")?.focus(), closeForCompletion: () => { closes++; }, finishCompletion: () => {}, focusGraph: () => {} };
+  const session = { continuation: "return", suggestionOwnerId: "composer-browser-fixture", isSessionOpen: () => true, canComplete: () => true, reportLinkedNode: page => linkedFeedback.push(page), setWriting: () => {}, registerSubmit: () => () => {}, focusName: () => host.querySelector("input")?.focus(), closeForCompletion: () => { closes++; }, finishCompletion: () => {}, focusGraph: () => {} };
   session.rememberOntology = async field => { remembered.push(field); };
   const plugin = {
    app: { vault: { on: () => ({}), offref: () => {}, getFileByPath: path => [origin, target].find(page => page.path === path)?.file,
@@ -1218,6 +1218,7 @@ ${production}
   savedPending = false;
   flushSync(() => link.click()); await new Promise((resolve) => setTimeout(resolve, 0));
   check(intents.length === 0 && commits === 1 && link.disabled, "saved-pending state allowed an automatic mutation retry");
+  check(linkedFeedback.length === 0, "failed/pending writes requested hidden-node feedback");
   const refresh = [...host.querySelectorAll("button")].find(button => button.textContent === "addRelated.refreshSaved");
   flushSync(() => refresh.focus()); flushSync(() => refresh.click()); await new Promise((resolve) => setTimeout(resolve, 0));
   for (let attempt = 0; attempt < 30 && host.querySelector(".kplex-add-related-note-search input").value !== ""; attempt++) await new Promise(resolve => setTimeout(resolve, 10));
@@ -1229,6 +1230,7 @@ ${production}
   flushSync(() => host.querySelector(".kplex-add-related-link-button").click()); await new Promise((resolve) => setTimeout(resolve, 0));
   check(intents.length === 1 && intents[0][0].file === origin.file && intents[0][1] === "child" && intents[0][2].file === target.file && intents[0][3] === "review", "explicit Link lost captured ontology, endpoint identity or role");
   check(commits === 2 && outcomes.at(-1).state === "saved-published" && closes === 1, "successful explicit Link did not commit/close once");
+  check(linkedFeedback.length === 1 && linkedFeedback[0] === target, "successful Link did not report its exact target once");
   // History/menu fixed targets must enter the same composer with an immediately retained Link action.
   rejectCommit = false; commits = 0; closes = 0; intents.length = 0;
   flushSync(() => root.render(createElement(RelatedNoteComposer, { key: "fixed-target", plugin, origin, session, initialRole: "right", fixedTarget: target, onCommitted: () => { commits += 1; }, onClose: () => { closes += 1; } })));

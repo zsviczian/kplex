@@ -20,7 +20,7 @@ export function normalizePath(value){return value.replace(/\\\\/g,'/').replace(/
 export function parseFrontMatterTags(fm){return (Array.isArray(fm.tags)?fm.tags:typeof fm.tags==='string'?fm.tags.split(/[ ,]+/):[]).filter(Boolean).map(t=>t.startsWith('#')?t:'#'+t)};
 `;
 writeFileSync(join(temp,'host.mjs'),stub);
-await build({stdin:{contents:`export * from './src/adapters/obsidian/physicalNodeMove';export * from './src/adapters/obsidian/tagMembership';export * from './src/adapters/obsidian/tagNoteType';export * from './src/adapters/obsidian/noteTypeProperties';export * from './src/adapters/obsidian/noteTypeReview';export * from './src/adapters/obsidian/fileProperties';export * from './src/core/graph/presentation';export * from './src/index/style';export * from './src/ui/StructuralNodeDropActions';export * from './src/ui/structuralConnectionActions';export * from './src/ui/plexViews/scene';export * from './src/ui/MoveToFolderModal';export * from './src/ui/nodeListPresentation';export * from '${join(temp,'host.mjs').replaceAll('\\','/')}';`,resolveDir:root},outfile:join(temp,'test.mjs'),bundle:true,format:'esm',platform:'node',plugins:[{name:'finite-host',setup(b){b.onResolve({filter:/^obsidian$/},()=>({path:join(temp,'host.mjs')}))}}]});
+await build({stdin:{contents:`export * from './src/adapters/obsidian/physicalNodeMove';export * from './src/adapters/obsidian/tagMembership';export * from './src/adapters/obsidian/tagNoteType';export * from './src/adapters/obsidian/noteTypeProperties';export * from './src/adapters/obsidian/noteTypeReview';export * from './src/adapters/obsidian/fileProperties';export * from './src/core/graph/presentation';export * from './src/core/graph/relations';export * from './src/index/style';export * from './src/ui/StructuralNodeDropActions';export * from './src/ui/structuralConnectionActions';export * from './src/ui/plexViews/scene';export * from './src/ui/MoveToFolderModal';export * from './src/ui/nodeListPresentation';export * from '${join(temp,'host.mjs').replaceAll('\\','/')}';`,resolveDir:root},outfile:join(temp,'test.mjs'),bundle:true,format:'esm',platform:'node',plugins:[{name:'finite-host',setup(b){b.onResolve({filter:/^obsidian$/},()=>({path:join(temp,'host.mjs')}))}}]});
 const api=await import(pathToFileURL(join(temp,'test.mjs')));
 /** Native incarnations and parent ownership are independent of the graph's facade identities. */
 function fixture(){
@@ -178,13 +178,44 @@ test('structural connection capability omits impossible mutations in both view o
  assert(api.connectionActionAllowed('relationship.hide',note,note));
 });
 test('actual edge menu hides tag Hidden and every folder mutation while preserving note actions',async()=>{
- for(const [kind,expected]of [['tag',['tagAssignment.toNoteType','graph.connectionDetails','graph.unlinkConnection']],['folder',['graph.connectionDetails']],['note',['graph.connectionDetails','graph.unlinkConnection','hide.title']]]){
-  const note=page({path:'N.md',file:{extension:'md'}}),other=page({path:'other',isTag:kind==='tag',isFolder:kind==='folder',file:kind==='note'?{extension:'md'}:null}),items=[];
+ for(const [kind,expected]of [['tag',['tagAssignment.toNoteType','graph.connectionDetails','graph.unlinkConnection']],['folder',['graph.connectionDetails']],['note',['graph.connectionDetails','graph.unlinkConnection','hide.title']],['note-property',['actions.relationship.relink','graph.connectionDetails','graph.unlinkConnection','hide.title']]]){
+  const note=page({path:'N.md',file:{extension:'md'}}),other=page({path:'other',isTag:kind==='tag',isFolder:kind==='folder',file:kind.startsWith('note')?{extension:'md'}:null}),items=[];
   class Menu{addItem(configure){const item={setTitle(title){items.push(title);return this},setIcon(){return this},onClick(){return this}};configure(item)}}
-  const callback=graphCallback('showEdgeContextMenuAt',{tagMembershipPair:api.tagMembershipPair,isNoteTypeTagConnection:api.isNoteTypeTagConnection,captureSurfaceContinuation:()=>()=>true,actionSurfaceId:'surface',connectionActionAllowed:api.connectionActionAllowed,Menu,scene:{nodes:[{page:note},{page:other}]},index:{get:()=>null},touchDoubleTap:{current:{reset(){}}},translate:key=>key,viewport:{current:{ownerDocument:{}}},plugin:{captureAppearanceOwner:()=>({}),singleRelationshipSourceLocation:async()=>null,showKplexMenuAtPosition(){}},hostLeaf:{},renderedNodeMap:new Map(),edgeOccurrence:(edge,side)=>edge[side+'Path'],linkStyleLayers:()=>[],paintSettings:{},predicateCenter:null,addElementStyleMenu(){}});
+  const callback=graphCallback('showEdgeContextMenuAt',{connectionStyleSources:()=>[],canDefineConnection:api.canDefineConnection,tagMembershipPair:api.tagMembershipPair,isNoteTypeTagConnection:api.isNoteTypeTagConnection,captureSurfaceContinuation:()=>()=>true,actionSurfaceId:'surface',connectionActionAllowed:api.connectionActionAllowed,Menu,scene:{nodes:[{page:note},{page:other}]},index:{get:()=>null},touchDoubleTap:{current:{reset(){}}},translate:key=>key,viewport:{current:{ownerDocument:{}}},plugin:{captureConnectionOntologyChange:()=>kind==='note-property'?{}:null,captureAppearanceOwner:()=>({}),singleRelationshipSourceLocation:async()=>null,showKplexMenuAtPosition(){}},hostLeaf:{},renderedNodeMap:new Map(),edgeOccurrence:(edge,side)=>edge[side+'Path'],linkStyleLayers:()=>[],paintSettings:{},predicateCenter:null,addElementStyleMenu(){}});
   await callback({sourcePath:note.path,targetPath:other.path},10,20);assert.deepEqual(items,expected);
  }
 });
+test('inferred connection authoring permits six-direction definition with one Markdown owner and refuses structural/defined pairs',()=>{
+ const note=page({path:'A.md',file:{extension:'md'}}),attachment=page({path:'icon.svg',file:{extension:'svg'}});
+ for(const other of [note,attachment,page({path:'Unresolved'}),page({path:'https://example.com',url:'https://example.com'})]){
+  assert(api.canDefineConnection(note,other,api.RelationType.INFERRED));
+  assert(api.canDefineConnection(other,note,api.RelationType.INFERRED));
+  assert.equal(api.canDefineConnection(note,other,api.RelationType.DEFINED),false);
+ }
+ for(const other of [page({isFolder:true}),page({isTag:true}),page({transient:{kind:'group'}})])assert.equal(api.canDefineConnection(note,other,api.RelationType.INFERRED),false);
+ assert.equal(api.canDefineConnection(attachment,attachment,api.RelationType.INFERRED),false);
+});
+
+test('inferred context menu offers plus Define and routes it through the captured shared editor',async()=>{
+ const source=page({path:'Scratchpad.md',file:{path:'Scratchpad.md',extension:'md'}}),target=page({path:'icon.svg',file:{path:'icon.svg',extension:'svg'}});
+ const nodes=[{page:source},{page:target}],items=[],requests=[],opened=[];
+ class Menu{addItem(configure){const item={setTitle(title){this.title=title;return this},setIcon(icon){this.icon=icon;return this},onClick(fn){this.click=fn;return this}};configure(item);items.push(item)}}
+ const plugin={captureConnectionOntologyChange:()=>null,captureAppearanceOwner:()=>({}),singleRelationshipSourceLocation:async()=>null,showKplexMenuAtPosition(){},actionManager:{dispatch:async request=>requests.push(request),closeSession(){}},isActionSurfaceCurrent:()=>true,
+  openRelationModal:options=>{opened.push(options);return {close(){}}}};
+ const dependencies={actionNodeRef:page=>page.path,canDefineConnection:api.canDefineConnection,connectionStyleSources:()=>[],tagMembershipPair:api.tagMembershipPair,isNoteTypeTagConnection:api.isNoteTypeTagConnection,
+  captureSurfaceContinuation:()=>()=>true,actionSurfaceId:'surface',connectionActionAllowed:api.connectionActionAllowed,Menu,scene:{nodes},index:{get:path=>nodes.find(n=>n.page.path===path)?.page,explainRelationship:()=>({decisions:[]})},
+  touchDoubleTap:{current:{reset(){}}},translate:key=>key,viewport:{current:{ownerDocument:{}}},plugin,hostLeaf:{},renderedNodeMap:new Map(),edgeOccurrence:(edge,side)=>edge[side+'Path'],
+  paintSettings:{},predicateCenter:null,addElementStyleMenu(){},sectionExpansion:null,graphDialogSerial:{current:0},graphDialogs:{current:new Set()}};
+ const edge={id:'connector',sourcePath:source.path,targetPath:target.path,role:'parent',relationType:api.RelationType.INFERRED};
+ await graphCallback('showEdgeContextMenuAt',dependencies)(edge,10,20);
+ const define=items.find(item=>item.title==='explain.specifyOntology');assert(define);assert.equal(define.icon,'plus');define.click();
+ assert.equal(requests.length,1);assert.equal(requests[0].id,'relationship.relink');
+ await graphCallback('performEdgeAction',dependencies)({generation:1},edge,requests[0].id);
+ assert.equal(opened.length,1);assert.equal(opened[0].purpose,'ontology-specify');assert.equal(opened[0].semanticRole,'parent');
+ assert.equal(opened[0].origin,source);assert.equal(opened[0].fixedTarget,target);assert(opened[0].current());
+ plugin.isActionSurfaceCurrent=()=>false;assert.equal(opened[0].current(),false,'Retired native surface retained definition authority');
+});
+
 test('actual tag Unlink removes YAML and opens existing details for retained body evidence',async()=>{
  for(const body of [false,true]){
   const note=page({path:'N.md',file:{path:'N.md',extension:'md'}}),tag=page({path:'tag:Parent/Child',isTag:true}),nodes=[{page:note},{page:tag}],dialogs=[];let writes=0;
@@ -192,6 +223,29 @@ test('actual tag Unlink removes YAML and opens existing details for retained bod
   const callback=graphCallback('performEdgeAction',{connectionActionAllowed:api.connectionActionAllowed,tagMembershipPair:api.tagMembershipPair,graphTagValue:api.graphTagValue,index:{get:path=>nodes.find(n=>n.page.path===path)?.page,explainRelationship:()=>({decisions:[]})},scene:{nodes},sectionExpansion:null,actionSurfaceId:'surface',graphDialogSerial:{current:0},graphDialogs:{current:new Set()},RelationshipExplanationModal:Details,neighborhood:{center:note},hostLeaf:{},actionNodeRef:page=>page.path,clearHoverIntent(){},SavedRelationshipPendingError:class extends Error{},plugin:{isActionSurfaceCurrent:()=>true,unlinkTagMembership:async()=>{writes++;return true},app:{metadataCache:{getFileCache:()=>({tags:body?[{tag:'#Parent/Child'}]:[]})}},directFrontmatterUnlinkCandidate:()=>assert.fail('Tags never use ontology unlink'),actionManager:{closeSession(){}}}});
   const outcome=await callback({generation:1},{sourcePath:note.path,targetPath:tag.path},'relationship.unlink');assert.equal(writes,1);assert.equal(outcome.status,body?'opened':'committed');assert.equal(dialogs.length,body?1:0);
  }
+});
+
+test('mounted connection details style action reacquires the current painted edge after ontology changes',async()=>{
+ const source=page({path:'A.md',file:{extension:'md'}}),target=page({path:'B.md',file:{extension:'md'}}),nodes=[{page:source},{page:target}];
+ const original={id:'old-child',sourcePath:source.path,targetPath:target.path,role:'child',typeDefinition:'Child'},updated={...original,id:'new-friend',role:'left',typeDefinition:'Friend'};
+ let details,current=true,surface=true;const shown=[],styles=[];
+ class Menu{}
+ const scene={nodes,edges:[original]},plugin={isActionSurfaceCurrent:()=>true,captureAppearanceOwner:()=>({}),isAppearanceOwnerCurrent:()=>true,
+  showKplexMenuAtPosition:menu=>shown.push(menu),actionManager:{closeSession(){}}};
+ const dependencies={scene,plugin,Menu,captureSurfaceContinuation:()=>()=>surface,viewport:{current:{}},actionSurfaceId:'surface',connectionActionAllowed:api.connectionActionAllowed,
+  index:{get:path=>nodes.find(n=>n.page.path===path)?.page,explainRelationship:()=>({decisions:[]})},sectionExpansion:null,hostLeaf:{},graphDialogSerial:{current:0},graphDialogs:{current:new Set()},
+  neighborhood:{center:source},RelationshipExplanationModal:class{constructor(_p,_e,options){details=options}open(){}},
+  connectionStyleSources:edge=>[{kind:'ontology',key:edge.typeDefinition}],translate:key=>key,addElementStyleActions:(_menu,sources,_t,valid)=>{assert(valid());styles.push(sources)},openElementStyleSource(){}};
+ const capability={current:graphCallback('openConnectionAppearanceMenu',dependencies)};
+ const action=graphCallback('performEdgeAction',{...dependencies,connectionAppearance:capability,viewSession:{getLifetime:()=>0,capture:()=>()=>current}});
+ await action({generation:1,request:{id:'relationship.details'}},original,'relationship.details');
+ const invoker={isConnected:true,ownerDocument:{},getBoundingClientRect:()=>({left:10,bottom:20})};
+ scene.edges=[updated];capability.current=graphCallback('openConnectionAppearanceMenu',dependencies);
+ details.onStyle(invoker);assert.equal(styles[0][0].key,'Friend','Inspector reused the Child style after changing ontology');
+ scene.edges=[{...updated,id:'parallel',typeDefinition:'Another'},original];capability.current=graphCallback('openConnectionAppearanceMenu',dependencies);
+ details.onStyle(invoker);assert.equal(styles[1][0].key,'Child','Inspector discarded a still-current exact parallel connector');
+ surface=false;details.onStyle(invoker);assert.equal(shown.length,2,'Retired surface opened a stale style menu');
+ surface=true;current=false;details.onStyle(invoker);assert.equal(shown.length,2,'Retired view borrowed the new style capability');
 });
 test('actual tag evidence uses native body locations and one pair-scoped read of the note, never the tag identity as a file',async()=>{
  const f=fixture(),note=page({path:f.source.path,file:f.source}),tag=page({path:'tag:Parent/Child',isTag:true}),nodes=[note,tag];let reads=0;

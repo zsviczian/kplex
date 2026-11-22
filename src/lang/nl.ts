@@ -9,6 +9,16 @@ import { buildLocaleCatalog, type LocaleCatalog, type LocaleTranslationMap } fro
 /** Construct the typed Dutch table only when selected; importing this module allocates no catalog. */
 export function createDutchCatalog(): LocaleCatalog {
 const dutchTranslations = {
+  "explain.bodyOntologyHint": "K-Plex kan ontologie alleen in YAML-frontmatter wijzigen. Bewerk ontologie uit de notitietekst in de bronnotitie.",
+  "hide.removeDeclaration": "Hidden-declaratie verwijderen",
+  "explain.connectionActions": "Verbindingsacties",
+  "explain.changeOntologyConflict": "Meerdere documenteigenschappen definiëren deze verbinding. Gebruik de bronacties hieronder om de extra declaratie te verwijderen of de ontologie ervan te corrigeren voordat je deze vervangt.",
+  "relation.additionalOntologyHelp": "Bestaande ontologiedeclaraties blijven behouden. Een andere ontologie kan deze verbinding meerdere rollen geven. Gebruik Ontologie wijzigen om de bestaande eigenschap te vervangen.",
+  "hide.setup.staged": "Opslaan voegt {field} toe aan de Hidden-ontologie en verbergt deze verbinding.",
+  "relation.changeOntologyPairHelp": "Wijzigt de ontologie in beide verbonden notities. Andere verbindingen en de notitietekst blijven behouden.",
+  "relation.changeOntologyHelp": "Wijzigt de documenteigenschap van deze verbinding. Andere verbindingen en de notitietekst blijven behouden.",
+  "actions.relationship.relink.description": "Wijzig de ontologie van één verbinding in de documenteigenschappen of het bijbehorende wederkerige paar.",
+  "actions.relationship.relink": "Ontologie wijzigen",
   "notice.linkedNodeHidden": "{name} is gekoppeld, maar wordt verborgen door de huidige filters of lenzen.",
   "settings.canvasHints.name": "Canvasaanwijzingen tonen",
   "settings.canvasHints.help": "Aanwijzingen voor sneltoetsen en relaties bovenaan het canvas tonen.",
@@ -190,7 +200,7 @@ const dutchTranslations = {
   "folderActions.create": "Submap maken",
   "folderActions.destination": "Deze map verplaatsen naar",
   "folderActions.failed": "De mapbewerking kon niet worden voltooid.",
-  "ontology.editSelected": "Bewerken: {field}",
+  "ontology.editSelected": "Ontologiedefinitie bewerken: {field}",
   "copyLink.failed": "De knooppuntlink kon niet worden gekopieerd. Probeer het opnieuw.",
   "copyLink.fallback": "Een link met het volledige kluispad is gekopieerd. Dit klembord kan links niet aanpassen aan de doelnotitie.",
   "copyLink.targetUnavailable": "Het gekopieerde knooppunt is niet meer beschikbaar. Kopieer het opnieuw.",

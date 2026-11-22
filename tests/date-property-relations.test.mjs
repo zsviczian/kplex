@@ -8,7 +8,7 @@ import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import {pathToFileURL} from 'node:url';
 import {loadPortableModules} from './support/portableTypeScript.mjs';
-const {exports:c}=loadPortableModules(['src/core/graph/compiler.ts','src/core/graph/patch.ts','src/core/graph/source.ts','src/core/graph/sourcePolicy.ts','src/core/graph/settingsPolicy.ts','src/core/graph/relations.ts','src/core/graph/resolver.ts','src/core/graph/evidence.ts']);
+const {exports:c}=loadPortableModules(['src/core/graph/compiler.ts','src/core/graph/patch.ts','src/core/graph/source.ts','src/core/graph/sourcePolicy.ts','src/core/graph/settingsPolicy.ts','src/core/graph/relations.ts','src/core/graph/resolver.ts','src/core/graph/evidence.ts','src/application/connectionOntology.ts','src/core/contracts/ontologyConfiguration.ts']);
 const temp=mkdtempSync(join(tmpdir(),'kplex-date-policy-'));process.once('exit',()=>rmSync(temp,{recursive:true,force:true}));
 const entry=join(temp,'host.mjs');
 await build({stdin:{resolveDir:process.cwd(),contents:'export {DEFAULT_SETTINGS,migrateAndMergeSettings,importExcaliBrainGraphSettings} from "./src/settings";export {createTranslator} from "./src/lang";export {graphCompilerSettingsFromLegacy,semanticIndexSettingsFromLegacy} from "./src/adapters/obsidian/graphContracts";',loader:'ts'},outfile:entry,bundle:true,platform:'node',format:'esm',plugins:[{name:'settings-host-boundary',setup(b){b.onResolve({filter:/^obsidian$/},()=>({path:'obsidian',namespace:'native'}));b.onLoad({filter:/.*/,namespace:'native'},()=>({contents:'export class Component {load(){} unload(){}} export const MarkdownRenderer={render:()=>{throw Error("Native Markdown is outside this finite fixture")}}; export class App {} export class ButtonComponent {} export class Modal {} export class SuggestModal extends Modal {} export class ColorComponent {} export class Notice {} export class AbstractInputSuggest {} export class Setting {} export class ExtraButtonComponent {} export class Scope {} export class SearchComponent {} export class PluginSettingTab {} export const getIcon=()=>null,getIconIds=()=>[],setIcon=()=>{},setTooltip=()=>{},getLanguage=()=>"en",Platform={};',loader:'js'}));}}]});
@@ -126,12 +126,14 @@ test('configured scalar dates retain date filters and decline direct wiki-link r
   const evidence=graph.evidenceBetween(meeting.id,daily.id);
   assert.equal(evidence.length,1);assert.equal(evidence[0].sourceKind,'date-property');
   assert.equal(evidence[0].relationType,c.RelationType.DEFINED);
-  const relink=productionEvidenceFilter('src/ui/PlexGraph.tsx','explicit','explanation.decisions.filter');
+  // Quick replacement now delegates to the portable property-selection owner rather than a UI filter.
+  const configuration=c.ontologyConfiguration({...settings({parents:['date']}),ontologyPairingVersion:1});
+  const relink=items=>c.selectConnectionOntology(items,configuration,items[0].sourcePath,items[0].targetPath);
   const unlink=productionEvidenceFilter('src/main.ts','frontmatter','evidenceItems.filter');
-  assert.deepEqual(relink({decisions:c.applyOntologyPrecedence(evidence)},evidence),[]);
+  assert.equal(relink(evidence),null);
   assert.deepEqual(unlink({},evidence),[]);
   const links=declarations(await compile([entity(meeting),entity(daily),...reference('date')],settings({parents:['date']},{datePropertyRelations:'left'})));
-  assert.equal(relink({decisions:links.map(item=>({active:true,evidence:item}))},links).length,1);
+  assert.equal(relink(links).declarations.length,1);
   assert.equal(unlink({},links).length,1,'ordinary configured wiki-link declarations keep their existing authorizer');
 });
 

@@ -11,10 +11,10 @@ import {ObsidianIcon} from "./ObsidianIcon";
 import {RelationshipFieldControl} from "./features/RelationshipFieldControl";
 
 /** Search uses the canonical field/partner/description matcher, not an import-only vocabulary. */
-export function RelationshipSelectionControl({plugin, role, field, disabled, onChange, onEdit, showDirection = true, onCreate}: {
+export function RelationshipSelectionControl({plugin, role, field, disabled, onChange, onEdit, showDirection = true, allowAllDirections = true, onCreate}: {
   plugin: KplexPlugin; role: RelationshipRole | "all"; field: string; disabled: boolean;
   onChange: (role: RelationshipRole | "all", field: string) => void; onEdit: (invoker: HTMLButtonElement) => void;
-  showDirection?: boolean; onCreate?: (invoker: HTMLButtonElement) => void;
+  showDirection?: boolean; allowAllDirections?: boolean; onCreate?: (invoker: HTMLButtonElement) => void;
 }) {
   const [typed, setTyped] = useState(false), [browse, setBrowse] = useState(false), [, render] = useState(0);
   useEffect(/** Saved vocabulary changes refresh annotations without replacing this form's field draft. */ () =>
@@ -24,7 +24,7 @@ export function RelationshipSelectionControl({plugin, role, field, disabled, onC
   const results = browse ? fuzzyFilterStrings(fields, "", Number.MAX_SAFE_INTEGER) : typed ? ontologyFuzzyMatches(fields, views, field, fuzzyFilterStrings, 18) : [];
   const selected = views.find(candidate => candidate.key === normalizeFieldName(field));
   return <RelationshipFieldControl role={role} disabled={disabled} canEdit={Boolean(plugin.ontologyRoleForField(field))} translate={plugin.translator}
-    showDirection={showDirection} detail={selected?.description} onCreate={onCreate}
+    showDirection={showDirection} allowAllDirections={allowAllDirections} detail={selected?.description} onCreate={onCreate}
     icons={{tag: <ObsidianIcon name="tags" size={16}/>, edit: <ObsidianIcon name="pencil" size={18}/>, create: <ObsidianIcon name="plus" size={18}/>}}
     onRoleChange={/** A direction change selects its remembered field, without copying or linking. */ value => {
       setTyped(false); setBrowse(false); onChange(value, value === "all" ? field : plugin.defaultOntologyField(value));

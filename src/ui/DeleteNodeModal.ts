@@ -225,7 +225,8 @@ export class HideRelationshipModal extends Modal {
   private decided = false;
   /** Capture both exact endpoints independently of the writable source choices, without Vault capabilities. */
   constructor(app: App, private readonly sources: readonly string[], private readonly fields: readonly string[],
-    private readonly endpoints: readonly [string,string], private readonly onDecision: (selection: {sourcePath: string; field: string} | null) => void) { super(app); }
+    private readonly endpoints: readonly [string,string], private readonly onDecision: (selection: {sourcePath: string; field: string} | null) => void,
+    private readonly options: {createHiddenField?: boolean} = {}) { super(app); }
   /** Update directional consent with the selected writable source; retired controls cannot revive approval. */
   onOpen(): void {
     const translate = createObsidianTranslator();
@@ -235,6 +236,8 @@ export class HideRelationshipModal extends Modal {
     direction.dataset.kplexHideDirection = "true";
     direction.setAttribute("aria-live","polite");
     this.contentEl.createEl("p", {text: translate("hide.retainsSources")});
+    if (this.options.createHiddenField) this.contentEl.createEl("p", {text: translate("hide.setup.staged", {field: this.fields[0]}),
+      attr: {"data-kplex-hidden-field-staged": "true"}});
     let sourcePath = this.sources[0], field = this.fields[0];
     /** Describe the exact declaring note as the center affected by this one-note write. */
     const updateDirection = (): void => {
@@ -253,7 +256,7 @@ export class HideRelationshipModal extends Modal {
         sourcePath=value;updateDirection();
       });
     });
-    new Setting(this.contentEl).setName(translate("hide.field")).addDropdown(/** No new ontology property is invented by this dialog. */ dropdown => {
+    new Setting(this.contentEl).setName(translate("hide.field")).addDropdown(/** Host-approved draft fields are applied only together with final Save. */ dropdown => {
       dropdown.selectEl.dataset.kplexHiddenField = "true";
       for (const key of this.fields) dropdown.addOption(key,key);
       dropdown.setValue(field).onChange(/** Retired controls and unconfigured keys cannot alter pending approval. */ value => {if(!this.decided && this.fields.includes(value))field=value;});
@@ -261,7 +264,7 @@ export class HideRelationshipModal extends Modal {
     formActions(this.contentEl).addButton(/** Native dismissal is cancellation. */ button => iconButton(button, translate("common.cancel"), "x").onClick(/** Close without write authority. */ () => this.close()))
       .addButton(/** Confirmation is explicit even when file deletion prompts were disabled. */ button => {
         button.buttonEl.dataset.kplexHideConfirm="true";
-        button.setButtonText(translate("hide.title")).setCta().onClick(/** Duplicate activation settles only once. */ () => {
+        iconButton(button, translate("hide.title"), "eye-off").setCta().onClick(/** Duplicate activation settles only once. */ () => {
           if(this.decided || !this.sources.includes(sourcePath) || !this.endpoints.includes(sourcePath) || !this.fields.includes(field))return;
           this.decided=true;this.close();this.onDecision({sourcePath,field});
         });

@@ -15,12 +15,12 @@ export const RELATIONSHIP_ROLE_CHOICES = [
 ] as const;
 
 /** The drag supplies a default; every supported direction remains an explicit editable choice. */
-export function RelationshipFieldControl({role, onRoleChange, search, canEdit, onEdit, disabled, translate, icons, showDirection = true, detail, onCreate}: {
+export function RelationshipFieldControl({role, onRoleChange, search, canEdit, onEdit, disabled, translate, icons, showDirection = true, allowAllDirections = true, detail, onCreate}: {
   role: RelationshipRole | "all"; onRoleChange: (role: RelationshipRole | "all") => void;
   search: FuzzySuggesterProps<string>; canEdit: boolean; disabled?: boolean;
   icons: Readonly<{tag: ReactNode; edit: ReactNode; create?: ReactNode}>;
   onEdit: (invoker: HTMLButtonElement) => void; translate: Translator;
-  showDirection?: boolean; detail?: string;
+  showDirection?: boolean; allowAllDirections?: boolean; detail?: string;
   onCreate?: (invoker: HTMLButtonElement) => void;
 }) {
   return <div className="kplex-relationship-selection">
@@ -30,7 +30,7 @@ export function RelationshipFieldControl({role, onRoleChange, search, canEdit, o
       onChange={/** Reject values outside the shared relationship-direction inventory. */ event => {
         const selected = RELATIONSHIP_ROLE_CHOICES.find(([value]) => value === event.currentTarget.value);
         if (selected && !disabled) onRoleChange(selected[0]);
-      }}>{RELATIONSHIP_ROLE_CHOICES.map(/** Native select values remain stable role IDs. */ ([value, key]) =>
+      }}>{RELATIONSHIP_ROLE_CHOICES.filter(/** A replacement always owns one explicit semantic direction. */ ([value]) => allowAllDirections || value !== "all").map(/** Native select values remain stable role IDs. */ ([value, key]) =>
         <option key={value} value={value}>{translate(key)}</option>)}</select>}
     <FuzzySuggester {...search} icon={icons.tag} disabled={disabled || search.disabled}
       disclosure={search.disclosure ? {...search.disclosure, icon: null} : undefined}

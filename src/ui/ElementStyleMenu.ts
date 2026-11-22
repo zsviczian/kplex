@@ -30,8 +30,14 @@ export function addElementStyleMenu(menu: Menu, sources: readonly ElementStyleSo
   current: () => boolean, open: (source: ElementStyleSource) => void): void {
   const entries = uniqueElementStyleSources(sources);if (!entries.length) return;
   addNativeSubmenu(menu, translate("styleSources.menu"), "palette", submenu => {
-    for (const source of entries) submenu.addItem(item => item.setTitle(elementStyleSourceLabel(source, translate))
-      .setIcon(source.kind === "lens" ? "list-filter" : source.kind === "ontology" ? "git-branch" : source.kind === "standard" ? "palette" : "tag")
-      .onClick(() => {if (current()) open(source);}));
+    addElementStyleActions(submenu, entries, translate, current, open);
   });
+}
+
+/** A dialog action opens the same source choices directly, without a redundant submenu level. */
+export function addElementStyleActions(menu: Menu, sources: readonly ElementStyleSource[], translate: Translator,
+  current: () => boolean, open: (source: ElementStyleSource) => void): void {
+  for (const source of uniqueElementStyleSources(sources)) menu.addItem(item => item.setTitle(elementStyleSourceLabel(source, translate))
+    .setIcon(source.kind === "lens" ? "list-filter" : source.kind === "ontology" ? "git-branch" : source.kind === "standard" ? "palette" : "tag")
+    .onClick(() => {if (current()) open(source);}));
 }

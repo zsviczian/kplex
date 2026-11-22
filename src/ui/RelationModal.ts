@@ -1,5 +1,7 @@
 /**
- * Native Obsidian dialog for adding or moving an ontology relationship. The plugin owns vault changes; this shell owns localized controls, validation feedback and close cleanup.
+ * Native Obsidian dialog for adding, moving or replacing a document-property ontology. The
+ * shared selector owns all six direction choices. Exact replacement approval and partial-write
+ * receipts stay plugin-owned; this shell owns localized feedback, frozen retry intent and cleanup.
  */
 import {KplexModal as Modal, FormSetting as Setting, formField, formActions, labelIconButton} from "../adapters/obsidian/KplexModal";
 import {createElement} from "react";
@@ -10,7 +12,9 @@ import {eligibleRelationshipOwner} from "../adapters/obsidian/relationshipOwner"
 import {ontologyConfiguration} from "../core/contracts/ontologyConfiguration";
 import {Notice, type TFile, setIcon, type WorkspaceLeaf} from "obsidian";
 import type KplexPlugin from "../main";
+import type {ConnectionOntologyChange} from "../main";
 import type { GateRole, GateSide, GraphPage, LinkDirection, RelationshipRole } from "../types";
+import {RelationType} from "../core/graph/relations";
 
 import { captureRelatedEndpoint, refreshCapturedPage, type RelatedNoteCommit, type RelatedNoteInvocation } from "./NewRelatedNoteModal";
 import {RelationshipSelectionControl} from "./RelationshipSelectionControl";
@@ -30,15 +34,19 @@ export type CreateRelationModalOptions = {
   allowRoleSelection?: boolean;
 };
 
-/** Relink retains the existing four-gate interaction contract and canonical evidence storage controls. */
+/** Legacy moves retain their physical storage controls; exact ontology replacement fixes its
+ * approved owner set and exposes every semantic direction through the shared selector. */
 export type RelinkRelationModalOptions = {
   mode: "relink";
   /** Relink is also reused by Connection details to add/specify an ontology property. */
-  purpose?: "move" | "ontology-add" | "ontology-specify";
+  purpose?: "move" | "ontology-add" | "ontology-specify" | "ontology-change";
+  /** Exact source-specific approval; changing ontology never inherits broad relink removal. */
+  ontologyChange?: ConnectionOntologyChange;
+  current?: () => boolean;
   initialField?: string;
   initialStoragePath?: string;
   origin: GraphPage;
-  semanticRole: GateRole;
+  semanticRole: RelationshipRole;
   fixedTarget?: GraphPage;
   existingDirection?: LinkDirection | null;
   onCommitted?: (result: RelatedNoteCommit) => void;
@@ -53,11 +61,11 @@ export type RelinkRelationModalOptions = {
 
 export type RelationModalOptions = CreateRelationModalOptions | RelinkRelationModalOptions;
 
-/** Map only the four validated relink roles to physical gates. */
-function gateForRole(role: GateRole): GateSide {
+/** Map the six semantic directions onto the four physical gates for existing target search. */
+function gateForRole(role: RelationshipRole): GateSide {
   if (role === "parent") return "top";
   if (role === "child") return "bottom";
-  if (role === "left") return "left";
+  if (role === "left" || role === "previous") return "left";
   return "right";
 }
 
@@ -70,7 +78,7 @@ function addIcon(el: HTMLElement, name: string): void {
 export class RelationModal extends Modal {
   private readonly selectedOntologyEditor: SelectedOntologyEditor;
   private selectedField: string;
-  private semanticRole: GateRole;
+  private semanticRole: RelationshipRole;
   private selectedPath: string | null = null;
   private query = "";
   private activeIndex = 0;
@@ -87,6 +95,7 @@ export class RelationModal extends Modal {
   private ontologyDialog: AddToOntologyModal | null = null;
   private ontologyRoot: Root | null = null;
   private renderOntologySelection: () => void = () => {};
+  private refreshOperationControls: () => void = () => {};
   private reciprocalHint: HTMLDivElement | null = null;
   private reciprocalStatus: HTMLDivElement | null = null;
   private reciprocalReceipt: ReciprocalWriteReceipt | null = null;
@@ -130,6 +139,10 @@ export class RelationModal extends Modal {
 
   /** Add/specify is reciprocal authoring; a source-specific move never mirrors another declaration. */
   private reciprocalValidation(): ReturnType<typeof reciprocalPreflight> {
+    if (this.options.purpose === "ontology-change") {
+      if (this.options.ontologyChange?.selection.declarations.length !== 2) return {approval: {enabled: false}};
+      return reciprocalPreflight(ontologyConfiguration(this.plugin.settings), true, this.selectedField, this.semanticRole, true);
+    }
     const authoring = this.options.purpose === "ontology-add" || this.options.purpose === "ontology-specify";
     if (!authoring || this.plugin.settings.alsoWriteInverseOntology !== true) return {approval: {enabled: false}};
     const target = this.options.fixedTarget;
@@ -140,13 +153,15 @@ export class RelationModal extends Modal {
 
   /** Require an actual captured endpoint and no previously saved pending write. */
   private canSave(): boolean {
-    return !this.pending && !this.ontologyDialog && !this.selectedOntologyEditor.active
+    return !this.pending && !this.ontologyDialog && !this.selectedOntologyEditor.active && this.options.current?.() !== false
+      && (this.options.purpose !== "ontology-change" || Boolean(this.options.ontologyChange))
       && !this.reciprocalValidation().reasonKey
       && this.plugin.ontologyRoleForField(this.selectedField) === this.semanticRole && Boolean(this.options.fixedTarget || this.selectedFile());
   }
 
   /** Keep native save availability aligned with the synchronous operation guard. */
   private updateSaveButton(): void {
+    this.refreshOperationControls();
     if (this.saveButton) this.saveButton.disabled = this.busy || !this.canSave();
     this.contentEl.querySelectorAll<HTMLSelectElement>("[data-kplex-relation-role], #kplex-relation-modal-storage").forEach(/** A retained partial receipt owns its original role and physical storage choice. */ (control: HTMLSelectElement) => {control.disabled = this.busy || this.pending;});
     if (this.reciprocalHint) {
@@ -281,7 +296,7 @@ export class RelationModal extends Modal {
     if (!this.canSave()) {this.updateSaveButton(); return;}
     this.busy = true; this.updateSaveButton();
     let success = false;
-    this.options.onCommitStart?.(this.semanticRole);
+    this.options.onCommitStart?.(this.semanticRole === "previous" ? "left" : this.semanticRole === "next" ? "right" : this.semanticRole);
     const capturedTarget = this.options.fixedTarget;
     try {
       if (!capturedTarget) return;
@@ -291,8 +306,12 @@ export class RelationModal extends Modal {
         if (this.plugin.app.vault.getFileByPath(this.storageIdentity.path) !== this.storageIdentity) throw new Error(this.plugin.translator("addRelated.endpointChanged"));
         this.selectedStoragePath = this.storageIdentity.path;
       }
-      const result = this.options.purpose === "ontology-add" || this.options.purpose === "ontology-specify"
-        ? await this.plugin.addOntologyToConnection(origin, target, this.semanticRole, this.selectedField, this.selectedStoragePath)
+      const result = this.options.purpose === "ontology-change" && this.options.ontologyChange
+        ? await this.plugin.changeConnectionOntology(this.options.ontologyChange, this.semanticRole, this.selectedField,
+          /** Native writes cannot borrow a retired parent/menu or migrated view's approval. */ () => this.opened && this.modalEl.isConnected && this.options.current?.() !== false)
+        : this.options.purpose === "ontology-add" || this.options.purpose === "ontology-specify"
+        ? await this.plugin.addOntologyToConnection(origin, target, this.semanticRole, this.selectedField, this.selectedStoragePath,
+          /** Define/add cannot outlive the exact native form or its originating inspector. */ () => this.opened && this.modalEl.isConnected && this.options.current?.() !== false)
         : await this.plugin.relinkCentralNeighbour(origin, target, this.semanticRole, this.selectedField, this.options.existingDirection ?? null, this.selectedStoragePath);
       if (result.state === "unavailable") return;
       success = true;
@@ -346,11 +365,13 @@ export class RelationModal extends Modal {
     });
     this.releaseRename = /** Native close releases only the listeners owned by this invocation. */ () => {this.plugin.app.vault.offref(rename); releaseMigration?.();};
     this.contentEl.createDiv({ cls: "kplex-relation-origin", text: this.plugin.index.titleFor(this.options.origin) });
-    const roleLabel = (role: GateRole): string => ({ parent: this.plugin.translator("role.parent"), child: this.plugin.translator("role.child"), left: this.plugin.translator("role.friend"), right: this.plugin.translator("role.challenger") } satisfies Record<GateRole, string>)[role];
-    let roleName = roleLabel(this.semanticRole);
+    const roleLabel = (role: RelationshipRole): string => ({ parent: this.plugin.translator("role.parent"), child: this.plugin.translator("role.child"), left: this.plugin.translator("role.friend"), right: this.plugin.translator("role.challenger"), previous: this.plugin.translator("role.previous"), next: this.plugin.translator("role.next") } satisfies Record<RelationshipRole, string>)[role];
+    const roleName = roleLabel(this.semanticRole);
     this.titleEl.setText(
       this.options.mode === "relink"
-        ? (this.options.purpose === "ontology-specify"
+        ? (this.options.purpose === "ontology-change"
+            ? this.plugin.translator("actions.relationship.relink")
+            : this.options.purpose === "ontology-specify"
             ? this.plugin.translator("relation.specifyOntology")
             : this.options.purpose === "ontology-add"
               ? this.plugin.translator("relation.addOntologyTitle")
@@ -366,29 +387,10 @@ export class RelationModal extends Modal {
       if (createdField) this.selectedField = createdField;
       this.renderOntologySelection();
     };
-    if (this.options.allowRoleSelection) {
-      const roleRow = formField(new Setting(this.contentEl).setName(this.plugin.translator("relation.directionRole")));
-      let roleSelect!: HTMLSelectElement;
-      roleRow.addDropdown(dropdown => {roleSelect = dropdown.selectEl;});
-      roleSelect.setAttribute("data-kplex-relation-role", "");
-      roleSelect.setAttribute("aria-label", this.plugin.translator("relation.directionRole"));
-      for (const role of ["parent", "child", "left", "right"] as GateRole[]) roleSelect.createEl("option", { text: roleLabel(role), attr: { value: role } });
-      roleSelect.value = this.semanticRole;
-      roleSelect.addEventListener("change", () => {
-        if (this.busy || this.pending) { roleSelect.value = this.semanticRole; return; }
-        this.semanticRole = roleSelect.value as GateRole;
-        roleName = roleLabel(this.semanticRole);
-        this.selectedPath = null;
-        this.activeIndex = 0;
-        repopulateFields();
-        this.renderResults();
-      });
-    }
-
     if (this.options.fixedTarget) {
       const summary = this.contentEl.createDiv({ cls: "kplex-relation-summary" });
       summary.createSpan({ cls: "kplex-relation-direction", text: roleName });
-      summary.createSpan({ text: this.plugin.index.titleFor(this.options.fixedTarget), attr: { title: this.options.fixedTarget.path } });
+      summary.createSpan({ cls: "kplex-relation-target", text: this.plugin.index.titleFor(this.options.fixedTarget), attr: { title: this.options.fixedTarget.path } });
     } else {
       this.contentEl.createEl("label", { cls: "kplex-relation-label", text: this.plugin.translator("relation.markdownNote"), attr: { for: "kplex-relation-modal-search" } });
       const searchWrap = this.contentEl.createDiv({ cls: "kplex-relation-search-wrap" });
@@ -430,7 +432,9 @@ export class RelationModal extends Modal {
     }
 
     let storageHint: HTMLDivElement | null = null;
-    if (this.options.mode === "relink" && this.options.fixedTarget) {
+    const replacementHelp = this.contentEl.createDiv({cls: "setting-item-description"});
+    const storagePanel = this.contentEl.createDiv({cls: "kplex-relation-storage"});
+    if (this.options.purpose !== "ontology-change" && this.options.mode === "relink" && this.options.fixedTarget) {
       const storageCandidates = this.plugin.index.relationshipStorageCandidates(this.options.origin.path, this.options.fixedTarget.path);
       const evidence = this.plugin.index.evidenceBetween(this.options.origin.path, this.options.fixedTarget.path);
       const rankFor = (path: string): number => {
@@ -445,7 +449,7 @@ export class RelationModal extends Modal {
         return rank;
       };
       if (storageCandidates.length > 1) {
-        const storageRow = formField(new Setting(this.contentEl).setName(this.plugin.translator("relation.writePropertyToNote")));
+        const storageRow = formField(new Setting(storagePanel).setName(this.plugin.translator("relation.writePropertyToNote")));
         let storageSelect!: HTMLSelectElement;
         storageRow.addDropdown(dropdown => {storageSelect = dropdown.selectEl;});
         storageSelect.id = "kplex-relation-modal-storage";
@@ -459,7 +463,7 @@ export class RelationModal extends Modal {
         this.selectedStoragePath = this.selectedStoragePath && storageCandidates.includes(this.selectedStoragePath)
           ? this.selectedStoragePath : storageCandidates[0];
         storageSelect.value = this.selectedStoragePath ?? storageCandidates[0];
-        storageHint = this.contentEl.createDiv({ cls: "kplex-relation-hint" });
+        storageHint = storagePanel.createDiv({ cls: "kplex-relation-hint" });
         const ontologyAction = this.options.purpose === "ontology-add" || this.options.purpose === "ontology-specify";
         storageHint.setText(ontologyAction
           ? (rankFor(storageCandidates[0]) < 9
@@ -478,14 +482,14 @@ export class RelationModal extends Modal {
         this.selectedStoragePath = storageCandidates[0];
       }
       if (this.options.purpose === "ontology-add" || this.options.purpose === "ontology-specify") {
-        this.contentEl.createDiv({
+        storagePanel.createDiv({
           cls: "setting-item-description",
           text: this.options.purpose === "ontology-specify"
             ? this.plugin.translator("relation.specifyOntologyHelp")
             : this.plugin.translator("relation.addOntologyHelp"),
         });
       } else if (hasIndependentFrontmatterDeclarations(evidence, this.options.origin.path, this.options.fixedTarget.path)) {
-        this.contentEl.createDiv({cls: "setting-item-description", text: this.plugin.translator("relation.independentDeclarations")});
+        storagePanel.createDiv({cls: "setting-item-description", text: this.plugin.translator("relation.independentDeclarations")});
       }
     }
 
@@ -506,20 +510,25 @@ export class RelationModal extends Modal {
     const picker = propertyRow.controlEl.createDiv({cls: "kplex-relation-ontology-picker", attr: {role: "group", "aria-labelledby": propertyRow.nameEl.id}});
     this.ontologyRoot = createRoot(picker);
 
-    const originIsMarkdown = this.options.origin.file?.extension === "md";
-    const hint = !originIsMarkdown ? this.contentEl.createDiv({ cls: "kplex-relation-hint" }) : null;
+    const hint = this.contentEl.createDiv({ cls: "kplex-relation-hint" });
     const updateInverseHint = () => {
-      if (!hint) return;
+      hint.hidden = this.options.origin.file?.extension === "md";
+      if (hint.hidden) return;
       const inverseField = this.plugin.inverseOntologyField(this.selectedField, this.semanticRole);
       hint.setText(this.plugin.translator("relation.inverseTargetStorage", { property: inverseField }));
     };
     this.renderOntologySelection = /** Re-render values without replacing the shared input or its local search state. */ () => {
       if (!this.opened) return;
       this.ontologyRoot?.render(createElement(RelationshipSelectionControl, {
-        plugin: this.plugin, role: this.semanticRole, field: this.selectedField, showDirection: false,
+        plugin: this.plugin, role: this.semanticRole, field: this.selectedField, showDirection: true, allowAllDirections: false,
         disabled: this.busy || this.pending || Boolean(this.ontologyDialog) || this.selectedOntologyEditor.active,
-        onChange: /** Only the selected physical property changes; the native role/storage controls retain ownership. */ (_role, field) => {
+        onChange: /** Replacement shares the six-role vocabulary; existing add/move storage controls retain their ownership. */ (role, field) => {
           if (this.busy || this.pending) return;
+          const selected = role === "all" ? this.plugin.ontologyRoleForField(field) : role;
+          if (selected && selected !== "hidden" && selected !== "excluded") {
+            this.semanticRole = selected;
+            this.contentEl.querySelector(".kplex-relation-direction")?.setText(roleLabel(selected));
+          }
           this.selectedField = field; updateInverseHint(); updateStorageHint(); this.updateSaveButton();
         },
         onCreate: this.options.purpose !== "ontology-add" && this.options.purpose !== "ontology-specify" ? undefined : /** Saving vocabulary returns to this same connection draft without applying a property. */ invoker => this.createOntologyField(invoker, field => {
@@ -538,6 +547,47 @@ export class RelationModal extends Modal {
 
     this.reciprocalHint = this.contentEl.createDiv({cls: "setting-item-description kplex-reciprocal-preflight", attr: {role: "status"}});
 
+    const additional = this.contentEl.createDiv({cls: "kplex-relation-additional", attr: {role: "status"}});
+    additional.createDiv({cls: "setting-item-description", text: this.plugin.translator("relation.additionalOntologyHelp")});
+    const replace = additional.createEl("button", {attr: {type: "button", "data-kplex-replace-existing": ""}});
+    labelIconButton(replace, this.plugin.translator("actions.relationship.relink"), "replace");
+    replace.addEventListener("click", /** Change the current editor's intent without another setup/confirmation dialog. */ () => {
+      if (!this.opened || this.busy || this.pending || this.options.current?.() === false || !this.options.fixedTarget) return;
+      const approved = this.plugin.captureConnectionOntologyChange(this.options.origin.path, this.options.fixedTarget.path);
+      if (!approved) return;
+      const primary = approved.selection.primary;
+      const origin = this.plugin.index.get(primary.declaredByPath), target = this.plugin.index.get(primary.declaredTargetPath);
+      if (!origin || !target) return;
+      this.options = {...this.options, purpose: "ontology-change", ontologyChange: approved,
+        origin: captureRelatedEndpoint(origin), fixedTarget: captureRelatedEndpoint(target)};
+      this.semanticRole = primary.declaredRole; this.selectedField = primary.fieldName;
+      this.selectedStoragePath = primary.declaredByPath; this.storageIdentity = origin.file;
+      this.contentEl.querySelector(".kplex-relation-origin")?.setText(this.plugin.index.titleFor(origin));
+      const label = this.contentEl.querySelector<HTMLElement>(".kplex-relation-target");
+      label?.setText(this.plugin.index.titleFor(target)); label?.setAttribute("title", target.path);
+      this.contentEl.querySelector(".kplex-relation-direction")?.setText(roleLabel(this.semanticRole));
+      updateInverseHint(); this.updateSaveButton();
+      this.contentEl.querySelector<HTMLSelectElement>(".kplex-add-related-role-select")?.focus();
+    });
+    this.refreshOperationControls = /** Reuse the same form when an additive draft becomes exact replacement. */ () => {
+      const changing = this.options.purpose === "ontology-change";
+      storagePanel.hidden = changing;
+      replacementHelp.hidden = !changing;
+      if (changing) replacementHelp.setText(this.plugin.translator(
+        this.options.ontologyChange?.selection.declarations.length === 2 ? "relation.changeOntologyPairHelp" : "relation.changeOntologyHelp"));
+      const additive = this.options.purpose === "ontology-add" || this.options.purpose === "ontology-specify";
+      const explicit = additive && this.options.fixedTarget && this.plugin.index.evidenceBetween(this.options.origin.path, this.options.fixedTarget.path)
+        .some(item => item.relationType === RelationType.DEFINED || item.sourceKind === "frontmatter-ontology" || item.sourceKind === "inline-ontology");
+      additional.hidden = !explicit;
+      replace.hidden = !explicit || !this.options.fixedTarget || !this.plugin.captureConnectionOntologyChange(this.options.origin.path, this.options.fixedTarget.path);
+      replace.disabled = this.busy || this.pending;
+      if (changing) {
+        additional.remove();
+        this.titleEl.setText(this.plugin.translator("actions.relationship.relink"));
+        if (this.saveButton) labelIconButton(this.saveButton, this.plugin.translator("actions.relationship.relink"), "check");
+      }
+    };
+
     const actions = formActions(this.contentEl);
     actions.addButton(button => {
       labelIconButton(button.buttonEl, this.plugin.translator("common.cancel"), "x");
@@ -545,7 +595,8 @@ export class RelationModal extends Modal {
     });
 
     const ontologySave = this.options.purpose === "ontology-add" || this.options.purpose === "ontology-specify";
-    const saveLabel = ontologySave ? this.plugin.translator(this.options.purpose === "ontology-specify" ? "relation.specifyOntologyButton" : "relation.addOntologyButton") : this.plugin.translator("relation.save");
+    const saveLabel = this.options.purpose === "ontology-change" ? this.plugin.translator("actions.relationship.relink")
+      : ontologySave ? this.plugin.translator(this.options.purpose === "ontology-specify" ? "relation.specifyOntologyButton" : "relation.addOntologyButton") : this.plugin.translator("relation.save");
     actions.addButton(button => {
       labelIconButton(button.buttonEl, saveLabel, "check"); button.setCta(); this.saveButton = button.buttonEl;
       button.onClick(() => void this.confirm());
@@ -562,6 +613,7 @@ export class RelationModal extends Modal {
     this.reciprocalReceipt = null; this.reciprocalTarget = null; this.reciprocalStatus = null; this.reciprocalHint = null;
     this.selectedOntologyEditor.close();
     this.renderOntologySelection = () => {}; this.ontologyRoot?.unmount(); this.ontologyRoot = null;
+    this.refreshOperationControls = () => {};
     const ontologyDialog = this.ontologyDialog; this.ontologyDialog = null; ontologyDialog?.close();
     this.contentEl.empty();
   }

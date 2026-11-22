@@ -9,7 +9,17 @@ import { buildLocaleCatalog, type LocaleCatalog, type LocaleTranslationMap } fro
 /** Construct the typed German table only when selected; importing this module allocates no catalog. */
 export function createGermanCatalog(): LocaleCatalog {
 const germanTranslations = {
-  "notice.linkedNodeHidden": "Verkn?pft mit {name}, aber der Knoten wird durch die aktuellen Filter oder Linsen ausgeblendet.",
+  "explain.bodyOntologyHint": "K-Plex kann Ontologien nur im YAML-Frontmatter ändern. Bearbeite im Text definierte Ontologien in der Quellnotiz.",
+  "hide.removeDeclaration": "Hidden-Deklaration entfernen",
+  "explain.connectionActions": "Verbindungsaktionen",
+  "explain.changeOntologyConflict": "Mehrere Dokumenteigenschaften definieren diese Verbindung. Entferne über die Quellaktionen unten die zusätzliche Deklaration oder korrigiere ihre Ontologie, bevor du sie ersetzt.",
+  "relation.additionalOntologyHelp": "Bestehende Ontologiedeklarationen bleiben erhalten. Eine andere Ontologie kann dieser Verbindung mehrere Rollen geben. Verwende Ontologie ändern, um die bestehende Eigenschaft zu ersetzen.",
+  "hide.setup.staged": "Beim Speichern wird {field} zur Hidden-Ontologie hinzugefügt und diese Verbindung ausgeblendet.",
+  "relation.changeOntologyPairHelp": "Ändert die Ontologie in beiden verbundenen Notizen. Andere Verbindungen und der Notiztext bleiben erhalten.",
+  "relation.changeOntologyHelp": "Ändert die Dokumenteigenschaft dieser Verbindung. Andere Verbindungen und der Notiztext bleiben erhalten.",
+  "actions.relationship.relink.description": "Die Ontologie einer Verbindung in den Dokumenteigenschaften oder ihr passendes reziprokes Paar ändern.",
+  "actions.relationship.relink": "Ontologie ändern",
+  "notice.linkedNodeHidden": "Verknüpft mit {name}, aber der Knoten wird durch die aktuellen Filter oder Linsen ausgeblendet.",
   "settings.canvasHints.name": "Hinweise auf der Zeichenfläche anzeigen",
   "settings.canvasHints.help": "Hinweise zu Tastenkürzeln und Beziehungen am oberen Rand der Zeichenfläche anzeigen.",
   "indexing.backgroundTitle": "Wenn K-Plex inaktiv ist",
@@ -190,7 +200,7 @@ const germanTranslations = {
   "folderActions.create": "Unterordner erstellen",
   "folderActions.destination": "Diesen Ordner verschieben nach",
   "folderActions.failed": "Die Ordneraktion konnte nicht abgeschlossen werden.",
-  "ontology.editSelected": "Bearbeiten: {field}",
+  "ontology.editSelected": "Ontologiedefinition bearbeiten: {field}",
   "copyLink.failed": "Der Knotenlink konnte nicht kopiert werden. Versuche es erneut.",
   "copyLink.fallback": "Ein Link mit vollständigem Tresorpfad wurde kopiert. Diese Zwischenablage kann Links nicht an die Zielnotiz anpassen.",
   "copyLink.targetUnavailable": "Der kopierte Knoten ist nicht mehr verfügbar. Kopiere ihn erneut.",

@@ -41,12 +41,12 @@ import {edgeViewportClip, edgeViewportEndpoints, revealRowScrollTop, editorToolb
 import {nodeCenterConnector} from "./plexViews/nodeConnections";
 import {ontologyConfiguration} from "../core/contracts/ontologyConfiguration";
 import {hasDirectionalCaption,directionalRelationCaption} from "../core/plex/directionalRelationCaption";
-import { connectionActionAllowed, tagMembershipPair } from "./structuralConnectionActions";
+import { canDefineConnection, connectionActionAllowed, tagMembershipPair } from "./structuralConnectionActions";
 import { graphTagValue } from "../adapters/obsidian/tagMembership";
 import { structuralDropKind, structuralAreaDrop } from "./StructuralNodeDropActions";
 import { isNoteTypeTagConnection } from "../core/graph/presentation";
 import { DEFAULT_RENDERED_LINK_WIDTH, nodeStyleLayers, linkStyleLayers } from "../index/style";
-import {addElementStyleMenu} from "./ElementStyleMenu";
+import {addElementStyleMenu, addElementStyleActions} from "./ElementStyleMenu";
 import type {ElementStyleSource} from "../core/contracts/styleSource";
 import { subscribeAppearanceSources } from "../adapters/obsidian/colorChanges";
 import {HoverHighlight, bindHoverHighlight} from "./components/hoverHighlight";
@@ -3095,6 +3095,7 @@ export function PlexGraph({ viewDefinition = classicViewDefinition, viewSession,
   const visibleConnectSession = `${actionSurfaceId}:visible-connect`;
   const graphDialogs = useRef(new Set<{ close(): void; retire?(): void }>());
   const graphDialogSerial = useRef(0);
+  const connectionAppearance = useRef<((sourcePath: string, targetPath: string, invoker: HTMLButtonElement, current: () => boolean, edgeId: string) => void) | null>(null);
   const markdownExportPresentation = useRef({scene, matches: filterMatchedNodePaths, areas: zoneDisplayLayouts, clusters: expandedClusters, paintSettings, paintLenses});
   markdownExportPresentation.current = {scene, matches: filterMatchedNodePaths, areas: zoneDisplayLayouts, clusters: expandedClusters, paintSettings, paintLenses};
   const imageExportPresentation = useRef({scene, matches: filterMatchedNodePaths, areas: zoneDisplayLayouts, paintSettings, paintLenses, showCrossLinks, zoneScrollTop, expandedScrollTop});
@@ -4430,13 +4431,17 @@ export function PlexGraph({ viewDefinition = classicViewDefinition, viewSession,
     const explanation = sectionExpansion?.explanations.get(`${sourcePath}\u0000${targetPath}`) ?? index.explainRelationship(sourcePath, targetPath);
     if (!explanation) return { status: "unavailable", reasonKey: "actions.target-unavailable" };
     /** Own inspection/role dialogs until native close, preserving canonical evidence and source choice. */
-    const openDetails = (): ActionOutcome => {
+    const openDetails = (initialFocus?: "sources"): ActionOutcome => {
       if (!current()) return {status: "cancelled"};
       const sessionId = `${actionSurfaceId}:details:${++graphDialogSerial.current}`;
       const dialog = new RelationshipExplanationModal(plugin, explanation, {
-        role: edge.role, centerPath: viewDefinition.hierarchy ? sourcePath : neighborhood?.center.path, hostLeaf, initialFocus: "sources",
+        role: edge.role, centerPath: viewDefinition.hierarchy ? sourcePath : neighborhood?.center.path, hostLeaf,
+        initialFocus,
         sourceTitle: scene.nodes.find(node => node.page.path === sourcePath)?.label,
         targetTitle: scene.nodes.find(node => node.page.path === targetPath)?.label,
+        onStyle: /** The inspector may survive an ontology edit; the current render owns painted style sources. */ invoker => {
+          if (viewCurrent() && invoker.isConnected) connectionAppearance.current?.(sourcePath, targetPath, invoker, viewCurrent, edge.id);
+        },
       }, /** Native close/window teardown release the exact captured pair session. */ () => { graphDialogs.current.delete(dialog); plugin.actionManager.closeSession(sessionId); });
       graphDialogs.current.add(dialog); dialog.open();
       return { status: "opened", sessionId };
@@ -4448,6 +4453,7 @@ export function PlexGraph({ viewDefinition = classicViewDefinition, viewSession,
           if (!current()) return {status: "cancelled"};
           if (source?.current()) {await plugin.openRelationshipEvidenceLocation(source, hostLeaf);return {status: "completed"};}
         } catch { /* Unavailable source content keeps the reviewed inspector as the safe fallback. */ }
+        return openDetails("sources");
       }
       return openDetails();
     }
@@ -4461,15 +4467,16 @@ export function PlexGraph({ viewDefinition = classicViewDefinition, viewSession,
         });
     }
     if (id === "relationship.relink") {
-      const explicit = explanation.decisions.filter(decision => decision.active && (decision.evidence.sourceKind === "frontmatter-ontology" || decision.evidence.sourceKind === "inline-ontology"));
-      const evidence = explicit.length === 1 ? explicit[0].evidence : null;
-      const role = evidence?.declaredRole;
-      if (!evidence || role !== "parent" && role !== "child" && role !== "left" && role !== "right") return openDetails();
-      const origin = index.get(evidence.declaredByPath), target = index.get(evidence.declaredTargetPath);
-      if (!origin?.file || !target?.file || !current()) return { status: "unavailable", reasonKey: "actions.target-unavailable" };
+      const approved = plugin.captureConnectionOntologyChange(sourcePath, targetPath);
+      const defining = !approved && canDefineConnection(sourcePage, targetPage, edge.relationType);
+      if (!approved && !defining) return openDetails();
+      const evidence = approved?.selection.primary;
+      const origin = index.get(evidence?.declaredByPath ?? sourcePath), target = index.get(evidence?.declaredTargetPath ?? targetPath);
+      if (!origin || !target || !current()) return { status: "unavailable", reasonKey: "actions.target-unavailable" };
+      const role = evidence?.declaredRole ?? (edge.role === "parent" || edge.role === "child" || edge.role === "left" || edge.role === "right" || edge.role === "previous" || edge.role === "next" ? edge.role : "child");
       const sessionId = `${actionSurfaceId}:relink:${++graphDialogSerial.current}`;
-      const dialog = plugin.openRelationModal({ mode: "relink", purpose: "move", hostLeaf, origin, fixedTarget: target,
-        semanticRole: role, existingDirection: evidence.direction, initialField: evidence.fieldName, initialStoragePath: evidence.declaredByPath, allowRoleSelection: true,
+      const dialog = plugin.openRelationModal({ mode: "relink", purpose: defining ? "ontology-specify" : "ontology-change", ontologyChange: approved ?? undefined, current, hostLeaf, origin, fixedTarget: target,
+        semanticRole: role, existingDirection: evidence?.direction, initialField: evidence?.fieldName, initialStoragePath: evidence?.declaredByPath,
         onClosed: /** Relink never leaves a guard or native modal behind a retired graph surface. */ () => { graphDialogs.current.delete(dialog); plugin.actionManager.closeSession(sessionId); },
       });
       graphDialogs.current.add(dialog); return { status: "opened", sessionId };
@@ -5436,6 +5443,39 @@ export function PlexGraph({ viewDefinition = classicViewDefinition, viewSession,
     } else plugin.openElementStyleSource(source, scope, previewPath);
   };
 
+  /** Details and the connector menu use the same painted source/lens identities. */
+  const connectionStyleSources = (edge: PositionedEdge): ElementStyleSource[] => {
+    const target = scene.nodes.find(node => node.page.path === edge.targetPath)?.page ?? index.get(edge.targetPath);
+    const styledTarget = renderedNodeMap.get(edgeOccurrence(edge, "target")) ?? scene.nodes.find(node => node.page.path === target?.path);
+    const styledOrigin = renderedNodeMap.get(edgeOccurrence(edge, "source"))?.page;
+    const sources = linkStyleLayers({typeDefinition: edge.typeDefinition, relationType: edge.relationType}, paintSettings, styledOrigin, styledTarget?.page).flatMap(layer => layer.sources);
+    if (styledTarget && predicateCenter) sources.push(...graphLensStyleSources(predicateEngine, index, paintLenses, {page: styledTarget.page, label: styledTarget.label, center: predicateCenter,
+      edge: {role: edge.role, relationType: edge.relationType, definition: edge.typeDefinition, linkDirection: edge.direction,
+        sourcePath: edge.explanationSourcePath ?? edge.sourcePath, targetPath: edge.explanationTargetPath ?? edge.targetPath}}, "edge")
+      .map(lens => ({kind: "lens" as const, id: lens.id, name: lens.name})));
+    return sources;
+  };
+
+  /** Reacquire the current projected edge after a child editor updates a still-mounted inspector. */
+  const openConnectionAppearanceMenu = (sourcePath: string, targetPath: string, invoker: HTMLButtonElement, ownerCurrent: () => boolean, edgeId: string): void => {
+    const current = captureSurfaceContinuation(() => viewport.current, () => plugin.actionManager.readSnapshot(actionSurfaceId));
+    if (!ownerCurrent() || !current() || !invoker.isConnected) return;
+    const matches = (candidate: PositionedEdge): boolean => semanticSceneEdge(candidate)
+      && ((candidate.explanationSourcePath ?? candidate.sourcePath) === sourcePath && (candidate.explanationTargetPath ?? candidate.targetPath) === targetPath
+        || (candidate.explanationSourcePath ?? candidate.sourcePath) === targetPath && (candidate.explanationTargetPath ?? candidate.targetPath) === sourcePath);
+    const edge = scene.edges.find(candidate => candidate.id === edgeId && matches(candidate)) ?? scene.edges.find(matches);
+    if (!edge) {new Notice(translateActionText(translate, "actions.target-unavailable")); return;}
+    const menu = new Menu(), appearance = plugin.captureAppearanceOwner();
+    addElementStyleActions(menu, connectionStyleSources(edge), translate,
+      () => ownerCurrent() && current() && plugin.isAppearanceOwnerCurrent(appearance), style => openElementStyleSource(style));
+    const bounds = invoker.getBoundingClientRect();
+    plugin.showKplexMenuAtPosition(menu, {x: bounds.left, y: bounds.bottom}, invoker.ownerDocument, hostLeaf);
+  };
+  useLayoutEffect(/** A retained inspector uses only a committed scene, never an abandoned React render. */ () => {
+    connectionAppearance.current = openConnectionAppearanceMenu;
+    return () => {if (connectionAppearance.current === openConnectionAppearanceMenu) connectionAppearance.current = null;};
+  });
+
   /** Show connection actions; absent Hidden configuration opens explicit setup rather than disabling the action. */
   const showEdgeContextMenuAt = async (edge: PositionedEdge, clientX: number, clientY: number): Promise<void> => {
     if (!semanticSceneEdge(edge)) return;
@@ -5450,13 +5490,7 @@ export function PlexGraph({ viewDefinition = classicViewDefinition, viewSession,
     let source: Awaited<ReturnType<typeof plugin.singleRelationshipSourceLocation>> = null;
     try {source = await plugin.singleRelationshipSourceLocation(edge.explanationSourcePath ?? edge.sourcePath, edge.explanationTargetPath ?? edge.targetPath, current);} catch { /* Keep ordinary connection actions when provenance cannot be read. */ }
     if (!current()) return;
-    const appearance = plugin.captureAppearanceOwner(), styledTarget = renderedNodeMap.get(edgeOccurrence(edge, "target")) ?? scene.nodes.find(node => node.page.path === target.path);
-    const styledOrigin = renderedNodeMap.get(edgeOccurrence(edge, "source"))?.page;
-    const sources = linkStyleLayers({typeDefinition: edge.typeDefinition, relationType: edge.relationType}, paintSettings, styledOrigin, styledTarget?.page).flatMap(layer => layer.sources);
-    if (styledTarget && predicateCenter) sources.push(...graphLensStyleSources(predicateEngine, index, paintLenses, {page: styledTarget.page, label: styledTarget.label, center: predicateCenter,
-      edge: {role: edge.role, relationType: edge.relationType, definition: edge.typeDefinition, linkDirection: edge.direction,
-        sourcePath: edge.explanationSourcePath ?? edge.sourcePath, targetPath: edge.explanationTargetPath ?? edge.targetPath}}, "edge")
-      .map(lens => ({kind: "lens" as const, id: lens.id, name: lens.name})));
+    const appearance = plugin.captureAppearanceOwner(), sources = connectionStyleSources(edge);
     addElementStyleMenu(menu, sources, translate, () => current() && plugin.isAppearanceOwnerCurrent(appearance), style => openElementStyleSource(style));
     if (source?.current()) menu.addItem(/** Click rechecks current provenance rather than retaining an old line. */ item => item.setTitle(translate("explain.goToSource")).setIcon("locate-fixed")
       .onClick(() => void plugin.actionManager.dispatch({id: "relationship.details", args: {directSource: true}, source: "context-menu", surfaceId: actionSurfaceId,
@@ -5467,6 +5501,16 @@ export function PlexGraph({ viewDefinition = classicViewDefinition, viewSession,
       const current = captureSurfaceContinuation(() => viewport.current, () => plugin.actionManager.readSnapshot(actionSurfaceId));
       menu.addItem(item => item.setTitle(translate(toNoteType ? "tagAssignment.toNoteType" : "tagAssignment.toTag")).setIcon(toNoteType ? "file-type" : "tags")
         .onClick(() => {if (current()) plugin.changeTagAssignment(membership.note, membership.tag, toNoteType, current);}));
+    }
+    const canChange = connectionActionAllowed("relationship.relink", origin, target)
+      && plugin.captureConnectionOntologyChange(edge.explanationSourcePath ?? edge.sourcePath, edge.explanationTargetPath ?? edge.targetPath);
+    const canDefine = !canChange && canDefineConnection(origin, target, edge.relationType);
+    if (canChange || canDefine) {
+      menu.addItem(/** Reacquire exact property approval on activation instead of trusting menu-time evidence. */ item => item
+        .setTitle(translate(canDefine ? "explain.specifyOntology" : "actions.relationship.relink")).setIcon(canDefine ? "plus" : "replace").onClick(() => void plugin.actionManager.dispatch({
+          id: "relationship.relink", source: "context-menu", surfaceId: actionSurfaceId,
+          target: {kind: "edge", origin: actionNodeRef(origin), target: actionNodeRef(target), evidenceId: edge.id},
+        })));
     }
     for (const [id, key, icon] of [["relationship.details", "graph.connectionDetails", "list-tree"], ["relationship.unlink", "graph.unlinkConnection", "unlink"], ["relationship.hide", "hide.title", "eye-off"]] as const) {
       if (!connectionActionAllowed(id, origin, target)) continue;

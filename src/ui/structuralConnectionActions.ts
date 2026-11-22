@@ -1,5 +1,6 @@
 /** Writable connection affordances from explicit endpoint facets; this never classifies semantic relationships. */
 import type { GraphPage } from "../types";
+import {RelationType} from "../core/graph/relations";
 
 /** Only a physical Markdown note has editable YAML tag membership; tag hierarchy itself is read-only. */
 export function tagMembershipPair(source: GraphPage | undefined, target: GraphPage | undefined): { note: GraphPage; tag: GraphPage } | null {
@@ -16,4 +17,12 @@ export function connectionActionAllowed(id: "relationship.details" | "relationsh
   if (source.isFolder || target.isFolder) return false;
   if (source.isTag || target.isTag) return id === "relationship.unlink" && Boolean(tagMembershipPair(source, target));
   return true;
+}
+
+/** An inferred connector can acquire an ontology whenever one non-structural endpoint can own
+ * a document property. The caller supplies the canonical scene's relation type, not a new classifier. */
+export function canDefineConnection(source: GraphPage | undefined, target: GraphPage | undefined, relationType: RelationType): boolean {
+  return relationType === RelationType.INFERRED && connectionActionAllowed("relationship.relink", source, target)
+    && Boolean(source && target && !source.transient && !target.transient
+      && (source.file?.extension === "md" || target.file?.extension === "md"));
 }

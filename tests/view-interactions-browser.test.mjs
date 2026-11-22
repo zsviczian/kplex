@@ -21,12 +21,13 @@ const register=`
 test('node and connector source menus use painted type, ontology and lens owners without source work',async()=>{
  const host=await chromiumHarness(output.outputFiles[0].text+';window.sourceModules=sourceModules;');
  try{assert(await host.evaluate(`(async()=>{${canvasSceneFixture}${register}
-  let appearance=1,shown=null;const opened=[],lensEdits=[],errors=[];window.addEventListener('error',event=>errors.push(event.message));
+  let appearance=1,shown=null;const opened=[],lensEdits=[],errors=[],eligibility=[];window.addEventListener('error',event=>errors.push(event.message));window.addEventListener('unhandledrejection',event=>errors.push(String(event.reason)));
   plugin.captureAppearanceOwner=()=>({themeId:'fixture',activation:appearance});plugin.isAppearanceOwnerCurrent=owner=>owner.activation===appearance;
   plugin.openElementStyleSource=(source,scope,path)=>opened.push({source,path,connected:scope.isConnected});plugin.showKplexMenuAtPosition=menu=>{shown=menu};
   plugin.isPinned=()=>false;plugin.dailyNoteGapDirections=()=>[];plugin.ontologyFieldsForRole=()=>[];
   plugin.getFileOpenMenuState=()=>({focusOpenTab:false,adjacentPane:false,popoutWindow:false});
   plugin.canShowNodeProperties=()=>false;plugin.canInitializeNodeProperties=()=>false;
+  plugin.captureConnectionOntologyChange=(source,target)=>{eligibility.push([source,target]);return null};
   settings.tagStyleList=['#style310'];settings.tagNodeStyles={'#style310':{backgroundColor:'#123456'}};settings.hierarchyLinkStyles={related:{strokeColor:'#654321'}};
   pages.get('B.md').noteType='style310';pages.get('B.md').primaryStyleTag='#style310';pages.get('B.md').styleTags=['#style310'];
   settings.graphLenses=[{id:'node310',name:'Node accent',enabled:true,scope:'node',mode:'style',expression:'file.extension == "md"',style:{node:{borderColor:'#abcdef'}}},{id:'edge310',name:'Child accent',enabled:true,scope:'edge',mode:'style',expression:'edge.role == "child"',style:{edge:{strokeWidth:3}}}];
@@ -37,8 +38,12 @@ test('node and connector source menus use painted type, ontology and lens owners
   const type=submenu.items.find(row=>row.title.includes('Note type')&&row.title.includes('#style310')),lens=submenu.items.find(row=>row.title.includes('Lens')&&row.title.includes('Node accent'));check(type&&lens,'Painted type/lens source absent: '+JSON.stringify(submenu.items.map(row=>row.title)));
   type.click();lens.click();check(opened.at(-1).source.key==='#style310'&&opened.at(-1).path==='B.md'&&opened.at(-1).connected&&lensEdits.at(-1)==='node310','Source identity or invoking scope lost');
   const count=opened.length;appearance++;type.click();check(opened.length===count,'Retired theme source opened a different owner');
-  const edge=ui.container.querySelector('.kplex-edge-hit');edge.dispatchEvent(new MouseEvent('contextmenu',{bubbles:true,clientX:350,clientY:250}));await wait();
+  const nodeMenu=shown,edge=ui.container.querySelector('.kplex-edge-hit');edge.dispatchEvent(new MouseEvent('contextmenu',{bubbles:true,clientX:350,clientY:250}));await wait();
+  check(shown&&shown!==nodeMenu,'Connector menu must replace the earlier node menu: '+JSON.stringify({errors,items:shown?.items.map(row=>row.title)}));
+  check(JSON.stringify(eligibility)===JSON.stringify([['A.md','B.md']]),'Connector eligibility must inspect only its canonical pair: '+JSON.stringify(eligibility));
+  check(!shown.items.some(row=>row.title===plugin.translator('actions.relationship.relink')),'A connector without property-edit approval offered Change ontology');
   submenu=shown?.items.find(row=>row.title==='Appearance sources')?.submenu;check(submenu?.items.some(row=>row.title.includes('Relationship')&&row.title.includes('related'))&&submenu.items.some(row=>row.title.includes('Lens')&&row.title.includes('Child accent')),'Painted connector sources missing');
+  check(!errors.length,'Source menus raised an error: '+JSON.stringify(errors));
   check(work.body===before.body&&work.scans===before.scans&&work.acquisitions===before.acquisitions,'Appearance menus acquired graph sources');for(const release of releases)release();ui.close();return true;
  })()`));}finally{await host.cleanup()}
 });
