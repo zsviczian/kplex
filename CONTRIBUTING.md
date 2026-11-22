@@ -864,6 +864,34 @@ Set `KPLEX_UX_EMULATE_MOBILE=true` to add actual Obsidian mobile emulation at ta
 
 ### New relationship from a gate
 
+Fresh/default ontology uses lowercase `parent`, `child`, `friend`, `challenger`,
+`previous` and `next`, including reciprocal factory pairs and field memories.
+Existing/imported physical property names and explicitly remembered spelling are
+preserved; field matching continues to use the canonical case-insensitive
+normalizer. No note rewrite or vocabulary rename occurs. The generic Add
+relationship command remembers its own successfully committed role/field, separate
+from explicit gate/direction defaults and journal chronology. Removed/reassigned
+fields fall back within the remembered direction; opening or canceling the dialog
+does not install generic memory, and failed storage preserves its last saved tuple.
+
+`npm run verify:obsidian:source-safety` exercises the registered Add friend command,
+native composer and Follow action through A, B and C in a tab and side panel, both
+with B's actual requested-neighborhood completion held and after local settlement.
+It records the dialog's exact source/native identity and real note contents. Use
+the three explicit disposable Small variables and exact-build staging/restoration.
+
+`npm run verify:obsidian:empty-links` captures native empty/repeated/self-link and
+inline-code metadata, genuine resolved counts and three completed recovery cycles.
+Baseline characterization leaves `KPLEX_EXPECT_FIXED` unset; candidate acceptance
+sets it to `true`. `npm run verify:obsidian:empty-links-restart` extends the existing
+application-reload acceptance lane with those sources beside its non-default
+ontology fixture. Two unchanged app reloads must preserve their exact durable heads,
+the active graph generation and the existing zero-replay/read/repair work bounds.
+Source-family proof reads occur after the measured startup interval. The restart
+lane requires an already isolated Small BrowserWindow and refuses to close other
+vaults; coordinate that prerequisite with the maintainer. Windows desktop emulation
+does not establish the reported physical macOS/Android workflows.
+
 Verify:
 
 - modal is an Obsidian `Modal`
@@ -1382,8 +1410,21 @@ Physical-device networking remains separate; opt-out cannot undo requests alread
 Obsidian input doubles and a controlled loopback image server. It checks supported resolver
 forms, local fallback, both inline cache paths, held reads across revocation/off-on/unload,
 the actual settings save method's zero-semantic-work boundary, and actual DOM/network output
-in two documents. New permission copy uses the existing English fallback until translations
-are reviewed. No third-party image source is contacted by either lane.
+in two documents. Remote-image permission copy is maintained in all eight language catalogs.
+Neither controlled-request lane contacts a third-party image source.
+
+`npm run verify:obsidian:youtube-thumbnails` uses the same explicit Small target and a fresh
+managed report directory, with the shared native fixture and application lock. It keeps two
+timestamped URL identities and their authored labels distinct, checks permission-off candidate
+and DOM absence, and uses the actual native adapter to decode public YouTube thumbnail bytes
+in both the main window and a popout. The online wait is bounded to 60 seconds. A timeout is
+reported as `result.status: unavailable`; it is unfinished online acceptance even if fixture
+cleanup and the outer controller complete successfully. Unexpected rendering errors still fail.
+Opt-out retires images in both documents, source bytes stay unchanged, and consent changes must
+perform no semantic publication, Vault body reads or parsing. Optional screenshots are authentic
+native captures. This lane intentionally contacts only the public YouTube image host; it never
+opens a webpage/player or patches network APIs. DOM observations do not establish transport
+counts: the controlled headless cases provide zero-request, fallback and coalescing evidence.
 
 ## Native rename identity acceptance
 

@@ -145,6 +145,8 @@ export type NodeVisual = {
   src: string;
   path: string;
   alt: string;
+  /** Automatic URL preview; only the mounted consent-aware image transport may request it. */
+  youtubeId?: string;
 };
 
 export type PositionedNode = {

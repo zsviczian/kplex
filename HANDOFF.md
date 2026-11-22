@@ -21,18 +21,6 @@ Obsidian is the production host; preserve the established portable semantic, ide
 
 ---
 
-# Connection ontology editing: publication handoff
+# No active handoff
 
-State: implementation and automated validation complete. Maintainer explicitly requested commit and merge to main, then switch to main and fetch. No new assignment or refactor resume.
-
-Branch: feat/change-connection-ontology; base 33c420013a574108b7aba22bcfa7888f863f1565.
-
-Scope: precise single-YAML or matching reciprocal ontology replacement, including Markdown owners linked to attachments; six-direction Define/Add/Change; inferred context-menu Define; compact details action toolbar and source groups; staged Hide setup without an extra confirmation; current metadata property API; body-ontology YAML-only editing hint in all eight locales. Preserve Markdown body, unrelated values and exact source/native identity guards.
-
-Validation on Node 22.22.2: release/architecture/core/lint and full indexing passed. Initial npm run verify stopped on six missing finite fixture prerequisites after 2546 general passes; fixtures corrected and all six rerun green (details 26, reciprocal 34). Remaining npm test lanes passed 620 browser, 393 portable source and 1104 real IndexedDB/source tests, without skips. Final appearance callback regression suite passed 64 tests. Local and production builds passed. Latest body-hint details/localization suite passed 58/58, scoped lint and production build passed. Validation commit gate and diff checks pass.
-
-Evidence remains ignored/managed: .test-work/validation/2026-11-22-connection-ux-LO6nUI and .test-work/validation/2026-11-22-body-ontology-hint-NoULTT. Do not claim the original aggregate verify invocation passed.
-
-Recorded limitation: final native light/dark/narrow/main/popout acceptance remains pending while the maintainer uses the PC; their explicit publication request follows disclosure of this limitation. macOS and physical mobile remain untested. Do not take PC control without coordinating a window. Native lane verify:obsidian:ontology-change is prepared, not run on the final artifact; rebuild build:local before deferred exact-build Small-vault testing. The existing managed staging wrapper freezes/restores artifacts/config/layout under the shared host lock.
-
-Production Zsolt's Brain remains read-only except separately authorized main.js/styles.css deployment. No production files or settings were changed and no deployment was performed. Current dist is the latest production build and is not committed.
+See [PR #326](https://github.com/zsviczian/kplex/pull/326) for the implementation and validation record.

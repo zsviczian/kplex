@@ -143,6 +143,82 @@ test('Markdown export gives the native ontology dropdown remaining width and cen
 });
 import {authoringScenario} from './support/authoring278Browser.mjs';
 
+test('pasted Markdown web links enter link mode and preserve full targets plus authored or explicitly edited labels',async()=>{
+ assert.equal(await authoringScenario(`
+ const originalFiles=files.size,metadata=[];p.applyNewNoteCreationMetadata=async(...args)=>metadata.push(args);
+ for(const [input,expected,edit]of [['[Authored title](https://example.com/path?t=90#Part)','Authored title',null],['[Extracted](https://youtu.be/z8UkHGpykYU?t=60)','Explicit alias','Explicit alias'],['[Extracted](https://example.com/clear)','', '']]){
+  const modal=openComposer();await waitFor(()=>name(modal));reactInput(name(modal),input);await waitFor(()=>button(modal,'addRelated.addWebLink'));
+  check(!button(modal,'addRelated.createMarkdownLink'),'Recognized web target still offers filename creation');
+  const alias=modal.contentEl.querySelector('.kplex-create-alias-input');check(alias.value==='Authored title'||alias.value==='Extracted','Authored link label was lost');
+  if(edit!==null)reactInput(alias,edit);
+  button(modal,'addRelated.addWebLink').click();await waitFor(()=>!modal.modalEl.isConnected);
+  const saved=links.at(-1);check(saved[0]==='web'&&saved[1].file===origin.file&&saved[4]===expected,'Web target lost source or explicit alias');
+  const destination=input.slice(input.indexOf('](')+2,-1);check(saved[3]===destination,'Query, timestamp or fragment was rewritten');
+ }
+ check(files.size===originalFiles&&metadata.length===0&&writes.length===0,'Linking web targets created/retyped/relocated a file');
+ `),true);
+});
+
+test('complete wikilinks and relative paths link exact existing notes and attachments without applying creation metadata',async()=>{
+ assert.equal(await authoringScenario(`
+ const picture=addFile('Folder/Wave.svg','svg'),metadata=[];p.applyNewNoteCreationMetadata=async(...args)=>metadata.push(args);const originalFiles=files.size;
+ for(const [input,file,expectedAlias,edit]of [['[[Target]]',target.file,'',null],['[[Target|Authored alias]]',target.file,'Authored alias',null],['Target.md',target.file,'',null],['[[Folder/Wave.svg|Wave]]',picture,'Custom wave','Custom wave'],['Folder/Wave.svg',picture,'',null]]){
+  const modal=openComposer();await waitFor(()=>name(modal));name(modal).focus();reactInput(name(modal),input);
+  if(input==='Target.md'){await waitFor(()=>document.querySelector('.kplex-search-results button'));document.querySelector('.kplex-search-results button').click();}
+  await waitFor(()=>modal.contentEl.querySelector('.kplex-add-related-note-search.has-selection')).catch(error=>{throw Error(input+' failed to resolve: '+modal.contentEl.textContent+' '+error.message)});
+  check(!button(modal,'addRelated.createMarkdownLink'),'Existing target still offers physical creation');
+  if(edit!==null)reactInput(modal.contentEl.querySelector('.kplex-create-alias-input'),edit);
+  button(modal,'addRelated.link').click();await waitFor(()=>!modal.modalEl.isConnected);const saved=links.at(-1);
+  check(saved[0].file===origin.file&&saved[2].file===file,'Pasted link did not retain exact source/target native identities');
+  check(saved[4]===(expectedAlias?'[['+file.path+'|'+expectedAlias+']]':undefined),'Authored or explicit link alias was lost');
+ }
+ check(files.size===originalFiles&&!metadata.length&&!writes.length,'Existing/attachment targets inherited creation metadata');
+ p.settings.alsoWriteInverseOntology=true;const blocked=openComposer();await waitFor(()=>name(blocked));reactInput(name(blocked),'[[Folder/Wave.svg]]');
+ await waitFor(()=>blocked.contentEl.querySelector('.kplex-add-related-note-search.has-selection'));
+ check(button(blocked,'addRelated.link').disabled&&blocked.contentEl.textContent.includes(t('reciprocal.requiresMarkdown')),'Pasted attachment bypasses reciprocal Markdown restriction');blocked.close();
+ `),true);
+});
+
+test('recognized invalid links and unsupported subpaths stay recoverable and cannot create bracket-named files',async()=>{
+ assert.equal(await authoringScenario(`
+ const originalFiles=files.size,modal=openComposer();await waitFor(()=>name(modal));
+ for(const [input,key]of [['[[Target#Heading]]','addRelated.linkSubpathUnsupported'],['[[Target#^block]]','addRelated.linkSubpathUnsupported'],['[[Missing]]','addRelated.linkTargetMissing'],['[[Target]] [[Source]]','addRelated.linkInputInvalid'],['[A](javascript:alert(1))','addRelated.linkInputInvalid'],['[A](https://example.com) [B](https://example.org)','addRelated.linkInputInvalid'],['see [[Target]] here','addRelated.linkInputInvalid'],['see [A](https://example.com) here','addRelated.linkInputInvalid']]){
+  reactInput(name(modal),input);await waitFor(()=>modal.contentEl.textContent.includes(t(key)));
+  check([...modal.contentEl.querySelectorAll('.kplex-add-related-create-actions button')].every(action=>action.disabled),'Invalid pasted link offers an enabled create action');
+  modal.submitKey(new KeyboardEvent('keydown',{key:'Enter',bubbles:true,cancelable:true}));await new Promise(resolve=>window.setTimeout(resolve,20));
+  check(!links.length&&!writes.length&&files.size===originalFiles,'Keyboard submit materialized a malformed input');
+ }
+ for(const input of ['[Project]','Project: roadmap']){reactInput(name(modal),input);await new Promise(resolve=>window.setTimeout(resolve,20));check(!modal.contentEl.textContent.includes(t('addRelated.linkInputInvalid')),'Ordinary filename was reclassified as a pasted link');}
+ reactInput(name(modal),'[[Target|Recovered]]');await waitFor(()=>modal.contentEl.querySelector('.kplex-add-related-note-search.has-selection'));check(!button(modal,'addRelated.link').disabled,'Correcting invalid input did not restore linking');modal.close();
+ `),true);
+});
+
+test('generic relationship memory changes only after a durable save and persists independently of explicit direction defaults',async()=>{
+ assert.equal(await authoringScenario(`
+ const perRole=structuredClone(p.settings.relationDefaultFields),journal=structuredClone(p.settings.dailyNoteLinkFields),generic=()=>openComposer(target,{initialRoleFilter:'all',rememberGenericOntology:true});
+ let modal=generic();await waitFor(()=>field(modal));reactInput(field(modal),'Next');modal.close();check(p.settings.genericRelationshipSelection===null,'Cancel remembered an unused selection');
+ const writer=p.createRelationToPage;p.createRelationToPage=async()=>{throw Error('Expected relationship failure')};modal=generic();await waitFor(()=>field(modal));reactInput(field(modal),'Friend');button(modal,'addRelated.link').click();await waitFor(()=>window.notices.some(notice=>String(notice).includes('Expected relationship failure')));check(p.settings.genericRelationshipSelection===null,'Failed relationship remembered a selection');modal.close();p.createRelationToPage=writer;
+ for(const [selected,role]of [['Friend','left'],['Previous','previous'],['Challenger','right'],['Next','next']]){
+  modal=generic();await waitFor(()=>field(modal));reactInput(field(modal),selected);button(modal,'addRelated.link').click();await waitFor(()=>!modal.modalEl.isConnected);
+  equal(p.settings.genericRelationshipSelection,{role,field:selected},'Generic selection did not follow the successful field role');
+  equal(p.initialGenericRelationshipSelection(),{role,field:selected},'Next generic invocation lost the committed tuple');
+ }
+ equal(p.settings.relationDefaultFields,perRole,'Generic memory changed explicit-direction defaults');equal(p.settings.dailyNoteLinkFields,journal,'Generic memory changed journal defaults');
+ const persisted=p.writes.at(-1);p.settings=M.migrateAndMergeSettings(JSON.parse(JSON.stringify(persisted)));equal(p.initialGenericRelationshipSelection(),{role:'next',field:'Next'},'Actual settings reload lost generic memory');
+ modal=openComposer(target);await waitFor(()=>field(modal));check(field(modal).value==='Child','Explicit Child invocation was hijacked by generic Next memory');button(modal,'addRelated.link').click();await waitFor(()=>!modal.modalEl.isConnected);equal(p.settings.genericRelationshipSelection,{role:'next',field:'Next'},'Explicit direction overwrote generic memory');
+ `),true);
+});
+
+test('generic preference failures leave durable links successful and saved-pending links still remember their selection once',async()=>{
+ assert.equal(await authoringScenario(`
+ const save=p.saveData;p.saveData=async()=>{throw Error('Expected preference failure')};let modal=openComposer(target,{initialRoleFilter:'all',rememberGenericOntology:true});await waitFor(()=>field(modal));reactInput(field(modal),'Friend');button(modal,'addRelated.link').click();await waitFor(()=>!modal.modalEl.isConnected);
+ check(links.length===1&&p.settings.genericRelationshipSelection===null,'Preference failure duplicated or reclassified the durable link');check(window.notices.includes(t('addRelated.memorySaveFailed')),'Preference-only failure has no clear notice');p.saveData=save;
+ let saves=0;const remember=p.rememberGenericRelationshipOntology.bind(p);p.rememberGenericRelationshipOntology=async(...args)=>{saves++;return remember(...args)};
+ p.createRelationToPage=async(...args)=>{links.push(args);throw new M.SavedRelationshipPendingError('Expected publication pending')};modal=openComposer(target,{initialRoleFilter:'all',rememberGenericOntology:true});await waitFor(()=>field(modal));reactInput(field(modal),'Previous');button(modal,'addRelated.link').click();await waitFor(()=>p.settings.genericRelationshipSelection?.role==='previous');
+ check(modal.modalEl.isConnected&&modal.contentEl.textContent.includes(t('addRelated.savedPending')),'Durable-pending relationship lost its recovery form');check(saves===1&&links.length===2,'Pending publication duplicated a relationship or preference save');equal(p.settings.genericRelationshipSelection,{role:'previous',field:'Previous'},'Durable-pending selection was not remembered');modal.close();
+ `),true);
+});
+
 test('Markdown composer selects indexed attachments and submits their exact file identities',async()=>{
  assert.equal(await authoringScenario(`
  for(const extension of ['svg','pdf','canvas','custom']){
@@ -167,8 +243,8 @@ for(const width of [900,360])for(const locale of ['en','de'])test(`compact relat
  p.translator=M.createTranslator(${JSON.stringify(locale)});p.isExcalidrawAvailable=()=>true;p.settings.newNodeCreationTab='markdown';
  const modal=openComposer();await waitFor(()=>name(modal)&&modal.contentEl.querySelector('.kplex-creation-types'));
  reactInput(name(modal),'A'.repeat(160));await waitFor(()=>modal.contentEl.querySelector('.kplex-creation-status'));
- const rows=[...modal.contentEl.querySelectorAll('.kplex-create-name-pair .kplex-form-inline,.kplex-create-folder-row,.kplex-creation-completion')];
- equal(rows.map(row=>row.querySelector('label').textContent),[p.translator('common.name'),p.translator('creation.alias'),p.translator('folderPicker.label'),p.translator('creation.action')],'Compact field labels');
+ const rows=[...modal.contentEl.querySelectorAll('.kplex-create-name-pair .kplex-form-inline,.kplex-add-related-form > .kplex-form-inline,.kplex-creation-property-section .kplex-form-inline,.kplex-creation-completion')];
+ equal(rows.map(row=>row.querySelector('label').textContent),[p.translator('common.name'),p.translator('creation.noteType'),p.translator('folderPicker.label'),p.translator('creation.alias'),p.translator('creation.action')],'Compact field labels follow the common/type creation order');
  for(const row of rows){const label=row.querySelector('label'),control=row.querySelector('input,select'),a=label.getBoundingClientRect(),b=control.getBoundingClientRect(),r=row.getBoundingClientRect();
  check(a.right<b.left&&b.width>=r.width*.65,'A short inline label squeezed the input');check(control.id===label.htmlFor,'Compact row lost visible label association');}
  const active=kind=>modal.contentEl.querySelector('.kplex-creation-types [role=tab][id$="tab-'+kind+'"]');
@@ -666,7 +742,7 @@ test('creation type tabs preserve shared drafts, isolated template choices and k
  const tab=kind=>modal.contentEl.querySelector('.kplex-creation-types [role=tab][id$="tab-'+kind+'"]'),picker=()=>modal.contentEl.querySelector('.kplex-template-picker input');
  const alias=modal.contentEl.querySelector('.kplex-create-alias-input'),folderInput=modal.contentEl.querySelector('.kplex-create-folder-row input');reactInput(name(modal),'Unresolved draft');reactInput(alias,'Shared alias');reactInput(folderInput,'/');
  await waitFor(()=>picker().value==='Templates/Article.md');const originalDefault=p.settings.newNodeDefaultType;
- const completion=modal.contentEl.querySelector('.kplex-creation-completion'),tabs=modal.contentEl.querySelector('.kplex-creation-types > [role=tablist]');check(completion.getBoundingClientRect().bottom<=tabs.getBoundingClientRect().top,'After saving is below type tabs');
+ const completion=modal.contentEl.querySelector('.kplex-creation-completion'),types=modal.contentEl.querySelector('.kplex-creation-types');check(types.getBoundingClientRect().bottom<=completion.getBoundingClientRect().top,'Action must follow the full creation type section');
  tab('markdown').focus();tab('markdown').dispatchEvent(new KeyboardEvent('keydown',{key:'ArrowRight',bubbles:true,cancelable:true}));
  await waitFor(()=>tab('excalidraw').getAttribute('aria-selected')==='true'&&picker().value===t('drawing.blank'));check(document.activeElement===tab('excalidraw'),'Shared tab keyboard selection lost focus');
  picker().focus();reactInput(picker(),'Sketch');await waitFor(()=>document.querySelector('.kplex-search-results button'));check(!document.querySelector('.kplex-search-results').textContent.includes('Article.md'),'Drawing tab exposed Markdown templates');document.querySelector('.kplex-search-results button').click();await waitFor(()=>picker().value==='Drawings/Sketch.md');

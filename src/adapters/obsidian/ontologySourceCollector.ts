@@ -81,8 +81,13 @@ export function resolveObsidianReferenceTarget(host: ReferenceSourceCollectorHos
       rawTarget: reference.rawTarget, resolvedBy: "url" };
   }
   const candidate = decodeInternalCandidate(reference.rawTarget);
-  if (!candidate) return null;
+  // Obsidian's native cache canonicalizes [[ ]] to an empty literal. It could not pass the
+  // historical metadata codec, so accepting it introduces no stale reusable resolution head.
+  // Preserve older nullable bindings for other trimmed/decoded-empty spellings.
+  if (!candidate && reference.rawTarget !== "") return null;
   const destination = host.metadataCache.getFirstLinkpathDest(candidate, sourcePath);
+  // Ask the host for this genuine empty literal, but never fabricate an empty unresolved node.
+  if (!candidate && !(destination instanceof TFile)) return null;
   return {
     entity: destination instanceof TFile ? fileRef(destination)
       : { id: nodeId(candidate), kind: "unresolved", state: "unresolved", semanticPath: candidate },

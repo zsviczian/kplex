@@ -5,6 +5,16 @@
  */
 import { nodeId } from "../../core/graph/model";
 import type { SourceTargetRef } from "../../core/graph/source";
+import {youtubeVideo, youtubeThumbnailUrls} from "../../core/contracts/videoUrl";
+
+/** Project an explicitly visible YouTube URL onto a bounded image candidate without I/O or
+ * changing its full timestamped navigation target, graph identity or authored title. */
+export function youtubeThumbnailCandidate(raw: string): Readonly<{id: string; url: string}> | null {
+  try {
+    const video = youtubeVideo(new URL(raw));
+    return video ? {id: video.id, url: youtubeThumbnailUrls(video.id)[0]} : null;
+  } catch {return null;}
+}
 
 /** Recognize a supported Obsidian action without decoding its query into a local Vault target.
  * This predicate grants no execution permission; explicit native activation owns that effect. */

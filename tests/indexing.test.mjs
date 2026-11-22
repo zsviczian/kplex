@@ -30,6 +30,7 @@ const mainSource = readFileSync(join(root, "src/main.ts"), "utf8");
 
 const appSource = readFileSync(join(root, "src/ui/App.tsx"), "utf8").replace(/\r\n/g, "\n");
 const newRelatedSource = readFileSync(join(root, "src/ui/NewRelatedNoteModal.ts"), "utf8");
+const relatedTargetSource = readFileSync(join(root, "src/adapters/obsidian/relatedTarget.ts"), "utf8");
 const relationshipControlSource = readFileSync(join(root, "src/ui/features/RelationshipFieldControl.tsx"), "utf8");
 const draggableDialogSource = readFileSync(join(root, "src/ui/components/DraggableDialog.ts"), "utf8");
 const ghostModalSource = readFileSync(join(root, "src/ui/MaterializeGhostModal.ts"), "utf8");
@@ -351,7 +352,14 @@ assert(newRelatedSource.includes('className: "kplex-add-related-compose-row" }, 
   && newRelatedSource.includes('layout: "inline", controlId: noteId'), "Compact authored name/alias fields must use shared labelled rows followed by the selected type's shared template/action panel");
 assert(newRelatedSource.indexOf("controlRow,") < newRelatedSource.indexOf("composeRow,"), "Relationship controls must render above the focused name row");
 assert(newRelatedSource.includes('className: "kplex-create-alias-input"'), "Create-related UI must provide an optional alias field");
-assert(newRelatedSource.includes("plugin.createWebLinkRelatedPage(refreshCapturedPage(plugin, origin), role, webUrl, alias, field)"), "Create-related UI must recognize and persist web-link relationships");
+assert(newRelatedSource.includes('import {interpretRelatedTarget} from "../adapters/obsidian/relatedTarget"')
+  && newRelatedSource.includes("interpretRelatedTarget(plugin.app,")
+  && relatedTargetSource.includes("iterateMarkdownLinkSteps(value)")
+  && newRelatedSource.includes('const webUrl = interpretedTarget.kind === "web" ? interpretedTarget.url : null;')
+  && newRelatedSource.includes("plugin.createWebLinkRelatedPage(refreshCapturedPage(plugin, origin), role, webUrl, effectiveAlias, field)"),
+"Create-related UI must use canonical complete-link interpretation and persist the recognized URL with the effective authored alias");
+assert(newRelatedSource.includes("const effectiveAlias = aliasEdited ? alias : alias || creationAliasDraft || targetAlias;"),
+  "Explicit Alias edits must override labels extracted from complete links");
 assert(mainSource.includes('const reference = alias ? `[${escapedAlias}](${url})` : url'), "Web-link aliases must be stored as Markdown link labels in document properties");
 assert(mainSource.includes('frontmatter[key] = [...aliases, alias]'), "New-note aliases must be written through Obsidian frontmatter");
 assert(appSource.includes("plugin.isManagedCreatedFile(trackedFile)"), "A selected optimistic note must survive an older in-flight index publication");
@@ -422,6 +430,18 @@ for (const file of [
   "src/lang/zh-TW.ts",
   "src/lang/index.ts",
   "src/types.ts",
+  "src/core/contracts/videoUrl.ts",
+  "src/core/plex/relationshipMemory.ts",
+  "src/core/plex/trackpadNavigation.ts",
+  "src/application/creationProperties.ts",
+  "src/application/youtubeThumbnails.ts",
+  "src/adapters/obsidian/creationProperties.ts",
+  "src/adapters/obsidian/relatedTarget.ts",
+  "src/adapters/obsidian/youtubeThumbnails.ts",
+  "src/ui/CommonNodePropertiesModal.ts",
+  "src/ui/NodePropertyCaption.tsx",
+  "src/ui/features/CreationPropertyFields.tsx",
+  "src/ui/features/NodeVisualImage.tsx",
   "src/core/plex/nodeProperties.ts",
   "src/adapters/obsidian/nodeProperties.ts",
   "src/adapters/obsidian/noteTypeProperties.ts",
@@ -722,6 +742,8 @@ for (const file of [
   "src/ui/actionPresentation.ts",
   "src/ui/layout.ts",
   "src/ui/plexViews/measurement.ts",
+  "src/ui/plexViews/NodePropertyTextMeasurement.ts",
+  "src/ui/plexViews/useNodePropertyMeasurement.ts",
   "src/ui/plexViews/classic/layout.ts",
   "src/core/plex/views/classic/projection.ts",
   "src/core/plex/views/classic/geometry.ts",

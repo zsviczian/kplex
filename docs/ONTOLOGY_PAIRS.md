@@ -2,7 +2,9 @@
 
 Configure fields and pairs under **Settings → K-Plex → Ontology → Manage ontology**. A pair gives a connection a natural label from either endpoint while notes keep ordinary property names.
 
-Fresh installations pair the built-in inverse fields: Parent/Child, Parents/Children, up/down, u/d, North/South, Previous/Next, West/East, w/e and Before/After. Other aliases remain independent. Existing saved configurations and ExcaliBrain imports retain their assignments.
+Fresh installations pair the built-in inverse fields: parent/child, Parents/Children, up/down, u/d, North/South, previous/next, West/East, w/e and Before/After. Other aliases remain independent. The primary defaults are `parent`, `child`, `friend`, `challenger`, `previous` and `next`. Existing saved configurations and ExcaliBrain imports retain their assignments and spellings; upgrading does not rename note properties or saved defaults.
+
+Property matching ignores case and normalizes whitespace to hyphens. A match retains the configured or already-authored property spelling when writing; changing the shipped defaults does not create a second case-sensitive ontology identity.
 
 For example, select **Add field**, enter `replies to`, choose **Previous**, and enter `replied by` in **Pair with**. Select **Create “replied by” as paired field** from the suggestions, or enable **Create paired field**. The preview shows `replies to` as Previous and `replied by` as Next; Save creates both assignments together. To pair existing fields, choose an eligible property from the suggestions. You can create a new partner for an existing field in the same way, without first adding that property to a note.
 

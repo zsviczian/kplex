@@ -6,6 +6,10 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import ts from "typescript";
 import test from "node:test";
+import {loadPortableModules} from "./support/portableTypeScript.mjs";
+const {exports: creationOwners}=loadPortableModules(["src/application/creationProperties.ts", "src/adapters/obsidian/creationProperties.ts", "src/adapters/obsidian/tagNoteType.ts", "src/core/plex/nodeProperties.ts", "src/core/contracts/fieldName.ts"],{
+  obsidian:'exports.parseFrontMatterTags=()=>{throw Error("Native tag parsing is outside this finite composer fixture")};',
+});
 
 /** Compile the actual callback or method with injected capabilities, keeping production control flow intact. */
 function production(name, dependencies = {}, path = "src/ui/NewRelatedNoteModal.ts") {
@@ -15,7 +19,9 @@ function production(name, dependencies = {}, path = "src/ui/NewRelatedNoteModal.
     templateChoices: {files: [], selected: "", root: ""}, templatePath: "", selectedTemplateKind: undefined, creationType: "markdown", placeholderSupported: true,
     reciprocalRecovery: null, reciprocalCheck: () => ({approval: {enabled: false}}), assertReciprocalApproval() {},
     ReciprocalRelationshipWriteError: class extends Error {}, setReciprocalRecovery() {},
-    folderValidation: { error: null }, folderPath: "", ...dependencies };
+    folderValidation: { error: null }, folderPath: "", linkInputError: null, role: "child", alias: "", aliasEdited: false, targetAlias: "",
+    targetCanOwnProperties: true, creationMetadataInvalid: false, noteType: "", creationRows: creationOwners.DEFAULT_COMMON_NODE_PROPERTIES, propertyDrafts: {aliases: dependencies.alias ?? ""},
+    creationMetadataApplied: {current: null}, legacyMetadataApplied: {current: null}, ...creationOwners, ...dependencies };
   const source = ts.createSourceFile(path, readFileSync(new URL(`../${path}`, import.meta.url), "utf8"), ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
   let expression;
   /** Find one named production callback without evaluating the native Obsidian shell. */
@@ -34,7 +40,37 @@ function production(name, dependencies = {}, path = "src/ui/NewRelatedNoteModal.
     ts.forEachChild(node, visit);
   }
   visit(source); assert(expression, name);
-  const output = ts.transpileModule(`const selected = ${expression};`, { compilerOptions: { target: ts.ScriptTarget.ES2021, module: ts.ModuleKind.None } }).outputText;
+  let prelude="";
+  if(path==="src/ui/NewRelatedNoteModal.ts"){
+    dependencies.SavedRelationshipPendingError??=SavedRelationshipPendingError;
+    dependencies.PartialRelatedFileError??=production("PartialRelatedFileError",{},"src/adapters/obsidian/relatedFileOutcome.ts");
+    /** Keep newly captured session operations real, while legacy default-off fixtures own no generic memory. */
+    if(name!=="rememberGenericSelection"&&!dependencies.session.rememberGenericSelection)
+      dependencies.session.rememberGenericSelection=production("rememberGenericSelection");
+    /** Execute actual derived field/alias expressions, rather than copying their precedence into fixtures. */
+    for(const derived of ["creationAliasRow","creationAliasDraft","effectiveAlias"]){
+      if(derived===name||Object.hasOwn(dependencies,derived))continue;
+      let initializer;const find=node=>{if(ts.isVariableDeclaration(node)&&node.name.getText(source)===derived)initializer=node.initializer?.getText(source);ts.forEachChild(node,find);};find(source);
+      assert(initializer,derived);prelude+=`const ${derived} = ${initializer};\n`;
+    }
+    dependencies.normalizeFieldName??=creationOwners.normalizeFieldName;
+    if(name==="createNew"&&dependencies.plugin){
+      const plugin=dependencies.plugin,files=new Map([dependencies.origin,dependencies.selectedTarget].filter(Boolean).map(page=>[page.file?.path,page.file]).filter(([path])=>path));
+      plugin.settings??={};plugin.settings.noteTypeField??="Note type";
+      if(dependencies.partialFile)files.set(dependencies.partialFile.path,dependencies.partialFile);
+      if(!plugin.app?.vault?.getFileByPath){
+        plugin.app??={};plugin.app.vault??={};plugin.app.vault.getFileByPath=path=>files.get(path)??null;
+        const create=plugin.createNewRelatedFileForOrigin;
+        if(create)plugin.createNewRelatedFileForOrigin=async function(...args){const file=await create.apply(this,args);if(file)files.set(file.path,file);return file;};
+      }
+      plugin.index??={};plugin.index.withForegroundPriority??=async work=>work();
+      plugin.applyNewNoteCreationMetadata??=production("applyNewNoteCreationMetadata",{},"src/main.ts");
+      plugin.finalizeCreatedNoteMetadata??=production("finalizeCreatedNoteMetadata",{},"src/main.ts");
+      plugin.writeCreatedNodeDisplayName??=async()=>"";plugin.writeCreatedNodeAlias??=async()=>"";
+      plugin.mutateCreatedNodeMetadata??=async(_file,_fields,mutate)=>mutate({});
+    }
+  }
+  const output = ts.transpileModule(`${prelude}const selected = ${expression};`, { compilerOptions: { target: ts.ScriptTarget.ES2021, module: ts.ModuleKind.None } }).outputText;
   return Function(...Object.keys(dependencies), `${output}; return selected;`)(...Object.values(dependencies));
 }
 
@@ -97,7 +133,7 @@ test("new-note reciprocal preflight and captured Template validation precede phy
   const fixture = reciprocalComposerFixture(); await fixture.create("markdown");
   assert.deepEqual(fixture.events.map(row => row[0]), ["validate", "remember-field", "validate", "create", "remember-kind", "link", "complete"]);
   assert.deepEqual(fixture.events.filter(row => row[0] === "validate"), [["validate", "Templates/Markdown.md", "markdown"], ["validate", "Templates/Markdown.md", "markdown"]]);
-  assert.deepEqual(fixture.events.find(row => row[0] === "create").slice(1), [fixture.origin, "Created", "markdown", "Readable name", "Folder", "Templates/Markdown.md"]);
+  assert.deepEqual(fixture.events.find(row => row[0] === "create").slice(1), [fixture.origin, "Created", "markdown", "Readable name", "Folder", "Templates/Markdown.md", false]);
   assert.deepEqual(fixture.failures, []);
 });
 
@@ -294,21 +330,30 @@ test("saved-pending reports commitment once and disables duplicate submit withou
 });
 
 test("partial file recovery reuses exact created file and never reissues create", async () => {
-  const origin = page("A.md"), created = page("Already-created.md"), complete = [];
+  const origin = page("A.md"), created = page("Already-created.md"), complete = [], metadata = [];
   const dependencies = { origin, partialFile: created.file, query: "New", alias: "", selectedTarget: null, webUrl: null,
     nameValidation: { valid: true, existing: true }, continuation: "return", role: "child", beginWrite: () => true,
     session: { isSessionOpen: () => true, setWriting() {} }, busyRef: { current: true }, setBusy() {}, prepareField: async () => "children",
     refreshCapturedPage: (_plugin, value) => value, setPartialFile() {}, setDefaultCreateType() {}, reportFailure: assert.fail,
     complete: async (...args) => complete.push(args), plugin: { app: { vault: { getFileByPath: () => created.file } },
-      createNewRelatedFileForOrigin: assert.fail, rememberNewNodeDefaultType: async () => {}, linkNewRelatedFile: async (_origin, _role, file, _field, _alias, _query, recoverMetadata) => { assert.equal(file, created.file); assert.equal(recoverMetadata, true); return { state: "saved-pending", page: created }; } } };
+      createNewRelatedFileForOrigin: assert.fail, rememberNewNodeDefaultType: async () => {},
+      writeCreatedNodeDisplayName: async file => {assert.equal(file,created.file);metadata.push("display");return "";},
+      writeCreatedNodeAlias: async file => {assert.equal(file,created.file);metadata.push("alias");return "";},
+      mutateCreatedNodeMetadata: async (file,_fields,mutate) => {assert.equal(file,created.file);metadata.push("cache");mutate({});},
+      linkNewRelatedFile: async (_origin, _role, file, _field, _alias, _query, recoverMetadata) => {
+        assert.equal(file, created.file); assert.equal(recoverMetadata, false, "The actual finalizer completes metadata before linking, without a second metadata recovery");
+        assert.deepEqual(metadata,["alias","cache"], "The composer recovers explicit aliases/cache without filename-derived display metadata");return { state: "saved-pending", page: created };
+      } } };
   await production("createNew", dependencies)("markdown"); assert.deepEqual(complete, [[created, "return", true, "saved-pending"]]);
 });
 
 test("another resets target/name/alias after confirmed publication and retains role/ontology/type", async () => {
-  const affected = page("C.md"), events = [], setters = Object.fromEntries(["setSelectedTarget", "setQuery", "setAlias", "setNoteTyped", "setAliasFocused", "setPartialFile", "setPartialFailure", "setOntologyTyped", "setBrowseOntology"].map(name => [name, value => events.push([name, value])]));
+  const affected = page("C.md"), events = [], setters = Object.fromEntries(["setSelectedTarget", "setQuery", "setAlias", "setAliasEdited", "setTargetAlias", "setPropertyDrafts", "setNoteTyped", "setAliasFocused", "setPartialFile", "setPartialFailure", "setOntologyTyped", "setBrowseOntology", "setReciprocalRecovery"].map(name => [name, value => events.push([name, value])]));
   await production("complete", { ...setters, onCommitted: value => events.push(["commit", value]), session: { reportLinkedNode() {}, canComplete: () => true, focusName: () => events.push(["focus"]) }, plugin: { requestNodeFlair() {} } })(affected, "another", true);
   assert.equal(events[0][0], "commit"); assert(events.some(([name, value]) => name === "setQuery" && value === ""));
   assert(events.some(([name, value]) => name === "setAlias" && value === "")); assert.equal(events.at(-1)[0], "focus");
+  assert(events.some(([name,value])=>name==="setAliasEdited"&&value===false));assert(events.some(([name,value])=>name==="setTargetAlias"&&value===""));
+  assert(events.some(([name,value])=>name==="setPropertyDrafts"&&Object.keys(value).length===0),"Another clears operation-local authored creation values");
   assert(!events.some(([name]) => ["setRole", "setOntology", "setDefaultCreateType"].includes(name)));
 });
 
@@ -473,11 +518,11 @@ test("creation forwards an explicit folder and alias once through the establishe
     beginWrite: () => true, prepareField: async () => "Children", session: { isSessionOpen: () => true, setWriting() {} },
     continuation: "return", role: "child", refreshCapturedPage: (_plugin, value) => value,
     setDefaultCreateType() {}, busyRef: { current: false }, setBusy() {}, complete: async () => {}, reportFailure: assert.fail,
-    plugin: { app: { vault: { getFileByPath: () => created.file } },
+    plugin: { translator:key=>key, app: { vault: { getFileByPath: path => path===origin.path?origin.file:path===created.path?created.file:null } },
       createNewRelatedFileForOrigin: async (...args) => { writes.push(args); return created.file; },
       rememberNewNodeDefaultType: async () => {}, linkNewRelatedFile: async () => ({ state: "saved-pending", page: created }) } };
   await production("createNew", dependencies)("markdown");
-  assert.deepEqual(writes, [[origin, "Next", "markdown", "A readable name", "Projects", ""]]);
+  assert.deepEqual(writes, [[origin, "Next", "markdown", "A readable name", "Projects", "", false]]);
 });
 
 /** A malformed destination cannot acquire single-flight write ownership, remember ontology or touch storage. */

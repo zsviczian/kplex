@@ -302,8 +302,10 @@ export function validSourceFact(value: unknown, family: SourceFamily): value is 
     if (value.kind === "file-parent") return keys(value, ["kind", "path"]) && typeof value.path === "string";
     if (value.kind === "field-name") return keys(value, ["kind", "fieldName", "normalizedFieldName", "surface"])
       && text(value.fieldName) && text(value.normalizedFieldName) && (value.surface === "frontmatter" || value.surface === "inline");
+    // Obsidian can expose [[ ]] as an empty lexical target resolving to its owner. Preserve
+    // that genuine native occurrence; empty reference candidates remain invalid above.
     return value.kind === "host-literal" && keys(value, ["kind", "ordinal", "rawTarget"], ["location"])
-      && sourceCount(value.ordinal) && text(value.rawTarget) && optional(value, "location", location);
+      && sourceCount(value.ordinal) && typeof value.rawTarget === "string" && optional(value, "location", location);
   }
   if (value.kind === "host-link") return keys(value, ["kind", "state", "target", "count"])
     && (value.state === "resolved" || value.state === "unresolved") && text(value.target) && sourceCount(value.count);

@@ -1,5 +1,5 @@
 /**
- * Native Obsidian shell and shared React composer for related-note creation. The plugin owns mutations and separate link/create completion preferences; the modal owns operation-local choices, focus, suggestions, failure-only recovery and cleanup, and consumes localized copy. Recovery retains the exact durable file and displays the failure reason without enabling fresh creation. Successful links request hidden-node feedback only from the captured originating Plex before completion navigation.
+ * Native Obsidian shell and shared React composer for related-note creation. Canonical link interpretation selects link mode; common/type property drafts apply only to new writable files after template completion. The plugin owns native mutations and separate workflow preferences. The modal retains exact file/metadata receipts, drafts, focus and cleanup so relationship retry cannot replay creation or overwrite authored properties. Successful links request hidden-node feedback only from the captured originating Plex before completion navigation.
  */
 import {KplexModal as Modal} from "../adapters/obsidian/KplexModal";
 import {CreationTypeTabs, type CreationType} from "./features/CreationTypeTabs";
@@ -7,7 +7,7 @@ import { SavedRelationshipPendingError } from "../adapters/obsidian/relationship
 import {ReciprocalRelationshipWriteError, reciprocalPreflight, reciprocalApprovalCurrent, type ReciprocalApproval} from "../adapters/obsidian/reciprocalRelationshipWrite";
 import {drawingAutomation} from "../adapters/obsidian/drawingTemplates";
 import {Notice, type TFile, type Scope, type WorkspaceLeaf} from "obsidian";
-import { createElement, useCallback, useEffect, useMemo, useRef, useState, useId } from "react";
+import { createElement, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useId } from "react";
 import {FormField, FormActions} from "./components/FormField";
 import { createRoot, type Root } from "react-dom/client";
 import type KplexPlugin from "../main";
@@ -29,6 +29,13 @@ import {SelectedOntologyEditor} from "./SelectedOntologyEditor";
 import {RelationshipDirectionControl} from "./features/RelationshipDirectionControl";
 import {eligibleRelationshipOwner} from "../adapters/obsidian/relationshipOwner";
 import {copyExternalFile, validateExternalImportName} from "../adapters/obsidian/externalFileImport";
+import {interpretRelatedTarget} from "../adapters/obsidian/relatedTarget";
+import {creationPropertyKind} from "../adapters/obsidian/creationProperties";
+import {noteTypeAsTag} from "../adapters/obsidian/tagNoteType";
+import {creationPropertyValues} from "../application/creationProperties";
+import {DEFAULT_COMMON_NODE_PROPERTIES, mergedNodePropertyRows, nodePropertyRows} from "../core/plex/nodeProperties";
+import {CreationPropertyFields} from "./features/CreationPropertyFields";
+import {noteTypeSuggestionNames, TagNameSuggest} from "./TagNameSuggest";
 
 /**
  * Confirmed saved relationship state; a pending publication remains a committed vault write.
@@ -48,6 +55,8 @@ export type RelatedNoteInvocation = {
   additiveOnly?: boolean;
   /** Chronological journal actions may restore a field whose semantic role is Parent/Child. */
   initialOntology?: string;
+  /** Only the generic command remembers a selection independently of explicit direction defaults. */
+  rememberGenericOntology?: boolean;
   onOntologySelected?: (field: string) => Promise<void>;
   /** Confirm one browser File through the same destination/ontology/recovery composer. */
   importSource?: File;
@@ -101,6 +110,30 @@ function RelatedNoteComposer({
   const [roleFilter, setRoleFilter] = useState<RelationshipRole | "all">(session.initialRoleFilter ?? initialRole);
   const [query, setQuery] = useState(/** Import names retain their extension and exact recovery file; historical endpoints keep the existing preselection. */ () => session.importedFile?.name ?? session.importSource?.name ?? (fixedTarget ? plugin.index.titleFor(fixedTarget) : ""));
   const [alias, setAlias] = useState("");
+  const [aliasEdited, setAliasEdited] = useState(false);
+  const [targetAlias, setTargetAlias] = useState("");
+  const [noteType, setNoteType] = useState("");
+  const [propertyDrafts, setPropertyDrafts] = useState<Record<string, string>>({});
+  const noteTypeId = useId();
+  const noteTypeInput = useRef<HTMLInputElement>(null);
+  const noteTypeSuggest = useRef<TagNameSuggest | null>(null);
+  useLayoutEffect(/** Attach the Set note type picker to this modal's native input for its lifetime. */ () => {
+    const input = noteTypeInput.current;
+    if (!input) return;
+    const names = noteTypeSuggestionNames(plugin.index.allPages(), Object.keys(plugin.settings.noteTypeProperties ?? {}));
+    const suggest = new TagNameSuggest(plugin.app, input, names, true, session.suggestionOwnerId);
+    noteTypeSuggest.current = suggest;
+    return /** Retire the popup before the originating modal or window closes. */ () => {
+      suggest.dispose();
+      noteTypeSuggest.current = null;
+    };
+  }, [plugin, session]);
+  const commonProperties = plugin.settings.commonNodeProperties ?? DEFAULT_COMMON_NODE_PROPERTIES;
+  const creationRows = mergedNodePropertyRows(commonProperties, nodePropertyRows(plugin.settings.noteTypeProperties, noteType));
+  const creationAliasRow = creationRows.find(/** Only an explicitly offered Alias property shares captions across creation modes. */ row => row.creationVisible !== false && ["alias", "aliases"].includes(normalizeFieldName(row.field)));
+  const creationAliasDraft = creationAliasRow ? propertyDrafts[normalizeFieldName(creationAliasRow.field)] ?? "" : "";
+  const creationMetadataInvalid = Boolean(noteType.trim() && !noteTypeAsTag(noteType))
+    || creationRows.some(/** The dedicated selector, not a generic property row, owns note-type membership. */ row => row.creationVisible !== false && normalizeFieldName(row.field) === normalizeFieldName(plugin.settings.noteTypeField));
   const noteId = useId(), aliasId = useId(), folderId = useId();
   const [noteTyped, setNoteTyped] = useState(false);
   const [selectedTarget, setSelectedTarget] = useState<GraphPage | null>(fixedTarget ?? null);
@@ -122,6 +155,8 @@ function RelatedNoteComposer({
     resolveCreationAfterSaving(session.continuation, plugin.createdNoteCompletionControl(hostLeaf, {operation: "link"}).value));
   const [savedPending, setSavedPending] = useState<GraphPage | null>(null);
   const [partialFile, setPartialFile] = useState<TFile | null>(session.importedFile ?? null);
+  const creationMetadataApplied = useRef<TFile | null>(null);
+  const legacyMetadataApplied = useRef<TFile | null>(null);
   const [partialFailure, setPartialFailure] = useState<string | null>(null);
   const [reciprocalRecovery, setReciprocalRecovery] = useState<{error: ReciprocalRelationshipWriteError; target: GraphPage; intent: CompletionIntent | CreationAfterSavingAction} | null>(null);
   const excalidrawAvailable = !session.importSource && plugin.isExcalidrawAvailable();
@@ -179,17 +214,19 @@ function RelatedNoteComposer({
     [ontologyFields, ontology, ontologyTyped, browseOntology],
   );
 
-  const webUrl = useMemo(() => {
-    if (session.importSource) return null;
-    const value = query.trim();
-    if (!/^https?:\/\//i.test(value)) return null;
-    try {
-      const parsed = new URL(value);
-      return parsed.protocol === "http:" || parsed.protocol === "https:" ? value : null;
-    } catch {
-      return null;
-    }
-  }, [query]);
+  const interpretedTarget = useMemo(/** Interpret only this entered target; never acquire a semantic neighborhood to recognize a file. */ () => session.importSource ? {kind: "name" as const}
+    : interpretRelatedTarget(plugin.app, /** Bind the native resolver result to its exact catalog identity. */ file => plugin.index.getVaultSearchPage(file.path, file), origin.file?.path ?? origin.path, query), [plugin, session, origin, query]);
+  const webUrl = interpretedTarget.kind === "web" ? interpretedTarget.url : null;
+  /** Native drawing format controls property support, independently of retained metadata drafts. */
+  const targetCanOwnProperties = selectedTarget ? Boolean(eligibleRelationshipOwner(plugin.app, selectedTarget))
+    : session.importSource ? /\.md$/i.test(session.importSource.name)
+    : creationType === "markdown" || creationType === "excalidraw" && (() => {
+      try {return drawingAutomation()?.getDrawingFilePath?.(query, folderPath).endsWith(".md") === true;}
+      catch {return false;}
+    })();
+  const linkInputError = interpretedTarget.kind === "invalid" ? plugin.translator(interpretedTarget.reason === "subpath"
+    ? "addRelated.linkSubpathUnsupported" : interpretedTarget.reason === "missing" ? "addRelated.linkTargetMissing" : "addRelated.linkInputInvalid") : null;
+  const effectiveAlias = aliasEdited ? alias : alias || creationAliasDraft || targetAlias;
   const linking = Boolean(selectedTarget || webUrl);
   const selectedContinuation = linking ? linkContinuation : createContinuation;
   const continuation = session.importSource && selectedContinuation === "another" ? "return" : selectedContinuation;
@@ -239,7 +276,11 @@ function RelatedNoteComposer({
       new Notice(plugin.translator("addRelated.enterOntologyField"), 1800);
       return null;
     }
-    const selected = await plugin.rememberRelationshipOntology(role, field);
+    let selected: string;
+    if (session.rememberGenericOntology) {
+      selected = plugin.ontologyFieldsForRole(role).find(/** Restore physical spelling without changing the explicit direction's own memory. */ candidate => normalizeFieldName(candidate) === normalizeFieldName(field)) ?? field;
+      if (!plugin.ontologyRoleForField(selected)) await plugin.assignFieldToOntology(selected, role);
+    } else selected = await plugin.rememberRelationshipOntology(role, field);
     await session.rememberOntology(selected);
     return selected;
   };
@@ -247,15 +288,18 @@ function RelatedNoteComposer({
   /** Complete a durable save using one remembered outcome; non-files cannot inherit editor actions. */
   const complete = async (page: GraphPage, intent: CompletionIntent | CreationAfterSavingAction, _createdFile: boolean, state: RelatedNoteCommit["state"] = "saved-published"): Promise<void> => {
     onCommitted?.({state, page});
+    await session.rememberGenericSelection(role, ontology);
     if (!session.canComplete()) return;
     session.reportLinkedNode(page);
     plugin.requestNodeFlair(page.path);
     let action = resolveCreationAfterSaving(intent, continuation);
     if (!page.file && action !== "return" && action !== "another" && action !== "follow") action = "return";
     if (action === "another") {
-      setSelectedTarget(null); setQuery(""); setAlias(""); setNoteTyped(false);
+      setSelectedTarget(null); setQuery(""); setAlias(""); setAliasEdited(false); setTargetAlias(""); setNoteTyped(false);setPropertyDrafts({});
       setPartialFile(null); setPartialFailure(null); setOntologyTyped(false); setBrowseOntology(false);
       setReciprocalRecovery(null);
+      creationMetadataApplied.current = null;
+      legacyMetadataApplied.current = null;
       session.focusName(); return;
     }
     session.closeForCompletion(action);
@@ -283,6 +327,7 @@ function RelatedNoteComposer({
       new Notice(error.message, 6000);return;
     }
     if (error instanceof SavedRelationshipPendingError) {
+      void session.rememberGenericSelection(role, ontology);
       const affected = target ?? (file ? plugin.index.get(file.path) : null);
       if (affected) {
         if (session.isSessionOpen()) setSavedPending(affected);
@@ -319,9 +364,11 @@ function RelatedNoteComposer({
       if (!field || !session.isSessionOpen()) return;
       assertReciprocalApproval(preflight.approval, field);
       const currentOrigin = refreshCapturedPage(plugin, origin), currentTarget = refreshCapturedPage(plugin, target);
+      const reference = effectiveAlias.trim() && currentTarget.file && !storeOnTarget
+        ? plugin.app.fileManager.generateMarkdownLink(currentTarget.file, currentOrigin.file?.path ?? currentOrigin.path, undefined, effectiveAlias.trim()) : undefined;
       const result = session.additiveOnly
-        ? await plugin.createRelationToPage(currentOrigin, role, currentTarget, field, undefined, true, storeOnTarget)
-        : await plugin.createRelationToPage(currentOrigin, role, currentTarget, field, undefined, false, storeOnTarget);
+        ? await plugin.createRelationToPage(currentOrigin, role, currentTarget, field, reference, true, storeOnTarget)
+        : await plugin.createRelationToPage(currentOrigin, role, currentTarget, field, reference, false, storeOnTarget);
       if (result.state === "unavailable") return;
       await complete(result.page, intent, false);
     } catch (error) { reportFailure(error, target, undefined, intent); }
@@ -330,7 +377,7 @@ function RelatedNoteComposer({
 
   /** Create once; retained partial files are linked explicitly on recovery instead of created again. */
   const createNew = async (kind: "markdown" | "excalidraw", intent: CompletionIntent | CreationAfterSavingAction = continuation) => {
-    if (selectedTarget || webUrl || folderValidation.error || (!partialFile && (!nameValidation.valid || nameValidation.existing)) || !beginWrite()) return;
+    if (linkInputError || targetCanOwnProperties && creationMetadataInvalid || selectedTarget || webUrl || folderValidation.error || (!partialFile && (!nameValidation.valid || nameValidation.existing)) || !beginWrite()) return;
     let file: TFile | null = partialFile;
     try {
       const preflight = reciprocalCheck(ontology, kind, null);
@@ -340,6 +387,8 @@ function RelatedNoteComposer({
       if (!field || !session.isSessionOpen()) return;
       assertReciprocalApproval(preflight.approval, field);
       const currentOrigin = refreshCapturedPage(plugin, origin);
+      const creationMetadata = session.importSource || !targetCanOwnProperties ? undefined : {noteType: noteType.trim() ? noteTypeAsTag(noteType) : null,
+        properties: creationPropertyValues(creationRows, propertyDrafts, /** Current native widget assignment chooses the supported scalar/list conversion. */ field => creationPropertyKind(plugin.app, field))};
       if (!file && !session.importSource) templateChoices.validate?.(templatePath, kind);
       if (!file && session.importSource) {
         const destination = folderValidation.folderPath ? plugin.app.vault.getFolderByPath(folderValidation.folderPath) : plugin.app.vault.getRoot();
@@ -350,14 +399,35 @@ function RelatedNoteComposer({
         }));
         session.rememberImported(file);
       }
-      if (!file) file = await plugin.createNewRelatedFileForOrigin(currentOrigin, query, kind, alias, folderPath, templateChoices ? templatePath : undefined);
+      const creationAlias = targetCanOwnProperties ? creationAliasDraft : "";
+      if (!file) {
+        file = await plugin.createNewRelatedFileForOrigin(currentOrigin, query, kind, creationAlias, folderPath, templateChoices ? templatePath : undefined, false);
+        if (file) legacyMetadataApplied.current = file;
+      }
       if (!file) return;
       assertReciprocalApproval(preflight.approval, field);
       if (!session.isSessionOpen()) return;
       if (plugin.app.vault.getFileByPath(file.path) !== file) throw new Error(plugin.translator("addRelated.endpointChanged"));
+      if (!session.importSource && legacyMetadataApplied.current !== file) {
+        const retainedFile = file;
+        await plugin.index.withForegroundPriority(/** Recover the captured file's legacy metadata before explicit authored values. */ () =>
+          plugin.finalizeCreatedNoteMetadata(retainedFile, query, creationAlias, false));
+        legacyMetadataApplied.current = file;
+      }
+      if (creationMetadata && file.extension === "md" && creationMetadataApplied.current !== file) {
+        try {
+          await plugin.applyNewNoteCreationMetadata(file, creationMetadata,
+            /** A queued creation-property callback keeps the same composer and exact source file. */ () => session.isSessionOpen()
+              && (!origin.file || plugin.app.vault.getFileByPath(origin.file.path) === origin.file));
+          creationMetadataApplied.current = file;
+        } catch (error) {
+          if (error instanceof SavedRelationshipPendingError) creationMetadataApplied.current = file;
+          throw new PartialRelatedFileError(file, error);
+        }
+      }
       // Retain recovery state only after a failure. A durable file is normal progress while linking.
       if (!partialFile && !session.importSource) { setDefaultCreateType(kind); void plugin.rememberNewNodeDefaultType(kind); }
-      const result = await plugin.linkNewRelatedFile(refreshCapturedPage(plugin, origin), role, file, field, session.importSource ? "" : alias, session.importSource ? "" : query, Boolean(partialFile) && !session.importSource, storeOnTarget);
+      const result = await plugin.linkNewRelatedFile(refreshCapturedPage(plugin, origin), role, file, field, session.importSource ? "" : creationAlias, session.importSource ? "" : query, false, storeOnTarget);
       await complete(result.page, intent, true, result.state);
     } catch (error) { reportFailure(error, undefined, file ?? undefined, intent); }
     finally { busyRef.current = false; session.setWriting(false); if (session.isSessionOpen()) setBusy(false); }
@@ -370,7 +440,7 @@ function RelatedNoteComposer({
       if (plugin.settings.alsoWriteInverseOntology) throw new Error(plugin.translator("reciprocal.requiresMarkdown"));
       const field = await prepareField();
       if (!field || !session.isSessionOpen()) return;
-      const page = await plugin.createPlaceholderRelatedPage(refreshCapturedPage(plugin, origin), role, nameValidation.stem, field, folderPath, alias);
+      const page = await plugin.createPlaceholderRelatedPage(refreshCapturedPage(plugin, origin), role, nameValidation.stem, field, folderPath, effectiveAlias);
       if (page) await complete(page, intent === "edit" ? "return" : intent, false);
     } catch (error) { reportFailure(error); }
     finally { busyRef.current = false; session.setWriting(false); if (session.isSessionOpen()) setBusy(false); }
@@ -383,7 +453,7 @@ function RelatedNoteComposer({
       if (plugin.settings.alsoWriteInverseOntology) throw new Error(plugin.translator("reciprocal.requiresMarkdown"));
       const field = await prepareField();
       if (!field || !session.isSessionOpen()) return;
-      const page = await plugin.createWebLinkRelatedPage(refreshCapturedPage(plugin, origin), role, webUrl, alias, field);
+      const page = await plugin.createWebLinkRelatedPage(refreshCapturedPage(plugin, origin), role, webUrl, effectiveAlias, field);
       if (page) await complete(page, intent === "edit" ? "return" : intent, false);
     } catch (error) { reportFailure(error); }
     finally { busyRef.current = false; session.setWriting(false); if (session.isSessionOpen()) setBusy(false); }
@@ -416,13 +486,17 @@ function RelatedNoteComposer({
   /** Retain the exact selected file identity while displaying its readable label. */
   const chooseExisting = (page: GraphPage) => {
     setSelectedTarget(captureRelatedEndpoint(page));
+    setTargetAlias("");
     setQuery(plugin.index.titleFor(page));
   };
 
   /** Editing a name explicitly discards an existing-note selection. */
   const onNoteChange = (value: string) => {
     setNoteTyped(true);
-    setSelectedTarget(null);
+    const input = session.importSource ? null : interpretRelatedTarget(plugin.app,
+      /** Resolve one recognized token without turning it into a literal filename. */ file => plugin.index.getVaultSearchPage(file.path, file), origin.file?.path ?? origin.path, value);
+    setTargetAlias(input?.kind === "web" || input?.kind === "note" ? input.label : "");
+    setSelectedTarget(input?.kind === "note" ? captureRelatedEndpoint(input.page) : null);
     setQuery(value);
   };
 
@@ -434,7 +508,7 @@ function RelatedNoteComposer({
     setOntology(value);
   };
 
-  const createAvailable = !ontologySelectionInvalid && !savedPending && !partialFile && !selectedTarget && !webUrl && !folderValidation.error && nameValidation.valid && !nameValidation.existing;
+  const createAvailable = !linkInputError && (!targetCanOwnProperties || !creationMetadataInvalid) && !ontologySelectionInvalid && !savedPending && !partialFile && !selectedTarget && !webUrl && !folderValidation.error && nameValidation.valid && !nameValidation.existing;
   const placeholderAvailable = placeholderSupported && createAvailable;
   const webLinkAvailable = !plugin.settings.alsoWriteInverseOntology && !selectedTarget && Boolean(webUrl) && origin.file?.extension === "md";
   const reciprocalReason = reciprocalCheck(ontology, selectedTarget || creationType === "placeholder" ? undefined : defaultCreateType).reasonKey;
@@ -462,14 +536,17 @@ function RelatedNoteComposer({
 
   });
 
-  const aliasInput = !selectedTarget && !session.importSource ? createElement("input", {
+  const aliasInput = (linking || creationType === "placeholder") && !session.importSource ? createElement("input", {
     type: "text",
     className: "kplex-create-alias-input",
     id: aliasId,
-    value: alias,
+    value: effectiveAlias,
     placeholder: plugin.translator("addRelated.aliasPlaceholder"),
     disabled: busy || Boolean(savedPending) || Boolean(partialFile),
-    onChange: (event: { currentTarget: HTMLInputElement }) => setAlias(event.currentTarget.value),
+    onChange: /** Preserve an explicit Alias edit across link/placeholder/physical modes only when Alias is an active creation property. */ (event: { currentTarget: HTMLInputElement }) => {
+      const value = event.currentTarget.value;setAliasEdited(true);setAlias(value);
+      if (creationAliasRow) setPropertyDrafts(/** Carry this explicit caption to the offered Alias row without retargeting a custom Name property. */ values => ({...values, [normalizeFieldName(creationAliasRow.field)]: value}));
+    },
   }) : null;
 
   const nameEditor = createElement(
@@ -650,13 +727,6 @@ function RelatedNoteComposer({
   });
   const onTarget = storeOnTarget || !eligibleRelationshipOwner(plugin.app, origin);
   const targetName = selectedTarget ? plugin.index.titleFor(selectedTarget) : query || plugin.translator("relationship.newNote");
-  /** Project the actual prospective file format; property writes retain their native eligibility checks. */
-  const targetCanOwnProperties = selectedTarget ? Boolean(eligibleRelationshipOwner(plugin.app, selectedTarget))
-    : session.importSource ? /\.md$/i.test(session.importSource.name)
-    : creationType === "markdown" || creationType === "excalidraw" && (() => {
-      try {return drawingAutomation()?.getDrawingFilePath?.(query, folderPath).endsWith(".md") === true;}
-      catch {return false;}
-    })();
   const direction = createElement(RelationshipDirectionControl, {translate: plugin.translator, icon: createElement(ObsidianIcon, {name: "arrow-left-right", size: 18}),
     owner: onTarget ? targetName : plugin.index.titleFor(origin), target: onTarget ? plugin.index.titleFor(origin) : targetName,
     field: onTarget ? plugin.inverseOntologyField(ontology, role) : ontology,
@@ -671,10 +741,31 @@ function RelatedNoteComposer({
       inputId: folderId, labelledBy: `${folderId}-label`,
       disabled: busy || Boolean(savedPending) || Boolean(partialFile), resultsOwnerId: session.suggestionOwnerId,
     })}) : null;
+  const creationPropertiesAvailable = !selectedTarget && !webUrl && targetCanOwnProperties && creationType !== "placeholder" && !session.importSource;
+  const metadataDisabled = busy || Boolean(savedPending) || Boolean(partialFile) || !creationPropertiesAvailable;
+  useLayoutEffect(/** Switching to link or placeholder mode retires the popup without clearing the draft. */ () => {
+    if (metadataDisabled) noteTypeSuggest.current?.close();
+  }, [metadataDisabled]);
+  const typeRow = !session.importSource ? createElement(FormField, {label: plugin.translator("creation.noteType"), layout: "inline", controlId: noteTypeId,
+    children: createElement("input", {id: noteTypeId, type: "text", ref: noteTypeInput,
+      placeholder: plugin.translator("noteType.placeholder"), disabled: metadataDisabled,
+      onInput: /** Typing and native suggestion acceptance both deliver the same input event. */ event => setNoteType(event.currentTarget.value),
+    })}) : null;
+  const properties = !session.importSource ? createElement("div", {className: "kplex-creation-property-section"},
+    createElement("hr"),
+    creationMetadataInvalid ? createElement("p", {className: "setting-item-description is-error", role: "alert"}, plugin.translator("creation.propertiesInvalid")) : null,
+    createElement(CreationPropertyFields, {rows: creationRows, drafts: propertyDrafts, kind: /** Read widget presentation lazily for just the offered rows. */ field => creationPropertyKind(plugin.app, field),
+      disabled: metadataDisabled, translate: plugin.translator,
+      onChange: /** Keep shared normalized edits when a type refines a row; only active rows are submitted. */ (field, value) => {
+        const key = normalizeFieldName(field);setPropertyDrafts(/** Type changes keep shared edits while submission filters obsolete type-specific values. */ values => ({...values, [key]: value}));
+      },
+    })) : null;
 
   let statusText: string | null = null;
   let statusError = false;
-  if (selectedTarget) {
+  if (linkInputError) {
+    statusText = linkInputError;statusError = true;
+  } else if (selectedTarget) {
     statusText = plugin.translator("addRelated.selectedExisting", { path: selectedTarget.path });
   } else if (webUrl) {
     if (origin.file?.extension !== "md") {
@@ -703,7 +794,7 @@ function RelatedNoteComposer({
     ? createElement("div", { className: `kplex-add-related-create-hint${statusError ? " is-error" : ""}` }, statusText)
     : null;
   const creation = !session.importSource && !selectedTarget && !webUrl;
-  const footer = createElement("div", {className: "kplex-add-related-footer"}, completionSelect,
+  const footer = createElement("div", {className: "kplex-add-related-footer"},
     creation ? createElement(CreationTypeTabs, {
       value: creationType, types: ["markdown", ...(excalidrawAvailable ? ["excalidraw" as const] : []), ...(placeholderSupported ? ["placeholder" as const] : [])],
       translate: plugin.translator, disabled: busy || Boolean(savedPending) || Boolean(partialFile),
@@ -718,7 +809,9 @@ function RelatedNoteComposer({
           setTemplatePaths(paths => ({...paths, [defaultCreateType]: path}));
         }},
       actions: actionArea, status,
-    }) : createElement(FormActions, {status}, actionArea));
+    }) : null,
+    completionSelect,
+    creation ? null : createElement(FormActions, {status}, actionArea));
 
   return createElement(
     "div",
@@ -729,7 +822,9 @@ function RelatedNoteComposer({
     session.importSource ? createElement("p", {className: "setting-item-description"}, plugin.translator("fileImport.incoming", {name: session.importSource.name})) : null,
     session.importSource ? null : direction,
     composeRow,
+    typeRow,
     folderRow,
+    properties,
     recovery,
     footer,
   );
@@ -759,6 +854,8 @@ export class NewRelatedNoteModal extends Modal {
   readonly continuation: CompletionIntent;
   readonly additiveOnly: boolean;
   readonly initialOntology?: string;
+  readonly rememberGenericOntology: boolean;
+  private genericSelectionSaved: string | null = null;
   readonly initialRoleFilter?: "all";
   readonly importSource?: File;
   importedFile?: TFile;
@@ -786,11 +883,20 @@ export class NewRelatedNoteModal extends Modal {
     this.continuation = invocation.continuation ?? "configured";
     this.additiveOnly = invocation.additiveOnly === true;
     this.initialOntology = invocation.initialOntology;
+    this.rememberGenericOntology = invocation.rememberGenericOntology === true;
     this.initialRoleFilter = invocation.initialRoleFilter;
   }
 
   /** Retain an invocation's independent field memory through the existing serialized host writer. */
   async rememberOntology(field: string): Promise<void> {await this.invocation.onOntologySelected?.(field);}
+
+  /** Preference failure cannot reclassify a durable relationship as a failed vault write. */
+  async rememberGenericSelection(role: RelationshipRole, field: string): Promise<void> {
+    const selection = JSON.stringify([role, field]);
+    if (!this.rememberGenericOntology || this.genericSelectionSaved === selection) return;
+    try {await this.plugin.rememberGenericRelationshipOntology(role, field);this.genericSelectionSaved = selection;}
+    catch {new Notice(this.plugin.translator("addRelated.memorySaveFailed"), 4000);}
+  }
 
   /** A durable save gets one view-scoped visibility check, before Follow can change the center. */
   reportLinkedNode(page: GraphPage): void {

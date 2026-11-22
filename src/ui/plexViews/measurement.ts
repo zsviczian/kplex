@@ -25,6 +25,25 @@ export function nodeLabelFontSize(fontSize: number, center: boolean, baseFontSiz
   return historical * clamp(Number.isFinite(baseFontSize) ? baseFontSize : 12.4, 8, 28) / 12.4;
 }
 
+/** Consume actual owning-document metrics in every canvas. The explicit estimate is only for
+ * offline callers or the first render before a connected document has supplied font context. */
+export function nodePropertyLineWidth(row: NodePropertyLine, fontSize: number): number {
+  if (row.measurement && Number.isFinite(row.measurement.width) && row.measurement.width >= 0) return row.measurement.width;
+  /** Wide ideographs and emoji occupy approximately an em; Latin uses the existing text advance. */
+  const textWidth = (text: string): number => Array.from(text).reduce(/** Avoid counting emoji surrogate halves as two independent glyphs. */ (sum, glyph) => sum + (glyph.codePointAt(0)! > 0x2e7f ? 1 : .55) * fontSize, 0);
+  return textWidth(row.text) + (row.label ? textWidth(`${row.label}:`) + 4 : 0) + (row.icon ? fontSize + 4 : 0);
+}
+
+/** Shared property block height includes each actual CSS line box; offline lines keep the prior estimate. */
+export function nodePropertyLinesHeight(lines: readonly NodePropertyLine[], fontSize: number): number {
+  return lines.length ? 4 + lines.reduce(/** Count mixed actual/fallback rows without shrinking a measured line box. */ (total, line) => total + Math.ceil(line.measurement && Number.isFinite(line.measurement.height) && line.measurement.height > 0 ? line.measurement.height : fontSize * 1.4), 0) : 0;
+}
+
+/** Reserve the same measured content width for sibling scaling without exceeding the caller's cap. */
+export function nodePropertyLinesWidth(lines: readonly NodePropertyLine[], fontSize: number): number {
+  return lines.reduce(/** All three view owners position from the widest already measured detail line. */ (maximum, row) => Math.max(maximum, 32 + nodePropertyLineWidth(row, fontSize)), 0);
+}
+
 /** Measure a fixed-padding pill from the bounded label; center estimates use its larger rendered font, independently of density. */
 export function nodeSize(
   label: string,
@@ -55,9 +74,9 @@ export function nodeSize(
   const twoLineHeight = Math.ceil(Math.max(fontSize * fontScale, renderedFont) * 2.4 + renderedFont * 0.4 + verticalInsets);
   const baseHeight = settings.wrapNodeLabels ? Math.max(singleLineHeight, twoLineHeight) : singleLineHeight;
   const propertyFont = nodePropertyFontSize(settings.propertyFontSize);
-  const detailWidth = details.reduce((maximum, row) => Math.max(maximum, 32 + Math.min(512, row.text.length) * propertyFont * .55), 0);
+  const detailWidth = nodePropertyLinesWidth(details, propertyFont);
   return {width: details.length ? clamp(Math.max(width, detailWidth), minWidth, maxWidth) : width,
-    height: baseHeight + (details.length ? 4 + details.length * Math.ceil(propertyFont * 1.4) : 0)};
+    height: baseHeight + nodePropertyLinesHeight(details, propertyFont)};
 }
 
 /** Reserve the shared heading marker/padding and minimum readable label width. All section

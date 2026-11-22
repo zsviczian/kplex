@@ -11,7 +11,7 @@ import ts from "typescript";
 export function styleSettingsHostSource(root) {
   const source = ts.createSourceFile("main.ts", readFileSync(new URL("src/main.ts", root), "utf8"), ts.ScriptTarget.Latest, true);
   const names = new Set(["creationTypeTabControl", "validateRelatedNoteName", "validateNoteFolderPath", "newRelatedNoteFolder", "allOntologyFields", "rememberRelationshipOntology", "openAddToOntologyModal", "readSavedPins", "stopPeriodicPinTimer", "refreshPeriodicPins", "setContentVisibility", "updateStyleSettings", "saveSettings", "enqueueSettingsWrite", "settingsSnapshotForPersistence", "persistSettingsSnapshot", "setGraphLenses", "readPortableSharingState", "previewPortableSharing", "importPortableSharing",
-    "registerLinkedNodeFeedback", "captureLinkedNodeFeedback", "captureAppearanceOwner", "isAppearanceOwnerCurrent", "subscribeAppearanceThemes", "bindAppearanceEditor", "appearanceThemeNames", "updateAppearanceThemes", "showAppearanceMigrationNotification",
+    "registerLinkedNodeFeedback", "captureLinkedNodeFeedback", "initialGenericRelationshipSelection", "rememberGenericRelationshipOntology", "captureAppearanceOwner", "isAppearanceOwnerCurrent", "subscribeAppearanceThemes", "bindAppearanceEditor", "appearanceThemeNames", "updateAppearanceThemes", "showAppearanceMigrationNotification",
     "createAppearanceTheme", "resetAppearanceThemeColors", "importLegacyAppearance", "settingsForWrite", "writeSettingsSnapshot", "updateOntologyField", "updateOntologyConfiguration", "editOntologyConfiguration", "assignFieldToOntology", "ontologyFieldsForRole", "ontologyRoleForField", "inverseOntologyField", "inverseRelationshipRole", "defaultOntologyField", "refreshSavedSettings",
     "initializeSettingsReconciliation", "onExternalSettingsChange", "queueExternalSettingsAdoption", "reportExternalSettingsFailure", "installExternalSettings", "updateActionPreferences", "receivedSettingsOwner", "receivedSettingsRevision", "updateCanvasViewSetting", "readCanvasViewConfiguration", "updateCanvasViewConfiguration", "resetCanvasViewConfiguration", "migrateCanvasViewConfiguration", "commitCanvasViewConfiguration", "editOntologyConfigurationBatch"]);
   const methods = [];
@@ -23,8 +23,19 @@ export function styleSettingsHostSource(root) {
   visit(source); assert.equal(methods.length, names.size);
   return `export {TextSettingDraft} from "./src/ui/components/textSettingDraft";
     export * from './src/adapters/obsidian/tagNoteType';
+    export {applyCreationProperties} from './src/adapters/obsidian/creationProperties';
+    export {NodePropertyTextMeasurement} from './src/ui/plexViews/NodePropertyTextMeasurement';
+    export {useNodePropertyMeasurement} from './src/ui/plexViews/useNodePropertyMeasurement';
+    export {nodeSize} from './src/ui/plexViews/measurement';
+    export {nodePropertyReader} from './src/adapters/obsidian/nodeProperties';
+    export {buildScene} from './src/ui/plexViews/classic/layout';
+    export {prepareViewScene,plexViewRead} from './src/ui/plexViews/prepareScene';
+    export {mindMapViewDefinition} from './src/core/plex/views/mindmap/definition';
+    export {wuXingViewDefinition} from './src/core/plex/views/wuxing/definition';
+    export {ThoughtNode} from './src/ui/ThoughtNode';
+    export {NodePropertyCaption} from './src/ui/NodePropertyCaption';
     export {NoteTypeModal} from './src/ui/NoteTypeModal';export {NoteTypeReviewModal} from './src/ui/NoteTypeReviewModal';export {NodeDetailsFields} from './src/ui/NodeDetailsFields';export * from './src/core/plex/nodeProperties';
-    export {NewRelatedNoteModal} from './src/ui/NewRelatedNoteModal';
+    export {NewRelatedNoteModal} from './src/ui/NewRelatedNoteModal';export {TagNameSuggest} from './src/ui/TagNameSuggest';
     export {CreateFolderNoteModal} from './src/ui/CreateFolderNoteModal';
     export {MaterializeGhostModal} from './src/ui/MaterializeGhostModal';
     export {DrawingTemplateSelect} from './src/ui/features/DrawingTemplateSelect';
@@ -58,7 +69,8 @@ export function styleSettingsHostSource(root) {
     import {configurationJson} from './src/core/plex/views/configurationValues';
     import {editOntologyDescriptions} from './src/core/contracts/ontologyReadModel';
     import {prepareOntologyBatch} from './src/core/contracts/ontologyBatch';
-    import {ontologyConfiguration,assignOntologyField,applyOntologyEdit,ontologyEndpointState,editOntologyEntries,ONTOLOGY_GROUPS} from './src/core/contracts/ontologyConfiguration';
+    import {ontologyConfiguration,assignOntologyField,applyOntologyEdit,ontologyEndpointState,editOntologyEntries,ONTOLOGY_GROUPS,ONTOLOGY_ROLE_GROUP} from './src/core/contracts/ontologyConfiguration';
+    import {sanitizeGenericRelationshipSelection} from './src/core/plex/relationshipMemory';
     export * from './src/core/contracts/ontologyConfiguration';
     export {OntologyUsageModal} from './src/ui/OntologyUsageModal';
     export {OntologyManagerModal} from './src/ui/OntologyManagerModal';

@@ -82,7 +82,7 @@ process.on("exit", () => rmSync(fileDragCompiled.temp, { recursive: true, force:
 const excalidrawVersionCompiled = compilePureModule("src/adapters/obsidian/excalidrawIntegrationVersion.ts");
 const excalidrawVersion = excalidrawVersionCompiled.exports;
 process.on("exit", () => rmSync(excalidrawVersionCompiled.temp, { recursive: true, force: true }));
-const externalUrlCompiled = compilePureModule("src/adapters/obsidian/externalUrl.ts", ["src/adapters/obsidian/urlIdentity.ts", "src/core/graph/model.ts"]);
+const externalUrlCompiled = compilePureModule("src/adapters/obsidian/externalUrl.ts", ["src/adapters/obsidian/urlIdentity.ts", "src/core/graph/model.ts", "src/core/contracts/videoUrl.ts"]);
 const externalUrl = externalUrlCompiled.exports;
 process.on("exit", () => rmSync(externalUrlCompiled.temp, { recursive: true, force: true }));
 const fileRevealCompiled = compilePureModule("src/adapters/obsidian/fileReveal.ts");
@@ -600,7 +600,7 @@ test("adjacent file panes split beyond the Plex/Sidecar pair on every side", () 
   } finally { rmSync(compiled.temp, { recursive: true, force: true }); }
 });
 
-const urlEmbedCompiled = compilePureModule("src/ui/features/urlEmbed.ts");
+const urlEmbedCompiled = compilePureModule("src/ui/features/urlEmbed.ts", ["src/core/contracts/videoUrl.ts"]);
 const { urlEmbed } = urlEmbedCompiled.exports;
 process.on("exit", () => rmSync(urlEmbedCompiled.temp, { recursive: true, force: true }));
 

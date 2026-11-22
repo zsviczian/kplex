@@ -63,13 +63,22 @@ function probe(origin){
  const passed=(id,details={})=>c.cases.push({id,status:'passed',...details});
  /** Restore runtime preferences and workspace before removing exact owned fixture files. */
  c.cleanup=()=>{if(c.cleanupTask)return c.cleanupTask;c.cleanupTask=(async()=>{
-  c.cancelled=true;await c.task;p=app.plugins.plugins['k-plex'];
-  if(c.popout){c.popout.detach();c.popout=null;}
-  if(p){Object.assign(p.settings,c.settings);await p.saveSettings(false,false);if(c.settings.lastActivePath)p.notifyNavigation(c.settings.lastActivePath);}
-  await app.workspace.changeLayout(c.layout);
-  if(p){await documentSessions(p).restore(c.owners.documents);p.lastDocumentLeaf=c.owners.last?app.workspace.getLeafById(c.owners.last):null;p.recentLeafHistory=c.owners.recent.map(id=>app.workspace.getLeafById(id)).filter(Boolean);p.sidecarLeaves.clear();for(const[hostId,leafId]of c.owners.sidecars){const host=app.workspace.getLeafById(hostId),leaf=app.workspace.getLeafById(leafId);if(host&&leaf)p.setSidecarOwner(host,leaf);}}
-  if(c.owned){const owned=app.vault.getFolderByPath(folder);if(owned)await app.vault.delete(owned,true);c.owned=false;}
-  win.show();win.focus();c.cleaned=true;
+  c.cancelled=true;const settled=await Promise.allSettled([c.task]);if(settled[0].status==='rejected')c.error??=String(settled[0].reason?.stack??settled[0].reason);
+  const errors=[];
+  /** Attempt every restoration independently; preserve the original probe error separately. */
+  const clean=async(name,action)=>{try{await action();}catch(error){errors.push(name+': '+String(error?.stack??error));}};
+  p=app.plugins.plugins['k-plex'];
+  await clean('initialization',async()=>{if(p?.whenInitialized)checkCleanup(await p.whenInitialized(),'Cleanup plugin initialization');p=app.plugins.plugins['k-plex'];});
+  /** Cleanup is allowed after cancellation; its assertions must not reuse the live-probe guard. */
+  function checkCleanup(value,message){if(!value)throw Error(message);}
+  await clean('popout',async()=>{if(c.popout){await c.popout.detach();c.popout=null;}});
+  await clean('settings',async()=>{if(p){Object.assign(p.settings,c.settings);await p.saveSettings(false,false);if(c.settings.lastActivePath)p.notifyNavigation(c.settings.lastActivePath);}});
+  await clean('layout',()=>app.workspace.changeLayout(c.layout));
+  await clean('documents',async()=>{if(p)await documentSessions(p).restore(c.owners.documents);});
+  await clean('navigation owners',()=>{if(p){p.lastDocumentLeaf=c.owners.last?app.workspace.getLeafById(c.owners.last):null;p.recentLeafHistory=c.owners.recent.map(id=>app.workspace.getLeafById(id)).filter(Boolean);p.sidecarLeaves.clear();for(const[hostId,leafId]of c.owners.sidecars){const host=app.workspace.getLeafById(hostId),leaf=app.workspace.getLeafById(leafId);if(host&&leaf)p.setSidecarOwner(host,leaf);}}});
+  await clean('fixture',async()=>{if(c.owned){const owned=app.vault.getFolderByPath(folder);if(owned)await app.vault.delete(owned,true);c.owned=false;}});
+  await clean('window',()=>{win.show();win.focus();});
+  c.cleaned=errors.length===0;if(errors.length)throw Error(errors.join('; '));
  })();return c.cleanupTask};
  c.task=new Promise(resolve=>window.setTimeout(resolve,0)).then(async()=>{
   remote.app.focus({steal:true});win.show();win.focus();win.webContents.focus();await until(()=>document.hasFocus()&&!document.hidden,'Native foreground unavailable');
@@ -92,12 +101,16 @@ function probe(origin){
   // Metadata refresh in both still-mounted surfaces exercises the cached/hover consumer path.
   const center=app.vault.getFileByPath(folder+'/Center.md');await app.fileManager.processFrontMatter(center,fm=>{fm.thumbnail=origin+'/never-after-revoke.png'});await wait(800);denied();check(JSON.stringify(await arrivals())===JSON.stringify(revoked),'New network request after revocation');passed('opt-out-main-popout-metadata',{requestsBeforeRevocation:revoked.length});
   c.popout.detach();c.popout=null;win.show();win.focus();win.webContents.focus();await consent(true);
-  await app.plugins.disablePlugin('k-plex');await app.plugins.enablePlugin('k-plex');p=app.plugins.plugins['k-plex'];check(p?.settings.allowRemoteNodeImages===true,'Saved consent lost on reload');app.commands.executeCommandById('k-plex:kplex-start');await until(()=>roots().length,'Reloaded Plex absent');await navigate(folder+'/Center.md');await until(()=>images().some(img=>img.src===origin+'/never-after-revoke.png'),'Reloaded explicit opt-in image absent');await consent(false);denied();passed('opt-in-reload-and-opt-out');
- }).then(()=>{c.done=true},error=>{c.error=String(error?.stack??error);c.diagnostics={epoch:p.index.getNodeVisualRevision(),permission:p.settings.allowRemoteNodeImages,nodes:roots().flatMap(root=>[...root.querySelectorAll('[data-kplex-path]')].filter(el=>el.dataset.kplexPath.startsWith(folder+'/')).map(el=>({name:el.dataset.kplexPath.slice(folder.length+1),images:[...el.querySelectorAll('img')].map(img=>({scheme:img.src.split(':')[0],complete:img.complete,width:img.naturalWidth}))}))),localMetadata:app.metadataCache.getFileCache(app.vault.getFileByPath(folder+'/LocalNode.md'))?.frontmatter?.thumbnail,localCache:p.index.nodeVisualCache.get(folder+'/LocalNode.md')};c.done=true});return{installed:true};
+  await app.plugins.disablePlugin('k-plex');await app.plugins.enablePlugin('k-plex');p=app.plugins.plugins['k-plex'];if(p?.whenInitialized)check(await p.whenInitialized(),'Reloaded plugin initialization');check(p?.index,'Reloaded plugin index');check(p?.settings.allowRemoteNodeImages===true,'Saved consent lost on reload');app.commands.executeCommandById('k-plex:kplex-start');await until(()=>roots().length,'Reloaded Plex absent');await navigate(folder+'/Center.md');await until(()=>images().some(img=>img.src===origin+'/never-after-revoke.png'),'Reloaded explicit opt-in image absent');await consent(false);denied();passed('opt-in-reload-and-opt-out');
+ }).catch(error=>{
+  c.error=String(error?.stack??error);
+  try{c.diagnostics={epoch:p?.index?.getNodeVisualRevision?.(),permission:p?.settings?.allowRemoteNodeImages,nodes:roots().flatMap(root=>[...root.querySelectorAll('[data-kplex-path]')].filter(el=>el.dataset.kplexPath.startsWith(folder+'/')).map(el=>({name:el.dataset.kplexPath.slice(folder.length+1),images:[...el.querySelectorAll('img')].map(img=>({scheme:img.src.split(':')[0],complete:img.complete,width:img.naturalWidth}))}))),localMetadata:app.metadataCache.getFileCache(app.vault.getFileByPath(folder+'/LocalNode.md'))?.frontmatter?.thumbnail,localCache:p?.index?.nodeVisualCache?.get(folder+'/LocalNode.md')};}
+  catch(diagnosticError){c.diagnosticError=String(diagnosticError?.stack??diagnosticError);}
+ }).finally(()=>{c.done=true});return{installed:true};
 }
 let installed=false;
 try{
- assert.equal(cli('vault','info=path'),target.vault);report.obsidian=cli('version');cli('dev:errors','clear');
+ assert.equal(resolve(evaluate('JSON.stringify({path:app.vault.adapter.getBasePath()})').path),target.vault);report.obsidian=cli('version');cli('dev:errors','clear');
  for(const name of ['main.js','styles.css','manifest.json']){const built=readFileSync(join(root,'dist',name)),actual=readFileSync(join(target.pluginDir,name));assert(built.equals(actual),'Installed '+name+' mismatch');report.artifacts[name]=createHash('sha256').update(actual).digest('hex');}
  await new Promise(/** Bind the controlled origin only for this native run. */ (resolve,reject)=>{server.once('error',reject);server.listen(0,'127.0.0.1',resolve)});
  const origin=`http://127.0.0.1:${server.address().port}`;

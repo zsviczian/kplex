@@ -17,13 +17,13 @@ export const PRESENTATION_KEYS = [
 ] as const;
 const SEMANTIC_KEYS = ["inferAllLinksAsFriends", "inverseInfer", "thumbnailProperty", "nodeImageProperty", "datePropertyRelations"] as const;
 const VIEW_KEYS = [
-  "noteTypeProperties", "propertyFontSize",
+  "noteTypeProperties", "commonNodeProperties", "propertyFontSize",
   "hierarchy.exclusions", "showFolderNodes", "showTagNodes", "showPageNodes", "showAttachments", "showDocumentAttachments", "showImageAttachments", "showMediaAttachments", "showOtherAttachments", "showURLNodes",
   "showVirtualNodes", "showInferredNodes", "renderSiblings", "showCrossLinks", "nodeSortOrder", "graphLenses", "excludeFilepaths",
   "backgroundColor", "connectorStyle", "graphDepth", "groupRelations", "compactingFactor", "horizontalCompactingFactor", "compactView", "maxItemCount",
   "minLinkLength", "inverseArrowDirection", "showNeighborCount", "wrapNodeLabels", "baseFontSize", "siblingRelativeSize", "crossLinkOpacity",
   "applyPowerFilter", "parentColumns", "childColumns", "friendMaxHeight", "siblingMaxHeight", "parentMaxHeight",
-  "childMaxHeight", "animationSpeed", "layoutProfiles", "typographyProfiles", "canvasViewSettings", "allowAutozoom", "trackpadNavigation", "newNodeAfterSaving", "embedCentralNode", "centerEmbedWidth", "centerEmbedHeight",
+  "childMaxHeight", "animationSpeed", "layoutProfiles", "typographyProfiles", "canvasViewSettings", "allowAutozoom", "trackpadNavigation", "trackpadPinchSensitivity", "newNodeAfterSaving", "embedCentralNode", "centerEmbedWidth", "centerEmbedHeight",
 ] as const;
 export const SETTING_DIAGNOSTIC_KEYS = [
   ...HIERARCHY_ROLES.map((role) => `hierarchy.${role}` as const), ...SEMANTIC_KEYS, "ontologyPairs",

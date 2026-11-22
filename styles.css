@@ -615,9 +615,14 @@ button.kplex-sidecar-unfold-plex,
 .kplex-thought-caption { display: flex; flex-direction: column; min-width: 0; width: 100%; gap: 4px; }
 .kplex-thought-caption > .kplex-thought-label { flex-shrink: 0; }
 .kplex-node-properties { display: flex; flex-direction: column; min-width: 0; font-size: var(--kplex-node-property-font-size, 12px); line-height: 1.4; font-weight: normal; text-align: start; }
-.kplex-node-property { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.kplex-node-property { display: flex; align-items: center; gap: 4px; min-width: 0; overflow: hidden; white-space: nowrap; }
+.kplex-node-property-icon { flex: 0 0 1em; width: 1em; height: 1em; display: inline-flex; align-items: center; justify-content: center; overflow: hidden; }
+.kplex-node-property-icon svg { width: 1em; height: 1em; }
+.kplex-node-property-label { flex: 1 1 0; min-width: 0; max-width: max-content; overflow: hidden; text-overflow: ellipsis; color: var(--text-muted); }
+.kplex-node-property-value { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.kplex-property-measurement { position: absolute; left: -100000px; top: 0; visibility: hidden; pointer-events: none; width: max-content; max-width: none; height: auto; transform: none; transition: none; box-shadow: none; }
 .kplex-node-details-editor { min-width: 0; }
-.kplex-node-detail-row .setting-item-info { display: none; }
+.kplex-node-detail-group { padding: 8px 0; margin-block-end: 16px; border-block-end: 1px solid var(--background-modifier-border); }
 .kplex-node-detail-row .setting-item-control { display: flex; flex-wrap: wrap; gap: 8px; width: 100%; }
 .kplex-node-detail-row .setting-item-control input[type=text] { flex: 1 1 140px; min-width: 0; }
 .kplex-node-details-preview { padding: 16px; border: 1px solid var(--background-modifier-border); border-radius: var(--radius-m); margin-block: 16px; }
@@ -3014,6 +3019,9 @@ button.kplex-style-manager-row { height: fit-content; }
 
 /* Authored names and aliases use shared full-width fields; focus never shrinks another draft. */
 .kplex-create-name-pair { display: grid; grid-template-columns: minmax(0, 1fr); gap: 16px; min-width: 0; width: 100%; }
+.kplex-creation-properties,
+.kplex-creation-property-section { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--kplex-form-gap, 16px); min-width: 0; }
+.kplex-creation-property-section > hr { box-sizing: border-box; width: 100%; margin: 0; }
 .kplex-create-name-pair .kplex-add-related-note-search { width: 100%; min-width: 0; max-width: none; }
 .kplex-create-alias-input { width: 100%; min-width: 0; }
 
@@ -4079,7 +4087,7 @@ body.is-mobile > .app-container > .mobile-navbar.kplex-mobile-navbar-hidden { di
 .kplex-tabs > [aria-selected="true"] { color: var(--text-accent); background: var(--background-modifier-active-hover); outline: 1px solid var(--interactive-accent); }
 /* Creation kinds share one panel; native fields and actions retain their own control chrome. */
 .kplex-creation-types { min-width: 0; }
-.kplex-add-related-footer > .kplex-creation-types { margin-top: 16px; }
+.kplex-add-related-footer > .kplex-creation-types + .kplex-creation-completion { margin-top: var(--kplex-form-gap); }
 .kplex-creation-types > .kplex-tabs { gap: 4px; margin-bottom: 0; padding-bottom: 0; border-bottom: 0; }
 .kplex-creation-types > .kplex-tabs > [role="tab"] { flex: 1 1 90px; min-width: 0; min-height: var(--input-height); height: auto; white-space: normal; overflow-wrap: anywhere; border-end-start-radius: 0; border-end-end-radius: 0; }
 .kplex-creation-type-panel { min-width: 0; padding: 16px; border: 1px solid var(--background-modifier-border); border-radius: 0 0 var(--radius-m) var(--radius-m); }

@@ -43,7 +43,10 @@ async function creationTypes(app,c){
     themes.forEach(value=>doc.body.classList.toggle(value,value===theme));native.setContentSize(width,900);await f.focus(doc);await f.wait(200);
     f.check(content.scrollWidth<=content.clientWidth+2,label+' horizontal overflow');
     const types=content.querySelector('.kplex-creation-types'),tabs=types?.querySelector('[role=tablist]'),completion=content.querySelector('.kplex-creation-completion');
-    f.check(types&&tabs&&completion&&completion.getBoundingClientRect().bottom<=tabs.getBoundingClientRect().top+1,label+' After saving must precede type tabs');
+    f.check(types&&tabs&&completion,label+' shared type and completion controls');
+    const actionBelowTypes=label==='related';
+    f.check(actionBelowTypes ? types.getBoundingClientRect().bottom<=completion.getBoundingClientRect().top+1
+      : completion.getBoundingClientRect().bottom<=tabs.getBoundingClientRect().top+1,label+' Action position relative to the type section');
     f.check(types.querySelectorAll('[role=tabpanel]:not([hidden])').length===1,label+' multiple active type panels');
     f.check(doc===leaf.view.containerEl.ownerDocument,label+' modal is outside its invoking native window');
     const close=c.close(modal.modalEl);f.check(close&&close.getBoundingClientRect().width>0,label+' native top-right X missing');
@@ -55,7 +58,7 @@ async function creationTypes(app,c){
     const actions=types.querySelector('[role=tabpanel]:not([hidden]) .kplex-field-actions,[role=tabpanel]:not([hidden]) .kplex-creation-type-actions'),button=actions?.querySelector('button'),glyph=button?.querySelector('svg');
     f.check(button&&glyph&&button.getAttribute('aria-label')&&!button.hasAttribute('title'),label+' create glyph/tooltip ownership');
     if(chrome){const a=chrome.getBoundingClientRect(),b=button.getBoundingClientRect();f.check(a.right<b.left&&Math.abs(a.top+a.height/2-b.top-b.height/2)<2,label+' Template and create action do not share a row');}
-    results.push({form:label,theme,width,destination:c.destination,nativeWindow:native.id,afterSavingAboveTabs:true,fullWidth:true,nativeChrome:true});
+    results.push({form:label,theme,width,destination:c.destination,nativeWindow:native.id,actionBelowTypes,fullWidth:true,nativeChrome:true});
     if(c.captureRoot){const shot=await native.webContents.capturePage();require('node:fs').writeFileSync(c.captureRoot+'/'+label+'-'+theme+'-'+width+'-'+c.destination+'.png',shot.toPNG());}
    }}finally{themes.forEach((theme,index)=>doc.body.classList.toggle(theme,original[index]));native.setMinimumSize(...minimum);native.setBounds(bounds);if(maximized)native.maximize();}
   };
