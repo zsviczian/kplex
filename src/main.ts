@@ -393,6 +393,8 @@ export default class KplexPlugin extends Plugin {
   private pendingCreateRevision = 0;
   private indexDirtyRevision = 0;
   private rebuildTask: Promise<void> | null = null;
+  private incompleteAutomaticBuild: Readonly<{ index: GraphIndex; revision: number; sourceReady: boolean; startupTopology: number | null }> | null = null;
+  private startupGraphQuietUntil = 0;
   private visibleMetadataTimer: number | null = null;
   private readonly visibleMetadataPaths = new Set<string>();
   private unloading = false;
@@ -600,7 +602,7 @@ export default class KplexPlugin extends Plugin {
       /** Obsidian also owns listener cleanup if initialization fails later. */ event=>this.registerEvent(event));
     this.installPreRestoreChangeFence();
     this.index.primeSavedNavigation([this.settings.lastActivePath, ...this.settings.navigationHistory.slice(-14), ...fixedPinPaths(this.settings.pinnedNodes)]);
-    this.registerMarkdownZoomPreferenceListeners();
+    this.registerSavedPathListeners();
     // URL acquisition is independent of MetadataCache, local graph preparation and full Eager inventory.
     this.registerEvent(this.app.vault.on("modify", /** Retire exact URL facts on content edits, including equal-stat writes. */
       file => { if (file instanceof TFile && file.extension === "md") void this.index.refreshUrlOwner(file.path); }));
@@ -820,7 +822,21 @@ export default class KplexPlugin extends Plugin {
 
   /** Keep the requested center through partial startup; only completed indexing proves its absence.
    * After readiness, recover a genuinely missing center through saved history and then the root. */
-  resolveNavigationFallbackPath(preferredPath?: string | null): string | null {
+  resolveNavigationFallbackPath(preferredPath?: string | null, deletedFolder = false): string | null {
+    if (preferredPath?.startsWith("folder:") && preferredPath !== "folder:/"
+      && (deletedFolder || this.isNavigationFallbackReady()) && !this.index.get(preferredPath)) {
+      const nativePath = preferredPath.slice("folder:".length);
+      if (nativePath && !this.app.vault.getFolderByPath(nativePath)) {
+        let separator = nativePath.lastIndexOf("/");
+        while (separator >= 0) {
+          const parent = nativePath.slice(0, separator);
+          const coordinate = `folder:${parent}`;
+          if (this.index.get(coordinate)?.isFolder) return coordinate;
+          separator = parent.lastIndexOf("/");
+        }
+        if (this.index.get("folder:/")?.isFolder) return "folder:/";
+      }
+    }
     const seen = new Set<string>();
     const candidates: string[] = [];
     const add = (path?: string | null): void => {
@@ -937,9 +953,13 @@ export default class KplexPlugin extends Plugin {
     this.managedCreatedFiles.add(file);
     this.managedCreatedPaths.set(file.path, Date.now() + MANAGED_CREATED_PATH_TTL_MS);
     if (this.rebuildTask) {
-      // The in-flight builder may have captured the vault before this file existed. Mark a single
-      // catch-up rebuild now; the optimistic page keeps the UI usable until that authoritative pass.
-      this.scheduleRebuild("kplex:create-during-rebuild");
+      if (file.extension !== "md") this.scheduleRebuild("kplex:create-during-rebuild");
+      else if (this.app.vault.getFileByPath(file.path) === file) {
+        // The managed create suppresses Vault's ordinary create handler. Queue its exact source
+        // here so a writer that started earlier can catch up without scanning the whole vault.
+        this.dirtyMarkdownPaths.add(file.path);
+        this.scheduleRebuild("vault:create-markdown");
+      }
     }
     return file;
   }
@@ -1145,27 +1165,32 @@ export default class KplexPlugin extends Plugin {
   }
 
   /**
-   * Keep durable note preferences attached to their physical file through startup and normal work.
-   * Graph listeners are installed in separate restore phases and may skip folder moves before an
-   * authoritative baseline exists; these lifecycle-registered listeners have no graph dependency.
+   * Keep saved paths attached to their physical files and folders throughout startup and normal work.
+   * A complete graph is unnecessary for the native Vault to confirm a path move or deletion.
    */
-  private registerMarkdownZoomPreferenceListeners(): void {
+  private registerSavedPathListeners(): void {
     this.registerEvent(this.app.vault.on("rename", /** Move file/subtree overrides even while index restore is pending. */ (item, oldPath) => {
       const navigationChanged = this.remapNavigationPaths(oldPath, item.path, item instanceof TFolder);
       const next = renameMarkdownZoomModes(this.settings.centralNodeMarkdownZoomModes, oldPath, item.path, item instanceof TFolder);
       if (next === this.settings.centralNodeMarkdownZoomModes && !navigationChanged) return;
       this.settings.centralNodeMarkdownZoomModes = next;
       void this.persistSettingsSnapshot().catch(/** Event saves must not leave an unhandled rejection; a later ordinary save can retry. */ () => {
-        console.error("K-Plex could not save Markdown zoom preferences");
+        console.error("K-Plex could not save renamed path preferences");
       });
     }));
-    this.registerEvent(this.app.vault.on("delete", /** Retire deleted file/subtree choices without rebuilding or observing graph state. */ item => {
-      const next = removeMarkdownZoomModes(this.settings.centralNodeMarkdownZoomModes, item.path, item instanceof TFolder);
-      if (next === this.settings.centralNodeMarkdownZoomModes) return;
-      this.settings.centralNodeMarkdownZoomModes = next;
-      void this.persistSettingsSnapshot().catch(/** Keep the in-memory deletion while reporting a failed disk write without private paths. */ () => {
-        console.error("K-Plex could not save Markdown zoom preferences");
-      });
+    this.registerEvent(this.app.vault.on("delete", /** Retire saved paths immediately, including when Vault only reports the folder itself. */ item => {
+      if (!item.path || item.path === "/" || this.app.vault.getAbstractFileByPath(item.path)) return;
+      const folder = item instanceof TFolder;
+      const navigationChanged = this.removeSavedNavigationPaths(item.path, folder);
+      const next = removeMarkdownZoomModes(this.settings.centralNodeMarkdownZoomModes, item.path, folder);
+      if (next !== this.settings.centralNodeMarkdownZoomModes || navigationChanged) {
+        this.settings.centralNodeMarkdownZoomModes = next;
+        void this.persistSettingsSnapshot().catch(/** Keep the in-memory deletion while reporting a failed disk write without private paths. */ () => {
+          console.error("K-Plex could not save deleted path preferences");
+        });
+      }
+      if (folder) this.index.notifyNativeFolderDeletion();
+      else if (navigationChanged) this.index.notifyPresentation();
     }));
   }
 
@@ -1250,14 +1275,14 @@ export default class KplexPlugin extends Plugin {
           // Empty folder creation is a known structural delta. Materialize only its root-to-folder
           // ancestry; subsequent Markdown creates reuse the same folder pages and remain per-file
           // patches instead of leaving a structural `vault:create` reason that forces a full rebuild.
-          if (this.initialIndexComplete) this.index.cancelRebuild();
+          if (this.initialIndexComplete) this.index.cancelRebuild("folder-create");
           this.index.insertCreatedFolder(created);
           return;
         }
         if (created instanceof TFile && localPhysicalCreate && this.index?.hasPhysicalBaseline()) {
           // Attachments have no Markdown patch to consume a structural backlog. Materialize their
           // known file-tree endpoint locally; source-local resolution maintenance owns inbound links.
-          if (this.initialIndexComplete) this.index.cancelRebuild();
+          if (this.initialIndexComplete) this.index.cancelRebuild("attachment-create");
           this.index.insertCreatedFile(created);
           return;
         }
@@ -1266,17 +1291,24 @@ export default class KplexPlugin extends Plugin {
     this.registerEvent(this.app.vault.on("delete",
       /** Remove deleted Markdown sources from both semantic progress and its cached denominator. */
       (deleted) => {
-        this.index.invalidateHostStructure();
+        if (deleted instanceof TFile || deleted instanceof TFolder) {
+          const occupant = this.app.vault.getAbstractFileByPath(deleted.path);
+          if (occupant) {
+            // An early notification cannot prove absence. A stale notification for a replaced path
+            // must leave its new owner alone. Only the exact still-present item needs recovery.
+            if (occupant === deleted) {
+              this.index.invalidateHostStructure();
+              this.scheduleRebuild("vault:delete");
+            }
+            return;
+          }
+        }
+        if (deleted instanceof TFile) this.index.invalidateHostStructure(this.index.canApplyLocalPhysicalCreate());
         if (deleted instanceof TFile && deleted.extension === "md") {
-          this.countDeletedMarkdownFile(deleted);
+          this.retireReactiveMarkdownFile(deleted);
           // Deleting Markdown changes materialization, not the identity of the graph endpoint. Keep
           // the same GraphPage alive as a ghost so an active central note does not fall back to the
           // vault root. Only declarations owned by the deleted file are removed locally.
-          this.dirtyMarkdownPaths.delete(deleted.path);
-          this.managedMetadataWrites.delete(deleted.path);
-          this.managedCreatedPaths.delete(deleted.path);
-          this.managedCreatedFiles.delete(deleted);
-          this.renameMetadataSuppressions.delete(deleted.path);
           this.index?.dematerializeFile(deleted.path);
           // A metadata event may already have queued an incremental patch for this file. Once the
           // file is gone that patch is meaningless; do not let an empty patch backlog escalate into
@@ -1291,26 +1323,32 @@ export default class KplexPlugin extends Plugin {
           this.settlePatchOnlyBacklogIfIdle();
           return;
         }
-        if (deleted instanceof TFolder && this.initialIndexComplete && this.index?.hasPhysicalBaseline()) {
-          this.index.cancelRebuild();
-          void this.index.removeDeletedFolder(deleted, file => this.countDeletedMarkdownFile(file)).then(() => {
+        if (deleted instanceof TFolder && this.index.hasPhysicalBaseline()) {
+          // Known native removal owns its local cleanup even while semantic startup or a
+          // preceding child-folder delete is still settling.
+          if (this.initialIndexComplete) this.index.cancelRebuild("folder-delete");
+          void this.index.removeDeletedFolder(deleted, /** Folder-only host notifications retire every captured Markdown input. */
+            file => this.retireReactiveMarkdownFile(file)).then(() => {
             this.settlePatchOnlyBacklogIfIdle(); this.notifyIndexStatus();
           }).catch(() => this.scheduleRebuild("vault:delete-folder-failed"));
           return;
         }
+        this.index.invalidateHostStructure();
         this.scheduleRebuild("vault:delete");
       }));
     this.registerEvent(this.app.vault.on("rename",
       /** Preserve path-owned state and refresh totals when a rename changes Markdown membership. */
       (renamed, oldPath) => {
+        if ((renamed instanceof TFile || renamed instanceof TFolder) && this.index.hasAppliedNativeFolderMove(renamed, oldPath)) return;
         // The existing structural owner must prove and apply this native delta. Unknown, non-leaf
         // and interrupted renames still retire physical coverage there; do not retire it before
         // that owner can inspect the old canonical leaf and exact observed naming receipt.
         this.index.invalidateHostStructure(renamed instanceof TFolder && this.initialIndexComplete && this.index.hasPhysicalBaseline());
         if (!(renamed instanceof TFile)) {
           if (renamed instanceof TFolder && this.initialIndexComplete && this.index?.hasPhysicalBaseline()) {
-            this.index.cancelRebuild();
-            void this.index.renameFolder(oldPath, renamed).catch(() => this.scheduleRebuild("vault:rename-folder-failed"));
+            this.index.cancelRebuild("folder-rename");
+            void this.index.renameFolder(oldPath, renamed, /** The root event may be the only callback for moved files. */
+              (file, prior) => this.remapReactiveFilePath(file, prior)).catch(() => this.scheduleRebuild("vault:rename-folder-failed"));
             return;
           }
           // Startup without a hydrated graph still owns authoritative structural construction.
@@ -1318,7 +1356,6 @@ export default class KplexPlugin extends Plugin {
           return;
         }
 
-        const newPath = renamed.path;
         const wasMarkdown = oldPath.toLowerCase().endsWith(".md");
         const isMarkdown = renamed.extension === "md";
         if (wasMarkdown !== isMarkdown) {
@@ -1329,13 +1366,8 @@ export default class KplexPlugin extends Plugin {
 
         // Preserve a genuinely dirty file across the path change, but a clean rename is not itself a
         // re-index trigger. GraphIndex remaps path-keyed graph/evidence/search state in O(degree).
-        if (this.dirtyMarkdownPaths.delete(oldPath)) this.dirtyMarkdownPaths.add(newPath);
+        this.remapReactiveFilePath(renamed, oldPath);
         this.index?.renameFile(oldPath, renamed);
-        this.renameMetadataSuppressions.set(newPath, {
-          mtime: renamed.stat.mtime,
-          size: renamed.stat.size,
-          until: Date.now() + 5000,
-        });
       }));
     this.registerEvent(this.app.metadataCache.on("resolve", (file) => {
       if (this.app.vault.getFileByPath(file.path) === file) {
@@ -1355,7 +1387,7 @@ export default class KplexPlugin extends Plugin {
       // deleted. Treat that event as stale. Re-queuing the vanished path would make the incremental
       // patch report `needs-rebuild` and unnecessarily rebuild the whole graph after deletion.
       if (file.extension === "md" && this.app.vault.getFileByPath(file.path) !== file) {
-        this.dirtyMarkdownPaths.delete(file.path);
+        if (!this.app.vault.getFileByPath(file.path)) this.dirtyMarkdownPaths.delete(file.path);
         this.settlePatchOnlyBacklogIfIdle();
         return;
       }
@@ -1383,6 +1415,22 @@ export default class KplexPlugin extends Plugin {
     // metadataCache.resolved fires in large waves during startup and after a single link edit.
     // `changed`, vault create/delete/rename and explicit K-Plex edits already cover semantic
     // invalidation without turning one relationship move into a whole-vault rebuild storm.
+  }
+
+  /** Move any queued edit and recognize redundant metadata notifications after a proven rename. */
+  private remapReactiveFilePath(file: TFile, oldPath: string): void {
+    if (this.dirtyMarkdownPaths.delete(oldPath)) this.dirtyMarkdownPaths.add(file.path);
+    this.renameMetadataSuppressions.set(file.path, { mtime: file.stat.mtime, size: file.stat.size, until: Date.now() + 5000 });
+  }
+
+  /** One native descendant retirement clears file-owned work whether reported alone or through its folder. */
+  private retireReactiveMarkdownFile(file: TFile): void {
+    this.countDeletedMarkdownFile(file);
+    this.dirtyMarkdownPaths.delete(file.path);
+    this.managedMetadataWrites.delete(file.path);
+    this.managedCreatedPaths.delete(file.path);
+    this.managedCreatedFiles.delete(file);
+    this.renameMetadataSuppressions.delete(file.path);
   }
 
   /** Count each physical Markdown deletion once across overlapping folder and child events. */
@@ -1473,7 +1521,13 @@ export default class KplexPlugin extends Plugin {
     this.indexDirtyRevision += 1;
     if (reason === "vault:create") this.pendingCreateRevision = this.indexDirtyRevision;
     this.indexBacklogReasons.add(reason);
+    const startupRecovery = this.isInterruptedGraphStartup();
+    if (startupRecovery) this.startupGraphQuietUntil = perfNow() + 1100;
     this.notifyIndexStatus();
+    if (startupRecovery) {
+      this.scheduleStartupGraphRetry(this.index);
+      return;
+    }
     if (!this.hasIndexMaintenanceDemand() || !this.initialIndexComplete || this.rebuildTask || this.isBackgroundIndexingPaused()) return;
     if (this.rebuildTimer !== null) {
       window.clearTimeout(this.rebuildTimer);
@@ -1520,7 +1574,7 @@ export default class KplexPlugin extends Plugin {
     // Explicit Eager pre-canvas preparation keeps its existing background owner. Otherwise a
     // completed demand-driven graph, or an iOS first build, releases work with the last canvas;
     // already persisted source/checkpoint work remains reusable on reopening.
-    if (!this.hasIndexMaintenanceDemand() && (this.initialIndexComplete || Platform.isIosApp)) this.index.cancelRebuild();
+    if (!this.hasIndexMaintenanceDemand() && (this.initialIndexComplete || Platform.isIosApp)) this.index.cancelRebuild("view-closed");
     // A completed graph's pending cache save must survive closing its last surface. Otherwise a
     // corrected ontology/topology cache can be lost and the next reload repeats global recovery.
     // Partial/on-demand graphs retain the existing cancellation and never become complete caches.
@@ -1541,12 +1595,22 @@ export default class KplexPlugin extends Plugin {
       adopted = await index.adoptStartupSources({deferVocabulary: !index.isOnDemandMode()});
       if (adopted && !this.unloading && this.index === index && !index.isOnDemandMode()
         && index.hasSourceBackedStartup()) {
-        coveredCreateRevision = this.pendingCreateRevision;
-        adopted = await index.rebuild({retainSourceInventory: true,
-          // This fallback replaces the entire graph. Consume only exact source observations
-          // published into it; newer same-file events remain in the ordinary patch backlog.
-          onCommitted: path => this.dirtyMarkdownPaths.delete(path),
-        });
+        const startupRecovery = this.isInterruptedGraphStartup();
+        if (startupRecovery && this.isStartupGraphRetryDeferred(index)) adopted = false;
+        else {
+          coveredCreateRevision = this.pendingCreateRevision;
+          const retryInputs = startupRecovery ? {index, revision: this.indexDirtyRevision,
+            sourceReady: index.hasReusableSourceInventory(), startupTopology: index.getHostStructuralRevision()} : null;
+          adopted = await index.rebuild({retainSourceInventory: true,
+            diagnostics: {trigger: "startup:source-adoption", backlog: [...this.indexBacklogReasons], pendingMarkdown: this.dirtyMarkdownPaths.size},
+            // This fallback replaces the entire graph. Consume only exact source observations
+            // published into it; newer same-file events remain in the ordinary patch backlog.
+            onCommitted: path => this.dirtyMarkdownPaths.delete(path),
+          });
+          if (retryInputs && !this.unloading && this.index === index) {
+            this.incompleteAutomaticBuild = adopted || !this.hasIndexMaintenanceDemand() ? null : retryInputs;
+          }
+        }
       }
     }
     catch (error) {
@@ -1561,7 +1625,7 @@ export default class KplexPlugin extends Plugin {
     this.initialIndexComplete = adopted;
     if (adopted) {
       if (coveredCreateRevision !== null) this.retireCoveredCreateReason(coveredCreateRevision);
-      for (const reason of ["startup:no-snapshot", "startup:stale-snapshot", "startup:partial-restore-incomplete"]) {
+      for (const reason of ["startup:no-snapshot", "startup:stale-snapshot", "startup:partial-restore-incomplete", "startup:initial-index"]) {
         this.indexBacklogReasons.delete(reason);
       }
       if (coveredCreateRevision !== null) this.retireCoveredMarkdownBacklog();
@@ -1570,7 +1634,7 @@ export default class KplexPlugin extends Plugin {
       }
       if (this.indexDirty && this.hasIndexMaintenanceDemand()) this.scheduleRebuild("startup:post-initial-backlog");
       if (!this.indexDirty && !index.isOnDemandMode()) index.finishStartupSnapshot();
-    }
+    } else this.scheduleStartupGraphRetry(index);
     this.notifyIndexStatus();
   }
 
@@ -1739,9 +1803,7 @@ export default class KplexPlugin extends Plugin {
         const hydrated = await this.index.waitForSnapshotHydration();
         if (this.unloading) return;
         if (!hydrated.restored) {
-          this.indexDirty = true;
-          this.indexDirtyRevision += 1;
-          this.indexBacklogReasons.add("startup:partial-restore-incomplete");
+          this.noteInterruptedHydration();
         } else {
           await this.refreshBookmarkedEntryPoints();
           if (this.unloading) return;
@@ -1753,9 +1815,7 @@ export default class KplexPlugin extends Plugin {
       } else if (this.index.size > 0 && !this.index.hasPhysicalBaseline() && !this.index.hasRestoredCheckpoint()) {
         // The preview task failed after it had already returned a usable partial scene. Fall back
         // to a normal rebuild instead of ever treating that partial scene as the complete index.
-        this.indexDirty = true;
-        this.indexDirtyRevision += 1;
-        this.indexBacklogReasons.add("startup:partial-restore-incomplete");
+        this.noteInterruptedHydration();
       }
 
       // Source recovery first preserves current views and vocabulary. Eager startup must also
@@ -1834,11 +1894,14 @@ export default class KplexPlugin extends Plugin {
 
       // Changes during initial preparation stay with the existing coalesced owner. Opted-in
       // Eager preparation must drain them even before the first canvas opens.
-      if (this.indexDirty && this.hasIndexMaintenanceDemand()) this.scheduleRebuild("startup:post-initial-backlog");
+      if (this.initialIndexComplete && this.indexDirty && this.hasIndexMaintenanceDemand()) this.scheduleRebuild("startup:post-initial-backlog");
     })().finally(() => {
       // Keep the resolved promise only after a complete initial index. If iOS work was cancelled
       // because the last K-Plex view closed, reopening must be able to resume the durable prewarm.
-      if (!this.initialIndexComplete) this.initialIndexTask = null;
+      if (!this.initialIndexComplete) {
+        this.initialIndexTask = null;
+        this.scheduleStartupGraphRetry(this.index);
+      }
       else if (!this.unloading && !this.index.isOnDemandMode()) {
         if (!this.indexDirty) this.index.finishStartupSnapshot();
         void this.index.startBackgroundUrlIndex();
@@ -1853,6 +1916,7 @@ export default class KplexPlugin extends Plugin {
     if (this.unloading) return;
     await this.ensureInitialIndex();
     if (this.unloading) return;
+    if (this.isInterruptedGraphStartup() && this.incompleteAutomaticBuild?.startupTopology != null) return;
     await this.rebuildIndex(false, this.index.size === 0, reason);
   }
 
@@ -1872,6 +1936,60 @@ export default class KplexPlugin extends Plugin {
       if (this.initialIndexComplete) void this.index.startBackgroundUrlIndex();
       this.notifyIndexStatus();
     }
+  }
+
+  private isInterruptedGraphStartup(): boolean {
+    return !this.initialIndexComplete && this.indexBacklogReasons.has("startup:partial-restore-incomplete");
+  }
+
+  /** Re-entering recovery for the same preview is bookkeeping, not another input revision. */
+  private noteInterruptedHydration(): void {
+    this.indexDirty = true;
+    if (this.indexBacklogReasons.has("startup:partial-restore-incomplete")) return;
+    this.indexDirtyRevision += 1;
+    this.indexBacklogReasons.add("startup:partial-restore-incomplete");
+  }
+
+  /** An incomplete automatic build can consume a new input or newly usable source authority once. */
+  private isAutomaticBuildRetryBlocked(index: GraphIndex): boolean {
+    const previous = this.incompleteAutomaticBuild;
+    if (!previous || previous.index !== index) return false;
+    const startup = previous.startupTopology !== null;
+    const sameInput = previous.revision === this.indexDirtyRevision && (!startup || previous.startupTopology === index.getHostStructuralRevision());
+    return index.hasActiveSourcePreparation() || startup && index.hasPendingSourceAuthority()
+      || sameInput && (previous.sourceReady || !index.hasReusableSourceInventory());
+  }
+
+  private isStartupGraphRetryDeferred(index: GraphIndex): boolean {
+    const previous = this.incompleteAutomaticBuild;
+    return previous?.startupTopology != null && previous.index === index
+      && (perfNow() < this.startupGraphQuietUntil || this.isAutomaticBuildRetryBlocked(index));
+  }
+
+  /** One timer owns the quiet window. New edits move its deadline without admitting work. */
+  private scheduleStartupGraphRetry(index: GraphIndex): void {
+    const previous = this.incompleteAutomaticBuild;
+    if (previous?.startupTopology == null || previous.index !== index || this.index !== index
+      || this.unloading || !this.isInterruptedGraphStartup() || !this.indexDirty || this.initialIndexTask || this.rebuildTask
+      || this.rebuildTimer !== null || !this.hasIndexMaintenanceDemand() || this.isAutomaticBuildRetryBlocked(index)) return;
+    this.rebuildTimer = window.setTimeout(() => {
+      this.rebuildTimer = null;
+      if (this.unloading || this.index !== index || !this.isInterruptedGraphStartup() || !this.hasIndexMaintenanceDemand()) return;
+      if (perfNow() < this.startupGraphQuietUntil) {this.scheduleStartupGraphRetry(index);return;}
+      if (!this.isAutomaticBuildRetryBlocked(index)) void this.ensureInitialIndex();
+    }, Math.max(0, this.startupGraphQuietUntil - perfNow()));
+  }
+
+  /** Source completion wakes retained recovery without manufacturing another edit revision. */
+  resumeAutomaticRebuildAfterSourceRecovery(index: GraphIndex): void {
+    if (this.isInterruptedGraphStartup()) {this.scheduleStartupGraphRetry(index);return;}
+    if (this.index !== index || this.incompleteAutomaticBuild?.index !== index || this.unloading || !this.indexDirty
+      || !this.initialIndexComplete || this.rebuildTask || this.rebuildTimer !== null
+      || !this.hasIndexMaintenanceDemand() || this.isBackgroundIndexingPaused() || this.isAutomaticBuildRetryBlocked(index)) return;
+    this.rebuildTimer = window.setTimeout(() => {
+      this.rebuildTimer = null;
+      void this.rebuildIndex(false, false, "coalesced-backlog");
+    }, 0);
   }
 
   /** Run the host rebuild workflow and report localized progress/completion while retaining the
@@ -1898,9 +2016,7 @@ export default class KplexPlugin extends Plugin {
       if (allowClosed && reason === "startup:initial-index") {
         const restored = await this.index.waitForSnapshotHydration();
         if (!restored.restored) {
-          this.indexDirty = true;
-          this.indexDirtyRevision += 1;
-          this.indexBacklogReasons.add("startup:partial-restore-incomplete");
+          this.noteInterruptedHydration();
         } else {
           await this.refreshBookmarkedEntryPoints();
           if (!restored.fresh) {
@@ -1957,6 +2073,7 @@ export default class KplexPlugin extends Plugin {
       this.notifyIndexStatus();
     }
     const startRevision = this.indexDirtyRevision;
+    let automaticWarmFullBuild = false;
 
     const task = (async () => {
       // Ordinary edits are file-owned evidence changes. Patch those files directly rather than
@@ -2046,27 +2163,44 @@ export default class KplexPlugin extends Plugin {
       }
       if (showNotice) new Notice(this.translator("notice.rebuildingIndex"), 1200);
       const rebuiltIndex = this.index;
+      automaticWarmFullBuild = !force && !showNotice && rebuiltIndex.isFullSnapshotHydrated();
+      const startupRecovery = !force && !showNotice && this.isInterruptedGraphStartup();
+      if (automaticWarmFullBuild && this.isAutomaticBuildRetryBlocked(rebuiltIndex)) return;
+      if (startupRecovery && this.isStartupGraphRetryDeferred(rebuiltIndex)) return;
+      const sourceReady = (automaticWarmFullBuild || startupRecovery) && rebuiltIndex.hasReusableSourceInventory();
+      const buildRevision = this.indexDirtyRevision;
+      const startupTopology = startupRecovery ? rebuiltIndex.getHostStructuralRevision() : null;
       const reuseStartupSources = allowClosed && !showNotice && !force && !this.initialIndexComplete
         && this.index.hasReusableSourceInventory();
       const progressiveStartup = allowClosed && !showNotice && !force && !this.initialIndexComplete
         && !this.index.isFullSnapshotHydrated() && !reuseStartupSources;
+      const backlog = [...this.indexBacklogReasons].sort();
+      const diagnostics = {trigger: showNotice ? "manual" : reason, backlog,
+        pendingMarkdown: this.dirtyMarkdownPaths.size, escalatedFromPatch: canIncrementalPatch};
       this.index.noteBuildDecision(progressiveStartup ? "cold-progressive" : "full-rebuild",
-        [...this.indexBacklogReasons].sort().join("|") || reason);
+        backlog.join("|") || reason);
       const coveredCreateRevision = this.pendingCreateRevision;
       const published = progressiveStartup
         ? await rebuiltIndex.rebuildProgressively(this.startupGraphSeedPaths(), {
+          diagnostics,
           // Keep the large-iOS low-memory checkpoint strategy, but only after the useful center
           // neighborhood has been published so first paint is no longer blocked by vault prewarm.
           prewarmBodyCache: Platform.isIosApp && this.app.vault.getMarkdownFiles().length > 5000,
           onCommitted: path => this.dirtyMarkdownPaths.delete(path),
         })
         : await rebuiltIndex.rebuild({...(reuseStartupSources ? {retainSourceInventory: true} : {}),
+          diagnostics,
           onCommitted: path => this.dirtyMarkdownPaths.delete(path)});
       if (this.unloading || this.index !== rebuiltIndex) return;
       if (!published) {
+        if (automaticWarmFullBuild || startupRecovery) {
+          this.incompleteAutomaticBuild = startupRecovery && !this.hasIndexMaintenanceDemand() ? null
+            : {index: rebuiltIndex, revision: buildRevision, sourceReady, startupTopology};
+        }
         this.indexDirty = true;
         this.indexBacklogReasons.add(reason);
-        if (allowClosed && this.indexDirtyRevision !== startRevision && this.hasIndexMaintenanceDemand() && this.rebuildTimer === null) {
+        if (!startupRecovery && allowClosed && this.indexDirtyRevision !== startRevision && this.hasIndexMaintenanceDemand() && this.rebuildTimer === null
+          && (!automaticWarmFullBuild || !this.isAutomaticBuildRetryBlocked(rebuiltIndex))) {
           // A note saved while cold ingestion was awaiting work invalidates that source revision.
           // Retry after the current startup task releases its guard instead of leaving a partial
           // scene indefinitely until the user closes and reopens K-Plex.
@@ -2077,6 +2211,7 @@ export default class KplexPlugin extends Plugin {
         }
         return;
       }
+      this.incompleteAutomaticBuild = null;
 
       if (rebuiltIndex.isFullSnapshotHydrated()) this.retireCoveredCreateReason(coveredCreateRevision);
 
@@ -2130,8 +2265,10 @@ export default class KplexPlugin extends Plugin {
     }
 
 
+    if (this.isInterruptedGraphStartup()) {this.scheduleStartupGraphRetry(this.index);return;}
     if (!this.unloading && this.indexDirty && this.initialIndexComplete && this.hasIndexMaintenanceDemand()
-      && !this.isBackgroundIndexingPaused() && this.rebuildTimer === null) {
+      && !this.isBackgroundIndexingPaused() && this.rebuildTimer === null
+      && (!automaticWarmFullBuild || !this.isAutomaticBuildRetryBlocked(this.index))) {
       this.rebuildTimer = window.setTimeout(() => {
         this.rebuildTimer = null;
         void this.rebuildIndex(false, false, "coalesced-backlog");
@@ -3790,7 +3927,7 @@ export default class KplexPlugin extends Plugin {
       this.notifyIndexStatus();
     }
     // Only demand-driven sessions pause here; opted-in Eager work keeps its timer and save debt.
-    if (this.initialIndexComplete || Platform.isIosApp) this.index.cancelRebuild();
+    if (this.initialIndexComplete || Platform.isIosApp) this.index.cancelRebuild("view-hidden");
     this.index.cancelPendingPersistence();
   }
 
@@ -4505,6 +4642,7 @@ export default class KplexPlugin extends Plugin {
       && this.rebuildTask === null
       && this.rebuildTimer === null
       && !loadingCache
+      && !this.index.hasPendingSourceAuthority?.()
       && !semanticPreparing
       && !semanticIncomplete
       && !this.index.hasPendingSearchVocabulary();
@@ -6733,7 +6871,7 @@ export default class KplexPlugin extends Plugin {
           this.appendRelationshipReference(frontmatter, write.file, referenced, write.field, renderedReference, true);
         });
         if (!valid()) throw new SavedRelationshipPendingError(this.translator("relation.savedUpdatePending"));
-        try { this.index.refreshVisibleHostMetadataPreviews(write.file.path); }
+        try { this.index.refreshVisibleHostMetadataPreviews(write.file.path, undefined, { owner: write.file, target: write.target, field: write.field }); }
         catch (error) { console.error("K-Plex saved reciprocal relationship preview refresh failed", error); }
       },
       afterWrites: sourceReady ? /** Publication may retry without repeating either durable native declaration. */ () => this.publishSavedRelationship(origin.path, target.path) : undefined,
@@ -7633,8 +7771,43 @@ export default class KplexPlugin extends Plugin {
     return this.index.get("folder:/")?.path ?? null;
   }
 
-  private removeFromNavigationHistory(path: string): void {
-    this.settings.navigationHistory = this.settings.navigationHistory.filter((candidate) => candidate !== path);
+  /** Remove fixed saved paths for one endpoint or its folder subtree, retaining symbolic pins. */
+  private removeSavedNavigationPaths(path: string, folder = false): boolean {
+    const endpoint = folder ? `folder:${path}` : path;
+    const matches = (candidate: string): boolean => candidate === endpoint || folder
+      && (candidate.startsWith(`${path}/`) || candidate.startsWith(`${endpoint}/`));
+    const history = this.settings.navigationHistory.filter(candidate => !matches(candidate));
+    const pins = this.settings.pinnedNodes.filter(candidate => typeof candidate !== "string" || !matches(candidate));
+    const historyChanged = history.length !== this.settings.navigationHistory.length;
+    const pinsChanged = pins.length !== this.settings.pinnedNodes.length;
+    if (historyChanged) this.settings.navigationHistory = history;
+    if (pinsChanged) this.settings.pinnedNodes = pins;
+    return historyChanged || pinsChanged;
+  }
+
+  /** Report surviving sources after deletion without granting permission to edit them. */
+  private showRemainingReferenceReport(nodeName: string, references: readonly RemainingNodeReference[],
+    issues: readonly string[], hostLeaf?: WorkspaceLeaf): void {
+    if (this.unloading) return;
+    if (this.settings.showRemainingReferencesOnDelete === false) {
+      if (issues.length) new Notice(issues[0]);
+      return;
+    }
+    new RemainingNodeReferencesModal(this.app, nodeName, references,
+      reference => this.openRelationshipEvidenceLocation({ path: reference.path, line: reference.line }, hostLeaf),
+      issues, async showAgain => {
+        const previous = this.settings.showRemainingReferencesOnDelete;
+        this.settings.showRemainingReferencesOnDelete = showAgain;
+        try {
+          await this.saveSettings(false, false);
+          return true;
+        } catch (error) {
+          if (this.settings.showRemainingReferencesOnDelete === showAgain) this.settings.showRemainingReferencesOnDelete = previous;
+          console.error("K-Plex could not save the Remaining references preference", error);
+          if (!this.unloading) new Notice(this.translator("references.savePreferenceFailed"));
+          return false;
+        }
+      }).open();
   }
 
   /** Confirm finite property scope before trash; navigation and earlier successful source commits survive later failures. */
@@ -7659,9 +7832,8 @@ export default class KplexPlugin extends Plugin {
     } catch {
       if (!this.unloading && !capturedFile && currentBeforeTrash()) {
         const references = this.referencingMarkdownFiles(target).map(/** Source coordinates remain useful when a bounded preview cannot read the note body. */ file => ({path:file.path,line:0,label:this.translator("delete.cleanup.reviewSource"),sourceKind:"obsidian-link" as const}));
-        new RemainingNodeReferencesModal(this.app,target.name,references,
-          /** Failed inspection grants manual navigation only, never an automatic link rewrite. */ reference => this.openRelationshipEvidenceLocation(reference,hostLeaf),
-          [this.translator("delete.cleanup.inspectFailed",{path:target.path})]).open();
+        this.showRemainingReferenceReport(target.name, references,
+          [this.translator("delete.cleanup.inspectFailed",{path:target.path})], hostLeaf);
       } else if (!this.unloading) {
         new Notice(this.translator("delete.cleanup.inspectFailed",{path:target.path}));
       }
@@ -7697,8 +7869,7 @@ export default class KplexPlugin extends Plugin {
     // Remove the deleted path immediately and move a deleted center to the newest still-valid
     // history entry (walking farther back when necessary), or to the vault root when history is
     // exhausted. This happens before relationship-reference cleanup/index reconciliation.
-    this.settings.pinnedNodes = this.settings.pinnedNodes.filter((candidate) => candidate !== path);
-    this.removeFromNavigationHistory(path);
+    if (!capturedFile || !this.app.vault.getFileByPath(path)) this.removeSavedNavigationPaths(path);
     if (wasCenter && (!hostLeaf || hostLeaf.view === hostView && this.documentSession(hostLeaf)?.centerPath === path)) {
       const fallback = this.deletionFallbackPath(path);
       if (fallback) {
@@ -7742,13 +7913,7 @@ export default class KplexPlugin extends Plugin {
       if (!remaining.length && !issues.length) issues.push(this.translator("delete.cleanup.inspectFailed",{path}));
     }
 
-    new RemainingNodeReferencesModal(
-      this.app,
-      ghost.name,
-      remaining,
-      (reference) => this.openRelationshipEvidenceLocation({ path: reference.path, line: reference.line }, hostLeaf),
-      issues,
-    ).open();
+    this.showRemainingReferenceReport(ghost.name, remaining, issues, hostLeaf);
     return { status: "committed", affected: [captured] };
   }
 
@@ -8264,7 +8429,7 @@ export default class KplexPlugin extends Plugin {
     return this.createFileWithAutomation(() => this.createNativeFileInFolder(leafName, kind, configuredFolder, parentCurrent, templatePath));
   }
 
-  /** All native file creators, including external copies, share one optional template barrier. */
+  /** Native creators that write properties or open the new file share this optional template barrier. */
   async createFileWithAutomation(create: () => Promise<TFile>): Promise<TFile>;
   async createFileWithAutomation(create: () => Promise<TFile | null>): Promise<TFile | null>;
   async createFileWithAutomation(create: () => Promise<TFile | null>): Promise<TFile | null> {
@@ -8722,11 +8887,11 @@ export default class KplexPlugin extends Plugin {
         });
       // A native write already committed before a rename/replacement must never invite another create.
       if (!fieldCurrent()) throw new SavedRelationshipPendingError(this.translator("relation.savedUpdatePending"));
-      // Publish available host facts without joining body parsing, pair preparation or full indexing.
-      // A saved-pending result is a successful vault mutation; it must not block editor completion.
+      // Publish the committed declaration while ordinary source reconciliation catches up.
       let page = target;
       try {
-        this.index.refreshVisibleHostMetadataPreviews(storageFile.path);
+        this.index.refreshVisibleHostMetadataPreviews(storageFile.path, undefined,
+          referenced.file ? { owner: storageFile, target: referenced.file, field } : undefined);
         const published = this.index.get(targetPath);
         if (published?.file === file) page = published;
       } catch (error) { console.error("K-Plex saved new-file relationship preview refresh failed", error); }

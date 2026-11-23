@@ -17,7 +17,7 @@ process.once("exit", /** Retire only this test's emitted module tree. */ () => r
 const host = join(directory, "node_modules/obsidian"); mkdirSync(host, { recursive: true });
 writeFileSync(join(host, "index.js"), `
 class TFile { constructor(path) { this.path=path; this.name=path.split('/').pop(); this.extension=this.name.split('.').pop(); this.basename=this.name.slice(0,-this.extension.length-1); this.stat={mtime:1,ctime:1,size:1}; } }
-class TFolder {}
+class TFolder { constructor(path) { this.path=path; } }
 module.exports={TFile,TFolder,Platform:{isMobile:false,isIosApp:false},normalizePath:x=>x,
 getAllTags:()=>[],getIcon:()=>null,PluginSettingTab:class{},Modal:class{},Notice:class{},Setting:class{},
 SuggestModal:class{},ColorComponent:class{},AbstractInputSuggest:class{},Scope:class{},getLanguage:()=>"en"};
@@ -34,7 +34,7 @@ const require = createRequire(import.meta.url);
 const { GraphIndex, createGraphState, projectFilteredGateCounts, buildScene, accumulateShownGateCounts,
   migrateAndMergeSettings, GraphPredicateEngine, compilePlexFilter, compileGraphLensDefinitions,
   matchesGraphLenses } = require(output);
-const { TFile } = require(join(host, "index.js"));
+const { TFile, TFolder } = require(join(host, "index.js"));
 const baseline = JSON.parse(readFileSync("tests/fixtures/excalibrain-indexing/graph-baseline.json", "utf8"));
 
 /** Bind the accepted immutable semantic fixture to native identities without acquiring any sources. */
@@ -59,7 +59,13 @@ function fixture() {
   for (const item of baseline.graph.declarations) state.evidence.addDeclaration(
     item.declaredByPath, item.declaredTargetPath, item.declaredRole, item.relationType, item.direction, item);
   const forbidden = /** Presentation projection may not acquire bodies, inventories or durable state. */ () => { throw Error("source acquisition forbidden"); };
+  const folders = new Map();
+  for (const page of state.pages.values()) if (page.isFolder) {
+    const path = page.path.slice("folder:".length);
+    folders.set(path, new TFolder(path));
+  }
   const app = { vault: { getName: () => "filtered-gate-fixture", getFileByPath: path => state.pages.get(path)?.file ?? null,
+    getRoot: () => folders.get("/"), getFolderByPath: path => folders.get(path) ?? null,
     getFiles: forbidden, getMarkdownFiles: forbidden, read: forbidden, cachedRead: forbidden },
     metadataCache: { getFileCache: () => null, resolvedLinks: {}, unresolvedLinks: {} }, saveLocalStorage() {} };
   let source = 0;

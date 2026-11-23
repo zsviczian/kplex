@@ -20,6 +20,27 @@ test('Define relationship offers six directions and commits the selected directi
  `),true);
 });
 
+test('the native Rename form accepts a folder name and writes only through FileManager',async()=>{
+ assert.equal(await authoringScenario(`
+ const item=await p.app.vault.createFolder('Folder/Release.1'),modal=new M.RenameNoteModal(p,item);
+ const input=()=>modal.contentEl.querySelector('.kplex-rename-note-name-setting input');
+ modal.open();
+ check(input().value==='Release.1','Folder draft lost its full name');
+ check(modal.titleEl.textContent===t('rename.folderTitle'),'Folder form used the note title');
+ check(!modal.contentEl.querySelector('input[type=checkbox]'),'Folder form offered a note metadata write');
+ const count=writes.length;
+ for(const invalid of ['..','../Escape','Part/Other']){
+  reactInput(input(),invalid);button(modal,'common.rename').click();
+  check(writes.length===count&&modal.modalEl.isConnected,'Invalid folder name reached FileManager');
+ }
+ addFile('Folder/Occupied.md');reactInput(input(),'Occupied.md');button(modal,'common.rename').click();
+ check(writes.length===count&&modal.modalEl.isConnected,'A file at the destination did not block the rename');
+ reactInput(input(),'Release.2');button(modal,'common.rename').click();await waitFor(()=>!modal.modalEl.isConnected);
+ equal(writes.slice(count),[['move','Folder/Release.1','Folder/Release.2']],'Folder rename bypassed the selected native source or parent');
+ check(folders.get('Folder/Release.2')===item,'Folder native identity was replaced');
+ `),true);
+});
+
 test('adding to an existing ontology explains retained declarations and switches the same mounted form to replacement',async()=>{
  assert.equal(await authoringScenario(`
  const changes=[],adds=[];
@@ -627,16 +648,106 @@ test('one import form applies a common relation and retains exact copies across 
  `),true);
 });
 
-test('folder imports preserve nested and empty directories without ontology writes',async()=>{
+test('Finder trees skip .DS_Store and preserve every file in both deep sibling directories',async()=>{
  assert.equal(await authoringScenario(`
  const folderPage={...origin,path:'folder:Folder',file:null,isFolder:true,name:'Folder'};
- const file={name:'Note.md',isFile:true,isDirectory:false,file(done){done(new File(['# Note'],'Note.md'))}};
- const empty={name:'Empty',isDirectory:true,isFile:false,createReader(){return {readEntries(done){done([])}}}};
- const rootEntry={name:'Incoming',isDirectory:true,isFile:false,createReader(){let read=false;return {readEntries(done){done(read?[]:(read=true,[file,empty]))}}}};
+ const entry=(name,body)=>({name,isFile:true,isDirectory:false,file(done){done(new File([body],name))}});
+ const dir=(name,children)=>({name,isDirectory:true,isFile:false,createReader(){let read=false;return {readEntries(done){done(read?[]:(read=true,children))}}}});
+ const deepName='Le'+String.fromCharCode(769)+'vel2',writtenName=deepName.normalize('NFC');
+ const ignored=entry('.DS_Store','Finder metadata');
+ const rootEntry=dir('Incoming',[entry('First.md','# First'),entry('Second.md','# Second'),ignored,dir('Level1',[
+  dir(deepName,[ignored,entry('Deep.md','# Note'),entry('Data.bin',new Uint8Array([0,255,128])),dir('Empty',[])]),
+  dir('Sibling',[ignored,entry('Sibling.md','# Sibling'),entry('Second.bin',new Uint8Array([1,2,3]))])
+ ])]);
+ const nativeCreateFolder=p.app.vault.createFolder,nativeCreateBinary=p.app.vault.createBinary;
+ p.app.vault.createFolder=path=>nativeCreateFolder(path.normalize('NFC'));
+ p.app.vault.createBinary=async(path,data)=>path.endsWith('/.DS_Store')?null:nativeCreateBinary(path.normalize('NFC'),data);
+ p.createFileWithAutomation=async create=>{await create();throw Error('Copy-only import entered the creation template barrier');};
+ p.waitForCreatedFileAutomation=async()=>{throw Error('Copy-only import waited for template completion');};
  const batch=new M.ExternalFileImportBatchModal(p,folderPage,{files:[],directory:true,entries:[rootEntry]},'child',leaf,()=>true,()=>{});
  batch.open();await waitFor(()=>batch.ready);check(!batch.contentEl.querySelector('input[aria-label="'+t('addRelated.ontologyAria')+'"]'),'Folder import offered ontology');
- button(batch,'fileImport.importAll').click();await waitFor(()=>!batch.modalEl.isConnected);
- check(folders.has('Folder/Incoming/Empty')&&files.has('Folder/Incoming/Note.md'),'Hierarchy or empty directory lost');check(links.length===0,'Folder imports wrote ontology');
+ button(batch,'fileImport.importAll').click();await waitFor(()=>!batch.busy);
+ check(!batch.modalEl.isConnected,'Complete discovery was followed by failed writing: '+batch.feedback.textContent);
+ check(batch.rows.length===6&&batch.directories.length===5&&!batch.rows.some(row=>row.name==='.DS_Store'),'Preview differs from the supported tree');
+ const deep='Folder/Incoming/Level1/'+writtenName;
+ const sibling='Folder/Incoming/Level1/Sibling';
+ check(folders.has(deep+'/Empty')&&files.has(deep+'/Deep.md')&&files.has(sibling+'/Sibling.md'),'Hierarchy or empty directory lost');
+ check(files.has('Folder/Incoming/First.md')&&files.has('Folder/Incoming/Second.md'),'Root files were lost');
+ check(new TextDecoder().decode(bytes.get(files.get(deep+'/Deep.md')))==='# Note','Deep Markdown bytes changed');
+ equal([...bytes.get(files.get(deep+'/Data.bin'))],[0,255,128],'Deep binary bytes changed');
+ equal([...bytes.get(files.get(sibling+'/Second.bin'))],[1,2,3],'Sibling binary bytes changed');
+ check(links.length===0,'Folder imports wrote ontology');
+ `),true);
+});
+
+test('an import into a folder waits for templates before opening a single copied file',async()=>{
+ assert.equal(await authoringScenario(`
+ const folderPage={...origin,path:'folder:Folder',file:null,isFolder:true,name:'Folder'};
+ const source=new File(['# Original'],'One.md'), importActions=[];
+ p.createdNoteCompletionControl=()=>({value:'sidecar',choices:['return','sidecar'],onChange:()=>{}});
+ p.createFileWithAutomation=async create=>{const file=await create();importActions.push(['template',file.path]);return file;};
+ p.finishNewRelatedNode=async (page,_leaf,completion)=>{importActions.push([completion,page.path]);};
+ const batch=new M.ExternalFileImportBatchModal(p,folderPage,{files:[source],directory:false},'child',leaf,()=>true,()=>{});
+ batch.open();await waitFor(()=>batch.ready);button(batch,'fileImport.importAll').click();await waitFor(()=>!batch.modalEl.isConnected);
+ equal(importActions,[['template','Folder/One.md'],['sidecar','Folder/One.md']],'The copied note opened before template completion');
+ check(links.length===0,'A folder copy opening a note wrote ontology');
+ `),true);
+});
+
+test('folder import refuses to finish a copy when the selected ancestor changes during the byte read',async()=>{
+ assert.equal(await authoringScenario(`
+ const folderPage={...origin,path:'folder:Folder',file:null,isFolder:true,name:'Folder'};
+ let release,entered;const gate=new Promise(done=>release=done),readStarted=new Promise(done=>entered=done);
+ const source=new File(['# Deep'],'Deep.md'),read=source.arrayBuffer.bind(source);
+ source.arrayBuffer=async()=>{entered();await gate;return read()};
+ const file={name:source.name,isFile:true,isDirectory:false,file(done){done(source)}};
+ const dir=(name,child)=>({name,isDirectory:true,isFile:false,createReader(){let read=false;return {readEntries(done){done(read?[]:(read=true,[child]))}}}});
+ const batch=new M.ExternalFileImportBatchModal(p,folderPage,{files:[],directory:true,entries:[dir('Incoming',dir('Nested',file))]},'child',leaf,()=>true,()=>{});
+ batch.open();await waitFor(()=>batch.ready);button(batch,'fileImport.importAll').click();await readStarted;
+ const imported=folders.get('Folder/Incoming'),replaced=Object.assign(new M.TFolder(),{path:'Folder/Incoming',children:[],parent:folder});
+ folders.set(replaced.path,replaced);release();await waitFor(()=>!batch.busy);
+ check(writes.every(write=>write[0]!=='binary'),'Copy continued through a replaced ancestor');
+ check(folders.get(replaced.path)===replaced&&imported!==replaced,'Copy mutated the replacement');
+ batch.close();
+ `),true);
+});
+
+test('folder import retries a failed deep copy without replacing the folders or files already written',async()=>{
+ assert.equal(await authoringScenario(`
+ const folderPage={...origin,path:'folder:Folder',file:null,isFolder:true,name:'Folder'};
+ const entry=(name,body)=>({name,isFile:true,isDirectory:false,file(done){done(new File([body],name))}});
+ const dir=(name,children)=>({name,isDirectory:true,isFile:false,createReader(){let read=false;return {readEntries(done){done(read?[]:(read=true,children))}}}});
+ const rootEntry=dir('Incoming',[entry('First.md','# First'),dir('Level1',[dir('Level2',[entry('Deep.bin',new Uint8Array([0,255])),dir('Empty',[])])])]);
+ const nativeCreateFolder=p.app.vault.createFolder,nativeCreateBinary=p.app.vault.createBinary;
+ let failFolder=true,failFile=true;
+ p.app.vault.createFolder=async path=>failFolder&&path.endsWith('/Level2')?null:nativeCreateFolder(path);
+ p.app.vault.createBinary=async(path,data)=>failFile&&path.endsWith('/Deep.bin')?null:nativeCreateBinary(path,data);
+ const batch=new M.ExternalFileImportBatchModal(p,folderPage,{files:[],directory:true,entries:[rootEntry]},'child',leaf,()=>true,()=>{});
+ batch.open();await waitFor(()=>batch.ready);button(batch,'fileImport.importAll').click();await waitFor(()=>!batch.busy);
+ check(batch.feedback.textContent===t('folderActions.failed')&&!batch.createdDirectories.has('Incoming/Level1/Level2'),'Missing directory handle was accepted as a receipt');
+ failFolder=false;button(batch,'fileImport.importAll').click();await waitFor(()=>!batch.busy);
+ const first=files.get('Folder/Incoming/First.md'),deep='Folder/Incoming/Level1/Level2';
+ const planted=folders.get(deep+'/Empty');
+ check(first&&planted&&batch.modalEl.isConnected&&!files.has(deep+'/Deep.bin'),'Controlled partial writes differ');
+ check(batch.feedback.textContent===t('fileImport.failed'),'Missing file handle did not use the normal localized copy failure');
+ failFile=false;button(batch,'fileImport.importAll').click();await waitFor(()=>!batch.modalEl.isConnected);
+ check(files.get('Folder/Incoming/First.md')===first&&folders.get(deep+'/Empty')===planted,'Retry replaced accepted copies');
+ check(writes.filter(write=>write[0]==='binary').length===2&&writes.filter(write=>write[0]==='folder').length===4,'Retry repeated a Vault write');
+ equal([...bytes.get(files.get(deep+'/Deep.bin'))],[0,255],'Retry altered binary data');check(links.length===0,'Folder retry wrote ontology');
+ `),true);
+});
+
+test('import refuses to link or retry a copy renamed during the creation automation wait',async()=>{
+ assert.equal(await authoringScenario(`
+ const batch=new M.ExternalFileImportBatchModal(p,origin,{files:[new File(['# Original'],'Original.md')],directory:false},'child',leaf,()=>true,()=>{});
+ let renamed;
+ p.waitForCreatedFileAutomation=async file=>{if(!renamed){renamed=file;await p.app.fileManager.renameFile(file,'Renamed.md');}};
+ batch.open();await waitFor(()=>batch.ready);button(batch,'fileImport.importAll').click();await waitFor(()=>!batch.busy);
+ check(renamed&&batch.rows[0].file===renamed&&files.get('Renamed.md')===renamed,'Copy receipt lost across automation');
+ check(!links.length&&batch.modalEl.isConnected,'Import linked or completed with an unapproved path');
+ button(batch,'fileImport.importAll').click();await waitFor(()=>!batch.busy);
+ check(!links.length&&writes.filter(write=>write[0]==='binary').length===1&&!files.has('Original.md'),'Retry created another copy or linked the renamed file');
+ batch.close();
  `),true);
 });
 

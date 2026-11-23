@@ -16,7 +16,7 @@ const host = `
 function make(parent,tag,options={}){const el=document.createElement(tag);if(options.cls)el.className=options.cls;if(options.text)el.textContent=options.text;for(const[k,v]of Object.entries(options.attr??{}))el.setAttribute(k,v);parent.append(el);return el;}
 for(const [name,callback]of Object.entries({empty(){this.replaceChildren()},setText(text){this.textContent=text},addClass(...names){this.classList.add(...names)},createEl(tag,options){return make(this,tag,options)},createDiv(options){return make(this,'div',options)},createSpan(options){return make(this,'span',options)}}))HTMLElement.prototype[name]=callback;
 exports.Modal=class Modal{constructor(app){this.app=app;this.modalEl=make(document.createElement('div'),'div');this.titleEl=make(this.modalEl,'h2');this.contentEl=make(this.modalEl,'div');}open(){document.body.append(this.modalEl);this.onOpen?.()}close(){this.onClose?.();this.modalEl.remove()}};
-exports.Setting=class Setting{constructor(parent){this.parent=this.settingEl=make(parent,'div',{cls:'setting-item'})}addButton(callback){const el=make(this.parent,'button');callback({buttonEl:el,setButtonText(text){el.textContent=text;return this},setDestructive(){el.classList.add('mod-warning');return this},setCta(){el.classList.add('mod-cta');return this},onClick(fn){el.addEventListener('click',fn);return this}});return this}setName(text){make(this.parent,'strong',{text});return this}setDesc(text){let el=this.parent.querySelector('.setting-item-description');if(!el)el=make(this.parent,'div',{cls:'setting-item-description'});el.textContent=text;return this}addDropdown(callback){const selectEl=make(this.parent,'select');callback({selectEl,addOption(value,label){const option=make(selectEl,'option',{text:label});option.value=value;return this},setValue(value){selectEl.value=value;return this},onChange(fn){selectEl.addEventListener('change',()=>fn(selectEl.value));return this}});return this}addToggle(callback){const toggleEl=make(this.parent,'input');toggleEl.type='checkbox';callback({toggleEl,setValue(value){toggleEl.checked=value;return this},onChange(fn){toggleEl.addEventListener('change',()=>fn(toggleEl.checked));return this}});return this}};
+exports.Setting=class Setting{constructor(parent){this.parent=this.settingEl=make(parent,'div',{cls:'setting-item'})}addButton(callback){const el=make(this.parent,'button');callback({buttonEl:el,setButtonText(text){el.textContent=text;return this},setDestructive(){el.classList.add('mod-warning');return this},setCta(){el.classList.add('mod-cta');return this},onClick(fn){el.addEventListener('click',fn);return this}});return this}setName(text){this.nameEl=make(this.parent,'strong',{text});return this}setDesc(text){let el=this.parent.querySelector('.setting-item-description');if(!el)el=make(this.parent,'div',{cls:'setting-item-description'});el.textContent=text;return this}addDropdown(callback){const selectEl=make(this.parent,'select');callback({selectEl,addOption(value,label){const option=make(selectEl,'option',{text:label});option.value=value;return this},setValue(value){selectEl.value=value;return this},onChange(fn){selectEl.addEventListener('change',()=>fn(selectEl.value));return this}});return this}addToggle(callback){const toggleEl=make(this.parent,'input');toggleEl.type='checkbox';callback({toggleEl,setValue(value){toggleEl.checked=value;return this},setDisabled(value){toggleEl.disabled=value;return this},onChange(fn){toggleEl.addEventListener('change',()=>fn(toggleEl.checked));return this}});return this}};
 exports.getLanguage=()=> 'en';
 exports.setIcon=(el,icon)=>el.dataset.icon=icon;
 exports.getIcon=()=>document.createElementNS('http://www.w3.org/2000/svg','svg');
@@ -243,11 +243,20 @@ test('remaining placeholder dialog explains body links and opens the selected so
  try{
   assert.equal(await browser.evaluate(setup),true);
   assert.equal(await browser.evaluate(`(async()=>{
-   const opened=[],reference={path:'Notes/Source.md',line:7,label:'body',sourceKind:'unresolved-link'};
-   const modal=new sourceModules.RemainingNodeReferencesModal({},'Missing note',[reference],item=>opened.push(item));modal.open();
+   const opened=[],changes=[],reference={path:'Notes/Source.md',line:7,label:'body',sourceKind:'unresolved-link'};
+   let canSave=false;
+   const modal=new sourceModules.RemainingNodeReferencesModal({},'Missing note',[reference],item=>opened.push(item),[],
+      async showAgain=>{changes.push(showAgain);return canSave;});modal.open();
    ok(modal.modalEl.textContent.includes('Missing note')&&modal.modalEl.textContent.includes('Notes/Source.md'),'Name the retained placeholder and its source note');
    const open=[...modal.modalEl.querySelectorAll('button')].find(button=>button.textContent==='Open');ok(open,'Offer native manual editing');open.click();await tick();
-   ok(opened.length===1&&opened[0].path==='Notes/Source.md'&&opened[0].line===7,'Open the exact note and Markdown line');modal.close();return true;
+   ok(opened.length===1&&opened[0].path==='Notes/Source.md'&&opened[0].line===7,'Open the exact note and Markdown line');
+   const toggle=modal.modalEl.querySelector('input[type=checkbox]');
+   ok(toggle&&!toggle.checked&&toggle.parentElement.textContent.includes('Never show this again'),'Show an off-by-default native toggle');
+   ok(toggle.getAttribute('role')==='switch'&&document.getElementById(toggle.getAttribute('aria-labelledby'))?.textContent==='Never show this again','Associate the accessible switch with its visible label');
+   toggle.click();await tick();ok(!toggle.checked&&!toggle.disabled&&toggle.getAttribute('aria-checked')==='false','Failed preference save restores the toggle');
+   canSave=true;toggle.click();await tick();ok(toggle.checked&&toggle.getAttribute('aria-checked')==='true'&&changes.length===2&&changes.every(value=>value===false),'Opt out immediately and keep this report open');
+   ok(modal.modalEl.isConnected,'Opting out does not dismiss the report');
+   modal.close();return true;
   })()`),true);
  }finally{await browser.cleanup();}
 });

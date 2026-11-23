@@ -1,5 +1,5 @@
-/** One confirmation for one external drop. Shared folder/ontology controls apply to the whole
- * batch; durable per-file receipts make partial imports resumable without copying twice. */
+/** One confirmation for one external drop. Copy-only imports into folders proceed independently
+ * of template work. Durable per-file receipts make partial imports resumable without copying twice. */
 import {FormSetting as Setting, KplexModal as Modal, formActions, formField, labelIconButton} from "../adapters/obsidian/KplexModal";
 
 import {type TFile, type TFolder, type WorkspaceLeaf, type ButtonComponent} from "obsidian";
@@ -14,11 +14,17 @@ import {SelectedOntologyEditor} from "./SelectedOntologyEditor";
 
 import {CreationCompletionSelect} from "./features/CreationCompletionSelect";
 import {SavedRelationshipPendingError} from "../adapters/obsidian/relationshipMetadataWrite";
-import {copyExternalFile, discoverExternalImports, validImportSegment, type ExternalImportPayload} from "../adapters/obsidian/externalFileImport";
+import {copyExternalFile, discoverExternalImports, externalImportName, type ExternalImportPayload} from "../adapters/obsidian/externalFileImport";
 import {PartialRelatedFileError} from "../adapters/obsidian/relatedFileOutcome";
 import {graphFolder} from "../adapters/obsidian/graphFolder";
+import type {CreationAfterSavingAction} from "../core/plex/createdNoteDestination";
 
-type ImportRow = {source: File; relativePath: string; name: string; file?: TFile; destination?: string; saved: boolean; editor?: HTMLInputElement; status?: HTMLElement};
+type ImportRow = {source: File; relativePath: string; name: string; file?: TFile; destination?: string; completion?: CreationAfterSavingAction; saved: boolean; editor?: HTMLInputElement; status?: HTMLElement};
+
+/** The inventory has validated literal segments; no traversal is involved in taking its parent. */
+function parentPath(relative: string): string {
+  return relative.slice(0, Math.max(0, relative.lastIndexOf("/")));
+}
 
 export class ExternalFileImportBatchModal extends Modal {
   private opened = false;
@@ -73,7 +79,28 @@ export class ExternalFileImportBatchModal extends Modal {
   private locked(): boolean {return this.rows.some(/** Any durable copy keeps its exact destination. */ row => !!row.file) || this.createdDirectories.size > 0;}
 
   /** A filename edit affects its leaf only; imported directory structure is preserved. */
-  private relative(row: ImportRow): string {return [...row.relativePath.split("/").slice(0, -1), row.name.trim()].join("/");}
+  private relative(row: ImportRow): string {
+    const name = externalImportName(row.source, row.name);
+    if (!name) throw new Error(this.plugin.translator("fileImport.invalidName"));
+    const parent = parentPath(row.relativePath);
+    return parent ? `${parent}/${name}` : name;
+  }
+
+  /** Keep the chosen Vault folder's exact prefix and append an already normalized relative path. */
+  private vaultPath(relative: string): string {
+    return this.folderPath ? `${this.folderPath}/${relative}` : relative;
+  }
+
+  /** An awaited copy must still belong to the selected base and each captured imported ancestor. */
+  private destinationCurrent(base: TFolder, relative: string): boolean {
+    const {vault} = this.plugin.app;
+    if (!this.live() || this.folder !== base || (this.folderPath ? vault.getFolderByPath(this.folderPath) : vault.getRoot()) !== base) return false;
+    for (let parent = relative; parent; parent = parentPath(parent)) {
+      const path = this.vaultPath(parent), folder = this.createdDirectories.get(parent);
+      if (!folder || folder.path !== path || vault.getFolderByPath(path) !== folder) return false;
+    }
+    return true;
+  }
 
   /** Preflight the whole batch before creating even one directory or file. */
   private validate(): TFolder {
@@ -82,8 +109,7 @@ export class ExternalFileImportBatchModal extends Modal {
     const paths = new Set<string>(), receipts = new Map<string, TFile>();
     for (const row of this.rows) if (row.file && row.destination) receipts.set(row.destination, row.file);
     for (const relative of [...this.directories, ...this.rows.map(/** Every renamed leaf participates in one collision check. */ row => this.relative(row))]) {
-      if (!relative.split("/").every(validImportSegment)) throw new Error(this.plugin.translator("fileImport.invalidName"));
-      const path = this.folderPath ? `${this.folderPath}/${relative}` : relative;
+      const path = this.vaultPath(relative);
       if (paths.has(path)) throw new Error(this.plugin.translator("moveNode.conflict")); paths.add(path);
       const existing = app.vault.getAbstractFileByPath(path), created = this.createdDirectories.get(relative);
       // Only an exact already committed copy may occupy a retry destination.
@@ -92,9 +118,6 @@ export class ExternalFileImportBatchModal extends Modal {
     }
     for (const row of this.rows) {
       if (row.file && (row.file.path !== row.destination || app.vault.getFileByPath(row.destination) !== row.file)) throw new Error(this.plugin.translator("addRelated.endpointChanged"));
-      const extension = row.source.name.lastIndexOf(".") > 0 ? row.source.name.slice(row.source.name.lastIndexOf(".")).toLowerCase() : "";
-      const name = row.name.trim(), actual = name.lastIndexOf(".") > 0 ? name.slice(name.lastIndexOf(".")).toLowerCase() : "";
-      if (actual !== extension) throw new Error(this.plugin.translator("fileImport.invalidName"));
     }
     return folder;
   }
@@ -105,6 +128,10 @@ export class ExternalFileImportBatchModal extends Modal {
     this.busy = true; this.renderControls?.();
     try {
       const base = this.validate();
+      const singleFileDrop = !this.payload.directory && this.rows.length === 1;
+      const completion = singleFileDrop ? this.rows[0].completion ?? this.plugin.createdNoteCompletionControl(this.hostLeaf, {another: false, follow: false}).value : "return";
+      // A structural copy alone has no K-Plex property write or editor opening to fence.
+      const waitForAutomation = !this.nativeOriginFolder || completion !== "return";
       if (!this.nativeOriginFolder) {
         const assigned = this.plugin.ontologyRoleForField(this.ontology);
         if (!this.ontology.trim() || this.roleFilter === "all" && !assigned
@@ -115,27 +142,39 @@ export class ExternalFileImportBatchModal extends Modal {
       for (const relative of this.directories) {
         if (!this.live()) return; this.validate();
         if (this.createdDirectories.has(relative)) continue;
-        const path = this.folderPath ? `${this.folderPath}/${relative}` : relative;
+        if (!this.destinationCurrent(base, parentPath(relative))) throw new Error(this.plugin.translator("addRelated.endpointChanged"));
+        const path = this.vaultPath(relative);
         this.feedback?.setText(this.plugin.translator("fileImport.creatingFolder", {path}));
-        const folder = await this.plugin.app.vault.createFolder(path); this.createdDirectories.set(relative, folder);
+        const folder = await this.plugin.app.vault.createFolder(path);
+        if (!folder) throw new Error(this.plugin.translator("folderActions.failed"));
+        this.createdDirectories.set(relative, folder);
       }
       for (const row of this.rows) {
         if (!this.live()) return; this.validate();
         if (row.saved) continue;
-        const relative = this.relative(row), parent = relative.split("/").slice(0, -1).join("/");
+        const relative = this.relative(row), parent = parentPath(relative), destination = this.vaultPath(relative);
         const destinationFolder = parent ? this.createdDirectories.get(parent) : base;
-        if (!destinationFolder) throw new Error(this.plugin.translator("addRelated.endpointChanged"));
+        if (!destinationFolder || !this.destinationCurrent(base, parent)) throw new Error(this.plugin.translator("addRelated.endpointChanged"));
         if (!row.file) {
           this.feedback?.setText(this.plugin.translator("fileImport.copying", {name: row.name, current: this.rows.indexOf(row) + 1, total: this.rows.length}));
-          try {row.file = await this.plugin.createFileWithAutomation(() => copyExternalFile(this.plugin.app, row.source, row.name, destinationFolder, this.plugin.translator, /** Cancellation during byte loading never starts a copy. */ () => this.live()));}
-          catch (error) {
-            if (error instanceof PartialRelatedFileError) {row.file = error.file; row.destination = error.file.path;}
-            throw error;
+          const copy = () => copyExternalFile(this.plugin.app, row.source, row.name, destinationFolder, this.plugin.translator,
+            /** Byte loading must not cross destination replacement or cancellation. */ () => this.destinationCurrent(base, parent));
+          try {
+            row.file = await (waitForAutomation ? this.plugin.createFileWithAutomation(copy) : copy());
           }
-          row.destination = row.file.path;
+          catch (error) {
+            if (error instanceof PartialRelatedFileError) row.file = error.file;
+            throw error;
+          } finally {
+            // Retain the accepted opening choice with the exact file and its template receipt.
+            if (row.file) {row.destination = destination; row.completion = completion;}
+          }
         }
         if (!this.live()) return;
-        await this.plugin.waitForCreatedFileAutomation(row.file);
+        if (waitForAutomation) await this.plugin.waitForCreatedFileAutomation(row.file);
+        if (!this.live()) return;
+        if (!this.destinationCurrent(base, parent) || row.file.path !== destination || this.plugin.app.vault.getFileByPath(destination) !== row.file)
+          throw new Error(this.plugin.translator("addRelated.endpointChanged"));
         try {
           if (this.nativeOriginFolder) this.plugin.index.insertCreatedFile(row.file);
           else {this.feedback?.setText(this.plugin.translator("fileImport.linking", {name: row.name})); await this.plugin.linkNewRelatedFile(this.origin, this.selectedRole(), row.file, this.ontology.trim());}
@@ -144,8 +183,8 @@ export class ExternalFileImportBatchModal extends Modal {
         this.feedback?.setText(this.plugin.translator("fileImport.progress", {completed: this.rows.filter(/** Progress counts only durable copies whose requested relation is saved. */ item => item.saved).length, total: this.rows.length}));
       }
       if (!this.live()) return;
-      const file = !this.payload.directory && this.rows.length === 1 ? this.rows[0].file : null;
-      const completion = this.plugin.createdNoteCompletionControl(this.hostLeaf, {another: false, follow: false}).value;
+      this.validate();
+      const file = singleFileDrop ? this.rows[0].file : null;
       this.completing = true; this.close();
       if (file && completion !== "return") {
         const page = this.plugin.index.get(file.path) ?? this.plugin.index.insertCreatedFile(file);
@@ -174,7 +213,12 @@ export class ExternalFileImportBatchModal extends Modal {
       const disabled = this.busy || this.locked();
       for (const row of this.rows) if (row.editor) row.editor.disabled = disabled;
       folderRoot.render(createElement(FolderPathInput, {value: this.folderPath, folders: folders.map(/** Suggestions retain native folder objects for final validation. */ folder => folder.path), translate: t, disabled,
-        onChange: /** Common destination changes before confirmation, never after a durable partial copy. */ value => {this.folderPath = value === "/" ? "" : value; this.folder = folders.find(folder => folder.path === value || value === "/" && folder === this.plugin.app.vault.getRoot()) ?? null; this.renderControls?.();}}));
+        onChange: /** Common destination changes before confirmation, never after a durable partial copy. */ value => {
+          if (this.busy || this.locked()) return;
+          this.folderPath = value === "/" ? "" : value;
+          this.folder = folders.find(folder => folder.path === value || value === "/" && folder === this.plugin.app.vault.getRoot()) ?? null;
+          this.renderControls?.();
+        }}));
       fieldRoot?.render(createElement(RelationshipSelectionControl, {plugin: this.plugin, role: this.roleFilter, field: this.ontology, disabled,
         onChange: /** The drag default is editable until the first durable copy locks the common configuration. */ (role, field) => {
           if (disabled) return; this.roleFilter = role; this.ontology = field; this.fieldWasDefined = Boolean(this.plugin.ontologyRoleForField(field)); this.renderControls?.();
@@ -183,8 +227,10 @@ export class ExternalFileImportBatchModal extends Modal {
           this.ontologyEditor.open(this.ontology, invoker, () => {this.fieldWasDefined = true; this.renderControls?.();}),
       }));
       if (completionRoot) {const control = this.plugin.createdNoteCompletionControl(this.hostLeaf, {another: false, follow: false});
-        completionRoot.render(createElement(CreationCompletionSelect, {...control, translate: t, disabled: this.busy,
-          onChange: /** Single-file opening uses the existing remembered creation preference. */ value => {control.onChange(value); this.renderControls?.();}}));}
+        completionRoot.render(createElement(CreationCompletionSelect, {...control, value: this.rows[0].completion ?? control.value, translate: t, disabled,
+          onChange: /** Only a draft can change the opening action used to accept its copy. */ value => {
+            if (!this.busy && !this.locked()) {control.onChange(value); this.renderControls?.();}
+          }}));}
       this.button?.setDisabled(this.busy || !this.ready || !this.live());
     };
     actions
@@ -199,7 +245,9 @@ export class ExternalFileImportBatchModal extends Modal {
       .then(/** Render the complete bounded inventory before enabling the only Import button. */ inventory => {
         if (!this.live()) return;
         this.directories = inventory.directories;
-        this.rows = inventory.files.map(/** Each row retains its exact source handle and relative parent. */ item => ({source: item.file, relativePath: item.relativePath, name: item.file.name, saved: false}));
+        this.rows = inventory.files.map(/** Keep the source handle and show the normalized destination leaf in the preview. */ item => ({
+          source: item.file, relativePath: item.relativePath, name: item.relativePath.slice(item.relativePath.lastIndexOf("/") + 1), saved: false,
+        }));
         for (const directory of this.directories) listing.createDiv({text: directory + "/", cls: "setting-item-description"});
         for (const row of this.rows) {
           const setting = new Setting(listing).setName(row.relativePath);

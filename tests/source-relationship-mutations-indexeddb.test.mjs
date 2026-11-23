@@ -1013,10 +1013,50 @@ test("new drawing relationship saves during structural refresh with unavailable 
     equal(result.state,'saved-pending','Persistence succeeds independently of graph publication');ok(result.page.file===file,'Exact created file retained');
     equal(pairCalls,0,'Creation never asks the canonical pair gate to authorize a property addition');
     equal(f.metadata.get(parent.path).frontmatter,{...prior,Children:['[[Unrelated]]','[[New drawing.md]]']},'Native additive property saved without changing other metadata');
+    ok(i.neighbours(i.get(parent.path),'child').some(row=>row.page.file===file),'The saved child is visible during structural refresh');
+    ok(i.neighbours(i.get(file.path),'parent').some(row=>row.page.file===parent),'The inverse reading is also visible immediately');
+    ok(!i.isSemanticWriteReady(parent.path,file.path),'Local presentation cannot authorize canonical edits');
+    parent.stat.mtime++;
+    ok(!i.neighbours(i.get(parent.path),'child').some(row=>row.page.file===file),'A later owner edit invalidates the unpublished receipt');
     i.pendingStructuralTasks=previous;i.prepareRelationshipPair=pair;
     ok(await i.prepareRelationshipPair(parent.path,file.path),'Ordinary canonical reconciliation catches up after refresh');
     ok(i.isConnected(i.get(parent.path),file.path),'Saved new child becomes canonical');return true;
    }finally{i.pendingStructuralTasks=previous;f.close();}
+  })()`),true);
+ }finally{await browser.cleanup();}
+});
+
+test("a newly saved Friend appears in the Classic scene before MetadataCache or the global owner catches up", async () => {
+ const browser=await chromiumHarness(bundle);
+ try {
+  assert.equal(await browser.evaluate(contributorBrowserInitialize),true);await browser.evaluate(setup);
+  assert.equal(await browser.evaluate(`(async()=>{
+   const f=await makeRelationshipFixture('friend-local-publication'),i=f.index,c=f.context;
+   let sourceReleased, sourceWork;
+   try {
+    const parent=f.files.get('A.md');
+    const file=f.add('New friend.md','');f.app.vault.trigger('create',file);
+    const hold=new Promise(resolve=>sourceReleased=resolve);
+    sourceWork=i.workScheduler.run(4,()=>hold);
+    i.pendingStructuralTasks++;
+    let saved;
+    f.app.fileManager.processFrontMatter=async (owner,update)=>{
+      saved={owner,frontmatter:structuredClone(f.metadata.get(owner.path).frontmatter??{})};
+      update(saved.frontmatter);owner.stat.mtime++;
+    };
+    await c.linkNewRelatedFile(i.get(parent.path),'left',file,'Friends');
+    equal(saved.frontmatter.Friends,['[[New friend.md]]'],'Friend added to the actual writer payload');
+    ok(!f.metadata.get(parent.path).frontmatter?.Friends,'Obsidian metadata still lags the successful save');
+    ok(i.getNeighborhood(parent.path).leftFriends.some(row=>row.page.file===file),'Rendered neighborhood includes the new Friend before releasing index work');
+    ok(!i.isSemanticWriteReady(parent.path,file.path),'The displayed link does not grant edit authority');
+    f.plugin.settings.showPageNodes=false;
+    ok(!i.getNeighborhood(parent.path).leftFriends.some(row=>row.page.file===file),'The current page filter still applies to the saved link');
+    f.plugin.settings.showPageNodes=true;
+    f.files.delete(file.path);
+    f.app.vault.trigger('delete',file);
+    ok(!i.getNeighborhood(parent.path).leftFriends.some(row=>row.page.file===file),'Retired target identity prevents stale display');
+    return true;
+   }finally{i.pendingStructuralTasks--;sourceReleased?.();await sourceWork;f.close();}
   })()`),true);
  }finally{await browser.cleanup();}
 });

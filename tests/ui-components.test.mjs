@@ -10,6 +10,7 @@ import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import test from "node:test";
 import { browserExecutable } from "./support/browserExecutable.mjs";
+import { nativeColorControls } from "./support/nativeColorControls.mjs";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { buildSync } from "esbuild";
 import ts from "typescript";
@@ -1122,7 +1123,7 @@ function relatedComposerBrowserEntry() {
     && ["RelatedNoteComposer", "isNoteTarget", "captureRelatedEndpoint", "refreshCapturedPage"].includes(statement.name?.text)).map((statement) => statement.getText(source)).join("\n");
   const production = ts.transpileModule(functions, { compilerOptions: { target: ts.ScriptTarget.ES2021, module: ts.ModuleKind.None } }).outputText;
   return `
-import React, { createElement, useCallback, useEffect, useMemo, useRef, useState, useId } from "react";
+import React, { createElement, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useId } from "react";
 import { flushSync } from "react-dom";
 import { createRoot } from "react-dom/client";
 import { FuzzySuggester } from ${JSON.stringify(join(root, "src/ui/components/FuzzySuggester.tsx"))};
@@ -1144,6 +1145,7 @@ import {DEFAULT_COMMON_NODE_PROPERTIES,mergedNodePropertyRows,nodePropertyRows} 
 import {CreationPropertyFields} from ${JSON.stringify(join(root,"src/ui/features/CreationPropertyFields.tsx"))};
 import {creationPropertyValues} from ${JSON.stringify(join(root,"src/application/creationProperties.ts"))};
 import {noteTypeTag} from ${JSON.stringify(join(root,"src/core/graph/tagPaths.ts"))};
+import {noteTypeSuggestionNames,TagNameSuggest} from ${JSON.stringify(join(root,"src/ui/TagNameSuggest.ts"))};
 ${uiDefinitions("src/adapters/obsidian/creationProperties.ts",["creationPropertyKind"])}
 ${uiDefinitions("src/adapters/obsidian/tagNoteType.ts",["noteTypeAsTag"])}
 import {iterateInternalLinkTokens,iterateMarkdownLinkSteps} from ${JSON.stringify(join(root,"src/core/parser/metadata.ts"))};
@@ -1339,7 +1341,7 @@ ${production}
 }
 
 /** Run a production DOM fixture in an isolated profile and navigate with an encoded file URL. */
-function runBrowserDom(entry, successText) {
+function runBrowserDom(entry, successText, nativeMock) {
   const browser = findBrowser();
   assert(browser, "A Chromium-family browser is required for the DOM behavior lane; set KPLEX_TEST_BROWSER to its executable path.");
 
@@ -1349,11 +1351,14 @@ function runBrowserDom(entry, successText) {
     const bundlePath = join(temp, "bundle.js");
     const htmlPath = join(temp, "index.html");
     writeFileSync(entryPath, entry);
+    const mockPath = join(temp, "obsidian.ts");
+    if (nativeMock) writeFileSync(mockPath, nativeMock);
     buildSync({
       entryPoints: [entryPath],
       outfile: bundlePath,
       bundle: true,
       nodePaths: [join(root, "node_modules")],
+      alias: nativeMock ? {obsidian: mockPath} : undefined,
       platform: "browser",
       format: "iife",
       target: ["chrome100"],
@@ -2188,7 +2193,7 @@ test("ResizableAreaFrame localized keyboard behavior", () => {
 
 /** A real composer must retain existing selection across ontology browsing and failed commits. */
 test("Related composer existing selection and ontology disclosure browser behavior", () => {
-  runBrowserDom(relatedComposerBrowserEntry(), "Related composer browser behavior passed");
+  runBrowserDom(relatedComposerBrowserEntry(), "Related composer browser behavior passed", nativeColorControls);
 });
 
 

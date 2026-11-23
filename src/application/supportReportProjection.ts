@@ -6,7 +6,10 @@
  * are accepted, including own accessors and arbitrary toJSON implementations.
  */
 import { projectSupportCustomizations } from "./supportCustomizationProjection";
-import {projectIndexRecoveryDiagnostics} from "./indexRecoveryDiagnostics";
+import {projectIndexRecoveryDiagnostics, SOURCE_INVENTORY_END_CAUSES, SOURCE_INVENTORY_LIMIT, SOURCE_PASS_OUTCOMES, SOURCE_PASS_PHASES,
+  UNCOVERED_RESOLVER_CAUSES} from "./indexRecoveryDiagnostics";
+import {ACTIVITY_REASONS} from "./IndexingActivity";
+import {GRAPH_BUILD_CANCELLATIONS, GRAPH_BUILD_FAILURES, GRAPH_BUILD_LIMIT, GRAPH_BUILD_PHASES, GRAPH_BUILD_TRIGGERS} from "./GraphBuildDiagnostics";
 import { SETTING_DIAGNOSTIC_KEYS } from "../core/graph/settingsPolicy";
 import {CENTER_RECOVERY_OUTCOMES, sanitizeCenterRecoveryDiagnostic} from "../core/contracts/centerRecovery";
 import { supportCode, supportCount, supportDuration, supportField, SUPPORT_PHASES } from "./SessionEventRecorder";
@@ -25,7 +28,7 @@ const DECISION_REASONS = ["source-backed-physical-baseline", "source-node-incide
   "snapshot-write-cancelled", "checkpoint-saved", "complete-saved"] as const;
 const BUILD_PARTS = ["cold-progressive", "full-rebuild", "per-file-patch", "startup", "vault", "metadata", "kplex", "stale-snapshot", "no-snapshot",
   "partial-restore-incomplete", "post-initial-backlog", "initial-index", "create-during-rebuild", "create-markdown", "create", "delete-folder-failed", "delete",
-  "rename-folder-failed", "rename-folder", "rename", "changed", "coalesced-backlog", "interval", "view-open", "direct", "unknown", "settings", "manual", "user-request"] as const;
+  "rename-folder-failed", "rename-folder", "rename", "changed", "coalesced-backlog", "interval", "view-open", "view-visible", "direct", "unknown", "settings", "manual", "user-request"] as const;
 const MILESTONES = ["onload", "settings-loaded", "layout-ready", "strict-ready", "on-demand-baseline-ready", "on-demand-center-requested", "on-demand-center-patched",
   "host-search-ready", "host-preview-ready", "first-requested-scope-authoritative", "url-background-start", "url-background-complete", "evidence-hydration-start",
   "evidence-hydration-end", "snapshot-catalog-read", "host-inventory-start", "host-inventory-end", "preview-available", "source-authority-await-ended",
@@ -116,11 +119,55 @@ function supportHydrationFailure(input: unknown) {
     ...(supportField(input, "storage") == null ? {} : {storage: supportStorageDiagnostics(supportField(input, "storage"))}),
   };
 }
+
+/** Recent/active pass timing uses the same native renderer clock and bounded own data fields. */
+function supportPassWindow<T>(input: unknown, limit: number, project: (row: unknown) => T | null) {
+  const rows = supportField(input, "recent");
+  const recent = supportRows(rows, limit).map(project).filter(row => row !== null);
+  const omitted = Math.min(Number.MAX_SAFE_INTEGER, (supportCount(supportField(input, "omitted")) ?? 0)
+    + supportRowCount(rows) - recent.length);
+  return {active: project(supportField(input, "active")), recent, omitted};
+}
+
+function supportGraphBuild(row: unknown) {
+  const startMs = supportDuration(supportField(row, "startMs"));
+  if (startMs === null) return null;
+  const phaseTimes = supportField(row, "phaseMs");
+  const backlog = new Set(supportRows(supportField(row, "backlog"), GRAPH_BUILD_TRIGGERS.length)
+    .map(value => supportCode(value, GRAPH_BUILD_TRIGGERS, "unknown")));
+  return {startMs, elapsedMs: supportDuration(supportField(row, "elapsedMs")),
+    mode: supportCode(supportField(row, "mode"), ["atomic", "progressive"]),
+    trigger: supportCode(supportField(row, "trigger"), GRAPH_BUILD_TRIGGERS, "unknown"), backlog: [...backlog],
+    ...supportCounters(row, ["pendingMarkdown", "processedNotes", "totalNotes"]),
+    ...Object.fromEntries(["hadCompleteGraph", "escalatedFromPatch", "sourcePreparationActiveAtStart", "sourceAuthorityReadyAtStart", "inventoryPauseRequested",
+      "sourceChanged", "topologyChanged"].map(key => [key, supportBoolean(supportField(row, key))])),
+    phase: supportCode(supportField(row, "phase"), GRAPH_BUILD_PHASES),
+    phaseMs: Object.fromEntries(GRAPH_BUILD_PHASES.flatMap(phase => {
+      const elapsed = supportDuration(supportField(phaseTimes, phase));
+      return elapsed === null ? [] : [[phase, elapsed]];
+    })),
+    outcome: supportCode(supportField(row, "outcome"), ["running", "complete", "incomplete", "cancelled", "failed", "superseded"]),
+    failure: supportField(row, "failure") == null ? null : supportCode(supportField(row, "failure"), GRAPH_BUILD_FAILURES),
+    cancelledBy: supportField(row, "cancelledBy") == null ? null : supportCode(supportField(row, "cancelledBy"), GRAPH_BUILD_CANCELLATIONS)};
+}
+
+function supportSourceInventory(row: unknown) {
+  const startMs = supportDuration(supportField(row, "startMs"));
+  if (startMs === null) return null;
+  return {startMs, elapsedMs: supportDuration(supportField(row, "elapsedMs")),
+    trigger: supportCode(supportField(row, "trigger"), ACTIVITY_REASONS),
+    resolverCause: supportField(row, "resolverCause") == null ? null : supportCode(supportField(row, "resolverCause"), UNCOVERED_RESOLVER_CAUSES),
+    endCause: supportField(row, "endCause") == null ? null : supportCode(supportField(row, "endCause"), SOURCE_INVENTORY_END_CAUSES),
+    phase: supportCode(supportField(row, "phase"), SOURCE_PASS_PHASES), outcome: supportCode(supportField(row, "outcome"), SOURCE_PASS_OUTCOMES),
+    ...supportCounters(row, ["visited", "total", "sourceChanges", "scopeChanges", "hostChanges"])};
+}
 /** Rebuild the existing native index schema from explicit safe fields; unavailable input is named. */
 export function projectSupportIndex(input: unknown) {
   const source = supportIndexInput(input);
   if (source === null || typeof source !== "object" || supportIsArray(source)) return { availability: "unavailable" as const };
   const status = supportField(source, "status"), graph = supportField(source, "graph"), hydration = supportField(source, "hydration");
+  const recovery = supportField(source, "recovery"), builds = supportField(source, "graphBuilds");
+  const inventories = supportField(supportField(recovery, "source"), "inventories");
   const saved = supportField(source, "saved"), sources = supportField(source, "sources"), plugin = supportField(source, "plugin"), device = supportField(source, "device");
   const decisions = supportRows(supportField(source, "decisions"), 20).map(/** Each retained decision is rebuilt without extra fields, raw errors or dynamic setting values. */ row => {
     const centerCheck = sanitizeCenterRecoveryDiagnostic(supportField(row, "centerCheck"));
@@ -131,7 +178,10 @@ export function projectSupportIndex(input: unknown) {
     ...(centerCheck ? {centerCheck} : {}),
   };});
   return {
-    availability: "available" as const, recovery: projectIndexRecoveryDiagnostics(supportField(source, "recovery")),
+    availability: "available" as const, recovery: projectIndexRecoveryDiagnostics(recovery),
+    ...(builds == null && inventories == null ? {} : {work: {clock: "renderer-monotonic", duration: "await-inclusive-elapsed",
+      graphBuilds: supportPassWindow(builds, GRAPH_BUILD_LIMIT, supportGraphBuild),
+      sourceInventories: supportPassWindow(inventories, SOURCE_INVENTORY_LIMIT, supportSourceInventory)}}),
     persistence: {pending: supportBoolean(supportField(supportField(source, "persistence"), "pending")),
       active: supportBoolean(supportField(supportField(source, "persistence"), "active")),
       waitingForFocus: supportBoolean(supportField(supportField(source, "persistence"), "waitingForFocus")),

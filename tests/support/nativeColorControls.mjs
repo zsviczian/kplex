@@ -7,7 +7,7 @@ export const Platform={}; export const getIconIds=()=>[]; export class App{} exp
 export class FileView{} export class TextFileView extends FileView{} export class WorkspaceLeaf{} export class WorkspaceSplit{}
 export class TFile{};export class TFolder{};
 export class TextAreaComponent {constructor(container){this.inputEl=container.createEl('textarea')}}
-export const normalizePath=value=>value.replaceAll('\\\\','/').replace(/\\/+/g,'/').replace(/^\\/+|\\/+$/g,'')||'/';
+export const normalizePath=value=>value.replaceAll('\\\\','/').replace(/\\/+/g,'/').replace(/^\\/+|\\/+$/g,'').normalize('NFC')||'/';
 export const parseLinktext=value=>{const hash=value.indexOf('#');return hash<0?{path:value,subpath:''}:{path:value.slice(0,hash),subpath:value.slice(hash)}};
 export class AbstractInputSuggest {constructor(app,input){this.app=app;this.input=input} setValue(value){this.input.value=value} open(){} close(){}}
 export class PluginSettingTab {update(){} constructor(app,plugin){this.app=app;this.plugin=plugin;this.containerEl=createDiv();document.body.append(this.containerEl)} hide(){}}

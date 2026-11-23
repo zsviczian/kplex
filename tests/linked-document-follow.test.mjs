@@ -14,11 +14,11 @@ const actionBuild=await build({entryPoints:['src/application/ActionManager.ts'],
 const {ActionManager}=await import('data:text/javascript;base64,'+Buffer.from(actionBuild.outputFiles[0].text).toString('base64'));
 const actionNodeRef = page => ({identity:page.path,path:page.path,kind:page.file?"file":"ghost"});
 import {loadPortableModules} from "./support/portableTypeScript.mjs";
-const {exports: {DoubleTapGesture, isObsidianUri, deletedFileNavigationTarget}} = loadPortableModules(["src/ui/components/DoubleTapGesture.ts", "src/adapters/obsidian/urlIdentity.ts", "src/core/graph/model.ts", "src/adapters/obsidian/deletedFileNavigation.ts"]);
+const {exports: {DoubleTapGesture, isObsidianUri, deletedFileNavigationTarget, graphFolder}} = loadPortableModules(["src/ui/components/DoubleTapGesture.ts", "src/adapters/obsidian/urlIdentity.ts", "src/core/graph/model.ts", "src/adapters/obsidian/deletedFileNavigation.ts", "src/adapters/obsidian/graphFolder.ts"]);
 
 /** Extract a real plugin method or App follow callback without invoking native plugin startup. */
 function production(name, dependencies = {}, filename = "src/main.ts") {
-  dependencies = {isEmbeddedMarkdownLeaf: leaf => Boolean(leaf?.embedded), nativeLeafId: (_workspace, leaf) => leaf?.id ?? null, isObsidianUri, deletedFileNavigationTarget, ...dependencies};
+  dependencies = {isEmbeddedMarkdownLeaf: leaf => Boolean(leaf?.embedded), nativeLeafId: (_workspace, leaf) => leaf?.id ?? null, isObsidianUri, deletedFileNavigationTarget, graphFolder, ...dependencies};
   if(filename === "src/ui/App.tsx" && ["activatePendingDocumentFollow","activateDeletedFilePlaceholder","centerPublication","presentationPublication","reconcileDocumentFollowVisibility"].includes(name)) {
     dependencies.acquirePendingDocumentDemand ??= production("acquirePendingDocumentDemand", dependencies, filename);
   }
@@ -765,10 +765,10 @@ function appFollowFixture(environment = {device: "desktop"}) {
 /** Evaluate the actual App center projection, including warm fallback, without substituting another selector. */
 function projectedAppCenter(f){
   const file=ts.createSourceFile('App.tsx',readFileSync(new URL('../src/ui/App.tsx',import.meta.url),'utf8'),ts.ScriptTarget.Latest,true,ts.ScriptKind.TSX);
-  const names=new Set(['indexedPage','exactPage','waitingForDocumentHandover','waitingForDocument','fallbackPath','waitingForStartupCenter','page']),declarations=[];
+  const names=new Set(['indexedPage','exactPage','waitingForDocumentHandover','waitingForDocument','trackedCenter','missingFolderCenter','savedCenterPath','movedFolderPath','deletedFolderCenter','fallbackPath','waitingForStartupCenter','page']),declarations=[];
   const app=file.statements.find(node=>ts.isFunctionDeclaration(node)&&node.name?.text==='KplexApp');
   for(const statement of app.body.statements)if(ts.isVariableStatement(statement))for(const node of statement.declarationList.declarations)if(names.has(node.name.getText(file)))declarations.push('const '+node.getText(file)+';');
-  const dependencies={...f.state,activePath:f.state.renderPath,navigationOrigin:f.state.origin??'user'};
+  const dependencies={...f.state,graphFolder,activePath:f.state.renderPath,navigationOrigin:f.state.origin??'user'};
   const code=ts.transpileModule(declarations.join('\n'),{compilerOptions:{target:ts.ScriptTarget.ES2022}}).outputText;
   return Function(...Object.keys(dependencies),code+';return page;')(...Object.values(dependencies));
 }
@@ -790,7 +790,7 @@ test('warm deleted-center handover owns the placeholder across borrowed read los
   assert.equal(state.activePageRef.current,replacement,'A borrowed semantic publication may replace its same-kind page object before the requested owner is ready');
   releaseOld();assert.equal(state.plugin.index.get(ghost.path),undefined);
   assert.equal(projectedAppCenter(f),ghost,'Warm fallback must retain only the captured, still-owned placeholder while its own read is pending');
-  const persist=page=>production('centerPersistence',{...f.dependencies,page,activePath:state.renderPath},'src/ui/App.tsx')();
+  const persist=page=>production('centerPersistence',{...f.dependencies,page,deletedFolderCenter:false,activePath:state.renderPath},'src/ui/App.tsx')();
   persist(projectedAppCenter(f));assert.equal(state.documentSession.centerPath,ghost.path,'The native session must never bounce to the old physical-coordinate ghost');
   state.presentation({kind:'paint'});assert.equal(state.demandCounts.get(ghost.path),2,'Paint-only publication cannot settle source handover');
   state.borrowedFrom.delete(ghost.path);state.presentation({kind:'presentation'});
@@ -844,6 +844,21 @@ test("centered ghost materialization preserves two Plex centers without navigati
   assert.equal(other.activePathRef.current,"A.md");assert.equal(other.renderPath,undefined);
   assert.deepEqual(f.state.plugin.settings.navigationHistory,["A.md"]);assert.equal(f.state.plugin.settings.lastActivePath,"A.md");
   assert.equal(f.state.companions.length,0);assert.equal(f.state.activates.length,0);assert.equal(refreshes,2);
+});
+
+/** The owning workspace session's native rename outranks another tab's last active path. */
+test("a centered folder follows its native rename independently from the shared last active path",()=>{
+  const f=appFollowFixture(),oldPath="folder:Projects",nextPath="folder:Archive";
+  const original={path:oldPath,file:null,isFolder:true},renamed={...original,path:nextPath};
+  const refs={activePathRef:{current:oldPath},activePageRef:{current:original},activeFileRef:{current:null},pendingDocumentDemandRef:{current:null},pendingDocumentFollowRef:{current:null}};
+  const rendered=[];f.state.plugin.settings.lastActivePath="A.md";
+  f.state.plugin.app.vault.getFolderByPath=path=>path==="Archive"?{path}:null;
+  const publish=production("centerPublication",{...refs,documentSession:{centerPath:nextPath},plugin:f.state.plugin,hostLeaf:f.state.hostLeaf,
+    activatePendingDocumentFollow(){},activatePendingDocumentUrl(){},setActivePath:path=>rendered.push(path),forceRender(){}},"src/ui/App.tsx");
+  publish();assert.deepEqual(rendered,[],"An unpublished destination cannot replace the accepted center");
+  f.pages.set(nextPath,renamed);publish();
+  assert.deepEqual(rendered,[nextPath]);assert.equal(refs.activePathRef.current,nextPath);assert.equal(refs.activePageRef.current,renamed);
+  assert.deepEqual(f.state.plugin.settings.navigationHistory,["A.md"]);
 });
 
 /** Replacement pages and unrelated publications do not inherit the earlier accepted center's authority. */
@@ -1147,6 +1162,51 @@ test('partial startup cannot replace the saved center with an earlier available 
   assert.equal(fallback.call(plugin, 'Daily/Thursday.md'), 'Thursday', 'Restart follows a deleted daily note to its published unresolved spelling');
   plugin.initialIndexComplete=false;
   assert.equal(fallback.call(plugin, 'Daily/Thursday.md'), 'Thursday', 'A bounded available placeholder does not wait for global startup');
+});
+
+test('a deleted folder centers its nearest native ancestor during hydration and refuses stale clicks', () => {
+  const fixture = appFollowFixture(), {state, pages} = fixture;
+  const parent = {path: 'folder:Parent', isFolder: true};
+  const deleted = {path: 'folder:Parent/Missing/Deleted', isFolder: true};
+  const child = {path: `${deleted.path}/Child`, isFolder: true};
+  const root = {path: 'folder:/', isFolder: true};
+  pages.set(parent.path, parent);
+  pages.set(root.path, root);
+  state.plugin.app.vault.getFolderByPath = path => path === 'Parent' ? {path} : null;
+  state.plugin.app.vault.getRoot = () => ({path: '/'});
+  state.plugin.isNavigationFallbackReady = () => false;
+  state.plugin.resolveNavigationFallbackPath = production('resolveNavigationFallbackPath');
+  state.renderPath = state.activePathRef.current = state.documentSession.centerPath = deleted.path;
+  state.activePageRef.current = deleted;
+
+  assert.equal(state.activate(child), false);
+  assert.equal(state.documentSession.centerPath, deleted.path);
+  assert.equal(projectedAppCenter(fixture), parent);
+  pages.delete(parent.path);
+  assert.equal(projectedAppCenter(fixture), root);
+
+  let viewRoot = deleted.path;
+  state.documentSession.initialized = true;
+  state.documentSession.plexView = {definition: {navigation: 'rooted'}, layoutRoot: () => viewRoot, setRoot: path => {viewRoot = path; return true;}};
+  production('centerPersistence', {...fixture.dependencies, page: root, activePath: deleted.path, deletedFolderCenter: true}, 'src/ui/App.tsx')();
+  assert.equal(state.documentSession.centerPath, root.path);
+  assert.equal(viewRoot, root.path);
+});
+
+test('a native folder rename keeps the remapped center while its graph publication is pending', () => {
+  const fixture = appFollowFixture(), {state, pages} = fixture;
+  const old = {path: 'folder:Before', isFolder: true};
+  const moved = {path: 'folder:After', isFolder: true};
+  state.renderPath = state.activePathRef.current = old.path;
+  state.activePageRef.current = old;
+  state.documentSession.centerPath = moved.path;
+  state.plugin.app.vault.getFolderByPath = path => path === 'After' ? {path} : null;
+  state.plugin.isNavigationFallbackReady = () => true;
+  state.plugin.resolveNavigationFallbackPath = () => 'A.md';
+
+  assert.equal(projectedAppCenter(fixture), undefined);
+  pages.set(moved.path, moved);
+  assert.equal(projectedAppCenter(fixture), moved);
 });
 
 /** Actual F4/App/graph activation callbacks distinguish explicit destination changes from independent occurrence attention. */

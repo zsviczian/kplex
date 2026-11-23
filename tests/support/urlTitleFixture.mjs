@@ -5,7 +5,7 @@
  */
 import assert from "node:assert/strict";
 import { C, catalogFixture } from "./contributorCatalogFixture.mjs";
-import { M, replayFixture, presentation, runtime, collect } from "./cachedSourceFixture.mjs";
+import { M, replayFixture, presentation, runtime, collect, guardFolderTreeTraversal } from "./cachedSourceFixture.mjs";
 import { seedTitleBodies, nestedTitleOwners, guardTitleReuse, buildTitleCatalog } from "./selectedTitleFixture.mjs";
 
 export const titleUrl = "https://example.com/path";
@@ -59,7 +59,8 @@ export function guardUrlTitle(f) {
   let forbidden = 0;
   /** A fail-closed result cannot hide a prohibited scan or eager derivative rebuild. */
   const fail = () => { forbidden++; throw new Error("Forbidden title acquisition"); };
-  f.app.vault.getFiles = f.app.vault.getMarkdownFiles = f.app.vault.getRoot = f.discovery.rebuild = fail;
+  f.app.vault.getFiles = f.app.vault.getMarkdownFiles = f.discovery.rebuild = fail;
+  guardFolderTreeTraversal(f.app.vault, fail);
   return () => {
     check(); assert.equal(forbidden, 0); assert.equal(f.catalog.state.writes, writes);
     assert.equal(JSON.stringify([f.catalog.state.root, [...f.catalog.state.heads], [...f.catalog.state.pages]]), before);

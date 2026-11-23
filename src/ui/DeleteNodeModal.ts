@@ -166,6 +166,7 @@ export class RemainingNodeReferencesModal extends Modal {
     private readonly references: readonly RemainingNodeReference[],
     private readonly onOpenLocation: (reference: RemainingNodeReference) => void | Promise<void>,
     private readonly issues: readonly string[] = [],
+    private readonly onShowAgainChange?: (showAgain: boolean) => Promise<boolean>,
   ) {
     super(app);
   }
@@ -205,6 +206,29 @@ export class RemainingNodeReferencesModal extends Modal {
           .setButtonText(this.translate("common.open"))
           .onClick(() => { void this.onOpenLocation(reference); }));
       }
+    }
+
+    const onShowAgainChange = this.onShowAgainChange;
+    if (onShowAgainChange) {
+      const preference = new Setting(this.contentEl).setName(this.translate("references.neverShowAgain"));
+      preference.nameEl.id = `${this.suggestionOwnerId}-remaining-references`;
+      preference.addToggle(toggle => {
+        const control = toggle.toggleEl;
+        control.setAttribute("role", "switch");
+        control.setAttribute("aria-labelledby", preference.nameEl.id);
+        control.setAttribute("aria-checked", "false");
+        toggle.setValue(false).onChange(/** Persist the choice even if the current report closes during the save. */ async neverShowAgain => {
+          control.setAttribute("aria-checked", String(neverShowAgain));
+          toggle.setDisabled(true);
+          const saved = await onShowAgainChange(!neverShowAgain);
+          if (!control.isConnected) return;
+          if (!saved) {
+            toggle.setValue(!neverShowAgain);
+            control.setAttribute("aria-checked", String(!neverShowAgain));
+          }
+          toggle.setDisabled(false);
+        });
+      });
     }
 
     const actions = formActions(this.contentEl);

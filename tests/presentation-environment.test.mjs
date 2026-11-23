@@ -502,6 +502,7 @@ test("persisted layout keys and node-open leaf modes remain stable with canonica
         actionManager: {readSnapshot: () => null, dispatch: request => {requests.push(request); return Promise.resolve({status: "completed"});}}, showKplexMenuAtPosition() {}},
       addNativeSubmenu: (menu, _title, _icon, populate) => populate(menu), translate: key => key,
       nativeRevealTarget: fileReveal.nativeRevealTarget, fileRevealMenuState: () => ({systemLabel: "graph.openInFinder", navigation: true}), readObsidianPresentationEnvironment: () => ({}),
+      renameTargetFor: () => originalFile,
       viewport: {current: {ownerDocument: {}}}, hostLeaf: {},
     });
     showMenu({page, role: "child"}, 10, 20, "captured-occurrence");
@@ -832,7 +833,7 @@ test('actual folder context menu offers Files/Finder and refuses a same-path rep
   Menu:MenuDouble,captureSurfaceContinuation:continuation.exports.captureSurfaceContinuation,actionNodeRef:value=>({identity:value.path,path:value.path,kind:'folder'}),actionSurfaceId:'own',sceneNodeKeys:new Map(),
   plugin:{app:{vault:{getFolderByPath:path=>path==='Projects'?live:null}},captureAppearanceOwner:()=>({}),getFileOpenMenuState:assert.fail,isPinned:()=>false,
    actionManager:{readSnapshot:()=>({mounted:true}),dispatch:request=>{requests.push(request);return Promise.resolve({status:'completed'})}},showKplexMenuAtPosition(){}},
-  addNativeSubmenu:(menu,_title,_icon,populate)=>populate(menu),translate:key=>key,nativeRevealTarget:fileReveal.nativeRevealTarget,
+  addNativeSubmenu:(menu,_title,_icon,populate)=>populate(menu),translate:key=>key,nativeRevealTarget:fileReveal.nativeRevealTarget,renameTargetFor:()=>live,
   fileRevealMenuState:()=>({systemLabel:'graph.openInFinder',navigation:true}),readObsidianPresentationEnvironment:()=>({}),viewport:{current:{ownerDocument:{}}},hostLeaf:{},
  });
  show({page,role:'child'},10,20,'folder-occurrence');

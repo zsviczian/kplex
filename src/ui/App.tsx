@@ -96,6 +96,7 @@ import { createLegacyGraphSearchRead } from "../adapters/obsidian/graphContracts
 import { isEmbeddedMarkdownLeaf } from "../adapters/obsidian/embeddedMarkdownLeaf";
 import { focusEmbeddedMarkdown } from "../adapters/obsidian/embeddedMarkdownFocus";
 import { getDraggedFile, getDraggedFolder } from "../adapters/obsidian/fileExplorerDrag";
+import { graphFolder } from "../adapters/obsidian/graphFolder";
 import {captureAttachmentVisibility} from "../core/plex/attachmentVisibility";
 import {isObsidianUri} from "../adapters/obsidian/urlIdentity";
 import {readViewConfiguration} from "../core/plex/views/configuration";
@@ -411,7 +412,10 @@ export function KplexApp({ plugin, surface, hostLeaf, translate, environment, on
   const activeFileRef = useRef<TFile | null>(
     documentSession.pendingFollow?.file ?? plugin.index.get(activePath)?.file ?? (initialWorkspaceFile?.path === activePath ? initialWorkspaceFile : null),
   );
-  const [historyCursor, setHistoryCursor] = useState(() => Math.max(0, plugin.settings.navigationHistory.length - 1));
+  const [savedHistoryCursor, setHistoryCursor] = useState(() => Math.max(0, plugin.settings.navigationHistory.length - 1));
+  // Native deletions can shift the saved history while this view stays on the same item.
+  const activeHistoryIndex = plugin.settings.navigationHistory.lastIndexOf(activePath);
+  const historyCursor = activeHistoryIndex >= 0 ? activeHistoryIndex : Math.min(savedHistoryCursor, Math.max(0, plugin.settings.navigationHistory.length - 1));
   useEffect(/** Catch native setState both before and after mounting without recording a provisional startup center. */ () => {
     const restore = (): void => {
       const path = documentSession.pendingFollow?.file.path ?? documentSession.centerPath;
@@ -454,6 +458,7 @@ export function KplexApp({ plugin, surface, hostLeaf, translate, environment, on
    * Explicit destinations may reroot after the outgoing editor saves, before changing attention or history.
    */
   const activate = useCallback((target: GraphPage, record = true, syncDocuments = true, origin: "user" | "wander" | "follow" = "user", reroot = false): boolean => {
+    if (target.isFolder && !graphFolder(plugin.app, target)) return false;
     const alreadyCentral = target.path === activePathRef.current;
     if (reroot && target.file && plugin.app.vault.getFileByPath(target.file.path) !== target.file) return false;
     const changesRoot = reroot && documentSession.plexView.definition.navigation === "rooted"
@@ -678,6 +683,16 @@ export function KplexApp({ plugin, surface, hostLeaf, translate, environment, on
       const trackedPage = activePageRef.current;
       const trackedFilePresent = trackedFile && plugin.app.vault.getFileByPath(trackedFile.path) === trackedFile;
       activateDeletedFilePlaceholder();
+      // Vault rename already remapped this session's saved folder coordinate. Follow it once the
+      // folder is published, independently of the most recently active Plex tab.
+      const movedFolderPath = !currentPage && trackedPage?.isFolder ? documentSession.centerPath : null;
+      if (movedFolderPath && movedFolderPath !== activePathRef.current) {
+        const movedFolder = plugin.index.get(movedFolderPath);
+        if (movedFolder && graphFolder(plugin.app, movedFolder)) {
+          activePathRef.current = movedFolderPath;
+          setActivePath(movedFolderPath);
+        }
+      }
       // A centered ghost has no native file to track until materialization mutates that exact
       // accepted page. Follow only its identity remap; replacement objects and other Plex centers
       // cannot authorize navigation, history changes or document synchronization on this surface.
@@ -711,7 +726,7 @@ export function KplexApp({ plugin, surface, hostLeaf, translate, environment, on
     // Catch that settled snapshot now, without reacquiring sources or waiting for another event.
     refresh();
     return release;
-  }, [plugin, hostLeaf, activatePendingDocumentFollow, activatePendingDocumentUrl, activateDeletedFilePlaceholder, acknowledgeDocumentDemandHandover]);
+  }, [plugin, hostLeaf, documentSession, activatePendingDocumentFollow, activatePendingDocumentUrl, activateDeletedFilePlaceholder, acknowledgeDocumentDemandHandover]);
   useEffect(/** Host previews publish through presentation; settle the owned native intent without refreshing semantics. */ () => plugin.index.subscribePresentation(/** Adopt a newly readable exact center, then repaint only visible surfaces. */ (event) => {
     if (event.kind === "paint") {
       if (plugin.isKplexLeafVisible(hostLeaf)) forcePaint(value => value + 1);
@@ -804,7 +819,16 @@ export function KplexApp({ plugin, surface, hostLeaf, translate, environment, on
   // Keep a followed native center through that gap instead of falling back to unrelated history.
   const waitingForDocument = waitingForDocumentHandover || pendingDocumentFollowRef.current !== null || navigationOrigin === "follow"
     && activeFileRef.current !== null && plugin.app.vault.getFileByPath(activeFileRef.current.path) === activeFileRef.current;
-  const fallbackPath = exactPage || waitingForDocument ? null : plugin.resolveNavigationFallbackPath(activePath);
+  const trackedCenter = activePageRef.current;
+  const missingFolderCenter = !exactPage && trackedCenter?.isFolder === true && trackedCenter.path === activePath
+    && !graphFolder(plugin.app, trackedCenter);
+  const savedCenterPath = documentSession.centerPath;
+  // The rename listener can remap the session before the new coordinate becomes readable.
+  const movedFolderPath = missingFolderCenter && savedCenterPath !== activePath && savedCenterPath?.startsWith("folder:")
+    && plugin.app.vault.getFolderByPath(savedCenterPath.slice("folder:".length)) ? savedCenterPath : null;
+  const deletedFolderCenter = missingFolderCenter && !movedFolderPath;
+  const fallbackPath = exactPage || waitingForDocument ? null
+    : movedFolderPath ?? plugin.resolveNavigationFallbackPath(activePath, deletedFolderCenter);
   // Before the native tree/cache is ready, absence is provisional. Keep this surface's saved
   // center and loading state rather than displaying a different node and persisting it.
   const waitingForStartupCenter = !exactPage && !plugin.isNavigationFallbackReady();
@@ -813,10 +837,11 @@ export function KplexApp({ plugin, surface, hostLeaf, translate, environment, on
     // The outgoing graph can own this accepted endpoint's only provisional preview. Keep its
     // replacement mounted until its own demand publishes; never retain another center or a retired file.
     ?? (waitingForStartupCenter && !pendingDocumentFollowRef.current && activePageRef.current?.path === activePath
+      && (!activePageRef.current.isFolder || graphFolder(plugin.app, activePageRef.current))
       && (!activePageRef.current.file || plugin.app.vault.getFileByPath(activePath) === activePageRef.current.file)
       ? activePageRef.current : undefined)
     ?? (fallbackPath ? plugin.index.get(fallbackPath) : undefined)
-    ?? (waitingForDocument || waitingForStartupCenter ? undefined : plugin.index.get("folder:/"));
+    ?? (waitingForDocument || movedFolderPath || waitingForStartupCenter ? undefined : plugin.index.get("folder:/"));
   const hasPage = Boolean(page);
   const propertiesCenterFile = useRef<TFile | null>(null);
   const propertiesGraphFile = useRef<{file: TFile | null} | null>(null);
@@ -943,7 +968,10 @@ export function KplexApp({ plugin, surface, hostLeaf, translate, environment, on
     // During partial startup hydration the root can exist before a still-valid persisted center has
     // been restored. Never persist that temporary root. Once the authoritative index is ready, a
     // genuinely missing center falls back through navigation history and only then to folder:/.
-    if (replacingMissingCenter && page.path === "folder:/" && !plugin.isNavigationFallbackReady()) return;
+    if (replacingMissingCenter && page.path === "folder:/" && !deletedFolderCenter && !plugin.isNavigationFallbackReady()) return;
+    const view = documentSession.plexView;
+    if (deletedFolderCenter && replacingMissingCenter && view.definition.navigation === "rooted"
+      && view.layoutRoot(nodeId(activePath)) === activePath) view.setRoot(nodeId(page.path));
     activePathRef.current = page.path;
     activePageRef.current = page;
     activeFileRef.current = page.file;
@@ -957,7 +985,7 @@ export function KplexApp({ plugin, surface, hostLeaf, translate, environment, on
     if (plugin.settings.lastActivePath === page.path) return;
     plugin.settings.lastActivePath = page.path;
     void plugin.saveSettings(false, false);
-  }, [page?.path, activePath, plugin, documentSession, documentSession.initialized]);
+  }, [page?.path, activePath, deletedFolderCenter, plugin, documentSession, documentSession.initialized]);
 
   /** Open the target through the host while preserving this surface's document for external-link routing. */
   /** Center the accepted existing note and ensure its managed sidecar is open without toggling it. */

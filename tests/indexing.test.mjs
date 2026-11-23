@@ -315,15 +315,15 @@ assert(mainSource.includes("this.index.materializeFile(oldPath, file)"), "Materi
 assert(mainSource.includes("this.index?.dematerializeFile(deleted.path)"), "Deleting an active Markdown file must dematerialize the existing GraphPage instead of rebuilding/falling back to root");
 assert(mainSource.includes('this.app.vault.getFileByPath(file.path) !== file'), "Metadata events for already-deleted TFiles must be ignored instead of resurrecting a stale patch/rebuild");
 assert(mainSource.includes("this.settlePatchOnlyBacklogIfIdle()"), "Deleting a note must clear metadata-only rebuild work once no dirty Markdown paths remain");
-assert(appSource.includes("plugin.resolveNavigationFallbackPath(activePath)"), "A missing persisted center must fall back through navigation history before the vault root");
+assert(appSource.includes("plugin.resolveNavigationFallbackPath(activePath, deletedFolderCenter)"), "A missing persisted center must use the host navigation fallback");
 assert(mainSource.includes("this.settings.navigationHistory.length - 1"), "Navigation fallback must walk history newest-to-oldest");
 assert(!appSource.includes("plugin.app.vault.getMarkdownFiles()[0]?.path"), "Startup must not choose an arbitrary first Markdown note when navigation history is exhausted");
 assert(plexGraphSource.includes('setTitle(translate(persistent.file ? "graph.deleteNote" : "graph.deletePlaceholder"))'), "Every Markdown/placeholder node context menu must expose localized deletion copy");
 assert(plexGraphSource.includes("plugin.deleteNode(page, hostLeaf, page.path === activePath)"), "Node deletion must tell the workflow whether the deleted node is the active center");
-assert(mainSource.includes("this.removeFromNavigationHistory(path)"), "Every deleted node must be removed from navigation history immediately");
+assert(mainSource.includes("this.removeSavedNavigationPaths(path)"), "Every deleted node must be removed from saved navigation immediately");
 assert(mainSource.includes("const fallback = this.deletionFallbackPath(path)"), "Deleting the active center must choose its replacement from remaining navigation history");
 assert(mainSource.includes('return this.index.get("folder:/")?.path ?? null'), "Delete navigation must fall back to the vault root when no valid history entry remains");
-assert(mainSource.indexOf("this.removeFromNavigationHistory(path)") < mainSource.indexOf("removePropertyReferencesToNode(ghost,preview,currentTarget)"), "Delete navigation/history cleanup must happen before asynchronous relationship cleanup");
+assert(mainSource.indexOf("this.removeSavedNavigationPaths(path)") < mainSource.indexOf("removePropertyReferencesToNode(ghost,preview,currentTarget)"), "Delete navigation/history cleanup must happen before asynchronous relationship cleanup");
 assert(mainSource.includes("removePropertyReferencesToNode"), "Node deletion must clean document-property references before considering a ghost removable");
 assert(mainSource.includes("normalizedNoteReferenceMatches"), "Property cleanup must still recognize a note link after deleting its backing file makes Obsidian resolution unavailable");
 assert(mainSource.includes("remainingBodyReferences"), "Deletion review must include parser-backed inline body relationships that may not appear in Obsidian's link cache");
@@ -363,7 +363,7 @@ assert(newRelatedSource.includes("const effectiveAlias = aliasEdited ? alias : a
 assert(mainSource.includes('const reference = alias ? `[${escapedAlias}](${url})` : url'), "Web-link aliases must be stored as Markdown link labels in document properties");
 assert(mainSource.includes('frontmatter[key] = [...aliases, alias]'), "New-note aliases must be written through Obsidian frontmatter");
 assert(appSource.includes("plugin.isManagedCreatedFile(trackedFile)"), "A selected optimistic note must survive an older in-flight index publication");
-assert(mainSource.includes('this.scheduleRebuild("kplex:create-during-rebuild")'), "A note created during a full build must queue one authoritative catch-up pass");
+assert(mainSource.includes('if (file.extension !== "md") this.scheduleRebuild("kplex:create-during-rebuild")'), "Only a managed non-Markdown creation retains the structural catch-up reason");
 assert(!appSource.includes("plugin.settings.toolbarExpanded ?"), "Visibility controls must no longer depend on an expanded-toolbar overflow state");
 assert(plexFilterSource.includes("kplex-filter-visibility-grid"), "Node-type visibility controls must live in the Filter / Graph Lenses popover");
 assert(plexFilterSource.includes('option value="connections-desc"'), "Filter panel must expose connection-count sorting");
@@ -716,6 +716,7 @@ for (const file of [
   "src/ui/plexViews/classic/occurrenceEditor.ts",
   "src/application/ActionManager.ts",
   "src/application/IndexingActivity.ts",
+  "src/application/GraphBuildDiagnostics.ts",
   "src/application/IndexingHistory.ts",
   "src/application/diagnosticBuildIdentity.ts",
   "src/application/indexRecoveryDiagnostics.ts",
@@ -1328,13 +1329,21 @@ assert.equal(indexingStatusContext.markdownFileCountReads, 1, "Progress publicat
   const handlers = new Map();
   const registrations = [];
   const writes = [];
-  coordinator.app = { workspace:{getLeavesOfType:()=>[]}, vault: { on: (name, callback) => { handlers.set(name, callback); return { name }; } } };
+  const livePaths = new Map();
+  coordinator.app = { workspace:{getLeavesOfType:()=>[]}, vault: { on: (name, callback) => { handlers.set(name, callback); return { name }; },
+    getAbstractFileByPath: path => livePaths.get(path) ?? null } };
   coordinator.registerEvent = handle => registrations.push(handle);
-  coordinator.index = new Proxy({}, { get() { throw new Error("Markdown zoom preferences must not access the index"); } });
+  let presentation = 0, folderPresentation = 0;
+  coordinator.index = new Proxy({notifyPresentation: () => {presentation++;}, notifyNativeFolderDeletion: () => {folderPresentation++;}}, { get(target, key) {
+    assert(Object.hasOwn(target, key), "Saved paths must never start index work"); return target[key];
+  } });
   coordinator.settings = {lastActivePath:"",sidecarLastFilePath:"",navigationHistory:[],pinnedNodes:[],centralNodeMarkdownZoomModes: { "Folder/A.md": "scale", "Folder/Sub/B.md": "scale", "Folderish/C.md": "scale" } };
-  coordinator.persistSettingsSnapshot = async () => { writes.push(structuredClone(coordinator.settings.centralNodeMarkdownZoomModes)); };
+  coordinator.persistSettingsSnapshot = async () => {
+    const {centralNodeMarkdownZoomModes, navigationHistory, pinnedNodes} = coordinator.settings;
+    writes.push(structuredClone({centralNodeMarkdownZoomModes, navigationHistory, pinnedNodes}));
+  };
   coordinator.initialIndexComplete = false;
-  coordinator.registerMarkdownZoomPreferenceListeners();
+  coordinator.registerSavedPathListeners();
   assert.deepEqual(registrations.map(item => item.name), ["rename", "delete"], "Both callbacks belong to the plugin cleanup lifetime");
   handlers.get("rename")(new TFolder("Moved"), "Folder");
   assert.deepEqual(coordinator.settings.centralNodeMarkdownZoomModes, { "Moved/A.md": "scale", "Moved/Sub/B.md": "scale", "Folderish/C.md": "scale" });
@@ -1349,6 +1358,25 @@ assert.equal(indexingStatusContext.markdownFileCountReads, 1, "Progress publicat
   handlers.get("delete")(new TFile("Unrelated.md", 1));
   handlers.get("rename")(new TFolder("Unrelated"), "Nothing");
   assert.equal(writes.length, 5, "Only affected moves/deletes persist; duplicate descendant/unrelated events are no-ops");
+  const periodic = {kind:"periodic", period:"day"}, future = {kind:"future", path:"Moved/Sub/B.md"};
+  coordinator.settings.navigationHistory = ["Before.md", "folder:Moved", "Moved/A.md", "folder:Moved/Sub", "Moved/Sub/B.md", "Movedish/A.md", "tag:Moved/Sub"];
+  coordinator.settings.pinnedNodes = ["folder:Moved", "Moved/A.md", periodic, "Moved/Sub/B.md", future, "Movedish/A.md"];
+  const originalFile = new TFile("Moved/A.md", 1);
+  livePaths.set(originalFile.path, new TFile(originalFile.path, 2));
+  handlers.get("delete")(originalFile);
+  assert(coordinator.settings.pinnedNodes.includes(originalFile.path), "A late event cannot remove the replacement's path");
+  livePaths.delete(originalFile.path);
+  handlers.get("delete")(originalFile);
+  assert(!coordinator.settings.navigationHistory.includes(originalFile.path) && !coordinator.settings.pinnedNodes.includes(originalFile.path), "A native file delete removes its saved path while startup is pending");
+  handlers.get("delete")(new TFolder("Moved"));
+  assert.deepEqual(coordinator.settings.navigationHistory, ["Before.md", "Movedish/A.md", "tag:Moved/Sub"]);
+  assert.deepEqual(coordinator.settings.pinnedNodes, [periodic, future, "Movedish/A.md"]);
+  handlers.get("delete")(new TFile("Moved/Sub/B.md", 1));
+  assert.equal(writes.length, 7, "One saved-path write per change, including folder-only native deletion");
+  assert.deepEqual(writes.at(-1).navigationHistory, coordinator.settings.navigationHistory);
+  assert.deepEqual(writes.at(-1).pinnedNodes, coordinator.settings.pinnedNodes);
+  assert.equal(presentation, 1, "The file delete updates mounted history and pins through presentation only");
+  assert.equal(folderPresentation, 2, "Both native folder deletes request a repaint independently of saved-path changes");
   const originalError = console.error;
   const failures = [];
   console.error = (...args) => failures.push(args);
@@ -1360,7 +1388,7 @@ assert.equal(indexingStatusContext.markdownFileCountReads, 1, "Progress publicat
     await Promise.resolve();
     await Promise.resolve();
     assert.deepEqual(coordinator.settings.centralNodeMarkdownZoomModes, { "MovedFail.md": "scale" }, "A failed persistence does not revert the known physical move/delete");
-    assert.deepEqual(failures, [["K-Plex could not save Markdown zoom preferences"], ["K-Plex could not save Markdown zoom preferences"]], "Event saves settle rejected writes with a path-free diagnostic");
+    assert.deepEqual(failures, [["K-Plex could not save renamed path preferences"], ["K-Plex could not save deleted path preferences"]], "Event saves settle rejected writes with a path-free diagnostic");
   } finally { console.error = originalError; }
 }
 
@@ -1377,12 +1405,15 @@ assert.equal(indexingStatusContext.markdownFileCountReads, 1, "Progress publicat
       on: (name, callback) => { handlers.set(`vault:${name}`, callback); return {}; },
       getMarkdownFiles: () => { markdownEnumerations += 1; return Array.from({ length: 999 }); },
       getFileByPath: () => null,
+      getAbstractFileByPath: () => null,
     },
     metadataCache: { on: (name, callback) => { handlers.set(`metadata:${name}`, callback); return {}; } },
   };
   statusMembershipCoordinator.index = { isOnDemandMode: () => false,
     hasLocalBaseline: () => false,
     hasPhysicalBaseline: () => false,
+    canApplyLocalPhysicalCreate: () => false,
+    hasAppliedNativeFolderMove: () => false,
     getUrlIndexProgress: () => ({ active: false, failed: false, processed: 0, total: 0 }),
     invalidateHostStructure: () => { structuralInvalidations += 1; },
     size: 10,
@@ -4230,6 +4261,8 @@ try {
   assert.equal(visuals.has("Note A.md"), false, "Revocation rejects cached remote visuals without changing file mtime");
 
   const imageFile = new TFile("Visuals/Picture.jpg", noteA.stat.mtime + 1000);
+  imageFile.parent = ensureFolder("Visuals");
+  imageFile.parent.children.push(imageFile);
   files.set(imageFile.path, imageFile);
   const imagePage = index.insertCreatedFile(imageFile);
   const originalAttachments = settings.showAttachments;
@@ -4832,12 +4865,14 @@ try {
     vault: {
       on: (name, callback) => { nativeCreationHandlers.set(`vault:${name}`, callback); return {}; },
       getFileByPath: (path) => nativeFiles.get(path) ?? null,
+      getAbstractFileByPath: (path) => nativeFiles.get(path) ?? (path === nativeFolder.path ? nativeFolder : null),
     },
     metadataCache: {
       on: (name, callback) => { nativeCreationHandlers.set(`metadata:${name}`, callback); return {}; },
     },
   };
   nativeCreationCoordinator.index = { isOnDemandMode: () => false,
+    canApplyLocalPhysicalCreate: () => false,
     refreshVisiblePresentation: (path) => { nativePresentationRepairs.push(path); return Promise.resolve(); },
     invalidateHostStructure: () => {},
     refreshVisibleHostMetadataPreviews: () => false,
@@ -5080,7 +5115,7 @@ try {
   assert.equal(index.get(managedFile.path), managedPageIdentity, "Bulk publication must preserve existing GraphPage identity");
   for (const source of index.state.pages.values()) {
     for (const relation of source.neighbours.values()) {
-      assert.equal(relation.target, index.get(relation.target.path), `Bulk relation target must be canonical: ${source.path} -> ${relation.target.path}`);
+      assert(relation.target === index.get(relation.target.path), `Bulk relation target must be canonical: ${source.path} -> ${relation.target.path}`);
     }
   }
 
@@ -5261,7 +5296,7 @@ try {
       on: (name, callback) => { renameHandlers.set(`metadata:${name}`, callback); return {}; },
     },
   };
-  renameCoordinator.index = { isOnDemandMode: () => false, invalidateHostStructure: () => {},
+  renameCoordinator.index = { isOnDemandMode: () => false, invalidateHostStructure: () => {}, hasAppliedNativeFolderMove: () => false,
     refreshVisiblePresentation: (path) => { renamedPresentationRepairs.push(path); return Promise.resolve(); },
     refreshVisibleHostMetadataPreviews: () => false, renameFile: (oldPath, file) => { fastRenameCalls.push([oldPath, file.path]); return true; } };
   renameCoordinator.settings = {
@@ -5275,7 +5310,7 @@ try {
   renameCoordinator.saveSettings = async () => {};
   renameCoordinator.persistSettingsSnapshot = async () => {};
   renameCoordinator.scheduleRebuild = (reason) => { rebuildReasons.push(reason); };
-  renameCoordinator.registerMarkdownZoomPreferenceListeners();
+  renameCoordinator.registerSavedPathListeners();
   renameCoordinator.registerReactiveIndexListeners();
   const renamedCentral = new TFile("Moved/New.md", 123);
   const renameHandler = renameHandlers.get("vault:rename");

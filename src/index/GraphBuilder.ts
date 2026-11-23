@@ -744,17 +744,23 @@ export class GraphBuilder {
    * @returns A fully collected state only when every source family remains current through binding;
    * otherwise `null` so the coordinator can retain the previous published graph.
    */
-  async build(options: Readonly<{ acquireSources?: boolean; onProgress?: (processed: number, total: number) => void }> = {}): Promise<GraphState | null> {
+  async build(options: Readonly<{ acquireSources?: boolean; onProgress?: (processed: number, total: number) => void;
+    onPhase?: (phase: "host-links" | "notes" | "verify-structure" | "relationships" | "bind-graph") => void }> = {}): Promise<GraphState | null> {
     this.plugin.startupDiagnostics?.recordWork("fullBuildStarts");
     const compiler = this.createFullCompiler();
     const structuralRead = await this.collectStructuralSources(compiler);
     if (!structuralRead) return null;
+    options.onPhase?.("host-links");
     if (!(await this.collectHostLinkSources(compiler))) return null;
+    options.onPhase?.("notes");
     if (!(await this.collectMarkdownSources(compiler, options.acquireSources !== false, options.onProgress))) return null;
+    options.onPhase?.("verify-structure");
     if (!(await this.finalizeStructuralSources(compiler, structuralRead))) return null;
 
+    options.onPhase?.("relationships");
     const compiled = await compiler.finish();
     if (!compiled || !structuralRead.collector.isBoundaryCurrent(structuralRead.read.boundary) || !this.isCurrent()) return null;
+    options.onPhase?.("bind-graph");
     const state = await this.bindCompiledGraph(compiled, structuralRead.collector);
     if (!state || !structuralRead.collector.isBoundaryCurrent(structuralRead.read.boundary) || !this.isCurrent()) return null;
     return state;

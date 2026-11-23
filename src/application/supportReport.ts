@@ -108,6 +108,8 @@ export function createDiagnosticJson(input:SupportReportInput,indexingActivity?:
     if(report.startup.phases.length){report.startup.phases.shift();report.truncation.oldestStartupPhasesOmitted++;}
     else if(report.startup.overlaps.length){report.startup.overlaps.shift();report.truncation.oldestStartupOverlapsOmitted++;}
     else if("decisions" in report.index&&report.index.decisions?.length){report.index.decisions.shift();report.truncation.oldestIndexDecisionsOmitted++;}
+    else if("work" in report.index&&report.index.work?.graphBuilds.recent.length){report.index.work.graphBuilds.recent.shift();report.index.work.graphBuilds.omitted++;}
+    else if("work" in report.index&&report.index.work?.sourceInventories.recent.length){report.index.work.sourceInventories.recent.shift();report.index.work.sourceInventories.omitted++;}
     else return formatDiagnosticsJson({formatVersion:SUPPORT_REPORT_FORMAT_VERSION,generatedAt:report.generatedAt,plugin:report.plugin,reportStatus:"size-limit"},activity);
     json=render();
   }

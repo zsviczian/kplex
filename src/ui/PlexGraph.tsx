@@ -132,6 +132,7 @@ import { CentralNodeEditor } from "./CentralNodeEditor";
 import { PlexFind, matchesFindNode, matchesOntologyFind } from "./features/PlexFind";
 import { RelationshipExplanationModal } from "./RelationshipExplanationModal";
 import { RenameNoteModal } from "./RenameNoteModal";
+import { captureFolderRename } from "../adapters/obsidian/renameNote";
 import {classicExpandedChildren} from "../core/plex/views/classic/projection";
 import { buildCentralSectionExpansion, canExpandCentralSections, projectCentralSectionExpansion, type CentralSectionExpansion } from "../index/SectionExpansion";
 import { GraphPredicateEngine, type CompiledGraphPredicate, type GraphPredicateEdgeContext } from "../lens/GraphPredicate";
@@ -4628,13 +4629,21 @@ export function PlexGraph({ viewDefinition = classicViewDefinition, viewSession,
     graphDialogs.current.add(dialog);
     return { status: "opened", sessionId };
   };
+  /** Shared menu and action eligibility for canonical files and non-root native folders. */
+  const renameTargetFor = (page: GraphPage | null) => {
+    if (!page || page.transient) return null;
+    const target = nativeRevealTarget(plugin.app, page);
+    if (!target) return null;
+    if ("children" in target) return captureFolderRename(plugin.app, target) ? target : null;
+    return plugin.app.vault.getFileByPath(target.path) === target ? target : null;
+  };
   /** Track native rename lifetime so held or repeated commands cannot stack duplicate dialogs. */
   const renameFrom = (context: ActionContext): ActionOutcome => {
-    const file = graphActionPage(context)?.file;
-    if (!file) return { status: "unavailable", reasonKey: "actions.target-unavailable" };
+    const target = renameTargetFor(graphActionPage(context));
+    if (!target) return { status: "unavailable", reasonKey: "actions.target-unavailable" };
     const sessionId = `${actionSurfaceId}:rename:${++graphDialogSerial.current}`;
     const generation = context.generation;
-    const dialog = new RenameNoteModal(plugin, file, {
+    const dialog = new RenameNoteModal(plugin, target, {
       current: /** Rename retains its captured native identity and originating view generation. */ () => Boolean(viewport.current?.isConnected && (!viewSession || viewSession.getLifetime() === viewLifetime) && generation !== undefined && plugin.isActionSurfaceCurrent(actionSurfaceId, generation)),
       onClosed: /** Native cancellation and graph teardown retire the same rename session. */ () => { graphDialogs.current.delete(dialog); plugin.actionManager.closeSession(sessionId); },
     });
@@ -4858,7 +4867,7 @@ export function PlexGraph({ viewDefinition = classicViewDefinition, viewSession,
     "node.edit": graphAction(/** Explicit editing opens this accepted file through existing host policy. */ context => {
       const page = graphActionPage(context); if (page?.file) return onOpen(page);
     }, context => Boolean(graphActionPage(context)?.file)),
-    "node.rename": graphAction(renameFrom, context => { const page = graphActionPage(context); return Boolean(page?.file && !page.transient); }),
+    "node.rename": graphAction(renameFrom, context => Boolean(renameTargetFor(graphActionPage(context)))),
     "node.show-properties": graphAction(context => {const page = graphActionPage(context);if (page) return plugin.showNodeProperties(page);return;}, context => {const page = graphActionPage(context);return !!page && plugin.canShowNodeProperties(page);}),
     "node.add-properties": graphAction(context => {
       const page = graphActionPage(context);if (!page?.file) return {status: "unavailable", reasonKey: "actions.target-unavailable"};
@@ -5133,8 +5142,6 @@ export function PlexGraph({ viewDefinition = classicViewDefinition, viewSession,
     });
   }, [viewSession, viewLifetime, sceneScope]);
 
-  if (!neighborhood) return <div className="kplex-empty">{translate("graph.selectNote")}</div>;
-
   const connectionStateFor = (node: PositionedNode): ConnectionDragState => {
     if (!connectDrag) return "normal";
     if (node.page.path === connectDrag.originPath) return "origin";
@@ -5256,11 +5263,15 @@ export function PlexGraph({ viewDefinition = classicViewDefinition, viewSession,
     const capturedPersistent = persistent ? actionNodeRef(persistent) : null;
     const capturedNativeTarget = persistent ? nativeRevealTarget(plugin.app, persistent) : null;
     const capturedFolderPath = persistent?.isFolder ? capturedNativeTarget?.path : null;
+    const capturedRenameTarget = page.transient?.kind === "section" ? null : renameTargetFor(persistent);
+    const capturedRenamePath = capturedRenameTarget?.path;
     /** Preserve menu-launch native identity even when a canonical graph page mutates while open. */
     const runCapturedNodeAction = (id: ActionId, target: GraphPage): void => {
       if ((id === "node.copy-link" || id === "node.open" && page.transient?.kind === "section") && !menuCurrent()) return;
       const reference = target === page ? capturedPage : capturedPersistent;
       if (!reference) return;
+      if (id === "node.rename" && (!menuCurrent() || !capturedRenameTarget || capturedRenameTarget.path !== capturedRenamePath
+        || renameTargetFor(persistent) !== capturedRenameTarget)) return;
       if (capturedFolderPath && (id === "node.open.system" || id === "node.open.navigation")
         && nativeRevealTarget(plugin.app, {file: null, isFolder: true, path: `folder:${capturedFolderPath}`}) !== capturedNativeTarget) return;
       void plugin.actionManager.dispatch({ id, source: "context-menu", surfaceId: actionSurfaceId,
@@ -5379,9 +5390,9 @@ export function PlexGraph({ viewDefinition = classicViewDefinition, viewSession,
         .onClick(() => runCapturedNodeAction("node.add-properties", persistent)));
     }
 
-    if (persistent?.file && page.transient?.kind !== "section") {
+    if (persistent && capturedRenameTarget) {
       menu.addItem((item) => item
-        .setTitle(translate("graph.renameNote"))
+        .setTitle(translate("children" in capturedRenameTarget ? "graph.renameFolder" : "graph.renameNote"))
         .setIcon("pencil-line")
         .onClick(() => runCapturedNodeAction("node.rename", persistent)));
     }
@@ -5486,9 +5497,12 @@ export function PlexGraph({ viewDefinition = classicViewDefinition, viewSession,
     plugin.showKplexMenuAtPosition(menu, {x: bounds.left, y: bounds.bottom}, invoker.ownerDocument, hostLeaf);
   };
   useLayoutEffect(/** A retained inspector uses only a committed scene, never an abandoned React render. */ () => {
+    if (!neighborhood) return;
     connectionAppearance.current = openConnectionAppearanceMenu;
     return () => {if (connectionAppearance.current === openConnectionAppearanceMenu) connectionAppearance.current = null;};
   });
+
+  if (!neighborhood) return <div className="kplex-empty">{translate("graph.selectNote")}</div>;
 
   /** Show connection actions; absent Hidden configuration opens explicit setup rather than disabling the action. */
   const showEdgeContextMenuAt = async (edge: PositionedEdge, clientX: number, clientY: number): Promise<void> => {

@@ -1,12 +1,12 @@
 /**
- * Native Obsidian dialog for renaming a real note through the Vault API. The plugin owns vault changes; this shell owns localized controls, validation feedback and close cleanup.
+ * Native Obsidian dialog for renaming a physical file or folder. This shell owns localized controls, validation feedback and close cleanup.
  */
 import {formActions, iconButton, FormSetting as Setting, KplexModal as Modal} from "../adapters/obsidian/KplexModal";
 
 
-import {Notice, type TFile, normalizePath} from "obsidian";
+import {Notice, type TFile, type TFolder, normalizePath} from "obsidian";
 import type KplexPlugin from "../main";
-import {renameDisplayField, renameNoteWithDisplayName} from "../adapters/obsidian/renameNote";
+import {captureFolderRename, isFolderRenameCurrent, renameDisplayField, renameFolder, renameNoteWithDisplayName, validFolderRenameName} from "../adapters/obsidian/renameNote";
 
 /** Preserve compound Excalidraw suffixes while exposing only the editable filename stem. */
 function fileSuffix(file: TFile): string {
@@ -25,58 +25,70 @@ export class RenameNoteModal extends Modal {
   private opened = false;
   private busy = false;
   private focusTimer: { owner: Window; id: number } | null = null;
-  /** Capture the real file and optional originating-surface lifetime without changing existing callers. */
-  constructor(private plugin: KplexPlugin, private file: TFile, private invocation: { current?: () => boolean; onClosed?: () => void } = {}) {
+  /** Capture the native target and optional originating-surface lifetime. */
+  constructor(private plugin: KplexPlugin, private target: TFile | TFolder, private invocation: { current?: () => boolean; onClosed?: () => void } = {}) {
     super(plugin.app);
   }
 
-  /** Render the real-note rename form with localized captions and feedback; the native Modal owns its open/close shell. */
+  /** Render the shared rename form with note-only display property controls. */
   onOpen(): void {
     this.opened = true;
-    this.titleEl.setText(this.plugin.translator("rename.title"));
+    const file = "children" in this.target ? null : this.target;
+    const folder = "children" in this.target ? captureFolderRename(this.plugin.app, this.target) : null;
+    const t = this.plugin.translator;
+    this.titleEl.setText(t(file ? "rename.title" : "rename.folderTitle"));
     this.modalEl.addClass("kplex-rename-note-modal");
-    const suffix = fileSuffix(this.file);
-    let value = editableStem(this.file, suffix);
+    const suffix = file ? fileSuffix(file) : "";
+    let value = file ? editableStem(file, suffix) : this.target.name;
     let input: HTMLInputElement | null = null;
-    const displayField = renameDisplayField(this.plugin.app, this.file, this.plugin.settings.nameFields);
+    const displayField = file ? renameDisplayField(this.plugin.app, file, this.plugin.settings.nameFields) : null;
     let updateDisplayName = displayField !== null;
+    const unavailableKey = file ? "addRelated.endpointChanged" : "rename.folderChanged";
+    const unavailable = () => new Error(t(unavailableKey));
 
-    /** Revalidate captured file identity and serialize submissions while native I/O is in flight. */
+    /** Revalidate native identity and serialize submissions while native I/O is in flight. */
     const rename = async (): Promise<void> => {
       if (!this.opened || this.busy) return;
-      if (this.invocation.current?.() === false || this.plugin.app.vault.getFileByPath(this.file.path) !== this.file) {
-        new Notice(this.plugin.translator("addRelated.endpointChanged")); return;
+      const app = this.plugin.app;
+      const current = file ? app.vault.getFileByPath(file.path) === file : folder && isFolderRenameCurrent(app, folder);
+      if (this.invocation.current?.() === false || !current) {
+        new Notice(t(unavailableKey)); return;
       }
       let stem = value.trim();
       if (suffix && stem.toLocaleLowerCase().endsWith(suffix.toLocaleLowerCase())) {
         stem = stem.slice(0, -suffix.length).trim();
       }
+      if (!file && !validFolderRenameName(stem)) {
+        new Notice(t("rename.invalidFolderName"), 2600);
+        input?.focus();
+        return;
+      }
       if (!stem) {
-        new Notice(this.plugin.translator("note.validation.enter"), 1800);
+        new Notice(t("note.validation.enter"), 1800);
         input?.focus();
         return;
       }
       if (/[\\/]/.test(stem)) {
-        new Notice(this.plugin.translator("rename.folderSeparators"), 2600);
+        new Notice(t("rename.folderSeparators"), 2600);
         input?.focus();
         return;
       }
 
-      const folder = this.file.parent?.path && this.file.parent.path !== "/" ? this.file.parent.path : "";
-      const newPath = normalizePath(folder ? `${folder}/${stem}${suffix}` : `${stem}${suffix}`);
-      if (newPath !== this.file.path && this.plugin.app.vault.getAbstractFileByPath(newPath)) {
-        new Notice(this.plugin.translator("file.existsAt", { path: newPath }), 3000);
+      const parentPath = folder?.parentPath ?? file?.parent?.path;
+      const newPath = normalizePath(parentPath && parentPath !== "/" ? `${parentPath}/${stem}${suffix}` : `${stem}${suffix}`);
+      if (newPath !== this.target.path && app.vault.getAbstractFileByPath(newPath)) {
+        new Notice(file ? t("file.existsAt", { path: newPath }) : t("moveNode.conflict"), 3000);
         input?.focus();
         return;
       }
 
       this.busy = true;
       try {
-        await renameNoteWithDisplayName(this.plugin.app, this.file, newPath, stem, updateDisplayName ? displayField : null,
-          /** Native identity failures use the existing localized endpoint guidance. */ () => new Error(this.plugin.translator("addRelated.endpointChanged")));
+        if (file) await renameNoteWithDisplayName(app, file, newPath, stem, updateDisplayName ? displayField : null, unavailable);
+        else if (folder) await renameFolder(app, folder, newPath, unavailable);
         this.close();
       } catch (error) {
-        new Notice(this.plugin.translator("rename.failed", { error: error instanceof Error ? error.message : String(error) }), 5000);
+        new Notice(t(file ? "rename.failed" : "rename.folderFailed", { error: error instanceof Error ? error.message : String(error) }), 5000);
       } finally { this.busy = false; }
     };
 
@@ -84,7 +96,7 @@ export class RenameNoteModal extends Modal {
       .setName(this.plugin.translator("common.name"))
       .addText((text) => {
         input = text.inputEl;
-        text.setValue(value).setPlaceholder(this.plugin.translator("rename.placeholder")).onChange((next) => { value = next; });
+        text.setValue(value).setPlaceholder(t(file ? "rename.placeholder" : "rename.folderPlaceholder")).onChange((next) => { value = next; });
         text.inputEl.addEventListener("keydown", (event) => {
           if (event.key !== "Enter" || event.isComposing || event.getModifierState("AltGraph")) return;
           event.preventDefault();

@@ -70,7 +70,10 @@ timers in template scripts retain the limitations described below.
 K-Plex waits for automatic template processing before writing a new file's display
 name, aliases or relationship properties. The same barrier covers regular related
 notes, notes created inside folders, placeholder materialization, drawing creation,
-external copies and configured core Daily Notes. Reversed property ownership uses
+external copies opened or linked by K-Plex, and configured core Daily Notes. Copying
+files into a folder without opening them or writing relationships proceeds as soon
+as the Vault accepts each copy. Obsidian still emits the normal create events for
+any independently configured automation. Reversed property ownership uses
 the rendered new note rather than racing commands in its YAML frontmatter.
 
 An unresolved name matching the configured Daily Notes format offers a **Daily note**

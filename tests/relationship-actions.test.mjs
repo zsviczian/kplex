@@ -395,6 +395,7 @@ for (const outcome of ["fresh", "stale", "failed", "sources", "sources-pending"]
         },
         adoptStartupSources: async () => { events.push("adopt"); return outcome === "sources"; },
         noteBuildDecision: () => {},
+        getHostStructuralRevision: () => 0,
         rebuild: async () => { events.push("full"); hydrated = true; return true; },
         rebuildProgressively: async () => { events.push("progressive"); hydrated = true; return true; },
         acknowledgeHostPresentation: () => {},
@@ -406,7 +407,7 @@ for (const outcome of ["fresh", "stale", "failed", "sources", "sources-pending"]
       pruneMissingDirtyMarkdownPaths: () => {}, startupGraphSeedPaths: () => [],
     };
     context.settings = {};
-    for (const name of ["hasIndexMaintenanceDemand", "ensureInitialIndex", "performRebuild", "adoptInitialSourceIndex", "retireCoveredCreateReason", "retireCoveredMarkdownBacklog", "isBackgroundIndexingPaused"]) {
+    for (const name of ["hasIndexMaintenanceDemand", "ensureInitialIndex", "performRebuild", "isAutomaticBuildRetryBlocked", "isInterruptedGraphStartup", "isStartupGraphRetryDeferred", "noteInterruptedHydration", "scheduleStartupGraphRetry", "adoptInitialSourceIndex", "retireCoveredCreateReason", "retireCoveredMarkdownBacklog", "isBackgroundIndexingPaused"]) {
       context[name] = productionFunction("src/main.ts", name, { Platform: { isIosApp: false } });
     }
     const task = context.ensureInitialIndex();

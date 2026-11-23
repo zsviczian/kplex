@@ -84,7 +84,7 @@ import { selectedSourceFailure, type SelectedSourceResult, type SelectedSourceRe
 import type { ParsedBodyMetadata, ParsedFileMetadata } from "../../core/parser/metadata";
 import { mergeFileMetadata } from "../../index/fieldParser";
 import {normalizeFieldName} from "../../core/contracts/fieldName";
-import type {UncoveredResolverCause} from "../../application/indexRecoveryDiagnostics";
+import {SOURCE_INVENTORY_LIMIT, type SourceInventoryEndCause, type UncoveredResolverCause} from "../../application/indexRecoveryDiagnostics";
 import {sourceFingerprintCooperative} from "../../index/SourceFingerprint";
 import {readHostLinkSignatureEntries} from "./hostLinkSourceCollector";
 import type { BodyCacheRequest, BodyCacheStamp, KplexIndexedDbCache } from "../../index/IndexedDbCache";
@@ -100,6 +100,9 @@ import { resolveObsidianReferenceTarget } from "./ontologySourceCollector";
 
 type FileObservation = { identity: string | null; observation?: SourceObservation; validatedHostRevision?: number; revision: number; dirty: boolean; bodyDirty: boolean; resolutionDirty: boolean; initialResolutionRevision?: number; path: string; oldPath?: string; created: boolean; impact: Promise<void> | null; graphInputCurrent?: () => boolean };
 type SourceCoordinates = Readonly<{ order: number; markdownOrder: number }>;
+type SourceInventoryReceipt = {startMs: number; elapsedMs: number; trigger: ActivityReason; resolverCause: UncoveredResolverCause | null;
+  endCause: SourceInventoryEndCause | null; phase: string; outcome: string; visited: number; total: number;
+  sourceChanges: number; scopeChanges: number; hostChanges: number};
 type Capture = { physical: SourcePhysical; revision: number; hostRevision: number; state: FileObservation; file: TFile };
 /** A tiny weak native receipt names an accepted optional cache record; it retains no parser body. */
 type BodyInputReceipt = { inputToken: string; parserVersion: number; physical: SourcePhysical; revision: number; retired: boolean };
@@ -137,9 +140,26 @@ export type SourceAcquisitionResult = Readonly<{ current: boolean; saved: boolea
  */
 const KNOWN_RESOLVER_WAVE_RETIRE_MS = 50;
 const EMPTY_FOLDER_CREATE_MAX_MEMBERS = 32;
+const SOURCE_INVENTORY_DELAY_MS = 350;
+/** Keep coalescing finite when a close is missing or successive renames keep extending quiet time. */
+const STARTUP_FOLDER_RENAME_MAX_WAIT_MS = 4 * SOURCE_INVENTORY_DELAY_MS;
+/** Folder batches can span multiple resolver closes. Limit the wait on hosts without busy evidence. */
+const TOPOLOGY_INVENTORY_QUIET_MS = 1000;
+const TOPOLOGY_INVENTORY_MAX_WAIT_MS = 4 * TOPOLOGY_INVENTORY_QUIET_MS;
 /** Retry transient local dependency fences quickly, then back off instead of polling in a tight loop. */
 const DEFERRED_RESOLUTION_RETRY_MIN_MS = 350;
 const DEFERRED_RESOLUTION_RETRY_MAX_MS = 30000;
+
+/** One pending source admission, without any native object, path or captured source revision. */
+type SourceInventoryAdmission = {
+  kind: "startup-rename" | "topology";
+  deadline: number;
+  quietMs: number;
+  quietUntil: number;
+  cancelled: boolean;
+  nativeBusy: boolean;
+  wait: {result: Promise<boolean>; wake: () => void; cancel: () => void} | null;
+};
 
 /** Apply producer backpressure to a canonical generator, including its cooperative null steps. */
 function producer(steps: () => Iterable<StoredSourceFact | null>): SourceFamilyProducer {
@@ -218,6 +238,8 @@ export class ObsidianSourceAcquisition {
   private warmMaintenanceRevision: number | null = null;
   /** One restart comparison discovers offline target/alias/path drift without rereading unchanged bodies. */
   private restartInventoryChecked = false;
+  /** Delay only uncaptured fallback work prompted by a populated native rename during startup. */
+  private inventoryAdmission: SourceInventoryAdmission | null = null;
   /** Last selected-source comparison contains fixed codes only, never the owner's identity. */
   private metadataComparison: Readonly<{outcome: "equal" | "different" | "unavailable"; family: SourceFamily | null}> | null = null;
   /** Preserve the last unqualified native event across later ordinary known-file observations. */
@@ -242,6 +264,14 @@ export class ObsidianSourceAcquisition {
   private resolverWaveGeneration = 0;
   /** Bounded native membership for one resolver close; qualification comes from the physical owner. */
   private emptyFolderCreateWave: EmptyFolderCreateWave | null = null;
+  /** A native subtree mutation must match the complete physical owner's proof before resolver close. */
+  private readonly nativeFolderMutationWave = new Map<TFolder, {path: string; oldPath?: string; current?: () => boolean}>();
+  /** Weak receipts suppress late per-item notifications without protecting a replacement at the same path. */
+  private retiredNativePaths = new WeakMap<TFile | TFolder, string>();
+  /** A proven subtree move can be followed by redundant per-child rename callbacks. */
+  private movedNativePaths = new WeakMap<TFile | TFolder, {oldPath: string; path: string; current: () => boolean}>();
+  /** Only currently observed attachment topology can attribute a non-Markdown resolver notification. */
+  private attachmentTopologyWave = new WeakMap<TFile, string>();
   /** Weak identity receipts allow later naming of a genuinely observed empty folder, without a catalog. */
   private qualifiedCreatedFolders = new WeakMap<TFolder, NativeFolderWitness>();
   /** Finite coarse observations only; no event/source identities enter diagnostic history. */
@@ -265,6 +295,9 @@ export class ObsidianSourceAcquisition {
   private recoveryPass: {phase: string; outcome: string; startedAt: number; elapsedMs: number;
     visited: number; total: number; sourceRevision: number; scopeRevision: number; hostRevision: number;
     sourceChanges: number; scopeChanges: number; hostChanges: number} | null = null;
+  private activeInventoryReceipt: SourceInventoryReceipt | null = null;
+  private readonly recentInventoryReceipts: SourceInventoryReceipt[] = [];
+  private inventoryReceiptsOmitted = 0;
   /** Primitive last-event classification survives pass admission consuming the pending cause. */
   private recoveryInvalidation = {kind: "none", reason: "none", global: false, knownFile: false, observations: 0};
   /** Transient local lookup misses coalesce by dependency/source identity instead of retaining one entry per event. */
@@ -326,16 +359,24 @@ export class ObsidianSourceAcquisition {
   /** Read only existing collection sizes/task flags; never request source work or inspect a file. */
   getActivityState(): Readonly<{pendingKnown: number; knownImpactTasks: number; sourceActive: number; repoWrites: number; repoDeleteTask: number}> {
     const repository = this.repository.getActivityState();
-    return {pendingKnown: this.pendingKnownFiles.size, knownImpactTasks: this.knownImpactTasks, sourceActive: Number(this.inventory !== null),
+    const active = this.inventory !== null || Boolean(this.inventoryAdmission?.wait);
+    return {pendingKnown: this.pendingKnownFiles.size, knownImpactTasks: this.knownImpactTasks, sourceActive: Number(active),
       repoWrites: repository.writes, repoDeleteTask: Number(repository.deleteTask)};
   }
   /** The repository independently sanitizes all persistent diagnostic fields. */
   getDiagnostics(): SourceRepositoryDiagnostics { return this.repository.getDiagnostics(); }
   /** Passive readiness wait state for the existing index-status owner. */
   isWaitingForNativeResolution(): boolean { return this.cancelNativeResolutionWait !== null; }
+  /** Keep readiness pending across follow-up validation of an established source inventory. */
+  hasPendingSourceAuthority(): boolean {
+    return this.enabled && (this.restartInventoryChecked || this.uncertainResolution || this.environmentMaintenancePending)
+      && !this.hasSemanticDependencies()
+      && (this.requested || this.timer !== null || this.inventory !== null);
+  }
   /** Explain unavailable dependency authority separately from the already-published graph. */
   getRecoveryDiagnostics() {
     const pass = this.recoveryPass;
+    const active = this.activeInventoryReceipt;
     return {dependenciesReady: this.hasSemanticDependencies(), localAuthorityReady: this.localDependencyAuthorityReady,
       restartChecked: this.restartInventoryChecked, warmAuthority: this.warmMaintenanceAuthority !== null,
       environmentPending: this.environmentMaintenancePending, resolutionUncertain: this.uncertainResolution,
@@ -346,6 +387,10 @@ export class ObsidianSourceAcquisition {
       environmentChange: this.environmentChange ? {...this.environmentChange} : null,
       metadataComparison: this.metadataComparison ? {...this.metadataComparison} : null,
       uncoveredResolverCause: this.uncoveredResolverCause,
+      inventories: {recent: this.recentInventoryReceipts.map(row => ({...row})), omitted: this.inventoryReceiptsOmitted,
+        active: active && pass ? {...active, phase: pass.phase, visited: pass.visited, total: pass.total,
+          elapsedMs: Math.max(0, performance.now() - active.startMs), sourceChanges: this.inventoryRevision - pass.sourceRevision,
+          scopeChanges: this.inventoryScopeRevision - pass.scopeRevision, hostChanges: this.hostRevision - pass.hostRevision} : null},
       pass: pass ? {...pass, elapsedMs: pass.outcome === "running" ? Math.max(0, Date.now() - pass.startedAt) : pass.elapsedMs,
         sourceChanges: pass.outcome === "running" ? Math.max(0, this.inventoryRevision - pass.sourceRevision) : pass.sourceChanges,
         scopeChanges: pass.outcome === "running" ? Math.max(0, this.inventoryScopeRevision - pass.scopeRevision) : pass.scopeChanges,
@@ -408,6 +453,7 @@ export class ObsidianSourceAcquisition {
         // Consume exactly one fully known native wave without globalizing it. Folder coverage
         // additionally requires the complete physical owner's bounded pre-insertion proof.
         if (this.consumeKnownResolverWave()) return;
+        if (this.resolverActivityReason === "uncovered-non-file") this.deferTopologyInventory();
         this.markContributorHostChange("resolution", true, this.resolverActivityReason);
         this.requestInventory();
         return;
@@ -417,33 +463,24 @@ export class ObsidianSourceAcquisition {
       // and resolution dependents; keep that one native receipt until its first global close.
       // Folder events still require their separate complete membership proof below.
       if (file && effectiveKind === "topology"
-        && (this.app.vault.getFileByPath(file.path) === file || this.app.vault.getFileByPath(file.path) === null)) this.nativeTopologyWave = true;
+        && (this.app.vault.getFileByPath(file.path) === file || this.app.vault.getFileByPath(file.path) === null)) {
+        this.nativeTopologyWave = true;
+        if (file.extension !== "md" && this.app.vault.getFileByPath(file.path) === file) this.attachmentTopologyWave.set(file, file.path);
+      }
       const coveredFolder = createdFolder ? this.beginEmptyFolderCreateWave(createdFolder)
         : renamedFolder && oldPath ? this.beginEmptyFolderRenameWave(renamedFolder, oldPath) : false;
       if (!createdFolder && !renamedFolder && !file) this.retireEmptyFolderCreateWave();
       if (file && created) this.observeEmptyFolderMember(file);
       this.noteResolverWaveCause(Boolean(file) || coveredFolder);
       const dependenciesWereReady = this.localDependencyAuthorityReady;
+      if (file && effectiveKind === "source" && this.inventoryAdmission?.kind === "topology") {
+        this.deferInventoryAdmission();
+      }
       this.markContributorHostChange(effectiveKind, false, "unknown", effectiveKind === "source"
         && file?.extension === "md" && this.app.vault.getFileByPath(file.path) === file,
       file?.extension === "md" && (this.app.vault.getFileByPath(file.path) === file || this.app.vault.getFileByPath(file.path) === null));
       if (file) {
-        this.noteGraphSourceChange(file.path);
-        if (oldPath) this.noteGraphSourceChange(oldPath);
-        const state = this.state(file);
-        const resolutionObservationOnly = initialResolverProgress && (state.initialResolutionRevision === state.revision || !state.dirty)
-          && !state.bodyDirty && !state.created && !state.oldPath;
-        state.revision += 1; state.dirty = true; state.bodyDirty ||= bodyChanged || created;
-        state.initialResolutionRevision = resolutionObservationOnly ? state.revision : undefined;
-        if (created) { state.identity = this.repository.createIdentity(); state.created = true; }
-        if (oldPath) state.oldPath = oldPath;
-        this.repository.cancelSource(oldPath ?? state.path);
-        this.repository.cancelSource(file.path);
-        this.pendingKnownFiles.add(file);
-        // Initial native resolver progress is assessed once against the complete cached-input
-        // proof. Authenticating every reported owner here duplicates that startup comparison.
-        // Real file/metadata/topology events retain their ordinary immediate fan-out owner.
-        if (!initialResolverProgress) void this.queueKnownResolutionImpact(file, oldPath, dependenciesWereReady);
+        this.recordNativeFileChange(file, created, oldPath, bodyChanged, initialResolverProgress, dependenciesWereReady);
       }
       this.requestInventory();
     };
@@ -453,47 +490,53 @@ export class ObsidianSourceAcquisition {
     const rename = this.app.vault.on("rename",
       /** Fence the new path immediately; retire old body/incidence after existing fan-out closes. */
       (file, oldPath) => {
-      if (!(file instanceof TFolder)) this.retireEmptyFolderCreateWave();
+      if ((file instanceof TFile || file instanceof TFolder) && this.hasAppliedNativeFolderMove(file, oldPath)) {
+        this.nativeTopologyWave = true;
+        return;
+      }
+      if (file instanceof TFolder && file.children.length && this.beginNativeFolderMutation(file, oldPath)) {
+        this.markContributorHostChange("topology", false, "known-topology", false, true);
+        this.requestInventory();
+        return;
+      }
+      if (file instanceof TFolder && file.children.length && oldPath !== file.path && !this.restartInventoryChecked
+        && (this.enabled || this.initialResolverObservation || this.inventory !== null)
+        && this.app.vault.getFolderByPath(file.path) === file && !this.app.vault.getAbstractFileByPath(oldPath)) {
+        this.deferInventoryAdmission("startup-rename");
+      }
+      if (file instanceof TFile) this.updateMovedFolderMember(file, oldPath);
       changed(file instanceof TFile ? file : undefined, false, oldPath, false, "source", undefined,
         file instanceof TFolder ? file : undefined);
-      if (file instanceof TFile) {
-        this.pendingUrlAliasSources.delete(oldPath);
-        const state = this.state(file), fanout = this.knownFanoutTasks.get(file) ?? Promise.resolve();
-        const prior = state.impact ?? Promise.resolve();
-        this.knownImpactTasks += 1;
-        const tombstone = this.repository.tombstone(oldPath, () => !this.closed && !this.app.vault.getFileByPath(oldPath), true,
-          Promise.all([prior, fanout]).then(() => undefined), this.nodeImpactTracking
-            ? (reader, reason) => this.captureRetirementNodeImpacts(file, oldPath, reader, reason) : undefined).then(() => undefined)
-          .finally(() => { this.knownImpactTasks = Math.max(0, this.knownImpactTasks - 1); if (!this.closed) this.requestInventory(); });
-        state.impact = tombstone; void tombstone.finally(() => { if (state.impact === tombstone) state.impact = null; });
-      }
+      if (file instanceof TFile) this.tombstoneNativeFilePath(file, oldPath, true);
     });
     const remove = this.app.vault.on("delete",
       /** Mask source authority immediately and preserve finite retired incidence before deletion. */
       (file) => {
-      this.retireEmptyFolderCreateWave();
-      changed(file instanceof TFile ? file : undefined, false, undefined, false, "topology");
-      if (file instanceof TFile) {
-        this.pendingUrlAliasSources.delete(file.path);
-        const path = file.path, state = this.state(file), fanout = this.knownFanoutTasks.get(file) ?? Promise.resolve();
-        const prior = state.impact ?? Promise.resolve();
-        this.knownImpactTasks += 1;
-        const tombstone = this.repository.tombstone(path, () => !this.closed && !this.app.vault.getFileByPath(path), false,
-          Promise.all([prior, fanout]).then(() => undefined), this.nodeImpactTracking
-            ? (reader, reason) => this.captureRetirementNodeImpacts(file, path, reader, reason) : undefined).then(() => undefined)
-          .finally(() => { this.knownImpactTasks = Math.max(0, this.knownImpactTasks - 1); if (!this.closed) this.requestInventory(); });
-        state.impact = tombstone; void tombstone.finally(() => { if (state.impact === tombstone) state.impact = null; });
-      }
+      if ((file instanceof TFile || file instanceof TFolder) && this.hasRetiredNativePath(file)) {
+        this.nativeTopologyWave = true;
+      } else if (file instanceof TFile && !this.app.vault.getAbstractFileByPath(file.path)) {
+        this.retireDeletedNativeFile(file);
+      } else if (file instanceof TFolder && this.beginNativeFolderMutation(file)) {
+        this.markContributorHostChange("topology", false, "known-topology", false, true);
+        this.requestInventory();
+      } else changed(undefined, false, undefined, false, "topology");
     });
-    const metadata = this.app.metadataCache.on("changed", (file) => changed(file));
+    const metadata = this.app.metadataCache.on("changed", /** Obsolete MetadataCache events must not cancel a successor's source. */ file => {
+      if (!this.hasRetiredNativePath(file)) changed(file);
+    });
     const resolve = this.app.metadataCache.on("resolve", /** Native resolution also reports unchanged
      * attachments while rebuilding its startup link tables. Canonical owners in the admitted
      * initial window are progress: the restart comparison still proves every Markdown input.
      * Attachment graph facts remain owned by the physical/host graph collector. This receipt
      * grants no source or graph authority and cannot erase genuine file/metadata invalidation.
      * Unknown/replaced owners and attachment events after startup retain conservative recovery. */ file => {
+      if (file instanceof TFile && this.hasRetiredNativePath(file)) {
+        this.nativeResolvedWave = true;
+        return;
+      }
       const initial = !this.restartInventoryChecked && (this.enabled || this.inventory !== null || this.initialResolverObservation);
-      if (initial && file instanceof TFile && file.extension !== "md" && this.app.vault.getFileByPath(file.path) === file) {
+      if (file instanceof TFile && file.extension !== "md" && this.app.vault.getFileByPath(file.path) === file
+        && (initial || this.attachmentTopologyWave.get(file) === file.path)) {
         this.nativeResolvedWave = true;
         return;
       }
@@ -510,6 +553,13 @@ export class ObsidianSourceAcquisition {
       }
     });
     const resolved = this.app.metadataCache.on("resolved", () => {
+      if (this.inventoryAdmission) {
+        this.deferInventoryAdmission(this.inventoryAdmission.kind);
+        this.inventoryAdmission.wait?.wake();
+        // A clean, fully attributed close can still release an admission that timed out while
+        // busy. That close consumes its own resolver receipt without requesting global work.
+        if (this.requested) this.requestInventory();
+      }
       // During the guarded initial native wait this is progress/completion of that known
       // resolver owner, not an unexplained post-startup resolver change. Its final cached-input
       // comparison still checks every owner; ordinary later unscoped closes retain the audit.
@@ -522,6 +572,134 @@ export class ObsidianSourceAcquisition {
     this.cleanup.push(() => this.app.vault.offref(create), () => this.app.vault.offref(modify),
       () => this.app.vault.offref(rename), () => this.app.vault.offref(remove),
       () => this.app.metadataCache.offref(metadata), () => this.app.metadataCache.offref(resolve), () => this.app.metadataCache.offref(resolved));
+  }
+
+  /** Apply one file observation after the caller has fenced its host event. */
+  private recordNativeFileChange(file: TFile, created: boolean, oldPath: string | undefined, bodyChanged: boolean,
+    initialResolverProgress: boolean, dependenciesWereReady: boolean): void {
+    this.noteGraphSourceChange(file.path);
+    if (oldPath) this.noteGraphSourceChange(oldPath);
+    const state = this.state(file);
+    const resolutionObservationOnly = initialResolverProgress && (state.initialResolutionRevision === state.revision || !state.dirty)
+      && !state.bodyDirty && !state.created && !state.oldPath;
+    state.revision += 1; state.dirty = true; state.bodyDirty ||= bodyChanged || created;
+    state.initialResolutionRevision = resolutionObservationOnly ? state.revision : undefined;
+    if (created) { state.identity = this.repository.createIdentity(); state.created = true; }
+    if (oldPath) state.oldPath = oldPath;
+    this.repository.cancelSource(oldPath ?? state.path);
+    this.repository.cancelSource(file.path);
+    this.pendingKnownFiles.add(file);
+    // Initial native progress is assessed once against the complete cached-input proof.
+    if (!initialResolverProgress) void this.queueKnownResolutionImpact(file, oldPath, dependenciesWereReady);
+  }
+
+  /** Capture the existing local fan-out before tombstoning a verified absent file. */
+  private retireDeletedNativeFile(file: TFile): void {
+    if (this.hasRetiredNativePath(file)) return;
+    const path = file.path, dependenciesWereReady = this.localDependencyAuthorityReady;
+    this.retiredNativePaths.set(file, path);
+    this.emptyFolderCreateWave?.members.delete(file);
+    this.nativeTopologyWave = true;
+    this.markContributorHostChange("topology", false, "known-topology", false, file.extension === "md");
+    this.recordNativeFileChange(file, false, undefined, false, false, dependenciesWereReady);
+    this.tombstoneNativeFilePath(file, path, false);
+    this.requestInventory();
+  }
+
+  /** Share durable retirement of an old source path after its exact alias/referrer capture. */
+  private tombstoneNativeFilePath(file: TFile, path: string, retainFamilies: boolean): void {
+    this.pendingUrlAliasSources.delete(path);
+    const state = this.state(file);
+    const prerequisites = Promise.all([state.impact, this.knownFanoutTasks.get(file)]).then(() => undefined);
+    this.knownImpactTasks += 1;
+    const tombstone = this.repository.tombstone(path, () => !this.closed && !this.app.vault.getAbstractFileByPath(path), retainFamilies,
+      prerequisites, this.nodeImpactTracking ? (reader, reason) => this.captureRetirementNodeImpacts(file, path, reader, reason) : undefined)
+      .then(() => undefined).finally(() => {
+        this.knownImpactTasks = Math.max(0, this.knownImpactTasks - 1);
+        if (!this.closed) this.requestInventory();
+      });
+    state.impact = tombstone;
+    void tombstone.finally(() => { if (state.impact === tombstone) state.impact = null; });
+  }
+
+  /** Test the exact retired incarnation, including when a different entry now occupies its path. */
+  hasRetiredNativePath(item: TFile | TFolder): boolean {
+    return this.retiredNativePaths.get(item) === item.path && this.app.vault.getAbstractFileByPath(item.path) !== item;
+  }
+
+  /** Files in a still-open create wave have independent native provenance before graph publication. */
+  observedNewFolderMember(file: TFile): boolean { return this.emptyFolderCreateWave?.members.get(file) === file.path; }
+
+  /** Root notification alone never provides authoritative old or new membership. */
+  private beginNativeFolderMutation(folder: TFolder, oldPath?: string): boolean {
+    if (this.closed || !this.enabled || !this.localDependencyAuthorityReady || !this.restartInventoryChecked
+      || this.uncertainResolution || this.environmentMaintenancePending || this.resolutionBackpressure
+      || this.uncoveredResolverWave || this.uncoveredResolverSinceClose
+      || !folder.path || folder.path === "/" || oldPath !== undefined && !folder.parent
+      || this.nativeFolderMutationWave.size >= SOURCE_MAX_BATCH_RECORDS || this.nativeFolderMutationWave.has(folder)) return false;
+    if (oldPath === undefined ? this.app.vault.getAbstractFileByPath(folder.path)
+      : this.app.vault.getFolderByPath(folder.path) !== folder || this.app.vault.getAbstractFileByPath(oldPath)) return false;
+    this.nativeFolderMutationWave.set(folder, {path: folder.path, oldPath});
+    return true;
+  }
+
+  /** A bounded physical deletion feeds the same source retirement path as native child events. */
+  qualifyDeletedFolder(folder: TFolder, members: readonly (TFile | TFolder)[], current: () => boolean): boolean {
+    const root = this.nativeFolderMutationWave.get(folder);
+    if (!root || root.path !== folder.path || root.oldPath !== undefined || root.current || !current() || !members.includes(folder)
+      || members.length > SOURCE_MAX_BATCH_RECORDS || members.some(item => this.app.vault.getAbstractFileByPath(item.path))) return false;
+    root.current = current;
+    for (const item of members) {
+      if (item instanceof TFile) this.retireDeletedNativeFile(item);
+      else {
+        this.retiredNativePaths.set(item, item.path);
+        this.emptyFolderCreateWave?.folders.delete(item);
+        this.qualifiedCreatedFolders.delete(item);
+      }
+    }
+    if (this.emptyFolderCreateWave?.folders.size === 0) this.emptyFolderCreateWave = null;
+    return true;
+  }
+
+  /** Reuse ordinary per-file path retirement when the host only reports a populated root rename. */
+  qualifyPopulatedFolderRename(folder: TFolder, oldPath: string, members: readonly {item: TFile | TFolder; oldPath: string}[],
+    current: () => boolean): boolean {
+    const witness = this.nativeFolderMutationWave.get(folder);
+    if (!witness || witness.path !== folder.path || witness.oldPath !== oldPath || witness.current || !current()
+      || members.length > SOURCE_MAX_BATCH_RECORDS) return false;
+    const dependenciesWereReady = this.localDependencyAuthorityReady;
+    witness.current = current;
+    for (const {item, oldPath: prior} of members) {
+      this.movedNativePaths.set(item, {oldPath: prior, path: item.path, current});
+      if (item instanceof TFile) {
+        this.emptyFolderCreateWave?.members.delete(item);
+        if (item.extension !== "md") this.attachmentTopologyWave.set(item, item.path);
+        this.recordNativeFileChange(item, false, prior, false, false, dependenciesWereReady);
+        this.tombstoneNativeFilePath(item, prior, true);
+      } else {
+        this.emptyFolderCreateWave?.folders.delete(item);
+        this.qualifiedCreatedFolders.delete(item);
+      }
+    }
+    if (this.emptyFolderCreateWave?.folders.size === 0) this.emptyFolderCreateWave = null;
+    return true;
+  }
+
+  /** Accept a late native child event only for the exact subtree remap already in progress or applied. */
+  hasAppliedNativeFolderMove(item: TFile | TFolder, oldPath: string): boolean {
+    const witness = this.movedNativePaths.get(item);
+    return witness?.oldPath === oldPath && witness.path === item.path && witness.current()
+      && this.app.vault.getAbstractFileByPath(item.path) === item;
+  }
+
+  /** A file renamed within its newly created parent retains its already observed membership. */
+  private updateMovedFolderMember(file: TFile, oldPath: string): void {
+    const wave = this.emptyFolderCreateWave;
+    if (!wave || !wave.members.has(file)) return;
+    if (wave.members.get(file) === oldPath && file.parent && wave.folders.has(file.parent)
+      && this.app.vault.getFileByPath(file.path) === file && !this.app.vault.getAbstractFileByPath(oldPath)) {
+      wave.members.set(file, file.path);
+    } else this.retireEmptyFolderCreateWave();
   }
   /**
    * Match only the already observed native create. The complete graph owner supplies a synchronous
@@ -685,14 +863,16 @@ export class ObsidianSourceAcquisition {
 
   /** Consume a known native wave only after its optional bounded folder witness also closes. */
   private consumeKnownResolverWave(): boolean {
-    const folderCovered = !this.emptyFolderCreateWave || this.emptyFolderWaveComplete(this.emptyFolderCreateWave);
-    const covered = (this.knownResolverWave || this.nativeResolvedWave || this.nativeTopologyWave || Boolean(this.emptyFolderCreateWave))
+    const hasFolderWave = Boolean(this.emptyFolderCreateWave || this.nativeFolderMutationWave.size);
+    const folderCovered = (!this.emptyFolderCreateWave || this.emptyFolderWaveComplete(this.emptyFolderCreateWave))
+      && [...this.nativeFolderMutationWave.values()].every(/** A physical owner's receipt must remain current at close. */ witness => witness.current?.());
+    const covered = (this.knownResolverWave || this.nativeResolvedWave || this.nativeTopologyWave || hasFolderWave)
       && !this.uncoveredResolverWave && !this.uncoveredResolverSinceClose && folderCovered;
     if (!folderCovered) {this.uncoveredResolverCause = "incomplete-folder-proof";this.uncoveredResolverWave = true;}
-    this.resolverActivityReason = covered ? (this.emptyFolderCreateWave ? "qualified-folder" : "known-resolver")
+    this.resolverActivityReason = covered ? (hasFolderWave ? "qualified-folder" : "known-resolver")
       : this.uncoveredResolverWave || this.uncoveredResolverSinceClose ? "uncovered-non-file"
       : this.resolverWaveExpired ? "expired-resolver" : this.resolverCloseObserved ? "extra-resolved" : "unscoped-resolved";
-    if (covered && this.emptyFolderCreateWave) {
+    if (covered && hasFolderWave) {
       try { this.startupDiagnostics?.activityCause?.("qualified-folder"); }
       catch { /* Successful native coverage never depends on optional accounting. */ }
     }
@@ -705,6 +885,8 @@ export class ObsidianSourceAcquisition {
     this.knownResolverWave = false;
     this.uncoveredResolverWave = false;
     this.emptyFolderCreateWave = null;
+    this.nativeFolderMutationWave.clear();
+    this.attachmentTopologyWave = new WeakMap();
     return covered;
   }
   /**
@@ -713,6 +895,9 @@ export class ObsidianSourceAcquisition {
    * This qualification grants neither source validity nor completed inventory authority.
    */
   private markContributorHostChange(kind: ContributorHostChange["kind"], global = kind === "resolution", activityReason: ActivityReason = "unknown", knownSource = false, knownFile = knownSource): void {
+    if (kind === "topology" && (this.activeInventoryReceipt !== null || !this.localDependencyAuthorityReady || this.uncertainResolution)) {
+      this.deferTopologyInventory();
+    }
     const retainDateScope = !global && kind !== "environment" && knownFile
       && this.environmentLocalAuthority === this.inventoryScopeRevision;
     this.recoveryInvalidation.kind = kind;
@@ -773,6 +958,7 @@ export class ObsidianSourceAcquisition {
   close(): void {
     this.closed = true; this.inventoryRevision += 1; this.inventoryScopeRevision += 1;
     this.initialResolverObservation = false;
+    this.cancelInventoryAdmission();
     this.cancelNativeResolutionWait?.();
     this.warmMaintenanceAuthority = null; this.warmMaintenanceRevision = null;
     this.graphChanges?.clear(); this.graphChanges = null;
@@ -788,6 +974,10 @@ export class ObsidianSourceAcquisition {
     this.knownResolverWave = false; this.uncoveredResolverWave = false;
     this.nativeResolvedWave = false; this.nativeTopologyWave = false; this.uncoveredResolverSinceClose = false;
     this.emptyFolderCreateWave = null;
+    this.nativeFolderMutationWave.clear();
+    this.retiredNativePaths = new WeakMap();
+    this.movedNativePaths = new WeakMap();
+    this.attachmentTopologyWave = new WeakMap();
     this.qualifiedCreatedFolders = new WeakMap();
   }
   /** Allocate an incarnation lazily; a matching restart head can supply its already durable identity. */
@@ -818,6 +1008,69 @@ export class ObsidianSourceAcquisition {
       this.cancelNativeResolutionWait = () => finish(false);
       if (this.closed || !this.nativeResolutionPending()) finish(!this.closed);
     });
+  }
+
+  /** Defer only broad topology recovery. Exact local repairs retain their existing admission. */
+  private deferTopologyInventory(): void {
+    if (this.enabled || this.initialResolverObservation || this.inventory !== null) this.deferInventoryAdmission();
+  }
+
+  /** Extend the quiet boundary without rearming a timer for every descendant notification. */
+  private deferInventoryAdmission(kind: SourceInventoryAdmission["kind"] = "topology"): void {
+    const now = window.performance.now();
+    const admission = this.inventoryAdmission ??= {
+      kind,
+      deadline: now + (kind === "startup-rename" ? STARTUP_FOLDER_RENAME_MAX_WAIT_MS : TOPOLOGY_INVENTORY_MAX_WAIT_MS),
+      quietMs: kind === "startup-rename" ? SOURCE_INVENTORY_DELAY_MS : TOPOLOGY_INVENTORY_QUIET_MS,
+      quietUntil: now, cancelled: false, nativeBusy: false, wait: null,
+    };
+    admission.quietUntil = now + admission.quietMs;
+    // A previous startup pass with an earlier captured revision cannot outlive this rename.
+    if (kind === "startup-rename") this.cancelNativeResolutionWait?.();
+  }
+
+  /** Spend no index-work priority or source reads while the native resolver is settling. */
+  private waitForInventoryAdmission(admission: SourceInventoryAdmission): Promise<boolean> {
+    if (admission.wait) return admission.wait.result;
+    let timer: number | null = null, settled = false;
+    let resolve!: (ready: boolean) => void;
+    const result = new Promise<boolean>(done => { resolve = done; });
+    const clearTimer = (): void => {
+      if (timer !== null) window.clearTimeout(timer);
+      timer = null;
+    };
+    /** At the deadline release waiters, even if the host is still explicitly unready. */
+    const finish = (ready: boolean): void => {
+      if (settled) return;
+      settled = true;
+      clearTimer();
+      if (!ready) admission.wait = null;
+      resolve(ready);
+    };
+    const wake = (): void => {
+      if (settled) return;
+      clearTimer();
+      const now = window.performance.now();
+      const quietUntil = Math.min(admission.quietUntil, admission.deadline);
+      if (now < quietUntil) {
+        timer = window.setTimeout(wake, quietUntil - now);
+        return;
+      }
+      admission.nativeBusy = this.nativeResolutionPending();
+      if (!admission.nativeBusy || now >= admission.deadline) finish(!admission.nativeBusy);
+      else timer = window.setTimeout(wake, admission.deadline - now);
+    };
+    admission.wait = {result, wake, cancel: () => finish(false)};
+    wake();
+    return result;
+  }
+
+  private cancelInventoryAdmission(): void {
+    const admission = this.inventoryAdmission;
+    if (!admission) return;
+    this.inventoryAdmission = null;
+    admission.cancelled = true;
+    admission.wait?.cancel();
   }
   /** Host-maintenance revision used by GraphIndex to reject stale demanded semantic publications. */
   getMaintenanceRevision(): number { return this.maintenanceRevision; }
@@ -1476,8 +1729,9 @@ export class ObsidianSourceAcquisition {
         // Delete before work: a concurrent event for this same TFile re-adds it and cannot be erased
         // by successful completion of the older observation. Unvisited snapshot entries stay queued.
         this.pendingKnownFiles.delete(file);
-        if (this.app.vault.getFileByPath(file.path) !== file || file.extension !== "md") {
-          this.sourceCoordinates.delete(file.path);
+        const currentFile = this.app.vault.getFileByPath(file.path);
+        if (currentFile !== file || file.extension !== "md") {
+          if (currentFile?.extension !== "md") this.sourceCoordinates.delete(file.path);
           continue;
         }
         if (this.environmentObservationChanged()) {
@@ -2677,10 +2931,18 @@ export class ObsidianSourceAcquisition {
   }
   /** Yield storage bandwidth to a complete graph rebuild; preserve the pending inventory request. */
   pauseInventory(): boolean {
+    if (this.activeInventoryReceipt && this.recoveryPass?.scopeRevision === this.inventoryScopeRevision) {
+      this.activeInventoryReceipt.endCause = "build-paused";
+    }
     this.retireEmptyFolderCreateWave();
+    if (this.nativeFolderMutationWave.size) {
+      this.nativeFolderMutationWave.clear();
+      this.noteResolverWaveCause(false, "retired-folder-proof");
+    }
     const wasEnabled = this.enabled;
     this.enabled = false;
     this.inventoryRevision += 1; this.inventoryScopeRevision += 1;
+    this.cancelInventoryAdmission();
     this.requested = true;
     if (this.timer !== null) { window.clearTimeout(this.timer); this.timer = null; }
     if (this.pollTimer !== null) { window.clearTimeout(this.pollTimer); this.pollTimer = null; }
@@ -2696,8 +2958,10 @@ export class ObsidianSourceAcquisition {
     this.requested = true;
     // The existing graph owner can admit urgent local work without joining this broad task.
     if (this.canPrepareWarmMaintenance() && this.pendingKnownFiles.size) this.inventoryProgress?.();
-    if (!this.enabled || this.closed || this.inventory || this.timer !== null) return;
-    this.timer = window.setTimeout(() => { this.timer = null; void this.reconcile(); }, 350);
+    const admission = this.inventoryAdmission;
+    if (!this.enabled || this.closed || this.inventory || this.timer !== null || admission?.wait
+      || admission?.nativeBusy && this.nativeResolutionPending()) return;
+    this.timer = window.setTimeout(() => { this.timer = null; void this.reconcile(); }, SOURCE_INVENTORY_DELAY_MS);
   }
   /**
    * Reconcile a captured inventory, reusing valid parsed inputs and repairing local misses.
@@ -2717,6 +2981,12 @@ export class ObsidianSourceAcquisition {
     // second pass after quick completion and emit another unchanged inventory-ready callback.
     // A genuinely newer event sets requested again; the existing finally schedules that follow-up.
     if (this.timer !== null) { window.clearTimeout(this.timer); this.timer = null; }
+    const admission = this.inventoryAdmission;
+    if (admission) {
+      if (!await this.waitForInventoryAdmission(admission) || this.closed || admission.cancelled) return false;
+      if (this.inventory) return this.inventory;
+      this.inventoryAdmission = null;
+    }
     this.requested = false;
     // Local maintenance keeps its exact event lifetime. Broad work separately owns captured
     // topology/global resolution; a known source event still retires that owner's native capture.
@@ -2730,6 +3000,15 @@ export class ObsidianSourceAcquisition {
       recovery.sourceChanges = Math.max(0, this.inventoryRevision - recovery.sourceRevision);
       recovery.scopeChanges = Math.max(0, this.inventoryScopeRevision - recovery.scopeRevision);
       recovery.hostChanges = Math.max(0, this.hostRevision - recovery.hostRevision);
+      const receipt = this.activeInventoryReceipt;
+      if (!receipt) return;
+      const endCause = outcome === "failed" ? "exception" : outcome === "cancelled"
+        ? receipt.endCause ?? (this.closed ? "closed" : "scope-changed") : outcome === "incomplete" ? "proof-incomplete" : null;
+      Object.assign(receipt, {outcome, endCause, phase: recovery.phase, elapsedMs: Math.max(0, performance.now() - receipt.startMs),
+        visited: recovery.visited, total: recovery.total, sourceChanges: recovery.sourceChanges, scopeChanges: recovery.scopeChanges, hostChanges: recovery.hostChanges});
+      this.activeInventoryReceipt = null;
+      if (this.recentInventoryReceipts.length === SOURCE_INVENTORY_LIMIT) {this.recentInventoryReceipts.shift(); this.inventoryReceiptsOmitted++;}
+      this.recentInventoryReceipts.push(receipt);
     };
     let broad = false;
     let activityToken = 0, activityFailed = false, readyNotification = false;
@@ -2779,8 +3058,12 @@ export class ObsidianSourceAcquisition {
           return ready;
         }
         broad = true;
+        const trigger = this.activityGlobalReason ?? (this.restartInventoryChecked ? "local-authority-unavailable" : "startup-offline");
+        this.activeInventoryReceipt = {startMs: performance.now(), elapsedMs: 0, trigger,
+          resolverCause: trigger === "uncovered-non-file" ? this.uncoveredResolverCause : null, endCause: null,
+          phase: "queued", outcome: "running", visited: 0, total: 0, sourceChanges: 0, scopeChanges: 0, hostChanges: 0};
         try { activityToken = this.startupDiagnostics?.beginActivity?.("host-inventory", "global",
-          this.activityGlobalReason ?? (this.restartInventoryChecked ? "local-authority-unavailable" : "startup-offline"), this.counters) ?? 0; }
+          trigger, this.counters) ?? 0; }
         catch { /* No work admission or validation result depends on diagnostic state. */ }
         this.activityGlobalReason = null;
         // Events observed before this boundary are one coalesced cached-fact pass. A new unscoped
@@ -3023,9 +3306,10 @@ export class ObsidianSourceAcquisition {
    * pending. Only the successful current pass and repository completion grant source authority.
    */
   async flush(): Promise<boolean> {
+    const admission = this.inventoryAdmission;
     const joinedRevision = this.inventoryCaptureRevision ?? this.inventoryRevision;
     let inventory = this.inventory ? await this.inventory : await this.reconcile();
-    if (!inventory && !this.closed && joinedRevision !== this.inventoryRevision
+    if (!inventory && !this.closed && !admission?.cancelled && !admission?.nativeBusy && joinedRevision !== this.inventoryRevision
       && (this.requested || this.inventory !== null && this.inventoryCaptureRevision !== joinedRevision)) {
       inventory = await this.reconcile();
     }

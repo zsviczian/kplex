@@ -76,6 +76,7 @@ function hostFixture(backgroundCheckpoint, runBackgroundWork, onPresentationInpu
   };
   const root = new window.SourceTestFolder();
   const vault = { ...events(), getFileByPath: path => files.get(path) ?? null,
+    getAbstractFileByPath: path => files.get(path) ?? (path === "" || path === "/" ? root : null),
     getRoot: () => { root.children = [...files.values()]; return root; }, getFiles: () => [...files.values()],
     getMarkdownFiles: () => [...files.values()].filter(f => f.extension === "md"),
     cachedRead: async file => { reads.push(file.path); return text.get(file.path) ?? ""; },
