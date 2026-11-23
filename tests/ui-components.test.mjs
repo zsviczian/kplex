@@ -1145,7 +1145,7 @@ import {DEFAULT_COMMON_NODE_PROPERTIES,mergedNodePropertyRows,nodePropertyRows} 
 import {CreationPropertyFields} from ${JSON.stringify(join(root,"src/ui/features/CreationPropertyFields.tsx"))};
 import {creationPropertyValues} from ${JSON.stringify(join(root,"src/application/creationProperties.ts"))};
 import {noteTypeTag} from ${JSON.stringify(join(root,"src/core/graph/tagPaths.ts"))};
-import {noteTypeSuggestionNames,TagNameSuggest} from ${JSON.stringify(join(root,"src/ui/TagNameSuggest.ts"))};
+import {noteTypeSuggestionNames, TagNameSuggest} from ${JSON.stringify(join(root,"src/ui/TagNameSuggest.ts"))};
 ${uiDefinitions("src/adapters/obsidian/creationProperties.ts",["creationPropertyKind"])}
 ${uiDefinitions("src/adapters/obsidian/tagNoteType.ts",["noteTypeAsTag"])}
 import {iterateInternalLinkTokens,iterateMarkdownLinkSteps} from ${JSON.stringify(join(root,"src/core/parser/metadata.ts"))};
@@ -1341,7 +1341,7 @@ ${production}
 }
 
 /** Run a production DOM fixture in an isolated profile and navigate with an encoded file URL. */
-function runBrowserDom(entry, successText, nativeMock) {
+function runBrowserDom(entry, successText, obsidianFixture) {
   const browser = findBrowser();
   assert(browser, "A Chromium-family browser is required for the DOM behavior lane; set KPLEX_TEST_BROWSER to its executable path.");
 
@@ -1351,14 +1351,14 @@ function runBrowserDom(entry, successText, nativeMock) {
     const bundlePath = join(temp, "bundle.js");
     const htmlPath = join(temp, "index.html");
     writeFileSync(entryPath, entry);
-    const mockPath = join(temp, "obsidian.ts");
-    if (nativeMock) writeFileSync(mockPath, nativeMock);
+    const obsidianPath = join(temp, "obsidian.mjs");
+    if (obsidianFixture) writeFileSync(obsidianPath, obsidianFixture);
     buildSync({
       entryPoints: [entryPath],
       outfile: bundlePath,
       bundle: true,
       nodePaths: [join(root, "node_modules")],
-      alias: nativeMock ? {obsidian: mockPath} : undefined,
+      alias: obsidianFixture ? { obsidian: obsidianPath } : undefined,
       platform: "browser",
       format: "iife",
       target: ["chrome100"],
