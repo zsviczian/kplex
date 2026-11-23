@@ -681,6 +681,34 @@ test('folder creation wave uses complete physical ownership and real source-loca
       })()`),true);
     });
 
+    await t.test('folder burst waits for saved hydration and drains the latest native state',async()=>{
+      assert.equal(await browser.evaluate(`(async()=>{
+        const f=await folderWaveFixture({heldHydration:true,deleteTree:true});try{
+          const deleted=f.tree.note;
+          f.deleteTree('folder-only');
+          f.index.notifyNativeFolderDeletion();
+          ok(!f.index.get('folder:Journal/Date'),'Deleted folder is retired from display during hydration');
+          const replacement=f.createImportTree().note;
+          ok(replacement!==deleted&&replacement.path===deleted.path,'Reimport uses a new native identity at the old path');
+          const newFile=f.add('New friend.md','Friends:: [[Ref]]');f.createFile(newFile);
+          f.closeWave();
+          await new Promise(resolve=>window.setTimeout(resolve,1500));
+          ok(f.index.hasPendingSnapshotHydration(),'Evidence hydration is still held past the native event quiet window');
+          equal(f.index.sourceAcquisition.getRecoveryDiagnostics().inventoryActive,false,'Background source inventory has not started');
+          equal(f.wholePasses,0,'No whole-source pass runs beside saved hydration');
+          f.heldHydration.release();await f.heldHydration.done;await f.heldHydration.task;await f.heldHydration.restoring;
+          // Observe the automatic wake. An explicit flush here would hide a stranded backlog.
+          const until=Date.now()+5000;
+          while(!f.index.sourceAcquisition.hasSemanticDependencies()&&Date.now()<until)await new Promise(resolve=>window.setTimeout(resolve,25));
+          ok(f.index.sourceAcquisition.hasSemanticDependencies(),'Queued source work settles automatically after hydration');
+          equal(f.wholePasses,1,'One conservative pass settles the unproven burst');
+          ok((await folderResolution(f,replacement.path)).some(row=>row.target==='Other.md'),'Reimported source survives deferred deletion repair');
+          ok((await folderResolution(f,newFile.path)).some(row=>row.target==='Ref.md'),'The independent edit settles with the same backlog');
+          return true;
+        }finally{f.heldHydration.release();await f.heldHydration.done;await f.heldHydration.task;await f.heldHydration.restoring;f.close();}
+      })()`),true);
+    });
+
     await t.test('skipped native folder during real held evidence hydration cannot regain proof through warm retention',async()=>{
       assert.equal(await browser.evaluate(`(async()=>{
         const f=await folderWaveFixture({heldHydration:true});try{

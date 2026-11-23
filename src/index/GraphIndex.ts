@@ -890,7 +890,9 @@ export class GraphIndex {
         this.plugin.notifyStartupProgress?.();
       }, plugin.startupDiagnostics, () => this.workScheduler.checkpoint(INDEX_WORK_PRIORITY.background),
       work => this.workScheduler.run(INDEX_WORK_PRIORITY.background, work),
-      path => { void this.refreshVisiblePresentation(path); });
+      path => { void this.refreshVisiblePresentation(path); },
+      () => this.snapshotHydrationTask !== null && this.snapshotHydrationDiagnostics.outcome === "running"
+        && this.snapshotHydrationDiagnostics.phase !== "source-authority");
     this.hostPreview = new HostMetadataPreview(app, () => plugin.settings,
       this.semanticPreparationRuntime(() => !this.diagnosticsClosed, INDEX_WORK_PRIORITY.currentNode));
     // Remove the old parsed-body localStorage payload. IndexedDB is now the only durable index
@@ -6760,6 +6762,7 @@ export class GraphIndex {
     void task.then(() => {
       if (this.snapshotHydrationTask !== task) return;
       this.snapshotHydrationTask = null;
+      this.sourceAcquisition.resumeQueuedInventory();
       this.retryUrlAliasUpgrade();
       // Status consumers distinguish cache hydration from later reconciliation/indexing. Publish
       // that phase boundary even when the graph itself did not change at task completion.

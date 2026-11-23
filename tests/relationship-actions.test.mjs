@@ -716,7 +716,11 @@ function createdMetadataFixture({ extension = "md", displayField = "aliases", in
       if (nextBody !== body) { file.stat.mtime++; file.stat.size = nextBody.length; body = nextBody; }
       writes.push(structuredClone(next)); events.push("native-write");
     },
-  } }, fileCreationAutomation: {wait: async()=>{}}, relationshipWriteCancels: new Set(), managedMetadataWrites: new Map(), unloading: false,
+  } }, fileCreationAutomation: {wait: async()=>{}}, relationshipWriteCancels: new Set(), managedMetadataWrites: new Map(),
+    createdNotesAwaitingMetadata: new WeakSet(), unloading: false,
+    waitForCreatedOpeningMetadata: async (selected, current) => {
+      assert.equal(selected, file); assert(current()); assert.deepEqual(cache?.frontmatter, frontmatter);
+    },
     pruneManagedMetadataWrites: () => {}, configuredDisplayNameField: () => displayField,
     translator: key => key, validateRelatedNoteName: () => ({ valid: true, existing: null, stem: "Created" }),
     createNewFileInFolder: async () => file,

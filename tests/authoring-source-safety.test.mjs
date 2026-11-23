@@ -52,7 +52,8 @@ function fixture(surface='sidepanel'){
  for(const name of ['A','B','C']){const file={path:name+'.md',extension:'md'};files.set(file.path,file);pages.set(file.path,{path:file.path,name,file,url:null,isFolder:false,isTag:false,neighbours:new Map()});disk.set(file.path,JSON.stringify({Keep:name}));}
  const a=pages.get('A.md'),b=pages.get('B.md'),c=pages.get('C.md'),leaf={surface};let ready=false;
  const host=Object.assign(new M.Host(),{settings:{lastActivePath:a.path,navigationHistory:[a.path],alsoWriteInverseOntology:false},
-  openKplexViews:1,actionInvocationSequence:0,actionDialogs:new Map(),managedMetadataWrites:new Map(),fileCreationAutomation:{wait:async()=>{}},
+  openKplexViews:1,actionInvocationSequence:0,actionDialogs:new Map(),managedMetadataWrites:new Map(),createdNotesAwaitingMetadata:new WeakSet(),
+  fileCreationAutomation:{wait:async()=>{}},
   translator:key=>key,pruneManagedMetadataWrites(){},configuredDisplayNameField:()=>'',referenceForPage:page=>'[['+page.path+']]',
   saveSettings:async()=>{},syncPageToDocumentLeaf:async()=>{},syncSidecarToPage:async()=>{},
   app:{vault:{getFileByPath:path=>files.get(path)??null},fileManager:{processFrontMatter:async(file,mutate)=>{

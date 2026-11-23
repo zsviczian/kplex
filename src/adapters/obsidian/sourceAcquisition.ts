@@ -342,6 +342,7 @@ export class ObsidianSourceAcquisition {
    * flush must not retain a higher-priority scheduler lease while waiting for this broad inventory.
    * New current cached-body or durable-source availability may wake a targeted presentation owner;
    * this optional observer never propagates failure or changes source authority.
+   * Saved graph hydration can defer automatic topology admission without holding local work.
    */
   constructor(private readonly app: App, private readonly cache: KplexIndexedDbCache, private readonly parse: SourceBodyParser,
     private readonly inventoryReady?: () => void,
@@ -349,7 +350,8 @@ export class ObsidianSourceAcquisition {
     private readonly startupDiagnostics?: StartupDiagnostics,
     private readonly backgroundCheckpoint?: () => Promise<void>,
     private readonly runBackgroundWork?: (work: () => Promise<boolean>) => Promise<boolean>,
-    private readonly onPresentationInputsAvailable?: (path: string) => void) {
+    private readonly onPresentationInputsAvailable?: (path: string) => void,
+    private readonly deferAutomaticTopologyInventory?: () => boolean) {
     this.repository = cache.sources;
     this.metadataHost = createObsidianMetadataSourceHost(app);
   }
@@ -2961,8 +2963,13 @@ export class ObsidianSourceAcquisition {
     if (this.canPrepareWarmMaintenance() && this.pendingKnownFiles.size) this.inventoryProgress?.();
     const admission = this.inventoryAdmission;
     if (!this.enabled || this.closed || this.inventory || this.timer !== null || admission?.wait
-      || admission?.nativeBusy && this.nativeResolutionPending()) return;
-    this.timer = window.setTimeout(() => { this.timer = null; void this.reconcile(); }, SOURCE_INVENTORY_DELAY_MS);
+      || admission && (this.deferAutomaticTopologyInventory?.() || admission.nativeBusy && this.nativeResolutionPending())) return;
+    this.timer = window.setTimeout(() => { this.timer = null; void this.reconcile(true); }, SOURCE_INVENTORY_DELAY_MS);
+  }
+
+  /** Resume the same coalesced native work after saved graph hydration releases storage. */
+  resumeQueuedInventory(): void {
+    if (this.requested) this.requestInventory();
   }
   /**
    * Reconcile a captured inventory, reusing valid parsed inputs and repairing local misses.
@@ -2974,7 +2981,7 @@ export class ObsidianSourceAcquisition {
    * captures still reject stale work. Local repair drains those events before exact final closure.
    * A successful current readiness notification runs after releasing the awaited inventory owner.
    */
-  async reconcile(): Promise<boolean> {
+  async reconcile(automatic = false): Promise<boolean> {
     this.start();
     if (this.inventory) return this.inventory;
     if (this.closed) return false;
@@ -2984,8 +2991,16 @@ export class ObsidianSourceAcquisition {
     if (this.timer !== null) { window.clearTimeout(this.timer); this.timer = null; }
     const admission = this.inventoryAdmission;
     if (admission) {
+      // A topology burst or snapshot restore can start after the timer has been armed. Keep the
+      // existing request until hydration finishes. Explicit source closure may be a prerequisite
+      // of hydration itself, so those callers can still join or start the required maintenance.
+      if (automatic && this.deferAutomaticTopologyInventory?.()) return false;
       if (!await this.waitForInventoryAdmission(admission) || this.closed || admission.cancelled) return false;
       if (this.inventory) return this.inventory;
+      if (automatic && this.deferAutomaticTopologyInventory?.()) {
+        admission.wait = null;
+        return false;
+      }
       this.inventoryAdmission = null;
     }
     this.requested = false;
