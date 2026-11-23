@@ -2064,7 +2064,6 @@ const frenchTranslations = {
   "delete.folderConfirm": "Déplacer « {name} » et tout son contenu vers la corbeille configurée dans Obsidian ?",
   "delete.folderFailed": "Impossible de supprimer le dossier. {error}",
   "graph.deleteFolder": "Supprimer le dossier",
-  "daily.drawingNotReady": "Le dessin quotidien a été enregistré. Obsidian ne l’a pas encore reconnu comme un dessin Excalidraw.",
 } as const satisfies LocaleTranslationMap;
 
 return buildLocaleCatalog(frenchTranslations);

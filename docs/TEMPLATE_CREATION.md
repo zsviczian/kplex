@@ -79,11 +79,15 @@ the rendered new note rather than racing commands in its YAML frontmatter.
 An unresolved name matching the configured Daily Notes format offers a **Daily note**
 choice in the normal creation dialog. It uses the configured daily folder and template;
 the Markdown and Excalidraw choices retain their ordinary behavior. Calendar, Today and
-daily-placeholder creation share the template-completion barrier and open a newly
-created drawing in Excalidraw only after that exact file's template has finished.
-If native metadata still describes Markdown after the template write, the opening
-flow checks the saved frontmatter and waits briefly for Obsidian to recognize that
-exact drawing. The wait ends with the original view or file identity.
+daily-placeholder creation share the template-completion barrier.
+
+When navigating to or opening a newly created note, K-Plex checks whether Obsidian
+has published the saved frontmatter. If the cache trails the write, it waits up to
+three seconds for that file's matching metadata before starting navigation. This
+applies to related notes, folder notes, and Daily Notes. The native opener owns the
+initial representation. Excalidraw applies its normal `excalidraw-open-md`
+preference and remembered view mode. The optional previous-note link review follows
+creation and opening.
 
 Deleting a centered note preserves surviving incoming declarations while referrers
 update. If Obsidian then replaces its full file path with one unambiguous unresolved

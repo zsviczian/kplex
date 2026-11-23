@@ -82,7 +82,7 @@ import {calendarDay, calendarDayKey, todayJournalGap, shiftCalendarDay, adjacent
 import {DailyNoteCalendarModal} from "./ui/DailyNoteCalendarModal";
 import {FileCreationAutomation} from "./adapters/obsidian/fileCreationAutomation";
 import { drawingAutomation, drawingTemplateOptions } from "./adapters/obsidian/drawingTemplates";
-import {markdownTemplateFiles, prepareMarkdownTemplate} from "./adapters/obsidian/creationTemplates";
+import {markdownTemplateFiles, prepareMarkdownTemplate, type ExplicitCreationTemplate} from "./adapters/obsidian/creationTemplates";
 import {viewLabel} from "./ui/plexViews/labels";
 import {startupIndexPolicy} from './core/plex/startupIndexPreferences';
 import { tagMembershipPair } from "./ui/structuralConnectionActions";
@@ -451,7 +451,7 @@ export default class KplexPlugin extends Plugin {
   /** Paths suppress the synchronous vault:create rebuild; object identity protects optimistic UI. */
   private readonly managedCreatedPaths = new Map<string, number>();
   private readonly managedCreatedFiles = new WeakSet<TFile>();
-  private readonly createdDailyNotes = new WeakSet<TFile>();
+  private readonly createdNotesAwaitingMetadata = new WeakSet<TFile>();
   /** Markdown files whose metadata/body changed since the last published graph. */
   private readonly dirtyMarkdownPaths = new Set<string>();
   /** Rename-only metadata notifications are semantic no-ops when mtime/size are unchanged. */
@@ -4247,7 +4247,6 @@ export default class KplexPlugin extends Plugin {
       const leaf = this.app.workspace.getLeaf("window");
       this.lastDocumentLeaf = leaf;
       await leaf.openFile(file, { active: true });
-      await this.finishDailyNoteOpening(leaf, file);
       await this.app.workspace.revealLeaf(leaf);
     } catch {
       new Notice(this.translator("notice.popoutUnavailable"), 2200);
@@ -5385,7 +5384,6 @@ export default class KplexPlugin extends Plugin {
       {line: Math.max(0, Math.floor(intent.line ?? 0))});
     else if (intent || !this.leafDisplaysPage(leaf, page)) await leaf.openFile(page.file, {active: intent?.active ?? false,
       ...(intent?.subpath ? {eState: {subpath: intent.subpath}} : {})});
-    if (!intent?.markdown) await this.finishDailyNoteOpening(leaf, page.file, stillCurrent);
     if (stillCurrent && (!stillCurrent() || !this.leafDisplaysPage(leaf, page))) return;
     session.preferences.sidecarLastFilePath = page.file.path;session.preferences.sidecarLastUrl = "";
     const state = leaf.getViewState();
@@ -8475,7 +8473,7 @@ export default class KplexPlugin extends Plugin {
         current,
         () => new Error(this.translator("template.changed")), () => new Error(this.translator("template.unsupported")));
       const destination = normalizePath(configuredFolder ? `${configuredFolder}/${leafName}.md` : `${leafName}.md`);
-      return this.fileCreationAutomation.create(() => this.createNativeFileInFolder(leafName, kind, configuredFolder, current), {path: destination, run});
+      return this.createFileWithAutomation(() => this.createNativeFileInFolder(leafName, kind, configuredFolder, current), {path: destination, run});
     }
     if (kind === "excalidraw" && templatePath && !this.drawingTemplateOptions()?.files.some(file => file.path === templatePath))
       throw new Error(this.translator("template.kindMismatch"));
@@ -8483,14 +8481,19 @@ export default class KplexPlugin extends Plugin {
   }
 
   /** Native creators that write properties or open the new file share this optional template barrier. */
-  async createFileWithAutomation(create: () => Promise<TFile>): Promise<TFile>;
-  async createFileWithAutomation(create: () => Promise<TFile | null>): Promise<TFile | null>;
-  async createFileWithAutomation(create: () => Promise<TFile | null>): Promise<TFile | null> {
-    return this.fileCreationAutomation.create(create);
+  async createFileWithAutomation(create: () => Promise<TFile>, explicit?: ExplicitCreationTemplate): Promise<TFile>;
+  async createFileWithAutomation(create: () => Promise<TFile | null>, explicit?: ExplicitCreationTemplate): Promise<TFile | null>;
+  async createFileWithAutomation(create: () => Promise<TFile | null>, explicit?: ExplicitCreationTemplate): Promise<TFile | null> {
+    const file = await this.fileCreationAutomation.create(create, explicit);
+    if (file?.extension === "md") this.createdNotesAwaitingMetadata.add(file);
+    return file;
   }
 
   /** A retry reuses the original template receipt instead of bypassing unfinished creation. */
-  async waitForCreatedFileAutomation(file: TFile): Promise<void> {await this.fileCreationAutomation.wait(file);}
+  async waitForCreatedFileAutomation(file: TFile): Promise<void> {
+    await this.fileCreationAutomation.wait(file);
+    if (file.extension === "md") this.createdNotesAwaitingMetadata.add(file);
+  }
 
   /** Native creation and existing drawing-template ownership stay intact behind one automation barrier. */
   private async createNativeFileInFolder(leafName: string, kind: GhostMaterializationKind, configuredFolder: string, parentCurrent?: () => boolean, templatePath?: string): Promise<TFile | null> {
@@ -9085,59 +9088,48 @@ export default class KplexPlugin extends Plugin {
     const workspace = this.app.workspace, leaf = this.createTabInPlexGroup(hostLeaf);
     this.lastDocumentLeaf = leaf;
     await leaf.openFile(file, {active: true});
-    await this.finishDailyNoteOpening(leaf, file);
     await workspace.revealLeaf(leaf);
   }
 
   /** Calendar, symbolic pins and placeholders share the native template/automation owner. */
   private async createDailyNoteFile(path: string, current: () => boolean, time = Date.now()): Promise<TFile | null> {
-    const file = await this.fileCreationAutomation.create(() => createConfiguredDailyNote(this.app, path, current, time));
-    if (file) this.createdDailyNotes.add(file);
-    return file;
+    return this.createFileWithAutomation(() => createConfiguredDailyNote(this.app, path, current, time));
   }
 
-  /** A template's active-editor command can run before any editor opens. Honor a newly created
-   * daily drawing through Excalidraw's public exact-view API, never through that global command.
-   * Explicit Markdown source inspection and pre-existing daily notes retain their chosen mode. */
-  private async finishDailyNoteOpening(leaf: WorkspaceLeaf, file: TFile, current: () => boolean = () => true): Promise<void> {
-    if (!this.createdDailyNotes.has(file) || this.unloading || !current() || this.app.vault.getFileByPath(file.path) !== file) return;
-    const view = leaf.view;
-    if (!(view instanceof FileView) || view.file !== file) return;
-    if (view.getViewType() === "excalidraw") {this.createdDailyNotes.delete(file);return;}
-    if (view.getViewType() !== "markdown") return;
-    const ea = (window as unknown as {ExcalidrawAutomate?: {isExcalidrawFile?: (file: TFile) => boolean; toggleViewMode?: (view: FileView) => Promise<unknown>}}).ExcalidrawAutomate;
-    if (!ea?.isExcalidrawFile || typeof ea.toggleViewMode !== "function") return;
-    const path = file.path;
-    /** Host metadata can trail the template write. Only the same opened drawing may wait or convert. */
-    const stillOpening = (): boolean => !this.unloading && current() && file.path === path && this.app.vault.getFileByPath(path) === file
-      && leaf.view === view && view.file === file && view.getViewType() === "markdown";
-    if (!ea.isExcalidrawFile(file)) {
-      let drawing = false;
-      try {
-        const yaml = getFrontMatterInfo(await this.app.vault.read(file));
-        const properties: unknown = yaml.exists ? parseYaml(yaml.frontmatter) : null;
-        drawing = Boolean(properties && typeof properties === "object" && "excalidraw-plugin" in properties && properties["excalidraw-plugin"]);
-      } catch { return; }
-      if (!stillOpening()) return;
-      if (!drawing) {this.createdDailyNotes.delete(file);return;}
-      if (!ea.isExcalidrawFile(file)) await new Promise<void>(resolve => {
-        const cache = this.app.metadataCache;
-        const finish = (): void => {
-          cache.offref(change);
-          window.clearTimeout(timer);
-          this.createdEditorWaits.delete(timer);
-          resolve();
-        };
-        const change = cache.on("changed", changed => {if (!stillOpening() || changed === file && ea.isExcalidrawFile?.(file)) finish();});
-        const timer = window.setTimeout(finish, 3000);
-        this.createdEditorWaits.set(timer, finish);
-        if (!stillOpening() || ea.isExcalidrawFile?.(file)) finish();
-      });
-    }
-    if (!stillOpening()) return;
-    if (!ea.isExcalidrawFile(file)) {new Notice(this.translator("daily.drawingNotReady"));return;}
-    await ea.toggleViewMode(view);
-    if (leaf.view instanceof FileView && leaf.view.file === file && leaf.view.getViewType() === "excalidraw") this.createdDailyNotes.delete(file);
+  /** Allow a template's saved opening properties to reach MetadataCache before normal navigation.
+   * The native opener and installed view providers retain mode selection. */
+  private async waitForCreatedOpeningMetadata(file: TFile, current: () => boolean): Promise<void> {
+    // Bound the one-shot read and property comparison. Large or unreadable files use native open.
+    const {mtime, size} = file.stat;
+    if (size > 1024 * 1024) return;
+    const cache = this.app.metadataCache;
+    const sameRevision = (): boolean => current() && file.stat.mtime === mtime && file.stat.size === size;
+    let saved: Record<string, unknown>;
+    try {
+      const yaml = getFrontMatterInfo(await this.app.vault.read(file));
+      const parsed: unknown = yaml.exists ? parseYaml(yaml.frontmatter) : null;
+      saved = parsed && typeof parsed === "object" && !Array.isArray(parsed) ? parsed as Record<string, unknown> : {};
+    } catch {return;}
+    /** The host adds position to its cached frontmatter. Compare all authored properties. */
+    const ready = (): boolean => {
+      const observed = cache.getFileCache(file)?.frontmatter ?? {};
+      const fields = new Set([...Object.keys(saved), ...Object.keys(observed)].filter(key => key !== "position").map(normalizeFieldName));
+      return relationshipMetadataPayload(saved, fields) === relationshipMetadataPayload(observed, fields);
+    };
+    try {if (!sameRevision() || ready()) return;} catch {return;}
+    await new Promise<void>(resolve => {
+      const finish = (): void => {
+        cache.offref(change);
+        window.clearTimeout(timer);
+        this.createdEditorWaits.delete(timer);
+        resolve();
+      };
+      const check = (): void => {try {if (!sameRevision() || ready()) finish();} catch {finish();}};
+      const change = cache.on("changed", changed => {if (changed === file) check();});
+      const timer = window.setTimeout(finish, 3000);
+      this.createdEditorWaits.set(timer, finish);
+      check();
+    });
   }
 
   /** Yield only while an explicit editor request waits for its committed scene; unload settles every wait. */
@@ -9207,9 +9199,18 @@ export default class KplexPlugin extends Plugin {
     stillValid: () => boolean = () => true,
   ): Promise<void> {
     if (this.unloading || !stillValid()) return;
+    if (openForEditing === "return" || openForEditing === "another") return;
+    const file = page.file;
+    if (file && this.createdNotesAwaitingMetadata.has(file)) {
+      const path = file.path;
+      const current = (): boolean => !this.unloading && stillValid() && file.path === path && this.app.vault.getFileByPath(path) === file;
+      if (!current()) return;
+      await this.waitForCreatedOpeningMetadata(file, current);
+      if (!current()) return;
+      this.createdNotesAwaitingMetadata.delete(file);
+    }
     if (typeof openForEditing !== "boolean") {
       const action = openForEditing;
-      if (action === "return" || action === "another") return;
       if (hostLeaf && (action === "follow" || action === "sidecar")) this.notifyNavigation(page.path, hostLeaf, true);
       if (action === "follow" || !page.file) return;
       await this.openCreatedNote(page, hostLeaf, action, stillValid);
@@ -9303,7 +9304,6 @@ export default class KplexPlugin extends Plugin {
     if (!file) return false;
     try {
       await this.waitForCreatedFileAutomation(file);
-      if (dailyDate) this.createdDailyNotes.add(file);
       if ((file.parent?.path === "/" ? "" : file.parent?.path) !== destination.folderPath) throw new Error(changed);
       if (relocation) await applyPlaceholderRelocation(this.app, relocation, file, /** Native replacement identities never inherit a dismissed placeholder's write authority. */ () => !this.unloading
         && !this.app.metadataCache.getFirstLinkpathDest(oldPath, sources[0]?.path ?? ""), changed);

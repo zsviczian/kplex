@@ -673,7 +673,6 @@ export const englishCatalog = {
   "delete.folderConfirm": { message: "Move ‘{name}’ and all its contents to Obsidian’s configured trash?", context: "Explicit approval for a recursive native folder deletion.", params: ["name"], referenceParams: ["name"] },
   "delete.folderFailed": { message: "Could not delete the folder. {error}", context: "An error returned by the native folder trash operation.", params: ["error"], referenceParams: [] },
   "graph.deleteFolder": { message: "Delete folder", context: "Native folder context-menu action and confirmation title.", params: [] },
-  "daily.drawingNotReady": { message: "The daily drawing was saved. Obsidian hasn’t recognized it as an Excalidraw drawing yet.", context: "The exact template-produced drawing is open but metadata recognition did not complete in the bounded wait.", params: [] },
   "references.neverShowAgain": { message: "Never show this again", context: "Toggle that suppresses future Remaining references reports.", params: [] },
   "references.savePreferenceFailed": { message: "Could not save the Remaining references preference.", context: "An attempt to change the report visibility preference failed.", params: [] },
   "delete.cleanup.placeholderConfirm": { message: "Remove links to {name} from other notes' properties?", context: "A placeholder has no file to trash; only approved property links can be removed.", params: ["name"], referenceParams: ["name"] },

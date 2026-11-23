@@ -50,32 +50,31 @@ test('default Daily Notes parent is presentation-only and leaves the metadata pr
     assert.equal(f.calls.length,0);}finally{f.restore()}
 });
 
-for (const retireView of [false,true]) test(`daily drawing waits for exact metadata after the template write (retired view: ${retireView})`,async()=>{
+for (const retireView of [false,true]) test(`new note waits for its saved properties before opening (retired view: ${retireView})`,async()=>{
   const source=ts.createSourceFile('main.ts',readFileSync(new URL('../src/main.ts',import.meta.url),'utf8'),ts.ScriptTarget.Latest,true);
   const plugin=source.statements.find(node=>ts.isClassDeclaration(node)&&node.name?.text==='KplexPlugin');
-  const declaration=plugin.members.find(node=>node.name?.getText(source)==='finishDailyNoteOpening');
+  const declaration=plugin.members.find(node=>node.name?.getText(source)==='waitForCreatedOpeningMetadata');
   const code=ts.transpileModule(`class Host{${declaration.getText(source)}}`,{compilerOptions:{target:ts.ScriptTarget.ES2022}}).outputText;
-  let recognized=false, changed, entered;
+  let changed, entered, current=true, completed=false;
   const observing=new Promise(resolve=>{entered=resolve;});
-  const file={path:'Daily/Today.md'},other={path:'Daily/Yesterday.md'},switched=[],timers=new Map();
-  class FileView{constructor(file,type='markdown'){this.file=file;this.type=type;}getViewType(){return this.type;}}
-  const view=new FileView(file),leaf={view};
-  const window={setTimeout:callback=>{timers.set(1,callback);return 1;},clearTimeout:id=>timers.delete(id),ExcalidrawAutomate:{
-    isExcalidrawFile:candidate=>candidate===file&&recognized,
-    toggleViewMode:async target=>{switched.push(target);leaf.view=new FileView(file,'excalidraw');},
-  }};
-  const Host=Function('window','FileView','getFrontMatterInfo','parseYaml','Notice',code+';return Host;')(window,FileView,
-    body=>({exists:body.startsWith('---'),frontmatter:body}),()=>({'excalidraw-plugin':'parsed'}),class{constructor(){assert.fail('Unexpected drawing notice');}});
-  const host=Object.assign(new Host(),{createdDailyNotes:new WeakSet([file]),createdEditorWaits:new Map(),app:{
-    vault:{getFileByPath:path=>path===file.path?file:other,read:async()=> '---\nexcalidraw-plugin: parsed\n---\n'},
-    metadataCache:{on(name,callback){assert.equal(name,'changed');changed=callback;entered();return callback;},offref(ref){assert.equal(ref,changed);changed=null;}},
+  const file={path:'New.md',stat:{mtime:1,size:100}},other={path:'Other.md'},timers=new Map();
+  const saved={'excalidraw-plugin':'parsed','excalidraw-open-md':true};
+  let frontmatter={'excalidraw-plugin':'parsed','excalidraw-open-md':false,position:{start:1}};
+  const window={setTimeout:callback=>{timers.set(1,callback);return 1;},clearTimeout:id=>timers.delete(id)};
+  const payload=(properties,fields)=>JSON.stringify(Object.entries(properties).filter(([key])=>fields.has(key)).sort());
+  const Host=Function('window','getFrontMatterInfo','parseYaml','normalizeFieldName','relationshipMetadataPayload',code+';return Host;')(window,
+    body=>({exists:body.startsWith('---'),frontmatter:body}),()=>saved,key=>key.toLowerCase(),payload);
+  const host=Object.assign(new Host(),{createdEditorWaits:new Map(),app:{
+    vault:{read:async()=> '---\nexcalidraw-plugin: parsed\nexcalidraw-open-md: true\n---\n'},
+    metadataCache:{getFileCache:()=>({frontmatter}),on(name,callback){assert.equal(name,'changed');changed=callback;entered();return callback;},offref(ref){assert.equal(ref,changed);changed=null;}},
   }});
-  const work=host.finishDailyNoteOpening(leaf,file);
+  const work=host.waitForCreatedOpeningMetadata(file,()=>current).then(()=>{completed=true;});
   await observing;
-  recognized=true;changed(other);
-  assert.deepEqual(switched,[],'Another file cannot release the exact metadata wait');
-  if(retireView)leaf.view=new FileView(other);
+  changed(file);await Promise.resolve();
+  assert.equal(completed,false,'Recognizing the drawing is insufficient while the saved opening property differs');
+  if(retireView)current=false;
+  else frontmatter={...saved,position:{start:1}};
+  changed(other);await Promise.resolve();assert.equal(completed,false,'Another file cannot release the exact metadata wait');
   changed(file);await work;
-  assert.deepEqual(switched,retireView?[]:[view]);
   assert.equal(timers.size,0);assert.equal(host.createdEditorWaits.size,0);assert.equal(changed,null);
 });

@@ -2060,7 +2060,6 @@ const dutchTranslations = {
   "delete.folderConfirm": "‘{name}’ en alle inhoud verplaatsen naar de in Obsidian ingestelde prullenbak?",
   "delete.folderFailed": "De map kon niet worden verwijderd. {error}",
   "graph.deleteFolder": "Map verwijderen",
-  "daily.drawingNotReady": "De dagelijkse tekening is opgeslagen. Obsidian heeft deze nog niet als Excalidraw-tekening herkend.",
 } as const satisfies LocaleTranslationMap;
 
 return buildLocaleCatalog(dutchTranslations);

@@ -2056,7 +2056,6 @@ const japaneseTranslations = {
   "delete.folderConfirm": "「{name}」とそのすべての内容を Obsidian で設定されたゴミ箱に移動しますか？",
   "delete.folderFailed": "フォルダーを削除できませんでした。{error}",
   "graph.deleteFolder": "フォルダーを削除",
-  "daily.drawingNotReady": "デイリーノートの図を保存しました。Obsidian はまだ Excalidraw の図として認識していません。",
 } as const satisfies LocaleTranslationMap;
 
 return buildLocaleCatalog(japaneseTranslations);

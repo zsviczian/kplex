@@ -2060,7 +2060,6 @@ const germanTranslations = {
   "delete.folderConfirm": "„{name}“ und den gesamten Inhalt in den von Obsidian konfigurierten Papierkorb verschieben?",
   "delete.folderFailed": "Ordner konnte nicht gelöscht werden. {error}",
   "graph.deleteFolder": "Ordner löschen",
-  "daily.drawingNotReady": "Die Tageszeichnung wurde gespeichert. Obsidian hat sie noch nicht als Excalidraw-Zeichnung erkannt.",
 } as const satisfies LocaleTranslationMap;
 
 return buildLocaleCatalog(germanTranslations);

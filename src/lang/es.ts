@@ -2064,7 +2064,6 @@ const spanishTranslations = {
   "delete.folderConfirm": "¿Mover «{name}» y todo su contenido a la papelera configurada en Obsidian?",
   "delete.folderFailed": "No se pudo eliminar la carpeta. {error}",
   "graph.deleteFolder": "Eliminar carpeta",
-  "daily.drawingNotReady": "Se guardó el dibujo diario. Obsidian aún no lo reconoce como un dibujo de Excalidraw.",
 } as const satisfies LocaleTranslationMap;
 
 return buildLocaleCatalog(spanishTranslations);

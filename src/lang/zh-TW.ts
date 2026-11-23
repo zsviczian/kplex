@@ -2056,7 +2056,6 @@ const traditionalChineseTranslations = {
   "delete.folderConfirm": "要將「{name}」及其所有內容移至 Obsidian 設定的垃圾桶嗎？",
   "delete.folderFailed": "無法刪除資料夾。{error}",
   "graph.deleteFolder": "刪除資料夾",
-  "daily.drawingNotReady": "每日繪圖已儲存。Obsidian 尚未將它辨識為 Excalidraw 繪圖。",
 } as const satisfies LocaleTranslationMap;
 
 return buildLocaleCatalog(traditionalChineseTranslations);

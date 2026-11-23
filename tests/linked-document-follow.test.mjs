@@ -112,7 +112,6 @@ function fixture() {
     /** Companion notifications need no React surface in this bounded host-contract test. */
     notifySidecar() {},
     /** These fixtures open pre-existing Markdown files, never newly created daily drawings. */
-    async finishDailyNoteOpening() {},
     findRecentDocumentLeaf: /** One-shot commands receive the same explicitly supplied native target. */ () => context.target ?? leaf,
     /** The fixture already controls canonical attachment and target resolution. */
     validateLinkedDocumentLeaf() {}, linkedDocumentLeaf: leaf,
