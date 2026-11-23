@@ -438,6 +438,8 @@ for (const file of [
   "src/adapters/obsidian/creationProperties.ts",
   "src/adapters/obsidian/relatedTarget.ts",
   "src/adapters/obsidian/youtubeThumbnails.ts",
+  "src/adapters/obsidian/localVideoFrame.ts",
+  "src/adapters/obsidian/localVideoThumbnails.ts",
   "src/ui/CommonNodePropertiesModal.ts",
   "src/ui/NodePropertyCaption.tsx",
   "src/ui/features/CreationPropertyFields.tsx",

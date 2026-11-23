@@ -232,6 +232,8 @@ const frenchTranslations = {
   "settings.trackpad": "Navigation au pavé tactile",
   "settings.trackpadPinchSensitivity": "Sensibilité du zoom par pincement",
   "settings.ui.allowRemoteNodeImages.help": "Charger les images externes des nœuds et les aperçus vidéo YouTube. Leurs hébergeurs reçoivent votre adresse IP et l’URL de l’image demandée. Désactivé par défaut ; les images du coffre restent disponibles. La désactivation empêche de nouveaux chargements, sans annuler les requêtes déjà envoyées.",
+  "settings.ui.generateLocalVideoThumbnails": "Générer des miniatures pour les vidéos locales",
+  "settings.ui.generateLocalVideoThumbnails.help": "Afficher une image sur les nœuds visibles de vidéos locales. Les images plus grandes et les vidéos non prises en charge affichent l’icône de pièce jointe. Les miniatures sont conservées pour la session en cours.",
   "settings.trackpadPinchSensitivity.help": "Vitesse du zoom par pincement sur le pavé tactile ou l’écran tactile. La valeur par défaut est 5. Choisissez 1 pour retrouver la vitesse initiale.",
   "settings.trackpad.help": "Faites défiler pour déplacer ; pincez ou utilisez une touche de modification pour zoomer. Désactivez pour zoomer par défilement simple.",
   "fileMenu.reuse": "Ouvrir",

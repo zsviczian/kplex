@@ -457,6 +457,8 @@ export interface KplexSettings extends StartupIndexPreferences {
   attachmentImageDisplay: AttachmentImageDisplay;
   /** Explicit permission to contact HTTP(S) hosts when displaying node imagery. Defaults off. */
   allowRemoteNodeImages: boolean;
+  /** Generate one transient frame for a visible local video attachment. Defaults on. */
+  generateLocalVideoThumbnails: boolean;
   /** Remember the Create Note dialog toggle between invocations. */
   editNewNodeAfterCreate: boolean;
   /** Note-creation destination; the old toggle is retained solely for migration compatibility. */
@@ -631,6 +633,7 @@ const LEGACY_DEFAULT_SETTINGS: KplexSettings = {
   nodeImageProperty: "node-image",
   attachmentImageDisplay: "thumbnail-label",
   allowRemoteNodeImages: false,
+  generateLocalVideoThumbnails: true,
   editNewNodeAfterCreate: false,
   newNodeAfterSaving: "return",
   periodicNoteAfterSaving: "sidecar",
@@ -942,6 +945,7 @@ export function migrateAndMergeSettings(raw: unknown): KplexSettings {
     nodeImageProperty: String(old.nodeImageProperty ?? DEFAULT_SETTINGS.nodeImageProperty).trim() || DEFAULT_SETTINGS.nodeImageProperty,
     attachmentImageDisplay: old.attachmentImageDisplay === "label" || old.attachmentImageDisplay === "image" ? old.attachmentImageDisplay : "thumbnail-label",
     allowRemoteNodeImages: old.allowRemoteNodeImages === true,
+    generateLocalVideoThumbnails: typeof old.generateLocalVideoThumbnails === "boolean" ? old.generateLocalVideoThumbnails : DEFAULT_SETTINGS.generateLocalVideoThumbnails,
     editNewNodeAfterCreate: Boolean(old.editNewNodeAfterCreate),
     newNodeAfterSaving: sanitizeCreationAfterSaving(old.newNodeAfterSaving, old.editNewNodeAfterCreate === true),
     periodicNoteAfterSaving: sanitizeCreationAfterSaving(old.periodicNoteAfterSaving ?? "sidecar"),
@@ -2776,6 +2780,7 @@ export class KplexSettingTab extends PluginSettingTab {
                 heading: translate("settings.ui.node.images"),
                 items: [
                   { name: translate("settings.ui.allowRemoteNodeImages"), desc: translate("settings.ui.allowRemoteNodeImages.help"), control: { type: "toggle", key: "allowRemoteNodeImages" } },
+                  { name: translate("settings.ui.generateLocalVideoThumbnails"), desc: translate("settings.ui.generateLocalVideoThumbnails.help"), control: { type: "toggle", key: "generateLocalVideoThumbnails" } },
                   { name: translate("settings.ui.thumbnail.property"), desc: translate("settings.ui.image.link.shown.as.a.small.preview.before.the.node.labe"), control: { type: "text", key: "thumbnailProperty" } },
                   { name: translate("settings.ui.node.image.property"), desc: translate("settings.ui.image.link.that.replaces.the.node.label.with.a.compact.v"), control: { type: "text", key: "nodeImageProperty" } },
                   { name: translate("settings.ui.image.attachment.nodes"), desc: translate("settings.ui.how.jpg.png.gif.svg.webp.and.similar.image.attachments.a"), control: { type: "dropdown", key: "attachmentImageDisplay", defaultValue: "thumbnail-label", options: { label: translate("settings.ui.file.name"), "thumbnail-label": translate("settings.ui.thumbnail.file.name"), image: translate("settings.ui.image.only") } } },

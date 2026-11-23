@@ -33,6 +33,7 @@ import type { Translator } from "../lang";
 import { physicalPositionLabel } from "./features/positionPresentation";
 import { canDisplayNodeImage } from "../core/plex/nodeImagePolicy";
 import {NodeVisualImage} from "./features/NodeVisualImage";
+import type {LocalVideoThumbnailLoader} from "../application/localVideoThumbnail";
 import type {ThumbnailLoader} from "../application/youtubeThumbnails";
 import { useGateCountPresentation } from "./useGateCountPresentation";
 
@@ -77,6 +78,7 @@ export function ThoughtNode({
   badgeColorRevision = 0,
   visual,
   thumbnailLoader,
+  localVideoThumbnails,
   content,
   cornerAction,
   translate,
@@ -109,6 +111,8 @@ export function ThoughtNode({
   visual?: NodeVisual;
   /** Native composition supplies consent-aware video transport; ordinary images require none. */
   thumbnailLoader?: ThumbnailLoader;
+  /** The local preview occupies the existing attachment icon slot after explicit imagery wins. */
+  localVideoThumbnails?: LocalVideoThumbnailLoader<NonNullable<PositionedNode["page"]["file"]>, Document>;
   content?: ReactNode;
   cornerAction?: {
     icon: string;
@@ -130,6 +134,9 @@ export function ThoughtNode({
   const gateLabels = useGateCountPresentation(node.page.path, gateStats, !!(node.page.isTag || node.page.isFolder), settings.showNeighborCount, node.page.file);
   // Cached props can outlive resolution. Remove the image before React can assign a denied src.
   if (visual && !canDisplayNodeImage(visual.path, settings.allowRemoteNodeImages)) visual = undefined;
+  const file = node.page.file;
+  const localVideo = !content && !visual && file && settings.generateLocalVideoThumbnails
+    && localVideoThumbnails?.eligible(file) ? file : undefined;
   const style = node.style;
   const isSection = node.page.transient?.kind === "section";
   const group = node.page.transient?.kind === "group" ? node.page.transient : null;
@@ -189,6 +196,7 @@ export function ThoughtNode({
     visual?.mode === "replace" ? "is-node-image-only" : "",
   ].filter(Boolean).join(" ");
 
+  const icon = style.icon && <ObsidianIcon name={style.icon} size={node.role === "center" ? 18 : 13} className="kplex-node-icon" />;
   const labelElement = <span className={`kplex-thought-label${settings.wrapNodeLabels ? " is-two-line" : ""}`}>
       {node.page.transient?.kind === "section"
         ? <span className="kplex-section-heading-mark" aria-hidden="true">{(() => {
@@ -199,7 +207,10 @@ export function ThoughtNode({
           {visual?.mode === "thumbnail" && <span className="kplex-node-visual is-thumbnail" title={visual.alt}>
             <NodeVisualImage {...visual} alt="" allowRemote={settings.allowRemoteNodeImages} loader={thumbnailLoader} />
           </span>}
-          {!visual || visual.mode !== "replace" ? (style.icon && <ObsidianIcon name={style.icon} size={node.role === "center" ? 18 : 13} className="kplex-node-icon" />) : null}
+          {localVideo ? <span className="kplex-node-visual is-thumbnail kplex-local-video-visual">
+            {icon}
+            <NodeVisualImage src="" path={node.page.path} alt="" allowRemote={false} localFile={localVideo} localLoader={localVideoThumbnails} />
+          </span> : visual?.mode !== "replace" ? icon : null}
         </>}
       {visual?.mode === "replace"
         ? <span className="kplex-node-visual is-replace" title={visual.alt}>

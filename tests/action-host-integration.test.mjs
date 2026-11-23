@@ -266,14 +266,16 @@ function commandContext(dependencies) {
   return Function(...Object.keys(dependencies), `return function createContext(){${code}};`)(...Object.values(dependencies));
 }
 
-test('native sidebar palette commands use its selected occurrence while legacy center and external editor resolution stay distinct', async () => {
+test('native sidebar palette commands use its selected occurrence or accepted center; unassociated commands retain shared attention', async () => {
   class KplexView {} class KplexSidepanelView {} class FileView {}
   const owner = {}, otherWindow = {}, mainLeaf = { view: Object.assign(new KplexView(), { containerEl: { ownerDocument: { defaultView: owner } } }) }, sidebar = { view: Object.assign(new KplexSidepanelView(), { containerEl: { ownerDocument: { defaultView: owner } } }) };
   let activeView = sidebar.view,recentLeaf=mainLeaf;
-  const node = path => ({ identity:path,path,kind:'file' }), center=node('A'), selected=node('C'), calls=[];
+  const node = path => ({ identity:path,path,kind:'file' }), center=node('A'), acceptedSidebar=node('B'), selected=node('C'), calls=[];
   let mainSnapshot={mounted:true,visible:true,windowId:'own',center,selected:null,focusRegion:'external',commandFocusRegion:'external',interactionRevision:1};
   let sidebarSnapshot={...mainSnapshot,selected:{node:selected,occurrenceId:'C@child'},focusRegion:'graph',commandFocusRegion:'graph',interactionRevision:4};
-  const plugin={sidecarLeaves:new Map(),app:{workspace:{getMostRecentLeaf:()=>recentLeaf,getActiveViewOfType:type=>activeView instanceof type?activeView:null}},actionSurfaceHosts:new Map([['main',{leaf:mainLeaf}],['sidebar',{leaf:sidebar}]]),settings:{lastActivePath:'A'},index:{get:()=>center},actionWindowId:value=>value===owner?'own':'other'};
+  const plugin={sidecarLeaves:new Map(),app:{workspace:{getMostRecentLeaf:()=>recentLeaf,getActiveViewOfType:type=>activeView instanceof type?activeView:null}},actionSurfaceHosts:new Map([['main',{leaf:mainLeaf}],['sidebar',{leaf:sidebar}]]),settings:{lastActivePath:'A'},index:{get:()=>center},actionWindowId:value=>value===owner?'own':'other',
+    actionHostLeaf(id){return this.actionSurfaceHosts.get(id)?.leaf;},
+    commandCentralPage(leaf){return leaf===sidebar?acceptedSidebar:center;}};
   mainLeaf.view.leaf=mainLeaf;sidebar.view.leaf=sidebar;
   const contextFactory=commandContext({window:{activeWindow:owner},KplexView,KplexSidepanelView,FileView,actionNodeRef:page=>page});
   // The native recent-leaf API deliberately excludes left/right splits. The real active
@@ -281,19 +283,20 @@ test('native sidebar palette commands use its selected occurrence while legacy c
   const read=contextFactory.call(plugin);
   const manager=new contracts.ActionManager({readCommandContext:request=>read(request),implementations:Object.fromEntries(['relationship.create-selected.child','relationship.create-center.child'].map(id=>[id,{availability:()=>({state:'enabled'}),execute:context=>{calls.push([id,context.target.node.path]);return {status:'completed'}}}]))});plugin.actionManager=manager;
   manager.registerSurface({id:'main',generation:1,readSnapshot:()=>mainSnapshot});manager.registerSurface({id:'sidebar',generation:1,readSnapshot:()=>sidebarSnapshot});manager.recordInteraction('sidebar');
-  assert.equal(read({}).preferredSurfaceId,'sidebar','native active sidebar must outrank recent main Plex');
-  activeView=mainLeaf.view;assert.equal(read({}).preferredSurfaceId,'sidebar','actual sidebar graph DOM focus outranks an ancestor native association');activeView=sidebar.view;
+  const centerCommand={id:'relationship.create-center.child',source:'obsidian-command'};
+  assert.equal(read(centerCommand).preferredSurfaceId,'sidebar','native active sidebar must outrank recent main Plex');
+  activeView=mainLeaf.view;assert.equal(read(centerCommand).preferredSurfaceId,'sidebar','actual sidebar graph DOM focus outranks an ancestor native association');activeView=sidebar.view;
   sidebarSnapshot={...sidebarSnapshot,focusRegion:'external'};
   assert.equal(manager.check({id:'relationship.create-selected.child',source:'obsidian-command'}).state,'enabled');
   await manager.dispatch({id:'relationship.create-selected.child',source:'obsidian-command'});await manager.dispatch({id:'relationship.create-center.child',source:'obsidian-command'});
-  assert.deepEqual(calls,[['relationship.create-selected.child','C'],['relationship.create-center.child','A']]);
+  assert.deepEqual(calls,[['relationship.create-selected.child','C'],['relationship.create-center.child','B']]);
   activeView=null;recentLeaf={view:{getViewType:()=> 'markdown'}};sidebarSnapshot={...sidebarSnapshot,commandFocusRegion:'external'};
   assert.equal(manager.check({id:'relationship.create-selected.child',source:'obsidian-command'}).state,'enabled','external B retains deterministic last-interacted valid selection C');
   await manager.dispatch({id:'relationship.create-selected.child',source:'obsidian-command'});assert.deepEqual(calls.at(-1),['relationship.create-selected.child','C']);
   assert.equal(manager.check({id:'relationship.create-center.child',source:'obsidian-command'}).state,'enabled','legacy background creation still uses shared A');
   sidebarSnapshot={...sidebarSnapshot,selected:null};assert.equal(manager.check({id:'relationship.create-selected.child',source:'obsidian-command'}).state,'disabled','retired selected occurrence never falls back to center A');
   activeView=sidebar.view;sidebar.view.containerEl.ownerDocument.defaultView=otherWindow;
-  assert.notEqual(read({}).preferredSurfaceId,'sidebar','a different owning window cannot inherit the active sidebar association');manager.dispose();
+  assert.notEqual(read(centerCommand).preferredSurfaceId,'sidebar','a different owning window cannot inherit the active sidebar association');manager.dispose();
 });
 
 /** Test failure/retry against real compiler and serialized host queues; semantic access is forbidden. */

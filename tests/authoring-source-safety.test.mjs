@@ -64,6 +64,7 @@ function fixture(surface='sidepanel'){
   actionHostLeaf:()=>leaf,isActionSurfaceCurrent:()=>true});
  const documentSession={centerPath:a.path,pendingFollow:null,pendingUrl:null,persist(){},footprints:{accept(){}},
   plexView:{definition:{navigation:'attention'},editors:{bindings:[]},layoutRoot:()=>a.path}};
+ host.documentSession=owner=>owner===leaf?documentSession:null;
  const activePathRef={current:a.path},activePageRef={current:a},activeFileRef={current:a.file};
  const dependencies={plugin:host,hostLeaf:leaf,documentSession,activePathRef,activePageRef,activeFileRef,
   pendingDocumentFollowRef:{current:null},pendingDocumentDemandRef:{current:null},pendingFileExplorerDropRef:{current:null},pendingEditorNavigation:{current:null},
@@ -71,8 +72,10 @@ function fixture(surface='sidepanel'){
   setNavigationOrigin(){},setActivePath(){},setHistoryCursor(){},actionNodeRef:M.actionNodeRef,isObsidianUri:()=>false};
  const activate=callback(activateSource,dependencies);
  host.notifyNavigation=path=>assert.equal(activate(pages.get(path),true,true,'user',true),true);
- const manager=new M.ActionManager({readCommandContext:()=>({sharedCenter:host.commandCentralPage()?M.actionNodeRef(host.commandCentralPage()):null,
-  preferredSurfaceId:surface,windowId:'main',focusRegion:'graph'}),validateNode:node=>!!M.resolveActionPage(host.index,node)});
+ const manager=new M.ActionManager({readCommandContext:()=>{
+  const center=host.commandCentralPage(leaf);
+  return {sharedCenter:center?M.actionNodeRef(center):null,preferredSurfaceId:surface,windowId:'main',focusRegion:'graph'};
+ },validateNode:node=>!!M.resolveActionPage(host.index,node)});
  host.actionManager=manager;
  class Dialog{constructor(plugin,origin,role,_committed,hostLeaf){this.origin=origin;this.role=role;this.host=hostLeaf;this.namedSource=plugin.index.titleFor(origin);}open(){dialogs.push(this);}close(){}}
  const open=callback(commandSource,{__owner:host,role:'left',family:'center',pageFor:context=>context.target.kind==='node'?M.resolveActionPage(host.index,context.target.node):null,
@@ -105,8 +108,23 @@ for(const surface of ['sidepanel','tab'])for(const source of ['obsidian-command'
 
 test('#318 unavailable current center refuses without falling back to the previous indexed note',async()=>{
  const f=fixture();try{
-  await f.host.finishNewRelatedNode(f.b,{},'follow');f.pages.delete('B.md');
+  await f.host.finishNewRelatedNode(f.b,{},'follow');f.pages.delete('B.md');f.host.settings.lastActivePath=f.a.path;
   const result=await f.invoke();assert.equal(result.status,'unavailable');assert.equal(result.reasonKey,'actions.target-unavailable');assert.equal(f.dialogs.length,0);assert.deepEqual(f.writes,[]);
+ }finally{f.close();}
+});
+
+test('#318 a different canvas publishing shared attention cannot retarget an accepted canvas or open during pending follow',async()=>{
+ const f=fixture();try{
+  await f.host.finishNewRelatedNode(f.b,{},'follow');
+  f.host.settings.lastActivePath=f.a.path;
+  f.documentSession.pendingFollow={file:f.c.file};
+  assert.equal((await f.invoke()).status,'unavailable');assert.deepEqual(f.writes,[]);
+  f.documentSession.pendingFollow=null;
+  assert.equal((await f.invoke()).status,'opened');const captured=f.dialogs.at(-1);
+  assert.equal(captured.origin.file,f.b.file);
+  await f.host.finishNewRelatedNode(f.a,{},'follow');
+  await f.host.linkNewRelatedFile(captured.origin,'left',f.c.file,'Friend');
+  assert.deepEqual(f.writes,['B.md']);assert.deepEqual(JSON.parse(f.disk.get('A.md')),{Keep:'A'});
  }finally{f.close();}
 });
 

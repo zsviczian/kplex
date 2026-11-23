@@ -17,9 +17,11 @@ import {loadPortableModules} from './support/portableTypeScript.mjs';
 
 const {exports:{YoutubeThumbnails,YOUTUBE_THUMBNAIL_LIMITS,youtubeVideo,youtubeThumbnailUrls,urlEmbed}}=loadPortableModules([
   'src/application/youtubeThumbnails.ts','src/core/contracts/videoUrl.ts','src/ui/features/urlEmbed.ts']);
+const {exports:{decodeLocalVideoFrame,LOCAL_VIDEO_FRAME_LIMITS,LocalVideoThumbnails,LOCAL_VIDEO_THUMBNAIL_LIMITS}}=loadPortableModules([
+  'src/adapters/obsidian/localVideoFrame.ts','src/adapters/obsidian/localVideoThumbnails.ts']);
 
 const indexBundle = await contributorBrowserBundle(['src/index/GraphIndex.ts', 'src/index/GraphPresentation.ts', 'src/core/graph/settingsPolicy.ts', 'src/core/plex/savedPins.ts', 'src/core/plex/attachmentVisibility.ts', 'src/core/contracts/ontologyConfiguration.ts', 'src/core/contracts/appearance.ts', 'src/adapters/obsidian/savedSettingsRefresh.ts']);
-const ui = await build({ stdin: { resolveDir: process.cwd(), contents: `export {ThoughtNode} from './src/ui/ThoughtNode'; export {NodeVisualImage} from './src/ui/features/NodeVisualImage'; export {youtubeThumbnailLoader} from './src/adapters/obsidian/youtubeThumbnails'; export {createElement} from 'react'; export {createRoot} from 'react-dom/client'; export {flushSync} from 'react-dom'; export {renderToStaticMarkup} from 'react-dom/server';` }, bundle: true, write: false, platform: 'browser', format: 'iife', globalName: 'nodeUI', plugins: [{ name: 'native-icon-boundary', setup(builder) {
+const ui = await build({ stdin: { resolveDir: process.cwd(), contents: `export {ThoughtNode} from './src/ui/ThoughtNode'; export {NodeVisualImage} from './src/ui/features/NodeVisualImage'; export {youtubeThumbnailLoader} from './src/adapters/obsidian/youtubeThumbnails'; export {LocalVideoThumbnails} from './src/adapters/obsidian/localVideoThumbnails'; export {createElement} from 'react'; export {createRoot} from 'react-dom/client'; export {flushSync} from 'react-dom'; export {renderToStaticMarkup} from 'react-dom/server';` }, bundle: true, write: false, platform: 'browser', format: 'iife', globalName: 'nodeUI', plugins: [{ name: 'native-icon-boundary', setup(builder) {
   builder.onResolve({filter:/^obsidian$/}, /** Keep only the native icon API doubled. */ () => ({path:'obsidian',namespace:'native'}));
   builder.onLoad({filter:/.*/,namespace:'native'}, /** Only thumbnail requests use a controlled native HTTP boundary; no third-party host is contacted. */ () => ({contents:'export const getIcon=()=>null; export const requestUrl=options=>window.thumbnailRequest(options);'}));
 } }] });
@@ -101,6 +103,35 @@ test('renderer classifies the resolved Vault destination independently of host r
     const template=document.createElement('template');
     template.innerHTML=U.renderToStaticMarkup(U.createElement(U.ThoughtNode,{node:{page:p,style:{},label:p.name,role:'center',x:0,y:0,width:120,height:40,gateStats:Object.fromEntries(['top','bottom','left','right'].map(side=>[side,{visibleCount:0,totalCount:0}]))},settings:o.settings,visual,selected:false,highlighted:false,dimmed:false,highlightedGates:new Set(),translate:key=>key}));
     equal([...template.content.querySelectorAll('img')].map(image=>image.getAttribute('src')),[visual.src],'Resolved local file stays visible regardless of host transport');return true;
+  })()`),true);
+});
+
+test('local video thumbnails align with the title and leave a half-rem gap at both node sizes', async () => {
+  const css = readFileSync('styles.css', 'utf8') + '\n:root {font-size:20px;}';
+  assert.equal(await scenario(`(async()=>{
+    const U=nodeUI, video=page('Clip.mp4'), host=document.body.appendChild(document.createElement('div'));
+    const styles=document.head.appendChild(document.createElement('style'));styles.textContent=${JSON.stringify(css)};
+    const src=o.f.app.vault.getResourcePath(video.file);
+    const loader={eligible:()=>true,permitted:()=>true,acquire:()=>({promise:Promise.resolve(src),release(){}})};
+    const root=U.createRoot(host), settings={...o.settings,generateLocalVideoThumbnails:true};
+    const gateStats=Object.fromEntries(['top','bottom','left','right'].map(side=>[side,{visibleCount:0,totalCount:0}]));
+    try {
+      for(const role of ['center','child'])for(const direction of ['ltr','rtl']){
+        host.dir=direction;
+        const node={page:video,style:{icon:'paperclip'},label:video.name,role,x:160,y:50,width:280,height:48,gateStats};
+        U.flushSync(()=>root.render(U.createElement(U.ThoughtNode,{node,settings,localVideoThumbnails:loader,
+          selected:false,highlighted:false,dimmed:false,highlightedGates:new Set(),translate:key=>key})));
+        const image=()=>host.querySelector('.kplex-local-video-slot img');
+        for(let attempt=0;attempt<80&&!image()?.naturalWidth;attempt++)await pause(20);
+        ok(image()?.naturalWidth,'Visible local frame');
+        const frame=image().getBoundingClientRect(), label=host.querySelector('.kplex-thought-text'), title=label.getBoundingClientRect();
+        const gap=direction==='ltr'?title.left-frame.right:frame.left-title.right;
+        const titleOffset=(frame.top+frame.height/2)-(title.top+title.height/2);
+        ok(Math.abs(gap-10)<0.1,role+' video title has a half-rem gap in '+direction+' mode, got '+gap);
+        ok(Math.abs(titleOffset-parseFloat(getComputedStyle(label).fontSize)*.05)<0.1,role+' video frame sits slightly below the center of the title line box');
+      }
+      return true;
+    }finally{U.flushSync(()=>root.unmount());host.remove();styles.remove();}
   })()`),true);
 });
 
@@ -314,4 +345,164 @@ test('thumbnail component removes failed placeholders and ignores retired loader
    resolve(null);await pause(120);equal(host.querySelector('img'),null,'Replacement publishes its own failure independently');return true;
   }finally{U.flushSync(()=>root.unmount());host.remove();sheet.remove();}
  })()`),true);
+});
+
+test('local frame caps input before seeking, scales short rotated frames and releases the native decoder on cancellation', async () => {
+  /** Only the native media event and canvas encoding boundary is simulated here. */
+  function media(width, height) {
+    const video = new EventTarget(), operations = [], encoders = [];
+    Object.assign(video, {HAVE_METADATA: 1, HAVE_CURRENT_DATA: 2, readyState: 0, seeking: false,
+      videoWidth: width, videoHeight: height, duration: 0.125,
+      removeAttribute: name => operations.push(['remove', name]), load: () => operations.push(['load'])});
+    Object.defineProperties(video, {
+      currentTime: {get: () => 0, set: value => {video.seeking = true;operations.push(['seek', value]);}},
+      src: {set: value => operations.push(['source', value, video.crossOrigin, video.preload])},
+    });
+    const canvas = {width: 0, height: 0, getContext: () => ({drawImage: (_video, ...bounds) => operations.push(['draw', ...bounds])}),
+      toBlob: (done, type) => encoders.push({done, type})};
+    const owner = {hidden: false, defaultView: {location: {origin: 'app://obsidian.md'}, setTimeout, clearTimeout}};
+    owner.win = {createFragment: () => ({ownerDocument: owner, createEl: name => name === 'video' ? video : canvas})};
+    return {video, canvas, operations, encoders, owner};
+  }
+  const source = 'app://obsidian.md/vault/short.mp4', signal = new AbortController();
+  const large = media(2160, 3840);
+  const oversized = decodeLocalVideoFrame(large.owner, source, signal.signal);
+  large.video.readyState = 1;
+  large.video.dispatchEvent(new Event('loadedmetadata'));
+  assert.equal((await oversized).status, 'oversized');
+  assert.deepEqual(large.operations, [['source', source, 'anonymous', 'metadata'], ['remove', 'src'], ['load']]);
+  const short = media(1080, 1920);
+  const pending = decodeLocalVideoFrame(short.owner, source, signal.signal);
+  short.video.readyState = 1;
+  short.video.dispatchEvent(new Event('loadedmetadata'));
+  assert.ok(Math.abs(short.operations[1][1] - 0.0125) < 1e-9);
+  short.video.readyState = 2;
+  short.video.dispatchEvent(new Event('canplay'));
+  assert.equal(short.encoders.length, 0, 'A frame is unavailable while the seek is pending');
+  short.video.seeking = false;
+  short.video.dispatchEvent(new Event('seeked'));
+  assert.deepEqual(short.operations.at(-1), ['draw', 0, 0, 144, LOCAL_VIDEO_FRAME_LIMITS.edge]);
+  assert.equal(short.encoders[0].type, 'image/webp');
+  signal.abort();
+  short.encoders[0].done(new Blob(['late'], {type: 'image/webp'}));
+  assert.equal((await pending).status, 'cancelled');
+  assert.equal(short.canvas.width, 0);
+  assert.deepEqual(short.operations.slice(-2), [['remove', 'src'], ['load']]);
+  const remote = media(60, 80);
+  assert.equal((await decodeLocalVideoFrame(remote.owner, 'https://example.invalid/clip.mp4', new AbortController().signal)).status, 'unavailable');
+  assert.deepEqual(remote.operations, [], 'Remote URLs cannot reach the media boundary');
+});
+
+test('local video service bounds native work and retained bytes and rejects late results from replaced files', async () => {
+  const inventory = new Map(), calls = [], nativeReads = [], liveUrls = new Map();
+  let enabled = false, now = 0, nextUrl = 0;
+  const owner = {hidden: false, defaultView: {closed: false, URL: {
+    createObjectURL: blob => {const url = 'blob:video-' + nextUrl++;liveUrls.set(url, blob);return url;},
+    revokeObjectURL: url => {assert.ok(liveUrls.delete(url), 'Each owning URL is revoked once');},
+  }}};
+  const vault = {getFileByPath: path => inventory.get(path),
+    getResourcePath: file => {nativeReads.push(file.path);return file.path;}};
+  const frame = new Blob([new Uint8Array(LOCAL_VIDEO_FRAME_LIMITS.bytes)], {type: 'image/webp'});
+  const service = new LocalVideoThumbnails(vault, () => enabled,
+    (_document, path, signal) => new Promise(done => calls.push({path, signal, done})), () => now);
+  /** The fixture creates only explicit native handles and never reads real vault media. */
+  function file(index) {
+    const identity = {path: 'Video-' + index + '.mp4', extension: 'mp4', stat: {mtime: 1, size: 100}};
+    inventory.set(identity.path, identity);
+    return identity;
+  }
+  /** Each candidate comes from a mounted, visible consumer unless this test releases it. */
+  const acquire = candidate => service.acquire(candidate, candidate.path, owner, () => true, () => {});
+  const original = file(0);
+  assert.equal(await acquire(original).promise, null);
+  assert.deepEqual(nativeReads, []);
+  enabled = true;
+  service.syncPreference();
+  const first = acquire(original), duplicate = acquire(original);
+  const waiting = Array.from({length: 30}, (_, index) => acquire(file(index + 1)));
+  assert.equal(service.stats().active, 1);
+  assert.equal(service.stats().queued, LOCAL_VIDEO_THUMBNAIL_LIMITS.queue - 1);
+  assert.equal(nativeReads.length, 1);
+  for (const lease of waiting) lease.release();
+  const replacement = file(0), next = acquire(replacement);
+  calls[0].done({status: 'ready', blob: frame});
+  assert.equal(await first.promise, null);
+  assert.equal(await duplicate.promise, null);
+  assert.equal(service.stats().liveUrls, 0);
+  assert.equal(calls.length, 2);
+  calls[1].done({status: 'ready', blob: frame});
+  const firstUrl = await next.promise, cached = acquire(replacement), secondUrl = await cached.promise;
+  assert.notEqual(firstUrl, secondUrl);
+  assert.equal(liveUrls.get(firstUrl), liveUrls.get(secondUrl));
+  assert.equal(service.stats().retainedBytes, frame.size, 'All visible occurrences share one encoded Blob');
+  next.release();
+  assert.equal(service.stats().liveUrls, 1);
+  const failed = file('failed'), miss = acquire(failed);
+  calls.at(-1).done({status: 'unavailable'});
+  assert.equal(await miss.promise, null);
+  assert.equal(await acquire(failed).promise, null);
+  assert.equal(calls.length, 3, 'Failed decoding has a bounded negative retry');
+  now += LOCAL_VIDEO_THUMBNAIL_LIMITS.retryMs;
+  const retry = acquire(failed);
+  for (let i = 0; i < LOCAL_VIDEO_THUMBNAIL_LIMITS.entries + 3; i++) {
+    const lease = i === 0 ? retry : acquire(file(i + 100));
+    calls.at(-1).done({status: 'ready', blob: frame});
+    assert.ok(await lease.promise);
+    lease.release();
+  }
+  assert.equal(service.stats().cached, LOCAL_VIDEO_THUMBNAIL_LIMITS.entries);
+  assert.equal(service.stats().retainedBytes, LOCAL_VIDEO_THUMBNAIL_LIMITS.bytes);
+  assert.ok(liveUrls.has(secondUrl), 'An image still held by a document cannot be evicted');
+  enabled = false;
+  service.syncPreference();
+  assert.equal(service.stats().retainedBytes, 0);
+  assert.equal(liveUrls.size, 0);
+  service.dispose();
+});
+
+test('a real local node image starts only while visible and releases cancelled, replaced and rejected URLs', async () => {
+  assert.equal(await scenario(`(async()=>{
+    const U=nodeUI, native=[], marker=document.createElement('style');
+    marker.textContent='.local-video-test{overflow:auto;width:120px;height:60px}.local-video-test img,.local-video-test .kplex-local-video-slot{display:block;width:24px;height:24px}.local-video-test .spacer{height:240px}';
+    document.head.append(marker);
+    const host=document.body.appendChild(document.createElement('main'));host.className='local-video-test';
+    const root=U.createRoot(host), file={path:'Media.mp4',extension:'mp4',stat:{size:10,mtime:1}};
+    const png=new Blob([Uint8Array.from(atob('iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAIAAAD91JpzAAAAEElEQVR4nGNwONAARAwQCgApDgYBWgscUQAAAABJRU5ErkJggg=='),character=>character.charCodeAt(0))],{type:'image/png'});
+    let enabled=false;
+    const service=new U.LocalVideoThumbnails({getFileByPath:()=>file,getResourcePath:()=>file.path},()=>enabled,
+      (owner,path,signal)=>new Promise(done=>native.push({owner,path,signal,done})));
+    /** Let real intersection, layout and image decode settle without guessing a browser frame rate. */
+    const wait = async (condition,message)=>{for(let attempt=0;attempt<80;attempt++){if(condition())return;await pause(20);}throw Error(message);};
+    const image=()=>host.querySelector('img');
+    const render=()=>U.flushSync(()=>root.render(U.createElement('div',null,U.createElement('div',{className:'spacer'}),
+      U.createElement(U.NodeVisualImage,{src:'',path:file.path,localFile:file,localLoader:service,allowRemote:false,alt:''}))));
+    try{
+      render();equal(image(),null,'Opt-out renders no image');equal(native.length,0,'Opt-out starts no local resource work');
+      enabled=true;service.syncPreference();render();await pause(150);
+      const slot=host.querySelector('.kplex-local-video-slot');ok(slot,'The attachment retains an observable slot');
+      equal(image(),null,'An undecoded preview leaves no missing bitmap for canvas image export');equal(native.length,0,'Nested clipping prevents native work');
+      host.scrollTop=220;await wait(()=>native.length===1,'Visible image should admit native work');
+      equal(image(),null,'Starting the decoder only shows the attachment icon');
+      equal(native[0].owner===document,true,'The decoder uses the actual image owner');
+      host.scrollTop=0;await wait(()=>native[0].signal.aborted,'Scroll-out should cancel an active native job');
+      native[0].done({status:'ready',blob:png});await wait(()=>service.stats().active===0,'Retired native job should settle');
+      equal(service.stats().cached,0,'Late result must not be retained');equal(image(),null,'Late result must not reach the DOM');
+      host.scrollTop=220;await wait(()=>native.length===2,'A new intersection should retry');
+      native[1].done({status:'ready',blob:png});await wait(()=>image()?.naturalWidth===2,'Valid frame should appear');
+      equal(service.stats().liveUrls,1,'A visible frame owns one URL');
+      host.scrollTop=0;await wait(()=>service.stats().liveUrls===0&&!image(),'Scrolling revokes the live URL');
+      host.scrollTop=220;await wait(()=>image()?.naturalWidth===2,'Returning to the node should use the cached frame');
+      equal(native.length,2,'Warm frame does not seek a second time');equal(service.stats().cacheHits,1,'Visible revisit shares one session frame');
+      const stale=image().getAttribute('src');service.invalidate(file);
+      await wait(()=>native.length===3&&!image(),'Same-stat rework should revoke the previous source');
+      native[2].done({status:'ready',blob:new Blob(['invalid'],{type:'image/png'})});
+      await wait(()=>service.stats().cached===1&&service.stats().liveUrls===0&&!image(),'Rejected DOM image should release its URL without losing the fallback slot');
+      ok(host.querySelector('.kplex-local-video-slot')===slot,'The same visibility slot survives frame publication and removal');
+      equal(native.length,3,'A rejected image does not trigger a same-visibility loop');
+      equal((await fetch(stale).catch(()=>null)),null,'The prior owning URL was revoked');
+      enabled=false;service.syncPreference();render();equal(image(),null,'Disabling restores the attachment fallback');
+      equal(service.stats().retainedBytes,0,'Disabling discards retained frames');
+      return true;
+    }finally{U.flushSync(()=>root.unmount());service.dispose();host.remove();marker.remove();}
+  })()`),true);
 });

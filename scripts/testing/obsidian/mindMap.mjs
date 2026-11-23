@@ -12,6 +12,7 @@ import {acceptNativeOccurrenceDrag} from './nativeOccurrenceDrag.mjs';
 async function scenario(app,c){
  const p=app.plugins.plugins['k-plex'],workspace=app.workspace;
  if(!p||app.vault.getFiles().length>=1000||app.setting.isOpen)throw Error('Clean disposable Small required');
+ const challengers=c.lane==='challengers';
  const original=structuredClone(p.settings),policy=p.savedSettingsPolicy,layout=workspace.getLayout(),sessions=c.documentSessions(p),owners=sessions.capture();
  const files=[],hosts=[],releases=[],restores=[],embedded=new Set(),cases=[],cleanup=[],folder='Kplex-219-Mindmap-'+Date.now();let createdFolder,failure;
  /** Every native continuation belongs to this exact still-live controller. */
@@ -53,7 +54,8 @@ async function scenario(app,c){
   await until(()=>!p.isStartupInitializing()&&!p.index.hasPendingSemanticPreparation()&&!p.index.hasActiveSemanticPreparation(),'Startup/current requested semantics pending');
   const information=p.appearanceMigrationDialog;
   if(information?.modalEl.isConnected){const done=information.modalEl.querySelector('button.mod-cta');check(information.modalEl.classList.contains('kplex-notification-modal')&&done?.textContent===p.translator('common.done'),'Unexpected staging information owner');const ownDocument=information.modalEl.ownerDocument===document,visible=information.modalEl.getBoundingClientRect().width>0;information.close();await until(()=>p.appearanceMigrationDialog!==information&&!information.contentEl.querySelector('button'),'Staging information owner did not retire');await p.settingsWriteQueue;cases.push({id:'staging-native-theme-information-dismissed',publicModalClose:true,ownDocument,visible})}
-  const remote=require('@electron/remote'),win=remote.getCurrentWindow();remote.app.focus({steal:true});win.show();win.focus();win.webContents.focus();
+  const remote=require('@electron/remote'),win=remote.getCurrentWindow();
+  if(!challengers){remote.app.focus({steal:true});win.show();win.focus();win.webContents.focus();}
   if(c.prepareViewport){
    const bounds=win.getBounds(),maximized=win.isMaximized(),minimized=win.isMinimized();
    restores.push(()=>{win.restore();win.setBounds(bounds);if(maximized)win.maximize();if(minimized)win.minimize()});
@@ -62,14 +64,22 @@ async function scenario(app,c){
   workspace.leftSplit.collapse();workspace.rightSplit.collapse();c.progress={phase:'disable-native-follow',lane:c.lane,cases};await sessions.off();
   c.progress={phase:'create-folder',lane:c.lane,cases};createdFolder=await app.vault.createFolder(folder);const child=p.settings.hierarchy.children[0];check(child,'Child ontology required');const children={R:['P','Q'],P:['B'],Q:['B'],B:['D'],D:['R'],Left:['LeftChild']};
   const peerFields=[p.settings.hierarchy.leftFriends[0],p.settings.hierarchy.rightFriends[0],p.settings.hierarchy.previous[0],p.settings.hierarchy.next[0]];
-  const names=c.lane==='navigation'?['R','A','P','Q','B','C','D','S','Left','Right','Prev','Next','LeftChild','LeafPeer']:['R','A','P','Q','B','C','D','S'];
+  const names=challengers?['R','A','B','C','D','E']:
+   c.lane==='navigation'?['R','A','P','Q','B','C','D','S','Left','Right','Prev','Next','LeftChild','LeafPeer']:['R','A','P','Q','B','C','D','S'];
+  if(challengers){
+   const right=p.settings.hierarchy.rightFriends;
+   check(right.some(field=>field.toLowerCase()==='challenger'),'Challenger must be a configured right ontology');
+  }
   if(c.lane==='interactions'){for(let i=0;i<12;i++){const name='Parent'+i;names.push(name);children[name]=['R']}children.P=['B','Q']}
   for(const name of names){
-   c.progress={phase:'create-fixture-note',note:name,lane:c.lane,cases};const fields=children[name]?{[child]:children[name].map(value=>'[['+path(value)+']]')}:{};
+   c.progress={phase:'create-fixture-note',note:name,lane:c.lane,cases};
+   const fields=!challengers&&children[name]?{[child]:children[name].map(value=>'[['+path(value)+']]')}:{};
+   if(challengers&&(name==='R'||name==='C'))fields.Challenger=(name==='R'?['A','B','C','D']:['E']).map(value=>'[['+path(value)+']]');
    if(c.lane==='navigation'&&name==='R')for(const[index,peer]of ['Left','Right','Prev','Next'].entries())fields[peerFields[index]]=['[['+path(peer)+']]'];
    if(c.lane==='navigation'&&name==='P')fields[peerFields[0]]=['[['+path('LeafPeer')+']]'];
    const yaml=Object.entries(fields).map(([key,value])=>JSON.stringify(key)+': '+JSON.stringify(value)).join('\n');
-   const file=await app.vault.create(path(name),(yaml?'---\n'+yaml+'\n---\n':'')+'# '+name+'\n');files.push(file);p.index.insertCreatedFile(file);releases.push(p.index.acquireSemanticDemand(file.path));
+   const file=await app.vault.create(path(name),(yaml?'---\n'+yaml+'\n---\n':'')+'# '+name+'\n');files.push(file);p.index.insertCreatedFile(file);
+   if(!challengers)releases.push(p.index.acquireSemanticDemand(file.path));
   }
   c.progress={phase:'settle-fixture',lane:c.lane,cases};await until(()=>files.every(file=>app.metadataCache.getFileCache(file))&&!p.index.hasPendingSemanticPreparation()&&!p.index.hasActiveSemanticPreparation(),'Fixture not ready');
   Object.assign(p.settings,{documentSyncMode:'off',sidecarOpen:false,embedCentralNode:false,autoOpenCentralDocument:false,followActiveFile:false,centralNodeMarkdownMode:'source',animationSpeed:0,allowAutozoom:true,graphDepth:1,renderSiblings:false,showPageNodes:true,showInferredNodes:true,showFolderNodes:false,showTagNodes:false,showCrossLinks:true,graphLenses:[],applyPowerFilter:false,groupRelations:false,
@@ -83,7 +93,57 @@ async function scenario(app,c){
   }
   const host=workspace.getLeaf('tab');hosts.push(host);const prototype=Object.getPrototypeOf(host),setState=prototype.setViewState;
   prototype.setViewState=function(...args){if(this.containerEl.closest('.kplex-central-editor-leaf-host'))embedded.add(this);return setState.apply(this,args)};restores.push(()=>{prototype.setViewState=setState});
-  await host.setViewState({type:'k-plex-react-view',active:true});await workspace.revealLeaf(host);await host.view.waitUntilReady();host.view.centerPresentation.update({embedCentralNode:false,centralNodeMarkdownMode:'source'});p.notifyNavigation(path('A'),host);
+  await host.setViewState({type:'k-plex-react-view',active:true});await workspace.revealLeaf(host);await host.view.waitUntilReady();host.view.centerPresentation.update({embedCentralNode:false,centralNodeMarkdownMode:'source'});p.notifyNavigation(path(challengers?'R':'A'),host);
+  if(challengers){
+   const expected=['A','B','C','D'].map(path),onDemand=p.index.isOnDemandMode();
+   const before=await Promise.all(files.map(file=>app.vault.read(file)));
+   const scope=()=>p.index.viewScopeCoverage(path('R'));
+   const right=()=>p.index.getNeighborhood(path('R'))?.rightFriends.map(row=>row.page.path).sort()??[];
+   const visible=()=>Array.from(root(host).querySelectorAll('.kplex-thought[data-kplex-path]'),node=>node.dataset.kplexPath).sort();
+   const expectedVisible=[...expected,path('R')].sort();
+   const inspect=async view=>{
+    await until(()=>host.view.documentSession.centerPath===path('R')&&session(host).definition.id===view
+     &&scope().prepared&&!scope().pending&&(onDemand||scope().complete)
+     &&JSON.stringify(right())===JSON.stringify(expected)&&JSON.stringify(visible())===JSON.stringify(expectedVisible),
+    'Four direct Challenger nodes and root scope did not settle in '+view);
+    check(!root(host).querySelector('.kplex-view-error'),view+' scene error');
+    check(view!=='mindmap'||session(host).layoutRoot(path('R'))===path('R'),'Mind Map captured another root');
+    if(scope().complete)check(!nodes(host).find(node=>node.dataset.kplexPath===path('R'))?.querySelector('.kplex-node-status'),
+     'Authoritative root displayed a coverage warning');
+    return expected.map(target=>{
+     const row=p.index.cachedViewRelation(path('R'),target,'right'),explanation=p.index.explainRelationship(path('R'),target);
+     check(row&&explanation?.decisions.some(({active,evidence})=>active&&evidence.sourceKind==='frontmatter-ontology'
+      &&evidence.declaredByPath===path('R')&&evidence.declaredTargetPath===target&&evidence.declaredRole==='right'),
+     'Missing exact authored Challenger provenance');
+     return {target,field:row.typeDefinition,direction:row.linkDirection,roles:explanation.resolvedRoles,
+      evidence:explanation.decisions.map(({evidence:{id,...fact},...decision})=>({fact,...decision}))};
+    });
+   };
+   await choose(host,'classic');
+   const baseline=JSON.stringify(await inspect('classic')),baselineScope=scope();
+   const other=workspace.getLeaf('tab');hosts.push(other);
+   await other.setViewState({type:'k-plex-react-view',active:true});await other.view.waitUntilReady();
+   other.view.centerPresentation.update({embedCentralNode:false});p.notifyNavigation(path('C'),other);
+   await until(()=>other.view.documentSession.centerPath===path('C'),'Second canvas root not reached');
+   workspace.moveLeafToPopout(other);await until(()=>root(other)?.ownerDocument!==document&&root(other)?.isConnected,'Second native document did not mount');
+   await other.view.waitUntilReady();await choose(other,'mindmap');await workspace.revealLeaf(host);
+   const work=p.startupDiagnostics.snapshot().sessionWork;
+   for(const view of ['mindmap','classic','mindmap','classic']){
+    c.progress={phase:'switch-four-challengers',view,cases};await choose(host,view);
+    check(JSON.stringify(await inspect(view))===baseline,'Switch changed direct Challenger evidence');
+    check(JSON.stringify(scope())===JSON.stringify(baselineScope),'Switch changed settled coverage');
+    check(session(other).definition.id==='mindmap'&&other.view.documentSession.centerPath===path('C')
+     &&session(other).layoutRoot(path('C'))===path('C'),'Switch changed the other canvas');
+   }
+   other.detach();await inspect('classic');
+   const settled=p.startupDiagnostics.snapshot().sessionWork;
+   check(settled.sourceInventoryPasses===work.sourceInventoryPasses&&settled.fullBuildStarts===work.fullBuildStarts,
+    'View selection admitted broad index work');
+   check(JSON.stringify(await Promise.all(files.map(file=>app.vault.read(file))))===JSON.stringify(before),'View changes edited the fixture');
+   cases.push({id:'four-authored-challengers-retain-provenance-and-visibility',mode:onDemand?'on-demand':'eager',scope:baselineScope});
+   cases.push({id:'independent-native-popout-and-same-center-selection'});
+   return {lane:c.lane,cases,limits:['Native Obsidian test with the current persisted indexing policy.','No full application restart or original Linux host.']};
+  }
   await until(()=>host.view.documentSession.centerPath===path('A'),'Initial attention absent');session(host).select('mindmap');session(host).setRoot(path('R'));
   await until(()=>nodes(host).length===(c.lane==='navigation'?8:c.lane==='interactions'?16:4)&&!root(host).querySelector('.kplex-view-error'),'Production rooted Mind Map absent');
   check(session(host).definition.id==='mindmap'&&session(host).definition.editorHosting==='occurrence','Production definition mismatch');
@@ -284,12 +344,14 @@ async function scenario(app,c){
   for(const file of files.reverse())if(app.vault.getFileByPath(file.path)===file)await clean('delete-owned-file',()=>app.vault.delete(file,true));
   if(createdFolder&&app.vault.getFolderByPath(folder)===createdFolder&&!createdFolder.children.length)await clean('delete-owned-folder',()=>app.vault.delete(createdFolder,true));
   await clean('drain-settings',()=>p.settingsWriteQueue);await clean('restore-settings-bytes',()=>app.vault.adapter.write(p.manifest.dir+'/data.json',c.originalData));
+  if(challengers)await clean('restore-enablement-bytes',()=>app.vault.adapter.write(app.vault.configDir+'/community-plugins.json',c.originalEnabled));
   if(errors.length)throw Error((failure?String(failure)+'; ':'')+errors.join('; '));
  }
 }
 
 if(process.env.KPLEX_TEST_VAULT_NAME!=='kplex-test-small')throw Error('Explicit Small required');
-const lane=process.env.KPLEX_MINDMAP_LANE??'editor';if(!['editor','sessions','navigation','interactions','center-navigation'].includes(lane))throw Error('Expected editor, sessions, navigation, interactions or center-navigation lane');
+const lane=process.env.KPLEX_MINDMAP_LANE??'editor';if(!['editor','sessions','navigation','interactions','center-navigation','challengers'].includes(lane))throw Error('Expected editor, sessions, navigation, interactions, center-navigation or challengers lane');
 const target=validateTarget({vaultName:process.env.KPLEX_TEST_VAULT_NAME,vaultPath:process.env.KPLEX_TEST_VAULT_PATH,configDir:process.env.KPLEX_TEST_CONFIG_DIR});
 const definitions='c.nativeDragOnly='+JSON.stringify(process.env.KPLEX_MINDMAP_DRAG_ONLY==='true')+';c.prepareViewport='+JSON.stringify(process.env.KPLEX_NATIVE_MAIN_VIEWPORT==='true')+';c.lane='+JSON.stringify(lane)+';c.originalData='+JSON.stringify(readFileSync(join(target.pluginDir,'data.json'),'utf8'))+';c.documentSessions=('+nativeDocumentSessions.toString()+');c.acceptInteractions=('+acceptMindMapInteractions.toString()+');c.htmlDrag=('+nativeHtmlDrag.toString()+');c.acceptNativeDrag=('+acceptNativeOccurrenceDrag.toString()+');';
-await runControlledProbe('mindmap-219-'+lane,scenario,definitions,['src/main.ts','src/application/PlexHierarchyDemand.ts','src/application/PlexViewSession.ts','src/ui/App.tsx','src/ui/NewRelatedNoteModal.ts','src/ui/KplexDocumentSession.ts','src/core/plex/views/contracts.ts','src/core/plex/views/registry.ts','src/core/plex/views/mindmap/configuration.ts','src/ui/plexViews/settingsContributions.ts','src/ui/plexViews/measurement.ts','src/types.ts','src/ui/PlexGraph.tsx','src/ui/ThoughtNode.tsx','src/ui/plexViews/prepareScene.ts','src/ui/plexViews/useHierarchyDemand.ts','src/core/plex/views/mindmap/definition.ts','src/core/plex/views/mindmap/projection.ts','src/core/plex/views/mindmap/layout.ts','src/ui/plexViews/mindmap/settings.ts','scripts/testing/obsidian/mindMap.mjs','scripts/testing/obsidian/mindMapInteractions.mjs','scripts/testing/obsidian/nativeHtmlDrag.mjs','scripts/testing/obsidian/nativeOccurrenceDrag.mjs','src/core/plex/views/areaLayout.ts','src/ui/plexViews/crossLinks.ts','src/ui/plexViews/reflowArea.ts','src/adapters/obsidian/nodeLinkDrag.ts','scripts/testing/obsidian/nativeDocumentSessions.mjs'],{maximumMs:240000});
+const enablement=lane==='challengers'?'c.originalEnabled='+JSON.stringify(readFileSync(join(target.config,'community-plugins.json'),'utf8'))+';':'';
+await runControlledProbe('mindmap-219-'+lane,scenario,definitions+enablement,['src/main.ts','src/application/PlexHierarchyDemand.ts','src/application/PlexViewSession.ts','src/ui/App.tsx','src/ui/NewRelatedNoteModal.ts','src/ui/KplexDocumentSession.ts','src/core/plex/views/contracts.ts','src/core/plex/views/registry.ts','src/core/plex/views/mindmap/configuration.ts','src/ui/plexViews/settingsContributions.ts','src/ui/plexViews/measurement.ts','src/types.ts','src/ui/PlexGraph.tsx','src/ui/ThoughtNode.tsx','src/ui/plexViews/prepareScene.ts','src/ui/plexViews/useHierarchyDemand.ts','src/core/plex/views/mindmap/definition.ts','src/core/plex/views/mindmap/projection.ts','src/core/plex/views/mindmap/layout.ts','src/ui/plexViews/mindmap/settings.ts','scripts/testing/obsidian/mindMap.mjs','scripts/testing/obsidian/mindMapInteractions.mjs','scripts/testing/obsidian/nativeHtmlDrag.mjs','scripts/testing/obsidian/nativeOccurrenceDrag.mjs','src/core/plex/views/areaLayout.ts','src/ui/plexViews/crossLinks.ts','src/ui/plexViews/reflowArea.ts','src/adapters/obsidian/nodeLinkDrag.ts','scripts/testing/obsidian/nativeDocumentSessions.mjs'],{maximumMs:240000});

@@ -62,7 +62,7 @@ export function nativeBatch270(app,c){
   }finally{doc.removeEventListener('pointerdown',observe,true);native.webContents.sendInputEvent({type:'mouseUp',...destination,button:'left',clickCount:1});}
  };
  /** Prepare ordinary native settings and a uniquely owned folder; no production-vault fallback. */
- const initialize=async()=>{main.setMinimumSize(200,200);main.setContentSize(1450,1000);await focus(document);
+ const initialize=async()=>{if(!c.backgroundInput){main.setMinimumSize(200,200);main.setContentSize(1450,1000);await focus(document);}
   await c.sessions(plugin).off();Object.assign(plugin.settings,{embedCentralNode:false,graphDepth:1,showPageNodes:true,showURLNodes:true,renderSiblings:false,animationSpeed:0});await plugin.saveSettings(false,false);
   await until(()=>plugin.initialIndexComplete&&!plugin.index.isBuilding()&&plugin.getIndexStatus().upToDate,'Initial current index',120000);
   if(c.allowOnDemandRoutingStartup===true&&plugin.index.isOnDemandMode()){
@@ -105,7 +105,7 @@ export function nativeBatch270(app,c){
   await clean('indexing mode',async()=>{if(plugin.index.isOnDemandMode()!==originalIndexingMode)await reload(false);});
   await wait(2000);await clean('recent files',async()=>{recentTracker.load(structuredClone(recentFiles));workspace.requestSaveLayout();await wait(1500);check(JSON.stringify(recentTracker.serialize())===JSON.stringify(recentFiles),'Native recent files differ');});
   await clean('settings bytes',()=>app.vault.adapter.write(plugin.manifest.dir+'/data.json',c.originalData));await clean('enabled bytes',()=>app.vault.adapter.write(app.vault.configDir+'/community-plugins.json',c.originalEnabled));
-  await clean('geometry',()=>{main.setMinimumSize(...minimum);main.setBounds(bounds);if(maximized)main.maximize();});
+  if(!c.backgroundInput)await clean('geometry',()=>{main.setMinimumSize(...minimum);main.setBounds(bounds);if(maximized)main.maximize();});
   check(JSON.stringify(app.vault.getFiles().map(file=>file.path).sort())===JSON.stringify(inventory),'Native fixture inventory differs');if(errors.length)throw Error(errors.join('; '));
  };
  return{get p(){return plugin},get startupEvidence(){return c.startupEvidence},workspace,folder,files,leaves,restores,check,wait,until,owner,focus,point,click,doubleClick,key,drag,initialize,note,ready,canvas,surface,reload,cleanup};

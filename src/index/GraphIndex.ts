@@ -10521,6 +10521,7 @@ export class GraphIndex {
     };
   }
 
+  /** Return the neighbors that already occupy this gate with defined relationship evidence. */
   gateNeighbourPaths(page: GraphPage, gate: GateSide): Set<string> {
     const roleSets: Record<GateSide, Array<Exclude<Role, "sibling">>> = {
       top: ["parent"],
@@ -10530,12 +10531,14 @@ export class GraphIndex {
     };
     const semantic = this.semanticRelationSource(page);
     const paths = new Set<string>();
-    // Relationship editing must honor the semantic connection even when its target is
-    // hidden by the current inferred/type visibility filters. This is the same distinction
-    // used by gateStats(): gate fill represents all relationships, while the count represents
-    // only the currently visible ones.
+    // Authoring eligibility uses canonical definitions independently of presentation filters.
+    // Preserve an occupied gate when conflicting definitions are displayed as an inferred role.
     for (const relation of semantic.page.neighbours.values()) {
       if (relation.isHidden) continue;
+      const defined = relation.parentType === RelationType.DEFINED || relation.childType === RelationType.DEFINED
+        || relation.leftFriendType === RelationType.DEFINED || relation.rightFriendType === RelationType.DEFINED
+        || relation.previousFriendType === RelationType.DEFINED || relation.nextFriendType === RelationType.DEFINED;
+      if (!defined) continue;
       if (roleSets[gate].some((role) => classifyRelation(relation, role, this.relationshipInference(semantic.page.path, relation.target.path, semantic.settings.inferAllLinksAsFriends)) !== null)) paths.add(relation.target.path);
     }
     return paths;

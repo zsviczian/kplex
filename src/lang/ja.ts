@@ -232,6 +232,8 @@ const japaneseTranslations = {
   "settings.trackpad": "トラックパッド操作",
   "settings.trackpadPinchSensitivity": "ピンチズームの感度",
   "settings.ui.allowRemoteNodeImages.help": "外部のノード画像と YouTube 動画のプレビューを読み込みます。配信元には IP アドレスと要求した画像の URL が送信されます。既定ではオフです。保管庫内の画像は引き続き使用できます。オフにすると新たな読み込みは停止しますが、送信済みの要求は取り消せません。",
+  "settings.ui.generateLocalVideoThumbnails": "ローカル動画のサムネイルを生成",
+  "settings.ui.generateLocalVideoThumbnails.help": "表示中のローカル動画ノードに 1 フレームを表示します。フレームが大きい場合や動画が未対応の場合は添付ファイルのアイコンを表示します。サムネイルは現在のセッション中だけ保持されます。",
   "settings.trackpadPinchSensitivity.help": "トラックパッドやタッチスクリーンでピンチしたときのズーム速度です。既定値は 5 です。元の速度に戻すには 1 を選びます。",
   "settings.trackpad.help": "スクロールで移動し、ピンチまたは修飾キーを押しながらのスクロールでズームします。オフにすると通常のスクロールでズームします。",
   "fileMenu.reuse": "開く",

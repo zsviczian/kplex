@@ -25,30 +25,68 @@ function productionMethods() {
   visit(source);assert.equal(methods.length,names.size);
   return ts.transpileModule("window.relationshipMethods={"+methods.join(",\n")+"};",{compilerOptions:{target:ts.ScriptTarget.ES2021,module:ts.ModuleKind.None}}).outputText;
 }
+
+/** Share the real command invocation, gate eligibility and Link callback for the same durable writer. */
+function productionAuthoringEntryPoints() {
+  function find(path,select) {
+    const source=ts.createSourceFile(path,readFileSync(new URL(`../${path}`,import.meta.url),'utf8'),ts.ScriptTarget.Latest,true,ts.ScriptKind.TSX);
+    let match;
+    function visit(node){match??=select(node,source);if(!match)ts.forEachChild(node,visit);}
+    visit(source);assert(match,path);return match.getText(source);
+  }
+  const fromVariable=(name)=>(node,source)=>ts.isVariableDeclaration(node)&&node.name.getText(source)===name?node.initializer:null;
+  const fromComposerFunction=name=>find('src/ui/NewRelatedNoteModal.ts',node=>ts.isFunctionDeclaration(node)&&node.name?.text===name?node:null).replace(/^export /,'');
+  const link=find('src/ui/NewRelatedNoteModal.ts',fromVariable('linkExisting'));
+  const gateRoles=find('src/ui/PlexGraph.tsx',fromVariable('relationshipDropRoles'));
+  const command=find('src/main.ts',(node,source)=>ts.isCallExpression(node)&&node.expression.getText(source)==='operation'
+    &&node.arguments[1]?.getText(source).includes('const origin = pageFor(context)')
+    &&node.arguments[1]?.getText(source).includes('NewRelatedNoteModal')?node.arguments[1]:null);
+  return ts.transpileModule(`${fromComposerFunction('captureRelatedEndpoint')}
+   ${fromComposerFunction('refreshCapturedPage')}
+   window.inferredParentEntryPoints={
+    link:({plugin,origin,selectedTarget,role,prepareField,complete,reportFailure})=>{
+     const session={isSessionOpen:()=>true,setWriting(){}},busyRef={current:true};
+     const continuation='return',storeOnTarget=false,effectiveAlias='',ontology='',setBusy=()=>{},beginWrite=()=>true;
+     const reciprocalCheck=()=>({approval:{enabled:false}}),assertReciprocalApproval=()=>{};
+     return ${link};
+    },
+    gate:({index,gateGroupRole})=>${gateRoles},
+    command:function({role,pageFor,NewRelatedNoteModal,CreateFolderNoteModal}){return ${command};}
+   };`,{compilerOptions:{target:ts.ScriptTarget.ES2021,module:ts.ModuleKind.None}}).outputText;
+}
+
 const bundle=await contributorBrowserBundle(["src/index/GraphIndex.ts","src/index/GraphBuilder.ts","src/index/IndexSnapshot.ts",
   "src/core/graph/compiler.ts","src/core/graph/evidence.ts","src/core/graph/relations.ts","src/adapters/obsidian/metadataSourceCollector.ts",
-  "src/adapters/obsidian/ontologySourceCollector.ts","src/adapters/obsidian/relationshipMetadataWrite.ts","src/adapters/obsidian/reciprocalRelationshipWrite.ts","src/adapters/obsidian/relationshipOwner.ts","src/application/frontmatterUnlink.ts","src/application/connectionOntology.ts","src/adapters/obsidian/placeholderRelocation.ts","src/core/contracts/ontologyConfiguration.ts","src/adapters/obsidian/fileCreationAutomation.ts"]);
+  "src/adapters/obsidian/ontologySourceCollector.ts","src/adapters/obsidian/relationshipMetadataWrite.ts","src/adapters/obsidian/reciprocalRelationshipWrite.ts","src/adapters/obsidian/relationshipOwner.ts","src/application/frontmatterUnlink.ts","src/application/connectionOntology.ts","src/adapters/obsidian/placeholderRelocation.ts","src/core/contracts/ontologyConfiguration.ts","src/adapters/obsidian/fileCreationAutomation.ts","src/ui/features/gateRelationshipIntent.ts"]);
 const methods=`const assert=Object.assign((value,message)=>ok(value,message),{equal}),M=sourceModules,normalizeFieldName=M.normalizeFieldName,extractLinksFromValue=M.extractLinksFromValue;
 const writeRelationshipMetadata=M.writeRelationshipMetadata,SavedRelationshipPendingError=M.SavedRelationshipPendingError;
 const relationshipMetadataPayload=M.relationshipMetadataPayload,SOURCE_DECODE_BUDGET_BYTES=M.SOURCE_DECODE_BUDGET_BYTES;
 const frontmatterDeclarationKey=M.frontmatterDeclarationKey,iterateResolvedLinksFromValue=M.iterateResolvedLinksFromValue;
 const placeholderReference=M.placeholderReference,ontologyConfiguration=M.ontologyConfiguration,ontologyEndpointState=M.ontologyEndpointState,selectConnectionOntology=M.selectConnectionOntology,eligibleRelationshipOwner=M.eligibleRelationshipOwner;
 const createReciprocalWriteReceipt=M.createReciprocalWriteReceipt,reciprocalOntologyFields=M.reciprocalOntologyFields,hasIndependentFrontmatterDeclarations=M.hasIndependentFrontmatterDeclarations;
-const normalizePath=x=>x,LinkDirection=M.LinkDirection,Notice=class{constructor(message){window.notices.push(message);}};
+const normalizePath=x=>x,LinkDirection=M.LinkDirection,RelationType=M.RelationType,Notice=class{constructor(message){window.notices.push(message);}};
 const isUnknownRecord=x=>x!==null&&typeof x==='object'&&!Array.isArray(x);${productionMethods()}`;
-const setup=`window.notices=[];${methods}
-window.makeRelationshipFixture=async name=>{
+const setup=`window.notices=[];${methods}${productionAuthoringEntryPoints()}
+window.makeRelationshipFixture=async (name,inferredParent,includeBodyLink=true)=>{
  const f=await fixture(name),collect=${collect.toString()},hostOracle=${hostOracle.toString()},centerGateSettings=${centerGateSettings.toString()};
- f.text=f.texts;f.add('A.md','[[Unrelated]]');f.add('B.md','',{Parents:['[[A]]']});f.add('Unrelated.md','');f.add('image.png','');f.add('icon.svg','<svg/>');
- f.add('URL-owner.md','[Upper](https://Obsidian.md)\\n[Lower](https://obsidian.md)',{Children:['[[image.png]]']});
- for(let i=0;i<80;i++)f.add('Shared-'+i+'.md','[Shared](https://Obsidian.md)');
- const semantic={hierarchy:{hidden:[],parents:['Parents'],children:['Children'],leftFriends:['Friends'],rightFriends:['Opposes'],previous:[],next:[],exclusions:[]},inferAllLinksAsFriends:false,inverseInfer:false,showFullTagName:true,tagStyleList:[],maxLabelLength:30};
- f.app.metadataCache.resolvedLinks['A.md']={'Unrelated.md':1};
+ const bodies=new Map();
+ f.text=f.texts;
+ if(inferredParent){
+  f.add('A.md','');f.add('B.md',includeBodyLink?'[[A]]\\n':'');
+  for(const [path,body] of f.texts)bodies.set(path,body);
+  if(includeBodyLink)f.app.metadataCache.resolvedLinks['B.md']={'A.md':1};
+ }else{
+  f.add('A.md','[[Unrelated]]');f.add('B.md','',{Parents:['[[A]]']});f.add('Unrelated.md','');f.add('image.png','');f.add('icon.svg','<svg/>');
+  f.add('URL-owner.md','[Upper](https://Obsidian.md)\\n[Lower](https://obsidian.md)',{Children:['[[image.png]]']});
+  for(let i=0;i<80;i++)f.add('Shared-'+i+'.md','[Shared](https://Obsidian.md)');
+  f.app.metadataCache.resolvedLinks['A.md']={'Unrelated.md':1};
+ }
+ const semantic={hierarchy:{hidden:[],parents:[inferredParent??'Parents'],children:['Children'],leftFriends:['Friends'],rightFriends:['Opposes'],previous:[],next:[],exclusions:[]},inferAllLinksAsFriends:false,inverseInfer:false,showFullTagName:true,tagStyleList:[],maxLabelLength:30};
  f.app.vault.getName=()=>name;f.app.vault.getAbstractFileByPath=path=>f.files.get(path)??(path===''||path==='/'?f.app.vault.getRoot():null);
  await f.acquire();ok(await f.acquisition.reconcile(),'Seed genuine source inventory');
  const compilation=await hostOracle(f,f.app.vault.getMarkdownFiles().map(file=>file.path),semantic,{noteTypeField:'Type',primaryTagField:'Style'},true);
  f.acquisition.close();
- const plugin={app:f.app,settings:{indexingMode:'eager',...semantic,...centerGateSettings({showFolderNodes:false,showTagNodes:false}),lastActivePath:'',pinnedNodes:[]},getIndexSourceRevision:()=>index.sourceAcquisition.getMaintenanceRevision()};
+ const plugin={app:f.app,settings:{indexingMode:'eager',...semantic,...centerGateSettings({showFolderNodes:false,showTagNodes:false}),lastActivePath:'',pinnedNodes:[],alsoWriteInverseOntology:false},getIndexSourceRevision:()=>index.sourceAcquisition.getMaintenanceRevision()};
  const index=new M.GraphIndex(plugin,f.app),builder=new M.GraphBuilder(plugin,f.app,new Map(),index.metadataParser,index.indexedDb,()=>true);
  index.state=await builder.bindCompiledGraph(compilation,{materializedFile:facet=>f.files.get(facet.path)??null});
  ok(await index.sourceAcquisition.reconcile(),'Actual index reuses authenticated sources');
@@ -58,12 +96,125 @@ window.makeRelationshipFixture=async name=>{
   relationshipWriteCancels:new Set(),managedMetadataWrites:new Map(),pruneManagedMetadataWrites:()=>{}};
  f.app.fileManager={generateMarkdownLink:file=>'[['+file.path+']]',processFrontMatter:async(file,update)=>{
   const frontmatter=structuredClone(f.metadata.get(file.path).frontmatter??{});update(frontmatter);
-  file.stat.mtime++;const body=f.texts.get(file.path);f.texts.set(file.path,body+'\\n');
+  file.stat.mtime++;
+  if(inferredParent){
+   const properties=Object.entries(frontmatter).map(([field,value])=>field+': '+JSON.stringify(value)).join('\\n');
+   f.texts.set(file.path,(properties?'---\\n'+properties+'\\n---\\n':'')+bodies.get(file.path));
+  }else f.texts.set(file.path,f.texts.get(file.path)+'\\n');
   f.app.vault.trigger('modify',file);const cache={...f.metadata.get(file.path),frontmatter};f.metadata.set(file.path,cache);
   f.app.metadataCache.trigger('changed',file,f.texts.get(file.path),cache);
  }};
  return {...f,index,plugin,context,close(){context.fileCreationAutomation.dispose();for(const cancel of context.relationshipWriteCancels)cancel();index.destroy();f.cache.close();}};
 };`;
+
+/** #299 reproduces the ordinary one-way body link with real source collection and pair authority. */
+test("inferred Parent can be authored on the origin without changing its incoming body link", async () => {
+ const browser=await chromiumHarness(bundle);
+ try {
+  assert.equal(await browser.evaluate(contributorBrowserInitialize),true);await browser.evaluate(setup);
+  assert.equal(await browser.evaluate(`(async()=>{
+   const entry=window.inferredParentEntryPoints;
+   for(const route of ['generic','parent-command','gate','define-ontology'])for(const field of ['Parent','parent']){
+    const fixtureName=route+'-'+(field==='Parent'?'saved-key':'lowercase');
+    const f=await makeRelationshipFixture('ordinary-inferred-parent-'+fixtureName,field),i=f.index,c=f.context;
+    try {
+     const a=i.get('A.md'),b=i.get('B.md'),body=f.texts.get(b.path),baseline=i.evidenceBetween(a.path,b.path);
+     equal([c.settings.inferAllLinksAsFriends,c.settings.inverseInfer,c.settings.alsoWriteInverseOntology],[false,false,false],'Reported settings');
+     ok(baseline.length>0&&baseline.every(row=>row.sourceKind==='obsidian-link'&&row.relationType===M.RelationType.INFERRED
+       &&row.declaredByPath===b.path),'Only the ordinary body link from B contributes');
+     ok(i.getNeighborhood(a.path).parents.some(row=>row.page.path===b.path&&row.relationType===M.RelationType.INFERRED),'B is the inferred Parent of A');
+     window.notices.length=0;
+     if(route==='define-ontology'){
+      equal((await c.addOntologyToConnection(a,b,'parent',field,a.path)).state,'saved-published','Definition action uses its explicit storage choice');
+     }else{
+      let opened;
+      if(route==='gate'){
+       ok(!i.gateNeighbourPaths(a,'top').has(b.path),'Gate hover permits an inferred-only target');
+       equal(entry.gate({index:i,gateGroupRole:M.gateGroupRole})(a,b,'parent'),['parent'],'Existing target is eligible through the Parent gate');
+       opened={origin:a,role:'parent'};
+      }else{
+       c.actionInvocationSequence=0;c.actionDialogs=new Map();c.actionHostLeaf=()=>undefined;
+       c.initialGenericRelationshipSelection=()=>({role:'child',field:'Children'});
+       const command=entry.command.call(c,{role:route==='generic'?'all':'parent',pageFor:context=>context.target,
+        NewRelatedNoteModal:class { constructor(_plugin,origin,role,_onCommitted,_leaf,_fixedTarget,invocation){opened={origin,role,invocation};} open(){} }});
+       equal(command({target:a,request:{}}).status,'opened','Existing production command opens the composer');
+       equal(opened.role,route==='generic'?'child':'parent','Command supplies the expected initial role');
+       equal(opened.invocation.initialRoleFilter,route==='generic'?'all':undefined,'Only the generic composer has the role selector');
+      }
+      let completed;await entry.link({plugin:c,origin:opened.origin,selectedTarget:b,
+       role:route==='generic'?'parent':opened.role,prepareField:async()=>field,complete:async page=>{completed=page.path;},reportFailure:error=>{throw error;}})();
+      equal(completed,b.path,'An inferred Parent allows the selected explicit declaration; notices '+JSON.stringify(window.notices));
+     }
+     equal(f.metadata.get(a.path).frontmatter,{[field]:['[[B.md]]']},'The selected spelling is saved on A');
+     equal(f.texts.get(a.path),'---\\n'+field+': ["[[B.md]]"]\\n---\\n','The saved note contains exactly one Parent declaration');
+     equal(f.metadata.get(b.path).frontmatter,{},'The ordinary link owner has no inverse property');
+     equal(f.texts.get(b.path),body,'The existing body link stays byte-for-byte intact');
+     const evidence=i.evidenceBetween(a.path,b.path);
+     equal(evidence.filter(row=>row.sourceKind==='frontmatter-ontology').map(row=>row.declaredByPath),[a.path],'Only one authored declaration participates');
+     ok(evidence.some(row=>row.sourceKind==='obsidian-link'&&row.declaredByPath===b.path),'Ordinary evidence is retained under explicit precedence');
+     equal(i.getNeighborhood(a.path).parents.find(row=>row.page.path===b.path)?.relationType,M.RelationType.DEFINED,'The same parent is now defined');
+     const saved=f.texts.get(a.path),repeated=await c.createRelationToPage(i.get(a.path),'parent',i.get(b.path),field);
+     equal(repeated.state,'unavailable','Mixed inferred and explicit evidence keeps duplicate protection');
+     equal(window.notices,['notice.alreadyConnected'],'Duplicate refusal still provides the existing notice');
+     equal(f.texts.get(a.path),saved,'Repeating the authored declaration performs no write');
+     equal(i.getSemanticPreparationDiagnostics().fullBuilds,0,'The operation publishes only the exact pair');
+    }finally{f.close();}
+   }
+   return true;
+  })()`),true);
+ }finally{await browser.cleanup();}
+});
+
+test("Parent authoring preserves explicit duplicate, relink, append and pair-authority policies", async () => {
+ const browser=await chromiumHarness(bundle);
+ try {
+  assert.equal(await browser.evaluate(contributorBrowserInitialize),true);await browser.evaluate(setup);
+  assert.equal(await browser.evaluate(`(async()=>{
+   for(const scenario of ['defined-duplicate','legacy-relink','append-only','reverse-owner','unavailable']){
+    const f=await makeRelationshipFixture('parent-policies-'+scenario,'Parent',scenario!=='defined-duplicate'),i=f.index,c=f.context;
+    try {
+     const a=f.files.get('A.md'),b=f.files.get('B.md'),native=f.app.fileManager.processFrontMatter;
+     if(scenario==='defined-duplicate')await native(a,fm=>{fm.Parent=['[[B|Alias]]','[[Unrelated]]'];fm.Keep='Unchanged';});
+     if(scenario==='legacy-relink'||scenario==='append-only')await native(a,fm=>{fm.Children=['[[B|Old alias]]','[[Unrelated]]'];fm.Keep='Unchanged';});
+     if(scenario==='reverse-owner')await native(b,fm=>{fm.Parent=['[[A]]','[[Unrelated]]'];fm.Keep='Unchanged';});
+     ok(await i.prepareRelationshipPair(a.path,b.path),'Prepared exact pair for '+scenario);
+     const contents=[f.texts.get(a.path),f.texts.get(b.path)],writes=[];
+     f.app.fileManager.processFrontMatter=async(file,update)=>{writes.push(file.path);return native(file,update);};
+     if(scenario==='unavailable'){
+      i.prepareRelationshipPair=async()=>false;
+      let failure;try{await c.createRelationToPage(i.get(a.path),'parent',i.get(b.path),'Parent');}catch(error){failure=error;}
+      equal(failure?.message,'relation.preparingRelationship','Missing exact authority refuses a write');
+      equal(writes,[],'No native callback can run without pair authority');
+      equal([f.texts.get(a.path),f.texts.get(b.path)],contents,'Both note bodies remain untouched');
+      continue;
+     }
+     const result=await c.createRelationToPage(i.get(a.path),'parent',i.get(b.path),'Parent','[[B.md|New alias]]',scenario==='append-only');
+     const stored=f.metadata.get(scenario==='reverse-owner'?b.path:a.path).frontmatter;
+     if(scenario==='defined-duplicate'){
+      equal(result.state,'unavailable','An explicit Parent stays a duplicate regardless of alias');
+      equal(writes,[],'Duplicate refusal performs no write');
+      equal(stored.Parent,['[[B|Alias]]','[[Unrelated]]'],'Existing declaration and alias stay intact');
+     }else if(scenario==='reverse-owner'){
+      equal(result.state,'saved-published','The opposite explicit role uses legacy relink');
+      equal(writes,[b.path],'Relink stays on the existing definition owner');
+      equal(stored.Parent,['[[Unrelated]]'],'Only the moved target leaves the original field');
+      equal(stored.Children,['[[A.md]]'],'The existing owner retains the inverse definition');
+      equal(f.texts.get(a.path),contents[0],'The viewed origin stays untouched when B owns the definition');
+      equal(f.texts.get(b.path).split('\\n---\\n')[1],'[[A]]\\n','Relink on B preserves its ordinary body link');
+     }else{
+      equal(result.state,'saved-published','A different explicit role can be selected');
+      equal(writes,[a.path],'Only the exact writable owner changes');
+      equal(stored.Children,scenario==='append-only'?['[[B|Old alias]]','[[Unrelated]]']:['[[Unrelated]]'],'Legacy relink removes the moved declaration and explicit append keeps it');
+      equal(stored.Parent,scenario==='append-only'?['[[B.md|New alias]]']:['[[B.md]]'],'Each write policy retains its reference handling');
+     }
+     equal(stored.Keep,'Unchanged','Unrelated document properties stay intact');
+     if(scenario!=='reverse-owner')equal(f.texts.get(b.path),contents[1],'The target body stays byte-for-byte intact');
+    }finally{f.close();}
+   }
+   return true;
+  })()`),true);
+ }finally{await browser.cleanup();}
+});
 
 /** Saved pair replacements must compose across edits without changing unedited old-policy relations. */
 
