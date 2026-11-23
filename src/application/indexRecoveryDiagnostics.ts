@@ -8,6 +8,11 @@ export const UNCOVERED_RESOLVER_CAUSES = ["unqualified-native-event", "resolve-n
   "resolve-non-markdown", "resolve-missing-native-file", "resolve-replaced-native-file", "retired-folder-proof",
   "incomplete-folder-proof", "folder-membership-incomplete"] as const;
 export type UncoveredResolverCause = typeof UNCOVERED_RESOLVER_CAUSES[number];
+export const SOURCE_INVENTORY_LIMIT = 6;
+export const SOURCE_PASS_PHASES = ["queued", "native-resolution", "known-impacts", "local-maintenance", "coordinates", "sources", "dependencies", "resolution", "final-proof"] as const;
+export const SOURCE_PASS_OUTCOMES = ["running", "complete", "incomplete", "cancelled", "failed"] as const;
+export const SOURCE_INVENTORY_END_CAUSES = ["build-paused", "scope-changed", "closed", "proof-incomplete", "exception"] as const;
+export type SourceInventoryEndCause = typeof SOURCE_INVENTORY_END_CAUSES[number];
 
 /** Shared closed vocabulary for live and historical cache-writer receipts, excluding raw errors. */
 export function projectSnapshotWriteDiagnostics(snapshot: unknown) {

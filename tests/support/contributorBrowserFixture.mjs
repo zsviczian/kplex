@@ -41,6 +41,7 @@ export const contributorBrowserInitialize = `(() => {
       snapshot(){return {markdownEnumerations:this.markdownEnumerations,fileEnumerations:this.fileEnumerations,rootEnumerations:this.rootEnumerations,headPages:this.headPages,
         localLookups:this.localLookups,localEnsures:this.localEnsures,localCompletes:this.localCompletes,inspections:[...this.inspections],visits:[...this.visits],writes:[...this.writes]};}};
     const app={vault:{...events(),getFileByPath:path=>files.get(path)??null,
+      getAbstractFileByPath:path=>files.get(path)??(path===''||path==='/'?root:null),
       getMarkdownFiles:()=>{work.markdownEnumerations++;return [...files.values()].filter(file=>file.extension==='md');},
       getFiles:()=>{work.fileEnumerations++;return [...files.values()];},getRoot:()=>{work.rootEnumerations++;root.children=[...files.values()];return root;},
       getFolderByPath:path=>path===''||path==='/'?root:null,

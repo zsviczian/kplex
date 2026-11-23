@@ -6,7 +6,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { C, catalogFixture, ref, head } from "./support/contributorCatalogFixture.mjs";
-import { M, replayFixture, settings, presentation, runtime, policy, collect } from "./support/cachedSourceFixture.mjs";
+import { M, replayFixture, settings, presentation, runtime, policy, collect, guardFolderTreeTraversal } from "./support/cachedSourceFixture.mjs";
 import { configureNeighborhood, fullNeighborhoodOracle, neighborhoodView } from "./support/requestedNeighborhoodFixture.mjs";
 
 const request = () => ({ kind: "neighborhood", center: ref("A.md") });
@@ -64,7 +64,8 @@ function guard(f) {
   const before = JSON.stringify([f.catalog.state.root, [...f.catalog.state.heads], [...f.catalog.state.pages]]);
   let forbidden = 0;
   const fail = () => { forbidden++; throw new Error("Forbidden policy-only acquisition or full source build"); };
-  f.app.vault.read = f.app.vault.cachedRead = f.app.vault.getRoot = f.app.vault.getFiles = f.app.vault.getMarkdownFiles = fail;
+  f.app.vault.read = f.app.vault.cachedRead = f.app.vault.getFiles = f.app.vault.getMarkdownFiles = fail;
+  guardFolderTreeTraversal(f.app.vault, fail);
   f.acquisition.acquire = f.acquisition.parse = f.repository.replace = f.catalog.discovery.rebuild = f.catalog.host.collect = fail;
   return () => {
     assert.equal(forbidden, 0); assert.deepEqual(f.reads, []); assert.deepEqual(f.parses, []);

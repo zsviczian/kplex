@@ -1,5 +1,5 @@
 /** Native confirmation for one captured physical move. FileManager owns link updates and rename events. */
-import {formActions, iconButton, KplexModal as Modal} from "../adapters/obsidian/KplexModal";
+import {formActions, FormSetting, iconButton, KplexModal as Modal} from "../adapters/obsidian/KplexModal";
 
 
 import {Notice, type App, type ButtonComponent} from "obsidian";
@@ -11,12 +11,14 @@ import { formatShortcut } from "../core/plex/shortcutPresentation";
 export class MoveToFolderModal extends Modal {
   private opened = false;
   private pending = false;
+  private skipConfirmation = false;
   private buttons: ButtonComponent[] = [];
   private feedback: HTMLElement | null = null;
 
   /** Capture identities before the confirmation takes focus; closing never reverses an accepted move. */
   constructor(app: App, private readonly plan: PhysicalMovePlan, private readonly translate: Translator,
-    private readonly current: () => boolean, private readonly retired: () => void) { super(app); }
+    private readonly current: () => boolean, private readonly retired: () => void,
+    private readonly saveSkipConfirmation?: () => Promise<void>) { super(app); }
 
   /** Render the actual source/destination and keep the destructive operation behind explicit consent. */
   onOpen(): void {
@@ -29,10 +31,12 @@ export class MoveToFolderModal extends Modal {
         control: this.translate("shortcut.control"), option: this.translate("shortcut.option"), alt: this.translate("shortcut.alt"),
       }, true, "");
     if (shortcut) this.contentEl.createEl("p", {cls: "setting-item-description", text: this.translate("moveNode.modifierTip", {shortcut})});
+    if (this.saveSkipConfirmation) new FormSetting(this.contentEl).setName(this.translate("delete.dontAskAgain"))
+      .addToggle(toggle => toggle.onChange(value => {if (!this.pending) this.skipConfirmation = value;}));
     this.feedback = this.contentEl.createEl("p", { cls: "mod-warning", attr: { "role": "alert" } });
     formActions(this.contentEl)
       .addButton(/** Cancel has no vault effects. */ button => { this.buttons.push(button); iconButton(button, this.translate("common.cancel"), "x").onClick(/** Close only this confirmation. */ () => this.close()); })
-      .addButton(/** A native CTA owns the single submit operation. */ button => { this.buttons.push(button); button.setButtonText(this.translate("moveNode.move")).setCta().onClick(/** Observe asynchronous native failure inside this shell. */ () => { void this.submit(); }); });
+      .addButton(/** A native CTA owns the single submit operation. */ button => { this.buttons.push(button); iconButton(button, this.translate("moveNode.move"), "folder-input").setCta().onClick(/** Observe asynchronous native failure inside this shell. */ () => { void this.submit(); }); });
   }
 
   /** Recheck exact incarnations, names and collisions immediately before the native operation. */
@@ -47,6 +51,7 @@ export class MoveToFolderModal extends Modal {
         this.pending = false; for (const button of this.buttons) button.setDisabled(false); return;
       }
       if (result.warning && this.current()) new Notice(this.translate("moveNode.movedWarning"));
+      if (this.skipConfirmation && this.current()) await this.saveSkipConfirmation?.();
       this.close();
     } catch (error) {
       // A host may finish the rename before reporting a subsequent link-update failure. Never retry it.

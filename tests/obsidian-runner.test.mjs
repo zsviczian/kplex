@@ -929,3 +929,23 @@ test('restart native eval syntax preflight names its task before invoking CLI',(
  assert.throws(()=>evaluate('(]','Create native empty-link controls'),/Create native empty-link controls generated invalid native JavaScript: SyntaxError/);
  assert.equal(calls,0);
 });
+
+test('folder-removal restart transport deletes only the owned subtree and requires its live referrer',async()=>{
+ const source=ts.createSourceFile('authoringWorkspaceRestart.mjs',readFileSync(new URL('../scripts/testing/obsidian/authoringWorkspaceRestart.mjs',import.meta.url),'utf8'),ts.ScriptTarget.Latest,true);
+ let call;
+ const find=node=>{if(ts.isCallExpression(node)&&node.expression.getText(source)==='task'&&node.arguments[0]?.text==='Delete populated subtree while an edit save is pending')call=node;ts.forEachChild(node,find);};
+ find(source);assert(call,'Actual native deletion task');
+ const subtree={root:'owned/Import "quoted"',removed:'owned/Import "quoted"/Le\u0301vel/Removed.md',surviving:'owned/Surviving.md'};
+ const body=runInNewContext('('+call.arguments[1].getText(source)+')',{subtree});
+ const run=new Function('app','return (async()=>{'+body+'})();');
+ const root={path:subtree.root},removed={path:subtree.removed},referrer={path:subtree.surviving};
+ const entries=new Map([[root.path,root],[removed.path,removed],[referrer.path,referrer]]),writes=[];
+ const app={vault:{getFolderByPath:path=>entries.get(path),getFileByPath:path=>entries.get(path),getAbstractFileByPath:path=>entries.get(path),
+  delete:async(folder,force)=>{writes.push([folder,force]);entries.delete(root.path);entries.delete(removed.path);}},metadataCache:{resolvedLinks:{[referrer.path]:{}}}};
+ await assert.rejects(run(app),/Exact original subtree and referrer required/);
+ assert.deepEqual(writes,[]);
+ app.metadataCache.resolvedLinks[referrer.path][removed.path]=1;
+ assert.deepEqual(await run(app),{deleted:true});
+ assert.deepEqual(writes,[[root,true]]);
+ assert.equal(entries.get(referrer.path),referrer);
+});

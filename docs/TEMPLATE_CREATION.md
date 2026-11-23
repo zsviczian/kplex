@@ -70,14 +70,24 @@ timers in template scripts retain the limitations described below.
 K-Plex waits for automatic template processing before writing a new file's display
 name, aliases or relationship properties. The same barrier covers regular related
 notes, notes created inside folders, placeholder materialization, drawing creation,
-external copies and configured core Daily Notes. Reversed property ownership uses
+external copies opened or linked by K-Plex, and configured core Daily Notes. Copying
+files into a folder without opening them or writing relationships proceeds as soon
+as the Vault accepts each copy. Obsidian still emits the normal create events for
+any independently configured automation. Reversed property ownership uses
 the rendered new note rather than racing commands in its YAML frontmatter.
 
 An unresolved name matching the configured Daily Notes format offers a **Daily note**
 choice in the normal creation dialog. It uses the configured daily folder and template;
 the Markdown and Excalidraw choices retain their ordinary behavior. Calendar, Today and
-daily-placeholder creation share the template-completion barrier and open a newly
-created drawing in Excalidraw only after that exact file's template has finished.
+daily-placeholder creation share the template-completion barrier.
+
+When navigating to or opening a newly created note, K-Plex checks whether Obsidian
+has published the saved frontmatter. If the cache trails the write, it waits up to
+three seconds for that file's matching metadata before starting navigation. This
+applies to related notes, folder notes, and Daily Notes. The native opener owns the
+initial representation. Excalidraw applies its normal `excalidraw-open-md`
+preference and remembered view mode. The optional previous-note link review follows
+creation and opening.
 
 Deleting a centered note preserves surviving incoming declarations while referrers
 update. If Obsidian then replaces its full file path with one unambiguous unresolved

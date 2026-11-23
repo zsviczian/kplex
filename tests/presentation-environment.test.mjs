@@ -502,6 +502,7 @@ test("persisted layout keys and node-open leaf modes remain stable with canonica
         actionManager: {readSnapshot: () => null, dispatch: request => {requests.push(request); return Promise.resolve({status: "completed"});}}, showKplexMenuAtPosition() {}},
       addNativeSubmenu: (menu, _title, _icon, populate) => populate(menu), translate: key => key,
       nativeRevealTarget: fileReveal.nativeRevealTarget, fileRevealMenuState: () => ({systemLabel: "graph.openInFinder", navigation: true}), readObsidianPresentationEnvironment: () => ({}),
+      renameTargetFor: () => originalFile,
       viewport: {current: {ownerDocument: {}}}, hostLeaf: {},
     });
     showMenu({page, role: "child"}, 10, 20, "captured-occurrence");
@@ -823,7 +824,7 @@ test('folder-location actions reveal exact native folders and refuse replaced or
 test('actual folder context menu offers Files/Finder and refuses a same-path replacement',()=>{
  const continuation=compilePureModule('src/ui/surfaceContinuation.ts');
  process.on('exit',()=>rmSync(continuation.temp,{recursive:true,force:true}));
- const items=new Map(),requests=[],folder={path:'Projects',children:[]};let live=folder;
+ const items=new Map(),requests=[],folder={path:'Projects',children:[],parent:{path:'/'}};let live=folder;
  const page={path:'folder:Projects',name:'Projects',file:null,isFolder:true,isTag:false,url:null};
  class MenuDouble{addItem(build){const item={setTitle(value){this.title=value;return this},setIcon(){return this},onClick(run){items.set(this.title,run);return this}};build(item);return this}addSeparator(){return this}}
  const show=productionArrow('src/ui/PlexGraph.tsx','showNodeContextMenuAt',{
@@ -832,13 +833,15 @@ test('actual folder context menu offers Files/Finder and refuses a same-path rep
   Menu:MenuDouble,captureSurfaceContinuation:continuation.exports.captureSurfaceContinuation,actionNodeRef:value=>({identity:value.path,path:value.path,kind:'folder'}),actionSurfaceId:'own',sceneNodeKeys:new Map(),
   plugin:{app:{vault:{getFolderByPath:path=>path==='Projects'?live:null}},captureAppearanceOwner:()=>({}),getFileOpenMenuState:assert.fail,isPinned:()=>false,
    actionManager:{readSnapshot:()=>({mounted:true}),dispatch:request=>{requests.push(request);return Promise.resolve({status:'completed'})}},showKplexMenuAtPosition(){}},
-  addNativeSubmenu:(menu,_title,_icon,populate)=>populate(menu),translate:key=>key,nativeRevealTarget:fileReveal.nativeRevealTarget,
-  fileRevealMenuState:()=>({systemLabel:'graph.openInFinder',navigation:true}),readObsidianPresentationEnvironment:()=>({}),viewport:{current:{ownerDocument:{}}},hostLeaf:{},
+  addNativeSubmenu:(menu,_title,_icon,populate)=>populate(menu),translate:key=>key,nativeRevealTarget:fileReveal.nativeRevealTarget,renameTargetFor:()=>live,
+  fileRevealMenuState:()=>({systemLabel:'graph.openInFinder',navigation:true}),readObsidianPresentationEnvironment:()=>({}),viewport:{current:{isConnected:true,ownerDocument:{}}},hostLeaf:{},
  });
  show({page,role:'child'},10,20,'folder-occurrence');
  assert(items.has('graph.openInFinder'));assert(items.has('actions.node.open.navigation'));
+ assert(items.has('graph.deleteFolder'));
  assert(!items.has('graph.openNewTab'));assert(!items.has('graph.openAdjacentPane'));
  items.get('actions.node.open.navigation')();assert.equal(requests[0].id,'node.open.navigation');
  assert.equal(requests[0].target.node.identity,'folder:Projects');
- live={...folder};items.get('graph.openInFinder')();assert.equal(requests.length,1,'A new native folder cannot inherit the earlier menu action');
+ items.get('graph.deleteFolder')();assert.equal(requests[1].id,'node.delete');
+ live={...folder};items.get('graph.openInFinder')();items.get('graph.deleteFolder')();assert.equal(requests.length,2,'A new native folder cannot inherit the earlier menu action');
 });

@@ -11,6 +11,7 @@ import {nativeDocumentSessions} from './nativeDocumentSessions.mjs';
 import {nativeBatch270} from './nativeBatch270.mjs';
 import {pins as nativePins270, settings as nativePinSettings270} from './pinsPreviewUri.mjs';
 import {validateTarget} from './runner.mjs';
+import {nativeDeleteImportedFolder,nativeSettledFolderDeletion} from './importRecoveryCases.mjs';
 
 /** Capture the selected disposable renderer, independent of Windows foreground activation.
  * The staging caller supplies an owned external report directory; no vault file is written. */
@@ -277,14 +278,126 @@ async function imports(app,c){
   await app.workspace.revealLeaf(leaf);await f.focus(doc);await f.ready();const properties=app.metadataCache.getFileCache(a)?.frontmatter??{};f.check(JSON.stringify(properties[selectedField]).includes('Renamed.bin')&&JSON.stringify(properties[selectedField]).includes('Native278'),'Selected parent relation lost captured origin');f.check(!app.metadataCache.getFileCache(other)?.frontmatter,'An unrelated active note received properties');results.push('editable parent relation/shared ontology editor/captured origin/exact-file retry');p.linkNewRelatedFile=original;
   ({batch}=await drop([c.externalSources[0].path]));f.check(batch.rows.length===1&&batch.contentEl.querySelector('.kplex-import-files input'),'Single file needs a direct form');batch.close();results.push('single-file direct confirmation');
   p.settings.showFolderNodes=true;await p.saveSettings(false,false);p.notifyNavigation('folder:'+f.folder,leaf);await f.until(()=>leaf.view.contentEl.querySelector('[data-kplex-path="folder:'+f.folder+'"]'),'Folder import target');await f.ready();
-  ({batch}=await drop([c.externalDirectory],'folder:'+f.folder));f.check(batch.directories.length===3&&batch.rows.length===2,'Recursive inventory missing nested or empty folders');f.check(!batch.contentEl.querySelector('input[aria-label="'+t('addRelated.ontologyAria')+'"]'),'Folder import offered ontology');
-  const rootName=c.externalDirectory.split(/[\\/]/).at(-1),importRoot=f.folder+'/'+rootName;
-  f.restores.push(async()=>{const folder=app.vault.getFolderByPath(importRoot);if(folder&&folder.path.startsWith(f.folder+'/'))await app.vault.delete(folder,true)});
-  await press(button(batch,'fileImport.importAll'));await f.until(()=>!batch.opened,'Recursive native folder import');
-  f.check(app.vault.getFolderByPath(importRoot+'/Empty')&&app.vault.getFileByPath(importRoot+'/Nested/Note.md'),'Recursive import lost hierarchy');
-  f.check(await app.vault.read(app.vault.getFileByPath(importRoot+'/Nested/Note.md'))==='# Nested external note\n','Nested Markdown bytes changed');results.push('recursive folder import/empty directories/no ontology');
+  const rootName=c.externalDirectory.split(/[\\/]/).at(-1),importRoot=f.folder+'/'+rootName,renamedRoot=importRoot+' renamed';
+  /** Compare source and graph admissions across the real populated import and subsequent native rename. */
+  const work = () => ({inventory:p.startupDiagnostics.snapshot().sessionWork.sourceInventoryPasses,
+   builds:p.index.getSemanticPreparationDiagnostics().fullBuilds,source:p.index.getSourceAcquisitionCounters(),snapshot:p.index.getSnapshotPersistenceDiagnostics()});
+  const importEvents=[],traceStarted=Date.now();let tracePhase='deep import';
+  const owns=path=>typeof path==='string'&&[importRoot,renamedRoot].some(root=>path===root||path.startsWith(root+'/'));
+  for(const[owner,name]of [[app.vault,'create'],[app.vault,'rename'],[app.vault,'delete'],[app.metadataCache,'resolve'],[app.metadataCache,'resolved']]){
+   const ref=owner.on(name,(file,oldPath)=>{
+    if(importEvents.length>=96||file&&!owns(file.path)&&!owns(oldPath))return;
+    importEvents.push({name,phase:tracePhase,atMs:Date.now()-traceStarted,kind:file&&(Array.isArray(file.children)?'folder':file.extension==='md'?'markdown':'attachment'),
+     exact:file&&app.vault.getAbstractFileByPath(file.path)===file,retiredPrevious:owns(oldPath)&&!app.vault.getAbstractFileByPath(oldPath),
+     maintenance:p.index.sourceAcquisition.getMaintenanceRevision()});
+   });f.restores.push(()=>owner.offref(ref));
+  }
+  const beforeImport=work();
+  ({batch}=await drop([c.externalDirectory],'folder:'+f.folder));
+  const relativeToRoot = path => path.slice(rootName.length + 1).normalize('NFC');
+  const directories = batch.directories.map(relativeToRoot).sort();
+  const paths = batch.rows.map(row => relativeToRoot(row.relativePath)).sort();
+  c.progress={phase:'Deep import preview',directories,paths};
+  f.check(JSON.stringify(directories)===JSON.stringify([...c.externalTree.directories].map(path=>path.normalize('NFC')).sort()),'Preview omitted an imported directory');
+  f.check(JSON.stringify(paths)===JSON.stringify(c.externalTree.files.map(file=>file.relativePath.normalize('NFC')).sort()),'Preview omitted an imported file');
+  f.check(batch.folderPath===f.folder&&!batch.contentEl.querySelector('input[aria-label="'+t('addRelated.ontologyAria')+'"]'),'Folder import changed destination or offered ontology');
+  let ownedImportRoot;
+  f.restores.push(async()=>{
+   const folder=ownedImportRoot??app.vault.getFolderByPath(importRoot);
+   if(folder?.path.startsWith(f.folder+'/')&&app.vault.getFolderByPath(folder.path)===folder)await app.vault.delete(folder,true);
+  });
+  const writes=[],copy=app.vault.createBinary,makeFolder=app.vault.createFolder;
+  let interrupted=false;
+  /** Capture exact owned path/return coordinates and fail once after a genuine accepted file copy. */
+  app.vault.createBinary=async function(path,...args){
+   if(!path.startsWith(importRoot+'/'))return copy.call(this,path,...args);
+   if(writes.some(row=>row.kind==='file'&&row.accepted)&&!interrupted){interrupted=true;throw Error('Controlled native deep import interruption');}
+   const observed={kind:'file',path,accepted:false};writes.push(observed);
+   try{const file=await copy.call(this,path,...args);observed.returned=file.path;observed.accepted=true;return file;}
+   catch(error){observed.error=String(error);throw error;}
+  };
+  /** Keep separately observable directory creation failures and host-normalized paths. */
+  app.vault.createFolder=async function(path,...args){
+   if(path!==importRoot&&!path.startsWith(importRoot+'/'))return makeFolder.call(this,path,...args);
+   const observed={kind:'directory',path,accepted:false};writes.push(observed);
+   try{const directory=await makeFolder.call(this,path,...args);observed.returned=directory.path;observed.accepted=true;return directory;}
+   catch(error){observed.error=String(error);throw error;}
+  };
+  try{
+   await press(button(batch,'fileImport.importAll'));await f.until(()=>!batch.busy,'Deep native import attempt settled');
+   c.progress={phase:'First deep import attempt',writes,importEvents,feedback:batch.feedback?.textContent,retained:batch.rows.filter(row=>row.file).length};
+   f.check(batch.opened&&interrupted&&batch.rows.filter(row=>row.file).length===1,'Copy did not reach the controlled partial-file boundary');
+   const retained=batch.rows.find(row=>row.file).file;
+   await press(button(batch,'fileImport.importAll'));await f.until(()=>!batch.busy,'Deep native import retry settled');
+   c.progress={phase:'Deep native import retry',writes,feedback:batch.feedback?.textContent};
+   f.check(!batch.opened&&batch.rows.every(row=>row.saved)&&batch.rows.some(row=>row.file===retained),'Deep import retry lost retained identity or did not finish');
+  }finally{app.vault.createBinary=copy;app.vault.createFolder=makeFolder;}
+  const imported=app.vault.getFolderByPath(importRoot),inventory=new Map();ownedImportRoot=imported;
+  /** Traverse only this owned native subtree and compare every physical entry and its exact bytes. */
+  const collect=(folder)=>{for(const child of folder.children){inventory.set(child.path.slice(importRoot.length+1).normalize('NFC'),child);if(Array.isArray(child.children))collect(child);}};
+  f.check(imported,'Deep import root missing');collect(imported);
+  f.check(inventory.size===c.externalTree.directories.length-1+c.externalTree.files.length,'Recursive import lost entries or created extra ones');
+  for(const directory of c.externalTree.directories.filter(Boolean))f.check(Array.isArray(inventory.get(directory.normalize('NFC'))?.children),'Recursive import lost a nested or empty directory');
+  for(const file of c.externalTree.files){
+   const actual=inventory.get(file.relativePath.normalize('NFC'));
+   f.check(actual&&!Array.isArray(actual.children),'Deep physical file missing');
+   f.check(JSON.stringify([...new Uint8Array(await app.vault.readBinary(actual))])===JSON.stringify(file.bytes),'Nested Markdown or binary bytes changed');
+  }
+  await f.ready();
+  await f.until(()=>p.index.sourceAcquisition.hasSemanticDependencies()&&!p.index.sourceAcquisition.inventory,'Deep import converges through native resolution');
+  const afterImport=work();
+  f.check(writes.every(write=>!write.path.toLowerCase().endsWith('/.ds_store')),'Finder metadata reached Vault creation');
+  results.push({case:'deep folder import/exact paths and bytes/partial retry',directories,paths,writes,beforeImport,afterImport});
+  const deep=inventory.get(c.externalTree.files.find(file=>file.relativePath.endsWith('Deep.md')).relativePath.normalize('NFC'));
+  const referrer=await f.note('Surviving import referrer','[['+deep.path+']]\n');
+  await f.until(()=>app.metadataCache.resolvedLinks[referrer.path]?.[deep.path]===1,'Referrer resolves to actual imported file');
+  await f.ready();
+  const beforeRename=work(),oldDeep=deep.path;tracePhase='populated rename';
+  await app.fileManager.renameFile(imported,renamedRoot);
+  await f.until(()=>app.vault.getFolderByPath(renamedRoot)===imported&&app.vault.getFileByPath(deep.path)===deep&&deep.path!==oldDeep&&!app.vault.getAbstractFileByPath(oldDeep),'Exact native identities survive populated rename');
+  await f.until(()=>app.metadataCache.resolvedLinks[referrer.path]?.[deep.path]===1,'Referrer follows the actual renamed note');
+  await f.ready();
+  await f.until(()=>p.index.sourceAcquisition.hasSemanticDependencies()&&!p.index.sourceAcquisition.inventory,'Populated rename converges');
+  const afterRename=work();results.push({case:'populated import then native rename',beforeRename,afterRename});
+  c.progress={phase:'Import and rename source work',beforeImport,afterImport,beforeRename,afterRename,importEvents};
+  if(c.expectLocal){
+   f.check(afterImport.inventory===beforeImport.inventory&&afterImport.builds===beforeImport.builds,'Provable populated import admitted global work');
+   f.check(afterRename.inventory===beforeRename.inventory&&afterRename.builds===beforeRename.builds,'Provable populated rename admitted global work');
+  }
+  tracePhase='settled import deletion';
+  results.push(await c.deleteImportedFolder(app,c,f,leaf,imported,referrer,[...inventory.values()],'settled renamed import deletion'));
+  p.notifyNavigation('folder:'+f.folder,leaf);
+  await f.until(()=>leaf.view.contentEl.querySelector('.kplex-role-center')?.getAttribute('data-kplex-path')==='folder:'+f.folder,'Parent ready for a second native drop');
+  ownedImportRoot=null;tracePhase='partial import then deletion';
+  ({batch}=await drop([c.externalDirectory],'folder:'+f.folder));
+  let acceptedCopy, controlledFailure=false;
+  /** Stop the second batch only after one physical file is durable. Delete it through Files before a retry. */
+  app.vault.createBinary=async function(path,...args){
+   if(!path.startsWith(importRoot+'/'))return copy.call(this,path,...args);
+   if(acceptedCopy){controlledFailure=true;throw Error('Controlled partial import before deletion');}
+   acceptedCopy=await copy.call(this,path,...args);
+   return acceptedCopy;
+  };
+  try{
+   await press(button(batch,'fileImport.importAll'));
+   await f.until(()=>!batch.busy,'Second native batch reached partial failure');
+   f.check(controlledFailure&&batch.opened&&batch.rows.filter(row=>row.file).length===1,'Second native batch has one durable file');
+  }finally{app.vault.createBinary=copy;}
+  ownedImportRoot=app.vault.getFolderByPath(importRoot);
+  f.check(ownedImportRoot&&ownedImportRoot!==imported&&app.vault.getFileByPath(acceptedCopy.path)===acceptedCopy,'Same-path import owns a new native incarnation');
+  batch.close();
+  /** Preserve exactly the physical entries the unfinished batch owns at the delete boundary. */
+  const membersOf=folder=>folder.children.flatMap(child=>Array.isArray(child.children)?[child,...membersOf(child)]:[child]);
+  results.push(await c.deleteImportedFolder(app,c,f,leaf,ownedImportRoot,null,membersOf(ownedImportRoot),'native partial-import deletion'));
+  ownedImportRoot=null;tracePhase='complete import then immediate deletion';
+  ({batch}=await drop([c.externalDirectory],'folder:'+f.folder));
+  await press(button(batch,'fileImport.importAll'));await f.until(()=>!batch.busy,'Third native batch finished copying');
+  ownedImportRoot=app.vault.getFolderByPath(importRoot);
+  f.check(!batch.opened&&batch.rows.every(row=>row.saved)&&ownedImportRoot,'Native batch completes before immediate deletion');
+  // Deliberately skip the semantic settlement wait used before the populated rename.
+  results.push(await c.deleteImportedFolder(app,c,f,leaf,ownedImportRoot,null,membersOf(ownedImportRoot),'native immediate successful-import deletion'));
   const hostFs=require('node:fs');for(const source of c.externalSources)f.check(JSON.stringify([...hostFs.readFileSync(source.path)])===JSON.stringify(source.bytes),'External source changed');
-  return{results,filesCopied:created.length,realm:c.importWindow??'tab'};
+  return{results,importEvents,filesCopied:created.length,realm:c.importWindow??'tab'};
  }finally{debuggerOwner?.detach();await f.cleanup();}
 }
 
@@ -876,13 +989,25 @@ async function sourceRecovery(app,c){
 /** Every run validates installed artifact/source hashes and preserves exact configuration bytes. */
 export async function runAuthoringCompass278(){
  const target=validateTarget({vaultName:process.env.KPLEX_TEST_VAULT_NAME,vaultPath:process.env.KPLEX_TEST_VAULT_PATH,configDir:process.env.KPLEX_TEST_CONFIG_DIR});
- const lane=process.env.KPLEX_278_NATIVE_LANE??'inventory',scenario={inventory,folders,structural,authoring,imports,compass,pins,lifetime,periodic,navigation,forms,controls,'source-recovery':sourceRecovery,'gate-defaults':gateDefaults,'daily-automation':dailyAutomation,'template-lifecycle':templateLifecycle,'ontology-export':ontologyExport,'preset-ui':presetUi,'pin-settings':nativePinSettings270,'daily-template':dailyTemplate}[lane];if(!scenario)throw Error('Unknown #278 native lane');
+ const lane=process.env.KPLEX_278_NATIVE_LANE??'inventory',scenario={inventory,folders,structural,authoring,imports,compass,pins,lifetime,periodic,navigation,forms,controls,'folder-delete':nativeSettledFolderDeletion,'source-recovery':sourceRecovery,'gate-defaults':gateDefaults,'daily-automation':dailyAutomation,'template-lifecycle':templateLifecycle,'ontology-export':ontologyExport,'preset-ui':presetUi,'pin-settings':nativePinSettings270,'daily-template':dailyTemplate}[lane];if(!scenario)throw Error('Unknown #278 native lane');
  const dailySwitchScript=lane==='daily-automation'?readFileSync(new URL('../../../docs/snippets/daily-note-excalidraw-view.md',import.meta.url),'utf8').match(/```javascript\r?\n([\s\S]*?)\r?\n```/)[1].replace(/^<%\*\s*/, '').replace(/\s*%>$/, ''):'';
  const sources=lane==='imports'?[{path:join(process.env.KPLEX_HOST_REPORT_DIR,'Native278.bin'),bytes:[0,255,13,10,128,1]},{path:join(process.env.KPLEX_HOST_REPORT_DIR,'Native278.md'),bytes:[...new TextEncoder().encode('# External native fixture\n\nExact Markdown bytes.\n')]}]:[];
  for(const source of sources)writeFileSync(source.path,new Uint8Array(source.bytes));
- const directory=lane==='imports'?join(process.env.KPLEX_HOST_REPORT_DIR,'Native278-directory'):null;if(directory){mkdirSync(directory);mkdirSync(join(directory,'Empty'));mkdirSync(join(directory,'Nested'));writeFileSync(join(directory,'Nested','Note.md'),'# Nested external note\n');writeFileSync(join(directory,'Root.bin'),new Uint8Array([0,255,13,10]));}
- const definitions='c.close='+nativeModalClose.toString()+';c.nativeScreenshot='+nativeScreenshot.toString()+';c.captureRoot='+JSON.stringify(process.env.KPLEX_HOST_REPORT_DIR)+';c.dailySwitchScript='+JSON.stringify(dailySwitchScript)+';c.sessions='+nativeDocumentSessions.toString()+';c.fixture='+nativeBatch270.toString()+';c.type='+nativeText.toString()+';c.pins='+nativePins270.toString()+';c.visualHold='+(process.env.KPLEX_278_VISUAL_HOLD==='true')+';c.visualPhase='+JSON.stringify(process.env.KPLEX_278_UX_VISUAL_PHASE??'')+';c.fixturePrefix="__kplex278_";c.importWindow='+JSON.stringify(process.env.KPLEX_278_IMPORT_WINDOW==='window'?'window':'tab')+';c.externalSources='+JSON.stringify(sources)+';c.externalDirectory='+JSON.stringify(directory)+';c.originalData='+JSON.stringify(readFileSync(join(target.pluginDir,'data.json'),'utf8'))+';c.originalEnabled='+JSON.stringify(readFileSync(join(target.config,'community-plugins.json'),'utf8'))+';';
- return runControlledProbe('authoring-compass-'+lane+'-278',scenario,definitions,
+ const directory=lane==='imports'?join(process.env.KPLEX_HOST_REPORT_DIR,'Native278-directory'):null;
+ const externalTree=directory?{directories:['','Empty','Level1','Level1/Le\u0301vel 2','Level1/Le\u0301vel 2/Deep empty','Level1/Sibling'],files:[
+  {relativePath:'Root.bin',bytes:[0,255,13,10]},
+  {relativePath:'Level1/Le\u0301vel 2/Deep.md',bytes:[...new TextEncoder().encode('# Deep external note\r\n')]},
+  {relativePath:'Level1/Le\u0301vel 2/Deep.bin',bytes:[0,255,13,10,33,129]},
+  {relativePath:'Level1/Sibling/Note.md',bytes:[...new TextEncoder().encode('# Sibling external note\n')]},
+ ],ignoredFiles:['.DS_Store','Level1/Le\u0301vel 2/.DS_Store','Level1/Sibling/.DS_Store']}:null;
+ if(directory&&externalTree){
+  for(const path of externalTree.directories)mkdirSync(join(directory,path));
+  for(const file of externalTree.files)writeFileSync(join(directory,file.relativePath),new Uint8Array(file.bytes));
+  for(const path of externalTree.ignoredFiles)writeFileSync(join(directory,path),new Uint8Array([0,0,0,1,66,117,100,49]));
+ }
+ const definitions='c.close='+nativeModalClose.toString()+';c.nativeScreenshot='+nativeScreenshot.toString()+';c.captureRoot='+JSON.stringify(process.env.KPLEX_HOST_REPORT_DIR)+';c.dailySwitchScript='+JSON.stringify(dailySwitchScript)+';c.sessions='+nativeDocumentSessions.toString()+';c.fixture='+nativeBatch270.toString()+';c.type='+nativeText.toString()+';c.pins='+nativePins270.toString()+';c.visualHold='+(process.env.KPLEX_278_VISUAL_HOLD==='true')+';c.visualPhase='+JSON.stringify(process.env.KPLEX_278_UX_VISUAL_PHASE??'')+';c.fixturePrefix="__kplex278_";c.importWindow='+JSON.stringify(process.env.KPLEX_278_IMPORT_WINDOW==='window'?'window':'tab')+';c.externalSources='+JSON.stringify(sources)+';c.externalDirectory='+JSON.stringify(directory)+';c.externalTree='+JSON.stringify(externalTree)+';c.originalData='+JSON.stringify(readFileSync(join(target.pluginDir,'data.json'),'utf8'))+';c.originalEnabled='+JSON.stringify(readFileSync(join(target.config,'community-plugins.json'),'utf8'))+';';
+ const recoveryDefinitions='c.deleteImportedFolder='+nativeDeleteImportedFolder.toString()+';c.expectLocal='+(process.env.KPLEX_327_EXPECT_LOCAL!=='false')+';';
+ return runControlledProbe('authoring-compass-'+lane+'-278',scenario,definitions+recoveryDefinitions,
   ['src/index/SourceRepository.ts','src/ui/StyleColorControls.ts','src/ui/plexViews/facets/FacetPresetEditor.ts','src/ui/export/MindMapMarkdownModal.ts','src/adapters/obsidian/fileCreationAutomation.ts','src/adapters/obsidian/KplexModal.ts','src/ui/components/FormField.tsx','src/ui/components/FormSelect.tsx','src/ui/components/FuzzySuggester.tsx','src/ui/features/DrawingTemplateSelect.tsx','src/ui/features/RelationshipFieldControl.tsx','src/ui/features/gateRelationshipIntent.ts','src/application/indexRecoveryDiagnostics.ts','src/ui/RelationshipSelectionControl.tsx','src/adapters/obsidian/dailyNotes.ts','src/main.ts','src/adapters/obsidian/sourceAcquisition.ts','src/adapters/obsidian/externalFileImport.ts','src/adapters/obsidian/relationshipOwner.ts',
    'src/ui/App.tsx','src/ui/PlexGraph.tsx','src/ui/NewRelatedNoteModal.ts','src/ui/SelectedOntologyEditor.ts','src/ui/CreateFolderNoteModal.ts','src/ui/CreatePeriodicNoteModal.ts','src/ui/MoveNodeModal.ts','src/ui/components/Tabs.tsx','src/adapters/obsidian/fileExplorerDrag.ts','src/adapters/obsidian/fileMenu.ts',
    'src/ui/RelationModal.ts','src/ui/RelationshipExplanationModal.ts','src/ui/ReverseRelationshipModal.ts','src/ui/ExternalFileImportBatchModal.ts',

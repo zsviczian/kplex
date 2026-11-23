@@ -18,6 +18,22 @@ const register=`
  const dispatch=async(ui,id)=>{const result=await plugin.actionManager.dispatch({id,source:'local-hotkey',surfaceId:ui.props.actionSurfaceId});ui.render();await wait();return result};
 `;
 
+test('a mounted canvas survives its center disappearing and accepts the replacement center',async()=>{
+ const host=await chromiumHarness(output.outputFiles[0].text+';window.sourceModules=sourceModules;');
+ try{assert(await host.evaluate(`(async()=>{${canvasSceneFixture}
+  const getNeighborhood=index.getNeighborhood;
+  index.getNeighborhood=path=>pages.has(path)?getNeighborhood(path):null;
+  const ui=await mount(M.builtInPlexViews.resolve('classic'));
+  const center=pages.get('A.md');
+  check(ui.container.querySelector('.kplex-thought[data-kplex-path="A.md"]'),'Initial center rendered');
+  pages.delete(center.path);ui.props.renderRevision++;ui.render();await wait();
+  check(ui.container.querySelector('.kplex-empty'),'The same mounted canvas can render without a center');
+  pages.set(center.path,center);ui.props.renderRevision++;ui.render();await wait();
+  check(ui.container.querySelector('.kplex-thought[data-kplex-path="A.md"]'),'The same canvas can render a center again');
+  ui.close();return true;
+ })()`));}finally{await host.cleanup();}
+});
+
 test('node and connector source menus use painted type, ontology and lens owners without source work',async()=>{
  const host=await chromiumHarness(output.outputFiles[0].text+';window.sourceModules=sourceModules;');
  try{assert(await host.evaluate(`(async()=>{${canvasSceneFixture}${register}

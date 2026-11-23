@@ -160,7 +160,8 @@ test("startup availability retains native file/folder events and late metadata t
   for (let n = 0; n < 300; n++) { const file = new TFile(`Notes/Race-${n}.md`, parent); f.files.set(file.path, file); f.cache.set(file.path, { frontmatter: {}, tags: [] }); }
   for (let n = 0; n < 270; n++) { const folder = new TFolder(`Notes/Empty-${n}`, parent); folders.set(folder.path, folder); }
   Object.assign(f.app.vault, { getName: () => "prime-native-race", getAllLoadedFiles: () => { inventories++; return [...f.files.values(), ...folders.values()]; },
-    getFolderByPath: path => folders.get(path) ?? null });
+    getFolderByPath: path => folders.get(path) ?? null,
+    getAbstractFileByPath: path => f.files.get(path) ?? folders.get(path) ?? null });
   f.app.saveLocalStorage = () => {};
   const index = new GraphIndex({ app: f.app, settings: { ...settings, lastActivePath: "", pinnedNodes: [], excludeFilepaths: [], nameFields: "aliases", renderAlias: false }, getIndexSourceRevision: () => revision }, f.app);
   let replacementFile, replacementFolder;
@@ -942,6 +943,7 @@ test("folder rename remaps filename-only descendants before canonical membership
   f.app.saveLocalStorage = () => {};
   const folder = f.files.get(f.centerPath).parent;
   f.app.vault.getFolderByPath = path => path === folder.path ? folder : null;
+  f.app.vault.getAbstractFileByPath = path => f.files.get(path) ?? f.app.vault.getFolderByPath(path);
   const index = new GraphIndex({ app: f.app, settings: { ...settings, lastActivePath: f.centerPath,
     pinnedNodes: [], excludeFilepaths: [], nameFields: "aliases", renderAlias: true }, getIndexSourceRevision: () => 0 }, f.app);
   index.scheduleSnapshotPersist = () => {};
@@ -962,7 +964,7 @@ test("folder rename remaps filename-only descendants before canonical membership
     assert.equal([...index.physicalSearchEntries.values()].filter(entry => entry.page.file).length, f.files.size);
     assert.equal(index.search("Notes", 20, "vault").some(page => page.path === "folder:Notes"), false);
     assert(index.search("Moved", 20, "vault").some(page => page.path === "folder:Moved"));
-    f.files.clear(); folder.children = [];
+    f.files.clear(); folder.children = []; f.app.vault.getFolderByPath = () => null;
     await index.updateHostFolderAvailability("Moved");
     assert.equal([...index.physicalSearchEntries.values()].filter(entry => entry.page.file).length, 0, "folder-only delete removes captured filenames even when host children are gone");
     assert.equal(index.physicalSearchEntries.has("folder:Moved"), false);

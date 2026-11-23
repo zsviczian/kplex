@@ -11,7 +11,7 @@ opens storage, records readiness or waits for historical loading.
 | Section | Contents |
 | --- | --- |
 | `plugin` | Fixed plugin ID, installed `manifestVersion` and embedded `buildId`, separately |
-| `index` | Status, graph, hydration, sources, recovery, decisions and `cache` |
+| `index` | Status, graph, hydration, sources, recovery, decisions, `work` and `cache` |
 | `index.cache` | Saved generations, passive connection/failure receipts, pending/active persistence with remaining delay, latest writer outcome |
 | `environment` | Host/API/installer versions, OS, device, locale, theme and permitted installed-plugin metadata |
 | `indexingPreferences` | Allowlisted indexing/pacing and related preferences |
@@ -34,6 +34,35 @@ active writer or storage failure. The previous complete cache remains usable whi
 The recorded pacing preference is still Responsive/Balanced/Faster; these passive snapshots do not
 record a focus timeline or measure CPU. The inactive native brand mark dims to 0.5 independently
 of whether there is currently work to do.
+
+`index.work` shows the active and six most recent finished attempts of each kind in the current
+plugin lifetime. Graph builds record the trigger, coalesced backlog categories, queued Markdown
+count, last reported note progress, phase durations and the outcome at the publication or
+cancellation boundary. They show whether a complete graph was already available, whether source
+preparation was active, and whether the build requested an inventory pause. Source inventories
+record the trigger, the matching uncovered-resolver category when available, last phase, number
+of source owners visited, revision-change counts, and whether a build paused the pass. Both
+use elapsed milliseconds from the same renderer clock so overlapping intervals can be compared.
+An inventory's `sourceSweepMs` breaks out pacing, cached inspection, dependency maintenance,
+host-observation digestion and saves, and source acquisition during the per-note scan. These
+totals measure elapsed time within each step, including asynchronous waits.
+Elapsed phase time includes waits and yields. Every field is a fixed category, count, timing or
+Boolean. No note or folder keys, content, or exception messages are recorded. These receipts are
+held in memory and exported through the same privacy projection on both commands.
+
+When native topology changes require broad source validation, K-Plex waits for a one-second
+quiet interval within a four-second coalescing window. If Obsidian still reports that link
+resolution is busy, the window releases waiters and the next clean resolver close wakes the
+queued audit. Existing source-local updates can continue during the wait. Source inventory
+receipts start when a scan is admitted, and a later topology change still invalidates an
+in-progress scan. Startup folder-rename verification keeps its shorter existing window.
+
+When saved-preview hydration is interrupted, automatic graph retries wait for pending source
+validation and for the graph's 1.1-second edit quiet period. Further view and interval checks
+reuse the previous attempt until native topology, the graph revision, or source readiness
+changes. Edits still invalidate an active build as soon as they arrive.
+Opening or revealing a view can request catch-up. Its trigger alone does not represent a
+changed file or topology and cannot require a second build after source-backed startup publishes.
 
 `index.cache.connection` distinguishes a healthy handle, normal retry backoff, a closed lifetime
 and a newer unsupported database. It retains the last finite failure cause/native error class
@@ -58,6 +87,8 @@ current state/activity take priority. If necessary, oldest session events, exces
 and older detailed startup rows follow. Counts disclose every omission. Export trimming never
 changes recorder state or persisted history. A report can contain fewer sessions than storage.
 Historical export omissions are counted once in `truncation.historicalSessionsOmitted`.
+If the report still exceeds the budget after older index decisions are removed, older work
+receipts are dropped last. Each receipt window includes its own `omitted` count.
 
 ## Rolling history and durability
 

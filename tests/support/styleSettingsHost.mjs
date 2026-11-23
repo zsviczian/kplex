@@ -41,6 +41,7 @@ export function styleSettingsHostSource(root) {
     export {DrawingTemplateSelect} from './src/ui/features/DrawingTemplateSelect';
     export {PartialRelatedFileError} from './src/adapters/obsidian/relatedFileOutcome';
     export {MoveNodeModal} from './src/ui/MoveNodeModal';
+    export {RenameNoteModal} from './src/ui/RenameNoteModal';
     export {CreatePeriodicNoteModal} from './src/ui/CreatePeriodicNoteModal';
     export {ReverseRelationshipModal} from './src/ui/ReverseRelationshipModal';
     export {ExternalFileImportBatchModal} from './src/ui/ExternalFileImportBatchModal';

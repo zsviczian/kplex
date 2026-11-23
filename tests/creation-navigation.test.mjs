@@ -326,7 +326,7 @@ test('new-file tabs use the Plex group or the most recent main group from the si
  const file={},plexParent={},mainParent={},otherParent={},root={},calls=[];
  const plex={parent:plexParent,view:{getViewType:()=> 'plex'}},main={parent:mainParent},sidepanel={parent:otherParent,view:{getViewType:()=> 'sidepanel'}};
  const leaf={openFile:async(...args)=>calls.push(['open',...args])};
- const p={finishDailyNoteOpening:async(given,created)=>{assert.equal(given,leaf);assert.equal(created,file)},app:{workspace:{rootSplit:root,getMostRecentLeaf:given=>{assert.equal(given,root);return main},iterateAllLeaves:run=>[plex,{parent:plexParent},main,{parent:otherParent}].forEach(run),createLeafInParent:(parent,index)=>{calls.push(['create',parent,index]);return leaf},revealLeaf:async given=>{assert.equal(given,leaf)}}}};
+ const p={app:{workspace:{rootSplit:root,getMostRecentLeaf:given=>{assert.equal(given,root);return main},iterateAllLeaves:run=>[plex,{parent:plexParent},main,{parent:otherParent}].forEach(run),createLeafInParent:(parent,index)=>{calls.push(['create',parent,index]);return leaf},revealLeaf:async given=>{assert.equal(given,leaf)}}}};
  p.createTabInPlexGroup=method('src/main.ts','createTabInPlexGroup',{KPLEX_SIDEPANEL_VIEW_TYPE:'sidepanel'});
  await open.call(p,file,plex);assert.deepEqual(calls[0],['create',plexParent,2]);assert.equal(p.lastDocumentLeaf,leaf);
  calls.length=0;await open.call(p,file,sidepanel);assert.deepEqual(calls[0],['create',mainParent,1]);
@@ -348,22 +348,22 @@ test('canvas tab modifiers allocate in the captured group even when another grou
  calls.length=0;await create.call(p);assert.deepEqual(calls[0],['fallback','split'],'Existing command keeps adjacent-group default');
 });
 
-test('new daily drawings switch only their exact opened Markdown view through the public companion API',async()=>{
- class FileView{constructor(file,type='markdown'){this.file=file;this.type=type}getViewType(){return this.type}}
- const previous=globalThis.window,file={path:'Daily/2026-11-09.md'},other={path:'Other.md'},calls=[],leaf={view:new FileView(file)};
- const finish=method('src/main.ts','finishDailyNoteOpening',{FileView});
- const p={createdDailyNotes:new WeakSet([file]),app:{vault:{getFileByPath:()=>file}}};
- globalThis.window={ExcalidrawAutomate:{isExcalidrawFile:value=>value===file,toggleViewMode:async view=>{calls.push(view);leaf.view=new FileView(file,'excalidraw')}}};
- try{
-  leaf.view=new FileView(other);await finish.call(p,leaf,file);assert.equal(calls.length,0,'Never switch an unrelated active document');
-  leaf.view=new FileView(file);await finish.call(p,leaf,file,()=>false);assert.equal(calls.length,0,'Retired opens cannot switch views');
-  p.app.vault.getFileByPath=()=>other;await finish.call(p,leaf,file);assert.equal(calls.length,0,'Replaced native identities are rejected');
-  p.app.vault.getFileByPath=()=>file;const opened=leaf.view;await finish.call(p,leaf,file);assert.deepEqual(calls,[opened]);assert.equal(leaf.view.getViewType(),'excalidraw');
-  await finish.call(p,leaf,file);assert.equal(calls.length,1,'Never toggle a drawing back to Markdown');assert.equal(p.createdDailyNotes.has(file),false);
-  leaf.view=new FileView(file);await finish.call(p,leaf,file);assert.equal(calls.length,1,'Pre-existing files retain their chosen mode');
-  p.createdDailyNotes.add(file);window.ExcalidrawAutomate.isExcalidrawFile=()=>false;await finish.call(p,leaf,file);assert.equal(calls.length,1,'Ordinary daily Markdown stays Markdown');
-  delete window.ExcalidrawAutomate;await finish.call(p,leaf,file);assert.equal(calls.length,1,'Missing optional companion is harmless');
- }finally{globalThis.window=previous}
+test('creation waits before native opening or passive navigation and delegates the resulting mode',async()=>{
+ const finish=method('src/main.ts','finishNewRelatedNode');
+ for(const mode of ['markdown','excalidraw']){
+  const file={path:'New.md'},page={file,path:file.path},leaf={},calls=[];let publish,active=true,nativeFile=file;
+  const waiting=new Promise(resolve=>{publish=resolve});
+  const p={createdNotesAwaitingMetadata:new WeakSet([file]),app:{vault:{getFileByPath:()=>nativeFile}},
+   waitForCreatedOpeningMetadata:async(candidate,current)=>{assert.equal(candidate,file);assert(current());calls.push('wait');await waiting;},
+   notifyNavigation:()=>calls.push('follow'),openCreatedNote:async()=>calls.push(mode)};
+  await finish.call(p,page,leaf,'return');assert.deepEqual(calls,[],'A saved note with no opening has no readiness wait');
+  const ready=finish.call(p,page,leaf,'sidecar',()=>active);assert.deepEqual(calls,['wait'],'Passive Sidecar follow cannot open ahead of metadata');
+  publish();await ready;assert.deepEqual(calls,['wait','follow',mode]);
+  await finish.call(p,page,leaf,'follow');assert.deepEqual(calls,['wait','follow',mode,'follow'],'Published opening metadata is used once');
+  p.createdNotesAwaitingMetadata.add(file);
+  const retired=finish.call(p,page,leaf,'tab',()=>active);nativeFile={path:file.path};active=false;await retired;
+  assert.deepEqual(calls,['wait','follow',mode,'follow','wait'],'A retired or replaced note cannot open');
+ }
 });
 
 /** Narrow native doubles keep execution/identity observable without starting Obsidian or an index. */

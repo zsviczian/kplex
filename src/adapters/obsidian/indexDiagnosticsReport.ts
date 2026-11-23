@@ -39,6 +39,7 @@ export function captureIndexDiagnostics(
     persistence: index.getSnapshotPersistenceDiagnostics?.(),
     sources: index.getSourceRepositoryDiagnostics?.(),
     recovery: index.getIndexRecoveryDiagnostics?.(),
+    graphBuilds: index.getGraphBuildDiagnostics?.(),
     decisions: index.getIndexDiagnostics(),
   };
 }

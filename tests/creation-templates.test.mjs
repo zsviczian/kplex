@@ -46,10 +46,11 @@ function nativeCreationFixture(){
  f.app.vault.getAbstractFileByPath=path=>f.files.get(path)??null;
  f.app.vault.create=async(path,body)=>{creates++;const file=new api.TFile(path,body);f.files.set(path,file);return file};
  const owner={app:f.app,settings:{markdownTemplateFolder:'Templates'},unloading:false,translator:key=>key,drawingTemplateOptions:()=>null,
-  managedCreatedPaths:new Map(),rememberManagedCreatedFile:file=>file,ensureFolderPath:async()=>{}};
+  managedCreatedPaths:new Map(),createdNotesAwaitingMetadata:new WeakSet(),rememberManagedCreatedFile:file=>file,ensureFolderPath:async()=>{}};
  owner.fileCreationAutomation=new api.FileCreationAutomation(f.app,{waiting:()=>{},unavailable:()=> 'unsupported',cancelled:()=> 'retired'});
  const dependencies={prepareMarkdownTemplate:api.prepareMarkdownTemplate,markdownTemplateFiles:api.markdownTemplateFiles,normalizePath:path=>path,drawingAutomation:()=>null,MANAGED_CREATED_PATH_TTL_MS:1000,Notice:class{}};
  owner.createNewFileInFolder=nativeCreationMethod('createNewFileInFolder',dependencies);owner.createNativeFileInFolder=nativeCreationMethod('createNativeFileInFolder',dependencies);
+ owner.createFileWithAutomation=nativeCreationMethod('createFileWithAutomation',dependencies);
  return {...f,owner,creates:()=>creates,close:()=>owner.fileCreationAutomation.dispose()};
 }
 
@@ -198,5 +199,16 @@ test('a parser failure after physical creation preserves the exact partial file 
   await assert.rejects(f.owner.createNewFileInFolder('Created','markdown','Parent',()=>true,f.template.path),error=>error.file===f.files.get('Parent/Created.md')&&error.cause.message==='Selected parse failed');
   assert.equal(f.creates(),1);assert.equal(parses,1);assert.equal(f.files.get('Parent/Created.md').body,'');
   await assert.rejects(f.owner.fileCreationAutomation.wait(f.files.get('Parent/Created.md')),/Selected parse failed/);
+ }finally{f.close();}
+});
+
+test('a completed ordinary Markdown template makes its exact new file eligible for opening',async()=>{
+ const f=nativeCreationFixture();
+ try{
+  const file=await f.owner.createNewFileInFolder('Created','markdown','Parent',()=>true,f.template.path);
+  assert.equal(f.files.get('Parent/Created.md'),file);
+  assert.equal(file.body,'Chosen body');
+  assert(f.owner.createdNotesAwaitingMetadata.has(file));
+  assert.equal(f.owner.createdNotesAwaitingMetadata.has(f.template),false);
  }finally{f.close();}
 });

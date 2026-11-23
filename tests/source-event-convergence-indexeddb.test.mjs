@@ -6,6 +6,190 @@ import { chromiumHarness } from './support/browserTypeScript.mjs';
 
 const bundle = await contributorBrowserBundle();
 
+/** Reopen durable source authority and deliver real Vault-shaped folder/descendant rename waves. */
+async function startupFolderRenameScenario(mode) {
+  const f = await fixture('startup-rename-admission-' + mode);
+  const parent = f.app.vault.getRoot(), folders = new Map([['/', parent], ['', parent]]), branches = [];
+  const sleep = ms => new Promise(done => setTimeout(done, ms));
+  let source, releaseComparison;
+  try {
+    parent.children = [];
+    for (let n = 0; n < 3; n++) {
+      const name = 'Folder' + n, folder = new ContributorFolder(), file = f.add(name + '/Note.md', 'Value:: ' + n);
+      Object.assign(folder, {path: name, name, parent, children: [file]});
+      file.parent = folder;
+      parent.children.push(folder);
+      folders.set(name, folder);
+      branches.push({folder, file, original: file.path});
+    }
+    f.app.vault.getRoot = () => parent;
+    f.app.vault.getFolderByPath = path => folders.get(path) ?? null;
+    f.app.vault.getAbstractFileByPath = path => f.files.get(path) ?? folders.get(path) ?? null;
+    await f.acquire();
+    ok(await f.acquisition.reconcile(), 'Seed actual durable source authority');
+    f.acquisition.close();
+    let nativeClean = mode !== 'busy', inventories = 0;
+    if (mode !== 'no-readiness') f.app.metadataCache.isCacheClean = () => nativeClean;
+    source = new sourceModules.ObsidianSourceAcquisition(f.app, f.cache, async text => sourceModules.parseBodyMetadata(text), undefined, undefined, {
+      recordWork(key) {if (key === 'sourceInventoryPasses') inventories++;},
+      phase() {}, processed() {}, count() {}, mark() {},
+    });
+    const rename = n => {
+      const {folder, file} = branches[n], prior = folder.path, oldFile = file.path;
+      const metadata = f.metadata.get(oldFile), text = f.texts.get(oldFile);
+      folders.delete(prior);
+      folder.path = folder.name = 'Moved' + n;
+      folders.set(folder.path, folder);
+      f.files.delete(oldFile);
+      file.path = folder.path + '/Note.md';
+      f.files.set(file.path, file);
+      f.metadata.set(file.path, metadata);
+      f.texts.set(file.path, text);
+      f.app.vault.trigger('rename', folder, prior);
+      f.app.vault.trigger('rename', file, oldFile);
+      f.app.metadataCache.trigger('resolve', file);
+      f.app.metadataCache.trigger('resolved');
+    };
+    source.enableInventory();
+    rename(0);
+
+    if (mode === 'late') {
+      let reached;
+      const entered = new Promise(done => reached = done), hold = new Promise(done => releaseComparison = done);
+      const compare = source.reconcileRestartHostInventory;
+      let held = false;
+      source.reconcileRestartHostInventory = async function (...args) {
+        if (inventories > 0 && !held) {held = true; reached(); await hold;}
+        return compare.apply(this, args);
+      };
+      const first = source.reconcile();
+      await Promise.race([entered, sleep(4000).then(() => ok(held, 'Source census never started'))]);
+      rename(1);
+      releaseComparison();
+      equal(await first, false, 'A native move after census must reject the captured pass');
+      ok(!source.hasSemanticDependencies(), 'Obsolete inventory cannot grant write authority');
+      ok(await source.flush(), 'The later move settles with current coordinates');
+      equal(inventories, 2, 'Exactly one restart for the post-capture mutation');
+      return true;
+    }
+
+    const first = source.reconcile();
+    if (mode === 'pause' || mode === 'close') {
+      const joined = source.flush();
+      await sleep(65);
+      if (mode === 'pause') source.pauseInventory(); else source.close();
+      equal(await first, false, 'Retirement releases a waiting caller');
+      equal(await joined, false, 'Retired flush must not independently start an audit');
+      equal(inventories, 0, 'Retired admission never starts an audit');
+      ok(!source.hasSemanticDependencies(), 'Retired admission grants no authority');
+      if (mode === 'pause') {source.resumeInventory(true);ok(await source.flush(), 'Resume reopens normal admission');}
+      return true;
+    }
+    if (mode === 'busy') {
+      f.app.metadataCache.trigger('resolve', branches[0].file);
+      equal(await Promise.race([first, sleep(3000).then(() => 'unbounded')]), false, 'Busy native resolver releases the bounded wait as incomplete');
+      equal(inventories, 0, 'A known-busy resolver cannot start a source census');
+      ok(!source.hasSemanticDependencies(), 'Busy resolver never grants authority');
+      nativeClean = true;
+      f.app.metadataCache.trigger('resolved');
+      const deadline = performance.now() + 3500;
+      while (performance.now() < deadline && !source.hasSemanticDependencies()) await sleep(30);
+      ok(source.hasSemanticDependencies(), 'A later known close wakes the pending audit without another caller');
+      equal(inventories, 1, 'Recovery starts one audit after releasing a busy resolver');
+      return true;
+    }
+
+    const alsoWaiting = source.flush();
+    await sleep(65);
+    const startedEarly = inventories;
+    rename(1);
+    await sleep(65);
+    rename(2);
+    const result = await Promise.all([first, alsoWaiting]);
+    equal(startedEarly, 0, 'A direct reconcile and flush must share the pre-census wait');
+    equal(result, [true, true], 'All callers see the current completed audit');
+    equal(inventories, 1, 'Three nearby native waves start one broad inventory');
+    for (const {file, original} of branches) {
+      const next = await f.repository.inspect(file.path, []), retired = await f.repository.inspect(original, []);
+      ok(next.head, 'Final moved source is durable');
+      ok(!retired.head, 'Old coordinate does not own source facts');
+    }
+    return true;
+  } finally {
+    releaseComparison?.();
+    source?.close();
+    f.close();
+  }
+}
+
+for (const mode of ['burst', 'no-readiness', 'busy', 'late', 'pause', 'close']) test('startup populated-folder verification admission ('+mode+')', async()=>{
+  const browser = await chromiumHarness(bundle);
+  try {
+    assert.equal(await browser.evaluate(contributorBrowserInitialize), true);
+    assert.equal(await browser.evaluate(`(${startupFolderRenameScenario.toString()})(${JSON.stringify(mode)})`), true);
+  } finally {await browser.cleanup();}
+});
+
+for (const readiness of ['unavailable', 'busy', 'busy-past-cap']) test('warm delete, reimport and move share one source inventory ('+readiness+')', async () => {
+  const browser = await chromiumHarness(bundle);
+  try {
+    assert.equal(await browser.evaluate(contributorBrowserInitialize), true);
+    assert.equal(await browser.evaluate(`(async () => {
+      const f = await fixture('warm-tree-inventory-admission'), source = f.acquisition;
+      const sleep = ms => new Promise(done => setTimeout(done, ms));
+      const root = f.app.vault.getRoot(), folders = new Map();
+      let nativeClean = true;
+      const folder = () => {
+        const dir = new ContributorFolder(); Object.assign(dir, {path:'Tree',name:'Tree',parent:root,children:[]});
+        folders.set(dir.path, dir); root.children.push(dir); return dir;
+      };
+      const add = (path, parent) => {
+        const file = f.add(path, 'Value:: current');file.parent = parent; parent.children.push(file);return file;
+      };
+      f.app.vault.getRoot = () => root;
+      f.app.vault.getFolderByPath = path => path === '/' || path === '' ? root : folders.get(path) ?? null;
+      f.app.vault.getAbstractFileByPath = path => f.files.get(path) ?? f.app.vault.getFolderByPath(path);
+      try {
+        const old = folder(), oldFile = add('Tree/Entry.md',old), moving = add('Move.md',root);
+        await f.acquire();ok(await source.reconcile(),'Seed a real warm source inventory');
+        if (${readiness !== 'unavailable'}) f.app.metadataCache.isCacheClean = () => nativeClean;
+        source.enableInventory();
+        const initial = source.getRecoveryDiagnostics().inventories.recent.length;
+        const attempts = () => {const receipts=source.getRecoveryDiagnostics().inventories;return receipts.recent.length+Number(!!receipts.active)-initial;};
+        folders.delete(old.path);root.children.splice(root.children.indexOf(old),1);f.files.delete(oldFile.path);
+        f.app.vault.trigger('delete',oldFile);f.app.vault.trigger('delete',old);
+        nativeClean = false;
+        f.app.metadataCache.trigger('resolved');
+        const first = source.reconcile(), joined = source.flush();
+        await sleep(420);
+        equal(attempts(),0,'An intermediate native close must not admit a vault census');
+        const imported = folder(), replacement = add('Tree/Entry.md',imported);
+        f.app.vault.trigger('create',imported);f.app.vault.trigger('create',replacement);
+        f.app.metadataCache.trigger('resolve',replacement);f.app.metadataCache.trigger('resolved');
+        await sleep(${readiness === 'busy' ? 1150 : 420});
+        equal(attempts(),0,'Copy batches extend the same admission without starting another scan');
+        if (${readiness === 'busy-past-cap'}) {
+          equal(await Promise.race([Promise.all([first,joined]),sleep(5500).then(()=>null)]),[false,false],
+            'The wait releases its callers at the cap without scanning a busy vault');
+          equal(attempts(),0,'Exhausting the coalescing window cannot override native busy evidence');
+        }
+        const oldPath=moving.path, newPath='Tree/Move.md';
+        root.children.splice(root.children.indexOf(moving),1);moving.parent=imported;imported.children.push(moving);
+        f.files.delete(oldPath);moving.path=newPath;f.files.set(newPath,moving);
+        f.metadata.set(newPath,f.metadata.get(oldPath));f.texts.set(newPath,f.texts.get(oldPath));
+        f.app.vault.trigger('rename',moving,oldPath);f.app.metadataCache.trigger('resolve',moving);
+        nativeClean = true;f.app.metadataCache.trigger('resolved');
+        if (${readiness === 'busy-past-cap'}) ok(await source.flush(),'A clean close releases the queued audit after the cap');
+        else equal(await Promise.all([first,joined]),[true,true],'Both callers share the eventual current scan');
+        equal(attempts(),1,'Only one broad inventory starts for the burst');
+        ok((await f.repository.inspect(replacement.path,[])).head,'Replacement source is durable');
+        ok((await f.repository.inspect(newPath,[])).head&&!(await f.repository.inspect(oldPath,[])).head,'Move settles under its new native path');
+        return true;
+      } finally { f.close(); }
+    })()`), true);
+  } finally { await browser.cleanup(); }
+});
+
 for(const phase of ['startup','settled','changed','foreign'])test('attachment resolver receipt retains exact source recovery fences ('+phase+')',async()=>{
  const browser=await chromiumHarness(bundle);try{
   await browser.evaluate(contributorBrowserInitialize);
@@ -296,10 +480,16 @@ for (const change of ['extra-resolved', 'expired-resolver', 'delete-recreate', '
           equal(await f.acquisition.reconcile(), false, 'Global/topology/lifecycle change rejects the old sweep');
           ok(injected, 'Required event delivered');
           ok(!f.acquisition.hasSemanticDependencies(), 'Retired sweep grants no authority');
+          const retired=f.acquisition.getRecoveryDiagnostics().inventories.recent.at(-1);
+          equal(retired.outcome,'cancelled','The cancelled broad pass survives in the public diagnostic input');
+          equal(retired.endCause,change==='pause'?'build-paused':change==='unload'?'closed':'scope-changed','A finite reason identifies why the pass ended');
+          ok(retired.visited>=1&&retired.total===4&&retired.scopeChanges>0,'The receipt retains the completed prefix and change counts');
           f.repository.ensureLocalDependencies = ensure;
           if (change !== 'unload') {
             ok(await f.acquisition.reconcile(), 'Finite invalidation recovers through a new valid sweep');
             ok(await f.repository.flush(), 'Persistence and tombstones close');
+            ok(f.acquisition.getRecoveryDiagnostics().inventories.recent.some(row=>row.startMs===retired.startMs&&row.outcome==='cancelled'),
+              'The successor cannot erase the previous cancellation');
           }
           return true;
         } finally { f.close(); }

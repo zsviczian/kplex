@@ -395,6 +395,7 @@ for (const outcome of ["fresh", "stale", "failed", "sources", "sources-pending"]
         },
         adoptStartupSources: async () => { events.push("adopt"); return outcome === "sources"; },
         noteBuildDecision: () => {},
+        getHostStructuralRevision: () => 0,
         rebuild: async () => { events.push("full"); hydrated = true; return true; },
         rebuildProgressively: async () => { events.push("progressive"); hydrated = true; return true; },
         acknowledgeHostPresentation: () => {},
@@ -406,7 +407,7 @@ for (const outcome of ["fresh", "stale", "failed", "sources", "sources-pending"]
       pruneMissingDirtyMarkdownPaths: () => {}, startupGraphSeedPaths: () => [],
     };
     context.settings = {};
-    for (const name of ["hasIndexMaintenanceDemand", "ensureInitialIndex", "performRebuild", "adoptInitialSourceIndex", "retireCoveredCreateReason", "retireCoveredMarkdownBacklog", "isBackgroundIndexingPaused"]) {
+    for (const name of ["hasIndexMaintenanceDemand", "ensureInitialIndex", "performRebuild", "isAutomaticBuildRetryBlocked", "isInterruptedGraphStartup", "isStartupGraphRetryDeferred", "noteInterruptedHydration", "scheduleStartupGraphRetry", "adoptInitialSourceIndex", "retireCoveredCreateReason", "retireCoveredMarkdownBacklog", "isBackgroundIndexingPaused"]) {
       context[name] = productionFunction("src/main.ts", name, { Platform: { isIosApp: false } });
     }
     const task = context.ensureInitialIndex();
@@ -715,7 +716,11 @@ function createdMetadataFixture({ extension = "md", displayField = "aliases", in
       if (nextBody !== body) { file.stat.mtime++; file.stat.size = nextBody.length; body = nextBody; }
       writes.push(structuredClone(next)); events.push("native-write");
     },
-  } }, fileCreationAutomation: {wait: async()=>{}}, relationshipWriteCancels: new Set(), managedMetadataWrites: new Map(), unloading: false,
+  } }, fileCreationAutomation: {wait: async()=>{}}, relationshipWriteCancels: new Set(), managedMetadataWrites: new Map(),
+    createdNotesAwaitingMetadata: new WeakSet(), unloading: false,
+    waitForCreatedOpeningMetadata: async (selected, current) => {
+      assert.equal(selected, file); assert(current()); assert.deepEqual(cache?.frontmatter, frontmatter);
+    },
     pruneManagedMetadataWrites: () => {}, configuredDisplayNameField: () => displayField,
     translator: key => key, validateRelatedNoteName: () => ({ valid: true, existing: null, stem: "Created" }),
     createNewFileInFolder: async () => file,

@@ -13,6 +13,7 @@ import {formActions, iconButton, FormSetting as Setting, KplexModal as Modal} fr
 import {type App, type TFile} from "obsidian";
 import type { EvidenceSourceKind } from "../index/RelationEvidence";
 import { createObsidianTranslator } from "../adapters/obsidian/localization";
+import type {Translator} from "../lang";
 
 /** A pre-trash property approval retains exact keys and bounded canonical payload, never graph policy. */
 export type DeletePropertyChoice = "keep" | "remove" | "hide";
@@ -157,6 +158,36 @@ export type RemainingNodeReference = {
   sourceKind: EvidenceSourceKind;
 };
 
+/** Folder trash owns its own consent. Native file deletion remains with the host. */
+export class DeleteFolderConfirmationModal extends Modal {
+  private result: boolean | null = null;
+  private settled = false;
+
+  constructor(app: App, private readonly t: Translator, private readonly name: string,
+    private readonly complete: (skip: boolean | null) => void) {super(app);}
+
+  onOpen(): void {
+    this.setTitle(this.t("graph.deleteFolder"));
+    this.contentEl.createEl("p", {text: this.t("delete.folderConfirm", {name: this.name})});
+    let skip = false;
+    new Setting(this.contentEl).setName(this.t("delete.dontAskAgain")).addToggle(toggle => toggle.onChange(value => {skip = value;}));
+    const actions = formActions(this.contentEl);
+    actions.addButton(button => iconButton(button, this.t("common.cancel"), "x").onClick(() => this.close()));
+    actions.addButton(button => iconButton(button, this.t("graph.deleteFolder"), "trash-2").setDestructive().onClick(() => {
+      if (this.settled) return;
+      this.result = skip;
+      this.close();
+    }));
+  }
+
+  onClose(): void {
+    if (this.settled) return;
+    this.settled = true;
+    this.contentEl.empty();
+    this.complete(this.result);
+  }
+}
+
 export class RemainingNodeReferencesModal extends Modal {
   private readonly translate = createObsidianTranslator();
   /** Retain finite source locations and truthful per-file failure/pending summaries. */
@@ -166,6 +197,7 @@ export class RemainingNodeReferencesModal extends Modal {
     private readonly references: readonly RemainingNodeReference[],
     private readonly onOpenLocation: (reference: RemainingNodeReference) => void | Promise<void>,
     private readonly issues: readonly string[] = [],
+    private readonly onShowAgainChange?: (showAgain: boolean) => Promise<boolean>,
   ) {
     super(app);
   }
@@ -205,6 +237,29 @@ export class RemainingNodeReferencesModal extends Modal {
           .setButtonText(this.translate("common.open"))
           .onClick(() => { void this.onOpenLocation(reference); }));
       }
+    }
+
+    const onShowAgainChange = this.onShowAgainChange;
+    if (onShowAgainChange) {
+      const preference = new Setting(this.contentEl).setName(this.translate("references.neverShowAgain"));
+      preference.nameEl.id = `${this.suggestionOwnerId}-remaining-references`;
+      preference.addToggle(toggle => {
+        const control = toggle.toggleEl;
+        control.setAttribute("role", "switch");
+        control.setAttribute("aria-labelledby", preference.nameEl.id);
+        control.setAttribute("aria-checked", "false");
+        toggle.setValue(false).onChange(/** Persist the choice even if the current report closes during the save. */ async neverShowAgain => {
+          control.setAttribute("aria-checked", String(neverShowAgain));
+          toggle.setDisabled(true);
+          const saved = await onShowAgainChange(!neverShowAgain);
+          if (!control.isConnected) return;
+          if (!saved) {
+            toggle.setValue(!neverShowAgain);
+            control.setAttribute("aria-checked", String(!neverShowAgain));
+          }
+          toggle.setDisabled(false);
+        });
+      });
     }
 
     const actions = formActions(this.contentEl);

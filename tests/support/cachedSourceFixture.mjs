@@ -20,6 +20,21 @@ export const M = window.sourceModules;
 const { ObsidianSourceAcquisition, NeutralSourceRepository, parseBodyMetadata } = M;
 const TFile = window.SourceTestFile;
 
+/** Point lookups can validate a rendered folder without permitting native tree traversal. */
+export function guardFolderTreeTraversal(vault, fail) {
+  const root = vault.getRoot(), folders = new Map(), pending = [root];
+  while (pending.length) {
+    const folder = pending.pop();
+    folders.set(folder.path, new Proxy(folder, {get(target, key, receiver) {
+      return key === "children" ? fail() : Reflect.get(target, key, receiver);
+    }}));
+    pending.push(...(folder.children ?? []).filter(child => child instanceof window.SourceTestFolder));
+  }
+  const capturedRoot = folders.get(root.path);
+  vault.getRoot = () => capturedRoot;
+  vault.getFolderByPath = path => path === "" || path === "/" ? capturedRoot : folders.get(path) ?? null;
+}
+
 /** Only host events and file IO are fixtures; source codecs, repository and acquisition are production. */
 export function replayFixture() {
   const files = new Map(), metadata = new Map(), text = new Map(), legacy = new Map(), resolutions = new Map();
@@ -32,6 +47,7 @@ export function replayFixture() {
   };
   const root = new window.SourceTestFolder();
   const vault = { ...events(), getFileByPath: path => files.get(path) ?? null,
+    getAbstractFileByPath: path => files.get(path) ?? vault.getFolderByPath(path),
     getRoot: () => { root.children = [...files.values()]; return root; }, getFiles: () => [...files.values()],
     getFolderByPath: path => {
       if (path === "" || path === "/") return vault.getRoot();

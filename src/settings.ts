@@ -481,8 +481,12 @@ export interface KplexSettings extends StartupIndexPreferences {
   deletePromptInitialized: boolean;
   /** Ask for confirmation before deleting a real note file from the node context menu. */
   confirmFileDelete: boolean;
+  confirmFolderDelete: boolean;
+  confirmCanvasFolderMove: boolean;
   /** Default ontology-property cleanup when deleting a physical Markdown file through K-Plex. */
   removeOntologyLinksOnDelete: boolean;
+  /** Show the optional Remaining references report after deleting a node through K-Plex. */
+  showRemainingReferencesOnDelete: boolean;
 }
 
 const LEGACY_DEFAULT_SETTINGS: KplexSettings = {
@@ -640,7 +644,10 @@ const LEGACY_DEFAULT_SETTINGS: KplexSettings = {
   startupIndexInfoBubbleSeen: false,
   deletePromptInitialized: false,
   confirmFileDelete: true,
+  confirmFolderDelete: true,
+  confirmCanvasFolderMove: true,
   removeOntologyLinksOnDelete: true,
+  showRemainingReferencesOnDelete: true,
 };
 
 /** Fresh installations inherit native paint and reciprocal ontology without rewriting saved assignments. */
@@ -952,7 +959,10 @@ export function migrateAndMergeSettings(raw: unknown): KplexSettings {
     startupIndexInfoBubbleSeen: Boolean(old.startupIndexInfoBubbleSeen),
     deletePromptInitialized: Boolean(old.deletePromptInitialized),
     confirmFileDelete: old.confirmFileDelete !== false,
+    confirmFolderDelete: old.confirmFolderDelete !== false,
+    confirmCanvasFolderMove: old.confirmCanvasFolderMove !== false,
     removeOntologyLinksOnDelete: old.removeOntologyLinksOnDelete !== false,
+    showRemainingReferencesOnDelete: old.showRemainingReferencesOnDelete !== false,
     internalHotkeys: sanitizeInternalHotkeys(old.internalHotkeys),
     actionPreferences: actionPreferences.preferences,
     ...(actionPreferences.unsupportedVersion !== undefined
@@ -2573,7 +2583,10 @@ export class KplexSettingTab extends PluginSettingTab {
               { name: translate("settings.ui.auto.fit.on.navigation"), control: { type: "toggle", key: "allowAutozoom" } },
               { name: translate("settings.ui.open.k.plex.in.a.pop.out.window"), desc: translate("settings.ui.when.k.plex.is.opened.and.no.k.plex.view.already.exists"), control: { type: "toggle", key: "startInPopout" } },
               { name: translate("settings.ui.confirm.before.deleting.files"), desc: translate("settings.ui.ask.before.a.node.context.menu.action.deletes.a.note.usi"), control: { type: "toggle", key: "confirmFileDelete" } },
+              { name: translate("settings.confirmFolderDelete"), control: { type: "toggle", key: "confirmFolderDelete" } },
+              { name: translate("settings.confirmCanvasFolderMove"), control: { type: "toggle", key: "confirmCanvasFolderMove" } },
               { name: translate("settings.deletion.removeOntologyLinks"), desc: deleteCleanupDescription, control: { type: "toggle", key: "removeOntologyLinksOnDelete" } },
+              { name: translate("settings.deletion.showRemainingReferences"), control: { type: "toggle", key: "showRemainingReferencesOnDelete" } },
               {
                 name: translate("settings.ui.mouse.navigation"),
                 desc: translate("settings.ui.smart.reserves.right.click.for.context.menus.left.drag.e"),
@@ -3353,10 +3366,9 @@ export class KplexSettingTab extends PluginSettingTab {
       await this.kplexPlugin.saveSettings(false, false);
       return;
     }
-    if (key === "removeOntologyLinksOnDelete") {
-      this.kplexPlugin.settings.removeOntologyLinksOnDelete = value === true;
-      // This preference only supplies defaults to the next deletion preview; it does not
-      // change ontology interpretation, source authority or the currently displayed graph.
+    if (key === "removeOntologyLinksOnDelete" || key === "showRemainingReferencesOnDelete") {
+      this.kplexPlugin.settings[key] = value === true;
+      // Deletion workflow preferences can be saved without refreshing the canvas.
       await this.kplexPlugin.saveSettings(false, false);
       return;
     }

@@ -3,8 +3,11 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import {build} from 'esbuild';
-const built=await build({stdin:{resolveDir:process.cwd(),contents:`export * from './src/adapters/obsidian/externalFileImport'`},bundle:true,write:false,format:'cjs',platform:'node'});
-const module={exports:{}};Function('module','exports',built.outputFiles[0].text)(module,module.exports);const M=module.exports;
+const built=await build({stdin:{resolveDir:process.cwd(),contents:`export * from './src/adapters/obsidian/externalFileImport'`},bundle:true,write:false,format:'cjs',platform:'node',external:['obsidian']});
+const module={exports:{}};
+/** The finite Vault fixture models the public path normalization at its write boundary. */
+const native=name=>{assert.equal(name,'obsidian');return {normalizePath:value=>value.normalize('NFC')};};
+Function('module','exports','require',built.outputFiles[0].text)(module,module.exports,native);const M=module.exports;
 /** Exact destination incarnations and native create acceptance are independently observable. */
 function fixture(){const root={path:'/'},folder={path:'Imports'},folders=new Map([['/',root],['Imports',folder]]),files=new Map(),writes=[];
  const app={vault:{getRoot:()=>root,getFolderByPath:path=>folders.get(path)??null,getFileByPath:path=>files.get(path)??null,getAbstractFileByPath:path=>files.get(path)??folders.get(path)??null,
@@ -40,12 +43,38 @@ test('directory payloads are explicitly distinguished without enumeration',()=>{
  assert.equal(payload.directory,true);assert.deepEqual(payload.files,[file]);assert.equal(read,0);
 });
 
+test('Finder metadata is ignored in a mixed native drop, including when the entry is unavailable',()=>{
+ const noise=new File(['metadata'],'.DS_Store'),folder={name:'Incoming',isDirectory:true};
+ const payload=M.externalFilesPayload({files:[noise],items:[
+  {kind:'file',webkitGetAsEntry:()=>null,getAsFile:()=>noise},
+  {kind:'file',webkitGetAsEntry:()=>folder},
+ ]});
+ assert.deepEqual(payload.files,[]);assert.deepEqual(payload.entries,[folder]);assert.equal(payload.unreadable,false);
+});
+
 /** Browser-shaped entry callbacks model paged discovery without external filesystem mutation. */
 function directory(name, pages, calls = []) {
  return {name,isDirectory:true,isFile:false,createReader(){let i=0;return {readEntries(done){calls.push(name);done(pages[i++]??[]);}}}};
 }
 /** Discovery retains File handles; no test allocates their bytes until explicit copying. */
 function entry(name, body='bytes') {return {name,isFile:true,isDirectory:false,file(done){done(new File([body],name));}};}
+
+test('Finder metadata never requests a File handle and does not hide similarly named content',async()=>{
+ const ignored={...entry('.dS_sToRe'),file(){assert.fail('Finder metadata must be skipped before opening the file');}};
+ const namedDirectory=directory('.DS_Store',[[entry('Keep.md')],[]]);
+ const root=directory('Incoming',[[ignored,namedDirectory,entry('.DS_Store.md')],[]]);
+ const inventory=await M.discoverExternalImports({files:[],directory:true,entries:[root]},t,()=>true,()=>{});
+ assert.deepEqual(inventory.directories,['Incoming','Incoming/.DS_Store']);
+ assert.deepEqual(inventory.files.map(item=>item.relativePath),['Incoming/.DS_Store/Keep.md','Incoming/.DS_Store.md']);
+ const flat=await M.discoverExternalImports({files:[new File(['metadata'],'.DS_Store'),new File(['note'],'Keep.md')],directory:false},t,()=>true,()=>{});
+ assert.deepEqual(flat.files.map(item=>item.relativePath),['Keep.md']);
+});
+
+test('a Vault write without a file handle rejects through the normal copy error',async()=>{
+ const f=fixture(),source=new File(['payload'],'Missing.bin');
+ f.app.vault.createBinary=async()=>null;
+ await assert.rejects(M.copyExternalFile(f.app,source,source.name,f.folder,t,()=>true),/fileImport.failed/);
+});
 
 test('recursive discovery drains every directory page and preserves empty folders before any copy',async()=>{
  const calls=[],first=Array.from({length:100},(_,i)=>entry(`File${i}.bin`));
@@ -69,6 +98,21 @@ test('unreadable or duplicate roots and invalid segments cannot silently import 
   {files:[],directory:true,entries:[directory('Same',[[]]),directory('Same',[[]])]},
   {files:[],directory:true,entries:[directory('../Escape',[[]])]},
  ])await assert.rejects(M.discoverExternalImports(payload,t,()=>true,()=>{}));
+});
+
+test('normalized destination aliases are refused before discovery can return a copy plan',async()=>{
+ const composed='L\u00e9vel2',decomposed=composed.normalize('NFD');
+ const root=directory('Incoming',[[directory('First',[[directory(composed,[[]]),directory(decomposed,[[]])],[]])],[]]);
+ await assert.rejects(M.discoverExternalImports({files:[],directory:true,entries:[root]},t,()=>true,()=>{}),/invalidName/);
+});
+
+test('single-file copying checks collisions at the canonical destination before reading bytes',async()=>{
+ const f=fixture(),name='r\u00e9sum\u00e9.pdf',existing={path:'Imports/'+name};
+ f.files.set(existing.path,existing);
+ const source=new File(['incoming'],name.normalize('NFD'));let reads=0;
+ source.arrayBuffer=async()=>{reads++;return new ArrayBuffer(8);};
+ await assert.rejects(M.copyExternalFile(f.app,source,source.name,f.folder,t,()=>true),/conflict/);
+ assert.equal(reads,0);assert.equal(f.writes.length,0);assert.equal(f.files.get(existing.path),existing);
 });
 
 test('recursive discovery enforces byte, file and depth limits before reading file contents',async()=>{

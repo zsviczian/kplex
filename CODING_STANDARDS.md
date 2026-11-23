@@ -17,8 +17,10 @@ Existing subsystem requirements in those guides remain mandatory.
 
 ## Native note creation and template automation
 
-Route K-Plex physical file creation/copying through `createFileWithAutomation` (the
-low-level native creator and configured Daily Notes creation share its adapter).
+Use `createFileWithAutomation` for physical creation and copies that K-Plex opens
+or edits, including configured Daily Notes. External copies into a folder that
+neither open an editor nor write relationship properties use native Vault creation
+directly. Vault create events still reach other plugins in this path.
 Await the captured Templater creation receipt before display-name, alias or relationship
 property writes. A folder/regex template can be delayed before its pending set is
 populated, so an empty set, a quiet interval or a fixed delay cannot authorize writes.

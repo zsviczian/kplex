@@ -881,6 +881,9 @@ const frenchTranslations = {
   "delete.fileButton": "Supprimer le fichier",
   "delete.placeholderButton": "Supprimer l’espace réservé",
   "references.title": "Références restantes",
+  "settings.deletion.showRemainingReferences": "Afficher la boîte de dialogue Références restantes",
+  "references.neverShowAgain": "Ne plus afficher",
+  "references.savePreferenceFailed": "Impossible d’enregistrer le réglage des références restantes.",
   "references.help": "K-Plex a supprimé les références de propriété vers « {name} ». Les liens ci-dessous se trouvent dans le contenu Markdown et sont laissés pour vérification manuelle.",
   "references.markdownLink": "Lien Markdown",
   "references.unresolvedMarkdownLink": "Lien Markdown non résolu",
@@ -897,6 +900,11 @@ const frenchTranslations = {
   "noteType.title": "Définir le type de note",
   "noteType.placeholder": "p. ex. projet",
   "rename.title": "Renommer la note",
+  "rename.folderTitle": "Renommer le dossier",
+  "rename.folderPlaceholder": "Nom du dossier",
+  "rename.invalidFolderName": "Saisissez un nom de dossier valide sans séparateur de chemin.",
+  "rename.folderFailed": "Impossible de renommer le dossier : {error}",
+  "rename.folderChanged": "Le dossier d’origine ou son emplacement a changé. Rouvrez la boîte de dialogue de renommage.",
   "rename.folderSeparators": "Le renommage ne modifie que le nom de la note. Les séparateurs de dossier ne sont pas autorisés.",
   "rename.failed": "Impossible de renommer la note : {error}",
   "rename.placeholder": "Nom de la note",
@@ -1342,6 +1350,7 @@ const frenchTranslations = {
   "graph.openPopoutWindow": "Ouvrir dans une fenêtre indépendante",
   "graph.setNoteType": "Définir le type de note…",
   "graph.renameNote": "Renommer la note…",
+  "graph.renameFolder": "Renommer le dossier…",
   "graph.unpinNote": "Désépingler la note",
   "graph.pinNote": "Épingler la note",
   "graph.deleteNote": "Supprimer la note…",
@@ -2049,6 +2058,12 @@ const frenchTranslations = {
   "creation.action": "Action",
   "creation.typeStatus": "Créer {name} en tant que {type}.",
 
+  "settings.confirmFolderDelete": "Confirmer avant de supprimer les dossiers",
+  "settings.confirmCanvasFolderMove": "Confirmer le déplacement vers un dossier sur le canevas",
+  "settings.confirmationPreferenceFailed": "Impossible d’enregistrer la préférence de confirmation.",
+  "delete.folderConfirm": "Déplacer « {name} » et tout son contenu vers la corbeille configurée dans Obsidian ?",
+  "delete.folderFailed": "Impossible de supprimer le dossier. {error}",
+  "graph.deleteFolder": "Supprimer le dossier",
 } as const satisfies LocaleTranslationMap;
 
 return buildLocaleCatalog(frenchTranslations);

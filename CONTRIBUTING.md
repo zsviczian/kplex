@@ -1831,7 +1831,7 @@ for exact evidence, baseline reproduction and remaining platform checks.
 
 After exact-build staging in disposable Small, run `npm run verify:obsidian:authoring-compass`
 with the three explicit test-vault variables, a fresh `KPLEX_HOST_REPORT_DIR`, and
-`KPLEX_278_NATIVE_LANE` set to `folders`, `structural`, `authoring`, `imports`, `compass`,
+`KPLEX_278_NATIVE_LANE` set to `folders`, `structural`, `authoring`, `imports`, `folder-delete`, `compass`,
 `pins`, `pin-settings`, `lifetime`, `periodic`, `navigation`, `daily-template`, `daily-automation`, `forms`, `gate-defaults` or `controls`. Run these lanes serially; the driver holds the shared application lock,
 verifies installed artifact hashes and restores exact configuration bytes and owned fixtures.
 `inventory` is a read-only host-control discovery lane with the same fixture cleanup.
@@ -1839,7 +1839,17 @@ verifies installed artifact hashes and restores exact configuration bytes and ow
 The folder lane uses trusted Files create/name input and compares affected work at two unrelated
 fixture sizes. Authoring checks actual ontology child dialogs and stored properties. Imports use
 Electron's documented debugger transport for trusted Chromium Files drops from owned external
-Markdown/binary fixtures and a recursive directory with an empty subfolder. It checks one shared destination/child ontology, exact-file retry after a linking failure, and unchanged originals; set `KPLEX_278_IMPORT_WINDOW=window` to repeat in a real popout.
+Markdown and binary fixtures. The lane checks a deeper directory tree with an accented folder,
+empty directories, ignored `.DS_Store` files, exact bytes and partial retry under a non-root
+destination. It then renames the populated tree and deletes it through the native Files explorer
+after centering it in K-Plex.
+A second import stops after one accepted file and deletes the partial tree through Files.
+A third deletes a successful import without waiting for source settlement.
+`folder-delete` isolates a settled folder and its surviving referrer from external drop transport.
+Both lanes record separate source inventory and full build counts. For baseline characterization
+set `KPLEX_327_EXPECT_LOCAL=false` to record the counts before requiring local convergence.
+Set `KPLEX_278_IMPORT_WINDOW=window` to repeat the imports in a real popout. A trusted Chromium
+drop exercises the native application pipeline. The original macOS Finder gesture needs its own pass.
 Compass checks physical layout, gate/keyboard routing, one-sided composition and reload. Pins
 reuse the accepted #270 suite and inspect computed feedback during held native gestures;
 `KPLEX_278_VISUAL_HOLD=true` holds its first gesture for visual review without changing deadlines.
@@ -1951,6 +1961,9 @@ application reloads, then a pending-save added-owner reload and final reuse. It
 observes natural activation and asserts unchanged generations and work counters;
 it never forces a rebuild or snapshot flush. These are application renderer
 reloads through Obsidian's command, with the Electron process retained.
+Pass `-- --folder-removal` to add a populated subtree, delete it during a pending
+save, and verify that the repaired snapshot keeps the surviving referrer and retires
+the deleted source. The Files menu behavior is exercised separately by `folder-delete`.
 
 `preset-ui` opens the real Facets preset editor from a connected native Settings
 page, exercises aligned dropdowns and the shared paired color/source row, and

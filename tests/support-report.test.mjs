@@ -2,11 +2,12 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { browserBundle } from "./support/browserTypeScript.mjs";
-const source = await browserBundle(["src/application/SessionEventRecorder.ts", "src/application/supportReport.ts", "src/application/IndexingActivity.ts"]);
+const source = await browserBundle(["src/application/SessionEventRecorder.ts", "src/application/supportReport.ts", "src/application/IndexingActivity.ts", "src/application/GraphBuildDiagnostics.ts"]);
 const host = {};
 new Function("window", source)(host);
 const { SessionEventRecorder, SESSION_EVENT_LIMIT, SESSION_EVENT_BYTE_LIMIT, SESSION_EVENT_MAX_AGE_MS, createSupportReport, SUPPORT_REPORT_BYTE_LIMIT } = host.sourceModules;
 const {IndexingActivity,ACTIVITY_SOURCE_COLUMNS,ACTIVITY_SESSION_COLUMNS,ACTIVITY_CURRENT_COLUMNS}=host.sourceModules;
+const {GraphBuildDiagnostics,GRAPH_BUILD_PHASES,GRAPH_BUILD_TRIGGERS}=host.sourceModules;
 
 /** Create one shared branded snapshot at the real capture owner, without native dependencies. */
 function activityFixture(){let now=0;const recorder=new IndexingActivity(()=>now),source=Object.fromEntries(ACTIVITY_SOURCE_COLUMNS.map(key=>[key,0])),session=Object.fromEntries(ACTIVITY_SESSION_COLUMNS.map(key=>[key,0]));
@@ -58,6 +59,39 @@ test('new activity inputs reject accessors/proxies/toJSON and retired/parsed cap
   for(let index=0;index<8;index++)recorder.capture();assert.equal(payload(createSupportReport(inputFixture(),capture)).indexingActivity,null);assert.equal(calls,0);
 });
 
+test('work receipts include exact phase timing, finite reasons and rotation without private payloads',()=>{
+  const input=inputFixture(),privateText='Private/Note.md?Alice=secret';
+  let now=0,calls=0;
+  const builds=new GraphBuildDiagnostics(()=>now);
+  const context={hadCompleteGraph:true,sourcePreparationActiveAtStart:true,sourceAuthorityReadyAtStart:false,inventoryPauseRequested:true};
+  for(let attempt=0;attempt<7;attempt++){
+    builds.begin('atomic',{trigger:'startup:post-initial-backlog',backlog:['vault:delete',privateText],pendingMarkdown:3},context);
+    now+=4;builds.phase('notes');builds.progress(3,10);
+    now+=9;builds.phase('presentation');now+=5;
+    builds.cancel('folder-delete');builds.cancel('view-closed');builds.finish('cancelled',null,true,true);
+  }
+  builds.begin('progressive',{trigger:'startup:initial-index'},context);now+=3;
+  const buildWindow=input.indexReport.graphBuilds=builds.snapshot();
+  const receipt={startMs:45,elapsedMs:70,trigger:'uncovered-non-file',resolverCause:'retired-folder-proof',endCause:'build-paused',
+    phase:'sources',outcome:'cancelled',visited:4,total:73,scopeChanges:1,path:privateText,
+    sourceSweepMs:{inspection:12.5,dependencies:21,acquisition:privateText,path:privateText},toJSON(){calls++;throw Error(privateText);}};
+  Object.defineProperty(receipt,'hostChanges',{get(){calls++;throw Error(privateText);}});
+  Object.defineProperty(buildWindow.active.phaseMs,'notes',{get(){calls++;throw Error(privateText);}});
+  buildWindow.active.cancelledBy=privateText;
+  input.indexReport.recovery={source:{inventories:{active:null,recent:[receipt]}}};
+  const text=createSupportReport(input),work=payload(text).index.work;
+  assert.equal(work.clock,'renderer-monotonic');assert.equal(work.graphBuilds.recent.length,6);assert.equal(work.graphBuilds.omitted,1);
+  assert.deepEqual(work.graphBuilds.recent[0].phaseMs,{structure:4,notes:9,presentation:5});
+  assert.deepEqual(work.graphBuilds.recent[0].backlog,['vault:delete','unknown']);assert.equal(work.graphBuilds.recent[0].cancelledBy,'folder-delete');
+  assert.equal(work.graphBuilds.recent[0].processedNotes,3);assert.equal(work.graphBuilds.recent[0].sourceChanged,true);
+  assert.equal(work.graphBuilds.active.elapsedMs,3);assert.equal(work.graphBuilds.active.cancelledBy,'unavailable');
+  assert.equal(work.graphBuilds.active.phaseMs.notes,undefined);assert.equal(work.sourceInventories.recent[0].hostChanges,null);
+  assert.equal(work.sourceInventories.recent[0].endCause,'build-paused');assert.equal(work.sourceInventories.recent[0].resolverCause,'retired-folder-proof');
+  assert.deepEqual(work.sourceInventories.recent[0].sourceSweepMs,{inspection:12,dependencies:21});
+  assert.equal(builds.snapshot().active.cancelledBy,null,'Export cannot mutate the live recorder');
+  assert.equal(calls,0);assert(!text.includes(privateText));
+});
+
 test('maximum environment/event/startup pressure preserves the shared activity core under48KiB',()=>{
   const {capture}=activityFixture(),input=inputFixture(),max=Number.MAX_SAFE_INTEGER;
   input.startup.enabled=true;input.startup.phases=Array.from({length:32},()=>({lane:'source',phase:'dependency-final-validation',pass:max,processed:max,total:max,startedMs:max,endedMs:max,uniqueOwners:max,counters:{physicalRevisionComparisons:max,headPageOwners:max,inventoryFiles:max,inventoryFolders:max}}));
@@ -66,9 +100,18 @@ test('maximum environment/event/startup pressure preserves the shared activity c
   input.environment.activePluginsAvailability='available';input.environment.activePluginTotalCount=700;
   input.environment.activePlugins=Array.from({length:700},(_,index)=>({kind:'community',id:'plugin-'+index,name:'漢'.repeat(128),version:'12345.12345.12345'}));
   input.indexReport.decisions=Array.from({length:20},()=>({at:max,stage:'reconcile',reason:'complete-restored',added:max,removed:max,modified:max,completedMarkdownFiles:max,durationMs:max}));
+  const build={startMs:max,elapsedMs:max,mode:'atomic',trigger:'startup:partial-restore-incomplete',backlog:GRAPH_BUILD_TRIGGERS,
+    pendingMarkdown:max,totalNotes:max,processedNotes:max,phase:'presentation',phaseMs:Object.fromEntries(GRAPH_BUILD_PHASES.map(phase=>[phase,max])),outcome:'running'};
+  const inventory={startMs:max,elapsedMs:max,trigger:'uncovered-non-file',resolverCause:'folder-membership-incomplete',outcome:'running',
+    visited:max,total:max,sourceChanges:max,scopeChanges:max,hostChanges:max};
+  input.indexReport.graphBuilds={active:build,recent:Array.from({length:12},()=>({...build,outcome:'complete'}))};
+  input.indexReport.recovery={source:{inventories:{active:inventory,recent:Array.from({length:12},()=>({...inventory,outcome:'cancelled'}))}}};
   const text=createSupportReport(input,capture),report=payload(text);
   assert(Buffer.byteLength(text)<=SUPPORT_REPORT_BYTE_LIMIT);assert.deepEqual(report.indexingActivity,exportedActivity(capture));assert.equal(report.indexingActivity.lastGlobal[5],capture.lastGlobal[5]);assert.deepEqual(report.indexingActivity.totals,capture.totals);
   assert.equal(report.session.events.length,0);assert(report.truncation.activePluginsOmitted>0);assert(!/[^\u0000-\u007f]/.test(text));
+  assert.equal(report.index.work.graphBuilds.active.phase,'presentation');assert.equal(report.index.work.sourceInventories.active.total,max);
+  assert.equal(report.index.work.graphBuilds.recent.length+report.index.work.graphBuilds.omitted,12);
+  assert.equal(report.index.work.sourceInventories.recent.length+report.index.work.sourceInventories.omitted,12);
 });
 
 test("session work counts survive disabled detailed timings without exporting arbitrary fields", /** Only finite nonnegative counts enter the public report. */ () => {

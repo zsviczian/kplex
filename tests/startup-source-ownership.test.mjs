@@ -14,8 +14,8 @@ const source = readFileSync(new URL('../src/main.ts', import.meta.url), 'utf8');
 const module = ts.createSourceFile('main.ts', source, ts.ScriptTarget.Latest, true);
 const plugin = module.statements.find(/** Select the real plugin lifecycle owner. */ node => ts.isClassDeclaration(node) && node.name?.text === 'KplexPlugin');
 const names = new Set(['performRebuild', 'rebuildIndex', 'pruneMissingDirtyMarkdownPaths',
-  'registerReactiveIndexListeners', 'pruneManagedMetadataWrites', 'scheduleRebuild',
-  'settlePatchOnlyBacklogIfIdle', 'countDeletedMarkdownFile', 'computeIndexStatusFacts']);
+  'registerReactiveIndexListeners', 'pruneManagedMetadataWrites', 'scheduleRebuild', 'rememberManagedCreatedFile',
+  'settlePatchOnlyBacklogIfIdle', 'retireReactiveMarkdownFile', 'countDeletedMarkdownFile', 'computeIndexStatusFacts']);
 const methods = plugin.members.filter(/** Copy complete production implementations, not alternate fixture algorithms. */ member => names.has(member.name?.getText(module)));
 assert.equal(methods.length, names.size);
 const onload = plugin.members.find(/** Locate the original timer registration. */ member => member.name?.getText(module) === 'initializePlugin');
@@ -30,7 +30,7 @@ const position = base.lastIndexOf('}');
 const body = base.slice(0, position) + methods.map(/** Retain production method bodies unchanged. */ member => member.getText(module)).join('\n')
   + '\n/** Test-owned wrapper installs the actual onload timer statement. */\ninstallInitialRebuildInterval(){' + interval.getText(module) + '}\n}';
 const js = ts.transpileModule(body, { compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.None } }).outputText;
-const load = new Function('Platform', 'TFile', 'TFolder', 'Notice', 'window', 'perfNow', 'INDEX_WORK_PRIORITY', js + '\nreturn StartupSourceCoordinator;');
+const load = new Function('Platform', 'TFile', 'TFolder', 'Notice', 'window', 'perfNow', 'INDEX_WORK_PRIORITY', 'MANAGED_CREATED_PATH_TTL_MS', js + '\nreturn StartupSourceCoordinator;');
 
 /** Native notice presentation is outside this coordinator ownership fixture. */
 class Notice { /** Accept the real command's notification without emulating UI. */ constructor() {} }
@@ -116,12 +116,13 @@ for(const newerReason of ['metadata:changed','vault:create'])test(`full publicat
 /** Source prerequisites can remain incomplete after an initial task retired. An explicitly active
  * initial task is tested separately; its real periodic handler must join it. */
 function fixture({ reasons = ['startup:stale-snapshot'], dirty = [], sourceBacked = true, complete = false, onDemand = false, published = false, activeInitialTask = false } = {}) {
-  let callback, period, pending, release;
+  let callback, period, pending, release, scheduled, now = 0;
   const timers = {
     /** Capture registration without changing its requested production interval. */ setInterval(work, delay) { callback = work; period = delay; return 1; },
-    /** The production no-op retirement clears the test-owned scheduled marker only. */ clearTimeout() {},
+    /** The production no-op retirement clears the test-owned scheduled marker only. */ clearTimeout(handle) { if (handle === 2) scheduled = undefined; },
+    setTimeout(work, delay) { scheduled = {work, due: now + delay}; return 2; },
   };
-  const Coordinator = load({ isIosApp: false }, HostFile, HostFolder, Notice, timers, () => 0, {background:4}), p = new Coordinator();
+  const Coordinator = load({ isIosApp: false }, HostFile, HostFolder, Notice, timers, () => now, {background:4}, 4000), p = new Coordinator();
   const counts = { full: 0, local: 0 }, initial = new Promise(/** Hold source adoption independently of automatic graph rebuild. */ done => { release = done; });
   p.app = { vault: { /** Retain the genuine named dirty source. */ getFileByPath: path => path === 'A.md' ? { path, extension: 'md' } : null } };
   p.settings = { indexUpdateInterval: 120000 }; p.startupIndexPolicy = {device:'desktop',beforeView:false,mode:onDemand?'on-demand':'eager'}; p.layoutReady = true; p.indexPreparationAdmitted = true;
@@ -142,6 +143,7 @@ function fixture({ reasons = ['startup:stale-snapshot'], dirty = [], sourceBacke
     /** Independent URL discovery is outside this controlled ownership fixture. */ startBackgroundUrlIndex: async () => true,
     /** The coherent physical baseline remains navigable. */ hasPhysicalBaseline: () => true,
     /** This test observes ordinary full-builder admission, not progressive compilation. */ isFullSnapshotHydrated: () => true, hasReusableSourceInventory: () => false,
+    hasActiveSourcePreparation: () => false, hasPendingSourceAuthority: () => false, getHostStructuralRevision: () => 0,
     /** Count admission only; a false result here is not evidence of a real incomplete build. */ rebuild: async () => { counts.full++; return published; },
     /** Preserve the on-demand branch's own local refresh. */ refreshOnDemandGraph: async () => { counts.local++; return false; },
     /** Decision formatting is outside this admission test. */ noteBuildDecision() {},
@@ -155,10 +157,142 @@ function fixture({ reasons = ['startup:stale-snapshot'], dirty = [], sourceBacke
   return { p, counts, initial: activeInitialTask ? initial : null,
     /** Fire the exact registered callback without advancing a watchdog or awaiting the held adopter. */
     async interval() { callback(); await pending; },
+    async advance(ms) {
+      now += ms;
+      if (!scheduled || scheduled.due > now) return;
+      const {work} = scheduled; scheduled = undefined;
+      work(); await p.initialIndexTask; await p.rebuildTask;
+    },
     /** Release the independent startup prerequisite after assertions. */
     close() { release(); },
   };
 }
+
+for (const sourceRecovery of [true, false]) test(`interrupted preview retries once after current inputs settle (source audit: ${sourceRecovery})`, async () => {
+  const f = fixture({reasons: ['metadata:changed'], sourceBacked: false});
+  const {p} = f;
+  try {
+    let hydrated = false, hydrationPending = true, sourcePending = false, sourceReady = false, sourceBacked = false, attempts = 0;
+    p.metadataStabilized = true; p.rebuildTimer = null;
+    Object.assign(p.index, {
+      isFullSnapshotHydrated: () => hydrated, hasPhysicalBaseline: () => hydrated,
+      hasRestoredCheckpoint: () => false, hasIncrementalRestorePatch: () => false,
+      hasPendingSnapshotHydration: () => hydrationPending,
+      waitForSnapshotHydration: async () => {hydrationPending = false; return {restored: false, fresh: false};},
+      hasActiveSourcePreparation: () => false,
+      hasPendingSourceAuthority: () => sourcePending,
+      hasReusableSourceInventory: () => sourceReady,
+      hasSourceBackedStartup: () => sourceBacked,
+      adoptStartupSources: async () => true,
+      rebuildProgressively: async () => {
+        attempts++;
+        if (attempts === 1) {p.scheduleRebuild('vault:create-markdown');sourcePending = sourceRecovery;return false;}
+        hydrated = true; return true;
+      },
+      rebuild: async () => {attempts++;hydrated = true;sourceBacked = false;return true;},
+    });
+    await p.ensureInitialIndex();
+    assert.equal(attempts,1); assert.equal(p.initialIndexComplete,false);
+    sourceBacked = sourceRecovery;
+    const capturedRevision = p.indexDirtyRevision;
+    await p.ensureInitialIndex(); await f.interval();
+    assert.equal(attempts,1,'Visibility and interval cannot bypass the recovery gate');
+    assert.equal(p.indexDirtyRevision,capturedRevision,'Revisiting the same preview is not a source mutation');
+    await f.advance(700);p.scheduleRebuild('metadata:changed');
+    await f.advance(700);p.scheduleRebuild('vault:create-markdown');
+    await f.advance(700);
+    assert.equal(attempts,1,'Each edit extends the quiet period without starting work');
+    if (sourceRecovery) {
+      await f.advance(1000);
+      assert.equal(attempts,1,'A queued audit is sufficient to keep startup recovery waiting');
+      sourcePending = false; sourceReady = true;
+      p.resumeAutomaticRebuildAfterSourceRecovery(p.index);
+    }
+    await f.advance(1100);
+    assert.equal(attempts,2,'The new source inputs produce one retry');
+    assert.equal(p.initialIndexComplete,true);
+    await f.advance(4000);
+    assert.equal(attempts,2,'Completion does not leave a retry behind');
+  } finally {f.close();}
+});
+
+test('an exact topology change can wake interrupted startup without a synthetic graph revision', async () => {
+  const f = fixture({reasons: ['startup:partial-restore-incomplete'], sourceBacked: false});
+  const {p} = f;
+  try {
+    let hydrated = false, topology = 1, attempts = 0;
+    p.metadataStabilized = true; p.rebuildTimer = null;
+    Object.assign(p.index, {
+      isFullSnapshotHydrated: () => hydrated,
+      hasPhysicalBaseline: () => hydrated,
+      hasRestoredCheckpoint: () => false,
+      hasIncrementalRestorePatch: () => false,
+      hasReusableSourceInventory: () => true,
+      getHostStructuralRevision: () => topology,
+      rebuild: async () => {attempts++; hydrated = attempts > 1; return hydrated;},
+    });
+    await p.ensureInitialIndex();
+    assert.equal(attempts,1);
+    const revision = p.indexDirtyRevision;
+    p.resumeAutomaticRebuildAfterSourceRecovery(p.index);
+    await f.advance(2000);
+    assert.equal(attempts,1,'An unchanged source notification does not repeat the build');
+    topology++;
+    p.resumeAutomaticRebuildAfterSourceRecovery(p.index);
+    await f.advance(0);
+    assert.equal(attempts,2,'A new exact move or delete can wake recovery');
+    assert.equal(p.indexDirtyRevision,revision);
+    assert.equal(p.initialIndexComplete,true);
+  } finally {f.close();}
+});
+
+for (const newerInput of [false, true]) test(`an incomplete warm full build waits for source recovery (new edit: ${newerInput})`, async () => {
+  const f = fixture({complete: true, sourceBacked: false, reasons: ['vault:delete'], published: false});
+  try {
+    const p = f.p;
+    let sourceActive = false, sourceReady = false;
+    p.rebuildTimer = null;
+    p.index.hasActiveSourcePreparation = () => sourceActive;
+    p.index.hasReusableSourceInventory = () => sourceReady && !sourceActive;
+    await p.performRebuild(false, false, 'view-visible', false);
+    assert.equal(f.counts.full, 1);
+    assert.equal(p.rebuildTimer, null, 'An incomplete build cannot arm its own retry on unchanged inputs');
+    assert(p.indexDirty, 'Keep the remaining structural work owed');
+    await f.interval();
+    assert.equal(f.counts.full, 1, 'Periodic checks cannot repeat identical full recovery');
+    sourceActive = true;
+    if (newerInput) p.indexDirtyRevision++;
+    await p.performRebuild(false, false, 'coalesced-backlog', false);
+    assert.equal(f.counts.full, 1, 'Let the source owner finish despite another observed edit');
+    sourceActive = false;
+    sourceReady = true;
+    p.resumeAutomaticRebuildAfterSourceRecovery(p.index);
+    assert.equal(p.rebuildTimer, 2, 'Source recovery wakes the deferred build even without the periodic interval');
+    p.rebuildTimer = null;
+    await f.interval();
+    await f.interval();
+    assert.equal(f.counts.full, 2, 'Retry exactly once with the newly settled inputs');
+    await p.performRebuild(true, true, 'direct', false);
+    assert.equal(f.counts.full, 3, 'Explicit recovery remains available');
+  } finally { f.close(); }
+});
+
+test('a published warm graph stays updating while required source validation is queued', () => {
+  const f = fixture({complete: true, sourceBacked: false, reasons: [], published: true});
+  try {
+    const p = f.p;
+    let pendingSources = true;
+    p.rebuildTimer = null;
+    p.indexDirty = false;
+    Object.assign(p.index, {
+      hasPendingSemanticPreparation: () => false, hasPendingSearchVocabulary: () => false,
+      hasPendingSourceAuthority: () => pendingSources, isCheckpointSaving: () => false, indexedMarkdownFileCount: () => 1,
+    });
+    assert.equal(p.computeIndexStatusFacts(1, false).phase, 'updating');
+    pendingSources = false;
+    assert.equal(p.computeIndexStatusFacts(1, false).phase, 'ready');
+  } finally { f.close(); }
+});
 
 test('a drained coalesced file backlog acknowledges current graph coverage without another patch or build',async()=>{
  const f=fixture({complete:true,sourceBacked:false,reasons:['metadata:changed','coalesced-backlog'],dirty:[]});
@@ -181,6 +315,8 @@ function eventFixture(options = {}) {
     on(name, callback) { vaultListeners.set(name, callback); return callback; },
     /** Physical identity disappears before the native delete notification is delivered. */
     getFileByPath(path) { return files.get(path) ?? null; },
+    /** The finite vault contains only the fixture's physical files. */
+    getAbstractFileByPath(path) { return files.get(path) ?? null; },
   };
   p.app.metadataCache = {
     /** Metadata callback ordering is controlled; source policy remains in production methods. */
@@ -199,6 +335,13 @@ function eventFixture(options = {}) {
   p.index.refreshVisibleHostMetadataPreviews = /** No preview is requested by this owner-only fixture. */ () => false;
   p.registerReactiveIndexListeners();
   return {...f,
+    managedCreate(path, extension = 'md') {
+      const created = new HostFile(path); created.extension = extension;
+      p.managedCreatedPaths.set(path, Date.now() + 4000);
+      files.set(path, created);
+      vaultListeners.get('create')(created);
+      return p.rememberManagedCreatedFile(created);
+    },
     /** Keep a genuine dirty Markdown owner for the dirty-path negative control. */
     changed() { metadataListeners.get('changed')(file); },
     /** A created source is owed until its native deletion retires that exact dirty path. */
@@ -209,6 +352,52 @@ function eventFixture(options = {}) {
     folderCreated() { vaultListeners.get('create')(new HostFolder('New folder')); },
   };
 }
+
+for (const structuralChange of [false, true]) test(`two managed Markdown creates during a patch preserve the right catch-up scope (structural change: ${structuralChange})`, async () => {
+  const f = eventFixture({complete: true, sourceBacked: false, reasons: ['metadata:changed'], dirty: ['A.md']});
+  const {p} = f, batches = [];
+  let enter, release;
+  const entered = new Promise(done => {enter = done;}), held = new Promise(done => {release = done;});
+  let flight;
+  try {
+    p.index.patchMarkdownPaths = async (paths, options) => {
+      batches.push(paths);
+      if (batches.length === 1) {enter(); await held;}
+      for (const path of paths) options.onCommitted(path);
+      return {outcome: 'patched', count: paths.length};
+    };
+    flight = p.performRebuild(false, false, 'metadata:changed', false);
+    await entered;
+    f.managedCreate('B.md'); f.managedCreate('C.excalidraw.md');
+    if (structuralChange) {
+      p.index.hasPhysicalBaseline = () => false;
+      f.folderCreated();
+      p.index.hasPhysicalBaseline = () => true;
+    }
+    release(); await flight;
+    assert.deepEqual([...p.dirtyMarkdownPaths], ['B.md', 'C.excalidraw.md'], 'Managed create events retain exact paths even before native metadata arrives');
+    await p.performRebuild(false, false, 'coalesced-backlog', false);
+    assert.deepEqual(batches, structuralChange ? [['A.md']] : [['A.md'], ['B.md', 'C.excalidraw.md']]);
+    assert.equal(f.counts.full, Number(structuralChange), 'A native structural reason still owns escalation');
+    assert.equal(p.indexDirty, false);
+  } finally {release(); await flight; f.close();}
+});
+
+test('a managed non-Markdown creation during a patch retains the structural fallback', async () => {
+  const f = eventFixture({complete: true, sourceBacked: false, reasons: ['metadata:changed'], dirty: ['A.md']});
+  try {
+    f.p.index.patchMarkdownPaths = async (paths, options) => {
+      await Promise.resolve();
+      f.managedCreate('Drawing.excalidraw', 'excalidraw');
+      for (const path of paths) options.onCommitted(path);
+      return {outcome: 'patched', count: paths.length};
+    };
+    await f.p.performRebuild(false, false, 'metadata:changed', false);
+    assert.deepEqual([...f.p.dirtyMarkdownPaths], []);
+    await f.p.performRebuild(false, false, 'coalesced-backlog', false);
+    assert.equal(f.counts.full, 1);
+  } finally {f.close();}
+});
 
 test('mixed startup and covered metadata backlog cannot compete with source adoption', /** A removed dirty source leaves no Markdown patch for a competing builder to consume. */ async () => {
   const f = eventFixture();
@@ -255,7 +444,7 @@ for (const reason of ['startup:unknown-prerequisite', 'vault:create', 'vault:ren
   });
 }
 
-for (const reason of ['coalesced-backlog', 'interval']) {
+for (const reason of ['coalesced-backlog', 'interval', 'view-visible', 'view-open']) {
   test(`covered mixed backlog retains source ownership with ${reason} bookkeeping`, /** Earlier automatic calls can leave their scheduling label without adding a dirty source. */ async () => {
     const f = eventFixture({reasons: ['startup:stale-snapshot', reason]});
     try {
@@ -266,6 +455,35 @@ for (const reason of ['coalesced-backlog', 'interval']) {
     } finally { f.close(); }
   });
 }
+
+test('view catch-up during source-backed restart does not leave a second full build', async () => {
+  const f = fixture({reasons:['startup:partial-restore-incomplete','vault:create','metadata:changed'], dirty:['A.md']});
+  const {p} = f;
+  try {
+    let sourcePending = true, sourceBacked = true, hydrated = false, builds = 0;
+    p.initialIndexTask = null; p.rebuildTimer = null; p.pendingCreateRevision = p.indexDirtyRevision;
+    Object.assign(p.index, {
+      hasSourceBackedStartup: () => sourceBacked,
+      hasPendingSourceAuthority: () => sourcePending,
+      hasReusableSourceInventory: () => !sourcePending,
+      isFullSnapshotHydrated: () => hydrated,
+      adoptStartupSources: async () => !sourcePending,
+      rebuild: async options => {
+        builds++;
+        if (sourcePending) return false;
+        options.onCommitted('A.md'); sourceBacked = false; hydrated = true; return true;
+      },
+    });
+    await p.performRebuild(false,false,'view-visible',false);
+    assert.equal(builds,0,'Visibility cannot pause source authority to start a full build');
+    p.indexBacklogReasons.add('view-visible');
+    sourcePending = false;
+    await p.adoptInitialSourceIndex();
+    await f.interval();
+    assert.equal(builds,1,'Source adoption is the only full build');
+    assert.equal(p.indexDirty,false);
+  } finally {f.close();}
+});
 
 for (const kind of ['dirty-source', 'new-folder', 'manual']) {
   test(`actual ${kind} retains rebuild admission during source adoption`, /** Genuine changed facts and explicit user work must not disappear behind startup suppression. */ async () => {
@@ -334,6 +552,7 @@ test('successful automatic fallback finishes startup after the initial progressi
     await p.ensureInitialIndex();
     assert.equal(progressive, 1); assert.equal(p.initialIndexComplete, false);
     assert.equal(p.initialIndexTask, null, 'Cancelled initial owner has released its task');
+    p.index.hasReusableSourceInventory = () => true;
     await p.rebuildIndex(false, false, 'startup:post-initial-backlog');
     assert.equal(p.initialIndexComplete, true);
     assert.equal(p.initialSourceIndexIncomplete, false);

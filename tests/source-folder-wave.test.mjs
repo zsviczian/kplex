@@ -9,7 +9,7 @@ import {contributorBrowserBundle, contributorBrowserInitialize} from './support/
 import {chromiumHarness} from './support/browserTypeScript.mjs';
 import {centerGateSettings} from './support/requestedCenterGateFixture.mjs';
 
-/** Preserve only the actual native create/rename owner, without plugin startup or a native app. */
+/** Preserve the actual native Vault event owner without plugin startup or a native app. */
 function externalVaultEventSource(event,factoryName) {
   const source=ts.createSourceFile('main.ts',readFileSync(new URL('../src/main.ts',import.meta.url),'utf8'),ts.ScriptTarget.Latest,true);
   let callback;
@@ -46,9 +46,13 @@ const initialize=`(()=>{
   ${pluginSettingsMethodSource('refreshSavedSettings')}
   ${pluginSettingsMethodSource('hasIndexMaintenanceDemand')}
   ${pluginSettingsMethodSource('onKplexViewClosed')}
+  ${pluginSettingsMethodSource('countDeletedMarkdownFile')}
+  ${pluginSettingsMethodSource('retireReactiveMarkdownFile')}
+  ${pluginSettingsMethodSource('remapReactiveFilePath')}
   window.closeLastPlex=plugin_onKplexViewClosed;
   ${externalVaultEventSource('create','makeExternalCreate')}
   ${externalVaultEventSource('rename','makeExternalRename')}
+  ${externalVaultEventSource('delete','makeExternalDelete')}
   let sequence=0;
   /** Extend only the native tree ports: the shared fixture otherwise flattens getRoot on each read. */
   window.folderWaveFixture=async(options={})=>{
@@ -66,14 +70,25 @@ const initialize=`(()=>{
     for(let n=0;n<(options.unrelated??3);n++)add('Unrelated-'+n+'.md','');
     f.app.metadataCache.resolvedLinks[ref.path]={'Note.md':1};f.app.metadataCache.unresolvedLinks[ref.path]={'Journal/Date/Note':1,Alias174:1};
     if(options.existing)folder('Journal/Date',established);
+    let tree=null;
+    if(options.deleteTree){
+      const imported=folder('Journal/Date',established),nested=folder('Journal/Date/Nested',imported);
+      const note=add(nested.path+'/Note.md','Friends:: [[Other]]',{aliases:['Alias174']}),attachment=add(nested.path+'/Picture.svg');
+      folder(nested.path+'/Empty',nested);aliases.set('Alias174',note.path);
+      f.app.metadataCache.resolvedLinks[ref.path]={'Note.md':1,[note.path]:1};
+      f.app.metadataCache.unresolvedLinks[ref.path]={'Journal/Date/Note':1};
+      tree={imported,nested,note,attachment};
+    }
     const settings={...(${centerGateSettings.toString()})({renderSiblings:false}),hierarchy:{hidden:[],parents:[],children:[],leftFriends:['Friends'],rightFriends:[],previous:[],next:[]},
       inferAllLinksAsFriends:false,inverseInfer:false,showFullTagName:true,tagStyleList:[],indexingMode:options.mode??'eager',urlIndexingMode:'on-demand',lastActivePath:'Ref.md',pinnedNodes:[]};
-    let revision=0,wholePasses=0;const plugin={app:f.app,settings,getIndexSourceRevision:()=>revision,
+    let revision=0,wholePasses=0;const rebuildRequests=[];const plugin={app:f.app,settings,getIndexSourceRevision:()=>revision,
       startupDiagnostics:{mark(){},count(){},phase(){},processed(){},recordWork(key){if(key==='sourceInventoryPasses')wholePasses++;}},
       dirtyMarkdownPaths:new Set(),deletedMarkdownFiles:new WeakSet(),managedCreatedPaths:new Map(),initialIndexComplete:true,rebuildTask:null,
-      renameMetadataSuppressions:new Map(),remapNavigationPaths(){return false;},
+      renameMetadataSuppressions:new Map(),remapNavigationPaths(){return false;},managedMetadataWrites:new Map(),managedCreatedFiles:new WeakSet(),
+      countDeletedMarkdownFile:plugin_countDeletedMarkdownFile,retireReactiveMarkdownFile:plugin_retireReactiveMarkdownFile,settlePatchOnlyBacklogIfIdle(){},
+      remapReactiveFilePath:plugin_remapReactiveFilePath,
       pruneManagedMetadataWrites(){},adjustCachedMarkdownFileCount(){},notifyIndexStatus(){},hasVisibleKplexSurface:()=>true,
-      hasIndexMaintenanceDemand:plugin_hasIndexMaintenanceDemand,scheduleRebuild(){}};
+      hasIndexMaintenanceDemand:plugin_hasIndexMaintenanceDemand,scheduleRebuild(reason){rebuildRequests.push(reason);}};
     f.app.vault.getName=()=>name;
     let parseCalls=0;
     /** Each actual plugin-index lifetime gets its own ordinary parser observer. */
@@ -118,6 +133,7 @@ const initialize=`(()=>{
     }
     if(!mainRef)mainRef=register();
     const renameRef=options.nativeRename?f.app.vault.on('rename',makeExternalRename.call(plugin)):null;
+    const deleteRef=options.deleteTree||options.nativeDelete?f.app.vault.on('delete',makeExternalDelete.call(plugin)):null;
     const repo=index.sourceAcquisition.repository,work={inspections:[],visits:[],writes:[],headPages:0};
     for(const key of ['inspect','visit','replace','tombstone','headPage']){const original=repo[key];repo[key]=function(...args){
       if(key==='inspect')work.inspections.push(args[0]);else if(key==='visit')work.visits.push(args[0]+':'+args[1]);
@@ -140,9 +156,46 @@ const initialize=`(()=>{
     const target=(parent=folders.get('Journal/Date'))=>{const file=add(parent.path+'/Note.md','',{aliases:['Alias174']});aliases.set('Alias174',file.path);
       f.app.metadataCache.resolvedLinks[ref.path]={'Note.md':1,[file.path]:2};f.app.metadataCache.unresolvedLinks[ref.path]={};return file;};
     const closeWave=()=>{const before=index.sourceAcquisition.getMaintenanceRevision();f.app.metadataCache.trigger('resolved');return index.sourceAcquisition.getMaintenanceRevision()-before;};
-    return {f,index,plugin,root,folders,established,folder,add,ref,old,other,repo,work,target,createFolder,createFile,rename,renameNativeFolder,closeWave,settle,reset,heldHydration,
+    /** Native lookup drops the exact subtree before delivering root-only or per-child notifications. */
+    const deleteTree=(order,beforeDelivery)=>{
+      const entries=[],pending=[tree.imported];
+      while(pending.length){const item=pending.pop();entries.push(item);if(item instanceof TFolder)pending.push(...item.children);}
+      for(const item of entries){if(item instanceof TFolder)folders.delete(item.path);else{f.files.delete(item.path);f.metadata.delete(item.path);f.texts.delete(item.path);}}
+      tree.imported.parent.children=tree.imported.parent.children.filter(item=>item!==tree.imported);
+      f.app.metadataCache.resolvedLinks[ref.path]={'Note.md':1};
+      f.app.metadataCache.unresolvedLinks[ref.path]={'Journal/Date/Note':1,Alias174:1};
+      beforeDelivery?.();
+      const delivered=order==='no-delivery'?[]:order==='folder-only'?[tree.imported]:order==='child-first'?entries.reverse():entries;
+      for(const item of delivered){revision++;f.app.vault.trigger('delete',item);}
+      return entries;
+    };
+    /** Publish each native folder while empty, then add the accepted portion of the import. */
+    const createImportTree=()=>{
+      const imported=folder('Journal/Date',established);createFolder(imported);
+      const nested=folder(imported.path+'/Nested',imported);createFolder(nested);
+      createFolder(folder(nested.path+'/Empty',nested));
+      const note=add(nested.path+'/Note.md','Friends:: [[Other]]',{aliases:['Alias174']});createFile(note);
+      aliases.set('Alias174',note.path);f.app.metadataCache.resolvedLinks[ref.path]={'Note.md':1,[note.path]:1};
+      f.app.metadataCache.unresolvedLinks[ref.path]={'Journal/Date/Note':1};
+      tree={imported,nested,note};return tree;
+    };
+    /** Move the same native tree in lookup before delivering real root and optional late child events. */
+    const renameTree=(destination,lateChild)=>{
+      const previous=tree.imported.path,pending=[tree.imported],changes=[];
+      while(pending.length){const item=pending.pop(),old=item.path,path=destination+old.slice(previous.length);changes.push({item,old});
+        if(item instanceof TFolder){folders.delete(old);folders.set(path,item);pending.push(...item.children);}
+        else{const text=f.texts.get(old),metadata=f.metadata.get(old);f.files.delete(old);f.metadata.delete(old);f.texts.delete(old);
+          f.files.set(path,item);f.metadata.set(path,metadata);f.texts.set(path,text);}
+        item.path=path;item.name=path.split('/').pop();
+      }
+      aliases.set('Alias174',tree.note.path);f.app.metadataCache.resolvedLinks[ref.path]={'Note.md':1,[tree.note.path]:1};
+      revision++;f.app.vault.trigger('rename',tree.imported,previous);
+      if(lateChild)for(const {item,old} of changes.slice(1)){revision++;f.app.vault.trigger('rename',item,old);}
+      return index.folderRenameTasks.get(tree.imported);
+    };
+    return {f,index,plugin,root,folders,established,folder,add,ref,old,other,repo,work,target,createFolder,createFile,rename,renameNativeFolder,closeWave,settle,reset,heldHydration,tree,deleteTree,createImportTree,renameTree,rebuildRequests,
       get wholePasses(){return wholePasses;},get summary(){return {wholePasses,markdownEnumerations:f.work.markdownEnumerations,headPages:work.headPages,reads:[...f.reads],parses:parseCalls};},
-      close(){f.app.vault.offref(mainRef);if(renameRef)f.app.vault.offref(renameRef);index.destroy();f.close();}};
+      close(){f.app.vault.offref(mainRef);if(renameRef)f.app.vault.offref(renameRef);if(deleteRef)f.app.vault.offref(deleteRef);index.destroy();f.close();}};
   };
   /** Inspect only one authenticated source's exact lexical bindings after ordinary event maintenance. */
   window.folderResolution=async(f,path)=>{const rows=[];equal(await f.repo.visit(path,'resolution',records=>{rows.push(...records);return true;}),'ready','Current stored resolution');return rows.filter(record=>record.kind==='reference-resolution').map(record=>({raw:record.rawTarget,target:record.target?.entity?.id,kind:record.target?.entity?.kind}));};
@@ -151,6 +204,243 @@ const initialize=`(()=>{
 })()`;
 
 /** A single real browser owns serial cases; resource counts are operation checks, not native CPU claims. */
+test('populated folder structural events retain bounded source authority',async(t)=>{
+  const browser=await chromiumHarness(bundle);
+  try {
+    assert.equal(await browser.evaluate(contributorBrowserInitialize),true);assert.equal(await browser.evaluate(initialize),true);
+    await t.test('native folder deletion retires the center and rendered rows before semantic repair',async()=>{
+      assert.equal(await browser.evaluate(`(async()=>{
+        const f=await folderWaveFixture({deleteTree:true});
+        try{
+          const parent='folder:'+f.established.path,removed='folder:'+f.tree.imported.path,child='folder:'+f.tree.nested.path;
+          const children=path=>f.index.getNeighborhood(path)?.children.map(row=>row.page.path)??[];
+          ok(children(parent).includes(removed),'Populate the parent projection cache with the folder');
+          ok(children(removed).includes(child),'Populate the folder center with its subfolder');
+          const generation=f.index.generation;
+          f.deleteTree('no-delivery');
+          f.index.notifyNativeFolderDeletion();
+          ok(f.index.state.pages.has(removed)&&f.index.state.pages.has(child),'Canonical pages remain until semantic repair');
+          ok(!f.index.get(removed)&&!f.index.getNeighborhood(child),'Deleted centers are unavailable immediately');
+          ok(!children(parent).includes(removed)&&f.index.get(parent),'Live parent drops the stale folder row');
+          equal(f.index.generation,generation,'Retiring the display does not publish a semantic build');
+          equal(f.wholePasses,0,'Retiring the display does not schedule a source scan');
+          return true;
+        }finally{f.close();}
+      })()`),true);
+    });
+    for(const order of ['folder-only','parent-first','child-first'])await t.test('populated deletion converges through known owners for '+order,async()=>{
+      assert.equal(await browser.evaluate(`(async()=>{
+        const f=await folderWaveFixture({deleteTree:true,unrelated:12});
+        try{
+          const {note,attachment,imported}=f.tree;
+          equal((await f.repo.inspect(note.path,[])).reason,'ready','Actual source head exists before deletion');
+          ok((await folderResolution(f,'Ref.md')).some(row=>row.target===note.path),'Dependent originally resolves to the imported source');
+          f.plugin.dirtyMarkdownPaths.add(note.path);f.plugin.managedMetadataWrites.set(note.path,1);
+          const builds=f.index.getSemanticPreparationDiagnostics().fullBuilds;
+          f.reset();f.deleteTree(${JSON.stringify(order)});
+          while(f.index.hasPendingStructuralMaintenance())await new Promise(resolve=>setTimeout(resolve,0));
+          equal(f.closeWave(),0,'Exact subtree deletion cannot admit global resolution');
+          ok(await f.settle(),'Known deletion and dependent source facts settle');
+          equal((await f.repo.inspect(note.path,[])).reason,'tombstone','Folder-only deletion retires the original durable source');
+          ok(!(await folderResolution(f,'Ref.md')).some(row=>row.target===note.path),'Surviving referrer loses physical resolution');
+          ok(!f.index.get(note.path)?.file&&!f.index.get(attachment.path)?.file&&!f.index.get('folder:'+imported.path),'Canonical physical subtree retired');
+          ok(f.index.get('folder:Journal')?.isFolder,'Parent physical endpoint survives');
+          ok(!f.plugin.dirtyMarkdownPaths.has(note.path)&&!f.plugin.managedMetadataWrites.has(note.path),'Folder-only retirement clears the ordinary source patch backlog');
+          equal(f.wholePasses,0,'Source-local deletion starts no global inventory');
+          equal(f.index.getSemanticPreparationDiagnostics().fullBuilds,builds,'Source-local deletion starts no full build');
+          equal(f.summary.reads,[],'Deletion and resolution repair read no note bodies');
+          equal(f.summary.parses,0,'Deletion and resolution repair parse no note bodies');
+          return true;
+        }finally{f.close();}
+      })()`),true);
+    });
+    await t.test('native detached inner folder arrives before its registered children and then its outer folder',async()=>{
+      assert.equal(await browser.evaluate(`(async()=>{
+        const f=await folderWaveFixture({deleteTree:true,sourceBacked:true});try{
+          const {imported,nested,note,attachment}=f.tree,empty=nested.children.find(item=>item.path.endsWith('/Empty'));
+          f.plugin.initialIndexComplete=false;f.reset();
+          const removeFolder=folder=>{
+            f.folders.delete(folder.path);folder.parent.children=folder.parent.children.filter(item=>item!==folder);folder.parent=null;
+            f.f.app.vault.trigger('delete',folder);
+          };
+          removeFolder(nested);
+          ok(f.f.app.vault.getFileByPath(note.path)===note,'Obsidian still registers the affected child in its inner-folder callback');
+          ok(f.index.get(note.path)?.file===note,'The first callback leaves a still-live file alone');
+          removeFolder(empty);
+          for(const file of [note,attachment]){
+            f.f.files.delete(file.path);f.f.metadata.delete(file.path);f.f.texts.delete(file.path);
+            nested.children=nested.children.filter(item=>item!==file);
+            f.f.app.vault.trigger('delete',file);
+          }
+          f.f.app.metadataCache.resolvedLinks['Ref.md']={'Note.md':1};
+          f.f.app.metadataCache.unresolvedLinks['Ref.md']={'Journal/Date/Note':1,Alias174:1};
+          removeFolder(imported);
+          await f.index.waitForStructuralMaintenance();
+          ok(!f.index.get(note.path)?.file&&!f.index.get('folder:'+nested.path)&&!f.index.get('folder:'+imported.path),'Each former member is retired');
+          equal(f.rebuildRequests,[],'Later outer callback does not schedule a full graph rebuild');
+          const a=f.index.sourceAcquisition,proof={physical:f.index.completePhysicalFolderInventory,uncovered:a.uncoveredResolverSinceClose,
+            folders:[...a.nativeFolderMutationWave].map(([folder,witness])=>[folder.name,witness.current?.()??null])};
+          equal(f.closeWave(),0,'The observed native wave retains source qualification '+JSON.stringify(proof));
+          ok(await f.settle(),'Local source changes settle');
+          equal(f.wholePasses,0,'Native ordering requires no additional global inventory');
+          equal((await f.repo.inspect(note.path,[])).reason,'tombstone','Durable retirement also closes');
+          return true;
+        }finally{f.close();}
+      })()`),true);
+    });
+    for(const lateChild of [false,true])await t.test('populated rename preserves exact old/new owners with late child events '+lateChild,async()=>{
+      assert.equal(await browser.evaluate(`(async()=>{
+        const f=await folderWaveFixture({deleteTree:true,nativeRename:true,unrelated:12});
+        try{
+          const {note,imported}=f.tree,oldPath=note.path,oldFolder=imported.path;
+          equal((await f.repo.inspect(oldPath,[])).reason,'ready','Original durable input selected');
+          f.reset();f.plugin.dirtyMarkdownPaths.add(oldPath);const pending=f.renameTree('Journal/Renamed',${lateChild});
+          ok(!f.plugin.dirtyMarkdownPaths.has(oldPath)&&f.plugin.dirtyMarkdownPaths.has(note.path),'Queued edits follow the new native path before the resolver closes');
+          equal(f.closeWave(),0,'A fully observed populated rename stays local at resolver close');
+          await pending;ok(await f.settle(),'Moved source and referrers converge');
+          equal((await f.repo.inspect(oldPath,[])).reason,'tombstone','Old durable source coordinates are retired');
+          equal((await f.repo.inspect(note.path,[])).reason,'ready','New source coordinates are durable');
+          ok((await folderResolution(f,'Ref.md')).some(row=>row.target===note.path),'Surviving referrer binds the current native path');
+          ok(f.index.get(note.path)?.file===note&&!f.index.get(oldPath)?.file,'Canonical graph follows the same TFile');
+          ok(f.index.get('folder:'+imported.path)?.isFolder&&!f.index.get('folder:'+oldFolder),'Folder membership follows the new path');
+          equal(f.wholePasses,0,'Qualified populated rename starts no global source inventory');
+          ok(f.summary.reads.every(path=>path===note.path||path==='Ref.md'),'Only actual moved/referrer owners may read');
+          return true;
+        }finally{f.close();}
+      })()`),true);
+    });
+    await t.test('deleting a partial import before its first resolver close retains finite coverage',async()=>{
+      assert.equal(await browser.evaluate(`(async()=>{
+        const f=await folderWaveFixture({nativeDelete:true});
+        try{
+          const tree=f.createImportTree();f.deleteTree('folder-only');
+          equal(f.closeWave(),0,'Create/delete burst does not poison a proved subtree');
+          ok(await f.settle(),'The partial import retires and settles');
+          ok(!f.index.get(tree.note.path)?.file&&!f.index.get('folder:'+tree.imported.path),'No partial physical graph owners remain');
+          equal(f.wholePasses,0,'Partial import deletion stays source-local');
+          return true;
+        }finally{f.close();}
+      })()`),true);
+    });
+    await t.test('late delete and resolve callbacks leave a same-path replacement authoritative',async()=>{
+      assert.equal(await browser.evaluate(`(async()=>{
+        const f=await folderWaveFixture({deleteTree:true});
+        try{
+          const prior=f.tree,old=(await f.repo.inspect(prior.note.path,[])).head;
+          f.deleteTree('folder-only');equal(f.closeWave(),0,'First deletion is covered');
+          const replacement=f.createImportTree();
+          f.f.app.vault.trigger('delete',prior.note);f.f.app.vault.trigger('delete',prior.imported);
+          f.f.app.metadataCache.trigger('changed',prior.note);f.f.app.metadataCache.trigger('resolve',prior.note);
+          equal(f.closeWave(),0,'Replacement and late obsolete events retain exact proof');
+          ok(await f.settle(),'Replacement head settles');
+          const current=await f.repo.inspect(replacement.note.path,[]);
+          ok(current.reason==='ready'&&current.head.physical.identity!==old.physical.identity,'A successor uses a fresh durable identity');
+          ok(f.index.get(replacement.note.path)?.file===replacement.note,'Neither stale callback dematerializes the replacement');
+          equal(f.wholePasses,0,'No broad recovery for known stale callbacks');
+          return true;
+        }finally{f.close();}
+      })()`),true);
+    });
+    await t.test('a replaced native parent rejects subtree qualification',async()=>{
+      assert.equal(await browser.evaluate(`(async()=>{
+        const f=await folderWaveFixture({deleteTree:true});
+        try{
+          f.deleteTree('folder-only',()=>{
+            f.root.children=f.root.children.filter(item=>item!==f.established);
+            f.folder(f.established.path,f.root);
+          });
+          equal(f.closeWave(),1,'Different native parent cannot certify a deleted subtree');
+          ok(await f.settle(),'Conservative fallback closes');equal(f.wholePasses,1,'Fallback admits one actual inventory');
+          return true;
+        }finally{f.close();}
+      })()`),true);
+    });
+    await t.test('a delete event still naming a live native entry schedules conservative graph work without premature erasure',async()=>{
+      assert.equal(await browser.evaluate(`(async()=>{
+        const f=await folderWaveFixture({deleteTree:true});
+        try{
+          const {imported,note}=f.tree;
+          f.f.app.vault.trigger('delete',imported);
+          ok(f.index.get('folder:'+imported.path)?.isFolder&&f.index.get(note.path)?.file===note,'No endpoint removed ahead of native absence');
+          equal(f.rebuildRequests,['vault:delete'],'Existing main rebuild owner handles the ambiguous physical event');
+          ok(!f.index.completePhysicalFolderInventory,'Unproved event cannot retain physical absence authority');
+          f.deleteTree('no-delivery');
+          equal(f.closeWave(),1,'Source resolution remains conservative until independently reconciled');
+          ok(await f.settle(),'Actual source fallback closes after native absence');
+          equal(f.wholePasses,1,'One resolver recovery is admitted');
+          return true;
+        }finally{f.close();}
+      })()`),true);
+    });
+    await t.test('a fixed deleted subtree touches the same source work with a larger unrelated inventory',async()=>{
+      const results=[];
+      for(const unrelated of [3,384])results.push(await browser.evaluate(`(async()=>{
+        const f=await folderWaveFixture({deleteTree:true,unrelated:${unrelated}});
+        try{
+          f.deleteTree('folder-only');equal(f.closeWave(),0,'Proved deletion stays local');ok(await f.settle(),'Actual local repair settles');
+          return {inspections:f.work.inspections.length,visits:f.work.visits.length,writes:f.work.writes.length,...f.summary};
+        }finally{f.close();}
+      })()`));
+      assert.deepEqual(results[1],results[0]);
+    });
+  } finally {await browser.cleanup();}
+});
+
+test('qualified deletion retains custom ontology and a retired source across two persisted graph owners',async()=>{
+  const browser=await chromiumHarness(bundle);
+  try {
+    assert.equal(await browser.evaluate(contributorBrowserInitialize),true);assert.equal(await browser.evaluate(initialize),true);
+    const restoreWork=await browser.evaluate(`(async()=>{
+      const M=sourceModules;
+      const restore=async deleted=>{
+        const f=await folderWaveFixture({deleteTree:deleted});let restored;
+        try{
+          const friendSurvives=index=>index.evidenceBetween('Ref.md','Note.md').some(row=>(row.fieldName??'').toLowerCase()==='friends');
+          ok(friendSurvives(f.index),'The surviving referrer starts with authored custom ontology');
+          if(deleted){
+            f.deleteTree('folder-only');equal(f.closeWave(),0,'Exact physical deletion stays local');
+            ok(await f.settle(),'Source tombstone and local referrer repair settle');
+            await f.index.eagerGraphMaintenanceTask;
+            equal(f.index.sourceAcquisition.pendingGraphSources()?.size,0,'Actual graph reconciliation drained all affected owners');
+          }
+          ok(friendSurvives(f.index),'The unrelated target keeps the authored ontology');
+          ok(await f.index.persistIndexedDbSnapshot(f.index.snapshotPersistGeneration),'The ordinary writer saves the reconciled graph');
+          const saved=(await f.index.indexedDb.readSnapshotCatalog()).active?.generation;
+          ok(saved,'The complete snapshot has an active generation');
+          f.index.destroy();f.reset();
+          const owners=[];
+          for(let attempt=0;attempt<2;attempt++){
+            restored=new M.GraphIndex(f.plugin,f.f.app);f.plugin.index=restored;restored.scheduleOrphanCleanup=()=>{};
+            const work={replace:0,tombstone:0,headPage:0},repo=restored.sourceAcquisition.repository;
+            for(const key of Object.keys(work)){
+              const original=repo[key];repo[key]=function(...args){work[key]++;return original.apply(this,args);};
+            }
+            ok((await restored.restorePersistedSnapshot(['Ref.md'],{deferEagerVocabulary:true})).restored,'Compatible saved preview reopens');
+            ok((await restored.waitForSnapshotHydration()).restored,'Complete repaired graph reopens');
+            ok(friendSurvives(restored),'Referrer and authored custom ontology survive reopening');
+            if(deleted){
+              const {note,imported}=f.tree;
+              ok(!restored.get(note.path)?.file&&!restored.get('folder:'+imported.path),'Deleted physical paths stay absent');
+              equal((await repo.inspect(note.path,[])).reason,'tombstone','Deleted source stays retired');
+            }
+            const counters=restored.getSourceAcquisitionCounters();
+            equal([counters.checked,counters.vaultReads,counters.parses],[0,0,0],'No source revalidation, body reads or parsing');
+            equal([work.replace,work.tombstone],[0,0],'No source rewrite');
+            equal(restored.getSemanticPreparationDiagnostics().fullBuilds,0,'No full rebuild on compatible cache reuse');
+            equal((await restored.indexedDb.readSnapshotCatalog()).active?.generation,saved,'Warm reuse retains the same complete generation');
+            owners.push({headPages:work.headPage,wholePasses:f.wholePasses});
+            restored.destroy();restored=null;
+          }
+          equal(f.summary.reads,[],'Neither warm owner reads Markdown bodies');
+          return owners;
+        }finally{restored?.destroy();f.close();}
+      };
+      return [await restore(false),await restore(true)];
+    })()`);
+    assert.deepEqual(restoreWork[1],restoreWork[0],'Past deletion adds no metadata inventory beyond the unchanged restart path');
+  } finally {await browser.cleanup();}
+});
+
 test('folder creation wave uses complete physical ownership and real source-local finality',async(t)=>{
   const browser=await chromiumHarness(bundle);
   try {
@@ -347,6 +637,24 @@ test('folder creation wave uses complete physical ownership and real source-loca
       })()`),true);
     });
 
+    await t.test('a source-backed physical baseline can retire a populated tree before semantic startup completes',async()=>{
+      assert.equal(await browser.evaluate(`(async()=>{
+        const f=await folderWaveFixture({sourceBacked:true,deleteTree:true});try{
+          f.plugin.initialIndexComplete=false;const reasons=[];let cancelled=0;
+          f.plugin.scheduleRebuild=reason=>reasons.push(reason);f.index.cancelRebuild=()=>cancelled++;
+          ok(f.index.canApplyLocalPhysicalCreate(),'Exact physical baseline independently of semantic startup');
+          f.reset();f.deleteTree('folder-only');
+          equal(reasons,[],'The deletion adds no reason for a full build');
+          equal(cancelled,0,'A bounded delete cannot cancel the initial semantic owner');
+          ok(!f.index.get(f.tree.note.path)?.file&&!f.index.get('folder:'+f.tree.imported.path),'Physical endpoints disappear immediately');
+          equal(f.closeWave(),0,'The delete wave is fully attributed');
+          ok(await f.settle(),'Local source retirement settles');
+          equal((await f.repo.inspect(f.tree.note.path,[])).reason,'tombstone','Recursive Markdown inputs retired');
+          equal(f.wholePasses,0,'No global inventory for a proven deletion');return true;
+        }finally{f.close();}
+      })()`),true);
+    });
+
     await t.test('body-free bootstrap lacking main physical admission remains conservative',async()=>{
       assert.equal(await browser.evaluate(`(async()=>{
         const f=await folderWaveFixture({physicalBootstrap:true});try{
@@ -370,6 +678,34 @@ test('folder creation wave uses complete physical ownership and real source-loca
           ok(f.index.state.pages.size<before,'Producer really clips unrelated physical membership');equal(f.index.completePhysicalFolderInventory,false,'Atomic partial publisher clears old physical proof');
           f.createFolder(f.folder('Journal/Date',f.established));const file=f.target();f.createFile(file);equal(f.closeWave(),1,'Clipped state never lends negative folder authority');return true;
         }finally{f.close();}
+      })()`),true);
+    });
+
+    await t.test('folder burst waits for saved hydration and drains the latest native state',async()=>{
+      assert.equal(await browser.evaluate(`(async()=>{
+        const f=await folderWaveFixture({heldHydration:true,deleteTree:true});try{
+          const deleted=f.tree.note;
+          f.deleteTree('folder-only');
+          f.index.notifyNativeFolderDeletion();
+          ok(!f.index.get('folder:Journal/Date'),'Deleted folder is retired from display during hydration');
+          const replacement=f.createImportTree().note;
+          ok(replacement!==deleted&&replacement.path===deleted.path,'Reimport uses a new native identity at the old path');
+          const newFile=f.add('New friend.md','Friends:: [[Ref]]');f.createFile(newFile);
+          f.closeWave();
+          await new Promise(resolve=>window.setTimeout(resolve,1500));
+          ok(f.index.hasPendingSnapshotHydration(),'Evidence hydration is still held past the native event quiet window');
+          equal(f.index.sourceAcquisition.getRecoveryDiagnostics().inventoryActive,false,'Background source inventory has not started');
+          equal(f.wholePasses,0,'No whole-source pass runs beside saved hydration');
+          f.heldHydration.release();await f.heldHydration.done;await f.heldHydration.task;await f.heldHydration.restoring;
+          // Observe the automatic wake. An explicit flush here would hide a stranded backlog.
+          const until=Date.now()+5000;
+          while(!f.index.sourceAcquisition.hasSemanticDependencies()&&Date.now()<until)await new Promise(resolve=>window.setTimeout(resolve,25));
+          ok(f.index.sourceAcquisition.hasSemanticDependencies(),'Queued source work settles automatically after hydration');
+          equal(f.wholePasses,1,'One conservative pass settles the unproven burst');
+          ok((await folderResolution(f,replacement.path)).some(row=>row.target==='Other.md'),'Reimported source survives deferred deletion repair');
+          ok((await folderResolution(f,newFile.path)).some(row=>row.target==='Ref.md'),'The independent edit settles with the same backlog');
+          return true;
+        }finally{f.heldHydration.release();await f.heldHydration.done;await f.heldHydration.task;await f.heldHydration.restoring;f.close();}
       })()`),true);
     });
 
@@ -483,8 +819,19 @@ test('folder creation wave uses complete physical ownership and real source-loca
         try{
           f.createFolder(f.folder('Journal/Date',f.established));let entered;const held=new Promise(resolve=>{entered=resolve}),gate=new Promise(resolve=>{release=resolve});
           f.index.preparePresentationPublication=async function(...args){entered();await gate;return prepare.apply(this,args)};
-          build=f.index.rebuild();await held;equal(f.closeWave(),1,'Active real build cannot retain the old folder witness');
-          release();await build;f.index.preparePresentationPublication=prepare;ok(await f.settle(),'Build and source fallback close');ok(f.wholePasses>0,'Interrupted folder proof requires real source inventory');return true;
+          build=f.index.rebuild({diagnostics:{trigger:'vault:create',backlog:['vault:create'],pendingMarkdown:0}});await held;
+          const active=f.index.getGraphBuildDiagnostics().active;
+          equal(active.phase,'presentation','The real builder reports where publication is waiting');
+          equal(active.processedNotes,active.totalNotes,'Markdown processing has finished');
+          ok(active.totalNotes>0&&active.hadCompleteGraph&&active.inventoryPauseRequested,'Admission preserves the warm graph and inventory facts');
+          equal(f.closeWave(),1,'Active real build cannot retain the old folder witness');
+          release();const published=await build;f.index.preparePresentationPublication=prepare;
+          const trace=f.index.getGraphBuildDiagnostics(),receipt=trace.recent.at(-1);
+          equal(trace.active,null,'The settled builder leaves no active receipt');
+          equal(receipt.trigger,'vault:create','The actual build retains its own admission trigger');
+          equal(receipt.outcome==='complete',published,'The receipt follows the actual publication outcome');
+          ok(receipt.phaseMs['bind-graph']>=0&&receipt.phaseMs.presentation>=0,'Compiler and presentation durations are separate');
+          ok(await f.settle(),'Build and source fallback close');ok(f.wholePasses>0,'Interrupted folder proof requires real source inventory');return true;
         }finally{release?.();if(build)await build;f.index.preparePresentationPublication=prepare;f.close();}
       })()`),true);
     });
@@ -516,7 +863,10 @@ test('folder creation wave uses complete physical ownership and real source-loca
           f.index.updateHostFolderAvailability=async()=>{entered();await gate;throw new Error('held structural interruption');};
           const mode=${JSON.stringify(mode)},old=moved.path;f.folders.delete(old);
           if(mode==='rename'){moved.path='Moved';moved.name='Moved';f.folders.set(moved.path,moved);f.f.app.vault.trigger('rename',moved,old);terminal=f.index.renameFolder(old,moved);}
-          else{f.root.children=f.root.children.filter(item=>item!==moved);f.f.app.vault.trigger('delete',moved);terminal=f.index.removeDeletedFolder(moved);}
+          else{
+            const unobserved=f.folder(moved.path+'/Hidden',moved);f.folders.delete(unobserved.path);
+            f.root.children=f.root.children.filter(item=>item!==moved);f.f.app.vault.trigger('delete',moved);terminal=f.index.removeDeletedFolder(moved);
+          }
           terminal=terminal.then(()=>null,error=>error.message);await held;equal(f.index.completePhysicalFolderInventory,false,'Structural admission immediately retires proof');
           f.closeWave();ok(await f.settle(),'Existing conservative resolver maintenance closes');release();equal(await terminal,'held structural interruption','Actual owner rejects at its held await');
           equal(f.index.pendingStructuralTasks,0,'Actual finally drains ownership');equal(f.index.completePhysicalFolderInventory,false,'Finally does not recreate failed physical proof');f.reset();

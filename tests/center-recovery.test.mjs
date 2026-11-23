@@ -55,7 +55,7 @@ function publicationIndex(pages,listeners){
  return {index,demands,sourceCalls:()=>sourceCalls};
 }
 /** All three retained App projection expressions run against the supplied native/index read ports. */
-function startupProjection({plugin,activePath,exactPage,activePageRef,pendingDocumentFollowRef,pendingDocumentDemandRef={current:null},activeFileRef={current:null},navigationOrigin='user',fallbackPath=null}){
+function startupProjection({plugin,activePath,exactPage,activePageRef,pendingDocumentFollowRef,pendingDocumentDemandRef={current:null},activeFileRef={current:null},navigationOrigin='user',fallbackPath=null,movedFolderPath=null}){
  const waitingForDocumentHandover=${waitingHandover},waitingForDocument=${waitingDocument},waitingForStartupCenter=${startupWaiting};return ${startupPage};
 }
 /** Saved rows precede native tree availability; later publication upgrades the same exact slots. */

@@ -882,6 +882,9 @@ const russianTranslations = {
   "delete.fileButton": "Удалить файл",
   "delete.placeholderButton": "Удалить заполнитель",
   "references.title": "Оставшиеся ссылки",
+  "settings.deletion.showRemainingReferences": "Показывать окно «Оставшиеся ссылки»",
+  "references.neverShowAgain": "Больше не показывать",
+  "references.savePreferenceFailed": "Не удалось сохранить настройку показа оставшихся ссылок.",
   "references.help": "K-Plex удалил ссылки на «{name}» из свойств. Ссылки ниже находятся в Markdown-тексте и оставлены для ручной проверки.",
   "references.markdownLink": "Markdown-ссылка",
   "references.unresolvedMarkdownLink": "Неразрешённая Markdown-ссылка",
@@ -898,6 +901,11 @@ const russianTranslations = {
   "noteType.title": "Задать тип заметки",
   "noteType.placeholder": "например, проект",
   "rename.title": "Переименовать заметку",
+  "rename.folderTitle": "Переименовать папку",
+  "rename.folderPlaceholder": "Имя папки",
+  "rename.invalidFolderName": "Введите допустимое имя папки без разделителей пути.",
+  "rename.folderFailed": "Не удалось переименовать папку: {error}",
+  "rename.folderChanged": "Исходная папка или её расположение изменились. Откройте диалог переименования снова.",
   "rename.folderSeparators": "Переименование изменяет только имя заметки. Разделители папок не допускаются.",
   "rename.failed": "Не удалось переименовать заметку: {error}",
   "rename.placeholder": "Имя заметки",
@@ -1343,6 +1351,7 @@ const russianTranslations = {
   "graph.openPopoutWindow": "Открыть в отдельном окне",
   "graph.setNoteType": "Задать тип заметки…",
   "graph.renameNote": "Переименовать заметку…",
+  "graph.renameFolder": "Переименовать папку…",
   "graph.unpinNote": "Открепить заметку",
   "graph.pinNote": "Закрепить заметку",
   "graph.deleteNote": "Удалить заметку…",
@@ -2053,6 +2062,12 @@ const russianTranslations = {
   "creation.action": "Действие",
   "creation.typeStatus": "Создать {name} как {type}.",
 
+  "settings.confirmFolderDelete": "Подтверждать удаление папок",
+  "settings.confirmCanvasFolderMove": "Подтверждать перемещение в папку на холсте",
+  "settings.confirmationPreferenceFailed": "Не удалось сохранить настройку подтверждения.",
+  "delete.folderConfirm": "Переместить «{name}» и всё содержимое в корзину, настроенную в Obsidian?",
+  "delete.folderFailed": "Не удалось удалить папку. {error}",
+  "graph.deleteFolder": "Удалить папку",
 } as const satisfies LocaleTranslationMap;
 
 return buildLocaleCatalog(russianTranslations);

@@ -419,6 +419,18 @@ test("automatic ontology cleanup migrates, persists and stays local during forei
   assert.deepEqual(saves, [[false, false]], "Workflow preference does not request semantic reconstruction");
 });
 
+test("the Remaining references preference defaults on and can be restored after persisting the opt-out", async () => {
+  assert.equal(defaults.showRemainingReferencesOnDelete, true);
+  const off = migrateAndMergeSettings({ showRemainingReferencesOnDelete: false });
+  assert.equal(migrateAndMergeSettings(JSON.parse(JSON.stringify(off))).showRemainingReferencesOnDelete, false);
+  assert.equal(importExcaliBrainGraphSettings({ ...fixture, showRemainingReferencesOnDelete: true }, off).showRemainingReferencesOnDelete, false);
+  const saves = [];
+  const plugin = { settings: off, saveSettings: async (...args) => { saves.push(args); } };
+  await new KplexSettingTab({}, plugin).setControlValue("showRemainingReferencesOnDelete", true);
+  assert.equal(plugin.settings.showRemainingReferencesOnDelete, true);
+  assert.deepEqual(saves, [[false, false]]);
+});
+
 test("remote node image consent is explicit, durable and independent of foreign graph settings", /** Only boolean true grants permission; no semantic signature changes. */ () => {
   for (const value of [undefined, null, false, "true", "false", 1, {}, []]) {
     assert.equal(migrateAndMergeSettings({ allowRemoteNodeImages: value }).allowRemoteNodeImages, false);

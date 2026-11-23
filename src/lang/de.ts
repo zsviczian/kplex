@@ -880,6 +880,9 @@ const germanTranslations = {
   "delete.fileButton": "Datei löschen",
   "delete.placeholderButton": "Platzhalter löschen",
   "references.title": "Verbleibende Verweise",
+  "settings.deletion.showRemainingReferences": "Dialog „Verbleibende Verweise“ anzeigen",
+  "references.neverShowAgain": "Nicht mehr anzeigen",
+  "references.savePreferenceFailed": "Die Einstellung für verbleibende Verweise konnte nicht gespeichert werden.",
   "references.help": "K-Plex hat Eigenschaftsverweise auf „{name}“ entfernt. Die folgenden Links befinden sich im Markdown-Inhalt und bleiben für Ihre manuelle Prüfung bestehen.",
   "references.markdownLink": "Markdown-Link",
   "references.unresolvedMarkdownLink": "Nicht aufgelöster Markdown-Link",
@@ -896,6 +899,11 @@ const germanTranslations = {
   "noteType.title": "Notiztyp festlegen",
   "noteType.placeholder": "z. B. Projekt",
   "rename.title": "Notiz umbenennen",
+  "rename.folderTitle": "Ordner umbenennen",
+  "rename.folderPlaceholder": "Ordnername",
+  "rename.invalidFolderName": "Gib einen gültigen Ordnernamen ohne Pfadtrennzeichen ein.",
+  "rename.folderFailed": "Ordner konnte nicht umbenannt werden: {error}",
+  "rename.folderChanged": "Der ursprüngliche Ordner oder sein Speicherort hat sich geändert. Öffne den Umbenennungsdialog erneut.",
   "rename.folderSeparators": "Beim Umbenennen wird nur der Notizname geändert. Ordnertrennzeichen sind nicht zulässig.",
   "rename.failed": "Notiz konnte nicht umbenannt werden: {error}",
   "rename.placeholder": "Notizname",
@@ -1341,6 +1349,7 @@ const germanTranslations = {
   "graph.openPopoutWindow": "In Pop-out-Fenster öffnen",
   "graph.setNoteType": "Notiztyp festlegen…",
   "graph.renameNote": "Notiz umbenennen…",
+  "graph.renameFolder": "Ordner umbenennen…",
   "graph.unpinNote": "Notiz lösen",
   "graph.pinNote": "Notiz anheften",
   "graph.deleteNote": "Notiz löschen…",
@@ -2045,6 +2054,12 @@ const germanTranslations = {
   "creation.action": "Aktion",
   "creation.typeStatus": "{name} als {type} erstellen.",
 
+  "settings.confirmFolderDelete": "Vor dem Löschen von Ordnern bestätigen",
+  "settings.confirmCanvasFolderMove": "Verschieben in Ordner auf der Arbeitsfläche bestätigen",
+  "settings.confirmationPreferenceFailed": "Die Bestätigungseinstellung konnte nicht gespeichert werden.",
+  "delete.folderConfirm": "„{name}“ und den gesamten Inhalt in den von Obsidian konfigurierten Papierkorb verschieben?",
+  "delete.folderFailed": "Ordner konnte nicht gelöscht werden. {error}",
+  "graph.deleteFolder": "Ordner löschen",
 } as const satisfies LocaleTranslationMap;
 
 return buildLocaleCatalog(germanTranslations);

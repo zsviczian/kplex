@@ -26,15 +26,18 @@ const userDataPath=process.env.KPLEX_OBSIDIAN_USER_DATA??(process.platform==='wi
 const lock=acquireHostLock({userDataPath}),started=Date.now(),deadline=started+900000;
 const folder='__kplex302_restart_'+Date.now(),paths={folder,a:folder+'/Baseline source.md',b:folder+'/Baseline target.md',added:folder+'/Added source.md',target:folder+'/Added target.md'};
 const emptyLinkMode=process.argv.includes('--empty-links');
+const folderRemovalMode=process.argv.includes('--folder-removal');
+const subtree={root:folder+'/Imported',nested:folder+'/Imported/Level1',deep:folder+'/Imported/Level1/Level2',
+ removed:folder+'/Imported/Level1/Level2/Removed.md',surviving:folder+'/Surviving referrer.md'};
 const emptyFixtures=emptyLinkMode?[
  {path:folder+'/Empty313.md',body:'see [[ ]] here'},
  {path:folder+'/Repeated313.md',body:'see [[ ]] here and [[ ]] again'},
  {path:folder+'/Self313.md',body:'see [[Self313]] here',selfCount:1},
  {path:folder+'/Code313.md',body:'see `[[ ]]` here',selfCount:0},
 ]:[];
-const plannedFiles=[paths.a,paths.b,paths.added,paths.target,...emptyFixtures.map(fixture=>fixture.path)];
+const plannedFiles=[paths.a,paths.b,paths.added,paths.target,...emptyFixtures.map(fixture=>fixture.path),...(folderRemovalMode?[subtree.removed,subtree.surviving]:[])];
 const report={status:'failed',startedAt:new Date(started).toISOString(),node:process.version,platform:process.platform,
- lifecycle:'Obsidian app:reload application renderer; Electron process retained',isolation:[],cycles:[],paths,emptyLinkMode,
+ lifecycle:'Obsidian app:reload application renderer; Electron process retained',isolation:[],cycles:[],paths,emptyLinkMode,folderRemovalMode,
  limitation:'Small functional cache/source-work acceptance. Observed DOM timing is a polling upper bound, not a paint trace or large-vault latency result.'};
 const configPaths=[join(target.pluginDir,'data.json'),join(target.config,'community-plugins.json'),join(target.config,'workspace.json')];
 let originalConfig,originalNative,setupStarted=false,activeCenter=paths.a;
@@ -148,20 +151,48 @@ try{
  if(emptyLinkMode)await task('Create native empty-link controls',`const p=app.plugins.plugins['k-plex'];
  for(const fixture of ${JSON.stringify(emptyFixtures.map(fixture=>({path:fixture.path,content:'---\nOpposes302: '+JSON.stringify('[['+paths.b+']]')+'\n---\n'+fixture.body+'\n'})))})await app.vault.create(fixture.path,fixture.content);
  await p.settingsWriteQueue;return {created:${emptyFixtures.length}};`);
+ if(folderRemovalMode)await task('Create populated subtree and surviving referrer',`const owned=${JSON.stringify(subtree)};
+ for(const path of [owned.root,owned.nested,owned.deep])await app.vault.createFolder(path);
+ await app.vault.create(owned.removed,${JSON.stringify('---\nOpposes302: '+JSON.stringify('[['+paths.b+']]')+'\n---\n')});
+ await app.vault.create(owned.surviving,${JSON.stringify('See [['+subtree.removed+']].\n')});return {created:true};`);
  await task('Open owned baseline canvas',`const p=app.plugins.plugins['k-plex'],leaf=app.workspace.getLeaf('tab');await leaf.setViewState({type:'k-plex-react-view',active:true});await app.workspace.revealLeaf(leaf);await leaf.view.waitUntilReady();p.notifyNavigation(${JSON.stringify(paths.a)},leaf);await p.settingsWriteQueue;return {leafId:leaf.id};`);
  report.preparation=await observe('naturally-activated-custom-baseline',undefined,360000);
  const baseline=await savedProof();assertSaved(baseline,paths.a,paths.b);report.preparation.saved=baseline;save();
+ if(folderRemovalMode)assertSaved(baseline,subtree.removed,paths.b);
  await reload('unchanged-application-reload-1',baseline);
  await reload('unchanged-application-reload-2',baseline);
  await task('Create pending added owner pair',`const p=app.plugins.plugins['k-plex'],paths=${JSON.stringify(paths)};await app.vault.create(paths.target,'');await app.vault.create(paths.added,${JSON.stringify('---\nOpposes302: '+JSON.stringify('[['+paths.target+']]')+'\n---\n')});const leaf=app.workspace.getLeavesOfType('k-plex-react-view').find(value=>p.documentSession(value)?.centerPath===paths.a)??app.workspace.getLeavesOfType('k-plex-react-view')[0];if(!leaf)throw Error('Owned canvas missing');p.notifyNavigation(paths.added,leaf);await p.settingsWriteQueue;return {created:true};`);
  activeCenter=paths.added;
- const pendingEnd=Math.min(deadline,Date.now()+90000);let pending;
- while(Date.now()<pendingEnd){await delay(250);const s=sample();if(s.pair?.shown&&s.pair?.canonical&&s.fullCurrent&&s.persistence.pending){pending=s;break;}}
- assert(pending,'Added owner never reached canonical authority with a genuinely pending save');
+ /** Observe ordinary pending cache work without flushing or modifying the scheduling policy. */
+ const waitPending=async predicate=>{
+  const end=Math.min(deadline,Date.now()+90000);
+  while(Date.now()<end){await delay(250);const s=sample();if(s.pair?.shown&&s.pair?.canonical&&s.fullCurrent&&s.persistence.pending&&predicate(s))return s;}
+  throw Error('Owned graph never reached canonical authority with a genuinely pending save');
+ };
+ const initialPending=await waitPending(()=>true);
+ if(folderRemovalMode)await task('Delete populated subtree while an edit save is pending',`const owned=${JSON.stringify(subtree)},folder=app.vault.getFolderByPath(owned.root),file=app.vault.getFileByPath(owned.removed),referrer=app.vault.getFileByPath(owned.surviving);
+ if(!folder||!file||!referrer||app.metadataCache.resolvedLinks[referrer.path]?.[file.path]!==1)throw Error('Exact original subtree and referrer required');
+ await app.vault.delete(folder,true);if(app.vault.getAbstractFileByPath(owned.root)||app.vault.getFileByPath(owned.removed))throw Error('Native subtree survived deletion');return {deleted:true};`);
+ const pending=folderRemovalMode?await waitPending(s=>s.sourceReady&&!s.sourceActive&&!s.inventory&&!s.semanticPending&&!s.repository.unsaved):initialPending;
+ if(folderRemovalMode){
+  assert.equal(pending.work.sourceInventoryPasses,initialPending.work.sourceInventoryPasses,'Provable subtree deletion admitted a global source inventory before reload');
+  assert.equal(pending.semantic.fullBuilds,initialPending.semantic.fullBuilds,'Provable subtree deletion admitted a full graph build before reload');
+ }
  const oldActive=await savedProof();assert.equal(oldActive.meta.generation,baseline.meta.generation,'Old active pointer changed before pending-save boundary');assert(!oldActive.pages.some(row=>row.path===paths.added),'Active generation does not predate added owner');
  report.pendingBeforeReload={sample:pending,saved:oldActive};save();
  const repaired=await reload('pending-save-application-reload',undefined,true);
  assert.notEqual(repaired.saved.meta.generation,baseline.meta.generation,'Pending owner repair never activated a new generation');assert.equal(repaired.saved.meta.settingsSignature,baseline.meta.settingsSignature,'Pending owner recovery changed ontology policy');assertSaved(repaired.saved,paths.added,paths.target);assertSaved(repaired.saved,paths.a,paths.b);
+ if(folderRemovalMode){
+  assert(!repaired.saved.evidence.some(row=>row.by===subtree.removed),'Repaired snapshot revives a deleted source declaration');
+  const deleted=await task('Verify deleted source and surviving referrer after reload',`const p=app.plugins.plugins['k-plex'],owned=${JSON.stringify(subtree)},referrer=app.vault.getFileByPath(owned.surviving);
+  const links=referrer&&app.metadataCache.getFileCache(referrer)?.links;
+  const physical=app.vault.getAbstractFileByPath(owned.root)||p.index.get(owned.removed)?.file;
+  const inspection=await p.index.sourceAcquisition.repository.inspect(owned.removed,[]);
+  return {physical:!!physical,head:!!inspection.head,unresolved:!!links?.length&&!app.metadataCache.getFirstLinkpathDest(links[0].link,referrer.path),
+   body:referrer?await app.vault.read(referrer):null};`);
+  assert.deepEqual(deleted,{physical:false,head:false,unresolved:true,body:'See [['+subtree.removed+']].\n'});
+  report.folderRemoval=deleted;
+ }
  await reload('unchanged-after-pending-repair',repaired.saved);
  report.status='passed';
 }catch(error){report.error=String(error);process.exitCode=1;}
@@ -183,6 +214,7 @@ finally{
    await clean('enable original plugin',()=>task('Cleanup plugin',`if(!app.plugins.plugins['k-plex'])await app.plugins.enablePlugin('k-plex');const next=app.plugins.plugins['k-plex'];if(next?.whenInitialized&&!await next.whenInitialized())throw Error('Cleanup initialization failed');return {enabled:!!next};`,120000,true));
    await clean('retire document following',()=>task('Cleanup document following',`const p=app.plugins.plugins['k-plex'];await (${nativeDocumentSessions.toString()})(p).off();return {retired:true};`,120000,true));
    for(const path of [...plannedFiles].reverse())await clean('owned note '+path,()=>task('Cleanup owned note',`const file=app.vault.getFileByPath(${JSON.stringify(path)});if(file)await app.vault.delete(file,true);return {removed:!app.vault.getFileByPath(${JSON.stringify(path)})};`,120000,true));
+   if(folderRemovalMode)for(const path of [subtree.deep,subtree.nested,subtree.root])await clean('owned import folder '+path,()=>task('Cleanup owned import folder',`const folder=app.vault.getFolderByPath(${JSON.stringify(path)});if(folder){if(folder.children.length)throw Error('Unowned entries in owned import folder');await app.vault.delete(folder,true);}return {removed:true};`,120000,true));
    await clean('owned empty folder',()=>task('Cleanup owned folder',`const folder=app.vault.getFolderByPath(${JSON.stringify(paths.folder)});if(folder){if(folder.children.length)throw Error('Unowned entries in owned folder');await app.vault.delete(folder,true);}return {removed:!app.vault.getFolderByPath(${JSON.stringify(paths.folder)})};`,120000,true));
    await clean('runtime settings',()=>task('Cleanup runtime settings',`const p=app.plugins.plugins['k-plex'];p.settings=${JSON.stringify(originalNative.settings)};await p.saveSettings(false,false);await p.settingsWriteQueue;return {restored:true};`,120000,true));
    await clean('native layout and sessions',()=>task('Cleanup layout and sessions',`const p=app.plugins.plugins['k-plex'];await app.workspace.changeLayout(${JSON.stringify(originalNative.layout)});await (${nativeDocumentSessions.toString()})(p).restore(${JSON.stringify(originalNative.sessions)});await p.settingsWriteQueue;return {restored:true};`,120000,true));

@@ -184,6 +184,7 @@ import { KplexIndexedDbCache, URL_ALIAS_FACET_VERSION, sanitizeIndexDiagnostics,
 import { createGraphState, getGraphPage, type GraphState } from "./GraphState";
 import {centerRelationCounts, type CenterCoverage, type CenterRecoveryDiagnostic, type CenterRelationCounts} from "../core/contracts/centerRecovery";
 import { ACTIVITY_CURRENT_COLUMNS, type ActivityKind, type ActivityOutcome, type ActivityReason } from "../application/IndexingActivity";
+import { GraphBuildDiagnostics, type GraphBuildCancellation, type GraphBuildFailure, type GraphBuildRequest } from "../application/GraphBuildDiagnostics";
 import type { EvidenceRole, EvidenceSourceKind, RelationEvidence } from "./RelationEvidence";
 import { MetadataParser } from "./MetadataParser";
 import {
@@ -305,6 +306,12 @@ type PreparedRelationshipPair = Readonly<{
   relations: ReadonlyMap<string, Relation | undefined>; policyRevision: number; sourceRevision: number;
   maintenanceRevision: number; bytes: number; current: () => boolean;
 }>;
+
+type SavedFileRelationship = Readonly<{ owner: TFile; target: TFile; field: string }>;
+type SavedFileRelationshipObservation = SavedFileRelationship & Readonly<{
+  ownerPath: string; targetPath: string; revision: FileRevision;
+}>;
+const MAX_SAVED_FILE_RELATIONSHIP_PREVIEWS = 64;
 
 /** Collision-free unordered physical/semantic coordinates; opaque node IDs remain adapter-owned. */
 function relationshipPairKey(a: string, b: string): string { return JSON.stringify(a < b ? [a, b] : [b, a]); }
@@ -648,6 +655,10 @@ export class GraphIndex {
   private semanticDemandRevision = new Map<string, number>();
   private semanticDemandCounts = new Map<string, number>();
   private folderRenameTasks = new WeakMap<TFolder, Promise<void>>();
+  private folderDeleteCheck: Promise<void> | null = null;
+  private deferredFolderDeletes: Array<{
+    path: string; apply: () => Promise<number>; resolve: (count: number) => void; reject: (error: unknown) => void;
+  }> = [];
   private pendingStructuralTasks = 0;
   private semanticScopes = new Map<string, PreparedSemanticScope>();
   private releasedSemanticScopePaths = new Set<string>();
@@ -655,6 +666,7 @@ export class GraphIndex {
   private siblingEnrichmentScopes = new WeakMap<PreparedSemanticScope, number>();
   /** Saved pairs compose until a complete matching publication replaces them; there is no arbitrary eviction. */
   private relationshipPairs = new Map<string, PreparedRelationshipPair>();
+  private savedFileRelationships: SavedFileRelationshipObservation[] = [];
   private relationshipPairBytes = 0;
   private relationshipPairRevision = 0;
   private relationshipPairTasks = new Map<string, Promise<boolean>>();
@@ -707,6 +719,7 @@ export class GraphIndex {
   /** One read-only physical certificate audit after uncertain topology recovery; never a semantic builder. */
   private physicalFolderValidationTask: Promise<boolean> | null = null;
   private fullBuildProgress: {processed: number; total: number; stage: "notes" | "relationships" | "presentation"} | null = null;
+  private readonly buildDiagnostics = new GraphBuildDiagnostics(() => performance.now());
   private checkpointSaving = false;
   private rebuildQueued = false;
   private searchEntries: SearchEntry[] = [];
@@ -863,6 +876,7 @@ export class GraphIndex {
         this.retrySourceNodeImpacts();
         this.retryUrlAliasUpgrade();
         this.notifyInitialSourceRecovery();
+        this.plugin.resumeAutomaticRebuildAfterSourceRecovery?.(this);
         // Closure can be the last update: bypass per-note throttling even when semantic retries
         // reuse an already-authoritative graph and therefore emit no publication of their own.
         this.plugin.notifyStartupProgress?.(true);
@@ -876,7 +890,9 @@ export class GraphIndex {
         this.plugin.notifyStartupProgress?.();
       }, plugin.startupDiagnostics, () => this.workScheduler.checkpoint(INDEX_WORK_PRIORITY.background),
       work => this.workScheduler.run(INDEX_WORK_PRIORITY.background, work),
-      path => { void this.refreshVisiblePresentation(path); });
+      path => { void this.refreshVisiblePresentation(path); },
+      () => this.snapshotHydrationTask !== null && this.snapshotHydrationDiagnostics.outcome === "running"
+        && this.snapshotHydrationDiagnostics.phase !== "source-authority");
     this.hostPreview = new HostMetadataPreview(app, () => plugin.settings,
       this.semanticPreparationRuntime(() => !this.diagnosticsClosed, INDEX_WORK_PRIORITY.currentNode));
     // Remove the old parsed-body localStorage payload. IndexedDB is now the only durable index
@@ -1186,7 +1202,7 @@ export class GraphIndex {
     this.snapshotRestoreRequest++;
     this.cancelSnapshotRestoreWait?.();
     this.cancelUrlRestore?.();
-    this.cancelRebuild();
+    this.cancelRebuild("cache-purge");
     this.cancelPendingPersistence();
     this.cancelSnapshotHydration?.();
     this.snapshotHydrationRun += 1;
@@ -2056,7 +2072,7 @@ export class GraphIndex {
   }
 
   /** Retire native membership proofs on every Vault topology event, including pre-restore events.
-   * @param applyingPhysicalCreate Main's existing synchronous native-create admission is open;
+   * @param applyingPhysicalCreate Main's synchronous, proven native delta admission is open;
    * all other callers retain conservative retirement, independently of source validation. */
   invalidateHostStructure(applyingPhysicalCreate = false): void {
     // An event skipped by main's physical-create admission cannot preserve negative membership.
@@ -2187,8 +2203,20 @@ export class GraphIndex {
    * Identity-only startup resolution may retain an unchanged read cover during its replacement;
    * demand retirement still cancels old producers, and no certificate is renewed for that read.
    */
-  refreshVisibleHostMetadataPreviews(changedPath: string, previousSourceRevision = this.plugin.getIndexSourceRevision()): boolean {
+  refreshVisibleHostMetadataPreviews(changedPath: string, previousSourceRevision = this.plugin.getIndexSourceRevision(),
+    savedRelationship?: SavedFileRelationship): boolean {
     if (this.diagnosticsClosed) return false;
+    if (savedRelationship) {
+      const {owner, target, field} = savedRelationship;
+      if (owner !== target && owner.extension === "md"
+        && this.app.vault.getFileByPath(owner.path) === owner && this.app.vault.getFileByPath(target.path) === target) {
+        const otherRelationships = this.savedFileRelationships.filter(item => item.owner !== owner || item.target !== target
+          || normalizeFieldName(item.field) !== normalizeFieldName(field));
+        this.savedFileRelationships = [...otherRelationships.slice(1 - MAX_SAVED_FILE_RELATIONSHIP_PREVIEWS),
+          { owner, target, field, ownerPath: owner.path, targetPath: target.path, revision: captureFileRevision(owner) }];
+        this.emit();
+      }
+    }
     if (this.workScheduler.diagnostics().paused) {
       // Retain the earliest observation. Several source revisions cannot renew an old read/write
       // certificate as one known event when focus returns; ordinary conservative guards apply.
@@ -2499,6 +2527,9 @@ export class GraphIndex {
 
   /** Physical maintenance may use a complete inventory without pretending it is a complete graph. */
   hasPhysicalBaseline(): boolean { return this.fullSnapshotHydrated || this.sourceBackedStartup; }
+
+  /** Exact native topology observation for startup graph retry admission. */
+  getHostStructuralRevision(): number { return this.hostStructuralRevision; }
 
   /** Physical create admission follows the native inventory certificate, not startup's semantic
    * completion flag. A cached source owner can retain this proof while its relationships recover;
@@ -2878,6 +2909,8 @@ export class GraphIndex {
 
   /** Distinguish an actively validating source audit from a settled unavailable relationship scope. */
   hasActiveSourcePreparation(): boolean { return this.sourceAcquisition.getActivityState().sourceActive > 0; }
+  /** Pending required source work can outlive a published graph and its apparent readiness. */
+  hasPendingSourceAuthority(): boolean { return !this.isOnDemandMode() && this.sourceAcquisition.hasPendingSourceAuthority(); }
   /** Waiting on native links is active startup work, independently of a usable cached graph. */
   isWaitingForNativeResolution(): boolean { return this.sourceAcquisition.isWaitingForNativeResolution(); }
 
@@ -3035,11 +3068,11 @@ export class GraphIndex {
   }
 
   /** Let the normal per-file coordinator wait for known tree work instead of patching an intermediate path map. */
-  hasPendingStructuralMaintenance(): boolean { return this.pendingStructuralTasks > 0; }
+  hasPendingStructuralMaintenance(): boolean { return this.pendingStructuralTasks > 0 || this.folderDeleteCheck !== null; }
 
   /** Await cancellable known tree operations; callers check the flag first to preserve the no-work lifecycle ordering. */
   async waitForStructuralMaintenance(): Promise<void> {
-    while (this.pendingStructuralTasks > 0 && !this.diagnosticsClosed) {
+    while (this.hasPendingStructuralMaintenance() && !this.diagnosticsClosed) {
       await new Promise<void>(done => window.setTimeout(done, 25));
     }
   }
@@ -3763,8 +3796,11 @@ export class GraphIndex {
   private semanticPage(path: string): GraphPage | undefined {
     // Direct folder membership belongs to the native Vault tree. Its finite projection remains
     // readable across Markdown/source repair; those unrelated epochs cannot empty a folder view.
-    const nativeFolder = this.hostPreviewScopes.get(path)?.pages.get(path);
-    if (nativeFolder?.isFolder && (path === "folder:/" || this.app.vault.getFolderByPath(path.slice("folder:".length)))) return nativeFolder;
+    if (path.startsWith("folder:")) {
+      if (!this.nativeFolderForPath(path)) return undefined;
+      const preview = this.hostPreviewScopes.get(path)?.pages.get(path);
+      if (preview?.isFolder) return preview;
+    }
     if (/^(?:https?|obsidian):\/\//i.test(path)) {
       path = canonicalWebUrl(path);
       const canonical = this.state.pages.get(path);
@@ -4757,16 +4793,17 @@ export class GraphIndex {
     this.hostPreviewScopes.clear();
     this.semanticPreparationDiagnostics = { ...this.semanticPreparationDiagnostics,
       policyRevision: this.semanticPolicyRevision, lastReason: "semantic-policy-changed" };
-    this.cancelRebuild();
+    this.cancelRebuild("semantic-policy-changed");
     this.cancelSnapshotHydration?.();
     this.snapshotHydrationRun += 1;
     this.cancelPendingPersistence();
   }
 
-  cancelRebuild(): void {
+  cancelRebuild(reason: GraphBuildCancellation = "unspecified"): void {
     this.bodyWarmGeneration += 1;
     this.metadataParser.cancelPending();
     if (!this.building) return;
+    this.buildDiagnostics.cancel(reason);
     this.generation += 1;
     this.rebuildQueued = false;
   }
@@ -5613,6 +5650,7 @@ export class GraphIndex {
    * Published snapshots remain untouched; late cancelled continuations cannot republish their data.
    */
   destroy(): void {
+    this.buildDiagnostics.cancel("unload");
     this.retirePhysicalFolderInventory();
     this.snapshotRestoreRequest++;
     this.cancelSnapshotRestoreWait?.();
@@ -5657,6 +5695,7 @@ export class GraphIndex {
     this.releasedSemanticScopePaths.clear();
     this.hostPreviewScopes.clear();
     this.relationshipPairs.clear();
+    this.savedFileRelationships = [];
     this.relationshipPairBytes = 0;
     this.relationshipPairRevision++;
     this.semanticPreparationTasks.clear();
@@ -6723,6 +6762,7 @@ export class GraphIndex {
     void task.then(() => {
       if (this.snapshotHydrationTask !== task) return;
       this.snapshotHydrationTask = null;
+      this.sourceAcquisition.resumeQueuedInventory();
       this.retryUrlAliasUpgrade();
       // Status consumers distinguish cache hydration from later reconciliation/indexing. Publish
       // that phase boundary even when the graph itself did not change at task completion.
@@ -6840,6 +6880,9 @@ export class GraphIndex {
   getIndexDiagnostics(): IndexDiagnosticEntry[] {
     return sanitizeIndexDiagnostics(this.indexDiagnostics);
   }
+
+  /** Current build and bounded completed receipts, independent of the shared activity slots. */
+  getGraphBuildDiagnostics() { return this.buildDiagnostics.snapshot(this.fullBuildProgress); }
 
   /** Safe, synchronous snapshot facts for a user-shared report. Clipboard writes need the user gesture. */
   getSavedSnapshotSummary(): {
@@ -7745,7 +7788,7 @@ export class GraphIndex {
    */
   async rebuildProgressively(
     seedPaths: readonly string[] = [],
-    options: Readonly<{ prewarmBodyCache?: boolean; onCommitted?: (path: string) => void }> = {},
+    options: Readonly<{ prewarmBodyCache?: boolean; onCommitted?: (path: string) => void; diagnostics?: GraphBuildRequest }> = {},
   ): Promise<boolean> {
     if (this.building) {
       this.rebuildQueued = true;
@@ -7767,7 +7810,11 @@ export class GraphIndex {
     const graphPublication = this.sourceAcquisition.beginGraphPublication();
     const graphMaintenance = this.sourceAcquisition.getMaintenanceRevision();
     const activity = this.beginIndexActivity("full-build", "unknown");
+    this.buildDiagnostics.begin("progressive", options.diagnostics, {hadCompleteGraph: this.fullSnapshotHydrated,
+      sourcePreparationActiveAtStart: this.hasActiveSourcePreparation(), sourceAuthorityReadyAtStart: this.sourceAcquisition.hasSemanticDependencies(),
+      inventoryPauseRequested: false});
     let activityOutcome: ActivityOutcome = "incomplete";
+    let failure: GraphBuildFailure | null = "compiler-incomplete";
     let workPriority: IndexWorkPriority = INDEX_WORK_PRIORITY.background;
     let releaseWork = this.workScheduler.begin(workPriority);
     const visibleEdits = new Map<string, TFile>();
@@ -7813,6 +7860,8 @@ export class GraphIndex {
       const markdownFiles = this.app.vault.getMarkdownFiles();
       const markdownByPath = new Map(markdownFiles.map((file) => [file.path, file] as const));
       const indexedPaths = new Set<string>(resuming ? this.resumableCheckpointPaths ?? [] : []);
+      this.buildDiagnostics.phase("foreground-preview");
+      this.buildDiagnostics.progress(indexedPaths.size, markdownFiles.length);
       let centerPath: string | null = null;
       for (const seed of seedPaths) {
         const page = getGraphPage(next, seed);
@@ -7838,6 +7887,7 @@ export class GraphIndex {
         });
         if (!result.ok || !isCurrent()) return false;
         for (const file of unique) indexedPaths.add(file.path);
+        this.buildDiagnostics.progress(indexedPaths.size, markdownFiles.length);
         return true;
       };
 
@@ -7865,7 +7915,10 @@ export class GraphIndex {
       if (!isCurrent()) return false;
       if (!resuming) {
         const prepared = await this.preparePresentationPublication(next, isCurrent, undefined, true, false, true, workPriority);
-        if (!prepared || !isCurrent() || !prepared.facets.isCurrent()) return false;
+        if (!prepared || !isCurrent() || !prepared.facets.isCurrent()) {
+          failure = prepared ? "presentation-changed" : "presentation-incomplete";
+          return false;
+        }
         this.acceptPresentation(prepared);
         this.retirePhysicalFolderInventory();
         this.state = next;
@@ -7909,6 +7962,7 @@ export class GraphIndex {
       await this.workScheduler.checkpoint(workPriority);
       if (!isCurrent()) return false;
       if (options.prewarmBodyCache && indexedPaths.size < markdownFiles.length) {
+        this.buildDiagnostics.phase("body-prewarm");
         const warmed = await this.prewarmBodyCache(isCurrent);
         if (!warmed || !isCurrent()) return false;
       }
@@ -7929,6 +7983,7 @@ export class GraphIndex {
       }
 
       const notifyEvery = Platform.isIosApp ? 3 : Platform.isMobile ? 5 : 10;
+      this.buildDiagnostics.phase("notes");
       let commitsSinceNotify = 0;
       /** Drain a finite visible batch only between complete source transactions of this writer.
        * No independent compiler/writer runs beside a staged source or an unfinished native read. */
@@ -7970,14 +8025,17 @@ export class GraphIndex {
           commitsSinceNotify += 1;
           if (commitsSinceNotify < notifyEvery) return;
           commitsSinceNotify = 0;
+          this.buildDiagnostics.progress(indexedPaths.size, markdownFiles.length);
           this.emit();
         },
       });
       if (!result.ok || !isCurrent() || visibleEdits.size && !(await drainVisibleEdits())) return false;
+      this.buildDiagnostics.progress(indexedPaths.size, markdownFiles.length);
       if (commitsSinceNotify > 0) this.emit();
 
       // The bounded startup search intentionally grows from per-file commits. Rebuild it once at
       // completion so standalone attachments/folders/tags and untouched virtual nodes are included.
+      this.buildDiagnostics.phase("publication");
       this.rebuildSearchIndex();
       this.fullSemanticSettings = graphCompilerSettingsFromLegacy(this.plugin.settings);
       this.sourceBackedSemantics = false;
@@ -8010,12 +8068,15 @@ export class GraphIndex {
       this.emit();
       this.scheduleSnapshotPersist();
       activityOutcome = "complete";
+      failure = null;
       return true;
-    } catch (error) { activityOutcome = "failed"; throw error;
+    } catch (error) { activityOutcome = "failed"; failure = "exception"; throw error;
     } finally {
       if (this.progressiveVisibleRefresh === requestVisibleEdit) this.progressiveVisibleRefresh = null;
       visibleEdits.clear();
-      this.endIndexActivity(activity, activityOutcome === "incomplete" && !isCurrent() ? "cancelled" : activityOutcome);
+      const outcome = activityOutcome === "incomplete" && !isCurrent() ? "cancelled" : activityOutcome;
+      this.buildDiagnostics.finish(outcome, failure, sourceRevision !== this.plugin.getIndexSourceRevision(), physicalFoldersRevision !== this.hostStructuralRevision);
+      this.endIndexActivity(activity, outcome);
       releaseWork();
       this.building = false;
       this.rebuildQueued = false;
@@ -8026,7 +8087,7 @@ export class GraphIndex {
 
   /** Build a complete graph privately, then atomically publish it with its captured source epoch.
    * Later host events retain provisional read cover until the coordinator drains their patch backlog. */
-  async rebuild(options: Readonly<{retainSourceInventory?: boolean; onCommitted?: (path: string) => void}> = {}): Promise<boolean> {
+  async rebuild(options: Readonly<{retainSourceInventory?: boolean; onCommitted?: (path: string) => void; diagnostics?: GraphBuildRequest}> = {}): Promise<boolean> {
     const releaseWork = this.workScheduler.begin(INDEX_WORK_PRIORITY.background);
     try {
       if (this.building) {
@@ -8050,10 +8111,15 @@ export class GraphIndex {
       // Source-backed recovery already closed its inventory. Keep that authority and its event
       // backlog live instead of invalidating it and forcing another vault-wide validation pass.
       // Other rebuild callers retain the existing storage-bandwidth pause and resume behavior.
-      const resumeInventory = options.retainSourceInventory && this.sourceAcquisition.hasSemanticDependencies()
-        && !this.sourceAcquisition.getActivityState().sourceActive ? null : this.sourceAcquisition.pauseInventory();
+      const sourceAuthorityReady = this.sourceAcquisition.hasSemanticDependencies();
+      const sourceInventoryActive = this.hasActiveSourcePreparation();
+      const pauseInventory = !(options.retainSourceInventory && sourceAuthorityReady && !sourceInventoryActive);
+      this.buildDiagnostics.begin("atomic", options.diagnostics, {hadCompleteGraph: this.fullSnapshotHydrated,
+        sourcePreparationActiveAtStart: sourceInventoryActive, sourceAuthorityReadyAtStart: sourceAuthorityReady, inventoryPauseRequested: pauseInventory});
+      const resumeInventory = pauseInventory ? this.sourceAcquisition.pauseInventory() : null;
       const activity = this.beginIndexActivity("full-build", "unknown");
       let activityOutcome: ActivityOutcome = "incomplete";
+      let failure: GraphBuildFailure | null = "compiler-incomplete";
       try {
         const nextFingerprints = new Map<string, string>();
         this.sourceAcquisition.start();
@@ -8069,6 +8135,7 @@ export class GraphIndex {
           () => this.workScheduler.checkpoint(INDEX_WORK_PRIORITY.background),
         );
         const next = await builder.build({ acquireSources: false,
+          onPhase: phase => this.buildDiagnostics.phase(phase),
           /** Count actual completed source compilation, with the existing throttled status owner. */
           onProgress: (processed, total) => {
             if (!current()) return;
@@ -8082,10 +8149,15 @@ export class GraphIndex {
         }
 
         if (this.fullBuildProgress) this.fullBuildProgress.stage = "presentation";
+        this.buildDiagnostics.phase("presentation");
         this.plugin.notifyStartupProgress?.(true);
         const prepared = await this.preparePresentationPublication(next, current, undefined, false, false, true);
-        if (!prepared || !current() || !prepared.facets.isCurrent() ||
-          semanticPolicy !== computeIndexSettingsSignature(this.plugin.settings)) return false;
+        if (!prepared || !current() || !prepared.facets.isCurrent()) {
+          failure = prepared ? "presentation-changed" : "presentation-incomplete";
+          return false;
+        }
+        if (semanticPolicy !== computeIndexSettingsSignature(this.plugin.settings)) {failure = "semantic-policy-changed"; return false;}
+        this.buildDiagnostics.phase("publication");
         const preparedSearch = prepared.search;
         this.acceptPresentation(prepared);
 
@@ -8136,10 +8208,14 @@ export class GraphIndex {
         this.emit();
         this.scheduleSnapshotPersist();
         activityOutcome = "complete";
+        failure = null;
         return true;
-      } catch (error) { activityOutcome = "failed"; throw error;
+      } catch (error) { activityOutcome = "failed"; failure = "exception"; throw error;
       } finally {
-        this.endIndexActivity(activity, activityOutcome === "incomplete" && !current() ? "cancelled" : activityOutcome);
+        const outcome = activityOutcome === "incomplete" && !current() ? "cancelled" : activityOutcome;
+        if (this.fullBuildProgress) this.buildDiagnostics.progress(this.fullBuildProgress.processed, this.fullBuildProgress.total);
+        this.buildDiagnostics.finish(outcome, failure, sourceRevision !== this.plugin.getIndexSourceRevision(), physicalFoldersRevision !== this.hostStructuralRevision);
+        this.endIndexActivity(activity, outcome);
         if (resumeInventory !== null) this.sourceAcquisition.resumeInventory(resumeInventory);
         this.fullBuildProgress = null;
         this.building = false;
@@ -8362,7 +8438,7 @@ export class GraphIndex {
         && fileRevisionMatches(token.file, token.revision)
         && (token.file.extension !== "md" || this.app.metadataCache.getFileCache(token.file) === token.cache));
     for (let attempt = 0; attempt < 2; attempt++) {
-      if (!requestedCurrent() || this.diagnosticsClosed || this.pendingStructuralTasks || sourcePath === targetPath) return false;
+      if (!requestedCurrent() || this.diagnosticsClosed || this.hasPendingStructuralMaintenance() || sourcePath === targetPath) return false;
       if (this.diagnosticsClosed || !requestedCurrent()) return false;
       const source = this.get(sourcePath), target = this.get(targetPath) ?? provisionalTarget;
       if (!source || !target || (!source.file || source.file.extension !== "md") && (!target.file || target.file.extension !== "md")) return false;
@@ -8380,7 +8456,7 @@ export class GraphIndex {
         page => ({ path: page.path, file: page.file!, revision: captureFileRevision(page.file!),
           cache: page.file!.extension === "md" ? this.app.metadataCache.getFileCache(page.file!) : null }));
       /** Physical/source/semantic changes always retire authority. Private compilation also fences its presentation inputs; published relations survive style-only refreshes. */
-      const current = (): boolean => requestedCurrent() && !this.diagnosticsClosed && !this.pendingStructuralTasks
+      const current = (): boolean => requestedCurrent() && !this.diagnosticsClosed && !this.hasPendingStructuralMaintenance()
         && policyRevision === this.semanticPolicyRevision && sourceRevision === this.plugin.getIndexSourceRevision()
         && (pairPublished || publicationRevision === this.publicationRevision)
         && (pairPublished ? computeIndexSettingsSignature(this.plugin.settings) === requestedSettings : signatureValid)
@@ -8451,7 +8527,7 @@ export class GraphIndex {
 
   /** True only when at least one endpoint is backed by current policy and current source authority. */
   isSemanticWriteReady(sourcePath: string, targetPath: string): boolean {
-    if (this.pendingStructuralTasks > 0) return false;
+    if (this.hasPendingStructuralMaintenance()) return false;
     const pair = this.relationshipPairs.get(relationshipPairKey(sourcePath, targetPath));
     if (pair && pair.policyRevision === this.semanticPolicyRevision
       && pair.current() && pair.sourceRevision === this.plugin.getIndexSourceRevision()
@@ -8580,7 +8656,7 @@ export class GraphIndex {
     if (existing && existing.file !== file && !isMaterializablePage(existing)) return false;
     const readable = this.get(oldPath);
     if (readable && readable.file !== file && !isMaterializablePage(readable)) return false;
-    if (this.building) this.cancelRebuild();
+    if (this.building) this.cancelRebuild("placeholder-materialized");
     if (oldPath !== file.path) return this.renameTreeEndpoint(oldPath, file, true);
     this.retireHostEndpoint(oldPath, file, { notify: false, retainMovedReads: true, materialize: true });
     this.remapPublishedFileReads(oldPath, file, true);
@@ -8595,8 +8671,15 @@ export class GraphIndex {
     this.retireHostEndpoint(previousPath, replacement);
   }
 
+  /** Folder rows stop being readable as soon as the native delete arrives, before graph repair. */
+  notifyNativeFolderDeletion(): void {
+    this.relationViewCache = new WeakMap();
+    this.emitPresentation();
+  }
+
   /** Reconcile captured filename descendants for one folder event without rebuilding canonical membership. */
   async updateHostFolderAvailability(previousPath: string, replacement?: TFolder): Promise<void> {
+    if (!replacement && this.app.vault.getAbstractFileByPath(previousPath)) return;
     this.hostFolderSearchEvents.set(`folder:${previousPath}`, null);
     this.retireHostEndpoint(`folder:${previousPath}`);
     if (replacement?.path === previousPath) {
@@ -8612,6 +8695,7 @@ export class GraphIndex {
       }
       if (this.physicalSearchEntries.get(path) !== entry) continue;
       if (entry.page.isFolder && path.startsWith(`folder:${previousPath}/`)) {
+        if (!replacement && this.app.vault.getAbstractFileByPath(path.slice("folder:".length))) continue;
         const suffix = path.slice(`folder:${previousPath}`.length);
         this.physicalSearchEntries.delete(path);
         this.hostFolderSearchEvents.set(path, null);
@@ -8621,6 +8705,7 @@ export class GraphIndex {
         continue;
       }
       if (!path.startsWith(`${previousPath}/`)) continue;
+      if (!replacement && this.app.vault.getAbstractFileByPath(path)) continue;
       const file = entry.page.file;
       this.retireHostEndpoint(path, replacement && file && this.app.vault.getFileByPath(file.path) === file ? file : undefined);
     }
@@ -8774,7 +8859,7 @@ export class GraphIndex {
   }
 
   /** Remap one known physical endpoint using the same evidence/search/identity boundary for files and folders. */
-  private renameTreeEndpoint(oldPath: string, file: TFile | TFolder, materialize = false): boolean {
+  private renameTreeEndpoint(oldPath: string, file: TFile | TFolder, materialize = false, notify = true): boolean {
     const isFolder = file instanceof TFolder;
     const newPath = isFolder ? `folder:${file.path}` : file.path;
     if (!oldPath || !newPath || oldPath === newPath) return true;
@@ -8796,15 +8881,16 @@ export class GraphIndex {
         this.titleCache.delete(oldPath); this.titleCache.delete(newPath);
         this.nodeVisualCache.delete(oldPath); this.nodeVisualCache.delete(newPath);
         this.invalidateSearchCatalog(); this.relationViewCache = new WeakMap();
-        this.publicationRevision += 1; this.snapshotPublicationCause = "rename"; this.emit();
-      } else if (retiredHost) this.emitPresentation();
+        this.publicationRevision += 1; this.snapshotPublicationCause = "rename";
+        if (notify) this.emit();
+      } else if (retiredHost && notify) this.emitPresentation();
       return remapped || retiredHost;
     }
 
     const collision = this.state.pages.get(newPath);
     if (!isFolder && page.file && page.file !== file || collision && collision !== page && (collision.file && collision.file !== file
       || collision.isFolder && !isFolder || collision.isTag || collision.url)) {
-      if (retiredHost) this.emitPresentation();
+      if (retiredHost && notify) this.emitPresentation();
       return false;
     }
 
@@ -8866,9 +8952,11 @@ export class GraphIndex {
     this.relationViewCache = new WeakMap<GraphPage, CachedRelationView>();
     this.publicationRevision += 1;
     this.snapshotPublicationCause = "rename";
-    this.emit();
-    // Persist the remapped semantic snapshot soon, but outside the rename interaction itself.
-    this.scheduleSnapshotPersist(5000);
+    if (notify) {
+      this.emit();
+      // Persist the remapped semantic snapshot soon, but outside the rename interaction itself.
+      this.scheduleSnapshotPersist(5000);
+    }
     return true;
   }
 
@@ -8877,7 +8965,7 @@ export class GraphIndex {
    * their former paths from the event's old prefix. No Vault inventory or interpreted rebuild is
    * needed; uncertain inbound source resolution remains owned by acquisition.
    */
-  renameFolder(oldPath: string, folder: TFolder): Promise<void> {
+  renameFolder(oldPath: string, folder: TFolder, onFileMoved?: (file: TFile, oldPath: string) => void): Promise<void> {
     const existing = this.folderRenameTasks.get(folder);
     if (existing) {
       this.retirePhysicalFolderInventory();
@@ -8893,6 +8981,23 @@ export class GraphIndex {
       && this.physicalFolderCoverageEpoch === epoch;
     /** A failed or superseded remap must not retire a newer producer's physical proof. */
     const invalidate = (): void => { if (this.physicalFolderCoverageEpoch === epoch) this.retirePhysicalFolderInventory(); };
+    const members = folder.children.length && complete() ? this.captureRenamedFolderMembers(oldPath, folder) : null;
+    if (members && this.sourceAcquisition.qualifyPopulatedFolderRename(folder, oldPath, members, complete)) {
+      try {
+        for (const {item, oldPath: prior} of members) {
+          const previous = item instanceof TFolder ? `folder:${prior}` : prior;
+          if (item instanceof TFolder) this.hostFolderSearchEvents.set(previous, null);
+          // Parents move first. Every remap uses the existing native file-tree and evidence owner.
+          if (!this.renameTreeEndpoint(previous, item, false, false)) throw new Error("Native subtree rename was superseded");
+        }
+        for (const {item, oldPath: prior} of members) if (item instanceof TFile) onFileMoved?.(item, prior);
+        this.emit(); this.scheduleSnapshotPersist(5000);
+        return Promise.resolve();
+      } catch (error) {
+        invalidate();
+        return Promise.reject(error instanceof Error ? error : new Error(String(error)));
+      }
+    }
     const preserved = complete() && Boolean(old?.isFolder) && !this.state.pages.has(`folder:${path}`)
       && !folder.children.length && Boolean(parent) && !this.app.vault.getFolderByPath(oldPath)
       && this.app.vault.getFolderByPath(path) === folder
@@ -8922,6 +9027,47 @@ export class GraphIndex {
     });
     this.folderRenameTasks.set(folder, task);
     return task;
+  }
+
+  /** Check exact old canonical membership and each new live host identity before a bounded remap. */
+  private captureRenamedFolderMembers(oldPath: string, folder: TFolder): {item: TFile | TFolder; oldPath: string}[] | null {
+    const parent = folder.parent;
+    if (!parent) return null;
+    const parentPath = `folder:${parent.path || "/"}`;
+    if (this.nativeFolderForPath(parentPath) !== parent || !this.state.pages.get(parentPath)?.isFolder) return null;
+    const pending: (TFile | TFolder)[] = [folder], members: {item: TFile | TFolder; oldPath: string}[] = [];
+    const paths = new Set<string>(); let declarations = 0;
+    while (pending.length) {
+      const item = pending.pop()!;
+      if (paths.has(item.path) || this.app.vault.getAbstractFileByPath(item.path) !== item) return null;
+      paths.add(item.path);
+      const prior = oldPath + item.path.slice(folder.path.length);
+      if (this.app.vault.getAbstractFileByPath(prior)) return null;
+      members.push({item, oldPath: prior});
+      const previous = this.state.pages.get(item instanceof TFolder ? `folder:${prior}` : prior);
+      const next = this.state.pages.get(item instanceof TFolder ? `folder:${item.path}` : item.path);
+      if (next && (next.isFolder || next.file || next.url || next.isTag)) return null;
+      if (item instanceof TFile) { if (previous?.file !== item) return null; continue; }
+      if (!previous?.isFolder || item.children.length + members.length + pending.length > SOURCE_MAX_BATCH_RECORDS) return null;
+      const children = new Set<string>();
+      for (const child of item.children) {
+        if (!(child instanceof TFolder || child instanceof TFile) || child.parent !== item || child.path !== `${item.path}/${child.name}`) return null;
+        children.add(`${child instanceof TFolder ? "folder:" : ""}${prior}/${child.name}`);
+        pending.push(child);
+      }
+      for (const declaration of this.state.evidence.declarationsTouchingIterator(previous.path)) {
+        if (++declarations > SOURCE_MAX_BATCH_RECORDS * 2) return null;
+        if (declaration.sourceKind === "file-tree" && declaration.declaredByPath === previous.path
+          && !children.delete(declaration.declaredTargetPath)) return null;
+      }
+      if (children.size) return null;
+    }
+    return members;
+  }
+
+  /** Ignore descendant notifications already applied by the qualified root operation. */
+  hasAppliedNativeFolderMove(item: TFile | TFolder, oldPath: string): boolean {
+    return this.sourceAcquisition.hasAppliedNativeFolderMove(item, oldPath);
   }
 
   /**
@@ -8999,13 +9145,78 @@ export class GraphIndex {
 
   /** Remove a known deleted folder tree locally; return Markdown endpoints not already dematerialized by child events. */
   async removeDeletedFolder(folder: TFolder, onMarkdownRemoved?: (file: TFile) => void): Promise<number> {
-    this.retirePhysicalFolderInventory();
+    const path = folder.path;
+    /** A queued deletion cannot retire a replacement or a folder moved to another path. */
+    const isAbsent = (): boolean => !this.diagnosticsClosed && !this.persistentCachePurged && folder.path === path
+      && !this.sourceAcquisition.hasRetiredNativePath(folder) && !this.app.vault.getAbstractFileByPath(path);
+    if (!isAbsent()) return 0;
+    const eligible = this.canApplyLocalPhysicalCreate();
+    const entries = eligible ? this.captureDeletedFolderMembers(folder) : null;
+    if (this.folderDeleteCheck || eligible && !entries && folder.children.length) {
+      // Obsidian can remove the folder from its lookup before removing its descendants.
+      // Check those callbacks after the native turn, from detached descendants to ancestors.
+      const result = new Promise<number>((resolve, reject) => this.deferredFolderDeletes.push({ path, resolve, reject,
+        apply: () => isAbsent() ? this.applyDeletedFolder(folder,
+          this.canApplyLocalPhysicalCreate() ? this.captureDeletedFolderMembers(folder) : null, onMarkdownRemoved) : Promise.resolve(0) }));
+      this.folderDeleteCheck ??= this.applyDeferredFolderDeletes();
+      return result;
+    }
+    return this.applyDeletedFolder(folder, entries, onMarkdownRemoved);
+  }
+
+  private async applyDeferredFolderDeletes(): Promise<void> {
+    try {
+      await yieldToHostTask();
+      while (this.deferredFolderDeletes.length) {
+        const batch = this.deferredFolderDeletes.splice(0).sort((a, b) => b.path.length - a.path.length);
+        for (const item of batch) {
+          try { item.resolve(await item.apply()); }
+          catch (error) { item.reject(error); }
+        }
+      }
+    } catch (error) {
+      for (const item of this.deferredFolderDeletes.splice(0)) item.reject(error);
+    } finally { this.folderDeleteCheck = null; }
+  }
+
+  private async applyDeletedFolder(folder: TFolder, entries: (TFolder | TFile)[] | null,
+    onMarkdownRemoved?: (file: TFile) => void): Promise<number> {
+    const epoch = this.physicalFolderCoverageEpoch;
+    /** Only the graph incarnation which supplied and applied this exact subtree may close the wave. */
+    const current = (): boolean => !this.diagnosticsClosed && !this.persistentCachePurged
+      && this.completePhysicalFolderInventory && this.physicalFolderCoverageEpoch === epoch;
+    if (entries && this.sourceAcquisition.qualifyDeletedFolder(folder, entries, current)) {
+      this.invalidateHostStructure(true);
+      const touched = new Set<string>(); let markdown = 0;
+      try {
+        // One bounded publication retires all selected endpoints without scanning the search vocabulary per file.
+        for (const item of entries) {
+          if (item instanceof TFolder) {
+            this.hostFolderSearchEvents.set(`folder:${item.path}`, null);
+            this.removeDeletedFolderEndpoint(`folder:${item.path}`, touched);
+          } else {
+            if (item.extension === "md") {
+              onMarkdownRemoved?.(item);
+              if (this.state.pages.get(item.path)?.file === item) markdown += 1;
+            }
+            this.dematerializeFile(item.path, touched);
+          }
+        }
+        this.publishDeletedEndpoints(touched);
+        return markdown;
+      } catch (error) {
+        this.retirePhysicalFolderInventory();
+        throw error;
+      }
+    }
+    this.invalidateHostStructure();
     const pending: Array<TFile | TFolder> = [folder]; let markdown = 0;
     this.pendingStructuralTasks += 1; let sliceStarted = performance.now();
     try {
       await this.updateHostFolderAvailability(folder.path);
       while (pending.length && !this.diagnosticsClosed) {
         const item = pending.pop()!;
+        if (this.app.vault.getAbstractFileByPath(item.path)) continue;
         if (item instanceof TFolder) {
           for (const child of item.children) if (child instanceof TFile || child instanceof TFolder) pending.push(child);
           this.removeDeletedFolderEndpoint(`folder:${item.path}`);
@@ -9025,9 +9236,50 @@ export class GraphIndex {
     }
   }
 
+  /** Match the deleted native inventory against independently complete canonical membership.
+   * Previously retired child events and exact observed new files can precede the parent callback. */
+  private captureDeletedFolderMembers(folder: TFolder): (TFolder | TFile)[] | null {
+    if (!folder.path || folder.path === "/" || this.isOnDemandMode()) return null;
+    const separator = folder.path.lastIndexOf("/");
+    const parentPath = separator === -1 ? "folder:/" : `folder:${folder.path.slice(0, separator)}`;
+    if (folder.parent) {
+      const nativeParent = this.nativeFolderForPath(parentPath);
+      if (nativeParent && nativeParent !== folder.parent) return null;
+    } else if (!this.state.pages.get(parentPath)?.isFolder) return null;
+    // Obsidian clears a detached folder's parent before delete. The complete physical catalog
+    // still owns the old path and parent. A source-backed catalog may have no evidence yet.
+    const pending: (TFolder | TFile)[] = [folder], members: (TFolder | TFile)[] = [];
+    const paths = new Set<string>(); let declarations = 0;
+    while (pending.length) {
+      const item = pending.pop()!;
+      if (paths.has(item.path) || this.app.vault.getAbstractFileByPath(item.path)) return null;
+      paths.add(item.path); members.push(item);
+      const retired = this.sourceAcquisition.hasRetiredNativePath(item);
+      if (item instanceof TFile) {
+        const owner = this.state.pages.get(item.path)?.file;
+        if (owner !== item && (owner || !retired && !this.sourceAcquisition.observedNewFolderMember(item))) return null;
+        continue;
+      }
+      const path = `folder:${item.path}`;
+      if (!this.state.pages.get(path)?.isFolder && !retired) return null;
+      if (item.children.length + members.length + pending.length > SOURCE_MAX_BATCH_RECORDS) return null;
+      const children = new Set<string>();
+      for (const child of item.children) {
+        if (!(child instanceof TFile || child instanceof TFolder) || child.parent !== item || child.path !== `${item.path}/${child.name}`) return null;
+        children.add(child instanceof TFolder ? `folder:${child.path}` : child.path);
+        pending.push(child);
+      }
+      for (const declaration of this.state.evidence.declarationsTouchingIterator(path)) {
+        if (++declarations > SOURCE_MAX_BATCH_RECORDS * 2) return null;
+        if (declaration.sourceKind === "file-tree" && declaration.declaredByPath === path && !children.has(declaration.declaredTargetPath)) return null;
+      }
+    }
+    return members.reverse();
+  }
+
   /** Remove one deleted physical folder endpoint while retaining surviving non-membership evidence as a ghost. */
-  private removeDeletedFolderEndpoint(path: string): void {
-    this.retireHostEndpoint(path);
+  private removeDeletedFolderEndpoint(path: string, batch?: Set<string>): void {
+    this.retireHostEndpoint(path, undefined, {notify: !batch});
     const page = this.state.pages.get(path);
     if (!page) return;
     const touched = new Set<string>([path]);
@@ -9045,8 +9297,16 @@ export class GraphIndex {
     if (page.neighbours.size === 0) {
       this.state.pages.delete(path); this.state.lowercasePathMap.delete(path.toLowerCase());
     }
+    if (batch) for (const target of touched) batch.add(target);
+    else this.publishDeletedEndpoints(touched);
+  }
+
+  /** Publish once after a group of exact deletions, preserving existing snapshot save scheduling. */
+  private publishDeletedEndpoints(touched: Set<string>): void {
     this.invalidatePatchedPages(touched); this.patchSearchIndex(touched);
-    this.suggestionCatalogCache = null; this.emit(); this.scheduleSnapshotPersist(SNAPSHOT_EDIT_IDLE_MS);
+    this.suggestionCatalogCache = null;
+    this.relationViewCache = new WeakMap<GraphPage, CachedRelationView>();
+    this.emit(); this.scheduleSnapshotPersist(SNAPSHOT_EDIT_IDLE_MS);
   }
 
   /**
@@ -9055,8 +9315,8 @@ export class GraphIndex {
    * while declarations from other notes that still point at this path remain intact. Keeping the
    * GraphPage object itself is important when the deleted note is the active Plex center.
    */
-  dematerializeFile(path: string): GraphPage | null {
-    this.retireHostEndpoint(path);
+  dematerializeFile(path: string, batch?: Set<string>): GraphPage | null {
+    this.retireHostEndpoint(path, undefined, {notify: !batch});
     const canonical = this.state.pages.get(path) ?? this.state.pages.get(this.state.lowercasePathMap.get(path.toLowerCase()) ?? path);
     if (canonical?.isFolder || canonical?.isTag || canonical?.url) return canonical;
     path = canonical?.path ?? path;
@@ -9095,12 +9355,8 @@ export class GraphIndex {
     this.fieldCache.delete(path);
     this.semanticFingerprints.delete(path);
     this.restoredModifiedMarkdownPaths = this.restoredModifiedMarkdownPaths.filter((candidate) => candidate !== path);
-    this.invalidatePatchedPages(affected);
-    this.patchSearchIndex(affected);
-    this.suggestionCatalogCache = null;
-    this.relationViewCache = new WeakMap<GraphPage, CachedRelationView>();
-    this.emit();
-    this.scheduleSnapshotPersist(SNAPSHOT_EDIT_IDLE_MS);
+    if (batch) for (const target of affected) batch.add(target);
+    else this.publishDeletedEndpoints(affected);
     return page;
   }
 
@@ -9731,6 +9987,40 @@ export class GraphIndex {
     return this.relationshipPairs.get(relationshipPairKey(sourcePath, targetPath))?.settings.inferAllLinksAsFriends ?? fallback;
   }
 
+  /** Resolve the few changed pairs for the visible neighborhood while canonical sources catch up. */
+  private savedFileRelationshipPreviews(page: GraphPage): Map<string, Relation> | undefined {
+    const pending = this.savedFileRelationships.filter(item => (item.ownerPath === page.path || item.targetPath === page.path)
+      && item.owner.path === item.ownerPath && fileRevisionMatches(item.owner, item.revision)
+      && this.app.vault.getFileByPath(item.ownerPath) === item.owner && this.app.vault.getFileByPath(item.targetPath) === item.target);
+    if (!pending.length) return;
+    const roles = ontologyConfiguration(this.plugin.settings).roles;
+    const pairs = new Map<string, { published: RelationEvidence[]; additions: RelationEvidenceStore }>();
+    for (const {ownerPath, targetPath, field} of pending) {
+      const normalized = normalizeFieldName(field), role = roles.get(normalized);
+      if (!role || role === "hidden" || role === "excluded") continue;
+      const otherPath = page.path === ownerPath ? targetPath : ownerPath;
+      const published = pairs.get(otherPath)?.published ?? this.semanticEvidence(page.path, otherPath).evidence;
+      if (page.neighbours.has(otherPath) && published.some(item => item.sourceKind === "frontmatter-ontology"
+        && item.declaredByPath === ownerPath && item.declaredTargetPath === targetPath && item.declaredRole === role
+        && normalizeFieldName(item.fieldName ?? item.definition ?? "") === normalized)) continue;
+      const pair = pairs.get(otherPath) ?? { published, additions: new RelationEvidenceStore() };
+      pair.additions.addPair(ownerPath, targetPath, role, RelationType.DEFINED, LinkDirection.FROM, {
+        sourceKind: "frontmatter-ontology", definition: normalized, fieldName: field,
+      });
+      pairs.set(otherPath, pair);
+    }
+    if (!pairs.size) return;
+    const previews = new Map<string, Relation>();
+    for (const [path, { published, additions }] of pairs) {
+      const target = this.semanticPage(path);
+      if (!target) continue;
+      const relation = { ...emptyRelation<GraphPage>(), target };
+      applyEvidenceDecisionsToRelation(relation, applyOntologyPrecedence([...published, ...additions.between(page.path, path)]));
+      previews.set(path, relation);
+    }
+    return previews.size ? previews : undefined;
+  }
+
   /** Retire pair replacements only after both directed readers have complete current baselines. */
   private retireRelationshipPairs(scope: PreparedSemanticScope): void {
     const sourceRevision = this.plugin.getIndexSourceRevision();
@@ -9952,9 +10242,10 @@ export class GraphIndex {
   private relationView(page: GraphPage, preparedSource?: Readonly<{ page: GraphPage; settings: GraphCompilerSettings }>): CachedRelationView {
     const semantic = preparedSource ?? this.semanticRelationSource(page);
     const source = semantic.page;
+    const savedRelationships = this.savedFileRelationshipPreviews(source);
     const signature = this.relationViewSignature();
     const cached = this.relationViewCache.get(source);
-    if (cached?.signature === signature) return cached;
+    if (!savedRelationships && cached?.signature === signature) return cached;
 
     const settings = this.plugin.settings;
     const inferAllLinksAsFriends = semantic.settings.inferAllLinksAsFriends;
@@ -9980,6 +10271,8 @@ export class GraphIndex {
     };
     if (source.url) {
       for (const gate of Object.values(gateStats)) { gate.complete = this.publishedUrlComplete && !this.publishedUrlCachedMetadata; gate.coverage = this.publishedUrlCachedMetadata ? "cached" : this.publishedUrlComplete ? undefined : "local"; }
+    } else if (savedRelationships) {
+      for (const gate of Object.values(gateStats)) { gate.complete = false; gate.coverage = "local"; }
     } else if (this.preparedPageInfo.has(source)) {
       // Requested read coverage belongs to its compiled scope, not transient global backlog.
       // Reusing the displayed count never renews that scope's source or write certificate.
@@ -10013,8 +10306,9 @@ export class GraphIndex {
     };
 
     const concreteRoles: Array<Exclude<Role, "sibling">> = ["parent", "child", "left", "right", "previous", "next"];
-    for (const relation of source.neighbours.values()) {
-      if (relation.isHidden) continue;
+    const relations = savedRelationships ? new Map([...source.neighbours, ...savedRelationships]) : source.neighbours;
+    for (const relation of relations.values()) {
+      if (relation.isHidden || relation.target.isFolder && !this.currentSearchFolder(relation.target)) continue;
       // Folder/tag membership requires a live physical note. A coherent cached view may retain
       // a deleted endpoint as a virtual page for ordinary Markdown links; that does not keep it
       // in a structural collection or let fallback counts exceed current native membership.
@@ -10065,7 +10359,7 @@ export class GraphIndex {
       && (countInfo?.gatePairRevision !== this.relationshipPairRevision || pair.policyRevision !== countInfo.policyRevision)) {
       hasPairOverlay = true; break;
     }
-    if (countProof && !hasPairOverlay) {
+    if (countProof && !hasPairOverlay && !savedRelationships) {
       for (const gate of ["top", "bottom", "left", "right"] as const) {
         Object.assign(gateStats[gate], countProof[gate], { complete: true });
       }
@@ -10085,7 +10379,7 @@ export class GraphIndex {
       && gateStats.top.complete === true && gateStats.bottom.complete === true
       ? gateStats.top.visibleCount + gateStats.bottom.visibleCount : uniqueVisible.size;
     const result: CachedRelationView = { signature, roles, gateStats, neighbourCount };
-    this.relationViewCache.set(source, result);
+    if (!savedRelationships) this.relationViewCache.set(source, result);
     return result;
   }
 

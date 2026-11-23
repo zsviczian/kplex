@@ -608,7 +608,9 @@ test('closed source inventory chooses batched startup after graph recovery falls
     index.rebuildProgressively=function(...args){progressive++;return partial.apply(this,args);};
     await p.performRebuild(false,false,'startup:initial-index',true);
     equal(progressive,0,'Closed source fallback must not repeat per-file progressive graph publication');
-    equal(batched,1,'One actual existing batched compiler');equal(options,{retainSourceInventory:true},'Keep closed inventory and normal event receipts');
+    equal(batched,1,'One actual existing batched compiler');
+    ok(options.retainSourceInventory,'Keep closed inventory');
+    equal(options.diagnostics?.trigger,'startup:initial-index','Record the normal startup trigger');
     ok(p.initialIndexComplete&&index.isFullSnapshotHydrated(),'Actual complete graph finishes startup');
     ok(index.sourceAcquisition.hasSemanticDependencies(),'Source authority survives the batched rebuild');return true;
    }finally{index?.destroy();f.close();}

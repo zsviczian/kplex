@@ -879,6 +879,9 @@ const japaneseTranslations = {
   "delete.fileButton": "ファイルを削除",
   "delete.placeholderButton": "プレースホルダーを削除",
   "references.title": "残っている参照",
+  "settings.deletion.showRemainingReferences": "「残っている参照」ダイアログを表示",
+  "references.neverShowAgain": "今後表示しない",
+  "references.savePreferenceFailed": "残りの参照の設定を保存できませんでした。",
   "references.help": "K-Plex は「{name}」へのプロパティ参照を削除しました。以下のリンクは Markdown 本文内にあるため、手動確認用に残されています。",
   "references.markdownLink": "Markdown リンク",
   "references.unresolvedMarkdownLink": "未解決の Markdown リンク",
@@ -895,6 +898,11 @@ const japaneseTranslations = {
   "noteType.title": "ノートタイプを設定",
   "noteType.placeholder": "例: プロジェクト",
   "rename.title": "ノート名を変更",
+  "rename.folderTitle": "フォルダー名を変更",
+  "rename.folderPlaceholder": "フォルダー名",
+  "rename.invalidFolderName": "パス区切り文字を含まない有効なフォルダー名を入力してください。",
+  "rename.folderFailed": "フォルダー名を変更できませんでした: {error}",
+  "rename.folderChanged": "元のフォルダーまたはその場所が変わりました。名前変更ダイアログを開き直してください。",
   "rename.folderSeparators": "名前の変更ではノート名のみが変更されます。フォルダー区切り文字は使用できません。",
   "rename.failed": "ノート名を変更できませんでした: {error}",
   "rename.placeholder": "ノート名",
@@ -1340,6 +1348,7 @@ const japaneseTranslations = {
   "graph.openPopoutWindow": "ポップアウトウィンドウで開く",
   "graph.setNoteType": "ノートタイプを設定…",
   "graph.renameNote": "ノート名を変更…",
+  "graph.renameFolder": "フォルダー名を変更…",
   "graph.unpinNote": "ノートのピン留めを解除",
   "graph.pinNote": "ノートをピン留め",
   "graph.deleteNote": "ノートを削除…",
@@ -2041,6 +2050,12 @@ const japaneseTranslations = {
   "creation.action": "操作",
   "creation.typeStatus": "{name} を {type} として作成します。",
 
+  "settings.confirmFolderDelete": "フォルダーを削除する前に確認する",
+  "settings.confirmCanvasFolderMove": "キャンバスでフォルダーに移動する前に確認する",
+  "settings.confirmationPreferenceFailed": "確認設定を保存できませんでした。",
+  "delete.folderConfirm": "「{name}」とそのすべての内容を Obsidian で設定されたゴミ箱に移動しますか？",
+  "delete.folderFailed": "フォルダーを削除できませんでした。{error}",
+  "graph.deleteFolder": "フォルダーを削除",
 } as const satisfies LocaleTranslationMap;
 
 return buildLocaleCatalog(japaneseTranslations);
