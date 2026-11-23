@@ -3,7 +3,7 @@ import {build} from 'esbuild';
 import {nativeDomHelpers,nativeColorControls} from './nativeColorControls.mjs';
 import {nativeMarkdownControls} from './nativeMarkdownControls.mjs';
 /** Each test owns a real browser and its root lifetimes; this helper only bundles source with the same native boundary. */
-export async function plexViewBrowserModules({captureNotices=false,nativeControls=false,platform={isMobile:false,isIosApp:false}}={}){
+export async function plexViewBrowserModules({captureNotices=false,nativeControls=false,graphIndex=false,platform={isMobile:false,isIosApp:false}}={}){
 const nativeBoundary=nativeControls?nativeColorControls:nativeMarkdownControls;
 const nativeNames=[...nativeBoundary.matchAll(/export (?:const|class) (\w+)/g)].map(match=>match[1]);
 const nativeStub=`
@@ -12,7 +12,12 @@ const nativeStub=`
   exports.App=exports.Modal=exports.SuggestModal=exports.FuzzySuggestModal=exports.AbstractInputSuggest=exports.Component=exports.MarkdownRenderChild=
   exports.PluginSettingTab=exports.Setting=exports.ButtonComponent=exports.ColorComponent=exports.SearchComponent=exports.ExtraButtonComponent=
   exports.ItemView=exports.FileView=exports.TextFileView=exports.Scope=exports.WorkspaceLeaf=NativeBase;
-  exports.TFile=class TFile {};exports.TFolder=class TFolder {};
+  ${graphIndex ? `
+    exports.TFile=class TFile {
+      constructor(path){this.path=path;this.name=path.split('/').pop();this.extension=path.split('.').pop();this.basename=this.name.replace(/\\.[^.]+$/,'');this.stat={mtime:1,size:100,ctime:1};this.parent=null;}
+    };
+    exports.TFolder=class TFolder {constructor(){this.path='';this.name='';this.children=[];this.parent=null;}};
+  ` : `exports.TFile=class TFile {};exports.TFolder=class TFolder {};`}
   exports.Platform=${JSON.stringify(platform)};exports.Keymap={isModEvent:e=>e.metaKey||e.ctrlKey};
   exports.getLanguage=()=> 'en';exports.getIcon=()=>null;exports.getIconIds=()=>[];exports.setIcon=()=>{};exports.setTooltip=()=>{};
   exports.normalizePath=p=>p;exports.getAllTags=()=>[];
@@ -47,6 +52,10 @@ return await build({stdin:{resolveDir:process.cwd(),contents:`
   export {defaultColorPreferences} from './src/core/plex/colorPreferences';export {Modal as TestModal,TextFileView} from 'obsidian';
   export {compileGraphPredicate} from './src/core/plex/predicate';
   export {WanderController} from './src/application/WanderController';export {exampleViewDefinition} from './src/core/plex/views/example';
+  ${graphIndex ? `
+    export {GraphIndex} from './src/index/GraphIndex';
+    export {TFile,TFolder} from 'obsidian';
+  ` : ''}
 `},write:false,bundle:true,platform:'browser',format:'iife',globalName:'sourceModules',plugins:[{name:'finite-native-host',setup(builder){
   builder.onResolve({filter:/^obsidian$/},()=>({path:'host',namespace:'finite'}));
   builder.onLoad({filter:/.*/,namespace:'finite'},()=>({contents:nativeStub}));

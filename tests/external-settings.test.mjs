@@ -34,6 +34,17 @@ test('canvas hint visibility persists and reloads without semantic work or losin
  `),true);
 });
 
+test('local video thumbnails default on and preserve a saved opt-out',async()=>{
+ assert.equal(await scenario(`
+ const {DEFAULT_SETTINGS,migrateAndMergeSettings}=sourceModules;
+ check(DEFAULT_SETTINGS.generateLocalVideoThumbnails===true&&migrateAndMergeSettings(null).generateLocalVideoThumbnails===true,'Fresh settings enable local video previews');
+ check(migrateAndMergeSettings({showCrossLinks:true}).generateLocalVideoThumbnails===true,'Older saved settings adopt the default');
+ const p=await create();p.settings.generateLocalVideoThumbnails=false;await p.saveSettings();
+ const reloaded=await create();check(disk.generateLocalVideoThumbnails===false&&reloaded.settings.generateLocalVideoThumbnails===false,'Saving and reloading retains the explicit opt-out');
+ check(reloaded.settings.allowRemoteNodeImages===false,'The local preview default does not grant remote image consent');
+ `),true);
+});
+
 test('calendar visibility publishes only canvas rendering while journal field memories remain workflow preferences',async()=>{
  assert.equal(await scenario(`
  const p=await create();p.settings.showDailyCalendar=false;p.settings.dailyNoteLinkFields={previous:'Yesterday',next:'Tomorrow'};

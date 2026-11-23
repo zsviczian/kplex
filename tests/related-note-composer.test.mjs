@@ -7,7 +7,7 @@ import { readFileSync } from "node:fs";
 import ts from "typescript";
 import test from "node:test";
 import {loadPortableModules} from "./support/portableTypeScript.mjs";
-const {exports: creationOwners}=loadPortableModules(["src/application/creationProperties.ts", "src/adapters/obsidian/creationProperties.ts", "src/adapters/obsidian/tagNoteType.ts", "src/core/plex/nodeProperties.ts", "src/core/contracts/fieldName.ts"],{
+const {exports: creationOwners}=loadPortableModules(["src/application/creationProperties.ts", "src/adapters/obsidian/creationProperties.ts", "src/adapters/obsidian/tagNoteType.ts", "src/core/plex/nodeProperties.ts", "src/core/contracts/fieldName.ts", "src/core/graph/relations.ts"],{
   obsidian:'exports.parseFrontMatterTags=()=>{throw Error("Native tag parsing is outside this finite composer fixture")};',
 });
 
@@ -1061,7 +1061,8 @@ test("existing placeholder delegates duplicate, relink and unconnected alias beh
     const context={app:{metadataCache:{getFirstLinkpathDest:()=>null}},translator:key=>key,
       validateNoteFolderPath:folder=>({folderPath:folder,error:null}),validateRelatedNoteName:()=>({valid:true,stem:"Next",existing:null}),
       index:{withForegroundPriority:work=>work(),get:path=>path===origin.path?origin:path===ghost.path?ghost:null,
-        gateNeighbourPaths:()=>new Set(mode==="duplicate"?[ghost.path]:[]),isConnected:()=>mode==="connected",insertVirtualPage:assert.fail},
+        gateNeighbourPaths:()=>new Set(mode==="duplicate"?[ghost.path]:[]),isConnected:()=>mode==="connected",
+        evidenceBetween:()=>[{relationType:creationOwners.RelationType.DEFINED}],insertVirtualPage:assert.fail},
       prepareRelationshipMutation:async()=>{prepared++;return[origin,ghost];},
       relinkCentralNeighbour:async(...args)=>{relinks.push(args);return{state:"saved-published",page:ghost};},
       writeRelationship:async(...args)=>writes.push(args),publishSavedRelationship:async()=>publications++};

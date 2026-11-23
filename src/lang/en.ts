@@ -5079,6 +5079,16 @@ export const englishCatalog = {
     context: "Privacy disclosure for remote node imagery; separate from explicitly opening or embedding web pages.",
     params: [],
   },
+  "settings.ui.generateLocalVideoThumbnails": {
+    message: "Generate thumbnails for local videos",
+    context: "Opt-in setting for automatic thumbnails from unchanged vault video files.",
+    params: [],
+  },
+  "settings.ui.generateLocalVideoThumbnails.help": {
+    message: "Show one frame on visible local video nodes. Larger frames and unsupported videos use the attachment icon. Thumbnails are kept for the current session.",
+    context: "Node images settings copy describing the native video thumbnail fallback and lifetime.",
+    params: [],
+  },
   "settings.ui.image.link.shown.as.a.small.preview.before.the.node.labe": {
     message: "Image link shown as a small preview before the node label. Use a document property or a Dataview-style field in the note text.",
     context: "Declarative K-Plex settings page copy.",

@@ -880,6 +880,29 @@ with B's actual requested-neighborhood completion held and after local settlemen
 It records the dialog's exact source/native identity and real note contents. Use
 the three explicit disposable Small variables and exact-build staging/restoration.
 
+Set `KPLEX_AUTHORING_LANE=source-safety-existing` for the same chain using
+existing notes. This lane dispatches the registered native command and local
+action on independent canvases, including when shared attention differs from the
+invoking canvas. Repeat with the test vault's pinned Open Tab Settings version
+enabled and record its settings. Set `KPLEX_EXPECT_FIXED=true` to assert that
+both commands capture the intended owner. Desktop results cover the tested
+companion version and configuration.
+
+Set `KPLEX_AUTHORING_LANE=inferred-parent` to exercise explicit Parent
+authoring over an ordinary body link. Candidate mode (`KPLEX_EXPECT_FIXED=true`)
+asserts the saved property spelling, unchanged body, and defined edge. Set
+`KPLEX_AUTHORING_BACKGROUND_INPUT=true` for command and connection actions without
+foreground pointer input. The gate route uses an actual native drag.
+
+Set `KPLEX_AUTHORING_LANE=local-video-thumbnails` and
+`KPLEX_LOCAL_VIDEO_FIXTURE_DIR` to a directory with synthetic test-pattern clips
+named `normal.mp4`, `full-hd-long-gop.mp4`, `high-resolution.mp4` (4K),
+`short.mp4` (sub-second), `rotated.mp4` (portrait display rotation),
+`alternative.webm`, and `invalid.mp4` (corrupt media). The native lane checks
+actual exported frame pixels, unchanged node geometry, cache reuse and popout
+ownership, bounded fallback and cleanup, and index/storage work. The plugin uses
+the host media engine. A fixture generator is only needed for this test.
+
 `npm run verify:obsidian:empty-links` captures native empty/repeated/self-link and
 inline-code metadata, genuine resolved counts and three completed recovery cycles.
 Baseline characterization leaves `KPLEX_EXPECT_FIXED` unset; candidate acceptance
@@ -1704,6 +1727,8 @@ restoration and remaining checks.
 After exact-build staging in backed-up Small, run `npm run verify:obsidian:mindmap` with the three explicit test-vault variables and a fresh report directory. Run `KPLEX_MINDMAP_LANE=navigation`, `editor` and `sessions` serially. The navigation lane checks root parent/peer context, trusted branch expansion, actual SVG bottom-child/outward-peer gates, current-node selector entry, history/pin rerooting and bottom-left density rails through the shared durable type-settings writer. The editor lane uses the real registered definition, canonical diamonds/cycles, Find, trusted native primary input, dirty editor/caret/focus, actual spacing/resize, camera and branch/root/filter/selector guards, migration, durable close and bounded native-view restoration. The session lane uses production Compass/Mind Map in actual main/popout documents, captured selectors, a retained draft and independent roots/cameras/main-window Sidecar association/restoration. A separate fresh-popout Sidecar creation attempt remained empty and is not counted as passing; the session lane does not certify that workflow. All test-owned notes/leaves/settings/layout/wrappers are restored. No test definition or production debug API is installed.
 
 `tests/mind-map-source-demand.test.mjs` uses actual GraphIndex, source acquisition and Chromium IndexedDB in both modes to prove unprepared branch preparation and cancellation of held native/canonical covers. This is distinct from portable DTO tests and native editor acceptance. Existing scaling guards remain enabled. Native-view recreation is not whole-application restart; physical touch/Windows and the documented M0 FileManager cache gate remain separate limits. See [the current evidence](docs/validation/mind-map-219-2026-10-25.md); a written driver is not a passing receipt.
+
+Set `KPLEX_MINDMAP_LANE=challengers` to check the four direct Challenger connections through repeated Compass and Mind Map switches and an independent popout. The native check preserves the exact source bytes and verifies the canonical evidence and displayed nodes. The Chromium suite covers warm restoration, missing saved evidence, pending demand, and On-demand mode for the same fixture.
 
 For the focused native HTML source-identity/actual additive Save/occurrence-editor text-drop proof, use `KPLEX_MINDMAP_LANE=interactions KPLEX_MINDMAP_DRAG_ONLY=true` with the same disposable Small variables and a fresh report directory. This runs the existing real drag transport and shared composer/editor in a test-only definition; it is separate from the full parent-area/navigation lane. After native popout migration, check that Obsidian’s `activeDocument` still has a live window before a later modal probe. A retired host document requires a disposable-renderer reload; preserve that failed sample, and do not treat reload as an application fix or a whole-app restart test.
 

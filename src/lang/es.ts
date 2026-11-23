@@ -232,6 +232,8 @@ const spanishTranslations = {
   "settings.trackpad": "Navegación con panel táctil",
   "settings.trackpadPinchSensitivity": "Sensibilidad del zoom con pellizco",
   "settings.ui.allowRemoteNodeImages.help": "Carga imágenes externas de nodos y vistas previas de YouTube. Sus servidores reciben tu dirección IP y la URL de imagen solicitada. Desactivado de forma predeterminada; las imágenes de la bóveda siguen funcionando. Desactivarlo evita nuevas cargas, pero no deshace solicitudes ya enviadas.",
+  "settings.ui.generateLocalVideoThumbnails": "Generar miniaturas de vídeos locales",
+  "settings.ui.generateLocalVideoThumbnails.help": "Muestra un fotograma en los nodos visibles de vídeos locales. Los fotogramas grandes y los vídeos no compatibles muestran el icono de archivo adjunto. Las miniaturas se conservan durante la sesión actual.",
   "settings.trackpadPinchSensitivity.help": "Velocidad del zoom al pellizcar en el panel táctil o la pantalla táctil. El valor predeterminado es 5. Usa 1 para recuperar la velocidad original.",
   "settings.trackpad.help": "Desplaza para mover; pellizca o desplaza con una tecla modificadora para ampliar. Desactiva para ampliar con el desplazamiento normal.",
   "fileMenu.reuse": "Abrir",

@@ -232,6 +232,8 @@ const dutchTranslations = {
   "settings.trackpad": "Trackpadnavigatie",
   "settings.trackpadPinchSensitivity": "Gevoeligheid voor knijpzoomen",
   "settings.ui.allowRemoteNodeImages.help": "Externe knooppuntafbeeldingen en YouTube-videovoorbeelden laden. Hun hosts ontvangen je IP-adres en de opgevraagde afbeeldings-URL. Standaard uit; afbeeldingen uit de kluis blijven werken. Uitschakelen voorkomt nieuwe aanvragen, maar kan al verzonden aanvragen niet ongedaan maken.",
+  "settings.ui.generateLocalVideoThumbnails": "Miniaturen maken voor lokale video's",
+  "settings.ui.generateLocalVideoThumbnails.help": "Toont één beeld op zichtbare knooppunten van lokale video's. Bij grotere beelden en niet-ondersteunde video's verschijnt het bijlagepictogram. Miniaturen blijven beschikbaar voor de huidige sessie.",
   "settings.trackpadPinchSensitivity.help": "Zoomsnelheid bij knijpen op het trackpad of aanraakscherm. De standaardwaarde is 5. Kies 1 voor de oorspronkelijke snelheid.",
   "settings.trackpad.help": "Scroll om te verschuiven; knijp of scroll met een wijzigingstoets om te zoomen. Schakel uit om met gewoon scrollen te zoomen.",
   "fileMenu.reuse": "Openen",

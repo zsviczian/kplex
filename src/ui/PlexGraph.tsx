@@ -5644,6 +5644,7 @@ export function PlexGraph({ viewDefinition = classicViewDefinition, viewSession,
         : baseNode.branch?.status === "unavailable" ? translate("mindmap.unavailableHint") : undefined}
       visual={hasCentralEditor ? undefined : nodeVisuals.get(baseNode.page.path)}
       thumbnailLoader={thumbnailLoader}
+      localVideoThumbnails={plugin.localVideoThumbnails}
       content={hasCentralEditor ? <div className="kplex-central-editor-placeholder" aria-hidden="true" /> : undefined}
       cornerAction={canOpenCentralEditor ? {
         icon: "file-text",

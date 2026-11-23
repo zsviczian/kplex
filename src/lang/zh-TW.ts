@@ -232,6 +232,8 @@ const traditionalChineseTranslations = {
   "settings.trackpad": "觸控板導覽",
   "settings.trackpadPinchSensitivity": "捏合縮放靈敏度",
   "settings.ui.allowRemoteNodeImages.help": "載入外部節點圖片與 YouTube 影片預覽。圖片主機會收到您的 IP 位址及所要求的圖片網址。預設關閉；保管庫內的圖片仍可使用。關閉後會阻止新的載入，但無法撤回已送出的要求。",
+  "settings.ui.generateLocalVideoThumbnails": "為本機影片產生縮圖",
+  "settings.ui.generateLocalVideoThumbnails.help": "在可見的本機影片節點上顯示一個影格。影格過大或影片不受支援時，會顯示附件圖示。縮圖僅保留至目前工作階段結束。",
   "settings.trackpadPinchSensitivity.help": "在觸控板或觸控螢幕上捏合時的縮放速度。預設值為 5。若要恢復原始速度，請選擇 1。",
   "settings.trackpad.help": "捲動以平移；捏合或按住修飾鍵捲動以縮放。關閉後使用一般捲動縮放。",
   "fileMenu.reuse": "開啟",

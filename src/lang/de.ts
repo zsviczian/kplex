@@ -232,6 +232,8 @@ const germanTranslations = {
   "settings.trackpad": "Trackpad-Navigation",
   "settings.trackpadPinchSensitivity": "Empfindlichkeit beim Pinch-Zoom",
   "settings.ui.allowRemoteNodeImages.help": "Externe Knotenbilder und YouTube-Videovorschauen laden. Die Anbieter erhalten deine IP-Adresse und die angeforderte Bild-URL. Standardmäßig ausgeschaltet; Bilder im Vault funktionieren weiterhin. Ausschalten verhindert neue Ladevorgänge, kann aber bereits gesendete Anfragen nicht rückgängig machen.",
+  "settings.ui.generateLocalVideoThumbnails": "Vorschaubilder für lokale Videos erzeugen",
+  "settings.ui.generateLocalVideoThumbnails.help": "Zeigt ein Einzelbild auf sichtbaren Knoten lokaler Videos. Bei größeren Einzelbildern und nicht unterstützten Videos erscheint das Anhangssymbol. Vorschaubilder bleiben für die aktuelle Sitzung verfügbar.",
   "settings.trackpadPinchSensitivity.help": "Zoomgeschwindigkeit beim Pinchen auf dem Trackpad oder Touchscreen. Der Standardwert ist 5. Mit 1 gilt die ursprüngliche Geschwindigkeit.",
   "settings.trackpad.help": "Scrollen zum Verschieben; zum Zoomen zwei Finger zusammenziehen oder mit Zusatztaste scrollen. Ausschalten für Zoom durch normales Scrollen.",
   "fileMenu.reuse": "Öffnen",

@@ -898,10 +898,10 @@ test('additive-only existing-target commit preserves other ontology declarations
  assert.equal(result.state,'saved-published');assert.deepEqual(frontmatter,{children:['[[B]]','[[Unrelated]]'],parent:['[[OtherParent]]','[[B]]'],untouched:'keep'});assert.equal(JSON.stringify(otherSource),beforeOther);assert.deepEqual(events,['prepare','append','prepare']);
 });
 
-/** Existing Compass/explorer callers retain the accepted connected-pair policy unless they explicitly request non-removal. */
-test('legacy existing-target creation retains automatic relink by default',async()=>{
+/** Unavailable provenance must not reclassify a connected pair as inferred-only. */
+test('legacy existing-target creation retains automatic relink when pair evidence is unavailable',async()=>{
  const origin=page('R.md'),target=page('B.md'),calls=[];origin.neighbours=new Map([[target.path,{direction:1}]]);
- const context={translator:key=>key,index:{withForegroundPriority:async work=>work(),gateNeighbourPaths:()=>new Set(),isConnected:()=>true},prepareRelationshipMutation:async()=>[origin,target],relinkCentralNeighbour:async(...args)=>{calls.push(args);return{state:'saved-published',page:target}},addRelationshipOntology:()=>assert.fail('Legacy caller unexpectedly became additive'),writeRelationship:()=>assert.fail('Connected legacy pair must use its canonical relink owner')};
+ const context={translator:key=>key,index:{withForegroundPriority:async work=>work(),gateNeighbourPaths:()=>new Set(),isConnected:()=>true,evidenceBetween:()=>[]},prepareRelationshipMutation:async()=>[origin,target],relinkCentralNeighbour:async(...args)=>{calls.push(args);return{state:'saved-published',page:target}},addRelationshipOntology:()=>assert.fail('Legacy caller unexpectedly became additive'),writeRelationship:()=>assert.fail('Connected legacy pair must use its canonical relink owner')};
  const result=await productionFunction('src/main.ts','createRelationToPage',{Notice:class{}}).call(context,origin,'parent',target,'parents');assert.equal(result.state,'saved-published');assert.deepEqual(calls,[[origin,target,'parent','parents',1]]);
 });
 

@@ -16,8 +16,8 @@ All IDs below are **local Obsidian IDs**; Obsidian owns the existing `k-plex:` p
 | `kplex-open-popout` | `surface.open-popout` | Existing window-opening path; device capability retained |
 | `kplex-open-sidepanel` | `surface.open-sidepanel` | `activateSidepanel` |
 | `kplex-search` | `search.focus` | App search focus; suitable surface ownership |
-| `kplex-add-child` | `relationship.create-center.child` | `openRelationModal`; shared command center |
-| `kplex-add-parent` | `relationship.create-center.parent` | Same composer; shared command center |
+| `kplex-add-child` | `relationship.create-center.child` | `openRelationModal`; accepted center of the associated canvas |
+| `kplex-add-parent` | `relationship.create-center.parent` | Same composer and center selection |
 | `kplex-add-friend` | `relationship.create-center.left` | Same composer; semantic friend role |
 | `kplex-add-challenger` | `relationship.create-center.right` | Same composer; semantic challenger role |
 | `kplex-sync-tab-from-plex` | `document.sync-from-center` | `syncMostRecentTabWithKplex`; shared center |

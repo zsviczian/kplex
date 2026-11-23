@@ -172,6 +172,7 @@ import type { IndexingActivityCapture } from "./application/IndexingActivity";
 import { SessionEventRecorder } from "./application/SessionEventRecorder";
 import { SupportClipboardSession } from "./application/supportClipboard";
 import {NodeLinkClipboard} from "./adapters/obsidian/nodeLinkClipboard";
+import {LocalVideoThumbnails} from "./adapters/obsidian/localVideoThumbnails";
 import {contentVisibilityPatch, type ContentVisibilityKey, type ContentVisibilityScope} from "./core/plex/contentVisibility";
 import { SupportReportModal } from "./adapters/obsidian/SupportReportModal";
 import { readSupportCustomizations } from "./adapters/obsidian/supportEnvironment";
@@ -280,6 +281,8 @@ export default class KplexPlugin extends Plugin {
   private readonly relationshipReversals = new Map<string, Promise<RelationshipReversalResult>>();
   /** Clipboard receipts live only as long as this native plugin instance. */
   nodeLinkClipboard?: NodeLinkClipboard;
+  /** One transient local decoder/cache for every canvas and native window. */
+  localVideoThumbnails?: LocalVideoThumbnails;
   /** Versioned trusted automation surface; settings-based reads precede graph hydration. */
   api:KplexPublicApi|null=null;
   /** Public discovery leases contain callbacks only; native sessions retain actual canvas state. */
@@ -569,6 +572,9 @@ export default class KplexPlugin extends Plugin {
     // A persisted record is an existing installation even when newer fields/old flags are absent.
     const alreadyKplex = hasOwnData;
     this.settings = migrateAndMergeSettings(ownData);
+    this.localVideoThumbnails = new LocalVideoThumbnails(this.app.vault,
+      /** Provider admission always reads live settings, even during presentation. */ () => this.settings.generateLocalVideoThumbnails === true);
+    this.localVideoThumbnails.syncPreference();
     this.startupIndexPolicy = startupIndexPolicy(this.settings, readObsidianPresentationEnvironment().device);
     const actionMigration = migrateActionPreferences(ownData, readObsidianPresentationEnvironment().keyConvention);
     this.settings.actionPreferences = actionMigration.preferences;
@@ -605,14 +611,21 @@ export default class KplexPlugin extends Plugin {
     this.index.primeSavedNavigation([this.settings.lastActivePath, ...this.settings.navigationHistory.slice(-14), ...fixedPinPaths(this.settings.pinnedNodes)]);
     this.registerSavedPathListeners();
     // URL acquisition is independent of MetadataCache, local graph preparation and full Eager inventory.
-    this.registerEvent(this.app.vault.on("modify", /** Retire exact URL facts on content edits, including equal-stat writes. */
-      file => { if (file instanceof TFile && file.extension === "md") void this.index.refreshUrlOwner(file.path); }));
+    this.registerEvent(this.app.vault.on("modify", /** Retire exact URL facts and cached frames on content edits, including equal-stat writes. */
+      file => { if (file instanceof TFile) {
+        if (file.extension === "md") void this.index.refreshUrlOwner(file.path);
+        else this.localVideoThumbnails?.invalidate(file);
+      } }));
     this.registerEvent(this.app.vault.on("create", /** Initial vault enumeration is validated by normal restart inventory; post-layout creates retire URL owners. */
       file => { if (this.layoutReady && file instanceof TFile && file.extension === "md") void this.index.refreshUrlOwner(file.path); }));
-    this.registerEvent(this.app.vault.on("delete", /** Deleted owners cannot retain URL reference counts. */
-      file => { if (file instanceof TFile && file.extension === "md") void this.index.refreshUrlOwner(file.path); }));
-    this.registerEvent(this.app.vault.on("rename", /** Old URL source coordinates retire before the renamed owner publishes. */
+    this.registerEvent(this.app.vault.on("delete", /** Deleted owners cannot retain URL reference counts or publish frames into replacements. */
+      file => { if (file instanceof TFile) {
+        if (file.extension === "md") void this.index.refreshUrlOwner(file.path);
+        else this.localVideoThumbnails?.invalidate(file);
+      } }));
+    this.registerEvent(this.app.vault.on("rename", /** Retire the old URL and frame coordinates before the renamed owner publishes. */
       (file, oldPath) => { if (file instanceof TFile) {
+        this.localVideoThumbnails?.invalidate(file);
         if (oldPath.toLowerCase().endsWith(".md")) void this.index.refreshUrlOwner(oldPath);
         if (file.extension === "md") void this.index.refreshUrlOwner(file.path);
       } }));
@@ -882,6 +895,7 @@ export default class KplexPlugin extends Plugin {
     if (this.settingsTabRegistrationTimer !== null) window.clearTimeout(this.settingsTabRegistrationTimer);
     this.settingsTabRegistrationTimer = null;
     this.fileCreationAutomation.dispose();
+    this.localVideoThumbnails?.dispose();this.localVideoThumbnails = undefined;
     this.nodeLinkClipboard?.dispose();this.nodeLinkClipboard = undefined;
     for (const [timer, resolve] of this.createdEditorWaits) {window.clearTimeout(timer); resolve();}
     this.createdEditorWaits.clear();
@@ -2280,10 +2294,13 @@ export default class KplexPlugin extends Plugin {
     }
   }
 
-  /** Preserve the legacy command-center policy independently of editor focus and node selection. */
-  private commandCentralPage(): GraphPage | null {
+  /** A native canvas association selects its accepted center before a relationship command captures it. */
+  private commandCentralPage(hostLeaf?: WorkspaceLeaf): GraphPage | null {
     if (this.openKplexViews <= 0) return null;
-    const page = this.index.get(this.settings.lastActivePath);
+    const session = hostLeaf ? this.documentSession(hostLeaf) : null;
+    const path = hostLeaf ? session?.centerPath : this.settings.lastActivePath;
+    if (!path || session?.pendingFollow || session?.pendingUrl) return null;
+    const page = this.index.get(path);
     if (!page || page.isFolder || page.isTag) return null;
     return page;
   }
@@ -2544,6 +2561,7 @@ export default class KplexPlugin extends Plugin {
       || !appearanceThemes.themeValuesEqual(previous.appearanceThemesFuture, next.appearanceThemesFuture);
     const before = captureSettingsPolicy(previous), effects = classifySettingsChange(before, captureSettingsPolicy(next));
     this.settings = next;
+    const localVideoPreferenceChanged = this.localVideoThumbnails?.syncPreference();
     this.refreshPeriodicPins();
     this.savedSettingsPolicy = captureSettingsPolicy(next);
     this.actionPreferenceUnsupportedVersion = actions.unsupportedVersion;
@@ -2565,7 +2583,7 @@ export default class KplexPlugin extends Plugin {
     const metadataOnly = changed.every(/** These have dedicated subscribers; they need no general page or scene replacement. */ key => ["appearanceThemes", "actionPreferences", "actionPreferencesFuture"].includes(key));
     if (!metadataOnly) try {this.settingsTab?.update();} catch {refreshPending = true;}
     if (this.index && effects.nodeVisuals) this.index.invalidateNodeVisuals();
-    if (this.index && changed.includes("allowRemoteNodeImages")) this.index.notifyPresentation();
+    if (this.index && (localVideoPreferenceChanged || changed.includes("allowRemoteNodeImages"))) this.index.notifyPresentation();
     if (this.index && effects.semanticInvalidation) this.index.invalidateSemanticPolicy();
     this.externalSettingsNeedsSemantic ||= effects.semanticInvalidation;
     const generation = ++this.externalSettingsRefresh;
@@ -2577,7 +2595,7 @@ export default class KplexPlugin extends Plugin {
       if (this.externalSettingsNeedsSemantic) {
         this.externalSettingsNeedsSemantic = false;
         try {await this.index.refreshSemanticSettings();} catch (error) {this.externalSettingsNeedsSemantic = true; throw error;}
-      } else if (!effects.render && !metadataOnly) this.index.notifyPresentation();
+      } else if (!effects.render && !metadataOnly && !localVideoPreferenceChanged) this.index.notifyPresentation();
       if (refreshPending) new Notice(this.translator("settingsSync.refreshPending"));
     }).catch(/** Settings are already adopted; a failed refresh is not permission to roll back or resave them. */ () => {
       if (!this.unloading) new Notice(this.translator("settingsSync.refreshPending"));
@@ -3195,10 +3213,9 @@ export default class KplexPlugin extends Plugin {
         this.actionDialogs.set(dialog, { surfaceId: context.surfaceId, generation: context.generation });
         try { dialog.open(); } catch (error) { dialog.close(); this.actionDialogs.delete(dialog); throw error; }
         return { status: "opened", sessionId };
-      }, /** Preserve legacy global center exclusions; selected/local capability is explicit. */ context => {
+      }, /** Native center commands still exclude folders; selected/local capability is explicit. */ context => {
         const origin = pageFor(context);
         return origin && !origin.isTag && (!origin.isFolder || role === "child" && (family === "selected" || context.request.source !== "obsidian-command"))
-          && (family !== "center" || context.request.source !== "obsidian-command" || this.commandCentralPage() !== null)
           ? enabled : { state: "disabled", reasonKey: "actions.target-unavailable" };
       });
     }
@@ -3247,7 +3264,9 @@ export default class KplexPlugin extends Plugin {
           ?? (nativeDocument ? surfaces.find(([, value]) => this.sidecarLeaves.get(value.leaf) === nativeDocument)?.[0] : undefined)
           ?? surfaces.find(([, value]) => value.leaf === recent)?.[0];
         // Reporting has no node target and must stay usable when the graph is not yet available.
-        const shared = request.id === "support.report-bug" ? null : this.index.get(this.settings.lastActivePath);
+        const shared = request.id === "support.report-bug" ? null : request.id.startsWith("relationship.create-center.")
+          ? this.commandCentralPage(this.actionHostLeaf(associated))
+          : this.index.get(this.settings.lastActivePath);
         return { sharedCenter: shared ? actionNodeRef(shared) : null,
           windowId: request.windowId ?? this.actionWindowId(owner), preferredSurfaceId: associated,
           focusRegion: associated ? (this.actionManager.readSnapshot(associated)?.commandFocusRegion ?? this.actionManager.readSnapshot(associated)?.focusRegion) : "external" };
@@ -3348,6 +3367,7 @@ export default class KplexPlugin extends Plugin {
     const next = captureSettingsPolicy(this.settings);
     const previousPolicy = this.savedSettingsPolicy;
     const effects = classifySettingsChange(previousPolicy ?? next, next);
+    const localVideoPreferenceChanged = this.localVideoThumbnails?.syncPreference();
     const consentOnly = effects.changedKeys.length === 1 && effects.changedKeys[0] === "allowRemoteNodeImages";
     const layoutOnly = effects.changedKeys.length > 0 && effects.changedKeys.every(key => key === "layoutProfiles" || key === "groupRelations" || key === "canvasViewSettings" || key === "commonNodeProperties" || key === "noteTypeProperties" || key === "trackpadPinchSensitivity");
     const appearanceChanged = effects.changedKeys.some(/** Legacy imperative saves delegate appearance synchronization to the one queued owner. */ key => STYLE_SETTINGS_KEYS.some(/** This is the appearance-write inventory, not the theme schema. */ field => field === key));
@@ -3359,6 +3379,7 @@ export default class KplexPlugin extends Plugin {
       this.index.invalidateNodeVisuals();
       this.index.notifyPresentation();
     }
+    if (localVideoPreferenceChanged) this.index.notifyPresentation();
     if (effects.semanticInvalidation) this.index.invalidateSemanticPolicy();
     try {
       if (queuedAppearance) await this.updateStyleSettings(/** Existing callers already published their imperative fields; persist their coherent snapshot even if its library matches. */ () => {},
@@ -3376,7 +3397,7 @@ export default class KplexPlugin extends Plugin {
     await this.refreshSavedSettings(needsSemantic, true);
     // Workflow-only callers can still request their historical view notification. Changed settings
     // use the separate presentation channel and never pretend relationship evidence changed.
-    if ((!effects.render || effects.typographyOnly) && notifyIndex) this.index.notifyPresentation();
+    if ((!effects.render || effects.typographyOnly) && notifyIndex && !localVideoPreferenceChanged) this.index.notifyPresentation();
   }
 
   private isDocumentLeafCandidate(leaf: WorkspaceLeaf | null, hostLeaf?: WorkspaceLeaf): leaf is WorkspaceLeaf {
@@ -6906,7 +6927,11 @@ export default class KplexPlugin extends Plugin {
       // Legacy creation keeps its automatic-relink policy. An import without source removal
       // authority must instead append, even when this canonical pair already has another role.
       if (!additiveOnly && !storeOnTarget && this.index.isConnected(origin, target.path)) {
-        return this.relinkCentralNeighbour(origin, target, semanticRole, selectedField, origin.neighbours.get(target.path)?.direction ?? null);
+        const evidence = this.index.evidenceBetween(origin.path, target.path);
+        // Inferred-only pairs get their first definition on the same owner as a new relationship.
+        if (!evidence.length || evidence.some((item) => item.relationType === RelationType.DEFINED)) {
+          return this.relinkCentralNeighbour(origin, target, semanticRole, selectedField, origin.neighbours.get(target.path)?.direction ?? null);
+        }
       }
 
       if (storeOnTarget) {
