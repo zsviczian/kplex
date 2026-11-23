@@ -73,7 +73,8 @@ test('work receipts include exact phase timing, finite reasons and rotation with
   builds.begin('progressive',{trigger:'startup:initial-index'},context);now+=3;
   const buildWindow=input.indexReport.graphBuilds=builds.snapshot();
   const receipt={startMs:45,elapsedMs:70,trigger:'uncovered-non-file',resolverCause:'retired-folder-proof',endCause:'build-paused',
-    phase:'sources',outcome:'cancelled',visited:4,total:73,scopeChanges:1,path:privateText,toJSON(){calls++;throw Error(privateText);}};
+    phase:'sources',outcome:'cancelled',visited:4,total:73,scopeChanges:1,path:privateText,
+    sourceSweepMs:{inspection:12.5,dependencies:21,acquisition:privateText,path:privateText},toJSON(){calls++;throw Error(privateText);}};
   Object.defineProperty(receipt,'hostChanges',{get(){calls++;throw Error(privateText);}});
   Object.defineProperty(buildWindow.active.phaseMs,'notes',{get(){calls++;throw Error(privateText);}});
   buildWindow.active.cancelledBy=privateText;
@@ -86,6 +87,7 @@ test('work receipts include exact phase timing, finite reasons and rotation with
   assert.equal(work.graphBuilds.active.elapsedMs,3);assert.equal(work.graphBuilds.active.cancelledBy,'unavailable');
   assert.equal(work.graphBuilds.active.phaseMs.notes,undefined);assert.equal(work.sourceInventories.recent[0].hostChanges,null);
   assert.equal(work.sourceInventories.recent[0].endCause,'build-paused');assert.equal(work.sourceInventories.recent[0].resolverCause,'retired-folder-proof');
+  assert.deepEqual(work.sourceInventories.recent[0].sourceSweepMs,{inspection:12,dependencies:21});
   assert.equal(builds.snapshot().active.cancelledBy,null,'Export cannot mutate the live recorder');
   assert.equal(calls,0);assert(!text.includes(privateText));
 });

@@ -154,11 +154,16 @@ function supportGraphBuild(row: unknown) {
 function supportSourceInventory(row: unknown) {
   const startMs = supportDuration(supportField(row, "startMs"));
   if (startMs === null) return null;
+  const sweep = supportField(row, "sourceSweepMs");
   return {startMs, elapsedMs: supportDuration(supportField(row, "elapsedMs")),
     trigger: supportCode(supportField(row, "trigger"), ACTIVITY_REASONS),
     resolverCause: supportField(row, "resolverCause") == null ? null : supportCode(supportField(row, "resolverCause"), UNCOVERED_RESOLVER_CAUSES),
     endCause: supportField(row, "endCause") == null ? null : supportCode(supportField(row, "endCause"), SOURCE_INVENTORY_END_CAUSES),
     phase: supportCode(supportField(row, "phase"), SOURCE_PASS_PHASES), outcome: supportCode(supportField(row, "outcome"), SOURCE_PASS_OUTCOMES),
+    ...(sweep == null ? {} : {sourceSweepMs: Object.fromEntries(["pacing", "inspection", "dependencies", "hostObservations", "acquisition"].flatMap(key => {
+      const elapsed = supportDuration(supportField(sweep, key));
+      return elapsed === null ? [] : [[key, elapsed]];
+    }))}),
     ...supportCounters(row, ["visited", "total", "sourceChanges", "scopeChanges", "hostChanges"])};
 }
 /** Rebuild the existing native index schema from explicit safe fields; unavailable input is named. */

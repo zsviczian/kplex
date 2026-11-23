@@ -318,7 +318,7 @@ assert(mainSource.includes("this.settlePatchOnlyBacklogIfIdle()"), "Deleting a n
 assert(appSource.includes("plugin.resolveNavigationFallbackPath(activePath, deletedFolderCenter)"), "A missing persisted center must use the host navigation fallback");
 assert(mainSource.includes("this.settings.navigationHistory.length - 1"), "Navigation fallback must walk history newest-to-oldest");
 assert(!appSource.includes("plugin.app.vault.getMarkdownFiles()[0]?.path"), "Startup must not choose an arbitrary first Markdown note when navigation history is exhausted");
-assert(plexGraphSource.includes('setTitle(translate(persistent.file ? "graph.deleteNote" : "graph.deletePlaceholder"))'), "Every Markdown/placeholder node context menu must expose localized deletion copy");
+assert(plexGraphSource.includes('setTitle(translate(persistent.isFolder ? "graph.deleteFolder" : persistent.file ? "graph.deleteNote" : "graph.deletePlaceholder"))'), "Folder, Markdown and placeholder context menus must identify the localized deletion target");
 assert(plexGraphSource.includes("plugin.deleteNode(page, hostLeaf, page.path === activePath)"), "Node deletion must tell the workflow whether the deleted node is the active center");
 assert(mainSource.includes("this.removeSavedNavigationPaths(path)"), "Every deleted node must be removed from saved navigation immediately");
 assert(mainSource.includes("const fallback = this.deletionFallbackPath(path)"), "Deleting the active center must choose its replacement from remaining navigation history");

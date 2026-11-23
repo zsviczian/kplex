@@ -481,6 +481,8 @@ export interface KplexSettings extends StartupIndexPreferences {
   deletePromptInitialized: boolean;
   /** Ask for confirmation before deleting a real note file from the node context menu. */
   confirmFileDelete: boolean;
+  confirmFolderDelete: boolean;
+  confirmCanvasFolderMove: boolean;
   /** Default ontology-property cleanup when deleting a physical Markdown file through K-Plex. */
   removeOntologyLinksOnDelete: boolean;
   /** Show the optional Remaining references report after deleting a node through K-Plex. */
@@ -642,6 +644,8 @@ const LEGACY_DEFAULT_SETTINGS: KplexSettings = {
   startupIndexInfoBubbleSeen: false,
   deletePromptInitialized: false,
   confirmFileDelete: true,
+  confirmFolderDelete: true,
+  confirmCanvasFolderMove: true,
   removeOntologyLinksOnDelete: true,
   showRemainingReferencesOnDelete: true,
 };
@@ -955,6 +959,8 @@ export function migrateAndMergeSettings(raw: unknown): KplexSettings {
     startupIndexInfoBubbleSeen: Boolean(old.startupIndexInfoBubbleSeen),
     deletePromptInitialized: Boolean(old.deletePromptInitialized),
     confirmFileDelete: old.confirmFileDelete !== false,
+    confirmFolderDelete: old.confirmFolderDelete !== false,
+    confirmCanvasFolderMove: old.confirmCanvasFolderMove !== false,
     removeOntologyLinksOnDelete: old.removeOntologyLinksOnDelete !== false,
     showRemainingReferencesOnDelete: old.showRemainingReferencesOnDelete !== false,
     internalHotkeys: sanitizeInternalHotkeys(old.internalHotkeys),
@@ -2577,6 +2583,8 @@ export class KplexSettingTab extends PluginSettingTab {
               { name: translate("settings.ui.auto.fit.on.navigation"), control: { type: "toggle", key: "allowAutozoom" } },
               { name: translate("settings.ui.open.k.plex.in.a.pop.out.window"), desc: translate("settings.ui.when.k.plex.is.opened.and.no.k.plex.view.already.exists"), control: { type: "toggle", key: "startInPopout" } },
               { name: translate("settings.ui.confirm.before.deleting.files"), desc: translate("settings.ui.ask.before.a.node.context.menu.action.deletes.a.note.usi"), control: { type: "toggle", key: "confirmFileDelete" } },
+              { name: translate("settings.confirmFolderDelete"), control: { type: "toggle", key: "confirmFolderDelete" } },
+              { name: translate("settings.confirmCanvasFolderMove"), control: { type: "toggle", key: "confirmCanvasFolderMove" } },
               { name: translate("settings.deletion.removeOntologyLinks"), desc: deleteCleanupDescription, control: { type: "toggle", key: "removeOntologyLinksOnDelete" } },
               { name: translate("settings.deletion.showRemainingReferences"), control: { type: "toggle", key: "showRemainingReferencesOnDelete" } },
               {

@@ -13,6 +13,7 @@ import {formActions, iconButton, FormSetting as Setting, KplexModal as Modal} fr
 import {type App, type TFile} from "obsidian";
 import type { EvidenceSourceKind } from "../index/RelationEvidence";
 import { createObsidianTranslator } from "../adapters/obsidian/localization";
+import type {Translator} from "../lang";
 
 /** A pre-trash property approval retains exact keys and bounded canonical payload, never graph policy. */
 export type DeletePropertyChoice = "keep" | "remove" | "hide";
@@ -156,6 +157,36 @@ export type RemainingNodeReference = {
   fieldName?: string;
   sourceKind: EvidenceSourceKind;
 };
+
+/** Folder trash owns its own consent. Native file deletion remains with the host. */
+export class DeleteFolderConfirmationModal extends Modal {
+  private result: boolean | null = null;
+  private settled = false;
+
+  constructor(app: App, private readonly t: Translator, private readonly name: string,
+    private readonly complete: (skip: boolean | null) => void) {super(app);}
+
+  onOpen(): void {
+    this.setTitle(this.t("graph.deleteFolder"));
+    this.contentEl.createEl("p", {text: this.t("delete.folderConfirm", {name: this.name})});
+    let skip = false;
+    new Setting(this.contentEl).setName(this.t("delete.dontAskAgain")).addToggle(toggle => toggle.onChange(value => {skip = value;}));
+    const actions = formActions(this.contentEl);
+    actions.addButton(button => iconButton(button, this.t("common.cancel"), "x").onClick(() => this.close()));
+    actions.addButton(button => iconButton(button, this.t("graph.deleteFolder"), "trash-2").setDestructive().onClick(() => {
+      if (this.settled) return;
+      this.result = skip;
+      this.close();
+    }));
+  }
+
+  onClose(): void {
+    if (this.settled) return;
+    this.settled = true;
+    this.contentEl.empty();
+    this.complete(this.result);
+  }
+}
 
 export class RemainingNodeReferencesModal extends Modal {
   private readonly translate = createObsidianTranslator();

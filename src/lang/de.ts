@@ -2054,6 +2054,13 @@ const germanTranslations = {
   "creation.action": "Aktion",
   "creation.typeStatus": "{name} als {type} erstellen.",
 
+  "settings.confirmFolderDelete": "Vor dem Löschen von Ordnern bestätigen",
+  "settings.confirmCanvasFolderMove": "Verschieben in Ordner auf der Arbeitsfläche bestätigen",
+  "settings.confirmationPreferenceFailed": "Die Bestätigungseinstellung konnte nicht gespeichert werden.",
+  "delete.folderConfirm": "„{name}“ und den gesamten Inhalt in den von Obsidian konfigurierten Papierkorb verschieben?",
+  "delete.folderFailed": "Ordner konnte nicht gelöscht werden. {error}",
+  "graph.deleteFolder": "Ordner löschen",
+  "daily.drawingNotReady": "Die Tageszeichnung wurde gespeichert. Obsidian hat sie noch nicht als Excalidraw-Zeichnung erkannt.",
 } as const satisfies LocaleTranslationMap;
 
 return buildLocaleCatalog(germanTranslations);

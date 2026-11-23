@@ -37,7 +37,8 @@ export class StructuralNodeDropActions {
   /** Reuse the plugin's metadata write observer; this owner adds only explicit interaction lifetime. */
   constructor(private readonly app: App, private readonly translate: Translator,
     private readonly write: (file: TFile, fields: ReadonlySet<string>, mutate: (frontmatter: Record<string, unknown>) => void) => Promise<void>,
-    private readonly noteTypeField: () => string) {}
+    private readonly noteTypeField: () => string,
+    private readonly moveConfirmation?: {needed: () => boolean; skip: () => Promise<void>}) {}
 
   /** Consume only supported structural targets; moves need native confirmation, tags need an explicit drop. */
   open(origin: GraphPage, target: GraphPage, options: {immediateMove?: boolean} = {}): boolean {
@@ -46,7 +47,7 @@ export class StructuralNodeDropActions {
     if (kind === "move") {
       const prepared = origin.isFolder && target.file ? preparePhysicalMove(this.app, target, origin) : preparePhysicalMove(this.app, origin, target);
       if (!prepared.ok) { new Notice(this.translate(`moveNode.${prepared.reason}`)); return true; }
-      if (options.immediateMove) {
+      if (options.immediateMove || this.moveConfirmation?.needed() === false) {
         const {plan} = prepared;
         if (this.moving.has(plan.source)) return true;
         this.moving.add(plan.source);
@@ -62,7 +63,7 @@ export class StructuralNodeDropActions {
       }
       const modal = new MoveToFolderModal(this.app, prepared.plan, this.translate,
         /** Plugin unload fences unsubmitted operations and late notices. */ () => !this.disposed,
-        /** Remove exactly the shell that retired. */ () => { this.dialogs.delete(modal); });
+        /** Remove exactly the shell that retired. */ () => { this.dialogs.delete(modal); }, this.moveConfirmation?.skip);
       this.dialogs.add(modal); modal.open(); return true;
     }
     const pair = kind === "tag" ? tagMembershipPair(origin, target) : null;

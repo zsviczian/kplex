@@ -2058,6 +2058,13 @@ const frenchTranslations = {
   "creation.action": "Action",
   "creation.typeStatus": "Créer {name} en tant que {type}.",
 
+  "settings.confirmFolderDelete": "Confirmer avant de supprimer les dossiers",
+  "settings.confirmCanvasFolderMove": "Confirmer le déplacement vers un dossier sur le canevas",
+  "settings.confirmationPreferenceFailed": "Impossible d’enregistrer la préférence de confirmation.",
+  "delete.folderConfirm": "Déplacer « {name} » et tout son contenu vers la corbeille configurée dans Obsidian ?",
+  "delete.folderFailed": "Impossible de supprimer le dossier. {error}",
+  "graph.deleteFolder": "Supprimer le dossier",
+  "daily.drawingNotReady": "Le dessin quotidien a été enregistré. Obsidian ne l’a pas encore reconnu comme un dessin Excalidraw.",
 } as const satisfies LocaleTranslationMap;
 
 return buildLocaleCatalog(frenchTranslations);

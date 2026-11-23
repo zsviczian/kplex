@@ -2050,6 +2050,13 @@ const traditionalChineseTranslations = {
   "creation.action": "動作",
   "creation.typeStatus": "將 {name} 建立為 {type}。",
 
+  "settings.confirmFolderDelete": "刪除資料夾前先確認",
+  "settings.confirmCanvasFolderMove": "在畫布上將項目移入資料夾前先確認",
+  "settings.confirmationPreferenceFailed": "無法儲存確認偏好設定。",
+  "delete.folderConfirm": "要將「{name}」及其所有內容移至 Obsidian 設定的垃圾桶嗎？",
+  "delete.folderFailed": "無法刪除資料夾。{error}",
+  "graph.deleteFolder": "刪除資料夾",
+  "daily.drawingNotReady": "每日繪圖已儲存。Obsidian 尚未將它辨識為 Excalidraw 繪圖。",
 } as const satisfies LocaleTranslationMap;
 
 return buildLocaleCatalog(traditionalChineseTranslations);

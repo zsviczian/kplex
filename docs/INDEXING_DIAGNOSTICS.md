@@ -43,6 +43,9 @@ preparation was active, and whether the build requested an inventory pause. Sour
 record the trigger, the matching uncovered-resolver category when available, last phase, number
 of source owners visited, revision-change counts, and whether a build paused the pass. Both
 use elapsed milliseconds from the same renderer clock so overlapping intervals can be compared.
+An inventory's `sourceSweepMs` breaks out pacing, cached inspection, dependency maintenance,
+host-observation digestion and saves, and source acquisition during the per-note scan. These
+totals measure elapsed time within each step, including asynchronous waits.
 Elapsed phase time includes waits and yields. Every field is a fixed category, count, timing or
 Boolean. No note or folder keys, content, or exception messages are recorded. These receipts are
 held in memory and exported through the same privacy projection on both commands.
@@ -58,6 +61,8 @@ When saved-preview hydration is interrupted, automatic graph retries wait for pe
 validation and for the graph's 1.1-second edit quiet period. Further view and interval checks
 reuse the previous attempt until native topology, the graph revision, or source readiness
 changes. Edits still invalidate an active build as soon as they arrive.
+Opening or revealing a view can request catch-up. Its trigger alone does not represent a
+changed file or topology and cannot require a second build after source-backed startup publishes.
 
 `index.cache.connection` distinguishes a healthy handle, normal retry backoff, a closed lifetime
 and a newer unsupported database. It retains the last finite failure cause/native error class

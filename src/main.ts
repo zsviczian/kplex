@@ -105,7 +105,7 @@ import {prepareOntologyBatch,type OntologyBatchEdit,type OntologyBatchPlan} from
 import type {StyleEditorModal} from "./ui/StyleEditorModal";
 import {NotificationModal} from "./ui/NotificationModal";
 
-import { FileView, ItemView, MarkdownView, Menu, Notice, Platform, Plugin, TFile, TFolder, apiVersion, getLanguage, getAllTags, normalizePath, type Editor, type HoverParent, type WorkspaceLeaf } from "obsidian";
+import { FileView, ItemView, MarkdownView, Menu, Notice, Platform, Plugin, TFile, TFolder, apiVersion, getLanguage, getAllTags, getFrontMatterInfo, normalizePath, parseYaml, type Editor, type HoverParent, type WorkspaceLeaf } from "obsidian";
 import { captureSettingsPolicy, classifySettingsChange, isStyleOnlySettingsChange, type SettingsPolicy } from "./core/graph/settingsPolicy";
 import {builtInCanvasViewSettings} from "./ui/plexViews/settingsContributions";
 import {editViewConfigurationAt, migrateViewConfiguration, readViewConfiguration, readViewConfigurationAt, resetViewConfiguration,
@@ -129,7 +129,7 @@ import {eligibleRelationshipOwner} from "./adapters/obsidian/relationshipOwner";
 import {EXTERNAL_IMPORT_LIMITS, type ExternalImportPayload} from "./adapters/obsidian/externalFileImport";
 import {ExternalFileImportBatchModal} from "./ui/ExternalFileImportBatchModal";
 import { MaterializeGhostModal, type GhostMaterializationKind, type GhostMaterializationLocation } from "./ui/MaterializeGhostModal";
-import { DeleteNodeConfirmationModal, RemainingNodeReferencesModal, HideRelationshipModal, type DeleteNodePreview, type DeleteSourcePreview, type RemainingNodeReference } from "./ui/DeleteNodeModal";
+import { DeleteFolderConfirmationModal, DeleteNodeConfirmationModal, RemainingNodeReferencesModal, HideRelationshipModal, type DeleteNodePreview, type DeleteSourcePreview, type RemainingNodeReference } from "./ui/DeleteNodeModal";
 import { navigatePluginSettings } from "./adapters/obsidian/settingsNavigation";
 import type {ElementStyleSource, StandardStyleKey} from "./core/contracts/styleSource";
 import { suggestHiddenProperty } from "./adapters/obsidian/hiddenPropertyName";
@@ -386,6 +386,7 @@ export default class KplexPlugin extends Plugin {
   private indexSearchPrimed = false;
   private readonly layoutReadyWaiters = new Set<() => void>();
   private readonly createdEditorWaits = new Map<number, () => void>();
+  private readonly folderTrashInFlight = new WeakSet<TFolder>();
   private metadataStabilized = false;
   private metadataStabilityPromise: Promise<number> | null = null;
   private readonly indexBacklogReasons = new Set<string>();
@@ -1642,7 +1643,7 @@ export default class KplexPlugin extends Plugin {
    * Structural, policy and unknown causes retain independent ownership. */
   private retireCoveredMarkdownBacklog(): void {
     if (this.dirtyMarkdownPaths.size) return;
-    for (const reason of ["metadata:changed", "vault:create-markdown", "coalesced-backlog", "interval", "startup:post-initial-backlog"]) {
+    for (const reason of ["metadata:changed", "vault:create-markdown", "coalesced-backlog", "interval", "view-open", "view-visible", "startup:post-initial-backlog"]) {
       this.indexBacklogReasons.delete(reason);
     }
     this.preRestoreUncoveredChanges = this.indexBacklogReasons.size > 0;
@@ -2047,7 +2048,7 @@ export default class KplexPlugin extends Plugin {
       const reasons = [...this.indexBacklogReasons];
       if (reasons.some(item => startupReasons.has(item)) && reasons.every(item => startupReasons.has(item)
         || item === "metadata:changed" || item === "vault:create-markdown"
-        || item === "coalesced-backlog" || item === "interval")) return;
+        || item === "coalesced-backlog" || item === "interval" || item === "view-open" || item === "view-visible")) return;
     }
     const explicitlyRequested = showNotice;
     if ((!this.hasIndexMaintenanceDemand() || this.isBackgroundIndexingPaused()) && !allowClosed && !explicitlyRequested) {
@@ -2088,7 +2089,7 @@ export default class KplexPlugin extends Plugin {
       }
       const structuralDirty = [...this.indexBacklogReasons].some((item) =>
         item !== "metadata:changed" && item !== "coalesced-backlog" && item !== "interval" &&
-        item !== "vault:create-markdown" && item !== "startup:post-initial-backlog",
+        item !== "vault:create-markdown" && item !== "startup:post-initial-backlog" && item !== "view-open" && item !== "view-visible",
       );
       if (this.index.isOnDemandMode()) {
         const ready = await this.index.refreshOnDemandGraph(this.startupGraphSeedPaths(), structuralDirty || force);
@@ -2165,6 +2166,9 @@ export default class KplexPlugin extends Plugin {
       const rebuiltIndex = this.index;
       automaticWarmFullBuild = !force && !showNotice && rebuiltIndex.isFullSnapshotHydrated();
       const startupRecovery = !force && !showNotice && this.isInterruptedGraphStartup();
+      // A visibility check cannot take the full compiler while the interrupted preview's source
+      // owner is preparing it. Keep per-file work and the initial owner's explicit fallback.
+      if (startupRecovery && !allowClosed && rebuiltIndex.hasSourceBackedStartup() && rebuiltIndex.hasPendingSourceAuthority()) return;
       if (automaticWarmFullBuild && this.isAutomaticBuildRetryBlocked(rebuiltIndex)) return;
       if (startupRecovery && this.isStartupGraphRetryDeferred(rebuiltIndex)) return;
       const sourceReady = (automaticWarmFullBuild || startupRecovery) && rebuiltIndex.hasReusableSourceInventory();
@@ -2198,7 +2202,7 @@ export default class KplexPlugin extends Plugin {
             : {index: rebuiltIndex, revision: buildRevision, sourceReady, startupTopology};
         }
         this.indexDirty = true;
-        this.indexBacklogReasons.add(reason);
+        if (reason !== "view-open" && reason !== "view-visible") this.indexBacklogReasons.add(reason);
         if (!startupRecovery && allowClosed && this.indexDirtyRevision !== startRevision && this.hasIndexMaintenanceDemand() && this.rebuildTimer === null
           && (!automaticWarmFullBuild || !this.isAutomaticBuildRetryBlocked(rebuiltIndex))) {
           // A note saved while cold ingestion was awaiting work invalidates that source revision.
@@ -7763,6 +7767,54 @@ export default class KplexPlugin extends Plugin {
     });
   }
 
+  /** A completed folder operation can restore its own confirmation preference on settings failure. */
+  private async skipFolderConfirmation(key: "confirmFolderDelete" | "confirmCanvasFolderMove"): Promise<void> {
+    if (this.unloading || this.settings[key] === false) return;
+    this.settings[key] = false;
+    try {await this.saveSettings(false, false);}
+    catch {
+      if (this.settings[key] === false) this.settings[key] = true;
+      if (!this.unloading) new Notice(this.translator("settings.confirmationPreferenceFailed"));
+    }
+  }
+
+  /** Trash one captured physical folder. Native delete events own graph and saved-path cleanup. */
+  private async trashCanvasFolder(page: GraphPage, hostLeaf?: WorkspaceLeaf): Promise<ActionOutcome> {
+    const folder = graphFolder(this.app, page);
+    if (!folder || !folder.parent || folder === this.app.vault.getRoot() || page.transient)
+      return {status: "unavailable", reasonKey: "actions.target-unavailable"};
+    if (this.folderTrashInFlight.has(folder)) return {status: "cancelled"};
+    const path = folder.path, hostView = hostLeaf?.view, document = hostView?.containerEl.ownerDocument;
+    const current = (): boolean => !this.unloading && folder.path === path && page.path === `folder:${path}`
+      && this.app.vault.getFolderByPath(path) === folder
+      && (!hostLeaf || hostLeaf.view === hostView && hostView.containerEl.isConnected && hostView.containerEl.ownerDocument === document);
+    this.folderTrashInFlight.add(folder);
+    try {
+      let skip = false;
+      if (this.settings.confirmFolderDelete !== false) {
+        const choice = await new Promise<boolean | null>(resolve => {
+          const dialog = new DeleteFolderConfirmationModal(this.app, this.translator, folder.name, value => {
+            this.actionDialogs.delete(dialog);
+            resolve(value);
+          });
+          const surface = [...this.actionSurfaceHosts].find(([, registration]) => registration.leaf === hostLeaf);
+          this.actionDialogs.set(dialog, surface ? {surfaceId: surface[0], generation: surface[1].generation} : {});
+          if (current()) dialog.open();
+          else dialog.onClose();
+        });
+        if (choice === null) return {status: "cancelled"};
+        skip = choice;
+      }
+      if (!current()) {new Notice(this.translator("addRelated.endpointChanged"));return {status: "cancelled"};}
+      await this.app.fileManager.trashFile(folder);
+      if (skip && this.app.vault.getFolderByPath(path) !== folder) await this.skipFolderConfirmation("confirmFolderDelete");
+      return {status: "completed"};
+    } catch (error) {
+      if (!this.unloading) new Notice(this.translator("delete.folderFailed", {error: error instanceof Error ? error.message : String(error)}));
+      return {status: "failed", reasonKey: "actions.target-unavailable"};
+    } finally {this.folderTrashInFlight.delete(folder);}
+  }
+
   private deletionFallbackPath(deletedPath: string): string | null {
     for (let index = this.settings.navigationHistory.length - 1; index >= 0; index -= 1) {
       const path = this.settings.navigationHistory[index];
@@ -7814,6 +7866,7 @@ export default class KplexPlugin extends Plugin {
   async deleteNode(page: GraphPage, hostLeaf?: WorkspaceLeaf, wasCenter = false): Promise<ActionOutcome> {
     const hostView = hostLeaf?.view;
     const target = this.index.get(page.path);
+    if (target?.isFolder && page.isFolder) return this.trashCanvasFolder(target, hostLeaf);
     if (!target || target.isFolder || target.isTag || target.url || (target.file && target.file.extension !== "md")) return { status: "unavailable", reasonKey: "actions.target-unavailable" };
     const capturedFile = target.file;
     const captured = actionNodeRef(target);
@@ -8648,7 +8701,8 @@ export default class KplexPlugin extends Plugin {
   /** Reuse one plugin-owned metadata queue for assignment and unlink, including actions from other windows. */
   private structuralDropOwner(): StructuralNodeDropActions {
     this.structuralDrops ??= new StructuralNodeDropActions(this.app, this.translator,
-      /** Reuse exact-file saved-metadata observation and plugin cancellation ownership. */ (file, fields, mutate) => this.mutateCreatedNodeMetadata(file, fields, mutate), () => this.settings.noteTypeField);
+      /** Reuse exact-file saved-metadata observation and plugin cancellation ownership. */ (file, fields, mutate) => this.mutateCreatedNodeMetadata(file, fields, mutate), () => this.settings.noteTypeField,
+      {needed: () => this.settings.confirmCanvasFolderMove !== false, skip: () => this.skipFolderConfirmation("confirmCanvasFolderMove")});
     return this.structuralDrops;
   }
 
@@ -9052,7 +9106,36 @@ export default class KplexPlugin extends Plugin {
     if (view.getViewType() === "excalidraw") {this.createdDailyNotes.delete(file);return;}
     if (view.getViewType() !== "markdown") return;
     const ea = (window as unknown as {ExcalidrawAutomate?: {isExcalidrawFile?: (file: TFile) => boolean; toggleViewMode?: (view: FileView) => Promise<unknown>}}).ExcalidrawAutomate;
-    if (!ea?.isExcalidrawFile?.(file) || typeof ea.toggleViewMode !== "function") return;
+    if (!ea?.isExcalidrawFile || typeof ea.toggleViewMode !== "function") return;
+    const path = file.path;
+    /** Host metadata can trail the template write. Only the same opened drawing may wait or convert. */
+    const stillOpening = (): boolean => !this.unloading && current() && file.path === path && this.app.vault.getFileByPath(path) === file
+      && leaf.view === view && view.file === file && view.getViewType() === "markdown";
+    if (!ea.isExcalidrawFile(file)) {
+      let drawing = false;
+      try {
+        const yaml = getFrontMatterInfo(await this.app.vault.read(file));
+        const properties: unknown = yaml.exists ? parseYaml(yaml.frontmatter) : null;
+        drawing = Boolean(properties && typeof properties === "object" && "excalidraw-plugin" in properties && properties["excalidraw-plugin"]);
+      } catch { return; }
+      if (!stillOpening()) return;
+      if (!drawing) {this.createdDailyNotes.delete(file);return;}
+      if (!ea.isExcalidrawFile(file)) await new Promise<void>(resolve => {
+        const cache = this.app.metadataCache;
+        const finish = (): void => {
+          cache.offref(change);
+          window.clearTimeout(timer);
+          this.createdEditorWaits.delete(timer);
+          resolve();
+        };
+        const change = cache.on("changed", changed => {if (!stillOpening() || changed === file && ea.isExcalidrawFile?.(file)) finish();});
+        const timer = window.setTimeout(finish, 3000);
+        this.createdEditorWaits.set(timer, finish);
+        if (!stillOpening() || ea.isExcalidrawFile?.(file)) finish();
+      });
+    }
+    if (!stillOpening()) return;
+    if (!ea.isExcalidrawFile(file)) {new Notice(this.translator("daily.drawingNotReady"));return;}
     await ea.toggleViewMode(view);
     if (leaf.view instanceof FileView && leaf.view.file === file && leaf.view.getViewType() === "excalidraw") this.createdDailyNotes.delete(file);
   }

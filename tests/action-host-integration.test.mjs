@@ -17,6 +17,25 @@ await build({entryPoints:[fileURLToPath(new URL('../src/adapters/obsidian/hidden
 const contracts = await import(pathToFileURL(join(temporary, 'contracts.mjs')));
 const {suggestHiddenProperty}=await import(pathToFileURL(join(temporary,'hidden-property.mjs')));
 
+test('folder trash has independent consent and a replacement cannot inherit it', async()=>{
+ const root={path:'/'},folders=new Map(),trashed=[],dialogs=[];
+ const add=name=>{const folder={path:name,name,parent:root};folders.set(name,folder);return folder;};
+ const app={vault:{getRoot:()=>root,getFolderByPath:path=>folders.get(path)??null},fileManager:{trashFile:async folder=>{trashed.push(folder);folders.delete(folder.path);}}};
+ class Confirmation{constructor(_app,_t,_name,settle){this.settle=settle;}open(){dialogs.push(this);}}
+ const host={app,translator:key=>key,settings:{confirmFileDelete:false,confirmFolderDelete:true,confirmCanvasFolderMove:true},actionSurfaceHosts:new Map(),actionDialogs:new Map(),folderTrashInFlight:new WeakSet(),saveSettings:async()=>{}};
+ host.skipFolderConfirmation=method('skipFolderConfirmation',{Notice:class{}}).bind(host);
+ const trash=method('trashCanvasFolder',{graphFolder:(_app,page)=>page.path==='folder:/'?root:folders.get(page.path.slice(7)),DeleteFolderConfirmationModal:Confirmation,Notice:class{}}).bind(host);
+ const original=add('Folder'),page={path:'folder:Folder',isFolder:true};
+ let work=trash(page);assert.equal(dialogs.length,1,'The note preference cannot skip folder confirmation');
+ dialogs[0].settle(null);assert.equal((await work).status,'cancelled');assert.equal(folders.get('Folder'),original);
+ work=trash(page);const replacement=add('Folder');dialogs[1].settle(true);assert.equal((await work).status,'cancelled');assert.equal(host.settings.confirmFolderDelete,true);
+ work=trash(page);dialogs[2].settle(true);assert.equal((await work).status,'completed');assert.deepEqual(trashed,[replacement]);
+ assert.equal(host.settings.confirmFolderDelete,false);assert.equal(host.settings.confirmFileDelete,false);assert.equal(host.settings.confirmCanvasFolderMove,true);
+ const other=add('Other');assert.equal((await trash({path:'folder:Other',isFolder:true})).status,'completed');
+ assert.deepEqual(trashed,[replacement,other]);assert.equal(dialogs.length,3);assert.equal(host.actionDialogs.size,0);
+ assert.equal((await trash({path:'folder:/',isFolder:true})).status,'unavailable');
+});
+
 /** New hosts expose the property registry through MetadataTypeManager; the old alias is an older-host fallback only. */
 test('Hidden name proposal prefers current cached native property registry and fails closed on malformed current data',()=>{
  let legacyReads=0;

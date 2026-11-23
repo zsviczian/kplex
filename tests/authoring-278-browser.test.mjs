@@ -790,6 +790,19 @@ test('daily-gap consent reviews only after explicit creation and never on Cancel
  `),true);
 });
 
+test('late native editor focus does not disable the reviewed daily-gap Link button',async()=>{
+ assert.equal(await authoringScenario(`
+ const modal=openComposer(target,{additiveOnly:true});
+ await waitFor(()=>modal.contentEl.querySelector('button[data-kplex-primary-action=true]'));
+ const editor=document.body.createEl('button');editor.focus();
+ check(document.activeElement===editor,'Native focus race fixture did not move focus');
+ modal.contentEl.querySelector('button[data-kplex-primary-action=true]').click();
+ await waitFor(()=>links.length===1);
+ check(links[0][0].file===origin.file&&links[0][2].file===target.file,'The reviewed endpoints changed');
+ editor.remove();modal.close();
+ `),true);
+});
+
 test('native Move picker rejects replacement and Tab dismisses suggestions without accepting one',async()=>{
  assert.equal(await authoringScenario(`
  const modal=new M.MoveNodeModal(p.app,origin.file,t,()=>true,()=>{},host);modal.open();await waitFor(()=>modal.contentEl.querySelector('input'));

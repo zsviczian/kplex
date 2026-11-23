@@ -49,3 +49,33 @@ test('default Daily Notes parent is presentation-only and leaves the metadata pr
     assert.deepEqual(f.api.readDailyPinSettings(f.app),{folder:'Notes',format:'YYYY/MM-DD'});
     assert.equal(f.calls.length,0);}finally{f.restore()}
 });
+
+for (const retireView of [false,true]) test(`daily drawing waits for exact metadata after the template write (retired view: ${retireView})`,async()=>{
+  const source=ts.createSourceFile('main.ts',readFileSync(new URL('../src/main.ts',import.meta.url),'utf8'),ts.ScriptTarget.Latest,true);
+  const plugin=source.statements.find(node=>ts.isClassDeclaration(node)&&node.name?.text==='KplexPlugin');
+  const declaration=plugin.members.find(node=>node.name?.getText(source)==='finishDailyNoteOpening');
+  const code=ts.transpileModule(`class Host{${declaration.getText(source)}}`,{compilerOptions:{target:ts.ScriptTarget.ES2022}}).outputText;
+  let recognized=false, changed, entered;
+  const observing=new Promise(resolve=>{entered=resolve;});
+  const file={path:'Daily/Today.md'},other={path:'Daily/Yesterday.md'},switched=[],timers=new Map();
+  class FileView{constructor(file,type='markdown'){this.file=file;this.type=type;}getViewType(){return this.type;}}
+  const view=new FileView(file),leaf={view};
+  const window={setTimeout:callback=>{timers.set(1,callback);return 1;},clearTimeout:id=>timers.delete(id),ExcalidrawAutomate:{
+    isExcalidrawFile:candidate=>candidate===file&&recognized,
+    toggleViewMode:async target=>{switched.push(target);leaf.view=new FileView(file,'excalidraw');},
+  }};
+  const Host=Function('window','FileView','getFrontMatterInfo','parseYaml','Notice',code+';return Host;')(window,FileView,
+    body=>({exists:body.startsWith('---'),frontmatter:body}),()=>({'excalidraw-plugin':'parsed'}),class{constructor(){assert.fail('Unexpected drawing notice');}});
+  const host=Object.assign(new Host(),{createdDailyNotes:new WeakSet([file]),createdEditorWaits:new Map(),app:{
+    vault:{getFileByPath:path=>path===file.path?file:other,read:async()=> '---\nexcalidraw-plugin: parsed\n---\n'},
+    metadataCache:{on(name,callback){assert.equal(name,'changed');changed=callback;entered();return callback;},offref(ref){assert.equal(ref,changed);changed=null;}},
+  }});
+  const work=host.finishDailyNoteOpening(leaf,file);
+  await observing;
+  recognized=true;changed(other);
+  assert.deepEqual(switched,[],'Another file cannot release the exact metadata wait');
+  if(retireView)leaf.view=new FileView(other);
+  changed(file);await work;
+  assert.deepEqual(switched,retireView?[]:[view]);
+  assert.equal(timers.size,0);assert.equal(host.createdEditorWaits.size,0);assert.equal(changed,null);
+});

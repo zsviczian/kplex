@@ -444,7 +444,7 @@ for (const reason of ['startup:unknown-prerequisite', 'vault:create', 'vault:ren
   });
 }
 
-for (const reason of ['coalesced-backlog', 'interval']) {
+for (const reason of ['coalesced-backlog', 'interval', 'view-visible', 'view-open']) {
   test(`covered mixed backlog retains source ownership with ${reason} bookkeeping`, /** Earlier automatic calls can leave their scheduling label without adding a dirty source. */ async () => {
     const f = eventFixture({reasons: ['startup:stale-snapshot', reason]});
     try {
@@ -455,6 +455,35 @@ for (const reason of ['coalesced-backlog', 'interval']) {
     } finally { f.close(); }
   });
 }
+
+test('view catch-up during source-backed restart does not leave a second full build', async () => {
+  const f = fixture({reasons:['startup:partial-restore-incomplete','vault:create','metadata:changed'], dirty:['A.md']});
+  const {p} = f;
+  try {
+    let sourcePending = true, sourceBacked = true, hydrated = false, builds = 0;
+    p.initialIndexTask = null; p.rebuildTimer = null; p.pendingCreateRevision = p.indexDirtyRevision;
+    Object.assign(p.index, {
+      hasSourceBackedStartup: () => sourceBacked,
+      hasPendingSourceAuthority: () => sourcePending,
+      hasReusableSourceInventory: () => !sourcePending,
+      isFullSnapshotHydrated: () => hydrated,
+      adoptStartupSources: async () => !sourcePending,
+      rebuild: async options => {
+        builds++;
+        if (sourcePending) return false;
+        options.onCommitted('A.md'); sourceBacked = false; hydrated = true; return true;
+      },
+    });
+    await p.performRebuild(false,false,'view-visible',false);
+    assert.equal(builds,0,'Visibility cannot pause source authority to start a full build');
+    p.indexBacklogReasons.add('view-visible');
+    sourcePending = false;
+    await p.adoptInitialSourceIndex();
+    await f.interval();
+    assert.equal(builds,1,'Source adoption is the only full build');
+    assert.equal(p.indexDirty,false);
+  } finally {f.close();}
+});
 
 for (const kind of ['dirty-source', 'new-folder', 'manual']) {
   test(`actual ${kind} retains rebuild admission during source adoption`, /** Genuine changed facts and explicit user work must not disappear behind startup suppression. */ async () => {

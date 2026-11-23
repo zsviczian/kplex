@@ -4888,7 +4888,9 @@ export function PlexGraph({ viewDefinition = classicViewDefinition, viewSession,
       const page = graphActionPage(context); if (page) return plugin.deleteNode(page, hostLeaf, page.path === activePath);
       return;
     }, context => {
-      const page = graphActionPage(context); return Boolean(page && !page.transient && !page.isFolder && !page.isTag && !page.url && (!page.file || page.file.extension === "md"));
+      const page = graphActionPage(context);
+      if (page?.isFolder) return context.request.source === "context-menu" && !page.transient && page.path !== "folder:/" && Boolean(nativeRevealTarget(plugin.app, page)?.parent);
+      return Boolean(page && !page.transient && !page.isTag && !page.url && (!page.file || page.file.extension === "md"));
     }),
     "node.copy-link": graphAction(/** Start the native clipboard write in this gesture; destination formatting belongs to paste. */ context => {
       const page = graphActionPage(context); if (!page) return;
@@ -5274,6 +5276,8 @@ export function PlexGraph({ viewDefinition = classicViewDefinition, viewSession,
         || renameTargetFor(persistent) !== capturedRenameTarget)) return;
       if (capturedFolderPath && (id === "node.open.system" || id === "node.open.navigation")
         && nativeRevealTarget(plugin.app, {file: null, isFolder: true, path: `folder:${capturedFolderPath}`}) !== capturedNativeTarget) return;
+      if (id === "node.delete" && capturedFolderPath && (!menuCurrent() || capturedNativeTarget?.path !== capturedFolderPath
+        || nativeRevealTarget(plugin.app, target) !== capturedNativeTarget)) return;
       void plugin.actionManager.dispatch({ id, source: "context-menu", surfaceId: actionSurfaceId,
         target: { kind: "explicit", node: reference, occurrenceId: occurrenceId ?? sceneNodeKeys.get(node) } });
     };
@@ -5405,11 +5409,11 @@ export function PlexGraph({ viewDefinition = classicViewDefinition, viewSession,
         .onClick(() => runCapturedNodeAction("pin.toggle", persistent)));
     }
 
-    if (persistent && !persistent.isFolder && !persistent.isTag && !persistent.url &&
-        (!persistent.file || persistent.file.extension === "md") && page.transient?.kind !== "section") {
+    if (persistent && !persistent.isTag && !persistent.url && page.transient?.kind !== "section" &&
+        (persistent.isFolder ? capturedFolderPath && capturedFolderPath !== "/" && capturedNativeTarget?.parent : !persistent.file || persistent.file.extension === "md")) {
       menu.addSeparator();
       menu.addItem((item) => item
-        .setTitle(translate(persistent.file ? "graph.deleteNote" : "graph.deletePlaceholder"))
+        .setTitle(translate(persistent.isFolder ? "graph.deleteFolder" : persistent.file ? "graph.deleteNote" : "graph.deletePlaceholder"))
         .setIcon("trash-2")
         .onClick(() => runCapturedNodeAction("node.delete", persistent)));
     }

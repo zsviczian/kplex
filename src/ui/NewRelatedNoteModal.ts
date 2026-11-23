@@ -356,7 +356,9 @@ function RelatedNoteComposer({
   /** Link the captured note, with validity checked after remembered ontology awaits. */
   const linkExisting = async (intent: CompletionIntent | CreationAfterSavingAction = continuation) => {
     const target = selectedTarget;
-    if (!target || !beginWrite()) return;
+    if (!target) return;
+    if (!session.isSessionOpen()) {new Notice(plugin.translator("addRelated.endpointChanged"));return;}
+    if (!beginWrite()) return;
     try {
       const preflight = reciprocalCheck(ontology, undefined, target);
       if (!preflight.approval) throw new Error(plugin.translator(preflight.reasonKey!));
@@ -668,6 +670,7 @@ function RelatedNoteComposer({
   const actionArea = createElement(
     "div",
     { className: "kplex-add-related-action-area" },
+    selectedTarget && busy ? createElement("span", {role: "status"}, plugin.translator("relation.preparingRelationship")) : null,
     selectedTarget
       ? linkButton
       : webUrl
@@ -1008,7 +1011,9 @@ export class NewRelatedNoteModal extends Modal {
       const target = event.target;
       // Native Modal.close may synchronously restore its invoker. That expected focus transition
       // does not supersede the explicitly selected follow/edit intent; later user interaction does.
-      if (event.type === "focusin" && (this.closingForCompletion || this.completing && this.ignoreInvokerFocus && target === this.invokingElement)) {
+      // A newly opened Sidecar can finish moving native focus while this draft is on screen.
+      if (event.type === "focusin" && !this.completing) return;
+      if (event.type === "focusin" && (this.closingForCompletion || this.ignoreInvokerFocus && target === this.invokingElement)) {
         this.ignoreInvokerFocus = false; return;
       }
       if (event.type === "pointerdown") this.ignoreInvokerFocus = false;

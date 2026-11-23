@@ -2058,6 +2058,13 @@ const spanishTranslations = {
   "creation.action": "Acción",
   "creation.typeStatus": "Crear {name} como {type}.",
 
+  "settings.confirmFolderDelete": "Confirmar antes de eliminar carpetas",
+  "settings.confirmCanvasFolderMove": "Confirmar al mover elementos a carpetas en el lienzo",
+  "settings.confirmationPreferenceFailed": "No se pudo guardar la preferencia de confirmación.",
+  "delete.folderConfirm": "¿Mover «{name}» y todo su contenido a la papelera configurada en Obsidian?",
+  "delete.folderFailed": "No se pudo eliminar la carpeta. {error}",
+  "graph.deleteFolder": "Eliminar carpeta",
+  "daily.drawingNotReady": "Se guardó el dibujo diario. Obsidian aún no lo reconoce como un dibujo de Excalidraw.",
 } as const satisfies LocaleTranslationMap;
 
 return buildLocaleCatalog(spanishTranslations);

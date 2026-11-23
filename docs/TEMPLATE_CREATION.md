@@ -81,6 +81,9 @@ choice in the normal creation dialog. It uses the configured daily folder and te
 the Markdown and Excalidraw choices retain their ordinary behavior. Calendar, Today and
 daily-placeholder creation share the template-completion barrier and open a newly
 created drawing in Excalidraw only after that exact file's template has finished.
+If native metadata still describes Markdown after the template write, the opening
+flow checks the saved frontmatter and waits briefly for Obsidian to recognize that
+exact drawing. The wait ends with the original view or file identity.
 
 Deleting a centered note preserves surviving incoming declarations while referrers
 update. If Obsidian then replaces its full file path with one unambiguous unresolved

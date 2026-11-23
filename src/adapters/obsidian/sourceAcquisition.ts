@@ -102,7 +102,8 @@ type FileObservation = { identity: string | null; observation?: SourceObservatio
 type SourceCoordinates = Readonly<{ order: number; markdownOrder: number }>;
 type SourceInventoryReceipt = {startMs: number; elapsedMs: number; trigger: ActivityReason; resolverCause: UncoveredResolverCause | null;
   endCause: SourceInventoryEndCause | null; phase: string; outcome: string; visited: number; total: number;
-  sourceChanges: number; scopeChanges: number; hostChanges: number};
+  sourceChanges: number; scopeChanges: number; hostChanges: number;
+  sourceSweepMs: {pacing: number; inspection: number; dependencies: number; hostObservations: number; acquisition: number}};
 type Capture = { physical: SourcePhysical; revision: number; hostRevision: number; state: FileObservation; file: TFile };
 /** A tiny weak native receipt names an accepted optional cache record; it retains no parser body. */
 type BodyInputReceipt = { inputToken: string; parserVersion: number; physical: SourcePhysical; revision: number; retired: boolean };
@@ -387,8 +388,8 @@ export class ObsidianSourceAcquisition {
       environmentChange: this.environmentChange ? {...this.environmentChange} : null,
       metadataComparison: this.metadataComparison ? {...this.metadataComparison} : null,
       uncoveredResolverCause: this.uncoveredResolverCause,
-      inventories: {recent: this.recentInventoryReceipts.map(row => ({...row})), omitted: this.inventoryReceiptsOmitted,
-        active: active && pass ? {...active, phase: pass.phase, visited: pass.visited, total: pass.total,
+      inventories: {recent: this.recentInventoryReceipts.map(row => ({...row, sourceSweepMs: {...row.sourceSweepMs}})), omitted: this.inventoryReceiptsOmitted,
+        active: active && pass ? {...active, sourceSweepMs: {...active.sourceSweepMs}, phase: pass.phase, visited: pass.visited, total: pass.total,
           elapsedMs: Math.max(0, performance.now() - active.startMs), sourceChanges: this.inventoryRevision - pass.sourceRevision,
           scopeChanges: this.inventoryScopeRevision - pass.scopeRevision, hostChanges: this.hostRevision - pass.hostRevision} : null},
       pass: pass ? {...pass, elapsedMs: pass.outcome === "running" ? Math.max(0, Date.now() - pass.startedAt) : pass.elapsedMs,
@@ -3059,7 +3060,8 @@ export class ObsidianSourceAcquisition {
         }
         broad = true;
         const trigger = this.activityGlobalReason ?? (this.restartInventoryChecked ? "local-authority-unavailable" : "startup-offline");
-        this.activeInventoryReceipt = {startMs: performance.now(), elapsedMs: 0, trigger,
+        const sourceSweepMs = {pacing: 0, inspection: 0, dependencies: 0, hostObservations: 0, acquisition: 0};
+        this.activeInventoryReceipt = {startMs: performance.now(), elapsedMs: 0, trigger, sourceSweepMs,
           resolverCause: trigger === "uncovered-non-file" ? this.uncoveredResolverCause : null, endCause: null,
           phase: "queued", outcome: "running", visited: 0, total: 0, sourceChanges: 0, scopeChanges: 0, hostChanges: 0};
         try { activityToken = this.startupDiagnostics?.beginActivity?.("host-inventory", "global",
@@ -3119,7 +3121,9 @@ export class ObsidianSourceAcquisition {
         }
         for (const [markdownOrder, file] of markdown.entries()) {
           recovery.visited += 1;
+          let stepStarted = performance.now();
           await this.backgroundCheckpoint?.();
+          sourceSweepMs.pacing += performance.now() - stepStarted;
           if (!current()) return false;
           const order = structuralOrder.get(file.path);
           if (order === undefined) return false;
@@ -3135,12 +3139,14 @@ export class ObsidianSourceAcquisition {
             this.markContributorHostChange("environment");
             return false;
           }
+          stepStarted = performance.now();
           const environment = await this.repository.observationDigest(environmentText);
           // Share the clean head/dependency observation with the adjacent ensure below. The
           // projection consumes it once and still requires its final cross-connection sequence CAS.
           const selected = capture.state.dirty || capture.state.resolutionDirty || capture.state.created
             ? {inspection: await this.repository.inspect(file.path, [], ownerCurrent), dependencyReason: "ready" as const}
             : await this.repository.inspectWithLocalDependencies(file.path, order, markdownOrder, ownerCurrent, projection);
+          sourceSweepMs.inspection += performance.now() - stepStarted;
           const inspection = selected.inspection;
           if (!ownerCurrent()) return false;
           const head = inspection.head;
@@ -3165,24 +3171,38 @@ export class ObsidianSourceAcquisition {
             // observation. Live host events still require this session's current epoch/revision.
             capture.state.identity ??= head.physical.identity;
             capture.state.observation = { ...head.observation };
+            stepStarted = performance.now();
             const local = await this.repository.ensureLocalDependencies(file.path, order, markdownOrder, ownerCurrent, projection);
+            sourceSweepMs.dependencies += performance.now() - stepStarted;
             if (!ownerCurrent()) return false;
             complete &&= selected.dependencyReason === "ready" && local === "ready";
+            stepStarted = performance.now();
             await checkpointHostObservation(inspection, file, hostCache, ownerCurrent);
+            sourceSweepMs.hostObservations += performance.now() - stepStarted;
             this.startupDiagnostics?.processed("source", file.path);
             this.inventoryProgress?.();
+            stepStarted = performance.now();
             await checkpoint();
+            sourceSweepMs.pacing += performance.now() - stepStarted;
             continue;
           }
+          stepStarted = performance.now();
           const body = await this.loadBody(file, ownerCurrent, false, true);
+          sourceSweepMs.acquisition += performance.now() - stepStarted;
           if (!body || !ownerCurrent()) return false;
+          stepStarted = performance.now();
           const acquired = await this.acquire(file, body, ownerCurrent);
+          sourceSweepMs.acquisition += performance.now() - stepStarted;
           if (!acquired.current) return false;
           complete &&= acquired.saved;
           if (acquired.saved) {
+            stepStarted = performance.now();
             const local = await this.repository.ensureLocalDependencies(file.path, order, markdownOrder, ownerCurrent, projection);
+            sourceSweepMs.dependencies += performance.now() - stepStarted;
             complete &&= local === "ready";
+            stepStarted = performance.now();
             await checkpointHostObservation(inspection, file, hostCache, ownerCurrent);
+            sourceSweepMs.hostObservations += performance.now() - stepStarted;
             const state = this.state(file);
             if (state.oldPath) {
               const oldPath = state.oldPath;
@@ -3192,9 +3212,15 @@ export class ObsidianSourceAcquisition {
           }
           this.startupDiagnostics?.processed("source", file.path);
           if (current()) this.inventoryProgress?.();
+          stepStarted = performance.now();
           await checkpoint();
+          sourceSweepMs.pacing += performance.now() - stepStarted;
         }
-        if (hostObservations.length && current()) await this.repository.saveHostObservations(hostObservations, current);
+        if (hostObservations.length && current()) {
+          const started = performance.now();
+          await this.repository.saveHostObservations(hostObservations, current);
+          sourceSweepMs.hostObservations += performance.now() - started;
+        }
         // Missing graph pages or a broken graph snapshot never enter this catalog decision.
         this.startupDiagnostics?.phase("source", "source-retired-owner-check");
         let after: string | null = null;

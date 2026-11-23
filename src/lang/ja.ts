@@ -2050,6 +2050,13 @@ const japaneseTranslations = {
   "creation.action": "操作",
   "creation.typeStatus": "{name} を {type} として作成します。",
 
+  "settings.confirmFolderDelete": "フォルダーを削除する前に確認する",
+  "settings.confirmCanvasFolderMove": "キャンバスでフォルダーに移動する前に確認する",
+  "settings.confirmationPreferenceFailed": "確認設定を保存できませんでした。",
+  "delete.folderConfirm": "「{name}」とそのすべての内容を Obsidian で設定されたゴミ箱に移動しますか？",
+  "delete.folderFailed": "フォルダーを削除できませんでした。{error}",
+  "graph.deleteFolder": "フォルダーを削除",
+  "daily.drawingNotReady": "デイリーノートの図を保存しました。Obsidian はまだ Excalidraw の図として認識していません。",
 } as const satisfies LocaleTranslationMap;
 
 return buildLocaleCatalog(japaneseTranslations);

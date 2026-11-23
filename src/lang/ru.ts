@@ -2062,6 +2062,13 @@ const russianTranslations = {
   "creation.action": "Действие",
   "creation.typeStatus": "Создать {name} как {type}.",
 
+  "settings.confirmFolderDelete": "Подтверждать удаление папок",
+  "settings.confirmCanvasFolderMove": "Подтверждать перемещение в папку на холсте",
+  "settings.confirmationPreferenceFailed": "Не удалось сохранить настройку подтверждения.",
+  "delete.folderConfirm": "Переместить «{name}» и всё содержимое в корзину, настроенную в Obsidian?",
+  "delete.folderFailed": "Не удалось удалить папку. {error}",
+  "graph.deleteFolder": "Удалить папку",
+  "daily.drawingNotReady": "Дневной рисунок сохранён. Obsidian пока не распознал его как рисунок Excalidraw.",
 } as const satisfies LocaleTranslationMap;
 
 return buildLocaleCatalog(russianTranslations);
