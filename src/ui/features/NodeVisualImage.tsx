@@ -93,7 +93,7 @@ export function NodeVisualImage<File extends LocalVideoThumbnailFile>({src, path
           if (entries.some(/** YouTube admits its existing pre-image placeholder. */ entry => entry.isIntersecting)) {observer?.disconnect();start();}
           return;
         }
-        const entry = entries.at(-1);
+        const entry = entries[entries.length - 1];
         if (!entry) return;
         intersects = entry.isIntersecting && entry.intersectionRect.width > 0 && entry.intersectionRect.height > 0;
         updateVisibility();
