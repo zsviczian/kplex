@@ -1,0 +1,38 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="960" height="540" viewBox="0 0 960 540" role="img" aria-labelledby="title desc">
+<title id="title">K-Plex Web Compass and interactive Sidecar concept</title>
+<desc id="desc">A standalone read-only browser graph with a central Visual Thinking thought, relationship nodes, search, history, and an open Sidecar containing an interactive linked drawing.</desc>
+<rect width="960" height="540" fill="#fff"/>
+<g font-family="system-ui, Arial, sans-serif" fill="#242633">
+<text x="30" y="36" font-size="23" font-weight="700">K-Plex Web</text>
+<text x="30" y="57" font-size="12" fill="#667085">Concept • Compass with a collapsible Sidecar</text>
+<rect x="30" y="76" width="900" height="428" rx="10" stroke="#c9cdd5" fill="#fff"/>
+<rect x="31" y="77" width="898" height="43" rx="9" fill="#f7f7f9"/>
+<path d="M30 120H930 M616 120V504" stroke="#d9dce2"/>
+<g fill="none" stroke="#555b69" stroke-width="1.7"><path d="M56 98h17m-17 0 7-6m-7 6 7 6M108 98H91m17 0-7-6m7 6-7 6"/></g>
+<rect x="126" y="85" width="292" height="27" rx="5" fill="#fff" stroke="#d9dce2"/>
+<circle cx="141" cy="97" r="4.5" fill="none" stroke="#697180" stroke-width="1.4"/><path d="m145 101 5 5" stroke="#697180"/>
+<text x="159" y="103" font-size="12" fill="#667085">Find a thought or search notes</text>
+<text x="444" y="103" font-size="12" fill="#667085">Compass</text>
+<rect x="574" y="88" width="25" height="20" rx="3" fill="none" stroke="#6656b8"/><path d="M591 88v20" stroke="#6656b8"/>
+<text x="633" y="103" font-size="12" fill="#667085">Note address</text><rect x="728" y="85" width="173" height="27" rx="5" fill="#fff" stroke="#d9dce2"/><text x="738" y="102" font-size="11">14e7fb58…</text><path d="m908 92 12 12m0-12-12 12" stroke="#697180"/>
+<g transform="translate(0 27)">
+<g stroke="#969bab" stroke-width="1.5" fill="none"><path d="M323 257V157 M251 277 214 239 M395 277 428 239 M251 289 214 341 M395 289 430 341 M323 309V414"/></g>
+<rect x="239" y="112" width="168" height="45" rx="9" fill="#087b72" fill-opacity=".09" stroke="#087b72"/><text x="323" y="140" text-anchor="middle" font-size="14" font-weight="500">Knowledge</text><rect x="76" y="194" width="139" height="45" rx="9" fill="#087b72" fill-opacity=".09" stroke="#087b72"/><text x="145.5" y="222" text-anchor="middle" font-size="14" font-weight="500">Sketching</text><rect x="428" y="194" width="143" height="45" rx="9" fill="#b67824" fill-opacity=".09" stroke="#b67824"/><text x="499.5" y="222" text-anchor="middle" font-size="14" font-weight="500">Learning</text><rect x="75" y="341" width="139" height="45" rx="9" fill="#087b72" fill-opacity=".09" stroke="#087b72"/><text x="144.5" y="369" text-anchor="middle" font-size="14" font-weight="500">Diagrams</text><rect x="430" y="341" width="139" height="45" rx="9" fill="#b67824" fill-opacity=".09" stroke="#b67824"/><text x="499.5" y="369" text-anchor="middle" font-size="14" font-weight="500">Memory</text><rect x="239" y="414" width="168" height="45" rx="9" fill="#087b72" fill-opacity=".09" stroke="#087b72"/><text x="323" y="442" text-anchor="middle" font-size="14" font-weight="500">Synthesis</text>
+<rect x="231" y="256" width="184" height="56" rx="10" fill="#ede9f9" stroke="#6656b8" stroke-width="2"/>
+<text x="323" y="279" text-anchor="middle" font-size="16" font-weight="700" fill="#423685">Visual Thinking</text>
+<text x="323" y="297" text-anchor="middle" font-size="11" fill="#6656b8">Central thought</text>
+<g fill="#6656b8"><circle cx="323" cy="256" r="5"/><circle cx="231" cy="284" r="5"/><circle cx="415" cy="284" r="5"/><circle cx="323" cy="312" r="5"/></g>
+</g>
+<rect x="43" y="464" width="105" height="27" rx="5" fill="#fff" stroke="#d9dce2"/><text x="54" y="482" font-size="12">−    100%    +</text>
+<text x="639" y="148" font-size="11" fill="#667085">Home / Visual Thinking</text>
+<text x="639" y="178" font-size="21" font-weight="700">Visual Thinking</text>
+<text x="639" y="202" font-size="13" fill="#555b69">Thinking through drawing</text>
+<g fill="#dfe1e6"><rect x="639" y="219" width="258" height="5" rx="2.5"/><rect x="639" y="233" width="242" height="5" rx="2.5"/><rect x="639" y="247" width="252" height="5" rx="2.5"/><rect x="639" y="261" width="204" height="5" rx="2.5"/></g>
+<rect x="639" y="287" width="267" height="123" rx="6" fill="#f6fbfa" stroke="#d3e5e0"/>
+<g stroke="#087b72" stroke-width="1.5" fill="#fff"><circle cx="682" cy="335" r="23"/><rect x="738" y="312" width="64" height="46" rx="6"/><circle cx="860" cy="335" r="23"/><path d="M705 335H737m65 0h35m-106-5 6 5-6 5m101-5 6-5-6-5" fill="none"/></g>
+<g fill="#087b72" font-size="10" text-anchor="middle"><text x="682" y="339">Idea</text><text x="770" y="339">Sketch</text><text x="860" y="339">Insight</text></g>
+<text x="652" y="395" font-size="11" fill="#087b72">Interactive SVG • links navigate the published Plex</text>
+<text x="639" y="437" font-size="13" font-weight="600">Related ideas</text>
+<text x="639" y="460" font-size="12" fill="#087b72" text-decoration="underline">Sketching</text><text x="639" y="482" font-size="12" fill="#087b72" text-decoration="underline">Knowledge synthesis</text>
+<text x="30" y="526" font-size="11" fill="#667085">Illustrative UI; actual production rendering must use the shared Compass renderer. No native authoring controls.</text>
+</g></svg>
