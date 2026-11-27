@@ -82,6 +82,74 @@ async function scenario(app,c){
 
   const create=async(name,popout=false)=>{const host=popout?workspace.getLeaf('window'):initial;if(popout){hosts.push(host);await host.setViewState({type:'k-plex-react-view',active:true});await workspace.revealLeaf(host);await host.view.waitUntilReady()}host.view.centerPresentation.update({embedCentralNode:false,centralNodeMarkdownMode:'source'});p.notifyNavigation(path(name),host);await until(()=>host.view.documentSession.centerPath===path(name)&&[...root(host)?.querySelectorAll('[data-kplex-path]')||[]].some(node=>node.getAttribute('data-kplex-path')===path(name)),'Owned canvas absent');if(popout)await until(()=>root(host).ownerDocument!==doc&&root(host).ownerDocument===host.view.containerEl.ownerDocument,'Native popout document migration incomplete');await host.view.waitUntilReady();await until(()=>root(host).ownerDocument.fonts.status==='loaded'&&!p.index.viewScopeCoverage(path(name)).pending,'Owned canvas still preparing');await wait(200);return host};
   const host=await create('Root');await wait(1000);const views=c.popoutOnly?[]:c.smoke?['classic']:['classic','mindmap','wuxing'],themes=c.smoke?[body.classList.contains('theme-dark')?'dark':'light']:['dark','light'],zooms=c.smoke?[1]:[0.5,1,2];let serial=0;
+  if(c.settled){
+   const crypto=require('node:crypto'),captures=[];
+   const contents=win.webContents,main=source=>remote.require('vm').runInThisContext(source);
+   /** Admit a capture only after the canvas is still, and keep every rejection in the comparison. */
+   const settle=async canvas=>{
+    let lastChange=performance.now();
+    const observer=new doc.defaultView.MutationObserver(()=>{lastChange=performance.now()});
+    observer.observe(canvas,{subtree:true,childList:true,characterData:true,attributes:true});
+    try{await until(()=>performance.now()-lastChange>=300&&!p.rebuildTask&&!p.index.hasActiveSemanticPreparation(),'PNG fixture did not settle')}
+    finally{observer.disconnect()}
+   };
+   for(const view of ['classic','mindmap','wuxing']){
+    session(host).select(view);if(view==='mindmap')session(host).setRoot(path('Root'));
+    await until(()=>session(host).definition.id===view&&root(host).querySelectorAll('[data-kplex-path]').length>=3,'PNG view unavailable '+view);
+    const canvas=root(host);
+    win.webContents.sendInputEvent({type:'mouseMove',x:2,y:2});
+    for(let attempt=1;attempt<=5;attempt++){
+     c.progress={phase:'settled-png',view,attempt,captures};
+     await settle(canvas);
+     const before=state(host),mutations={};
+     const observer=new doc.defaultView.MutationObserver(records=>{
+      for(const record of records){
+       const element=record.target.nodeType===1?record.target:record.target.parentElement;
+       const part=element?.classList?.[0]??element?.localName??'canvas';
+       const key=part+'/'+(record.attributeName??record.type);mutations[key]=(mutations[key]??0)+1;
+      }
+     });
+     observer.observe(canvas,{subtree:true,childList:true,characterData:true,attributes:true});
+     try{
+      check((await p.actionManager.dispatch({id:'view.export.image',source:'internal',surfaceId:surface(host)})).status==='opened','Settled PNG action rejected');
+      let outcome;
+      try{
+       const dialog=await ready(host),image=dialog.querySelector('img');
+       const data=Buffer.from(await(await doc.defaultView.fetch(image.src)).arrayBuffer());
+       check(data.subarray(0,8).equals(Buffer.from([137,80,78,71,13,10,26,10])),'Preview is not PNG');
+       outcome={status:'captured',width:image.naturalWidth,height:image.naturalHeight,sha256:crypto.createHash('sha256').update(data).digest('hex')};
+      }catch(error){
+       const status=['stale','failed','limit'].find(key=>modal(host)?.textContent.includes(p.translator('export.image.'+key)));
+       if(!status)throw error;
+       outcome={status};
+      }
+      if(attempt===1&&outcome.status==='captured'){
+       const dialog=modal(host);
+       const output=require('node:path').join(c.directory,view+'-settled.png');
+       check(main('('+c.ownDownload+')')(contents,'Root.png',output),'Native download ownership rejected');
+       const remove=()=>main('(function(contents){contents.__kplex238Download?.cleanup();return true})')(contents);
+       restores.push(remove);
+       try{
+        await click(button(dialog,'export.image.save'));
+        await until(()=>JSON.parse(main('(function(contents){return JSON.stringify(contents.__kplex238Download?.state??null)})')(contents))?.done,'Settled PNG download incomplete');
+        check(crypto.createHash('sha256').update(fs.readFileSync(output)).digest('hex')===outcome.sha256,'Saved PNG differs from settled preview');
+        outcome.downloadVerified=true;
+       }finally{remove();restores.pop()}
+       await until(()=>!button(dialog,'export.image.copy').disabled,'Settled PNG copy did not reenable after save');
+       await click(button(dialog,'export.image.copy'));await copied(dialog,'export.image.copied');
+       const data=remote.clipboard.readImage().toPNG();
+       check(data.length>=24&&data.readUInt32BE(16)===outcome.width&&data.readUInt32BE(20)===outcome.height,'Copied PNG dimensions differ from settled preview');
+       outcome.clipboardVerified=true;
+       win.webContents.sendInputEvent({type:'mouseMove',x:2,y:2});
+      }
+      captures.push({view,attempt,...outcome,canvasStateUnchanged:state(host)===before,mutations});
+     }finally{observer.disconnect();close(host)}
+     await until(()=>!modal(host),'Previous PNG modal did not close');
+    }
+   }
+   check(captures.every(capture=>capture.status==='captured'&&capture.canvasStateUnchanged),'Settled PNG capture failed or changed the canvas');
+   return{mode:'settled-preview',captures};
+  }
   for(const view of views){session(host).select(view);if(view==='mindmap')session(host).setRoot(path('Root'));await until(()=>session(host).definition.id===view&&root(host).querySelectorAll('[data-kplex-path]').length>=3,'View unavailable '+view);await wait(300);
    for(const mode of themes){body.classList.toggle('theme-dark',mode==='dark');body.classList.toggle('theme-light',mode==='light');workspace.trigger('css-change');p.index.notifyPresentation();await wait(250);
     for(const zoom of zooms){const source=root(host),camera=source.querySelector('.kplex-camera'),bounds=source.getBoundingClientRect(),scale=new window.DOMMatrix(window.getComputedStyle(camera).transform).a;source.dispatchEvent(new window.WheelEvent('wheel',{bubbles:true,cancelable:true,ctrlKey:true,deltaY:-Math.log(zoom/scale)/.0015,clientX:bounds.left+bounds.width/2,clientY:bounds.top+bounds.height/2}));await wait(150);await until(()=>!p.rebuildTask&&!p.index.hasPendingSemanticPreparation()&&!p.index.hasActiveSemanticPreparation(),'Presentation did not settle');
@@ -142,5 +210,5 @@ async function scenario(app,c){
 }
 if(process.env.KPLEX_TEST_VAULT_NAME!=='kplex-test-small')throw Error('Explicit disposable Small required');
 const target=validateTarget({vaultName:process.env.KPLEX_TEST_VAULT_NAME,vaultPath:process.env.KPLEX_TEST_VAULT_PATH,configDir:process.env.KPLEX_TEST_CONFIG_DIR});
-await runControlledProbe('canvas-image-export-238',scenario,'c.ownDownload='+JSON.stringify(ownDownload.toString())+';c.directory='+JSON.stringify(process.env.KPLEX_HOST_REPORT_DIR)+';c.currentScene='+(process.env.KPLEX_IMAGE_CURRENT_SCENE_ONLY==='true')+';c.popoutOnly='+(process.env.KPLEX_IMAGE_POPOUT_ONLY==='true')+';c.smoke='+(process.env.KPLEX_IMAGE_SMOKE_ONLY==='true')+';c.documentSessions=('+nativeDocumentSessions.toString()+');c.originalData='+JSON.stringify(readFileSync(join(target.pluginDir,'data.json'),'utf8'))+';',
+await runControlledProbe('canvas-image-export-238',scenario,'c.ownDownload='+JSON.stringify(ownDownload.toString())+';c.directory='+JSON.stringify(process.env.KPLEX_HOST_REPORT_DIR)+';c.currentScene='+(process.env.KPLEX_IMAGE_CURRENT_SCENE_ONLY==='true')+';c.popoutOnly='+(process.env.KPLEX_IMAGE_POPOUT_ONLY==='true')+';c.smoke='+(process.env.KPLEX_IMAGE_SMOKE_ONLY==='true')+';c.settled='+(process.env.KPLEX_IMAGE_SETTLED==='true')+';c.documentSessions=('+nativeDocumentSessions.toString()+');c.originalData='+JSON.stringify(readFileSync(join(target.pluginDir,'data.json'),'utf8'))+';',
  ['src/ui/export/canvasImage.ts','src/ui/export/canvasImageSnapshot.ts','src/ui/export/canvasImageStyles.ts','src/ui/export/CanvasImageExportModal.ts','src/adapters/obsidian/pngExport.ts'],{maximumMs:600000});

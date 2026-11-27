@@ -75,19 +75,36 @@ async function scenario(app,c){
   check(editor.getValue()===dirty.value&&JSON.stringify(editor.listSelections())===dirty.selections&&element.contains(document.activeElement),'Dirty text/selection/focus lost through geometry');
   check(session.layoutRoot(path('C'))===path('R')&&root().querySelector('.kplex-camera').style.transform===camera&&side.view.file?.path===sideFile,'Geometry changed root/camera/Sidecar');
   const scroll=root().querySelector('.kplex-zone-grove .kplex-zone-scroll'),top=overlay().style.top;scroll.scrollTop=100;scroll.dispatchEvent(new Event('scroll'));await until(()=>overlay().style.top!==top,'Overlay did not follow actual area scroll');
-  const clip=overlay().style.clipPath,clipTop=Number.parseFloat(clip.slice(6));check(clip.startsWith('inset(')&&clipTop>0&&instance()===leaf&&editor.getValue()===dirty.value&&JSON.stringify(editor.listSelections())===dirty.selections,'Scroll clipping or editing state changed');
   const anchor=root().querySelector('[data-kplex-keyboard-id="repeat-above"]').getBoundingClientRect(),box=overlay().getBoundingClientRect();
-  check(['left','top','width','height'].every(key=>Math.abs(anchor[key]-box[key])<1),'Native editor does not match its displayed occurrence rectangle');
-  cases.push({id:'dirty-resize-reflow-scroll-clip-retains-native-state',clip:overlay().style.clipPath,capacity:session.editors.capacity});c.progress={phase:'filters-and-removal',cases};
+  const viewport=scroll.getBoundingClientRect(),nativeDocument=overlay().querySelector('.kplex-central-editor-document');
+  const documentBox=nativeDocument.getBoundingClientRect(),view=overlay().ownerDocument.defaultView;
+  const documentClip=view.getComputedStyle(nativeDocument).clip,frameClip=view.getComputedStyle(overlay(),'::before').clip;
+  const matchesTop=(clip,start)=>clip.startsWith('rect(')&&start>0&&Math.abs(Number.parseFloat(clip.slice(5))-start)<1;
+  const scrollChecks={
+   retainedLeaf:instance()===leaf,
+   retainedEditor:instance()?.view.editor===editor,
+   retainedText:instance()?.view.editor?.getValue()===dirty.value,
+   retainedSelection:JSON.stringify(instance()?.view.editor?.listSelections())===dirty.selections,
+   aligned:['left','top','width','height'].every(key=>Math.abs(anchor[key]-box[key])<1),
+   clippedDocument:matchesTop(documentClip,viewport.top-documentBox.top),
+   clippedFrame:matchesTop(frameClip,viewport.top-box.top),
+  };
+  c.progress={...c.progress,scroll:{checks:scrollChecks,documentClip,frameClip,scrollTop:scroll.scrollTop,scrollMaximum:scroll.scrollHeight-scroll.clientHeight,
+   viewport:viewport.toJSON(),anchor:anchor.toJSON(),overlay:box.toJSON(),document:documentBox.toJSON()}};
+  for(const [name,passed] of Object.entries(scrollChecks))check(passed,'Native editor scroll failed: '+name);
+  cases.push({id:'dirty-resize-reflow-scroll-clip-retains-native-state',documentClip,frameClip,capacity:session.editors.capacity});c.progress={phase:'filters-and-removal',cases};
   root().querySelector('.kplex-filter-trigger').click();await until(()=>document.querySelector('.kplex-filter-panel .kplex-quick-lens-row input'),'Quick lens absent');
   const panel=document.querySelector('.kplex-filter-panel'),input=panel.querySelector('.kplex-quick-lens-row input');Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(input,'Kplex-219-no-match');input.dispatchEvent(new Event('input',{bubbles:true}));await wait(100);
   check(instance()===leaf&&currentBinding().occurrenceId==='repeat-above'&&!root().querySelector('[data-kplex-keyboard-id="repeat-below"]'),'Filtering removed B1 or pinned both occurrences');
   check(session.updateState({hideRepeated:true,reflowOffset:35})===false&&instance()===leaf,'Branch removal discarded native editor');
-  const selector=panel.querySelector('.kplex-view-selector select');selector.value='classic';selector.dispatchEvent(new Event('change',{bubbles:true}));await wait(60);
-  check(session.definition.id===probe.id&&selector.value===probe.id&&panel.querySelector('.kplex-view-selector [role="status"]')?.textContent,'Blocked selection was optimistic or unexplained');session.select(noEditor.id);check(session.definition.id===probe.id,'Incompatible view discarded editor');
+  // The selector now saves before switching. Reject that save to exercise its blocked route.
+  const save=leaf.view.save;let saveAttempts=0;leaf.view.save=async()=>{saveAttempts++;throw Error('Owned native save rejection')};restores.push(()=>{leaf.view.save=save});
+  const selector=panel.querySelector('.kplex-view-selector select');selector.value='classic';selector.dispatchEvent(new Event('change',{bubbles:true}));
+  await until(()=>saveAttempts>0&&panel.querySelector('.kplex-view-selector [role="status"]')?.textContent,'Blocked selection did not report the rejected save');
+  check(session.definition.id===probe.id&&panel.querySelector('.kplex-view-selector select').value===probe.id&&instance()===leaf
+   &&editor.getValue()===dirty.value,'Blocked selection changed the view or dirty editor');session.select(noEditor.id);check(session.definition.id===probe.id,'Incompatible view discarded editor');
   panel.querySelector('.kplex-filter-clear').click();panel.querySelector('.kplex-filter-close')?.click();if(document.querySelector('.kplex-filter-panel'))root().querySelector('.kplex-filter-trigger').click();
   cases.push({id:'exact-filter-pin-branch-removal-and-selector-guards'});c.progress={phase:'save-failure',cases};
-  const save=leaf.view.save;let saveAttempts=0;leaf.view.save=async()=>{saveAttempts++;throw Error('Owned native save rejection')};restores.push(()=>{leaf.view.save=save});
   const rejected=await act('editor.collapse',{bindingId:binding.id});check(rejected.status==='failed'&&instance()===leaf&&editor.getValue()===dirty.value&&!currentBinding().closing,'Failed save discarded native editor');
   const excluded=p.settings.excludeFilepaths;p.settings.excludeFilepaths=[...excluded,path('B')];p.index.notifyPresentation();
   await until(()=>root()?.querySelector('.kplex-view-error')&&currentBinding()&&!currentBinding().closing,'Authoritative removal did not retain the rejected-save binding');
@@ -102,8 +119,19 @@ async function scenario(app,c){
   const saved=host.view.getState();check(!JSON.stringify(saved).includes('fileIdentity'),'Workspace contains native file token');await host.setViewState({type:'empty',active:false});await host.setViewState({type:'k-plex-react-view',state:saved,active:true});await host.view.waitUntilReady();
   session=host.view.documentSession.plexView;session.registry=testRegistry;session.recover();session.select(probe.id);await until(()=>content()&&currentBinding()&&instance()?.view.file?.path===path('B'),'Owned view restoration failed to admit B');
   check(session.layoutRoot(path('C'))===path('R')&&attention()===path('C'),'Restoration changed root or attention');cases.push({id:'bounded-editor-intent-restores-after-native-view-recreation',applicationRestart:false});
-  editor=instance().view.editor;await markDirty(editor,'Kplex-219-dirty-migration');const ownerSession=host.view.documentSession;
-  check(typeof workspace.moveLeafToPopout==='function','Native popout method unavailable');workspace.moveLeafToPopout(host);await until(()=>host.view.contentEl.ownerDocument!==document&&content()&&instance()?.view.editor?.getValue().includes('Kplex-219-dirty-migration'),'Dirty popout migration did not retain B content');await host.view.waitUntilReady();
+  const migrationMarker='Kplex-219-dirty-migration';
+  editor=instance().view.editor;await markDirty(editor,migrationMarker);const ownerSession=host.view.documentSession;
+  check(typeof workspace.moveLeafToPopout==='function','Native popout method unavailable');workspace.moveLeafToPopout(host);
+  try{
+   await until(()=>host.view.contentEl.ownerDocument!==document&&content()&&instance()?.view.editor?.getValue().includes(migrationMarker),'Dirty popout migration did not retain B content');
+  }catch(error){
+   const migrated=instance(),file=files.find(file=>file.path===path('B'));
+   c.progress={...c.progress,migration:{canvasMoved:host.view.contentEl.ownerDocument!==document,sessionRetained:host.view.documentSession===ownerSession,
+    overlayPresent:!!overlay(),sourceContentPresent:!!content(),nativeLeafPresent:!!migrated,expectedFile:migrated?.view.file===file,
+    dirtyTextInEditor:!!migrated?.view.editor?.getValue().includes(migrationMarker),dirtyTextOnDisk:(await app.vault.read(file)).includes(migrationMarker)}};
+   throw error;
+  }
+  await host.view.waitUntilReady();
   check(host.view.documentSession===ownerSession&&session.layoutRoot(path('C'))===path('R')&&instance().view.file?.path===path('B'),'Migration retargeted root/document owner');
   const parents=[];workspace.iterateRootLeaves(candidate=>{if(candidate!==host&&candidate.view.containerEl.ownerDocument===document&&candidate.view.containerEl.isConnected)parents.push(candidate.parent)});check(parents.length,'Main native parent absent');host.parent.removeChild(host);parents[0].insertChild(parents[0].children.length,host);await workspace.revealLeaf(host);await host.view.waitUntilReady();
   await until(()=>host.view.contentEl.ownerDocument===document&&instance()?.view.editor?.getValue().includes('Kplex-219-dirty-migration'),'Main migration lost B');

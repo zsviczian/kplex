@@ -169,9 +169,30 @@ A test-only baseline commit and evidence precede production renderer commits; ex
   render paths. Chromium also exercised the standalone page at `/` and a
   nested HTTP path, including touch, fixture updates and independent mounts.
 - Native Compass, Mind Map, Facets, Mind Map editor, public API, stable gates
-  and label sharpness passed on the candidate. The occurrence-editor scroll
-  assertion and the image-export snapshot rejection reproduced on both the
-  accepted main artifact and the candidate with the same drivers.
+  and label sharpness passed on the candidate. The focused follow-up compared
+  accepted main `270c2da3` with the byte-identical candidate artifacts from
+  `fc89f565` on Windows Obsidian.
+- The original scroll assertion read an obsolete `clip-path`. The corrected
+  probe confirmed on both artifacts that the frame and native document clip
+  against the actual scroll viewport. The same native editor, dirty text and
+  selection survived resizing, reflow and scrolling. The selector guard also
+  retained the editor and reported the reason when its requested save failed.
+- The occurrence-editor probe then exposed a distinct dirty-popout failure
+  on both artifacts. Its test-only rooted view reopened the correct note, but
+  the dirty text was missing from the recreated editor and disk. With the
+  shipped Mind Map, both the root and an off-center child recreated the canvas
+  and native editor, retained the draft, and saved it on close on both
+  artifacts. The test-only failure remains a separate occurrence-editor
+  investigation.
+- The broader PNG driver encountered a snapshot rejection on both artifacts
+  after changing presentation. With a settled canvas, both artifacts produced
+  the same 15 PNG previews byte for byte across Compass, Mind Map and Facets,
+  verified native Copy and Save once per view, and preserved canvas state on
+  every capture. The test uses an owned download destination.
+- With the same Excalidraw 2.29.0 binary, both artifacts opened and maximized
+  the drawing without replacing its native API. The drawing closed, its
+  embedded leaf detached, and the canvas unlocked both in isolation and after
+  the original Markdown and PDF sequence.
 - Both artifacts completed the dense history, pan and scroll scenario and
   the on-demand navigation and zoom scenario in the 20,088-note vault.
   Eager scale preparation reached its warm-up deadline, then the runner
@@ -189,3 +210,11 @@ A test-only baseline commit and evidence precede production renderer commits; ex
   ceiling. It is 784 bytes larger than the accepted main artifact. The
   comparison retains this difference while the desktop build stays separate
   from the browser assets.
+
+The managed native runner replays these checks in the disposable Small vault.
+Use its `canvas-image` lane with `KPLEX_IMAGE_SETTLED=true` for PNG, and
+`occurrence-editors` for scroll and the test-only popout reproduction. Use
+`editor-mobile-navigation` with `KPLEX_EDITOR_DRAWING_CLOSE_ONLY=true` for
+isolated Excalidraw close, or `KPLEX_EDITOR_MARKDOWN_MIGRATION_ONLY=true` for
+the shipped Mind Map root and `KPLEX_EDITOR_MARKDOWN_MIGRATION_ONLY=occurrence`
+for its off-center child.
