@@ -29,6 +29,15 @@ Baseline references (inspect current accepted versions after refreshing):
 
 Existing C14 boundaries and view registry are assets, not permission to reorganize the rest of the application. Preserve the shared renderer for desktop Compass, Mind Map and Facets. Browser MVP is Compass only.
 
+| Current owner | Callers and baseline evidence | Boundary for extraction |
+| --- | --- | --- |
+| `classic/definition` and `classic/geometry` in [`core/plex/views`](../../src/core/plex/views) | Legacy Classic layout delegates to the same geometry. Existing Classic goldens and the 5,000-node fixture check order, ports and bounded reads. | Reuse the `PlexViewRead` and measurement contracts. A browser fixture supplies only local incidence and explicitly unavailable capabilities. |
+| [`ui/plexViews/scene`](../../src/ui/plexViews/scene.ts) and [`measurement`](../../src/ui/plexViews/measurement.ts) | All views bind measured quantities back to exact occurrences. Node-property browser tests compare actual font boxes, and Compass Chromium tests check SVG endpoints against the physical gates. | Supply measurements from the owning document. Keep native file/graph binding and presentation reads with the Obsidian caller. |
+| [`ThoughtNode`](../../src/ui/ThoughtNode.tsx), [`index/style`](../../src/index/style.ts), and `Edge` in [`PlexGraph`](../../src/ui/PlexGraph.tsx) | Shared cards, gates and connectors in the three native views. Facets combinations, native orientation and the Chromium controls exercise paint and hit geometry. | Pass resolved styles, labels and visual slots to portable paint components. Obsidian icon, image consent and drag handling stay with their existing owners. |
+| [`PlexGraph`](../../src/ui/PlexGraph.tsx), [`App`](../../src/ui/App.tsx), and [`KplexDocumentSession`](../../src/ui/KplexDocumentSession.ts) | Native camera, selection, history, search and action registration. Native Compass and Mind Map navigation, public scene and editor lanes each use real view sessions. | Keep native effects and action preflight in place. Browser recentering and camera state are independent per browser mount. |
+| [`CentralNodeEditor`](../../src/ui/CentralNodeEditor.tsx) and [`embeddedMarkdownLeaf`](../../src/adapters/obsidian/embeddedMarkdownLeaf.ts) | Compass, Mind Map and Facets native file editors. The Facets test keeps a dirty editor open through Sidecar condensation and verifies native save. | Keep the native leaf and buffer entirely in Obsidian. Presentation changes may update focus routing while the leaf remains mounted. |
+| [`publicCanvasScene`](../../src/ui/publicCanvasScene.ts) and [`ui/export`](../../src/ui/export) | Current native canvas observation and export. Public API, image export and gate geometry checks cover existing callers. | Use the bounded scene DTO for test observation. Publication and native export remain outside the browser prototype. |
+
 ### Extraction design
 
 Prefer leaf-first extraction of presentational node/gate/connector primitives and measurement/paint helpers into host-free React feature modules; supply a finite presentation DTO (resolved style, icon/media presentation, measured geometry, accessibility labels, occurrence and canonical identity). Keep interaction controllers, native editor/save preflight, settings writes, source scheduling, menus, drag transport, Obsidian link resolution and plugin lifecycle outside. A browser shell composes the same portable primitives and pure layout, with an immutable fixture-backed graph read adapter and browser camera/navigation actions. Reuse existing generic interaction helpers where proven host-free. No duplicate semantic relationship classifier, graph repository, layout algorithm, or second native editor implementation. No Obsidian runtime shim, fake TFile or empty implementation claiming authoritative absence. Explicitly represent unavailable evidence/properties and graph scope.
@@ -54,6 +63,16 @@ Use existing native commands as applicable, e.g. `verify:obsidian:authoring-comp
 
 Record baseline reference SHA, executable test-only commit, expected observable values and actual outcomes. No relaxed goldens, deadlines or hidden test omissions. Baseline and candidate use the same fixture/settings and assertions. Any intentional visible change requires separate approval; this PR has none.
 
+With the three disposable Small vault variables from [Desktop CLI setup](../../CONTRIBUTING.md#desktop-cli-setup-windows-and-macos), run
+`npm run verify:obsidian:web-runtime -- compass mindmap facets`. It builds a fresh
+identified local artifact, serializes staging under the shared application lock,
+verifies installed hashes, and restores the prior artifact and configuration.
+For an already frozen unchanged artifact, add `--artifacts <directory> --reference <full-git-sha>`.
+The same launcher accepts `mindmap-editor` and `occurrence-editors` for bound
+editor transitions, `editor-mobile-navigation` for native document surfaces,
+`canvas-image` and `label-sharpness` for paint, `public-api` for committed
+scene inspection, and `stable-gates` for retained counts across source work.
+
 ## 4. Gate B — performance benchmark before extraction
 
 Build the harness so the local agent can run both variants end-to-end without interactive intervention using the existing configured disposable vault, exact builds and CLI. Document one reproducible command sequence, flags, fixture counts, cleanup and machine-readable comparisons; integrate a focused repeatable comparison lane and fail exit status on regression or missing required data. Keep raw samples, screenshots and traces in managed .test-work/validation; no routine report files committed.
@@ -69,6 +88,36 @@ Measure:
 
 **Comparison discipline:** warm-up excluded; repeated independent paired runs, at least three independent sessions/build runs and a sufficient number of samples per workload (target 30+ actions per session for tail statistics; increase for noisy workloads). Preserve raw data, p50/p95 and p99 only when adequately sampled, max, dispersion and run-level results. First measure baseline-vs-baseline variability (A/A); compare A/B/A or interleaved equivalent to distinguish thermal/caching drift. Record actual scene/content sizes. No single lucky run, averaging away a tail regression, or substituting a synthetic browser microbenchmark for native evidence.
 
+The native navigation and zoom lane runs with
+`npm run verify:obsidian:web-runtime -- performance --mode eager`. Repeat in
+`on-demand` mode and set `KPLEX_WEB_BENCH_DENSITY` to `6`, `18` or `72` for the
+different owned fixture sizes. The lane accepts both prepared disposable vaults and records
+their actual Markdown inventory. It excludes warm-up and waits for quiet source
+and cache work before sampling. Its PNGs come from the native compositor. The
+two-frame duration is a settle proxy. Increase `KPLEX_WEB_BENCH_SAMPLES` to
+100–120 when checking tail variability. `KPLEX_WEB_BENCH_FRAME_ALIGNED=true`
+starts input at the same point in the frame cycle to investigate scheduling
+noise. `KPLEX_WEB_BENCH_CADENCE_MS` can fix the interval between inputs for a
+separate pacing experiment. Keep paced and frame-aligned receipts distinct
+from free-running inputs. With three independent receipts for a
+single workload, repeat `--baseline <report.json>` with
+`npm run compare:web-runtime` to inspect A/A dispersion. The maintainer approved
+matched A/B/A after the identical-build measurements showed scheduler noise.
+Build the candidate once. Alternate `--artifacts <baseline-directory> --reference <baseline-sha>`
+and `--built` using the same `performance --mode eager` command and environment.
+Start and end with A. Pass the consecutive A and B report paths with repeated
+`--baseline` and `--candidate` arguments and add `--inspect-paired` after five
+candidate sessions. The comparator reports a one-sided confidence bound on
+median slowdown, alongside raw percentiles, dispersion, and added source work.
+An inconclusive interval retains both the observations and the original limit.
+Use `KPLEX_WEB_BENCH_EXTENDED=true` with density
+`72` in Small to add History, pan and scrolling. The scale vault uses established
+help notes so that fixture creation does not start an unrelated 20,000-file
+source pass. Add `--warm-scale` with the scale vault when native URL discovery
+is still running. It retains the application lock until the actual background
+owners settle, records that time separately, and then runs the timed lane with
+the same installed artifact. These lanes cover part of Gate B.
+
 **Acceptance:** zero functional differences, zero new unexpected reads/parses/acquisition or rebuilds, no new leaked resources/extra work on identical operations, and no reproducible regression in responsiveness/CPU/memory. Preserve all existing strict timing gates. Provisional quantitative ceiling (a proposed safety gate, not an allowance to degrade): p50/p95 candidate no more than 5% slower than comparable baseline, with a documented absolute noise floor for very short operations established from A/A before extraction; no repeatable tail or memory degradation. If A/A noise is larger, improve harness/environment or ask maintainer to approve a specific alternative **before production edits**. If a repeatable smaller slowdown is measurable, investigate it; do not waive it just because it is inside 5%. Baseline thresholds and acceptance script are frozen at the test-only checkpoint. Report any failed measurement, rerun and remaining limit; never change thresholds/goldens to fit the result. If a candidate fails, fix or revert the extraction; stop if parity is infeasible.
 
 Any change affecting index/source/scheduling/storage or startup triggers AGENTS/CODING_STANDARDS mandatory full indexing and persistence gates, including two unchanged warm restarts, actual cache activation and comparable workload counts. Native evidence for current machine does not establish all hosts; record missing macOS/Windows and physical iOS/Android validation explicitly.
@@ -80,8 +129,30 @@ Any change affecting index/source/scheduling/storage or startup triggers AGENTS/
 - [ ] Minimal, versioned fixture contract and narrow read provider only. Use opaque publication-local IDs, complete scoped adjacency, explicitly unavailable capabilities. Do not change existing graph NodeId or add YAML UUIDs yet. Do not consume current cache files or dump an entire live index. No source work in browser.
 - [ ] Keep native writes, authoring, editors, indexing, workspace lifecycle and plugin menus in Obsidian. Browser never exposes native writes or inactive authoring controls.
 - [ ] Responsive browser demo served over plain HTTP including non-root base path. Same bundle mounts in standalone page; no CDN required for prototype. Automated real-browser tests exercise navigation and rendering after the source fixture changes, multiple instances/disposal, missing nodes and invalid fixture version. No server component.
-- [ ] Add bundle-size report to baseline and candidate. Maintainer's stated installed plugin ceiling is 5 MB; use conservative <5,000,000-byte budget for installable set pending verification of exact official limit; track each file separately, don't worsen baseline or approach ceiling without explicit review. Verify real current artifact before selecting packaging. Use esbuild metafile analysis, tree shaking, dead-code/duplicate dependency removal and ordinary minification; separate browser artifacts from installed plugin. Do not bundle web runtime twice, compress/decompress executable code (pako or otherwise), use eval or remote executable loading to evade scanner, or change deterministic release output identity. Normal HTTP compression of separately hosted web assets is unrelated. Later publisher distribution is a decision gate, not solved by forcing a second runtime into main.js.
+- [ ] Add bundle-size report to baseline and candidate. Use the maintainer's 5 MiB (5,242,880-byte) ceiling for the installable set; track each file separately, don't worsen baseline or approach ceiling without explicit review. Verify real current artifact before selecting packaging. Use esbuild metafile analysis, tree shaking, dead-code/duplicate dependency removal and ordinary minification; separate browser artifacts from installed plugin. Do not bundle web runtime twice, compress/decompress executable code (pako or otherwise), use eval or remote executable loading to evade scanner, or change deterministic release output identity. Normal HTTP compression of separately hosted web assets is unrelated. Later publisher distribution is a decision gate, not solved by forcing a second runtime into main.js.
 - [ ] Run focused tests per extraction; final check:architecture, check:core, lint:obsidian, check:release, real deterministic build and applicable repository verification/CLI lanes. Given shared renderer risk, plan full verify at final handoff per repo rules; run full native indexing acceptance when affected/required. Document actual commands, test results, baseline vs candidate and unresolved risks in PR; preserve raw evidence per retention contract.
+
+After `npm run build`, use `npm run check:web-runtime:artifacts` to record the
+release baseline. Preserve its built files in the managed validation run. After
+building the candidate, use `npm run check:web-runtime:artifacts -- dist <baseline-directory>`
+to report per-file byte counts and SHA-256 hashes and enforce the total budget and
+no-growth comparison. The command excludes the separate browser output.
+
+### Run the standalone Compass
+
+```sh
+npm run build:web
+python -m http.server 8000 --bind 127.0.0.1 --directory dist-web
+```
+
+Open `http://127.0.0.1:8000/`. Serve the whole `dist-web/` directory together
+to place it below a different HTTP path. The generation step ships the
+synthetic `publication.json` with the page, a stylesheet, and local ES modules.
+`compass.js` exports `mountCompass(element, fixture)`. A mount's `update`
+method validates a replacement fixture before resetting its navigation, and
+`dispose` releases that mount's DOM and event handlers. `npm run test:web-browser`
+builds the site and verifies both HTTP paths, shared geometry, independent
+mounts, keyboard and pointer navigation, and malformed fixtures in Chromium.
 
 ## 6. Explicit exclusions
 
@@ -90,3 +161,31 @@ No publishing configuration/UI, file selection/export, real vault graph export, 
 ## 7. Completion criteria
 
 A test-only baseline commit and evidence precede production renderer commits; exact-build desktop baseline/candidate checks pass, current render semantics and functionality are preserved in **all** native views, benchmark gate passes with no unexplained regression, independent static Compass demo uses the shared renderer without a host dependency, and size/scanner/architecture checks pass. If this cannot be shown, keep draft and deliver the concrete blocker and smallest next experiment. The local agent must not report a successful extraction based solely on a build, snapshot, or browser demo.
+
+### Windows comparison
+
+- The same publication fixture produces identical Compass card order, roles,
+  bounds, gate diameters and routed connector paths in the desktop and browser
+  render paths. Chromium also exercised the standalone page at `/` and a
+  nested HTTP path, including touch, fixture updates and independent mounts.
+- Native Compass, Mind Map, Facets, Mind Map editor, public API, stable gates
+  and label sharpness passed on the candidate. The occurrence-editor scroll
+  assertion and the image-export snapshot rejection reproduced on both the
+  accepted main artifact and the candidate with the same drivers.
+- Both artifacts completed the dense history, pan and scroll scenario and
+  the on-demand navigation and zoom scenario in the 20,088-note vault.
+  Eager scale preparation reached its warm-up deadline, then the runner
+  restored the disposable vault before the on-demand run.
+- Six reference and five candidate sessions used the same foreground Obsidian
+  workspace, source-recovery startup route, 98-note inventory and 60 trusted
+  actions each for navigation and zoom. All timed samples displayed eight
+  cards, thirteen edges and thirty-two gates. The candidate admitted no
+  additional measured source work. The largest upper confidence bound for
+  the two-frame settle proxy was 3.84%. The shorter DOM-commit measurements
+  showed no repeated slowdown, with confidence bounds crossing 5%.
+- The full `npm run verify` passed, including 4,877 runtime and persistence
+  tests, the standalone browser checks, and the production build.
+- The installable set is 5,131,561 bytes, 111,319 bytes below the 5 MiB
+  ceiling. It is 784 bytes larger than the accepted main artifact. The
+  comparison retains this difference while the desktop build stays separate
+  from the browser assets.

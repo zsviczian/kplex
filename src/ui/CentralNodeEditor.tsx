@@ -69,6 +69,7 @@ export function CentralNodeEditor({
   const defaultModeRef = useRef(defaultMode);
   const onNavigateRef = useRef(onNavigate);
   const maximizedRef = useRef(maximized);
+  const activateHostRef = useRef(activateHostLeafOnInteraction);
   const [mode, setMode] = useState<EmbeddedMarkdownMode>(defaultMode);
   const [, refreshMarkdownZoom] = useState(0);
   const scaleMarkdownWithZoom = markdownZoomMode(plugin.settings.centralNodeMarkdownZoomModes, page.path) === "scale";
@@ -79,6 +80,7 @@ export function CentralNodeEditor({
   defaultModeRef.current = defaultMode;
   onNavigateRef.current = onNavigate;
   maximizedRef.current = maximized;
+  activateHostRef.current = activateHostLeafOnInteraction;
   useLayoutEffect(/** Native representations expose different controls; remeasure only after their committed toolbar changes. */ () => {
     layoutRef.current?.();
   }, [documentView, excalidrawFile, status, maximized]);
@@ -96,7 +98,8 @@ export function CentralNodeEditor({
         }), 6000);
       }, (nextView) => {
         setDocumentView(nextView);
-      }, activateHostLeafOnInteraction, /** Read current normal-node policy for opening and untouched reading-mode resizing. */ () =>
+      }, /** Sidecar can change focus routing while the same native editor owns unsaved text. */ () => activateHostRef.current,
+      /** Read current normal-node policy for opening and untouched reading-mode resizing. */ () =>
         plugin.settings.excalidrawFitOnNodeOpen && !maximizedRef.current,
       bindingId ? nextFile => onNavigateRef.current(nextFile) : undefined);
     } catch (error) {
@@ -111,7 +114,7 @@ export function CentralNodeEditor({
       controllerRef.current = null;
       controller.dispose();
     };
-  }, [plugin, hostLeaf, activateHostLeafOnInteraction, useWebFrame, bindingId]);
+  }, [plugin, hostLeaf, useWebFrame, bindingId]);
 
   useEffect(/** Route this center to its native file leaf or explicitly opened URL guest without changing history. */ () => {
     const controller = controllerRef.current;

@@ -31,13 +31,15 @@ async function scenario(app,c){
   await until(()=>!p.isStartupInitializing(),'Startup pending');
   const remote=require('@electron/remote'),win=remote.getCurrentWindow();remote.app.focus({steal:true});win.show();win.focus();win.webContents.focus();
   workspace.leftSplit.collapse();workspace.rightSplit.collapse();await sessions.off();
-  createdFolder=await app.vault.createFolder(folder);const child=p.settings.hierarchy.children[0];check(child,'Child ontology required');
-  for(const name of ['R','A','B','C']){const file=await app.vault.create(path(name),name==='R'?`---\n${JSON.stringify(child)}: "[[${path('B')}]]"\n---\n# R\n`:`# ${name}\n\nOwned native occurrence fixture.\n`);files.push(file);p.index.insertCreatedFile(file);releases.push(p.index.acquireSemanticDemand(file.path))}
-  await until(()=>files.every(file=>app.metadataCache.getFileCache(file))&&!p.index.hasPendingSemanticPreparation()&&!p.index.hasActiveSemanticPreparation(),'Fixture not ready');
   Object.assign(p.settings,{documentSyncMode:'off',sidecarOpen:false,embedCentralNode:false,autoOpenCentralDocument:false,followActiveFile:false,centralNodeMarkdownMode:'source',animationSpeed:0,graphDepth:1,renderSiblings:false,showPageNodes:true,showInferredNodes:true,showFolderNodes:false,showTagNodes:false,graphLenses:[],applyPowerFilter:false,groupRelations:false});p.index.notifyPresentation();
   host=workspace.getLeaf('tab');hosts.push(host);const prototype=Object.getPrototypeOf(host),setState=prototype.setViewState;
   prototype.setViewState=function(...args){if(this.containerEl.closest('.kplex-central-editor-leaf-host'))embedded.add(this);return setState.apply(this,args)};restores.push(()=>{prototype.setViewState=setState});
-  await host.setViewState({type:'k-plex-react-view',active:true});await host.view.waitUntilReady();host.view.centerPresentation.update({embedCentralNode:false,centralNodeMarkdownMode:'source'});p.notifyNavigation(path('A'),host);
+  await host.setViewState({type:'k-plex-react-view',active:true});await workspace.revealLeaf(host);await host.view.waitUntilReady();
+  workspace.setActiveLeaf(host,{focus:true});host.view.centerPresentation.update({embedCentralNode:false,centralNodeMarkdownMode:'source'});
+  createdFolder=await app.vault.createFolder(folder);const child=p.settings.hierarchy.children[0];check(child,'Child ontology required');
+  for(const name of ['R','A','B','C']){const file=await app.vault.create(path(name),name==='R'?`---\n${JSON.stringify(child)}: "[[${path('B')}]]"\n---\n# R\n`:`# ${name}\n\nOwned native occurrence fixture.\n`);files.push(file);p.index.insertCreatedFile(file);releases.push(p.index.acquireSemanticDemand(file.path))}
+  await until(()=>files.every(file=>app.metadataCache.getFileCache(file)&&p.index.viewScopeCoverage(file.path).prepared),'Exact occurrence fixture scopes not ready');
+  p.notifyNavigation(path('A'),host);
   await until(()=>attention()===path('A'),'Initial attention absent');
   session=host.view.documentSession.plexView;registry=session.registry;
   const legacy=c.createLegacy({root:path('R'),repeated:path('B')}),probe=c.createProbe({root:path('R'),repeated:path('B'),next:path('C')}),noEditor={...legacy,id:'test.no-editor',capabilities:{...legacy.capabilities,editor:false}};
@@ -47,16 +49,26 @@ async function scenario(app,c){
   for(let i=0;i<4;i++)await act('view.zoom-out');await selectB1();
   const initial={root:session.layoutRoot(path('A')),attention:attention(),side:side.view.file?.path,active:workspace.activeLeaf,focus:document.activeElement,camera:root().querySelector('.kplex-camera').style.transform};
   check((await act('editor.expand')).status==='completed','Shared editor expansion rejected');
-  await until(()=>content()&&instance()?.view.editor,'Actual native editor absent');let leaf=instance(),editor=leaf.view.editor,element=root().querySelector('.kplex-central-editor-content'),binding=currentBinding();
+  await until(()=>content()&&instance()?.view.editor?.getValue().includes('Owned native occurrence fixture.')&&!root().querySelector('.kplex-central-editor-status'),'Actual native editor absent');let leaf=instance(),editor=leaf.view.editor,element=root().querySelector('.kplex-central-editor-content'),binding=currentBinding();
   check(leaf.view.file===files.find(file=>file.path===path('B'))&&binding.occurrenceId==='repeat-above','Editor did not open B1 canonical document');
   check(session.layoutRoot(path('A'))===initial.root&&attention()===initial.attention&&side.view.file?.path===initial.side,'Background editor redirected root/attention/Sidecar');
   check(workspace.activeLeaf===initial.active&&document.activeElement===initial.focus,'Background editor stole native focus');check(root().querySelector('.kplex-camera').style.transform===initial.camera,'Opening editor changed camera');
   check(!root().querySelector('[data-kplex-keyboard-id="repeat-below"] .kplex-central-editor-placeholder'),'B2 expanded with B1');
   cases.push({id:'R-A-B1-background-native-host',rootRetained:true,attentionRetained:true,sidecarRetained:true,focusRetained:true});c.progress={phase:'attention-and-dirty-geometry',cases};
   const ref={identity:binding.target.nodeId,path:binding.target.path,fileIdentity:binding.target.fileIdentity,kind:'file'};
-  const capacity=await act('editor.expand',undefined,{kind:'explicit',node:ref,occurrenceId:'repeat-below'});check(capacity.status==='unavailable'&&capacity.reasonKey==='actions.editor-capacity'&&currentBinding().id===binding.id,'Capacity-one contract failed');
+  const capacity=session.editors.open({viewId:session.definition.id,occurrenceId:'repeat-below',target:binding.target,dimensions:binding.dimensions,mode:binding.mode});
+  check(capacity.status==='unavailable'&&capacity.reason==='capacity'&&currentBinding().id===binding.id,'Capacity-one contract failed');
+  const switchTo=async occurrenceId=>{
+   const previous=instance(),result=await act('editor.expand',undefined,{kind:'explicit',node:ref,occurrenceId});
+   check(result.status==='completed','Sequential native editor switch failed '+JSON.stringify(result));
+   await until(()=>currentBinding()?.occurrenceId===occurrenceId&&instance()&&instance()!==previous&&instance().view.editor?.getValue().includes('Owned native occurrence fixture.'),'Replacement native editor absent');
+   check(!previous.view.containerEl.isConnected&&session.editors.bindings.length===1,'Sequential switch retained the previous editor');
+  };
+  await switchTo('repeat-below');await switchTo('repeat-above');
+  leaf=instance();editor=leaf.view.editor;element=root().querySelector('.kplex-central-editor-content');binding=currentBinding();
+  cases.push({id:'explicit-switch-retires-the-previous-native-owner'});
   p.notifyNavigation(path('C'),host);await until(()=>attention()===path('C')&&root()?.querySelector('[data-kplex-keyboard-id="look-here"]')?.dataset.kplexPath===path('C'),'Attention C absent');
-  check(session.layoutRoot(path('C'))===path('R')&&instance()===leaf&&leaf.view.editor===editor&&leaf.view.file?.path===path('B'),'Attention retargeted B or root');cases.push({id:'attention-C-retains-R-and-native-B1',capacityReason:capacity.reasonKey});
+  check(session.layoutRoot(path('C'))===path('R')&&instance()===leaf&&leaf.view.editor===editor&&leaf.view.file?.path===path('B'),'Attention retargeted B or root');cases.push({id:'attention-C-retains-R-and-native-B1',capacityReason:capacity.reason});
   const dirty=await markDirty(editor,'Kplex-219-dirty-geometry'),camera=root().querySelector('.kplex-camera').style.transform,sideFile=side.view.file?.path;
   check((await act('editor.resize',{bindingId:binding.id,width:660,height:410})).status==='completed','Shared resize rejected');check(session.updateState({hideRepeated:false,reflowOffset:35}),'Admitted reflow rejected');await wait(80);
   check(instance()===leaf&&leaf.view.editor===editor&&root().querySelector('.kplex-central-editor-content')===element,'Reflow replaced native instance');

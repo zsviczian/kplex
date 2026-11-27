@@ -82,7 +82,7 @@ class NativeElement {
 function deferred() { let resolve; const promise = new Promise(done => { resolve = done; }); return { promise, resolve }; }
 
 /** Mount the actual adapter with explicit current metadata and a view-scoped Excalidraw bridge. */
-function fixture({ frontmatter, path = "Drawing.excalidraw.md", bridgePresent = true, zoomPreference = true, exposeZoomPreference = true, compatibilityOpening = false, embeddedPolicy, manualFrames = false, boundNavigation } = {}) {
+function fixture({ frontmatter, path = "Drawing.excalidraw.md", bridgePresent = true, zoomPreference = true, exposeZoomPreference = true, compatibilityOpening = false, embeddedPolicy, manualFrames = false, boundNavigation, activateHost } = {}) {
   const priorWindow = globalThis.window;
   const listeners = new Map(), observers = new Set(), files = new Map();
   const document = { hasFocus: () => true,
@@ -111,7 +111,7 @@ function fixture({ frontmatter, path = "Drawing.excalidraw.md", bridgePresent = 
     metadataCache: { getFileCache: () => app.metadata === undefined ? null : {frontmatter: app.metadata} },
     vault: { getFileByPath: target => files.get(target) ?? null },
     workspace: { createContainer: () => new NativeElement(document),
-      setActiveLeaf() {}, getActiveViewOfType: () => null, offref() {} } };
+      setActiveLeaf(leaf) {app.activeLeaf = leaf;}, getActiveViewOfType: () => null, offref() {} } };
   const bridge = {
     verifyMinimumPluginVersion: () => true,
     registerViewLinkClickHook: () => {
@@ -137,7 +137,7 @@ function fixture({ frontmatter, path = "Drawing.excalidraw.md", bridgePresent = 
   const file = { path }; files.set(path, file);
   const changes = [], mount = new NativeElement(document), overlay = new NativeElement(document), host = {};
   mount.overlay = overlay;
-  const controller = modules.exports.mountEmbeddedMarkdownLeaf(app, host, mount, undefined, undefined, view => changes.push(view), false,
+  const controller = modules.exports.mountEmbeddedMarkdownLeaf(app, host, mount, undefined, undefined, view => changes.push(view), activateHost,
     embeddedPolicy ? /** Read current normal-node intent without retaining a settings snapshot. */ () => embeddedPolicy.enabled && !embeddedPolicy.maximized : undefined, boundNavigation);
   /** Restore global ownership and prove controller teardown removes its document leases. */
   function cleanup() {
@@ -161,8 +161,28 @@ function fixture({ frontmatter, path = "Drawing.excalidraw.md", bridgePresent = 
     }
     flushFrames();
   }
-  return { app, file, controller, changes, observers, bridge, overlay, mount, cleanup, flushFrames, settleOpening };
+  return { app, host, file, controller, changes, observers, bridge, overlay, mount, cleanup, flushFrames, settleOpening };
 }
+
+test('embedded editor follows live focus routing without replacing its open document', async () => {
+  let condensed = false;
+  const {app, host, file, controller, cleanup} = fixture({path: 'Note.md', activateHost: () => condensed});
+  try {
+    await controller.open(file, 'source');
+    const leaf = app.embeddedLeaf, view = leaf.view, requests = app.requests.length;
+    controller.activate();
+    assert.equal(app.activeLeaf, leaf);
+    condensed = true;
+    controller.activate();
+    assert.equal(app.activeLeaf, host);
+    condensed = false;
+    controller.activate();
+    assert.equal(app.activeLeaf, leaf);
+    assert.equal(leaf.view, view);
+    assert.equal(app.requests.length, requests);
+    assert.equal(app.detaches, 0);
+  } finally { cleanup(); }
+});
 
 test('explicit native close saves the exact editor once before detaching and coalesces pending collapse',async()=>{
  const context=fixture({path:'B.md',bridgePresent:false,boundNavigation:()=>assert.fail('Closing cannot navigate')});

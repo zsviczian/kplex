@@ -18,6 +18,93 @@ const register=`
  const dispatch=async(ui,id)=>{const result=await plugin.actionManager.dispatch({id,source:'local-hotkey',surfaceId:ui.props.actionSurfaceId});ui.render();await wait();return result};
 `;
 
+test('Compass paints each child route from its center gate to its own child gate', async () => {
+  const host = await chromiumHarness(output.outputFiles[0].text+';window.sourceModules=sourceModules;');
+  try {
+    await host.command('Emulation.setDeviceMetricsOverride', {width:1200, height:900, deviceScaleFactor:1, mobile:false});
+    const result = await host.evaluate(`(async()=>{${canvasSceneFixture}
+      const ui = await mount(M.builtInPlexViews.resolve('classic'));
+      /** Bind physical gate centers to the current CSS geometry. */
+      const gate = (path, side) => ui.container.querySelector('[data-kplex-path="'+path+'"] [data-kplex-gate="'+side+'"]');
+      /** Read SVG endpoints in the same viewport coordinate space as the gates. */
+      const endpoint = (route, distance) => route.getPointAtLength(distance).matrixTransform(route.getScreenCTM());
+      /** Allow subpixel differences and the card's one-pixel border. */
+      const touches = (point, gateElement) => {
+        const rect = gateElement.getBoundingClientRect();
+        return Math.hypot(point.x-(rect.left+rect.width/2), point.y-(rect.top+rect.height/2)) <= 2;
+      };
+      /** Identify routes by their actual endpoints and require that paint and hit geometry agree. */
+      const read = () => {
+        const origin = gate('A.md','bottom');
+        return [...ui.container.querySelectorAll('.kplex-edge-hit')].map(route => {
+          const paint = route.parentElement.querySelector('.kplex-edge-visible');
+          const from = endpoint(route,0), to = endpoint(route,route.getTotalLength());
+          const targets = ['B.md','C.md'].filter(path => touches(to,gate(path,'top')));
+          return {fromCenter:touches(from,origin), targets, samePaint:paint.getAttribute('d')===route.getAttribute('d')};
+        });
+      };
+      try {
+        const before = read();
+        const route = ui.container.querySelector('.kplex-edge-hit');
+        const parent = route.parentElement;
+        parent.removeChild(route);
+        const missingRoute = read();
+        parent.append(route);
+        gate('C.md','top').style.transform = 'translateY(-30px)';
+        const misplacedGate = read();
+        return {before, missingRoute, misplacedGate};
+      } finally { ui.close(); }
+    })()`);
+    assert.equal(result.before.length, 2);
+    assert(result.before.every(route => route.fromCenter && route.samePaint));
+    assert.deepEqual(result.before.flatMap(route => route.targets).sort(), ['B.md', 'C.md']);
+    assert.equal(result.missingRoute.length, 1, 'The comparison detects a missing route');
+    assert.deepEqual(result.misplacedGate.flatMap(route => route.targets), ['B.md'], 'The comparison detects a displaced gate');
+  } finally { await host.cleanup(); }
+});
+
+test('trusted Compass card input commits the clicked canonical destination', async () => {
+  const host = await chromiumHarness(output.outputFiles[0].text+';window.sourceModules=sourceModules;');
+  /** Send Chromium's real pointer input to the visible card, including its listener hit test. */
+  async function click(path) {
+    const point = await host.evaluate(`window.navigationProbe.point(${JSON.stringify(path)})`);
+    await host.command('Input.dispatchMouseEvent', {type:'mouseMoved',...point});
+    await host.command('Input.dispatchMouseEvent', {type:'mousePressed',button:'left',clickCount:1,...point});
+    await host.command('Input.dispatchMouseEvent', {type:'mouseReleased',button:'left',clickCount:1,...point});
+    return host.evaluate('window.navigationProbe.read()');
+  }
+  try {
+    await host.command('Emulation.setDeviceMetricsOverride', {width:1200,height:900,deviceScaleFactor:1,mobile:false});
+    await host.evaluate(`(async()=>{${canvasSceneFixture}${register}
+      const ui = attach(await mount(M.builtInPlexViews.resolve('classic')));
+      const realActivate = ui.props.onActivate;
+      let trustedPath = null;
+      /** Maintain a witness for the real delivered click, independent of the activation result. */
+      const onClick = event => {if(event.isTrusted) trustedPath=event.target.closest('[data-kplex-path]')?.dataset.kplexPath;};
+      ui.container.addEventListener('click',onClick,true);
+      window.navigationProbe = {
+        point(path) {
+          const target = [...ui.container.querySelectorAll('.kplex-thought')].find(node=>node.dataset.kplexPath===path);
+          const box = target.getBoundingClientRect(), x=box.left+box.width/2, y=box.top+box.height/2;
+          check(target.contains(document.elementFromPoint(x,y)),'Native input target is obstructed');
+          return {x,y};
+        },
+        async read() {await wait();return {trustedPath,center:ui.container.querySelector('.kplex-role-center').dataset.kplexPath};},
+        async misroute() {trustedPath=null;realActivate(pages.get('A.md'));ui.props.onActivate=()=>realActivate(pages.get('C.md'));ui.render();await wait();},
+        close() {ui.container.removeEventListener('click',onClick,true);for(const release of releases)release();ui.close();},
+      };
+      return true;
+    })()`);
+    const actual = await click('B.md');
+    assert.deepEqual(actual,{trustedPath:'B.md',center:'B.md'});
+    await host.evaluate('window.navigationProbe.misroute()');
+    const wrong = await click('B.md');
+    assert.deepEqual(wrong,{trustedPath:'B.md',center:'C.md'});
+    assert.notDeepEqual(wrong,actual,'The destination assertion must detect a misrouted click');
+    await host.evaluate('window.navigationProbe.close()');
+  } finally { await host.cleanup(); }
+});
+
 test('a mounted canvas survives its center disappearing and accepts the replacement center',async()=>{
  const host=await chromiumHarness(output.outputFiles[0].text+';window.sourceModules=sourceModules;');
  try{assert(await host.evaluate(`(async()=>{${canvasSceneFixture}

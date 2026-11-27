@@ -51,7 +51,6 @@ async function scenario(app,c){
  const clickNative=async readTarget=>{await until(()=>readTarget()?.isConnected&&readTarget().ownerDocument.defaultView,'Primary target lacks a live native document');const first=readTarget();const doc=first.ownerDocument,win=doc.defaultView.require('@electron/remote').getCurrentWindow();win.show();win.focus();win.webContents.focus();await until(()=>{const element=readTarget(),rect=element?.getBoundingClientRect();return element?.ownerDocument===doc&&rect.width>0&&rect.height>0&&element.contains(doc.elementFromPoint(Math.round(rect.left+rect.width/2),Math.round(rect.top+rect.height/2)))},'Visible unobscured primary target required');let priorBox,stableSince=Date.now();await until(()=>{const target=readTarget(),box=target?.getBoundingClientRect(),key=box&&[box.left,box.top,box.width,box.height].join(',');if(key!==priorBox){priorBox=key;stableSince=Date.now()}return target?.ownerDocument===doc&&Date.now()-stableSince>=120},'Native target geometry did not settle');const element=readTarget(),rect=element.getBoundingClientRect(),x=Math.round(rect.left+rect.width/2),y=Math.round(rect.top+rect.height/2),hit=doc.elementFromPoint(x,y);c.progress={...c.progress,input:{rect:{left:rect.left,top:rect.top,width:rect.width,height:rect.height},viewport:{width:doc.defaultView.innerWidth,height:doc.defaultView.innerHeight},hitClass:typeof hit?.className==='string'?hit.className:null,hitInside:element.contains(hit),windowId:win.id,focused:win.isFocused()}};let trusted=false;const observe=event=>{const current=readTarget();trusted=event.isTrusted&&!!current?.contains(event.target);c.progress={...c.progress,delivered:{trusted:event.isTrusted,target:event.target?.className,inside:!!current?.contains(event.target),x:event.clientX,y:event.clientY}}};doc.addEventListener('click',observe,true);try{win.webContents.sendInputEvent({type:'mouseMove',x,y});for(const type of ['mouseDown','mouseUp'])win.webContents.sendInputEvent({type,x,y,button:'left',clickCount:1});await until(()=>trusted,'Trusted primary click not delivered')}finally{doc.removeEventListener('click',observe,true)}};
  c.progress={phase:'fixture',lane:c.lane,cases};
  try{
-  await until(()=>!p.isStartupInitializing()&&!p.index.hasPendingSemanticPreparation()&&!p.index.hasActiveSemanticPreparation(),'Startup/current requested semantics pending');
   const information=p.appearanceMigrationDialog;
   if(information?.modalEl.isConnected){const done=information.modalEl.querySelector('button.mod-cta');check(information.modalEl.classList.contains('kplex-notification-modal')&&done?.textContent===p.translator('common.done'),'Unexpected staging information owner');const ownDocument=information.modalEl.ownerDocument===document,visible=information.modalEl.getBoundingClientRect().width>0;information.close();await until(()=>p.appearanceMigrationDialog!==information&&!information.contentEl.querySelector('button'),'Staging information owner did not retire');await p.settingsWriteQueue;cases.push({id:'staging-native-theme-information-dismissed',publicModalClose:true,ownDocument,visible})}
   const remote=require('@electron/remote'),win=remote.getCurrentWindow();
@@ -62,6 +61,16 @@ async function scenario(app,c){
    win.restore();win.setBounds({x:20,y:20,width:1800,height:1100});
   }
   workspace.leftSplit.collapse();workspace.rightSplit.collapse();c.progress={phase:'disable-native-follow',lane:c.lane,cases};await sessions.off();
+  c.progress={phase:'open-native-host',lane:c.lane,cases};
+  if(c.prepareViewport){
+   // A real tab parent preserves usable Sidecar geometry and grants foreground preparation.
+   const anchors=[];workspace.iterateRootLeaves(leaf=>{if(leaf.view.containerEl.ownerDocument===document&&leaf.view.containerEl.getBoundingClientRect().width>0)anchors.push(leaf)});
+   anchors.sort((a,b)=>b.view.containerEl.getBoundingClientRect().width-a.view.containerEl.getBoundingClientRect().width);check(anchors[0],'Native main-window tab anchor absent');await workspace.revealLeaf(anchors[0]);workspace.setActiveLeaf(anchors[0],{focus:true});
+  }
+  const host=workspace.getLeaf('tab');hosts.push(host);const prototype=Object.getPrototypeOf(host),setState=prototype.setViewState;
+  prototype.setViewState=function(...args){if(this.containerEl.closest('.kplex-central-editor-leaf-host'))embedded.add(this);return setState.apply(this,args)};restores.push(()=>{prototype.setViewState=setState});
+  await host.setViewState({type:'k-plex-react-view',active:true});await workspace.revealLeaf(host);await host.view.waitUntilReady();workspace.setActiveLeaf(host,{focus:true});
+  await until(()=>!p.isStartupInitializing()&&!p.index.hasActiveSemanticPreparation(),'Startup/current active semantic work pending');
   c.progress={phase:'create-folder',lane:c.lane,cases};createdFolder=await app.vault.createFolder(folder);const child=p.settings.hierarchy.children[0];check(child,'Child ontology required');const children={R:['P','Q'],P:['B'],Q:['B'],B:['D'],D:['R'],Left:['LeftChild']};
   const peerFields=[p.settings.hierarchy.leftFriends[0],p.settings.hierarchy.rightFriends[0],p.settings.hierarchy.previous[0],p.settings.hierarchy.next[0]];
   const names=challengers?['R','A','B','C','D','E']:
@@ -81,19 +90,17 @@ async function scenario(app,c){
    const file=await app.vault.create(path(name),(yaml?'---\n'+yaml+'\n---\n':'')+'# '+name+'\n');files.push(file);p.index.insertCreatedFile(file);
    if(!challengers)releases.push(p.index.acquireSemanticDemand(file.path));
   }
-  c.progress={phase:'settle-fixture',lane:c.lane,cases};await until(()=>files.every(file=>app.metadataCache.getFileCache(file))&&!p.index.hasPendingSemanticPreparation()&&!p.index.hasActiveSemanticPreparation(),'Fixture not ready');
+  // Pending work outside this fixture can be dormant in On-demand mode. Every explicitly
+  // demanded file must still have its own current scope before the feature assertions run.
+  c.progress={phase:'settle-fixture',lane:c.lane,cases};await until(()=>files.every(file=>{
+   if(!app.metadataCache.getFileCache(file)||p.index.get(file.path)?.file!==file)return false;
+   const scope=p.index.viewScopeCoverage(file.path);
+   return challengers||scope.prepared&&!scope.pending;
+  })&&!p.index.hasActiveSemanticPreparation(),'Fixture not ready');
   Object.assign(p.settings,{documentSyncMode:'off',sidecarOpen:false,embedCentralNode:false,autoOpenCentralDocument:false,followActiveFile:false,centralNodeMarkdownMode:'source',animationSpeed:0,allowAutozoom:true,graphDepth:1,renderSiblings:false,showPageNodes:true,showInferredNodes:true,showFolderNodes:false,showTagNodes:false,showCrossLinks:true,graphLenses:[],applyPowerFilter:false,groupRelations:false,
    canvasViewSettings:{...p.settings.canvasViewSettings,mindmap:{version:1,values:{arrangement:'right',initialGenerations:1,maximumDepth:6,maximumOccurrences:128,horizontalSpacing:96,verticalSpacing:24}}}});p.index.notifyPresentation();
-  c.progress={phase:'open-native-host',lane:c.lane,cases};
-  if(c.prepareViewport){
-   // Native source/Sidecar probes need a real tab parent. A bare rootSplit leaf makes later
-   // getLeaf('tab') calls fall back to an unrelated narrow group despite a wide main viewport.
-   const anchors=[];workspace.iterateRootLeaves(leaf=>{if(leaf.view.containerEl.ownerDocument===document&&leaf.view.containerEl.getBoundingClientRect().width>0)anchors.push(leaf)});
-   anchors.sort((a,b)=>b.view.containerEl.getBoundingClientRect().width-a.view.containerEl.getBoundingClientRect().width);check(anchors[0],'Native main-window tab anchor absent');await workspace.revealLeaf(anchors[0]);workspace.setActiveLeaf(anchors[0],{focus:true});
-  }
-  const host=workspace.getLeaf('tab');hosts.push(host);const prototype=Object.getPrototypeOf(host),setState=prototype.setViewState;
-  prototype.setViewState=function(...args){if(this.containerEl.closest('.kplex-central-editor-leaf-host'))embedded.add(this);return setState.apply(this,args)};restores.push(()=>{prototype.setViewState=setState});
-  await host.setViewState({type:'k-plex-react-view',active:true});await workspace.revealLeaf(host);await host.view.waitUntilReady();host.view.centerPresentation.update({embedCentralNode:false,centralNodeMarkdownMode:'source'});p.notifyNavigation(path(challengers?'R':'A'),host);
+  c.progress={phase:'navigate-native-host',lane:c.lane,cases};
+  host.view.centerPresentation.update({embedCentralNode:false,centralNodeMarkdownMode:'source'});p.notifyNavigation(path(challengers?'R':'A'),host);
   if(challengers){
    const expected=['A','B','C','D'].map(path),onDemand=p.index.isOnDemandMode();
    const before=await Promise.all(files.map(file=>app.vault.read(file)));
@@ -151,19 +158,25 @@ async function scenario(app,c){
    c.progress={phase:'root-context-and-navigation',cases};await act(host,'view.fit');
    const rect=name=>nodes(host).find(node=>node.dataset.kplexKeyboardId===occurrence('R',name))?.getBoundingClientRect(),rootRect=nodes(host).find(node=>node.dataset.kplexKeyboardId==='root').getBoundingClientRect();
    check(['P','Q'].every(name=>rect(name)?.left>rootRect.right),'Children not on right');check(['Left','Right','Prev','Next'].every(name=>rect(name)?.right<rootRect.left),'Peers not on left');check(rect('D')?.bottom<rootRect.top,'Parent not above root');
+   /** Branch expansion is a separate control from the production card's primary recenter action. */
+   const branchControl=(...lineage)=>nodes(host).find(node=>node.dataset.kplexKeyboardId===occurrence(...lineage))?.querySelector('.is-branch-disclosure');
    const beforeAttention=host.view.documentSession.centerPath;
-   await clickNative(()=>nodes(host).find(node=>node.dataset.kplexKeyboardId===occurrence('R','P')));await until(()=>nodes(host).some(node=>node.dataset.kplexKeyboardId===occurrence('R','P','B'))&&nodes(host).some(node=>node.dataset.kplexKeyboardId===occurrence('R','P','LeafPeer')),'Primary child expansion did not add children and peers');
+   await clickNative(()=>branchControl('R','P'));await until(()=>nodes(host).some(node=>node.dataset.kplexKeyboardId===occurrence('R','P','B'))&&nodes(host).some(node=>node.dataset.kplexKeyboardId===occurrence('R','P','LeafPeer')),'Branch disclosure did not add children and peers');
    check(!session(host).editors.bindings.length&&host.view.documentSession.centerPath===beforeAttention&&session(host).layoutRoot(beforeAttention)===path('R'),'Branch click changed editor/attention/root');
-   await clickNative(()=>nodes(host).find(node=>node.dataset.kplexKeyboardId===occurrence('R','P')));await until(()=>!nodes(host).some(node=>node.dataset.kplexKeyboardId===occurrence('R','P','B')),'Second primary click did not fold the branch');check(session(host).layoutRoot(beforeAttention)===path('R')&&host.view.documentSession.centerPath===beforeAttention&&!session(host).editors.bindings.length,'Fold changed root/attention/editor');
-   await clickNative(()=>nodes(host).find(node=>node.dataset.kplexKeyboardId===occurrence('R','P')));await until(()=>nodes(host).some(node=>node.dataset.kplexKeyboardId===occurrence('R','P','B')),'Third primary click did not reopen branch');
-   await act(host,'view.fit');await clickNative(()=>nodes(host).find(node=>node.dataset.kplexKeyboardId===occurrence('R','Left')));await until(()=>nodes(host).some(node=>node.dataset.kplexKeyboardId===occurrence('R','Left','LeftChild')),'Left-side child expansion absent');
+   await clickNative(()=>branchControl('R','P'));await until(()=>!nodes(host).some(node=>node.dataset.kplexKeyboardId===occurrence('R','P','B')),'Second disclosure did not fold the branch');check(session(host).layoutRoot(beforeAttention)===path('R')&&host.view.documentSession.centerPath===beforeAttention&&!session(host).editors.bindings.length,'Fold changed root/attention/editor');
+   await clickNative(()=>branchControl('R','P'));await until(()=>nodes(host).some(node=>node.dataset.kplexKeyboardId===occurrence('R','P','B')),'Third disclosure did not reopen branch');
+   await act(host,'view.fit');await clickNative(()=>branchControl('R','Left'));await until(()=>nodes(host).some(node=>node.dataset.kplexKeyboardId===occurrence('R','Left','LeftChild')),'Left-side child expansion absent');
    const rightChild=nodes(host).find(node=>node.dataset.kplexKeyboardId===occurrence('R','P','B')).getBoundingClientRect(),rightPeer=nodes(host).find(node=>node.dataset.kplexKeyboardId===occurrence('R','P','LeafPeer')).getBoundingClientRect(),P=rect('P');
    const leftChild=nodes(host).find(node=>node.dataset.kplexKeyboardId===occurrence('R','Left','LeftChild')).getBoundingClientRect(),L=rect('Left');check(rightChild.left>P.right&&rightPeer.left>P.right&&leftChild.right<L.left,'Expanded descendants lost their branch side');
    /** Inspect the shipped SVG route in its owning document, not just the pure projection's port label. */
    const origin=(names,gate)=>{const id=occurrence(...names),source=nodes(host).find(node=>node.dataset.kplexKeyboardId===occurrence(...names.slice(0,-1))),edge=[...root(host).querySelectorAll('[data-kplex-edge-id]')].find(element=>element.dataset.kplexEdgeId===id);check(source&&edge,'Native semantic route absent');const point=edge.getPointAtLength(0),screen=new edge.ownerDocument.defaultView.DOMPoint(point.x,point.y).matrixTransform(edge.getScreenCTM()),box=source.getBoundingClientRect();check(gate==='bottom'?Math.abs(screen.x-(box.left+box.width/2))<1&&screen.y>box.bottom:gate==='top'?Math.abs(screen.x-(box.left+box.width/2))<1&&screen.y<box.top:Math.abs(screen.y-(box.top+box.height/2))<1&&(gate==='left'?screen.x<box.left:screen.x>box.right),'Native connector left the wrong physical gate')};
    origin(['R','P'],'bottom');origin(['R','D'],'top');for(const peer of ['Left','Right','Prev','Next'])origin(['R',peer],'left');origin(['R','P','B'],'bottom');origin(['R','P','LeafPeer'],'right');origin(['R','Left','LeftChild'],'bottom');
    cases.push({id:'native-SVG-bottom-child-outward-peer-and-top-parent-origins'});
-   cases.push({id:'trusted-primary-toggles-child-and-peer-context-without-editor-or-reroot'});
+   cases.push({id:'trusted-disclosure-toggles-child-and-peer-context-without-editor-or-reroot'});
+   await act(host,'view.fit');await clickNative(()=>nodes(host).find(node=>node.dataset.kplexKeyboardId===occurrence('R','P')));
+   await until(()=>host.view.documentSession.centerPath===path('P')&&session(host).layoutRoot(path('P'))===path('P')&&nodes(host).some(node=>node.dataset.kplexKeyboardId==='root'&&node.dataset.kplexPath===path('P')),'Primary card click did not center its destination');
+   check(!session(host).editors.bindings.length,'Primary card click opened an editor');
+   cases.push({id:'trusted-primary-centers-destination-without-editor'});
    await choose(host,'classic');p.notifyNavigation(path('S'),host);await until(()=>host.view.documentSession.centerPath===path('S'),'Compass destination absent');await choose(host,'mindmap');await until(()=>session(host).layoutRoot(path('S'))===path('S')&&nodes(host).length===1,'Selector restored stale root');
    root(host).querySelector('.kplex-filter-trigger').click();await until(()=>!panel(host),'Selector panel did not close');p.settings.pinnedNodes=[path('R')];await p.saveSettings(false,true);await until(()=>root(host).querySelector('[data-kplex-pinned-path]'),'Owned fixture pin absent');
    c.progress={...c.progress,phase:'trusted-fixture-pin'};await clickNative(()=>root(host).querySelector('[data-kplex-pinned-path]'));await until(()=>session(host).layoutRoot(path('R'))===path('R'),'Pin did not choose map root');
@@ -187,18 +200,26 @@ async function scenario(app,c){
    for(const lineage of [['R','P'],['R','P','B'],['R','P','B','D']]){
     const id=occurrence(...lineage),next=occurrence(...lineage,lineage.length===2?'B':lineage.length===3?'D':'R');
     await until(()=>nodes(host).some(element=>element.dataset.kplexKeyboardId===id),'Cycle branch occurrence absent');
-    if(!nodes(host).some(element=>element.dataset.kplexKeyboardId===next)){await act(host,'view.fit');await wait(100);await clickNative(()=>nodes(host).find(element=>element.dataset.kplexKeyboardId===id));}
+    if(!nodes(host).some(element=>element.dataset.kplexKeyboardId===next)){await act(host,'view.fit');await wait(100);await clickNative(()=>branchControl(...lineage));}
     await until(()=>nodes(host).some(element=>element.dataset.kplexKeyboardId===next),'Cycle branch did not expand');
    }
    const cycle=()=>nodes(host).find(element=>{try{const lineage=JSON.parse(element.dataset.kplexKeyboardId);return Array.isArray(lineage)&&lineage[0]===path('R')&&[path('P'),path('Q')].includes(lineage[1])&&lineage.at(-1)===path('R')&&element.textContent.includes(p.translator('mindmap.reference'))}catch{return false}});
+   c.progress={...c.progress,phase:'cycle-reference'};
    await until(cycle,'Genuine child-branch cycle reference absent');await act(host,'view.fit');await wait(100);await clickNative(cycle);
-   await until(()=>p.actionManager.readSnapshot(surface(host))?.selected?.occurrenceId==='root'&&[...document.querySelectorAll('.notice')].some(element=>element.textContent===p.translator('mindmap.cycleReference')),'Cycle did not reveal its earlier occurrence with a Notice');
-   check(session(host).layoutRoot(path('R'))===path('R')&&host.view.documentSession.centerPath===path('R'),'Cycle inspection changed root or attention');cases.push({id:'native-cycle-reference-reveals-earlier-occurrence-and-notice'});
+   // Center-primary handles references as canonical destinations. The separate Chromium legacy
+   // expand-primary scenario still exercises selection and the cycle-specific notice.
+   await wait(150);
+   check(session(host).layoutRoot(path('R'))===path('R')&&host.view.documentSession.centerPath===path('R')&&!session(host).editors.bindings.length,'Cycle activation changed canonical destination or opened an editor');
+   cases.push({id:'native-cycle-reference-centers-its-canonical-destination-without-editor'});
   }else if(c.lane==='center-navigation'){
    p.notifyNavigation(path('R'),host);
    await until(()=>host.view.documentSession.centerPath===path('R'),'Initial center R absent');
    check((await act(host,'editor.expand',undefined,target('R','root'))).status==='completed','Root editor did not open');
-   await until(()=>instance(host)?.view.editor&&session(host).editors.bindings[0]?.target.path===path('R'),'Native root editor absent');
+   await until(()=>{
+    const view=instance(host)?.view;
+    return view?.file?.path===path('R')&&view.editor?.getValue().includes('# R')&&session(host).editors.bindings[0]?.target.path===path('R')
+     &&!root(host).querySelector('.kplex-central-editor-status');
+   },'Native root editor did not finish loading the exact fixture');
    const oldLeaf=instance(host),editor=oldLeaf.view.editor,save=oldLeaf.view.save;
    const binding=session(host).editors.bindings[0],marker='Owned-center-navigation-'+Date.now();
    check((await act(host,'editor.resize',{bindingId:binding.id,width:620,height:400})).status==='completed','Root editor resize rejected');
@@ -208,7 +229,9 @@ async function scenario(app,c){
    await act(host,'view.fit');
    await clickNative(()=>nodes(host).find(node=>node.dataset.kplexPath===path('P')));
    await until(()=>rejected>0&&!session(host).editors.bindings[0]?.closing,'Navigation save rejection did not settle');
-   check(instance(host)===oldLeaf&&editor.getValue().includes(marker)&&session(host).layoutRoot(path('R'))===path('R')&&host.view.documentSession.centerPath===path('R'),'Failed navigation discarded or retargeted the dirty editor');
+   const retained={leaf:instance(host)===oldLeaf,editor:oldLeaf.view.editor===editor,buffer:editor.getValue().includes(marker),root:session(host).layoutRoot(path('R'))===path('R'),attention:host.view.documentSession.centerPath===path('R')};
+   c.progress={...c.progress,phase:'center-save-rejection',retained};
+   check(Object.values(retained).every(Boolean),'Failed navigation discarded or retargeted the dirty editor');
    cases.push({id:'center-navigation-save-failure-preserves-native-buffer-root-and-attention'});
    oldLeaf.view.save=save;
    await clickNative(()=>nodes(host).find(node=>node.dataset.kplexPath===path('P')));

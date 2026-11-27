@@ -1,0 +1,25 @@
+{
+  "version": 1,
+  "title": "Field notes",
+  "entry": "n1",
+  "nodes": [
+    {"id": "n0", "title": "Fieldwork", "text": "A synthetic notebook about observing a changing landscape."},
+    {"id": "n1", "title": "River survey", "text": "Follow the river from the upper trail to the crossing. Record the water level and the condition of the banks at each stop."},
+    {"id": "n2", "title": "Weather log", "text": "Compare the latest rainfall with recent changes in the channel."},
+    {"id": "n3", "title": "Water samples", "text": "Collect samples at the upper trail and the crossing at the same time of day."},
+    {"id": "n4", "title": "Trail map", "text": "The path reaches the river at the old stone crossing."},
+    {"id": "n5", "title": "Bank erosion", "text": "Photograph exposed roots and compare the banks after heavy rain."},
+    {"id": "n6", "title": "Woodland survey", "text": "Record canopy gaps and signs of recent storm damage."},
+    {"id": "n7", "title": "Old stone crossing", "text": "A fixed landmark for repeated observations."}
+  ],
+  "relations": [
+    {"source": "n0", "target": "n1", "role": "child", "label": "Survey"},
+    {"source": "n0", "target": "n6", "role": "child"},
+    {"source": "n1", "target": "n2", "role": "left", "label": "Context"},
+    {"source": "n1", "target": "n3", "role": "child", "label": "Sample"},
+    {"source": "n1", "target": "n4", "role": "right", "label": "Route"},
+    {"source": "n1", "target": "n5", "role": "child", "label": "Observe"},
+    {"source": "n4", "target": "n7", "role": "child"},
+    {"source": "n5", "target": "n2", "role": "previous"}
+  ]
+}

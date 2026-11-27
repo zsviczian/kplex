@@ -1425,6 +1425,7 @@ import {physicalGateStats} from ${JSON.stringify(join(root,"src/ui/plexViews/mea
 import {nodePropertyFontSize} from ${JSON.stringify(join(root,"src/core/plex/nodeProperties.ts"))};
 import {useGateCountPresentation} from ${JSON.stringify(join(root,'src/ui/useGateCountPresentation.ts'))};
 import {thoughtCornerRadius} from ${JSON.stringify(join(root,'src/ui/plexViews/nodeConnections.ts'))};
+import {PlexGate,PlexNodeCard,PlexNodeLabel,PlexNodeText} from ${JSON.stringify(join(root,'src/ui/features/PlexPaint.tsx'))};
 ${uiDefinitions("src/ui/ThoughtNode.tsx", ["GATES", "ThoughtNode"])}
 
 const settings = { horizontalCompactingFactor: 2, compactingFactor: 2, baseFontSize: 12.4, wrapNodeLabels: false, showNeighborCount: true, graphDepth: 2, minLinkLength: 18, childColumns: 2, maxItemCount: 100, siblingRelativeSize: 85 };
@@ -1915,8 +1916,9 @@ test("External file areas and pinned relationship targets use shared production 
 
 /** Verify painted gate coordinates and approach directions through real zoomed, scrolled DOM. */
 function draftConnectorBrowserEntry() {
-  const callbacks = uiDefinitions("src/ui/PlexGraph.tsx", ["gateVector", "cubicPoint", "edgeGeometry", "oppositeGate", "toWorld", "connectionDragPath"]);
+  const callbacks = uiDefinitions("src/ui/PlexGraph.tsx", ["oppositeGate", "toWorld", "connectionDragPath"]);
   return `
+import {edgeGeometry} from ${JSON.stringify(join(root,"src/core/plex/connectorGeometry.ts"))};
 const result=document.querySelector("#result"),check=(ok,message)=>{if(!ok)throw Error(message)};
 try{
  const surface=document.body.appendChild(document.createElement("div"));surface.style.cssText="position:absolute;left:10px;top:20px;width:900px;height:700px";
@@ -1938,7 +1940,8 @@ try{
   const values=connectionDragPath().match(/-?\\d+(?:\\.\\d+)?/g).map(Number),start=toWorld(a.left+a.width/2,a.top+a.height/2),end=toWorld(b.left+b.width/2,b.top+b.height/2);
   check(Math.abs(values[0]-start.x)<0.001&&Math.abs(values[1]-start.y)<0.001,"draft origin escaped the visible scrolled gate");
   check(Math.abs(values[6]-end.x)<0.001&&Math.abs(values[7]-end.y)<0.001,"draft failed to snap to target gate center");
-  const vector=gateVector(side);check((values[4]-end.x)*vector.x+(values[5]-end.y)*vector.y>0,"target gate approach is reversed: "+side);
+  const [dx,dy]=({left:[-1,0],right:[1,0],top:[0,-1],bottom:[0,1]})[side];
+  check((values[4]-end.x)*dx+(values[5]-end.y)*dy>0,"target gate approach is reversed: "+side);
  }
  source.remove();check(connectionDragPath()===null,"detached gate retained a draft connector");
  result.dataset.status="passed";result.textContent="Draft connector gate geometry passed";
@@ -2355,6 +2358,7 @@ import {physicalGateStats} from ${JSON.stringify(join(root,"src/ui/plexViews/mea
 import {nodePropertyFontSize} from ${JSON.stringify(join(root,"src/core/plex/nodeProperties.ts"))};
 import {useGateCountPresentation} from ${JSON.stringify(join(root,'src/ui/useGateCountPresentation.ts'))};
 import {thoughtCornerRadius} from ${JSON.stringify(join(root,'src/ui/plexViews/nodeConnections.ts'))};
+import {PlexGate,PlexNodeCard,PlexNodeLabel,PlexNodeText} from ${JSON.stringify(join(root,'src/ui/features/PlexPaint.tsx'))};
 ${uiDefinitions('src/ui/ThoughtNode.tsx',['GATES','ThoughtNode'])}
 const result=document.querySelector('#result'),container=document.body.appendChild(document.createElement('div')),root=createRoot(container);
 const check=(condition,message)=>{if(!condition)throw Error(message)},translate=createTranslator('en'),noop=()=>{};
@@ -2423,6 +2427,7 @@ import {physicalGateStats} from ${JSON.stringify(join(root,"src/ui/plexViews/mea
 import {nodePropertyFontSize} from ${JSON.stringify(join(root,"src/core/plex/nodeProperties.ts"))};
 import {useGateCountPresentation} from ${JSON.stringify(join(root,'src/ui/useGateCountPresentation.ts'))};
 import {thoughtCornerRadius} from ${JSON.stringify(join(root,'src/ui/plexViews/nodeConnections.ts'))};
+import {PlexGate,PlexNodeCard,PlexNodeLabel,PlexNodeText} from ${JSON.stringify(join(root,'src/ui/features/PlexPaint.tsx'))};
 ${uiDefinitions('src/ui/ThoughtNode.tsx',['GATES','ThoughtNode'])}
 const result=document.querySelector('#result'),container=document.body.appendChild(document.createElement('div')),root=createRoot(container),noop=()=>{};
 const check=(condition,message)=>{if(!condition)throw Error(message)};
@@ -2493,13 +2498,14 @@ import { flushSync } from "react-dom";
 import { createRoot } from "react-dom/client";
 import { alphaHexToCss, nodePaint, nodePaintFallbacks } from ${JSON.stringify(join(root, "src/index/style.ts"))};
 import { effectiveLabelLimit, nodeLabelFontSize, gateDiameter } from ${JSON.stringify(join(root, "src/ui/layout.ts"))};
-${uiDefinitions("src/ui/plexViews/measurement.ts", ["clamp", "nodeSize"])}
+import {nodeSize} from ${JSON.stringify(join(root,"src/core/plex/nodeGeometry.ts"))};
 import { physicalPositionLabel } from ${JSON.stringify(join(root, "src/ui/features/positionPresentation.ts"))};
 const ObsidianIcon=({className,size})=><span className={"kplex-icon "+className} style={{width:size,height:size}}/>;
 import {physicalGateStats,nodePropertyLinesWidth,nodePropertyLinesHeight} from ${JSON.stringify(join(root,"src/ui/plexViews/measurement.ts"))};
 import {nodePropertyFontSize} from ${JSON.stringify(join(root,"src/core/plex/nodeProperties.ts"))};
 import {useGateCountPresentation} from ${JSON.stringify(join(root,'src/ui/useGateCountPresentation.ts'))};
 import {thoughtCornerRadius} from ${JSON.stringify(join(root,'src/ui/plexViews/nodeConnections.ts'))};
+import {PlexGate,PlexNodeCard,PlexNodeLabel,PlexNodeText} from ${JSON.stringify(join(root,'src/ui/features/PlexPaint.tsx'))};
 ${uiDefinitions("src/ui/ThoughtNode.tsx", ["GATES", "ThoughtNode"])}
 const result=document.querySelector("#result"),container=document.createElement("div");document.body.append(container);
 container.className="kplex-view-host";container.style.fontFamily="Arial, sans-serif";
@@ -2565,6 +2571,8 @@ try{
   const range=document.createRange();range.selectNodeContents(text);const ink=range.getBoundingClientRect(),clip=text.getBoundingClientRect();
   check(ink.top>=clip.top&&ink.bottom<=clip.bottom,"Font metrics cross the text clip boundary: "+font+"/"+role+"/font"+baseFontSize+"/border"+strokeWidth+"/wrap"+wrapNodeLabels+JSON.stringify({ink:{top:ink.top,bottom:ink.bottom},clip:{top:clip.top,bottom:clip.bottom},padding:getComputedStyle(text).padding,line:getComputedStyle(text).lineHeight,font:getComputedStyle(text).fontSize}));
  }
+ flushSync(()=>root.render(<PlexNodeText label={title} maximum={null} center={false}/>));
+ check(container.textContent.length===30,"A null legacy label limit did not inherit the default");
  flushSync(()=>root.unmount());check(container.childElementCount===0,"Typography test retained nodes");
  result.dataset.status="passed";result.textContent="Density-independent rendered typography passed";
 }catch(error){result.dataset.status="failed";result.textContent=String(error?.stack??error)}finally{container.remove();css.remove()}
@@ -2670,7 +2678,9 @@ import{buildScene as realBuildScene,sceneLayoutPolicyKey,neighborhoodSceneKey,bi
 import{alphaHexToCss,resolveLinkStyle,DEFAULT_RENDERED_LINK_WIDTH,NATIVE_LINK_STROKE,NATIVE_LINK_TEXT,NATIVE_LINK_LABEL_FILL}from ${JSON.stringify(join(root,'src/index/style.ts'))};
 const result=document.querySelector('#result'),check=(value,message)=>{if(!value)throw Error(message)};
 const css=document.createElement('style');css.textContent=${JSON.stringify(readFileSync('styles.css','utf8'))};document.head.append(css);
-${uiDefinitions('src/ui/PlexGraph.tsx',['GATE_GAP','GENERIC_RELATION_LABELS','gateKey','gatesForEdge','gatePoint','gateVector','cubicPoint','edgeGeometry','relationLabel','markerFor','Edge','EdgeLabel'])}
+import {connectorGatePoint,edgeGeometry} from ${JSON.stringify(join(root,'src/core/plex/connectorGeometry.ts'))};
+import {PlexConnectorStroke,PlexConnectorLabel,plexMarker} from ${JSON.stringify(join(root,'src/ui/features/PlexPaint.tsx'))};
+${uiDefinitions('src/ui/PlexGraph.tsx',['GENERIC_RELATION_LABELS','gateKey','gatesForEdge','gatePoint','relationLabel','markerFor','Edge','EdgeLabel'])}
 const page=path=>({path,name:path,file:{path,extension:'md'},aliases:[],tags:[],styleTags:[],neighbours:new Map()});
 const pages=new Map(['Center','A','B','C','D','E'].map(name=>[name,page(name)]));
 const pairs={A:[['B','child','ab'],['C','parent','ac'],['D','left','ad'],['E','right','ae']],B:[['A','parent','ab'],['C','left','unrelated']],C:[['A','child','ac'],['B','right','unrelated']],D:[['A','right','ad']],E:[['A','left','ae']]};
@@ -2734,16 +2744,18 @@ import{gateDiameter}from ${JSON.stringify(join(root,"src/ui/layout.ts"))};
 import{LinkDirection,RelationType}from ${JSON.stringify(join(root,'src/types.ts'))};
 import{edgeViewportEndpoints,edgeViewportClip}from ${JSON.stringify(join(root,'src/ui/plexViews/areaVisibility.ts'))};
 import{alphaHexToCss,DEFAULT_RENDERED_LINK_WIDTH,NATIVE_LINK_STROKE,NATIVE_LINK_TEXT}from ${JSON.stringify(join(root,'src/index/style.ts'))};
-${uiDefinitions('src/ui/PlexGraph.tsx',['GATE_GAP','GENERIC_RELATION_LABELS','gateKey','gatesForEdge','gatePoint','gateVector','cubicPoint','edgeGeometry','relationLabel','markerFor','Edge','EdgeLabel'])}
+import {connectorGatePoint,edgeGeometry} from ${JSON.stringify(join(root,'src/core/plex/connectorGeometry.ts'))};
+import {PlexConnectorStroke,PlexConnectorLabel,plexMarker} from ${JSON.stringify(join(root,'src/ui/features/PlexPaint.tsx'))};
+${uiDefinitions('src/ui/PlexGraph.tsx',['GENERIC_RELATION_LABELS','gateKey','gatesForEdge','gatePoint','relationLabel','markerFor','Edge','EdgeLabel'])}
 const result=document.querySelector('#result'),check=(value,message)=>{if(!value)throw Error(message)},page=path=>({path,style:{},x:path==='A'?0:200,y:0,width:100,height:40,page:{path}});
 let reads=0;const decisions=[{active:true,evidence:{fieldName:'replies to',definition:'replies to',declaredByPath:'B',declaredTargetPath:'A'}}],index={explainRelationship(){reads++;return{decisions}}};
-function App({reverse=false,show=true,paired=true,transient=false,folded=false,definition='replies to',mini=false,relationType=RelationType.DEFINED,captionOverride}){
+function App({reverse=false,show=true,paired=true,transient=false,folded=false,definition='replies to',mini=false,relationType=RelationType.DEFINED,captionOverride,fontSize=12}){
  const settings={compactView:false,ontologyPairingVersion:1,hierarchy:{hidden:[],parents:[],children:[],leftFriends:[],rightFriends:[],previous:paired?['replies to/replied by']:['replies to'],next:paired?[]:['replied by'],exclusions:[]}};
  const sourcePath=transient?'section A':reverse?'B':'A',targetPath=transient?'target B':reverse?'A':'B';
  const sectionPage={path:'section A',transient:{kind:'section',sourcePath:'A'}},targetPage={path:'target B',transient:{kind:'section-target',sourcePath:'A',actualPath:'B'}};
  const sectionExpansion=transient?{sections:[{page:sectionPage}],explanations:new Map([[sourcePath+'\\u0000'+targetPath,{decisions}]])}:null;
  ${uiDefinitions('src/ui/PlexGraph.tsx',['connectionCaption'])}
- const style={showLabel:show,fontSize:12,strokeWidth:3},caption=captionOverride??connectionCaption(definition,show,sourcePath,targetPath,transient?(folded?undefined:sectionPage):{path:sourcePath},transient?targetPage:{path:targetPath});
+ const style={showLabel:show,fontSize,strokeWidth:3},caption=captionOverride??connectionCaption(definition,show,sourcePath,targetPath,transient?(folded?undefined:sectionPage):{path:sourcePath},transient?targetPage:{path:targetPath});
  const nodes=new Map([[sourcePath,{...page('A'),page:{path:sourcePath}}],[targetPath,{...page('B'),page:{path:targetPath}}]]),edge={id:'pair',sourcePath,targetPath,role:'previous',relationType,typeDefinition:definition,caption,direction:1,style};
  return <svg>{mini?<EdgeLabel label={show?relationLabel(caption,relationType===RelationType.DEFINED):null} midpoint={{x:100,y:50}} style={style} background='none'/>:<Edge viewportForNode={()=>undefined} edge={edge} nodes={nodes} inverseArrowDirection={true} connectorStyle='bezier' labelBackground='none' crossLinkOpacity={1} highlighted={false} dimmed={false}/>}</svg>;
 }
@@ -2756,6 +2768,7 @@ try{const container=document.createElement('div');document.body.append(container
  flushSync(()=>root.render(<App transient/>));check(label()==='replied by'&&reads===before,'Transient preview ignored its existing decisions');
  flushSync(()=>root.render(<App transient folded/>));check(label()==='replied by'&&reads===before,'Folded section lost physical source perspective');
  flushSync(()=>root.render(<App mini/>));check(label()==='replied by','Expanded descendant shared label differs');
+ flushSync(()=>root.render(<App mini fontSize={null}/>));check(container.querySelector('.kplex-edge-label').getAttribute('font-size')==='10','A null legacy caption size did not inherit the default');
  for(const reverse of [false,true])for(const mini of [false,true]){
   flushSync(()=>root.render(<App paired={false} reverse={reverse} mini={mini} definition='Child'/>));check(label()==='Child','Authored singleton field missing');
   flushSync(()=>root.render(<App paired={false} reverse={reverse} mini={mini} definition='Child, Another field'/>));check(label()==='Child, Another field','Two physical field labels missing');

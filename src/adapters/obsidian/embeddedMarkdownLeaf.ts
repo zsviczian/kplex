@@ -255,7 +255,7 @@ export function mountEmbeddedMarkdownLeaf(
   onFileChange?: (file: TFile) => void,
   onExcalidrawVersionMismatch?: (requiredVersion: string) => void,
   onDocumentViewChange?: (view: EmbeddedDocumentView) => void,
-  activateHostLeafOnInteraction = false,
+  activateHostLeafOnInteraction: () => boolean = () => false,
   preferEmbeddedDrawingFit?: () => boolean,
   onBoundLinkNavigate?: (file: TFile, subpath: string) => void,
 ): EmbeddedMarkdownLeafController {
@@ -440,7 +440,7 @@ export function mountEmbeddedMarkdownLeaf(
     // Obsidian interprets that active-leaf change as navigation away from K-Plex and hides it.
     // Keep the real K-Plex host active on mobile and in desktop sidepanels. Normal desktop tabs
     // retain native Markdown command routing through the embedded leaf.
-    app.workspace.setActiveLeaf(activateHostLeafOnInteraction ? hostLeaf : leaf, { focus: false });
+    app.workspace.setActiveLeaf(activateHostLeafOnInteraction() ? hostLeaf : leaf, { focus: false });
   };
   const releaseFocus = registerEmbeddedMarkdownFocus(mountEl, activateInteractionLeaf, /** Native command ownership belongs only to this live embedded controller. */ () => !disposed);
   /** Resolve the current native view at invocation, so Markdown/drawing replacement never retains a stale representation. */
@@ -870,7 +870,7 @@ export function mountEmbeddedMarkdownLeaf(
       documentViewTransitionDepth -= 1;
       // Replacing even an inactive synthetic leaf changes Obsidian's mobile navigation surface.
       // Reasserting the real K-Plex host after the transition keeps that surface visible.
-      if (activateHostLeafOnInteraction) activateInteractionLeaf();
+      if (activateHostLeafOnInteraction()) activateInteractionLeaf();
     }
   };
 

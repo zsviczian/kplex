@@ -27,7 +27,8 @@ import {MeasuredNodeBadge} from "./plexViews/MeasuredNodeBadge";
 import {NodeStatus} from "./features/NodeStatus";
 import { nodePaint, nodePaintFallbacks } from "../index/style";
 import type { KplexSettings } from "../settings";
-import { effectiveLabelLimit, nodeLabelFontSize, gateDiameter } from "./layout";
+import { nodeLabelFontSize, gateDiameter } from "./layout";
+import {PlexGate, PlexNodeCard, PlexNodeLabel, PlexNodeText} from "./features/PlexPaint";
 import { ObsidianIcon } from "./ObsidianIcon";
 import type { Translator } from "../lang";
 import { physicalPositionLabel } from "./features/positionPresentation";
@@ -143,8 +144,6 @@ export function ThoughtNode({
   const strokeStyle = style.strokeStyle === "dashed" ? "dashed" : style.strokeStyle === "dotted" ? "dotted" : "solid";
   const prefix = style.prefix ?? "";
   const label = `${prefix}${node.label}`;
-  const max = effectiveLabelLimit(style.maxLabelLength ?? 30, node.role === "center");
-  const display = label.length > max ? `${label.slice(0, Math.max(1, max - 1))}…` : label;
   const click = (e: MouseEvent<HTMLDivElement>) => { e.stopPropagation(); onActivate(node, e); };
   /** Both controls stop native-body gestures before dispatching their distinct shared action. */
   const disclosure = (fold: ThoughtDisclosure | undefined, branch = false): ReactNode => !fold?.hasChildren ? null : <button
@@ -160,10 +159,6 @@ export function ThoughtNode({
   const paint = nodePaint(style, nodePaintFallbacks(node));
   const gateSize = gateDiameter(style);
   const nodeCss = {
-    left: node.x - node.width / 2,
-    top: node.y - node.height / 2,
-    width: node.width,
-    height: node.height,
     background: isSection || content ? undefined : paint.background,
     color: isSection || content ? undefined : paint.foreground,
     borderColor: isSection || content ? undefined : paint.border,
@@ -179,8 +174,6 @@ export function ThoughtNode({
   } as CSSProperties;
 
   const classes = [
-    "kplex-thought",
-    `kplex-role-${node.role}`,
     selected ? "is-selected" : "",
     keyboardSelected ? "is-keyboard-selected" : "",
     highlighted ? "is-highlighted" : "",
@@ -197,7 +190,7 @@ export function ThoughtNode({
   ].filter(Boolean).join(" ");
 
   const icon = style.icon && <ObsidianIcon name={style.icon} size={node.role === "center" ? 18 : 13} className="kplex-node-icon" />;
-  const labelElement = <span className={`kplex-thought-label${settings.wrapNodeLabels ? " is-two-line" : ""}`}>
+  const labelElement = <PlexNodeLabel wrap={settings.wrapNodeLabels}>
       {node.page.transient?.kind === "section"
         ? <span className="kplex-section-heading-mark" aria-hidden="true">{(() => {
           const level = node.page.transient?.level ?? 1;
@@ -216,10 +209,10 @@ export function ThoughtNode({
         ? <span className="kplex-node-visual is-replace" title={visual.alt}>
           <NodeVisualImage {...visual} allowRemote={settings.allowRemoteNodeImages} loader={thumbnailLoader} />
         </span>
-        : <span className="kplex-thought-text" title={label}>{display}</span>}
-    </span>;
+        : <PlexNodeText label={label} maximum={style.maxLabelLength} center={node.role === "center"} />}
+    </PlexNodeLabel>;
 
-  return <div
+  return <PlexNodeCard bounds={node} semanticRole={node.role}
     className={classes}
     style={nodeCss}
     data-kplex-path={node.page.path}
@@ -313,10 +306,8 @@ export function ThoughtNode({
         : stat.coverage === "cached" ? `${gateHint} · ${translate("node.gateCachedCount")}`
         : stat.coverage === "local" ? `${gateHint} · ${translate("node.gateLocalCount")}`
         : stat.complete === false ? `${gateHint} · ${translate("node.gatePartial")}` : gateHint;
-      return <span key={gate} className={`kplex-gate-wrap gate-wrap-${gate}${stat.hasAny ? "" : " is-empty"}`}>
-        <span
-          className={`kplex-gate gate-${gate}${stat.hasAny ? " has-connections" : " is-empty"}${highlightedGates.has(gate) ? " is-highlighted" : ""}${gateDisabled ? " is-link-disabled" : ""}`}
-          data-kplex-gate={gate}
+      return <PlexGate key={gate} side={gate} connected={stat.hasAny} highlighted={highlightedGates.has(gate)}
+          disabled={gateDisabled} count={gateLabels[gate].text}
           onPointerEnter={(e: ReactPointerEvent<HTMLSpanElement>) => { e.stopPropagation(); onHoverGate(node, gate, e); }}
           onPointerLeave={(e: ReactPointerEvent<HTMLSpanElement>) => { e.stopPropagation(); onHoverNode(node, e); }}
           onPointerDown={(e: ReactPointerEvent<HTMLSpanElement>) => { onGatePointerDown(node, gate, e); }}
@@ -325,9 +316,7 @@ export function ThoughtNode({
           data-kplex-control-tooltip
           data-kplex-tooltip-requires-alt={settings.gateTooltipRequiresAlt !== false ? "true" : undefined}
           data-tooltip-position={gate === "top" ? "bottom" : "top"}
-        />
-        {gateLabels[gate].text !== null && <span className="kplex-gate-count">{gateLabels[gate].text}</span>}
-      </span>;
+        />;
     })}
-  </div>;
+  </PlexNodeCard>;
 }

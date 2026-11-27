@@ -745,6 +745,7 @@ for (const file of [
   "src/ui/actionPresentation.ts",
   "src/ui/layout.ts",
   "src/ui/plexViews/measurement.ts",
+  "src/core/plex/nodeGeometry.ts",
   "src/ui/plexViews/NodePropertyTextMeasurement.ts",
   "src/ui/plexViews/useNodePropertyMeasurement.ts",
   "src/ui/plexViews/classic/layout.ts",
@@ -5385,14 +5386,17 @@ try {
     const arrowIndex = new GraphIndex(arrowPlugin, arrowApp);
     const edgeStart = plexGraphSource.indexOf("function Edge({");
     const edgeEnd = plexGraphSource.indexOf("/** Compose the deterministic Plex scene", edgeStart);
-    const markerStart = plexGraphSource.indexOf("function markerFor(");
-    const markerEnd = plexGraphSource.indexOf("/** Translate the displayed zone heading", markerStart);
-    assert(edgeStart >= 0 && edgeEnd > edgeStart && markerStart >= 0 && markerEnd > markerStart);
-    const edgeJs = ts.transpileModule(plexGraphSource.slice(markerStart, markerEnd) + plexGraphSource.slice(edgeStart, edgeEnd), {
+    assert(edgeStart >= 0 && edgeEnd > edgeStart);
+    const paintSource = readFileSync(join(root, "src/ui/features/PlexPaint.tsx"), "utf8");
+    const paintStart = paintSource.indexOf("export function PlexConnectorStroke");
+    const paintEnd = paintSource.indexOf("/** Keep the marker shapes", paintStart);
+    assert(paintStart >= 0 && paintEnd > paintStart);
+    const paint = paintSource.slice(paintStart, paintEnd).replaceAll("export function", "function");
+    const edgeJs = ts.transpileModule(`${paint}\nconst markerFor = plexMarker;\n${plexGraphSource.slice(edgeStart, edgeEnd)}`, {
       compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.None, jsx: ts.JsxEmit.React },
     }).outputText;
     const Edge = new Function("React", "LinkDirection", "RelationType", "edgePhysicalOccurrence", "gatesForEdge", "gatePoint", "edgeGeometry", "alphaHexToCss", "relationLabel", "NATIVE_LINK_STROKE", "NATIVE_LINK_TEXT", "DEFAULT_RENDERED_LINK_WIDTH", "edgeViewportEndpoints", "edgeViewportClip", `${edgeJs}; return Edge;`)(
-      { createElement: (type, props, ...children) => ({ type, props, children }) }, LinkDirection, RelationType,
+      { createElement: (type, props, ...children) => typeof type === "function" ? type(props) : ({ type, props, children }) }, LinkDirection, RelationType,
       require(join(temp, "src/ui/plexViews/scene.js")).edgePhysicalOccurrence,
       () => ({ source: "left", target: "right" }), () => ({ x: 0, y: 0 }),
       () => ({ d: "M0 0L1 1", midpoint: { x: 0, y: 0 } }), value => value, value => value,

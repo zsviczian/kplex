@@ -4,8 +4,28 @@ export async function acceptFacetsNodePresentation(x){
  const {app,p,c,workspace,host,hosts,cases,path,root,center,check,wait,until,choose,panel,reveal,quiet}=x;
  const session=host.view.documentSession.plexView,base=structuredClone(p.readPortableSharingState().presets.wuxing);
  const configure=value=>p.updateCanvasViewConfiguration('wuxing',{field:'presets',path:['wuxing']},{kind:'set',value});
- const cards=h=>[...root(h).querySelectorAll('.kplex-thought[data-kplex-path]')];
+ const cards=h=>[...root(h)?.querySelectorAll('.kplex-thought[data-kplex-path]')??[]];
  const focus=h=>cards(h).filter(card=>card.dataset.kplexPath===center(h));
+ const embedded=new Set(),prototype=Object.getPrototypeOf(host),setViewState=prototype.setViewState;
+ /** Observe actual isolated Markdown owners even when focus policy retains the real Plex leaf. */
+ prototype.setViewState=function(...args){
+  if(this.containerEl.closest('.kplex-central-editor-leaf-host'))embedded.add(this);
+  return setViewState.apply(this,args);
+ };
+ x.restores.push(()=>{prototype.setViewState=setViewState;});
+ /** Require the current native file, loaded body and actual text focus in this exact overlay. */
+ async function focusedMarkdown(file){
+  let leaf,element;
+  await until(()=>{
+   element=root(host)?.querySelector('.kplex-central-editor-content');
+   leaf=[...embedded].find(candidate=>element?.contains(candidate.view.containerEl)&&candidate.view.file?.path===path(file)&&candidate.view.editor?.getValue().includes('Disposable Wu Xing native fixture.'));
+   return leaf&&!element.querySelector('.kplex-central-editor-status');
+  },'Bound native Markdown file did not load');
+  const content=element.querySelector('.cm-content');check(content,'Bound native Markdown source DOM absent');
+  content.focus();
+  await until(()=>content.contains(content.ownerDocument.activeElement),'Bound native Markdown source did not acquire DOM focus');
+  return {element,leaf,editor:leaf.view.editor};
+ }
  const action=async(id,args)=>{const surface=[...p.actionSurfaceHosts].find(([,registration])=>registration.leaf===host)?.[0];check(surface,'Owning action surface absent');const result=await p.actionManager.dispatch({id,args,source:'internal',surfaceId:surface});check(result.status==='completed',id+': '+JSON.stringify(result));return result};
  const settle=async()=>{await wait(180);check(!root(host).querySelector('.kplex-view-error'),'Facets fallback/error after admitted presentation');check(focus(host).length===1,'Active note must appear exactly once')};
  const geometry=h=>{
@@ -42,24 +62,38 @@ export async function acceptFacetsNodePresentation(x){
  cases.push({id:'native-five-layouts-four-option-combinations',combinations:20,canonicalUnchanged:true,cameraUnchanged:true});c.progress={phase:'native-contained-editor',cases};
  await configure({...base,focusInCategory:true,centerAnchoredLinks:true});await settle();await action('view.fit');
  host.view.centerPresentation.update({embedCentralNode:true,centralNodeMarkdownMode:'source'});
- await until(()=>root(host).querySelector('.kplex-central-editor-content .cm-content'),'Contained native editor absent');
- const element=root(host).querySelector('.kplex-central-editor-content'),content=element.querySelector('.cm-content');content.focus();
- await until(()=>workspace.activeLeaf?.view.editor&&element.contains(workspace.activeLeaf.view.containerEl),'Contained native Markdown leaf did not acquire focus');
- const leaf=workspace.activeLeaf,editor=leaf.view.editor;await until(()=>editor.getValue().includes('Disposable Wu Xing native fixture.')&&!element.querySelector('.kplex-central-editor-status'),'Native source document not loaded');
+ const {element,leaf,editor}=await focusedMarkdown('Memory');
  editor.replaceRange('\nKplex-272-dirty-native-buffer\n',editor.getCursor('to'));editor.setCursor({line:3,ch:2});const value=editor.getValue(),cursor=JSON.stringify(editor.getCursor());
- const identity=()=>check(root(host).querySelector('.kplex-central-editor-content')===element&&leaf.view.editor===editor&&editor.getValue()===value&&JSON.stringify(editor.getCursor())===cursor&&leaf.view.file.path===path('Memory'),'Presentation replaced/retargeted dirty native text or caret');
- for(const focusInCategory of [false,true]){await configure({...base,focusInCategory,centerAnchoredLinks:true});await settle();identity();
+ const nativeTransitions=[];
+ for(const name of ['detach','setViewState','openFile']){
+  const original=leaf[name],descriptor=Object.getOwnPropertyDescriptor(leaf,name);
+  /** Observe only the captured fixture leaf without changing construction, saves or focus. */
+  leaf[name]=function(...args){
+   if(nativeTransitions.length<8)nativeTransitions.push({name,type:args[0]?.type,stack:new Error().stack?.split('\n').slice(2,10)});
+   return original.apply(this,args);
+  };
+  x.restores.push(()=>{if(descriptor)Object.defineProperty(leaf,name,descriptor);else delete leaf[name];});
+ }
+ /** Attribute ownership, buffer and selection failures independently without recording note text. */
+ const identity=phase=>{
+  const ownsEditor=leaf.view.editor===editor;
+  const retained={element:root(host).querySelector('.kplex-central-editor-content')===element,
+   editor:ownsEditor,buffer:ownsEditor?editor.getValue()===value:null,
+   caret:ownsEditor?JSON.stringify(editor.getCursor())===cursor:null,file:leaf.view.file?.path===path('Memory')};
+  const unchanged=Object.values(retained).every(Boolean);
+  if(!unchanged)c.progress={...c.progress,editorPhase:phase,retainedEditor:retained,nativeTransitions};
+  check(unchanged,'Presentation replaced/retargeted dirty native text or caret');
+ };
+ for(const focusInCategory of [false,true]){await configure({...base,focusInCategory,centerAnchoredLinks:true});await settle();identity(focusInCategory?'category':'center');
   const card=focus(host)[0].getBoundingClientRect(),overlay=root(host).querySelector('.kplex-central-editor-overlay').getBoundingClientRect();check(['x','y','width','height'].every(key=>Math.abs(card[key]-overlay[key])<1),'Editor overlay detached from measured focus');}
- const initialBounds=x.native.getBounds();x.native.setBounds({...initialBounds,width:initialBounds.width-100,height:initialBounds.height-60});await wait(250);identity();x.native.setBounds(initialBounds);await wait(250);identity();
- const water=structuredClone(base.categories.water);await configure({...base,focusInCategory:true,centerAnchoredLinks:true,categories:{...base.categories,water:{...water,values:['unmapped-water']}}});await settle();identity();check(!focus(host)[0].closest('.kplex-zone-scroll'),'Unassigned focus failed usable central fallback');
- await configure({...base,focusInCategory:true,centerAnchoredLinks:true});await settle();identity();
- await p.openSidecar(host,p.index.get(path('Memory')));const side=p.sidecarLeaves.get(host);await until(()=>side?.view.file?.path===path('Memory'),'Sidecar canonical note not opened');identity();await p.closeSidecar(host);await action('view.center-editor.toggle');
+ const initialBounds=x.native.getBounds();x.native.setBounds({...initialBounds,width:initialBounds.width-100,height:initialBounds.height-60});await wait(250);identity('resize');x.native.setBounds(initialBounds);await wait(250);identity('restore-size');
+ const water=structuredClone(base.categories.water);await configure({...base,focusInCategory:true,centerAnchoredLinks:true,categories:{...base.categories,water:{...water,values:['unmapped-water']}}});await settle();identity('unassigned');check(!focus(host)[0].closest('.kplex-zone-scroll'),'Unassigned focus failed usable central fallback');
+ await configure({...base,focusInCategory:true,centerAnchoredLinks:true});await settle();identity('reassigned');
+ await p.openSidecar(host,p.index.get(path('Memory')));const side=p.sidecarLeaves.get(host);await until(()=>side?.view.file?.path===path('Memory'),'Sidecar canonical note not opened');identity('sidecar');await p.closeSidecar(host);await action('view.center-editor.toggle');
  await until(()=>!root(host).querySelector('.kplex-central-editor-content'),'Native editor did not collapse durably');check((await app.vault.read(app.vault.getFileByPath(path('Memory')))).includes('Kplex-272-dirty-native-buffer'),'Native dirty text not saved');
  cases.push({id:'contained-native-editor-dirty-toggle-fallback-overlay-sidecar-save',nativeEditorRetained:true});c.progress={phase:'independent-native-canvases-popout',cases};
  await reveal(host);const neighboring=cards(host).find(card=>card.dataset.kplexPath===path('Concept'));check(neighboring?.querySelector('.kplex-thought-corner-action'),'Neighbor native edit action absent with gates hidden');neighboring.querySelector('.kplex-thought-corner-action').click();
- await until(()=>root(host).querySelector('.kplex-central-editor-content .cm-content'),'Neighbor native editor did not open');const neighborElement=root(host).querySelector('.kplex-central-editor-content');neighborElement.querySelector('.cm-content').focus();
- await until(()=>workspace.activeLeaf?.view.file?.path===path('Concept')&&workspace.activeLeaf.view.editor&&neighborElement.contains(workspace.activeLeaf.view.containerEl),'Neighbor native leaf did not acquire focus');
- const neighborLeaf=workspace.activeLeaf,neighborEditor=neighborLeaf.view.editor;await until(()=>neighborEditor.getValue().includes('Disposable Wu Xing native fixture.')&&!neighborElement.querySelector('.kplex-central-editor-status'),'Neighbor source document not loaded');
+ const {element:neighborElement,leaf:neighborLeaf,editor:neighborEditor}=await focusedMarkdown('Concept');
  neighborEditor.replaceRange('\nKplex-272-dirty-neighbor\n',neighborEditor.getCursor('to'));const neighborValue=neighborEditor.getValue(),neighborCursor=JSON.stringify(neighborEditor.getCursor()),binding=session.editors.bindings[0];check(binding&&center(host)===path('Memory'),'Neighbor editing changed logical attention');
  const scroll=neighboring.closest('.kplex-zone-scroll');check(scroll&&scroll.scrollHeight>scroll.clientHeight,'Measured neighbor editor must exercise native overflow');let clipped=0;
  for(const top of [0,scroll.scrollHeight]){
@@ -80,13 +114,14 @@ export async function acceptFacetsNodePresentation(x){
  await reveal(host);const other=workspace.createLeafBySplit(host,'vertical',false);hosts.push(other);await other.setViewState({type:'k-plex-react-view',active:true});await other.view.waitUntilReady();await p.setDocumentSyncMode(other,'off');p.notifyNavigation(path('Memory'),other);await choose(other,'wuxing');panel(other).querySelector('.kplex-filter-panel-header button').click();
  const otherPreset={...base,name:'Independent presentation'};await p.updateCanvasViewConfiguration('wuxing',{field:'presets',path:['presentation-other']},{kind:'set',value:otherPreset});
  check(other.view.documentSession.plexView.updateState({version:1,preset:'presentation-other'}),'Independent native preset state rejected');
- await until(()=>root(other).querySelector('[data-kplex-gate]')&&focus(other).length===1,'Independent preset scene absent');
+ await until(()=>root(other)?.querySelector('[data-kplex-gate]')&&focus(other).length===1,'Independent preset scene absent');
  check(other.view.documentSession.plexView.updateState({version:1,preset:'wuxing'}),'Shared preset selection rejected');await until(()=>!root(other)?.querySelector('[data-kplex-gate]')&&focus(other)[0]?.closest('.kplex-zone-scroll'),'Same preset did not share accepted options');
  await configure({...base,focusInCategory:false,centerAnchoredLinks:false});await until(()=>root(other)?.querySelector('[data-kplex-gate]')&&root(host)?.querySelector('[data-kplex-gate]'),'Shared preset live update did not reach both visible canvases');
  await configure({...base,focusInCategory:true,centerAnchoredLinks:true});await settle();cases.push({id:'same-preset-native-canvases-share-live-presentation'});
  check(other.view.documentSession.plexView.updateState({version:1,preset:'presentation-other'}),'Independent preset restoration rejected');await until(()=>root(other)?.querySelector('[data-kplex-gate]'),'Independent preset gates did not return');
  const mainParent=host.parent,mainIndex=mainParent.children.indexOf(host)+1,otherSession=other.view.documentSession;
  workspace.moveLeafToPopout(other);await until(()=>other.view.containerEl.ownerDocument!==document&&root(other)?.querySelector('[data-kplex-gate]'),'Native independent popout did not render');await other.view.waitUntilReady();await reveal(other);
+ await until(()=>focus(other).length===1&&root(host)?.querySelector('.kplex-plex'),'Native popout and main canvases did not both settle');
  check(other.view.documentSession===otherSession&&focus(other).length===1&&!focus(other)[0].closest('.kplex-zone-scroll'),'Popout lost independent preset or focus');
  check(!root(host).querySelector('[data-kplex-gate]')&&focus(host)[0].closest('.kplex-zone-scroll'),'Main canvas inherited other preset');
  await configure({...base,layout:'horizontal',focusInCategory:true,centerAnchoredLinks:true});await wait(180);check(root(other).querySelector('[data-kplex-gate]'),'Live shared configuration leaked across different preset IDs');

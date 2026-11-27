@@ -171,8 +171,8 @@ test("CSS hooks, variables, SVG markers and owning-document selectors use the K-
     ["src/ui/App.tsx", ["kplex-app", "kplex-topbar", "kplex-history-bar"]],
     ["src/ui/components/ActionButton.tsx", ["kplex-icon-button"]],
     ["src/ui/components/FuzzySuggester.tsx", ["kplex-search", "kplex-search-result", "kplex-search-results"]],
-    ["src/ui/ThoughtNode.tsx", ["kplex-thought", "kplex-gate", "kplex-gate-count"]],
-    ["src/ui/PlexGraph.tsx", ["kplex-edge-visible", "kplex-edge-hit", "kplex-zoom-controls"]],
+    ["src/ui/features/PlexPaint.tsx", ["kplex-thought", "kplex-gate", "kplex-gate-count", "kplex-edge-visible"]],
+    ["src/ui/PlexGraph.tsx", ["kplex-edge-hit", "kplex-zoom-controls"]],
   ]) {
     const source = readFileSync(join(root, module), "utf8");
     for (const token of tokens) {
@@ -182,10 +182,13 @@ test("CSS hooks, variables, SVG markers and owning-document selectors use the K-
   }
   for (const variable of ["panel", "panel-2", "line", "muted", "text", "accent"])
     assert(css.includes(`var(--kplex-${variable},`), `missing inheritable CSS variable ${variable}`);
-  const graph = readFileSync(join(root, "src/ui/PlexGraph.tsx"), "utf8");
+  const sharedPaint = readFileSync(join(root, "src/ui/features/PlexPaint.tsx"), "utf8");
+  const {outputText} = ts.transpileModule(sharedPaint.slice(sharedPaint.indexOf("export function plexMarker"), sharedPaint.indexOf("/** Keep the marker shapes")), {compilerOptions: {module: ts.ModuleKind.CommonJS}});
+  const exports = {};
+  runInNewContext(outputText, {exports});
   for (const marker of ["arrow", "triangle", "dot", "bar"]) {
-    assert(graph.includes(`id="kplex-${marker}"`), `missing SVG marker ${marker}`);
-    assert(graph.includes(`url(#kplex-${marker})`), `missing marker reference ${marker}`);
+    assert(sharedPaint.includes(`id={\`\${prefix}-${marker}\`}`), `missing SVG marker ${marker}`);
+    assert.equal(exports.plexMarker(marker), `url(#kplex-${marker})`, `missing marker reference ${marker}`);
   }
   for (const path of ["src/ui/FuzzySearchInput.tsx", "scripts/testing/obsidian/runner.mjs", "scripts/testing/obsidian/migration.mjs"])
     assert(readFileSync(join(root, path), "utf8").includes(".kplex-app"), `${path} lost its shell selector`);
