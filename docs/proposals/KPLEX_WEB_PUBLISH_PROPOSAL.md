@@ -110,7 +110,7 @@ K-Plex's current [AGPL-3.0 license](https://github.com/zsviczian/kplex/blob/main
 
 A versioned JSON profile in a user-selected vault-owned configuration location (exact path/schema to be designed) stores a stable publication ID, title, selection rules and exceptions, entry note, export options, allowed properties, style configuration, search option and chosen destination settings. No credentials. Keep profile data local; do not dump it wholesale into the site. Multiple profiles can describe different subsets of the same vault.
 
-![Publication profile and preview concept](https://github.com/zsviczian/kplex/blob/8eac0057b111f5db2d8b27b352a/docs/proposals/assets/kplex-publish-profile.svg?raw=true)
+![Publication profile and preview concept](assets/kplex-publish-profile.svg)
 
 1. Create or select profile; choose explicit notes, folders, tags and supported declarative predicates. Include/exclude manual selections with exclusions taking precedence. Reuse existing predicate semantics where feasible; unsupported/unknown conditions cannot silently include documents.
 2. Resolve the exact proposed publication allowlist (including requested assets/embeds), choose a published entry note and produce a preview: notes, attachments, relationship counts, size estimate, invalid links, skipped dependencies and privacy warnings. Do not modify notes to preview.
@@ -197,7 +197,7 @@ A plain HTML image element displays SVG as a noninteractive image. Use sanitized
 
 ## 7. Appearance and reader experience
 
-![K-Plex Web Compass and Sidecar concept](https://github.com/zsviczian/kplex/blob/8eac0057b111f5db2d8b27b352a/docs/proposals/assets/kplex-web-compass.svg?raw=true)
+![K-Plex Web Compass and Sidecar concept](assets/kplex-web-compass.svg)
 
 Read-only Compass, center activation, pan/zoom, browser back/forward, shareable UUID URLs, simplified Find/Search, and responsive Sidecar that can close/reopen and accept a published note's address or name. Internal note and diagram links recenter the graph; accessible keyboard/touch navigation and mobile canvas/reader layout. Only public nodes/links; no creation, editing, native commands or drag-to-author controls. Preserve the shared renderer, rather than reproducing Compass using a different algorithm.
 
