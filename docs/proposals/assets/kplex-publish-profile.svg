@@ -1,0 +1,44 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="960" height="540" viewBox="0 0 960 540" role="img" aria-labelledby="title desc">
+<title id="title">K-Plex Publish profile and preview concept</title>
+<desc id="desc">A publication selection profile with file, folder and tag rules, public entry note, explicit UUID consent and a pre-export summary.</desc>
+<rect width="960" height="540" fill="#ffffff"/>
+<g font-family="system-ui, Arial, sans-serif" fill="#242633">
+<text x="32" y="42" font-size="24" font-weight="700">K-Plex Publish</text>
+<text x="32" y="64" font-size="12" fill="#667085">Concept • publication profiles and allowlist preview</text>
+<rect x="32" y="83" width="896" height="415" rx="12" fill="#ffffff" stroke="#c9cdd5"/>
+<path d="M548 84V497" stroke="#e0e2e7"/>
+<text x="54" y="111" font-size="13" font-weight="600">Publication profile</text>
+<rect x="54" y="122" width="470" height="35" rx="6" fill="#f8f8fa" stroke="#d6d8df"/>
+<text x="68" y="144" font-size="14">Visual Knowledge Base</text>
+<path d="M502 136l5 5 5-5" fill="none" stroke="#667085" stroke-width="1.5"/>
+<text x="54" y="183" font-size="13" font-weight="600">Include notes</text>
+<g font-size="13">
+<rect x="54" y="194" width="470" height="125" rx="6" fill="#ffffff" stroke="#d6d8df"/>
+<g fill="#6656b8"><rect x="67" y="205" width="15" height="15" rx="3"/><rect x="67" y="234" width="15" height="15" rx="3"/><rect x="67" y="263" width="15" height="15" rx="3"/></g>
+<g stroke="#fff" stroke-width="1.5" fill="none"><path d="M70 212l3 3 6-7"/><path d="M70 241l3 3 6-7"/><path d="M70 270l3 3 6-7"/></g>
+<text x="94" y="217">Visual Thinking/</text><text x="94" y="246">Book Notes/</text><text x="94" y="275">#public</text>
+<text x="464" y="217" fill="#667085" font-size="11">Folder</text><text x="464" y="246" fill="#667085" font-size="11">Folder</text><text x="477" y="275" fill="#667085" font-size="11">Tag</text>
+<path d="M66 287H512" stroke="#e0e2e7"/><text x="67" y="307" fill="#6656b8">+ Add note, folder, tag or rule</text>
+</g>
+<text x="54" y="344" font-size="13" font-weight="600">Exclude</text>
+<rect x="54" y="354" width="470" height="31" rx="6" fill="#f8f8fa" stroke="#d6d8df"/>
+<text x="68" y="374" font-size="12">Private/</text>
+<text x="54" y="409" font-size="13" font-weight="600">Entry note</text>
+<rect x="54" y="419" width="470" height="35" rx="6" fill="#f8f8fa" stroke="#d6d8df"/><text x="68" y="441" font-size="13">Home</text>
+<text x="568" y="111" font-size="14" font-weight="600">Publication preview</text>
+<rect x="568" y="122" width="340" height="81" rx="6" fill="#f4f2fa" stroke="#e1dbf2"/>
+<g font-size="11" fill="#667085"><text x="582" y="143">Notes</text><text x="690" y="143">Assets</text><text x="800" y="143">Est. size</text></g>
+<g font-size="25" font-weight="700" fill="#423685"><text x="582" y="173">248</text><text x="690" y="173">91</text><text x="800" y="173">32 MB</text></g>
+<text x="582" y="191" font-size="10" fill="#667085">Illustrative counts</text>
+<g font-size="13"><text x="568" y="228" font-weight="600">Output options</text><text x="592" y="252">Referenced media and SVGs</text><text x="592" y="277">Full-text search</text><text x="592" y="302">Theme-derived stylesheet</text><text x="592" y="327">Unpublished graph targets: excluded</text></g>
+<g fill="#6656b8"><rect x="568" y="239" width="15" height="15" rx="3"/><rect x="568" y="264" width="15" height="15" rx="3"/><rect x="568" y="289" width="15" height="15" rx="3"/></g>
+<g stroke="#fff" stroke-width="1.5" fill="none"><path d="M571 246l3 3 6-7"/><path d="M571 271l3 3 6-7"/><path d="M571 296l3 3 6-7"/></g>
+<rect x="568" y="314" width="15" height="15" rx="3" fill="#fff" stroke="#8c93a0"/>
+<rect x="568" y="345" width="340" height="77" rx="6" fill="#fff7e7" stroke="#ead6aa"/>
+<text x="580" y="365" font-size="12" font-weight="700" fill="#8a5a13">Stable note IDs require approval</text>
+<text x="580" y="384" font-size="11" fill="#705426">Review the exact notes and YAML changes before writing.</text>
+<text x="580" y="402" font-size="11" fill="#705426">No note is modified merely by opening this preview.</text>
+<rect x="568" y="438" width="141" height="35" rx="6" fill="#fff" stroke="#c9cdd5"/><text x="638.5" y="460" text-anchor="middle" font-size="12" font-weight="600">Review changes</text>
+<rect x="718" y="438" width="190" height="35" rx="6" fill="#6656b8"/><text x="813" y="460" text-anchor="middle" font-size="12" fill="#fff" font-weight="600">Generate static site</text>
+<text x="32" y="522" font-size="11" fill="#667085">Illustrative UI, not a committed design. Private targets never enter the exported graph, index or assets.</text>
+</g></svg>
