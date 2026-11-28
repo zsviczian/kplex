@@ -76,6 +76,8 @@ import type { GraphIndex } from "../index/GraphIndex";
 import type { KplexLayoutProfile, KplexSettings, KplexViewSurface, SidecarMarkdownMode } from "../settings";
 import type { GateRole, GateSide, GraphPage, Neighbour, Neighborhood, NodeStyle, NodeVisual, PositionedEdge, PositionedNode, Role, RelationshipRole, } from "../types";
 import { LinkDirection, RelationType } from "../types";
+import {connectorGatePoint, edgeGeometry} from "../core/plex/connectorGeometry";
+import {PlexArrowMarkers, PlexConnectorLabel, PlexConnectorStroke, plexMarker} from "./features/PlexPaint";
 import { alphaHexToCss, resolveLinkStyle, resolveNodeStyle, currentNodeColorStyle, nodePaint, nodePaintFallbacks, NATIVE_CANVAS_FILL, NATIVE_LINK_STROKE, NATIVE_LINK_TEXT, NATIVE_LINK_LABEL_FILL } from "../index/style";
 import { TYPOGRAPHY_FIELDS, TYPOGRAPHY_LIMITS, type TypographyValues } from "../core/plex/typographyPreferences";
 import { appendVisibleCrossLinks, presentationPage, projectNodeCounts, scrollZoneForRole, rowIntersectsViewport, effectiveLabelLimit, expandedMiniLayout, horizontalDensity, gateDiameter, siblingScale, withAreaHeightOverrides, type CenterNodeSize, type ZoneViewport, type ZoneAreaBounds } from "./layout";
@@ -231,7 +233,6 @@ type ZoneStringMap = Partial<Record<ScrollZone, string>>;
 const AREA_RESIZE_EDGE_PX = 7;
 const AREA_TOUCH_RESIZE_EDGE_PX = 22;
 const EMPTY_SCROLLS: ScrollValues = {};
-const GATE_GAP = 3;
 const MAX_ZOOM = 3;
 const IOS_MAX_ZOOM = 1.85;
 const TOUCH_GATE_LONG_PRESS_MS = 420;
@@ -325,7 +326,6 @@ function edgeEvidenceTooltipText(index: GraphIndex, edge: PositionedEdge, transl
   return lines.length ? lines.join("\n") : null;
 }
 
-type EdgeGeometry = { d: string; midpoint: Point };
 type ZoneDisplayLayout = {
   nodes: PositionedNode[];
   localPositions: Map<string, Point>;
@@ -431,52 +431,9 @@ function oppositeGate(gate: GateSide): GateSide {
   return "left";
 }
 
+/** Native styles supply the same diameter used by the card paint. */
 function gatePoint(node: PositionedNode, gate: GateSide): Point {
-  const gateRadius = gateDiameter(node.style) / 2;
-  switch (gate) {
-    case "top": return { x: node.x, y: node.y - node.height / 2 - GATE_GAP - gateRadius };
-    case "bottom": return { x: node.x, y: node.y + node.height / 2 + GATE_GAP + gateRadius };
-    case "left": return { x: node.x - node.width / 2 - GATE_GAP - gateRadius, y: node.y };
-    case "right": return { x: node.x + node.width / 2 + GATE_GAP + gateRadius, y: node.y };
-  }
-}
-
-function gateVector(gate: GateSide): Point {
-  switch (gate) {
-    case "top": return { x: 0, y: -1 };
-    case "bottom": return { x: 0, y: 1 };
-    case "left": return { x: -1, y: 0 };
-    case "right": return { x: 1, y: 0 };
-  }
-}
-
-function cubicPoint(a: Point, c1: Point, c2: Point, b: Point, t: number): Point {
-  const u = 1 - t;
-  const uu = u * u;
-  const tt = t * t;
-  return {
-    x: uu * u * a.x + 3 * uu * t * c1.x + 3 * u * tt * c2.x + tt * t * b.x,
-    y: uu * u * a.y + 3 * uu * t * c1.y + 3 * u * tt * c2.y + tt * t * b.y,
-  };
-}
-
-function edgeGeometry(a: Point, b: Point, sourceGate: GateSide, targetGate: GateSide, connectorStyle: "bezier" | "straight"): EdgeGeometry {
-  if (connectorStyle === "straight") {
-    return { d: `M ${a.x} ${a.y} L ${b.x} ${b.y}`, midpoint: { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 } };
-  }
-
-  // TheBrain-style connectors are deliberately shallow. Shorter control handles avoid the
-  // exaggerated loops produced when lateral displacement is large compared with node spacing.
-  const distance = Math.hypot(b.x - a.x, b.y - a.y);
-  const control = Math.max(20, Math.min(108, distance * 0.20));
-  const av = gateVector(sourceGate);
-  const bv = gateVector(targetGate);
-  const c1 = { x: a.x + av.x * control, y: a.y + av.y * control };
-  const c2 = { x: b.x + bv.x * control, y: b.y + bv.y * control };
-  return {
-    d: `M ${a.x} ${a.y} C ${c1.x} ${c1.y}, ${c2.x} ${c2.y}, ${b.x} ${b.y}`,
-    midpoint: cubicPoint(a, c1, c2, b, 0.5),
-  };
+  return connectorGatePoint(node, gate, gateDiameter(node.style));
 }
 
 /** Keep authored field names even when they match role words; synthetic topology is never a caption. */
@@ -487,13 +444,7 @@ function relationLabel(typeDefinition?: string, authored = false): string | null
   return label;
 }
 
-function markerFor(head?: string): string | undefined {
-  if (!head || head === "none") return undefined;
-  if (head === "triangle") return "url(#kplex-triangle)";
-  if (head === "dot") return "url(#kplex-dot)";
-  if (head === "bar") return "url(#kplex-bar)";
-  return "url(#kplex-arrow)";
-}
+const markerFor = plexMarker;
 
 /** Translate the displayed zone heading while preserving semantic role and layout classification. */
 function matchesZoneFilter(node: PositionedNode, filter: string): boolean {
@@ -695,17 +646,14 @@ function Edge({
 
   const content = <g className={`kplex-edge${edge.isCrossLink ? " is-cross-link" : ""}${passive ? " is-hover-peek" : ""}${highlighted ? " is-highlighted" : ""}${dimmed ? " is-dimmed" : ""}`}>
     <g className="kplex-edge-paint">
-      <path
-        className="kplex-edge-visible"
+      <PlexConnectorStroke
         opacity={resolvedCrossLinkOpacity}
         d={geometry.d}
-        fill="none"
         stroke={stroke}
         strokeWidth={strokeWidth}
         strokeDasharray={dash}
         markerEnd={markerEnd}
         markerStart={markerStart}
-        vectorEffect="non-scaling-stroke"
       />
       <path
         className="kplex-edge-hit"
@@ -736,26 +684,8 @@ function Edge({
  * is already projected; this component preserves the selected caption, fonts and colors. */
 function EdgeLabel({label,midpoint,style,background,opacity}:{label:string|null;midpoint:Point;style:PositionedEdge['style'];background:string;opacity?:number}){
   if(!label)return null;
-  const fontSize=style.fontSize??10,labelWidth=Math.max(20,label.length*fontSize*.58+10),labelHeight=fontSize+6;
-  return <g className="kplex-edge-label-wrap" pointerEvents="none" opacity={opacity}>
-      <rect
-        x={midpoint.x - labelWidth / 2}
-        y={midpoint.y - labelHeight / 2}
-        width={labelWidth}
-        height={labelHeight}
-        rx={3}
-        fill={background}
-      />
-      <text
-        className="kplex-edge-label"
-        x={midpoint.x}
-        y={midpoint.y}
-        textAnchor="middle"
-        dominantBaseline="central"
-        fill={alphaHexToCss(style.textColor, NATIVE_LINK_TEXT)}
-        fontSize={fontSize}
-      >{label}</text>
-    </g>;
+  return <PlexConnectorLabel label={label} midpoint={midpoint} fontSize={style.fontSize}
+    color={alphaHexToCss(style.textColor,NATIVE_LINK_TEXT)} background={background} opacity={opacity} />;
 }
 
 /** Compose the deterministic Plex scene; native-follow layouts land immediately while explicit navigation retains motion and central Open uses a main tab. */
@@ -6160,12 +6090,7 @@ export function PlexGraph({ viewDefinition = classicViewDefinition, viewSession,
       {scene.decorations && <ViewDecorations decorations={scene.decorations} translate={translate}
         counts={viewDecorationCounts(scene.decorations, scene.nodes, filterMatchedNodePaths, zoneDisplayLayouts)} />}
       <svg className="kplex-links" width="3200" height="2400" viewBox="-1600 -1200 3200 2400">
-        <defs>
-          <marker id="kplex-arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto-start-reverse" markerUnits="strokeWidth"><path d="M1,1 L8,4.5 L1,8" fill="none" stroke="context-stroke" strokeWidth="1.4" /></marker>
-          <marker id="kplex-triangle" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto-start-reverse" markerUnits="strokeWidth"><path d="M0,0 L9,4.5 L0,9 z" fill="context-stroke" /></marker>
-          <marker id="kplex-dot" markerWidth="8" markerHeight="8" refX="4" refY="4" orient="auto" markerUnits="strokeWidth"><circle cx="4" cy="4" r="2.6" fill="context-stroke" /></marker>
-          <marker id="kplex-bar" markerWidth="8" markerHeight="10" refX="4" refY="5" orient="auto-start-reverse" markerUnits="strokeWidth"><path d="M4,1 L4,9" stroke="context-stroke" strokeWidth="1.8" /></marker>
-        </defs>
+        <PlexArrowMarkers />
         {(scene.sectionTreeEdges ?? []).map((treeEdge) => {
           const source = renderedNodeMap.get(treeEdge.sourceOccurrence ?? treeEdge.sourcePath) ?? scene.nodes.find((node) => node.page.path === treeEdge.sourcePath);
           const target = renderedNodeMap.get(treeEdge.targetOccurrence ?? treeEdge.targetPath) ?? scene.nodes.find((node) => node.page.path === treeEdge.targetPath);

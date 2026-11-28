@@ -372,17 +372,17 @@ test("embedded native focus reconciles command ownership after ancestor bubbling
       const originalHasFocus=document.hasFocus;document.hasFocus=()=>true;
       const hostLeaf={id:'native-host'},leaf={id:'native-editor'},scope={id:'native-editor-scope'},stack=[scope];let active=null,activationCalls=0,live=true;
       const app={workspace:{setActiveLeaf(value){active=value;activationCalls++}}};
-      const desktop=createEmbeddedActivation(app,hostLeaf,leaf,false);
+      let followHost=false;const desktop=createEmbeddedActivation(app,hostLeaf,leaf,()=>followHost);
       // Native WorkspaceLeaf installs focusin at each container. React captures earlier;
       // the real outer leaf's bubble handler therefore overwrites the synthetic leaf.
       outer.addEventListener('focusin',()=>app.workspace.setActiveLeaf(hostLeaf));inner.addEventListener('focusin',()=>app.workspace.setActiveLeaf(leaf));
       mount.addEventListener('focusin',desktop.activate,true);editor.focus();const oldAncestorWins=active===hostLeaf;
       external.focus();const release=registerEmbeddedMarkdownFocus(mount,desktop.activate,()=>live);editor.focus();const reconciled=active===leaf&&stack.length===1&&stack[0]===scope;
+      external.focus();followHost=true;editor.focus();const hostPolicyPreserved=active===hostLeaf;followHost=false;
       let before=activationCalls;toolbar.focus();const toolbarExcluded=active===hostLeaf&&activationCalls===before+1;
       before=activationCalls;external.focus();const externalExcluded=activationCalls===before;
       live=false;editor.focus();const retiredExcluded=active===hostLeaf;external.focus();live=true;
       release();editor.focus();const exactCleanup=active===hostLeaf;
-      external.focus();const mobile=createEmbeddedActivation(app,hostLeaf,leaf,true),releaseMobile=registerEmbeddedMarkdownFocus(mount,mobile.activate,()=>true);editor.focus();const hostPolicyPreserved=active===hostLeaf;releaseMobile();
       external.focus();desktop.dispose();const releaseDisposed=registerEmbeddedMarkdownFocus(mount,desktop.activate,()=>true);editor.focus();const disposedActivationDeclines=active===hostLeaf;releaseDisposed();
       external.focus();const frame=document.createElement('iframe');document.body.append(frame);const popoutDocument=frame.contentDocument;
       popoutDocument.hasFocus=()=>true;const popoutMount=popoutDocument.createElement('div'),popoutEditor=popoutDocument.createElement('input'),popoutOther=popoutDocument.createElement('input');popoutMount.append(popoutEditor);popoutDocument.body.append(popoutMount,popoutOther);

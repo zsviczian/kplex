@@ -1,7 +1,8 @@
 /** Exact-build Small-vault acceptance for editor access, PDFs, recovery, revisit state and passive tabs.
  * Native document/editor lifetimes are production; owned fixtures, settings and workspace are restored. */
-import {readFileSync} from 'node:fs';
+import {existsSync,readFileSync} from 'node:fs';
 import {join} from 'node:path';
+import {createHash} from 'node:crypto';
 import {runControlledProbe} from './controlledProbe.mjs';
 import {nativeDocumentSessions} from './nativeDocumentSessions.mjs';
 
@@ -27,14 +28,82 @@ async function scenario(app,c){
  const title=()=>overlay()?.querySelector('.kplex-central-editor-title')?.textContent;
  const checkFrame=()=>{const frame=overlay().getBoundingClientRect(),canvas=root().querySelector('.kplex-plex').getBoundingClientRect(),toolbar=overlay().querySelector('.kplex-central-editor-toolbar').getBoundingClientRect();
   check(frame.left>=canvas.left&&frame.right<=canvas.right+1&&frame.bottom<=canvas.bottom+1,'Expanded native frame escaped canvas');check(toolbar.top>=canvas.top&&toolbar.bottom<=canvas.bottom,'Recovery controls inaccessible')};
+ const createHost=async()=>{
+  host=workspace.getLeaf('tab');hosts.push(host);const prototype=Object.getPrototypeOf(host),original=prototype.setViewState;
+  prototype.setViewState=function(...args){if(this.containerEl.closest('.kplex-central-editor-leaf-host'))embedded.add(this);return original.apply(this,args)};restorePrototype=()=>{prototype.setViewState=original};
+  await host.setViewState({type:'k-plex-react-view',active:true});await workspace.revealLeaf(host);
+  workspace.setActiveLeaf(host,{focus:true});await host.view.waitUntilReady();host.view.centerPresentation.update({embedCentralNode:false,centralNodeMarkdownMode:'source'});
+  return host.view.documentSession.plexView;
+ };
+ /** Record the close boundary even when the renderer cannot answer a later CLI poll. */
+ const drawingCheckpoints=[];
+ const recordDrawing=phase=>{
+  c.progress={phase,cases,drawingCheckpoints};
+  drawingCheckpoints.push({phase,at:Date.now()});
+  require('node:fs').writeFileSync(require('node:path').join(c.reportDirectory,'drawing-close-checkpoints.json'),
+   JSON.stringify({fixture:folder,companionVersion:companion.manifest.version,companionSha256:c.companionSha256,checkpoints:drawingCheckpoints},null,2));
+ };
+ const exerciseDrawing=async session=>{
+  recordDrawing('drawing-create');const created=await companion.createDrawing('Drawing.excalidraw.md',folder),drawing=typeof created==='string'?app.vault.getFileByPath(created):created;
+  check(drawing?.path.startsWith(folder+'/'),'Companion drawing escaped fixture');files.push(drawing);p.index.insertCreatedFile(drawing);releases.push(p.index.acquireSemanticDemand(drawing.path));
+  await until(()=>app.metadataCache.getFileCache(drawing)?.frontmatter?.['excalidraw-plugin'],'Drawing metadata absent');
+  session.select('mindmap');session.setRoot(drawing.path);p.notifyNavigation(drawing.path,host);await until(()=>root()?.querySelector('.kplex-role-center[data-kplex-path="'+CSS.escape(drawing.path)+'"]'),'Drawing root absent');
+  recordDrawing('drawing-open');await wait(1100);await openEditor();
+  if(control('centralEditor.showDrawing'))control('centralEditor.showDrawing').click();
+  await until(()=>editor()?.view.excalidrawAPI,'Native drawing API absent');const drawingLeaf=editor(),drawingApi=drawingLeaf.view.excalidrawAPI;
+  recordDrawing('drawing-maximize');await wait(1100);control('centralEditor.maximize').click();await until(()=>overlay()?.classList.contains('is-maximized'),'Drawing expansion absent');await wait(250);checkFrame();check(editor().view.excalidrawAPI===drawingApi,'Expansion replaced the native drawing API');
+  check(title()===p.index.titleFor(p.index.get(drawing.path)),'Drawing title absent');
+  recordDrawing('drawing-close-ready');await wait(1100);
+  const close=control('app.useNormalCentralNode');check(close,'Drawing close control absent');
+  recordDrawing('drawing-close-dispatch');close.click();recordDrawing('drawing-close-returned');
+  await until(()=>!overlay()&&!drawingLeaf.view.containerEl.isConnected,'Drawing editor did not detach');
+  await until(()=>!root()?.querySelector('.is-central-editor-maximized'),'Drawing close left the camera locked');
+  recordDrawing('drawing-closed');cases.push('Actual Excalidraw Mind Map root expands with title, stable native API and reachable close');
+ };
  try{
   const remote=require('@electron/remote'),win=remote.getCurrentWindow(),bounds=win.getBounds(),maximized=win.isMaximized();
   restoreWindow=()=>{win.setBounds(bounds);if(maximized)win.maximize()};remote.app.show?.();remote.app.focus({steal:true});win.restore();win.show();win.focus();
   await sessions.off();workspace.leftSplit.collapse();workspace.rightSplit.collapse();
   createdFolder=await app.vault.createFolder(folder);
+  if(c.drawingOnly){
+   check(companion?.manifest?.version&&c.companionSha256,'Prepared Excalidraw installation required');
+   await exerciseDrawing(await createHost());
+   return{cases,drawingCheckpoints,companionVersion:companion.manifest.version,companionSha256:c.companionSha256};
+  }
   const child=p.settings.hierarchy.children[0];
   const bodies={Root:`---\n${JSON.stringify(child)}: "[[${folder}/Other.md]]"\n---\n# Group\n## Child\nOwned editor batch fixture.`,Other:'# Other\nOwned fixture.'};
   for(const [name,body] of Object.entries(bodies)){const file=await app.vault.create(folder+'/'+name+'.md',body);files.push(file);p.index.insertCreatedFile(file);releases.push(p.index.acquireSemanticDemand(file.path))}
+  if(c.markdownMigrationTarget){
+   const [rootFile,childFile]=files,occurrence=c.markdownMigrationTarget==='occurrence';
+   const session=await createHost(),file=occurrence?childFile:rootFile,ownerDocument=host.view.contentEl.ownerDocument;
+   await until(()=>files.every(file=>app.metadataCache.getFileCache(file)&&p.index.viewScopeCoverage(file.path).prepared),'Markdown migration fixture unavailable');
+   session.select('mindmap');session.setRoot(rootFile.path);p.notifyNavigation(rootFile.path,host);
+   await until(()=>host.view.documentSession.centerPath===rootFile.path&&root()?.querySelector('.kplex-role-center'),'Mind Map markdown root absent');
+   if(occurrence){
+    const node=()=>root()?.querySelector('.kplex-thought[data-kplex-path="'+CSS.escape(file.path)+'"]');
+    await until(()=>node()?.dataset.kplexKeyboardId,'Mind Map child occurrence absent');
+    const target={kind:'explicit',node:{identity:file.path,path:file.path,kind:'file'},occurrenceId:node().dataset.kplexKeyboardId};
+    const opened=await p.actionManager.dispatch({id:'editor.expand',source:'internal',surfaceId:surface(),target});
+    check(opened.status==='completed','Mind Map child editor did not open: '+JSON.stringify(opened));
+   }else await openEditor();
+   const fixture=occurrence?'Owned fixture.':'Owned editor batch fixture.',marker='Kplex native migration unsaved edit';
+   await until(()=>editor()?.view.editor?.getValue().includes(fixture),'Source Markdown editor not ready');
+   const original=editor(),native=original.view.editor,sourceRoot=root();
+   original.view.containerEl.querySelector('.cm-content')?.focus();
+   native.replaceRange('\n'+marker,native.getCursor('to'));
+   check(native.getValue().includes(marker)&&!(await app.vault.read(file)).includes(marker),'Migration requires a dirty editor');
+   workspace.moveLeafToPopout(host);
+   await until(()=>host.view.contentEl.ownerDocument!==ownerDocument&&root()!==sourceRoot&&editor()!==original
+    &&editor()?.view.file===file&&editor().view.editor?.getValue().includes(fixture),'Markdown editor did not reopen in popout');
+   const migration={target:c.markdownMigrationTarget,canvasRemounted:root()!==sourceRoot,nativeLeafRecreated:editor()!==original,
+    dirtyTextInEditor:editor().view.editor.getValue().includes(marker),dirtyTextOnDisk:(await app.vault.read(file)).includes(marker)};
+   c.progress={phase:'markdown-popout',migration};
+   check(migration.dirtyTextInEditor,'Built-in Mind Map popout dropped the dirty Markdown edit');
+   await closeEditor();
+   migration.savedOnClose=(await app.vault.read(file)).includes(marker);
+   check(migration.savedOnClose,'Closing the Markdown editor in the popout did not save the edit');
+   return{migration};
+  }
   // A small offline one-page PDF with computed byte offsets; no downloaded test content.
   let pdf='%PDF-1.4\n',offsets=[0];const objects=['<< /Type /Catalog /Pages 2 0 R >>','<< /Type /Pages /Kids [3 0 R] /Count 1 >>','<< /Type /Page /Parent 2 0 R /MediaBox [0 0 300 300] /Resources << >> /Contents 4 0 R >>','<< /Length 0 >>\nstream\n\nendstream'];
   for(let i=0;i<objects.length;i++){offsets.push(pdf.length);pdf+=(i+1)+' 0 obj\n'+objects[i]+'\nendobj\n'}
@@ -42,11 +111,9 @@ async function scenario(app,c){
   const document=await app.vault.createBinary(folder+'/Document.pdf',new TextEncoder().encode(pdf).buffer);files.push(document);p.index.insertCreatedFile(document);releases.push(p.index.acquireSemanticDemand(document.path));
   await until(()=>files.slice(0,2).every(file=>app.metadataCache.getFileCache(file)),'Native metadata absent');
   Object.assign(p.settings,{animationSpeed:0,allowAutozoom:false,graphDepth:1,renderSiblings:false,showPageNodes:true,showAttachmentNodes:true,showFolderNodes:false,showTagNodes:false,graphLenses:[],applyPowerFilter:false});p.index.notifyPresentation();
-  host=workspace.getLeaf('tab');hosts.push(host);const prototype=Object.getPrototypeOf(host),original=prototype.setViewState;
-  prototype.setViewState=function(...args){if(this.containerEl.closest('.kplex-central-editor-leaf-host'))embedded.add(this);return original.apply(this,args)};restorePrototype=()=>{prototype.setViewState=original};
-  await host.setViewState({type:'k-plex-react-view',active:true});await host.view.waitUntilReady();host.view.centerPresentation.update({embedCentralNode:false,centralNodeMarkdownMode:'source'});
+  const session=await createHost();
   p.notifyNavigation(files[0].path,host);await until(()=>host.view.documentSession.centerPath===files[0].path&&root()?.querySelector('.kplex-role-center'),'Root navigation absent');
-  const session=host.view.documentSession.plexView;session.select('mindmap');await until(()=>root()?.querySelector('[data-kplex-keyboard-id="root"]'),'Mind Map absent');
+  session.select('mindmap');await until(()=>root()?.querySelector('[data-kplex-keyboard-id="root"]'),'Mind Map absent');
   c.progress={phase:'mindmap-editor',cases};await openEditor();check(editor().view.file===files[0],'Wrong native file');check(title()===p.index.titleFor(p.index.get(files[0].path)),'Visible title absent');
   const native=editor(),binding=session.editors.bindings[0],dimensions=JSON.stringify(binding.dimensions),beforeCamera=root().querySelector('.kplex-camera').style.transform;
   const maximize=control('centralEditor.maximize');check(maximize,'Root expansion control absent');maximize.click();await until(()=>overlay()?.classList.contains('is-maximized'),'Root did not expand');await wait(150);checkFrame();
@@ -61,17 +128,7 @@ async function scenario(app,c){
    await until(()=>[...overlay().querySelectorAll('canvas')].some(canvas=>canvas.width>0&&canvas.height>0),'Native PDF page did not render');
    check(!overlay().querySelector('.kplex-central-editor-status.is-error'),'PDF failed');await closeEditor();cases.push(view+': native PDF editor opens and closes');
   }
-  if(companion){
-   c.progress={phase:'drawing-create',cases};const created=await companion.createDrawing('Drawing.excalidraw.md',folder),drawing=typeof created==='string'?app.vault.getFileByPath(created):created;
-   check(drawing?.path.startsWith(folder+'/'),'Companion drawing escaped fixture');files.push(drawing);p.index.insertCreatedFile(drawing);releases.push(p.index.acquireSemanticDemand(drawing.path));
-   await until(()=>app.metadataCache.getFileCache(drawing)?.frontmatter?.['excalidraw-plugin'],'Drawing metadata absent');
-   session.select('mindmap');session.setRoot(drawing.path);p.notifyNavigation(drawing.path,host);await until(()=>root()?.querySelector('.kplex-role-center[data-kplex-path="'+CSS.escape(drawing.path)+'"]'),'Drawing root absent');
-   c.progress={phase:'drawing-open',cases};await wait(1100);await openEditor();
-   if(control('centralEditor.showDrawing'))control('centralEditor.showDrawing').click();
-   await until(()=>editor()?.view.excalidrawAPI,'Native drawing API absent');const drawingApi=editor().view.excalidrawAPI;
-   c.progress={phase:'drawing-maximize',cases};await wait(1100);control('centralEditor.maximize').click();await until(()=>overlay()?.classList.contains('is-maximized'),'Drawing expansion absent');await wait(250);checkFrame();check(editor().view.excalidrawAPI===drawingApi,'Expansion replaced the native drawing API');
-   check(title()===p.index.titleFor(p.index.get(drawing.path)),'Drawing title absent');c.progress={phase:'drawing-close',cases};await wait(1100);await closeEditor();cases.push('Actual Excalidraw Mind Map root expands with title, stable native API and reachable close');
-  }
+  if(companion)await exerciseDrawing(session);
   session.select('classic');p.notifyNavigation(files[0].path,host);await until(()=>root()?.querySelector('.kplex-role-center[data-kplex-path="'+CSS.escape(files[0].path)+'"]'),'Section center absent');
   c.progress={phase:'revisit',cases};root().querySelector('.kplex-role-center .kplex-section-fold-handle:not(.is-branch-disclosure)').click();await until(()=>root().querySelectorAll('.is-kplex-section').length===2,'Source headings absent');
   root().querySelector('.is-kplex-section .kplex-section-fold-handle').click();await until(()=>root().querySelectorAll('.is-kplex-section').length===1,'Fold absent');await act('view.zoom-out');
@@ -107,5 +164,12 @@ async function scenario(app,c){
  }
 }
 if(process.env.KPLEX_TEST_VAULT_NAME!=='kplex-test-small')throw Error('Explicit Small vault required');
-const definitions='c.originalData='+JSON.stringify(readFileSync(join(process.env.KPLEX_TEST_CONFIG_DIR,'plugins/k-plex/data.json'),'utf8'))+';c.documentSessions=('+nativeDocumentSessions.toString()+');';
+const drawingOnly=process.env.KPLEX_EDITOR_DRAWING_CLOSE_ONLY==='true';
+const markdownMigrationMode=process.env.KPLEX_EDITOR_MARKDOWN_MIGRATION_ONLY;
+const markdownMigrationTarget=markdownMigrationMode==='occurrence'?'occurrence':markdownMigrationMode==='true'?'root':null;
+if(drawingOnly&&markdownMigrationTarget)throw Error('Select one isolated editor workflow');
+const companionPath=join(process.env.KPLEX_TEST_CONFIG_DIR,'plugins/obsidian-excalidraw-plugin/main.js');
+const companionSha256=existsSync(companionPath)?createHash('sha256').update(readFileSync(companionPath)).digest('hex'):null;
+const definitions='c.originalData='+JSON.stringify(readFileSync(join(process.env.KPLEX_TEST_CONFIG_DIR,'plugins/k-plex/data.json'),'utf8'))+';c.documentSessions=('+nativeDocumentSessions.toString()+');'
+ + 'Object.assign(c,'+JSON.stringify({drawingOnly,markdownMigrationTarget,companionSha256,reportDirectory:process.env.KPLEX_HOST_REPORT_DIR})+');';
 await runControlledProbe('editor-mobile-navigation',scenario,definitions,['src/ui/PlexGraph.tsx','src/ui/CentralNodeEditor.tsx','src/ui/editorOverlayFrame.ts','src/application/PlexViewSession.ts','src/main.ts'],{maximumMs:240000});

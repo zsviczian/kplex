@@ -16,4 +16,12 @@ export default defineConfig([
       },
     },
   },
+  {
+    files: ["src/web/**/*.{ts,tsx}"],
+    // The standalone DOM uses the browser APIs directly and has no Obsidian globals.
+    rules: {
+      "no-restricted-globals": "off",
+      "obsidianmd/prefer-create-el": "off",
+    },
+  },
 ]);

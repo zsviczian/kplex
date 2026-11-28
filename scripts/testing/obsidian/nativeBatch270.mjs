@@ -64,6 +64,18 @@ export function nativeBatch270(app,c){
  /** Prepare ordinary native settings and a uniquely owned folder; no production-vault fallback. */
  const initialize=async()=>{if(!c.backgroundInput){main.setMinimumSize(200,200);main.setContentSize(1450,1000);await focus(document);}
   await c.sessions(plugin).off();Object.assign(plugin.settings,{embedCentralNode:false,graphDepth:1,showPageNodes:true,showURLNodes:true,renderSiblings:false,animationSpeed:0});await plugin.saveSettings(false,false);
+  if(c.foregroundStartup&&!plugin.getIndexStatus().upToDate){
+   // A recovered workspace can have a visible canvas whose last center no longer exists.
+   let bootstrap=workspace.getLeavesOfType('k-plex-react-view').find(leaf=>plugin.isKplexLeafVisible(leaf));
+   if(!bootstrap){bootstrap=workspace.getLeaf('tab');leaves.push(bootstrap);await bootstrap.setViewState({type:'k-plex-react-view',active:true});}
+   await workspace.revealLeaf(bootstrap);workspace.setActiveLeaf(bootstrap,{focus:true});await bootstrap.view.waitUntilReady();
+   if(!app.vault.getFileByPath(bootstrap.view.documentSession?.centerPath??'')){
+    const seed=app.vault.getFileByPath('00 Start Here/K-Plex Help.md');check(seed,'Prepared Compass help anchor required');
+    plugin.notifyNavigation(seed.path,bootstrap);
+   }
+   await plugin.ensureIndexReady('view-open');
+   if(!plugin.getIndexStatus().upToDate&&!plugin.index.isBuilding())await plugin.rebuildIndex(true);
+  }
   await until(()=>plugin.initialIndexComplete&&!plugin.index.isBuilding()&&plugin.getIndexStatus().upToDate,'Initial current index',120000);
   if(c.allowOnDemandRoutingStartup===true&&plugin.index.isOnDemandMode()){
    // Routing-only phone coverage uses the real mobile default. Local readiness does not claim

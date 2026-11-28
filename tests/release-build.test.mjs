@@ -7,6 +7,7 @@ import {join} from "node:path";
 import {fileURLToPath} from "node:url";
 import {spawnSync, spawn} from "node:child_process";
 import {runInNewContext} from "node:vm";
+import {measureInstallableArtifacts, reportInstallableArtifacts} from "../scripts/testing/webRuntimeArtifacts.mjs";
 
 /** Fail with captured build/Git diagnostics instead of accepting a missing tool or partial build. */
 function run(root, executable, args) {
@@ -110,4 +111,42 @@ test('release workflow keeps the deterministic production command and never invo
   const manifest=JSON.parse(await readFile(new URL('../package.json',import.meta.url),'utf8'));
   assert.match(workflow,/npm run build(?:\s|$)/);assert(!workflow.includes('build:local'));assert(!workflow.includes('esbuild.config.mjs local'));
   assert.match(manifest.scripts.build,/esbuild\.config\.mjs production$/);assert.match(manifest.scripts['build:local'],/esbuild\.config\.mjs local$/);
+});
+
+test('web runtime artifact report counts exact installable bytes and ignores separate browser output', async t => {
+  const root = await mkdtemp(join(tmpdir(), 'kplex-installable-budget-'));
+  t.after(() => rm(root, {recursive: true, force: true}));
+  const baseline = join(root, 'baseline');
+  await mkdir(baseline);
+  const css = Buffer.from('/* é */');
+  const manifest = Buffer.from('{"id":"k-plex"}');
+  const mainBudget = 5_242_880 - css.length - manifest.length;
+  for (const directory of [root, baseline]) {
+    await writeFile(join(directory, 'styles.css'), css);
+    await writeFile(join(directory, 'manifest.json'), manifest);
+  }
+  await writeFile(join(baseline, 'main.js'), Buffer.alloc(mainBudget - 2));
+  await writeFile(join(root, 'main.js'), Buffer.alloc(mainBudget - 2));
+  await writeFile(join(root, 'browser.js'), Buffer.alloc(500));
+
+  const first = reportInstallableArtifacts(root, baseline);
+  assert.equal(first.artifact.totalBytes, 5_242_878);
+  assert.equal(first.artifact.files['styles.css'].bytes, css.length);
+  assert.match(first.artifact.files['main.js'].sha256, /^[0-9a-f]{64}$/);
+  assert.deepEqual(first.artifact, first.baseline);
+  assert.equal(first.passed, true);
+
+  await writeFile(join(root, 'main.js'), Buffer.alloc(mainBudget - 1));
+  const grew = reportInstallableArtifacts(root, baseline);
+  assert.equal(grew.deltaBytes, 1);
+  assert.equal(grew.withinBudget, true);
+  assert.equal(grew.passed, false);
+
+  await writeFile(join(root, 'main.js'), Buffer.alloc(mainBudget));
+  const atLimit = reportInstallableArtifacts(root);
+  assert.equal(atLimit.artifact.totalBytes, 5_242_880);
+  assert.equal(atLimit.passed, false);
+
+  await writeFile(join(root, 'main.js'), '');
+  assert.throws(() => measureInstallableArtifacts(root), /Empty installable artifact: main\.js/);
 });

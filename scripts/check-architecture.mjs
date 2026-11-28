@@ -12,6 +12,7 @@ const LAYERS = [
   ["src/application/", "application"],
   ["src/ui/components/", "components"],
   ["src/ui/features/", "features"],
+  ["src/web/", "web"],
   ["src/adapters/obsidian/", "adapter"],
 ];
 const ALLOWED = {
@@ -23,10 +24,11 @@ const ALLOWED = {
   application: new Set(["contracts", "graph", "plex", "application"]),
   components: new Set(["components"]),
   features: new Set(["lang", "contracts", "graph", "plex", "application", "components", "features"]),
+  web: new Set(["lang", "contracts", "graph", "plex", "components", "features", "web"]),
   adapter: new Set(["lang", "contracts", "parser", "graph", "plex", "application", "components", "features", "adapter"]),
 };
-const PORTABLE = new Set(["lang", "contracts", "parser", "graph", "plex", "application", "components", "features"]);
-const UI = new Set(["components", "features"]);
+const PORTABLE = new Set(["lang", "contracts", "parser", "graph", "plex", "application", "components", "features", "web"]);
+const UI = new Set(["components", "features", "web"]);
 const SHARED_GLOBALS = new Set(["globalThis", "localStorage", "sessionStorage", "indexedDB", "IDBDatabase", "caches", "process", "Buffer", "eval", "Function"]);
 const CORE_GLOBALS = new Set(["window", "document", "self", "navigator", "HTMLElement", "Element", "Document", "Node", "MutationObserver", "ResizeObserver", "Worker", "performance", "setTimeout", "setInterval", "requestAnimationFrame", "FileReader", "Image"]);
 const OBSIDIAN_DOM_METHODS = new Set(["createEl", "createDiv", "createSpan", "createSvg", "createFragment", "setIcon"]);
@@ -89,7 +91,7 @@ export function checkArchitecture(projectRoot) {
   if (configFile.error) throw new Error(ts.flattenDiagnosticMessageText(configFile.error.messageText, "\n"));
   const config = ts.parseJsonConfigFileContent(configFile.config, ts.sys, dirname(configPath));
   if (config.errors.length) throw new Error(config.errors.map((item) => ts.flattenDiagnosticMessageText(item.messageText, "\n")).join("\n"));
-  const roots = ["src/lang", "src/core", "src/application", "src/ui/components", "src/ui/features", "src/adapters"]
+  const roots = ["src/lang", "src/core", "src/application", "src/ui/components", "src/ui/features", "src/web", "src/adapters"]
     .flatMap((area) => filesUnder(join(projectRoot, area)));
   const errors = [];
   for (const path of roots) if (!layerOf(path, projectRoot)) errors.push(`${relative(projectRoot, path)}: unclassified migrated path`);

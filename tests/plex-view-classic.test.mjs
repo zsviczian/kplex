@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import test from 'node:test';
 import {plexViewModules,classicFixture,classicGeometrySnapshot} from './support/plexViewFixture.mjs';
-const M=await plexViewModules(['src/core/plex/views/classic/projection.ts']);
+const M=await plexViewModules(['src/core/plex/views/classic/projection.ts','src/core/plex/views/classic/definition.ts']);
 
 test('Classic preserves ordered caps, occupied exclusions and defined sibling precedence',()=>{
   const f=classicFixture(M),n=f.neighborhood;
@@ -49,4 +49,30 @@ test('hidden descendant strips and an editor-owned witness cannot erase peripher
 test('Classic geometry matches the accepted pre-extraction matrix exactly',()=>{
   const expected=JSON.parse(readFileSync(new URL('./fixtures/plex-views/classic-geometry.json',import.meta.url),'utf8'));
   assert.deepEqual(JSON.parse(JSON.stringify(classicGeometrySnapshot(M))),expected);
+});
+
+test('Compass projection and geometry stay scoped on a 5,000-node publication fixture',()=>{
+  const ids=Array.from({length:5000},(_,i)=>`pub:${String(i).padStart(4,'0')}`);
+  const nodes=new Map(ids.map((id,i)=>[id,{id,label:i%2?'Repeated label':'長い label with a near duplicate name'}]));
+  const visits=new Set(),idsRead=new Set();
+  const center=ids[1000],children=ids.slice(2000,2072);
+  const read={coverage:'local',isCurrent:()=>true,
+    node:id=>{idsRead.add(id);return nodes.get(id)??null;},compare:(a,b)=>a.id.localeCompare(b.id),
+    relations:(id,role)=>{visits.add(id);return id===center&&role==='child'
+      ? {coverage:'local',truncated:false,items:children.map(target=>({node:nodes.get(target),role:'child',relationType:1,definition:'Contains',direction:1}))}
+      : {items:[],coverage:'local',truncated:false};},
+    evidence:()=>({coverage:'unavailable',value:null}),corpus:{available:false,reason:'unsupported'}};
+  const definition=M.classicViewDefinition;
+  const projection=definition.project({attention:center,read,maximum:32,state:{renderSiblings:false},configuration:{status:'available',values:{}}});
+  assert.equal(projection.attention,center);
+  assert.equal(projection.truncated,true);
+  assert.deepEqual(projection.occurrences.map(row=>row.nodeId),[center,...children.slice(0,32)]);
+  assert.deepEqual(projection.edges.map(row=>[row.sourceNode,row.targetNode,row.sourcePort,row.targetPort]),
+    children.slice(0,32).map(id=>[center,id,'bottom','top']));
+  const measured=projection.occurrences.map(row=>({id:row.id,width:160,height:48,expandedWidth:160,expandedReserve:0}));
+  const layout=definition.layout(projection,measured,M.migrateAndMergeSettings({}));
+  assert.equal(layout.positions.size,33);
+  assert([...layout.positions.values()].every(node=>Number.isFinite(node.x)&&Number.isFinite(node.y)));
+  assert.deepEqual([...idsRead],[center,...children.slice(0,32)]);
+  assert.deepEqual([...visits],[center,...children.slice(0,32)]);
 });
