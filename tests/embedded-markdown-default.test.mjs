@@ -205,6 +205,10 @@ test('saved-buffer guard covers ordinary and isolated native Markdown editors wi
   assert.equal(modules.exports.markdownBuffersMatchSaved(context.app,context.file,'saved'),true);
   buffer='saved\nbody';ordinary.getViewData=()=> 'saved\nbody';assert.equal(modules.exports.markdownBuffersMatchSaved(context.app,context.file,'saved\r\nbody'),true,'Windows CRLF normalization is not an unsaved content edit');
   buffer='saved';ordinary.getViewData=()=> 'saved';
+  ordinary.getViewType=()=> 'excalidraw';
+  assert.equal(modules.exports.markdownBuffersMatchSaved(context.app,context.file,'saved'),true,'Existing Markdown-only caller ignores other view types');
+  assert.equal(modules.exports.markdownBuffersMatchSaved(context.app,context.file,'saved',true),false,'Strict UUID review refuses an uninspectable native view');
+  ordinary.getViewType=()=> 'markdown';
   buffer='unsaved embedded';assert.equal(modules.exports.markdownBuffersMatchSaved(context.app,context.file,'saved'),false);
   buffer='saved';ordinary.getViewData=()=> 'unsaved ordinary';assert.equal(modules.exports.markdownBuffersMatchSaved(context.app,context.file,'saved'),false);
   ordinaryLeaves=[];assert.equal(modules.exports.markdownBuffersMatchSaved(context.app,context.file,'saved'),true);
