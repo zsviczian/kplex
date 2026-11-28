@@ -29,6 +29,18 @@ Implement in individually tested checkpoints in **this one branch/PR**. Each che
 4. Integrated native Publish UX, consent/preview, theme generation, local export and republish.
 5. End-to-end Help/scale/adversarial tests, regression and release gates.
 
+### Mandatory UI design review and component reuse (all checkpoints)
+
+Before designing or implementing either user interface, **open [tracking issue #335](https://github.com/zsviczian/kplex/issues/335) and actually inspect both UI concept images**, not just the issue text. The same original SVGs are embedded below beside their relevant implementation checkpoints and are available locally in `docs/proposals/assets/`. An agent without image viewing can read the SVG source and its title/description, then render the files in its local browser for visual review. Record that review in the initial implementation plan. The images communicate layout, information hierarchy and interaction intent, not pixel-exact skins, literal sample counts or final control labels. The accepted privacy/UUID consent behavior and repository UI rules take precedence; preserve the intent while adapting to native conventions and responsive widths.
+
+**Reuse and create shared UI components is a mandatory implementation rule, not an optional cleanup.** Read [UI_RULES.md](../../UI_RULES.md), especially its shared-owner table and required visual review, and [AGENTS.md](../../AGENTS.md) (Component reuse for new UI and Plex interactions). Before adding a form, selector, toolbar, button, disclosure, review panel, list, status/progress control, or graph interaction, inspect actual existing components/hooks/styles and their consumers. In the initial UI plan, map each surface to an existing owner, a justified extension, or a new reusable component. Reusing an input alone while rebuilding its label, layout, actions and accessibility is not acceptable.
+
+- Reuse the full native shared field/layout/footer and modal contracts (`KplexModal`, `FormSetting`/`formField`, `formActions`, `FormField`, `FormSelect`), existing native file/folder/tag selectors (including `FolderPathInput`, `KplexInputSuggest`), shared searchable picker/combobox, `Tabs`, declarative rule/condition controls, native icon/button/tooltip ownership and existing color/style controls where applicable. Inspect actual implementations rather than assuming these are interchangeable APIs.
+- Where no suitable component exists, create a focused composable shared component, not a bespoke copy of another dialog. Put generic interaction/layout mechanics in `src/ui/components/`, domain-specific reusable presentation in `src/ui/features/`, and native shell/host adapters in the appropriate Obsidian layer. Reuse new components across the actual related surfaces (e.g. include/exclude rule rows, review lists, consent/status summaries), and share validation/interaction helpers with existing consumers where the need genuinely overlaps. Keep state/validation, consent, data acquisition and file writes in the owning feature/application/adapter; inject narrow data and callbacks. Do not expose native plugin objects in portable UI, invent a second design system or undertake a speculative general refactor.
+- Web reader: reuse the portable SearchBox/FuzzySuggester, existing shared paint, camera/geometry and other proven host-free controls wherever appropriate. Share components when semantics genuinely match; keep native modal, editor, workspace, and browser-specific navigation effects in separate shells. Preserve existing mount/dispose and owning-window lifetimes. Do not fork shared node/gate/connector UI or imitate native Obsidian controls in a second implementation.
+- Use native theme-aware control skins, consistent spacing/field widths and CTA/keyboard defaults, localized labels, accessible labels/focus, one tooltip owner, responsive wrapping, and scrollable previews. No one-off per-modal CSS skin or fixed-height layout copied from a concept image. Test all affected consumers of extended primitives.
+- **Acceptance:** document reused/extended/new component owners and actual consuming surfaces, review the real native UI and web reader against the two concept images, exercise interactions/focus/draft/consent/cancellation, and capture authentic visual evidence at normal/narrow widths in light and dark themes. Include popout/owning-window and physical-device limitations as applicable. Report material deviations and rationale; a screenshot alone or a mockup resemblance without working behavior and component reuse is not acceptance. Store evidence under the existing managed validation policy, not new committed routine screenshot reports.
+
 ### Actual accepted seams to extend, not recreate
 
 All source links are anchored to the starting revision; inspect current versions after refreshing.
@@ -123,6 +135,13 @@ A plain img embedding is not interactive. Use validated/sanitized inline SVG or 
 
 ## 5. Checkpoint 3 — production web reader
 
+### UI reference — web Compass and Sidecar
+
+![K-Plex Web Compass and Sidecar concept](assets/kplex-web-compass.svg)
+
+Review this image alongside [issue #335](https://github.com/zsviczian/kplex/issues/335). Preserve a canvas-first reader, compact history/search/address and view context, collapsible document panel, visually clear current thought, and same-instance navigation from document and drawing links. The narrow/mobile layout may stack or switch panels instead of copying the desktop split. Match the shared renderer and actual supported Compass semantics, not the illustrative connector arrangement or sample content.
+
+
 Build on src/web, existing mount/dispose and portable Compass renderer; no changes to native editor/Sidecar/gesture owners simply to make web UX similar.
 
 - Versioned manifest and graph loader validates before admission; bounded startup/adjacency lookups and lazy per-note HTML/asset loading. Graph and search are public, no private paths or host SDK. Missing invalid version/node/asset/network/cancel have readable error/retry states; new navigation invalidates stale requests. Preserve independent embedded instances and cleanup. Prefer static JSON and ES modules from pinned local files.
@@ -132,6 +151,13 @@ Build on src/web, existing mount/dispose and portable Compass renderer; no chang
 - Reader handles long content, overflow, attachments and media, responsive Sidecar/graph on narrow phones, theme CSS, safe external links and meaningful unsupported states. Basic static note metadata/page address supports future SEO but interactive navigator is priority. Restrictive CSP where feasible, no inline executable note scripts, no remote dependency; untrusted publication data never becomes executable HTML/JS/CSS. Ensure safe rendering even if a manifest/content file is tampered with. Test Chromium and another available engine where practical; report physical browser limits.
 
 ## 6. Checkpoint 4 — native publishing experience
+
+### UI reference — publication profile, selection and preview
+
+![Publication profile and preview concept](assets/kplex-publish-profile.svg)
+
+Review this image alongside [issue #335](https://github.com/zsviczian/kplex/issues/335). Preserve the distinction between editable selection rules/exclusions and read-only review of the proposed publication, entry note, counts/options, prominent separate UUID consent, and clear review/export actions. Use native modal/page sizing and actual shared controls; compact/narrow layouts may stack the selection and preview. The image's unpublished-target option is explanatory only: hiding unpublished graph targets is mandatory, not a toggle permitting their disclosure. The preview action never approves note changes.
+
 
 Use current command/settings/action registration and shared UI_RULES components. A discoverable Publish command opens a native modal/page workflow, not a custom overlay. Keep steps concise, reuse file/folder/tag selectors and declarative rule UI, do not introduce host dependencies into portable React components. Desktop-only publishing capability made explicit (reader works on mobile). Profiles can be created/edited/reopened/renamed/duplicated/deleted without touching source notes. Validate unsaved drafts, concurrent profile edits, cancel, reload, unavailable dependencies, version compatibility and exact chosen destination.
 
