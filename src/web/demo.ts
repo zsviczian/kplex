@@ -3,7 +3,7 @@ import {compassControls} from "../lang/webPublication";
 
 const element = document.querySelector<HTMLElement>("[data-kplex-demo]");
 if (element) {
-  const fixtureURL = new URL("./publication.json", import.meta.url);
+  const fixtureURL = new URL("./publication.json", element.ownerDocument.baseURI);
   fetch(fixtureURL).then(response => {
     if (!response.ok) throw new Error(`Failed to load publication (${response.status})`);
     return response.json() as Promise<unknown>;

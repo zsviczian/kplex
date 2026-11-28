@@ -35,6 +35,7 @@ jobs:
           npm ci
           node --test tests/release-metadata.test.mjs tests/release-build.test.mjs
           npm run build 
+          npm run build:web
 
       # Select and validate the actual shipped manifest before signing or publishing it.
       - name: Validate release metadata and prepare manifest
@@ -47,7 +48,9 @@ jobs:
       - name: Attest Build Provenance
         uses: actions/attest-build-provenance@v2
         with:
-          subject-path: 'dist/*'
+          subject-path: |
+            dist/*
+            dist-web/kplex-web-runtime-*.json
 
       # 7. Automatically create a GitHub Release and attach the files
       - name: Create GitHub Release
@@ -58,6 +61,7 @@ jobs:
             dist/main.js
             dist/styles.css
             dist/manifest.json
+            dist-web/kplex-web-runtime-*.json
           prerelease: ${{ steps.release-metadata.outputs.is_prerelease == 'true' }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

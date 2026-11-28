@@ -68,6 +68,10 @@ Preserve deterministic esbuild/Terser/CSS and locale optimizations and the exist
 
 Document the selected packaging approach and actual sizes before proceeding; do not create a second plugin without maintainer approval. If local export needs a ZIP, prefer a small audited writer with bounded work and explicit size accounting. Do not assume a third-party library is free in the installed budget.
 
+### Packaging implementation
+
+The accepted main source built to 4,054,721 bytes on Node 22.22.2 (3,923,441 bytes of JavaScript, 130,951 bytes of CSS, and a 329-byte manifest). Publish is integrated and uses a separate locally imported `kplex-web-runtime-<version>.json`. The pack carries text assets, per-file SHA-256 digests, license notices and a source reference. It is inert inside Obsidian and becomes executable when copied into a static site. The runtime pack prototype was 474,489 bytes, reproduced byte-for-byte on rebuild, and ran in Chromium at the HTTP root and beneath a nested path. Obsidian still installs the original three files.
+
 ## 4. Checkpoint 2 — coherent publication engine
 
 ### 4.1 Profile and selection
