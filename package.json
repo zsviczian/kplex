@@ -153,6 +153,7 @@
     "eslint": "^9.39.5",
     "eslint-plugin-obsidianmd": "^0.4.2",
     "obsidian": "1.13.0",
+    "terser": "5.48.0",
     "typescript": "^5.8.3"
   }
 }

@@ -34,9 +34,11 @@ Use `npm run dev` for watch development; each actual rebuild refreshes that iden
 and scanner command remains `npm run build`, reproducible without Git metadata. Release workflows
 must never publish locally identified bundles. See [diagnostic build identities](docs/INDEXING_DIAGNOSTICS.md#local-build-identities).
 
-Production and identified local builds ship ordinary minified CommonJS from `src/main.ts`.
-Plugin code and translation catalogs are not compressed or evaluated by a custom loader.
-The development watcher retains source maps for debugging.
+Production and identified local builds ship ordinary UTF-8 CommonJS from `src/main.ts`.
+Esbuild bundles the plugin before Terser minifies the JavaScript. Esbuild minifies the
+separately shipped stylesheet. The build derives compact locale data from the typed
+source catalogs. The development watcher preserves the original catalogs, stylesheet,
+and source maps for debugging. See [localization](docs/LOCALIZATION.md) for the catalog format.
 
 After exact-build staging, `npm run verify:obsidian:index-pacing` uses the three explicit `kplex-test-small` target variables and a fresh `KPLEX_HOST_REPORT_DIR`. It exercises bundled short-wait pacing in all three scheduling modes, mutation preemption, unload settlement, and replacement/reclamation/restoration of a private synthetic IndexedDB snapshot. It creates no vault notes and preserves settings/enablement bytes. The report compares the retained timer fallback with the native short-wait path and records actual visibility. `KPLEX_PACING_HIDDEN=true` temporarily hides only the selected Small window and restores its visibility/focus/minimized state in independent cleanup; it does not alter Electron throttling. Hosts without asynchronous atomic-wait support retain native timer fallback. Windows evidence does not establish macOS or physical mobile behavior.
 
