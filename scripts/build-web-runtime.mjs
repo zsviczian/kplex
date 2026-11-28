@@ -9,7 +9,9 @@ import {readRuntimePack} from "../src/application/publish/runtimePack.ts";
 const root = new URL("../", import.meta.url);
 const output = new URL("dist-web/", root);
 const rootPath = fileURLToPath(root);
-const version = JSON.parse(await readFile(new URL("manifest.json", root), "utf8")).version;
+/** Normalize text packaging across ordinary Windows checkouts and Git source archives. */
+const readText = async path => (await readFile(new URL(path, root), "utf8")).replace(/\r\n/g, "\n");
+const version = JSON.parse(await readText("manifest.json")).version;
 const architecture = checkArchitecture(rootPath);
 if (architecture.errors.length) throw new Error(architecture.errors.join("\n"));
 
@@ -28,8 +30,8 @@ for (const file of Object.keys(result.metafile.inputs)) {
   }
 }
 const [shared, browser] = await Promise.all([
-  readFile(new URL("styles.css", root), "utf8"),
-  readFile(new URL("src/web/compass.css", root), "utf8"),
+  readText("styles.css"),
+  readText("src/web/compass.css"),
 ]);
 await Promise.all([
   writeFile(new URL("compass.css", output), `@scope (.kplex-publication) {\n${shared}\n}\n${browser}`),
@@ -46,7 +48,7 @@ const hash = async bytes => createHash("sha256").update(bytes).digest("hex");
 const packFiles = await Promise.all([
   ...Object.keys(result.metafile.outputs).map(path => path.split("/").at(-1)).concat("compass.css").map(async name =>
     [`runtime/${name}`, await readFile(new URL(name, output), "utf8")]),
-  ...Object.entries(licenses).map(async ([name, path]) => [`LICENSES/${name}.txt`, await readFile(new URL(path, root), "utf8")]),
+  ...Object.entries(licenses).map(async ([name, path]) => [`LICENSES/${name}.txt`, await readText(path)]),
   ["LICENSES/Source.txt", `K-Plex Web ${version}\nCopyright K-Plex contributors. Distributed under AGPL-3.0-only.\nCorresponding source: https://github.com/zsviczian/kplex/releases\nUse the source archive for the exact official release that supplied this runtime pack. When redistributing a custom build, make its exact corresponding source available.\n`],
 ]);
 const files = await Promise.all(packFiles.map(async ([path, text]) => {

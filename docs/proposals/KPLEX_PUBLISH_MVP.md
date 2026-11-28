@@ -1,6 +1,6 @@
 # K-Plex Publish — end-to-end static publication MVP
 
-**Status:** specification-only draft; implementation and acceptance pending.
+**Status:** implemented in draft [#337](https://github.com/zsviczian/kplex/pull/337). See [the Publish guide](../PUBLISH.md) for usage and the [validation record](#implementation-and-validation) below.
 **Author:** Zsolt's Codex Agent.
 **Accepted starting point:** main at `8d5e8a3d820f1a6e50dfb1ae9d41a18003839bd3` (merged #334 and #336).
 **Tracking:** [#335](https://github.com/zsviczian/kplex/issues/335). This single PR combines the original Publication Engine and Publishing Experience milestones, including the production web reader. The [overall proposal](KPLEX_WEB_PUBLISH_PROPOSAL.md) supplies the product direction; this implementation brief supersedes its earlier PR split and packaging assumptions.
@@ -184,7 +184,25 @@ Minimum end-to-end acceptance in a real disposable Obsidian vault (including Exc
 - UUID writes and graph acquisition can affect source authority/indexing/persistence. Apply mandatory indexing and persistence acceptance gates in CODING_STANDARDS/CONTRIBUTING whenever those owners or lifecycle are affected, including repeated warm restarts and actual cache activation/work counts. Verify no index-policy changes, competing builds, leaked scopes, background tasks or extra startup work. Use existing approved disposable test vaults, restoration and serial native lanes; report untested platforms/physical devices honestly.
 - Run required focused tests per checkpoint; final real `npm run verify`, `npm run test:web-browser` (included in verify as of #336), actual release build and scanner/lint/architecture/core checks, artifact byte counts and reproducibility from clean source archive. New browser dependencies must be allowlisted narrowly in the architecture/build checks, not bypassed. Test built artifacts, not a dev-only substitute. Track final total installed size against hard ceiling and reserve; separate web pack size. No source reports or generated artifacts committed against retention rules.
 
-Deliver working local publication, installation/export/upload documentation, schema and runtime pack instructions, reproducible test and comparison commands and PR acceptance evidence. Update #335 checklist only for actually completed scope; no public upload, no automatic merge. This is a specification, not validation evidence.
+Deliver working local publication, installation/export/upload documentation, schema and runtime pack instructions, reproducible test and comparison commands and PR acceptance evidence. Update #335 checklist only for actually completed scope; no public upload, no automatic merge.
+
+### Implementation and validation
+
+Both concepts were rendered before implementation. The native form keeps editable selection and separate readonly review side by side at normal widths and stacks them at narrow widths. It reuses `KplexModal`, the native `FormSetting` and `formActions` layout, `ActionTargetPicker` for note/folder/tag choices, and `PredicateExpressionField` for both rule groups. The reader extends the existing Compass composition, using the portable search, projection, camera and SVG paint. Its own navigation controller owns UUID/fragment, in-canvas history and standalone browser history. The Sidecar shares that navigation for Markdown and SVG links.
+
+- Windows Obsidian 1.15.1 and Excalidraw 2.29.0 exported both Eager and On-demand fixtures through the actual native modal and download. The test verifies explicit UUID consent, the native defined and inverse roles, closed-drawing links, exact manifest digests, omitted private content, and renamed-note UUID stability and drawing removal on republication. The form passed its light 1,000 px and dark 630 px layout checks.
+- Two unchanged Eager vault reloads activated the same saved full snapshot. Both reported zero Vault body reads, parses, full builds and new complete-snapshot saves.
+- A clean Git source archive with the pinned dependencies reproduced the three release files byte for byte. The total is 4,259,897 bytes (4,127,796 JavaScript, 131,772 CSS and 329 manifest), up 205,176 bytes from the accepted baseline with 982,983 bytes remaining below 5 MiB. The separate runtime pack is 523,954 bytes and reproduced the same SHA-256 in the archive and Windows checkout.
+- Chromium opened the native ZIP at a nested path, activated its SVG link by keyboard, and exercised root/nested HTTP paths, search, history, instance isolation, invalid or stale content, touch emulation, and privacy controls. A fixture with 3,000 nodes and 6,476 directed relations preserved a gate count of 240 with an 80-edge display limit. The measured p95 navigation latency was 51.5 ms and p95 title/full-text search was 5.5/5.6 ms on local loopback, including automation overhead. The composed scale site was 2,895,539 bytes. This is a local measurement with Chromium, not a device-independent latency limit.
+- The exporter preserves the selected documents, approved media, supported colors and safe vector content. The reader derives roles from the admitted graph. Advanced native appearance such as custom fonts, arbitrary theme CSS, native postprocessors and editable scenes was excluded from the export.
+
+Run `npm run test:publish` and `npm run test:web-browser` for the focused checks. To add the scale and exact native archive checks, set `KPLEX_PUBLISH_SCALE=true` and point `KPLEX_NATIVE_PUBLICATION_ZIP` to the generated fixture ZIP before running the browser command. With the approved Small vault selected through the existing `KPLEX_TEST_VAULT_*` and `KPLEX_TEST_CONFIG_DIR` variables, set `KPLEX_PUBLISH_DRAWING=true` and `KPLEX_PUBLISH_REPUBLISH=true` and run:
+
+```sh
+npm run build:web
+npm run verify:obsidian:web-runtime -- --mode eager publish-warm publish
+npm run verify:obsidian:web-runtime -- --mode on-demand publish
+```
 
 ## 8. Out of scope
 
