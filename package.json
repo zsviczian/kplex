@@ -15,7 +15,8 @@
     "check:release": "node scripts/check-release-metadata.mjs",
     "check:web-runtime:artifacts": "node scripts/testing/webRuntimeArtifacts.mjs",
     "test:web-runtime": "node --test tests/web-runtime-benchmark.test.mjs",
-    "test:web-browser": "npm run build:web && node --test tests/web-runtime-browser.test.mjs",
+    "test:web-browser": "npm run build:web && node --test --test-concurrency=1 tests/web-runtime-browser.test.mjs tests/web-publish-reader.test.mjs",
+    "test:publish": "node --test --test-concurrency=1 tests/publish-package.test.mjs tests/publish-selection.test.mjs tests/publish-content-browser.test.mjs",
     "verify:obsidian:web-runtime": "node scripts/testing/obsidian/webRuntimeNative.mjs",
     "compare:web-runtime": "node scripts/testing/webRuntimeComparison.mjs",
     "check:validation": "node scripts/validationArtifacts.mjs check",
@@ -41,7 +42,7 @@
     "validation:audit": "node scripts/validationArtifacts.mjs audit",
     "preverify": "npm run test:validation && npm run test:web-runtime && npm run validation:prune && npm run check:validation",
     "prepare": "node scripts/validationArtifacts.mjs install-hook",
-    "verify": "npm run check:release && npm run check:architecture && npm run check:core && npm run lint:obsidian && npm run test:web-browser && npm test && npm run build",
+    "verify": "npm run check:release && npm run check:architecture && npm run check:core && npm run lint:obsidian && npm run test:publish && npm run test:web-browser && npm test && npm run build",
     "verify:obsidian": "node scripts/testing/obsidian/verify.mjs",
     "verify:obsidian:index-pacing": "node scripts/testing/obsidian/indexPacing.mjs",
     "test:mac-study": "node --test tests/mac-study.test.mjs tests/startup-source-convergence-probe.test.mjs",
@@ -142,6 +143,7 @@
   "license": "AGPL-3.0-only",
   "dependencies": {
     "graphql": "16.14.2",
+    "markdown-it": "15.0.3",
     "react": "^19.1.1",
     "react-dom": "^19.1.1"
   },

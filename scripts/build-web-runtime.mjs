@@ -9,6 +9,7 @@ import {readRuntimePack} from "../src/application/publish/runtimePack.ts";
 const root = new URL("../", import.meta.url);
 const output = new URL("dist-web/", root);
 const rootPath = fileURLToPath(root);
+const version = JSON.parse(await readFile(new URL("manifest.json", root), "utf8")).version;
 const architecture = checkArchitecture(rootPath);
 if (architecture.errors.length) throw new Error(architecture.errors.join("\n"));
 
@@ -18,6 +19,7 @@ const result = await build({
   outdir: fileURLToPath(output),
   bundle: true, splitting: true, chunkNames: "[name]", format: "esm", platform: "browser", target: "es2021",
   minify: true, charset: "utf8", metafile: true, legalComments: "linked", logLevel: "info",
+  define: {__KPLEX_WEB_RUNTIME_VERSION__: JSON.stringify(version)},
   plugins: [compactLocalization(rootPath)],
 });
 for (const file of Object.keys(result.metafile.inputs)) {
@@ -40,7 +42,6 @@ const licenses = {
   ReactDOM: "node_modules/react-dom/LICENSE",
   Scheduler: "node_modules/scheduler/LICENSE",
 };
-const version = JSON.parse(await readFile(new URL("manifest.json", root), "utf8")).version;
 const hash = async bytes => createHash("sha256").update(bytes).digest("hex");
 const packFiles = await Promise.all([
   ...Object.keys(result.metafile.outputs).map(path => path.split("/").at(-1)).concat("compass.css").map(async name =>

@@ -7,7 +7,7 @@ const requiredFiles = [
   "LICENSES/K-Plex.txt", "LICENSES/React.txt", "LICENSES/ReactDOM.txt", "LICENSES/Scheduler.txt", "LICENSES/Source.txt",
 ];
 
-const runtimePath = /^runtime\/[a-z][a-z0-9-]*\.(?:js(?:\.LEGAL\.txt)?|css)$/i;
+const runtimePath = /^runtime\/(?:compass\.css|(?:compass|demo|chunk(?:-[a-zA-Z0-9]+)?)\.js(?:\.LEGAL\.txt)?)$/;
 const releaseVersion = /^\d+\.\d+\.\d+$/;
 const sha256 = /^[0-9a-f]{64}$/;
 
@@ -64,7 +64,7 @@ export const publicationShell = `<!doctype html>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="color-scheme" content="light dark">
-  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self'; media-src 'self'; font-src 'self'; connect-src 'self'; base-uri 'none'; form-action 'none'; object-src 'none'">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' blob:; media-src 'self' blob:; font-src 'self'; connect-src 'self'; base-uri 'none'; form-action 'none'; object-src 'none'">
   <title>K-Plex</title>
   <link rel="stylesheet" href="./runtime/compass.css">
 </head>
