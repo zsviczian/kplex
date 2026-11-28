@@ -204,6 +204,11 @@ npm run verify:obsidian:web-runtime -- --mode eager publish-warm publish
 npm run verify:obsidian:web-runtime -- --mode on-demand publish
 ```
 
+For settled native regression timing, `KPLEX_WEB_BENCH_EXISTING_CENTERS=true`
+uses the existing Help notes in Small. This keeps the Markdown inventory
+stable across runs. Compare the accepted and candidate release artifacts with
+the [paired performance harness](PORTABLE_WEB_RUNTIME_V1.md#windows-comparison).
+
 ## 8. Out of scope
 
 Additional browser views (Mind Map, Facets), npm/jsDelivr/unpkg public package and formal external embedding API beyond existing mount and simple static iframe instructions, desktop obsidian:// UUID resolver, Node server/dynamic graph/search/auth, automated host upload, incremental publishing, real personal-vault data mutation or hosting, 600,000-node scale, arbitrary third-party Markdown processors, general renderer/index refactor, and changes to existing unrelated product UX. These remain follow-ups; do not split the agreed MVP checkpoints into extra PRs unless a concrete boundary requires maintainer decision.
