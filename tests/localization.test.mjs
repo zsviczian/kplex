@@ -4,13 +4,16 @@
  * classification remains source-owned across locales; values are never reinterpreted as templates.
  */
 import assert from "node:assert/strict";
+import { build } from "esbuild";
 import { auditUserCopy } from "./support/localizationAudit.mjs";
+import { compactLocalization } from "../scripts/compact-localization.mjs";
 import { createRequire } from "node:module";
 import { mkdtempSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join, relative, resolve } from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
+import { runInNewContext } from "node:vm";
 
 const require = createRequire(import.meta.url);
 const ts = require("typescript");
@@ -85,6 +88,38 @@ process.on("exit", () => rmSync(portableTemp, { recursive: true, force: true }))
 const localization = require(join(portableTemp, "src/lang/index.js"));
 const shortcut = require(join(portableTemp, "src/core/plex/shortcutPresentation.js"));
 const searchPresentation = require(join(portableTemp, "src/ui/features/searchPresentation.js"));
+
+test("compact catalogs omit translator guidance and preserve every locale's formatted messages", async () => {
+  const {outputFiles} = await build({
+    absWorkingDir: root,
+    stdin: {
+      contents: 'export {englishCatalog} from "./src/lang/en"; export {createTranslator} from "./src/lang";',
+      resolveDir: root,
+    },
+    bundle: true, format: "cjs", target: "es2021", charset: "utf8", minify: true, write: false,
+    plugins: [compactLocalization(root)],
+  });
+  const module = {exports: {}};
+  runInNewContext(outputFiles[0].text, {module, exports: module.exports});
+  const {englishCatalog} = require(join(portableTemp, "src/lang/en.js"));
+  const keyNames = Object.keys(englishCatalog);
+  assert.deepEqual(Object.keys(module.exports.englishCatalog), keyNames);
+  for (const key of keyNames) {
+    assert(!Object.hasOwn(module.exports.englishCatalog[key], "context"), key);
+  }
+
+  for (const language of ["en", "de", "es", "fr", "ja", "nl", "ru", "zh-TW", "de-AT", "zz-ZZ"]) {
+    const sourceTranslator = localization.createTranslator(language);
+    const compactTranslator = module.exports.createTranslator(language);
+    for (const key of keyNames) {
+      const {params, countParam} = englishCatalog[key];
+      for (const count of countParam ? [0, 1, 2, 3, 5, 12, 21, 1.5, 1_000_000] : [0]) {
+        const values = Object.fromEntries(params.map(name => [name, name === countParam ? count : "A title {literal}"]));
+        assert.equal(compactTranslator(key, values), sourceTranslator(key, values), language + ":" + key);
+      }
+    }
+  }
+});
 
 const shortcutLabels = {
   shift: "Shift",

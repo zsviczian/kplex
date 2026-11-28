@@ -9,6 +9,19 @@ import {spawnSync, spawn} from "node:child_process";
 import {runInNewContext} from "node:vm";
 import {measureInstallableArtifacts, reportInstallableArtifacts} from "../scripts/testing/webRuntimeArtifacts.mjs";
 
+const catalogSource = 'export const englishCatalog = {"fixture.key": {message: "你好, déjà!", context: "Translator-only release fixture guidance.", params: []}};';
+
+/** Use the real build configuration and its localization projection in isolated release fixtures. */
+async function copyBuildConfiguration(root) {
+  await mkdir(join(root, "scripts"));
+  await mkdir(join(root, "src/lang"), {recursive: true});
+  await Promise.all([
+    copyFile(new URL("../esbuild.config.mjs", import.meta.url), join(root, "esbuild.config.mjs")),
+    copyFile(new URL("../scripts/compact-localization.mjs", import.meta.url), join(root, "scripts/compact-localization.mjs")),
+    writeFile(join(root, "src/lang/en.ts"), catalogSource),
+  ]);
+}
+
 /** Fail with captured build/Git diagnostics instead of accepting a missing tool or partial build. */
 function run(root, executable, args) {
   const result = spawnSync(executable, args, {cwd: root, encoding: "utf8", timeout: 30000});
@@ -18,13 +31,13 @@ function run(root, executable, args) {
 test("production artifacts are identical with clean, dirty and absent Git metadata", async () => {
   const root = await mkdtemp(join(tmpdir(), "kplex-release-build-"));
   try {
-    await mkdir(join(root, "src"));
     await mkdir(join(root, "empty-hooks"));
-    await copyFile(new URL("../esbuild.config.mjs", import.meta.url), join(root, "esbuild.config.mjs"));
+    await copyBuildConfiguration(root);
     await writeFile(join(root, "manifest.json"), JSON.stringify({id: "k-plex", version: "3.2.1"}));
-    await writeFile(join(root, "styles.css"), ".test { display: block; }\n");
+    const sourceCss = ".test { display: block; }\n";
+    await writeFile(join(root, "styles.css"), sourceCss);
     await writeFile(join(root, ".gitignore"), "node_modules/\ndist/\n");
-    await writeFile(join(root, "src/main.ts"), 'import {Plugin} from "obsidian"; export default class FixturePlugin extends Plugin {marker(){return "visible-native-plugin";}} export const build = __KPLEX_BUILD_ID__; export const script = () => document.createElement("script");');
+    await writeFile(join(root, "src/main.ts"), 'import {Plugin} from "obsidian"; export {englishCatalog} from "./lang/en"; export default class FixturePlugin extends Plugin {marker(){return "visible-native-plugin";}} export const build = __KPLEX_BUILD_ID__; export const script = () => document.createElement("script");');
     await symlink(fileURLToPath(new URL("../node_modules", import.meta.url)), join(root, "node_modules"), process.platform === "win32" ? "junction" : "dir");
     run(root, "git", ["init", "--quiet"]);
     run(root, "git", ["add", "."]);
@@ -36,6 +49,8 @@ test("production artifacts are identical with clean, dirty and absent Git metada
     assert.doesNotMatch(clean.toString(), /source-archive|\.dirty|createElement\(["']script["']\)/);
     assert.match(clean.toString(), /createElement\("template"\)/, "Reproducibility must preserve React script hardening");
     assert.match(clean.toString(), /visible-native-plugin/, "Plugin behavior stays visible in ordinary executable JavaScript");
+    assert.match(clean.toString(), /你好, déjà!/, "The production build emits translation text as UTF-8");
+    assert.doesNotMatch(clean.toString(), /Translator-only release fixture guidance/);
     // Obsidian supplies the native CJS resolver. Loading the generated module must preserve
     // that exact host class without a browser global, compressed payload or second evaluator.
     class NativePlugin {}
@@ -48,6 +63,8 @@ test("production artifacts are identical with clean, dirty and absent Git metada
     const instance = new module.exports.default();
     assert(instance instanceof NativePlugin);
     assert.equal(instance.marker(), "visible-native-plugin");
+    assert.equal(module.exports.englishCatalog["fixture.key"].message, "你好, déjà!");
+    assert.equal(Object.hasOwn(module.exports.englishCatalog["fixture.key"], "context"), false);
     assert.deepEqual(required, ["obsidian"]);
     run(root, process.execPath, ["esbuild.config.mjs", "production"]);
     assert.deepEqual(await readFile(join(root, "dist/main.js")), clean, "Repeated release builds are byte-identical");
@@ -73,7 +90,8 @@ test("production artifacts are identical with clean, dirty and absent Git metada
     run(root, process.execPath, ["esbuild.config.mjs", "production"]);
     assert.deepEqual(await readFile(join(root, "dist/main.js")), clean, "Local builds never contaminate source-archive releases");
     assert.deepEqual(await readFile(join(root, "dist/manifest.json")), await readFile(join(root, "manifest.json")));
-    assert.deepEqual(await readFile(join(root, "dist/styles.css")), await readFile(join(root, "styles.css")));
+    assert.equal(await readFile(join(root, "dist/styles.css"), "utf8"), ".test{display:block}\n");
+    assert.equal(await readFile(join(root, "styles.css"), "utf8"), sourceCss);
   } finally {await rm(root, {recursive: true, force: true});}
 });
 
@@ -90,15 +108,18 @@ test("development watch refreshes identity on actual source rebuilds", {timeout:
     throw Error("Owned watch build did not complete");
   };
   try{
-    await mkdir(join(root,"src"));
-    await copyFile(new URL("../esbuild.config.mjs",import.meta.url),join(root,"esbuild.config.mjs"));
+    await copyBuildConfiguration(root);
     await writeFile(join(root,"manifest.json"),JSON.stringify({id:"k-plex",version:"3.2.1"}));
-    await writeFile(join(root,"styles.css"),".test{}\n");
-    await writeFile(join(root,"src/main.ts"),"export const build=__KPLEX_BUILD_ID__;export const value=1;");
+    const sourceCss = ".test { display: block; }\n";
+    await writeFile(join(root,"styles.css"),sourceCss);
+    const watchSource = 'export {englishCatalog} from "./lang/en"; export const build=__KPLEX_BUILD_ID__;';
+    await writeFile(join(root,"src/main.ts"),watchSource+"export const value=1;");
     await symlink(fileURLToPath(new URL("../node_modules",import.meta.url)),join(root,"node_modules"),process.platform==="win32"?"junction":"dir");
     child=spawn(process.execPath,["esbuild.config.mjs"],{cwd:root,stdio:"ignore",windowsHide:true});
     const first=await output();
-    await writeFile(join(root,"src/main.ts"),"export const build=__KPLEX_BUILD_ID__;export const value=2;");
+    assert.match(await readFile(join(root,"dist/main.js"),"utf8"), /Translator-only release fixture guidance/);
+    assert.equal(await readFile(join(root,"dist/styles.css"),"utf8"), sourceCss);
+    await writeFile(join(root,"src/main.ts"),watchSource+"export const value=2;");
     assert.notEqual(await output(first),first);
   }finally{
     if(child&&child.exitCode===null){const done=new Promise(resolve=>child.once("exit",resolve));child.kill();await done;}

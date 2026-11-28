@@ -1,6 +1,6 @@
 /**
  * Builds complete locale catalogs from translated text and explicitly permitted English fallback
- * entries while preserving stable keys, translator context, interpolation and plural metadata.
+ * entries while preserving stable keys, interpolation and plural metadata.
  * English reference-parameter classification is inherited; locale text cannot retarget literal quoting.
  */
 import { englishCatalog, type EnglishCatalog } from "./en";
@@ -26,7 +26,6 @@ export type LocaleTranslationMap = {
 
 /** Runtime shape accepted by the strict formatter in `src/lang/index.ts`. */
 export type LocaleCatalog = Readonly<Record<string, Readonly<{
-  context: string;
   params: readonly string[];
   referenceParams?: readonly string[];
   message?: string;
@@ -34,25 +33,29 @@ export type LocaleCatalog = Readonly<Record<string, Readonly<{
   countParam?: string;
 }>>>;
 
+/** Production arrays use English catalog order. A null slot or missing tail uses English fallback. */
+type IndexedTranslations = Array<LocaleTranslationMap[EnglishKey] | null>;
+
 /**
  * Materialize a locale catalog without duplicating non-translatable metadata in every language file.
  *
- * @param translations - Existing translated text plus optional approved V2 translations.
- * @returns A complete runtime catalog retaining source context, params, reference classification and plural count metadata.
+ * @param translations - The keyed source table or the build-generated array in English key order.
+ * @returns A complete runtime catalog retaining params, reference classification and plural count metadata.
  */
-export function buildLocaleCatalog(translations: LocaleTranslationMap): LocaleCatalog {
+export function buildLocaleCatalog(translations: LocaleTranslationMap | IndexedTranslations): LocaleCatalog {
   const catalog: Record<string, LocaleCatalog[string]> = {};
-  for (const key of Object.keys(englishCatalog) as EnglishKey[]) {
+  const keys = Object.keys(englishCatalog) as EnglishKey[];
+  const indexed = Array.isArray(translations);
+  for (const [index, key] of keys.entries()) {
     const source = englishCatalog[key];
     const referenceMetadata = "referenceParams" in source ? {referenceParams:source.referenceParams} : {};
-    const translated = translations[key];
-    if (translated === undefined) {
+    const translated = indexed ? translations[index] : translations[key];
+    if (translated === undefined || translated === null) {
       catalog[key] = source;
       continue;
     }
     if ("plural" in source) {
       catalog[key] = {
-        context: source.context,
         params: source.params,
         ...referenceMetadata,
         plural: translated as Readonly<Record<string, string>>,
@@ -60,7 +63,6 @@ export function buildLocaleCatalog(translations: LocaleTranslationMap): LocaleCa
       };
     } else {
       catalog[key] = {
-        context: source.context,
         params: source.params,
         ...referenceMetadata,
         message: translated as string,

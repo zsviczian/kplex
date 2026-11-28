@@ -16,7 +16,6 @@ import { createTraditionalChineseCatalog } from "./zh-TW";
 
 type PrimitiveParam = string | number;
 type CatalogEntry = Readonly<{
-  context: string;
   params: readonly string[];
   referenceParams?: readonly string[];
   message?: string;
@@ -66,13 +65,14 @@ function fail(catalogName: string, key: string, message: string): never {
   throw new Error(`Invalid localization entry ${catalogName}:${key}: ${message}`);
 }
 
-/** Validate parameter subsets, reference classification and every message/plural form. */
-function validateEntry(catalogName: string, key: string, raw: unknown): CatalogEntry {
+/** Validate formatting data and the existing author-guidance contract for injected catalogs. */
+function validateEntry(catalogName: string, key: string, raw: unknown, requireContext = false): CatalogEntry {
   if (!raw || typeof raw !== "object" || Array.isArray(raw)) fail(catalogName, key, "entry must be an object");
   const entry = raw as Record<string, unknown>;
-  const context = entry.context;
+  if (requireContext && (typeof entry.context !== "string" || !entry.context.trim())) {
+    fail(catalogName, key, "context must be non-empty");
+  }
   const rawParams = entry.params;
-  if (typeof context !== "string" || !context.trim()) fail(catalogName, key, "context must be non-empty");
   if (!Array.isArray(rawParams) || rawParams.some((param) => typeof param !== "string" || !param)) {
     fail(catalogName, key, "params must be an array of non-empty names");
   }
@@ -123,9 +123,9 @@ function validateEntry(catalogName: string, key: string, raw: unknown): CatalogE
   return entry as CatalogEntry;
 }
 
-/** Validate a catalog before it can participate in fallback/formatting. */
+/** Validate an authoring or injected catalog, including its translator guidance. */
 export function validateCatalog(catalogName: string, catalog: RuntimeCatalog): void {
-  for (const [key, entry] of Object.entries(catalog)) validateEntry(catalogName, key, entry);
+  for (const [key, entry] of Object.entries(catalog)) validateEntry(catalogName, key, entry, true);
 }
 
 /** Normalize exact/base locale identifiers without changing translated user text. */
@@ -227,7 +227,6 @@ function formatEntry(key: string, entry: CatalogEntry, locale: string, rawParams
   return formatted;
 }
 
-validateCatalog("en", englishCatalog);
 for (const [key, rawEntry] of Object.entries(englishCatalog)) {
   validatePluralCoverage("en", key, validateEntry("en", key, rawEntry));
 }
@@ -235,7 +234,6 @@ for (const [key, rawEntry] of Object.entries(englishCatalog)) {
 /** Preserve validated built-in text and nested metadata independently of the exported source objects. */
 function immutableEntry(entry: CatalogEntry): CatalogEntry {
   return Object.freeze({
-    context: entry.context,
     params: Object.freeze([...entry.params]),
     ...(entry.referenceParams === undefined ? {} : {referenceParams: Object.freeze([...entry.referenceParams])}),
     ...(entry.message === undefined
@@ -249,7 +247,7 @@ function prepareCatalogs(localeCatalogs: RuntimeLocaleCatalogs, immutable = fals
   const normalizedCatalogs: Record<string, RuntimeCatalog | undefined> = {};
   for (const [locale, catalog] of Object.entries(localeCatalogs)) {
     if (!catalog) continue;
-    validateCatalog(locale, catalog);
+    if (!immutable) validateCatalog(locale, catalog);
     const entries: Record<string, CatalogEntry> = {};
     for (const [key, rawEntry] of Object.entries(catalog)) {
       const source = (englishCatalog as RuntimeCatalog)[key];
