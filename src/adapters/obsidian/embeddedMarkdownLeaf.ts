@@ -42,17 +42,20 @@ export function isEmbeddedMarkdownLeaf(leaf: WorkspaceLeaf | null | undefined): 
 }
 
 /** Query the existing native leaf owner only during an explicitly submitted metadata edit.
- * Buffers must match the current saved body; this never focuses, saves or retargets an editor. */
-export function markdownBuffersMatchSaved(app: App, file: TFile, savedBody: string): boolean {
+ * Buffers must match the current saved body; this never focuses, saves or retargets an editor.
+ * Callers may also refuse same-file native text views whose document format cannot be compared. */
+export function markdownBuffersMatchSaved(app: App, file: TFile, savedBody: string, requireMarkdown = false): boolean {
   let matches = true;
   // Native Markdown buffers may normalize Windows CRLF to LF. That representation change
   // alone is not an unsaved content edit and never rewrites the actual saved body here.
   const saved = savedBody.replace(/\r\n/g, "\n");
   const check = (leaf: WorkspaceLeaf): void => {
     const view = leaf.view;
-    if (view instanceof TextFileView && view.file === file && view.getViewType() === "markdown") {
-      try {if (view.getViewData().replace(/\r\n/g, "\n") !== saved) matches = false;} catch {matches = false;}
-    }
+    if (!(view instanceof TextFileView) || view.file !== file) return;
+    try {
+      if (view.getViewType() !== "markdown") { if (requireMarkdown) matches = false; return; }
+      if (view.getViewData().replace(/\r\n/g, "\n") !== saved) matches = false;
+    } catch { matches = false; }
   };
   app.workspace.iterateAllLeaves(check);
   for (const leaf of embeddedLeavesByApp.get(app) ?? []) check(leaf);

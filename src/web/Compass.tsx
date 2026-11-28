@@ -1,10 +1,16 @@
-import {useId, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type KeyboardEvent, type PointerEvent as ReactPointerEvent} from "react";
+import {useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type KeyboardEvent, type PointerEvent as ReactPointerEvent} from "react";
 import type {NodeId} from "../core/graph/model";
+import {publicationThemePath} from "../core/plex/publication";
 import type {ViewPoint} from "../core/plex/views/contracts";
 import {compassControls} from "../lang/webPublication";
 import {PlexArrowMarkers, PlexConnectorLabel, PlexConnectorStroke, PlexGate, PlexNodeCard, PlexNodeLabel, PlexNodeText, plexMarker} from "../ui/features/PlexPaint";
 import type {Publication} from "./publication";
+import type {PublicationResources} from "./resources";
+import {type PublicationLocation, usePublicationNavigation} from "./navigation";
+import {PublicationTools} from "./PublicationTools";
+import {PublicationSidecar} from "./PublicationSidecar";
 import {publicationScene} from "./scene";
+import {readPublicationTheme} from "./theme";
 
 type Camera = ViewPoint & {scale: number};
 type Pointer = ViewPoint & {id: number};
@@ -16,9 +22,9 @@ function gesture(first: Pointer, second?: Pointer) {
 }
 
 /** Mount-local navigation and camera. Pointer moves only touch the camera transform. */
-export function Compass({publication, markerPrefix}: {publication: Publication; markerPrefix: string}) {
-  const [history, setHistory] = useState({entries: [publication.entry], index: 0});
-  const attention = history.entries[history.index];
+export function Compass({publication, markerPrefix, resources, browser}: {publication: Publication; markerPrefix: string; resources?: PublicationResources; browser?: Window}) {
+  const navigation = usePublicationNavigation(publication, browser);
+  const attention = navigation.attention.id;
   const scene = useMemo(() => publicationScene(publication, attention), [publication, attention]);
   const entry = scene.cards.find(card => card.center)!;
   const viewport = useRef<HTMLDivElement>(null);
@@ -28,6 +34,19 @@ export function Compass({publication, markerPrefix}: {publication: Publication; 
   const pointerState = useRef<{points: Map<number, Pointer>; origin: ViewPoint | null; moved: boolean}>({points: new Map(), origin: null, moved: false});
   const focusCenter = useRef(false);
   const captionId = useId();
+  const sidecarToggle = useRef<HTMLButtonElement>(null);
+  const [sidecarOpen, setSidecarOpen] = useState(true);
+  const [theme, setTheme] = useState<CSSProperties>();
+  const [themeFailed, setThemeFailed] = useState(false);
+
+  useEffect(() => {
+    const owner = viewport.current?.ownerDocument.defaultView;
+    if (!owner || !resources?.has(publicationThemePath)) return;
+    const abort = new owner.AbortController(), signal = abort.signal;
+    resources.text(publicationThemePath, signal).then(css => {if (!signal.aborted) setTheme(readPublicationTheme(css));})
+      .catch(() => {if (!signal.aborted) setThemeFailed(true);});
+    return () => abort.abort();
+  }, [resources]);
 
   function paint(next: Camera) {
     camera.current = next;
@@ -85,20 +104,25 @@ export function Compass({publication, markerPrefix}: {publication: Publication; 
   }, [scene]);
 
   function activate(id: NodeId, fromKeyboard: boolean) {
-    if (id === attention) return;
-    focusCenter.current = fromKeyboard;
-    setHistory(current => ({entries: [...current.entries.slice(0, current.index + 1), id], index: current.index + 1}));
+    if (navigation.activate({id}) && id !== attention) focusCenter.current = fromKeyboard;
   }
 
-  function moveHistory(delta: number) {
-    setHistory(current => ({...current, index: Math.max(0, Math.min(current.entries.length - 1, current.index + delta))}));
+  /** Return focus to the persistent header action when a Sidecar close button is removed. */
+  function closeSidecar() {
+    setSidecarOpen(false);
+    sidecarToggle.current?.focus();
+  }
+
+  /** Follow document or SVG links without changing the owning reader session. */
+  function activateDocument(location: PublicationLocation) {
+    navigation.activate(location);
   }
 
   function onKey(event: KeyboardEvent<HTMLDivElement>) {
     if (event.key === "Home" || event.key === "0") fit();
     else if (event.key === "+" || event.key === "=") zoom(1.25);
     else if (event.key === "-") zoom(.8);
-    else if (event.altKey && (event.key === "ArrowLeft" || event.key === "ArrowRight")) moveHistory(event.key === "ArrowLeft" ? -1 : 1);
+    else if (event.altKey && (event.key === "ArrowLeft" || event.key === "ArrowRight")) navigation.move(event.key === "ArrowLeft" ? -1 : 1);
     else if (Object.prototype.hasOwnProperty.call(directionalKeys, event.key)) {
       const [x, y] = directionalKeys[event.key as keyof typeof directionalKeys];
       const cards = Array.from(event.currentTarget.querySelectorAll<HTMLElement>("[data-publication-node]"));
@@ -146,19 +170,12 @@ export function Compass({publication, markerPrefix}: {publication: Publication; 
   }
 
   const body = publication.body(attention);
-  const arrow = plexMarker("arrow", markerPrefix);
-  return <main className="kplex-publication">
-    <header className="kplex-publication-header">
-      <div><h1>{publication.title}</h1><span>{compassControls.view}</span></div>
-      <div className="kplex-publication-controls">
-        <button type="button" onClick={() => moveHistory(-1)} disabled={history.index === 0} aria-label={compassControls.back}>←</button>
-        <button type="button" onClick={() => moveHistory(1)} disabled={history.index === history.entries.length - 1} aria-label={compassControls.forward}>→</button>
-        <button type="button" onClick={() => zoom(.8)} aria-label={compassControls.zoomOut}>−</button>
-        <button type="button" onClick={() => zoom(1.25)} aria-label={compassControls.zoomIn}>+</button>
-        <button type="button" onClick={fit}>{compassControls.fit}</button>
-      </div>
-    </header>
-    <div ref={viewport} className="kplex-publication-viewport" role="group" aria-label={compassControls.view} tabIndex={0}
+  const zoomControls = <>
+    <button type="button" onClick={() => zoom(.8)} aria-label={compassControls.zoomOut}>−</button>
+    <button type="button" onClick={() => zoom(1.25)} aria-label={compassControls.zoomIn}>+</button>
+    <button type="button" onClick={fit}>{compassControls.fit}</button>
+  </>;
+  const canvas = <div ref={viewport} className="kplex-publication-viewport" role="group" aria-label={compassControls.view} tabIndex={0}
       onKeyDown={onKey} onPointerDown={onPointerDown} onPointerMove={onPointerMove} onPointerUp={onPointerEnd} onPointerCancel={onPointerEnd}
       onLostPointerCapture={onPointerEnd}
       onPointerLeave={event => {if (!event.currentTarget.hasPointerCapture(event.pointerId)) onPointerEnd(event);}}
@@ -166,8 +183,9 @@ export function Compass({publication, markerPrefix}: {publication: Publication; 
       <div className="kplex-camera" ref={group}>
         <svg className="kplex-links" width="3200" height="2400" viewBox="-1600 -1200 3200 2400" aria-hidden="true">
           <PlexArrowMarkers prefix={markerPrefix} />
-          {scene.edges.map(({id, source, target, route, label, arrowStart, arrowEnd}) => <g key={id} className="kplex-edge" data-publication-source={source} data-publication-target={target}>
-            <PlexConnectorStroke d={route.d} stroke="var(--kplex-publication-link)" strokeWidth={1.2} markerStart={arrowStart ? arrow : undefined} markerEnd={arrowEnd ? arrow : undefined} />
+          {scene.edges.map(({id, source, target, route, label, stroke, strokeWidth, startHead, endHead}) => <g key={id} className="kplex-edge" data-publication-source={source} data-publication-target={target}>
+            <PlexConnectorStroke d={route.d} stroke={stroke ?? "var(--kplex-publication-link)"} strokeWidth={strokeWidth ?? 1.2}
+              markerStart={plexMarker(startHead, markerPrefix)} markerEnd={plexMarker(endHead, markerPrefix)} />
             <PlexConnectorLabel label={label} midpoint={route.midpoint} color="var(--text-muted)" background="var(--background-primary)" />
           </g>)}
         </svg>
@@ -175,18 +193,46 @@ export function Compass({publication, markerPrefix}: {publication: Publication; 
           {scene.cards.map(card => <PlexNodeCard key={card.id} bounds={card.bounds} semanticRole={card.role}
             data-publication-node={card.node.id} data-publication-occurrence={card.id} data-publication-center={card.center || undefined}
             role="button" tabIndex={0} aria-label={card.node.name} aria-current={card.center || undefined}
-            style={{fontSize: card.fontSize, "--kplex-gate-size": `${card.gateSize}px`} as CSSProperties}
+            style={{fontSize: card.fontSize, backgroundColor: card.style?.fill, borderColor: card.style?.stroke, color: card.style?.color,
+              "--kplex-gate-size": `${card.gateSize}px`, "--kplex-gate-fill": card.style?.gate} as CSSProperties}
             onClick={event => activate(card.node.id, event.detail === 0)}
             onKeyDown={event => {if (event.key === "Enter" || event.key === " ") {event.preventDefault(); activate(card.node.id, true);}}}>
-            <PlexNodeLabel wrap={false}><PlexNodeText label={card.node.name} maximum={card.node.maxLabelLength} center={card.center} /></PlexNodeLabel>
+            <PlexNodeLabel wrap={scene.wrap}><PlexNodeText label={card.node.name} maximum={card.node.maxLabelLength} center={card.center} /></PlexNodeLabel>
             {card.gates.map(({side, count}) => <PlexGate key={side} side={side} connected={count > 0} count={count ? String(count) : null} aria-hidden="true" />)}
           </PlexNodeCard>)}
         </div>
       </div>
-    </div>
-    <section className="kplex-publication-note" aria-labelledby={captionId} aria-live="polite">
-      <h2 id={captionId}>{entry.node.name}</h2>
-      {body && <p>{body}</p>}
-    </section>
+    </div>;
+  return <main className={`kplex-publication${resources ? " kplex-publication-production" : ""}`} style={theme}>
+    <header className="kplex-publication-header">
+      <div><h1>{publication.title}</h1><span>{compassControls.view}</span></div>
+      <div className="kplex-publication-controls">
+        <button type="button" onClick={() => navigation.move(-1)} disabled={!navigation.canGoBack} aria-label={compassControls.back}>←</button>
+        <button type="button" onClick={() => navigation.move(1)} disabled={!navigation.canGoForward} aria-label={compassControls.forward}>→</button>
+        {resources ? <button type="button" ref={sidecarToggle} aria-expanded={sidecarOpen} aria-controls={`sidecar-${captionId}`}
+          onClick={() => setSidecarOpen(open => !open)}>{sidecarOpen ? compassControls.hideSidecar : compassControls.showSidecar}</button> : zoomControls}
+      </div>
+      {resources && <PublicationTools publication={publication} resources={resources} onChoose={id => activate(id, false)} />}
+    </header>
+    {resources ? <div className={`kplex-publication-workspace${sidecarOpen ? " is-sidecar-open" : ""}`}>
+      <div className="kplex-publication-canvas">
+        {canvas}
+        <div className="kplex-publication-controls kplex-publication-camera-actions">{zoomControls}</div>
+        <div className="kplex-publication-status" aria-live="polite">
+          {navigation.missing && <p>{compassControls.nodeUnavailable}</p>}
+          {scene.truncated && <p>{compassControls.sceneLimited}</p>}
+          {themeFailed && <p>{compassControls.themeUnavailable}</p>}
+        </div>
+      </div>
+      {sidecarOpen && <PublicationSidecar publication={publication} resources={resources} id={`sidecar-${captionId}`} contentScope={`${markerPrefix}-document`}
+        location={navigation.attention} onClose={closeSidecar} onNavigate={activateDocument} />}
+      {!sidecarOpen && <div id={`sidecar-${captionId}`} hidden />}
+    </div> : <>
+      {canvas}
+      <section className="kplex-publication-note" aria-labelledby={captionId} aria-live="polite">
+        <h2 id={captionId}>{entry.node.name}</h2>
+        {body && <p>{body}</p>}
+      </section>
+    </>}
   </main>;
 }

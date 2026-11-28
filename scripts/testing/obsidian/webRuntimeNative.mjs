@@ -25,6 +25,8 @@ const lanes = {
   'public-api': {script: 'publicApi', env: {}},
   'stable-gates': {script: 'stableGateCounts', env: {}},
   'label-sharpness': {script: 'labelSharpness', env: {}},
+  publish: {script: 'publishMvp', env: {}},
+  'publish-warm': {script: 'publishWarmRestarts', env: {}},
   performance: {script: 'webRuntimePerformance', env: {}},
 };
 const {values, positionals} = parseArgs({
@@ -36,14 +38,21 @@ assert(selected.every(name => Object.hasOwn(lanes, name)), `Select from ${Object
 assert.equal(Boolean(values.artifacts), Boolean(values.reference), 'Provide both --artifacts and --reference for a frozen baseline');
 assert(!(values.built && values.artifacts), 'Use either the existing local build or a frozen baseline');
 if (values.reference) assert.match(values.reference, /^[a-f0-9]{40}$/, 'Use the exact baseline SHA');
-if (values.mode) assert(['eager','on-demand'].includes(values.mode) && selected.every(name => name === 'performance'), 'Choose an indexing mode for the performance lane');
+if (values.mode) assert(['eager','on-demand'].includes(values.mode) && selected.every(name => name === 'performance' || name === 'publish'
+  || name === 'publish-warm' && values.mode === 'eager'), 'Choose an indexing mode supported by the selected performance or publication lane');
 
 const {KPLEX_TEST_VAULT_NAME: vaultName, KPLEX_TEST_VAULT_PATH: vaultPath, KPLEX_TEST_CONFIG_DIR: configDir} = process.env;
-assert(vaultName === 'kplex-test-small' || vaultName === 'kplex-test' && selected.every(name => name === 'performance'),
-  'Select the prepared Small vault or the scale vault for performance only');
+const help = vaultName === 'kplex-help-publish-test' && selected.every(name => name === 'publish');
+assert(vaultName === 'kplex-test-small' || vaultName === 'kplex-test' && selected.every(name => name === 'performance') || help,
+  'Select the prepared Small vault, the scale vault for performance, or the approved Help copy for publication only');
 assert(!values['warm-scale'] || vaultName === 'kplex-test', 'Scale warm-up requires the prepared scale vault');
 assert(!values['warm-only']||values['warm-scale'],'Use --warm-only with --warm-scale');
 const target = validateTarget({vaultName, vaultPath, configDir});
+if (help) {
+  assert.equal(relative(join(root, '.test-work', 'vaults', 'kplex-help-publish-test'), target.vault), '', 'Help copy must be at the approved workspace path');
+  assert.equal(relative(join(target.vault, '.obsidian'), target.config), '', 'Use the exact Help configuration');
+  assert(!existsSync(join(target.vault, '.git')), 'The live Help checkout is outside this test');
+}
 const userData = process.env.KPLEX_OBSIDIAN_USER_DATA ?? (process.platform === 'win32' ? join(process.env.APPDATA, 'obsidian')
   : process.platform === 'darwin' ? join(homedir(), 'Library', 'Application Support', 'obsidian')
     : join(process.env.XDG_CONFIG_HOME ?? join(homedir(), '.config'), 'obsidian'));
@@ -180,7 +189,7 @@ async function waitForHostLock() {
   }
 }
 
-const run = createValidationRun('pr-334-native');
+const run = createValidationRun(selected.some(name => name.startsWith('publish')) ? 'publish-native' : 'pr-334-native');
 console.log(`Managed evidence ${run.directory}`);
 let lock;
 try {

@@ -256,6 +256,8 @@ export const DEFAULT_LAYOUT_PROFILES: Record<string, KplexLayoutProfile> = {
 };
 
 export interface KplexSettings extends StartupIndexPreferences {
+  /** Private versioned publication profiles. Unsupported schemas are retained verbatim. */
+  publishProfiles?: unknown;
   /** Local appearance identities; foreign graph imports never replace this palette or compass preference. */
   colorPreferences: ColorPreferencesV1;
   /** Preserve an unsupported future color container verbatim while presenting read-only fallback controls. */

@@ -546,6 +546,10 @@ npx skills add zsviczian/kplex --skill kplex-obsidian-cli
 
 Use `npx skills update kplex-obsidian-cli` to pick up changes. The skill uses K-Plex in an explicitly selected vault in the running Obsidian desktop app. Enable Obsidian CLI and K-Plex in that vault, then follow the [CLI guide](docs/CLI.md) and the [skill instructions](skills/kplex-obsidian-cli/SKILL.md).
 
+## Publish a static site
+
+On desktop, **K-Plex: Publish static site** reviews a selected part of your vault and exports a ZIP with a read-only Compass, linked notes and drawings, and optional full-text search. Readers can open the extracted site on an ordinary static host. [Publishing guide](docs/PUBLISH.md)
+
 ## Help, issues and contributing
 
 Select **Report a bug** (the Bug icon in the toolbar) to copy a diagnostic report and view reporting guidance. In Zen mode, use **K-Plex: Report a bug** from Obsidian’s Command Palette. Search existing issues first, describe how to reproduce the problem, and paste the report at the bottom. The report includes active plugin names and versions, the custom theme name, and enabled/available CSS snippet counts. It excludes note contents, paths and snippet names. Inspect the preview before posting; nothing is submitted automatically. If copying fails, select the preview to copy it manually or select **Copy again**.

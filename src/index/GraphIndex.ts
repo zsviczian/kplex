@@ -3108,14 +3108,15 @@ export class GraphIndex {
   }
 
   /** Register one visible semantic center. Releasing the final demand cancels its in-flight work. */
-  acquireSemanticDemand(path: string): () => void {
+  acquireSemanticDemand(path: string, canonicalRead = false): () => void {
     this.flushUrlPublication();
     if (/^(?:https?|obsidian):\/\//i.test(path)) { path = canonicalWebUrl(path); this.ensureUrlTarget(path); }
     const previous = this.semanticDemandCounts.get(path) ?? 0;
     this.semanticDemandCounts.set(path, previous + 1);
     this.releasedSemanticScopePaths.delete(path);
     if (previous === 0) this.semanticDemandRevision.set(path, (this.semanticDemandRevision.get(path) ?? 0) + 1);
-    this.startSemanticDemand(path);
+    if (canonicalRead) void this.ensureSemanticScope(path);
+    else this.startSemanticDemand(path);
     let released = false;
     return () => {
       if (released) return;
@@ -3133,6 +3134,18 @@ export class GraphIndex {
         this.recoveryObservationWakeups.get(path)?.();
       } else this.semanticDemandCounts.set(path, count);
     };
+  }
+
+  /** Join the existing source owner on explicit export approval. The configured indexing mode is
+   * unchanged. A host-local preview alone cannot prove complete incoming relationships. */
+  async preparePublicationAuthority(current: () => boolean): Promise<boolean> {
+    if (!current() || this.diagnosticsClosed || this.persistentCachePurged) return false;
+    this.admitPreparation();
+    if (this.sourceAcquisition.hasSemanticDependencies()) return true;
+    // The source owner runs at its own background checkpoints. Holding a higher lane across
+    // this await would stop the audit we are waiting for.
+    const ready = await this.sourceAcquisition.flush();
+    return ready && current() && this.sourceAcquisition.hasSemanticDependencies();
   }
 
   /** Keep bounded canonical navigation history readable after a view releases its demand.

@@ -1,9 +1,11 @@
 import assert from "node:assert/strict";
+import {createHash} from "node:crypto";
 import {readFile, readdir} from "node:fs/promises";
 import {createServer} from "node:http";
 import test from "node:test";
 import {runInNewContext} from "node:vm";
 import {browserBundle, chromiumHarness} from "./support/browserTypeScript.mjs";
+import {publicationShell, readRuntimePack} from "../src/application/publish/runtimePack.ts";
 
 const artifacts = new URL("../dist-web/", import.meta.url);
 
@@ -48,19 +50,52 @@ test("one synthetic publication has the same Compass roles, bounds and connector
     comparable(routes.sort()));
 });
 
-async function localPublication() {
-  const files = new Set(await readdir(artifacts));
+async function localPublication(packFiles) {
+  const files = packFiles ?? new Map((await readdir(artifacts)).map(name => [name, new URL(name, artifacts)]));
   const types = {html: "text/html", js: "text/javascript", css: "text/css", json: "application/json"};
   const server = createServer(async (request, response) => {
     const path = new URL(request.url, "http://localhost").pathname;
     const name = path.replace(/^\/(?:notes\/fieldwork\/)?/, "") || "index.html";
     if (!files.has(name)) return void response.writeHead(404).end();
     response.setHeader("Content-Type", types[name.split(".").at(-1)] ?? "text/plain");
-    response.end(await readFile(new URL(name, artifacts)));
+    const file = files.get(name);
+    response.end(file instanceof URL ? await readFile(file) : file);
   });
   await new Promise(resolve => server.listen(0, "127.0.0.1", resolve));
   return {url: `http://127.0.0.1:${server.address().port}`, close: () => new Promise(resolve => server.close(resolve))};
 }
+
+test("the versioned runtime pack yields a working local static site at root and nested paths", async () => {
+  const version = JSON.parse(await readFile(new URL("../manifest.json", import.meta.url), "utf8")).version;
+  const encoded = await readFile(new URL(`kplex-web-runtime-${version}.json`, artifacts), "utf8");
+  const raw = JSON.parse(encoded);
+  const hash = async bytes => createHash("sha256").update(bytes).digest("hex");
+  const pack = await readRuntimePack(raw, version, hash);
+  assert.deepEqual(pack, raw);
+  await assert.rejects(() => readRuntimePack(raw, "0.0.0", hash), {reason: "version"});
+  for (const bad of [
+    {...raw, files: raw.files.slice(1)},
+    {...raw, files: [...raw.files, {...raw.files[0], path: "runtime/../outside.js"}]},
+    {...raw, files: [...raw.files, {...raw.files[0], path: raw.files[0].path.toUpperCase()}]},
+    {...raw, files: [{...raw.files[0], text: `${raw.files[0].text}a`}, ...raw.files.slice(1)]},
+  ]) await assert.rejects(() => readRuntimePack(bad, version, hash));
+  const files = new Map(pack.files.map(({path, text}) => [path, text]));
+  files.set("index.html", publicationShell);
+  files.set("publication.json", await readFile(new URL("publication.json", artifacts), "utf8"));
+  const site = await localPublication(files);
+  let host;
+  try {
+    host = await chromiumHarness("window.sourceModules = {};");
+    for (const path of ["/", "/notes/fieldwork/"]) {
+      await host.command("Page.navigate", {url: `${site.url}${path}`});
+      await waitFor(host, `${JSON.stringify(`${site.url}${path}`)} === location.href && document.querySelector('[data-publication-center]')?.dataset.publicationNode === 'n1'`);
+      assert.equal(await host.evaluate("document.querySelector('link[rel=stylesheet]').href"), `${site.url}${path}runtime/compass.css`);
+    }
+  } finally {
+    await host?.cleanup();
+    await site.close();
+  }
+});
 
 async function waitFor(host, expression) {
   const deadline = Date.now() + 10_000;

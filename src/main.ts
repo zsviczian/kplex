@@ -82,6 +82,8 @@ import {calendarDay, calendarDayKey, todayJournalGap, shiftCalendarDay, adjacent
 import {DailyNoteCalendarModal} from "./ui/DailyNoteCalendarModal";
 import {FileCreationAutomation} from "./adapters/obsidian/fileCreationAutomation";
 import { drawingAutomation, drawingTemplateOptions } from "./adapters/obsidian/drawingTemplates";
+import type {PublishModal} from "./adapters/obsidian/PublishModal";
+import type {PublicationProfiles} from "./application/publish/profiles";
 import {markdownTemplateFiles, prepareMarkdownTemplate, type ExplicitCreationTemplate} from "./adapters/obsidian/creationTemplates";
 import {viewLabel} from "./ui/plexViews/labels";
 import {startupIndexPolicy} from './core/plex/startupIndexPreferences';
@@ -320,6 +322,8 @@ export default class KplexPlugin extends Plugin {
   /** Shared action engine; React surface ports retain their own state and owning document. */
   actionManager!: ActionManager;
   private actionPublisher: ActionCommandPublisher | null = null;
+  private publishModal: PublishModal | null = null;
+  private openingPublish = false;
   private readonly actionPreferenceListeners = new Set<() => void>();
   private readonly actionSurfaceHosts = new Map<string, { generation: number; leaf: WorkspaceLeaf }>();
   private readonly actionWindows = new WeakMap<Window, string>();
@@ -596,7 +600,7 @@ export default class KplexPlugin extends Plugin {
     this.startupDiagnostics.mark("settings-loaded");
     this.index = new GraphIndex(this, this.app, true, this.startupIndexPolicy.mode,
       /** Keep startup/cache hydration at its original rate; focus only paces settled-session work. */
-      () => !this.initialIndexComplete || this.isKplexIndexingForeground(),
+      () => !this.initialIndexComplete || this.isKplexIndexingForeground() || this.publishModal?.indexPreparationFocused() === true,
       /** Snapshot serialization/writes require actual focus, including during initial preparation. */
       () => this.isKplexIndexingForeground());
     // Replay only genuine early body/destructive events through the existing deferred source owner.
@@ -885,6 +889,7 @@ export default class KplexPlugin extends Plugin {
   /** Release action publications, surface registrations and host resources before index teardown. */
   onunload(): void {
     this.unloading = true;
+    this.publishModal?.close();
     this.initializationComplete = false;
     this.finishInitialization(false);
     this.indexingHistory?.close();
@@ -3298,6 +3303,8 @@ export default class KplexPlugin extends Plugin {
     });
     const publication = this.actionPublisher.sync(this.settings.actionPreferences);
     if (publication.failures.length) { console.error("K-Plex action registration failed", publication.failures); new Notice(this.translator("actions.publicationFailed")); }
+    if (readObsidianPresentationEnvironment().device === "desktop") this.addCommand({id: "kplex-publish-static-site", name: this.translator("publish.command"),
+      callback: () => {void this.openPublishModal();}});
   }
 
   /**
@@ -3324,6 +3331,39 @@ export default class KplexPlugin extends Plugin {
     });
     if (changed && !this.unloading) this.index.notifyPresentation();
     return changed;
+  }
+
+  /** Instantiate publication owners only for the author's explicit desktop command. */
+  private async openPublishModal(): Promise<void> {
+    if (this.unloading || this.openingPublish || this.publishModal) return;
+    this.openingPublish = true;
+    try {
+      const {PublishModal} = await import("./adapters/obsidian/PublishModal");
+      if (this.unloading) return;
+      const modal = new PublishModal(this.app, {translate: this.translator, version: this.manifest.version, index: this.index,
+        revision: () => this.getIndexSourceRevision(), settings: () => this.settings,
+        saveProfiles: (opening, next, current) => this.savePublicationProfiles(opening, next, current),
+        indexActivity: () => {if (!this.unloading) this.refreshIndexActivity(true);},
+        closed: () => {if (this.publishModal === modal) this.publishModal = null;}});
+      this.publishModal = modal;
+      modal.open();
+    } catch {this.publishModal = null;if (!this.unloading) new Notice(this.translator("publish.failed"));}
+    finally {this.openingPublish = false;}
+  }
+
+  /** Store only the private profile compartment through the existing settings reconciliation queue. */
+  private async savePublicationProfiles(opening: unknown, next: PublicationProfiles, current: () => boolean): Promise<boolean> {
+    const expected = JSON.stringify(opening);
+    let committed = false;
+    await this.enqueueSettingsWrite(async () => {
+      const source = this.settingsForWrite();
+      if (this.unloading || !current() || JSON.stringify(source.publishProfiles) !== expected) return;
+      const draft = {...source, publishProfiles: next};
+      await this.writeSettingsSnapshot(this.settingsSnapshotForPersistence(source.actionPreferencesFuture ?? source.actionPreferences, draft));
+      if (!this.unloading && JSON.stringify(this.settings.publishProfiles) === expected) this.settings.publishProfiles = next;
+      committed = true;
+    });
+    return committed;
   }
 
   /** Save an explicit common-property draft under its opening identity, without preparing sources.

@@ -403,7 +403,9 @@ const cadenceMs=Number(process.env.KPLEX_WEB_BENCH_CADENCE_MS??0);
 if(!Number.isInteger(cadenceMs)||cadenceMs<0||cadenceMs>150)throw Error('Set input cadence to 0–150 ms');
 const extended=process.env.KPLEX_WEB_BENCH_EXTENDED==='true';
 if(extended&&(density!==72||vaultName!=='kplex-test-small'))throw Error('Extended scroll timing requires the dense Small fixture');
-const centers=vaultName==='kplex-test'?['00 Start Here/K-Plex Help.md','00 Start Here/First 5 minutes.md']:undefined;
+const useExistingCenters = vaultName === 'kplex-test' || process.env.KPLEX_WEB_BENCH_EXISTING_CENTERS === 'true';
+if (extended && useExistingCenters) throw Error('Extended timing requires the dense synthetic fixture');
+const centers = useExistingCenters ? ['00 Start Here/K-Plex Help.md', '00 Start Here/First 5 minutes.md'] : undefined;
 const inputs = {vaultName,density,samples,cadenceMs,extended,centers,mode:process.env.KPLEX_WEB_BENCH_MODE,frameAligned:process.env.KPLEX_WEB_BENCH_FRAME_ALIGNED==='true',reportDirectory:process.env.KPLEX_HOST_REPORT_DIR,
   originalData:readFileSync(join(target.pluginDir,'data.json'),'utf8')};
 await runControlledProbe('web-runtime-performance',measureCompass,`Object.assign(c,${JSON.stringify(inputs)});`,

@@ -231,6 +231,7 @@ test("commands are registered once with canonical IDs and unchanged availability
       removeCommand() { throw new Error("Initialization must not remove commands"); },
       translator: (key) => key,
       activateView: surface => {openSurfaces.push(surface);activations.push("open");},
+      openPublishModal: () => activations.push("publish"),
       createPlexTab: () => activations.push("new-tab"),
       rebuildIndex: (force) => activations.push(["rebuild", force]),
       activateViewInPopout: () => activations.push("popout"),
@@ -250,9 +251,10 @@ test("commands are registered once with canonical IDs and unchanged availability
     registerPluginCommands(plugin, device);
     assert.equal(new Set(commands.map((command) => command.id)).size, commands.length);
     assert(commands.every((command) => command.id.startsWith("kplex-")));
-    assert.equal(commands.length, 38, "Preserved commands, exports and the new note-type review command must publish");
+    const expectedCommands = device === "desktop" ? 39 : 38;
+    assert.equal(commands.length, expectedCommands);
     plugin.actionPublisher.sync(plugin.settings.actionPreferences);
-    assert.equal(commands.length, 38, "Repeated reconciliation must not duplicate stable IDs");
+    assert.equal(commands.length, expectedCommands, "Repeated reconciliation must not duplicate stable IDs");
     assert.equal(commands.filter(command => typeof command.editorCheckCallback === "function").length, 9);
     assert(commands.every(command => command.hotkeys === undefined), "Local defaults must not become global host hotkeys");
     const byId = (id) => {
@@ -260,6 +262,11 @@ test("commands are registered once with canonical IDs and unchanged availability
       assert.equal(matches.length, 1, `${id} must have exactly one registration`);
       return matches[0];
     };
+    const publish = commands.find(command => command.id === "kplex-publish-static-site");
+    if (device === "desktop") {
+      publish.callback();
+      assert.deepEqual(activations.splice(0), ["publish"]);
+    } else assert.equal(publish, undefined);
     const open = byId("kplex-start");
     assert.equal(open.checkCallback(true), true);
     assert.deepEqual(activations, [], "Availability checks must not execute the action");
