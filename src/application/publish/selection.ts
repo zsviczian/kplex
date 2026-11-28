@@ -194,6 +194,12 @@ function inFolder(path: string, folder: string, recursive: boolean): boolean {
   return recursive ? parent.startsWith(prefix) : parent === prefix;
 }
 
+/** Structural exclusions also apply to dependent media, independently of its explicit approval. */
+export function publicationMediaAllowed(profile: PublishProfile, path: string): boolean {
+  return !profile.excludePaths.includes(path) && !profile.exclude.some(rule => rule.kind === "note" ? rule.path === path
+    : rule.kind === "folder" && inFolder(path, rule.path, rule.recursive));
+}
+
 /** Resolve selection and UUID proposals from one complete inventory without reading note bodies. */
 export function reviewPublishSelection(profile: PublishProfile, inventory: PublishSelectionInventory, createId: () => string): PublishSelection {
   const result = {profile, selectedPaths: [] as string[], identities: [] as PublishIdentity[], changes: [] as PublishUuidChange[], issues: [] as PublishSelectionIssue[]};

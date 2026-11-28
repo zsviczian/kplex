@@ -168,25 +168,25 @@ function svgAttributes(input: Element, output: Element, scope: ReadonlyMap<strin
   }
 }
 
-/** Read the fragment as inert XML and append only freshly created allowlisted nodes. */
-export function sanitizePublicationContent(raw: string, document: Document, policy: PublicationContentPolicy): DocumentFragment {
-  if (raw.length > PUBLICATION_CONTENT_MAX_CHARS || /<!\s*(?:doctype|entity)|<\?[^>]*\?>/i.test(raw)) throw new Error("Invalid publication content");
+/** Reconstruct only accepted nodes without importing any attributes or browser-owned effects. */
+function reconstruct(nodes: readonly Node[], document: Document, policy: PublicationContentPolicy): DocumentFragment {
   if (policy.idPrefix && !aliases.test(policy.idPrefix)) throw new Error("Invalid publication fragment scope");
   const owner = document.defaultView;
   if (!owner) throw new Error("Publication document unavailable");
-  const parsed = new owner.DOMParser().parseFromString(`<article xmlns="${HTML}">${raw}</article>`, "application/xhtml+xml");
-  if (parsed.documentElement.namespaceURI !== HTML || parsed.querySelector("parsererror")) throw new Error("Invalid publication markup");
   // The publisher serializes in an XML document with no browsing context. Images there cannot
   // resolve against Obsidian's own document. The reader controls deferred same-site media itself.
-  const outputDocument = policy.siteURL ? document : parsed;
+  const outputDocument = policy.siteURL ? document : document.implementation.createDocument(null, null);
   const result = outputDocument.adoptNode(new owner.DocumentFragment());
-  let count = 0, diagram = 0;
+  let count = 0, diagram = 0, textChars = 0;
   const allowedSvgIds = new Set<string>();
   /** Bound nested tags and total copied nodes independently of the input byte limit. */
   const append = (node: Node, parent: DocumentFragment | Element, depth: number, scope: ReadonlyMap<string, string> | null): void => {
     if (++count > 100_000 || depth > 64) throw new Error("Publication content too complex");
     if (node.nodeType === 3 || node.nodeType === 4) {
-      parent.appendChild(outputDocument.createTextNode(node.nodeValue ?? ""));
+      const text = node.nodeValue ?? "";
+      textChars += text.length;
+      if (textChars > PUBLICATION_CONTENT_MAX_CHARS) throw new Error("Publication content too large");
+      parent.appendChild(outputDocument.createTextNode(text));
       return;
     }
     if (node.nodeType !== 1) return;
@@ -208,6 +208,22 @@ export function sanitizePublicationContent(raw: string, document: Document, poli
       for (const child of Array.from(element.childNodes)) append(child, output, depth + 1, null);
     }
   };
-  for (const child of Array.from(parsed.documentElement.childNodes)) append(child, result, 0, null);
+  for (const child of nodes) append(child, result, 0, null);
   return result;
+}
+
+/** Read publication XHTML as inert XML and give the reader only a fresh allowlisted DOM. */
+export function sanitizePublicationContent(raw: string, document: Document, policy: PublicationContentPolicy): DocumentFragment {
+  if (raw.length > PUBLICATION_CONTENT_MAX_CHARS || /<!\s*(?:doctype|entity)|<\?[^>]*\?>/i.test(raw)) throw new Error("Invalid publication content");
+  const owner = document.defaultView;
+  if (!owner) throw new Error("Publication document unavailable");
+  const parsed = new owner.DOMParser().parseFromString(`<article xmlns="${HTML}">${raw}</article>`, "application/xhtml+xml");
+  if (parsed.documentElement.namespaceURI !== HTML || parsed.querySelector("parsererror")) throw new Error("Invalid publication markup");
+  return reconstruct(Array.from(parsed.documentElement.childNodes), document, policy);
+}
+
+/** Copy a native vector DOM before serialization, stripping companion metadata and namespace attrs. */
+export function sanitizePublicationVector(svg: SVGSVGElement, document: Document, policy: PublicationContentPolicy): DocumentFragment {
+  if (svg.namespaceURI !== SVG || svg.localName !== "svg") throw new Error("Invalid publication SVG");
+  return reconstruct([svg], document, policy);
 }

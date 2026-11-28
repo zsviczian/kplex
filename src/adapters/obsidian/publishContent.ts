@@ -3,9 +3,9 @@ import type {MarkdownIt, StateInline, Token} from "markdown-it";
 import {getFrontMatterInfo, parseLinktext, type App, type CachedMetadata, type TFile} from "obsidian";
 import {parseBodyMetadataCore} from "../../core/parser/metadata";
 import {isPublicationId, isPublicationPath} from "../../core/plex/publication";
-import {PUBLICATION_CONTENT_MAX_CHARS, publicationExternalLink, publicationFragment, publicationNodeLink, sanitizePublicationContent} from "../../ui/features/publicationContent";
+import {PUBLICATION_CONTENT_MAX_CHARS, publicationExternalLink, publicationFragment, publicationNodeLink, sanitizePublicationContent, sanitizePublicationVector} from "../../ui/features/publicationContent";
 import {markdownBuffersMatchSaved} from "./embeddedMarkdownLeaf";
-import {renderPublicationDrawing, reviewPublicationDrawing} from "./publishDrawing";
+import {PublicationDrawingError, renderPublicationDrawing, reviewPublicationDrawing, type PublicationDrawingDiagnostic} from "./publishDrawing";
 
 const maximumSource = 2 * 1024 * 1024;
 const maximumMedia = 32 * 1024 * 1024;
@@ -16,7 +16,7 @@ const raster = /^(?:png|jpg|jpeg|gif|webp|avif)$/;
 const audio = /^(?:mp3|ogg|wav)$/;
 const video = /^(?:mp4|webm)$/;
 type WarningCode = "excluded" | "unresolved" | "remote-media" | "unsupported" | "cycle" | "fragment" | "drawing-unsupported" | "asset-metadata";
-export type PublicationContentWarning = Readonly<{source: string; target?: string; code: WarningCode; blocking?: boolean}>;
+export type PublicationContentWarning = Readonly<{source: string; target?: string; code: WarningCode; blocking?: boolean; drawing?: PublicationDrawingDiagnostic}>;
 export type PublicationAssetCandidate = Readonly<{path: string; bytes: number; retainsMetadata: boolean}>;
 export type CapturedPublicationContent = Readonly<{
   notes: ReadonlyMap<string, {html: string; text: string}>;
@@ -33,7 +33,8 @@ type ReadNote = Readonly<{file: TFile; source: string; body: string; offset: num
 
 export class PublicationContentError extends Error {
   /** Keep diagnostics local to the author and leave public copy to the caller. */
-  constructor(readonly reason: "stale" | "limit" | "drawing-unsupported" | "media-invalid" | "dirty", readonly path?: string) { super(reason); }
+  constructor(readonly reason: "stale" | "limit" | "drawing-unsupported" | "media-invalid" | "dirty", readonly path?: string,
+    readonly drawing?: PublicationDrawingDiagnostic) { super(reason); }
 }
 
 /** Mark Obsidian references in the ordinary Markdown inline stream, respecting fenced/code syntax. */
@@ -178,11 +179,11 @@ class ContentCapture {
   }
 
   /** Deduplicate only local author-facing diagnostics. */
-  warn(source: string, code: WarningCode, target?: string, blocking?: boolean): void {
+  warn(source: string, code: WarningCode, target?: string, blocking?: boolean, drawing?: PublicationDrawingDiagnostic): void {
     const key = JSON.stringify([source, code, target]);
     if (this.warningKeys.has(key)) return;
     this.warningKeys.add(key);
-    this.warnings.push({source, target, code, blocking});
+    this.warnings.push({source, target, code, blocking, drawing});
   }
 
   /** Resolve written targets through the native context and current exact Vault identities. */
@@ -359,7 +360,8 @@ export async function inspectPublicationContent(input: Input): Promise<{assets: 
     const pause = work.checkpoint(path, 16);
     if (pause) await pause;
     if (note.drawing) {
-      if (!reviewPublicationDrawing(input.app, note.file, note.source)) work.warn(path, "drawing-unsupported", undefined, true);
+      const drawing = reviewPublicationDrawing(input.app, note.file, note.source);
+      if (drawing) work.warn(path, "drawing-unsupported", undefined, true, drawing);
       continue;
     }
     for (const reference of work.referencesIn(note.body)) {
@@ -425,7 +427,7 @@ export async function capturePublicationContent(input: CaptureInput): Promise<Ca
       const svg = await renderPublicationDrawing({app: input.app, owner, file: note.file, source: note.source, notes: input.notes,
         current: () => work.current(path)});
       work.current(path);
-      const clean = sanitizePublicationContent(svg, input.ownerDocument, {nodeIds, assetPaths: new Set()});
+      const clean = sanitizePublicationVector(svg, input.ownerDocument, {nodeIds, assetPaths: new Set()});
       const root = clean.firstElementChild;
       if (!root || root.localName !== "svg") throw new PublicationContentError("drawing-unsupported", path);
       // A standalone asset lives one directory below index.html. The inline copy stays rooted at
@@ -441,8 +443,9 @@ export async function capturePublicationContent(input: CaptureInput): Promise<Ca
     } catch (error) {
       work.current(path);
       if (error instanceof PublicationContentError && error.reason !== "drawing-unsupported") throw error;
-      if (!input.allowUnsupportedDrawings) throw new PublicationContentError("drawing-unsupported", path);
-      work.warn(path, "drawing-unsupported", undefined, true);
+      const drawing: PublicationDrawingDiagnostic = error instanceof PublicationDrawingError ? error.diagnostic : {phase: "export", stage: "sanitization"};
+      if (!input.allowUnsupportedDrawings) throw new PublicationContentError("drawing-unsupported", path, drawing);
+      work.warn(path, "drawing-unsupported", undefined, true, drawing);
       drawingCache.set(path, "");
       return "";
     }

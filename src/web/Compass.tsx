@@ -170,7 +170,6 @@ export function Compass({publication, markerPrefix, resources, browser}: {public
   }
 
   const body = publication.body(attention);
-  const arrow = plexMarker("arrow", markerPrefix);
   const zoomControls = <>
     <button type="button" onClick={() => zoom(.8)} aria-label={compassControls.zoomOut}>−</button>
     <button type="button" onClick={() => zoom(1.25)} aria-label={compassControls.zoomIn}>+</button>
@@ -184,8 +183,9 @@ export function Compass({publication, markerPrefix, resources, browser}: {public
       <div className="kplex-camera" ref={group}>
         <svg className="kplex-links" width="3200" height="2400" viewBox="-1600 -1200 3200 2400" aria-hidden="true">
           <PlexArrowMarkers prefix={markerPrefix} />
-          {scene.edges.map(({id, source, target, route, label, stroke, strokeWidth, arrowStart, arrowEnd}) => <g key={id} className="kplex-edge" data-publication-source={source} data-publication-target={target}>
-            <PlexConnectorStroke d={route.d} stroke={stroke ?? "var(--kplex-publication-link)"} strokeWidth={strokeWidth ?? 1.2} markerStart={arrowStart ? arrow : undefined} markerEnd={arrowEnd ? arrow : undefined} />
+          {scene.edges.map(({id, source, target, route, label, stroke, strokeWidth, startHead, endHead}) => <g key={id} className="kplex-edge" data-publication-source={source} data-publication-target={target}>
+            <PlexConnectorStroke d={route.d} stroke={stroke ?? "var(--kplex-publication-link)"} strokeWidth={strokeWidth ?? 1.2}
+              markerStart={plexMarker(startHead, markerPrefix)} markerEnd={plexMarker(endHead, markerPrefix)} />
             <PlexConnectorLabel label={label} midpoint={route.midpoint} color="var(--text-muted)" background="var(--background-primary)" />
           </g>)}
         </svg>

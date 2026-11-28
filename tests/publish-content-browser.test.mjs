@@ -126,14 +126,16 @@ test("drawing export rewrites public links and restores the shared hook and isol
       const title='Drawing.excalidraw.md',target='Other.md',privateName='PRIVATE_DRAWING_DESTINATION.md';
       const bases=new Map([title,target,privateName].map(path=>[path,{path,basename:path.slice(0,-3),extension:'md',stat:{size:10,mtime:1}}]));
       const drawing=bases.get(title), selected=bases.get(target), excluded=bases.get(privateName);
-      const markdown='---\\nexcalidraw-plugin: parsed\\n---\\n\\n## Drawing\\n\\x60\\x60\\x60json\\n'+JSON.stringify({elements:[{type:'rectangle'}],files:{}})+'\\n\\x60\\x60\\x60\\n';
+      const markdown='---\\nexcalidraw-plugin: parsed\\n---\\n\\n## Drawing\\n\\x60\\x60\\x60compressed-json\\nQU\\n\\nJD\\n\\x60\\x60\\x60\\n';
+      const decompress=input=>{if(input!=='QUJD')throw Error('Public companion decoder requires clean base64');return JSON.stringify({elements:[{type:'rectangle'}],files:{}})};
       const base=()=>'/existing-hook'; let exportCount=0,cleaned=0,released=0,foreignReads=0;
-      const registry={verifyMinimumPluginVersion:minimum=>minimum==='2.29.0',onUpdateElementLinkForExportHook:base,getAPI:()=>({
-        destroy(){released++},decompressFromBase64(){throw Error('Unexpected compression')},getEmbeddedFilesLoader(){return {terminate:false,loadSceneFiles:async()=>{foreignReads++},emptyPDFDocsMap(){cleaned++}}},
+      const registry={verifyMinimumPluginVersion:minimum=>minimum==='2.29.0',decompressFromBase64:decompress,onUpdateElementLinkForExportHook:base,getAPI:()=>({
+        destroy(){released++},decompressFromBase64:decompress,getEmbeddedFilesLoader(){return {terminate:false,loadSceneFiles:async()=>{foreignReads++},emptyPDFDocsMap(){cleaned++}}},
         async createSVG(path,fonts,settings,loader,theme,padding,rewrite,internal){
           if(path!==title||fonts||!rewrite||!internal)throw Error('Unsafe drawing invocation');
           exportCount++;await loader.loadSceneFiles({});
           const svg=document.createElementNS('http://www.w3.org/2000/svg','svg');
+          svg.setAttribute('xmlns',svg.namespaceURI);
           for(const file of [selected,excluded]){
             const anchor=document.createElementNS(svg.namespaceURI,'a');
             anchor.setAttribute('href',registry.onUpdateElementLinkForExportHook({hostFile:drawing,linkedFile:file,originalLink:'[['+file.path+'#Heading]]',obsidianLink:'obsidian://open?file='+file.path}));
@@ -145,8 +147,13 @@ test("drawing export rewrites public links and restores the shared hook and isol
       window.ExcalidrawAutomate=registry;
       const app={vault:{getFileByPath:path=>bases.get(path)??null,read:async file=>file===drawing?markdown:'# Heading'},workspace:{iterateAllLeaves(){}},
         metadataCache:{getFileCache:file=>file===drawing?{frontmatter:{'excalidraw-plugin':'parsed'}}:{},getFirstLinkpathDest:path=>bases.get(path)??null}};
-      const next=await contentTest.capturePublicationContent({app,ownerDocument:document,notes:new Map([[title,a],[target,b]]),approvedMedia:new Set(),current:()=>true});
-      return {html:next.notes.get(a).html,asset:new TextDecoder().decode(next.assets[0].bytes),restored:registry.onUpdateElementLinkForExportHook===base,exportCount,cleaned,released,foreignReads};
+      const request={app,ownerDocument:document,notes:new Map([[title,a],[target,b]]),approvedMedia:new Set(),current:()=>true};
+      const preview=await contentTest.inspectPublicationContent(request);
+      const next=await contentTest.capturePublicationContent(request);
+      registry.decompressFromBase64=()=>'{';
+      const invalid=await contentTest.inspectPublicationContent(request);
+      return {html:next.notes.get(a).html,asset:new TextDecoder().decode(next.assets[0].bytes),restored:registry.onUpdateElementLinkForExportHook===base,exportCount,cleaned,released,foreignReads,
+        preview:preview.warnings,diagnostic:invalid.warnings[0]?.drawing};
     })()`);
     assert.match(result.html, /\?node=00000000-0000-4000-8000-000000000002#h-heading/);
     assert.match(result.asset, /href="\.\.\/\?node=00000000-0000-4000-8000-000000000002#h-heading"/);
@@ -157,5 +164,7 @@ test("drawing export rewrites public links and restores the shared hook and isol
     assert.equal(result.released, 1);
     assert.equal(result.exportCount, 1);
     assert.equal(result.foreignReads, 0);
+    assert.deepEqual(result.preview, []);
+    assert.deepEqual(result.diagnostic, {phase: "review", stage: "scene"});
   } finally { await host.cleanup(); }
 });

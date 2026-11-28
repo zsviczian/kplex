@@ -23,6 +23,13 @@ export async function savePng(document: Document, filename: string, blob: Blob, 
   if (artifactFilename(filename, "png") !== filename || !current() || !canSavePng(document, blob)) throw new Error("Native PNG export unavailable");
   const owner = document.defaultView;if (!owner) throw new Error("Native PNG document retired");
   if (!Platform.isDesktopApp) {await owner.navigator.share({files: [new owner.File([blob], filename, {type: "image/png"})]});return;}
+  downloadNativeArtifact(document, filename, blob);
+}
+
+/** Use the same native download handoff for prepared desktop artifacts. */
+export function downloadNativeArtifact(document: Document, filename: string, blob: Blob): void {
+  const owner = document.defaultView;
+  if (!owner || owner.closed) throw new Error("Native download document retired");
   const url = owner.URL.createObjectURL(blob), fragment = document.adoptNode(createFragment());
   try {fragment.createEl("a", {attr: {href: url, download: filename}}).click();}
   finally {owner.URL.revokeObjectURL(url);fragment.replaceChildren();}

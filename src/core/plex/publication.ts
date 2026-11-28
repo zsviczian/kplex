@@ -13,15 +13,18 @@ export const publicationRoles: readonly RelationshipRole[] = ["parent", "child",
 const kinds = ["document", "drawing", "attachment", "folder", "tag", "url"] as const;
 const fileName = /^(?:index\.html|\.nojekyll|data\/search\.json|theme\/publication\.css|notes\/[a-f0-9-]{36}\.html|assets\/[a-f0-9]{64}\.(?:png|jpe?g|gif|webp|avif|svg|mp3|ogg|wav|mp4|webm|pdf)|runtime\/(?:compass\.css|(?:compass|demo|chunk(?:-[a-zA-Z0-9]+)?)\.js(?:\.LEGAL\.txt)?)|LICENSES\/(?:K-Plex|React|ReactDOM|Scheduler|Source)\.txt)$/;
 const hash = /^[a-f0-9]{64}$/;
+const arrowHeads = ["none", "arrow", "triangle", "bar", "dot"] as const;
 const release = /^(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)$/;
 const uuid = /^[a-f0-9]{8}-[a-f0-9]{4}-[1-8][a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/;
 
-export type PublishedStyle = Readonly<{fill?: string; stroke?: string; color?: string; gate?: string; fontSize?: number}>;
-export type PublishedLinkStyle = Readonly<{stroke?: string; width?: number; arrowStart?: boolean; arrowEnd?: boolean}>;
+export type PublishedStyle = Readonly<{fill?: string; stroke?: string; color?: string; gate?: string; fontSize?: number; gateRadius?: number}>;
+export type PublishedLinkStyle = Readonly<{stroke?: string; width?: number; arrowStart?: boolean; arrowEnd?: boolean;
+  startHead?: typeof arrowHeads[number]; endHead?: typeof arrowHeads[number]}>;
 export type PublishedValue = string | boolean | number | readonly string[];
 export type PublishedNode = Readonly<{
   id: string; title: string; kind: typeof kinds[number]; aliases?: readonly string[];
   properties?: Readonly<Record<string, PublishedValue>>; style?: PublishedStyle; asset?: string;
+  roleStyles?: Readonly<{center?: PublishedStyle; sibling?: PublishedStyle; inferred?: PublishedStyle}>;
 }>;
 export type PublishedRelation = Readonly<{
   source: string; target: string; role: RelationshipRole; relationType: RelationType; direction: LinkDirection | null; definition?: string; style?: PublishedLinkStyle;
@@ -78,19 +81,28 @@ function style(raw: unknown): PublishedStyle {
     if (typeof value !== "string" || !/^#[0-9a-f]{6}(?:[0-9a-f]{2})?$/i.test(value)) throw new Error("Invalid publication color");
     safe[key] = value;
   }
-  const {fontSize} = values;
-  if (fontSize === undefined) return safe;
-  if (!numeric(fontSize, 6, 96)) throw new Error("Invalid publication font size");
-  return {...safe, fontSize};
+  const {fontSize, gateRadius} = values;
+  if (fontSize !== undefined && !numeric(fontSize, 6, 96)) throw new Error("Invalid publication font size");
+  if (gateRadius !== undefined && !numeric(gateRadius, 0, 40)) throw new Error("Invalid publication gate radius");
+  return {...safe, fontSize, gateRadius};
+}
+
+/** Each supported card context receives the same independently validated paint fields. */
+function roleStyles(raw: unknown): PublishedNode["roleStyles"] {
+  const {center, sibling, inferred} = record(raw);
+  return {center: center === undefined ? undefined : style(center), sibling: sibling === undefined ? undefined : style(sibling),
+    inferred: inferred === undefined ? undefined : style(inferred)};
 }
 
 /** Admit a connector's bounded paint and explicit arrow overrides. */
 function linkStyle(raw: unknown): PublishedLinkStyle {
-  const {stroke, width, arrowStart, arrowEnd} = record(raw);
+  const {stroke, width, arrowStart, arrowEnd, startHead, endHead} = record(raw);
   if ((stroke !== undefined && (typeof stroke !== "string" || !/^#[0-9a-f]{6}(?:[0-9a-f]{2})?$/i.test(stroke)))
     || (width !== undefined && !numeric(width, 0.25, 20)) || (arrowStart !== undefined && typeof arrowStart !== "boolean")
     || (arrowEnd !== undefined && typeof arrowEnd !== "boolean")) throw new Error("Invalid publication link style");
-  return {stroke, width, arrowStart, arrowEnd};
+  const start = arrowHeads.find(value => value === startHead), end = arrowHeads.find(value => value === endHead);
+  if (startHead !== undefined && !start || endHead !== undefined && !end) throw new Error("Invalid publication arrow type");
+  return {stroke, width, arrowStart, arrowEnd, startHead: start, endHead: end};
 }
 
 /** Accept only bounded display preferences understood by the shared Compass layout. */
@@ -180,6 +192,7 @@ export function readPublicationManifest(raw: unknown): PublicationManifest {
     if (aliases !== undefined && (!Array.isArray(aliases) || aliases.length > 64 || !aliases.every(item => text(item, 512)))) throw new Error("Invalid publication aliases");
     return {id, title, kind, ...(aliases === undefined ? {} : {aliases: [...aliases] as string[]}),
       ...(asset === undefined ? {} : {asset}), ...(row.style === undefined ? {} : {style: style(row.style)}),
+      ...(row.roleStyles === undefined ? {} : {roleStyles: roleStyles(row.roleStyles)}),
       ...(row.properties === undefined ? {} : {properties: properties(row.properties)})};
   });
   if (!ids.has(input.entry) || [...files].some(path => path.startsWith("notes/") && !ownedNotes.has(path))

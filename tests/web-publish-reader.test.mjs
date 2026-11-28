@@ -42,12 +42,17 @@ async function publicationSite() {
   const theme = "@media (prefers-color-scheme: light) { .kplex-publication { --background-primary: #faf1f3; } }\n@media (prefers-color-scheme: dark) { .kplex-publication { --background-primary: #21131e; } }\n";
   const graph = {id: publicationId, title: "Published reference guide", entry: home,
     appearance: {maximum: 1, flip: true, typography: {wrapNodeLabels: true}},
-    nodes: [{id: home, title: "Start", kind: "document", style: {fill: "#dec9ed", color: "#37243e"}},
-      {id: map, title: "Atlas", kind: "drawing", aliases: ["Cartography"]}, {id: other, title: "Atlas", kind: "document"}],
+    nodes: [{id: home, title: "Start", kind: "document", style: {fill: "#abd9eb", color: "#37243e", fontSize: 22, gateRadius: 8},
+      roleStyles: {center: {fill: "#dec9ed", gateRadius: 12}}},
+      {id: map, title: "Atlas", kind: "drawing", aliases: ["Cartography"], style: {fill: "#cee3d5", gateRadius: 9}},
+      {id: other, title: "Atlas", kind: "document", style: {fill: "#eee9d2", color: "#241732"},
+        roleStyles: {inferred: {fill: "#f3d7ad", color: "#724d28", gateRadius: 8}, sibling: {fill: "#d2d9f2", gateRadius: 10}}}],
     relations: [
-      {source: home, target: map, role: "left", relationType: 1, direction: 1, definition: "Shown", style: {stroke: "#aa4488", width: 2.4, arrowEnd: false}},
+      {source: home, target: map, role: "left", relationType: 1, direction: 1, definition: "Shown",
+        style: {stroke: "#aa4488", width: 2.4, startHead: "triangle", endHead: "none"}},
       {source: home, target: other, role: "left", relationType: 2, direction: 3},
-      {source: map, target: home, role: "right", relationType: 1, direction: 2, definition: "Shown"},
+      {source: home, target: other, role: "right", relationType: 2, direction: 3, style: {stroke: "#5522ee", arrowEnd: false}},
+      {source: map, target: home, role: "right", relationType: 1, direction: 2, definition: "Shown", style: {endHead: "bar"}},
     ],
   };
   const exported = await assemblePublicationSite(graph, [...notes].map(([path, bytes]) => ({path, bytes})), pack, {
@@ -90,6 +95,13 @@ async function waitFor(host, expression, milliseconds = 7000) {
 const find = css => `document.querySelector(${JSON.stringify(css)})`;
 const center = (id, root = selectors.canvas) => `${find(`${root} [data-publication-center]`)}?.dataset.publicationNode === ${JSON.stringify(id)}`;
 const bodyContains = text => `${find(selectors.content)}?.textContent.includes(${JSON.stringify(text)})`;
+
+async function cardAppearance(host, id) {
+  return host.evaluate(`(() => {
+    const card = ${find(`[data-publication-node="${id}"]`)}, style = getComputedStyle(card);
+    return {fill: style.backgroundColor, color: style.color, gate: Number(parseFloat(style.getPropertyValue('--kplex-gate-size')).toFixed(3))};
+  })()`);
+}
 
 async function press(host, key, code, windowsVirtualKeyCode) {
   for (const type of ["keyDown", "keyUp"]) await host.command("Input.dispatchKeyEvent", {type, key, code, windowsVirtualKeyCode,
@@ -180,8 +192,17 @@ test("a pinned production reader navigates, searches and renders only admitted s
     assert.equal(await host.evaluate(`${find('a[onclick]')} === null`), true);
     assert.equal(site.requests.includes("data/search.json"), false);
     await waitFor(host, `getComputedStyle(${find(".kplex-publication")}).backgroundColor === 'rgb(250, 241, 243)'`);
-    assert.equal(await host.evaluate(`getComputedStyle(${find("[data-publication-center]")}).backgroundColor`), "rgb(222, 201, 237)");
-    assert.equal(await host.evaluate(`${find('.kplex-edge-visible[stroke="#aa4488"]')}?.getAttribute('stroke-width')`), "2.4");
+    assert.deepEqual(await cardAppearance(host, home), {fill: "rgb(222, 201, 237)", color: "rgb(55, 36, 62)", gate: 12.6});
+    assert.equal(await host.evaluate(`getComputedStyle(${find("[data-publication-center]")}).fontSize`), "15.84px");
+    assert.equal((await cardAppearance(host, map)).gate, 9.45);
+    assert.deepEqual(await cardAppearance(host, other), {fill: "rgb(243, 215, 173)", color: "rgb(114, 77, 40)", gate: 8.4});
+    const styledEdge = find('.kplex-edge-visible[stroke="#aa4488"]');
+    assert.equal(await host.evaluate(`${styledEdge}?.getAttribute('stroke-width')`), "2.4");
+    assert.match(await host.evaluate(`${styledEdge}?.getAttribute('marker-start')`), /-triangle\)$/);
+    assert.equal(await host.evaluate(`${styledEdge}?.getAttribute('marker-end')`), null);
+    const compatibleEdge = find('.kplex-edge-visible[stroke="#5522ee"]');
+    assert.match(await host.evaluate(`${compatibleEdge}?.getAttribute('marker-start')`), /-arrow\)$/);
+    assert.equal(await host.evaluate(`${compatibleEdge}?.getAttribute('marker-end')`), null);
     assert.match(await host.evaluate(`${find(".kplex-publication-status")}.textContent`), /display limit/);
     await capture(host, "wide-light.png");
 
@@ -189,6 +210,9 @@ test("a pinned production reader navigates, searches and renders only admitted s
     await press(host, "Enter", "Enter", 13);
     await waitFor(host, `${center(map)} && ${bodyContains("shared topology")} && location.hash === '#h-projection'`);
     assert.equal(await host.evaluate("document.activeElement.textContent"), "Atlas");
+    assert.deepEqual(await cardAppearance(host, home), {fill: "rgb(171, 217, 235)", color: "rgb(55, 36, 62)", gate: 8.4});
+    assert.deepEqual(await cardAppearance(host, other), {fill: "rgb(210, 217, 242)", color: "rgb(114, 77, 40)", gate: 8.925});
+    assert.match(await host.evaluate(`${find('.kplex-edge[data-publication-source="attention"] .kplex-edge-visible')}?.getAttribute('marker-end')`), /-bar\)$/);
     await host.evaluate("history.back()");
     await waitFor(host, `${center(home)} && ${bodyContains("Introduction")}`);
     await host.evaluate("history.forward()");

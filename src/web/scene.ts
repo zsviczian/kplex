@@ -1,5 +1,5 @@
 import type {NodeId} from "../core/graph/model";
-import {LinkDirection} from "../core/graph/relations";
+import {LinkDirection, RelationType} from "../core/graph/relations";
 import {connectorGatePoint, edgeGeometry} from "../core/plex/connectorGeometry";
 import {gateDiameter, nodeLabelFontSize, nodeSize, siblingNodeSize} from "../core/plex/nodeGeometry";
 import {classicNodePorts, classicViewDefinition} from "../core/plex/views/classic/definition";
@@ -33,12 +33,18 @@ export function publicationScene(publication: Publication, attention: NodeId) {
     const center = occurrence.id === projection.entry;
     const sibling = occurrence.role === "sibling";
     const scale = sibling ? siblingScale(preferences) : 1;
-    const style = publication.published.get(node.id)?.style;
-    const styleFont = style?.fontSize ?? (center ? 30 : sibling ? 15 : 20);
+    const published = publication.published.get(node.id);
+    const roles = published?.roleStyles;
+    // Native style applies the relation layer before the occurrence layer for inferred siblings.
+    const inferred = occurrence.relation?.relationType === RelationType.INFERRED ? roles?.inferred : undefined;
+    const role = center ? roles?.center : sibling ? roles?.sibling : undefined;
+    const style = {...published?.style, ...inferred, ...role};
+    const styleFont = role?.fontSize ?? inferred?.fontSize ?? published?.style?.fontSize ?? (center ? 30 : sibling ? 15 : 20);
+    const gateRadius = role?.gateRadius ?? inferred?.gateRadius ?? published?.style?.gateRadius ?? 5;
     const fontSize = nodeLabelFontSize(styleFont * scale, center, typography.baseFontSize);
     const base = nodeSize(node.name, styleFont, typography, center, node.maxLabelLength);
     const size = siblingNodeSize(base, scale, styleFont * scale, typography);
-    return {occurrence, node, center, fontSize, style, gateSize: gateDiameter({gateRadius: 5 * scale}),
+    return {occurrence, node, center, fontSize, style, gateSize: gateDiameter({gateRadius: gateRadius * scale}),
       measurement: {id: occurrence.id, ...size, expandedWidth: size.width, expandedReserve: 0, mini: null, envelope: null}};
   });
   const layout = classicViewDefinition.layout(projection, measured.map(row => row.measurement), preferences, false);
@@ -63,8 +69,8 @@ export function publicationScene(publication: Publication, attention: NodeId) {
     const style = edge.kind === "semantic" ? publication.linkStyle(edge.sourceNode, edge.targetNode, edge.relation.role) : undefined;
     return {id: edge.id, source: edge.source, target: edge.target, route, label,
       stroke: style?.stroke, strokeWidth: style?.width,
-      arrowStart: style?.arrowStart ?? (direction === LinkDirection.FROM || direction === LinkDirection.BOTH),
-      arrowEnd: style?.arrowEnd ?? (direction === LinkDirection.TO || direction === LinkDirection.BOTH)};
+      startHead: style?.startHead ?? ((style?.arrowStart ?? (direction === LinkDirection.FROM || direction === LinkDirection.BOTH)) ? "arrow" : undefined),
+      endHead: style?.endHead ?? ((style?.arrowEnd ?? (direction === LinkDirection.TO || direction === LinkDirection.BOTH)) ? "arrow" : undefined)};
   });
   return {cards, edges, wrap: typography.wrapNodeLabels, truncated: projection.truncated};
 }

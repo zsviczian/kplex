@@ -1,5 +1,5 @@
 /** Filename-only validation shared by native Markdown and PNG artifact handoffs. */
-export function artifactFilename(raw: string, extension: "md" | "png"): string | null {
+export function artifactFilename(raw: string, extension: "md" | "png" | "zip"): string | null {
   const value = raw.trim();
   if (!value || value.length > 200 || value === "." || value === ".." || /[\\/:*?"<>|#[\]]/.test(value)
     || Array.from(value).some(/** Reject native control characters without a scanner-unsafe regex range. */ char => char.charCodeAt(0) < 32)) return null;
@@ -7,7 +7,7 @@ export function artifactFilename(raw: string, extension: "md" | "png"): string |
 }
 
 /** Suggest a safe initial name for a native save dialog; users edit the name in that dialog. */
-export function suggestedArtifactFilename(label: string, extension: "md" | "png"): string {
+export function suggestedArtifactFilename(label: string, extension: "md" | "png" | "zip"): string {
   const stem = Array.from(label).map(/** Native filename separators and controls are presentation whitespace. */ char => char.charCodeAt(0) < 32 || /[\\/:*?"<>|#[\]]/.test(char) ? " " : char).join("").trim().slice(0, 160);
   return artifactFilename(stem, extension) ?? `export.${extension}`;
 }
